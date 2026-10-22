@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-15",
-  "updated": "2026-10-20T14:23:55Z",
+  "updated": "2026-10-22T15:43:52Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b2e7f160-2d77-4cc4-8828-b9cf3e5d931a",
   "moduleState": "partial"
 }
@@ -23,7 +23,7 @@
 
 [工程排期里程碑备忘录](engineering-milestones.md)集中保存版本节点与散点，按讨论结果持续调整。它属于当前规划资料，保留 draft 生命周期；版本号或经过时间不构成完成、失效或归档依据。
 
-[插件平台分阶段交付计划](plugin-platform-roadmap.md)维护扩展核心、文件树／Git／会话管理内置扩展迁移、CPA 与双区域验证、第三方导入和市场分发的依赖顺序及阶段出口，尚未归入版本。S1 可信扩展核心、S2 内置迁移与 S3 CPA 内嵌／双区域验证已交付，并已补齐首次启用下载的本地 CPA 托管、自定义端口及自动更新。S4、S5 待实施；真实供应商额度、OAuth 与跨平台托管仍待核对，功能设计与验收归工作台需求。
+[插件平台分阶段交付计划](plugin-platform-roadmap.md)保留 S1 可信核心、S2 内置迁移、S3 CPA／双区域验证及托管记录。P0 契约、P1 SDK／校验／独立脚手架和命令入口、P2 目录登记／授权／独立离线页面／只读桥／私有 KV／管理调试均已实施。限制 4 worker 的完整 verify 已通过，默认高并发曾有语料超时，S4 仍有专项验收未闭合。后续依[全产品目标设计](../workbench/plugin-platform-design.md)扩展工作台／Island、文件编辑、后台／事件、Agent／提供者和窗口个性化；第三方不能注册终端类型或 CLI／会话适配器。P8 对应 S5，不要求全部官方功能先迁移。计划保留依赖、参考工作量、出口和 AC 对照，版本未指定，后台及分发工期需先试验。真实供应商额度与跨平台托管的验收边界仍归工作台。
 
 蓝图专项的[产品方向](../blueprint/product-direction.md)与[交付计划](../blueprint/evolution-roadmap.md)继续归蓝图维护，本模块引用专项计划而不复制其正文。应用内备忘录和星座里程碑的产品能力归[个人记忆与共享来源](../knowledge/module.md)，与这里的仓库排期资料分别维护。
 

@@ -1,0 +1,456 @@
+// Note: .agents/notes/workbench/plugin-contract-v1.md — local development lifecycle and broker.
+import { randomUUID, createHash } from 'node:crypto'
+import { readFile, mkdir, writeFile, rm, realpath } from 'node:fs/promises'
+import { watch, type FSWatcher } from 'node:fs'
+import { join, resolve, relative, isAbsolute, sep } from 'node:path'
+import { z } from 'zod'
+import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManifest, validatePluginCall,
+  isSensitivePluginPath, type JsonValue, type PluginContext, type PluginStoredValue } from '@janusx/plugin-sdk'
+import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount } from '../../shared/ipc/plugins'
+import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
+import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
+import { PluginStorage } from './storage'
+
+interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
+interface Instance {
+  id: string; plugin: string; view: string; binding: string; token: string; generation: string; url: string
+  root: string | null; scope: string; context: PluginContext; bound: boolean; ready: boolean
+  requests: Map<string, { cancelled: boolean }>; used: Set<string>; times: number[]; timer: ReturnType<typeof setTimeout>
+  subscriptions: Map<string, { kind: 'storage'; keys: string[] } | { kind: 'context' }>
+}
+export interface PluginServiceDeps {
+  directory: string
+  protectedDirectories?: string[]
+  resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
+  changed(): void
+  closed?(instanceId: string): void
+  event(instanceId: string, packet: JsonValue): void
+  openView(pluginId: string, viewId: string): void
+  toast(pluginId: string, message: string, level: string): void
+}
+const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
+  method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
+const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.permissions)).digest('hex')
+const error = (code: ConstructorParameters<typeof PluginError>[0], message: string): never => { throw new PluginError(code, message) }
+
+export class PluginService {
+  private records = new Map<string, RecordData>()
+  private packages = new Map<string, PluginPackage>()
+  private instances = new Map<string, Instance>()
+  private logs: PluginLog[] = []
+  private developmentMode = false
+  private queue = new SerialQueue()
+  private watchers = new Map<string, { watchers: FSWatcher[]; timer?: ReturnType<typeof setTimeout> }>()
+  private toasts = new Map<string, number[]>()
+  private current = { projectId: null as string | null, root: null as string | null, revision: 0, locale: 'en', theme: { id: '', tokens: {} as Record<string, string> } }
+  private storage: PluginStorage
+  private initialized: Promise<void> | undefined
+  private contextSequence = 0
+  private selectionKey = ''
+  private pendingEvents = new Map<string, { instance: Instance; subscriptionId: string; values: Record<string, PluginStoredValue> }>()
+  private eventTimer?: ReturnType<typeof setTimeout>
+  constructor(private deps: PluginServiceDeps) { this.storage = new PluginStorage(join(deps.directory, 'data')) }
+  initialize(): Promise<void> { return this.initialized ??= this.restore() }
+  private async restore(): Promise<void> {
+    let saved: { developmentMode: boolean; plugins: RecordData[] }
+    try { saved = JSON.parse(await readFile(join(this.deps.directory, 'registry.json'), 'utf8')) } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return
+      error('STORAGE_UNAVAILABLE', 'Plugin registry is unavailable.')
+    }
+    if (typeof saved!.developmentMode !== 'boolean' || !Array.isArray(saved!.plugins)) error('STORAGE_UNAVAILABLE', 'Plugin registry is invalid.')
+    this.developmentMode = saved!.developmentMode
+    for (const raw of saved!.plugins) {
+      // Never turn corrupt persisted data into executable contributions.
+      try {
+        const manifest = parsePluginManifest(JSON.stringify(raw.manifest))
+        if (!raw.source || !['linked', 'copied'].includes(raw.source.kind) || typeof raw.source.directory !== 'string'
+          || typeof raw.packageDirectory !== 'string' || !Array.isArray(raw.projects) || raw.projects.some(id => typeof id !== 'string')
+          || typeof raw.enabled !== 'boolean' || typeof raw.grant !== 'string' || this.records.has(manifest.id)) throw new Error('Invalid record')
+        const record: RecordData = { ...raw, manifest, failures: 0, state: 'disabled' }
+        this.records.set(manifest.id, record)
+        try {
+          const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+          if (pkg.manifest.id !== manifest.id) error('MANIFEST_INVALID', 'Plugin identity changed.')
+          record.manifest = pkg.manifest
+          record.digest = pkg.digest
+          this.packages.set(manifest.id, pkg)
+          if (record.enabled && this.developmentMode && record.grant === permissionFingerprint(pkg.manifest)) record.state = 'ready'
+          else if (record.enabled) { record.state = 'blocked'; record.error = this.developmentMode ? 'PERMISSION_RECONFIRM_REQUIRED' : 'DEVELOPMENT_MODE_REQUIRED' }
+          this.watchSource(record)
+        } catch { record.state = 'error'; record.error = 'SOURCE_UNAVAILABLE' }
+      } catch { this.log('MANIFEST_INVALID') }
+    }
+  }
+  snapshot(): PluginHostSnapshot {
+    return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, ...record }) => structuredClone(record)), logs: [...this.logs] }
+  }
+  private async persist(): Promise<void> {
+    try { await writeFileAtomic(join(this.deps.directory, 'registry.json'), JSON.stringify({ developmentMode: this.developmentMode, plugins: [...this.records.values()] })) }
+    catch { error('STORAGE_UNAVAILABLE', 'Plugin registry could not be saved.') }
+  }
+  log(code: string, details: Omit<PluginLog, 'time' | 'code'> = {}): void {
+    this.logs.push({ time: new Date().toISOString(), code, ...details })
+    if (this.logs.length > 500) this.logs.shift()
+  }
+  private publish(): void { this.deps.changed() }
+  setDevelopment(enabled: boolean): Promise<void> {
+    return this.queue.run(async () => {
+      // Fail closed immediately, even if persistence is unavailable.
+      this.developmentMode = enabled
+      if (!enabled) for (const record of this.records.values()) this.disableRecord(record, 'DEVELOPMENT_MODE_REQUIRED')
+      try { await this.persist() } finally { this.publish() }
+    })
+  }
+  import(directory: string, kind: 'linked' | 'copied'): Promise<void> {
+    return this.queue.run(async () => {
+      const pkg = await readPluginPackage(directory)
+      if (this.records.has(pkg.manifest.id)) error('DUPLICATE_PLUGIN', 'Plugin is already installed.')
+      const packageDirectory = kind === 'linked' ? pkg.directory : join(this.deps.directory, 'packages', randomUUID())
+      try { if (kind === 'copied') {
+        await mkdir(packageDirectory, { recursive: true })
+        for (const [path, bytes] of pkg.files) {
+          const target = join(packageDirectory, path)
+          await mkdir(join(target, '..'), { recursive: true })
+          await writeFile(target, bytes, { flag: 'wx' })
+        }
+      } } catch (cause) { await rm(packageDirectory, { recursive: true, force: true }); throw cause }
+      const record: RecordData = { manifest: pkg.manifest, source: { kind, directory: pkg.directory }, packageDirectory,
+        digest: pkg.digest, enabled: false, projects: [], grant: '', state: 'disabled', failures: 0 }
+      this.records.set(pkg.manifest.id, record)
+      try { await this.persist() } catch (cause) {
+        this.records.delete(pkg.manifest.id)
+        if (kind === 'copied') await rm(packageDirectory, { recursive: true, force: true })
+        throw cause
+      }
+      this.packages.set(pkg.manifest.id, pkg)
+      this.watchSource(record)
+      this.log('IMPORTED', { pluginId: pkg.manifest.id })
+      this.publish()
+    })
+  }
+  enable(id: string, projects: string[]): Promise<void> {
+    return this.queue.run(async () => {
+      const record = this.record(id)
+      if (!this.developmentMode) error('DEVELOPMENT_MODE_REQUIRED', 'Enable local development mode first.')
+      const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+      if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Plugin identity changed.')
+      for (const project of projects) await this.deps.resolveProject(project, null)
+      const old = { ...record }
+      record.manifest = pkg.manifest; record.digest = pkg.digest; record.projects = [...new Set(projects)]
+      record.grant = permissionFingerprint(pkg.manifest); record.enabled = true; record.failures = 0; record.state = 'ready'; delete record.error
+      this.revokePlugin(id)
+      try { await this.persist() } catch (cause) { Object.assign(record, old); record.enabled = false; record.state = 'disabled'; this.publish(); throw cause }
+      this.packages.set(id, pkg)
+      this.log('ENABLED', { pluginId: id }); this.publish()
+    })
+  }
+  disable(id: string): Promise<void> {
+    return this.queue.run(async () => { this.disableRecord(this.record(id)); try { await this.persist() } finally { this.publish() } })
+  }
+  private disableRecord(record: RecordData, reason?: string): void {
+    this.revokePlugin(record.manifest.id)
+    record.enabled = false; record.state = 'disabled'; record.error = reason
+  }
+  reload(id: string, force = false): Promise<void> {
+    return this.queue.run(async () => {
+      const record = this.record(id)
+      try {
+        const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+        if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Plugin identity changed.')
+        const unchanged = pkg.digest === record.digest
+        if (unchanged && record.state !== 'error' && !force) { this.watchSource(record); return }
+        this.revokePlugin(id, unchanged && force ? 'reload' : undefined)
+        record.manifest = pkg.manifest; record.digest = pkg.digest
+        this.packages.set(id, pkg)
+        if (record.grant !== permissionFingerprint(pkg.manifest)) { record.state = 'blocked'; record.error = 'PERMISSION_RECONFIRM_REQUIRED' }
+        else { record.state = record.enabled && this.developmentMode ? 'ready' : 'disabled'; delete record.error }
+        await this.persist()
+        this.watchSource(record)
+        this.log('RELOADED', { pluginId: id })
+      } catch (cause) {
+        this.revokePlugin(id); record.state = 'error'; record.error = cause instanceof PluginError ? cause.code : 'SOURCE_UNAVAILABLE'
+        this.log(record.error, { pluginId: id }); throw cause
+      } finally { this.publish() }
+    })
+  }
+  uninstall(id: string): Promise<void> {
+    return this.queue.run(async () => {
+      const record = this.record(id)
+      this.disableRecord(record)
+      this.stopWatch(id)
+      this.records.delete(id)
+      try { await this.persist() } catch (cause) { this.records.set(id, record); this.publish(); throw cause }
+      this.packages.delete(id)
+      // Only delete an owned, UUID-named copied package; linked sources never get removed.
+      if (record.source.kind === 'copied' && /^[a-f0-9-]{36}$/.test(relative(resolve(this.deps.directory, 'packages'), resolve(record.packageDirectory)))) {
+        await rm(record.packageDirectory, { recursive: true, force: true })
+      }
+      this.log('UNINSTALLED', { pluginId: id }); this.publish()
+    })
+  }
+  async setContext(projectId: string | null, scopePath: string | null, locale: string, theme: { id: string; tokens: Record<string, string> }): Promise<void> {
+    const sequence = ++this.contextSequence
+    // Revoke before asynchronous root resolution, including worktree changes.
+    const selectionKey = JSON.stringify([projectId, scopePath])
+    if (this.selectionKey !== selectionKey) {
+      this.selectionKey = selectionKey
+      this.current.revision++
+      for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
+      this.current.root = null
+    }
+    const project = projectId ? await this.deps.resolveProject(projectId, scopePath) : null
+    if (sequence !== this.contextSequence) return
+    if (this.current.projectId !== projectId || this.current.root !== (project?.root ?? null)) {
+      this.current.revision++
+      for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
+    }
+    this.current = { ...this.current, projectId, root: project?.root ?? null, locale, theme }
+    for (const instance of this.instances.values()) for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'context') {
+      this.send(instance, { type: 'event', subscriptionId, event: 'context', payload: { locale, theme } })
+    }
+  }
+  async mount(id: string, viewId: string, projectId: string | null, scopePath: string | null): Promise<PluginMount> {
+    const record = this.record(id)
+    this.allowed(record)
+    const view = record.manifest.contributes.views.find(view => view.id === viewId)
+    if (!view) error('INVALID_REQUEST', 'View is unavailable.')
+    const project = view!.scope === 'project' && projectId ? await this.deps.resolveProject(projectId, scopePath) : null
+    this.allowed(record)
+    if (view!.scope === 'project' && (!project || !record.projects.includes(projectId!)
+      || this.current.projectId !== projectId || this.current.root !== project.root)) error('CONTEXT_UNAVAILABLE', 'Project scope is unavailable.')
+    if (this.instances.size >= 64 || [...this.instances.values()].filter(instance => instance.plugin === id).length >= 8) error('RATE_LIMITED', 'Too many plugin pages.')
+    const scope = project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : 'application'
+    const existing = [...this.instances.values()].find(instance => instance.plugin === id && instance.view === viewId && instance.scope === scope)
+    if (existing) error('INVALID_REQUEST', 'View already has an instance.')
+    const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
+    const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
+      revision: this.current.revision, active: true }
+    const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
+      url: `janusx-plugin://${token}/g/${generation}/${view!.entry}`, root: project?.root ?? null, scope, context, bound: false, ready: false,
+      requests: new Map(), used: new Set(), times: [], subscriptions: new Map(),
+      timer: setTimeout(() => this.loadFailed(instanceId), 10_000) }
+    this.instances.set(instanceId, instance)
+    record.state = 'loading'; this.publish()
+    return { instanceId, binding: instance.binding, url: instance.url, context }
+  }
+  bind(id: string, binding: string): string {
+    const instance = this.instance(id, binding)
+    if (instance.bound) { this.close(id); error('INVALID_SENDER', 'Instance is already bound.') }
+    instance.bound = true
+    return instance.url
+  }
+  inspect(id: string, binding: string): string { return this.instance(id, binding).url }
+  failView(id: string, binding: string): void {
+    try { this.instance(id, binding) } catch { return }
+    this.loadFailed(id)
+  }
+  closeAll(): void { for (const id of [...this.instances.keys()]) this.close(id) }
+  isInstanceUrl(url: string): boolean { return [...this.instances.values()].some(instance => url === instance.url) }
+  resource(url: string): { bytes: Buffer; path: string } | null {
+    const instance = [...this.instances.values()].find(instance => url.startsWith(`janusx-plugin://${instance.token}/g/${instance.generation}/`))
+    if (!instance) return null
+    try { this.instance(instance.id, instance.binding) } catch { return null }
+    const path = url.slice(`janusx-plugin://${instance.token}/g/${instance.generation}/`.length)
+    const bytes = this.packages.get(instance.plugin)?.files.get(path)
+    return bytes ? { bytes, path } : null
+  }
+  frameMatchesResource(frameUrl: string, resourceUrl: string): boolean {
+    const instance = [...this.instances.values()].find(instance => instance.url === frameUrl)
+    return Boolean(instance && resourceUrl.startsWith(`janusx-plugin://${instance.token}/g/${instance.generation}/`) && this.resource(resourceUrl))
+  }
+  active(id: string, binding: string, active: boolean): void {
+    const instance = this.instance(id, binding)
+    instance.context.active = active
+    for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'context') this.send(instance, { type: 'event', subscriptionId, event: 'context', payload: { active } })
+  }
+  close(id: string, binding?: string, reason?: string): void {
+    const instance = this.instances.get(id)
+    if (!instance || (binding && instance.binding !== binding)) return
+    clearTimeout(instance.timer)
+    this.send(instance, { type: 'event', event: 'invalidated', reason: reason ?? null, payload: { invalidated: true } })
+    this.instances.delete(id)
+    this.deps.closed?.(id)
+    for (const request of instance.requests.values()) request.cancelled = true
+    instance.subscriptions.clear()
+    const record = this.records.get(instance.plugin)
+    if (record?.enabled && record.state !== 'blocked' && record.state !== 'error') record.state = [...this.instances.values()].some(item => item.plugin === instance.plugin) ? 'active' : 'ready'
+  }
+  private revokePlugin(id: string, reason?: string): void { for (const instance of [...this.instances.values()]) if (instance.plugin === id) this.close(instance.id, undefined, reason) }
+  private loadFailed(id: string): void {
+    const instance = this.instances.get(id)
+    if (!instance) return
+    const record = this.record(instance.plugin)
+    this.close(id)
+    record.failures++; record.state = 'error'; record.error = 'VIEW_LOAD_FAILED'
+    this.log('VIEW_LOAD_FAILED', { pluginId: record.manifest.id, instanceId: id })
+    if (record.failures >= 3) { this.disableRecord(record, 'VIEW_LOAD_FAILED'); void this.queue.run(() => this.persist()).catch(() => this.log('STORAGE_UNAVAILABLE')) }
+    this.publish()
+  }
+  private send(instance: Instance, packet: Record<string, unknown>): void {
+    this.deps.event(instance.id, { protocol: 1, contextRevision: instance.context.revision, ...packet } as JsonValue)
+  }
+  private instance(id: string, binding: string): Instance {
+    const instance = this.instances.get(id)
+    if (!instance || instance.binding !== binding) error('INSTANCE_CLOSED', 'Plugin instance is unavailable.')
+    this.allowed(this.record(instance!.plugin))
+    if (instance!.root && (this.current.projectId !== instance!.context.project?.projectId || this.current.root !== instance!.root
+      || this.current.revision !== instance!.context.revision)) error('STALE_CONTEXT', 'Project context changed.')
+    return instance!
+  }
+  private record(id: string): RecordData { const record = this.records.get(id); if (!record) error('INVALID_REQUEST', 'Plugin is unavailable.'); return record! }
+  private allowed(record: RecordData): void {
+    if (!this.developmentMode) error('DEVELOPMENT_MODE_REQUIRED', 'Local development mode is off.')
+    if (!record.enabled) error('PLUGIN_DISABLED', 'Plugin is disabled.')
+    if (record.state === 'error' && record.error !== 'VIEW_LOAD_FAILED') error('SOURCE_UNAVAILABLE', 'Plugin source must be revalidated.')
+    if (record.state === 'blocked' || record.grant !== permissionFingerprint(record.manifest)) error('PERMISSION_RECONFIRM_REQUIRED', 'Plugin permissions require confirmation.')
+    if (!this.packages.has(record.manifest.id)) error('SOURCE_UNAVAILABLE', 'Plugin source is unavailable.')
+  }
+  async call(id: string, binding: string, packet: unknown): Promise<unknown> {
+    const instance = this.instance(id, binding)
+    if (!instance.bound) error('INVALID_SENDER', 'Plugin channel is not bound.')
+    let serialized: string | undefined
+    try { serialized = JSON.stringify(packet) } catch { error('INVALID_REQUEST', 'Packet is not JSON.') }
+    if (serialized === undefined || Buffer.byteLength(serialized) > 2 * 1024 * 1024) error('INVALID_REQUEST', 'Packet exceeds its limit.')
+    const cancellation = cancelSchema.safeParse(packet)
+    if (cancellation.success) { const request = instance.requests.get(cancellation.data.requestId); if (request) request.cancelled = true; return null }
+    const unsubscription = z.object({ protocol: z.literal(1), type: z.literal('unsubscribe'), subscriptionId: z.string().min(1).max(128) }).strict().safeParse(packet)
+    if (unsubscription.success) { instance.subscriptions.delete(unsubscription.data.subscriptionId); return null }
+    const request = requestSchema.safeParse(packet)
+    if (!request.success) error('INVALID_REQUEST', 'Invalid plugin packet.')
+    const { requestId, method, params, contextRevision } = request.data!
+    const start = Date.now()
+    let pending: { cancelled: boolean } | undefined
+    try {
+      if (contextRevision !== instance.context.revision) error('STALE_CONTEXT', 'Context revision changed.')
+      if (instance.used.has(requestId)) error('INVALID_REQUEST', 'Duplicate request ID.')
+      if (instance.used.size >= 100_000) error('RATE_LIMITED', 'Reload this plugin page to renew its request budget.')
+      instance.used.add(requestId)
+      instance.times = instance.times.filter(time => start - time < 1000)
+      if (instance.times.length >= 30 || instance.requests.size >= 16) error('RATE_LIMITED', 'Plugin request limit reached.')
+      instance.times.push(start)
+      validatePluginCall(this.record(instance.plugin).manifest, method, params)
+      pending = { cancelled: false }; instance.requests.set(requestId, pending)
+      const valid = () => {
+        this.instance(id, binding)
+        if (pending!.cancelled) error('CANCELLED', 'Request was cancelled.')
+        if (Date.now() - start > (method === 'workspace.readText' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
+      }
+      const result = await this.dispatch(instance, method, params as Record<string, unknown>, valid)
+      valid()
+      if (method === 'app.getInfo' && !instance.ready) {
+        instance.ready = true; clearTimeout(instance.timer)
+        const record = this.record(instance.plugin); record.failures = 0; record.state = 'active'; this.publish()
+      }
+      this.log('OK', { pluginId: instance.plugin, instanceId: id, method, duration: Date.now() - start })
+      return { protocol: 1, requestId, type: 'response', ok: true, result }
+    } catch (cause) {
+      const code = cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR'
+      this.log(code, { pluginId: instance.plugin, instanceId: id, method, duration: Date.now() - start })
+      return { protocol: 1, requestId, type: 'response', ok: false, error: { code, message: code } }
+    } finally { if (pending) instance.requests.delete(requestId) }
+  }
+  private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
+    const record = this.record(instance.plugin)
+    if (method === 'app.getInfo') return { pluginApiVersion: PLUGIN_API_VERSION, capabilities: [...PLUGIN_CAPABILITIES], locale: this.current.locale, theme: this.current.theme }
+    if (method === 'workspace.getContext') return instance.context
+    if (method === 'workspace.readText') {
+      if (!instance.root) error('CONTEXT_UNAVAILABLE', 'No project is bound to this view.')
+      const path = params.path as string
+      if (isSensitivePluginPath(path)) error('SENSITIVE_PATH_DENIED', 'Sensitive files are unavailable.')
+      for (const directory of this.deps.protectedDirectories ?? []) {
+        const part = relative(await realpath(directory).catch(() => resolve(directory)), resolve(instance.root!, path))
+        if (!isAbsolute(part) && part !== '..' && !part.startsWith(`..${sep}`)) error('SENSITIVE_PATH_DENIED', 'Host data is unavailable.')
+      }
+      const bytes = await readPluginFile(instance.root!, path, 1024 * 1024)
+      valid()
+      try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+        if (text.includes('\0')) error('NOT_TEXT', 'Binary files are unavailable.')
+        return { text, bytes: bytes.length }
+      } catch { error('NOT_TEXT', 'File must be UTF-8 text.') }
+    }
+    if (method === 'views.open') {
+      const target = record.manifest.contributes.views.find(view => view.id === params.view)!
+      if (!instance.root && target.scope === 'project') error('CONTEXT_UNAVAILABLE', 'No project is bound to this view.')
+      valid(); this.deps.openView(instance.plugin, target.id)
+      for (;;) {
+        valid()
+        const opened = [...this.instances.values()].find(item => item.plugin === instance.plugin && item.view === target.id
+          && item.scope === (target.scope === 'application' ? 'application' : instance.scope))
+        if (opened) return { instanceId: opened.id }
+        await new Promise(resolve => setTimeout(resolve, 25))
+      }
+    }
+    if (method === 'ui.showToast') {
+      const recent = (this.toasts.get(instance.plugin) ?? []).filter(time => Date.now() - time < 10_000)
+      if (recent.length >= 3) error('RATE_LIMITED', 'Plugin toast limit reached.')
+      recent.push(Date.now()); this.toasts.set(instance.plugin, recent)
+      valid(); this.deps.toast(instance.plugin, params.message as string, params.level as string ?? 'info')
+      return { shown: true }
+    }
+    if (method === 'storage.get') return this.storage.get(instance.plugin, instance.scope, params.key as string)
+    if (method === 'storage.set' || method === 'storage.delete') {
+      const key = params.key as string
+      const value = await this.storage.mutate(instance.plugin, instance.scope, key, method === 'storage.delete' ? undefined : params.value as JsonValue,
+        params.expectedRevision as number | undefined, valid)
+      valid()
+      this.storageChanged(instance, key, value)
+      return { revision: value.revision }
+    }
+    if (method === 'storage.watch') return this.storage.watch(async () => {
+      valid()
+      if (instance.subscriptions.size >= 64) error('RATE_LIMITED', 'Too many subscriptions.')
+      const keys = params.keys as string[]
+      const values: Record<string, PluginStoredValue> = Object.create(null)
+      for (const key of keys) values[key] = await this.storage.get(instance.plugin, instance.scope, key)
+      valid()
+      const subscriptionId = randomUUID()
+      instance.subscriptions.set(subscriptionId, { kind: 'storage', keys })
+      return { subscriptionId, values }
+    })
+    if (method === 'context.subscribe') {
+      if (instance.subscriptions.size >= 64) error('RATE_LIMITED', 'Too many subscriptions.')
+      const subscriptionId = randomUUID()
+      instance.subscriptions.set(subscriptionId, { kind: 'context' })
+      return { subscriptionId }
+    }
+    error('UNKNOWN_METHOD', 'Plugin method is unavailable.')
+  }
+  unsubscribe(id: string, binding: string, subscriptionId: string): void { this.instance(id, binding).subscriptions.delete(subscriptionId) }
+  private storageChanged(source: Instance, key: string, value: PluginStoredValue): void {
+    for (const instance of this.instances.values()) if (instance.plugin === source.plugin && instance.scope === source.scope) {
+      for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'storage' && sub.keys.includes(key)) {
+        const id = `${instance.id}:${subscriptionId}`
+        const pending = this.pendingEvents.get(id) ?? { instance, subscriptionId, values: Object.create(null) as Record<string, PluginStoredValue> }
+        pending.values[key] = value
+        this.pendingEvents.set(id, pending)
+      }
+    }
+    // At most ten batches per second per subscription, latest revision per key.
+    this.eventTimer ??= setTimeout(() => {
+      this.eventTimer = undefined
+      for (const pending of this.pendingEvents.values()) if (this.instances.get(pending.instance.id) === pending.instance
+        && pending.instance.subscriptions.has(pending.subscriptionId)) this.send(pending.instance, { type: 'event', event: 'storage', subscriptionId: pending.subscriptionId, payload: pending.values })
+      this.pendingEvents.clear()
+    }, 100)
+  }
+  private watchSource(record: RecordData): void {
+    if (record.source.kind !== 'linked') return
+    this.stopWatch(record.manifest.id)
+    const state: { watchers: FSWatcher[]; timer?: ReturnType<typeof setTimeout> } = { watchers: [] }
+    const schedule = () => {
+      if (state.timer) clearTimeout(state.timer)
+      state.timer = setTimeout(() => { void this.reload(record.manifest.id).catch(() => {}) }, 500)
+    }
+    try {
+      state.watchers.push(watch(record.packageDirectory, (_event, name) => { if (!name || String(name) === 'manifest.json' || String(name) === 'dist') schedule() }))
+      state.watchers.push(watch(join(record.packageDirectory, 'dist'), { recursive: true }, schedule))
+      for (const watcher of state.watchers) watcher.on('error', schedule)
+      this.watchers.set(record.manifest.id, state)
+    } catch { for (const watcher of state.watchers) watcher.close(); this.log('SOURCE_UNAVAILABLE', { pluginId: record.manifest.id }) }
+  }
+  private stopWatch(id: string): void { const state = this.watchers.get(id); if (state?.timer) clearTimeout(state.timer); state?.watchers.forEach(watcher => watcher.close()); this.watchers.delete(id) }
+  deleteData(id: string): Promise<void> { this.record(id); this.revokePlugin(id); return this.storage.deletePlugin(id) }
+  dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id) }
+}

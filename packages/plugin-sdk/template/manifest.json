@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "example.project-reference",
+  "name": "Project reference",
+  "version": "0.1.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["views.workspace", "views.right", "commands.openView", "storage.watch"], "optional": [] },
+  "permissions": [
+    { "name": "workspace.context.read" },
+    { "name": "workspace.files.read", "paths": ["README.md", "package.json"] },
+    { "name": "plugin.storage" },
+    { "name": "ui.views.open" },
+    { "name": "ui.toast" }
+  ],
+  "contributes": {
+    "views": [
+      { "id": "details", "title": "Reference", "entry": "dist/index.html", "location": "workspace", "scope": "project", "instancePolicy": "single", "icon": "book", "order": 100 },
+      { "id": "summary", "title": "Summary", "entry": "dist/summary.html", "location": "right", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 }
+    ],
+    "commands": [
+      { "id": "open-details", "title": "Open project reference", "action": { "type": "openView", "view": "details" } },
+      { "id": "open-summary", "title": "Open reference summary", "action": { "type": "openView", "view": "summary" } }
+    ],
+    "menus": [
+      { "location": "toolbox", "command": "open-details", "when": "projectOpen", "order": 100 },
+      { "location": "workspace-add", "command": "open-details", "when": "projectOpen", "order": 100 }
+    ],
+    "keybindings": [
+      { "command": "open-details", "key": "Ctrl+Alt+Shift+R", "mac": "Meta+Alt+Shift+R", "when": "projectOpen" }
+    ]
+  }
+}

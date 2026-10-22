@@ -1,5 +1,9 @@
 # Trusted workbench extensions
 
+The public [plugin SDK](../../../../packages/plugin-sdk/README.md) provides strict manifest/call-policy validation, a port client and an external-project scaffold. `plugin-runtime.tsx` registers trusted shells after authorization; external scripts run only inside sandboxed native pages with private offline Sessions. Main-process installation, grants, immutable resources, scoped storage and broker dispatch live in `src/main/plugins/`. Current contract: [.agents/notes/workbench/plugin-contract-v1.md](../../../../.agents/notes/workbench/plugin-contract-v1.md).
+
+Trusted definitions may declare `commands`, `menus` and `keybindings` separately. Commands currently open a declared local view; the same command can appear in `toolbox` and `workspace-add` menus and have a local shortcut. Omit `commands` to adapt the existing workspace launchers automatically; pass an empty list for no implicit launcher. `manifestContribution(manifest, componentFactory)` uses only explicit public contributions and requires a trusted factory; it is not a package loader. `extensionCommands.setMenuPreference(entryId, {hidden, order})` and `.setKeybinding(commandId, keyOrNull)` persist overrides under `janusx:extension-commands:v1`; undefined restores a default shortcut. Settings → Plugins exposes these controls. Equal-priority shortcut conflicts return `KEYBINDING_CONFLICT` diagnostics and do not run; input, Monaco, terminal and iframe focus keep their keyboard input.
+
 S1 provides an in-code renderer API for workspace tabs and right-hand panels. It does not load downloaded code or provide the later third-party sandbox. See [.agents/notes/workbench/requirements/plugin-architecture-forms.md](../../../../.agents/notes/workbench/requirements/plugin-architecture-forms.md).
 
 Register a definition once in the workbench's startup code, outside React rendering:

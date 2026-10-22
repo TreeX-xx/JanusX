@@ -1,0 +1,11 @@
+{
+  "nav": "Plugins", "title": "Local plugins", "subtitle": "Manage local plugin sources, permissions and entries", "devtools": "Inspect plugin", "retry": "Retry plugin view",
+  "development": "Enable local development mode", "developmentHint": "Run local plugins after reviewing their permissions. Turning this off disables all local plugins.",
+  "link": "Link development directory", "copy": "Install directory copy", "logs": "Logs and bridge trace", "empty": "No local plugins installed.",
+  "linked": "Linked development source", "copied": "Copied development source", "authorize": "Review permissions and scope", "disable": "Disable", "reload": "Reload",
+  "uninstall": "Uninstall", "deleteData": "Delete private data", "permissions": "Requested permissions", "entries": "Entries and shortcuts", "shortcut": "Shortcut",
+  "applyShortcut": "Apply or disable", "resetShortcut": "Restore default", "hideEntry": "Hide entry", "order": "Order", "projectScope": "Allow access in these projects",
+  "grantHint": "Enable grants all listed permissions within the selected projects. Application views cannot read project files.", "confirmEnable": "Grant and enable", "cancel": "Cancel", "confirm": "Confirm",
+  "uninstallHint": "Uninstall removes plugin resources and entries. Private data is retained; linked source files are retained.", "deleteHint": "Permanently delete this plugin's private data? Active plugin pages will be closed.", "refresh": "Refresh",
+  "state": { "disabled": "Disabled", "blocked": "Blocked", "ready": "Enabled, no page open", "loading": "Loading", "active": "Running", "error": "Error" }
+}

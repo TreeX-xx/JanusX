@@ -5,12 +5,13 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-16T12:12:46Z",
+  "updated": "2026-10-22T15:43:52Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/80e8b427-d263-42f4-b7cd-8313548c9e2a" },
-    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bd06538e-063f-4de8-a3da-11b0dccd41d5" }
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bd06538e-063f-4de8-a3da-11b0dccd41d5" },
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/43efa5a7-e16c-4cc7-846b-f271f8366260" }
   ]
 }
 ---
@@ -19,17 +20,57 @@
 
 ## 排期定位
 
-已确认先建设扩展架构，将现有右侧文件树、Git 和会话管理按内置扩展管理，再开放第三方插件和市场。中部工作区与右侧工作区都提供通用贡献入口；插件可单独提供一种视图，也可同时提供两种。维护目标是让插件作者使用公开接口独立开发，接入已有能力时无需逐插件修改宿主容器。
+目标是让用户通过插件组合中部工作区、工具箱、右侧栏、Island、独立工作台，以及文件、任务、Agent 和外部系统能力，形成完整功能。入口、命令、视图、展示位置与能力授权分别建模；已有官方功能逐步使用同一贡献语义。完整设计归[插件平台架构](../workbench/plugin-platform-design.md)，PI-Desktop 调研继续归[研究 Note](../workbench/ideas/plugin-platform-and-feature-modularization.md)。
 
-本计划按依赖安排 S1 至 S5，尚未指定版本或工期，不挤占既有版本事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。2026-10-16 按 xdo 交付 S1 可信渲染器扩展基础、S2 内置工具迁移与 S3 CPA 内嵌及双区域验证，并补充用户确认的本地 CPA 托管；S4、S5 待实施。阶段通过以所属需求的验收与实际证据为准，普通 xdo 不创建执行 Task。
+保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试均已有实现及验证。限制 4 worker 的完整 verify 已通过，默认高并发曾出现语料读取超时，S4 仍有专项验收未闭合；P3–P8 尚待实施。具体证据与限制见下文 P2 交付记录。
+
+本计划采用相对排期，参考工作量按单条主线、主 Agent 顺序实施估算，包含相关测试与文档维护，不指定起始日期或版本，不挤占既有事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。估算不是历史速度或承诺工期，每批开始前按实际代码、依赖和试验结果修订。普通文档维护与普通 xdo 不创建执行 Task，阶段通过仍以所属需求和实际证据为准。
 
 ## 当前基础与实施边界
 
-S1 已在 `src/renderer/src/extensions/` 提供注册／注销、启用／停用、同步激活与清理、稳定视图 ID、React 订阅和视图宿主。右侧注册表与状态管理合并动态贡献，中部通过通用 extension pane 和已有 `+` 菜单承载。S2 已将文件树、Git、会话管理注册为内置扩展，移除它们在右侧容器中的专属渲染与图标分支；兼容适配保留旧 ID、入口和宽度偏好。当前接口不加载第三方包。
+S1 已在 `src/renderer/src/extensions/` 提供注册／注销、启用／停用、同步激活与清理、稳定视图 ID、React 订阅和视图宿主。右侧注册表与状态管理合并动态贡献，中部通过通用 extension pane 和已有 `+` 菜单承载。S2 已将文件树、Git、会话管理注册为内置扩展，移除它们在右侧容器中的专属渲染与图标分支；兼容适配保留旧 ID、入口和宽度偏好。第三方包另经 P2 主进程登记和授权，再注册可信壳，不向此可信接口直接导入脚本。
 
 内置扩展随应用发布，保留可信 React 运行方式，通过宿主服务访问文件、Git 与会话能力；第三方插件使用隔离容器与按权限开放的通信桥。两者共享贡献语义，不共享全部权限。外部管理网页使用独立承载规则，不因嵌入而获得插件桥。文件系统、Git 操作、会话执行与持久化继续由原宿主模块负责，本轮不重写底层服务。
 
-设计和验收归[插件架构需求](../workbench/requirements/plugin-architecture-forms.md)，导入、隔离和调试归[第三方导入需求](../workbench/requirements/plugin-import-debug.md)，CPA 与 Figma 的产品边界归[服务集成](../workbench/service-integrations.md)。本轮不捆绑迁移 Island、助手等其他工具；共享容器调整仍需覆盖它们的行为回归。
+验收归[插件架构需求](../workbench/requirements/plugin-architecture-forms.md)，导入、隔离和调试归[第三方导入需求](../workbench/requirements/plugin-import-debug.md)，CPA 与 Figma 的产品边界归[服务集成](../workbench/service-integrations.md)。首个 S4 交付不捆绑迁移 Island、蓝图或助手；这些区域的通用贡献分别排入后续批次。所有共享容器变更覆盖已有功能回归，保留旧 ID、偏好和会话行为。
+
+## P0／P1 交付与验证
+
+P0 已形成[首版契约](../workbench/plugin-contract-v1.md)：清单及五类权限、真实消费者盘点、项目／worktree／实例／代次身份、生命周期、两份时序及 C01–C24 测试输入。合法 JSON 样例与 SDK 模板做结构等价校验，生产清单使用 Zod 与 SemVer，并额外拒绝重复键及超深 JSON。规格推演不计作真实隔离证据。
+
+P1 已提供 `packages/plugin-sdk/`、CLI 与双页模板，以及可信命令／菜单／快捷键 registry。工具箱和中部添加菜单共用命令，旧 launcher 自动适配；公开清单不生成未声明入口。偏好显隐／排序与快捷键覆盖独立持久化，等优先级冲突不执行且有诊断；写入失败保留原偏好，停用清理入口及命令。管理页仍归 P2，AC-9 保持未勾选；架构 AC-1、AC-4 仅按开发及纯策略门禁通过，所有第三方运行 AC 保留未完成。
+
+`npm run plugins:check` 已接入 verify：构建 SDK、校验契约模板、将 SDK 打成 tarball 后在系统临时目录外部项目执行安装／typecheck／Vite 双页构建／包校验，并运行 SDK、开发工具与命令负例。外部项目仅引用公开 SDK，未引用私有源码；当前 SDK 未发布 npm，脚手架明确要求本地 tarball，且拒绝覆盖既有目录。回执 `artifacts/plugin-p1/scaffold.json` 保存 tarball integrity、外部目录和实际命令输出；此检查可能需要 npm 依赖缓存或网络。
+
+单元命令：`npx vitest run tests/unit/plugin-sdk.test.ts tests/unit/plugin-tools.test.ts tests/unit/extension-commands.test.ts tests/unit/extensions.test.ts tests/unit/builtin-extensions.test.ts tests/unit/right-tool-state.test.ts tests/unit/right-tool-dock.test.ts tests/unit/workspace-pane.test.ts tests/unit/workspace-front-surface.test.ts tests/unit/workspace-remote-terminal-sync.test.ts tests/unit/workspace-sidebar.test.ts tests/unit/side-panel-collapse-ui.test.ts tests/unit/global-tool-entry.test.ts tests/unit/cpa.test.ts`，14 份、220 项通过；其中新增 SDK／工具／命令 51 项。覆盖重复键、未来权限、悬空引用、越权方法／路径、静态链接、预算、双命令同视图、快捷键冲突、偏好持久化及失败不改内存等。右侧 SSR 测试有既有 useLayoutEffect 警告，不影响通过结论。
+
+浏览器命令：设置 `JANUS_E2E_PORT=41873`、`NO_PROXY=localhost,127.0.0.1,::1`，执行 `npx playwright test tests/e2e/extensions.spec.ts tests/e2e/builtin-extensions.spec.ts tests/e2e/pane-tab-drag.spec.ts tests/e2e/right-dock-motion.spec.ts --project=island --workers=1 --output=artifacts/plugin-p1/browser-reviewed`，35 项通过。新增右侧视图工具箱状态用例后，执行 `npx playwright test tests/e2e/extensions.spec.ts tests/e2e/builtin-extensions.spec.ts --project=island --workers=1 --output=artifacts/plugin-p1/browser-final`，11 项通过；合计 36 项不同用例。最终复跑曾因共用 Vite 预构建缓存返回 504 Outdated Optimize Dep，现已按 harness 端口隔离缓存；失败轮次不作为通过证据。覆盖双入口／快捷键、输入焦点不抢键、缺项目拒绝、隐藏入口仍可从其它入口打开、停用清理、右侧打开标识，以及拖拽、宽度和动效回归；使用浏览器 IPC fallback，不证明 Electron 插件隔离。
+
+真实 Electron 回归：设置 `JANUSX_E2E_ENTRY=artifacts/plugin-p1/build-check/main/index.js`，执行 `npx playwright test tests/e2e/desktop-smoke.spec.ts --project=desktop --workers=1 --grep 'Browser load failure' --output=artifacts/plugin-p1/desktop`，1 项通过，验证既有浏览器原生视图及菜单生命周期，不证明第三方插件隔离。
+
+回头自审修复了新命令的无障碍名称仍取视图标题、同一视图多命令的菜单键冲突、脚手架目录复制误报冲突、未声明命令的公开清单被旧适配补入口、偏好写入失败后的内存一致性，以及工具箱右侧视图打开标识误查中部 pane 的问题，并补对应负例或组件回归。本轮由主 Agent 自审，未执行独立 Agent review。
+
+`npm run typecheck:strict-unused`、SDK 构建、变更范围 ESLint、`npm run i18n:check` 及 `npm run exclusions:check` 已通过。`npx electron-vite build --outDir artifacts/plugin-p1/build-check` 生产构建通过，日志为 `artifacts/plugin-p1/build-reviewed.log`，不覆盖既有 out。新增类型依赖已同步打包排除清单；打包文件模式和依赖契约校验通过，未对旧 out 声称完整打包边界通过，未生成安装包。全仓 verify 与真实第三方 Electron 隔离尚未执行，不据此关闭 P2。
+
+## P2 交付与验证
+
+设置 → 插件现提供开发开关、链接开发目录／复制安装、权限及项目范围确认、启用／停用、重载、卸载及单独删除私有数据。来源与启停意图持久化，恢复启用不自动打开页面；关闭开发模式撤销运行并保存停用意图，重新打开模式不自动恢复执行。中部与右侧视图通过公开 SDK 访问项目上下文、精确授权的 UTF-8 文件、插件私有 KV／watch、自有视图打开和带身份的提示。入口显隐、排序、快捷键覆盖及冲突展示已接通。终端类型、CLI／会话适配器及 PTY 后端继续由宿主拥有，不接受第三方注册；网络、项目写入、模型后端、工作台及 Island 不在 P2 开放范围。
+
+载体试验发现主窗口 iframe 的 HTTP／图片／导航虽受限，WebRTC STUN 仍向 UDP 监听器发出 3 包，失败日志为 `artifacts/plugin-p2/network-probe.log`。现改为每插件独立内存 Session 的 sandboxed WebContentsView，组合离线网络上下文、宿主持有的拒绝代理、WebRTC 策略、权限／下载拒绝和 opaque-origin CSP；主窗口 Office CSP 保持原规则。专用协议只返回校验后的不可变资源，最小 preload 仅传递一次 MessagePort，不提供 IPC 或宿主对象，请求直达主进程 broker。原生视图增加布局、遮挡与进程成本，菜单、对话框、通知及拖拽使用遮挡租约；平台升级后须重测网络及回收。详细运行边界归首版契约。
+
+桌面验证命令：设置 `JANUS_E2E_PORT=41876`、`JANUS_E2E_MAIN_ENTRY=out/main/index.js`、`JANUSX_E2E_ENTRY=out/main/index.js`、`NO_PROXY=localhost,127.0.0.1,::1`，执行 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/desktop-cpa.spec.ts tests/e2e/desktop-smoke.spec.ts --project=desktop --workers=1 --grep 'external packed|runaway plugin|copied development|six invalid|three native|built desktop|Browser load failure|CPA native page shares' --output=artifacts/plugin-p2/desktop-final-reviewed`，8 项通过，日志为 `artifacts/plugin-p2/desktop-final-reviewed.log`。SDK 由仓库外打包安装的双页模板实际运行，覆盖导入授权、双视图及 KV 共享、项目 A／B 隔离及切回、热重载／手动重载、入口管理、停用卸载、复制来源重启和开发模式；六类坏包无半登记，三次真实握手超时自动停用，死循环 renderer 可销毁且宿主仍响应。HTTP／图片、popup／导航、STUN UDP／TURN TCP 探测零到达，伪造其它窗口管理 IPC 被拒绝。CPA 登录复用／遮挡以及既有工作区、终端和浏览器生命周期回归通过。此结果不代表穷尽所有网络通道、进程崩溃或 OOM。
+
+最终完整 verify 的单元阶段为 433 份通过、6 份跳过，3773 项通过、23 项跳过，日志 `artifacts/plugin-p2/verify-bounded-final.log`。其中只读路径的 junction／hardlink、登记根被替换、旧绑定、项目切换迟到响应、权限增加、KV CAS／配额／撤销及 SDK 订阅乱序有单元证据；不能将这些替身证据写成 Electron 全覆盖。`npm run plugins:check` 包含仓库外 SDK 安装／typecheck／双页构建／校验与插件专项用例，回执归 `artifacts/plugin-p1/scaffold.json`。
+
+最后的链接根修复后，重新执行 `npm run plugins:check`，4 份 72 项通过（runtime 21、SDK 38、工具 4、命令 9），日志 `artifacts/plugin-p2/plugins-final.log`；三条新增负例分别覆盖恢复、启用及重载，Windows watcher 打开时无法 rename 的首次测试布置已调整，初次失败不计通过。`npm run build:app` 重新通过，日志 `build-root-reviewed.log`；不设置主入口覆盖，运行 `npx playwright test tests/e2e/desktop-plugins.spec.ts --project=desktop --workers=1 --output=artifacts/plugin-p2/desktop-root-reviewed`，5 项通过，日志 `desktop-root-reviewed.log`，确认默认使用最新 out 及全部插件桌面场景。严格 unused 类型检查与变更范围 ESLint 同轮通过。
+
+回头自审修复了 Electron／Windows `lstat.dev` 不可靠导致合法读取被拒、SDK 早到 watch 事件被旧快照覆盖、项目切回未重挂、相同内容的手动重载未换实例、热重建 dist 后 watcher 丢失、入口显隐擦除排序、通知被原生视图遮挡及 DevTools 共用插件 Session 被资源策略拦截等问题。最后补上已登记链接根被 junction 替换的恢复／启用／重载拒绝，并将桌面测试默认入口对齐 `out/main/index.js`。本轮为主 Agent 自审，没有独立 Agent review。
+
+最终完整门禁设置 `VITEST_MAX_THREADS=4`、`VITEST_MAX_FORKS=4`、`VITEST_MIN_THREADS=1`、`VITEST_MIN_FORKS=1`，加上上述桌面端口、主入口和 NO_PROXY，执行 `npm run verify` 返回 0，日志 `artifacts/plugin-p2/verify-bounded-final.log`。通过插件门禁 72 项、主项目单元 3773 项、llm-core 80 项、类型／严格 unused、生产构建、包边界、主题、i18n、打包排除、Notes 和 lint；lint 为 0 错误、67 条现存警告。全量桌面为 36 项通过、2 项跳过，包含全部 5 项插件用例，以及蓝图、会话继续／历史、浏览器、编辑器、备忘录及启动助手；跳过两项需官方 CPAMC／CPA ZIP 资源的用例，不记作通过。此轮未重新执行 P1 的浏览器 harness 全集。
+
+默认高并发的前两次 verify 曾停在 `workflowx-v2.test.ts` 语料可达性检查，唯一错误为 `BLUEPRINT_SYNC_TIMEOUT`，日志 `artifacts/plugin-p2/verify.log` 与 `verify-reviewed.log`；该文件单独复跑 8 项通过。最终仅限制本次进程并发，没有修改仓库超时或默认 worker 配置，默认高并发的稳定性问题仍保留，不能声称其已经修复。
+
+仍需补齐真实连续 renderer 崩溃／OOM、worktree 切换的桌面证据及更强的并发文件系统置换验证；未生成安装包，未作 macOS／Linux 实机验收。不得从 Windows 上已测的网络样例推导操作系统防火墙级隔离，也不得以这些结果关闭未来贡献、网络代理或正式来源分发的 AC。
 
 ## 交付顺序
 
@@ -38,10 +79,57 @@ S1 已在 `src/renderer/src/extensions/` 提供注册／注销、启用／停用
 | S1 扩展核心与视图协议 | 无阶段前置；实施时盘点现有注册及状态接口 | 稳定扩展与视图 ID、注册与注销、激活与停用、资源清理；中部与右侧贡献接口；应用级／项目级作用域；主题和上下文适配；SDK 类型及最小示例 | 示例可分别打开中部与右侧视图，新增贡献无需修改容器；停用清理入口与资源，未知 ID 恢复不崩溃 |
 | S2 内置工具迁移 | S1 出口通过 | 按 S2a 文件树 → S2b Git → S2c 会话管理逐个迁移为内置扩展，替换容器中的工具专属分支，保留稳定身份与既有偏好 | 三个工具通过统一协议注册，行为与布局恢复无回归；不以迁移界面为由改写底层服务 |
 | S3 CPA 与双区域验证 | S2 出口通过 | 官方 CPA 集成在中部内嵌既有管理前端；验证全局实例配置与跨项目复用；提供同时贡献中部和右侧视图的最小示例 | CPA 登录、导航、页面打开／关闭验证通过或明确不可嵌入并提供系统浏览器回退；双视图共享状态、停用与恢复验证通过 |
-| S4 第三方本地导入与调试 | S3 的通用宿主验证通过；明确第三方信任规则 | 冻结清单与 SDK、文件夹导入、隔离页面、受限桥、授权、启用／禁用／卸载、日志及开发重载 | 外部作者仅依赖公开 SDK 即可完成中部或右侧插件；导入全生命周期、权限拒绝、崩溃隔离和失效布局恢复通过 |
-| S5 插件市场与分发 | S4 出口通过 | 发现、已安装、插件详情、兼容性、官方推荐、版本更新与卸载；先做官方精选目录，再扩展社区来源 | 安装、连接、实际可用三个状态可区分；不兼容版本可拒绝，权限扩大可重新授权，更新失败可保留可用版本 |
+| S4 第三方本地导入与调试 | S3 的通用宿主验证通过 | P0–P2：契约、公开 SDK、基础命令与入口、开发目录、隔离页面、只读桥、管理与调试 | 外部项目独立构建；双区域插件全生命周期、权限、故障和重启恢复通过 |
+| S5 插件市场与分发 | S4 出口与发布来源规则通过；SDK 已有兼容基线 | P8：精选目录、包校验、正式安装、权限变化、更新与回退 | 安装、连接与实际可用可区分；来源和不兼容包拒绝，失败保留可用版本 |
 
 S1、S2 优先形成可独立验收的内置扩展基础，不等待市场完成。各阶段按出口进入下一阶段，阶段内部按主 Agent 顺序推进，不安排并行 Agent 或隐含独立评审。
+
+## 后续工作包与参考工作量
+
+| 批次／优先级 | 依赖 | 交付与范围 | 出口及需求追踪 | 参考工作量 |
+|---|---|---|---|---|
+| P0 契约细化／最高 | S3 与目标设计 | 贡献分类、身份／实例／上下文、权限与开发模式、生命周期、兼容策略；以序列图和契约样例验证 | 架构 AC-2、AC-10 的设计基线；已支持／未来能力清楚，开发目录规则无冲突 | 2–3 有效工作日 |
+| P1 SDK 与统一入口／最高 | P0 | 清单 schema、SDK、脚手架、命令与入口注册、可信适配器、能力探测、校验门禁 | 架构 AC-1、AC-4、AC-9；同一命令支持工具箱／快捷键，新增已有类型贡献不改容器 | 3–5 日 |
+| P2 本地插件闭环／最高 | P1 | 目录校验与登记、隔离 UI／桥、授权、管理页、启停持久化、日志重载及双区域外部模板 | 架构 AC-2–4、AC-8、AC-10、AC-18；导入 AC-1–6；真实 Electron 全生命周期通过 | 7–12 日 |
+| P3 工作台与 Island／高 | P2 | 工作台 registry、隔离根页面、进入／返回；Island 声明式状态／进度／动作、受限预览与展开工具区 | 架构 AC-11；一个插件联动中部、右侧、工作台及 Island，停用回到有效界面 | 5–8 日 |
+| P4 文件与文档扩展／高 | P2；排期在 P3 后 | viewer／editor 匹配、默认打开和回退、文档保存与脏状态、受限目录查询；逐项迁移代表内置查看器 | 架构 AC-12；同一文件多实例及外部变更不丢数据，冲突可处理，默认选择可撤销 | 5–8 日 |
+| P5 后台、网络与事件／高 | P2；排期在 P4 后 | 先做受限后台运行时试验，再分批交付任务、日志与取消、受限网络、凭证引用、公开事件／服务 | 架构 AC-13、AC-14；无页面示例、跨项目归属、停用清理、权限拒绝与循环控制通过 | 试验 2–3 日；实现依据试验重估 |
+| P6 Agent 与领域提供者／中 | P5；读取文档的提供者另依赖 P4 | 内置 Agent 工具／技能／工作流、模型代发、上下文读取；一个代表提供者与公开适配指南 | 架构 AC-15；UI 与 Agent 消费同一领域能力，风险／取消有证据，外部 CLI 支持矩阵明确 | 首个代表实现 6–10 日 |
+| P7 窗口与个性化／中 | P3；文档脱离另依赖 P4，Agent 工具卡另依赖 P6 | 可选独立窗口／悬浮工具、主题与配置、角色／皮肤资源、受控对话局部贡献 | 架构 AC-16；窗口恢复、配置隔离、主题回退和敏感界面遮挡通过 | 首个支持平台 5–8 日 |
+| P8 正式分发／中 | P2、稳定兼容基线及来源试验；推荐 P4 后 | 正式来源和完整性规则、精选目录、包校验、更新暂存／回退、权限扩大重新授权 | 架构 AC-17；失败不破坏可用版本，正式包不能冒用开发来源规则 | 精选目录首版 6–10 日，来源试验后重估 |
+
+参考工作量不含等待用户素材、外部审核、完整社区市场、多平台全部适配或把全部官方业务迁移为独立包。P5 的强制隔离、P6 的宿主外部 CLI 能力矩阵及 P8 的签名／更新基础设施不预先给出完整工期；不能用扩大权限或减少验收来兑现估算。
+
+### 里程碑与执行顺序
+
+推荐主线为 P0 → P1 → P2 → P3 → P4 → P5 → P6。P7 是 P3 之后可独立调整优先级的工作包；P8 不依赖全部贡献类型或全部官方功能迁移，在 P2 与来源规则通过后可独立实施，推荐在 P4 形成稳定兼容面后进入。这里的独立表示依赖关系，不安排并行 Agent。
+
+- M1 可开发的本地平台：P0–P2，参考 12–20 有效工作日；另留约 20%–30% 联调与缺陷余量，整体预算约 15–26 日。出口是外部作者完成只读目录插件，不包含工作台、Island、网络、执行或模型开放。
+- M2 可组合的工作台：P3–P4，新增约 10–16 日并单独预留回归余量。出口是完整工作台／Island 联动及文件查看／编辑；保留原工作区、浏览器和终端行为。
+- M3 有业务能力的平台：P5–P6，先给出后台试验结论，再重估实现。出口是受监督无页面任务、网络／事件和一个 Agent／提供者闭环，不等于所有 CLI 均可深度扩展。
+- M4 个性化与分发：P7、P8 分别验收，不合并成一个必须同时完成的版本门槛。社区发布、全部官方包独立更新和多平台覆盖另定增量。
+
+### P0–P2 的执行拆分
+
+P0 先盘点可信 registry、两个视图宿主、工具箱、工作台切换、Island、IPC 与存储的真实消费者，确定命名空间和兼容适配。冻结首版贡献及权限表，给出项目切换、关闭／停用、故障、重载和权限变化的契约样例。全产品类型可以记录在设计中，首版 schema 不假装支持未来类型。
+
+P1 先将命令、入口与视图注册分开，接入工具箱和快捷键。首版普通插件命令限于打开已声明视图及已开放的宿主动作，不暗中引入无页面任意 JS 执行。脚手架在仓库外独立构建，校验非法清单、版本不兼容与越权调用；静态门禁只作辅助，运行时仍必须拒绝越权。
+
+P2 按目录／路径校验 → 只登记不执行 → 隔离资源协议 → 身份绑定通信桥 → 授权与生命周期 → 管理／启停恢复 → 调试／故障熔断 → 外部模板和真实桌面验收推进。开发链接重载需重读权限和资源代次，权限增加先停用或等待重新授权，禁止保留旧通道取得新权限。正式来源安装和用户后台脚本不混入此批。
+
+### 后续工作包的切片
+
+P3 先提供一个工作台根视图，再增加 Island 状态和动作，最后接入受限预览及展开工具区；不先做跨插件布局引擎。P4 先只读 viewer，再接文档保存和编辑冲突。现有蓝图、知识库、备忘录／圆桌仅先接入口及所需服务边界，完整功能迁移按独立验收推进。
+
+P5 依次执行受限运行时试验、宿主任务监督、网络／凭证代理和事件／公开服务。试验不满足强制权限契约时，只交付宿主实现的声明式任务，普通用户后台 JS 保持未开放，并修订 M3 范围与工作量；不可把 Node 子进程视为已满足沙箱。
+
+P6 先选内置 Agent 与一个真实领域提供者，逐步加入工具、模型代发和工作流；外部 CLI 仅记录宿主已有接入能力矩阵，不把 CLI／会话适配器列为第三方提供者候选。P7 先窗口生命周期，再主题／配置，最后角色资源与对话局部位置；不以自定义皮肤授予会话访问。P8 先验证发布来源与完整性，再做精选目录和更新；ZIP、签名、远程源与社区投稿分别验证后开放。
+
+### 验收与记录
+
+每批记录实现范围、需求 AC、相关单元／真实组件／Electron 证据、资源基线和未覆盖平台。共享容器变更覆盖旧工具 ID、宽度、快捷键、项目切换、未保存内容、浏览器遮挡和会话不被关页终止。P2 测真实隔离及开发模式关闭；P3 测工作台返回和 Island 队列；P4 测保存冲突；P5–P6 测取消与迟到结果；P8 测更新失败回退。脚手架示例不引用私有源码，示例业务选择不阻塞契约细化。
+
+范围、工期或运行模式因试验变化时，先更新本计划和所属需求，再实施下一批。所有未执行 AC 保持未勾选，设计维护不产生实现通过证据。
 
 ### S2 迁移验收重点
 
@@ -58,13 +146,13 @@ CPA 作为官方推荐集成候选，主要用于账号额度及重置次数、�
 
 ### S4 与 S5 的进入条件
 
-现有架构需求要求拒绝执行未签名目录，导入草案又要求授权后加载本地开发目录。S4 实施前须明确受控开发模式与正式发布的信任规则，并同步两篇需求；本计划不以用户确认界面代替代码信任验证，也不承诺当前已支持签名。
+本地开发和正式来源分开：S4 计划通过默认关闭的开发模式加载用户选择且授权的未签名隔离页面，复制目录仍为开发来源；关闭模式阻止其继续激活。开发模式外拒绝相同未签名目录自动执行并记录原因，不执行原生 Node 或宿主 renderer。架构 AC-2 与导入需求已按该语义对齐。P0 细化规则，P2 已实现对应生命周期并通过真实桌面重启／来源测试；其余未覆盖面见本页交付证据。
 
-首批第三方网络、凭据、写入、终端与模型后端权限仍受原导入草案限制。CPA 官方集成不能成为绕过第三方权限边界的样板。S5 再确定来源审核、完整性验证、更新与回退机制；ZIP、远程源、签名和社区发布分别评估，不从“有市场页面”推导成已具备分发能力。
+S4 首批第三方网络、凭据、写入、终端与模型后端仍不开放；后续能力按 P4–P6 的专项契约增加，不倒填首版已具备。CPA 官方集成不能成为绕过第三方权限边界的样板。S5／P8 确定来源审核、完整性验证、更新与回退；签名和确认界面不能替代运行时授权，也不承诺当前已支持签名。
 
 ## 后续接入
 
-Figma 保留为后续服务集成候选，围绕项目设计链接、所选 CLI 的 MCP／Skills 接入及服务授权单独定范围，不作为上述五阶段的阻塞依赖。中部与右侧开放也不自动包含视图拖动换区、跨容器迁移或全部视图后台保活，这些能力待真实工作流证明需求后再排期。
+Figma 保留为后续服务集成候选，围绕项目设计链接、所选 CLI 的 MCP／Skills 接入及服务授权单独定范围，不阻塞本地平台。全产品设计与 P3–P7 覆盖更广的贡献类型，但不自动包含任意视图拖动换区、跨容器迁移、工作台拼装他插件面板或全部视图后台保活；这些能力待真实工作流证明需求后另排增量。
 
 ## S1 交付与验证
 

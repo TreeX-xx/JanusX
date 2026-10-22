@@ -119,6 +119,7 @@ files:
   - "!node_modules/@types/fs-extra{,/**/*}"
   - "!node_modules/@types/minimatch{,/**/*}"
   - "!node_modules/@types/qrcode{,/**/*}"
+  - "!node_modules/@types/semver{,/**/*}"
   - "!node_modules/@types/symlink-or-copy{,/**/*}"
   - "!node_modules/@types/ws{,/**/*}"
   - "!node_modules/@typescript-eslint/eslint-plugin{,/**/*}"

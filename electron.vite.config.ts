@@ -12,10 +12,12 @@ export default defineConfig(({ command }) => {
     main: {
       define: remoteDefine,
       plugins: [externalizeDepsPlugin({
-        exclude: ['@janusx/llm-core', '@janusx/llm-core/model-registry', 'proxy-chain']
+        exclude: ['@janusx/llm-core', '@janusx/llm-core/model-registry', '@janusx/plugin-sdk', 'proxy-chain']
       })],
+      resolve: { alias: { '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts') } },
       build: {
         rollupOptions: {
+          external: ['original-fs'],
           input: {
             index: resolve(__dirname, 'src/main/index.ts'),
             'note-mcp': resolve(__dirname, 'src/main/blueprint/note-mcp.ts'),
@@ -33,6 +35,10 @@ export default defineConfig(({ command }) => {
           const path = resolve(__dirname, 'src/preload/remote.ts')
           const { code } = await transformWithEsbuild(readFileSync(path, 'utf8'), path, { format: 'cjs', target: 'es2022' })
           this.emitFile({ type: 'asset', fileName: 'remote.cjs', source: code })
+          const pluginPath = resolve(__dirname, 'src/preload/plugin.ts')
+          this.addWatchFile(pluginPath)
+          const plugin = await transformWithEsbuild(readFileSync(pluginPath, 'utf8'), pluginPath, { format: 'cjs', target: 'es2022' })
+          this.emitFile({ type: 'asset', fileName: 'plugin.cjs', source: plugin.code })
         }
       }],
       build: {
@@ -53,6 +59,7 @@ export default defineConfig(({ command }) => {
       },
       resolve: {
         alias: {
+          '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts'),
           '@': resolve(__dirname, 'src/renderer/src')
         }
       },

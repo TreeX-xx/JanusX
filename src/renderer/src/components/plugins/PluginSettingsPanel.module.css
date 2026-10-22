@@ -1,0 +1,13 @@
+.root { display: grid; gap: 14px; color: var(--shell-text); font-size: 13px; }
+.row, .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.hint { color: var(--shell-muted); font-size: 12px; margin: 0; }
+.card { display: grid; gap: 10px; padding: 16px; background: var(--shell-card); border: 1px solid var(--shell-border); border-radius: 8px; }
+.path { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; color: var(--shell-muted); max-height: 200px; overflow: auto; }
+.root button { padding: 6px 10px; border: 1px solid var(--shell-border); border-radius: 5px; background: var(--shell-canvas); color: var(--shell-text); cursor: pointer; }
+.root button:disabled { opacity: .45; cursor: default; }
+.root button:focus-visible, .root input:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+.root input:not([type=checkbox]) { background: var(--shell-canvas); color: var(--shell-text); border: 1px solid var(--shell-border); padding: 5px; max-width: 180px; }
+.error { color: var(--shell-text); overflow-wrap: anywhere; }
+.preference { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.logs { max-height: 260px; overflow: auto; white-space: pre-wrap; font-size: 10px; }
+.toast { position: fixed; right: 30px; bottom: 40px; z-index: 9000; max-width: 360px; padding: 14px; background: var(--shell-card); border: 1px solid var(--shell-border); color: var(--shell-text); border-radius: 8px; font-size: 12px; pointer-events: none; }

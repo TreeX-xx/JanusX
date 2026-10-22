@@ -3,6 +3,9 @@ import { isAgentHookClientInvocation, runAgentHookClient } from './notifications
 import { configureApplicationProfile, configureChromiumSessionPaths } from './bootstrap/session'
 import { migrateLegacyPortableProfile } from './bootstrap/profile-migration'
 import { join } from 'node:path'
+import { registerPluginScheme } from './plugins/scheme'
+
+registerPluginScheme()
 
 const isHookClient = isAgentHookClientInvocation()
 const isLlmRuntimeSmoke = process.argv.includes('--smoke-test=llm-runtime')

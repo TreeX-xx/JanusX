@@ -19,6 +19,7 @@ const isCI = process.env.CI === 'true'
 export default defineConfig({
   resolve: {
     alias: {
+      '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts'),
       '@': resolve(__dirname, 'src/renderer/src'),
     },
   },

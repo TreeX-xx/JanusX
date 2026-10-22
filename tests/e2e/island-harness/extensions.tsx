@@ -5,7 +5,7 @@ import { TerminalArea } from '../../../src/renderer/src/components/TerminalArea'
 import { TitlebarToolGroup } from '../../../src/renderer/src/components/TitlebarToolGroup'
 import { RightDock } from '../../../src/renderer/src/components/right-tools/RightDock'
 import { getRightDockLayout } from '../../../src/renderer/src/components/right-tools/layout'
-import { extensionRegistry, openExtensionView, type ExtensionViewProps } from '../../../src/renderer/src/extensions'
+import { extensionRegistry, extensionCommands, openExtensionView, type ExtensionViewProps } from '../../../src/renderer/src/extensions'
 import { createWorkspaceToolsExample } from '../../../src/renderer/src/extensions/examples/workspace-tools'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useRightToolStore } from '../../../src/renderer/src/stores/right-tools'
@@ -44,8 +44,25 @@ extensionRegistry.register({ id: 'broken.tools', views: [{ id: 'page', title: 'B
   },
 }] })
 openExtensionView('extension:example.tools/overview')
+extensionRegistry.register({
+  id: 'commands.tools',
+  views: [
+    { id: 'details', title: 'Command details', location: 'workspace', scope: 'project', component: () => <p data-command-details>Command details ready</p> },
+    { id: 'summary', title: 'Command summary', location: 'right', scope: 'project', component: () => <p data-command-summary>Summary ready</p> },
+  ],
+  commands: [
+    { id: 'open-details', title: 'Open command details', action: { type: 'openView', view: 'details' } },
+    { id: 'open-summary', title: 'Show summary', action: { type: 'openView', view: 'summary' } },
+  ],
+  menus: [{ location: 'toolbox', command: 'open-details' }, { location: 'workspace-add', command: 'open-details', when: 'projectOpen' },
+    { location: 'toolbox', command: 'open-summary' }],
+  keybindings: [{ command: 'open-details', key: 'Ctrl+Alt+Shift+R' }],
+})
 Object.assign(window, { extensionFixture: {
   recoverBrokenView: () => { brokenViewFails = false },
+  disableCommands: () => extensionRegistry.disable('commands.tools'),
+  clearProject: () => useWorkspaceStore.getState().setActiveWorkspace(null),
+  hideCommandMenu: () => extensionCommands.setMenuPreference('menu:commands.tools/toolbox/open-details', { hidden: true }),
   state: () => ({ ...metrics, tabs: [...getLeafPanes(useWorkspaceStore.getState().paneTree), ...getLeafPanes(useGlobalToolsStore.getState().paneTree)].flatMap((leaf) => leaf.tabs),
     right: useRightToolStore.getState().openToolIds, snapshots: useWorkspaceStore.getState().terminalSnapshots }),
 } })
@@ -67,6 +84,8 @@ function Workbench() {
       <button onClick={() => extensionRegistry.disable('example.tools')}>Disable example</button>
       <button onClick={() => extensionRegistry.enable('example.tools')}>Enable example</button>
       <button onClick={unregister}>Unregister example</button>
+      <input aria-label="Shortcut input" />
+      <div className="xterm" tabIndex={0} aria-label="Terminal shortcut input" />
     </nav>
     <main style={{ display: 'grid', gridTemplateColumns: `minmax(0, 1fr) ${layout.dockWidth}px`, flex: 1, minHeight: 0 }}>
       <TerminalArea />

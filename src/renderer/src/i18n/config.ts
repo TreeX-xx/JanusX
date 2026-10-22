@@ -19,6 +19,7 @@ export const NAMESPACE_LIST = [
   'llm',
   'model',
   'team',
+  'plugins',
 ] as const
 
 export type Namespace = (typeof NAMESPACE_LIST)[number]

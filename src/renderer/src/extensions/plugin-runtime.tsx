@@ -1,0 +1,178 @@
+// Note: .agents/notes/workbench/plugin-contract-v1.md — trusted shells only; plugin code stays in isolated native pages.
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { PluginHostEvent, PluginHostSnapshot, PluginManageRequest, PluginMount } from '../../../shared/ipc/plugins'
+import type { ExtensionViewProps } from './types'
+import { extensionRegistry } from './registry'
+import { manifestContribution } from './manifest'
+import { openExtensionView } from './workbench'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useWorktreeStore } from '@/stores/worktree'
+import { useGlobalToolsStore } from '@/stores/global-tools'
+import { useRightToolStore } from '@/stores/right-tools'
+import { getLeafPanes } from '@/lib/workspace-pane'
+import { useThemeStore } from '@/stores/theme'
+import i18n from '@/i18n'
+import { useI18n } from '@/i18n/useI18n'
+import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
+import { useAppStore } from '@/stores/app'
+
+let snapshot: PluginHostSnapshot = { developmentMode: false, plugins: [], logs: [] }
+const listeners = new Set<() => void>()
+const mounted = new Map<string, { digest: string; unregister: () => void }>()
+let refreshSequence = 0
+let started = false
+export async function pluginRequest<T = unknown>(input: PluginManageRequest): Promise<T> {
+  if (!window.electron.plugins) throw new Error('DESKTOP_REQUIRED')
+  const result = await window.electron.plugins.request(input)
+  if (!result.ok) throw new Error(result.code)
+  return result.data as T
+}
+export function usePluginSnapshot(): PluginHostSnapshot {
+  return useSyncExternalStore(listener => { listeners.add(listener); return () => listeners.delete(listener) }, () => snapshot)
+}
+export async function refreshPlugins(): Promise<void> {
+  const sequence = ++refreshSequence
+  const next = await pluginRequest<PluginHostSnapshot>({ type: 'list' })
+  if (sequence !== refreshSequence) return
+  snapshot = next
+  for (const [id, entry] of mounted) {
+    const record = next.plugins.find(record => record.manifest.id === id)
+    if (!record || !record.enabled || !next.developmentMode || !['ready', 'loading', 'active', 'error'].includes(record.state)
+      || (record.state === 'error' && record.error !== 'VIEW_LOAD_FAILED') || record.digest !== entry.digest) {
+      entry.unregister(); mounted.delete(id)
+    }
+  }
+  for (const record of next.plugins) if (record.enabled && next.developmentMode && ['ready', 'loading', 'active', 'error'].includes(record.state)
+    && (record.state !== 'error' || record.error === 'VIEW_LOAD_FAILED') && !mounted.has(record.manifest.id)) {
+    const id = record.manifest.id
+    const definition = manifestContribution(record.manifest, view => props => <PluginViewShell {...props} pluginId={id} localViewId={view.id} />)
+    mounted.set(id, { digest: record.digest, unregister: extensionRegistry.register(definition) })
+  }
+  for (const listener of listeners) listener()
+}
+function publicTheme() {
+  const tokens: Record<string, string> = {}
+  const style = getComputedStyle(document.documentElement)
+  for (const token of ['shell-canvas', 'shell-text', 'shell-muted', 'shell-card', 'shell-border', 'shell-accent']) tokens[`--${token}`] = style.getPropertyValue(`--${token}`).trim()
+  return { id: document.documentElement.dataset.theme ?? '', tokens }
+}
+export function syncPluginContext(): Promise<void> {
+  const state = useWorkspaceStore.getState()
+  const id = state.activeWorkspaceId
+  const workspace = state.workspaces.find(workspace => workspace.id === id)
+  const scopePath = id ? useWorktreeStore.getState().activePaths[id] ?? workspace?.path ?? null : null
+  return pluginRequest({ type: 'context', projectId: id, scopePath, locale: i18n.language ?? 'en', theme: publicTheme() })
+}
+function openViews(): string[] {
+  const trees = [useWorkspaceStore.getState().paneTree, useGlobalToolsStore.getState().paneTree]
+  return [...new Set([...trees.flatMap(tree => getLeafPanes(tree).flatMap(leaf => leaf.tabs.flatMap(tab => tab.type === 'extension' ? [tab.viewId] : []))),
+    ...useRightToolStore.getState().openToolIds.filter(id => id.startsWith('extension:'))])]
+}
+export function initializePluginRuntime(): void {
+  if (started || !window.electron.plugins) return
+  started = true
+  window.electron.plugins.onChanged(() => {
+    const opened = openViews().map(id => ({ id, digest: mounted.get(extensionRegistry.getView(id)?.extensionId ?? '')?.digest }))
+    void refreshPlugins().then(() => {
+      for (const entry of opened) {
+        const view = extensionRegistry.getView(entry.id)
+        if (view && entry.digest !== mounted.get(view.extensionId)?.digest) openExtensionView(entry.id as `extension:${string}/${string}`)
+      }
+    }).catch(console.error)
+  })
+  window.electron.plugins.onEvent(({ packet }: PluginHostEvent) => {
+    if (!packet || typeof packet !== 'object' || Array.isArray(packet)) return
+    if (packet.type === 'openView' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') openExtensionView(`extension:${packet.pluginId}/${packet.viewId}`)
+    if (packet.type === 'toast' && typeof packet.pluginId === 'string' && typeof packet.message === 'string') {
+      // A host-rendered text notification always retains the plugin's identity.
+      window.dispatchEvent(new CustomEvent('janusx:plugin-toast', { detail: { source: packet.pluginId, message: packet.message } }))
+    }
+  })
+  let contextKey = ''
+  const sync = () => {
+    const state = useWorkspaceStore.getState()
+    const key = JSON.stringify([state.activeWorkspaceId, state.workspaces.find(workspace => workspace.id === state.activeWorkspaceId)?.path,
+      useWorktreeStore.getState().activePaths, document.documentElement.dataset.theme, i18n.language])
+    if (key === contextKey) return
+    contextKey = key
+    void syncPluginContext().catch(console.error)
+  }
+  useWorkspaceStore.subscribe(sync); useWorktreeStore.subscribe(sync); useThemeStore.subscribe(() => requestAnimationFrame(sync)); i18n.on('languageChanged', sync)
+  sync()
+  void refreshPlugins().catch(console.error)
+}
+
+function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active }: ExtensionViewProps & { pluginId: string; localViewId: string }) {
+  const { t } = useI18n('plugins')
+  const body = useRef<HTMLDivElement>(null)
+  const covered = useBrowserOcclusionStore(state => state.count > 0)
+  const dragging = useWorkspaceStore(state => state.tabDragInFlight)
+  const workbench = useAppStore(state => state.activeWorkbench !== null)
+  const activeScope = useWorktreeStore(state => workspaceId ? state.activePaths[workspaceId] ?? workspacePath : null)
+  const selectedProject = useWorkspaceStore(state => workspaceId ? state.activeWorkspaceId : null)
+  const [mount, setMount] = useState<PluginMount | null>(null)
+  const [failure, setFailure] = useState('')
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    let current: PluginMount | undefined
+    setMount(null); setFailure('')
+    if (workspaceId && selectedProject !== workspaceId) return
+    void syncPluginContext().then(() => cancelled ? undefined : pluginRequest<PluginMount>({ type: 'mount', id: pluginId, view: localViewId, projectId: workspaceId, scopePath: activeScope }))
+      .then(result => {
+        if (!result) return
+        current = result
+        if (cancelled) void pluginRequest({ type: 'close', instanceId: result.instanceId, binding: result.binding })
+        else setMount(result)
+      }).catch(cause => { if (!cancelled) setFailure(String(cause.message)) })
+    return () => {
+      cancelled = true
+      if (current) void pluginRequest({ type: 'close', instanceId: current.instanceId, binding: current.binding }).catch(() => {})
+    }
+  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry])
+  useEffect(() => {
+    if (!mount) return
+    void pluginRequest({ type: 'active', instanceId: mount.instanceId, binding: mount.binding, active }).catch(() => {})
+  }, [active, mount])
+  useEffect(() => {
+    if (!mount || !window.electron.plugins) return
+    return window.electron.plugins.onEvent(event => {
+      if (event.instanceId !== mount.instanceId) return
+      const packet = event.packet
+      if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.event === 'invalidated') {
+        if (packet.reason === 'reload') setRetry(value => value + 1)
+        else setFailure('INSTANCE_CLOSED')
+      }
+    })
+  }, [mount])
+  const visible = active && !covered && !dragging && !workbench && !failure
+  useLayoutEffect(() => {
+    if (!mount || !body.current) return
+    const element = body.current
+    let animation = 0
+    const hide = () => pluginRequest({ type: 'bounds', instanceId: mount.instanceId, binding: mount.binding, bounds: { x: 0, y: 0, width: 0, height: 0 } }).catch(() => {})
+    const update = () => {
+      cancelAnimationFrame(animation)
+      animation = requestAnimationFrame(() => {
+        const rect = element.getBoundingClientRect()
+        const bounds = visible ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : { x: 0, y: 0, width: 0, height: 0 }
+        void pluginRequest({ type: 'bounds', instanceId: mount.instanceId, binding: mount.binding, bounds }).catch(() => {})
+      })
+    }
+    if (!visible) void hide()
+    const observer = new ResizeObserver(update); observer.observe(element)
+    window.addEventListener('resize', update); window.addEventListener('scroll', update, true); document.addEventListener('transitionend', update)
+    update()
+    return () => {
+      observer.disconnect(); cancelAnimationFrame(animation)
+      window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); document.removeEventListener('transitionend', update)
+      void hide()
+    }
+  }, [mount, visible])
+  return <div className="h-full min-h-0 w-full flex flex-col" data-plugin-view={`${pluginId}/${localViewId}`}>
+    {mount && snapshot.developmentMode && !failure && <button type="button" className="self-end text-xs px-2 py-1" aria-label={t('plugins:devtools')}
+      onClick={() => { void pluginRequest({ type: 'devtools', instanceId: mount.instanceId, binding: mount.binding }).catch(cause => setFailure(cause.message)) }}>{t('plugins:devtools')}</button>}
+    {failure ? <div role="alert" className="p-3 text-xs"><p>{failure}</p><button type="button" aria-label={t('plugins:retry')} onClick={() => setRetry(value => value + 1)}>↻</button></div>
+      : mount ? <div ref={body} className="flex-1 min-h-0" data-plugin-native={mount.instanceId} /> : <span role="status">…</span>}
+  </div>
+}

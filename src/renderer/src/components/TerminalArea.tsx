@@ -14,7 +14,8 @@ import { destroyBrowserSurface, popOutBrowserSurface } from '@/services/browser'
 import { TerminalContextTooltip, TerminalRuntime, TerminalUsageStats } from './TerminalUsageDetails'
 import { MarkdownPane } from './MarkdownPane'
 import { ExtensionViewHost } from '@/extensions/ExtensionViewHost'
-import { useExtensionViews } from '@/extensions/react'
+import { useExtensionCommands, useExtensionViews } from '@/extensions/react'
+import { extensionCommands } from '@/extensions/commands'
 import { extensionRegistry } from '@/extensions/registry'
 import { openExtensionView } from '@/extensions/workbench'
 import { MarkdownIcon } from './ui/MarkdownIcon'
@@ -389,11 +390,9 @@ function TerminalPresetCapsule({
   items: TerminalPresetOption[]
 }) {
   const toggleRef = useRef<HTMLDivElement | null>(null)
-  const extensionViews = useExtensionViews()
+  useExtensionCommands()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
-  const workspaceViews = extensionViews.filter((view) => view.location === 'workspace'
-    && view.launcher !== 'tool-menu'
-    && (view.scope === 'application' || workspaceId))
+  const workspaceEntries = extensionCommands.getMenus('workspace-add', Boolean(workspaceId))
   const panelRef = useRef<HTMLDivElement | null>(null)
   const exitTimerRef = useRef<number | null>(null)
   const wasOpenRef = useRef(open)
@@ -724,14 +723,16 @@ function TerminalPresetCapsule({
                 </div>
               </>
             )}
-            {workspaceViews.map((view) => {
+            {workspaceEntries.map((entry) => {
+              const view = entry.view
               const Icon = view.icon ?? Puzzle
               return (
-                <button key={view.id} type="button" role="menuitem"
+                <button key={entry.id} type="button" role="menuitem"
+                  disabled={!extensionCommands.canExecute(entry.commandId, Boolean(workspaceId))}
                   className="terminal-preset-item flex items-center gap-2 rounded-md px-2 py-[7px] text-left text-xs"
                   style={{ color: 'var(--shell-text)' }}
-                  onClick={() => { openExtensionView(view.id); onClose() }}>
-                  <Icon size={16} aria-hidden="true" /><span className="truncate">{view.title}</span>
+                  onClick={() => { extensionCommands.execute(entry.commandId, Boolean(workspaceId), openExtensionView); onClose() }}>
+                  <Icon size={16} aria-hidden="true" /><span className="truncate">{extensionCommands.getSnapshot().commands.find((command) => command.id === entry.commandId)?.title ?? view.title}</span>
                 </button>
               )
             })}

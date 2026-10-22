@@ -1,0 +1,19 @@
+{
+  "name": "@janusx/plugin-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "JanusX local plugin contract, validation and scaffold",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "bin": { "janusx-plugin": "./tools/cli.mjs" },
+  "files": ["dist", "tools", "template", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "dependencies": { "jsonc-parser": "^3.3.1", "semver": "^7.7.3", "zod": "^3.25.76" },
+  "devDependencies": { "@types/semver": "^7.7.1", "typescript": "^5.6.0" }
+}

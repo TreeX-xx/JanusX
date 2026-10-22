@@ -7,7 +7,11 @@ import { ToolboxIcon } from './ui/ToolboxIcon'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useExperimentalStore } from '@/stores/experimental'
-import { useExtensionViews } from '@/extensions/react'
+import { useRightToolStore } from '@/stores/right-tools'
+import { canonicalRightToolId } from '@/right-tools/registry'
+import { useExtensionCommands } from '@/extensions/react'
+import { extensionCommands } from '@/extensions/commands'
+import { installExtensionShortcuts } from '@/extensions/command-shortcuts'
 import { openExtensionView } from '@/extensions/workbench'
 import { getLeafPanes } from '@/lib/workspace-pane'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
@@ -37,7 +41,9 @@ export function TitlebarToolGroup() {
   const projectTree = useWorkspaceStore((s) => s.paneTree)
   const browserSurfaceId = useGlobalToolsStore((s) => s.browserSurfaceId)
   const workspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
-  const extensionViews = useExtensionViews()
+  const openRightTools = useRightToolStore((s) => s.openToolIds)
+  useExtensionCommands()
+  useEffect(() => installExtensionShortcuts(window), [])
   const [menuOpen, setMenuOpen] = useState(false)
   useBrowserOcclusion(menuOpen)
   const comboRef = useRef<HTMLDivElement | null>(null)
@@ -68,6 +74,7 @@ export function TitlebarToolGroup() {
     label: string
     actionLabel: string
     opened: boolean
+    disabled?: boolean
     open: () => void | Promise<void>
   }> = [
     {
@@ -86,16 +93,20 @@ export function TitlebarToolGroup() {
       opened: openState.markdown,
       open: () => openMarkdownInWorkspace(),
     },
-    ...extensionViews.filter((view) => view.location === 'workspace' && view.launcher === 'tool-menu'
-      && (view.scope === 'application' || workspaceId)).map((view) => {
+    ...extensionCommands.getMenus('toolbox', Boolean(workspaceId)).map((entry) => {
+      const view = entry.view
       const Icon = view.icon ?? Puzzle
+      const title = extensionCommands.getSnapshot().commands.find((command) => command.id === entry.commandId)?.title ?? view.title
       return {
-        id: view.id,
+        id: entry.id,
         icon: <Icon className={styles.menuIcon} size={14} strokeWidth={1.5} aria-hidden="true" />,
-        label: view.title,
-        actionLabel: view.title,
-        opened: getLeafPanes(view.scope === 'application' ? paneTree : projectTree).some((leaf) => leaf.tabs.some((tab) => tab.type === 'extension' && tab.viewId === view.id)),
-        open: () => { openExtensionView(view.id) },
+        label: title,
+        actionLabel: title,
+        disabled: !extensionCommands.canExecute(entry.commandId, Boolean(workspaceId)),
+        opened: view.location === 'right'
+          ? openRightTools.some((id) => id === canonicalRightToolId(view.id))
+          : getLeafPanes(view.scope === 'application' ? paneTree : projectTree).some((leaf) => leaf.tabs.some((tab) => tab.type === 'extension' && tab.viewId === view.id)),
+        open: () => { extensionCommands.execute(entry.commandId, Boolean(workspaceId), openExtensionView) },
       }
     }),
   ]
@@ -132,6 +143,7 @@ export function TitlebarToolGroup() {
                 role="menuitem"
                 className={styles.menuItem}
                 data-id={tool.id}
+                disabled={tool.disabled}
                 title={tool.actionLabel}
                 aria-label={tool.actionLabel}
                 onClick={() => pick(tool.open)}

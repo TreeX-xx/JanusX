@@ -4,6 +4,7 @@ import type { TerminalAPI } from '../../../shared/ipc/terminal'
 import type { ProjectAPI } from '../../../shared/ipc/project'
 import type { BrowserAPI } from '../../../shared/ipc/browser'
 import type { CpaAPI } from '../../../shared/ipc/cpa'
+import type { PluginHostAPI } from '../../../shared/ipc/plugins'
 import type { KnowledgeAPI } from '../../../shared/ipc/knowledge'
 import type { JanusAPI } from '../../../shared/ipc/janus'
 import type { HarnessAPI } from '../../../shared/ipc/harness'
@@ -43,6 +44,7 @@ interface ElectronAPI {
   project: ProjectAPI
   browser: BrowserAPI
   cpa: CpaAPI
+  plugins?: PluginHostAPI
   knowledge: KnowledgeAPI
   janus: JanusAPI
   harness: HarnessAPI

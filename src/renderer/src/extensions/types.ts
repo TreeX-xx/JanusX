@@ -1,6 +1,7 @@
-// Note: trusted contribution API; third-party isolation is a later stage — see .agents/notes/workbench/requirements/plugin-architecture-forms.md
+// Note: trusted contribution API; isolated packages use authorized shells — see .agents/notes/workbench/requirements/plugin-architecture-forms.md
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import type { PluginCommand, PluginMenu, PluginKeybinding } from '@janusx/plugin-sdk'
 
 export type ExtensionViewLocation = 'workspace' | 'right'
 export type ExtensionViewScope = 'application' | 'project'
@@ -29,6 +30,10 @@ export interface ExtensionView {
 export interface ExtensionDefinition {
   id: string
   views: readonly ExtensionView[]
+  /** Omit commands to adapt legacy workspace launchers automatically. */
+  commands?: readonly PluginCommand[]
+  menus?: readonly PluginMenu[]
+  keybindings?: readonly PluginKeybinding[]
   /** Synchronous, trusted renderer setup. Return a disposer for owned resources. */
   activate?: () => void | (() => void)
 }

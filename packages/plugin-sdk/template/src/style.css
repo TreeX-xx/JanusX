@@ -1,0 +1,6 @@
+:root { font: 14px/1.6 system-ui, sans-serif; color-scheme: light dark; }
+body { margin: 0; color: var(--plugin-text, CanvasText); background: var(--plugin-canvas, Canvas); }
+main { padding: 20px; max-width: 70ch; }
+h1 { font-size: 20px; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+button { font: inherit; padding: 6px 12px; }

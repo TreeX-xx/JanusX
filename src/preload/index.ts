@@ -21,6 +21,7 @@ import {
 import { PROJECT_CHANNELS, type ProjectAPI } from '../shared/ipc/project'
 import { BROWSER_EVENT_CHANNELS, BROWSER_INVOKE_CHANNELS, type BrowserAPI } from '../shared/ipc/browser'
 import { CPA_CHANNELS, type CpaAPI } from '../shared/ipc/cpa'
+import { PLUGIN_CHANNELS, type PluginHostAPI } from '../shared/ipc/plugins'
 import { KNOWLEDGE_CHANNELS, type KnowledgeAPI } from '../shared/ipc/knowledge'
 import {
   JANUS_COMMAND_CHANNELS,
@@ -662,6 +663,12 @@ const cpaAPI: CpaAPI = {
   copyManagementKey: () => ipcRenderer.invoke(CPA_CHANNELS.copyKey),
 }
 
+const pluginAPI: PluginHostAPI = {
+  request: input => ipcRenderer.invoke(PLUGIN_CHANNELS.manage, input),
+  onChanged: callback => subscribeIpcEvent(PLUGIN_CHANNELS.changed, callback),
+  onEvent: callback => subscribeIpcEvent(PLUGIN_CHANNELS.event, callback),
+}
+
 contextBridge.exposeInMainWorld('electron', {
   /*-- 同步暴露平台与 Windows build 号，供渲染端构造 xterm windowsPty 用 --*/
   /*-- preload 在 Node 环境，可同步读取；os.release() 形如 "10.0.22621"，第三段为 build 号 --*/
@@ -679,6 +686,7 @@ contextBridge.exposeInMainWorld('electron', {
   project: projectAPI,
   browser: browserAPI,
   cpa: cpaAPI,
+  plugins: pluginAPI,
   knowledge: knowledgeAPI,
   janus: janusAPI,
   harness: harnessAPI,

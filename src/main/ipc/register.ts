@@ -9,6 +9,7 @@ import type { LanguageServiceId } from '../../shared/ipc/language-service'
 import { registerAgentHandlers } from './janus-runner-handlers'
 import { registerBrowserHandlers } from './browser-handlers'
 import { registerCpaHandlers } from './cpa-handlers'
+import { registerPluginHandlers } from './plugin-handlers'
 import { registerCheckpointHandlers } from './checkpoint-handlers'
 import { registerSessionHandlers } from './session-handlers'
 import { disposeWorktreeWatchers, registerWorktreeHandlers } from './worktree-handlers'
@@ -67,6 +68,7 @@ export interface RegisterApplicationIpcOptions {
 
 /** 幂等守卫：重复调用不再触发 "Attempted to register a second handler"。 */
 let applicationIpcRegistered = false
+let pluginService: ReturnType<typeof registerPluginHandlers> | undefined
 
 /**
  * 当前主窗口。handler 通过 getter 读取，而非按值捕获——
@@ -88,6 +90,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   blueprintMaintenanceService.setMainWindow(mainWindow)
   subAgentRunRegistry.setMainWindow(mainWindow)
   mainWindow.on('closed', () => {
+    pluginService?.closeAll()
     if (currentMainWindow === mainWindow) currentMainWindow = null
     analyzer.setMainWindow(null)
     blueprintMaintenanceService.setMainWindow(null)
@@ -99,7 +102,11 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   })
 
   registerAgentRuntimeHandlers(getCurrentMainWindow, ipcMain, options.resolveWorkspaceRoot)
-  if (applicationIpcRegistered) return
+  if (applicationIpcRegistered) {
+    mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) pluginService?.closeAll() })
+    mainWindow.webContents.on('render-process-gone', () => pluginService?.closeAll())
+    return
+  }
   applicationIpcRegistered = true
 
   registerWorkspaceHandlers(getCurrentMainWindow, {
@@ -113,6 +120,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   })
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
+  pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
   const cpaService = registerCpaHandlers(getCurrentMainWindow, options.browserSurfaces)
   appShutdown.configure({ stopCpa: () => cpaService.dispose() })
   registerGitHandlers()

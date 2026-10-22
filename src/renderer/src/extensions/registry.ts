@@ -1,5 +1,6 @@
 // Note: S1 registration and lifecycle contract — see .agents/notes/workbench/requirements/plugin-architecture-forms.md
 import type { ExtensionDefinition, ExtensionViewId, RegisteredExtensionView } from './types'
+import { pluginCommandSchema, pluginMenuSchema, pluginKeybindingSchema } from '@janusx/plugin-sdk'
 
 const ID_PATTERN = /^[a-z][a-z0-9.-]*$/
 
@@ -16,6 +17,7 @@ export class ExtensionRegistry {
   private registrations = new Map<string, ExtensionRegistration>()
   private listeners = new Set<() => void>()
   private views: readonly RegisteredExtensionView[] = []
+  private definitions: readonly ExtensionDefinition[] = []
   private nextActivationId = 0
 
   subscribe = (listener: () => void): (() => void) => {
@@ -24,6 +26,7 @@ export class ExtensionRegistry {
   }
 
   getSnapshot = (): readonly RegisteredExtensionView[] => this.views
+  getDefinitions = (): readonly ExtensionDefinition[] => this.definitions
 
   getView = (id: string): RegisteredExtensionView | undefined => this.views.find((view) => view.id === id)
 
@@ -41,6 +44,16 @@ export class ExtensionRegistry {
       return Object.freeze({ ...view, id: `extension:${definition.id}/${view.id}`, extensionId: definition.id, activationId: 0 })
     })
     const registration: ExtensionRegistration = { definition, views, enabled: false, activationId: 0 }
+    const commands = definition.commands?.map((command) => pluginCommandSchema.parse(command)) ?? []
+    if (new Set(commands.map((command) => command.id)).size !== commands.length
+      || commands.some((command) => !ids.has(command.action.view))) throw new Error('Invalid extension command')
+    const menus = definition.menus?.map((menu) => pluginMenuSchema.parse(menu)) ?? []
+    const keybindings = definition.keybindings?.map((binding) => pluginKeybindingSchema.parse(binding)) ?? []
+    if ([...menus, ...keybindings].some((entry) => !commands.some((command) => command.id === entry.command))
+      || new Set(menus.map((menu) => `${menu.location}:${menu.command}`)).size !== menus.length) throw new Error('Invalid extension entry')
+    registration.definition = Object.freeze({ ...definition, views: Object.freeze([...definition.views]),
+      ...(definition.commands ? { commands: Object.freeze(commands) } : {}),
+      menus: Object.freeze(menus), keybindings: Object.freeze(keybindings) })
     this.registrations.set(definition.id, registration)
     try {
       this.enable(definition.id)
@@ -76,6 +89,7 @@ export class ExtensionRegistry {
   }
 
   private publish(): void {
+    this.definitions = Object.freeze([...this.registrations.values()].filter((registration) => registration.enabled).map((registration) => registration.definition))
     this.views = Object.freeze([...this.registrations.values()]
       .filter((registration) => registration.enabled)
       .flatMap((registration) => registration.views.map((view) => Object.freeze({ ...view, activationId: registration.activationId })))

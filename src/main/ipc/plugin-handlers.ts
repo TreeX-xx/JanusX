@@ -1,0 +1,115 @@
+import { app, dialog, ipcMain, type BrowserWindow } from 'electron'
+import { join, basename } from 'node:path'
+import { realpath } from 'node:fs/promises'
+import { z } from 'zod'
+import { PluginError } from '@janusx/plugin-sdk'
+import { PLUGIN_CHANNELS, type PluginManageRequest, type PluginHostResult } from '../../shared/ipc/plugins'
+import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
+import { PluginService } from '../plugins/service'
+import { PluginRuntime } from '../plugins/runtime'
+import { listWorktrees } from '../git/worktrees'
+import { promises as originalFiles } from 'original-fs'
+import { configurePluginFileSystem } from '../plugins/files'
+
+const text = z.string().min(1).max(256)
+const nullableText = z.string().max(4096).nullable()
+const instance = { instanceId: text, binding: text }
+const inputSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('list') }).strict(),
+  z.object({ type: z.literal('development'), enabled: z.boolean() }).strict(),
+  z.object({ type: z.literal('import'), kind: z.enum(['linked', 'copied']) }).strict(),
+  z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256) }).strict(),
+  ...(['disable', 'reload', 'uninstall', 'deleteData'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
+  z.object({ type: z.literal('context'), projectId: text.nullable(), scopePath: nullableText, locale: z.string().max(32),
+    theme: z.object({ id: z.string().max(128), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
+  z.object({ type: z.literal('mount'), id: text, view: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
+  ...(['close', 'devtools'] as const).map(type => z.object({ type: z.literal(type), ...instance }).strict()),
+  z.object({ type: z.literal('bounds'), ...instance, bounds: z.object({ x: z.number().finite(), y: z.number().finite(), width: z.number().finite().nonnegative(), height: z.number().finite().nonnegative() }).strict() }).strict(),
+  z.object({ type: z.literal('active'), ...instance, active: z.boolean() }).strict(),
+  z.object({ type: z.literal('call'), ...instance, packet: z.unknown() }).strict(),
+])
+
+export function registerPluginHandlers(getWindow: () => BrowserWindow | null, resolveRoot: ResolveWorkspaceRoot): PluginService {
+  configurePluginFileSystem(originalFiles)
+  const send = (channel: string, payload?: unknown) => { const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload) }
+  const service = new PluginService({
+    directory: join(app.getPath('userData'), 'janusx', 'plugins'),
+    protectedDirectories: [app.getPath('userData'), app.getPath('sessionData')],
+    resolveProject: async (id, scopePath) => {
+      const registered = await resolveRoot(id)
+      if (!registered) throw new PluginError('CONTEXT_UNAVAILABLE', 'Project is not registered.')
+      let root = await realpath(registered)
+      if (scopePath) {
+        const requested = await realpath(scopePath)
+        if (requested !== root) {
+          const known = await Promise.all((await listWorktrees(id, root)).map(item => realpath(item.path).catch(() => '')))
+          if (!known.includes(requested)) throw new PluginError('CONTEXT_UNAVAILABLE', 'Worktree is not registered.')
+          root = requested
+        }
+      }
+      return { root, name: basename(root) }
+    },
+    changed: () => send(PLUGIN_CHANNELS.changed),
+    event: (instanceId, packet) => { runtime?.send(instanceId, packet); send(PLUGIN_CHANNELS.event, { instanceId, packet }) },
+    closed: instanceId => runtime?.close(instanceId),
+    openView: (pluginId, viewId) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'openView', pluginId, viewId } }),
+    toast: (pluginId, message, level) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'toast', pluginId, message, level } }),
+  })
+  const runtime = new PluginRuntime(service, getWindow)
+  const host = getWindow()!
+  host.webContents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) service.closeAll() })
+  host.webContents.on('render-process-gone', () => service.closeAll())
+  const ready = service.initialize()
+  // Observe rejection immediately; management requests still report the original error.
+  void ready.catch(() => service.log('STORAGE_UNAVAILABLE'))
+  app.on('will-quit', () => { service.dispose(); runtime.dispose() })
+  ipcMain.handle(PLUGIN_CHANNELS.manage, async (event, input: unknown): Promise<PluginHostResult> => {
+    try {
+      const window = getWindow()
+      if (!window || window.isDestroyed() || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) {
+        throw new PluginError('INVALID_SENDER', 'Plugin management requires the main window.')
+      }
+      await ready
+      const checked = inputSchema.safeParse(input)
+      if (!checked.success) throw new PluginError('INVALID_REQUEST', 'Invalid plugin management request.')
+      const request = checked.data as PluginManageRequest
+      let data: unknown = null
+      switch (request.type) {
+        case 'list': data = service.snapshot(); break
+        case 'development': await service.setDevelopment(request.enabled); break
+        case 'import': {
+          const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
+          if (!selection.canceled && selection.filePaths[0]) await service.import(selection.filePaths[0], request.kind)
+          break
+        }
+        case 'enable': await service.enable(request.id, request.projects); break
+        case 'disable': await service.disable(request.id); break
+        case 'reload': await service.reload(request.id, true); break
+        case 'uninstall': await service.uninstall(request.id); break
+        case 'deleteData': await service.deleteData(request.id); break
+        case 'context': await service.setContext(request.projectId, request.scopePath, request.locale, request.theme); break
+        case 'mount': {
+          const mount = await service.mount(request.id, request.view, request.projectId, request.scopePath)
+          try { await runtime.create(request.id, mount); data = mount }
+          catch (cause) { service.close(mount.instanceId); throw cause }
+          break
+        }
+        case 'devtools': {
+          const snapshot = service.snapshot()
+          if (!snapshot.developmentMode) throw new PluginError('DEVELOPMENT_MODE_REQUIRED', 'Local development mode is off.')
+          runtime.inspect(request.instanceId, request.binding); break
+        }
+        case 'bounds': runtime.setBounds(request.instanceId, request.binding, request.bounds); break
+        case 'close': service.close(request.instanceId, request.binding); break
+        case 'active': service.active(request.instanceId, request.binding, request.active); break
+        case 'call': data = await service.call(request.instanceId, request.binding, request.packet); break
+      }
+      return { ok: true, data }
+    } catch (cause) {
+      const code = cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR'
+      service.log(code)
+      return { ok: false, code, message: code }
+    }
+  })
+  return service
+}

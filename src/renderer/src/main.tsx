@@ -4,6 +4,8 @@ import ReactDOM from 'react-dom/client'
 import { installElectronApiFallback } from './lib/electron-api-fallback'
 import { initBrowserEventSubscriptions } from './stores/browser'
 import { registerCpaExtension } from './extensions/cpa'
+import { initializePluginRuntime } from './extensions/plugin-runtime'
+import { PluginNotifications } from './components/plugins/PluginSettingsPanel'
 import { initI18n } from './i18n'
 import { useThemeStore } from './stores/theme'
 import './styles/globals.css'
@@ -38,6 +40,7 @@ const searchParams = new URLSearchParams(window.location.search)
 const isEditorWindow = searchParams.get('editorWindow') === '1'
 const isDesktopToast = searchParams.get('desktopToast') === '1'
 const isBrowserWindow = searchParams.get('browserWindow') === '1'
+if (!isEditorWindow && !isDesktopToast && !isBrowserWindow) void i18nReady.then(initializePluginRuntime)
 
 /* Toast 窗口：解析出类型即同步挂透明类，不等 React effect，消灭首漆灰底 */
 if (isDesktopToast) {
@@ -135,6 +138,7 @@ const renderRoot = () => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       {rootContent}
+      {!isEditorWindow && !isDesktopToast && !isBrowserWindow && <PluginNotifications />}
     </React.StrictMode>,
   )
 }
