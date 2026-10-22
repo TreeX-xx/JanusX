@@ -1,5 +1,7 @@
-import { memo, useEffect, useRef, useState } from 'react'
-import { Files, History, ChevronLeft } from 'lucide-react'
+import { memo, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Files, History, ChevronRight } from 'lucide-react'
+import { TerminalScrollControls } from './TerminalScrollControls'
+import { focusTerminal, subscribeTerminalNavigation, terminalViewportState } from '@/lib/terminal-navigation'
 import { useTurnChangesStore, type TerminalTurnChangesEvent } from '@/stores/turn-changes'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
@@ -16,6 +18,7 @@ type IslandView = 'latest' | 'history'
 // Note: latest clears independently of immutable change history — see .agents/notes/terminal/terminal-right-island-turn-history.md
 export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, focused }: { terminalId: string; focused: boolean }) {
   const { t, currentLanguage } = useI18n('terminal')
+  const hasScrollback = useSyncExternalStore(subscribeTerminalNavigation, () => terminalViewportState(terminalId).hasScrollback)
   const change = useTurnChangesStore(s => s.changesByTerminal[terminalId])
   const lastEvent = useTurnChangesStore(s => s.lastEventByTerminal[terminalId])
   const history = useTurnChangesStore(s => s.historyByTerminal[terminalId] ?? EMPTY_TURNS)
@@ -40,7 +43,7 @@ export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, foc
     setView('latest')
   }, [turnKey, change, narrow])
   useEffect(() => {
-    const parent = rootRef.current?.parentElement
+    const parent = rootRef.current?.parentElement?.parentElement
     if (!parent || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < 240))
     observer.observe(parent)
@@ -72,7 +75,6 @@ export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, foc
     : lastEvent ? t('terminal:turnChanges.empty') : t('terminal:turnChanges.waiting')
   const summary = change ? t('terminal:turnChanges.files', { count: change.fileCount }) : emptyText
   const expand = (nextView: IslandView) => {
-    if (narrow) return
     setView(nextView)
     setExpanded(true)
   }
@@ -98,8 +100,11 @@ export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, foc
   ))
 
   return (
+    <div className="terminal-island-tools" data-terminal-tools={terminalId} data-has-scrollback={hasScrollback}>
+    <TerminalScrollControls terminalId={terminalId} focused={focused} />
     <div ref={rootRef} data-turn-island="" data-terminal-id={terminalId}
       data-stage={expanded ? 'expanded' : 'collapsed'} data-view={expanded ? view : undefined}
+      data-narrow={narrow}
       data-has-changes={Boolean(change)} className="turn-change-island"
       style={{ background: 'var(--shell-chrome)', color: 'var(--shell-text)' }}
       onMouseDown={event => event.preventDefault()}
@@ -108,8 +113,7 @@ export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, foc
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false) }}>
       {!expanded ? (
         <button type="button" className="turn-change-dock" aria-label={summary}
-          title={narrow ? t('terminal:turnChanges.narrowHint') : `${summary} · ${t('terminal:turnChanges.hint')}`}
-          disabled={narrow}
+          title={`${summary} · ${t('terminal:turnChanges.hint')}`}
           onClick={event => {
             clearTimeout(clickTimer.current)
             if (event.detail === 0) expand('latest')
@@ -134,9 +138,12 @@ export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, foc
                 {history.length > 0 && <span className="turn-change-history-count">{history.length}</span>}
               </button>
             </div>
-            <button type="button" className="turn-change-close" onClick={() => setExpanded(false)}
-              aria-label={t('terminal:turnChanges.collapse')} title={t('terminal:turnChanges.dismiss')}>
-              <ChevronLeft size={14} aria-hidden="true" />
+            <button type="button" className="turn-change-close" onClick={() => {
+              setExpanded(false)
+              setFocusWithin(false)
+              focusTerminal(terminalId)
+            }} aria-label={t('terminal:turnChanges.collapse')} title={`${t('terminal:turnChanges.collapse')} · Esc`}>
+              <ChevronRight size={16} aria-hidden="true" />
             </button>
           </div>
           <div className="turn-change-body" role="region" key={view}
@@ -178,6 +185,7 @@ export const TurnChangeIsland = memo(function TurnChangeIsland({ terminalId, foc
           </div>
         </div>
       )}
+    </div>
     </div>
   )
 })

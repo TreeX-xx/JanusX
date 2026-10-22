@@ -8,12 +8,10 @@ import {
 } from '../../src/renderer/src/lib/runtime-telemetry'
 
 describe('runtime telemetry model context lookup', () => {
-  it('allows a recent cache rate to decrease and clears it when current history has no rate', () => {
-    const current = { preset: 'codex' as const, recentCacheHitRate: 0.8, telemetryConfidence: 'authoritative' as const, telemetryUpdatedAt: 1_000 }
-    expect(mergeRuntimeTelemetrySnapshot(current, { source: 'history', confidence: 'authoritative', recentCacheHitRate: 0, observedAt: 2_000 })).toMatchObject({ recentCacheHitRate: 0 })
-    expect(mergeRuntimeTelemetrySnapshot(current, { source: 'history', confidence: 'authoritative', observedAt: 2_000 })).toHaveProperty('recentCacheHitRate', undefined)
-    expect(mergeRuntimeTelemetrySnapshot(current, { source: 'history', confidence: 'authoritative', recentCacheHitRate: 0.2, observedAt: 500 })).toEqual({})
-    expect(mergeRuntimeTelemetrySnapshot(current, { source: 'configuration', confidence: 'declared', observedAt: 2_000 })).toHaveProperty('recentCacheHitRate', undefined)
+  it('ignores an older observation and clears cumulative usage on configuration', () => {
+    const current = { preset: 'codex' as const, cacheReadTokens: 800, telemetryConfidence: 'authoritative' as const, telemetryUpdatedAt: 1_000 }
+    expect(mergeRuntimeTelemetrySnapshot(current, { source: 'history', confidence: 'authoritative', cacheReadTokens: 900, observedAt: 500 })).toEqual({})
+    expect(mergeRuntimeTelemetrySnapshot(current, { source: 'configuration', confidence: 'declared', observedAt: 2_000 })).toHaveProperty('cacheReadTokens', undefined)
   })
   it('clears restored numeric telemetry when only configuration is available', () => {
     expect(mergeRuntimeTelemetrySnapshot({ preset: 'janus', telemetryConfidence: 'authoritative', contextTokens: 100, totalTokens: 1000, telemetrySessionId: 'old', telemetrySessionBinding: 'exact' }, { source: 'configuration', confidence: 'declared', detectedModel: 'm', observedAt: 2000 })).toMatchObject({ contextTokens: undefined, totalTokens: undefined, telemetrySessionId: undefined, telemetryConfidence: 'declared' })

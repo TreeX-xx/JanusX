@@ -5,6 +5,7 @@ import type { Terminal } from '@/types'
 import type { ReactNode } from 'react'
 import { resolveContextWindows } from '@/lib/runtime-telemetry'
 import { contextPercentLabel, contextRatio, contextRatioColor, providerLabel } from '@/lib/terminal-labels'
+import { cacheSplitFor } from '@/lib/usage-stats'
 import { ThemedTooltip } from './ui/ThemedTooltip'
 
 const tokenCount = (value?: number) => value === undefined ? '–' : value.toLocaleString('en-US')
@@ -36,13 +37,24 @@ export function TerminalRuntime({ terminal }: { terminal: Terminal }) {
 }
 
 /**
+ * 会话累计缓存命中率：与设置页统计共用 `cacheSplitFor` 口径（命中为缓存读取，
+ * 未命中为新鲜输入加缓存写入，输出不入分母），只是范围收窄到本终端绑定的会话。
+ * 缺少缓存读取或新鲜输入字段时显示「–」，明确的零命中显示 `0.0%`。
+ */
+function cacheHitRateLabel(terminal: Terminal): string {
+  const { cacheReadTokens, inputTokens, cacheWriteTokens } = terminal
+  if (cacheReadTokens === undefined || inputTokens === undefined) return '–'
+  const split = cacheSplitFor(cacheReadTokens, inputTokens, cacheWriteTokens ?? 0)
+  return split.rate === undefined ? '–' : `${(split.rate * 100).toFixed(1)}%`
+}
+
+/**
  * 用量统计的唯一定义：抽屉卡片（grid）与悬浮提示（rows）都从这里取数，
  * 两边内容不会漂移。展开态一律用精确值；紧凑值只属于折叠徽章。
  */
 function usageStatEntries(terminal: Terminal, t: (key: string) => string) {
-  const rate = terminal.recentCacheHitRate
   return [
-    { key: 'recentCacheHitRate', label: t('terminal:context.row.recentCacheHitRate'), value: rate === undefined ? '–' : `${(rate * 100).toFixed(1)}%` },
+    { key: 'cacheHitRate', label: t('terminal:context.row.cacheHitRate'), value: cacheHitRateLabel(terminal) },
     { key: 'cacheRead', label: t('terminal:context.row.cacheRead'), value: tokenCount(terminal.cacheReadTokens) },
     { key: 'cacheWrite', label: t('terminal:context.row.cacheWrite'), value: tokenCount(terminal.cacheWriteTokens) },
     { key: 'sessionTotal', label: t('terminal:context.row.sessionTotal'), value: tokenCount(terminal.totalTokens) },

@@ -64,7 +64,6 @@ describe('runtime telemetry history', () => {
     expect(snapshot).toMatchObject({
       sessionId: 'session-1',
       contextTokens: 650,
-      recentCacheHitRate: 500 / 650,
       inputTokens: 250,
       outputTokens: 50,
       cacheReadTokens: 800,
@@ -118,7 +117,6 @@ describe('runtime telemetry history', () => {
       sessionId,
       detectedModel: 'gpt-5.5',
       contextTokens: 8_000,
-      recentCacheHitRate: 0.5,
       contextWindowTokens: 200_000,
       inputTokens: 8_000,
       outputTokens: 2_000,
@@ -129,7 +127,7 @@ describe('runtime telemetry history', () => {
     })
   })
 
-  it('distinguishes a latest Codex zero cache hit from missing cache fields and cumulative usage', async () => {
+  it('reads Codex cumulative cache usage regardless of the latest request cache fields', async () => {
     const sessionId = '12345678-1234-1234-1234-123456789abc'
     for (const lastUsage of [{ input_tokens: 100, cached_input_tokens: 0 }, { input_tokens: 100 }]) {
       await writeCodexRollout(sessionId, [
@@ -140,8 +138,8 @@ describe('runtime telemetry history', () => {
         } } }),
       ])
       const snapshot = await getRuntimeTelemetrySnapshot({ preset: 'codex', cwd: 'C:/repo', sessionId })
-      expect(snapshot?.cacheReadTokens).toBe(800)
-      expect(snapshot?.recentCacheHitRate).toBe('cached_input_tokens' in lastUsage ? 0 : undefined)
+      // 展示口径只用累计分量，最近一次请求的缓存字段形态不再影响任何读数。
+      expect(snapshot).toMatchObject({ inputTokens: 200, cacheReadTokens: 800, outputTokens: 200, totalTokens: 1200 })
     }
   })
 
@@ -156,7 +154,7 @@ describe('runtime telemetry history', () => {
         } } }),
       ])
       const snapshot = await getRuntimeTelemetrySnapshot({ preset: 'codex', cwd: 'C:/repo', sessionId })
-      expect(snapshot).toMatchObject({ inputTokens: 500 - (written ?? 0), cacheReadTokens: 500, totalTokens: 1200, recentCacheHitRate: 0.6, contextTokens: 120 })
+      expect(snapshot).toMatchObject({ inputTokens: 500 - (written ?? 0), cacheReadTokens: 500, totalTokens: 1200, contextTokens: 120 })
       expect(snapshot?.cacheWriteTokens).toBe(written)
       expect(snapshot?.usageObservation?.counters?.cacheWriteTokens).toBe(written)
       expect(snapshot?.usageObservation?.issue).toBeUndefined()
@@ -341,7 +339,6 @@ describe('runtime telemetry history', () => {
       sessionId: 'session-1',
       detectedModel: 'glm-5.2',
       contextTokens: 925,
-      recentCacheHitRate: 200 / 925,
       inputTokens: 1_200,
       outputTokens: 300,
       cacheReadTokens: 400,
@@ -383,7 +380,6 @@ describe('runtime telemetry history', () => {
       sessionId: 'session-win',
       detectedModel: 'glm-5.2',
       contextTokens: 85,
-      recentCacheHitRate: 20 / 85,
       source: 'history',
       confidence: 'authoritative',
     })
@@ -484,7 +480,6 @@ describe('runtime telemetry history', () => {
       cacheWriteTokens: 7,
       totalTokens: 1_867,
       contextTokens: 567,
-      recentCacheHitRate: 60 / 567,
       compactionCount: 1,
       compactionCountConfidence: 'exact',
       source: 'history',

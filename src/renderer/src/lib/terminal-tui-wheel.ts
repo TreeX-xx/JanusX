@@ -2,8 +2,7 @@ import type { Terminal } from '@xterm/xterm'
 
 const REPLAYED_WHEEL = '__janusxReplayedTerminalWheel'
 const DEFAULT_CELL_HEIGHT = 16
-const MAX_DISCRETE_ROWS = 9
-const DOM_DELTA_PIXEL = 0
+const MAX_REPORTS = 48
 const DOM_DELTA_LINE = 1
 const DOM_DELTA_PAGE = 2
 
@@ -29,9 +28,7 @@ export function resolveTerminalTuiWheelReports(
     : event.deltaMode === DOM_DELTA_PAGE
       ? Math.abs(event.deltaY) * Math.max(1, rows)
       : Math.abs(event.deltaY) / Math.max(1, cellHeight)
-  const limited = event.deltaMode === DOM_DELTA_PIXEL && Math.abs(event.deltaY) < 50
-    ? distance
-    : Math.min(MAX_DISCRETE_ROWS, Math.max(1, 1 + Math.log2(Math.max(1, distance))))
+  const limited = Math.min(MAX_REPORTS, distance)
   const total = state.remainder + limited
   const reports = Math.trunc(total)
   state.remainder = total - reports
@@ -42,7 +39,7 @@ export function attachTerminalTuiWheelHandler(terminal: Terminal): void {
   const state = createTerminalWheelDistanceState()
   terminal.attachCustomWheelEventHandler((event) => {
     if ((event as WheelWithReplayMark)[REPLAYED_WHEEL]) return true
-    if (terminal.modes.mouseTrackingMode === 'none' || event.deltaY === 0 || event.shiftKey) return true
+    if (terminal.modes.mouseTrackingMode === 'none' || event.deltaY === 0 || event.shiftKey || event.ctrlKey || event.metaKey) return true
 
     const target = event.currentTarget instanceof EventTarget ? event.currentTarget : terminal.element
     if (!target) return true
@@ -53,10 +50,10 @@ export function attachTerminalTuiWheelHandler(terminal: Terminal): void {
       state,
       cellHeight ? cellHeight / Math.max(1, terminal.rows) : DEFAULT_CELL_HEIGHT,
       terminal.rows,
-    )
+    ) * (event.altKey ? 5 : 1)
 
     queueMicrotask(() => {
-      for (let index = 0; index < reports; index += 1) {
+      for (let index = 0; index < Math.min(120, reports); index += 1) {
         target.dispatchEvent(cloneWheelReport(event))
       }
     })
@@ -71,7 +68,8 @@ function cloneWheelReport(event: WheelEvent): WheelEvent {
     clientX: event.clientX,
     clientY: event.clientY,
     ctrlKey: event.ctrlKey,
-    altKey: event.altKey,
+    // Alt is a host acceleration gesture, not an application mouse modifier.
+    altKey: false,
     metaKey: event.metaKey,
     deltaY: event.deltaY < 0 ? -1 : 1,
     deltaMode: DOM_DELTA_LINE,

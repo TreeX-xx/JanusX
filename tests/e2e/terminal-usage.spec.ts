@@ -7,7 +7,8 @@ test('collapsed context badge shows exact values and distinguishes zero from unk
   // 悬浮提示与展开卡片同一份数据：上下文明细 + 五项统计
   await expect(tooltip.getByText('Context', { exact: true }).locator('..')).toContainText('4,000 / 200,000')
   await expect(tooltip.getByText('Remaining', { exact: true }).locator('..')).toContainText('196,000')
-  await expect(tooltip.getByText('Recent cache hit rate', { exact: true }).locator('..')).toContainText('25.0%')
+  // 会话累计口径：8,000 / (8,000 + 10,000 + 500)
+  await expect(tooltip.getByText('Cache hit rate', { exact: true }).locator('..')).toContainText('43.2%')
   await expect(tooltip.getByText('Total tokens', { exact: true }).locator('..')).toContainText('20,500')
   await expect(tooltip.getByText('Input/output', { exact: true }).locator('..')).toContainText('10,000 / 2,000')
   await page.evaluate(() => (window as any).paneFixture.updateUsage({ contextTokens: 0, compactionCount: 0, compactionCountConfidence: 'exact' }))
@@ -29,10 +30,10 @@ test('one opening exposes usage, live runtime and unknown values without a detai
   const panel = page.getByRole('region', { name: 'Usage', exact: true })
   const card = panel.getByRole('button', { name: /Codex/ })
   await expect(panel).toBeVisible()
-  for (const text of ['Context', 'Recent cache hit rate', 'Cache read', 'Cache write', 'Total tokens', 'Input/output', 'Runtime']) {
+  for (const text of ['Context', 'Cache hit rate', 'Cache read', 'Cache write', 'Total tokens', 'Input/output', 'Runtime']) {
     await expect(card).toContainText(text)
   }
-  await expect(card).toContainText('25.0%')
+  await expect(card).toContainText('43.2%')
   await expect(card).toContainText('8,000')
   await expect(card).toContainText('20,500')
   await expect(card).toContainText('10,000 / 2,000')
@@ -49,16 +50,17 @@ test('one opening exposes usage, live runtime and unknown values without a detai
   await expect(tooltip.getByText('Context', { exact: true }).locator('..')).toContainText('4,000 / 200,000')
   await expect(tooltip.getByText('Remaining', { exact: true }).locator('..')).toContainText('196,000')
   await expect(tooltip.getByText('Runtime window', { exact: true }).locator('..')).toContainText('200,000')
-  await expect(tooltip.getByText('Recent cache hit rate', { exact: true }).locator('..')).toContainText('25.0%')
+  await expect(tooltip.getByText('Cache hit rate', { exact: true }).locator('..')).toContainText('43.2%')
   await expect(tooltip.getByText('Cache read', { exact: true }).locator('..')).toContainText('8,000')
   await expect(tooltip.getByText('Input/output', { exact: true }).locator('..')).toContainText('10,000 / 2,000')
   await page.mouse.move(0, 0)
   await expect(tooltip).toHaveCount(0)
 
-  await page.evaluate(() => (window as any).paneFixture.updateUsage({ recentCacheHitRate: 0 }))
+  // 明确的零命中仍显示 0.0%，缓存读取缺失才退回「–」。
+  await page.evaluate(() => (window as any).paneFixture.updateUsage({ cacheReadTokens: 0 }))
   await expect(card).toContainText('0.0%')
-  await page.evaluate(() => (window as any).paneFixture.updateUsage({ recentCacheHitRate: undefined, cacheReadTokens: undefined }))
-  await expect(card.getByText('Recent cache hit rate').locator('..')).toContainText('–')
+  await page.evaluate(() => (window as any).paneFixture.updateUsage({ cacheReadTokens: undefined }))
+  await expect(card.getByText('Cache hit rate').locator('..')).toContainText('–')
   await expect(card.getByText('Cache read', { exact: true }).locator('..')).toContainText('–')
   await page.evaluate(() => (window as any).paneFixture.updateUsage({ exitCode: 1 }))
   await page.clock.fastForward(20_000)
@@ -75,7 +77,7 @@ test('Chinese usage labels remain readable at narrow widths', async ({ page }) =
   const panel = page.getByRole('region', { name: '用量', exact: true })
   const card = panel.getByRole('button', { name: /Codex/ })
   await expect(panel).toBeVisible()
-  for (const text of ['最近缓存命中率', '运行时间', '缓存读取', '缓存写入', 'Token 总数', '输入/输出']) {
+  for (const text of ['缓存命中率', '运行时间', '缓存读取', '缓存写入', 'Token 总数', '输入/输出']) {
     await expect(card).toContainText(text)
   }
   await expect(panel).not.toContainText('遥测状态')

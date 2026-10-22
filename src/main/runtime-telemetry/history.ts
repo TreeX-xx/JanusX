@@ -135,13 +135,6 @@ async function scanCodexHistory(codexHome: string, cwd: string, startedAt?: numb
   return null
 }
 
-// Note: latest-request cache rate is distinct from cumulative usage — see .agents/notes/terminal/requirements/usage-panel-direct-content.md
-function recentCacheHitRate(input?: number, cached?: number, written = 0): number | undefined {
-  if (input === undefined || cached === undefined || input < 0 || cached < 0 || written < 0) return undefined
-  const total = input + cached + written
-  return total > 0 ? cached / total : undefined
-}
-
 export async function parseClaudeSession(file: SessionFileRef, startedAt?: number, preRead?: string[]): Promise<HistoryTelemetrySnapshot | null> {
   let version: string | undefined
   const lines = preRead ?? await readJsonlLines(file.path, true, (_buffer, info) => { version = sourceVersion(info) })
@@ -181,8 +174,6 @@ export async function parseClaudeSession(file: SessionFileRef, startedAt?: numbe
     const cacheCreationTokens = reportedCacheCreation ?? 0
     hasCacheWrite ||= reportedCacheCreation !== undefined
     const contextTokens = (inputTokens ?? 0) + cacheReadTokens + cacheCreationTokens
-    snapshot.recentCacheHitRate = recentCacheHitRate(inputTokens,
-      readNonNegativeNumber(usage.cache_read_input_tokens ?? usage.cache_read_tokens ?? usage.cacheReadTokens), cacheCreationTokens)
 
     totalInput += inputTokens ?? 0
     totalOutput += outputTokens ?? 0
@@ -324,10 +315,6 @@ export async function parseCodexSession(
     const cachedInputTokens = readNonNegativeNumber(totalUsage?.cached_input_tokens ?? totalUsage?.cachedInputTokens)
     const cacheWriteTokens = readNonNegativeNumber(totalUsage?.cache_write_input_tokens ?? totalUsage?.cacheWriteInputTokens)
     const outputTokens = readNonNegativeNumber(totalUsage?.output_tokens ?? totalUsage?.outputTokens)
-    const lastInput = readNonNegativeNumber(lastUsage?.input_tokens ?? lastUsage?.inputTokens)
-    const lastCached = readNonNegativeNumber(lastUsage?.cached_input_tokens ?? lastUsage?.cachedInputTokens)
-    snapshot.recentCacheHitRate = recentCacheHitRate(lastInput === undefined ? undefined : lastInput - (lastCached ?? 0), lastCached)
-
     if (contextTokens !== undefined) snapshot.contextTokens = contextTokens
     if (contextWindowTokens !== undefined) snapshot.contextWindowTokens = contextWindowTokens
     if (inputTokens !== undefined) snapshot.inputTokens = inputTokens - (cachedInputTokens ?? 0) - (cacheWriteTokens ?? 0)
@@ -605,7 +592,6 @@ function readOpenCodeSessionTelemetry(cwd: string, sessionId: string, checkpoint
     return {
       ...result.totals, sessionId, filePath: databasePath,
       detectedModel: latest?.model, contextTokens,
-      recentCacheHitRate: latest ? recentCacheHitRate(latest.inputTokens, latest.cacheReadTokens, latest.cacheWriteTokens) : undefined,
       observedAt: latest?.at ?? session.time_updated, source: 'history', confidence: 'authoritative',
       usageObservation: result.observation,
     }
@@ -651,7 +637,6 @@ function readOpenCodeSessionTelemetry(cwd: string, sessionId: string, checkpoint
     return {
       detectedModel: model,
       contextTokens: currentInput === undefined ? undefined : currentInput + currentCacheRead + currentCacheWrite,
-      recentCacheHitRate: recentCacheHitRate(currentInput, readNonNegativeNumber(cache?.read), currentCacheWrite),
       inputTokens,
       outputTokens,
       cacheReadTokens,
@@ -847,7 +832,6 @@ export async function parsePiSession(
   let cacheWriteTokens = 0
   let totalTokens = 0
   let latestContext: number | undefined
-  let latestCacheHitRate: number | undefined
   let hasUsage = false
   for (const entry of activePath) {
     const { record } = entry
@@ -886,7 +870,6 @@ export async function parsePiSession(
     hasUsage = true
     inputTokens += input ?? 0
     latestContext = input === undefined ? undefined : input + cacheRead + cacheWrite
-    latestCacheHitRate = recentCacheHitRate(input, readNonNegativeNumber(usage.cacheRead), cacheWrite)
     outputTokens += output ?? 0
     cacheReadTokens += cacheRead
     cacheWriteTokens += cacheWrite
@@ -915,7 +898,6 @@ export async function parsePiSession(
     snapshot.totalTokens = totalTokens
     // Estimate the latest request input; repeated inputs along the path are consumption, not context.
     snapshot.contextTokens = latestContext
-    snapshot.recentCacheHitRate = latestCacheHitRate
     snapshot.confidence = 'estimated'
   }
   return hasTelemetry(snapshot) ? snapshot : null

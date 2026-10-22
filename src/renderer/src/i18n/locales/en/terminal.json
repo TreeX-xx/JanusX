@@ -29,7 +29,7 @@
       "cacheWrite": "Cache write",
       "sessionTotal": "Total tokens",
       "context": "Context",
-      "recentCacheHitRate": "Recent cache hit rate",
+      "cacheHitRate": "Cache hit rate",
       "inputOutput": "Input/output",
       "runtime": "Runtime"
     }
@@ -365,7 +365,6 @@
     },
     "files": "{{count}} files",
     "more": "{{count}} additional files not listed",
-    "narrowHint": "Pane too narrow to expand — widen to view changes",
     "empty": "No file changes this turn",
     "latest": "Latest",
     "latestHint": "Show the latest turn",
@@ -376,5 +375,11 @@
     "turns": "{{count}} turns",
     "openFile": "Open in editor",
     "deletedNoPreview": "File deleted, no preview"
+  },
+  "navigation": {
+    "controls": "Terminal scrolling",
+    "up": "Scroll up a page",
+    "down": "Scroll down a page",
+    "hold": "Hold to keep scrolling"
   }
 }

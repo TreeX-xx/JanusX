@@ -17,6 +17,7 @@ import {
 import { handleCodexMultilineInput, isCodexMultilineShortcut } from '@/lib/codex-terminal-input'
 import { createTerminalScrollIntentController } from '@/lib/terminal-scroll-intent'
 import { attachTerminalTuiWheelHandler } from '@/lib/terminal-tui-wheel'
+import { registerTerminalNavigation, handleTerminalPageKey } from '@/lib/terminal-navigation'
 import {
   extractDshTurnStatus,
   mergeRuntimeTelemetrySnapshot,
@@ -249,6 +250,11 @@ export const CLITerminal = memo(function CLITerminal({
     })
     const hostParent = hostElement.parentElement
     const scrollIntent = createTerminalScrollIntentController(term)
+    const unregisterNavigation = registerTerminalNavigation(terminalId, term, direction => {
+      scrollIntent.beginUserScroll()
+      term.scrollPages(direction)
+      scrollIntent.commitUserScroll()
+    })
     attachTerminalTuiWheelHandler(term)
     hostElement.dataset.bufferType = term.buffer.active.type
     const bufferChangeDisposable = term.buffer.onBufferChange((buffer) => {
@@ -295,6 +301,7 @@ export const CLITerminal = memo(function CLITerminal({
     }
 
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (handleTerminalPageKey(term, e)) return false
       const terminal = useWorkspaceStore.getState().terminals.find((item) => item.id === terminalId)
       const codexMultilineResult = handleCodexMultilineInput(
         terminal?.preset,
@@ -558,6 +565,7 @@ export const CLITerminal = memo(function CLITerminal({
 
     return () => {
       disposed = true
+      unregisterNavigation()
       outputScheduler.dispose()
       unregisterTerminalForceFit(terminalId)
       clearTerminalGeometry(terminalId)

@@ -67,6 +67,16 @@ describe('TerminalManager OfficeCLI PATH integration', () => {
     expect(instance?.pty.write).not.toHaveBeenCalled()
   })
 
+  it('declares the PTY capabilities in the child without changing inherited process variables', async () => {
+    const { TerminalManager } = await import('../../src/main/terminal/manager')
+    const manager = new TerminalManager()
+    const inherited = process.env.TERM
+    manager.create({ id: 'term-env', workspaceId: 'workspace', cwd: process.cwd(), shell: 'powershell.exe',
+      env: { TERM: 'dumb', CLAUDE_CODE_NO_FLICKER: '0' } })
+    expect(spawn.mock.calls[0][2].env).toMatchObject({ TERM: 'xterm-256color', TERM_PROGRAM: 'JanusX', CLAUDE_CODE_NO_FLICKER: '0' })
+    expect(process.env.TERM).toBe(inherited)
+  })
+
   it('rejects invalid geometry, clamps extreme resize, and isolates native resize failures', async () => {
     const { TerminalManager } = await import('../../src/main/terminal/manager')
     const manager = new TerminalManager()

@@ -29,7 +29,7 @@
       "cacheWrite": "缓存写入",
       "sessionTotal": "Token 总数",
       "context": "上下文",
-      "recentCacheHitRate": "最近缓存命中率",
+      "cacheHitRate": "缓存命中率",
       "inputOutput": "输入/输出",
       "runtime": "运行时间"
     }
@@ -346,7 +346,6 @@
   "turnChanges": {
     "files": "{{count}} 个文件",
     "more": "另有 {{count}} 个文件未列出",
-    "narrowHint": "面板太窄无法展开，加宽后可查看变更",
     "empty": "本轮无文件变化",
     "waiting": "等待首轮文件变化",
     "unavailable": "本轮文件对比暂不可用",
@@ -376,5 +375,11 @@
     "turns": "{{count}} 轮",
     "openFile": "在编辑器中打开",
     "deletedNoPreview": "文件已删除，无法预览"
+  },
+  "navigation": {
+    "controls": "终端滚动",
+    "up": "向上翻屏",
+    "down": "向下翻屏",
+    "hold": "按住连续滚动"
   }
 }

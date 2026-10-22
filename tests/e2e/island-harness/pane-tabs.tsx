@@ -25,8 +25,9 @@ useThemeStore.getState().applyExternal(params.get('theme') === 'dark' ? 'dark' :
 const bounds: Record<string, BrowserBounds> = {}
 let kills = 0
 let creates = 0
-const performanceFixture = params.has('performance')
-const tabIds = performanceFixture ? ['a', 'b', 'c', ...Array.from({ length: 17 }, (_, i) => `extra-${i}`)] : ['a', 'b', 'c']
+const navigationFixture = params.has('navigation')
+const performanceFixture = params.has('performance') || navigationFixture
+const tabIds = performanceFixture && !navigationFixture ? ['a', 'b', 'c', ...Array.from({ length: 17 }, (_, i) => `extra-${i}`)] : ['a', 'b', 'c']
 let fits = 0
 let refreshes = 0
 let resizes = 0
@@ -36,6 +37,12 @@ const xterms = new Map<string, Xterm>()
 const renderWork: number[] = []
 const outputListeners = new Set<(event: TerminalDataEvent) => void>()
 const sequences = new Map<string, number>()
+const navigationInputs: Array<{ id: string; data: string }> = []
+if (navigationFixture) {
+  Object.assign(window.electron.terminal, {
+    input: (id: string, data: string) => navigationInputs.push({ id, data }),
+  })
+}
 if (performanceFixture) {
   const originalOpen = Xterm.prototype.open
   Xterm.prototype.open = function (...args) { latestXterm = this; return originalOpen.apply(this, args) }
@@ -46,11 +53,11 @@ if (performanceFixture) {
 }
 const workspace = { id: 'ws', name: 'Tabs', path: 'C:/tabs', clis: [], layout: { mode: 'tabs' as const, positions: [] }, createdAt: new Date().toISOString() }
 const terminals = [...tabIds, 'sidebar'].map((id) => ({
-  id, workspaceId: 'ws', cwd: 'C:/tabs', preset: 'shell' as const, name: `Terminal ${id}`, status: 'wait' as const,
+  id, workspaceId: 'ws', cwd: 'C:/tabs', preset: navigationFixture ? 'codex' as const : 'shell' as const, name: `Terminal ${id}`, status: 'wait' as const,
   ...(new URLSearchParams(location.search).has('usage') && id === 'a' ? {
     preset: 'codex' as const, detectedModel: 'gpt-5.5', telemetryStartedAt: Date.now() - 65_000,
     contextTokens: 4_000, contextWindowTokens: 200_000, inputTokens: 10_000, outputTokens: 2_000,
-    cacheReadTokens: 8_000, cacheWriteTokens: 500, totalTokens: 20_500, recentCacheHitRate: 0.25,
+    cacheReadTokens: 8_000, cacheWriteTokens: 500, totalTokens: 20_500,
     telemetryUpdatedAt: Date.now(),
   } : {}),
 }))
@@ -86,11 +93,11 @@ const transformed = new URLSearchParams(location.search).has('transformed')
 const browserOnly = new URLSearchParams(location.search).has('browser-only')
 const left = {
   type: 'leaf' as const, id: 'left', activeTabId: browserOnly ? 'browser:d' : 'terminal:a',
-  tabs: browserOnly ? [createBrowserPaneContent('d')] : tabIds.map((id) => createTerminalPaneContent(id, 'ws')),
+  tabs: browserOnly ? [createBrowserPaneContent('d')] : tabIds.filter(id => !navigationFixture || params.has('single') || id !== 'c').map((id) => createTerminalPaneContent(id, 'ws')),
 }
 const right = {
-  type: 'leaf' as const, id: 'right', activeTabId: browserOnly ? 'browser:e' : 'browser:d',
-  tabs: (browserOnly ? ['e'] : overflow ? ['d', 'e', 'f', 'g', 'h', 'i', 'j'] : ['d', 'e']).map(createBrowserPaneContent),
+  type: 'leaf' as const, id: 'right', activeTabId: navigationFixture ? 'terminal:c' : browserOnly ? 'browser:e' : 'browser:d',
+  tabs: navigationFixture ? [createTerminalPaneContent('c', 'ws')] : (browserOnly ? ['e'] : overflow ? ['d', 'e', 'f', 'g', 'h', 'i', 'j'] : ['d', 'e']).map(createBrowserPaneContent),
 }
 const paneTree: WorkspacePaneNode = params.has('single') ? left : {
   type: 'split', id: 'split', direction: params.has('vertical') ? 'vertical' : 'horizontal', ratio: .5, first: left, second: right,
@@ -113,6 +120,7 @@ Object.assign(window, {
     removeSource: () => useWorkspaceStore.getState().closePaneTab('left', 'terminal:a'),
     updateUsage: (patch: object) => useWorkspaceStore.getState().updateTerminal('a', patch),
     changeLanguage,
+    navigationInputs: () => [...navigationInputs],
     metrics: () => ({ fits, refreshes, resizes, replays, renderWork: [...renderWork] }),
     buffersReady: () => xterms.size === tabIds.length && [...xterms.values()].every(terminal => {
       const buffer = terminal.buffer.normal

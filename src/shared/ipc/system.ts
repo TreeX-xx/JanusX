@@ -31,8 +31,6 @@ export type RuntimeTelemetryConfidence = 'authoritative' | 'derived' | 'declared
 export interface RuntimeTelemetrySnapshot {
   detectedModel?: string; contextTokens?: number; contextWindowTokens?: number; inputTokens?: number; outputTokens?: number
   cacheReadTokens?: number; cacheWriteTokens?: number; totalTokens?: number
-  /** Cached input / all input for the latest native request; absent when unavailable. */
-  recentCacheHitRate?: number
   filePath?: string; sessionId?: string; observedAt?: number
   source?: RuntimeTelemetrySource; confidence?: RuntimeTelemetryConfidence
   /** How this external session was tied to one JanusX terminal: an adapter or

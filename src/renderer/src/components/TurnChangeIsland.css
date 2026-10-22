@@ -2,22 +2,63 @@
  * 灵动岛式形变：latest 窄矮定尺（内部滚动）、history 宽高各升一档，靠 data-view 尺寸差触发过渡；
  * 壳先到、内容跟至——容器宽高带 overshoot 回弹，body 延迟 70ms 淡入+微缩放；
  * 收起用无 overshoot 的 snappy 曲线回落。 */
-[data-turn-island].turn-change-island {
+.terminal-island-tools {
+  --terminal-island-inset: 0px;
+  --terminal-island-right-radius: 0px;
+  --terminal-island-right-border: 0px;
   position: absolute;
-  right: 0;
+  right: var(--terminal-island-inset);
   top: 50%;
   z-index: 20;
   transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: calc(100% - var(--terminal-island-inset));
+  max-height: calc(100% - 16px);
+  pointer-events: none;
+}
+/* Reserve the rail only for real normal-buffer history, including while its thumb fades. */
+.terminal-island-tools[data-has-scrollback='true'] {
+  --terminal-island-inset: 22px;
+  --terminal-island-right-radius: 12px;
+  --terminal-island-right-border: 1px;
+}
+.terminal-scroll-controls {
+  display: flex; flex-direction: column; flex-shrink: 0; width: 32px;
+  border: 1px solid var(--shell-border-soft); border-right-width: var(--terminal-island-right-border);
+  border-radius: 9px var(--terminal-island-right-radius) var(--terminal-island-right-radius) 9px;
+  background: var(--shell-chrome); color: var(--shell-muted); pointer-events: auto;
+  overflow: hidden;
+}
+.terminal-scroll-controls button {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 26px;
+  padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; touch-action: none;
+}
+.terminal-scroll-controls button + button { border-top: 1px solid var(--shell-border-soft); }
+.terminal-scroll-controls button:hover:not(:disabled) { background: var(--shell-hover); color: var(--shell-text); }
+.terminal-scroll-controls button:active:not(:disabled),
+.terminal-scroll-controls[data-scrolling='up'] button:first-child,
+.terminal-scroll-controls[data-scrolling='down'] button:last-child { background: var(--shell-active); color: var(--shell-accent); }
+.terminal-scroll-controls button:disabled { opacity: .3; cursor: default; }
+.terminal-scroll-controls button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: -2px; }
+[data-turn-island].turn-change-island {
+  position: relative;
+  flex-shrink: 1;
+  min-height: 44px;
+  pointer-events: auto;
   width: 32px;
   height: 64px;
   border: 1px solid var(--shell-border-soft);
-  border-right: 0;
-  border-radius: 12px 0 0 12px;
+  border-right-width: var(--terminal-island-right-border);
+  border-radius: 12px var(--terminal-island-right-radius) var(--terminal-island-right-radius) 12px;
   overflow: hidden;
   font-family: inherit;
   font-size: 12px;
   line-height: 1.5;
   will-change: width, height;
+  container: terminal-island / inline-size;
   transition:
     width 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275),
     height 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275),
@@ -34,15 +75,15 @@
 }
 [data-turn-island].turn-change-island[data-stage='expanded'],
 [data-turn-island].turn-change-island[data-stage='expanded']:hover {
-  width: min(340px, calc(100% - 16px));
-  height: min(320px, 78%);
-  border-radius: 14px 0 0 14px;
+  width: min(340px, 100%);
+  height: 320px;
+  border-radius: 14px var(--terminal-island-right-radius) var(--terminal-island-right-radius) 14px;
   display: flex;
   box-shadow: -6px 4px 20px rgb(0 0 0 / 16%);
 }
 [data-turn-island].turn-change-island[data-stage='expanded'][data-view='history'] {
-  width: min(370px, calc(100% - 16px));
-  height: min(420px, 84%);
+  width: min(370px, 100%);
+  height: 420px;
 }
 [data-theme='planche'] [data-turn-island].turn-change-island[data-stage='expanded'],
 [data-theme='planche'] [data-turn-island].turn-change-island[data-stage='expanded']:hover {
@@ -94,10 +135,11 @@
 .turn-change-tabs button:hover, .turn-change-close:hover { background: var(--shell-hover); }
 .turn-change-tabs button:active { transform: scale(0.94); }
 .turn-change-history-count { color: var(--shell-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
-.turn-change-close { padding: 5px; opacity: .5; }
+.turn-change-close { flex-shrink: 0; width: 28px; height: 28px; padding: 0; opacity: .8; }
 [data-turn-island]:hover .turn-change-close,
 [data-turn-island]:focus-within .turn-change-close { opacity: 1; }
 .turn-change-body {
+  flex: 1;
   overflow-y: auto;
   min-height: 0;
   padding: 12px;
@@ -131,9 +173,13 @@
 .turn-change-card-heading { color: var(--shell-muted); font-size: 10px; }
 .turn-change-kind { color: var(--shell-dim); }
 .turn-change-card-summary { padding: 5px 0 7px; font-size: 12px; }
-.turn-change-empty { min-height: 116px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--shell-muted); font-size: 11px; text-align: center; }
+.turn-change-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--shell-muted); font-size: 11px; text-align: center; }
 .turn-change-empty svg { opacity: .65; }
 .turn-change-more { padding: 8px 5px; font-size: 10px; color: var(--shell-muted); }
+@container terminal-island (max-width: 260px) {
+  .turn-change-header { gap: 3px; padding: 6px; }
+  .turn-change-tabs button { padding: 4px; }
+}
 @keyframes turn-change-count-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes turn-change-content-in { from { opacity: 0; transform: scale(0.96) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 @media (prefers-reduced-motion: reduce) {

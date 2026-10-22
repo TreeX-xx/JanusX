@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-10-22T09:48:49.024Z",
   "moduleState": "partial"
 }
 ---
@@ -52,6 +52,8 @@
 
 已有终端标签切换保留实例和输出缓冲；同尺寸直接请求绘制，避免每次激活两轮适配与整屏刷新。尺寸变化、工作区返回和显式恢复仍保留适配及滚动意图恢复；标签和终端视图通过稳定参数隔离无关渲染。多终端基准、TUI／后台输出回归及限制见[工作区标签](../workbench/pane-tab-reorder.md)。隐藏终端继续解析输出，尚无跨终端总预算。
 
+[终端原生滚动与 island 快速翻屏](./terminal-scrollback-navigation.md)保留各 CLI 的原生渲染方式及固定输入区，移除模式选择和会话阅读面板。文件 island 上方独立的两个按钮支持点击翻屏、按住连续滚动及切换／失焦停止；普通缓冲翻动真实历史，全屏按鼠标能力转发原生滚轮或翻页。滚轮支持 Alt 加速，不伪造全屏比例轨道或精确提交跳转。窄分屏、小高度及输入焦点已通过浏览器验证，真实 CLI 持续长输出与打包现场使用仍待验收。
+
 状态显示链（路由与投影分层，互链不合并）：[model-lifecycle](./terminal-model-lifecycle.md)、[sidebar-states](./terminal-sidebar-states.md)、[status-display](./terminal-status-display.md)、[idle-prompt](./terminal-status-display.md)、[status-ring](./terminal-status-display.md)、[sidebar-hierarchy](./terminal-sidebar-states.md)、[context-telemetry](./claude-opencode-context-telemetry.md)。
 
 上下文与消耗统计共用主进程 history 的原生会话源，分别投影当前上下文与历史消耗；PTY 仅保留必要状态信号。coordinator 管理精确绑定、hook 刷新和 10 秒采集，独立 SQLite 用量账本保留去重身份、累计基线和新增消耗，关闭终端不删除记录。账本复用连接、普通查询不执行初始化写入，同步锁等待限制为 100ms；绑定投影按文件版本缓存，最多 128 份、30 秒强制复核，变化后完整校验。退出先取消扫描并完成最终采集再关闭账本。Claude/Pi 按稳定响应事件导入（Pi 保留放弃分支消耗），Codex/OpenCode 新会话按事件回放，已有累计会话保留模式锁；来源异常暂停，Janus/DSH 缺少原生 usage 时显示未知。OpenCode 全扫描读取 v1/v2 原生消息，自动归属使用工作区与会话活动时间。设置用量页查询账本，按事件时间或已声明的采样时间归桶，并结合当前模型目录在总用量旁紧凑展示 USD 预估总额，缺价不作免费；Codex 事件按前置 turn_context 关联模型，旧记录从原始会话唯一匹配回补，不改变消耗。[会话源单源化](./requirements/usage-telemetry-single-source.md)拥有当前契约、实现边界与验收证据；[统计修复](./requirements/usage-telemetry-fix-and-stats.md)和[日期及明细](./requirements/usage-stats-custom-range-detail.md)保留历史交付记录及继续沿用的交互要求。[筛选切换的加载过渡](./requirements/usage-stats-loading-transition.md)（2026-10-14 实施）在切换类型/范围时保留上一份数据，以 2px 发丝线进度与降透明度衔接旧值到新值，周期重查不闪烁。
@@ -70,7 +72,7 @@ Shell 入口探索：[可选择的普通终端 Shell](./shell-profiles.md)已定
 
 island 一词两义（pane 姿态层与 turn 历史浮层）为术语债，改名消歧前两篇并存，不合并。
 
-底部[用量面板](./requirements/usage-panel-direct-content.md)直接展示上下文、最近请求缓存命中率、累计缓存读取/写入、Token 总数及输入/输出；运行时间按当前终端实例计时。底栏徽标和卡片上下文区域提供精确容量、剩余量及压缩次数的悬浮提示。普通对话入口同名，原二次点击详情及遥测诊断展示已移除。2026-10-15 接入 Codex 原生 `cache_write_input_tokens`，从含缓存的输入中拆出读/写分量，保持总量与最近命中率不变；旧事件历史在原源可读且分项核对一致时补齐写入，旧累计基线的过渡区间保留未拆分输入。Claude 保留明确零值，整段未提供写入字段时显示未知。
+底部[用量面板](./requirements/usage-panel-direct-content.md)直接展示上下文、会话累计缓存命中率、累计缓存读取/写入、Token 总数及输入/输出；运行时间按当前终端实例计时。底栏徽标和卡片上下文区域提供精确容量、剩余量及压缩次数的悬浮提示。普通对话入口同名，原二次点击详情及遥测诊断展示已移除。2026-10-15 接入 Codex 原生 `cache_write_input_tokens`，从含缓存的输入中拆出读/写分量，保持总量不变；旧事件历史在原源可读且分项核对一致时补齐写入，旧累计基线的过渡区间保留未拆分输入。Claude 保留明确零值，整段未提供写入字段时显示未知。
 
 ## Acceptance criteria
 

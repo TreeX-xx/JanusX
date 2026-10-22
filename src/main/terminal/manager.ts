@@ -94,6 +94,8 @@ export class TerminalManager {
       env: withPathPrepend({
         ...(process.env as Record<string, string>),
         ...(config.env ?? {}),
+        TERM: 'xterm-256color',
+        TERM_PROGRAM: 'JanusX',
       }, officecliPathDir),
       /*-- 显式启用 ConPTY（build≥18309 默认开，显式更稳妥），Windows 有效，非 Windows 忽略 --*/
       useConpty: true,
