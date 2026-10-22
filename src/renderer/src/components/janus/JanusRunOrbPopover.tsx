@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { HoldToConfirm } from '@/components/ui/HoldToConfirm'
 import { projectService } from '@/services/project'
 import { scopeKey, useRunningStore, type ScopeRunInfo, type WorkspaceRunInfo } from '@/stores/running'
 import { EMPTY_WORKTREE_LIST, sameScopePath, useWorktreeStore } from '@/stores/worktree'
@@ -30,7 +29,7 @@ interface JanusRunOrbPopoverProps {
   info: WorkspaceRunInfo | null
   stopping: boolean
   stoppedSnapshot?: StoppedWorkspaceSnapshot | null
-  /** 子芽点击带来的作用域定位（scope 头高亮） */
+  /** 指定作用域定位（scope 头高亮） */
   focusScopePath?: string | null
   onClose: () => void
 }
@@ -45,7 +44,7 @@ function scopeLabel(scope: Pick<ScopeRunInfo, 'scopePath' | 'branch'>, workspace
  * JanusRunOrbPopover — 运行球轻面板（不停靠展开态 auxiliary）
  *
  * 关闭面板（×/点外/Esc）只关视图；停止走分级摩擦：
- * 停止全部 = HoldToConfirm 按住 1s，单 worktree/单进程 = hover 出 ⊘ 两步 arm 确认。
+ * 停止全部、单 worktree、单进程均使用面板内显式点击与二次确认。
  * 多 worktree 运行按作用域分组展示；空闲 worktree 可从「可启动」区直接启动。
  */
 export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, focusScopePath = null, onClose }: JanusRunOrbPopoverProps) {
@@ -53,6 +52,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
   const [outputByProject, setOutputByProject] = useState<Record<string, string>>({})
   const [armedProjectId, setArmedProjectId] = useState<string | null>(null)
   const [armedScopePath, setArmedScopePath] = useState<string | null>(null)
+  const [armedAll, setArmedAll] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [restarting, setRestarting] = useState(false)
   const [startingScope, setStartingScope] = useState<string | null>(null)
@@ -150,6 +150,11 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
 
   const handleStopAll = () => {
     if (!info) return
+    if (!armedAll) {
+      setArmedAll(true)
+      return
+    }
+    setArmedAll(false)
     setActionError(null)
     void stopWorkspaceProjects(info.workspaceId, info.workspacePath).then((ok) => {
       if (!ok) setActionError(t('janus:island.runOrb.stopping'))
@@ -353,14 +358,16 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
         <button type="button" className="janus-run-orb-btn" onClick={handleSwitch}>
           {t('janus:island.runOrb.switchTo')}
         </button>
-        <HoldToConfirm
-          label={t('janus:island.runOrb.stopAllHoldHint')}
+        <button
+          type="button"
+          title={t('janus:island.runOrb.stopAllConfirm')}
           disabled={stopping}
           className="janus-run-orb-btn janus-run-orb-btn--danger"
-          onConfirm={handleStopAll}
+          onClick={handleStopAll}
+          onBlur={() => setArmedAll(false)}
         >
-          {stopping ? t('janus:island.runOrb.stopping') : t('janus:island.runOrb.stopAll')}
-        </HoldToConfirm>
+          {stopping ? t('janus:island.runOrb.stopping') : t(armedAll ? 'janus:island.runOrb.stopAllConfirm' : 'janus:island.runOrb.stopAll')}
+        </button>
       </div>
     </div>
   )

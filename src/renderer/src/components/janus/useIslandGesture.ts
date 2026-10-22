@@ -5,19 +5,10 @@ import {
   type TapPoint,
 } from './islandInteraction'
 
-/* ════════════════════════════════════════════════════════════
-   useIslandGesture �?灵动岛手势识�?Hook
-   设计原型：JanusX-Divine-System-Focus-Snap-Edition
-
-   识别：长�?(Focus & Snap) / 下拉拖拽 (弹性阻�? / 双击
-   ════════════════════════════════════════════════════════════ */
-
+// Island gestures: click, double click and pull. Running uses the titlebar button.
 const SWIPE_THRESHOLD = 60          // 副黑板开合阈值 px
-const LONG_PRESS_DURATION = 550     // 长按时长 ms（设计原型值）
-const PRESS_DELAY = 100             // 按压延迟 ms
 
 interface IslandGestureOptions {
-  onLongPress: () => void           // 长按完成回调
   onSwipeFlip: () => void           // 下拉达阈值回调（放下/收起副黑板）
   /** 未达阈值的拖拽释放：预览归位 */
   onSwipeCancel?: () => void
@@ -32,7 +23,6 @@ interface IslandGestureOptions {
 }
 
 export function useIslandGesture({
-  onLongPress,
   onSwipeFlip,
   onSwipeCancel,
   onDoubleTap,
@@ -44,23 +34,13 @@ export function useIslandGesture({
 }: IslandGestureOptions) {
   const islandRef = useRef<HTMLDivElement>(null)
   const pullHintRef = useRef<HTMLDivElement>(null)
-  /** 左眼元素 ref �?长按蓄力时向中间平移 */
-  const eyeLeftRef = useRef<HTMLDivElement>(null)
-  /** 右眼元素 ref �?长按蓄力时向中间平移 */
-  const eyeRightRef = useRef<HTMLDivElement>(null)
 
   /*-- 内部状�?--*/
   const isPointerDown = useRef(false)
   const isDragging = useRef(false)
-  const hasTriggeredLongPress = useRef(false)
   const startX = useRef(0)
   const startY = useRef(0)
   const currentDragY = useRef(0)
-
-  /*-- 定时�?--*/
-  const pressDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const longPressFrame = useRef<number>(0)
-  const pressStartTime = useRef(0)
 
   /*-- 双击检�?--*/
   const lastTapTime = useRef(0)
@@ -77,92 +57,12 @@ export function useIslandGesture({
   /*-- 清理 --*/
   useEffect(() => {
     return () => {
-      if (pressDelayTimer.current) clearTimeout(pressDelayTimer.current)
+
       if (pendingSingleTapTimer.current) clearTimeout(pendingSingleTapTimer.current)
-      cancelAnimationFrame(longPressFrame.current)
+
     }
   }, [])
 
-  /*══════════════════════════════════════════════════════════�?
-    长按蓄力 (Focus & Snap) �?无色物理压缩 + 双眼靠拢
-    ════════════════════════════════════════════════════════════*/
-  const startLongPressProgress = useCallback(() => {
-    pressStartTime.current = Date.now()
-    const island = islandRef.current
-    const leftEye = eyeLeftRef.current
-    const rightEye = eyeRightRef.current
-    if (!island) return
-
-    // 暂停 CSS 过渡，JS 逐帧接管
-    island.style.transition = 'none'
-    // 修复：直接添加到 island 元素上，匹配 CSS 选择�?.janus-island.is-charging
-    island.classList.add('is-charging')
-
-    function tick() {
-      const progress = Math.min(
-        (Date.now() - pressStartTime.current) / LONG_PRESS_DURATION,
-        1,
-      )
-
-      // 物理压缩：横向缩窄、纵向压�?
-      const scaleX = 1 - progress * 0.08
-      const scaleY = 1 - progress * 0.12
-      if (island) island.style.transform = `scale(${scaleX}, ${scaleY})`
-
-      // 视线聚焦：双眼受压向中间靠拢（CSS gap 3px �?单边 1.5px 即重合）
-      const eyeMove = progress * 1.5
-      if (leftEye) leftEye.style.transform = `translateX(${eyeMove}px)`
-      if (rightEye) rightEye.style.transform = `translateX(${-eyeMove}px)`
-
-      if (progress >= 1) {
-        hasTriggeredLongPress.current = true
-        cancelLongPressProgress(true)
-
-        // 触发 Snap 回弹动画 + 涟漪效果
-        if (island) {
-          island.classList.add('trigger-snap')
-          setTimeout(() => {
-            island.classList.remove('trigger-snap')
-          }, 500)
-
-          const ripple = island.previousElementSibling as HTMLElement | null
-          if (ripple?.classList.contains('burst-ripple')) {
-            ripple.classList.remove('burst')
-            void ripple.offsetWidth  // 强制重绘
-            ripple.classList.add('burst')
-          }
-        }
-
-        onLongPress()
-      } else {
-        longPressFrame.current = requestAnimationFrame(tick)
-      }
-    }
-    longPressFrame.current = requestAnimationFrame(tick)
-  }, [onLongPress])
-
-  const cancelLongPressProgress = useCallback((completed = false) => {
-    cancelAnimationFrame(longPressFrame.current)
-    const island = islandRef.current
-    const leftEye = eyeLeftRef.current
-    const rightEye = eyeRightRef.current
-
-    if (island) island.style.transition = ''
-    // 修复：从 island 元素移除 .is-charging �?
-    island?.classList.remove('is-charging')
-
-    // 清空 JS 注入的眼位移
-    if (leftEye) leftEye.style.transform = ''
-    if (rightEye) rightEye.style.transform = ''
-
-    if (!completed && island) {
-      island.style.transform = ''
-    }
-  }, [])
-
-  /*══════════════════════════════════════════════════════════�?
-    Pointer 事件处理
-    ════════════════════════════════════════════════════════════*/
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (!e.isPrimary || e.button !== 0) return
@@ -195,25 +95,12 @@ export function useIslandGesture({
 
       isPointerDown.current = true
       isDragging.current = false
-      hasTriggeredLongPress.current = false
       startX.current = e.clientX
       startY.current = e.clientY
       currentDragY.current = 0
 
-      if (!enableComplexGestures) return
-
-      const island = islandRef.current
-      if (island) {
-        island.classList.add('pressing')
-        island.style.transition = 'none'
-      }
-
-      // 启动长按延迟
-      pressDelayTimer.current = setTimeout(() => {
-        if (!isDragging.current) startLongPressProgress()
-      }, PRESS_DELAY)
     },
-    [enableComplexGestures, onDoubleTap, startLongPressProgress],
+    [enableComplexGestures, onDoubleTap],
   )
 
   const handlePointerMove = useCallback(
@@ -232,11 +119,9 @@ export function useIslandGesture({
         pendingSingleTapTimer.current = null
         lastTapTime.current = 0
         lastTapPoint.current = null
-        if (pressDelayTimer.current) clearTimeout(pressDelayTimer.current)
-        cancelLongPressProgress()
+
         const island = islandRef.current
         if (island) {
-          island.classList.remove('pressing')
           island.classList.add('is-dragging')
         }
       }
@@ -269,7 +154,7 @@ export function useIslandGesture({
         }
       }
     },
-    [isRunning, enableComplexGestures, cancelLongPressProgress, onDragProgress],
+    [isRunning, enableComplexGestures, onDragProgress],
   )
 
   const handlePointerUp = useCallback(
@@ -278,7 +163,6 @@ export function useIslandGesture({
       isPointerDown.current = false
       e.currentTarget.releasePointerCapture(e.pointerId)
 
-      if (pressDelayTimer.current) clearTimeout(pressDelayTimer.current)
       if (!enableComplexGestures) {
         if (Math.hypot(e.clientX - startX.current, e.clientY - startY.current) <= 12) {
           lastTapTime.current = Date.now()
@@ -289,7 +173,6 @@ export function useIslandGesture({
 
       const island = islandRef.current
       if (island) {
-        island.classList.remove('pressing')
         island.classList.remove('is-dragging')
       }
 
@@ -310,8 +193,8 @@ export function useIslandGesture({
         else onSwipeCancel?.()
       } else {
         // 非拖�?�?检查双�?
-        if (enableComplexGestures && !hasTriggeredLongPress.current && Math.hypot(e.clientX - startX.current, e.clientY - startY.current) <= 12) {
-          cancelLongPressProgress()
+        if (enableComplexGestures && Math.hypot(e.clientX - startX.current, e.clientY - startY.current) <= 12) {
+
           const now = Date.now()
           const tapPoint = { x: e.clientX, y: e.clientY }
           if (isDoubleTapWithinTolerance(
@@ -345,7 +228,7 @@ export function useIslandGesture({
         }
       }
     },
-    [enableComplexGestures, onSwipeFlip, onSwipeCancel, onDoubleTap, onSingleTap, cancelLongPressProgress, onDragProgress],
+    [enableComplexGestures, onSwipeFlip, onSwipeCancel, onDoubleTap, onSingleTap, onDragProgress],
   )
 
   const handlePointerCancel = useCallback(() => {
@@ -353,15 +236,14 @@ export function useIslandGesture({
     pendingSingleTapTimer.current = null
     lastTapTime.current = 0
     lastTapPoint.current = null
-    if (pressDelayTimer.current) clearTimeout(pressDelayTimer.current)
+
     isPointerDown.current = false
     isDragging.current = false
-    cancelLongPressProgress()
+
     if (onDragProgress) onDragProgress(0, 0)
 
     const island = islandRef.current
     if (island) {
-      island.classList.remove('pressing')
       island.classList.remove('is-dragging')
       island.style.transform = ''
       island.style.transition = ''
@@ -372,13 +254,11 @@ export function useIslandGesture({
     if (hint) hint.style.transform = 'translateX(-50%)' // 重置位置
 
     currentDragY.current = 0
-  }, [cancelLongPressProgress, onDragProgress])
+  }, [onDragProgress])
 
   return {
     islandRef,
     pullHintRef,
-    eyeLeftRef,
-    eyeRightRef,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,

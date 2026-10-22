@@ -56,7 +56,6 @@ function loadIslandPinned(): boolean {
     return false
   }
 }
-import { nudgeRunOrb } from '@/stores/running'
 import { useRightToolStore } from '@/stores/right-tools'
 import { useExperimentalStore } from '@/stores/experimental'
 import { getUserMemoryOverview } from '@/services/knowledge'
@@ -106,7 +105,7 @@ export function JanusIsland({
 }: JanusIslandProps) {
   const { t } = useI18n('janus')
   const { mode, isSwitching, activeWorkspace, eyeContainerRef, hasRunning } = useJanusState()
-  const { janusRunning, startActiveOnce } = useProjectRunning(activeWorkspace)
+  const { janusRunning } = useProjectRunning(activeWorkspace)
   const shellRef = useRef<HTMLDivElement | null>(null)
   const [view, setView] = useState<JanusExpandedView>('monitor')
 
@@ -241,30 +240,6 @@ export function JanusIsland({
     }
   }, [knowledgeTraceRequestId, personaEnabled])
 
-  /** 长按仅启动（幂等）：已运行只脉冲对应运行球，永不停止 */
-  const flashHint = useCallback((text: string) => {
-    const hint = shellRef.current?.querySelector('.pull-hint') as HTMLElement | null
-    if (!hint) return
-    hint.textContent = text
-    hint.style.opacity = '1'
-    hint.style.transform = 'translateX(-50%)'
-    window.setTimeout(() => {
-      hint.style.opacity = '0'
-    }, 1600)
-  }, [])
-
-  const handleLongPress = useCallback(async () => {
-    const outcome = await startActiveOnce()
-    const workspaceId = activeWorkspace?.id
-    if (!workspaceId) return
-    if (outcome === 'already-running') {
-      nudgeRunOrb(workspaceId)
-      flashHint(t('janus:island.runOrb.alreadyRunning'))
-    } else if (outcome === 'no-config' || outcome === 'no-workspace') {
-      flashHint(t('janus:island.runOrb.noConfig'))
-    }
-  }, [startActiveOnce, activeWorkspace?.id, flashHint, t])
-
   const handleDoubleTap = useCallback(() => {
     // Explicit collapse always wins: a pinned island window still returns to
     // the capsule in one gesture and drops the pin on the way.
@@ -310,14 +285,11 @@ export function JanusIsland({
   const {
     islandRef,
     pullHintRef,
-    eyeLeftRef,
-    eyeRightRef,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
   } = useIslandGesture({
-    onLongPress: handleLongPress,
     onSwipeFlip: handleSwipeBoard,
     onSwipeCancel: handleSwipeCancel,
     onDoubleTap: handleDoubleTap,
@@ -644,7 +616,6 @@ export function JanusIsland({
       onDoubleClick={(e) => e.stopPropagation()}
     >
       <div ref={pullHintRef} className="pull-hint" />
-      <div className="burst-ripple" />
       <div
         ref={islandRef}
         data-mode={mode}
@@ -665,7 +636,7 @@ export function JanusIsland({
       >
         <div className="janus-collapsed-core">
           <div ref={(el) => { eyeContainerRef.current = el }} className="janus-face-mini">
-            <JanusEye mode={mode} leftRef={eyeLeftRef} rightRef={eyeRightRef} />
+            <JanusEye mode={mode} />
           </div>
         </div>
 

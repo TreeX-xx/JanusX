@@ -810,8 +810,8 @@
     animation-duration: 0.01ms;
   }
 
-  .janus-island[data-stage="collapsed"]:hover:not(.pressing):not(.is-charging):not(.is-dragging):not(.switching):not(.trigger-snap),
-  .janus-island[data-stage="collapsed"]:focus-visible:not(.pressing):not(.is-charging):not(.is-dragging):not(.switching):not(.trigger-snap) {
+  .janus-island[data-stage="collapsed"]:hover:not(.is-dragging):not(.switching),
+  .janus-island[data-stage="collapsed"]:focus-visible:not(.is-dragging):not(.switching) {
     animation: none;
     transform: scale(1.015);
   }

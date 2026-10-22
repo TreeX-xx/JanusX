@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-12",
-  "updated": "2026-10-18T00:00:00Z",
+  "updated": "2026-10-22T11:45:58.917Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["worktree", "runner", "testing"],
   "relations": [
@@ -25,10 +25,10 @@
 
 运行链路已按以下裁决实施（测试链路尚未跟随，见「剩余范围」）：
 
-- **目标快照**：启动在触发瞬间解析目标——`activePaths[workspaceId]`（与终端/会话同源）缺省回落工作区根；异步读配置期间切换 worktree 不改写目标。岛体长按 = 启动当前 worktree。
+- **目标快照**：启动在触发瞬间解析目标——`activePaths[workspaceId]`（与终端/会话同源）缺省回落工作区根；异步读配置期间切换 worktree 不改写目标。顶栏运行按钮启动当前 worktree，Island 长按启动已移除。
 - **进程归属盖章**：启动经 `ProjectRunOptions.identity` 盖章 `workspaceId/scopePath/branch/configName`，`groupByWorkspace` 两级分组出 `WorkspaceRunInfo.scopes`；id 路径前缀只作旧数据兜底，worktree 进程不再掉 `__orphan__`。
 - **配置解析**：目标目录 `.janusX/janusX.launch.json` 优先，缺失时只读继承工作区根模板（`inheritFrom`）；`${workspaceFolder}` 展开为目标路径，继承配置解析出目标目录外的 `cwd` 直接拒绝，杜绝跑回主盘。
-- **球组显示**：主球 + worktree 子芽（详见 [run-orb-budding](run-orb-budding.md) 2026-10-18 修订）；面板按作用域分组，空闲 worktree 可直接启动，停止分「整个工作区 / 单 worktree / 单进程」三级。
+- **运行显示**：每项目一个紧凑刻度，worktree 仅在详情分组（详见 [顶栏运行入口与紧凑运行指示器](run-orb-budding.md)）；面板按作用域分组，空闲 worktree 可直接启动，停止分「整个工作区 / 单 worktree / 单进程」三级。
 - **同 worktree 多配置并行允许**（processId 含 configName；`maxConcurrent=5` 全局限流不变）。
 
 ## 剩余范围
@@ -44,4 +44,4 @@
 - 选中状态以 `useWorktreeStore.activePaths` 为准；目标已删回落工作区根（`applyExternalWorktrees` 既有语义）。
 - 配置独立存各 worktree、缺失继承主仓只读模板；保存永远落目标目录。
 - 统一入口为 `useProjectRunning.startScope`，各启动面共用。
-- 停止语义：球长按=停工作区全部，子芽长按=停该 worktree，进程行=两步 arm 停单进程。
+- 停止语义：运行面板内分别对工作区、worktree、单进程执行显式点击与二次确认；指示器本身仅查看。

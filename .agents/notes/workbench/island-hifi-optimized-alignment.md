@@ -25,7 +25,7 @@
       }
     }
   },
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-10-22T11:50:27.038Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -51,7 +51,7 @@
 ## Decision
 按设计稿三个 scenario 对齐，零结构改动、纯表达层：
 
-**S1 运行态**（`01-janus-foundation.css`，全部收敛在 `[data-stage="collapsed"]`，peek/expanded 面板不挂环）：`.janus-island::before` 承载 1.5px Conic 流光环（mask-composite 掏空成环），仅 running+collapsed 可见并以 `janus-run-glow` 2.8s 匀速旋转；边框提至 `rgba(0,255,136,.25)`、外发光 `0 0 12px .15`；EQ 双眼改翡翠绿发光（4.5px 圆角条）并换非对称物理律动——左弦 `janus-eq-a` 4→13px @0.35s、右弦 `janus-eq-b` 3→14px @0.28s 双频差速；运行态悬停由呼吸动画改为向心轻抬（translateY(-1px) scale(1.03)）。蓄力态（is-charging）随停光环。RunOrb（`11-janus-run-orb.css`）：簇容器 hover 时卫星球向母体吸附 translateX(-2px)，球体 hover 上浮 scale(1.1)+绿晕；`orb-bud` 入场动画 fill 由 `both` 改 `backwards`——终态关键帧与自然态一致，解除对 hover transform 的永久锁定。
+**S1 运行态**：Island 的历史 running 皮肤仍由 `01-janus-foundation.css` 定义，当前项目进程状态由独立运行指示器表达。运行入口与指示器现行设计见[顶栏运行入口与紧凑运行指示器](run-orb-budding.md)：常态为紧凑刻度组，无常驻项目名称、旋转轨道或子芽；Island 长按蓄力、Snap 回弹与涟漪已移除。
 
 **S2 一级展开**（`08-janus-peek-capsule.css`）：胶囊本体脱离岛体皮肤继承，改为毛玻璃——`rgba(22,22,27,.82)` 半透底 + `backdrop-filter: blur(20px)` + 24px 圆角 + 深投影，白字在繁杂工作区上方可读；double 档 74→76px；内容入场换非对称形变（scaleX(.85) scaleY(.8)）；排版升档（kicker 9.5/1.5、title 13.5 w700、subtitle 10.5、meta 9/.5，meta 隐藏断点 900→700）。LED 重做：7px + `::after` 光晕（inset -4px blur 3px inherit），success 定稿翡翠绿 `#00ff88`、attention 亮橙 `#ff9159` 带缩放呼吸（1.15 双相位）、info 亮灰 `#a1a1a6`。
 
@@ -98,7 +98,7 @@ reduced-motion：新增光环/进度条/托盘入场动画全部纳入 0.01ms �
 
 
 ## Consequences
-改动集中在两个 CSS 文件 + `islandNotifications.ts`（可选字段）+ `JanusIslandExpandedShell.tsx`（data-severity/进度条渲染），无状态机与交互回归面。获得：运行态"量子流光"识别度、peek 毛玻璃质感、托盘卡片级 severity 可扫读性与任务进度无感呈现。代价：peek 背景改为半透毛玻璃后，旧 Note「背景继承岛体皮肤」的决策作废（以设计稿为准）；`orb-bud` fill 模式变更使入场动画结束后不再持有 transform（终态等值，无视觉差异）；01-janus-foundation.css 的历史中文注释本身是乱码字节，本次新增注释一律用英文避免再踩编码坑。
+改动集中在两个 CSS 文件 + `islandNotifications.ts`（可选字段）+ `JanusIslandExpandedShell.tsx`（data-severity/进度条渲染），无状态机与交互回归面。获得：运行态"量子流光"识别度、peek 毛玻璃质感、托盘卡片级 severity 可扫读性与任务进度无感呈现。代价：peek 背景改为半透毛玻璃后，旧 Note「背景继承岛体皮肤」的决策作废（以设计稿为准）；01-janus-foundation.css 的历史中文注释本身是乱码字节，本次新增注释一律用英文避免再踩编码坑。
 
 ### 灵动岛一级展开重设计为通用通知胶囊
 新增 `islandNotifications.ts` 模型层 + `08-janus-peek-capsule.css` + `tests/unit/janus/island-notifications.test.ts`（10 测试）；`JanusIsland.tsx` 退役三条文案链改为订阅投影栈顶并新增托盘/banner/pulse 状态；`JanusIslandExpandedShell.tsx` 新增徽标/托盘/banner 三块渲染与对应 props；01/02/07 的旧 peek 样式随之删除；i18n 双语新增 `janus:island.capsule.*` 键组并重生成 `types.ts`。获得：新增通知源只需在 `islandNotifications.ts` 加一个投影函数并入列 `assembleNotifications`，Island 组件零改动；一级/二级共用同一套令牌，读作同一系统的两级。LED 后续扁平化：移除光晕伪元素与 box-shadow 发光，语义色与呼吸动效（缩放+透明度）保留，小尺寸下可读性优先于辉光质感。

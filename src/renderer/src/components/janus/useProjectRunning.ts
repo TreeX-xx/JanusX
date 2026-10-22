@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useAppStore } from '@/stores/app'
-import { isScopeRunning, selectIsWorkspaceRunning, useRunningStore } from '@/stores/running'
+import { selectIsWorkspaceRunning, useRunningStore } from '@/stores/running'
 import { sameScopePath, useWorktreeStore } from '@/stores/worktree'
-import { projectService, type ProjectConfig } from '@/services/project'
+import { projectService } from '@/services/project'
 import type { Workspace } from '@/types'
-
-export type StartActiveOutcome = 'started' | 'already-running' | 'no-config' | 'no-workspace'
 
 export interface ScopeRunTarget {
   workspaceId: string
@@ -17,7 +15,7 @@ export interface ScopeRunTarget {
   configName?: string
 }
 
-/** 从 worktree 列表解析目标分支（启动时快照，供运行球子芽展示）。 */
+/** 从 worktree 列表解析目标分支（启动时快照，供运行面板展示）。 */
 export function resolveScopeBranch(workspaceId: string, scopePath: string): string | undefined {
   const worktrees = useWorktreeStore.getState().worktreesByWorkspace[workspaceId] ?? []
   return worktrees.find((entry) => sameScopePath(entry.path, scopePath))?.branch ?? undefined
@@ -53,7 +51,10 @@ export async function startScope(target: ScopeRunTarget): Promise<boolean> {
 export async function stopWorkspaceProjects(workspaceId: string, workspacePath: string): Promise<boolean> {
   useRunningStore.getState().markStopping(workspaceId)
   try {
-    const running = await projectService.listByWorkspace(workspacePath)
+    const all = await projectService.list()
+    const running = all.filter(project => project.workspaceId
+      ? project.workspaceId === workspaceId
+      : project.id.startsWith(`${workspacePath}::`))
     await Promise.all(running.map((project) => projectService.stop(project.id)))
     return true
   } catch (error) {
@@ -63,7 +64,7 @@ export async function stopWorkspaceProjects(workspaceId: string, workspacePath: 
   }
 }
 
-/** 停止单个 worktree 作用域的全部进程（子芽长按 / 面板 scope 头）。 */
+/** 停止单个 worktree 作用域的全部进程（面板 scope 头）。 */
 export async function stopScopeProjects(scopePath: string): Promise<boolean> {
   useRunningStore.getState().markStoppingScope(scopePath)
   try {
@@ -87,7 +88,7 @@ export async function stopScopeProjects(scopePath: string): Promise<boolean> {
  *
  * P0 后不再自己轮询：运行真相来自 useGlobalRunning 写入的 useRunningStore，
  * 此处只做 activeWorkspace 派生（兼容 app.janusRunning/runningProjects 旧读者）
- * 与启动/停止动作。长按语义为仅启动（幂等），停止一律走球上的显式操作。
+ * 启动使用顶栏按钮，停止使用运行面板内的显式操作。
  * 启动目标为触发时的当前 worktree（activePaths 快照），不是工作区根。
  */
 export function useProjectRunning(activeWorkspace: Workspace | undefined) {
@@ -101,7 +102,6 @@ export function useProjectRunning(activeWorkspace: Workspace | undefined) {
   const activeProjects = useMemo(() => activeInfo?.projects ?? [], [activeInfo])
   const setJanusRunning = useAppStore((state) => state.setJanusRunning)
   const setRunningProjects = useAppStore((state) => state.setRunningProjects)
-  const [workspaceConfig, setWorkspaceConfig] = useState<ProjectConfig | null>(null)
 
   // 兼容旧读者：把派生结果镜像到 app store（ProjectSettings 自查，不依赖此处）
   useEffect(() => {
@@ -111,46 +111,5 @@ export function useProjectRunning(activeWorkspace: Workspace | undefined) {
     setRunningProjects(activeProjects)
   }, [activeProjects, setRunningProjects])
 
-  // 启动需要配置：只读配置，不轮询运行态（展示用，启动时仍按目标目录重新解析）
-  useEffect(() => {
-    if (!activeWorkspace) {
-      setWorkspaceConfig(null)
-      return
-    }
-    let alive = true
-    void projectService.readConfig(activeWorkspace.path)
-      .then((config) => {
-        if (alive) setWorkspaceConfig(config)
-      })
-      .catch((error) => {
-        if (alive) console.error('Failed to load workspace config:', error)
-      })
-    return () => {
-      alive = false
-    }
-  }, [activeWorkspace])
-
-  /** 幂等启动当前 worktree：该作用域已运行则不调 start，由调用方决定脉冲提示 */
-  const startActiveOnce = useCallback(async (): Promise<StartActiveOutcome> => {
-    if (!activeWorkspace) return 'no-workspace'
-    // 触发时快照目标：异步期间切换 worktree 不会把启动送到另一目录
-    const worktreeState = useWorktreeStore.getState()
-    const scopePath = worktreeState.activePaths[activeWorkspace.id] ?? activeWorkspace.path
-    if (isScopeRunning(activeWorkspace.id, scopePath)) return 'already-running'
-    const ok = await startScope({
-      workspaceId: activeWorkspace.id,
-      workspacePath: activeWorkspace.path,
-      scopePath,
-      branch: resolveScopeBranch(activeWorkspace.id, scopePath),
-    })
-    if (!ok) return 'no-config'
-    return 'started'
-  }, [activeWorkspace])
-
-  /** 停止整个工作区的全部进程（球上的显式操作调用） */
-  const stopWorkspace = useCallback(async (workspaceId: string, workspacePath: string): Promise<boolean> => {
-    return stopWorkspaceProjects(workspaceId, workspacePath)
-  }, [])
-
-  return { janusRunning, workspaceConfig, startActiveOnce, stopWorkspace }
+  return { janusRunning }
 }

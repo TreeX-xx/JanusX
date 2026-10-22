@@ -2,25 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { sortWorkspaceRunInfos, useRunningStore, type WorkspaceRunInfo } from '@/stores/running'
-import { stopWorkspaceProjects } from './useProjectRunning'
 import { JanusRunOrb } from './JanusRunOrb'
 import { JanusRunOrbPopover, type StoppedWorkspaceSnapshot } from './JanusRunOrbPopover'
 
 /** 直接可见球上限，超出收纳为 +N 聚合球 */
-const MAX_VISIBLE_ORBS = 3
+const MAX_VISIBLE_ORBS = 2
 /** 球消散动画时长（与 orb-pop 200ms 对齐） */
 const LEAVE_MS = 200
 
 /**
- * JanusRunOrbs — 运行球簇（母体右侧卫星）
+ * JanusRunOrbs — Island 旁的紧凑运行指示器
  *
- * 一工作区一球，按启动先后排序；`+N` 聚合收纳溢出；
+ * 一工作区一刻度，当前项目优先，其余按启动顺序；`+N` 收纳溢出；
  * 球消失走 200ms 收缩；点外/`Esc` 只关面板不碰进程。
  */
 export function JanusRunOrbs() {
   const { t } = useI18n('janus')
   // selector 只取稳定引用，排序派生在渲染层 useMemo（禁止在 selector 内返回新数组，见 useProjectRunning 注释）
   const byId = useRunningStore((s) => s.runningByWorkspace)
+  const activeWorkspaceId = useWorkspaceStore(s => s.activeWorkspaceId)
   const ids = useMemo(
     () => sortWorkspaceRunInfos(Object.values(byId)).map((info) => info.workspaceId),
     [byId],
@@ -82,8 +82,10 @@ export function JanusRunOrbs() {
     }
   }, [])
 
-  const visibleIds = ids.slice(0, MAX_VISIBLE_ORBS)
-  const overflowIds = ids.slice(MAX_VISIBLE_ORBS)
+  const displayIds = activeWorkspaceId && ids.includes(activeWorkspaceId)
+    ? [activeWorkspaceId, ...ids.filter(id => id !== activeWorkspaceId)] : ids
+  const visibleIds = displayIds.slice(0, MAX_VISIBLE_ORBS)
+  const overflowIds = displayIds.slice(MAX_VISIBLE_ORBS)
   const ghostSnapshot: StoppedWorkspaceSnapshot | null = useMemo(() => {
     if (!openFor || byId[openFor]) return null
     const last = lastInfosRef.current[openFor]
@@ -104,7 +106,7 @@ export function JanusRunOrbs() {
     <div
       ref={containerRef}
       className="janus-run-orbs"
-      role="status"
+      role="group"
       aria-label={t('janus:island.runOrb.clusterAria', { count: ids.length })}
     >
       {visibleIds.map((id) => {
@@ -131,6 +133,8 @@ export function JanusRunOrbs() {
             className={`janus-run-orb janus-run-orb--overflow${overflowOpen ? ' is-open' : ''}`}
             aria-label={t('janus:island.runOrb.overflowAria', { count: overflowIds.length })}
             title={t('janus:island.runOrb.overflowAria', { count: overflowIds.length })}
+            aria-expanded={overflowOpen}
+            aria-haspopup="dialog"
             onClick={() => {
               setOverflowOpen((open) => !open)
               setOpenFor(null)
@@ -145,8 +149,10 @@ export function JanusRunOrbs() {
                   const info = byId[id]
                   if (!info) return null
                   return (
-                    <OverflowRow key={id} info={info} onSwitch={() => {
+                    <OverflowRow key={id} info={info} onOpen={() => {
                       useWorkspaceStore.getState().setActiveWorkspace(id)
+                      setOpenFor(id)
+                      setFocusScope(null)
                       setOverflowOpen(false)
                     }} />
                   )
@@ -179,37 +185,15 @@ export function JanusRunOrbs() {
   )
 }
 
-function OverflowRow({ info, onSwitch }: { info: WorkspaceRunInfo; onSwitch: () => void }) {
+function OverflowRow({ info, onOpen }: { info: WorkspaceRunInfo; onOpen: () => void }) {
   const { t } = useI18n('janus')
-  const [armed, setArmed] = useState(false)
-  const [failed, setFailed] = useState(false)
-
-  const handleStop = async () => {
-    if (!armed) {
-      setArmed(true)
-      return
-    }
-    const ok = await stopWorkspaceProjects(info.workspaceId, info.workspacePath)
-    setFailed(!ok)
-    setArmed(false)
-  }
 
   return (
     <li className="janus-run-orb-overflow-row">
-      <button type="button" className="janus-run-orb-overflow-main" onClick={onSwitch} title={t('janus:island.runOrb.switchTo')}>
+      <button type="button" className="janus-run-orb-overflow-main" onClick={onOpen} title={t('janus:island.runOrb.switchTo')}>
         <strong>{info.workspaceName}</strong>
         <small>{t('janus:island.runOrb.overflowRowMeta', { count: info.projects.length })}</small>
       </button>
-      <button
-        type="button"
-        className={`janus-run-orb-btn janus-run-orb-btn--danger${armed ? ' is-armed' : ''}`}
-        title={armed ? t('janus:island.runOrb.stopOneConfirm') : t('janus:island.runOrb.stopAllHoldHint')}
-        onClick={() => void handleStop()}
-        onBlur={() => setArmed(false)}
-      >
-        {armed ? t('janus:island.runOrb.stopOne') : '⊘'}
-      </button>
-      {failed && <small className="janus-run-orb-overflow-error" role="alert">{t('janus:island.runOrb.stopping')}</small>}
     </li>
   )
 }

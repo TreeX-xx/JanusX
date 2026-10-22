@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JanusX · 运行状态 UI 设计对比</title>
+<!--
+Assumptions: the visible Play launcher is fixed; only the run-status UI changes.
+Reasoning: keep the Island as the visual anchor; project identity belongs in a tooltip/detail panel.
+Assets: titlebar screenshots captured from the repository's real Titlebar component, in both themes.
+Preview data: JanusX / Website / API and branch names below are interaction examples, not live processes.
+This is an isolated design study. No real project is started or stopped here.
+-->
+<style>
+* { box-sizing:border-box }
+:root { color-scheme:dark; --page:#151517; --chrome:#1e1e20; --text:#fafafa; --muted:#a1a1a1; --dim:#737373; --line:rgb(255 255 255 / .09); --hover:#2b2b2e; --raised:#252527; --green:#4ec9b0; --accent:#ff784a; --panel:#1e1e20; --shot:url('./run-status-assets/titlebar-dark.png') }
+body.light { color-scheme:light; --page:#efe4c5; --chrome:#efe4c5; --text:#1c343b; --muted:rgba(28,52,59,.62); --dim:rgba(28,52,59,.42); --line:rgba(28,52,59,.17); --hover:#dccfa8; --raised:#e7d9b4; --green:#2e6b5e; --accent:#d43d2a; --panel:#f3ebd7; --shot:url('./run-status-assets/titlebar-planche.png') }
+body { margin:0; background:var(--page); color:var(--text); font:14px/1.6 'Segoe UI','Microsoft YaHei',sans-serif; transition:background .18s,color .18s }
+button { font:inherit; cursor:pointer; color:inherit }
+button:focus-visible { outline:1px solid var(--accent); outline-offset:3px }
+header { max-width:1280px; margin:auto; padding:42px 0 22px; display:flex; justify-content:space-between; align-items:end; gap:24px }
+.eyebrow { color:var(--dim); font-size:11px; letter-spacing:1.8px; text-transform:uppercase; margin-bottom:9px }
+h1 { font-size:25px; letter-spacing:-.6px; font-weight:500; margin:0 }
+.intro { margin:8px 0 0; color:var(--muted); font-size:13px }
+.controls { display:flex; gap:20px; align-items:center; flex-shrink:0 }
+.control { display:flex; align-items:center; gap:9px; font-size:12px; color:var(--muted) }
+.toggle { display:flex; padding:3px; border:1px solid var(--line); border-radius:6px; gap:2px }
+.toggle button { background:transparent; border:0; border-radius:3px; color:var(--dim); padding:3px 9px; font-size:12px }
+.toggle button.selected { background:var(--hover); color:var(--text) }
+main { max-width:1280px; margin:0 auto }
+.direction { padding:24px 0 25px; border-top:1px solid var(--line) }
+.direction-head { display:flex; align-items:baseline; gap:14px; margin-bottom:17px }
+.index { color:var(--dim); font:12px/1.5 Consolas,monospace }
+h2 { font-size:16px; font-weight:500; margin:0; letter-spacing:.1px }
+.direction-desc { font-size:12px; color:var(--muted); margin-left:auto }
+.stage-scroll { overflow-x:auto; padding-bottom:3px }
+.stage { width:1280px; height:112px; position:relative; background:var(--page); border:1px solid var(--line); border-radius:7px; overflow:hidden }
+.real-titlebar { height:70px; width:1280px; position:absolute; inset:0 auto auto 0; background:var(--shot) top left / 1280px 70px no-repeat }
+.run-zone { position:absolute; left:674px; top:5px; height:26px; display:flex; align-items:center; gap:7px }
+.run-item { position:relative; display:grid; place-items:center; width:24px; height:24px; padding:0; color:var(--muted); background:none; border:0; border-radius:50%; flex-shrink:0 }
+.run-item:hover { color:var(--text) }
+.run-item.is-selected { color:var(--text) }
+.run-item .identity { font:500 10px/1 'Segoe UI',sans-serif; position:relative; z-index:1 }
+.run-item::after { content:''; position:absolute; width:4px; height:4px; background:var(--green); border-radius:50% }
+.variant-a .run-item { background:color-mix(in srgb,var(--text) 5%,transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 7%,transparent) }
+.variant-a .run-item.is-selected { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 28%,transparent) }
+.variant-a .run-item::after { right:0px; bottom:1px; box-shadow:0 0 0 2px var(--chrome) }
+.variant-a .run-item:hover { background:var(--hover) }
+.variant-b .run-zone { gap:5px }
+.variant-b .run-item { width:23px; height:24px; border-radius:4px }
+.variant-b .run-item .identity { font-size:11px }
+.variant-b .run-item::after { width:3px; height:3px; right:1px; top:4px }
+.variant-b .run-item:hover { background:color-mix(in srgb,var(--text) 4%,transparent) }
+.variant-b .run-item.is-selected::before { content:''; position:absolute; height:1px; width:10px; background:var(--text); bottom:0; opacity:.5 }
+.variant-c .run-zone { gap:0; padding:0 4px; border-left:1px solid var(--line); margin-left:1px }
+.variant-c .run-item { width:15px; border-radius:3px }
+.variant-c .run-item .identity { display:none }
+.variant-c .run-item::after { width:3px; height:10px; border-radius:2px; opacity:.5 }
+.variant-c .run-item.is-selected::after { opacity:1; height:16px }
+.variant-c .run-item:hover { background:var(--hover) }
+.run-item.more { font-size:10px; box-shadow:none; background:none; width:22px }
+.run-item.more::after { display:none }
+.note { position:absolute; bottom:17px; left:20px; color:var(--dim); font-size:11px }
+.detail-link { position:absolute; bottom:14px; right:20px; border:0; background:none; color:var(--muted); font-size:11px; padding:2px 0; border-bottom:1px solid var(--line) }
+.detail-link:hover { color:var(--text) }
+.hover-tip { position:fixed; pointer-events:none; z-index:50; padding:7px 10px; font-size:11px; color:var(--text); border:1px solid var(--line); border-radius:5px; background:var(--panel); box-shadow:0 5px 18px #0002; white-space:nowrap; display:none }
+.comparison { margin:3px 0 22px; display:grid; grid-template-columns:1fr 1fr 1fr; border-top:1px solid var(--line) }
+.comparison p { color:var(--muted); font-size:12px; padding:15px 18px 0 0; margin:0 }
+.comparison b { font-weight:500; color:var(--text); display:block; margin-bottom:3px }
+.demo-panel { position:fixed; z-index:40; background:var(--panel); color:var(--text); width:310px; border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 36px #0003; display:none; padding:15px; font-size:12px }
+.demo-panel.open { display:block }
+.panel-header { display:flex; justify-content:space-between; align-items:center; padding-bottom:12px; border-bottom:1px solid var(--line) }
+.panel-header strong { font-size:13px; font-weight:500 }
+.close { background:none; border:0; color:var(--dim); width:22px; height:22px; font-size:17px }
+.panel-meta { color:var(--dim); font-size:11px; margin:2px 0 0 }
+.scope { display:flex; gap:10px; align-items:center; margin-top:13px }
+.live { width:4px; height:4px; border-radius:50%; background:var(--green); flex-shrink:0 }
+.branch { flex:1 }
+.branch small { display:block; color:var(--dim); font:10px/1.5 Consolas,monospace }
+.stop { background:none; color:var(--muted); border:0; padding:5px; width:24px; height:24px; border-radius:4px; display:grid; place-items:center }
+.stop:hover { color:var(--accent); background:var(--hover) }
+.stop svg { width:11px; height:11px }
+.panel-bottom { margin-top:15px; border-top:1px solid var(--line); padding-top:11px; color:var(--dim); font-size:10px; display:flex; justify-content:space-between }
+.panel-bottom button { padding:0; border:0; background:none; color:var(--muted); font-size:10px }
+.zoom { margin-top:12px; display:flex; align-items:center; gap:18px; color:var(--dim); font-size:11px }
+.sample { display:flex; gap:10px; align-items:center; height:38px; padding:0 13px; border-left:1px solid var(--line) }
+.sample .run-item { transform:scale(1.35); transform-origin:center }
+.sample.variant-c .run-item { width:20px }
+footer { max-width:1280px; margin:0 auto; padding:4px 0 28px; color:var(--dim); font-size:11px }
+@media (max-width:1360px) { header,main,footer { margin-left:28px; margin-right:28px } }
+@media (max-width:800px) { header { align-items:start; flex-direction:column; padding-top:25px } .direction-head { flex-wrap:wrap; gap:8px } .direction-desc { width:100%; margin:0 } .comparison { grid-template-columns:1fr } }
+</style>
+</head>
+<body>
+<header>
+  <div><div class="eyebrow">JanusX / Run status study</div><h1>让运行状态回到轻量、清楚的位置</h1><p class="intro">固定启动按钮，重新设计 Island 旁的运行标识。点击标识可以查看详情。</p></div>
+  <div class="controls">
+    <div class="control">主题<div class="toggle" id="themes"><button data-theme="dark" class="selected">深色</button><button data-theme="light">浅色</button></div></div>
+    <div class="control">运行项目<div class="toggle" id="counts"><button data-count="1">1</button><button data-count="3" class="selected">3</button><button data-count="6">6</button></div></div>
+  </div>
+</header>
+<main>
+  <section class="direction variant-a" data-variant="a">
+    <div class="direction-head"><span class="index">01</span><h2>微型圆盘</h2><span class="direction-desc">保留运行球的辨识度，去掉轨道、子芽和文字标签</span></div>
+    <div class="stage-scroll"><div class="stage"><div class="real-titlebar"></div><div class="run-zone"></div><span class="note">项目缩写识别归属 · 微点表示运行 · 当前项目以细轮廓区分</span><button class="detail-link">预览运行详情 ↗</button></div></div>
+    <div class="zoom"><span>局部放大</span><div class="sample variant-a"></div><span>低对比圆面，与 Island 保持独立。</span></div>
+  </section>
+  <section class="direction variant-b" data-variant="b">
+    <div class="direction-head"><span class="index">02</span><h2>无框标识</h2><span class="direction-desc">只保留项目符号与状态点，容器仅在悬停时出现</span></div>
+    <div class="stage-scroll"><div class="stage"><div class="real-titlebar"></div><div class="run-zone"></div><span class="note">常态无框无底色 · 当前项目有短下划线 · 名称在悬停时显示</span><button class="detail-link">预览运行详情 ↗</button></div></div>
+    <div class="zoom"><span>局部放大</span><div class="sample variant-b"></div><span>融入顶栏，视觉重量最低。</span></div>
+  </section>
+  <section class="direction variant-c" data-variant="c">
+    <div class="direction-head"><span class="index">03</span><h2>运行指示条</h2><span class="direction-desc">每个项目一条细刻度，通过长短区分当前项目</span></div>
+    <div class="stage-scroll"><div class="stage"><div class="real-titlebar"></div><div class="run-zone"></div><span class="note">短刻度表示后台运行 · 长刻度表示当前项目 · 点击定位对应详情</span><button class="detail-link">预览运行详情 ↗</button></div></div>
+    <div class="zoom"><span>局部放大</span><div class="sample variant-c"></div><span>空间最省，项目识别更依赖悬停。</span></div>
+  </section>
+  <div class="comparison">
+    <p><b>01 · 辨识优先</b>与原有运行球一脉相承。适合保留独立项目入口，同时减少装饰。</p>
+    <p><b>02 · 安静优先</b>减少围合和色块。适合希望运行状态退到顶栏背景中的方向。</p>
+    <p><b>03 · 紧凑优先</b>六个项目仍只占很小空间。更有整体感，但需要学习刻度与项目的对应关系。</p>
+  </div>
+</main>
+<footer>设计交互示例，非真实运行数据。顶栏背景取自当前应用组件；运行与停止逻辑不在本页面执行。</footer>
+<div class="hover-tip" id="tip"></div>
+<div class="demo-panel" id="panel" role="dialog" aria-label="运行详情" aria-modal="false"></div>
+<script>
+const projects=[{name:'JanusX',mark:'J',branch:'feature/login'},{name:'Website',mark:'W',branch:'main'},{name:'API',mark:'A',branch:'feature/search'},{name:'Desktop',mark:'D',branch:'main'},{name:'Docs',mark:'D',branch:'main'},{name:'Worker',mark:'W',branch:'feature/jobs'}];
+let count=3,active=0,theme='dark';
+try { const saved=JSON.parse(localStorage.getItem('janus-run-status-study')||'{}'); count=[1,3,6].includes(saved.count)?saved.count:3; theme=saved.theme==='light'?'light':'dark' } catch {}
+const tip=document.getElementById('tip'),panel=document.getElementById('panel');
+function save(){try{localStorage.setItem('janus-run-status-study',JSON.stringify({count,theme}))}catch{}}
+function closePanel(){panel.classList.remove('open')}
+function showOverflow(anchor){
+ tip.style.display='none';
+ panel.innerHTML='<div class="panel-header"><strong>其他运行项目</strong><button class="close" aria-label="关闭详情">×</button></div>';
+ for(let i=3;i<count;i++){
+   const button=document.createElement('button');button.className='scope';
+   button.style.cssText='width:100%;border:0;background:none;text-align:left;color:var(--text);padding:4px 0';
+   button.innerHTML='<span class="live"></span><span class="branch">'+projects[i].name+'<small>'+projects[i].branch+'</small></span><span>↗</span>';
+   button.onclick=()=>showDetail(i,anchor);panel.append(button);
+ }
+ panel.classList.add('open');const box=anchor.getBoundingClientRect();panel.style.left=Math.min(Math.max(12,box.left-20),innerWidth-322)+'px';panel.style.top=Math.min(box.bottom+10,innerHeight-235)+'px';
+ panel.querySelector('.close').onclick=closePanel;
+}
+function showDetail(index,anchor){
+ tip.style.display='none'; const p=projects[index];
+ const stopIcon='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="3" width="10" height="10" rx="1.4"/></svg>';
+ panel.innerHTML='<div class="panel-header"><div><strong>'+p.name+'</strong><p class="panel-meta">运行详情 · 交互示例</p></div><button class="close" aria-label="关闭详情">×</button></div><div class="scope"><span class="live"></span><div class="branch">'+p.branch+'<small>dev · :5173</small></div><button class="stop" aria-label="停止该 worktree" title="停止该 worktree">'+stopIcon+'</button></div><div class="scope"><span class="live"></span><div class="branch">feature/payment<small>dev · :5174</small></div><button class="stop" aria-label="停止该 worktree" title="停止该 worktree">'+stopIcon+'</button></div><div class="panel-bottom"><span>2 个 worktree 正在运行</span><button class="switch-project">切换到项目 ↗</button></div>';
+ panel.classList.add('open');const box=anchor.getBoundingClientRect();panel.style.left=Math.min(Math.max(12,box.left-20),innerWidth-322)+'px';panel.style.top=Math.min(box.bottom+10,innerHeight-235)+'px';
+ panel.querySelector('.close').onclick=closePanel;
+ panel.querySelector('.switch-project').onclick=()=>{active=index;render();closePanel()};
+ panel.querySelectorAll('.stop').forEach(button=>button.onclick=()=>{button.title='预览：已停止';button.closest('.scope').style.opacity='.35';button.disabled=true;panel.querySelector('.panel-meta').textContent='停止操作预览，不影响真实进程'});
+}
+function createButton(i,more=false){
+ const button=document.createElement('button');button.className='run-item'+(i===active?' is-selected':'')+(more?' more':'');
+ button.innerHTML=more?'+'+(count-3):'<span class="identity">'+projects[i].mark+'</span>';
+ button.setAttribute('aria-label',more?'查看其余运行项目':projects[i].name+' · 查看运行详情');
+ button.onmouseenter=()=>{const box=button.getBoundingClientRect();tip.textContent=more?'还有 '+(count-3)+' 个运行项目':projects[i].name+' · '+projects[i].branch;tip.style.display='block';tip.style.left=box.left+'px';tip.style.top=box.bottom+8+'px'};
+ button.onmouseleave=()=>tip.style.display='none';
+ button.onclick=()=>more?showOverflow(button):showDetail(i,button);return button;
+}
+function render(){
+ document.body.classList.toggle('light',theme==='light');
+ document.querySelectorAll('[data-theme]').forEach(b=>b.classList.toggle('selected',b.dataset.theme===theme));
+ document.querySelectorAll('[data-count]').forEach(b=>b.classList.toggle('selected',+b.dataset.count===count));
+ document.querySelectorAll('.run-zone,.sample').forEach(zone=>{zone.replaceChildren();for(let i=0;i<Math.min(3,count);i++)zone.append(createButton(i));if(count>3)zone.append(createButton(3,true))});
+}
+document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=()=>{theme=b.dataset.theme;closePanel();render();save()});
+document.querySelectorAll('[data-count]').forEach(b=>b.onclick=()=>{count=+b.dataset.count;active=Math.min(active,count-1);closePanel();render();save()});
+document.querySelectorAll('.detail-link').forEach(b=>b.onclick=()=>showDetail(active,b.closest('.stage').querySelector('.run-item')));
+document.addEventListener('pointerdown',e=>{if(!panel.contains(e.target)&&!e.target.closest('.run-item,.detail-link'))closePanel()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel()});
+render();
+</script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import { TitlebarToolGroup, TitlebarToolSeparator } from '@/components/TitlebarT
 import { useJanusChatController } from '@/components/janus/JanusChatProvider'
 import { useGlobalRunning } from '@/components/janus/useGlobalRunning'
 import { JanusRunOrbs } from '@/components/janus/JanusRunOrbs'
+import { TitlebarRunButton } from './TitlebarRunButton'
 import { KNOWLEDGE_PEEK_TIMEOUT_MS } from '@/components/janus/islandKnowledgePeek'
 import { useIslandStore } from '@/stores/island'
 import { useExperimentalStore } from '@/stores/experimental'
@@ -253,6 +254,8 @@ export function Titlebar() {
            组间 12px 并由短竖分隔线隔开；无可见工作台时分隔线自动收起。
            学习入口归属设置与空工作区，见 .agents/notes/workbench/first-run-learning.md --*/}
       <div className="ml-auto flex shrink-0 items-center gap-3 titlebar-no-drag">
+        <TitlebarRunButton />
+        <TitlebarToolSeparator />
         <TitlebarToolGroup />
         <TitlebarToolSeparator />
         <WorkbenchSwitcher />

@@ -102,8 +102,8 @@ body.is-running[data-theme='planche'] {
 }
 
 /* 悬浮只换边框色，不缩放、不呼吸、不加光 */
-[data-theme='planche'] .janus-island[data-stage='collapsed']:hover:not(.pressing):not(.is-charging):not(.is-dragging):not(.switching):not(.trigger-snap),
-[data-theme='planche'] .janus-island[data-mode='running'][data-stage='collapsed']:hover:not(.pressing):not(.is-charging):not(.is-dragging):not(.switching):not(.trigger-snap) {
+[data-theme='planche'] .janus-island[data-stage='collapsed']:hover:not(.is-dragging):not(.switching),
+[data-theme='planche'] .janus-island[data-mode='running'][data-stage='collapsed']:hover:not(.is-dragging):not(.switching) {
   animation: none;
   transform: none;
   border-color: #D43D2A;
@@ -432,35 +432,10 @@ body.is-running[data-theme='planche'] {
 }
 
 /* 运行球：纸面 + 墨线，去霓虹辉光（形状与簇布局不动） */
-[data-theme='planche'] .janus-run-orb {
-  border-color: #1C343B;
-  background: #EFE4C5;
-  box-shadow: none;
-  color: #1C343B;
-}
-
-[data-theme='planche'] .janus-run-orb:hover {
-  border-color: #D43D2A;
-  color: #D43D2A;
-  transform: none;
-  box-shadow: none;
-}
-
-[data-theme='planche'] .janus-run-orb:focus-visible {
-  outline: 2px solid #D43D2A;
-}
-
-[data-theme='planche'] .janus-run-orb.is-open,
-[data-theme='planche'] .janus-run-orb.is-active {
-  box-shadow: none;
-  border-color: #D43D2A;
-  color: #D43D2A;
-}
-
 [data-theme='planche'] .janus-run-orb-popover {
   background: #EFE4C5;
   border: 1px solid #1C343B;
-  box-shadow: 3px 3px 0 #1C343B;
+  box-shadow: none;
   color: #1C343B;
 }
 
@@ -473,22 +448,6 @@ body.is-running[data-theme='planche'] {
 [data-theme='planche'] .janus-run-orb-process {
   border-color: rgba(28, 52, 59, 0.22);
   background: transparent;
-}
-
-/* 运行球状态补完：角标 / 按住确认 / 停止中 / 幽灵锚，全部纸墨化（去暗色荧光） */
-[data-theme='planche'] .janus-run-orb-badge {
-  background: #EFE4C5;
-  border-color: #1C343B;
-  color: #1C343B;
-}
-
-[data-theme='planche'] .janus-run-orb.is-holding {
-  border-color: #D43D2A;
-  color: #D43D2A;
-}
-
-[data-theme='planche'] .janus-run-orb.is-holding::before {
-  background: rgba(212, 61, 42, 0.22);
 }
 
 [data-theme='planche'] .janus-run-orb[data-state='stopping'] {

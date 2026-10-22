@@ -687,33 +687,123 @@ test.describe('run-orb budding', () => {
     await expect(dialog.getByRole('button', { name: 'Switch to this workspace' })).toBeVisible()
   })
 
-  test('long-press on a running workspace never stops it', async ({ page }) => {
+  test('holding Island no longer starts a run or charges the island', async ({ page }) => {
+    await page.evaluate(() => (window as any).__setRunTarget('C:\\worktrees\\not-running'))
     const island = page.locator('.janus-island')
     await pointer(island, 'pointerdown', { x: 100, y: 20 })
     await page.waitForTimeout(850)
     await pointer(island, 'pointerup', { x: 100, y: 20 })
 
     expect(await stopCalls(page)).toEqual([])
-    await expect(page.locator('.pull-hint')).toContainText('Already running')
+    expect(await page.evaluate(() => (window as any).__runOrbFixture.startCalls)).toEqual([])
+    await expect(island).not.toHaveClass(/is-charging|trigger-snap/)
     await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-1"]')).toBeVisible()
     await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-2"]')).toBeVisible()
-    await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
   })
 
-  test('hold-to-confirm stop removes only that orb', async ({ page }) => {
+  test('explicit stop confirmation removes only that indicator', async ({ page }) => {
     await page.locator('.janus-run-orb[data-workspace-id="workspace-2"]').click()
     const dialog = page.getByRole('dialog', { name: 'Workspace Two' })
     await expect(dialog).toBeVisible()
 
-    // 真实鼠标按住：确认后按钮置灰，dispatchEvent 过不了 actionability 检查
-    const stopAll = dialog.locator('button.janus-run-orb-btn--danger')
-    await stopAll.hover()
-    await page.mouse.down()
-    await page.waitForTimeout(1300)
-    await page.mouse.up()
+    await dialog.getByRole('button', { name: 'Stop all', exact: true }).click()
+    expect(await stopCalls(page)).toEqual([])
+    await dialog.getByRole('button', { name: 'Confirm stop all?', exact: true }).click()
 
     expect(await stopCalls(page)).toEqual(['C:\\workspace-two::dev::2'])
     await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-2"]')).toHaveCount(0)
     await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-1"]')).toBeVisible()
+  })
+
+  test('one run button starts multiple worktrees without multiplying indicators', async ({ page }) => {
+    const run = page.locator('[data-id="run-project"]')
+    for (const path of ['C:\\worktrees\\feature-a', 'C:\\worktrees\\feature-b']) {
+      await page.evaluate(path => (window as any).__setRunTarget(path), path)
+      await expect(run).toHaveAttribute('aria-label', new RegExp(path.replace(/\\/g, '\\\\')))
+      await run.click()
+      await expect(run).toBeEnabled()
+    }
+    expect(await page.evaluate(() => (window as any).__runOrbFixture.startCalls)).toEqual(['C:\\worktrees\\feature-a', 'C:\\worktrees\\feature-b'])
+    await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-1"]')).toHaveCount(1)
+    await expect(page.locator('.janus-run-orb-buds, .janus-run-orb-badge, .janus-run-orb-orbit')).toHaveCount(0)
+    await run.click()
+    await expect(page.getByRole('status')).toContainText('already running')
+    expect(await page.evaluate(() => (window as any).__runOrbFixture.startCalls.length)).toBe(2)
+    await page.locator('.janus-run-orb[data-workspace-id="workspace-1"]').click()
+    await expect(page.locator('.janus-run-orb-scope-label')).toContainText(['workspace-one', 'feature-a', 'feature-b'])
+  })
+
+  test('keyboard activation runs the target and launch failures remain visible', async ({ page }) => {
+    await page.evaluate(() => {
+      (window as any).__setRunTarget('C:\\worktrees\\failed')
+      ;(window as any).__runOrbFixture.failStart = true
+    })
+    const run = page.locator('[data-id="run-project"]')
+    await run.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('status')).toContainText('Failed to start')
+    await expect(run).toBeEnabled()
+    expect(await stopCalls(page)).toEqual([])
+  })
+
+  test('missing configuration opens the launcher for the selected worktree', async ({ page }) => {
+    await page.evaluate(() => {
+      (window as any).__setRunTarget('C:\\worktrees\\unconfigured')
+      ;(window as any).__runOrbFixture.noConfig = true
+    })
+    await page.locator('[data-id="run-project"]').click()
+    await expect(page.getByRole('dialog', { name: 'Workspace launch configuration' })).toBeVisible()
+    expect(await page.evaluate(() => (window as any).__runOrbFixture.startCalls)).toEqual([])
+  })
+
+  test('launch keeps the original target while worktrees switch during config loading', async ({ page }) => {
+    await page.evaluate(() => {
+      (window as any).__setRunTarget('C:\\worktrees\\original')
+      ;(window as any).__runOrbFixture.readDelayMs = 250
+    })
+    const run = page.locator('[data-id="run-project"]')
+    await run.click()
+    await expect(run).toBeDisabled()
+    await page.evaluate(() => (window as any).__setRunTarget('C:\\worktrees\\other'))
+    await expect(run).toBeEnabled()
+    expect(await page.evaluate(() => (window as any).__runOrbFixture.startCalls)).toEqual(['C:\\worktrees\\original'])
+  })
+
+  test('overflow opens project details and keeps the selected project visible', async ({ page }) => {
+    await page.evaluate(() => (window as any).__runOrbFixture.running.push({
+      id: 'C:\\workspace-three::dev::3', workspaceId: 'workspace-3', scopePath: 'C:\\workspace-three',
+      pid: 333, type: 'vite', name: 'dev', startTime: new Date().toISOString(), uptime: 0,
+    }))
+    await page.getByRole('button', { name: '1 more running workspaces' }).click()
+    await page.locator('.janus-run-orb-overflow-main').click()
+    await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-3"]')).toBeVisible()
+    await expect(page.locator('.janus-run-orb-popover-header')).toContainText('Workspace Three')
+    expect(await stopCalls(page)).toEqual([])
+  })
+
+  test('actual titlebar keeps the run button and indicators apart in both themes', async ({ page }) => {
+    await page.goto('/?runOrbs=1&titlebar=1')
+    const run = page.locator('[data-id="run-project"]')
+    await expect(page.locator('.janus-run-orb[data-workspace-id="workspace-1"]')).toBeVisible()
+    await expect(page.locator('.janus-run-orb-name')).toHaveCount(0)
+    const activeMark = page.locator('.janus-run-orb[data-workspace-id="workspace-1"] .janus-run-orb-dot')
+    await expect(activeMark).toHaveCSS('width', '3px')
+    await expect(activeMark).toHaveCSS('height', '16px')
+    await page.locator('.janus-run-orb[data-workspace-id="workspace-2"]').hover()
+    await expect(page.getByRole('tooltip')).toContainText('Workspace Two')
+    await page.mouse.move(0, 80)
+    for (const theme of ['dark', 'planche']) {
+      await page.evaluate(theme => (window as any).__applyRunTheme(theme), theme)
+      for (const width of [1280, 900, 720]) {
+        await page.setViewportSize({ width, height: 720 })
+        await expect(run).toBeVisible()
+        const runBox = await run.boundingBox()
+        const chipsBox = await page.locator('.janus-run-orbs').boundingBox()
+        const islandBox = await page.locator('.janus-island-shell').boundingBox()
+        expect(chipsBox!.x + chipsBox!.width).toBeLessThan(runBox!.x)
+        expect(islandBox!.x + islandBox!.width / 2).toBeCloseTo(width / 2, 0)
+        await page.screenshot({ path: `artifacts/run-controls-${theme}-${width}.png` })
+      }
+    }
   })
 })

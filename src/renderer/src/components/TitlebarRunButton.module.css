@@ -1,0 +1,37 @@
+.anchor { position: relative; z-index: 2100; }
+.trigger {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+.trigger:hover:not(:disabled) { color: var(--shell-text); background: var(--shell-hover); }
+.trigger:focus-visible { outline: 1px solid var(--shell-accent); outline-offset: 1px; }
+.trigger:disabled { opacity: .45; cursor: default; }
+.spinner { animation: run-spin 1s linear infinite; }
+.feedback {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  width: 260px;
+  padding: 10px;
+  border: 1px solid var(--shell-border);
+  border-radius: 6px;
+  background: var(--shell-drawer);
+  color: var(--shell-text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.feedback button { border: 0; background: transparent; color: var(--shell-muted); cursor: pointer; }
+@keyframes run-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

@@ -60,6 +60,16 @@ describe('stopWorkspaceProjects', () => {
     expect(ok).toBe(false)
     expect(useRunningStore.getState().stoppingByWorkspace[wsA.id]).toBeUndefined()
   })
+
+  it('stops stamped worktrees outside the workspace root without touching another workspace', async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({ success: true, data: [
+      { ...running('C:\\worktrees\\feature::dev::1'), workspaceId: 'wa', scopePath: 'C:\\worktrees\\feature' },
+      { ...running('C:\\a::dev::2'), workspaceId: 'wb', scopePath: 'C:\\a' },
+    ] })
+    vi.mocked(projectApi.stop).mockResolvedValue({ success: true })
+    expect(await stopWorkspaceProjects('wa', 'C:\\a')).toBe(true)
+    expect(vi.mocked(projectApi.stop).mock.calls.map(call => call[0])).toEqual(['C:\\worktrees\\feature::dev::1'])
+  })
 })
 
 describe('orb helpers', () => {

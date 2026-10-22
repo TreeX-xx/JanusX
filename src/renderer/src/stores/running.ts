@@ -1,4 +1,4 @@
-// Note: one orb per workspace with per-worktree buds, long-press starts only — see .agents/notes/workbench/run-orb-budding.md
+// Note: one run indicator per workspace; worktree groups live inside its panel — see .agents/notes/workbench/run-orb-budding.md
 import { create } from 'zustand'
 import type { RunningProjectSummary } from '../../../shared/ipc/project'
 

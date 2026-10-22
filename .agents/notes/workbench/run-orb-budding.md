@@ -25,31 +25,44 @@
       }
     }
   },
-  "updated": "2026-10-18T00:00:00.000Z",
+  "updated": "2026-10-22T11:50:27.034Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
-# Run-orb budding for multi-workspace running state
-
+# 顶栏运行入口与紧凑运行指示器
 
 ## Problem
 
-Janus Island expresses running state through the island body alone. Long-press toggles start and stop on the active workspace, the running snapshot holds a single global copy that each workspace switch overwrites, and the `running` mode branch overrides `order` and `analytics`. A user who switches away from a running workspace sees an idle island, and a user who long-presses to inspect state stops the wrong workspace. Without workspace attribution in the island, background runs stay untraceable.
+Island 长按启动缺少可见入口，且与单击、双击、下拉共用命中区。运行球的首字母、进程角标、旋转轨道与 worktree 子芽把项目和进程层级同时挤在顶栏，多 worktree 时难以辨认。启动目标需要明确，同时后台实例必须跨项目切换保留。
 
 ## Decision
 
-Running state lives outside the island body as satellite orbs. `stores/running.ts` groups the full `projectService.list()` result by workspace path with longest-prefix match and exposes `runningByWorkspace` plus `groupByWorkspace`. `useGlobalRunning` polls the full list every 3s (10s when the document is hidden) and never filters by active workspace. `Titlebar.tsx` mounts a `janus-island-cluster` holding `JanusIsland` and `JanusRunOrbs`. Each workspace with running processes gets one 24px orb showing the workspace initial and process count; more than three orbs collapse into a `+N` overflow. Long-press on the island body only starts the active workspace once; an already-running workspace triggers an orb nudge and a hint instead of a stop. Stopping requires an explicit hold-to-confirm on the orb or in its popover. Closing a popover, pressing `Esc`, or clicking outside closes the view only and never stops a process. A vanished orb plays a 200ms shrink before unmount.
+`TitlebarRunButton` 在顶栏右侧工具组前提供唯一的 `Play` 图标按钮，悬停与键盘聚焦提示项目和当前分支／目录。按钮在触发时快照当前 worktree；加载配置期间禁止重复点击，切换 worktree 不重定向该次启动。配置优先读目标目录，缺失继承工作区根模板，命令仍在目标目录执行。无配置直接打开快照目标的 `ProjectLauncher`；启动失败显示可关闭的错误提示；已运行则提示并轻闪项目标记，不停止或重复启动。启动成功立即刷新全局运行快照。没有项目时按钮禁用。
 
-The 2026-10-18 revision lifts the orb to a per-worktree "orb group" for [worktree run targets](worktree-run-test-target.md). Running projects carry stamped `workspaceId`/`scopePath`/`branch`/`configName` (set at start via `ProjectRunOptions.identity`; id-prefix inference stays as legacy fallback), and `groupByWorkspace` builds `WorkspaceRunInfo.scopes` — one `ScopeRunInfo` per worktree scope. When a workspace runs across multiple worktrees, the main orb chains 12px scope buds (hold 1s stops that worktree only, click opens the panel focused on that scope) and the orbit ring switches to one arc segment per running scope; single-worktree visuals are unchanged. The popover groups processes by scope with a two-step-arm scope stop, lists idle worktrees with a start affordance, and warns on duplicate ports without auto-remapping.
+Island 长按启动及其蓄力、回弹和涟漪实现直接移除，不保留兼容手势。单击、双击与下拉黑板保持原职责。
+
+`JanusRunOrbs` 保留命名及运行数据源，一工作区呈现一条细刻度，统一排列为紧凑运行指示器组。每个刻度命中区 18×24px，常态不画单独底色或外框；绿色刻度宽 3px，当前项目高 16px，其余高 10px 且降低透明度。项目名、配置和进程数只在主题化 tooltip 与运行详情中显示，顶栏不放截断名称。运行常态静止，停止中才有短暂状态动画；轨道、数量角标、worktree 子芽及球体长按停止全部移除。最多直接显示两个项目，当前项目优先，其余按启动顺序，溢出进入 `+N`。宽窗口指示器位于 Island 右侧，≤1100px 移到左侧；绝对定位使数量变化不移动居中的 Island。初版文字胶囊经用户评审否决，最终采用三版 UI 对比中的紧凑刻度方向，设计稿为 `design/run-status-exploration.html`。
+
+
+点击指示器查看原有轻面板；后台项目指示器仍沿用切换项目并打开详情的行为。溢出列表也打开对应详情。面板按 worktree 分组进程，保留 PID、端口、最近输出、空闲 worktree 启动和端口冲突警示。停止全部、单 worktree、单进程均在面板内显式点击并再次确认，停止全部失焦即取消确认。关闭面板、点外和 Esc 不停止进程。停止全部优先按启动时盖章的 workspaceId 归属，覆盖仓库目录外的 worktree；未盖章数据仍用根目录前缀兜底。
+
+`stores/running.ts` 继续按工作区与作用域两级分组，`useGlobalRunning` 全量轮询，不随活动项目过滤；`useProjectRunning` 仅保留旧 app store 读者需要的运行状态镜像。端口冲突只警示，不自动改端口。
 
 ## Alternatives considered
 
-- Keep single-body color for running — strongest case is zero new components and an already learned green-means-running signal. The driver that rules it out is attribution loss: the snapshot overwrite on workspace switch hides background runs, and toggle-on-inspect stops the wrong workspace.
-- Hide-but-keep-running with a hidden-workspace blocklist — strongest case is a quieter titlebar under many parallel runs. The driver that rules it out is truth conflict: the next poll tick rebuilds the orb, so hiding reads as an unclosable bug and the blocklist lies about poll truth.
-- Modal confirm for stop via `PromptDialog` — strongest case is a familiar strong friction for an irreversible `SIGTERM` path. The driver that rules it out is interruption cost at a 24px titlebar target; hold-to-confirm gives equivalent friction without a modal mask over the titlebar.
-- Do nothing / reuse `ProjectSettings` running list only — staying put keeps one data source and no titlebar change. The cost is that background runs remain invisible from the island and the view-then-stop hazard on long-press remains.
+- 每个 worktree 一枚运行按钮：目标清楚，但控件随 worktree 增长。采用一个跟随当前目标的入口。
+- 顶栏组合启动菜单与运行数量：可以集中管理，但与运行指示器重复职责。启动按钮只负责启动，指示器负责查看运行实例。
+- 项目名称胶囊：辨认直接，但较占空间。用户选择紧凑刻度，名称通过悬停与详情提供。
+- 保留长按或增加提示：改动小，但核心操作仍依赖记忆手势。直接移除长按并提供可见按钮。
 
 ## Consequences
 
-- **Gains**: Each running workspace has a stable projection (`JanusRunOrbs.tsx`, `MAX_VISIBLE_ORBS = 3`, `LEAVE_MS = 200`); grouping by workspace path keeps background state visible across workspace switches. Long-press carries no stop path (`JanusIsland.tsx` `handleLongPress` calls `startActiveOnce` only), so inspection never kills a process.
-- **Costs and limits**: The titlebar cluster widens with orb count; at narrow widths orbs shrink and overflow collapses to `3 +N` (`11-janus-run-orb.css`). Crash attribution without a `project:getExited` snapshot stays deferred; natural exits auto-dismiss while non-zero exits await that channel — revisit when the exit-code snapshot lands. `stores/app.ts` `janusRunning` stays as a derived compat until `ProjectSettings` migrates to `runningByWorkspace`.
+顶栏操作数不随 worktree 增长，一个项目的多个 worktree 并行运行仍只占一条刻度。代价是项目辨认需要悬停或打开详情，多个同色刻度的学习成本高于显式名称；当前项目通过长刻度区分，键盘可聚焦并读出完整项目名。最多两个直显项目与窄窗左置用于避让右侧工具区，若工具组继续增长需重新检查顶栏几何。运行失败尚无退出快照通道，异常退出持久呈现仍待 runner 能力扩展。
+
+## Verification
+
+`npx vitest run tests/unit/janus/run-orb-actions.test.ts tests/unit/janus/run-orb-grouping.test.ts tests/unit/planche-theme.test.ts` 通过 33 项，覆盖项目归属、仓库目录外 worktree 的停止与主题。最终严格 unused 类型检查、变更源文件 ESLint、i18n 检查及 `npm run build:app` 通过。
+
+`$env:JANUS_E2E_PORT=41842; $env:NO_PROXY='127.0.0.1,localhost'; npx playwright test tests/e2e/island-interaction.spec.ts --project=island --workers=1 --grep 'run-orb budding'` 最终刻度版通过 10 项，覆盖两个 worktree 并行启动、每项目一条刻度、重复启动、异步期间切换目标、键盘操作、启动失败、缺少配置、显式停止、溢出项目详情和实际顶栏几何。深浅主题在 1280、900、720px 截图已检查，指示器与运行按钮无重叠，Island 保持居中。截图位于本地 `artifacts/run-controls-*.png`，构建日志为 `artifacts/run-controls-build.log`。
+
+此前完整 Island 套件为 26 通过、5 失败；圆桌单项复查两次通过，其余 4 项在独立 HEAD 基线 `23f9ea4e` 复现，涉及 Knowledge 空态、旧 Chat 停靠入口、会话菜单和已移除的面板拖动预期，未扩大本次修复范围。Notes 检查报告 0 errors、17 条跨仓外部链接诊断；浏览器使用 Electron API 夹具，真实桌面启动命令未验证。

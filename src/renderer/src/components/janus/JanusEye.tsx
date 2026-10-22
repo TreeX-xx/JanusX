@@ -1,4 +1,3 @@
-import type { Ref } from 'react'
 import type { JanusMode } from './janusIdentity'
 import { useI18n } from '@/i18n/useI18n'
 
@@ -7,10 +6,6 @@ export type { JanusMode } from './janusIdentity'
 export interface JanusEyeProps {
   mode: JanusMode
   className?: string
-  /** 左眼元素 ref — 用于长按蓄力时 translateX 靠拢 */
-  leftRef?: Ref<HTMLDivElement>
-  /** 右眼元素 ref — 用于长按蓄力时 translateX 靠拢 */
-  rightRef?: Ref<HTMLDivElement>
 }
 
 /**
@@ -20,7 +15,7 @@ export interface JanusEyeProps {
  * .mode-{mode} .janus-eye-mini / .left-eye-mini / .right-eye-mini 规则控制。
  * 组件仅负责渲染正确的 DOM 结构与 data 属性。
  */
-export function JanusEye({ mode, className, leftRef, rightRef }: JanusEyeProps) {
+export function JanusEye({ mode, className }: JanusEyeProps) {
   const { t } = useI18n('janus')
   const modeLabelKeyMap: Record<JanusMode, string> = {
     sleep: 'janus:identity.mode.idle',
@@ -48,8 +43,8 @@ export function JanusEye({ mode, className, leftRef, rightRef }: JanusEyeProps) 
         <div className="janus-eye-mini" />
       ) : (
         <>
-          <div ref={leftRef} className="left-eye-mini janus-eye-mini" />
-          <div ref={rightRef} className="right-eye-mini janus-eye-mini" />
+          <div className="left-eye-mini janus-eye-mini" />
+          <div className="right-eye-mini janus-eye-mini" />
         </>
       )}
     </div>

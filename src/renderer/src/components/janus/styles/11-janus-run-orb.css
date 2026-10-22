@@ -1,15 +1,3 @@
-/* ════════════════════════════════════════════════════════════
-   11-janus-run-orb — 运行球簇（Run-Orb Budding）
-   母体右侧卫星：一工作区一球。家族皮与本体同源，运行表达外移。
-   ════════════════════════════════════════════════════════════ */
-
-@property --orb-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
-/* 簇容器：fixed 居中 flex，母体 + 卫星作为整体居中（Titlebar 挂载 div 即此簇） */
 .janus-island-cluster {
   position: fixed;
   left: 50%;
@@ -34,12 +22,6 @@
 /* 展开态隐藏卫星：展开面板的 monitor 视图已承担运行表达，避免巨 panel 旁挂小球 */
 .janus-island-cluster:has(.janus-island-shell[data-stage="expanded"]) .janus-run-orbs {
   display: none;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* hifi S1: hovering the island zone pulls the orb cluster inward (centripetal) */
-.janus-island-cluster:hover .janus-run-orbs {
-  transform: translateX(-2px);
 }
 
 .janus-run-orbs {
@@ -47,261 +29,53 @@
   z-index: 2002;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--shell-border);
   pointer-events: auto;
   -webkit-app-region: no-drag;
 }
-
-.janus-run-orb-anchor {
-  position: relative;
-  display: flex;
-  align-items: center;
+.janus-island-cluster .janus-run-orbs {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 0;
 }
-
-/* 球本体：24px 圆，与母体胶囊同高 */
+.janus-run-orb-anchor { position: relative; display: flex; align-items: center; }
 .janus-run-orb {
-  position: relative;
   display: grid;
   place-items: center;
-  width: 24px;
+  width: 18px;
   height: 24px;
   padding: 0;
-  border: 1px solid var(--run-bud-border);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at center, rgba(0, 255, 136, 0.14) 0%, transparent 62%),
-    linear-gradient(180deg, var(--janus-skin-top, var(--run-bud-skin-top)) 0%, var(--janus-skin-bottom, var(--run-bud-skin-bottom)) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 0 10px rgba(0, 255, 136, 0.18);
-  color: var(--run-bud-text);
-  font: 700 11px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--shell-muted);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1;
   cursor: pointer;
-  animation: orb-bud 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-  transform-origin: left center;
-  touch-action: none;
-  user-select: none;
+  transition: background 140ms ease;
 }
-
-.janus-run-orb:hover {
-  border-color: var(--run-bud-hover);
-  transform: translateY(-2px) scale(1.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 0 12px var(--run-bud-border);
+.janus-run-orb:hover, .janus-run-orb.is-open { background: var(--shell-hover); }
+.janus-run-orb:focus-visible { outline: 1px solid var(--shell-accent); outline-offset: 1px; }
+.janus-run-orb-dot {
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--shell-diff-add);
+  opacity: .55;
+  transition: height 140ms ease, opacity 140ms ease;
 }
-
-.janus-run-orb:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
-}
-
-.janus-run-orb.is-open,
-.janus-run-orb.is-active {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px var(--run-bud-active-ring),
-    0 0 12px var(--run-bud-active-glow);
-}
-
-/* 旋转光带：与终端 .term-status-orbit 同构 */
-.janus-run-orb-orbit {
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--orb-angle),
-    transparent 0deg 286deg,
-    currentColor 322deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  animation: orb-spin 2.4s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes orb-spin {
-  to { --orb-angle: 360deg; }
-}
-
-/* 多 worktree：轨道光带改为 N 段弧（N=运行中的作用域数），零宽度表达"多 worktree" */
-.janus-run-orb[data-scopes]:not([data-scopes="1"]) .janus-run-orb-orbit {
-  background: repeating-conic-gradient(
-    from var(--orb-angle),
-    currentColor 0deg 16deg,
-    transparent 16deg calc(360deg / var(--orb-segments, 2))
-  );
-}
-
-/* worktree 子芽链：主球右侧分蘖，一作用域一芽 */
-.janus-run-orb-buds {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: 3px;
-}
-
-.janus-run-orb-bud {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 1px solid var(--run-bud-border);
-  border-radius: 50%;
-  background: radial-gradient(circle at center, var(--run-bud-glow) 0%, transparent 62%),
-    linear-gradient(180deg, var(--janus-skin-top, var(--run-bud-skin-top)) 0%, var(--janus-skin-bottom, var(--run-bud-skin-bottom)) 100%);
-  color: var(--run-bud-text);
-  font: 700 8px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
-  cursor: pointer;
-  touch-action: none;
-  user-select: none;
-  animation: orb-bud 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-
-.janus-run-orb-bud:hover {
-  border-color: var(--run-bud-hover);
-  transform: translateY(-1px) scale(1.12);
-}
-
-.janus-run-orb-bud.is-active {
-  box-shadow: 0 0 0 1px var(--run-bud-active-ring), 0 0 8px var(--run-bud-active-glow);
-}
-
-.janus-run-orb-bud.is-holding {
-  border-color: var(--run-bud-stop-border);
-  color: var(--run-bud-stop-text);
-}
-
-.janus-run-orb-bud.is-holding::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--run-bud-stop-glow);
-  transform: scale(0);
-  animation: orb-hold-fill 1000ms linear forwards;
-  pointer-events: none;
-}
-
-.janus-run-orb-bud[data-state="stopping"] {
-  opacity: 0.6;
-}
-
-.janus-run-orb-bud--more {
-  width: auto;
-  min-width: 12px;
-  padding: 0 3px;
-  border-radius: 7px;
-}
-
-.janus-run-orb-core {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-}
-
-/* 已运行又长按的确认脉冲（key 重挂重播） */
-.janus-run-orb-nudge {
-  animation: orb-nudge 0.4s ease-out;
-}
-
-@keyframes orb-nudge {
-  0%, 100% { transform: none; }
-  30% { transform: scale(1.18); }
-  60% { transform: scale(0.95); }
-}
-
-/* 进程数角标（>1 才挂载） */
-.janus-run-orb-badge {
-  position: absolute;
-  top: -5px;
-  right: -6px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: #06281a;
-  border: 1px solid rgba(0, 255, 136, 0.5);
-  color: #7dffbe;
-  font: 700 9px/12px ui-monospace, monospace;
-  text-align: center;
-  pointer-events: none;
-}
-
-/* 按住确认中：红色进度覆盖（HoldToConfirm 同款语义，球形适配） */
-.janus-run-orb.is-holding {
-  border-color: var(--run-bud-stop-border);
-  color: var(--run-bud-stop-text);
-}
-
-.janus-run-orb.is-holding::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--run-bud-stop-glow);
-  transform: scale(0);
-  animation: orb-hold-fill 1000ms linear forwards;
-  pointer-events: none;
-}
-
-@keyframes orb-hold-fill {
-  to { transform: scale(1); }
-}
-
-/* 停止中：灰化 + 停转 */
-.janus-run-orb[data-state="stopping"] {
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow: none;
-  color: #999;
-  cursor: wait;
-}
-
-.janus-run-orb[data-state="stopping"] .janus-run-orb-orbit {
-  animation: none;
-  opacity: 0.35;
-}
-
-/* 消散 */
-.janus-run-orb[data-leaving="true"] {
-  animation: orb-pop 0.2s ease-in forwards;
-}
-
-@keyframes orb-bud {
-  from { transform: scale(0) translateX(-10px); opacity: 0; }
-  60% { transform: scale(1.12) translateX(2px); opacity: 1; }
-  to { transform: none; opacity: 1; }
-}
-
-@keyframes orb-pop {
-  to { transform: scale(0); opacity: 0; }
-}
-
-/* 聚合球 + 幽灵锚点 */
-.janus-run-orb--overflow {
-  border-style: dashed;
-}
-
-.janus-run-orb--ghost {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: none;
-  color: #777;
-  cursor: default;
-  animation: none;
-}
-
-.janus-run-orb--ghost .janus-run-orb-orbit {
-  display: none;
-}
+.janus-run-orb.is-active .janus-run-orb-dot { height: 16px; opacity: 1; }
+.janus-run-orb:hover .janus-run-orb-dot, .janus-run-orb.is-open .janus-run-orb-dot { opacity: 1; }
+.janus-run-orb[data-state="stopping"] .janus-run-orb-dot { background: var(--shell-dim); animation: orb-nudge 900ms ease-in-out infinite; }
+.janus-run-orb-nudge { animation: orb-nudge 400ms ease-out; }
+@keyframes orb-nudge { 50% { opacity: .25; } }
+.janus-run-orb[data-leaving="true"] { animation: orb-pop 200ms ease-in forwards; }
+@keyframes orb-pop { to { opacity: 0; } }
+.janus-run-orb--ghost { color: var(--shell-dim); cursor: default; }
+.janus-run-orb--overflow { width: auto; min-width: 22px; padding: 0 3px; font-size: 10px; font-variant-numeric: tabular-nums; }
 
 /* 轻面板：锚定球下 8px，不进 auxiliary 位移体系 */
 .janus-run-orb-popover {
@@ -313,9 +87,9 @@
   width: 280px;
   padding: 10px 12px 12px;
   border: 1px solid var(--shell-border);
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--shell-drawer);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.62), 0 0 18px rgba(0, 255, 136, 0.05);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shell-text) 12%, transparent);
   color: var(--shell-text);
   font-size: 12px;
   animation: orb-popover-in 0.18s ease-out both;
@@ -609,52 +383,11 @@
   font-size: 10px;
 }
 
-.janus-run-orb-overflow-row .janus-run-orb-btn {
-  flex: 0 0 30px;
-  min-height: 30px;
-  padding: 0;
-}
-
-.janus-run-orb-overflow-row .janus-run-orb-btn.is-armed {
-  flex-basis: auto;
-  padding: 0 10px;
-  border-color: var(--shell-diff-del);
-}
-
-.janus-run-orb-overflow-error {
-  grid-column: 1 / -1;
-  color: var(--shell-diff-del);
-  font-size: 10px;
-}
-
-/* 窄屏：球缩小，簇间距收紧（+N 聚合逻辑不变） */
 @media (max-width: 1100px) {
-  .janus-run-orb {
-    width: 20px;
-    height: 20px;
-    font-size: 10px;
-  }
-  .janus-island-cluster {
-    gap: 6px;
-  }
-  .janus-run-orbs {
-    gap: 4px;
-  }
+ .janus-island-cluster { gap: 6px; }
+ .janus-island-cluster .janus-run-orbs { left: auto; right: calc(100% + 8px); }
+ .janus-run-orbs { gap: 2px; }
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .janus-run-orb {
-    animation: none;
-  }
-  .janus-run-orb-orbit,
-  .janus-run-orb.is-holding::before,
-  .janus-run-orb-nudge {
-    animation: none;
-  }
-  .janus-run-orb-orbit {
-    opacity: 0.5;
-  }
-  .janus-run-orb-popover {
-    animation: none;
-  }
+ .janus-run-orb, .janus-run-orb-dot, .janus-run-orb-popover { animation: none !important; transition: none; }
 }

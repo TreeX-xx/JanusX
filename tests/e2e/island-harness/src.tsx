@@ -6,6 +6,10 @@ import type { ChatStreamEvent, ChatStreamRequest } from '../../../src/shared/ipc
 import { DEFAULT_APP_THEME } from '../../../src/shared/ipc/theme'
 import { JanusIsland } from '../../../src/renderer/src/components/janus'
 import { JanusRunOrbs } from '../../../src/renderer/src/components/janus/JanusRunOrbs'
+import { TitlebarRunButton } from '../../../src/renderer/src/components/TitlebarRunButton'
+import { Titlebar } from '../../../src/renderer/src/components/Titlebar'
+import { useWorktreeStore } from '../../../src/renderer/src/stores/worktree'
+import { useThemeStore } from '../../../src/renderer/src/stores/theme'
 import { useGlobalRunning } from '../../../src/renderer/src/components/janus/useGlobalRunning'
 import { useWorkflowXDetection } from '../../../src/renderer/src/components/janus/useWorkflowXDetection'
 import type { WorkflowXSnapshot } from '../../../src/shared/ipc/workflowx'
@@ -135,11 +139,19 @@ const workspaceTwoPane = {
 /*-- Run-Orb fixture (?runOrbs=1)：双工作区运行 + 可变 stop mock，供运行球 E2E --*/
 interface RunOrbFixtureState {
   stopCalls: string[]
+  startCalls: string[]
+  noConfig: boolean
+  failStart: boolean
+  readDelayMs: number
   running: RunningProjectSummary[]
 }
 
 const runOrbFixture: RunOrbFixtureState = {
   stopCalls: [],
+  startCalls: [],
+  noConfig: false,
+  failStart: false,
+  readDelayMs: 0,
   running: [
     {
       id: 'C:\\workspace-one::dev::1',
@@ -162,6 +174,10 @@ const runOrbFixture: RunOrbFixtureState = {
 }
 
 ;(window as unknown as { __runOrbFixture?: RunOrbFixtureState }).__runOrbFixture = runOrbFixture
+Object.assign(window, {
+  __setRunTarget: (path: string) => useWorktreeStore.setState(state => ({ activePaths: { ...state.activePaths, 'workspace-1': path } })),
+  __applyRunTheme: (theme: 'dark' | 'planche') => useThemeStore.getState().applyExternal(theme),
+})
 
 if (new URLSearchParams(window.location.search).get('runOrbs') === '1') {
   Object.assign(window.electron.project, {
@@ -185,7 +201,16 @@ if (new URLSearchParams(window.location.search).get('runOrbs') === '1') {
       runOrbFixture.running = runOrbFixture.running.filter((project) => project.id !== projectId)
       return { success: true }
     },
-    readConfig: async () => ({ success: true, data: null }),
+    readConfig: async () => {
+      if (runOrbFixture.readDelayMs) await new Promise(resolve => setTimeout(resolve, runOrbFixture.readDelayMs))
+      return { success: true, data: runOrbFixture.noConfig ? null : { configurations: [{ name: 'dev', type: ProjectType.Vite }] } }
+    },
+    run: async (path: string, _config: string, options: { identity?: { workspaceId: string; scopePath: string; branch?: string } }) => {
+      runOrbFixture.startCalls.push(path)
+      if (runOrbFixture.failStart) return { success: false, error: 'fixture start failure' }
+      runOrbFixture.running.push({ id: `${path}::dev::${Date.now()}`, pid: 333, type: ProjectType.Vite, name: 'dev', startTime: new Date().toISOString(), uptime: 0, ...options.identity })
+      return { success: true, data: [] }
+    },
   })
 }
 
@@ -196,7 +221,10 @@ function runOrbRunningSnapshot() {
 /** 运行球挂载位：快速轮询（200ms）+ 球簇，仅 ?runOrbs=1 渲染 */
 function RunOrbHarnessMount() {
   useGlobalRunning(200)
-  return <JanusRunOrbs />
+  return <>
+    <div style={{ position: 'fixed', top: 6, right: 160 }}><TitlebarRunButton /></div>
+    <JanusRunOrbs />
+  </>
 }
 
 useWorkspaceStore.setState({
@@ -449,7 +477,7 @@ async function boot() {
   await changeLanguage('en')
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <JanusChatProvider>
-      <Harness />
+      {new URLSearchParams(location.search).has('titlebar') ? <Titlebar /> : <Harness />}
     </JanusChatProvider>,
   )
 }
