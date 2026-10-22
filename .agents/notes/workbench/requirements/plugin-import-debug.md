@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-22T15:43:52Z",
+  "updated": "2026-10-22T16:11:38Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -52,11 +52,11 @@ P0 明确资源路径、符号链接／真实路径、总大小／文件数量�
 ## Acceptance criteria
 
 - [x] AC-1: A scaffold-built folder travels import, authorize, enable, use, disable, uninstall with no restart.
-- [ ] AC-2: Six bad-package error codes demonstrate end to end; overprivileged bridge calls refuse with log entries; three crashes auto-disable.
+- [x] AC-2: Six bad-package error codes demonstrate end to end; overprivileged bridge calls refuse with log entries; three crashes auto-disable.
 - [x] AC-3: The debug quartet works: linked-directory hot reload, bridge trace, log drawer, detached devtools.
 - [x] AC-4: Verify plus the plugin gate stays green with new desktop cases; main holds no variable plugin import; the native page enforces CSP sandbox without same-origin or top-navigation and exposes no host preload API.
 - [x] AC-5: 开发模式关闭时未签名目录不能执行，显式开启后只运行隔离页面；关闭、权限增加、重载和整应用重启均遵守来源与授权规则，复制安装不提升信任等级。
-- [ ] AC-6: 测试覆盖真实路径／符号链接越界、非法资源与网络／导航、伪造发送者、旧通道和项目切换迟到响应；拒绝有错误码和日志，用户数据及宿主会话不被清理误伤。
+- [x] AC-6: 测试覆盖真实路径／符号链接越界、非法资源与网络／导航、伪造发送者、旧通道和项目切换迟到响应；拒绝有错误码和日志，用户数据及宿主会话不被清理误伤。
 
 ## Risks
 
@@ -67,4 +67,4 @@ P0 明确资源路径、符号链接／真实路径、总大小／文件数量�
 
 ## Verification
 
-P2 的真实 Electron 证据及命令归[阶段交付记录](../../planning/plugin-platform-roadmap.md#p2-交付与验证)。AC-1、AC-3 已由仓库外打包 SDK 的双页插件验证；AC-5 由开发开关、复制来源与重启桌面用例，加上权限增加的单元负例共同支持。AC-2 已有六类坏包、越权日志及三次真实握手超时证据，但未验证连续三次真实 renderer 崩溃，保留未勾选。AC-4 在限制 4 worker 的完整 verify 中通过，默认高并发曾触发的语料超时未作修复。AC-6 的 junction／hardlink、旧绑定与迟到响应为单元证据，网络／导航与伪造其它窗口 IPC 为 Electron 证据；worktree 与并发文件系统置换尚未完成桌面验收，不把部分覆盖记为整体通过。
+P2 的真实 Electron 证据及命令归[阶段交付记录](../../planning/plugin-platform-roadmap.md#p2-交付与验证)。AC-1、AC-3 已由仓库外打包 SDK 的双页插件验证；AC-5 由开发开关、复制来源与重启桌面用例，加上权限增加的单元负例共同支持。AC-2 补齐小堆真实 OOM 后两次握手后强制 renderer 崩溃，连续三次故障自动停用且宿主仍可操作；原有六类坏包、越权日志和三次真实握手超时继续保留。AC-4 在限制 4 worker 的完整 verify 中通过，默认高并发曾触发的语料超时未作修复。AC-6 增加真实 Git worktree 切换、根身份／KV 隔离及旧页面销毁，经桥拒绝 junction／hardlink 且留日志；确定性原生文件系统单元测试覆盖校验后置换父目录，以及真实已打开文件在新根实例建立后才完成读取的迟到拒绝。卸载保留数据、单独清理 KV 与宿主会话关闭回归由既有专项支持。桌面证据与检查点测试共同覆盖本条边界，不声称全部并发时序或跨平台通过。

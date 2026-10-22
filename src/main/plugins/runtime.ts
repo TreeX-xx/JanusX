@@ -81,6 +81,11 @@ export class PluginRuntime {
         this.service.bind(mount.instanceId, mount.binding)
         const { port1, port2 } = new MessageChannelMain()
         carrier.port = port1; connected = true
+        port1.on('close', () => {
+          // Host-driven teardown removes the carrier first; an unexpected peer
+          // disconnect must revoke the unusable page and its "connected" state.
+          if (this.carriers.get(mount.instanceId) === carrier) this.service.failView(mount.instanceId, mount.binding)
+        })
         let count = 0; let since = Date.now()
         port1.on('message', event => {
           if (Date.now() - since >= 1000) { since = Date.now(); count = 0 }

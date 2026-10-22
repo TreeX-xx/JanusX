@@ -1,4 +1,6 @@
 {
+  "hostBoundary": "此列表管理第三方本地插件。内置工具和共享会话由宿主管理；本地插件没有外部服务连接。",
+  "runtime": "页面：{{pages}} · 桥已连接：{{connected}} · 已就绪：{{ready}}",
   "nav": "插件", "title": "本地插件", "subtitle": "管理本地插件来源、权限和入口", "devtools": "调试插件", "retry": "重试插件页面",
   "development": "开启本地开发模式", "developmentHint": "审阅权限后运行本地插件。关闭此模式将停用所有本地插件。",
   "link": "链接开发目录", "copy": "复制安装目录", "logs": "日志与桥调用追踪", "empty": "尚未安装本地插件。",

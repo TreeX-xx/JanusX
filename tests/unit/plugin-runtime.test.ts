@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, link, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import * as nodeFiles from 'node:fs/promises'
 import { PluginService } from '../../src/main/plugins/service'
-import { readPluginFile, readPluginPackage } from '../../src/main/plugins/files'
+import { configurePluginFileSystem, readPluginFile, readPluginPackage } from '../../src/main/plugins/files'
 import { createPluginClient } from '../../packages/plugin-sdk/src/client'
 import { PluginStorage } from '../../src/main/plugins/storage'
 
@@ -41,6 +42,23 @@ async function fixture() {
 }
 
 describe('P2 source and filesystem boundaries', () => {
+  it('rejects a real parent-directory replacement between path validation and open', async () => {
+    const f = await fixture()
+    const parent = join(f.root, 'files'); await mkdir(parent)
+    await writeFile(join(parent, 'README.md'), 'original')
+    let replaced = false
+    configurePluginFileSystem({ ...nodeFiles, open: (async (...args: Parameters<typeof nodeFiles.open>) => {
+      if (!replaced && args[0] === join(parent, 'README.md')) {
+        replaced = true
+        await rename(parent, join(f.root, 'original-files'))
+        await symlink(f.rootB, parent, process.platform === 'win32' ? 'junction' : 'dir')
+      }
+      return nodeFiles.open(...args)
+    }) as typeof nodeFiles.open })
+    try { await expect(readPluginFile(f.root, 'files/README.md', 1024)).rejects.toMatchObject({ code: 'RESOURCE_CHANGED' }) }
+    finally { configurePluginFileSystem(nodeFiles) }
+    expect(replaced).toBe(true)
+  })
   it('takes immutable static snapshots and rejects junctions, hardlinks and oversize reads', async () => {
     const { source, root, rootB } = await fixture()
     const pkg = await readPluginPackage(source)
@@ -160,6 +178,39 @@ describe('P2 authorization, lifecycle and persistent data', () => {
     for (let i = 0; i < 3; i++) { await f.service.mount(f.manifest.id, 'details', 'a', f.root); await vi.advanceTimersByTimeAsync(10_001) }
     expect(f.service.snapshot().plugins[0]).toMatchObject({ enabled: false, failures: 3, error: 'VIEW_LOAD_FAILED' })
   })
+  it('counts crashes after successful handshakes and publishes live page and bridge counts', async () => {
+    const f = await fixture(); await f.prepare(); vi.useFakeTimers()
+    for (let failure = 1; failure <= 3; failure++) {
+      const mount = await f.service.mount(f.manifest.id, 'details', 'a', f.root)
+      expect(f.service.snapshot().plugins[0].runtime).toEqual({ pages: 1, connected: 0, ready: 0 })
+      f.service.bind(mount.instanceId, mount.binding)
+      expect(f.service.snapshot().plugins[0].runtime).toEqual({ pages: 1, connected: 1, ready: 0 })
+      expect(await f.call(mount, 'app.getInfo')).toMatchObject({ ok: true })
+      expect(f.service.snapshot().plugins[0]).toMatchObject({ state: 'active', failures: failure - 1, runtime: { pages: 1, connected: 1, ready: 1 } })
+      await vi.advanceTimersByTimeAsync(1000)
+      f.service.failView(mount.instanceId, mount.binding)
+      expect(f.service.snapshot().plugins[0]).toMatchObject({ failures: failure, runtime: { pages: 0, connected: 0, ready: 0 } })
+    }
+    expect(f.service.snapshot().plugins[0]).toMatchObject({ enabled: false, state: 'disabled', failures: 3 })
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(f.service.snapshot().plugins[0].failures).toBe(3)
+  })
+  it.each(['close', 'disable', 'recover'] as const)('resets failures only after a live stable recovery, with %s', async action => {
+    const f = await fixture(); await f.prepare(); vi.useFakeTimers()
+    const first = await f.service.mount(f.manifest.id, 'details', 'a', f.root)
+    f.service.failView(first.instanceId, first.binding)
+    const retry = await f.service.mount(f.manifest.id, 'details', 'a', f.root)
+    f.service.bind(retry.instanceId, retry.binding); await f.call(retry, 'app.getInfo')
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(f.service.snapshot().plugins[0].failures).toBe(1)
+    if (action === 'close') {
+      f.deps.changed.mockClear(); f.service.close(retry.instanceId)
+      expect(f.deps.changed).toHaveBeenCalled()
+      expect(f.service.snapshot().plugins[0]).toMatchObject({ state: 'ready', runtime: { pages: 0, connected: 0, ready: 0 } })
+    } else if (action === 'disable') await f.service.disable(f.manifest.id)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(f.service.snapshot().plugins[0].failures).toBe(action === 'recover' ? 0 : 1)
+  })
   it('revokes an in-flight read before root resolution completes and refuses forged bindings', async () => {
     const f = await fixture(); await f.prepare()
     const mount = await f.service.mount(f.manifest.id, 'details', 'a', f.root)
@@ -173,6 +224,28 @@ describe('P2 authorization, lifecycle and persistent data', () => {
     expect(f.service.resource(mount.url)).toBeNull()
     expect(await reading).toMatchObject({ ok: false, error: { code: 'INSTANCE_CLOSED' } })
     release(); await switching
+  })
+  it('discards a real opened-file read completed after switching to a new root and instance', async () => {
+    const f = await fixture(); await f.prepare()
+    const old = await f.service.mount(f.manifest.id, 'details', 'a', f.root); f.service.bind(old.instanceId, old.binding)
+    let opened!: () => void; let release!: () => void
+    const started = new Promise<void>(resolve => { opened = resolve })
+    const released = new Promise<void>(resolve => { release = resolve })
+    configurePluginFileSystem({ ...nodeFiles, open: (async (...args: Parameters<typeof nodeFiles.open>) => {
+      const handle = await nodeFiles.open(...args)
+      if (args[0] === join(f.root, 'README.md')) { opened(); await released }
+      return handle
+    }) as typeof nodeFiles.open })
+    try {
+      const late = f.call(old, 'workspace.readText', { path: 'README.md' })
+      await started
+      await f.service.setContext('b', f.rootB, 'en', { id: '', tokens: {} })
+      const current = await f.service.mount(f.manifest.id, 'details', 'b', f.rootB); f.service.bind(current.instanceId, current.binding)
+      release()
+      expect(await late).toMatchObject({ ok: false, error: { code: 'INSTANCE_CLOSED' } })
+      expect(await f.call(current, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project B' } })
+      expect(f.service.resource(old.url)).toBeNull()
+    } finally { release(); configurePluginFileSystem(nodeFiles) }
   })
   it('keeps application, project roots and plugin identities in separate storage namespaces', async () => {
     const f = await fixture()

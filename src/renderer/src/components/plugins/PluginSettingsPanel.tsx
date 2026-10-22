@@ -36,6 +36,7 @@ export function PluginSettingsPanel() {
     <label className={styles.row}><input type="checkbox" checked={snapshot.developmentMode} disabled={busy}
       onChange={event => { void run({ type: 'development', enabled: event.target.checked }) }} />{t('plugins:development')}</label>
     <p className={styles.hint}>{t('plugins:developmentHint')}</p>
+    <p className={styles.hint}>{t('plugins:hostBoundary')}</p>
     <div className={styles.actions}>
       <button disabled={busy} onClick={() => { void run({ type: 'import', kind: 'linked' }) }}>{t('plugins:link')}</button>
       <button disabled={busy} onClick={() => { void run({ type: 'import', kind: 'copied' }) }}>{t('plugins:copy')}</button>
@@ -49,6 +50,7 @@ export function PluginSettingsPanel() {
         <div className={styles.row}><strong>{record.manifest.name}</strong><span>{record.manifest.version}</span><span>{t(`plugins:state.${record.state}`)}</span></div>
         <div className={styles.hint}>{record.manifest.id} · {record.source.kind === 'linked' ? t('plugins:linked') : t('plugins:copied')}</div>
         <div className={styles.path}>{record.source.directory}</div>
+        <p className={styles.hint} data-plugin-runtime>{t('plugins:runtime', { pages: record.runtime?.pages ?? 0, connected: record.runtime?.connected ?? 0, ready: record.runtime?.ready ?? 0 })}</p>
         {record.error && <p role="status" className={styles.error}>{record.error}</p>}
         <div className={styles.actions}>
           <button disabled={busy || !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(record.projects) }}>{t('plugins:authorize')}</button>
@@ -73,7 +75,7 @@ export function PluginSettingsPanel() {
                 const checked = event.target.checked
                 preference(() => { extensionCommands.setMenuPreference(id, { hidden: checked }); setHidden(values => ({ ...values, [id]: checked })) })
               }} />{t('plugins:hideEntry')} · {menu.location} · {menu.command}</label>
-              <input type="number" aria-label={`${t('plugins:order')} ${menu.command} ${menu.location}`} defaultValue={commands.menus.find(entry => entry.id === id)?.order ?? menu.order ?? 100}
+              <input type="number" aria-label={`${t('plugins:order')} ${menu.command} ${menu.location}`} defaultValue={preferences.menus[id]?.order ?? commands.menus.find(entry => entry.id === id)?.order ?? menu.order ?? 100}
                 onBlur={event => preference(() => extensionCommands.setMenuPreference(id, { hidden: hidden[id] ?? !commands.menus.some(entry => entry.id === id), order: Number(event.target.value) }))} />
             </div>
           })}

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-22T15:43:52Z",
+  "updated": "2026-10-22T16:29:52Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -22,7 +22,7 @@
 
 目标是让用户通过插件组合中部工作区、工具箱、右侧栏、Island、独立工作台，以及文件、任务、Agent 和外部系统能力，形成完整功能。入口、命令、视图、展示位置与能力授权分别建模；已有官方功能逐步使用同一贡献语义。完整设计归[插件平台架构](../workbench/plugin-platform-design.md)，PI-Desktop 调研继续归[研究 Note](../workbench/ideas/plugin-platform-and-feature-modularization.md)。
 
-保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试均已有实现及验证。限制 4 worker 的完整 verify 已通过，默认高并发曾出现语料读取超时，S4 仍有专项验收未闭合；P3–P8 尚待实施。具体证据与限制见下文 P2 交付记录。
+保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；收尾补齐故障、worktree／文件边界及状态／偏好验收，S4 本地只读范围闭合。完整门禁证据、默认高并发语料超时及平台限制见下文；P3–P8 尚待实施。
 
 本计划采用相对排期，参考工作量按单条主线、主 Agent 顺序实施估算，包含相关测试与文档维护，不指定起始日期或版本，不挤占既有事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。估算不是历史速度或承诺工期，每批开始前按实际代码、依赖和试验结果修订。普通文档维护与普通 xdo 不创建执行 Task，阶段通过仍以所属需求和实际证据为准。
 
@@ -70,7 +70,17 @@ P1 已提供 `packages/plugin-sdk/`、CLI 与双页模板，以及可信命令�
 
 默认高并发的前两次 verify 曾停在 `workflowx-v2.test.ts` 语料可达性检查，唯一错误为 `BLUEPRINT_SYNC_TIMEOUT`，日志 `artifacts/plugin-p2/verify.log` 与 `verify-reviewed.log`；该文件单独复跑 8 项通过。最终仅限制本次进程并发，没有修改仓库超时或默认 worker 配置，默认高并发的稳定性问题仍保留，不能声称其已经修复。
 
-仍需补齐真实连续 renderer 崩溃／OOM、worktree 切换的桌面证据及更强的并发文件系统置换验证；未生成安装包，未作 macOS／Linux 实机验收。不得从 Windows 上已测的网络样例推导操作系统防火墙级隔离，也不得以这些结果关闭未来贡献、网络代理或正式来源分发的 AC。
+2026-10-23 收尾补上故障计数缺陷：成功握手不立即清零，仍有就绪页面且连续 30 秒无新故障才恢复；关闭最后就绪页、停用或撤销取消计时。管理页实时显示页面／桥连接／就绪数，并明确内置工具及共享会话由宿主管理。插件主动断开 port 时撤销页面并计一次故障，宿主正常停用不额外计数。重启偏好验收发现隐藏入口排序显示默认值，现优先读取持久化排序，避免后续编辑覆盖。主 Agent 完成回头自审，未使用独立 Agent review。
+
+新增 Electron 用例以新 renderer 的 `--max-old-space-size=64` 和最多 128 MiB 数组分配触发真实 `render-process-gone: oom`，随后两次握手后强制崩溃累计到 3 并自动停用，宿主仍可操作，另一个插件的页面及只读桥保持正常，故障隔离强化复验日志为 `desktop-crash-isolation-reviewed.log`。真实 Git worktree 切换验证旧页面销毁、稳定 projectId、不同 rootId／revision、KV 隔离及切回恢复，并经真实桥拒绝 junction／hardlink，错误日志可查。复制来源跨启动另验证入口显隐／排序／快捷键偏好。初次检查因 V8 堆报告包含年轻代余量及侧栏列表默认折叠而失败，修正测试假设后新增两项通过；偏好初轮失败对应上述已修复的实际显示问题，单独复验通过，日志分别为 `desktop-closeout-new-reviewed.log` 和 `desktop-preferences-reviewed.log`。
+
+文件系统与迟到响应补验使用真实 OS 文件及句柄：在路径校验后、open 前将父目录 rename 并换为 junction，拒绝 `RESOURCE_CHANGED`；将已打开文件读取延迟到新根实例建立后，旧请求返回 `INSTANCE_CLOSED`，新实例只读新根。它们是确定性检查点单元测试，不冒充桌面时序或所有 OS 并发穷尽证明。相关测试为 `tests/unit/plugin-runtime.test.ts`，收尾后 27 项通过。
+
+收尾完整 `npm run verify` 沿用上述 4 worker、端口及入口环境，日志 `artifacts/plugin-p2/verify-closeout.log`：插件门禁 78 项、主单元 433 份／3779 项通过（6 份／23 项跳过）、llm-core 80 项通过；类型、严格 unused、构建、包边界、主题、i18n、排除清单、Notes 和 lint 均通过，Notes 303／0 错误／17 条既有链接诊断，lint 0 错误／67 条既有警告。桌面首次为 35 项通过、3 项失败、2 项跳过，失败是 Browser／Markdown 的长按关闭和 CPA 悬浮提示；此命令返回 1，不记作本轮完整 verify 一次全绿。
+
+最后的主动断桥修复后，独立输出生产构建及严格 unused／变更范围 lint 通过，使用 `JANUS_E2E_MAIN_ENTRY=artifacts/plugin-p2/closeout-build/main/index.js`、上述 NO_PROXY 执行 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/desktop-cpa.spec.ts --config=playwright.desktop.config.ts --workers=1 --grep 'plugin|copied development|six invalid|three native|real git worktree|global page requires|CPA native page shares' --output=artifacts/plugin-p2/desktop-closeout-final`，11 项全部通过，日志 `desktop-closeout-final.log`。包含全部 8 项插件用例和首轮失败的 3 项回归，未修改那三项用例或其产品代码来绕过；首轮交互失败原因未确证，保留稳定性限制。最后再将最终代码构建到默认 out，日志 `build-closeout-final.log`。收尾各轮合计 39 项不同桌面用例有通过证据，2 项官方资源用例仍跳过；不将分轮结果表述为单次全量通过。
+
+P2／S4 的本地只读范围已完成收尾；架构 AC-10 的多实例仍归 P4，AC-18 的外部服务与必要官方功能通用管理仍归后续，整条 AC 不提前勾选。未生成安装包，未作 macOS／Linux 实机验收。不得从 Windows 上已测的网络样例推导操作系统防火墙级隔离，也不得以这些结果关闭未来贡献、网络代理或正式来源分发的 AC。
 
 ## 交付顺序
 

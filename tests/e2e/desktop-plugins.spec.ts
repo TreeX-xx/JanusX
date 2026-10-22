@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Page, type Frame } from '@playwright/test'
-import { mkdtemp, mkdir, cp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, cp, readFile, writeFile, rm, link, symlink } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
@@ -48,9 +49,10 @@ async function rawCall(frame: Frame | Page, method: string, params: unknown) {
     port.postMessage({ protocol: 1, type: 'request', requestId, method, params, contextRevision: (window as any).testRevision })
   }), { method, params }) as Promise<any>
 }
-async function guest(app: ElectronApplication, entry: string): Promise<Page> {
-  await expect.poll(() => app.context().pages().some(page => page.url().startsWith('janusx-plugin:') && page.url().endsWith(entry))).toBe(true)
-  return app.context().pages().find(page => page.url().startsWith('janusx-plugin:') && page.url().endsWith(entry))!
+async function guest(app: ElectronApplication, entry: string, excludeUrl = ''): Promise<Page> {
+  const matches = (page: Page) => page.url().startsWith('janusx-plugin:') && page.url().endsWith(entry) && page.url() !== excludeUrl
+  await expect.poll(() => app.context().pages().some(matches)).toBe(true)
+  return app.context().pages().find(matches)!
 }
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'janusx-p2-desktop-'))
@@ -68,6 +70,141 @@ async function close(app: ElectronApplication | undefined) {
   let timer: ReturnType<typeof setTimeout> | undefined
   try { await Promise.race([app.close(), new Promise<void>(resolve => { timer = setTimeout(() => { process.kill('SIGKILL'); resolve() }, 5000) })]) } finally { clearTimeout(timer) }
 }
+async function enableFixture(app: ElectronApplication, page: Page, source: string, workspaceId: string, id = pluginId) {
+  await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, source)
+  await page.evaluate(async ({ pluginId, workspaceId }) => {
+    for (const input of [{ type: 'import', kind: 'linked' }, { type: 'development', enabled: true }, { type: 'enable', id: pluginId, projects: [workspaceId] }]) {
+      const result = await (window as any).electron.plugins.request(input); if (!result.ok) throw new Error(result.code)
+    }
+  }, { pluginId: id, workspaceId })
+}
+async function openDetails(page: Page) {
+  await page.locator('button[data-id="tool-menu"]').click()
+  await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
+}
+
+test('bounded renderer OOM and subsequent post-handshake crashes trip the circuit without ending the host', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Crash project', path }), f.project)
+    await page.reload(); await page.getByText('Crash project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id)
+    const healthySource = join(f.root, 'healthy-plugin'); await cp(f.source, healthySource, { recursive: true })
+    const healthyManifest = JSON.parse(await readFile(join(healthySource, 'manifest.json'), 'utf8'))
+    healthyManifest.id = 'example.healthy-reference'
+    healthyManifest.contributes.commands.find((command: any) => command.id === 'open-details').title = 'Open healthy reference'
+    await writeFile(join(healthySource, 'manifest.json'), JSON.stringify(healthyManifest))
+    await enableFixture(app, page, healthySource, workspace.id, healthyManifest.id)
+    await page.locator('button[data-id="tool-menu"]').click()
+    await page.getByRole('menuitem', { name: 'Open healthy reference', exact: true }).click()
+    const healthy = await guest(app, '/dist/index.html')
+    await expect(healthy.locator('#content')).toHaveText('P2 readable project file')
+    // The host renderer already exists. Bound only subsequently spawned renderers' V8 heaps.
+    await app.evaluate(({ app }) => app.commandLine.appendSwitch('js-flags', '--max-old-space-size=64'))
+    await openDetails(page)
+    for (let failure = 1; failure <= 3; failure++) {
+      const details = await guest(app, '/dist/index.html', healthy.url())
+      await expect(details.locator('#content')).toHaveText('P2 readable project file')
+      const running = await page.evaluate(async () => (await (window as any).electron.plugins.request({ type: 'list' })).data.plugins[0])
+      expect(running).toMatchObject({ failures: failure - 1, runtime: { pages: 1, connected: 1, ready: 1 } })
+      if (failure === 1) {
+        const limit = await details.evaluate(() => (performance as any).memory.jsHeapSizeLimit)
+        // Chromium reports the old-space cap plus young-generation headroom.
+        expect(limit).toBeLessThan(192 * 1024 * 1024)
+      }
+      await app.evaluate(({ webContents }, { oom, url }) => {
+        const contents = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+        contents.once('render-process-gone', (_event, details) => { (globalThis as any).pluginGoneReason = details.reason })
+        if (oom) void contents.executeJavaScript('globalThis.boundedHeapProbe = []; for (let i = 0; i < 256; i++) globalThis.boundedHeapProbe.push(new Array(65536).fill(i));').catch(() => {})
+        else contents.forcefullyCrashRenderer()
+      }, { oom: failure === 1, url: details.url() })
+      await expect.poll(() => page.evaluate(async () => (await (window as any).electron.plugins.request({ type: 'list' })).data.plugins[0].failures)).toBe(failure)
+      expect(await app.evaluate(() => (globalThis as any).pluginGoneReason)).toBe(failure === 1 ? 'oom' : 'crashed')
+      expect(await rawCall(healthy, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'P2 readable project file' } })
+      if (failure < 3) await page.getByRole('button', { name: 'Retry plugin view', exact: true }).click()
+    }
+    await settings(page)
+    const card = page.locator(`[data-plugin-id="${pluginId}"]`)
+    await expect(card).toContainText('Disabled')
+    await expect(card.locator('[data-plugin-runtime]')).toHaveText('Pages: 0 · Bridge connected: 0 · Ready: 0')
+    expect((await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))).data.plugins[0]).toMatchObject({ enabled: false, failures: 3 })
+    await expect.poll(() => app!.context().pages().filter(page => page.url().startsWith('janusx-plugin:')).length).toBe(1)
+    expect(healthy.isClosed()).toBe(false)
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
+test('real git worktree switching revokes old pages, isolates KV and rejects linked files through the bridge', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const git = (args: string[]) => execFileSync('git', args, { cwd: f.project, stdio: 'pipe' })
+    git(['init', '-b', 'main']); git(['add', 'README.md'])
+    git(['-c', 'user.name=Desktop Test', '-c', 'user.email=desktop-test@example.invalid', 'commit', '-m', 'fixture'])
+    const tree = join(f.root, 'worktree'); git(['worktree', 'add', '-b', 'p2-worktree', tree, 'HEAD'])
+    await writeFile(join(tree, 'README.md'), 'P2 worktree file')
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.permissions.find((permission: any) => permission.name === 'workspace.files.read').paths.push('linked/README.md', 'hard.md')
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const outside = join(f.root, 'outside'); await mkdir(outside); await writeFile(join(outside, 'README.md'), 'private outside bytes')
+    await symlink(outside, join(tree, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    await link(join(outside, 'README.md'), join(tree, 'hard.md'))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Worktree project', path }), f.project)
+    await page.reload(); await page.getByText('Worktree project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id); await openDetails(page)
+    const original = await guest(app, '/dist/index.html')
+    await expect(original.locator('#content')).toHaveText('P2 readable project file')
+    const originalContext = (await rawCall(original, 'workspace.getContext', {})).result
+    expect(await rawCall(original, 'storage.set', { key: 'scope-check', value: 'main' })).toMatchObject({ ok: true })
+    const trees = await page.evaluate(async ({ id, path }) => (window as any).electron.worktree.list(id, path), { id: workspace.id, path: f.project })
+    const branchPath = trees.find((item: any) => !item.isMain).path
+    const mainPath = trees.find((item: any) => item.isMain).path
+    await page.getByRole('button', { name: /^Expand Worktree project terminal list/ }).click()
+    await page.getByRole('button', { name: branchPath, exact: true }).click()
+    await expect.poll(() => original.isClosed()).toBe(true)
+    await openDetails(page)
+    const changed = await guest(app, '/dist/index.html')
+    await expect(changed.locator('#content')).toHaveText('P2 worktree file')
+    const changedContext = (await rawCall(changed, 'workspace.getContext', {})).result
+    expect(changedContext.project.projectId).toBe(originalContext.project.projectId)
+    expect(changedContext.project.rootId).not.toBe(originalContext.project.rootId)
+    expect(changedContext.revision).toBeGreaterThan(originalContext.revision)
+    expect(await rawCall(changed, 'storage.get', { key: 'scope-check' })).toMatchObject({ ok: true, result: { found: false } })
+    for (const path of ['linked/README.md', 'hard.md']) expect(await rawCall(changed, 'workspace.readText', { path })).toMatchObject({ ok: false, error: { code: 'INVALID_PACKAGE_PATH' } })
+    await rawCall(changed, 'storage.set', { key: 'scope-check', value: 'worktree' })
+    await page.getByRole('button', { name: mainPath, exact: true }).click()
+    await expect.poll(() => changed.isClosed()).toBe(true)
+    await openDetails(page)
+    const returned = await guest(app, '/dist/index.html')
+    await expect(returned.locator('#content')).toHaveText('P2 readable project file')
+    expect((await rawCall(returned, 'workspace.getContext', {})).result.project.rootId).toBe(originalContext.project.rootId)
+    expect(await rawCall(returned, 'storage.get', { key: 'scope-check' })).toMatchObject({ ok: true, result: { value: 'main' } })
+    const logs = (await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))).data.logs
+    expect(logs.filter((log: any) => log.code === 'INVALID_PACKAGE_PATH').length).toBeGreaterThanOrEqual(2)
+    await settings(page)
+    await expect(page.locator(`[data-plugin-id="${pluginId}"] [data-plugin-runtime]`)).toHaveText('Pages: 1 · Bridge connected: 1 · Ready: 1')
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
+test('a disconnected plugin bridge revokes its page and a normal host disable does not count as a crash', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Bridge project', path }), f.project)
+    await page.reload(); await page.getByText('Bridge project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id); await openDetails(page)
+    const details = await guest(app, '/dist/index.html')
+    await expect(details.locator('#content')).toHaveText('P2 readable project file')
+    await details.evaluate(() => (window as any).testPort.close())
+    await expect.poll(() => details.isClosed()).toBe(true)
+    const snapshot = () => page.evaluate(async () => (await (window as any).electron.plugins.request({ type: 'list' })).data.plugins[0])
+    expect(await snapshot()).toMatchObject({ failures: 1, state: 'error', runtime: { pages: 0, connected: 0, ready: 0 } })
+    await page.getByRole('button', { name: 'Retry plugin view', exact: true }).click()
+    await expect((await guest(app, '/dist/index.html')).locator('#content')).toHaveText('P2 readable project file')
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), pluginId)
+    await expect.poll(snapshot).toMatchObject({ enabled: false, failures: 1, runtime: { pages: 0, connected: 0, ready: 0 } })
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
 
 test('external packed SDK plugin completes import, grant, both views, scoped storage, network denial and disable/uninstall', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
@@ -223,12 +360,26 @@ test('copied development sources retain trust and restart only enabled entries, 
     const invoke = (page: Page, input: unknown) => page.evaluate(input => (window as any).electron.plugins.request(input), input)
     await invoke(booted.page, { type: 'development', enabled: true })
     await invoke(booted.page, { type: 'enable', id: pluginId, projects: [] })
+    const card = booted.page.locator(`[data-plugin-id="${pluginId}"]`)
+    await card.getByText('Entries and shortcuts', { exact: true }).click()
+    const shortcut = card.getByRole('textbox', { name: 'Shortcut Open project reference', exact: true })
+    await shortcut.fill('Ctrl+Alt+Shift+Q')
+    await shortcut.locator('..').getByRole('button', { name: 'Apply or disable', exact: true }).click()
+    await card.getByRole('spinbutton', { name: 'Order open-details toolbox', exact: true }).fill('-10')
+    await shortcut.focus()
+    await card.getByRole('checkbox', { name: 'Hide entry · toolbox · open-details', exact: true }).check()
     await close(app); app = undefined
     await rm(f.source, { recursive: true, force: true })
     booted = await boot(f.root); app = booted.app
     const restored = await invoke(booted.page, { type: 'list' })
     expect(restored.data.plugins[0]).toMatchObject({ enabled: true, state: 'ready', source: { kind: 'copied' } })
     await expect(booted.page.locator('[data-plugin-native]')).toHaveCount(0)
+    await settings(booted.page)
+    const restoredCard = booted.page.locator(`[data-plugin-id="${pluginId}"]`)
+    await restoredCard.getByText('Entries and shortcuts', { exact: true }).click()
+    await expect(restoredCard.getByRole('textbox', { name: 'Shortcut Open project reference', exact: true })).toHaveValue('Ctrl+Alt+Shift+Q')
+    await expect(restoredCard.getByRole('spinbutton', { name: 'Order open-details toolbox', exact: true })).toHaveValue('-10')
+    await expect(restoredCard.getByRole('checkbox', { name: 'Hide entry · toolbox · open-details', exact: true })).toBeChecked()
     await invoke(booted.page, { type: 'development', enabled: false })
     await invoke(booted.page, { type: 'development', enabled: true })
     expect((await invoke(booted.page, { type: 'list' })).data.plugins[0].enabled).toBe(false)

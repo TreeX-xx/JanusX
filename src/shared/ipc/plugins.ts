@@ -10,6 +10,7 @@ export interface InstalledPlugin {
   state: 'disabled' | 'blocked' | 'ready' | 'loading' | 'active' | 'error'
   error?: string
   failures: number
+  runtime?: { pages: number; connected: number; ready: number }
 }
 export interface PluginLog { time: string; pluginId?: string; instanceId?: string; method?: string; code: string; duration?: number }
 export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[] }

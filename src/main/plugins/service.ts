@@ -38,6 +38,7 @@ export class PluginService {
   private records = new Map<string, RecordData>()
   private packages = new Map<string, PluginPackage>()
   private instances = new Map<string, Instance>()
+  private recoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private logs: PluginLog[] = []
   private developmentMode = false
   private queue = new SerialQueue()
@@ -83,7 +84,10 @@ export class PluginService {
     }
   }
   snapshot(): PluginHostSnapshot {
-    return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, ...record }) => structuredClone(record)), logs: [...this.logs] }
+    return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, ...record }) => {
+      const pages = [...this.instances.values()].filter(instance => instance.plugin === record.manifest.id)
+      return { ...structuredClone(record), runtime: { pages: pages.length, connected: pages.filter(page => page.bound).length, ready: pages.filter(page => page.ready).length } }
+    }), logs: [...this.logs] }
   }
   private async persist(): Promise<void> {
     try { await writeFileAtomic(join(this.deps.directory, 'registry.json'), JSON.stringify({ developmentMode: this.developmentMode, plugins: [...this.records.values()] })) }
@@ -238,6 +242,7 @@ export class PluginService {
     const instance = this.instance(id, binding)
     if (instance.bound) { this.close(id); error('INVALID_SENDER', 'Instance is already bound.') }
     instance.bound = true
+    this.publish()
     return instance.url
   }
   inspect(id: string, binding: string): string { return this.instance(id, binding).url }
@@ -270,17 +275,24 @@ export class PluginService {
     clearTimeout(instance.timer)
     this.send(instance, { type: 'event', event: 'invalidated', reason: reason ?? null, payload: { invalidated: true } })
     this.instances.delete(id)
+    if (![...this.instances.values()].some(item => item.plugin === instance.plugin && item.ready)) this.clearRecovery(instance.plugin)
     this.deps.closed?.(id)
     for (const request of instance.requests.values()) request.cancelled = true
     instance.subscriptions.clear()
     const record = this.records.get(instance.plugin)
-    if (record?.enabled && record.state !== 'blocked' && record.state !== 'error') record.state = [...this.instances.values()].some(item => item.plugin === instance.plugin) ? 'active' : 'ready'
+    if (record?.enabled && record.state !== 'blocked' && record.state !== 'error') {
+      const pages = [...this.instances.values()].filter(item => item.plugin === instance.plugin)
+      record.state = pages.some(page => page.ready) ? 'active' : pages.length ? 'loading' : 'ready'
+    }
+    this.publish()
   }
-  private revokePlugin(id: string, reason?: string): void { for (const instance of [...this.instances.values()]) if (instance.plugin === id) this.close(instance.id, undefined, reason) }
+  private clearRecovery(id: string): void { clearTimeout(this.recoveryTimers.get(id)); this.recoveryTimers.delete(id) }
+  private revokePlugin(id: string, reason?: string): void { this.clearRecovery(id); for (const instance of [...this.instances.values()]) if (instance.plugin === id) this.close(instance.id, undefined, reason) }
   private loadFailed(id: string): void {
     const instance = this.instances.get(id)
     if (!instance) return
     const record = this.record(instance.plugin)
+    this.clearRecovery(instance.plugin)
     this.close(id)
     record.failures++; record.state = 'error'; record.error = 'VIEW_LOAD_FAILED'
     this.log('VIEW_LOAD_FAILED', { pluginId: record.manifest.id, instanceId: id })
@@ -340,7 +352,13 @@ export class PluginService {
       valid()
       if (method === 'app.getInfo' && !instance.ready) {
         instance.ready = true; clearTimeout(instance.timer)
-        const record = this.record(instance.plugin); record.failures = 0; record.state = 'active'; this.publish()
+        const record = this.record(instance.plugin); record.state = 'active'; delete record.error
+        // A handshake alone does not prove recovery: crash loops may handshake every time.
+        if (record.failures && !this.recoveryTimers.has(instance.plugin)) this.recoveryTimers.set(instance.plugin, setTimeout(() => {
+          this.recoveryTimers.delete(instance.plugin)
+          if (record.enabled && [...this.instances.values()].some(page => page.plugin === instance.plugin && page.ready)) { record.failures = 0; this.publish() }
+        }, 30_000))
+        this.publish()
       }
       this.log('OK', { pluginId: instance.plugin, instanceId: id, method, duration: Date.now() - start })
       return { protocol: 1, requestId, type: 'response', ok: true, result }
@@ -452,5 +470,5 @@ export class PluginService {
   }
   private stopWatch(id: string): void { const state = this.watchers.get(id); if (state?.timer) clearTimeout(state.timer); state?.watchers.forEach(watcher => watcher.close()); this.watchers.delete(id) }
   deleteData(id: string): Promise<void> { this.record(id); this.revokePlugin(id); return this.storage.deletePlugin(id) }
-  dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id) }
+  dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
 }

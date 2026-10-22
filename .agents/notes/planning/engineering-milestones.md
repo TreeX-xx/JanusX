@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-14",
-  "updated": "2026-10-22T15:43:52Z",
+  "updated": "2026-10-22T16:11:38Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "tags": ["milestone","memo","roadmap","schedule"]
 }
@@ -31,7 +31,7 @@
 
 ## 未归入节点
 
-- **插件平台**：S1–S3、P0 契约、P1 SDK／校验／独立脚手架和命令入口、P2 本地加载／授权／隔离桥／私有 KV／管理调试已有实现及相关桌面证据；限制 4 worker 的完整 verify 已通过，默认高并发曾有语料超时，S4 仍有专项验收未闭合。后续按[插件实施计划](plugin-platform-roadmap.md)收口 P2 → P3 工作台／Island → P4 文件与文档 → P5 后台／网络／事件 → P6 Agent／提供者；终端类型和 CLI／会话适配器保持宿主所有。P7 个性化与 P8 分发按依赖插入。版本未指定，架构归[插件平台设计](../workbench/plugin-platform-design.md)。
+- **插件平台**：S1–S3、P0 契约、P1 SDK／校验／独立脚手架和命令入口、P2 本地加载／授权／隔离桥／私有 KV／管理调试已落地；P2 收尾补齐真实 OOM／连续崩溃、worktree／文件边界、管理状态与重启偏好，S4 本地只读范围闭合，验证与平台限制归[插件实施计划](plugin-platform-roadmap.md)。后续为 P3 工作台／Island → P4 文件与文档 → P5 后台／网络／事件 → P6 Agent／提供者；终端类型和 CLI／会话适配器保持宿主所有。P7 个性化与 P8 分发按依赖插入。版本未指定，架构归[插件平台设计](../workbench/plugin-platform-design.md)。
 
 ## Intent
 

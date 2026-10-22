@@ -1,4 +1,6 @@
 {
+  "hostBoundary": "This list manages third-party local plugins. Built-in tools and shared sessions remain host-managed; local plugins have no external service connection.",
+  "runtime": "Pages: {{pages}} · Bridge connected: {{connected}} · Ready: {{ready}}",
   "nav": "Plugins", "title": "Local plugins", "subtitle": "Manage local plugin sources, permissions and entries", "devtools": "Inspect plugin", "retry": "Retry plugin view",
   "development": "Enable local development mode", "developmentHint": "Run local plugins after reviewing their permissions. Turning this off disables all local plugins.",
   "link": "Link development directory", "copy": "Install directory copy", "logs": "Logs and bridge trace", "empty": "No local plugins installed.",

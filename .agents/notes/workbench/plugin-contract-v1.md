@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-22T15:26:37Z",
+  "updated": "2026-10-22T16:29:52Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -142,7 +142,7 @@ KV key 为 1–128 字符的普通字符串，拒绝空、NUL 及 `__proto__|pro
 | 页面 | 每插件每窗口最多 8 个同时挂载的隔离页面，按需创建；跨 root 的旧页暂停，不保证后台保活 |
 | 请求 | 单实例最多 16 个在途、每秒 30 次、封包上限 2 MiB；读文件 10 秒，其它请求 5 秒，宿主上限不可由插件延长 |
 | 事件与提示 | KV 事件最多每秒 30 条，允许按 key 合并，带最新 revision；toast 每插件每 10 秒 3 条，最大排队 3 条 |
-| 挂载与故障 | 首次 ready 超时 10 秒；连续 3 次加载失败／握手超时自动禁用，成功 ready 重置计数；拒权／文件不存在不算崩溃 |
+| 挂载与故障 | 首次 ready 超时 10 秒；连续 3 次加载失败／握手超时／renderer 崩溃自动禁用；握手后仍有就绪页面且连续 30 秒无新故障才清零，关闭最后就绪页或撤销取消恢复计时；拒权／文件不存在不算崩溃 |
 
 插件内部资源路径与 workspace.readText 路径均采用 `/` 分隔相对路径：拒绝空段、`.`、`..`、反斜线、绝对／UNC／盘符、NUL、控制字符、查询／片段及 Windows ADS `:`；拒绝 `%` 编码入口以避免双解码。主进程在读取／安装及每次实际打开前检查真实根、父链、最终文件，不跟随符号链接、junction 或其它 reparse 越界。大小使用有界读而非先 stat 后无限读。Windows 保留设备名和尾随点／空格拒绝；文件列表中大小写碰撞拒绝，避免跨平台不同包语义。
 
@@ -163,6 +163,8 @@ P2 载体修订为每页面一个 sandboxed WebContentsView，每插件一个内
 首次原生页面 load 后由主进程向已持有且 URL 匹配的 WebContents 转移专用 MessagePortMain；最小 sandbox preload 只把一次性的 port 转给页面，不暴露 IPC 或宿主对象。SDK 检查消息来自当前自身窗口并完成握手；opaque origin 下不单凭 `event.origin === "null"` 判定身份。页面请求及订阅直接经过该 port 到主进程，可信 renderer 只发管理及布局请求，不转发插件数据。绑定映射 plugin／instance／generation／root／grants；其它窗口及 frame 的管理 IPC 拒绝，消息内自报 pluginId 或 rootId 不参与授权。
 
 链接来源登记时保存 canonical root，恢复、启用和重载在读取清单前再次比较，根被 junction／symlink 指向其它目录时拒绝；首次用户选择目录仍允许解析为其真实根。文件内读另检查链接、句柄身份及前后变化。这些检查不构成所有并发操作系统置换的穷尽证明。
+
+Windows 验收补充真实 worktree 页面撤销及根身份／KV 隔离、经桥读取 junction／hardlink 的拒绝，以及原生文件系统在路径验证后、open 前置换父目录的确定性检查点测试。另以真实打开的文件句柄延迟读取，验证旧读取在新根实例建立后完成仍返回 `INSTANCE_CLOSED`。这些证据分别覆盖桌面桥和文件系统检查点，不表示对所有 OS 并发时序或跨平台已经完成验证。
 
 页面再次 load、进程故障、项目切换、重载或停用时先注销绑定并关闭 port，随后才销毁／重挂载原生页。所有请求在接收和回包前均检查有效绑定与 revision，KV 在 staging 写入后、提交 rename 前最后检查。已开始原子提交的 KV 写不回滚，尚未提交写取消；迟到成功事件不能派到新 scope。
 
@@ -294,5 +296,7 @@ SDK 的 `parsePluginManifest` 使用严格 JSON、重复键检查、Zod 和 SemV
 可信 `ExtensionDefinition` 可分别声明 commands、menus 和 keybindings。旧 workspace launcher 自动适配为内部打开命令，已有 ID、视图生命周期及右侧入口不变；公开清单没有菜单时不生成隐含 launcher。工具箱与中部添加菜单消费命令入口，快捷键只在宿主非编辑焦点下触发；保留 Ctrl／Meta 常用单键及 Shift 变体、Alt+F4、F1／F5／F11／F12 组合。相同优先级冲突均不执行并返回 `KEYBINDING_CONFLICT` 诊断；用户重绑定优先于插件默认，宿主保留组合始终不可覆盖。
 
 `extensionCommands.setMenuPreference` 和 `setKeybinding` 提供入口显隐／排序及快捷键覆盖，使用独立 localStorage 键持久化，容忍未知 ID 和损坏记录；写入失败不改变当前偏好。P2 管理页已提供这些操作及冲突诊断，隐藏设置与排序按字段合并，恢复默认快捷键清除覆盖。关闭视图不注销命令，停用／注销立即移除命令和入口。
+
+第三方管理页区分登记／启用意图与实时运行：每次快照从当前实例计算页面数、桥已连接数及 SDK 已就绪数；bind、握手与关闭均发布变化。插件主动关闭 port 时将不可用页面记为一次加载故障并撤销；宿主正常关闭先移除 carrier，再关 port，不额外计故障。连接仅指本地专用桥，首版没有外部服务连接。内置工具及必要宿主功能不列入第三方停用列表，共享会话仍由宿主管理；停用插件或清理其 KV 不授予结束宿主会话的权限。
 
 脚手架由已打包 SDK tarball 生成到新目录，不覆盖既有文件，也不要求公开 npm 版本已发布。仓库外项目仅引用公开包；构建生成两页及本地资源，未接桥时显示独立预览状态。`janusx-plugin check` 只检查 manifest 与 dist 静态交付树，不执行页面，不构成安装器或并发文件系统安全证明。实际命令、测试数量和证据归[阶段计划](../planning/plugin-platform-roadmap.md)。
