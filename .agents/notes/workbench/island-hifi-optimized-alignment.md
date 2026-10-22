@@ -25,7 +25,7 @@
       }
     }
   },
-  "updated": "2026-10-22T11:50:27.038Z",
+  "updated": "2026-10-22T12:06:42.845Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -51,7 +51,7 @@
 ## Decision
 按设计稿三个 scenario 对齐，零结构改动、纯表达层：
 
-**S1 运行态**：Island 的历史 running 皮肤仍由 `01-janus-foundation.css` 定义，当前项目进程状态由独立运行指示器表达。运行入口与指示器现行设计见[顶栏运行入口与紧凑运行指示器](run-orb-budding.md)：常态为紧凑刻度组，无常驻项目名称、旋转轨道或子芽；Island 长按蓄力、Snap 回弹与涟漪已移除。
+**S1 运行态**：Island 的历史 running 皮肤仍由 `01-janus-foundation.css` 定义，当前项目进程状态由独立运行指示器表达。运行入口与指示器现行设计见[顶栏运行入口与紧凑运行指示器](run-orb-budding.md)：常态为缓慢伸缩的紧凑刻度组，出现时展开、退出时收拢淡出，并适配减少动态效果；无常驻项目名称、旋转轨道或子芽；Island 长按蓄力、Snap 回弹与涟漪已移除。
 
 **S2 一级展开**（`08-janus-peek-capsule.css`）：胶囊本体脱离岛体皮肤继承，改为毛玻璃——`rgba(22,22,27,.82)` 半透底 + `backdrop-filter: blur(20px)` + 24px 圆角 + 深投影，白字在繁杂工作区上方可读；double 档 74→76px；内容入场换非对称形变（scaleX(.85) scaleY(.8)）；排版升档（kicker 9.5/1.5、title 13.5 w700、subtitle 10.5、meta 9/.5，meta 隐藏断点 900→700）。LED 重做：7px + `::after` 光晕（inset -4px blur 3px inherit），success 定稿翡翠绿 `#00ff88`、attention 亮橙 `#ff9159` 带缩放呼吸（1.15 双相位）、info 亮灰 `#a1a1a6`。
 

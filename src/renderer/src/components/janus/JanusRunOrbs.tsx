@@ -7,14 +7,14 @@ import { JanusRunOrbPopover, type StoppedWorkspaceSnapshot } from './JanusRunOrb
 
 /** 直接可见球上限，超出收纳为 +N 聚合球 */
 const MAX_VISIBLE_ORBS = 2
-/** 球消散动画时长（与 orb-pop 200ms 对齐） */
+/** 指示器退出时长（与 orb-leave 200ms 对齐） */
 const LEAVE_MS = 200
 
 /**
  * JanusRunOrbs — Island 旁的紧凑运行指示器
  *
  * 一工作区一刻度，当前项目优先，其余按启动顺序；`+N` 收纳溢出；
- * 球消失走 200ms 收缩；点外/`Esc` 只关面板不碰进程。
+ * 指示器退出走 200ms 收缩淡出；点外/`Esc` 只关面板不碰进程。
  */
 export function JanusRunOrbs() {
   const { t } = useI18n('janus')
@@ -41,7 +41,7 @@ export function JanusRunOrbs() {
     lastInfosRef.current[id] = info
   }
 
-  // 消散：从轮询消失的球播 orb-pop 200ms 后再卸载（正开着面板的走幽灵锚点）
+  // 从轮询消失的指示器播 200ms 退出后卸载，面板打开时保留空态锚点。
   const prevIdsRef = useRef<string[]>(ids)
   useEffect(() => {
     const prev = prevIdsRef.current
@@ -170,7 +170,7 @@ export function JanusRunOrbs() {
       {ghostSnapshot && (
         <div className="janus-run-orb-anchor">
           <span className="janus-run-orb janus-run-orb--ghost" aria-hidden="true">
-            <span className="janus-run-orb-core">○</span>
+            <span className="janus-run-orb-dot" />
           </span>
           <JanusRunOrbPopover
             info={null}
