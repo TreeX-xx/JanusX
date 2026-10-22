@@ -17,6 +17,7 @@ import { useBrowserStore } from '@/stores/browser'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useAppStore } from '@/stores/app'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
+import { useIslandStore } from '@/stores/island'
 import { useI18n } from '@/i18n/useI18n'
 import { HoldToConfirm } from '@/components/ui/HoldToConfirm'
 import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
@@ -67,6 +68,7 @@ export function BrowserSurface({ surfaceId, carrier, visible, onRequestPopOut, o
   const tabDragInFlight = useWorkspaceStore((s) => s.tabDragInFlight)
   const dialogOpen = useBrowserOcclusionStore((s) => s.count > 0)
   const workbenchCovered = useAppStore((s) => s.activeWorkbench !== null)
+  const islandCovered = useIslandStore(s => s.stage !== 'collapsed')
   const [missing, setMissing] = useState(false)
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null)
   const [addressDraft, setAddressDraft] = useState('')
@@ -82,7 +84,7 @@ export function BrowserSurface({ surfaceId, carrier, visible, onRequestPopOut, o
   )
   const showStartPage = showChrome && !serviceUrl && (!activeTab || isBrowserStartPageUrl(activeTab.url))
   const effectiveVisible = visible && !tabDragInFlight && !dialogOpen && !showStartPage
-    && !(carrier === 'pane' && workbenchCovered) && !activeTab?.loadError
+    && !(carrier === 'pane' && (workbenchCovered || islandCovered)) && !activeTab?.loadError
 
   /*-- 挂载时拉取一次最新状态：独立窗口首载、工作区切换回挂都靠它对齐 --*/
   useEffect(() => {

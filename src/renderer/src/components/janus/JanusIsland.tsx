@@ -25,6 +25,12 @@ import {
   type IslandNotificationActionId,
 } from './islandNotifications'
 import { JanusIslandExpandedShell } from './JanusIslandExpandedShell'
+import { pluginRequest, usePluginSnapshot } from '@/extensions/plugin-runtime'
+import { pluginIslandNotifications, PluginIslandPreview } from '@/extensions/plugin-island'
+import '@/extensions/plugin-surfaces.css'
+import { useExtensionViews } from '@/extensions/react'
+import { useIslandStore } from '@/stores/island'
+import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import {
   JanusAuxiliaryIsland,
   type JanusAuxiliaryModuleDescriptor,
@@ -108,6 +114,23 @@ export function JanusIsland({
   const { janusRunning } = useProjectRunning(activeWorkspace)
   const shellRef = useRef<HTMLDivElement | null>(null)
   const [view, setView] = useState<JanusExpandedView>('monitor')
+  const pluginSnapshot = usePluginSnapshot()
+  const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
+  const pluginViews = useExtensionViews()
+  const pluginViewRequest = useIslandStore(s => s.pluginViewRequest)
+  const lastPluginRequest = useRef(0)
+  const [pluginActionFailure, setPluginActionFailure] = useState('')
+  useEffect(() => {
+    if (pluginViewRequest && pluginViewRequest.sequence !== lastPluginRequest.current && pluginViews.some(view => view.id === pluginViewRequest.viewId && view.location === 'island')) {
+      lastPluginRequest.current = pluginViewRequest.sequence; setView(pluginViewRequest.viewId)
+    }
+  }, [pluginViewRequest, pluginViews])
+  useEffect(() => {
+    useIslandStore.setState({ activePluginViewId: stage === 'expanded' && view.startsWith('extension:') ? view as `extension:${string}/${string}` : null })
+  }, [stage, view])
+  useEffect(() => {
+    if (view.startsWith('extension:') && !pluginViews.some(item => item.id === view && item.location === 'island')) setView('monitor')
+  }, [view, pluginViews])
 
   /* Island window pin (expanded stage, all views).
    * Pin survives implicit dismiss (outside click / Esc / terminal switch);
@@ -333,7 +356,18 @@ export function JanusIsland({
 
   /** Executes a notification action then gets the island out of the way; the
    * product path owns its own dismiss/consume flow in Titlebar. */
-  const runNotificationAction = useCallback((notificationId: string, actionId: IslandNotificationActionId) => {
+  const runNotificationAction = useCallback((notificationId: string, actionId: IslandNotificationActionId, commandId?: string) => {
+    if (actionId === 'open-plugin') {
+      const notification = pluginIslandNotifications(pluginSnapshot).find(item => item.id === notificationId)
+      const entry = notification?.plugin
+      const command = commandId ?? notification?.actions[0]?.command
+      if (entry && command) {
+        onDismiss(); setPluginActionFailure('')
+        void pluginRequest({ type: 'islandAction', pluginId: entry.pluginId, id: entry.id, instanceId: entry.instanceId, command })
+          .catch(cause => setPluginActionFailure(cause instanceof Error ? cause.message : 'INTERNAL_ERROR'))
+      }
+      return
+    }
     if (actionId === 'open-knowledge') {
       if (useExperimentalStore.getState().persona) setActiveWorkbench('knowledge')
       onDismiss()
@@ -351,7 +385,7 @@ export function JanusIsland({
     }
     setClearedIds((ids) => (ids.includes(notificationId) ? ids : [...ids, notificationId]))
     setBannerId(null)
-  }, [handleOpenBlueprintWorkbench, handleOpenMaintenance, onDismiss, onOpenProductFile, productNotice, setActiveWorkbench])
+  }, [handleOpenBlueprintWorkbench, handleOpenMaintenance, onDismiss, onOpenProductFile, productNotice, setActiveWorkbench, pluginSnapshot])
 
   // Minimal stage-B tool trace for the agent-result detail: the pane owns the
   // full work projection, the Island only mirrors tool calls so the detail can
@@ -400,7 +434,8 @@ export function JanusIsland({
     }),
     personaEnabled ? memoryNotification({ pendingHabitCount: memoryPending }) : null,
     maintenanceNotification(maintenanceTask, maintenanceNeedsAttention),
-  ]), [knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, maintenanceNeedsAttention, maintenanceTask, productNotice, personaEnabled, t])
+    ...pluginIslandNotifications(pluginSnapshot),
+  ]), [knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, maintenanceNeedsAttention, maintenanceTask, productNotice, personaEnabled, t, pluginSnapshot])
   const [clearedIds, setClearedIds] = useState<string[]>([])
   const visibleNotifications = useMemo(
     () => notifications.filter((notification) => !clearedIds.includes(notification.id)),
@@ -452,7 +487,7 @@ export function JanusIsland({
   // T2 arrival: attention/failed raise the banner; info only pulses the badge.
   useEffect(() => {
     if (stage !== 'expanded' || !topNotificationItem) return
-    if (mayAutoBanner(topNotificationItem.severity)) setBannerId(topNotificationItem.id)
+    if (topNotificationItem.kind !== 'plugin' && mayAutoBanner(topNotificationItem.severity)) setBannerId(topNotificationItem.id)
   }, [stage, topNotificationItem])
 
   useEffect(() => {
@@ -589,7 +624,7 @@ export function JanusIsland({
   // body level: any transformed ancestor (shell translateX, cluster centering,
   // drag offset) would trap it into a shell-sized square with sharp corners
   // painting above the panel instead of a full-viewport dim below it.
-  const veil = stage === 'expanded' && typeof document !== 'undefined'
+  const veil = stage === 'expanded' && !hostCovered && typeof document !== 'undefined'
     ? createPortal(
       <div className="janus-veil" aria-hidden="true" style={{ zIndex: 1999 }} />,
       document.body,
@@ -601,9 +636,11 @@ export function JanusIsland({
       {veil}
     <div
       ref={shellRef}
+      style={{ visibility: hostCovered ? 'hidden' : undefined }}
       className={`janus-island-shell ${faceClass(mode)}`}
       data-stage={stage}
       data-view={view}
+      data-plugin-active={view.startsWith('extension:') ? 'true' : 'false'}
       data-mode={mode}
       data-auxiliary-open={auxiliaryModule ? 'true' : 'false'}
       data-auxiliary-module={auxiliaryDescriptor?.type ?? 'none'}
@@ -615,6 +652,9 @@ export function JanusIsland({
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
+      {stage === 'collapsed' && (pluginSnapshot.island?.length ?? 0) > 0 && <button type="button" className="plugin-island-count"
+        data-plugin-island-count aria-label={t('plugins:islandStatusCount', { count: pluginSnapshot.island!.length })}
+        onClick={() => useIslandStore.getState().dispatch({ type: 'plugin-peek' })}>{pluginSnapshot.island!.length}</button>}
       <div ref={pullHintRef} className="pull-hint" />
       <div
         ref={islandRef}
@@ -655,12 +695,12 @@ export function JanusIsland({
               </div>
             ) : splitCapsule ? (
               <div className="janus-capsule janus-capsule-split" key={`split:${capsuleNotifications.map((notification) => notification.id).join('|')}`}>
-                {capsuleNotifications.map((notification) => (
+                {capsuleNotifications.slice(0, 3).map((notification) => (
                   <button
                     key={notification.id}
                     type="button"
                     className="janus-capsule-cell"
-                    title={t(notification.copy.titleKey)}
+                    title={notification.copy.titleText ?? t(notification.copy.titleKey)}
                     onClick={(event) => {
                       event.stopPropagation()
                       if (notification.actions[0]) runNotificationAction(notification.id, notification.actions[0].id)
@@ -668,8 +708,8 @@ export function JanusIsland({
                   >
                     <span className={`janus-capsule-led sev-${notification.severity}`} aria-hidden="true" />
                     <span className="janus-capsule-cell-copy">
-                      <span className="janus-capsule-kicker">{t(notificationKickerKey(notification.kind))}</span>
-                      <span className="janus-capsule-cell-title">{t(notification.copy.titleKey)}</span>
+                      <span className="janus-capsule-kicker">{notification.plugin?.pluginId ?? t(notificationKickerKey(notification.kind))}</span>
+                      <span className="janus-capsule-cell-title">{notification.copy.titleText ?? t(notification.copy.titleKey)}</span>
                     </span>
                   </button>
                 ))}
@@ -679,13 +719,14 @@ export function JanusIsland({
                 <div className="janus-capsule-row">
                   <span className={`janus-capsule-led sev-${capsuleTopNotification.severity}`} aria-hidden="true" />
                   <div className="janus-capsule-copy">
-                    <span className="janus-capsule-kicker">{t(notificationKickerKey(capsuleTopNotification.kind))}</span>
-                    <span className="janus-capsule-title">{t(capsuleTopNotification.copy.titleKey)}</span>
+                    <span className="janus-capsule-kicker">{capsuleTopNotification.plugin?.pluginId ?? t(notificationKickerKey(capsuleTopNotification.kind))}</span>
+                    <span className="janus-capsule-title">{capsuleTopNotification.copy.titleText ?? t(capsuleTopNotification.copy.titleKey)}</span>
                     {capsuleTopNotification.copy.subtitleKey ? (
                       <span className="janus-capsule-subtitle">{t(capsuleTopNotification.copy.subtitleKey, capsuleTopNotification.copy.subtitleValues)}</span>
                     ) : capsuleTopNotification.copy.subtitleText ? (
                       <span className="janus-capsule-subtitle">{capsuleTopNotification.copy.subtitleText}</span>
                     ) : null}
+                    <PluginIslandPreview notification={capsuleTopNotification} />
                   </div>
                   {capsuleTopNotification.copy.metaKey ? (
                     <span className="janus-capsule-meta">{t(capsuleTopNotification.copy.metaKey, capsuleTopNotification.copy.metaValues)}</span>
@@ -697,6 +738,7 @@ export function JanusIsland({
         </div>
 
         <JanusIslandExpandedShell
+          pluginActionFailure={pluginActionFailure}
           stage={stage}
           view={view}
           setView={setView}

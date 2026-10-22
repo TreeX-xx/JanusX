@@ -16,8 +16,8 @@ const code = (action: () => unknown, expected: string) => {
 }
 
 describe('public plugin manifest', () => {
-  it('accepts the independent dual-view scaffold and the maintained contract sample', () => {
-    expect(parsePluginManifest(source).contributes.views).toHaveLength(2)
+  it('accepts the independent four-surface scaffold and the maintained contract sample', () => {
+    expect(parsePluginManifest(source).contributes.views).toHaveLength(4)
     const note = readFileSync('.agents/notes/workbench/plugin-contract-v1.md', 'utf8')
     const example = note.match(/```json\s+([\s\S]*?)```/)![1]
     expect(parsePluginManifest(example)).toEqual(parsePluginManifest(source))

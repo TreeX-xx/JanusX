@@ -3,8 +3,9 @@
 import type { KnowledgeRecallTrace } from '../../../../shared/knowledge'
 import type { ProductFileEntry } from '../../../../shared/product'
 import type { BlueprintMaintenanceTask } from '../../../../shared/janus/maintenance-types'
+import type { PluginIslandEntry } from '../../../../shared/ipc/plugins'
 
-export type IslandNotificationKind = 'knowledge' | 'memory' | 'product' | 'maintenance' | 'agent'
+export type IslandNotificationKind = 'knowledge' | 'memory' | 'product' | 'maintenance' | 'agent' | 'plugin'
 export type IslandNotificationSeverity = 'info' | 'success' | 'attention' | 'failed'
 export type IslandCapsuleTier = 'single' | 'double'
 export type IslandNotificationActionId =
@@ -13,15 +14,19 @@ export type IslandNotificationActionId =
   | 'open-product'
   | 'open-blueprint'
   | 'open-maintenance'
+  | 'open-plugin'
 
 export interface IslandNotificationAction {
   id: IslandNotificationActionId
   primary?: boolean
+  label?: string
+  command?: string
 }
 
 /** i18n copy bundle: keys are resolved by the rendering layer via `t()`. */
 export interface IslandNotificationCopy {
   titleKey: string
+  titleText?: string
   subtitleKey?: string
   subtitleValues?: Record<string, unknown>
   /** Literal subtitle (mono paths, progress bars) that bypasses i18n. */
@@ -40,6 +45,8 @@ export interface IslandNotification {
   createdAt: number
   /** 0-100 task progress — in-flight maintenance rows render a micro progress bar. */
   progress?: number
+  plugin?: PluginIslandEntry
+  order?: number
 }
 
 /** Higher ranks interrupt more; ties break by newest. */
@@ -68,8 +75,14 @@ export function assembleNotifications(
     byId.set(part.id, part)
   }
   return [...byId.values()].sort((a, b) => {
+    // Host notices always precede external contributions, regardless of severity.
+    if ((a.kind === 'plugin') !== (b.kind === 'plugin')) return a.kind === 'plugin' ? 1 : -1
     const rank = notifySeverityRank(b.severity) - notifySeverityRank(a.severity)
     if (rank !== 0) return rank
+    if (a.kind === 'plugin' && b.kind === 'plugin') {
+      const order = (a.order ?? 100) - (b.order ?? 100)
+      if (order !== 0) return order
+    }
     return b.createdAt - a.createdAt
   })
 }
@@ -104,6 +117,7 @@ const ACTION_LABEL_KEYS: Record<IslandNotificationActionId, string> = {
   'open-product': 'janus:island.capsule.action.openProduct',
   'open-blueprint': 'janus:island.capsule.action.openBlueprint',
   'open-maintenance': 'janus:island.capsule.action.openMaintenance',
+  'open-plugin': 'plugins:open',
 }
 
 export function notificationActionLabelKey(id: IslandNotificationActionId): string {

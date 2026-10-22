@@ -1,4 +1,4 @@
-import type { PluginManifest, PluginContext, JsonValue } from '@janusx/plugin-sdk'
+import type { PluginManifest, PluginContext, PluginIslandStatus, JsonValue } from '@janusx/plugin-sdk'
 
 export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
 export interface InstalledPlugin {
@@ -13,7 +13,11 @@ export interface InstalledPlugin {
   runtime?: { pages: number; connected: number; ready: number }
 }
 export interface PluginLog { time: string; pluginId?: string; instanceId?: string; method?: string; code: string; duration?: number }
-export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[] }
+export interface PluginIslandEntry {
+  pluginId: string; id: string; instanceId: string; projectId: string | null; rootId: string | null
+  status: PluginIslandStatus; createdAt: number
+}
+export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[]; island?: PluginIslandEntry[] }
 export interface PluginMount { instanceId: string; binding: string; url: string; context: PluginContext }
 export interface PluginBounds { x: number; y: number; width: number; height: number }
 export type PluginManageRequest =
@@ -28,6 +32,7 @@ export type PluginManageRequest =
   | { type: 'active'; instanceId: string; binding: string; active: boolean }
   | { type: 'bounds'; instanceId: string; binding: string; bounds: PluginBounds }
   | { type: 'call'; instanceId: string; binding: string; packet: unknown }
+  | { type: 'islandAction'; pluginId: string; id: string; instanceId: string; command: string }
 export type PluginHostResult = { ok: true; data: unknown } | { ok: false; code: string; message: string }
 export interface PluginHostEvent { instanceId: string; packet: JsonValue }
 /** This management API belongs only to the trusted main-window top frame. */

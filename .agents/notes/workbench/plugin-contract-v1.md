@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-22T16:29:52Z",
+  "updated": "2026-10-22T17:01:40Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -21,11 +21,11 @@
 
 ## 状态与适用范围
 
-本文维护首版协议基线及实现边界。`packages/plugin-sdk/` 提供类型、严格清单／调用策略校验、MessagePort 客户端和独立脚手架；命令与入口通过可信适配接入现有视图宿主。P2 已实现目录登记、授权、隔离资源、通信桥、私有 KV 与管理调试界面，实际验收及未覆盖项归阶段计划。schema／API 的 `1` 是插件协议版本，不是 JanusX 版本。后续如修改本基线，先记录兼容影响并同步样例和需求。
+本文维护首版协议基线及实现边界。`packages/plugin-sdk/` 提供类型、严格清单／调用策略校验、MessagePort 客户端和独立脚手架；命令与入口通过可信适配接入现有视图宿主。P2 已实现目录登记、授权、隔离资源、通信桥、私有 KV 与管理调试界面，P3 增加工作台与 Island 贡献，实际验收及未覆盖项归阶段计划。schema／API 的 `1` 是插件协议版本，不是 JanusX 版本。后续如修改本基线，先记录兼容影响并同步样例和需求。
 
 目标架构归[插件平台设计](plugin-platform-design.md)，验收归[架构需求](requirements/plugin-architecture-forms.md)和[导入需求](requirements/plugin-import-debug.md)，顺序及实施证据归[阶段计划](../planning/plugin-platform-roadmap.md)。全部未来能力不塞进首版 schema；示例只验证契约关系，不指定要交付哪项示范产品。
 
-首版支持中部／右侧隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。视图只支持每作用域单实例，多个 view 可组成双区域功能。工作台、Island、文件写入、目录遍历、任意后台 JS、网络、模型、任意宿主命令、跨插件服务、全局快捷键和多实例暂不支持，传入这些贡献或权限明确拒绝。多实例在 P4 引入前需要修订 pane 与存储契约，不能仅扩大类型枚举。
+首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。视图只支持每作用域单实例。文件写入、目录遍历、任意后台 JS、网络、模型、任意宿主命令、跨插件服务、全局快捷键和多实例暂不支持，传入这些贡献或权限明确拒绝。多实例在 P4 引入前需要修订 pane 与存储契约，不能仅扩大类型枚举。
 
 ## 现有消费者与兼容改造
 
@@ -57,23 +57,29 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
   "name": "Project reference",
   "version": "0.1.0",
   "engines": { "pluginApi": "^1.0.0" },
-  "capabilities": { "required": ["views.workspace", "views.right", "commands.openView", "storage.watch"], "optional": [] },
+  "capabilities": { "required": ["views.workspace", "views.right", "views.workbench", "views.island", "island.status", "commands.openView", "storage.watch"], "optional": [] },
   "permissions": [
     { "name": "workspace.context.read" },
     { "name": "workspace.files.read", "paths": ["README.md", "package.json"] },
     { "name": "plugin.storage" },
     { "name": "ui.views.open" },
-    { "name": "ui.toast" }
+    { "name": "ui.toast" },
+    { "name": "ui.island" }
   ],
   "contributes": {
     "views": [
       { "id": "details", "title": "Reference", "entry": "dist/index.html", "location": "workspace", "scope": "project", "instancePolicy": "single", "icon": "book", "order": 100 },
-      { "id": "summary", "title": "Summary", "entry": "dist/summary.html", "location": "right", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 }
+      { "id": "summary", "title": "Summary", "entry": "dist/summary.html", "location": "right", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 },
+      { "id": "desk", "title": "Reference desk", "entry": "dist/index.html", "location": "workbench", "scope": "project", "instancePolicy": "single", "icon": "book", "order": 100 },
+      { "id": "island", "title": "Reference tool", "entry": "dist/summary.html", "location": "island", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 }
     ],
     "commands": [
       { "id": "open-details", "title": "Open project reference", "action": { "type": "openView", "view": "details" } },
-      { "id": "open-summary", "title": "Open reference summary", "action": { "type": "openView", "view": "summary" } }
+      { "id": "open-summary", "title": "Open reference summary", "action": { "type": "openView", "view": "summary" } },
+      { "id": "open-desk", "title": "Open reference desk", "action": { "type": "openView", "view": "desk" } },
+      { "id": "open-island", "title": "Open reference tool", "action": { "type": "openView", "view": "island" } }
     ],
+    "island": [{ "id": "reference", "title": "Project reference", "scope": "project", "actions": ["open-desk", "open-island", "open-summary"] }],
     "menus": [
       { "location": "toolbox", "command": "open-details", "when": "projectOpen", "order": 100 },
       { "location": "workspace-add", "command": "open-details", "when": "projectOpen", "order": 100 }
@@ -87,11 +93,27 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 `id` 为 3–128 字符，局部贡献 ID 为 1–64 字符，均匹配 `^[a-z][a-z0-9.-]*$`，禁止末尾点及连续点；第三方不能使用 `janusx.` 前缀。`name`／`title` 为 1–80 非空字符；`description` 为可选、最多 1000 字符。贡献列表可省略为空，但首版至少一个视图，最多 16 个视图、64 条命令、128 个菜单入口、32 条快捷键。局部 ID 在各自贡献类别内唯一；命令引用本插件视图，菜单和快捷键引用本插件命令。不得覆盖内置 ID。`icon` 可省略，首版只支持 `puzzle|book|list|chart|file|code|clock`，缺省为 puzzle；`order` 可省略为 100，取 -1000–1000 整数。排序按用户设置、order、完整贡献 ID，保证稳定。
 
-`location` 仅 `workspace|right`，`scope` 仅 `application|project`，`instancePolicy` 首版仅 `single`。菜单 `location` 仅 `toolbox|workspace-add`。右侧视图自动取得 rail 入口，不需要在菜单中再声明。`when` 可省略为 `always`，仅 `always|projectOpen` 两个数据枚举，不允许 JS 或自定义表达式。项目视图即使声明 always，缺少项目时仍不可执行；工具箱可以显示为禁用项，workspace-add 无项目时不显示。隐藏某一入口不禁用命令或其它入口。
+`location` 仅 `workspace|right|workbench|island`，`scope` 仅 `application|project`，`instancePolicy` 首版仅 `single`。菜单 `location` 仅 `toolbox|workspace-add`。右侧视图自动取得 rail 入口，不需要在菜单中再声明。工作台和 Island 展开工具视图也分别取得宿主入口。`when` 可省略为 `always`，仅 `always|projectOpen` 两个数据枚举，不允许 JS 或自定义表达式。项目视图即使声明 always，缺少项目时仍不可执行；工具箱可以显示为禁用项，workspace-add 无项目时不显示。隐藏某一入口不禁用命令或其它入口。
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。首版宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`。permissions 首版全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+
+## P3 工作台与 Island 契约
+
+P3 是 API 1 的增量，旧清单保持合法。使用新位置的插件将相应能力加入 required，使旧宿主在兼容检查时明确拒绝。视图共用严格清单和原生隔离载体，不新增终端、CLI／会话适配器或 PTY 接口。工作台沿用通用视图 registry，以 location=workbench 筛选；蓝图／知识库 ID、入口和开关保留，不以全量迁移业务为前置。
+
+工作台在主窗口内容区承载一个隔离根页面，插件自行组织内部导航。打开时保留中部和右侧 pane，记录此前工作台；返回按钮恢复此前有效界面和原入口焦点。项目／worktree 改变、停用或贡献撤销时关闭失效工作台；摘要重载可恢复同一有效视图，私有 KV 保留，页面局部状态不保证保留。不创建新原生窗口，不拼装他插件视图。
+
+`contributes.island` 最多四项，每项包含 id、title、scope、可选 order 和至多三个本插件命令 ID 的 actions；重复 ID、悬空引用或不同作用域动作拒绝。声明需 `ui.island` 权限；动作还要求 `ui.views.open`，目标只能是本插件同 scope 的已声明视图。Island 不接受任意回调、HTML、图片 URL、样式、脚本或宿主命令。点击后主进程再次校验贡献、当前发布实例及 grants，不信任 renderer 自报目标。
+
+`island.update({id,status})` 需要 `ui.island`，返回 `{updated:boolean}`。status 为 null 时清除当前发布者状态，否则包含 title（1–80）、state（idle/running/success/warning/error），可选 description（1–240）、progress（0–100）、badge（1–12）和 preview。preview 仅包含 text（1–500）与最多四条 label（1–40）/value（1–120）文本行。文本拒绝控制符和双向覆盖符，以 React 文本绘制；更新不执行后台任务，也不获得额外文件权限。
+
+状态由主进程按 plugin/id 保存最新值并绑定发布页面，publisher 与贡献必须同 scope。另一页面可成为新发布者，但旧页面不能清除新发布者状态，关闭旧页也不删除新状态。关闭当前发布页、故障、重载、停用、删除数据和项目根撤销立即删除所属状态，宿主重启不恢复。每插件最多十次更新/秒，全局最多 32 条，100ms 合并一次界面通知；超限返回 RATE_LIMITED。状态不是通知历史，关闭页面后需重新发布。
+
+Island 胶囊显示状态数量与受限文本，最多三项紧凑展示，完整队列在展开托盘。内置通知排在插件通知前，插件状态不自动升起展开横幅或抢焦点。展开工具页按 location=island 注册，选中并展开后才挂载，收起销毁；项目根变化或贡献撤销退回 monitor。托盘打开时 detach 原生页，使状态动作可见。宿主审批、设置、菜单和权限提示持有遮挡租约时，插件外壳及原生页同时隐藏，释放后恢复。
+
+`views.open` 同时支持 workbench 与 island，仍返回真实实例 ID。外部脚手架只依赖打包 SDK，复用两份 HTML 贡献四个页面，通过 storage.watch 联动同 project/root 的 KV。完整测试证据归阶段计划。
 
 ## 身份与上下文
 
@@ -119,6 +141,7 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 | `workspace.getContext()` | `{}` → `{project:null|{projectId,rootId,name}, revision, active}` | `workspace.context.read`；权限拒绝不泄露项目名 |
 | `workspace.readText()` | `{path}` → `{text, bytes}` | `workspace.files.read` 且 path 在声明与授权的精确路径交集；project 作用域，UTF-8 文本最多 1 MiB，二进制／无效编码拒绝，不悄然截断 |
 | `views.open()` | `{view}` → `{instanceId}` | `ui.views.open`；仅本插件已声明 local view，不允许其它插件、任意 location 或 project 参数 |
+| `island.update()` | `{id,status}` → `{updated}` | `ui.island`；仅本插件已声明同 scope 的贡献，文本和配额见 P3 契约 |
 | `ui.showToast()` | `{message,level?:info|warning|error}` → `{shown}` | `ui.toast`，消息最多 500 字，显示插件来源，不渲染 HTML；速率限制时明确报错 |
 | `storage.get()` | `{key}` → `{found,value?,revision}` | `plugin.storage`，本插件和当前视图作用域的 KV |
 | `storage.set()` | `{key,value,expectedRevision?}` → `{revision}` | `plugin.storage`，只存 JSON；缺少 expectedRevision 为串行最后写入，有值时作 CAS，冲突拒绝 |
@@ -128,7 +151,7 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 
 清单里的 `openView` 命令由宿主处理，只定位声明的自有视图，不需要插件页面先运行，也不会调用任意用户 JS。命令以用户宿主入口触发时无需 ui.views.open 权限；页面主动打开视图仍需该权限。首版不实现任意 commands.execute 或 renderer callback。
 
-权限枚举为 `workspace.context.read`、`workspace.files.read`、`plugin.storage`、`ui.views.open`、`ui.toast`。仅 files.read 带 `paths`：1–64 个精确、规范化的相对文件路径，无 glob、目录前缀或符号链接授权；其它权限只允许 name。所有资源权限受用户选择项目范围和当前策略再次约束。宿主按安装记录绑定来源、权限指纹及批准项目；资源另绑定内容摘要和实例代次。开发资源内容变化允许重新校验后热重载，权限指纹变化先阻断并重新确认，不把内容重建误作新授权。
+权限枚举为 `workspace.context.read`、`workspace.files.read`、`plugin.storage`、`ui.views.open`、`ui.toast`、`ui.island`。仅 files.read 带 `paths`：1–64 个精确、规范化的相对文件路径，无 glob、目录前缀或符号链接授权；其它权限只允许 name。所有资源权限受用户选择项目范围和当前策略再次约束。宿主按安装记录绑定来源、权限指纹及批准项目；资源另绑定内容摘要和实例代次。开发资源内容变化允许重新校验后热重载，权限指纹变化先阻断并重新确认，不把内容重建误作新授权。
 
 KV key 为 1–128 字符的普通字符串，拒绝空、NUL 及 `__proto__|prototype|constructor`；value 为 JSON 值，单值序列化 UTF-8 最多 64 KiB，每插件每 scope 最多 1 MiB、1024 key。存储失败不发送成功事件，revision 在主进程序列化写中产生，卸载默认保留。project 页不能选择 application 存储；同插件 application／不同 root 的数据不默认共享。多页的摘要／详情可通过同 scope 的 storage.watch 联动。
 
@@ -266,7 +289,7 @@ sequenceDiagram
 | C08 | 停用、关开发模式、卸载 | 先拒绝请求再清视图／快照，PTY 和用户 KV 保留，重启不自动重启页面；AC-18 |
 | C09 | 开发链接清单增加 paths／权限或资源被替换 | 新快照重新校验；权限扩大 blocked＋PERMISSION_RECONFIRM_REQUIRED，旧 token 无效 |
 | C10 | 清单 JSON 重复键、额外未知字段或悬空命令 | MANIFEST_INVALID；P1 校验器必须覆盖，不是静默覆盖 |
-| C11 | 引擎不匹配／声明未来工作台贡献 | INCOMPATIBLE_API／MANIFEST_INVALID；可选能力未知不激活未知贡献 |
+| C11 | 引擎不匹配／声明未知贡献 | INCOMPATIBLE_API／MANIFEST_INVALID；可选能力未知不激活未知贡献 |
 | C12 | 请求 net.fetch 或权限列表含网络／写入 | UNKNOWN_METHOD／UNSUPPORTED_PERMISSION，无出站或部分激活 |
 | C13 | 静态 entry 为 ../、盘符、%2e、符号链接或 junction | INVALID_PACKAGE_PATH，实际打开时也检查；导入 AC-6 |
 | C14 | 清单超限、包超限、缺少页面 | PACKAGE_LIMIT_EXCEEDED／ENTRY_NOT_FOUND，旧安装保留 |
@@ -299,4 +322,4 @@ SDK 的 `parsePluginManifest` 使用严格 JSON、重复键检查、Zod 和 SemV
 
 第三方管理页区分登记／启用意图与实时运行：每次快照从当前实例计算页面数、桥已连接数及 SDK 已就绪数；bind、握手与关闭均发布变化。插件主动关闭 port 时将不可用页面记为一次加载故障并撤销；宿主正常关闭先移除 carrier，再关 port，不额外计故障。连接仅指本地专用桥，首版没有外部服务连接。内置工具及必要宿主功能不列入第三方停用列表，共享会话仍由宿主管理；停用插件或清理其 KV 不授予结束宿主会话的权限。
 
-脚手架由已打包 SDK tarball 生成到新目录，不覆盖既有文件，也不要求公开 npm 版本已发布。仓库外项目仅引用公开包；构建生成两页及本地资源，未接桥时显示独立预览状态。`janusx-plugin check` 只检查 manifest 与 dist 静态交付树，不执行页面，不构成安装器或并发文件系统安全证明。实际命令、测试数量和证据归[阶段计划](../planning/plugin-platform-roadmap.md)。
+脚手架由已打包 SDK tarball 生成到新目录，不覆盖既有文件，也不要求公开 npm 版本已发布。仓库外项目仅引用公开包；构建生成两份 HTML 及本地资源，以四个视图贡献联动中部、右侧、工作台及 Island，未接桥时显示独立预览状态。`janusx-plugin check` 只检查 manifest 与 dist 静态交付树，不执行页面，不构成安装器或并发文件系统安全证明。实际命令、测试数量和证据归[阶段计划](../planning/plugin-platform-roadmap.md)。

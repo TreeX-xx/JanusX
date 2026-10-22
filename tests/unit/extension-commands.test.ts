@@ -19,12 +19,13 @@ describe('commands independent of view positions and menu entries', () => {
     manifest.contributes.commands = []
     manifest.contributes.menus = []
     manifest.contributes.keybindings = []
+    manifest.contributes.island = []
     const source = new ExtensionRegistry()
     const registry = new ExtensionCommandRegistry(source)
     const component = vi.fn(() => () => null)
     source.register(manifestContribution(manifest, component))
-    expect(component).toHaveBeenCalledTimes(2)
-    expect(source.getSnapshot()).toHaveLength(2)
+    expect(component).toHaveBeenCalledTimes(4)
+    expect(source.getSnapshot()).toHaveLength(4)
     expect(registry.getSnapshot().commands).toEqual([])
     expect(registry.getSnapshot().menus).toEqual([])
     registry.dispose()

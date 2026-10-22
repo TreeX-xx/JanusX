@@ -36,6 +36,7 @@ export type IslandControllerAction =
   | { type: 'trace'; trace: KnowledgeRecallTrace | null }
   | { type: 'single-activate' }
   | { type: 'double-activate' }
+  | { type: 'plugin-peek' }
   | { type: 'dismiss' }
   | { type: 'timeout'; version: number }
   | { type: 'product-notice' }
@@ -69,6 +70,8 @@ export function reduceIslandController(
         stage: state.stage === 'expanded' ? 'collapsed' : 'expanded',
         knowledge: hideKnowledgePeek(state.knowledge),
       }
+    case 'plugin-peek':
+      return { stage: 'peek', knowledge: hideKnowledgePeek(state.knowledge) }
     case 'dismiss':
       if (state.stage === 'collapsed') return state
       return { stage: 'collapsed', knowledge: hideKnowledgePeek(state.knowledge) }

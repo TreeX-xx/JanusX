@@ -4,23 +4,29 @@
   "name": "Project reference",
   "version": "0.1.0",
   "engines": { "pluginApi": "^1.0.0" },
-  "capabilities": { "required": ["views.workspace", "views.right", "commands.openView", "storage.watch"], "optional": [] },
+  "capabilities": { "required": ["views.workspace", "views.right", "views.workbench", "views.island", "island.status", "commands.openView", "storage.watch"], "optional": [] },
   "permissions": [
     { "name": "workspace.context.read" },
     { "name": "workspace.files.read", "paths": ["README.md", "package.json"] },
     { "name": "plugin.storage" },
     { "name": "ui.views.open" },
-    { "name": "ui.toast" }
+    { "name": "ui.toast" },
+    { "name": "ui.island" }
   ],
   "contributes": {
     "views": [
       { "id": "details", "title": "Reference", "entry": "dist/index.html", "location": "workspace", "scope": "project", "instancePolicy": "single", "icon": "book", "order": 100 },
-      { "id": "summary", "title": "Summary", "entry": "dist/summary.html", "location": "right", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 }
+      { "id": "summary", "title": "Summary", "entry": "dist/summary.html", "location": "right", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 },
+      { "id": "desk", "title": "Reference desk", "entry": "dist/index.html", "location": "workbench", "scope": "project", "instancePolicy": "single", "icon": "book", "order": 100 },
+      { "id": "island", "title": "Reference tool", "entry": "dist/summary.html", "location": "island", "scope": "project", "instancePolicy": "single", "icon": "list", "order": 100 }
     ],
     "commands": [
       { "id": "open-details", "title": "Open project reference", "action": { "type": "openView", "view": "details" } },
-      { "id": "open-summary", "title": "Open reference summary", "action": { "type": "openView", "view": "summary" } }
+      { "id": "open-summary", "title": "Open reference summary", "action": { "type": "openView", "view": "summary" } },
+      { "id": "open-desk", "title": "Open reference desk", "action": { "type": "openView", "view": "desk" } },
+      { "id": "open-island", "title": "Open reference tool", "action": { "type": "openView", "view": "island" } }
     ],
+    "island": [{ "id": "reference", "title": "Project reference", "scope": "project", "actions": ["open-desk", "open-island", "open-summary"] }],
     "menus": [
       { "location": "toolbox", "command": "open-details", "when": "projectOpen", "order": 100 },
       { "location": "workspace-add", "command": "open-details", "when": "projectOpen", "order": 100 }

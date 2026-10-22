@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { PluginManifest } from './manifest.js'
 import { PluginError } from './errors.js'
 import { isSensitivePluginPath, validatePluginPath } from './paths.js'
+import { pluginIslandStatusSchema } from './island.js'
 
 const empty = z.object({}).strict()
 const key = z.string().min(1).max(128).refine((value) => !value.includes('\0') && !['__proto__', 'prototype', 'constructor'].includes(value))
@@ -22,6 +23,7 @@ const methods = {
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'views.open': { permission: 'ui.views.open', params: z.object({ view: z.string() }).strict() },
+  'island.update': { permission: 'ui.island', params: z.object({ id: z.string(), status: pluginIslandStatusSchema.nullable() }).strict() },
   'ui.showToast': { permission: 'ui.toast', params: z.object({ message: z.string().max(500), level: z.enum(['info', 'warning', 'error']).optional() }).strict() },
   'storage.get': { permission: 'plugin.storage', params: z.object({ key }).strict() },
   'storage.set': { permission: 'plugin.storage', params: z.object({ key, value: json, expectedRevision: revision }).strict() },
@@ -47,5 +49,8 @@ export function validatePluginCall(manifest: PluginManifest, method: string, par
   }
   if (method === 'views.open' && !manifest.contributes.views.some((view) => view.id === (params as { view: string }).view)) {
     throw new PluginError('INVALID_REQUEST', 'Only a declared view can be opened.')
+  }
+  if (method === 'island.update' && !manifest.contributes.island?.some(item => item.id === (params as { id: string }).id)) {
+    throw new PluginError('INVALID_REQUEST', 'Only a declared Island contribution can be updated.')
   }
 }

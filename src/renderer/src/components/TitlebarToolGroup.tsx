@@ -9,7 +9,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useRightToolStore } from '@/stores/right-tools'
 import { canonicalRightToolId } from '@/right-tools/registry'
-import { useExtensionCommands } from '@/extensions/react'
+import { useExtensionCommands, useExtensionViews } from '@/extensions/react'
 import { extensionCommands } from '@/extensions/commands'
 import { installExtensionShortcuts } from '@/extensions/command-shortcuts'
 import { openExtensionView } from '@/extensions/workbench'
@@ -165,12 +165,14 @@ export function TitlebarToolSeparator() {
   const blueprint = useExperimentalStore((s) => s.blueprint)
   const knowledge = useExperimentalStore((s) => s.persona)
   const loadExperimental = useExperimentalStore((s) => s.load)
+  const projectOpen = useWorkspaceStore(s => Boolean(s.activeWorkspaceId))
+  const pluginWorkbench = useExtensionViews().some(view => view.location === 'workbench' && (view.scope === 'application' || projectOpen))
 
   useEffect(() => {
     void loadExperimental()
   }, [loadExperimental])
 
   // 两个工作台开关都关掉时，右侧只剩工具组，分隔线没有可分的东西，收起。
-  if (!blueprint && !knowledge) return null
+  if (!blueprint && !knowledge && !pluginWorkbench) return null
   return <span className={styles.separator} aria-hidden="true" />
 }

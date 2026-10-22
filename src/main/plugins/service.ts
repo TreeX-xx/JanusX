@@ -5,8 +5,8 @@ import { watch, type FSWatcher } from 'node:fs'
 import { join, resolve, relative, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
 import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManifest, validatePluginCall,
-  isSensitivePluginPath, type JsonValue, type PluginContext, type PluginStoredValue } from '@janusx/plugin-sdk'
-import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount } from '../../shared/ipc/plugins'
+  isSensitivePluginPath, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus } from '@janusx/plugin-sdk'
+import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, PluginIslandEntry } from '../../shared/ipc/plugins'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
 import { PluginStorage } from './storage'
@@ -44,6 +44,9 @@ export class PluginService {
   private queue = new SerialQueue()
   private watchers = new Map<string, { watchers: FSWatcher[]; timer?: ReturnType<typeof setTimeout> }>()
   private toasts = new Map<string, number[]>()
+  private island = new Map<string, PluginIslandEntry>()
+  private islandTimes = new Map<string, number[]>()
+  private islandTimer?: ReturnType<typeof setTimeout>
   private current = { projectId: null as string | null, root: null as string | null, revision: 0, locale: 'en', theme: { id: '', tokens: {} as Record<string, string> } }
   private storage: PluginStorage
   private initialized: Promise<void> | undefined
@@ -87,7 +90,7 @@ export class PluginService {
     return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, ...record }) => {
       const pages = [...this.instances.values()].filter(instance => instance.plugin === record.manifest.id)
       return { ...structuredClone(record), runtime: { pages: pages.length, connected: pages.filter(page => page.bound).length, ready: pages.filter(page => page.ready).length } }
-    }), logs: [...this.logs] }
+    }), logs: [...this.logs], island: structuredClone([...this.island.values()]) }
   }
   private async persist(): Promise<void> {
     try { await writeFileAtomic(join(this.deps.directory, 'registry.json'), JSON.stringify({ developmentMode: this.developmentMode, plugins: [...this.records.values()] })) }
@@ -275,6 +278,7 @@ export class PluginService {
     clearTimeout(instance.timer)
     this.send(instance, { type: 'event', event: 'invalidated', reason: reason ?? null, payload: { invalidated: true } })
     this.instances.delete(id)
+    for (const [key, entry] of this.island) if (entry.instanceId === id) this.island.delete(key)
     if (![...this.instances.values()].some(item => item.plugin === instance.plugin && item.ready)) this.clearRecovery(instance.plugin)
     this.deps.closed?.(id)
     for (const request of instance.requests.values()) request.cancelled = true
@@ -407,6 +411,26 @@ export class PluginService {
       valid(); this.deps.toast(instance.plugin, params.message as string, params.level as string ?? 'info')
       return { shown: true }
     }
+    if (method === 'island.update') {
+      const contribution = record.manifest.contributes.island!.find(item => item.id === params.id)!
+      if ((contribution.scope === 'project') !== Boolean(instance.root)) error('CONTEXT_UNAVAILABLE', 'Island and publisher must have the same scope.')
+      const recent = (this.islandTimes.get(instance.plugin) ?? []).filter(time => Date.now() - time < 1000)
+      if (recent.length >= 10) error('RATE_LIMITED', 'Island update limit reached.')
+      const key = `${instance.plugin}/${contribution.id}`
+      if (params.status !== null && !this.island.has(key) && this.island.size >= 32) error('RATE_LIMITED', 'Island queue is full.')
+      valid()
+      const previous = this.island.get(key)
+      // A different page cannot clear the latest publisher's status.
+      if (params.status === null && previous && previous.instanceId !== instance.id) error('INVALID_REQUEST', 'Island status belongs to another page.')
+      recent.push(Date.now()); this.islandTimes.set(instance.plugin, recent)
+      if (params.status === null) this.island.delete(key)
+      else this.island.set(key, { pluginId: instance.plugin, id: contribution.id, instanceId: instance.id,
+        projectId: instance.context.project?.projectId ?? null, rootId: instance.context.project?.rootId ?? null,
+        status: structuredClone(params.status as PluginIslandStatus), createdAt: previous?.createdAt ?? Date.now() })
+      // Latest state wins; plugin progress cannot flood the renderer change queue.
+      this.islandTimer ??= setTimeout(() => { this.islandTimer = undefined; this.publish() }, 100)
+      return { updated: true }
+    }
     if (method === 'storage.get') return this.storage.get(instance.plugin, instance.scope, params.key as string)
     if (method === 'storage.set' || method === 'storage.delete') {
       const key = params.key as string
@@ -436,6 +460,20 @@ export class PluginService {
     error('UNKNOWN_METHOD', 'Plugin method is unavailable.')
   }
   unsubscribe(id: string, binding: string, subscriptionId: string): void { this.instance(id, binding).subscriptions.delete(subscriptionId) }
+  islandAction(pluginId: string, id: string, instanceId: string, commandId: string): void {
+    const entry = this.island.get(`${pluginId}/${id}`)
+    if (!entry || entry.instanceId !== instanceId) error('INSTANCE_CLOSED', 'Island status has expired.')
+    const source = this.instances.get(instanceId)
+    if (!source || source.plugin !== pluginId) error('INSTANCE_CLOSED', 'Island publisher is unavailable.')
+    this.instance(instanceId, source!.binding)
+    const manifest = this.record(pluginId).manifest
+    const contribution = manifest.contributes.island?.find(item => item.id === id)
+    if (!contribution?.actions?.includes(commandId)) error('INVALID_REQUEST', 'Island action is unavailable.')
+    const command = manifest.contributes.commands?.find(item => item.id === commandId)
+    if (!command) error('INVALID_REQUEST', 'Island command is unavailable.')
+    validatePluginCall(manifest, 'views.open', { view: command!.action.view })
+    this.deps.openView(pluginId, command!.action.view)
+  }
   private storageChanged(source: Instance, key: string, value: PluginStoredValue): void {
     for (const instance of this.instances.values()) if (instance.plugin === source.plugin && instance.scope === source.scope) {
       for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'storage' && sub.keys.includes(key)) {
@@ -470,5 +508,5 @@ export class PluginService {
   }
   private stopWatch(id: string): void { const state = this.watchers.get(id); if (state?.timer) clearTimeout(state.timer); state?.watchers.forEach(watcher => watcher.close()); this.watchers.delete(id) }
   deleteData(id: string): Promise<void> { this.record(id); this.revokePlugin(id); return this.storage.deletePlugin(id) }
-  dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
+  dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); if (this.islandTimer) clearTimeout(this.islandTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
 }

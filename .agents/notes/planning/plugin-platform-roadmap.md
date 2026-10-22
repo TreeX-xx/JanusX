@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-22T16:29:52Z",
+  "updated": "2026-10-22T17:23:32Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -22,7 +22,7 @@
 
 目标是让用户通过插件组合中部工作区、工具箱、右侧栏、Island、独立工作台，以及文件、任务、Agent 和外部系统能力，形成完整功能。入口、命令、视图、展示位置与能力授权分别建模；已有官方功能逐步使用同一贡献语义。完整设计归[插件平台架构](../workbench/plugin-platform-design.md)，PI-Desktop 调研继续归[研究 Note](../workbench/ideas/plugin-platform-and-feature-modularization.md)。
 
-保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；收尾补齐故障、worktree／文件边界及状态／偏好验收，S4 本地只读范围闭合。完整门禁证据、默认高并发语料超时及平台限制见下文；P3–P8 尚待实施。
+保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区，验证见专节。完整门禁证据及平台限制见下文；P4–P8 尚待实施。
 
 本计划采用相对排期，参考工作量按单条主线、主 Agent 顺序实施估算，包含相关测试与文档维护，不指定起始日期或版本，不挤占既有事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。估算不是历史速度或承诺工期，每批开始前按实际代码、依赖和试验结果修订。普通文档维护与普通 xdo 不创建执行 Task，阶段通过仍以所属需求和实际证据为准。
 
@@ -81,6 +81,24 @@ P1 已提供 `packages/plugin-sdk/`、CLI 与双页模板，以及可信命令�
 最后的主动断桥修复后，独立输出生产构建及严格 unused／变更范围 lint 通过，使用 `JANUS_E2E_MAIN_ENTRY=artifacts/plugin-p2/closeout-build/main/index.js`、上述 NO_PROXY 执行 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/desktop-cpa.spec.ts --config=playwright.desktop.config.ts --workers=1 --grep 'plugin|copied development|six invalid|three native|real git worktree|global page requires|CPA native page shares' --output=artifacts/plugin-p2/desktop-closeout-final`，11 项全部通过，日志 `desktop-closeout-final.log`。包含全部 8 项插件用例和首轮失败的 3 项回归，未修改那三项用例或其产品代码来绕过；首轮交互失败原因未确证，保留稳定性限制。最后再将最终代码构建到默认 out，日志 `build-closeout-final.log`。收尾各轮合计 39 项不同桌面用例有通过证据，2 项官方资源用例仍跳过；不将分轮结果表述为单次全量通过。
 
 P2／S4 的本地只读范围已完成收尾；架构 AC-10 的多实例仍归 P4，AC-18 的外部服务与必要官方功能通用管理仍归后续，整条 AC 不提前勾选。未生成安装包，未作 macOS／Linux 实机验收。不得从 Windows 上已测的网络样例推导操作系统防火墙级隔离，也不得以这些结果关闭未来贡献、网络代理或正式来源分发的 AC。
+
+## P3 交付与验证
+
+公开清单增加 `workbench`／`island` 视图位置和 `contributes.island`，SDK 增加 `island.update` 及 `ui.island` 权限。工作台复用通用 registry，按需挂载一个隔离根页面；返回时恢复此前有效界面和焦点，中部／右侧 pane 保持。项目选择属于宿主头部，项目或 worktree 变化撤销旧页；蓝图／知识库 ID 与创新开关保留，关闭此前内置工作台后返回会退到普通工作区。
+
+Island 状态／进度／徽标／最多三个动作／受限文本预览由宿主绘制，动作仅引用本插件同 scope 的打开视图命令。主进程绑定发布实例与已批准作用域，检查参数和权限，每插件最多十次更新/秒，100ms 合并，全局最多 32 条活动状态。关闭发布页、重载、故障、停用、数据删除及根撤销清理状态；旧发布页不能清除后来的发布状态，过期动作拒绝。内置通知优先，插件状态不自动抢焦点或展开横幅。展开工具页在选中且 Island 展开后挂载，收起回收；托盘遮挡时 detach 原生页。
+
+仓库外打包 SDK 模板复用两份 HTML 提供四区域视图，用私有 KV／watch 共享状态。专用离线 Session、sandboxed WebContentsView 和主进程 broker 沿用 P2；审批／权限等宿主遮挡租约同时隐藏插件外壳与原生页。内嵌浏览器在工作台或 Island 展示时让位，不结束原有页面或会话。
+
+新增单元测试覆盖清单引用／scope／权限、脚本文本转义、内置通知优先、返回目标失效、最新发布者、旧动作拒绝、关闭／故障／重载撤销、应用与项目隔离、worktree 异步切换前撤销、十次限流、32 条队列及回收后释放容量。外部 SDK 真实安装、typecheck、双页构建和静态校验通过，回执沿用 `artifacts/plugin-p1/scaffold.json`。
+
+`plugins:check` 已将新 `plugin-surfaces.test.ts` 纳入专项门禁，最终重跑五份／92 项通过，含四项 P3 契约与宿主路由／转义／返回测试，日志 `artifacts/plugin-p3-plugin-gate-final.log`。
+
+Windows Electron 专项：设置 `JANUS_E2E_MAIN_ENTRY=out/main/index.js`、`JANUSX_E2E_ENTRY=out/main/index.js`、`NO_PROXY=localhost,127.0.0.1,::1`，执行 `npx playwright test tests/e2e/desktop-plugins.spec.ts --config=playwright.desktop.config.ts --grep 'P3 four surfaces' --workers=1 --output=artifacts/plugin-p3/desktop-third`，1 项通过，日志 `artifacts/plugin-p3-desktop-third.log`。覆盖四区域真实页面、KV 联动、工作台返回及原入口焦点、设置／权限面前让位、Island 文本预览／动作／工具区、原生页实际附着与回收、重载恢复、项目切换与停用清理。初轮发现徽标继承 pointer-events:none，已修复并由真实点击验证；项目切换使用宿主工作台头部选择器。
+
+完整 `npm run verify` 使用四个 Vitest worker 执行，日志 `artifacts/plugin-p3-verify.log`：插件专项 88 项通过，主单元 434 份／3793 项通过、6 份／23 项跳过，LLM 核心 80 项通过；主题、类型、strict-unused、构建、包边界、打包排除及 i18n 通过。在 Notes 门禁处退出 1：执行期间新增的未跟踪 `requirements/entrance-choreography.md` 缺少 AC 冒号且 updated 早于 created，两项均属本批之外并保留未改。P3 维护的五份 Note 单独筛查无错误；全仓仍有 17 条既有跨仓库链接诊断。保留已有 CRLF 文件，使用 `git -c core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol diff --check` 检查通过。
+
+随后独立补跑 `npm run lint` 与 `npm run test:e2e:desktop`，日志 `artifacts/plugin-p3-lint.log`、`artifacts/plugin-p3-desktop-all.log`：lint 0 错误／67 既有警告，Electron 40 项通过、2 项跳过、0 失败，包含全部九项插件用例、CPA、会话、终端、浏览器、编辑器、备忘录、审批及文件窗口回归。完整 verify 并非一次全绿；代码和桌面验证支持架构 AC-11，但不消除其它 Note 的格式问题。macOS／Linux 和安装包未验收。P3 不开放文档写入、目录遍历、后台任意 JS、网络／凭证、模型、终端类型、CLI／会话适配器、PTY 后端或多实例，不创建独立原生窗口，也不提供跨插件布局引擎。
 
 ## 交付顺序
 

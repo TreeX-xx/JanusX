@@ -8,6 +8,10 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useSubAgentRunStore } from '@/stores/subagent-run'
 import { useI18n } from '@/i18n/useI18n'
+import { useExtensionViews } from '@/extensions/react'
+import { ExtensionViewHost } from '@/extensions/ExtensionViewHost'
+import { PluginIslandPreview } from '@/extensions/plugin-island'
+import { useWorktreeStore } from '@/stores/worktree'
 import { JanusIdentityCore } from './JanusIdentityCore'
 import { WorkflowXMonitor } from './WorkflowXMonitor'
 import { getJanusAgentIdentity } from './janusIdentity'
@@ -38,6 +42,7 @@ interface JanusIslandExpandedShellProps extends Pick<JanusIslandProps,
   | 'onChatSend' | 'onChatRewrite' | 'onChatStop' | 'onChatRetry' | 'onChatClear'
   | 'conversationController' | 'resourceController' | 'toolTraces'
 > {
+  pluginActionFailure?: string
   stage: JanusIslandStage
   view: JanusExpandedView
   setView: (view: JanusExpandedView) => void
@@ -67,7 +72,7 @@ interface JanusIslandExpandedShellProps extends Pick<JanusIslandProps,
   trayOpen: boolean
   notifyPulse: boolean
   onToggleTray: () => void
-  onNotificationAction: (notificationId: string, actionId: IslandNotificationActionId) => void
+  onNotificationAction: (notificationId: string, actionId: IslandNotificationActionId, command?: string) => void
   onBannerDismiss: () => void
   onTrayClear: () => void
   /** Island window persistence: a pinned window survives outside click / Esc. */
@@ -92,6 +97,7 @@ export function JanusIslandExpandedShell({
   onChatClear, conversationController,
   resourceController, toolTraces = [],
   islandPinned = false, onToggleIslandPin,
+  pluginActionFailure,
 }: JanusIslandExpandedShellProps) {
   const { t } = useI18n('janus')
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
@@ -103,6 +109,19 @@ export function JanusIslandExpandedShell({
   const activeTerminalId = useWorkspaceStore((state) => state.activeTerminalId)
   const terminals = useWorkspaceStore((state) => state.terminals)
   const roundtableEnabled = useExperimentalStore((state) => state.roundtable)
+  const projectId = useWorkspaceStore(s => s.activeWorkspaceId)
+  const workspace = useWorkspaceStore(s => s.workspaces.find(w => w.id === projectId))
+  const pluginViews = useExtensionViews().filter(item => item.location === 'island' && (item.scope === 'application' || projectId))
+  const selectedPlugin = pluginViews.find(item => item.id === view)
+  const pluginRoot = useWorktreeStore(s => projectId ? s.activePaths[projectId] ?? workspace?.path ?? null : null)
+  const previousPluginScope = useRef('')
+  useEffect(() => {
+    const scope = selectedPlugin?.scope === 'project' ? JSON.stringify([projectId, pluginRoot]) : 'application'
+    const key = selectedPlugin ? `${selectedPlugin.id}:${scope}` : ''
+    if (selectedPlugin && previousPluginScope.current.startsWith(`${selectedPlugin.id}:`) && previousPluginScope.current !== key) setView('monitor')
+    previousPluginScope.current = key
+  }, [selectedPlugin, projectId, pluginRoot, setView])
+  useEffect(() => { if (view.startsWith('extension:') && !selectedPlugin) setView('monitor') }, [view, selectedPlugin, setView])
   const visibleViews = (['monitor', 'chat', 'roundtable'] as JanusExpandedView[]).filter(
     (item) => item !== 'roundtable' || roundtableEnabled,
   )
@@ -246,6 +265,9 @@ export function JanusIslandExpandedShell({
                           : t('janus:island.expanded.view.roundtable')}
                     </button>
                   ))}
+                  {pluginViews.map(item => <button key={item.id} type="button" role="tab" className="janus-expanded-view-button"
+                    data-view={item.id} data-active={view === item.id} aria-selected={view === item.id}
+                    title={`${item.extensionId} · ${item.title}`} onClick={() => setView(item.id)}>{item.title}</button>)}
                 </div>
                 <div className="janus-notify-anchor">
                   {notifications.length > 0 ? (
@@ -276,10 +298,10 @@ export function JanusIslandExpandedShell({
                           <span className={`janus-capsule-led sev-${notification.severity}`} aria-hidden="true" />
                           <div className="janus-notify-row-copy">
                             <span className="janus-notify-row-kicker">
-                              {t(notificationKickerKey(notification.kind))}
+                              {notification.plugin?.pluginId ?? t(notificationKickerKey(notification.kind))}
                               <span className="janus-notify-row-time">{formatRunAge(new Date(notification.createdAt).toISOString(), t)}</span>
                             </span>
-                            <span className="janus-notify-row-title">{t(notification.copy.titleKey)}</span>
+                            <span className="janus-notify-row-title">{notification.copy.titleText ?? t(notification.copy.titleKey)}</span>
                             {notification.copy.subtitleKey ? (
                               <span className="janus-notify-row-subtitle">{t(notification.copy.subtitleKey, notification.copy.subtitleValues)}</span>
                             ) : notification.copy.subtitleText ? (
@@ -291,15 +313,17 @@ export function JanusIslandExpandedShell({
                               </div>
                             ) : null}
                           </div>
-                          {notification.actions[0] ? (
+                          <PluginIslandPreview notification={notification} />
+                          {notification.actions.map(action => (
                             <button
+                              key={action.command ?? action.id}
                               type="button"
                               className="janus-capsule-action janus-capsule-action--primary"
-                              onClick={(event) => { event.stopPropagation(); onNotificationAction(notification.id, notification.actions[0]!.id) }}
+                              onClick={(event) => { event.stopPropagation(); onNotificationAction(notification.id, action.id, action.command) }}
                             >
-                              {t(notificationActionLabelKey(notification.actions[0].id))}
+                              {action.label ?? t(notificationActionLabelKey(action.id))}
                             </button>
-                          ) : null}
+                          ))}
                         </div>
                       ))}
                     </div>
@@ -313,9 +337,9 @@ export function JanusIslandExpandedShell({
               {bannerNotification ? (
                 <div className="janus-notify-banner" key={bannerNotification.id} data-severity={bannerNotification.severity}>
                   <span className={`janus-capsule-led sev-${bannerNotification.severity}`} aria-hidden="true" />
-                  <span className="janus-notify-row-kicker">{t(notificationKickerKey(bannerNotification.kind))}</span>
+                  <span className="janus-notify-row-kicker">{bannerNotification.plugin?.pluginId ?? t(notificationKickerKey(bannerNotification.kind))}</span>
                   <div className="janus-notify-banner-copy">
-                    <span className="janus-notify-banner-title">{t(bannerNotification.copy.titleKey)}</span>
+                    <span className="janus-notify-banner-title">{bannerNotification.copy.titleText ?? t(bannerNotification.copy.titleKey)}</span>
                     {bannerNotification.copy.subtitleKey ? (
                       <span className="janus-notify-banner-subtitle">{t(bannerNotification.copy.subtitleKey, bannerNotification.copy.subtitleValues)}</span>
                     ) : bannerNotification.copy.subtitleText ? (
@@ -328,7 +352,7 @@ export function JanusIslandExpandedShell({
                       className="janus-capsule-action janus-capsule-action--primary"
                       onClick={(event) => { event.stopPropagation(); onNotificationAction(bannerNotification.id, bannerNotification.actions[0]!.id) }}
                     >
-                      {t(notificationActionLabelKey(bannerNotification.actions[0].id))}
+                      {bannerNotification.actions[0].label ?? t(notificationActionLabelKey(bannerNotification.actions[0].id))}
                     </button>
                   ) : null}
                   <button
@@ -343,6 +367,12 @@ export function JanusIslandExpandedShell({
               ) : null}
  
               <div className="janus-expanded-body">
+                {pluginActionFailure && <p role="alert">{pluginActionFailure}</p>}
+                {stage === 'expanded' && selectedPlugin && <section className="plugin-island-tool" data-plugin-island-tool={selectedPlugin.id}>
+                  <header>{selectedPlugin.extensionId} · {selectedPlugin.title}</header>
+                  <div className="flex-1 min-h-0"><ExtensionViewHost viewId={selectedPlugin.id} location="island" active={!trayOpen}
+                    workspaceId={projectId} workspacePath={workspace?.path ?? null} /></div>
+                </section>}
                 <div className="janus-feedback-panel">
                   <div className="janus-monitor-grid">
                     <div className="janus-monitor-left">

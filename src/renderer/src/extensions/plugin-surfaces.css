@@ -1,0 +1,20 @@
+.plugin-island-count, .plugin-island-badge {
+  padding: 1px 5px;
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  color: var(--shell-text);
+  font-size: 10px;
+}
+.plugin-island-preview { max-width: 240px; overflow-wrap: anywhere; font-size: 11px; }
+.plugin-island-count { position: absolute; right: -20px; top: 0; background: var(--shell-card); cursor: pointer; pointer-events: auto; -webkit-app-region: no-drag; }
+.janus-peek-shell .plugin-island-preview { overflow: hidden; max-height: 32px; }
+.plugin-island-preview dl { display: flex; justify-content: space-between; gap: 8px; }
+.janus-island-shell[data-plugin-active="true"] .janus-expanded-body { display: flex; }
+.janus-island-shell[data-plugin-active="true"] .janus-feedback-panel,
+.janus-island-shell[data-plugin-active="true"] .janus-chat-view,
+.janus-island-shell[data-plugin-active="true"] .janus-roundtable-view { display: none; }
+.plugin-island-tool { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: 8px; }
+.plugin-island-tool > header { padding-bottom: 8px; color: var(--shell-muted); font-size: 11px; }
+.janus-expanded-view-switch { overflow-x: auto; min-width: 0; }
+.plugin-workbench { background: var(--shell-canvas); color: var(--shell-text); }
+.plugin-workbench > header { border-color: var(--shell-border); }

@@ -41,6 +41,108 @@ async function fixture() {
   return { directory, source, manifest, root, rootB, deps, service, events, prepare, call }
 }
 
+describe('P3 Island broker and lifecycle', () => {
+  const status = { title: 'Reading reference', state: 'running', progress: 25, badge: 'README', preview: { text: '<script>untrusted text</script>', rows: [{ label: 'Files', value: '1' }] } }
+  const publisher = async (f: Awaited<ReturnType<typeof fixture>>, view = 'details') => {
+    const mount = await f.service.mount(f.manifest.id, view, 'a', f.root)
+    f.service.bind(mount.instanceId, mount.binding)
+    await f.call(mount, 'app.getInfo')
+    return mount
+  }
+  it('publishes bounded data, coalesces updates and only runs declared actions', async () => {
+    const f = await fixture(); await f.prepare(); const mount = await publisher(f)
+    f.deps.changed.mockClear()
+    expect(await f.call(mount, 'island.update', { id: 'reference', status })).toMatchObject({ ok: true })
+    expect(await f.call(mount, 'island.update', { id: 'reference', status: { ...status, progress: 50 } })).toMatchObject({ ok: true })
+    expect(f.deps.changed).not.toHaveBeenCalled()
+    await new Promise(resolve => setTimeout(resolve, 125))
+    expect(f.deps.changed).toHaveBeenCalledTimes(1)
+    expect(f.service.snapshot().island).toMatchObject([{ pluginId: f.manifest.id, instanceId: mount.instanceId, projectId: 'a', status: { progress: 50 } }])
+    f.service.islandAction(f.manifest.id, 'reference', mount.instanceId, 'open-desk')
+    expect(f.deps.openView).toHaveBeenLastCalledWith(f.manifest.id, 'desk')
+    expect(() => f.service.islandAction(f.manifest.id, 'reference', mount.instanceId, 'open-details')).toThrow('Island action is unavailable')
+    expect(() => f.service.islandAction('other.plugin', 'reference', mount.instanceId, 'open-desk')).toThrow()
+    const snapshot = f.service.snapshot(); snapshot.island![0].status.title = 'tampered'
+    expect(f.service.snapshot().island![0].status.title).toBe(status.title)
+  })
+  it('revokes status and stale actions immediately on close and project/worktree changes', async () => {
+    const f = await fixture(); await f.prepare(); let mount = await publisher(f)
+    await f.call(mount, 'island.update', { id: 'reference', status })
+    f.service.close(mount.instanceId)
+    expect(f.service.snapshot().island).toEqual([])
+    expect(() => f.service.islandAction(f.manifest.id, 'reference', mount.instanceId, 'open-desk')).toThrow()
+    mount = await publisher(f); await f.call(mount, 'island.update', { id: 'reference', status })
+    let release!: () => void
+    f.deps.resolveProject = async () => { await new Promise<void>(resolve => { release = resolve }); return { root: f.rootB, name: 'tree' } }
+    const switching = f.service.setContext('a', f.rootB, 'en', { id: 'dark', tokens: {} })
+    expect(f.service.snapshot().island).toEqual([])
+    expect(() => f.service.islandAction(f.manifest.id, 'reference', mount.instanceId, 'open-desk')).toThrow()
+    release(); await switching
+  })
+  it.each(['disable', 'reload', 'failView', 'deleteData'] as const)('cleans Island data on %s', async action => {
+    const f = await fixture(); await f.prepare(); const mount = await publisher(f)
+    await f.call(mount, 'island.update', { id: 'reference', status })
+    if (action === 'failView') f.service.failView(mount.instanceId, mount.binding)
+    else if (action === 'reload') await f.service.reload(f.manifest.id, true)
+    else await f.service[action](f.manifest.id)
+    expect(f.service.snapshot().island).toEqual([])
+  })
+  it('keeps the latest publisher alive when another page closes and rejects stale clear/actions', async () => {
+    const f = await fixture(); await f.prepare(); const first = await publisher(f); const second = await publisher(f, 'summary')
+    await f.call(first, 'island.update', { id: 'reference', status })
+    await f.call(second, 'island.update', { id: 'reference', status: { ...status, title: 'New publisher' } })
+    expect(await f.call(first, 'island.update', { id: 'reference', status: null })).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+    expect(() => f.service.islandAction(f.manifest.id, 'reference', first.instanceId, 'open-desk')).toThrow()
+    f.service.close(first.instanceId)
+    expect(f.service.snapshot().island![0].instanceId).toBe(second.instanceId)
+    expect(await f.call(second, 'island.update', { id: 'reference', status: null })).toMatchObject({ ok: true })
+    expect(f.service.snapshot().island).toEqual([])
+  })
+  it('rate limits each plugin across publishers and rejects undeclared/oversized status', async () => {
+    const f = await fixture(); await f.prepare(); const mount = await publisher(f)
+    for (const params of [{ id: 'other', status }, { id: 'reference', status: { ...status, progress: 101 } },
+      { id: 'reference', status: { ...status, html: '<img>' } }, { id: 'reference', status: { ...status, title: 'x'.repeat(81) } },
+      { id: 'reference', status: { ...status, badge: '\u202etxt' } }]) {
+      expect(await f.call(mount, 'island.update', params)).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+    }
+    for (let i = 0; i < 10; i++) expect(await f.call(mount, 'island.update', { id: 'reference', status })).toMatchObject({ ok: true })
+    expect(await f.call(mount, 'island.update', { id: 'reference', status })).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } })
+  })
+  it('separates application publishers and clears them when development mode closes', async () => {
+    const f = await fixture()
+    f.manifest.contributes.views.find((view: any) => view.id === 'summary').scope = 'application'
+    f.manifest.contributes.island[0].actions = ['open-desk', 'open-island']
+    f.manifest.contributes.island.push({ id: 'global', title: 'Global', scope: 'application' })
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest)); await f.prepare()
+    const mount = await f.service.mount(f.manifest.id, 'summary', null, null); f.service.bind(mount.instanceId, mount.binding)
+    expect(await f.call(mount, 'island.update', { id: 'reference', status })).toMatchObject({ ok: false, error: { code: 'CONTEXT_UNAVAILABLE' } })
+    expect(await f.call(mount, 'island.update', { id: 'global', status })).toMatchObject({ ok: true })
+    await f.service.setContext('b', f.rootB, 'en', { id: 'dark', tokens: {} })
+    expect(f.service.snapshot().island).toMatchObject([{ projectId: null, id: 'global' }])
+    await f.service.setDevelopment(false)
+    expect(f.service.snapshot().island).toEqual([])
+  })
+  it('bounds the global queue at 32 entries and releases capacity when publishers close', async () => {
+    const f = await fixture(); await f.service.initialize(); await f.service.setDevelopment(true)
+    await f.service.setContext('a', f.root, 'en', { id: 'dark', tokens: {} })
+    const mounts: Awaited<ReturnType<PluginService['mount']>>[] = []
+    for (let i = 0; i < 9; i++) {
+      const manifest = structuredClone(f.manifest); manifest.id = `example.queue-${i}`
+      manifest.contributes.island = Array.from({ length: 4 }, (_, n) => ({ id: `item-${n}`, title: `Item ${n}`, scope: 'project' }))
+      await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+      await f.service.import(f.source, 'copied'); await f.service.enable(manifest.id, ['a'])
+      const mount = await f.service.mount(manifest.id, 'details', 'a', f.root); f.service.bind(mount.instanceId, mount.binding); mounts.push(mount)
+      if (i < 8) for (let n = 0; n < 4; n++) expect(await f.call(mount, 'island.update', { id: `item-${n}`, status })).toMatchObject({ ok: true })
+    }
+    expect(f.service.snapshot().island).toHaveLength(32)
+    expect(await f.call(mounts[8], 'island.update', { id: 'item-0', status })).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } })
+    expect(await f.call(mounts[0], 'island.update', { id: 'item-0', status: { ...status, progress: 99 } })).toMatchObject({ ok: true })
+    f.service.close(mounts[0].instanceId)
+    expect(await f.call(mounts[8], 'island.update', { id: 'item-0', status })).toMatchObject({ ok: true })
+    expect(f.service.snapshot().island).toHaveLength(29)
+  })
+})
+
 describe('P2 source and filesystem boundaries', () => {
   it('rejects a real parent-directory replacement between path validation and open', async () => {
     const f = await fixture()
@@ -250,6 +352,7 @@ describe('P2 authorization, lifecycle and persistent data', () => {
   it('keeps application, project roots and plugin identities in separate storage namespaces', async () => {
     const f = await fixture()
     f.manifest.contributes.views.find((view: any) => view.id === 'summary').scope = 'application'
+    f.manifest.contributes.island[0].actions = ['open-desk', 'open-island']
     await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest)); await f.prepare()
     const app = await f.service.mount(f.manifest.id, 'summary', null, null); f.service.bind(app.instanceId, app.binding)
     expect(await f.call(app, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: false, error: { code: 'CONTEXT_UNAVAILABLE' } })

@@ -1,4 +1,7 @@
 {
+  "returnToWorkspace": "Return to previous view", "open": "Open plugin",
+  "islandStatusCount": "Plugin status: {{count}}",
+  "switchProject": "Switch project",
   "hostBoundary": "This list manages third-party local plugins. Built-in tools and shared sessions remain host-managed; local plugins have no external service connection.",
   "runtime": "Pages: {{pages}} · Bridge connected: {{connected}} · Ready: {{ready}}",
   "nav": "Plugins", "title": "Local plugins", "subtitle": "Manage local plugin sources, permissions and entries", "devtools": "Inspect plugin", "retry": "Retry plugin view",

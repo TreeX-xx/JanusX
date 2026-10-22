@@ -10,6 +10,7 @@ import { PersonalMemoryWorkbench } from '@/components/knowledge'
 import { UpdaterBadge } from '@/components/UpdaterBadge'
 import { PromptDialog } from '@/components/blueprint/PromptDialog'
 import { WorkbenchSwitcher } from '@/components/WorkbenchSwitcher'
+import { PluginWorkbenchHost } from '@/extensions/PluginWorkbenchHost'
 import { TitlebarToolGroup, TitlebarToolSeparator } from '@/components/TitlebarToolGroup'
 import { useJanusChatController } from '@/components/janus/JanusChatProvider'
 import { useGlobalRunning } from '@/components/janus/useGlobalRunning'
@@ -271,6 +272,7 @@ export function Titlebar() {
         isOpen={knowledgeEnabled && activeWorkbench === 'knowledge'}
         onClose={() => setActiveWorkbench(null)}
       />
+      <PluginWorkbenchHost />
 
       {/* 灵动岛 + 运行球簇 */}
       <div

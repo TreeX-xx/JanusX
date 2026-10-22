@@ -1,4 +1,5 @@
 import type { PluginErrorCode } from './errors.js'
+import type { PluginIslandStatus } from './island.js'
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export interface PluginCallOptions { signal?: AbortSignal }
@@ -9,7 +10,7 @@ export interface PluginContext {
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
 export type PluginUnsubscribe = () => void
-/** P1 public types. An authorized P2 transport must supply the implementation. */
+/** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
   app: { getInfo(options?: PluginCallOptions): Promise<{ pluginApiVersion: string; capabilities: string[]; locale: string; theme: { id: string; tokens: Record<string, string> } }> }
   workspace: {
@@ -17,6 +18,7 @@ export interface PluginApi {
     readText(params: { path: string }, options?: PluginCallOptions): Promise<{ text: string; bytes: number }>
   }
   views: { open(params: { view: string }, options?: PluginCallOptions): Promise<{ instanceId: string }> }
+  island: { update(params: { id: string; status: PluginIslandStatus | null }, options?: PluginCallOptions): Promise<{ updated: boolean }> }
   ui: { showToast(params: { message: string; level?: 'info' | 'warning' | 'error' }, options?: PluginCallOptions): Promise<{ shown: boolean }> }
   storage: {
     get(params: { key: string }, options?: PluginCallOptions): Promise<PluginStoredValue>

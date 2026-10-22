@@ -4,7 +4,7 @@ import type { ProductFileEntry } from '../../../../shared/product'
 import type { ChatModelOption, JanusResourceController, Message, UseJanusChatReturn } from './useJanusChat'
 
 export type JanusIslandStage = 'collapsed' | 'peek' | 'expanded'
-export type JanusExpandedView = 'monitor' | 'chat' | 'roundtable'
+export type JanusExpandedView = 'monitor' | 'chat' | 'roundtable' | `extension:${string}/${string}`
 
 export interface JanusIslandProps {
   stage?: JanusIslandStage

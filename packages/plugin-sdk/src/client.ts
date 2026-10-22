@@ -77,6 +77,7 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     app: { getInfo: options => call('app.getInfo', {}, options) },
     workspace: { getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
     views: { open: (params, options) => call('views.open', params, options) },
+    island: { update: (params, options) => call('island.update', params, options) },
     ui: { showToast: (params, options) => call('ui.showToast', params, options) },
     storage: {
       get: (params, options) => call('storage.get', params, options), set: (params, options) => call('storage.set', params, options), delete: (params, options) => call('storage.delete', params, options),

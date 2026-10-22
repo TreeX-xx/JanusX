@@ -15,6 +15,7 @@ import i18n from '@/i18n'
 import { useI18n } from '@/i18n/useI18n'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import { useAppStore } from '@/stores/app'
+import { useIslandStore } from '@/stores/island'
 
 let snapshot: PluginHostSnapshot = { developmentMode: false, plugins: [], logs: [] }
 const listeners = new Set<() => void>()
@@ -28,7 +29,7 @@ export async function pluginRequest<T = unknown>(input: PluginManageRequest): Pr
   return result.data as T
 }
 export function usePluginSnapshot(): PluginHostSnapshot {
-  return useSyncExternalStore(listener => { listeners.add(listener); return () => listeners.delete(listener) }, () => snapshot)
+  return useSyncExternalStore(listener => { listeners.add(listener); return () => listeners.delete(listener) }, () => snapshot, () => snapshot)
 }
 export async function refreshPlugins(): Promise<void> {
   const sequence = ++refreshSequence
@@ -66,7 +67,9 @@ export function syncPluginContext(): Promise<void> {
 function openViews(): string[] {
   const trees = [useWorkspaceStore.getState().paneTree, useGlobalToolsStore.getState().paneTree]
   return [...new Set([...trees.flatMap(tree => getLeafPanes(tree).flatMap(leaf => leaf.tabs.flatMap(tab => tab.type === 'extension' ? [tab.viewId] : []))),
-    ...useRightToolStore.getState().openToolIds.filter(id => id.startsWith('extension:'))])]
+    ...useRightToolStore.getState().openToolIds.filter(id => id.startsWith('extension:')),
+    ...[useAppStore.getState().activeWorkbench].filter((id): id is `extension:${string}/${string}` => Boolean(id?.startsWith('extension:'))),
+    ...(useIslandStore.getState().stage === 'expanded' && useIslandStore.getState().activePluginViewId ? [useIslandStore.getState().activePluginViewId!] : [])])]
 }
 export function initializePluginRuntime(): void {
   if (started || !window.electron.plugins) return
@@ -102,17 +105,21 @@ export function initializePluginRuntime(): void {
   void refreshPlugins().catch(console.error)
 }
 
-function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active }: ExtensionViewProps & { pluginId: string; localViewId: string }) {
+function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location }: ExtensionViewProps & { pluginId: string; localViewId: string }) {
   const { t } = useI18n('plugins')
   const body = useRef<HTMLDivElement>(null)
   const covered = useBrowserOcclusionStore(state => state.count > 0)
   const dragging = useWorkspaceStore(state => state.tabDragInFlight)
-  const workbench = useAppStore(state => state.activeWorkbench !== null)
+  const workbench = useAppStore(state => state.activeWorkbench)
+  const islandStage = useIslandStore(state => state.stage)
   const activeScope = useWorktreeStore(state => workspaceId ? state.activePaths[workspaceId] ?? workspacePath : null)
   const selectedProject = useWorkspaceStore(state => workspaceId ? state.activeWorkspaceId : null)
   const [mount, setMount] = useState<PluginMount | null>(null)
   const [failure, setFailure] = useState('')
   const [retry, setRetry] = useState(0)
+  const visible = active && !covered && !dragging && !failure
+    && (location === 'workbench' ? workbench === `extension:${pluginId}/${localViewId}` && islandStage === 'collapsed'
+      : location === 'island' ? (!workbench || workbench.startsWith('extension:')) && islandStage === 'expanded' : !workbench && islandStage === 'collapsed')
   useEffect(() => {
     let cancelled = false
     let current: PluginMount | undefined
@@ -132,8 +139,8 @@ function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, ac
   }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry])
   useEffect(() => {
     if (!mount) return
-    void pluginRequest({ type: 'active', instanceId: mount.instanceId, binding: mount.binding, active }).catch(() => {})
-  }, [active, mount])
+    void pluginRequest({ type: 'active', instanceId: mount.instanceId, binding: mount.binding, active: Boolean(visible) }).catch(() => {})
+  }, [visible, mount])
   useEffect(() => {
     if (!mount || !window.electron.plugins) return
     return window.electron.plugins.onEvent(event => {
@@ -145,7 +152,6 @@ function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, ac
       }
     })
   }, [mount])
-  const visible = active && !covered && !dragging && !workbench && !failure
   useLayoutEffect(() => {
     if (!mount || !body.current) return
     const element = body.current

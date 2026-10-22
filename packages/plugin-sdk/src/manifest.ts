@@ -6,12 +6,13 @@ import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { isReservedPluginKeybinding, normalizePluginKeybinding } from './keybindings.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
-/** Contract features, not a claim that the desktop P2 loader is available. */
+/** Implemented host features; old hosts reject unknown required capabilities. */
 export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
+  'views.workbench', 'views.island', 'island.status',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -23,10 +24,14 @@ const path = z.string().superRefine((value, ctx) => {
 })
 export const pluginViewSchema = z.object({
   id, title, entry: path.refine((value) => value.endsWith('.html')),
-  location: z.enum(['workspace', 'right']), scope: z.enum(['application', 'project']),
+  location: z.enum(['workspace', 'right', 'workbench', 'island']), scope: z.enum(['application', 'project']),
   instancePolicy: z.literal('single'), icon: z.enum(['puzzle', 'book', 'list', 'chart', 'file', 'code', 'clock']).optional(), order,
 }).strict()
 export const pluginCommandSchema = z.object({ id, title, action: z.object({ type: z.literal('openView'), view: id }).strict() }).strict()
+export const pluginIslandSchema = z.object({
+  id, title, scope: z.enum(['application', 'project']), order,
+  actions: z.array(id).max(3).refine(items => new Set(items).size === items.length).optional(),
+}).strict()
 export const pluginMenuSchema = z.object({ location: z.enum(['toolbox', 'workspace-add']), command: id, when: condition, order }).strict()
 export const pluginKeybindingSchema = z.object({
   command: id, key: z.string().refine((value) => normalizePluginKeybinding(value) !== null && !isReservedPluginKeybinding(value)),
@@ -36,16 +41,17 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(5).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(6).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).min(1).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
-    menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional() }).strict(),
+    menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional(),
+    island: z.array(pluginIslandSchema).max(4).optional() }).strict(),
 }).strict().superRefine((manifest, ctx) => {
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
@@ -54,6 +60,14 @@ export const pluginManifestSchema = z.object({
   if ([...menus, ...keybindings].some((entry) => !commands.some((command) => command.id === entry.command))) fail('Entry references an unknown command')
   if (new Set(menus.map((menu) => `${menu.location}:${menu.command}`)).size !== menus.length) fail('Duplicate menu entry')
   if (manifest.capabilities.required.some((item) => manifest.capabilities.optional.includes(item))) fail('Required and optional capabilities overlap')
+  const island = manifest.contributes.island ?? []
+  if (new Set(island.map(item => item.id)).size !== island.length) fail('Duplicate Island ID')
+  if (island.length && !manifest.permissions.some(item => item.name === 'ui.island')) fail('Island requires ui.island permission')
+  for (const item of island) for (const action of item.actions ?? []) {
+    const command = commands.find(command => command.id === action)
+    const view = views.find(view => view.id === command?.action.view)
+    if (!view || view.scope !== item.scope || !manifest.permissions.some(item => item.name === 'ui.views.open')) fail('Island action requires a declared command of the same scope and ui.views.open')
+  }
 })
 
 export type PluginManifest = z.infer<typeof pluginManifestSchema>

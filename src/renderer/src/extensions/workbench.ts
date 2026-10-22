@@ -4,13 +4,21 @@ import { isRightToolEnabled } from '@/right-tools/registry'
 import { useExperimentalStore } from '@/stores/experimental'
 import { extensionRegistry } from './registry'
 import type { ExtensionViewId } from './types'
+import { useAppStore } from '@/stores/app'
+import { useIslandStore } from '@/stores/island'
 
 /** Opens an enabled contribution; project views require a selected project. */
 export function openExtensionView(viewId: ExtensionViewId): boolean {
   const view = extensionRegistry.getView(viewId)
   if (!view || (view.scope === 'project' && !useWorkspaceStore.getState().activeWorkspaceId)) return false
   if (view.location === 'right' && !isRightToolEnabled(viewId, useExperimentalStore.getState())) return false
+  if (view.location !== 'island') useIslandStore.getState().dispatch({ type: 'dismiss' })
+  if ((view.location === 'workspace' || view.location === 'right') && useAppStore.getState().activeWorkbench?.startsWith('extension:')) {
+    useAppStore.getState().closePluginWorkbench()
+  }
   if (view.location === 'workspace') useWorkspaceStore.getState().openExtensionView(viewId)
-  else useRightToolStore.getState().openTool(viewId)
+  else if (view.location === 'right') useRightToolStore.getState().openTool(viewId)
+  else if (view.location === 'workbench') useAppStore.getState().openPluginWorkbench(viewId)
+  else useIslandStore.getState().openPluginView(viewId)
   return true
 }

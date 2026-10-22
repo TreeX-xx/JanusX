@@ -1,5 +1,9 @@
 import { useEffect } from 'react'
-import { useAppStore, type ActiveWorkbench } from '@/stores/app'
+import { useAppStore } from '@/stores/app'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useExtensionViews } from '@/extensions/react'
+import { openExtensionView } from '@/extensions/workbench'
+import { Puzzle } from 'lucide-react'
 import { useBlueprintStore } from '@/stores/blueprint'
 import { useExperimentalStore } from '@/stores/experimental'
 import { WorkbenchIcon } from '@/components/ui/WorkbenchIcon'
@@ -7,7 +11,7 @@ import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './WorkbenchSwitcher.module.css'
 
-type WorkbenchId = Exclude<ActiveWorkbench, null>
+type WorkbenchId = 'blueprint' | 'knowledge'
 
 const WORKBENCHES: Array<{ id: WorkbenchId; labelKey: string }> = [
   { id: 'blueprint', labelKey: 'common:workbench.blueprint' },
@@ -23,6 +27,8 @@ export function WorkbenchSwitcher() {
   const knowledgeEnabled = useExperimentalStore((s) => s.persona)
   const blueprintEnabled = useExperimentalStore((s) => s.blueprint)
   const loadExperimental = useExperimentalStore((s) => s.load)
+  const projectOpen = useWorkspaceStore(s => Boolean(s.activeWorkspaceId))
+  const pluginWorkbenches = useExtensionViews().filter(view => view.location === 'workbench' && (view.scope === 'application' || projectOpen))
 
   useEffect(() => {
     void loadExperimental()
@@ -90,6 +96,17 @@ export function WorkbenchSwitcher() {
           </button>
           </ThemedTooltip>
         )
+      })}
+      {pluginWorkbenches.map(view => {
+        const Icon = view.icon ?? Puzzle
+        return <ThemedTooltip key={view.id} label={`${view.extensionId} · ${view.title}`}>
+          <button type="button" className={styles.button} data-id={view.id}
+            data-status={activeWorkbench === view.id ? 'active' : 'idle'} aria-pressed={activeWorkbench === view.id}
+            aria-label={`${view.extensionId} · ${view.title}`}
+            onClick={() => activeWorkbench === view.id ? useAppStore.getState().closePluginWorkbench() : openExtensionView(view.id)}>
+            <Icon className={styles.icon} /><span className={styles.led} aria-hidden="true" />
+          </button>
+        </ThemedTooltip>
       })}
     </div>
   )

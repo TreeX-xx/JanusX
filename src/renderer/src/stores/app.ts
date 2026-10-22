@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import type { AppLoadState } from '@/types'
+import { useExperimentalStore } from './experimental'
 
-export type ActiveWorkbench = 'blueprint' | 'knowledge' | null
+export type ActiveWorkbench = 'blueprint' | 'knowledge' | `extension:${string}/${string}` | null
 
 /** 副黑板默认/最小高度（px）：下拉落板落点与下缘拖高的下限。 */
 export const BLACKBOARD_DEFAULT_HEIGHT = 420
@@ -26,6 +27,7 @@ interface AppStore {
   sidebarCollapsed: boolean
   panelCollapsed: boolean
   activeWorkbench: ActiveWorkbench
+  returnWorkbench: 'blueprint' | 'knowledge' | null
   /** 岛下拉副黑板：settled 高度（0=收起）。中央工作区按此高度下滑让位。 */
   blackboardHeight: number
   /** 拖拽过程中的实时预览高度（null=非拖拽中，用 settled 值）。 */
@@ -40,6 +42,8 @@ interface AppStore {
   setPanelCollapsed: (collapsed: boolean) => void
   setActiveWorkbench: (workbench: ActiveWorkbench) => void
   toggleWorkbench: (workbench: Exclude<ActiveWorkbench, null>) => void
+  openPluginWorkbench: (workbench: `extension:${string}/${string}`) => void
+  closePluginWorkbench: () => void
   setBlackboardHeight: (height: number) => void
   setBlackboardDrag: (height: number | null) => void
   toggleBlackboard: () => void
@@ -54,6 +58,7 @@ export const useAppStore = create<AppStore>((set) => ({
   // opened from the rail expands it through the right-tool transition.
   panelCollapsed: true,
   activeWorkbench: null,
+  returnWorkbench: null,
   blackboardHeight: 0,
   blackboardDrag: null,
   janusRunning: false,
@@ -62,8 +67,16 @@ export const useAppStore = create<AppStore>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   togglePanel: () => set((s) => ({ panelCollapsed: !s.panelCollapsed })),
   setPanelCollapsed: (panelCollapsed) => set({ panelCollapsed }),
-  setActiveWorkbench: (activeWorkbench) => set({ activeWorkbench }),
-  toggleWorkbench: (workbench) => set((s) => ({ activeWorkbench: s.activeWorkbench === workbench ? null : workbench })),
+  setActiveWorkbench: (activeWorkbench) => set({ activeWorkbench, returnWorkbench: null }),
+  toggleWorkbench: (workbench) => set((s) => ({ activeWorkbench: s.activeWorkbench === workbench ? null : workbench, returnWorkbench: null })),
+  openPluginWorkbench: (activeWorkbench) => set(s => ({ activeWorkbench,
+    returnWorkbench: s.activeWorkbench?.startsWith('extension:') ? s.returnWorkbench : s.activeWorkbench === 'blueprint' || s.activeWorkbench === 'knowledge' ? s.activeWorkbench : null })),
+  closePluginWorkbench: () => set(s => {
+    if (!s.activeWorkbench?.startsWith('extension:')) return s
+    const flags = useExperimentalStore.getState()
+    const fallback = s.returnWorkbench
+    return { activeWorkbench: (fallback === 'blueprint' && flags.blueprint) || (fallback === 'knowledge' && flags.persona) ? fallback : null, returnWorkbench: null }
+  }),
   setBlackboardHeight: (blackboardHeight) => set({ blackboardHeight: Math.max(0, blackboardHeight) }),
   setBlackboardDrag: (blackboardDrag) => set({ blackboardDrag }),
   toggleBlackboard: () => set((s) => ({
