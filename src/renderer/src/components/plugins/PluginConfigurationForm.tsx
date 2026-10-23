@@ -8,12 +8,12 @@ import { useWorktreeStore } from '@/stores/worktree'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './PluginSettingsPanel.module.css'
 
-export function PluginConfigurationForm({ record }: { record: InstalledPlugin }) {
+export function PluginConfigurationForm({ record, initialScope = 'application' }: { record: InstalledPlugin; initialScope?: 'application' | 'project' }) {
   const { t } = useI18n('plugins')
   const projectId = useWorkspaceStore(state => state.activeWorkspaceId)
   const project = useWorkspaceStore(state => state.workspaces.find(item => item.id === projectId))
   const root = useWorktreeStore(state => projectId ? state.activePaths[projectId] ?? project?.path : undefined)
-  const [scope, setScope] = useState('application')
+  const [scope, setScope] = useState(initialScope)
   const projectAllowed = Boolean(projectId && record.projects.includes(projectId))
   const projectScope = scope === 'project' && projectAllowed
   const [configuration, setConfiguration] = useState<PluginConfiguration | null>(null)
@@ -56,7 +56,7 @@ export function PluginConfigurationForm({ record }: { record: InstalledPlugin })
   return <div data-plugin-configuration>
     <p className={styles.hint}>{t('plugins:configurationHint')}</p>
     <label className={styles.row}>{t('plugins:configurationScope')}
-      <select aria-label={t('plugins:configurationScope')} value={projectScope ? 'project' : 'application'} disabled={busy} onChange={event => setScope(event.target.value)}>
+      <select aria-label={t('plugins:configurationScope')} value={projectScope ? 'project' : 'application'} disabled={busy} onChange={event => setScope(event.target.value as 'application' | 'project')}>
         <option value="application">{t('plugins:configurationApplication')}</option>
         {projectAllowed && <option value="project">{t('plugins:configurationProject')} · {project?.name} · {root}</option>}
       </select>

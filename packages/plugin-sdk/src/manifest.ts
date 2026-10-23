@@ -14,7 +14,7 @@ export const PLUGIN_CAPABILITIES = [
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.island', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
-  'configuration.settings',
+  'configuration.settings', 'configuration.open',
 ] as const
 export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
@@ -61,6 +61,7 @@ export const pluginManifestSchema = z.object({
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
   const settings = manifest.contributes.settings ?? []
+  if (manifest.capabilities.required.includes('configuration.open') && !settings.length) fail('Configuration navigation requires settings')
   if (new Set(settings.map(setting => setting.key)).size !== settings.length) fail('Duplicate setting key')
   if (settings.length && (!manifest.capabilities.required.includes('configuration.settings')
     || !manifest.permissions.some(permission => permission.name === 'configuration.read'))) fail('Settings require configuration.settings and configuration.read')

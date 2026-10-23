@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-23T05:05:29Z",
+  "updated": "2026-10-23T05:35:23Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -160,11 +160,13 @@ S1、S2 优先形成可独立验收的内置扩展基础，不等待市场完成
 
 ### P4a 插件设置基础版（新增）
 
-用户要求插件可扩展设置界面以配置参数。P4a 已交付声明式表单、应用默认／项目与 worktree 覆盖、校验／恢复默认、读取／订阅、旧值诊断和并发版本检查，独立于插件私有 KV。清单、SDK、管理页和外部模板一起验证，追踪架构 AC-19 的基础部分；P5／P6 接入前需有可用配置入口。复杂隔离自定义设置页、配置导航和迁移 API 后续扩展；敏感字段与凭证引用随 P5 实施，不通过普通配置返回明文密钥。AC-19 在后续范围闭合前保持未勾选。
+用户要求插件可扩展设置界面以配置参数。P4a 已交付声明式表单、应用默认／项目与 worktree 覆盖、校验／恢复默认、读取／订阅、旧值诊断和并发版本检查，独立于插件私有 KV；后续片接通插件页面／菜单与可信外壳的自身配置导航，自动展开定位并选择对应配置层。清单、SDK、管理页和外部模板一起验证，追踪架构 AC-19 的基础部分；P5／P6 接入前需有可用配置入口。复杂隔离自定义设置页和迁移 API 后续扩展；敏感字段与凭证引用随 P5 实施，不通过普通配置返回明文密钥。AC-19 在后续范围闭合前保持未勾选。
 
 本片由主 Agent 实施并自检，未进行独立 Agent 审查。`npm run plugins:check` 通过 124 项（含仓库外打包 SDK 的安装、类型检查和构建）；`npm run build:app`、`npm run typecheck:strict-unused`、i18n、包边界及 exclusions 检查通过，lint 为 0 错误、67 条既有警告。证据为 `artifacts/plugin-settings-plugins-reviewed.log`、`plugin-settings-build-reviewed.log`、`plugin-settings-types-reviewed.log`、`plugin-settings-lint-reviewed.log` 与对应检查日志。
 
 Windows Electron 定向回归 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/unified-file-window.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-settings/desktop-reviewed` 通过 13 项，覆盖配置表单、继承、双页面订阅、并发冲突、重启及恢复默认，同时回归已有插件生命周期与文件窗口；日志为 `artifacts/plugin-settings-desktop-reviewed.log`，配置截图位于该输出目录的 P4a 用例子目录 `plugin-configuration.png`。全量 `npm run test:unit -- --run` 为 3824 通过、23 跳过、1 失败，唯一失败是既有 `entrance-choreography.md` 缺少 AC 且 updated 早于 created 所触发的 Note 门禁；`npm run check:notes` 检查 306 篇并报相同两项错误，本片维护文档未新增错误，见 `artifacts/plugin-settings-all-unit-final.log` 与 `plugin-settings-notes-reviewed.log`。未执行整条 `npm run verify`、完整桌面测试、安装包验收及 macOS／Linux 验证。
+
+配置导航增量由主 Agent 实施并自检，未使用独立 Agent 审查。`npm run plugins:check` 125 项通过，含外部打包 SDK 安装／类型检查／构建及新增身份约束、活动状态、共享限流和应用／项目层导航用例；应用构建、严格未使用类型检查、lint（0 错误、67 条既有警告）、i18n、包边界与 exclusions 通过，日志为 `artifacts/plugin-navigation-{plugins-final,build-final,types-final,lint,i18n,boundary,exclusions}.log`。Windows Electron 命令 `npx playwright test tests/e2e/desktop-plugins.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-navigation/desktop` 首轮 11 通过、1 项既有项目切回后的页面恢复等待超时；以 `--grep 'external packed SDK plugin completes' --output=artifacts/plugin-navigation/desktop-retry` 单独重跑通过，共 12 个不同用例通过，不记为一次全绿，见 `artifacts/plugin-navigation-desktop.log` 与 `plugin-navigation-desktop-retry.log`。新导航用例实际点击 SDK 及外壳入口，验证项目层、自动展开、原生页移除／恢复及后续保存／冲突／重启继承；截图为桌面输出的 P4a 子目录 `plugin-configuration.png`。Notes 检查仍为 306 篇与既有开场编排两项错误，见 `artifacts/plugin-navigation-notes.log`；本片未重跑全量单测或 verify，未验证安装包、macOS／Linux。
 
 ### 里程碑与执行顺序
 

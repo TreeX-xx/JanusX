@@ -12,12 +12,16 @@ export interface PluginContext {
   document?: PluginDocument
   /** This plugin declares user settings; SDK consumers may read/watch them. */
   configuration?: true
+  /** This plugin opted into opening its host-owned settings. */
+  configurationNavigation?: true
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
   configuration: {
+    /** Opens this plugin's host settings; requires configuration.open capability. */
+    open(options?: PluginCallOptions): Promise<{ opened: true }>
     get(options?: PluginCallOptions): Promise<PluginConfiguration>
     watch(listener: (configuration: PluginConfiguration) => void, options?: PluginCallOptions): Promise<{ configuration: PluginConfiguration; unsubscribe: PluginUnsubscribe }>
   }

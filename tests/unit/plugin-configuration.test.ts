@@ -50,6 +50,40 @@ async function fixture() {
 }
 
 describe('declarative plugin configuration', () => {
+  it('opens only own declared configuration from an active instance, with a shared plugin cooldown', async () => {
+    const f = await fixture()
+    const original = await manifest()
+    expect(() => validatePluginCall(original, 'configuration.open', {})).toThrow()
+    const navigation = structuredClone(original)
+    navigation.capabilities.required.push('configuration.open')
+    navigation.contributes.views.push({ ...navigation.contributes.views[0], id: 'application', scope: 'application' })
+    expect(() => parsePluginManifest(JSON.stringify(navigation), { apiVersion: '1.0.0', capabilities: ['configuration.settings'] })).toThrow()
+    const noSettings = structuredClone(navigation); delete noSettings.contributes.settings
+    expect(() => parsePluginManifest(JSON.stringify(noSettings))).toThrow()
+    for (const params of [{ pluginId: 'other.plugin' }, { scope: 'project' }, { projectId: 'b' }, { path: '/secret' }]) {
+      expect(() => validatePluginCall(navigation, 'configuration.open', params)).toThrow()
+    }
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(navigation))
+    await f.service.reload(f.value.id)
+    const page = await f.mount()
+    expect(page.context.configurationNavigation).toBe(true)
+    f.service.active(page.instanceId, page.binding, false)
+    expect((await f.call(page, 'configuration.open')).error.code).toBe('CONTEXT_UNAVAILABLE')
+    expect(f.deps.event).not.toHaveBeenCalled()
+    f.service.active(page.instanceId, page.binding, true)
+    expect((await f.call(page, 'configuration.open')).result).toEqual({ opened: true })
+    expect(f.deps.event).toHaveBeenCalledWith(page.instanceId, { type: 'openConfiguration', pluginId: f.value.id, scope: 'project' })
+    const second = await f.mount('summary')
+    expect((await f.call(second, 'configuration.open')).error.code).toBe('RATE_LIMITED')
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_001)
+    try {
+      const application = await f.mount('application')
+      expect((await f.call(application, 'configuration.open')).result).toEqual({ opened: true })
+      expect(f.deps.event).toHaveBeenLastCalledWith(application.instanceId, { type: 'openConfiguration', pluginId: f.value.id, scope: 'application' })
+    } finally { clock.mockRestore() }
+    await f.service.disable(f.value.id)
+    await expect(f.call(page, 'configuration.open')).rejects.toMatchObject({ code: 'INSTANCE_CLOSED' })
+  })
   it('validates field types, defaults, bounds, keys, required capabilities and read permission', async () => {
     const original = await manifest()
     for (const change of [

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T05:05:29Z",
+  "updated": "2026-10-23T05:35:23Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -151,7 +151,9 @@ scope=application 的字段仅能设置应用值；scope=project 允许在应用
 
 写入仅通过可信主窗口管理请求，普通页面没有 configuration.set。写入按字段白名单和作用域校验，修改与重置携带 expectedRevision；revision 哈希包含插件／根身份、字段声明、应用与本层修订，父层变化、模式升级和竞争写入使旧表单报 CONFIGURATION_CONFLICT。表单保留待提交值并提供重新读取入口，不用错误覆盖新配置。写前复查安装记录、包 digest、激活代次及项目上下文，迟到请求不能写入撤销后的范围。成功提交与后续通知仍是异步边界，若写入已完成而页面关闭，不承诺撤回已提交配置。
 
-配置不会扩大文件、网络或执行授权，不存密钥。自定义隔离设置页、插件菜单导航、显式迁移 API 与凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。这里只完成 AC-19 的基础部分，整条 AC-19 与 P4 仍不关闭。复用现有存储而不开放任意 setter，代价是复杂业务需先用宿主表单；当有真实复杂设置消费者时再扩展自定义页契约。
+配置导航已接通宿主外壳按钮和 `api.configuration.open(options?)`。SDK 导航需必需能力 `configuration.open`、已声明设置及 configuration.read，旧宿主在清单兼容检查时拒绝新必需能力。host context.configurationNavigation=true 时模板提供配置按钮，作者也可在页面自身菜单调用。请求参数为空，pluginId 与应用／项目作用域由实例绑定推导；项目页打开当前项目／worktree 配置，应用页打开应用默认。仅 active 页面可请求，每插件跨页面 10 秒最多一次；隐藏页返回 CONTEXT_UNAVAILABLE，频繁请求返回 RATE_LIMITED，撤销仍按实例身份拒绝。返回 opened=true 仅表示已派发宿主导航，不表示用户保存。可信外壳按钮无需插件新增权限。设置窗口切到插件页，展开并滚动定位自身表单，沿用原生页遮挡与关闭恢复；普通页面不能指定他插件、路径或任意设置页，不增加通用命令回调类型。
+
+配置不会扩大文件、网络或执行授权，不存密钥。自定义隔离设置页、显式迁移 API 与凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。这里只完成 AC-19 的基础部分，整条 AC-19 与 P4 仍不关闭。复用现有存储而不开放任意 setter，代价是复杂业务需先用宿主表单；当有真实复杂设置消费者时再扩展自定义页契约。
 
 ## 身份与上下文
 
@@ -179,6 +181,7 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 | `workspace.getContext()` | `{}` → `{project:null|{projectId,rootId,name}, revision, active}` | `workspace.context.read`；权限拒绝不泄露项目名 |
 | `workspace.readText()` | `{path}` → `{text, bytes}` | `workspace.files.read` 且 path 在声明与授权的精确路径交集；project 作用域，UTF-8 文本最多 1 MiB，二进制／无效编码拒绝，不悄然截断 |
 | `configuration.get()` | `{}` → `{values,overrides,inherited,revision,issues}` | `configuration.read`；只读自身绑定作用域的有效非敏感参数 |
+| `configuration.open()` | `{}` → `{opened:true}` | `configuration.read` 与必需能力 `configuration.open`；活动页面只请求导航至自身宿主表单 |
 | `configuration.watch()` | 初始 configuration 和 unsubscribe，后续完整有效值快照 | `configuration.read`；与应用继承及本层写入串行订阅，不跨插件／项目根 |
 | `documents.readText()` | `{}` → `{path,text,bytes,version}` | `documents.read`；仅宿主已绑定的 viewer 文件，不接收路径；范围、编码和预算见 P4 契约 |
 | `documents.applyEdit()` | `{text,expectedVersion}` → `{applied:true}` | `documents.edit`；仅已绑定文档，交接未保存草稿，不直接写入；宿主脏缓冲或磁盘基线不符拒绝 |

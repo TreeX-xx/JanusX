@@ -22,6 +22,7 @@ const methods = {
   'app.getInfo': { permission: null, params: empty },
   'configuration.get': { permission: 'configuration.read', params: empty },
   'configuration.watch': { permission: 'configuration.read', params: empty },
+  'configuration.open': { permission: 'configuration.read', params: empty },
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'documents.readText': { permission: 'documents.read', params: empty },
@@ -47,6 +48,10 @@ export function validatePluginCall(manifest: PluginManifest, method: string, par
     throw new PluginError('PERMISSION_DENIED', 'The method is outside the declared permissions.')
   }
   if (!definition.params.safeParse(params).success) throw new PluginError('INVALID_REQUEST', 'Invalid method parameters.')
+  if (method === 'configuration.open' && (!manifest.contributes.settings?.length
+    || !manifest.capabilities.required.includes('configuration.open'))) {
+    throw new PluginError('INVALID_REQUEST', 'Configuration navigation requires settings and the required configuration.open capability.')
+  }
   if (method === 'workspace.readText') {
     const path = validatePluginPath((params as { path: string }).path)
     if (isSensitivePluginPath(path)) throw new PluginError('SENSITIVE_PATH_DENIED', 'Sensitive files are unavailable.')

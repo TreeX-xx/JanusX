@@ -87,7 +87,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
     const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
-    manifest.permissions.push({ name: 'configuration.read' }); manifest.capabilities.required.push('configuration.settings')
+    manifest.permissions.push({ name: 'configuration.read' }); manifest.capabilities.required.push('configuration.settings', 'configuration.open')
     manifest.contributes.settings = [
       { key: 'label', title: 'Reference label', type: 'string', default: 'Reference', scope: 'project', minLength: 1, maxLength: 40 },
       { key: 'enabled', title: 'Show details', type: 'boolean', default: true, scope: 'project' },
@@ -108,10 +108,16 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await details.getByRole('button', { name: 'Summary', exact: true }).click()
     let summary = await guest(app, '/dist/summary.html')
     await expect(summary.locator('#configuration')).toContainText('Reference')
-    await settings(page)
+    // The guest can navigate only to its own host form; native pages are occluded by the modal.
+    await summary.getByRole('button', { name: 'Configure plugin', exact: true }).click()
     let card = page.locator(`[data-plugin-id="${pluginId}"]`)
-    await card.getByText('Configuration', { exact: true }).click()
     let form = card.locator('[data-plugin-configuration]')
+    await expect(form).toBeVisible()
+    await expect(form.getByRole('combobox', { name: 'Configuration scope', exact: true })).toHaveValue('project')
+    await expect(page.locator('[data-plugin-native]')).toHaveCount(2)
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children
+      .filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(0)
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('application')
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Reference')
     await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Global label')
     await form.getByRole('checkbox', { name: 'Show details', exact: true }).uncheck()
@@ -124,6 +130,13 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await page.screenshot({ path: testInfo.outputPath('plugin-configuration.png') })
     await expect(details.locator('#configuration')).toContainText('Global label')
     await expect(summary.locator('#configuration')).toContainText('Global label')
+    await page.keyboard.press('Escape')
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children
+      .filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(2)
+    await page.locator(`[data-plugin-view="${pluginId}/summary"]`).getByRole('button', { name: 'Configuration', exact: true }).click()
+    card = page.locator(`[data-plugin-id="${pluginId}"]`); form = card.locator('[data-plugin-configuration]')
+    await expect(form).toBeVisible()
+    await expect(form.getByRole('combobox', { name: 'Configuration scope', exact: true })).toHaveValue('project')
     await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
     await expect(form.getByRole('combobox', { name: 'Display style', exact: true })).toBeDisabled()
     await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Local label')

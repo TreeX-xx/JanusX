@@ -18,6 +18,12 @@ async function start(api: PluginApi) {
     const show = (value: { values: Record<string, unknown> }) => { display.textContent = JSON.stringify(value.values) }
     const configuration = await api.configuration.watch(show, options)
     show(configuration.configuration)
+    if (context.configurationNavigation) {
+      const configure = document.createElement('button')
+      configure.textContent = 'Configure plugin'
+      configure.onclick = () => { void api.configuration.open(options).catch((error: Error) => { status.textContent = error.message }) }
+      display.after(configure)
+    }
   }
   if (context.document) {
     remember.hidden = true

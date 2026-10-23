@@ -17,6 +17,7 @@ import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import { useAppStore } from '@/stores/app'
 import { useIslandStore } from '@/stores/island'
 import type { PluginDocument } from '@janusx/plugin-sdk'
+import { openPluginConfiguration } from './plugin-configuration-navigation'
 
 let snapshot: PluginHostSnapshot = { developmentMode: false, plugins: [], logs: [] }
 const listeners = new Set<() => void>()
@@ -87,6 +88,8 @@ export function initializePluginRuntime(): void {
   window.electron.plugins.onEvent(({ packet }: PluginHostEvent) => {
     if (!packet || typeof packet !== 'object' || Array.isArray(packet)) return
     if (packet.type === 'openView' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') openExtensionView(`extension:${packet.pluginId}/${packet.viewId}`)
+    if (packet.type === 'openConfiguration' && typeof packet.pluginId === 'string'
+      && (packet.scope === 'application' || packet.scope === 'project')) openPluginConfiguration({ pluginId: packet.pluginId, scope: packet.scope })
     if (packet.type === 'toast' && typeof packet.pluginId === 'string' && typeof packet.message === 'string') {
       // A host-rendered text notification always retains the plugin's identity.
       window.dispatchEvent(new CustomEvent('janusx:plugin-toast', { detail: { source: packet.pluginId, message: packet.message } }))
@@ -190,6 +193,8 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     }
   }, [mount, visible])
   return <div className="h-full min-h-0 w-full flex flex-col" data-plugin-view={`${pluginId}/${localViewId}`}>
+    {snapshot.plugins.some(record => record.manifest.id === pluginId && record.manifest.contributes.settings?.length) && <button type="button" className="self-end text-xs px-2 py-1"
+      onClick={() => openPluginConfiguration({ pluginId, scope: mount?.context.project ? 'project' : 'application' })}>{t('plugins:configuration')}</button>}
     {mount && snapshot.developmentMode && !failure && <button type="button" className="self-end text-xs px-2 py-1" aria-label={t('plugins:devtools')}
       onClick={() => { void pluginRequest({ type: 'devtools', instanceId: mount.instanceId, binding: mount.binding }).catch(cause => setFailure(cause.message)) }}>{t('plugins:devtools')}</button>}
     {failure ? <div role="alert" className="p-3 text-xs"><p>{failure}</p><button type="button" aria-label={t('plugins:retry')} onClick={() => setRetry(value => value + 1)}>↻</button></div>

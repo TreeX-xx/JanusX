@@ -16,6 +16,7 @@ import { HostedSettingsPanel } from './HostedSettingsPanel'
 import { TeamSettingsPanel } from './team/TeamSettingsPanel'
 import { CpaSettingsPanel } from './cpa/CpaSettingsPanel'
 import { PluginSettingsPanel } from './plugins/PluginSettingsPanel'
+import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './AppSettingsModal.module.css'
@@ -27,6 +28,7 @@ interface AppSettingsModalProps {
   isOpen: boolean
   onClose: () => void
   initialTab?: SettingsTab
+  pluginConfiguration?: PluginConfigurationTarget | null
 }
 
 // Note: grouped navigation preserves independent feature gates — see .agents/notes/knowledge/assistant-persona-layout.md
@@ -49,7 +51,7 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
 // Note: the modal mounts only while open, so ModalFrame owns the whole
 // open/closing/hidden lifecycle — see shared/ModalFrame.css and
 // .agents/notes/terminal/settings-workbench-transition.md
-export function AppSettingsModal({ isOpen, onClose, initialTab = 'general' }: AppSettingsModalProps) {
+export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', pluginConfiguration }: AppSettingsModalProps) {
   const { t } = useI18n('settings')
   const { t: tTeam } = useI18n('team')
   const { t: tBlueprint } = useI18n('blueprint')
@@ -85,7 +87,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general' }: Ap
 
   useEffect(() => {
     if (isOpen) setActiveTab(initialTab)
-  }, [isOpen, initialTab])
+  }, [isOpen, initialTab, pluginConfiguration])
 
   if (!isOpen) return null
 
@@ -170,7 +172,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general' }: Ap
               {activeTab === 'about' && <AboutSettingsPanel />}
               {activeTab === 'terminal' && <TerminalManagerPanel />}
               {activeTab === 'integrations' && <CpaSettingsPanel onOpened={requestClose} />}
-              {activeTab === 'plugins' && <PluginSettingsPanel />}
+              {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} />}
               {activeTab === 'experimental' && <ExperimentalSettingsPanel />}
               {activeTab === 'notifications' && <NotificationSettingsPanel />}
               {activeTab === 'personal' && <PersonalMemorySettingsPanel />}

@@ -23,6 +23,7 @@ import { useTeamStore } from '@/stores/team'
 import { useBlueprintMaintenanceStore } from '@/stores/blueprint-maintenance'
 import { useWorkflowXDetection } from './janus/useWorkflowXDetection'
 import { useI18n } from '@/i18n/useI18n'
+import { PLUGIN_CONFIGURATION_EVENT, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
 /*-- P4: 蓝图工作台（@xyflow 画布链）按需分包，未打开蓝图工作台时不加载 --*/
 const BlueprintWorkbench = lazy(() =>
@@ -51,6 +52,16 @@ export function Titlebar() {
   islandPinnedRef.current = islandPinned
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
+  const [pluginConfiguration, setPluginConfiguration] = useState<PluginConfigurationTarget | null>(null)
+  useEffect(() => {
+    const open = (event: Event) => {
+      setPluginConfiguration((event as CustomEvent<PluginConfigurationTarget>).detail)
+      setSettingsInitialTab('plugins')
+      setSettingsModalOpen(true)
+    }
+    window.addEventListener(PLUGIN_CONFIGURATION_EVENT, open)
+    return () => window.removeEventListener(PLUGIN_CONFIGURATION_EVENT, open)
+  }, [])
   useEffect(() => {
     const openKnowledgeSettings = () => {
       if (!useExperimentalStore.getState().blueprint) return
@@ -232,8 +243,9 @@ export function Titlebar() {
 
       <AppSettingsModal
         isOpen={settingsModalOpen}
-        onClose={() => setSettingsModalOpen(false)}
+        onClose={() => { setSettingsModalOpen(false); setPluginConfiguration(null) }}
         initialTab={settingsInitialTab}
+        pluginConfiguration={pluginConfiguration}
       />
 
       {createPortal(

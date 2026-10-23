@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { pluginRequest, refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
 import { useExtensionCommands } from '@/extensions/react'
@@ -8,10 +8,21 @@ import { acquireBrowserOcclusion } from '@/stores/browser-occlusion'
 import type { InstalledPlugin, PluginManageRequest } from '../../../../shared/ipc/plugins'
 import styles from './PluginSettingsPanel.module.css'
 import { PluginConfigurationForm } from './PluginConfigurationForm'
+import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
-export function PluginSettingsPanel() {
+export function PluginSettingsPanel({ configurationTarget }: { configurationTarget?: PluginConfigurationTarget | null }) {
   const { t } = useI18n('plugins')
   const snapshot = usePluginSnapshot()
+  const configurationSection = useRef<HTMLDetailsElement>(null)
+  const locatedConfiguration = useRef<PluginConfigurationTarget | null>(null)
+  useEffect(() => {
+    const section = configurationSection.current
+    if (!configurationTarget || !section || locatedConfiguration.current === configurationTarget) return
+    locatedConfiguration.current = configurationTarget
+    section.open = true
+    section.scrollIntoView({ block: 'nearest' })
+    section.querySelector('summary')?.focus({ preventScroll: true })
+  }, [configurationTarget, snapshot.plugins])
   const commands = useExtensionCommands()
   const workspaces = useWorkspaceStore(state => state.workspaces)
   const projectOpen = useWorkspaceStore(state => Boolean(state.activeWorkspaceId))
@@ -61,8 +72,9 @@ export function PluginSettingsPanel() {
           <button disabled={busy} onClick={() => setConfirmation({ type: 'deleteData', id: record.manifest.id })}>{t('plugins:deleteData')}</button>
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
-        {Boolean(record.manifest.contributes.settings?.length) && <details><summary>{t('plugins:configuration')}</summary>
-          <PluginConfigurationForm record={record} />
+        {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
+          <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.scope : 'application'} record={record}
+            initialScope={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.scope : undefined} />
         </details>}
         {ownCommands.length > 0 && <details><summary>{t('plugins:entries')}</summary>
           {ownCommands.map(command => <div key={command.id} className={styles.preference}>

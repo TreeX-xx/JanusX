@@ -48,6 +48,7 @@ export class PluginService {
   private queue = new SerialQueue()
   private watchers = new Map<string, { watchers: FSWatcher[]; timer?: ReturnType<typeof setTimeout> }>()
   private toasts = new Map<string, number[]>()
+  private configurationOpens = new Map<string, number>()
   private island = new Map<string, PluginIslandEntry>()
   private islandTimes = new Map<string, number[]>()
   private islandTimer?: ReturnType<typeof setTimeout>
@@ -257,6 +258,7 @@ export class PluginService {
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
       revision: this.current.revision, active: true, ...(record.manifest.contributes.settings?.length ? { configuration: true as const } : {}),
+      ...(record.manifest.capabilities.required.includes('configuration.open') ? { configurationNavigation: true as const } : {}),
       ...(document ? { document: { viewer: document.viewer, path: document.path,
         ...(record.manifest.permissions.some(permission => permission.name === 'documents.edit') ? { editable: true } : {}) } } : {}) }
     const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
@@ -419,6 +421,15 @@ export class PluginService {
   }
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
     const record = this.record(instance.plugin)
+    if (method === 'configuration.open') {
+      valid()
+      if (!instance.context.active) error('CONTEXT_UNAVAILABLE', 'Only an active page can open configuration.')
+      const previous = this.configurationOpens.get(instance.plugin)
+      if (previous !== undefined && Date.now() - previous < 10_000) error('RATE_LIMITED', 'Configuration navigation limit reached.')
+      this.configurationOpens.set(instance.plugin, Date.now())
+      this.deps.event(instance.id, { type: 'openConfiguration', pluginId: instance.plugin, scope: instance.root ? 'project' : 'application' })
+      return { opened: true }
+    }
     if (method === 'configuration.get' || method === 'configuration.watch') return this.configuration.run(async () => {
       valid()
       const configuration = await this.configuration.get(record.manifest, instance.root ? instance.scope : null)
