@@ -11,11 +11,14 @@ import { hostPluginModelBackend } from '../plugins/model-backend'
 import { listWorktrees } from '../git/worktrees'
 import { promises as originalFiles } from 'original-fs'
 import { configurePluginFileSystem } from '../plugins/files'
+import { PluginWindowLayout } from '../plugins/window-layout'
 
 const text = z.string().min(1).max(256)
 const nullableText = z.string().max(4096).nullable()
 const instance = { instanceId: text, binding: text }
 const inputSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('windowOpen'), id: text, view: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
+  z.object({ type: z.literal('windowCover'), covered: z.boolean() }).strict(),
   z.object({ type: z.literal('taskStart'), id: text, task: text, projectId: text.nullable(), scopePath: nullableText, input: messageSchema }).strict(),
   z.object({ type: z.literal('taskCancel'), runId: z.string().uuid() }).strict(),
   z.object({ type: z.literal('credentialStatus'), id: text, slot: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
@@ -78,10 +81,11 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     openView: (pluginId, viewId) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'openView', pluginId, viewId } }),
     toast: (pluginId, message, level) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'toast', pluginId, message, level } }),
   })
-  const runtime = new PluginRuntime(service, getWindow)
+  const runtime = new PluginRuntime(service, getWindow, new PluginWindowLayout(join(app.getPath('userData'), 'janusx', 'plugins', 'window-layout.json'), () => service.log('STORAGE_UNAVAILABLE')))
   const host = getWindow()!
   host.webContents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) service.closeAll() })
   host.webContents.on('render-process-gone', () => service.closeAll())
+  host.on('closed', () => service.closeAll())
   const ready = service.initialize()
   // Observe rejection immediately; management requests still report the original error.
   void ready.catch(() => service.log('STORAGE_UNAVAILABLE'))
@@ -98,6 +102,8 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
       const request = checked.data as PluginManageRequest
       let data: unknown = null
       switch (request.type) {
+        case 'windowOpen': await runtime.openWindow(request.id, request.view, request.projectId, request.scopePath); break
+        case 'windowCover': runtime.setCovered(request.covered); break
         case 'taskStart': case 'taskCancel': case 'credentialStatus': case 'credentialSet': data = await service.backgroundManage(request); break
         case 'list': data = service.snapshot(); break
         case 'development': await service.setDevelopment(request.enabled); break

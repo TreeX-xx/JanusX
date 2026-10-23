@@ -77,6 +77,18 @@ function openViews(): string[] {
 export function initializePluginRuntime(): void {
   if (started || !window.electron.plugins) return
   started = true
+  const coverWindows = () => { void pluginRequest({ type: 'windowCover', covered: useBrowserOcclusionStore.getState().count > 0 }).catch(console.error) }
+  useBrowserOcclusionStore.subscribe(coverWindows); coverWindows()
+  window.addEventListener('janusx:plugin-window-open', event => {
+    const id = (event as CustomEvent<string>).detail
+    const view = extensionRegistry.getView(id)
+    if (!view || view.location !== 'window') return
+    const state = useWorkspaceStore.getState()
+    const projectId = view.scope === 'project' ? state.activeWorkspaceId : null
+    const path = projectId ? useWorktreeStore.getState().activePaths[projectId] ?? state.workspaces.find(item => item.id === projectId)?.path ?? null : null
+    void syncPluginContext().then(() => pluginRequest({ type: 'windowOpen', id: view.extensionId, view: id.slice(id.lastIndexOf('/') + 1), projectId, scopePath: path }))
+      .catch(cause => window.dispatchEvent(new CustomEvent('janusx:plugin-toast', { detail: { source: view.extensionId, message: cause.message } })))
+  })
   window.electron.plugins.onChanged(() => {
     const opened = openViews().map(id => ({ id, digest: mounted.get(extensionRegistry.getView(id)?.extensionId ?? '')?.digest }))
     void refreshPlugins().then(() => {

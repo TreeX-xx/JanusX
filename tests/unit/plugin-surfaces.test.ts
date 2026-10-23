@@ -19,6 +19,17 @@ const manifest = () => parsePluginManifest(readFileSync('packages/plugin-sdk/tem
 afterEach(() => { useAppStore.setState({ activeWorkbench: null, returnWorkbench: null }); useIslandStore.setState({ stage: 'collapsed', pluginViewRequest: null }); vi.restoreAllMocks() })
 
 describe('P3 contribution policy and rendering', () => {
+  it('routes window commands to the native host without opening a pane or Island', () => {
+    const dispatch = vi.fn(); vi.stubGlobal('window', { dispatchEvent: dispatch })
+    const unregister = extensionRegistry.register({ id: 'test.window', views: [{ id: 'utility', title: 'Utility', location: 'window', scope: 'project', component: () => null }] })
+    try {
+      useWorkspaceStore.setState({ activeWorkspaceId: 'a' })
+      const tree = useWorkspaceStore.getState().paneTree; const stage = useIslandStore.getState().stage
+      expect(openExtensionView('extension:test.window/utility')).toBe(true)
+      expect(dispatch.mock.calls[0][0]).toMatchObject({ type: 'janusx:plugin-window-open', detail: 'extension:test.window/utility' })
+      expect(useWorkspaceStore.getState().paneTree).toBe(tree); expect(useIslandStore.getState().stage).toBe(stage)
+    } finally { unregister(); vi.unstubAllGlobals() }
+  })
   it('rejects duplicate Island identities, undeclared actions, cross-scope actions and arbitrary executable previews', () => {
     for (const mutate of [
       (m: ReturnType<typeof manifest>) => m.contributes.island!.push(m.contributes.island![0]),

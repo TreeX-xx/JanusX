@@ -42,7 +42,7 @@ export interface PluginServiceDeps {
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.contextProviders || manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.views.some(view => view.location === 'window') || manifest.contributes.contextProviders || manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
   ? { permissions: manifest.permissions, contributes: manifest.contributes }
   : manifest.contributes.configurationViews
   ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
@@ -303,11 +303,27 @@ export class PluginService {
     return instance.url
   }
   inspect(id: string, binding: string): string { return this.instance(id, binding).url }
+  windowView(id: string, viewId: string): { title: string; scope: 'application' | 'project' } {
+    const record = this.record(id); this.allowed(record)
+    const view = record.manifest.contributes.views.find(item => item.id === viewId && item.location === 'window')
+    if (!view || !record.manifest.capabilities.required.includes('views.window') || !record.manifest.permissions.some(item => item.name === 'ui.windows')) error('PERMISSION_DENIED', 'A declared window view is required.')
+    return { title: `${record.manifest.name} — ${view!.title} [${record.manifest.id}]`, scope: view!.scope }
+  }
+  async validateWindowContext(id: string, binding: string, projectId: string | null, scopePath: string | null): Promise<void> {
+    const instance = this.instance(id, binding)
+    if (instance.root) {
+      if (projectId !== instance.context.project?.projectId) error('STALE_CONTEXT', 'Window project changed.')
+      const project = await this.deps.resolveProject(projectId!, scopePath)
+      this.instance(id, binding)
+      if (project.root !== instance.root) error('STALE_CONTEXT', 'Window worktree changed.')
+    }
+  }
   failView(id: string, binding: string): void {
     try { this.instance(id, binding) } catch { return }
     this.loadFailed(id)
   }
-  closeAll(): void { for (const id of [...this.instances.keys()]) this.close(id) }
+  // Revoke mounts still awaiting project resolution as well as existing pages.
+  closeAll(): void { this.current.revision++; for (const id of [...this.instances.keys()]) this.close(id) }
   isInstanceUrl(url: string): boolean { return [...this.instances.values()].some(instance => url === instance.url) }
   resource(url: string): { bytes: Buffer; path: string } | null {
     const instance = [...this.instances.values()].find(instance => url.startsWith(`janusx-plugin://${instance.token}/g/${instance.generation}/`))
@@ -792,7 +808,7 @@ export class PluginService {
     } catch (cause) {
       this.log(cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR', { pluginId: request.plugin, method: 'context.read', duration: Date.now() - started })
       if (cause instanceof PluginError) throw cause
-      error('INTERNAL_ERROR', 'Document context is unavailable.')
+      return error('INTERNAL_ERROR', 'Document context is unavailable.')
     } finally { this.contextReads-- }
   }
   async discoverAgentServices(context: { workspaceId: string; workspaceRoot: string }): Promise<PluginAgentService[]> {

@@ -11,6 +11,7 @@ import { useIslandStore } from '@/stores/island'
 export function openExtensionView(viewId: ExtensionViewId): boolean {
   const view = extensionRegistry.getView(viewId)
   if (!view || (view.scope === 'project' && !useWorkspaceStore.getState().activeWorkspaceId)) return false
+  if (view.location === 'window') { window.dispatchEvent(new CustomEvent('janusx:plugin-window-open', { detail: viewId })); return true }
   if (view.location === 'right' && !isRightToolEnabled(viewId, useExperimentalStore.getState())) return false
   if (view.location !== 'island') useIslandStore.getState().dispatch({ type: 'dismiss' })
   if ((view.location === 'workspace' || view.location === 'right') && useAppStore.getState().activeWorkbench?.startsWith('extension:')) {

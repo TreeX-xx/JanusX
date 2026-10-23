@@ -10,6 +10,19 @@ import styles from './PluginSettingsPanel.module.css'
 import { PluginConfigurationForm } from './PluginConfigurationForm'
 import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import { openExtensionView } from '@/extensions/workbench'
+
+function PluginWindows({ manifest, review = false, enabled = false }: { manifest: InstalledPlugin['manifest']; review?: boolean; enabled?: boolean }) {
+  const { t } = useI18n('plugins')
+  const windows = manifest.contributes.views.filter(view => view.location === 'window')
+  if (!windows.length) return null
+  return <details open={review || undefined} data-plugin-windows><summary>{t('plugins:windows')}</summary>
+    <p className={styles.hint}>{t('plugins:windowHint')}</p>
+    {windows.map(view => <div className={styles.row} key={view.id}><span>{view.title} · {view.scope}</span>
+      {!review && <button disabled={!enabled} onClick={() => openExtensionView(`extension:${manifest.id}/${view.id}`)}>{t('plugins:openWindow')} · {view.title}</button>}
+    </div>)}
+  </details>
+}
 
 function PluginContexts({ manifest, review = false }: { manifest: InstalledPlugin['manifest']; review?: boolean }) {
   const { t } = useI18n('plugins')
@@ -117,6 +130,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
         <PluginSkills manifest={record.manifest} />
         <PluginContexts manifest={record.manifest} />
         <PluginWorkflows manifest={record.manifest} />
+        <PluginWindows manifest={record.manifest} enabled={record.enabled && snapshot.developmentMode} />
         <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
           <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? `${configurationTarget.scope}:${configurationTarget.proposal?.expectedRevision ?? ''}` : 'application'} record={record}
@@ -151,6 +165,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
       <PluginSkills manifest={authorize.manifest} review />
       <PluginContexts manifest={authorize.manifest} review />
       <PluginWorkflows manifest={authorize.manifest} review />
+      <PluginWindows manifest={authorize.manifest} review />
       {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
       <p>{t('plugins:projectScope')}</p>
       {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {

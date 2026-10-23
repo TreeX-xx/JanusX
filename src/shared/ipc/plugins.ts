@@ -31,6 +31,8 @@ export type PluginManageRequest =
   | { type: 'taskCancel'; runId: string }
   | { type: 'credentialStatus'; id: string; slot: string; projectId: string | null; scopePath: string | null }
   | { type: 'credentialSet'; id: string; slot: string; projectId: string | null; scopePath: string | null; value: string | null }
+  | { type: 'windowOpen'; id: string; view: string; projectId: string | null; scopePath: string | null }
+  | { type: 'windowCover'; covered: boolean }
   | { type: 'list' }
   | { type: 'development'; enabled: boolean }
   | { type: 'import'; kind: 'linked' | 'copied' }

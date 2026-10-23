@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-23T12:33:21Z",
+  "updated": "2026-10-23T13:12:15Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -22,7 +22,7 @@
 
 目标是让用户通过插件组合中部工作区、工具箱、右侧栏、Island、独立工作台，以及文件、任务、Agent 和外部系统能力，形成完整功能。入口、命令、视图、展示位置与能力授权分别建模；已有官方功能逐步使用同一贡献语义。完整设计归[插件平台架构](../workbench/plugin-platform-design.md)，PI-Desktop 调研继续归[研究 Note](../workbench/ideas/plugin-platform-and-feature-modularization.md)。
 
-保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区。P4 已实施只读 viewer 首片，文件编辑／事务保存、目录查询及完整多实例验收待续，P5 已采用宿主声明式任务交付后台监督、受限网络／凭证及事件／公开服务，P6 已接通内置 Agent／公开服务、受限文本模型代发、技能资源和顺序服务工作流，固定文件文档上下文已补齐，P6 按 Windows 声明式范围交付，P7–P8 尚待实施。实际验证、完整门禁证据及平台限制见下文各阶段专节。
+保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区。P4 已实施只读 viewer 首片，文件编辑／事务保存、目录查询及完整多实例验收待续，P5 已采用宿主声明式任务交付后台监督、受限网络／凭证及事件／公开服务，P6 已接通内置 Agent／公开服务、受限文本模型代发、技能资源和顺序服务工作流，固定文件文档上下文已补齐，P6 按 Windows 声明式范围交付，P7 已接通独立窗口生命周期首片，主题／角色／对话贡献待续；P8 尚待实施。实际验证、完整门禁证据及平台限制见下文各阶段专节。
 
 本计划采用相对排期，参考工作量按单条主线、主 Agent 顺序实施估算，包含相关测试与文档维护，不指定起始日期或版本，不挤占既有事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。估算不是历史速度或承诺工期，每批开始前按实际代码、依赖和试验结果修订。普通文档维护与普通 xdo 不创建执行 Task，阶段通过仍以所属需求和实际证据为准。
 
@@ -153,7 +153,7 @@ S1、S2 优先形成可独立验收的内置扩展基础，不等待市场完成
 | P4 文件与文档扩展／高 | P2；排期在 P3 后 | viewer／editor 匹配、默认打开和回退、文档保存与脏状态、受限目录查询；逐项迁移代表内置查看器 | 架构 AC-12；同一文件多实例及外部变更不丢数据，冲突可处理，默认选择可撤销 | 5–8 日 |
 | P5 后台、网络与事件／高 | P2；排期在 P4 后 | 已按试验结果采用宿主声明式任务，交付监督、受限网络、凭证引用、公开事件／服务 | 架构 AC-13、AC-14；Windows 开发构建验证，范围及限制见 P5 专节 | 声明式范围已实施；任意后台 JS 及更强沙箱另估 |
 | P6 Agent 与领域提供者／中 | P5；读取文档的提供者另依赖 P4 | 内置 Agent 工具／技能／工作流、模型代发、上下文读取；一个代表提供者与公开适配指南 | 架构 AC-15；UI 与 Agent 消费同一领域能力，风险／取消有证据，外部 CLI 支持矩阵明确 | Windows 声明式范围已交付；扩展提供者另排 |
-| P7 窗口与个性化／中 | P3；文档脱离另依赖 P4，Agent 工具卡另依赖 P6 | 可选独立窗口／悬浮工具、主题与配置、角色／皮肤资源、受控对话局部贡献 | 架构 AC-16；窗口恢复、配置隔离、主题回退和敏感界面遮挡通过 | 首个支持平台 5–8 日 |
+| P7 窗口与个性化／中 | P3；文档脱离另依赖 P4，Agent 工具卡另依赖 P6 | 可选独立窗口／悬浮工具、主题与配置、角色／皮肤资源、受控对话局部贡献 | 架构 AC-16；窗口恢复、配置隔离、主题回退和敏感界面遮挡通过 | Windows 窗口首片已交付；主题／角色／对话贡献待续，原参考 5–8 日需按剩余范围重估 |
 | P8 正式分发／中 | P2、稳定兼容基线及来源试验；推荐 P4 后 | 正式来源和完整性规则、精选目录、包校验、更新暂存／回退、权限扩大重新授权 | 架构 AC-17；失败不破坏可用版本，正式包不能冒用开发来源规则 | 精选目录首版 6–10 日，来源试验后重估 |
 
 参考工作量不含等待用户素材、外部审核、完整社区市场、多平台全部适配或把全部官方业务迁移为独立包。P5 的强制隔离、P6 的宿主外部 CLI 能力矩阵及 P8 的签名／更新基础设施不预先给出完整工期；不能用扩大权限或减少验收来兑现估算。
@@ -266,7 +266,19 @@ Agent／配置回归命令 npx vitest run tests/unit/llm/janus-agent-ports.test.
 
 `npm run check:notes` 检查 309 篇，仍有无关入口编排 Note 缺 AC／时间倒置和 island-behavior-system Task 缺 Evidence 三项既有错误，日志 `artifacts/plugin-context-notes-final.log`；本轮维护的文档无新增错误，无关文件和共享模块中的其它主题不纳入提交。
 
-P6／AC-15 与 M3 按 Windows 开发构建中的声明式代表范围闭合，依据为公开服务、模型代发、技能、顺序工作流和本片真实文档源的 UI／Agent 协议、授权、取消和结果追踪，外部 CLI 未支持矩阵维持明确不可用。不把闭合解释为动态检索、任意脚本提供者、MCP 导出或所有外部 CLI 已接入；P4 和其它未闭合需求保持原状态。下一主线为 P7 窗口生命周期，P8 依稳定兼容面和来源试验推进。未运行全仓单测／桌面全集／整条 verify，未打包安装器，未验收 macOS／Linux 或真实外部供应商业务。
+P6／AC-15 与 M3 按 Windows 开发构建中的声明式代表范围闭合，依据为公开服务、模型代发、技能、顺序工作流和本片真实文档源的 UI／Agent 协议、授权、取消和结果追踪，外部 CLI 未支持矩阵维持明确不可用。不把闭合解释为动态检索、任意脚本提供者、MCP 导出或所有外部 CLI 已接入；P4 和其它未闭合需求保持原状态。P7 窗口生命周期首片见下节，后续为主题／配置、角色资源与对话局部贡献；P8 依稳定兼容面和来源试验推进。未运行全仓单测／桌面全集／整条 verify，未打包安装器，未验收 macOS／Linux 或真实外部供应商业务。
+
+### P7 独立窗口首片交付
+
+本片已交付显式 `window` 视图、`views.window` 能力及 `ui.windows` 权限、授权预览与设置打开入口，复用工具箱／自身页面打开路由。空白沙箱原生框承载既有离线隔离页面；标题包含插件身份，宿主管理关闭、单实例聚焦、active 与遮挡、项目／worktree 撤销及正常几何位置恢复。布局独立限额／原子保存、损坏或显示器变化回退；没有任意 pane 脱离、置顶／透明化、未保存内容恢复或启动自动重开。范围和取舍归[窗口契约](../workbench/plugin-contract-v1.md#p7-独立窗口生命周期)，作者指南为 `packages/plugin-sdk/examples/window-views.md`。
+
+主 Agent 自审修正了 pending 创建请求只按视图合并的问题，现在同时检查项目／根；异步创建中的激活撤销也拒绝迟到窗口；主窗口清理同步推进上下文版本，拒绝尚在解析项目的挂载，新增回归验证该竞态。窗口关闭释放页面／端口，主窗口导航／崩溃／关闭和插件停用／重载／卸载／开发模式关闭均清理。另补齐既有 P6 错误分支的显式 return，使严格类型检查通过；不改变错误语义。本次未执行独立子代理 review。
+
+`npm run plugins:check` 共 16 份／299 项通过，包含 18 项窗口单元、视图路由及既有插件领域回归，并实际打包 SDK、仓库外安装／typecheck／构建／包检查，日志 `artifacts/plugin-window-plugins-final.log`。单元覆盖并发、上下文、权限变化重授权、创建期间撤销、四窗口预算、遮挡／最小化、关闭重开、项目／应用归属、各撤销路径与磁盘布局。Agent／配置／遮挡回归 `npx vitest run tests/unit/llm/janus-agent-ports.test.ts tests/unit/llm/configuration-service.test.ts tests/unit/model-catalog-service.test.ts tests/unit/agent/project-tools.test.ts tests/unit/agent/command-tools.test.ts tests/unit/browser-occlusion.test.ts` 共 6 份／63 项通过，日志 `artifacts/plugin-window-regression.log`。
+
+真实 Windows Electron 定向命令 `npx playwright test tests/e2e/desktop-plugins.spec.ts --config=playwright.desktop.config.ts --workers=1 --grep 'P7 windows' --output=artifacts/plugin-window/desktop-reviewed` 一项通过，日志 `artifacts/plugin-window-desktop-reviewed.log`。验证设置预览／授权／遮挡中新开隐藏、离线桥和路径拒绝、重复聚焦、几何恢复及 KV 保留、项目窗口随项目切换销毁而应用窗口保留、停用全部清理；截图 `artifacts/plugin-window-ui.png` 已检查。首轮因测试创建第二项目后未刷新列表失败，已前置创建夹具并重跑；最初单元 mock hoist 与类型失败均保留日志，不计通过。
+
+应用 `npm run build`、`typecheck:strict-unused`、i18n、包边界和 exclusions 检查通过；lint 为 0 错误／67 条既有警告。构建、类型和 lint 日志为 `artifacts/plugin-window-build-final.log`、`plugin-window-types-reviewed.log`、`plugin-window-lint.log`；最终生产改动范围 lint 为零诊断，日志 `plugin-window-lint-reviewed.log`。i18n、包边界与 exclusions 日志为 `artifacts/plugin-window-i18n-check.log`、`plugin-window-boundary.log`、`plugin-window-exclusions.log`。最终构建后运行 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/unified-file-window.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-window/desktop-complete`，25 项全部通过，日志 `artifacts/plugin-window-desktop-complete.log`；前一构建的插件 24 项也通过，但最终结论以本次 25 项为准。`npm run check:notes` 检查 309 篇，仍报无关入口编排缺 AC／时间倒置和 island-behavior-system Task 缺 Evidence 三项既有错误，日志 `artifacts/plugin-window-notes-final.log`，本批文档无新增错误。未运行全仓单测／桌面全集／整条 verify，未打包安装器，未验收 macOS／Linux。主题／配置整合、角色／皮肤资源及受控对话局部贡献未实现，P7／M4／AC-16 保持开放。
 
 ### 里程碑与执行顺序
 

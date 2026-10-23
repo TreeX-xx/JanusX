@@ -83,6 +83,66 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P7 windows preserve isolated bridges, restore geometry, shield host dialogs and revoke project ownership', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.capabilities.required.push('views.window'); manifest.permissions.push({ name: 'ui.windows' })
+    manifest.contributes.views.push(
+      { id: 'window-project', title: 'Project utility', location: 'window', scope: 'project', entry: 'dist/index.html', instancePolicy: 'single' },
+      { id: 'window-app', title: 'Application utility', location: 'window', scope: 'application', entry: 'dist/summary.html', instancePolicy: 'single' })
+    manifest.contributes.commands.push({ id: 'open-utility', title: 'Open project utility', action: { type: 'openView', view: 'window-project' } })
+    manifest.contributes.menus.push({ location: 'toolbox', command: 'open-utility', when: 'projectOpen' })
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P7 Window project', path }), f.project)
+    const other = join(f.root, 'project-b'); await mkdir(other); await writeFile(join(other, 'README.md'), 'Project B')
+    await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P7 Other project', path }), other)
+    await page.reload(); await page.getByText('P7 Window project', { exact: true }).filter({ visible: true }).first().click()
+    await settings(page); await importDirectory(app, page, f.source)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const card = page.locator(`[data-plugin-id="${manifest.id}"]`)
+    await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Review permissions and scope' })
+    await expect(review.locator('[data-plugin-windows]')).toContainText('Project utility')
+    await expect(review.locator('[data-plugin-windows]')).toContainText('not unsaved content')
+    await review.getByLabel('P7 Window project', { exact: true }).check(); await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await card.locator('[data-plugin-windows] > summary').click()
+    await card.getByRole('button', { name: 'Open window · Project utility', exact: true }).click()
+    // Opening while settings covers the host must not reveal the plugin page.
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(win => win.getTitle().includes(' — Project utility [')).length)).toBe(1)
+    expect(await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows().find(win => win.getTitle().includes(' — Project utility ['))!; return { visible: win.isVisible(), children: win.contentView.children.length } })).toEqual({ visible: false, children: 0 })
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    const details = await guest(app, '/dist/index.html'); await expect(details.locator('#content')).toHaveText('P2 readable project file')
+    await details.getByRole('button', { name: 'Remember this project' }).click()
+    await expect.poll(() => rawCall(details, 'storage.get', { key: 'project-name' })).toMatchObject({ ok: true, result: { found: true, value: 'project-a' } })
+    expect(await details.evaluate(() => ({ node: typeof (window as any).require, host: typeof (window as any).electron }))).toEqual({ node: 'undefined', host: 'undefined' })
+    expect(await rawCall(details, 'workspace.readText', { path: '../secret.md' })).toMatchObject({ ok: false, error: { code: 'INVALID_PACKAGE_PATH' } })
+    await page.locator('button[data-id="tool-menu"]').click(); await page.getByRole('menuitem', { name: 'Open project utility', exact: true }).click()
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(win => win.getTitle().includes(' — Project utility [')).length)).toBe(1)
+    await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows().find(win => win.getTitle().includes(' — Project utility ['))!; win.setBounds({ x: 90, y: 100, width: 680, height: 480 }) })
+    await details.screenshot({ path: 'artifacts/plugin-window-ui.png' })
+    await settings(page)
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.getTitle().includes(' — Project utility ['))!.contentView.children.length)).toBe(0)
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.getTitle().includes(' — Project utility ['))!.contentView.children.length)).toBe(1)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.getTitle().includes(' — Project utility ['))!.close())
+    await expect.poll(async () => (await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))).data.plugins[0].runtime.pages).toBe(0)
+    const open = (view: string) => page.evaluate(({ id, view, projectId, path }) => (window as any).electron.plugins.request({ type: 'windowOpen', id, view, projectId, scopePath: path }), { id: manifest.id, view, projectId: workspace.id, path: f.project })
+    expect(await open('window-project')).toMatchObject({ ok: true })
+    const reopened = await guest(app, '/dist/index.html'); await expect(reopened.locator('#content')).toHaveText('project-a')
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.getTitle().includes(' — Project utility ['))!.getBounds())).toMatchObject({ x: 90, y: 100, width: 680, height: 480 })
+    expect(await rawCall(reopened, 'storage.get', { key: 'project-name' })).toMatchObject({ ok: true, result: { found: true, value: 'project-a' } })
+    expect(await open('window-app')).toMatchObject({ ok: true })
+    const appPage = await guest(app, '/dist/summary.html'); await expect(appPage.locator('#status')).toContainText('No project')
+    await page.getByText('P7 Other project', { exact: true }).filter({ visible: true }).first().click()
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(win => win.getTitle().includes(' — Project utility [')).length)).toBe(0)
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(win => win.getTitle().includes(' — Application utility [')).length)).toBe(1)
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), manifest.id)
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(win => win.getTitle().includes('utility [')).length)).toBe(0)
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('P6 document contexts review fixed files, share page and Agent reads, report document revisions and revoke access', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

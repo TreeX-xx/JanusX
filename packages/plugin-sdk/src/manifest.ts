@@ -15,12 +15,12 @@ export const PLUGIN_API_VERSION = '1.0.0'
 export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
-  'views.workbench', 'views.island', 'island.status',
+  'views.workbench', 'views.island', 'views.window', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
   'tasks.declarative', 'tasks.inputBindings', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'agent.workflows', 'models.generate', 'agent.skills', 'agent.context',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -32,7 +32,7 @@ const path = z.string().superRefine((value, ctx) => {
 })
 export const pluginViewSchema = z.object({
   id, title, entry: path.refine((value) => value.endsWith('.html')),
-  location: z.enum(['workspace', 'right', 'workbench', 'island']), scope: z.enum(['application', 'project']),
+  location: z.enum(['workspace', 'right', 'workbench', 'island', 'window']), scope: z.enum(['application', 'project']),
   instancePolicy: z.literal('single'), icon: z.enum(['puzzle', 'book', 'list', 'chart', 'file', 'code', 'clock']).optional(), order,
 }).strict()
 export const pluginCommandSchema = z.object({ id, title, action: z.object({ type: z.literal('openView'), view: id }).strict() }).strict()
@@ -50,14 +50,14 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(19).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(20).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
     skills: z.array(pluginSkillSchema).min(1).max(8).optional(),
     contextProviders: z.array(pluginContextProviderSchema).min(1).max(8).optional(),
@@ -81,6 +81,8 @@ export const pluginManifestSchema = z.object({
   const needs = (used: boolean, capability: string, permission: string) => {
     if (used && (!manifest.capabilities.required.includes(capability) || !manifest.permissions.some(item => item.name === permission))) fail(`Requires ${capability} and ${permission}`)
   }
+  needs(views.some(view => view.location === 'window'), 'views.window', 'ui.windows')
+  if (manifest.permissions.some(item => item.name === 'ui.windows') && !views.some(view => view.location === 'window')) fail('Window permission requires a window view')
   for (const items of [tasks, credentials, events, services]) if (new Set(items.map(item => item.id)).size !== items.length) fail('Duplicate background contribution')
   for (const items of [consumes?.events ?? [], consumes?.services ?? []]) if (new Set(items.map(item => `${item.plugin}/${item.id}`)).size !== items.length) fail('Duplicate consumption')
   needs(tasks.length > 0, 'tasks.declarative', 'tasks.run')
