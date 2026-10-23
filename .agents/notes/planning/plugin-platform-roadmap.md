@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-23T16:13:20Z",
+  "updated": "2026-10-23T16:29:51Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -297,6 +297,12 @@ P6／AC-15 与 M3 按 Windows 开发构建中的声明式代表范围闭合，�
 接续工作区已有主题增量，完成 manifest-only 调色板、六个颜色角色／对比度校验、授权及预览选择、命名空间、停用回退与保存 ID 恢复。补齐目录晚到／撤销时的终端和编辑器更新、Monaco 动态主题注册及长主题 ID 的宿主上下文兼容；设置／审批保留内置颜色。它不是任意 CSS 皮肤，角色资源／对话贡献仍待续，P7／AC-16 保持开放。契约归[声明式调色板](../workbench/plugin-contract-v1.md#p7-声明式调色板)。
 
 最终验证纳入上述 P4 的 336 项插件检查与 29 项 Windows Electron 回归，覆盖 manifest-only 导入／授权、选择持久化、设置遮挡及撤销回退；Monaco 晚到注册有单测。首轮 P7 专项 Electron 一项通过，日志 `artifacts/plugin-p7-closeout-desktop-theme.log`；截图 `artifacts/plugin-theme-settings.png` 展示主题预览与插件身份，设置保持内置配色。未打包安装器，未验证 macOS／Linux。
+
+### 已采纳的官方案例与终端外观需求
+
+Mermaid 图表预览已被选为官方插件案例，当前仅记录、尚未实现。拟以公开文档 viewer 接口独立交付，具体范围归[官方插件案例](../workbench/plugin-platform-design.md#官方插件案例mermaid-图表预览)。它用于补充专业图形预览并验证公开 SDK，开发阅读器／编辑器示例不重复包装为官方产品；不以本次采纳关闭 P4、P7 或启动 P8 分发。
+
+用户另明确终端背景指可自选图片，当前六色调色板未支持。该需求归[终端外观](../terminal/module.md#终端自选背景图待实施)，宿主背景图能力与主题包资源扩展分开评估；当前仅记录，不记为已交付的主题能力。
 
 ### 里程碑与执行顺序
 
