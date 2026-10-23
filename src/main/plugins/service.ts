@@ -12,6 +12,9 @@ import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
 import { PluginStorage } from './storage'
 import { PluginConfigurationStore } from './configuration'
 import type { PluginManageRequest } from '../../shared/ipc/plugins'
+import { PluginCredentials, PluginNetwork, type PluginEncryption, type PluginNetworkTransport } from './network'
+import { PluginBackground, type BackgroundIdentity } from './background'
+import type { PluginMessage, PluginNetworkRequest } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
 interface Instance {
@@ -22,6 +25,8 @@ interface Instance {
 }
 export interface PluginServiceDeps {
   directory: string
+  encryption?: PluginEncryption
+  networkTransport?: PluginNetworkTransport
   protectedDirectories?: string[]
   resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
   changed(): void
@@ -33,7 +38,9 @@ export interface PluginServiceDeps {
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.configurationViews
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
+  ? { permissions: manifest.permissions, contributes: manifest.contributes }
+  : manifest.contributes.configurationViews
   ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
   : manifest.contributes.viewers?.length ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers } : manifest.permissions)).digest('hex')
 const error = (code: ConstructorParameters<typeof PluginError>[0], message: string): never => { throw new PluginError(code, message) }
@@ -57,6 +64,9 @@ export class PluginService {
   private storage: PluginStorage
   private configuration: PluginConfigurationStore
   private initialized: Promise<void> | undefined
+  private credentials: PluginCredentials
+  private network: PluginNetwork
+  private background: PluginBackground
   private contextSequence = 0
   private selectionKey = ''
   private pendingEvents = new Map<string, { instance: Instance; subscriptionId: string; values: Record<string, PluginStoredValue> }>()
@@ -65,6 +75,9 @@ export class PluginService {
   constructor(private deps: PluginServiceDeps) {
     this.storage = new PluginStorage(join(deps.directory, 'data'))
     this.configuration = new PluginConfigurationStore(join(deps.directory, 'configuration'))
+    this.credentials = new PluginCredentials(join(deps.directory, 'credentials'), deps.encryption)
+    this.network = new PluginNetwork(this.credentials, deps.networkTransport)
+    this.background = new PluginBackground({ network: this.network, identity: (plugin, source) => this.backgroundIdentity(plugin, source.projectId, source.scope), changed: () => this.publish() })
   }
   initialize(): Promise<void> { return this.initialized ??= this.restore() }
   private async restore(): Promise<void> {
@@ -100,8 +113,11 @@ export class PluginService {
   snapshot(): PluginHostSnapshot {
     return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, ...record }) => {
       const pages = [...this.instances.values()].filter(instance => instance.plugin === record.manifest.id)
+      if (record.enabled && !['blocked', 'error'].includes(record.state)) {
+        try { this.requiredDependencies(record.manifest) } catch { record.state = 'blocked'; record.error = 'DEPENDENCY_UNAVAILABLE' }
+      }
       return { ...structuredClone(record), runtime: { pages: pages.length, connected: pages.filter(page => page.bound).length, ready: pages.filter(page => page.ready).length } }
-    }), logs: [...this.logs], island: structuredClone([...this.island.values()]) }
+    }), logs: [...this.logs], island: structuredClone([...this.island.values()]), tasks: this.background.list() }
   }
   private async persist(): Promise<void> {
     try { await writeFileAtomic(join(this.deps.directory, 'registry.json'), JSON.stringify({ developmentMode: this.developmentMode, plugins: [...this.records.values()] })) }
@@ -154,6 +170,7 @@ export class PluginService {
       const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
       if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Plugin identity changed.')
       for (const project of projects) await this.deps.resolveProject(project, null)
+      this.requiredDependencies(pkg.manifest)
       const old = { ...record }
       record.manifest = pkg.manifest; record.digest = pkg.digest; record.projects = [...new Set(projects)]
       record.grant = permissionFingerprint(pkg.manifest); record.enabled = true; record.failures = 0; record.state = 'ready'; delete record.error
@@ -212,6 +229,7 @@ export class PluginService {
     // Revoke before asynchronous root resolution, including worktree changes.
     const selectionKey = JSON.stringify([projectId, scopePath])
     if (this.selectionKey !== selectionKey) {
+      this.background.revoke(undefined, true)
       this.selectionKey = selectionKey
       this.current.revision++
       for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
@@ -306,6 +324,7 @@ export class PluginService {
     const instance = this.instances.get(id)
     if (!instance || (binding && instance.binding !== binding)) return
     clearTimeout(instance.timer)
+    this.background.closePage(id)
     this.send(instance, { type: 'event', event: 'invalidated', reason: reason ?? null, payload: { invalidated: true } })
     this.instances.delete(id)
     for (const [key, entry] of this.island) if (entry.instanceId === id) this.island.delete(key)
@@ -323,6 +342,7 @@ export class PluginService {
   }
   private clearRecovery(id: string): void { clearTimeout(this.recoveryTimers.get(id)); this.recoveryTimers.delete(id) }
   private revokePlugin(id: string, reason?: string): void {
+    this.background.revoke(id); this.network.revoke(id)
     const record = this.records.get(id)
     if (record) this.activations.set(record, (this.activations.get(record) ?? 0) + 1)
     this.clearRecovery(id)
@@ -357,6 +377,17 @@ export class PluginService {
     if (record.state === 'error' && record.error !== 'VIEW_LOAD_FAILED') error('SOURCE_UNAVAILABLE', 'Plugin source must be revalidated.')
     if (record.state === 'blocked' || record.grant !== permissionFingerprint(record.manifest)) error('PERMISSION_RECONFIRM_REQUIRED', 'Plugin permissions require confirmation.')
     if (!this.packages.has(record.manifest.id)) error('SOURCE_UNAVAILABLE', 'Plugin source is unavailable.')
+    this.requiredDependencies(record.manifest)
+  }
+  private requiredDependencies(manifest: InstalledPlugin['manifest']): void {
+    for (const kind of ['events', 'services'] as const) for (const consumer of manifest.contributes.consumes?.[kind] ?? []) if (!consumer.optional && consumer.plugin !== manifest.id) {
+      const provider = this.records.get(consumer.plugin)
+      const declaration = provider?.manifest.contributes[kind]?.find(item => item.id === consumer.id && item.version === consumer.version && item.consumers.includes(manifest.id))
+      const shape = declaration && ('data' in declaration ? declaration.data : provider?.manifest.contributes.tasks?.find(task => task.id === declaration.task)?.input)
+      if (!provider?.enabled || !this.developmentMode || ['blocked', 'disabled'].includes(provider.state) || provider.state === 'error' && provider.error !== 'VIEW_LOAD_FAILED'
+        || provider.grant !== permissionFingerprint(provider.manifest) || !shape || Object.keys(shape).length !== Object.keys(consumer.schema).length
+        || Object.keys(shape).some(key => shape[key] !== consumer.schema[key])) error('DEPENDENCY_UNAVAILABLE', 'Required public contract is unavailable.')
+    }
   }
   async call(id: string, binding: string, packet: unknown): Promise<unknown> {
     const instance = this.instance(id, binding)
@@ -367,7 +398,7 @@ export class PluginService {
     const cancellation = cancelSchema.safeParse(packet)
     if (cancellation.success) { const request = instance.requests.get(cancellation.data.requestId); if (request) request.cancelled = true; return null }
     const unsubscription = z.object({ protocol: z.literal(1), type: z.literal('unsubscribe'), subscriptionId: z.string().min(1).max(128) }).strict().safeParse(packet)
-    if (unsubscription.success) { instance.subscriptions.delete(unsubscription.data.subscriptionId); return null }
+    if (unsubscription.success) { instance.subscriptions.delete(unsubscription.data.subscriptionId); this.background.unsubscribe(instance.id, unsubscription.data.subscriptionId); return null }
     const request = requestSchema.safeParse(packet)
     if (!request.success) error('INVALID_REQUEST', 'Invalid plugin packet.')
     const { requestId, method, params, contextRevision } = request.data!
@@ -423,6 +454,21 @@ export class PluginService {
   }
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
     const record = this.record(instance.plugin)
+    if (['tasks.start', 'tasks.list', 'tasks.cancel', 'network.fetch', 'events.publish', 'events.subscribe', 'services.discover', 'services.call'].includes(method)) {
+      valid()
+      const identity = this.backgroundIdentity(instance.plugin, instance.context.project?.projectId ?? null, instance.scope)
+      if (method === 'tasks.start') return this.background.start(identity, params.task as string, params.input as PluginMessage)
+      if (method === 'tasks.list') return this.background.list(identity)
+      if (method === 'tasks.cancel') return { cancelled: this.background.cancel(params.id as string, identity) }
+      if (method === 'network.fetch') return this.network.fetch(record.manifest, identity.scope, params as unknown as PluginNetworkRequest, valid)
+      if (method === 'services.discover') return this.background.discover(identity)
+      if (method === 'services.call') return this.background.call(identity, params as unknown as Parameters<PluginBackground['call']>[1])
+      if (method === 'events.publish') return this.background.publish(identity, params as unknown as Parameters<PluginBackground['publish']>[1])
+      let subscriptionId = ''
+      subscriptionId = this.background.subscribe(instance.id, identity, params.plugin as string, params.event as string, params.version as number,
+        event => this.send(instance, { type: 'event', event: 'public', subscriptionId, payload: event }))
+      return { subscriptionId }
+    }
     if (method === 'configuration.propose') return this.configuration.run(async () => {
       valid()
       if (!instance.context.configurationEditor) error('PERMISSION_DENIED', 'Only a declared configuration editor may propose edits.')
@@ -599,7 +645,7 @@ export class PluginService {
     }
     try {
       state.watchers.push(watch(record.packageDirectory, (_event, name) => { if (!name || String(name) === 'manifest.json' || String(name) === 'dist') schedule() }))
-      state.watchers.push(watch(join(record.packageDirectory, 'dist'), { recursive: true }, schedule))
+      if (record.manifest.contributes.views.length) state.watchers.push(watch(join(record.packageDirectory, 'dist'), { recursive: true }, schedule))
       for (const watcher of state.watchers) watcher.on('error', schedule)
       this.watchers.set(record.manifest.id, state)
     } catch { for (const watcher of state.watchers) watcher.close(); this.log('SOURCE_UNAVAILABLE', { pluginId: record.manifest.id }) }
@@ -650,6 +696,37 @@ export class PluginService {
     this.record(id); this.revokePlugin(id)
     await this.storage.deletePlugin(id)
     await this.configuration.deletePlugin(id)
+    this.background.deleteData(id); await this.credentials.deletePlugin(id)
   }
-  dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); if (this.islandTimer) clearTimeout(this.islandTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
+  private backgroundIdentity(plugin: string, projectId: string | null, scope?: string): BackgroundIdentity {
+    const record = this.record(plugin); this.allowed(record)
+    const generation = this.activations.get(record) ?? 0; const digest = record.digest; const revision = this.current.revision
+    if (projectId && (!record.projects.includes(projectId) || this.current.projectId !== projectId || !this.current.root)) error('CONTEXT_UNAVAILABLE', 'Background project is unavailable.')
+    const expectedScope = projectId ? `${projectId}:${createHash('sha256').update(this.current.root!).digest('hex')}` : 'application'
+    if (scope && scope !== expectedScope) error('STALE_CONTEXT', 'Background root changed.')
+    return { plugin, manifest: record.manifest, projectId, scope: expectedScope, rootId: projectId ? createHash('sha256').update(expectedScope).digest('hex') : null,
+      valid: () => {
+        this.allowed(record)
+        if (this.records.get(plugin) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== generation || projectId && this.current.revision !== revision) error('STALE_CONTEXT', 'Background activation changed.')
+      } }
+  }
+  async backgroundManage(request: Extract<PluginManageRequest, { type: 'taskStart' | 'taskCancel' | 'credentialStatus' | 'credentialSet' }>): Promise<unknown> {
+    if (request.type === 'taskCancel') return { cancelled: this.background.cancel(request.runId) }
+    const record = this.record(request.id); const digest = record.digest; const generation = this.activations.get(record) ?? 0
+    const revision = this.current.revision
+    if (!request.projectId && request.scopePath) error('INVALID_REQUEST', 'Application scope has no root.')
+    if (request.projectId) {
+      if (!request.scopePath || (await this.deps.resolveProject(request.projectId, request.scopePath)).root !== this.current.root || revision !== this.current.revision) error('STALE_CONTEXT', 'Background management root changed.')
+    }
+    if (this.records.get(request.id) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== generation) error('STALE_CONTEXT', 'Background management activation changed.')
+    const identity = this.backgroundIdentity(request.id, request.projectId)
+    if (request.type === 'taskStart') return this.background.start(identity, request.task, request.input)
+    const slot = identity.manifest.contributes.credentials?.find(item => item.id === request.slot)
+    if (!slot) error('INVALID_REQUEST', 'Credential slot is undeclared.')
+    if (request.type === 'credentialStatus') return { configured: await this.credentials.status(request.id, identity.scope, slot!.id, slot!.origin) }
+    this.network.revoke(request.id); this.background.revoke(request.id)
+    await this.credentials.set(request.id, identity.scope, slot!.id, slot!.origin, request.value, identity.valid)
+    identity.valid(); this.publish(); return { configured: request.value !== null }
+  }
+  dispose(): void { this.background.revoke(); this.network.close(); if (this.eventTimer) clearTimeout(this.eventTimer); if (this.islandTimer) clearTimeout(this.islandTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
 }

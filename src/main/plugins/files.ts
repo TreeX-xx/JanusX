@@ -101,7 +101,8 @@ export async function readPluginPackage(directory: string, expectedRoot?: string
     if (files.size >= 2000 || total > 50 * 1024 * 1024) fail('PACKAGE_LIMIT_EXCEEDED', 'Package exceeds its limit.')
     files.set(path, bytes)
   }
-  await walk('dist', 0)
+  // A declarative-only package contains just its manifest and never loads executable resources.
+  if (manifest!.contributes.views.length) await walk('dist', 0)
   for (const view of manifest!.contributes.views) if (!files.has(view.entry)) fail('ENTRY_NOT_FOUND', 'A declared HTML entry is missing.')
   const hash = createHash('sha256')
   for (const [path, bytes] of [...files].sort(([a], [b]) => a.localeCompare(b))) hash.update(path).update('\0').update(String(bytes.length)).update('\0').update(bytes)

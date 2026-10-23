@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T06:30:55Z",
+  "updated": "2026-10-23T07:51:04Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -25,7 +25,7 @@
 
 目标架构归[插件平台设计](plugin-platform-design.md)，验收归[架构需求](requirements/plugin-architecture-forms.md)和[导入需求](requirements/plugin-import-debug.md)，顺序及实施证据归[阶段计划](../planning/plugin-platform-roadmap.md)。全部未来能力不塞进首版 schema；示例只验证契约关系，不指定要交付哪项示范产品。
 
-首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、网络、模型、任意宿主命令、跨插件服务、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。
+首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、页面直连网络、模型、任意宿主命令、跨插件服务、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。
 
 ## 现有消费者与兼容改造
 
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`、`tasks.declarative`、`network.fetch`、`credentials.use`、`events.public`、`services.public`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -163,7 +163,23 @@ scope=application 的字段仅能设置应用值；scope=project 允许在应用
 
 宿主展开对应表单、显示建议来源及待审阅字段，用户可修改后保存或重新读取以放弃。父层／本层在交接后被竞争修改时，保存继续使用交接修订，报 CONFIGURATION_CONFLICT 并保留编辑，不能用较新的读取结果自动覆盖修订。切项目／根或模式变化清除旧表单目标，重新读取不会重复灌入同一建议。待提交修改阻止再次进入自定义页；已交接草稿属于当前设置表单，关窗丢弃，不保证重启恢复，尚未交接的页面局部编辑仍随页面销毁而丢失。提交后的取消、确认丢失不撤回已交接内容，普通页面仍没有直接 setter。SDK 外部模板提供可独立构建的 JSON patch 编辑／重读与交接示例，作者可替换成业务表单。
 
-配置不存密钥。复杂类型转换、历史恢复及凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。AC-19 因凭证部分未闭合继续保持未勾选，P4 也不关闭。此片复用离线工作台和宿主审阅保存，保留一次交接的编辑边界；需要页面内连续保存或设置内嵌原生页时应另定确认与遮挡契约。
+配置不存密钥。P5 已接通独立凭证槽与宿主代用，原始密钥不通过普通配置、日志或插件 UI 返回。复杂类型转换和历史恢复尚未实现，P4 仍不关闭。自定义页复用离线工作台和宿主审阅保存，保留一次交接的编辑边界；需要页面内连续保存或设置内嵌原生页时应另定确认与遮挡契约。
+
+## P5 后台任务、网络与公开协作
+
+P5 采用宿主声明式任务，不加载后台插件 JS。`scripts/probe-plugin-background.mjs` 在 Node 权限模式下验证文件拒绝而网络与环境仍可直通，因此不能把普通子进程作为本契约的权限沙箱。清单 `main`、`background`、执行脚本或任意 exec 步骤仍拒绝。无页面包可只包含 manifest.json，声明空 views 和至少一个 tasks；包管理不加载此类包中的 dist。可独立导入的提供者／消费者示例在 `packages/plugin-sdk/examples/`。
+
+`contributes.tasks` 最多 16 项，需必需能力 tasks.declarative 与权限 tasks.run；每项有 id、title、application/project scope、input、timeoutMs 和 1–32 个 steps。input 是最多 32 个字段的扁平 string/number/boolean 类型映射，调用必须恰好满足字段与类型；字符串最多 4096 字符。步骤限 delay、静态 log、request、emit 和 service，无文件写入、Shell、任意代码或自动定时调度。request 可将 input 作为 JSON POST，emit 可按声明使用 input；service 只调用已声明消费的公开任务。全任务及服务链最多 128 步、8 层，重复 plugin/task 链拒绝 CYCLE_DETECTED。任务超时 10–60000ms；子服务同时检查自身截止时间与根任务取消。
+
+用户在“设置 → 插件 → 后台任务与凭证”输入任务参数并显式运行，也可由获权页面 tasks.start 发起。任务归发起插件及 application/project＋真实 worktree 根，关闭设置或页面不结束任务；切项目／worktree 撤销项目任务，应用任务继续。停用、重载、卸载、关闭开发模式、应用退出及参与服务提供者撤销均停止相关任务，不接收迟到结果。任务可查看状态、静态日志、结果和错误码；用户停止后可重新运行以显式重试，无自动重试／重启恢复。运行记录仅保留本次进程，全局最多 128 条、每插件 32 条；并发全局 16、同一插件参与的并发最多 4，每插件每分钟最多发起 20 个任务。每次运行日志最多 100 条、响应正文合计最多 64 KiB、结果最多 32 项。停止只能取消未完成工作，不能撤销已发出的远端副作用。
+
+`network.fetch` 必需能力及同名权限声明最多 16 个精确 HTTPS origin，不支持通配符、IP 字面量、非 443 端口或用户名密码。SDK network.fetch 和任务 request 均走主进程同一代理，页面 Session 保持离线／原 CSP，不开放 fetch、WebSocket 或 Node 直通。仅 GET／POST，POST 正文最多 32 KiB，不接受任意头、Cookie、客户端证书或传输选项。每跳重新检查 origin、DNS 和生命周期；仅支持公开 IPv4，混合私网／保留地址也拒绝，连接固定到已验证地址并保持原域名的 TLS／证书检查。最多 3 次同源 GET 重定向，跨 origin、POST 重定向、私网和未授权目标拒绝。请求 4 秒超时、每插件同时最多 2／每分钟 20 次、全局同时 16；正文最多 64 KiB，无自动重试。传输使用宿主独立 HTTPS 连接，不继承浏览器 Cookie、系统登录态或环境代理；显式代理、IPv6-only 服务、流式传输和其他认证方案另定增量。
+
+`contributes.credentials` 最多 16 个 `{id,title,origin}`，需 credentials.use 必需能力和权限，origin 必须在网络授权内。宿主输入 Bearer Token，按插件／application 或 project-root／slot／origin 独立加密落盘，不做项目层向应用层的隐式继承。safeStorage 不可用或 Linux 使用 basic_text 时拒绝保存／解密；读取只交付 configured 布尔值，没有 SDK 凭证 getter。替换／撤销前取消相关网络和任务；停用／卸载保留凭证，删除插件数据清除凭证及运行记录。普通配置、KV 和日志不承载凭证。调用只能指定自身已声明槽，同源注入 Authorization；凭证请求仅返回 HTTP status，body 与 contentType 为空，防止服务回显密钥。当前适用于认证动作与连接探测；需要认证响应正文、OAuth 刷新或响应投影时另定防泄漏契约，不将其宣称已支持。
+
+公开事件 `contributes.events` 声明 id、整数 version、scope、data schema 和 consumers 插件白名单。公开服务 `contributes.services` 声明 id、version、task 和 consumers；服务输入为目标任务 input schema，输出固定为宿主 v1 PluginTaskRun 的状态／日志／受限结果，services.call 返回由消费者持有的 run id，可查询／取消。服务运行使用提供者自己的已授权能力；消费者无权读取提供者私有任务或存储。两者分别需要 events.public／services.public 必需能力和权限，消费者还需 consumes.events/services 的 plugin、id、version、schema 和可选 optional。双方版本、schema、范围与白名单须一致；缺少必需提供者阻止启用／调用，optional 不可用时发现降级，不能绕过调用检查。公开服务发现只列出当前实例可消费的匹配服务；不会注册 CLI、终端或任意 IPC。
+
+events.subscribe 返回可撤销订阅，事件携带宿主生成 id、source、version、data 和 trace，只传同一作用域。发布每插件每分钟最多 30 次；每页最多 32、全局 512 个订阅。cause 只能引用 10 秒内本插件实际收到且同 scope 的事件，trace 禁止回到既有插件并限制 8 跳；伪造 cause 拒绝。事件不自动激活任务或调用服务；省略 cause 视为新根事件，仍受发布预算约束，不承诺识别恶意重新发根的语义循环。事件因果记录最多 256 条，关闭页面／停用／重载清理订阅，跨项目清理项目事件。schema 不授予正文、文件或执行权限。新增或变更 P5 贡献参与授权指纹，原先未使用 P5 的授权计算保持兼容。
 
 ## 身份与上下文
 
@@ -187,6 +203,10 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 
 | 方法 | 参数 → 结果 | 必需权限及行为 |
 |---|---|---|
+| `tasks.start()`／`list()`／`cancel()` | `{task,input}` → `{id}`；自身运行列表；`{id}` → `{cancelled}` | tasks.run；绑定自身作用域，任务脱离页面生命周期，停用／上下文失效取消 |
+| `network.fetch()` | `{url,method?,body?,credential?}` → `{status,body,contentType}` | network.fetch；凭证槽另需 credentials.use，认证响应仅返回状态 |
+| `events.publish()`／`subscribe()` | `{event,data,cause?}` → `{id}`；`{plugin,event,version}` 与 listener → unsubscribe | events.public；双方声明、schema、版本、作用域、频率及因果链检查 |
+| `services.discover()`／`call()` | 可消费描述列表；`{plugin,service,version,input}` → `{id}` | services.public；启动提供者声明任务，运行记录归消费者，沿用任务查询／取消 |
 | `app.getInfo()` | `{}` → `{pluginApiVersion, capabilities, locale, theme:{id,tokens}}` | 基础握手信息，无项目或机密；tokens 为宿主公开令牌子集 |
 | `workspace.getContext()` | `{}` → `{project:null|{projectId,rootId,name}, revision, active}` | `workspace.context.read`；权限拒绝不泄露项目名 |
 | `workspace.readText()` | `{path}` → `{text, bytes}` | `workspace.files.read` 且 path 在声明与授权的精确路径交集；project 作用域，UTF-8 文本最多 1 MiB，二进制／无效编码拒绝，不悄然截断 |

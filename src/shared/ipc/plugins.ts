@@ -1,4 +1,5 @@
 import type { PluginManifest, PluginContext, PluginIslandStatus, PluginDocument, JsonValue, PluginSettingValue, PluginConfiguration } from '@janusx/plugin-sdk'
+import type { PluginTaskRun, PluginMessage } from '@janusx/plugin-sdk'
 
 /** Host-only upgrade preview; no raw incompatible values leave storage. */
 export interface PluginConfigurationState extends PluginConfiguration {
@@ -22,10 +23,14 @@ export interface PluginIslandEntry {
   pluginId: string; id: string; instanceId: string; projectId: string | null; rootId: string | null
   status: PluginIslandStatus; createdAt: number
 }
-export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[]; island?: PluginIslandEntry[] }
+export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[]; island?: PluginIslandEntry[]; tasks?: PluginTaskRun[] }
 export interface PluginMount { instanceId: string; binding: string; url: string; context: PluginContext }
 export interface PluginBounds { x: number; y: number; width: number; height: number }
 export type PluginManageRequest =
+  | { type: 'taskStart'; id: string; task: string; projectId: string | null; scopePath: string | null; input: PluginMessage }
+  | { type: 'taskCancel'; runId: string }
+  | { type: 'credentialStatus'; id: string; slot: string; projectId: string | null; scopePath: string | null }
+  | { type: 'credentialSet'; id: string; slot: string; projectId: string | null; scopePath: string | null; value: string | null }
   | { type: 'list' }
   | { type: 'development'; enabled: boolean }
   | { type: 'import'; kind: 'linked' | 'copied' }

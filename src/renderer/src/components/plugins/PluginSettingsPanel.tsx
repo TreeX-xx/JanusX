@@ -8,6 +8,7 @@ import { acquireBrowserOcclusion } from '@/stores/browser-occlusion'
 import type { InstalledPlugin, PluginManageRequest } from '../../../../shared/ipc/plugins'
 import styles from './PluginSettingsPanel.module.css'
 import { PluginConfigurationForm } from './PluginConfigurationForm'
+import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
 export function PluginSettingsPanel({ configurationTarget, onOpened }: { configurationTarget?: PluginConfigurationTarget | null; onOpened?: () => void }) {
@@ -72,6 +73,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
           <button disabled={busy} onClick={() => setConfirmation({ type: 'deleteData', id: record.manifest.id })}>{t('plugins:deleteData')}</button>
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
+        <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
           <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? `${configurationTarget.scope}:${configurationTarget.proposal?.expectedRevision ?? ''}` : 'application'} record={record}
             initialScope={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.scope : undefined}

@@ -26,7 +26,7 @@
   "returnToWorkspace": "返回原界面", "open": "打开插件",
   "islandStatusCount": "插件状态：{{count}}",
   "switchProject": "切换项目",
-  "hostBoundary": "此列表管理第三方本地插件。内置工具和共享会话由宿主管理；本地插件没有外部服务连接。",
+  "hostBoundary": "本地插件使用声明并授权的权限，后台任务与外部请求由宿主监督。",
   "runtime": "页面：{{pages}} · 桥已连接：{{connected}} · 已就绪：{{ready}}",
   "nav": "插件", "title": "本地插件", "subtitle": "管理本地插件来源、权限和入口", "devtools": "调试插件", "retry": "重试插件页面",
   "development": "开启本地开发模式", "developmentHint": "审阅权限后运行本地插件。关闭此模式将停用所有本地插件。",
@@ -36,5 +36,16 @@
   "applyShortcut": "应用或禁用", "resetShortcut": "恢复默认", "hideEntry": "隐藏入口", "order": "排序", "projectScope": "允许访问以下项目",
   "grantHint": "启用即在所选项目范围内授予上述全部权限。应用级视图不能读取项目文件。", "confirmEnable": "授权并启用", "cancel": "取消", "confirm": "确认",
   "uninstallHint": "卸载移除插件资源和入口，保留私有数据与链接的源目录。", "deleteHint": "永久删除此插件的私有数据？正在运行的插件页面将关闭。", "refresh": "刷新",
-  "state": { "disabled": "已停用", "blocked": "已阻止", "ready": "已启用，尚无页面", "loading": "加载中", "active": "正在运行", "error": "发生错误" }
+  "state": { "disabled": "已停用", "blocked": "已阻止", "ready": "已启用，尚无页面", "loading": "加载中", "active": "正在运行", "error": "发生错误" },
+  "background": "后台任务与凭证",
+  "backgroundScope": "后台作用域",
+  "taskInput": "输入（JSON）",
+  "taskRun": "运行 {{title}}",
+  "taskCancel": "停止任务",
+  "credentialConfigured": "已配置凭证",
+  "credentialEmpty": "未配置凭证",
+  "credentialSave": "保存凭证",
+  "credentialRevoke": "撤销凭证",
+  "backgroundHint": "关闭页面后任务继续运行；切换项目会停止项目任务。可在此停止任务，重新运行可重试。历史保留于本次应用会话。",
+  "taskState": {"running":"运行中","completed":"已完成","cancelled":"已停止","timeout":"已超时","failed":"失败"}
 }

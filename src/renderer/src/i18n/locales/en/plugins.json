@@ -26,7 +26,7 @@
   "returnToWorkspace": "Return to previous view", "open": "Open plugin",
   "islandStatusCount": "Plugin status: {{count}}",
   "switchProject": "Switch project",
-  "hostBoundary": "This list manages third-party local plugins. Built-in tools and shared sessions remain host-managed; local plugins have no external service connection.",
+  "hostBoundary": "Local plugins use declared permissions. Background tasks and external requests are supervised by the host.",
   "runtime": "Pages: {{pages}} · Bridge connected: {{connected}} · Ready: {{ready}}",
   "nav": "Plugins", "title": "Local plugins", "subtitle": "Manage local plugin sources, permissions and entries", "devtools": "Inspect plugin", "retry": "Retry plugin view",
   "development": "Enable local development mode", "developmentHint": "Run local plugins after reviewing their permissions. Turning this off disables all local plugins.",
@@ -36,5 +36,16 @@
   "applyShortcut": "Apply or disable", "resetShortcut": "Restore default", "hideEntry": "Hide entry", "order": "Order", "projectScope": "Allow access in these projects",
   "grantHint": "Enable grants all listed permissions within the selected projects. Application views cannot read project files.", "confirmEnable": "Grant and enable", "cancel": "Cancel", "confirm": "Confirm",
   "uninstallHint": "Uninstall removes plugin resources and entries. Private data is retained; linked source files are retained.", "deleteHint": "Permanently delete this plugin's private data? Active plugin pages will be closed.", "refresh": "Refresh",
-  "state": { "disabled": "Disabled", "blocked": "Blocked", "ready": "Enabled, no page open", "loading": "Loading", "active": "Running", "error": "Error" }
+  "state": { "disabled": "Disabled", "blocked": "Blocked", "ready": "Enabled, no page open", "loading": "Loading", "active": "Running", "error": "Error" },
+  "background": "Background tasks and credentials",
+  "backgroundScope": "Background scope",
+  "taskInput": "Input (JSON)",
+  "taskRun": "Run {{title}}",
+  "taskCancel": "Stop task",
+  "credentialConfigured": "Credential configured",
+  "credentialEmpty": "No credential configured",
+  "credentialSave": "Save credential",
+  "credentialRevoke": "Revoke credential",
+  "backgroundHint": "Tasks continue after closing their page. Switching projects stops project tasks. Stop tasks here; retry by running again. History is kept for this app session.",
+  "taskState": {"running":"Running","completed":"Completed","cancelled":"Stopped","timeout":"Timed out","failed":"Failed"}
 }

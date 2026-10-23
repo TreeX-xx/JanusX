@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "example.background-provider",
+  "name": "Background provider",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["tasks.declarative", "events.public", "services.public"], "optional": [] },
+  "permissions": [{ "name": "tasks.run" }, { "name": "events.public" }, { "name": "services.public" }],
+  "contributes": {
+    "views": [],
+    "tasks": [{ "id": "report", "title": "Background report", "scope": "application", "input": {}, "timeoutMs": 5000,
+      "steps": [{ "type": "log", "message": "Report started" }, { "type": "delay", "milliseconds": 1500 },
+        { "type": "emit", "event": "reported", "data": { "status": "complete" } }, { "type": "log", "message": "Report completed" }] }],
+    "events": [{ "id": "reported", "version": 1, "scope": "application", "data": { "status": "string" }, "consumers": ["example.background-consumer"] }],
+    "services": [{ "id": "report", "version": 1, "task": "report", "consumers": ["example.background-consumer"] }]
+  }
+}

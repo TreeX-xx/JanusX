@@ -8,7 +8,7 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "bin": { "janusx-plugin": "./tools/cli.mjs" },
-  "files": ["dist", "tools", "template", "README.md"],
+  "files": ["dist", "tools", "template", "examples", "README.md"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

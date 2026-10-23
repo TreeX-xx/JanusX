@@ -75,6 +75,16 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     return unsubscribe
   }
   const api: PluginApi = {
+    tasks: { start: (params, options) => call('tasks.start', params, options), list: options => call('tasks.list', {}, options), cancel: (params, options) => call('tasks.cancel', params, options) },
+    network: { fetch: (params, options) => call('network.fetch', params, options) },
+    services: { discover: options => call('services.discover', {}, options), call: (params, options) => call('services.call', params, options) },
+    events: {
+      publish: (params, options) => call('events.publish', params, options),
+      subscribe: async (params, listener, options) => {
+        const result = await call<{ subscriptionId: string }>('events.subscribe', params, options)
+        return subscribe(result.subscriptionId, listener, options)
+      },
+    },
     configuration: {
       propose: (params, options) => call('configuration.propose', params, options),
       open: options => call('configuration.open', {}, options),

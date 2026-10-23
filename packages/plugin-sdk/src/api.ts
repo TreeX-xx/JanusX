@@ -2,6 +2,7 @@ import type { PluginErrorCode } from './errors.js'
 import type { PluginIslandStatus } from './island.js'
 import type { PluginDocument } from './documents.js'
 import type { PluginConfiguration, PluginSettingValue } from './configuration.js'
+import type { PluginNetworkRequest, PluginNetworkResult, PluginMessage, PluginPublicEvent, PluginTaskRun } from './background.js'
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export interface PluginCallOptions { signal?: AbortSignal }
@@ -21,6 +22,20 @@ export interface PluginStoredValue { found: boolean; value?: JsonValue; revision
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
+  tasks: {
+    start(params: { task: string; input: PluginMessage }, options?: PluginCallOptions): Promise<{ id: string }>
+    list(options?: PluginCallOptions): Promise<PluginTaskRun[]>
+    cancel(params: { id: string }, options?: PluginCallOptions): Promise<{ cancelled: boolean }>
+  }
+  network: { fetch(params: PluginNetworkRequest, options?: PluginCallOptions): Promise<PluginNetworkResult> }
+  events: {
+    publish(params: { event: string; data: PluginMessage; cause?: string }, options?: PluginCallOptions): Promise<{ id: string }>
+    subscribe(params: { plugin: string; event: string; version: number }, listener: (event: PluginPublicEvent) => void, options?: PluginCallOptions): Promise<PluginUnsubscribe>
+  }
+  services: {
+    discover(options?: PluginCallOptions): Promise<Array<{ plugin: string; service: string; version: number; scope: 'application' | 'project' }>>
+    call(params: { plugin: string; service: string; version: number; input: PluginMessage }, options?: PluginCallOptions): Promise<{ id: string }>
+  }
   configuration: {
     /** Hands edits to the host form for review; success does not mean saved. */
     propose(params: { patch: Record<string, PluginSettingValue | null>; expectedRevision: string }, options?: PluginCallOptions): Promise<{ proposed: true }>

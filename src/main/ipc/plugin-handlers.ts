@@ -1,8 +1,8 @@
-import { app, dialog, ipcMain, type BrowserWindow } from 'electron'
+import { app, dialog, ipcMain, safeStorage, type BrowserWindow } from 'electron'
 import { join, basename } from 'node:path'
 import { realpath } from 'node:fs/promises'
 import { z } from 'zod'
-import { PluginError } from '@janusx/plugin-sdk'
+import { PluginError, messageSchema } from '@janusx/plugin-sdk'
 import { PLUGIN_CHANNELS, type PluginManageRequest, type PluginHostResult } from '../../shared/ipc/plugins'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
 import { PluginService } from '../plugins/service'
@@ -15,6 +15,10 @@ const text = z.string().min(1).max(256)
 const nullableText = z.string().max(4096).nullable()
 const instance = { instanceId: text, binding: text }
 const inputSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('taskStart'), id: text, task: text, projectId: text.nullable(), scopePath: nullableText, input: messageSchema }).strict(),
+  z.object({ type: z.literal('taskCancel'), runId: z.string().uuid() }).strict(),
+  z.object({ type: z.literal('credentialStatus'), id: text, slot: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
+  z.object({ type: z.literal('credentialSet'), id: text, slot: text, projectId: text.nullable(), scopePath: nullableText, value: z.string().min(1).max(4096).nullable() }).strict(),
   z.object({ type: z.literal('list') }).strict(),
   z.object({ type: z.literal('development'), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('import'), kind: z.enum(['linked', 'copied']) }).strict(),
@@ -41,6 +45,16 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
   const send = (channel: string, payload?: unknown) => { const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload) }
   const service = new PluginService({
     directory: join(app.getPath('userData'), 'janusx', 'plugins'),
+    encryption: {
+      encrypt: value => {
+        if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') throw new Error('Encryption unavailable')
+        return safeStorage.encryptString(value)
+      },
+      decrypt: value => {
+        if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') throw new Error('Encryption unavailable')
+        return safeStorage.decryptString(value)
+      },
+    },
     protectedDirectories: [app.getPath('userData'), app.getPath('sessionData')],
     resolveProject: async (id, scopePath) => {
       const registered = await resolveRoot(id)
@@ -82,6 +96,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
       const request = checked.data as PluginManageRequest
       let data: unknown = null
       switch (request.type) {
+        case 'taskStart': case 'taskCancel': case 'credentialStatus': case 'credentialSet': data = await service.backgroundManage(request); break
         case 'list': data = service.snapshot(); break
         case 'development': await service.setDevelopment(request.enabled); break
         case 'import': {

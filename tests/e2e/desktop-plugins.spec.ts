@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Page, type Frame } from '@playwright/test'
-import { mkdtemp, mkdir, cp, readFile, writeFile, rm, link, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, cp, readFile, writeFile, rm, link, symlink, readdir } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -82,6 +82,122 @@ async function openDetails(page: Page) {
   await page.locator('button[data-id="tool-menu"]').click()
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
+
+test('P5 manifest-only tasks run without pages, expose service logs, survive settings close and stop on provider disable', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const providerId = 'example.background-provider'; const consumerId = 'example.background-consumer'
+    await writeFile(join(f.source, 'manifest.json'), await readFile('packages/plugin-sdk/examples/p5-provider/manifest.json'))
+    const consumerSource = join(f.root, 'consumer'); await mkdir(consumerSource)
+    await writeFile(join(consumerSource, 'manifest.json'), await readFile('packages/plugin-sdk/examples/p5-consumer/manifest.json'))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    await settings(page); await importDirectory(app, page, consumerSource)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const missing = await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), consumerId)
+    expect(missing.code).toBe('DEPENDENCY_UNAVAILABLE')
+    await importDirectory(app, page, f.source)
+    for (const id of [providerId, consumerId]) expect((await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), id)).ok).toBe(true)
+    let provider = page.locator(`[data-plugin-id="${providerId}"]`)
+    await provider.locator('[data-plugin-background] > summary').click()
+    await provider.getByRole('button', { name: 'Run Background report', exact: true }).click()
+    await expect(provider.locator('[data-plugin-task]')).toContainText('Running')
+    await page.keyboard.press('Escape')
+    await expect.poll(async () => {
+      const result = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+      return result.data.tasks.find((run: any) => run.pluginId === providerId)?.state
+    }).toBe('completed')
+    await settings(page); provider = page.locator(`[data-plugin-id="${providerId}"]`)
+    await provider.locator('[data-plugin-background] > summary').click()
+    await expect(provider.locator('[data-plugin-task]')).toContainText('Report completed')
+    const consumer = page.locator(`[data-plugin-id="${consumerId}"]`)
+    await consumer.locator('[data-plugin-background] > summary').click()
+    await consumer.getByRole('button', { name: 'Run Request background report', exact: true }).click()
+    await expect(consumer.locator('[data-plugin-task]')).toContainText('Running')
+    await provider.getByRole('button', { name: 'Disable', exact: true }).click()
+    await expect(consumer.locator('[data-plugin-task]')).toContainText('Stopped')
+    expect(await app.evaluate(({ webContents }) => webContents.getAllWebContents().filter(contents => contents.getURL().startsWith('janusx-plugin:')).length)).toBe(0)
+    await close(app); app = undefined
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
+test('P5 isolated bridges exchange declared events and services while direct network and unapproved broker destinations remain blocked', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined; let hits = 0
+  const listener = createServer((_request, response) => { hits++; response.end('unexpected') })
+  await new Promise<void>(resolve => listener.listen(0, '127.0.0.1', resolve))
+  try {
+    const provider = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    provider.capabilities.required.push('tasks.declarative', 'events.public', 'services.public', 'network.fetch')
+    provider.permissions.push({ name: 'tasks.run' }, { name: 'events.public' }, { name: 'services.public' }, { name: 'network.fetch', origins: ['https://api.example.com'] })
+    provider.contributes.tasks = [{ id: 'report', title: 'Report', scope: 'project', input: {}, timeoutMs: 2000, steps: [{ type: 'delay', milliseconds: 50 }, { type: 'log', message: 'Service reported' }] }]
+    provider.contributes.services = [{ id: 'report', version: 1, task: 'report', consumers: ['example.p5-consumer'] }]
+    provider.contributes.events = [{ id: 'reported', version: 1, scope: 'project', data: { status: 'string' }, consumers: ['example.p5-consumer'] }]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(provider))
+    const consumerSource = join(f.root, 'consumer'); await mkdir(consumerSource); await cp(join(f.source, 'dist'), join(consumerSource, 'dist'), { recursive: true })
+    const consumer = structuredClone(provider); consumer.id = 'example.p5-consumer'; consumer.name = 'P5 consumer'
+    delete consumer.contributes.services; delete consumer.contributes.events
+    consumer.contributes.commands[0].title = 'Open P5 consumer'
+    consumer.contributes.consumes = { services: [{ plugin: pluginId, id: 'report', version: 1, schema: {} }], events: [{ plugin: pluginId, id: 'reported', version: 1, schema: { status: 'string' } }] }
+    await writeFile(join(consumerSource, 'manifest.json'), JSON.stringify(consumer))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P5 Project', path }), f.project)
+    await page.reload(); await page.getByText('P5 Project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id); await enableFixture(app, page, consumerSource, workspace.id, consumer.id)
+    await openDetails(page); const providerPage = await guest(app, '/dist/index.html')
+    await page.locator('button[data-id="tool-menu"]').click(); await page.getByRole('menuitem', { name: 'Open P5 consumer', exact: true }).click()
+    const consumerPage = await guest(app, '/dist/index.html', providerPage.url())
+    const sub = await rawCall(consumerPage, 'events.subscribe', { plugin: pluginId, event: 'reported', version: 1 }); expect(sub.ok).toBe(true)
+    await consumerPage.evaluate(() => { (window as any).receivedP5 = []; (window as any).testPort.addEventListener('message', (event: MessageEvent) => { if (event.data.event === 'public') (window as any).receivedP5.push(event.data.payload) }) })
+    expect((await rawCall(providerPage, 'events.publish', { event: 'reported', data: { status: 'complete' } })).ok).toBe(true)
+    await expect.poll(() => consumerPage.evaluate(() => (window as any).receivedP5[0]?.data.status)).toBe('complete')
+    const run = await rawCall(consumerPage, 'services.call', { plugin: pluginId, service: 'report', version: 1, input: {} }); expect(run.ok).toBe(true)
+    await expect.poll(async () => {
+      const result = await rawCall(consumerPage, 'tasks.list', {}); return result.result.find((item: any) => item.id === run.result.id)?.state
+    }).toBe('completed')
+    expect((await rawCall(providerPage, 'services.call', { plugin: consumer.id, service: 'report', version: 1, input: {} })).error.code).toBe('PERMISSION_DENIED')
+    const address = listener.address(); if (!address || typeof address === 'string') throw new Error('Missing listener')
+    const url = `http://127.0.0.1:${address.port}/blocked`
+    expect((await rawCall(providerPage, 'network.fetch', { url })).error.code).toBe('NETWORK_DENIED')
+    expect(await providerPage.evaluate(async url => { try { await fetch(url); return 'connected' } catch { return 'blocked' } }, url)).toBe('blocked')
+    expect(hits).toBe(0)
+    expect(await providerPage.evaluate(() => ({ bridge: typeof (window as any).electron, node: typeof (window as any).require }))).toEqual({ bridge: 'undefined', node: 'undefined' })
+    await close(app); app = undefined
+  } finally { await close(app); await new Promise<void>(resolve => listener.close(() => resolve())); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
+test('P5 host credential input encrypts, persists and revokes tokens without returning secrets or persisting task runs', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const value = JSON.parse(await readFile('packages/plugin-sdk/examples/p5-provider/manifest.json', 'utf8'))
+    value.capabilities.required.push('network.fetch', 'credentials.use')
+    value.permissions.push({ name: 'network.fetch', origins: ['https://api.example.com'] }, { name: 'credentials.use' })
+    value.contributes.credentials = [{ id: 'token', title: 'P5 API token', origin: 'https://api.example.com' }]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(value))
+    let booted = await boot(f.root); app = booted.app; let page = booted.page
+    await settings(page); await importDirectory(app, page, f.source)
+    for (const request of [{ type: 'development', enabled: true }, { type: 'enable', id: value.id, projects: [] }]) expect((await page.evaluate(input => (window as any).electron.plugins.request(input), request)).ok).toBe(true)
+    let card = page.locator(`[data-plugin-id="${value.id}"]`)
+    await card.locator('[data-plugin-background] > summary').click()
+    await card.getByLabel('P5 API token', { exact: true }).fill('p5-desktop-fixture-token')
+    await card.getByRole('button', { name: 'Save credential', exact: true }).click()
+    await expect(card.getByText('https://api.example.com · Credential configured', { exact: true })).toBeVisible()
+    await expect(card.getByLabel('P5 API token', { exact: true })).toHaveValue('')
+    const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+    expect(JSON.stringify(snapshot)).not.toContain('p5-desktop-fixture-token')
+    const userData = await app.evaluate(({ app }) => app.getPath('userData'))
+    const credentialRoot = join(userData, 'janusx/plugins/credentials')
+    const credentialFolder = join(credentialRoot, (await readdir(credentialRoot))[0])
+    const persisted = await readFile(join(credentialFolder, (await readdir(credentialFolder))[0]))
+    expect(persisted.includes(Buffer.from('p5-desktop-fixture-token'))).toBe(false)
+    await close(app); app = undefined; booted = await boot(f.root); app = booted.app; page = booted.page
+    await settings(page); card = page.locator(`[data-plugin-id="${value.id}"]`)
+    await card.locator('[data-plugin-background] > summary').click()
+    await expect(card.getByText('https://api.example.com · Credential configured', { exact: true })).toBeVisible()
+    await card.getByRole('button', { name: 'Revoke credential', exact: true }).click()
+    await expect(card.getByText('https://api.example.com · No credential configured', { exact: true })).toBeVisible()
+    expect((await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))).data.tasks).toEqual([])
+    await close(app); app = undefined
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
 
 test('P4a declarative configuration persists, inherits, updates both plugin views and rejects stale forms', async ({}, testInfo) => {
   const f = await fixture(); let app: ElectronApplication | undefined

@@ -3,6 +3,7 @@ import type { PluginManifest } from './manifest.js'
 import { PluginError } from './errors.js'
 import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { pluginIslandStatusSchema } from './island.js'
+import { backgroundId, networkRequestSchema, messageSchema, serviceCallSchema, eventPublishSchema } from './background.js'
 
 const empty = z.object({}).strict()
 const key = z.string().min(1).max(128).refine((value) => !value.includes('\0') && !['__proto__', 'prototype', 'constructor'].includes(value))
@@ -19,6 +20,14 @@ const json = z.unknown().refine((value) => isJson(value)).refine((value) => {
   try { return new TextEncoder().encode(JSON.stringify(value)).byteLength <= 64 * 1024 } catch { return false }
 })
 const methods = {
+  'tasks.start': { permission: 'tasks.run', params: z.object({ task: backgroundId, input: messageSchema }).strict() },
+  'tasks.list': { permission: 'tasks.run', params: empty },
+  'tasks.cancel': { permission: 'tasks.run', params: z.object({ id: z.string().uuid() }).strict() },
+  'network.fetch': { permission: 'network.fetch', params: networkRequestSchema },
+  'events.publish': { permission: 'events.public', params: eventPublishSchema },
+  'events.subscribe': { permission: 'events.public', params: z.object({ plugin: backgroundId, event: backgroundId, version: z.number().int().positive() }).strict() },
+  'services.discover': { permission: 'services.public', params: empty },
+  'services.call': { permission: 'services.public', params: serviceCallSchema },
   'app.getInfo': { permission: null, params: empty },
   'configuration.get': { permission: 'configuration.read', params: empty },
   'configuration.watch': { permission: 'configuration.read', params: empty },

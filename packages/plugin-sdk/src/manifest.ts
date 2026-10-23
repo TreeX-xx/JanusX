@@ -6,6 +6,7 @@ import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { isReservedPluginKeybinding, normalizePluginKeybinding } from './keybindings.js'
 import { pluginViewerSchema } from './documents.js'
 import { pluginSettingSchema, pluginSettingMigrationSchema, isPluginSettingValue } from './configuration.js'
+import { networkOriginSchema, pluginTaskSchema, pluginPublicEventSchema, pluginPublicServiceSchema, pluginConsumptionSchema, pluginCredentialSchema } from './background.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
 /** Implemented host features; old hosts reject unknown required capabilities. */
@@ -15,8 +16,9 @@ export const PLUGIN_CAPABILITIES = [
   'views.workbench', 'views.island', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
+  'tasks.declarative', 'network.fetch', 'credentials.use', 'events.public', 'services.public',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -42,18 +44,22 @@ export const pluginKeybindingSchema = z.object({
   mac: z.string().refine((value) => normalizePluginKeybinding(value) !== null && !isReservedPluginKeybinding(value)).optional(), when: condition,
 }).strict()
 const permission = z.union([
+  z.object({ name: z.literal('network.fetch'), origins: z.array(networkOriginSchema).min(1).max(16).refine(items => new Set(items).size === items.length) }).strict(),
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(10).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
-  contributes: z.object({ views: z.array(pluginViewSchema).min(1).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
+  permissions: z.array(permission).max(15).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  contributes: z.object({ views: z.array(pluginViewSchema).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
+    tasks: z.array(pluginTaskSchema).min(1).max(16).optional(), credentials: z.array(pluginCredentialSchema).min(1).max(16).optional(),
+    events: z.array(pluginPublicEventSchema).min(1).max(16).optional(), services: z.array(pluginPublicServiceSchema).min(1).max(16).optional(),
+    consumes: z.object({ events: z.array(pluginConsumptionSchema).max(16).optional(), services: z.array(pluginConsumptionSchema).max(16).optional() }).strict().optional(),
     menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional(),
     island: z.array(pluginIslandSchema).max(4).optional(), viewers: z.array(pluginViewerSchema).max(16).optional(),
     settings: z.array(pluginSettingSchema).min(1).max(64).optional(),
@@ -63,6 +69,31 @@ export const pluginManifestSchema = z.object({
 }).strict().superRefine((manifest, ctx) => {
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
+  const { tasks = [], credentials = [], events = [], services = [], consumes } = manifest.contributes
+  if (!views.length && !tasks.length) fail('A plugin requires views or declarative tasks')
+  const needs = (used: boolean, capability: string, permission: string) => {
+    if (used && (!manifest.capabilities.required.includes(capability) || !manifest.permissions.some(item => item.name === permission))) fail(`Requires ${capability} and ${permission}`)
+  }
+  for (const items of [tasks, credentials, events, services]) if (new Set(items.map(item => item.id)).size !== items.length) fail('Duplicate background contribution')
+  for (const items of [consumes?.events ?? [], consumes?.services ?? []]) if (new Set(items.map(item => `${item.plugin}/${item.id}`)).size !== items.length) fail('Duplicate consumption')
+  needs(tasks.length > 0, 'tasks.declarative', 'tasks.run')
+  needs(credentials.length > 0, 'credentials.use', 'credentials.use')
+  needs(events.length > 0 || Boolean(consumes?.events?.length), 'events.public', 'events.public')
+  needs(services.length > 0 || Boolean(consumes?.services?.length), 'services.public', 'services.public')
+  const network = manifest.permissions.find(item => item.name === 'network.fetch')
+  needs(Boolean(network), 'network.fetch', 'network.fetch')
+  for (const credential of credentials) if (!network?.origins.includes(credential.origin)) fail('Credential origin must be network-authorized')
+  for (const task of tasks) for (const step of task.steps) {
+    if (step.type === 'request') {
+      try { const url = new URL(step.request.url)
+        if (!network?.origins.includes(url.origin) || url.username || url.password || url.hash) fail('Task network target is not granted')
+        if (step.request.credential && !credentials.some(item => item.id === step.request.credential && item.origin === url.origin)) fail('Unknown credential binding')
+      } catch { fail('Invalid task URL') }
+    }
+    if (step.type === 'emit' && !events.some(item => item.id === step.event && item.scope === task.scope)) fail('Unknown task event')
+    if (step.type === 'service' && !consumes?.services?.some(item => item.plugin === step.plugin && item.id === step.service && item.version === step.version)) fail('Undeclared task service')
+  }
+  for (const service of services) if (!tasks.some(task => task.id === service.task)) fail('Unknown service task')
   const settings = manifest.contributes.settings ?? []
   const configurationViews = manifest.contributes.configurationViews
   if (configurationViews) {
