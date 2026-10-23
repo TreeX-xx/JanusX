@@ -31,7 +31,7 @@
     "build:plugin-sdk": "npm run build --workspace=@janusx/plugin-sdk",
     "plugins:create": "npm run build:plugin-sdk && node packages/plugin-sdk/tools/cli.mjs init",
     "plugins:verify-scaffold": "npm run build:plugin-sdk && node scripts/verify-plugin-scaffold.mjs",
-    "plugins:check": "npm run build:plugin-sdk && node packages/plugin-sdk/tools/cli.mjs contract && node scripts/verify-plugin-scaffold.mjs && vitest run tests/unit/plugin-sdk.test.ts tests/unit/plugin-tools.test.ts tests/unit/plugin-runtime.test.ts tests/unit/plugin-surfaces.test.ts tests/unit/plugin-documents.test.ts tests/unit/extension-commands.test.ts",
+    "plugins:check": "npm run build:plugin-sdk && node packages/plugin-sdk/tools/cli.mjs contract && node scripts/verify-plugin-scaffold.mjs && vitest run tests/unit/plugin-sdk.test.ts tests/unit/plugin-tools.test.ts tests/unit/plugin-runtime.test.ts tests/unit/plugin-surfaces.test.ts tests/unit/plugin-documents.test.ts tests/unit/plugin-document-editing.test.ts tests/unit/extension-commands.test.ts",
     "preview": "electron-vite preview",
     "mcp:note": "node out/main/note-mcp.js",
     "mcp:office": "node out/main/office-mcp.js",

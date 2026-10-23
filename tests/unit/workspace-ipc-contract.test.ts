@@ -91,6 +91,8 @@ describe('Workspace/File IPC contract', () => {
     expect(invoke).toHaveBeenNthCalledWith(3, FILE_TREE_CHANNELS.move, input.path, 'src/demo.ts', 'archive')
     expect(invoke).toHaveBeenNthCalledWith(4, FILE_CHANNELS.save, 'C:\\workspace\\demo\\note.md', 'content')
     expect(invoke).toHaveBeenNthCalledWith(5, LANGUAGE_SERVICE_CHANNELS.definition, definitionRequest)
+    await exposedApi.file.save('C:\\workspace\\demo\\note.md', 'draft', 'a'.repeat(64))
+    expect(invoke).toHaveBeenNthCalledWith(6, FILE_CHANNELS.save, 'C:\\workspace\\demo\\note.md', 'draft', 'a'.repeat(64))
   })
 
   it('preserves file-tree event payload and unsubscribe semantics', () => {

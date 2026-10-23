@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-23T02:07:34Z",
+  "updated": "2026-10-23T03:10:27Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -82,7 +82,7 @@ S1 已提供可信渲染器注册与生命周期，S2 已迁移文件树、Git �
 
 ## Verification
 
-P4 首片实现嵌入文件编辑器的只读 viewer、默认选择／恢复、失败回退和按文件绑定实例。AC-10 仅补充文档 viewer 实例身份，通用多实例 pane 尚未开放；AC-12 的写入事务、未保存关闭、外部版本冲突及目录查询仍未完成，两条 AC 保持未勾选。契约归[只读 viewer](../plugin-contract-v1.md#p4-只读文档查看器)，实际验证归[阶段记录](../../planning/plugin-platform-roadmap.md#p4-只读-viewer-首片)。
+P4 首片实现嵌入文件编辑器的只读 viewer、默认选择／恢复、失败回退和按文件绑定实例。AC-10 仅补充文档 viewer 实例身份，通用多实例 pane 尚未开放；后续片已接通版本化草稿交接、宿主审阅保存、未保存关闭及写前版本冲突保护；AC-12 的完整写入事务、持续插件编辑／冲突合并及目录查询仍未完成，两条 AC 保持未勾选。契约归[只读 viewer](../plugin-contract-v1.md#p4-只读文档查看器)，实际验证归[阶段记录](../../planning/plugin-platform-roadmap.md#p4-只读-viewer-首片)。
 
 P3 的 AC-11 已在 Windows 开发构建验收：真实打包 SDK 的四区域联动通过，包含工作台返回／焦点、宿主设置面遮挡、Island 状态／动作／受限文本预览／原生展开页、重载、项目切换与停用清理。主单元 3793 项及 LLM 核心 80 项通过；完整 Electron 回归 40 项通过、2 项跳过。清单边界、队列与撤销证据归[阶段交付记录](../../planning/plugin-platform-roadmap.md#p3-交付与验证)。完整 verify 在新增的其它 Note 两处格式问题停止，后续 lint 和桌面回归已独立补跑通过，不记为一次全绿。macOS／Linux 和安装包未验收。
 

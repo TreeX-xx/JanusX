@@ -83,6 +83,71 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P4 plugin drafts are host-owned, reviewed before saving and retained on disk conflict or disable', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.permissions.push({ name: 'documents.read' }, { name: 'documents.edit' })
+    manifest.capabilities.required.push('documents.viewers', 'documents.readText', 'documents.applyEdit')
+    manifest.contributes.viewers = [{ id: 'text', title: 'Reference text', view: 'details', extensions: ['.txt'] }]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const first = join(f.project, 'a.txt'); const second = join(f.project, 'b.txt')
+    await writeFile(first, 'original A'); await writeFile(second, 'original B')
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P4 Drafts', path }), f.project)
+    await page.reload(); await page.getByText('P4 Drafts', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id)
+    const editor = page.locator('[data-editor-host="embedded"]')
+    const open = (filePath: string) => page.evaluate(payload => (window as any).electron.window.openEditor(payload), { filePath, workspacePath: f.project })
+    const draft = async (text: string) => {
+      await editor.getByRole('combobox', { name: 'Open with', exact: true }).selectOption(`${pluginId}/text`)
+      const plugin = await guest(app!, '/dist/index.html')
+      await plugin.getByRole('textbox', { name: 'Document draft', exact: true }).fill(text)
+      await plugin.getByRole('button', { name: 'Send draft for review', exact: true }).click()
+      await expect(plugin.locator('#status')).toContainText('Draft kept by JanusX')
+      await expect(editor.getByRole('button', { name: 'Review draft in built-in editor', exact: true })).toBeVisible()
+      return plugin
+    }
+    await open(first); await draft('plugin draft A')
+    expect(await readFile(first, 'utf8')).toBe('original A')
+    await editor.getByRole('button', { name: 'Close a.txt', exact: true }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children
+      .filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(0)
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    await editor.getByRole('button', { name: 'Review draft in built-in editor', exact: true }).click()
+    await expect(editor.locator('.view-lines')).toContainText('plugin draft A')
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => readFile(first, 'utf8')).toBe('plugin draft A')
+    await open(second); await draft('plugin draft B')
+    await writeFile(second, 'external B')
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), pluginId)
+    await expect(editor.locator('[data-document-viewer="builtin"]')).toBeVisible()
+    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(editor.getByRole('alert')).toContainText('Your draft is kept')
+    expect(await readFile(second, 'utf8')).toBe('external B')
+    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await open(first); await open(second)
+    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await editor.getByRole('button', { name: 'Close b.txt', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Save and close', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toBeVisible()
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await editor.getByRole('button', { name: 'Return to floating window', exact: true }).click()
+    await expect.poll(() => app!.windows().some(window => window.url().includes('editorWindow=1'))).toBe(true)
+    const floating = app.windows().find(window => window.url().includes('editorWindow=1'))!
+    await expect(floating.locator('.view-lines')).toContainText('plugin draft B')
+    await floating.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(floating.getByRole('alert').filter({ hasText: 'Your draft is kept' })).toBeVisible()
+    expect(await readFile(second, 'utf8')).toBe('external B')
+    await floating.getByRole('button', { name: 'Embed into main workspace', exact: true }).click()
+    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
 test('P4 document viewers bind files, persist defaults, shield dialogs and fall back without losing drafts', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

@@ -28,6 +28,7 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('bounds'), ...instance, bounds: z.object({ x: z.number().finite(), y: z.number().finite(), width: z.number().finite().nonnegative(), height: z.number().finite().nonnegative() }).strict() }).strict(),
   z.object({ type: z.literal('active'), ...instance, active: z.boolean() }).strict(),
   z.object({ type: z.literal('call'), ...instance, packet: z.unknown() }).strict(),
+  z.object({ type: z.literal('documentEditResult'), ...instance, editId: text, applied: z.boolean() }).strict(),
   z.object({ type: z.literal('islandAction'), pluginId: text, id: text, instanceId: text, command: text }).strict(),
 ])
 
@@ -105,6 +106,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'close': service.close(request.instanceId, request.binding); break
         case 'active': service.active(request.instanceId, request.binding, request.active); break
         case 'call': data = await service.call(request.instanceId, request.binding, request.packet); break
+        case 'documentEditResult': service.documentEditResult(request.instanceId, request.binding, request.editId, request.applied); break
         case 'islandAction': service.islandAction(request.pluginId, request.id, request.instanceId, request.command); break
       }
       return { ok: true, data }

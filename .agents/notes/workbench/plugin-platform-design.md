@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T02:07:34Z",
+  "updated": "2026-10-23T03:10:27Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -23,7 +23,7 @@
 
 JanusX 的目标是允许用户通过公开协议开发完整功能，组合中部工作区、工具箱、右侧栏、Island、独立工作台及宿主业务能力。插件可以只贡献命令、主题或服务，也可以形成跨区域应用。已有功能逐步使用相同贡献语义，用户能够管理其入口、启用范围及后台行为。
 
-用户已认可该架构方向并要求形成设计和实施计划。本文维护目标设计，保留 draft 表示仍需逐阶段细化与验证，不表示下述 API 全部已实现。S1–S3 的可信视图、内置迁移与 CPA 已交付；P0 的[首版契约](plugin-contract-v1.md)及 P1 的 SDK 类型、严格校验、独立脚手架、命令／入口和旧 launcher 适配已落地。P2 已加入本地目录登记、授权、隔离桥、私有 KV 和管理调试；页面采用独立离线 Session 的 WebContentsView。P3 已加入通用视图 registry 的工作台／Island 位置、工作台返回及声明式 Island 状态／动作／受限文本预览。P4 首片接入嵌入文件编辑器的只读 viewer 匹配、默认选择、失效回退和逐文档隔离实例；隔离、限额与生命周期规则归首版契约，验收证据归阶段计划。文档编辑／保存冲突、目录查询、通用多实例 pane、后台任务和提供者仍待实施。
+用户已认可该架构方向并要求形成设计和实施计划。本文维护目标设计，保留 draft 表示仍需逐阶段细化与验证，不表示下述 API 全部已实现。S1–S3 的可信视图、内置迁移与 CPA 已交付；P0 的[首版契约](plugin-contract-v1.md)及 P1 的 SDK 类型、严格校验、独立脚手架、命令／入口和旧 launcher 适配已落地。P2 已加入本地目录登记、授权、隔离桥、私有 KV 和管理调试；页面采用独立离线 Session 的 WebContentsView。P3 已加入通用视图 registry 的工作台／Island 位置、工作台返回及声明式 Island 状态／动作／受限文本预览。P4 首片接入嵌入文件编辑器的只读 viewer 匹配、默认选择、失效回退和逐文档隔离实例；隔离、限额与生命周期规则归首版契约，验收证据归阶段计划。P4 后续已接通版本化草稿交接、内置编辑器审阅保存、写前版本检查及未保存关闭保护；持续插件编辑、原子文档事务／合并、目录查询、通用多实例 pane、后台任务和提供者仍待实施。
 
 验收归[架构需求](requirements/plugin-architecture-forms.md)与[导入需求](requirements/plugin-import-debug.md)，阶段和参考工作量归[实施排期](../planning/plugin-platform-roadmap.md)。[PI-Desktop 调研](ideas/plugin-platform-and-feature-modularization.md)保留固定源码基线、机制比较及功能迁移机会。示例产品尚未指定，项目健康看板不构成平台前置需求。
 

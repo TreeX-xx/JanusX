@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-23T02:07:34Z",
+  "updated": "2026-10-23T03:10:27Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -115,6 +115,20 @@ Windows Electron 专项：设置 `JANUS_E2E_MAIN_ENTRY=out/main/index.js`、`JAN
 完整 `npm run verify` 设置 Vitest threads/forks 上限 4、下限 1，日志 `artifacts/plugin-p4-verify.log`：主题、插件门禁、主类型、LLM 类型及核心构建通过；主单元 434 份／3803 项通过、6 份／23 项跳过，`agent-notes-check.test.ts` 一份／一项失败。唯一失败来源仍为本轮前已存在、未跟踪的 `workbench/requirements/entrance-choreography.md`：缺少 AC 冒号且 updated 早于 created。命令在单元阶段返回 1，后续完整门禁未继续，不记作一次全绿；该 Note 和模块中的既有开场编排变更保留，不并入本片提交。
 
 严格 unused 类型、生产构建、i18n、包边界、打包排除清单和变更范围 ESLint 已独立通过，日志为 `artifacts/plugin-p4-types.log`、`plugin-p4-build-closeout.log`、`plugin-p4-i18n.log`、`plugin-p4-package-boundary.log`、`plugin-p4-exclusions.log`、`plugin-p4-eslint.log`。另补跑 `npm run test:llm-core`，80 项通过，日志 `artifacts/plugin-p4-llm.log`；`npm run lint` 为 0 错误／67 条既有警告，日志 `artifacts/plugin-p4-lint.log`。全仓 Notes 单独检查仍只有上述两处错误，304 份 Note 与 17 条既有跨仓库链接诊断；本片维护的七份 Note 无错误。未生成安装包或测试其它平台。
+
+## P4 草稿交接与写前版本检查
+
+本片在只读 viewer 上增加独立 documents.edit 权限与 documents.applyEdit 必需能力。插件提交基于 SHA-256 的全文草稿，主进程核验绑定和当前磁盘，可信外壳核验干净缓冲并确认；成功仅表示宿主接管未保存内容。模板在仓库外打包 SDK 中独立构建，获准时显示编辑区和交接按钮。用户在内置编辑器审阅后保存，沿用策略授权并校验原磁盘版本；同进程保存串行，冲突保留草稿和基线。切项目、停用、失效回退及整体浮窗迁移使用原 EditorSession，关闭保存失败不关页，关闭对话框遮挡原生页。字段、错误和限制归[草稿契约](../workbench/plugin-contract-v1.md#p4-文档草稿交接与审阅保存)。
+
+这是一份草稿交接及写前版本检查，外部进程仍可在检查与写入之间修改文件，不表述为原子 CAS。持续插件编辑／页面内保存、完整文档事务、冲突合并、自动变更、目录查询及内置 viewer 迁移仍待续，AC-10／AC-12、P4 与 M2 保持未完成。未提交的页面编辑和应用重启恢复不在保证内。本片主 Agent 实施与自审，无独立 Agent review。
+
+本片 Windows 开发构建验证：`npm run plugins:check` 113 项通过，包含五项新增草稿／保存测试和原 viewer 中五项新增权限／交接／生命周期测试，日志 `artifacts/plugin-p4-edit-plugins-retry.log`；门禁实际在仓库外安装打包 SDK、typecheck、构建并校验模板，回执 `artifacts/plugin-p1/scaffold.json`。此前一次插件门禁 112 项通过、旧运行时用例临时目录清理报 ENOTEMPTY，完整重跑 113 项通过，不将首轮记作通过。编辑器七份／41 项回归通过，日志 `plugin-p4-edit-editor.log`；IPC／策略边界两份／7 项通过，日志 `plugin-p4-edit-ipc.log`，覆盖旧保存参数兼容、版本参数转发及权限拒绝先于写入。
+
+真实 Electron 命令：`NO_PROXY=localhost,127.0.0.1,::1 npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/unified-file-window.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-p4-edit/desktop-final`（PowerShell 通过环境变量设置 NO_PROXY），12 项全部通过，日志 `artifacts/plugin-p4-edit-desktop-final.log`。新用例验证真实外部模板提交草稿、不自动写盘、关闭对话框遮挡插件页、取消保留、内置审阅保存、停用回退、外部冲突、保存关闭失败不丢草稿以及浮窗往返后基线仍生效。首轮扩展验收在浮窗 alert 定位上与 Monaco 辅助节点冲突，修正定位后通过；后续为旧 IPC 参数兼容修复重新构建，并补跑新 P4 用例，1 项通过，日志 `plugin-p4-edit-desktop-final-ipc.log`。完整桌面全集未重跑，macOS／Linux 及安装包未验证。
+
+最终全仓单元命令 `npx vitest run --maxWorkers=4 --minWorkers=1`：435 份／3813 项通过、6 份／23 项跳过，只有 `agent-notes-check.test.ts` 一项失败，日志 `artifacts/plugin-p4-edit-all-unit-final.log`。仍由既有未跟踪开场编排 Note 缺少 AC 冒号、updated 早于 created 两项格式错误引起；首轮发现的 IPC 参数与测试替身兼容问题已修复并在最终全仓回归通过。七份本片维护 Note 无新增错误，未修改／提交开场编排 Note 或其模块段落。未运行整条 npm verify，不表述为全绿。
+
+最终 strict-unused 类型、生产构建和全仓 lint 分别通过，日志 `plugin-p4-edit-types-final.log`、`plugin-p4-edit-build-final.log`、`plugin-p4-edit-lint-final.log`；lint 为 0 错误／67 条既有警告。i18n、包边界、排除清单检查通过，日志 `plugin-p4-edit-i18n.log`、`plugin-p4-edit-boundary.log`、`plugin-p4-edit-exclusions.log`。CRLF 及变更范围 diff 检查通过。
 
 ## 交付顺序
 

@@ -32,6 +32,7 @@ export type PluginManageRequest =
   | { type: 'active'; instanceId: string; binding: string; active: boolean }
   | { type: 'bounds'; instanceId: string; binding: string; bounds: PluginBounds }
   | { type: 'call'; instanceId: string; binding: string; packet: unknown }
+  | { type: 'documentEditResult'; instanceId: string; binding: string; editId: string; applied: boolean }
   | { type: 'islandAction'; pluginId: string; id: string; instanceId: string; command: string }
 export type PluginHostResult = { ok: true; data: unknown } | { ok: false; code: string; message: string }
 export interface PluginHostEvent { instanceId: string; packet: JsonValue }

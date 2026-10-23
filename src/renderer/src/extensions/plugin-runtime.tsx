@@ -106,8 +106,9 @@ export function initializePluginRuntime(): void {
   void refreshPlugins().catch(console.error)
 }
 
-export function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location, document: boundDocument, onFailure }: ExtensionViewProps & {
+export function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location, document: boundDocument, onFailure, onDocumentEdit }: ExtensionViewProps & {
   pluginId: string; localViewId: string; document?: PluginDocument; onFailure?: (code: string) => void
+  onDocumentEdit?: (baseText: string, text: string, version: string) => boolean
 }) {
   const { t } = useI18n('plugins')
   const body = useRef<HTMLDivElement>(null)
@@ -153,12 +154,18 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     return window.electron.plugins.onEvent(event => {
       if (event.instanceId !== mount.instanceId) return
       const packet = event.packet
+      if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.type === 'documentEdit'
+        && packet.path === documentPath && typeof packet.editId === 'string' && typeof packet.baseText === 'string'
+        && typeof packet.text === 'string' && typeof packet.version === 'string') {
+        const applied = Boolean(onDocumentEdit?.(packet.baseText, packet.text, packet.version))
+        void pluginRequest({ type: 'documentEditResult', instanceId: mount.instanceId, binding: mount.binding, editId: packet.editId, applied }).catch(() => {})
+      }
       if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.event === 'invalidated') {
         if (packet.reason === 'reload') setRetry(value => value + 1)
         else setFailure('INSTANCE_CLOSED')
       }
     })
-  }, [mount])
+  }, [mount, documentPath, onDocumentEdit])
   useLayoutEffect(() => {
     if (!mount || !body.current) return
     const element = body.current

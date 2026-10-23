@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditorStore } from '@/stores/editor'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './EditorCloseDialog.module.css'
+import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
 
 interface CloseRequest {
   ids: string[]
@@ -19,6 +20,7 @@ export function useEditorCloseDialog() {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const openFiles = useEditorStore(state => state.openFiles)
   const dirtyFiles = openFiles.filter(file => request?.ids.includes(file.id) && file.isDirty)
+  useBrowserOcclusion(Boolean(request))
 
   useEffect(() => {
     if (request) dialogRef.current?.showModal()

@@ -16,6 +16,23 @@ async function start(api: PluginApi) {
     const file = await api.documents.readText(options)
     status.textContent = `${file.path} · read-only`
     content.textContent = file.text
+    if (context.document.editable) {
+      const editor = document.createElement('textarea')
+      editor.setAttribute('aria-label', 'Document draft')
+      editor.value = file.text
+      editor.style.cssText = 'width:100%;min-height:12rem'
+      const submit = document.createElement('button')
+      submit.textContent = 'Send draft for review'
+      content.after(editor, submit)
+      status.textContent = `${file.path} · draft editor`
+      submit.onclick = () => {
+        submit.disabled = true
+        void api.documents.applyEdit({ text: editor.value, expectedVersion: file.version }, options).then(() => {
+          editor.readOnly = true
+          status.textContent = 'Draft kept by JanusX. Review in the built-in editor to save.'
+        }).catch((error: Error) => { status.textContent = error.message; submit.disabled = false })
+      }
+    }
     return
   }
   const navigation = document.createElement('nav')

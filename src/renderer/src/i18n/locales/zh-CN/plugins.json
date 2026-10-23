@@ -1,4 +1,6 @@
 {
+  "reviewDraft": "在内置编辑器审阅草稿",
+  "documentConflict": "磁盘文件已变化，草稿已保留，本次保存被阻止。请先复制草稿，再关闭并重新打开文件以处理冲突。",
   "documentViewer": "打开方式", "builtinViewer": "内置查看器", "defaultViewer": "设为此类文件默认", "resetViewer": "恢复内置默认", "viewerDirty": "保存或放弃更改后才能切换查看器。", "viewerFallback": "插件查看器不可用，已回退到内置查看器。",
   "returnToWorkspace": "返回原界面", "open": "打开插件",
   "islandStatusCount": "插件状态：{{count}}",

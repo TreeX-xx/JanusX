@@ -15,7 +15,11 @@ export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
   /** Reads only the file bound by the host's viewer selection; accepts no path. */
-  documents: { readText(options?: PluginCallOptions): Promise<{ path: string; text: string; bytes: number; version: string }> }
+  documents: {
+    readText(options?: PluginCallOptions): Promise<{ path: string; text: string; bytes: number; version: string }>
+    /** Hands a full-text draft to the host for review and saving; does not write to disk. */
+    applyEdit(params: { text: string; expectedVersion: string }, options?: PluginCallOptions): Promise<{ applied: true }>
+  }
   app: { getInfo(options?: PluginCallOptions): Promise<{ pluginApiVersion: string; capabilities: string[]; locale: string; theme: { id: string; tokens: Record<string, string> } }> }
   workspace: {
     getContext(options?: PluginCallOptions): Promise<PluginContext>

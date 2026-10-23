@@ -23,6 +23,10 @@ const methods = {
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'documents.readText': { permission: 'documents.read', params: empty },
+  'documents.applyEdit': { permission: 'documents.edit', params: z.object({
+    text: z.string().max(1024 * 1024).refine(value => !value.includes('\0') && new TextEncoder().encode(value).byteLength <= 1024 * 1024),
+    expectedVersion: z.string().regex(/^[a-f0-9]{64}$/),
+  }).strict() },
   'views.open': { permission: 'ui.views.open', params: z.object({ view: z.string() }).strict() },
   'island.update': { permission: 'ui.island', params: z.object({ id: z.string(), status: pluginIslandStatusSchema.nullable() }).strict() },
   'ui.showToast': { permission: 'ui.toast', params: z.object({ message: z.string().max(500), level: z.enum(['info', 'warning', 'error']).optional() }).strict() },

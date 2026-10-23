@@ -25,6 +25,10 @@ export interface OpenFile {
   isLoading: boolean
   error?: string
   externalChanged?: boolean
+  /** Plugin drafts retain the disk baseline after fallback, scope changes and detach. */
+  saveVersion?: string
+  saveConflict?: boolean
+  pluginDraftViewer?: string
   viewState?: FileViewState
 }
 export interface EditorSession { files: OpenFile[]; activeFileId: string | null }

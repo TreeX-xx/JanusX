@@ -12,7 +12,7 @@ export const pluginViewerSchema = z.object({
 }).strict().refine(viewer => viewer.extensions.length + viewer.filenames.length > 0, 'A file selector is required')
 
 export type PluginViewer = z.infer<typeof pluginViewerSchema>
-export interface PluginDocument { viewer: string; path: string }
+export interface PluginDocument { viewer: string; path: string; editable?: boolean }
 
 export function matchesPluginViewer(viewer: PluginViewer, path: string): boolean {
   try { validatePluginPath(path) } catch { return false }

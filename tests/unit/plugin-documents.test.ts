@@ -15,12 +15,13 @@ async function manifest(): Promise<PluginManifest> {
   value.contributes.viewers = [{ id: 'text', title: 'Text preview', view: 'details', extensions: ['.txt'], filenames: ['Makefile'] }]
   return parsePluginManifest(JSON.stringify(value))
 }
-async function fixture() {
+async function fixture(editing = false) {
   const directory = await mkdtemp(join(tmpdir(), 'janusx-p4-unit-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const source = join(directory, 'source'); const root = join(directory, 'project'); const other = join(directory, 'other')
   await mkdir(join(source, 'dist'), { recursive: true }); await mkdir(root); await mkdir(other)
   const value = await manifest()
+  if (editing) { value.permissions.push({ name: 'documents.edit' }); value.capabilities.required.push('documents.applyEdit') }
   await writeFile(join(source, 'manifest.json'), JSON.stringify(value))
   await writeFile(join(source, 'dist/index.html'), '<p>viewer</p>'); await writeFile(join(source, 'dist/summary.html'), '<p>summary</p>')
   await writeFile(join(root, 'a.txt'), 'file A'); await writeFile(join(root, 'b.txt'), 'file B')
@@ -41,6 +42,50 @@ async function fixture() {
 }
 
 describe('P4 read-only document viewers', () => {
+  it('requires explicit editing permission, capability and a document binding', async () => {
+    const value = await manifest()
+    const params = { text: 'draft', expectedVersion: 'a'.repeat(64) }
+    expect(() => validatePluginCall(value, 'documents.applyEdit', params)).toThrow()
+    value.permissions.push({ name: 'documents.edit' })
+    expect(() => parsePluginManifest(JSON.stringify(value))).toThrow()
+    value.capabilities.required.push('documents.applyEdit')
+    expect(parsePluginManifest(JSON.stringify(value)).permissions).toContainEqual({ name: 'documents.edit' })
+    for (const invalid of [{ ...params, path: 'b.txt' }, { ...params, text: '\0' }, { ...params, text: '汉'.repeat(400000) }, { ...params, expectedVersion: 'stale' }]) {
+      expect(() => validatePluginCall(value, 'documents.applyEdit', invalid)).toThrow()
+    }
+    const f = await fixture(true); const normal = await f.mount()
+    expect(await f.call(normal, 'documents.applyEdit', params)).toMatchObject({ ok: false, error: { code: 'CONTEXT_UNAVAILABLE' } })
+  })
+  it('waits for host acceptance and never writes the file when applying a draft', async () => {
+    const f = await fixture(true); const page = await f.mount('a.txt'); const other = await f.mount('b.txt')
+    expect(page.context.document?.editable).toBe(true)
+    const { result } = await f.call(page)
+    f.deps.event.mockImplementation((instanceId, packet: any) => {
+      if (packet.type !== 'documentEdit') return
+      expect(instanceId).toBe(page.instanceId)
+      expect(packet).toMatchObject({ path: 'a.txt', baseText: 'file A', text: 'my draft', version: result.version })
+      expect(() => f.service.documentEditResult(other.instanceId, other.binding, packet.editId, true)).toThrow()
+      f.service.documentEditResult(page.instanceId, page.binding, packet.editId, true)
+    })
+    expect(await f.call(page, 'documents.applyEdit', { text: 'my draft', expectedVersion: result.version })).toMatchObject({ ok: true, result: { applied: true } })
+    expect(await readFile(join(f.root, 'a.txt'), 'utf8')).toBe('file A')
+    await writeFile(join(f.root, 'a.txt'), 'external change')
+    expect(await f.call(page, 'documents.applyEdit', { text: 'lost update', expectedVersion: result.version })).toMatchObject({ ok: false, error: { code: 'DOCUMENT_CONFLICT' } })
+  })
+  it.each(['reject', 'close', 'cancel'] as const)('handles %s while a host draft is pending', async action => {
+    const f = await fixture(true); const page = await f.mount('a.txt'); const { result } = await f.call(page)
+    f.deps.event.mockImplementation((_id, packet: any) => {
+      if (packet.type !== 'documentEdit') return
+      if (action === 'close') f.service.close(page.instanceId)
+      else if (action === 'reject') f.service.documentEditResult(page.instanceId, page.binding, packet.editId, false)
+      else {
+        void f.service.call(page.instanceId, page.binding, { protocol: 1, type: 'cancel', requestId: '2' })
+        expect(() => f.service.documentEditResult(page.instanceId, page.binding, packet.editId, true)).toThrow()
+      }
+    })
+    expect(await f.call(page, 'documents.applyEdit', { text: 'draft', expectedVersion: result.version })).toMatchObject({ ok: false })
+    expect(await readFile(join(f.root, 'a.txt'), 'utf8')).toBe('file A')
+  })
   it('validates selectors, scope, references, required capabilities and permission', async () => {
     const value = await manifest()
     for (const mutate of [

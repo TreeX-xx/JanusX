@@ -128,6 +128,8 @@ export interface FileStatResult {
 export interface FileSaveResult {
   success?: boolean
   error?: string
+  conflict?: boolean
+  version?: string
 }
 
 export interface WorkspaceSourceFile {
@@ -172,7 +174,7 @@ export interface FileAPI {
   updateHtmlPreview(id: string, content: string): Promise<void>
   closeHtmlPreview(id: string): Promise<void>
   read(filePath: string): Promise<FileReadResult>
-  save(filePath: string, content: string): Promise<FileSaveResult>
+  save(filePath: string, content: string, expectedVersion?: string): Promise<FileSaveResult>
   readBinary(filePath: string): Promise<FileBinaryResult>
   stat(filePath: string): Promise<FileStatResult>
   sourceFiles(workspacePath: string): Promise<WorkspaceSourceFilesResult>

@@ -1,4 +1,6 @@
 {
+  "reviewDraft": "Review draft in built-in editor",
+  "documentConflict": "The file changed on disk. Your draft is kept; saving was blocked. Copy the draft before closing and reopening the file to resolve the conflict.",
   "documentViewer": "Open with", "builtinViewer": "Built-in viewer", "defaultViewer": "Use by default for this file type", "resetViewer": "Restore built-in default", "viewerDirty": "Save or discard changes before switching viewers.", "viewerFallback": "Plugin viewer unavailable. Using the built-in viewer.",
   "returnToWorkspace": "Return to previous view", "open": "Open plugin",
   "islandStatusCount": "Plugin status: {{count}}",

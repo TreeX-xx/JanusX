@@ -211,6 +211,7 @@ interface EditorStore {
   setActiveFile: (id: string) => void
   markDirty: (id: string) => void
   updateContent: (id: string, content: string) => void
+  applyPluginDraft: (id: string, baseText: string, text: string, version: string, viewer: string) => boolean
   saveFile: (id: string) => Promise<boolean>
   reloadOpenFile: (absolutePath: string) => Promise<void>
   reloadOpenFiles: (workspacePath: string, changedFilePath?: string | null) => Promise<void>
@@ -380,11 +381,30 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }))
   },
 
+  applyPluginDraft: (id, baseText, text, version, viewer) => {
+    const file = get().openFiles.find(f => f.id === id)
+    if (!file || file.isDirty || file.isLoading || file.error || file.content !== baseText) return false
+    set(s => ({ openFiles: s.openFiles.map(f => f === file ? { ...f, content: text, isDirty: true,
+      saveVersion: version, pluginDraftViewer: viewer } : f) }))
+    return true
+  },
+
   saveFile: async (id) => {
     const file = get().openFiles.find(f => f.id === id)
     if (!file) return false
     try {
-      const result = await window.electron.file.save(file.absolutePath, file.content)
+      const result = file.saveVersion
+        ? await window.electron.file.save(file.absolutePath, file.content, file.saveVersion)
+        : await window.electron.file.save(file.absolutePath, file.content)
+      if (result.conflict) {
+        set(s => {
+          const patch = (f: OpenFile) => f.id === id && f.saveVersion === file.saveVersion
+            ? { ...f, externalChanged: true, saveConflict: true } : f
+          return { openFiles: s.openFiles.map(patch), sessions: Object.fromEntries(Object.entries(s.sessions)
+            .map(([key, session]) => [key, { ...session, files: session.files.map(patch) }])) }
+        })
+        return false
+      }
       if (!result.success) throw new Error(result.error || 'Failed to save file')
       cacheFileSnapshot(file.id, {
         viewType: file.viewType,
@@ -394,9 +414,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         size: file.size,
         mtime: Date.now(),
       })
-      set(s => ({
-        openFiles: s.openFiles.map(f => f.id === id ? { ...f, isDirty: f.content !== file.content, mtime: Date.now() } : f),
-      }))
+      set(s => {
+        const patch = (f: OpenFile) => f.id === id && f.saveVersion === file.saveVersion ? { ...f,
+          isDirty: f.content !== file.content, mtime: Date.now(), saveVersion: result.version ?? f.saveVersion,
+          pluginDraftViewer: undefined, externalChanged: false, saveConflict: false } : f
+        return { openFiles: s.openFiles.map(patch), sessions: Object.fromEntries(Object.entries(s.sessions)
+          .map(([key, session]) => [key, { ...session, files: session.files.map(patch) }])) }
+      })
       return true
     } catch (err: any) {
       console.error('Save failed:', err)
@@ -421,7 +445,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     try {
       const snapshot = await request
       if (fileReadRequests.get(file) !== request) return
-      set(s => replaceLoadedFile(s, file, { ...snapshot, error: undefined, externalChanged: false, isLoading: false }))
+      set(s => replaceLoadedFile(s, file, { ...snapshot, error: undefined, externalChanged: false, isLoading: false,
+        saveVersion: undefined, pluginDraftViewer: undefined, saveConflict: false }))
     } catch (err) {
       if (fileReadRequests.get(file) !== request) return
       const msg = err instanceof Error ? err.message : String(err)

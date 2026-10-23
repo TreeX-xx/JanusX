@@ -74,7 +74,7 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     return unsubscribe
   }
   const api: PluginApi = {
-    documents: { readText: options => call('documents.readText', {}, options) },
+    documents: { readText: options => call('documents.readText', {}, options), applyEdit: (params, options) => call('documents.applyEdit', params, options) },
     app: { getInfo: options => call('app.getInfo', {}, options) },
     workspace: { getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
     views: { open: (params, options) => call('views.open', params, options) },

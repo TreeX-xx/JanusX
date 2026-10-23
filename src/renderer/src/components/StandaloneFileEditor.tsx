@@ -361,6 +361,7 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
         )}
       </div>
       {transferError && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{transferError}</div>}
+      {activeFile?.saveConflict && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{t('plugins:documentConflict')}</div>}
       {diffEnabled && baselineStatus && <div role="status" className="px-3 py-1 text-xs" style={{ color: 'var(--shell-muted)' }}>
         {t(baselineStatus === 'loading' ? 'editor:fileEditor.diffLoading' : 'editor:fileEditor.diffUnavailable')}
       </div>}

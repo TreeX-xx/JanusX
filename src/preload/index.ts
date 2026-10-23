@@ -108,7 +108,9 @@ const fileTreeAPI: FileTreeAPI = {
 
 const fileAPI: FileAPI = {
   read: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.read, filePath),
-  save: (filePath, content) => ipcRenderer.invoke(FILE_CHANNELS.save, filePath, content),
+    save: (filePath, content, expectedVersion) => expectedVersion === undefined
+      ? ipcRenderer.invoke(FILE_CHANNELS.save, filePath, content)
+      : ipcRenderer.invoke(FILE_CHANNELS.save, filePath, content, expectedVersion),
   openHtmlPreview: (request) => ipcRenderer.invoke(FILE_CHANNELS.openHtmlPreview, request),
   openPreviewLink: (url) => ipcRenderer.invoke(FILE_CHANNELS.openPreviewLink, url),
   updateHtmlPreview: (id, content) => ipcRenderer.invoke(FILE_CHANNELS.updateHtmlPreview, id, content),

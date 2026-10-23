@@ -11,11 +11,12 @@ vi.mock('electron', () => ({
   app: { getPath: () => 'C:\\tmp' }, ipcMain: { handle: mocks.handle }, dialog: {}, shell: {},
   BrowserWindow: class { static fromWebContents() { return null } },
 }))
-vi.mock('fs/promises', () => ({
+vi.mock('fs/promises', async importOriginal => ({
+  ...await importOriginal<typeof import('node:fs/promises')>(),
   writeFile: mocks.writeFile, mkdir: mocks.mkdir, rename: mocks.rename, rm: mocks.rm, unlink: mocks.unlink,
   readFile: mocks.readFile, readdir: mocks.readdir, stat: mocks.stat,
 }))
-vi.mock('fs', () => ({ watch: vi.fn() }))
+vi.mock('fs', async importOriginal => ({ ...await importOriginal<typeof import('node:fs')>(), watch: vi.fn() }))
 
 const event = { sender: { id: 7 } } as never
 const denied = vi.fn(async () => false)
@@ -31,7 +32,8 @@ describe('legacy renderer policy boundary', () => {
     const { registerFileHandlers } = await import('../../../src/main/ipc/file-handlers')
     registerFileHandlers(denied)
     await expect(handler(FILE_CHANNELS.save)(event, 'C:\\workspace\\file.txt', 'secret')).resolves.toMatchObject({ error: expect.any(String) })
-    expect(denied).toHaveBeenCalledOnce(); expect(mocks.writeFile).not.toHaveBeenCalled()
+    await expect(handler(FILE_CHANNELS.save)(event, 'C:\\workspace\\file.txt', 'draft', 'a'.repeat(64))).resolves.toMatchObject({ error: expect.any(String) })
+    expect(denied).toHaveBeenCalledTimes(2); expect(mocks.writeFile).not.toHaveBeenCalled()
   })
 
   it('gates project config write and run before domain mutation', async () => {

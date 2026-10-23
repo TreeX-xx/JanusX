@@ -56,6 +56,7 @@ export class PluginService {
   private selectionKey = ''
   private pendingEvents = new Map<string, { instance: Instance; subscriptionId: string; values: Record<string, PluginStoredValue> }>()
   private eventTimer?: ReturnType<typeof setTimeout>
+  private documentEdits = new Map<string, { instance: Instance; valid(): void; finish(applied: boolean): void }>()
   constructor(private deps: PluginServiceDeps) { this.storage = new PluginStorage(join(deps.directory, 'data')) }
   initialize(): Promise<void> { return this.initialized ??= this.restore() }
   private async restore(): Promise<void> {
@@ -249,7 +250,8 @@ export class PluginService {
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
-      revision: this.current.revision, active: true, ...(document ? { document: { ...document } } : {}) }
+      revision: this.current.revision, active: true, ...(document ? { document: { viewer: document.viewer, path: document.path,
+        ...(record.manifest.permissions.some(permission => permission.name === 'documents.edit') ? { editable: true } : {}) } } : {}) }
     const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
       url: `janusx-plugin://${token}/g/${generation}/${view!.entry}`, root: project?.root ?? null, scope, context, bound: false, ready: false,
       requests: new Map(), used: new Set(), times: [], subscriptions: new Map(),
@@ -299,6 +301,7 @@ export class PluginService {
     if (![...this.instances.values()].some(item => item.plugin === instance.plugin && item.ready)) this.clearRecovery(instance.plugin)
     this.deps.closed?.(id)
     for (const request of instance.requests.values()) request.cancelled = true
+    for (const edit of this.documentEdits.values()) if (edit.instance === instance) edit.finish(false)
     instance.subscriptions.clear()
     const record = this.records.get(instance.plugin)
     if (record?.enabled && record.state !== 'blocked' && record.state !== 'error') {
@@ -411,6 +414,23 @@ export class PluginService {
     const record = this.record(instance.plugin)
     if (method === 'app.getInfo') return { pluginApiVersion: PLUGIN_API_VERSION, capabilities: [...PLUGIN_CAPABILITIES], locale: this.current.locale, theme: this.current.theme }
     if (method === 'workspace.getContext') return instance.context
+    if (method === 'documents.applyEdit') {
+      const document = instance.context.document
+      if (!document || !instance.root) error('CONTEXT_UNAVAILABLE', 'No document is bound to this view.')
+      const base = await this.readText(instance.root!, document!.path)
+      valid()
+      if (base.version !== params.expectedVersion) error('DOCUMENT_CONFLICT', 'Document changed on disk.')
+      const editId = randomUUID()
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { this.documentEdits.delete(editId); reject(new PluginError('TIMEOUT', 'The editor did not accept the draft.')) }, 4000)
+        this.documentEdits.set(editId, { instance, valid, finish: applied => {
+          clearTimeout(timer); this.documentEdits.delete(editId)
+          if (applied) resolve({ applied: true })
+          else reject(new PluginError('DOCUMENT_CONFLICT', 'The editor cannot accept this draft.'))
+        } })
+        this.send(instance, { type: 'documentEdit', editId, path: document!.path, baseText: base.text, version: base.version, text: params.text })
+      })
+    }
     if (method === 'workspace.readText' || method === 'documents.readText') {
       if (!instance.root) error('CONTEXT_UNAVAILABLE', 'No project is bound to this view.')
       if (method === 'documents.readText' && !instance.context.document) error('CONTEXT_UNAVAILABLE', 'No document is bound to this view.')
@@ -487,6 +507,13 @@ export class PluginService {
     error('UNKNOWN_METHOD', 'Plugin method is unavailable.')
   }
   unsubscribe(id: string, binding: string, subscriptionId: string): void { this.instance(id, binding).subscriptions.delete(subscriptionId) }
+  documentEditResult(id: string, binding: string, editId: string, applied: boolean): void {
+    const instance = this.instance(id, binding)
+    const edit = this.documentEdits.get(editId)
+    if (!edit || edit.instance !== instance) error('INVALID_REQUEST', 'Draft is unavailable.')
+    try { edit!.valid() } catch (cause) { edit!.finish(false); throw cause }
+    edit!.finish(applied)
+  }
   islandAction(pluginId: string, id: string, instanceId: string, commandId: string): void {
     const entry = this.island.get(`${pluginId}/${id}`)
     if (!entry || entry.instanceId !== instanceId) error('INSTANCE_CLOSED', 'Island status has expired.')

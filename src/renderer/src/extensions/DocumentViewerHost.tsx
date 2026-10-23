@@ -23,10 +23,16 @@ export function DocumentViewerHost({ file, workspacePath, children, forceBuiltin
   const selectedId = file.viewState?.viewerId ?? preferred
   const selected = candidates.find(viewer => viewer.key === selectedId)
   const identity = selected ? `${selected.key}:${selected.digest}` : ''
-  const showPlugin = selected && !file.isDirty && !forceBuiltin && failedViewer !== identity
+  const ownsDraft = Boolean(identity && file.pluginDraftViewer === identity)
+  const showPlugin = selected && (!file.isDirty || ownsDraft) && !forceBuiltin && failedViewer !== identity
   const pluginVisible = Boolean(showPlugin)
   useEffect(() => { onReadOnlyChange?.(pluginVisible); return () => onReadOnlyChange?.(false) }, [pluginVisible, onReadOnlyChange])
   const onFailure = useCallback((code: string) => { setFailedViewer(identity); setFailure(code) }, [identity])
+  const onDocumentEdit = useCallback((baseText: string, text: string, version: string) => {
+    const state = useEditorStore.getState()
+    if (state.workspacePath !== workspacePath) return false
+    return state.applyPluginDraft(file.id, baseText, text, version, identity)
+  }, [file.id, workspacePath, identity])
   const choose = (viewerId: string) => {
     setFailedViewer(''); setFailure('')
     useEditorStore.getState().updateViewState(file.id, { viewerId })
@@ -45,12 +51,14 @@ export function DocumentViewerHost({ file, workspacePath, children, forceBuiltin
       }}>{t('plugins:defaultViewer')}</button>
       {selected && <button type="button" disabled={file.isDirty || forceBuiltin} onClick={() => { choose('builtin'); try { saveDocumentViewerDefault(file.path, 'builtin'); setPreferred('builtin') } catch { setFailure('STORAGE_UNAVAILABLE') } }}>{t('plugins:resetViewer')}</button>}
     </div>
-    {file.isDirty && <p className="px-3 text-xs">{t('plugins:viewerDirty')}</p>}
+    {file.isDirty && <p className="px-3 text-xs">{t('plugins:viewerDirty')}
+      {ownsDraft && showPlugin && <button type="button" className="ml-2" onClick={() => choose('builtin')}>{t('plugins:reviewDraft')}</button>}
+    </p>}
     {(failure || !selected && selectedId !== 'builtin') && <p role="status" className="px-3 text-xs">{t('plugins:viewerFallback')} {failure}</p>}
     <div className="relative flex-1 min-h-0 overflow-hidden">
       {showPlugin ? <PluginViewShell key={`${identity}:${file.absolutePath}:${file.mtime}`} pluginId={selected.pluginId} localViewId={selected.view}
         viewId={`extension:${selected.pluginId}/${selected.view}`} location="workspace" active workspaceId={projectId} workspacePath={workspacePath ?? null}
-        document={{ viewer: selected.id, path: file.path.replaceAll('\\', '/') }} onFailure={onFailure} /> : children}
+        document={{ viewer: selected.id, path: file.path.replaceAll('\\', '/') }} onFailure={onFailure} onDocumentEdit={onDocumentEdit} /> : children}
     </div>
   </div>
 }

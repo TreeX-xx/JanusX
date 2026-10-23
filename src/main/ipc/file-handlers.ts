@@ -6,6 +6,7 @@ import type { WorkspaceSourceFile, WorkspaceSourceFilesResult } from '../../shar
 import { authorizeRendererAction, type RendererActionAuthorizer } from '../agent/runtime/shell-runtime'
 import { janusWorkspaceFs } from '@janus-agent/agent-core'
 import { htmlPreviewServer } from '../preview/html-preview-server'
+import { saveEditorText } from '../lib/editor-save'
 import type { HtmlPreviewRequest } from '../../shared/ipc/workspace'
 
 const MIME_MAP: Record<string, string> = {
@@ -109,12 +110,13 @@ export function registerFileHandlers(authorize: RendererActionAuthorizer = autho
       : { error: result.error.message || 'Failed to read file' }
   })
 
-  ipcMain.handle(FILE_CHANNELS.save, async (event, filePath: string, content: string) => {
+  ipcMain.handle(FILE_CHANNELS.save, async (event, filePath: string, content: string, expectedVersion?: string) => {
     try {
       if (!await authorize(event, { workspaceRoot: filePath, toolName: 'legacy.file.save', actionRisk: 'write', source: 'renderer-user', preview: { summary: 'Save file changes', paths: [filePath], detail: `${content.length} characters`, truncated: false } })) return { error: 'File save denied by workspace policy' }
-      const result = await janusWorkspaceFs.writeText(filePath, content)
-      if (!result.ok) throw result.error
-      return { success: true }
+      return await saveEditorText(filePath, content, expectedVersion, async () => {
+        const result = await janusWorkspaceFs.writeText(filePath, content)
+        if (!result.ok) throw result.error
+      })
     } catch (err: any) {
       return { error: err.message || 'Failed to save file' }
     }
