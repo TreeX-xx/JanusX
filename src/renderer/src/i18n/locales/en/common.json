@@ -284,6 +284,7 @@
     "badgeTitle": "{{count}} pending requirement"
   },
   "toolGroup": {
+    "auxiliaryPanels": "Tools and file preview",
     "resizeRegions": "Resize project and tools",
     "collapseTools": "Collapse tools",
     "toolsNeedSpace": "Not enough space. Widen the window or collapse the right workspace.",

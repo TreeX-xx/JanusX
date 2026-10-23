@@ -7,24 +7,18 @@ import { useI18n } from '@/i18n/useI18n'
 import type { WorkspacePaneNode } from '@/lib/workspace-pane'
 import { useReducedMotion } from './shared/CardFrame'
 import styles from './GlobalToolsLayout.module.css'
+import { projectMinimumWidth, PANEL_RESTORE_MARGIN } from '@/lib/auxiliary-layout'
+import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
 
 const TOOLS_MOTION_MS = 240
 
-function projectMinimum(tree: WorkspacePaneNode | null): number {
-  if (!tree || tree.type === 'leaf') return 240
-  const first = projectMinimum(tree.first)
-  const second = projectMinimum(tree.second)
-  return tree.direction === 'horizontal'
-    ? Math.max(first / tree.ratio, second / (1 - tree.ratio)) + 9
-    : Math.max(first, second)
-}
-
 /** The two region containers keep their identity when a project or responsive mode changes. */
-export function GlobalToolsLayout({ hasProject, projectTree, project, tools }: {
+export function GlobalToolsLayout({ hasProject, projectTree, project, tools, externalControls = false }: {
   hasProject: boolean
   projectTree: WorkspacePaneNode | null
   project: (visible: boolean) => ReactNode
   tools: (visible: boolean) => ReactNode
+  externalControls?: boolean
 }) {
   const { t } = useI18n('common')
   const paneTree = useGlobalToolsStore((s) => s.paneTree)
@@ -38,9 +32,15 @@ export function GlobalToolsLayout({ hasProject, projectTree, project, tools }: {
   const [moving, setMoving] = useState(false)
   const reducedMotion = useReducedMotion()
   useBrowserOcclusion(resizing || moving)
-  const minimum = projectMinimum(projectTree)
+  const minimum = projectMinimumWidth(projectTree)
   const available = Math.max(1, width - 9)
-  const compact = hasProject && width > 0 && available < minimum + 320 - 0.5
+  const [compact, setCompact] = useState(false)
+  useLayoutEffect(() => {
+    setCompact(previous => hasProject && width > 0 && available < minimum + 320 + (previous ? PANEL_RESTORE_MARGIN : -0.5))
+  }, [hasProject, width, available, minimum])
+  useLayoutEffect(() => {
+    if (externalControls) useAuxiliaryPanelsStore.setState({ toolsCompact: compact })
+  }, [compact, externalControls])
   // Constrain presentation only; restore the preferred ratio when space returns.
   const requiredRatio = minimum / available
   const allowedRatio = 1 - 320 / available
@@ -65,7 +65,7 @@ export function GlobalToolsLayout({ hasProject, projectTree, project, tools }: {
   const projectContent = useMemo(() => project(projectVisible), [project, projectVisible])
   const toolsContent = useMemo(() => tools(toolsVisible), [tools, toolsVisible])
   const divided = hasProject && toolsVisible && !compact
-  const railVisible = !!paneTree && !toolsVisible
+  const railVisible = !!paneTree && !toolsVisible && !externalControls
   // The outer right dock also moves native guest bounds, even when tools stay open.
   const presentation = `${toolsVisible}:${projectVisible}:${width}:${effectiveRatio}`
   const previousPresentation = useRef(presentation)
@@ -123,14 +123,17 @@ export function GlobalToolsLayout({ hasProject, projectTree, project, tools }: {
         }} />
       <div className={styles.tools} data-pane-region="tools" data-visible={toolsVisible}
         aria-hidden={!toolsVisible} {...(!toolsVisible ? { inert: '' } : {})}
-        onPointerDownCapture={() => useGlobalToolsStore.getState().setFocused(true)}>
+        onPointerDownCapture={() => {
+          if (externalControls) useAuxiliaryPanelsStore.getState().activate('tools')
+          useGlobalToolsStore.getState().setFocused(true)
+        }}>
         <div className={styles.regionContent}>{toolsContent}</div>
       </div>
-      <div className={styles.rail} data-visible={railVisible} aria-hidden={!railVisible} {...(!railVisible ? { inert: '' } : {})}><button type="button" className={styles.toggle} data-tools-toggle=""
+      {!externalControls && <div className={styles.rail} data-visible={railVisible} aria-hidden={!railVisible} {...(!railVisible ? { inert: '' } : {})}><button type="button" className={styles.toggle} data-tools-toggle=""
         aria-label={t('common:toolGroup.expandTools')} title={t(compact ? 'common:toolGroup.toolsNeedSpace' : 'common:toolGroup.expandTools')} disabled={compact}
         aria-expanded={false} onClick={() => setCollapsed(false)}>
         <PanelRightOpen size={14} />
-      </button></div>
+      </button></div>}
     </div>
   )
 }

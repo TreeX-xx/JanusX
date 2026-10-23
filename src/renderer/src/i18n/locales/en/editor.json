@@ -170,6 +170,8 @@
     "embedToWorkspace": "Embed into workspace",
     "transferFailed": "Could not move the file window. Your files remain open here.",
     "collapsePanel": "Collapse file panel",
+    "expandPanel": "Show file preview",
+    "moreActions": "More file actions",
     "detachToFloat": "Return to floating window",
     "save": "Save",
     "closeTab": "Close {{name}}",
@@ -188,6 +190,7 @@
     "cppDefinitionInstallComplete": "clangd installed. C/C++ navigation is ready."
   },
   "htmlViewer": {
+    "options": "Preview options",
     "viewport": "Preview viewport",
     "responsive": "Responsive (follow panel)",
     "zoom": "Preview zoom",
@@ -205,6 +208,7 @@
     "notSupported": "Preview not supported for this file type"
   },
   "previewMode": {
+    "label": "File display mode",
     "code": "Code",
     "split": "Split",
     "preview": "Preview"

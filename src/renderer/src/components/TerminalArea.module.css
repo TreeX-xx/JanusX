@@ -250,6 +250,8 @@
   text-align: left;
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .drawerPrimary, .drawerDetails {
@@ -270,6 +272,7 @@
   border-radius: 5px;
   color: var(--shell-muted);
   transition: color 140ms ease, background-color 140ms ease;
+  white-space: nowrap;
 }
 
 .drawerBar:hover .drawerToggle {
@@ -289,7 +292,10 @@
 
 .drawerProvider { max-width: 140px; }
 .drawerWorkspace { display: inline-flex; }
-.drawerModel { flex: 0 1 auto; max-width: 180px; }
+.drawerModel { flex: 0 1 auto; min-width: 0; max-width: 180px; overflow: hidden; }
+.drawerProvider { min-width: 0; overflow: hidden; }
+.drawerDetails { justify-content: flex-end; overflow: hidden; }
+.contextCompact { display: none; }
 .contextBadge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; flex-shrink: 0; border: 0; border-radius: 5px; }
 .drawerOthers { display: flex; align-items: center; flex-shrink: 0; gap: 6px; font-size: 10px; }
 
@@ -305,9 +311,13 @@
 .runtimeCard[aria-current='true'] { background: color-mix(in srgb, var(--shell-text) 6%, var(--shell-canvas)); }
 .runtimeCard:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: -1px; }
 
-@container workspace-surface (max-width: 700px) { .drawerOthers { display: none; } }
-@container workspace-surface (max-width: 480px) { .drawerWorkspace { display: none; } }
-@container workspace-surface (max-width: 300px) { .drawerProvider, .drawerModel { display: none; } }
+@container terminal-project (max-width: 760px) { .drawerOthers { display: none; } }
+@container terminal-project (max-width: 560px) { .drawerWorkspace { display: none; } }
+@container terminal-project (max-width: 420px) { .drawerBar .drawerProvider { display: none; } }
+@container terminal-project (max-width: 360px) {
+  .drawerBar .drawerModel, .contextFull { display: none; }
+  .contextCompact { display: inline; }
+}
 
 .metadata {
   display: inline-flex;

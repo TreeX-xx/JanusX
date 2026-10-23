@@ -1,5 +1,6 @@
 // Note: .agents/notes/workbench/global-tool-layout.md — global content has its own layout and lifetime.
 import { create } from 'zustand'
+import { useAuxiliaryPanelsStore } from './auxiliary-panels'
 import {
   activatePaneTab, addPaneContentToTree, closePaneTab, collapsePaneTree,
   createBrowserPaneContent, createMarkdownPaneContent, findLeafPane, findPaneContent,
@@ -54,6 +55,7 @@ export const useGlobalToolsStore = create<GlobalToolsStore>((set, get) => ({
   browserSurfaceId: null, markdownScopeId: null,
   openContent: (content) => {
     if (content.type === 'terminal' || (content.type === 'extension' && content.scope !== 'application')) return
+    useAuxiliaryPanelsStore.getState().activate('tools')
     const state = get()
     const result = addPaneContentToTree(state.paneTree, state.focusedPaneId, content, newId())
     set({ ...treeState(result.tree, result.focus.paneId, result.focus.tabId), focused: true, collapsed: false })
@@ -100,7 +102,10 @@ export const useGlobalToolsStore = create<GlobalToolsStore>((set, get) => ({
     get().openContent(createMarkdownPaneContent(GLOBAL_MARKDOWN_PANEL))
   },
   setMarkdownScope: (markdownScopeId) => set({ markdownScopeId }),
-  setCollapsed: (collapsed) => set({ collapsed, focused: !collapsed }),
+  setCollapsed: (collapsed) => {
+    if (!collapsed) useAuxiliaryPanelsStore.getState().activate('tools')
+    set({ collapsed, focused: !collapsed })
+  },
   setProjectRatio: (ratio) => { if (Number.isFinite(ratio)) set({ projectRatio: Math.max(0.2, Math.min(0.8, ratio)) }) },
   setFocused: (focused) => set({ focused }),
   setFocusedPane: (paneId) => {

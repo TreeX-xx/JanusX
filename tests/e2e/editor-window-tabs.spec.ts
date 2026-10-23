@@ -114,13 +114,15 @@ test('file opens share one workspace editor window and switch existing tabs', as
       return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === element
     })).toBe(true)
 
-    await editorPage.getByRole('button', { name: /^(Pin window on top|锁定窗口置顶)$/ }).click()
+    await editorPage.getByRole('button', { name: /^(More file actions|更多文件操作)$/ }).click()
+    await editorPage.getByRole('dialog').getByRole('button', { name: /^(Pin window on top|锁定窗口置顶)$/ }).click()
     await expect.poll(() => application!.evaluate(({ BrowserWindow }) => {
       return BrowserWindow.getAllWindows()
         .find(window => new URL(window.webContents.getURL()).searchParams.get('editorWindow') === '1')
         ?.isAlwaysOnTop()
     })).toBe(true)
-    await editorPage.getByRole('button', { name: /^(Unpin window|取消窗口置顶)$/ }).click()
+    await editorPage.getByRole('button', { name: /^(More file actions|更多文件操作)$/ }).click()
+    await editorPage.getByRole('dialog').getByRole('button', { name: /^(Unpin window|取消窗口置顶)$/ }).click()
     await expect.poll(() => application!.evaluate(({ BrowserWindow }) => {
       return BrowserWindow.getAllWindows()
         .find(window => new URL(window.webContents.getURL()).searchParams.get('editorWindow') === '1')
@@ -240,13 +242,28 @@ test('HTML editor serves local styles, modules and images and previews unsaved c
     expect(await frame.locator('html').evaluate(() => typeof (window as any).electron)).toBe('undefined')
     const url = await page.locator('iframe').getAttribute('src')
     expect(url).toMatch(/^http:\/\/127\.0\.0\.1:/)
-    await page.getByRole('button', { name: /^(双栏|Split)$/ }).click()
+    await page.getByRole('radio', { name: /^(双栏|Split)$/ }).click()
     await page.locator('.monaco-editor').click()
     await page.keyboard.press('Control+End')
     await page.keyboard.type('<p id="draft">Unsaved preview</p>')
     await expect(frame.locator('#draft')).toHaveText('Unsaved preview')
     expect(await readFile(filePath, 'utf8')).toBe(original)
-    await page.getByRole('button', { name: /^(代码|Code)$/ }).click()
+    for (const theme of ['planche', 'dark']) {
+      await main.evaluate(theme => (window as any).electron.theme.update(theme), theme)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      for (const width of [820, 1000, 1280]) {
+        await application.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()
+          .find(window => new URL(window.webContents.getURL()).searchParams.get('editorWindow') === '1')!.setSize(width, 720), width)
+        await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width)
+        await expect(page.getByRole('radio', { name: /^(双栏|Split)$/ })).toBeChecked()
+        for (const selector of ['.editor-titlebar', '.editor-toolbar']) {
+          expect(await page.locator(selector).evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThan(2)
+        }
+        expect((await page.locator('.filetab-strip').boundingBox())!.width).toBeGreaterThan(100)
+        await page.screenshot({ path: test.info().outputPath(`floating-${theme}-${width}.png`) })
+      }
+    }
+    await page.getByRole('radio', { name: /^(代码|Code)$/ }).click()
     await expect(page.locator('iframe')).toHaveCount(0)
     await expect.poll(async () => (await fetch(url!)).status).toBe(404)
   } finally {

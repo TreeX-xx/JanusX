@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-23T13:02:33Z",
+  "updated": "2026-10-23T15:27:38.390Z",
   "moduleState": "partial"
 }
 ---
@@ -52,6 +52,8 @@
 组织 Island、右侧工具栏、产物预览与共享编辑器的交互和视觉。RightDock 负责工具承载与布局，ProductWorkspacePanel 负责生成文件的预览，JanusIsland 负责工作状态及通知入口。文件事实由既有读取服务提供，会话耐久、Agent 执行与工程 Note 事务分别由对应模块负责。
 
 ## Design
+
+[辅助面板收起、上下文底栏与预览控件精简](./requirements/auxiliary-panels-preview-controls.md)已实现：工具箱与文件窗口在右侧固定入口栏独立收起／恢复，自动收起保留手动偏好及会话；用量底栏按实际项目区宽度精简。HTML／Markdown 使用支持键盘的图标模式组，标题与文件操作分层，低频动作收入更多，重复标题带已移除。布局、内容与原生网页遮挡的验证及边界归该需求。
 
 [应用启动与独立编辑窗口首屏主题](./standalone-editor-initial-theme.md)在创建窗口和挂载界面前读取当前主题，原生窗口底色与页面首漆一致，避免黑色主题启动应用或打开文件时先闪浅色。
 

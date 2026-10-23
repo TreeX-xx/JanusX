@@ -1,5 +1,6 @@
 import type { EditorDelivery, EditorSession, FileViewState } from '../../../shared/editor'
 import { create } from 'zustand'
+import { useAuxiliaryPanelsStore } from './auxiliary-panels'
 import type { OpenFile, FileViewType } from '@/types'
 import { getFileViewType, getFileName } from '@/lib/file-utils'
 
@@ -272,6 +273,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   acceptDelivery: async (payload) => {
     if (!payload.filePath || !payload.workspacePath) throw new Error('Missing editor scope')
     if (payload.session && (!payload.session.files.length || payload.session.files.some(file => file.isLoading))) throw new Error('Editor session is still loading')
+    useAuxiliaryPanelsStore.getState().activate('editor')
     get().switchScope(payload.workspacePath)
     if (payload.session) {
       const files = payload.session.files
@@ -291,6 +293,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   navigationTarget: null,
 
   openFile: async (absolutePath, workspacePath) => {
+    useAuxiliaryPanelsStore.getState().activate('editor')
     get().switchScope(workspacePath)
     const id = getEditorFileId(absolutePath)
     const existing = get().openFiles.find(f => f.id === id)
@@ -475,8 +478,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     else set({ openFiles: [], activeFileId: null, isVisible: false, isEmbedded: true, navigationTarget: null })
   },
   hidePanel: () => set({ isVisible: false }),
-  showPanel: () => set(s => ({ isVisible: s.openFiles.length > 0 })),
-  togglePanel: () => set(s => ({ isVisible: s.openFiles.length > 0 ? !s.isVisible : false })),
+  showPanel: () => {
+    useAuxiliaryPanelsStore.getState().activate('editor')
+    set(s => ({ isVisible: s.openFiles.length > 0 }))
+  },
+  togglePanel: () => get().isVisible ? get().hidePanel() : get().showPanel(),
   setEmbedded: (isEmbedded) => set({ isEmbedded }),
   setEmbeddedWidth: (embeddedWidth) => set({ embeddedWidth }),
 }))

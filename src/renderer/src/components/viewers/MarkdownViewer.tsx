@@ -2,6 +2,9 @@ import { readFileViewState, saveFileViewState } from '@/lib/file-view-state'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ViewerToolbar } from './ViewerToolbar'
+import { Link2 } from 'lucide-react'
+import { ThemedTooltip } from '../ui/ThemedTooltip'
 import { PreviewModeToggle, type PreviewMode } from './PreviewModeToggle'
 import { FILE_MARKDOWN_COMPONENTS } from './markdown-components'
 import { MarkdownAssetContext } from './local-asset'
@@ -76,83 +79,23 @@ export function MarkdownViewer({ content, originalContent, onChange, onEditorMou
   useMarkdownScrollSync(containerRef, editor, syncScroll && isSplit, content)
 
   return (
-    <div ref={containerRef} className="flex flex-1 flex-col overflow-hidden" style={{ background: 'var(--shell-void)', height: '100%' }}>
-      <div
-        className="shrink-0 flex items-center justify-between select-none"
-        style={{
-          padding: '6px 10px',
-          background: 'var(--shell-chrome)',
-          borderBottom: '1px solid var(--shell-border)',
-        }}
-      >
-        <span className="uppercase tracking-wider" style={{ fontSize: 10, color: 'var(--shell-dim)' }}>
-          MARKDOWN
-        </span>
-        <div className="flex items-center gap-3">
-          {isSplit && <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--shell-muted)' }}>
-            <input type="checkbox" checked={syncScroll} onChange={event => setSyncScroll(event.target.checked)} style={{ accentColor: 'var(--shell-accent)' }} />
-            {t('editor:fileEditor.syncScroll')}
-          </label>}
-          <PreviewModeToggle value={previewMode} onChange={mode => { setPreviewMode(mode); saveFileViewState(modelPath, { previewMode: mode }) }} />
-        </div>
-      </div>
-      <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-      {/* Left: Editor */}
-      {showEditor && (
-      <div className="flex flex-col overflow-hidden" style={{ width: isSplit ? `${splitRatio}%` : '100%', height: '100%' }}>
-        <div
-          className="shrink-0 uppercase tracking-wider select-none"
-          style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            color: 'var(--shell-dim)',
-            background: 'var(--shell-chrome)',
-            borderBottom: '1px solid var(--shell-border)',
-          }}
-        >
-          EDITOR
-        </div>
-        <div className="flex-1 overflow-hidden" style={{ height: '100%', position: 'relative' }}>
-          <MonacoViewer
-            content={content}
-            language="markdown"
-            originalContent={originalContent}
-            modelPath={modelPath}
-            onChange={onChange}
-            onEditorMount={handleEditorMount}
-          />
-        </div>
-      </div>
-      )}
-
-      {/* Divider */}
-      {isSplit && (
-      <div
-        className="viewer-divider shrink-0 h-full transition-colors"
-        style={{
-          width: 3,
-          cursor: 'col-resize',
-          background: 'rgba(255, 255, 255, 0.06)',
-        }}
-        onMouseDown={handleDividerMouseDown}
-      />
-      )}
-
-      {/* Right: Preview */}
-      {showPreview && (
-      <div className="flex flex-col overflow-hidden" style={{ width: isSplit ? `${100 - splitRatio}%` : '100%', height: '100%' }}>
-        <div
-          className="shrink-0 uppercase tracking-wider select-none"
-          style={{
-            padding: '6px 12px',
-            fontSize: 10,
-            color: 'var(--shell-dim)',
-            background: 'var(--shell-chrome)',
-            borderBottom: '1px solid var(--shell-border)',
-          }}
-        >
-          PREVIEW
-        </div>
+    <div ref={containerRef} className="flex h-full min-w-0 flex-1 flex-col overflow-hidden" style={{ background: 'var(--shell-void)' }}>
+      <ViewerToolbar>
+        <PreviewModeToggle value={previewMode} onChange={mode => { setPreviewMode(mode); saveFileViewState(modelPath, { previewMode: mode }) }} />
+        {isSplit && <ThemedTooltip label={t('editor:fileEditor.syncScroll')}>
+          <button type="button" className="shell-icon-btn viewer-icon" aria-label={t('editor:fileEditor.syncScroll')}
+            aria-pressed={syncScroll} data-on={syncScroll ? 'true' : undefined} onClick={() => setSyncScroll(value => !value)}>
+            <Link2 size={15} aria-hidden="true" />
+          </button>
+        </ThemedTooltip>}
+      </ViewerToolbar>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {showEditor && <div aria-label={t('editor:previewMode.code')} className="min-w-0 overflow-hidden" style={{ width: isSplit ? splitRatio + '%' : '100%' }}>
+          <MonacoViewer content={content} language="markdown" originalContent={originalContent} modelPath={modelPath}
+            onChange={onChange} onEditorMount={handleEditorMount} />
+        </div>}
+        {isSplit && <div className="viewer-divider shrink-0 h-full" style={{ width: 3, cursor: 'col-resize', background: 'var(--shell-border-soft)' }} onMouseDown={handleDividerMouseDown} />}
+        {showPreview && <div aria-label={t('editor:previewMode.preview')} className="flex min-w-0 flex-col overflow-hidden" style={{ width: isSplit ? (100 - splitRatio) + '%' : '100%' }}>
         <PreviewScrollArea>
         <div
           className="flex-1"
@@ -177,8 +120,7 @@ export function MarkdownViewer({ content, originalContent, onChange, onEditorMou
           </div>
         </div>
         </PreviewScrollArea>
-      </div>
-      )}
+        </div>}
       </div>
     </div>
   )

@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-20",
-  "updated": "2026-10-21T16:28:29Z",
+  "updated": "2026-10-23T15:27:38.390Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -57,13 +57,15 @@
 - **A 纯主题 token（已落地）**：`src/shared/theme/definition.ts` 两主题 monaco diff 色重排——正文行 tint 降至 8%（alpha `0x14`）、gutter 色带提至 30%（`0x4D`）、词强调 32%（`0x52`，行:词 = 1:4），形成"色带在 gutter、正文薄纱"。
 - **B Monaco 选项（已落地）**：`MonacoViewer.tsx` `lineHeight: 24`、`tabSize: 2`（配 `detectIndentation: false` 保证打开即生效）同时作用于普通编辑与 diff；diff 启用 `hideUnchangedRegions`（enabled，reveal/minimum/context 均 20）折叠不变区。竖线零容忍：文件编辑界面的竖线来源为 Monaco 默认缩进/括号参考线与 overview ruler，视觉复核确认后全部禁用（`guides` 全关 + `renderOverviewRuler: false`），planche 契约防回潮。TS/JS 语义校验关闭（`noSemanticValidation`）：文件窗口无工程上下文，导入解析与 JSX 类型假错误曾把文件全线标红，保留语法校验兜真错误。Unicode 可疑字符高亮整项关闭（`unicodeHighlight` 三项 false）：该项给全角标点等易混淆字符套 1px 金黄边框盒（`editorUnicodeHighlight.border` 默认取 warning 金 `#CCA700`/`#BF8803`，我方主题未覆盖），中文字符串与 Markdown 满篇全角标点即满屏黄框；其 locale 豁免键为 `zh-hans`/`zh-hant`，standalone Monaco 用 `Intl` 解析出 `zh-CN` 对不上号、回退 `_default` 把全角标点全算混淆，属上游 locale 键不匹配、本地修不动。文件窗口不需要防同形攻击提示，与 `noSemanticValidation` 同一裁决口径；planche 契约防回潮。
 - **C 装饰注入（已落地，竖条撤除）**：`MonacoViewer` diff 行号染色以 Monaco decoration API 实现（`getLineChanges()` + `onDidUpdateDiff` → `lineNumberClassName`，增绿删红，走 `--shell-diff-*` 令牌）。2px 变更竖条上线后经视觉复核**撤除**——文件预览界面不要竖线；变更信号由 gutter 色带、超淡行底色与行号染色承担。退出比较时主动清理装饰，避免残留到普通预览（模型在 diff 退出后仍被复用）。
-- **D 组件层（已落地）**：同源徽标 `shared/DiffCounts`（TurnChangeIsland 原 Counts 迁入共用；零变更隐藏、11px tabular、绿 `+N` 红 `−N`、`toLocaleString`）。落位**文件窗口外壳**：tab 内 per-file 常显 + 工具栏比较开关左侧跟随活动文件；数据取 git 变更统计（`git status` 行统计，随 fileTree 变更刷新），文件树红绿不被覆盖。
+- **D 组件层（已落地）**：同源徽标 `shared/DiffCounts`（TurnChangeIsland 原 Counts 迁入共用；零变更隐藏、11px tabular、绿 `+N` 红 `−N`、`toLocaleString`）。落位**文件窗口外壳**：tab 内 per-file 常显，工具栏不再重复活动文件计数；数据取 git 变更统计（`git status` 行统计，随 fileTree 变更刷新），文件树红绿不被覆盖。
 
 A–D 与外壳 UI 验证：`npm run typecheck`、`npm run theme:check`（0 new）、planche 契约（同源徽标、行号染色、无竖条防回潮、外壳图标钮与 filetab-close）与全量单测通过（workflowx-v2 在并行负载/跨进程 note 锁竞争下偶发失败，单独复跑 8/8 通过）。视觉复核已消化一条：竖条撤除；余下 planche 下的行号染色、滑动指示块与色带权重待真机过目。
 
 与无色块方向同构：opencode 的 bars 指示条 + 行号色带 + 超淡行底色，正是"选中/变更 = 文字 + 2px 强调条、不靠加深填充"的 diff 表达。JanusX 现在的 diff 反而填充偏重、条缺失，此轮学习同时是把 diff 显示收敛进既有视觉语言。不搬的：TUI tree-sitter 虚拟化 PatchDiff（Monaco 自带虚拟化）、pierre 的 `!important` 语法色覆写（破坏主题语法一致性）、文件树 + reviewed 勾选的多文件审阅套件（属另一产品决策）。
 
 ## 外壳 UI 对齐（tab 与控件，已落地）
+
+[辅助面板与预览控件精简](./requirements/auxiliary-panels-preview-controls.md)已实施：标题行保留标签、更多与内嵌收起，文件操作行接收共享 viewer 控件；HTML／Markdown 使用图标单选组并移除重复标题带。480px 以下查找／比较进入更多，迁移和浮窗置顶也在更多中，保存保持可达。内嵌文件收起保留模型、草稿与模式，右侧固定入口恢复；沿用本篇令牌与标签基线，不重做 Monaco 正文或 diff 色带。
 
 窗口外壳与应用整体语言的断层已按既有规则收敛：
 

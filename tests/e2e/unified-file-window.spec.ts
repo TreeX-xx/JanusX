@@ -2,6 +2,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { createServer } from 'node:http'
 import { createDesktopTestEnv, seedIntroducedLearning } from './desktop-test-env'
 
 test('default embedded opens, whole-session float and re-embed preserve drafts and subsequent routing', async ({}, testInfo) => {
@@ -40,15 +41,23 @@ test('default embedded opens, whole-session float and re-embed preserve drafts a
     await expect(embedded.getByRole('button', { name: '最小化', exact: true })).toHaveCount(0)
     await expect(embedded.locator('[data-editor-window-drag-strip]')).toHaveCount(0)
     await expect(embedded.locator('.monaco-editor')).toBeVisible()
+    const retained = await embedded.locator('.monaco-editor').elementHandle()
     await embedded.locator('.monaco-editor').click()
     await main.keyboard.press('Control+End')
     await main.keyboard.type('// unsaved migration')
+    await embedded.getByRole('button', { name: '收起文件面板' }).click()
+    await expect(embedded).toBeHidden()
+    expect(await retained!.evaluate(el => el.isConnected)).toBe(true)
+    await main.locator('[data-editor-toggle]').click()
+    await expect(embedded).toBeVisible()
+    await expect(embedded.locator('.view-lines')).toContainText('// unsaved migration')
     await open(second)
     await expect(embedded.locator('.preview-scroll-viewport')).toContainText('Hello file window')
     await expect(embedded.locator('.monaco-editor')).toHaveCount(0)
     await expect(embedded.locator('[data-editor-tab]')).toHaveCount(2)
     await main.screenshot({ path: testInfo.outputPath('embedded.png') })
-    await embedded.getByRole('button', { name: '返回独立浮窗' }).click()
+    await embedded.getByRole('button', { name: '更多文件操作' }).click()
+    await main.getByRole('dialog', { name: '更多文件操作' }).getByRole('button', { name: '返回独立浮窗' }).click()
     await expect(embedded).toHaveCount(0)
     await expect.poll(() => app!.windows().filter(page => page.url().includes('editorWindow=1')).length).toBe(1)
     const floating = app.windows().find(page => page.url().includes('editorWindow=1'))!
@@ -61,7 +70,8 @@ test('default embedded opens, whole-session float and re-embed preserve drafts a
     await expect(floating.locator('[data-editor-tab]')).toHaveCount(3)
     await expect(floating.locator('.view-lines')).toContainText('// unsaved migration')
     await floating.screenshot({ path: testInfo.outputPath('floating.png') })
-    await floating.getByRole('button', { name: /嵌入主/ }).click()
+    await floating.getByRole('button', { name: '更多文件操作' }).click()
+    await floating.getByRole('dialog', { name: '更多文件操作' }).getByRole('button', { name: /嵌入主/ }).click()
     await expect(embedded).toBeVisible()
     await expect(embedded.locator('[data-editor-tab]')).toHaveCount(3)
     await expect(embedded.locator('.view-lines')).toContainText('// unsaved migration')
@@ -71,12 +81,76 @@ test('default embedded opens, whole-session float and re-embed preserve drafts a
     await expect(embedded.getByRole('button', { name: '重试', exact: true })).toBeVisible()
     await expect(embedded.getByRole('button', { name: '保存', exact: true })).toHaveCount(0)
     await embedded.getByRole('button', { name: '收起文件面板' }).click()
-    await expect(embedded).toHaveCount(0)
+    await expect(embedded).toBeHidden()
     await open(first)
     await expect(embedded.locator('[data-editor-tab]')).toHaveCount(4)
     await expect(embedded.locator('.view-lines')).toContainText('// unsaved migration')
   } finally {
     if (app) await app.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('native browser yields to preview menus and survives auxiliary collapse in the real workspace', async ({}, testInfo) => {
+  const root = await mkdtemp(join(tmpdir(), 'janusx-auxiliary-native-'))
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html' })
+    response.end('<!doctype html><title>Auxiliary native fixture</title><style>body{background:white;color:#222}</style><h1>Local browser</h1>')
+  })
+  let app: ElectronApplication | undefined
+  try {
+    await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+    const address = server.address() as { port: number }
+    const workspacePath = join(root, 'project')
+    await mkdir(workspacePath)
+    const filePath = join(workspacePath, 'preview.html')
+    await writeFile(filePath, '<!doctype html><main id="page">Preview</main><script>document.getElementById("page").dataset.ready="yes"</script>')
+    app = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${join(root, 'data')}`], env: createDesktopTestEnv(root) })
+    const main = await app.firstWindow()
+    await main.waitForFunction(() => !!(window as any).electron?.system?.setLanguage)
+    await main.evaluate(() => (window as any).electron.system.setLanguage('en'))
+    await seedIntroducedLearning(main)
+    await main.reload()
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1800, 1000))
+    await expect(main.locator('button[data-id="tool-menu"]')).toBeVisible({ timeout: 40_000 })
+    await main.evaluate(path => (window as any).electron.workspace.create({ path, name: 'Panels' }), workspacePath)
+    await main.evaluate(payload => (window as any).electron.window.openEditor(payload), { filePath, workspacePath })
+    const editor = main.locator('[data-editor-host="embedded"]')
+    await expect(editor).toBeVisible()
+    await main.locator('button[data-id="tool-menu"]').click()
+    await main.locator('[role="menuitem"][data-id="browser"]').click()
+    const tab = main.locator('[data-tab-id^="browser:"]')
+    await expect(tab).toBeVisible()
+    const surfaceId = (await tab.getAttribute('data-tab-id'))!.slice('browser:'.length)
+    await main.evaluate(async ({ surfaceId, url }) => {
+      const browser = (window as any).electron.browser
+      const state = await browser.getState(surfaceId)
+      await browser.navigate(surfaceId, state.activeTabId, url)
+    }, { surfaceId, url: `http://127.0.0.1:${address.port}/` })
+    const nativeViews = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.map(view => view.getBounds()))
+    await expect.poll(nativeViews).toHaveLength(1)
+    const frame = editor.frameLocator('iframe')
+    await expect(frame.locator('#page')).toHaveAttribute('data-ready', 'yes')
+    await editor.getByRole('button', { name: 'Preview options' }).click()
+    await expect(main.getByRole('dialog', { name: 'Preview options' })).toBeVisible()
+    await expect.poll(nativeViews).toHaveLength(0)
+    await main.getByRole('button', { name: 'Disable scripts', exact: true }).click()
+    await expect(frame.locator('#page')).not.toHaveAttribute('data-ready', 'yes')
+    await expect.poll(nativeViews).toHaveLength(1)
+    await main.locator('[data-tools-toggle]').click()
+    await expect.poll(nativeViews).toHaveLength(0)
+    await main.locator('[data-tools-toggle]').click()
+    await expect.poll(nativeViews).toHaveLength(1)
+    expect(await main.evaluate(id => (window as any).electron.browser.getState(id).then((state: any) => state.surfaceId), surfaceId)).toBe(surfaceId)
+    await editor.getByRole('button', { name: 'Collapse file panel' }).click()
+    await expect(editor).toBeHidden()
+    await main.locator('[data-editor-toggle]').click()
+    await expect(editor).toBeVisible()
+    await expect(editor.getByRole('radio', { name: 'Preview', exact: true })).toBeChecked()
+    await main.screenshot({ path: testInfo.outputPath('native-and-preview.png') })
+  } finally {
+    if (app) await app.close()
+    await new Promise<void>(done => server.close(() => done()))
     await rm(root, { recursive: true, force: true })
   }
 })

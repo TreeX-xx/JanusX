@@ -20,7 +20,8 @@ import { TerminalArea } from '@/components/TerminalArea'
 import { WorkbenchErrorBoundary } from '@/components/WorkbenchErrorBoundary'
 import { TerminalSelector } from '@/components/TerminalSelector'
 import { Panel, RightDockLayoutProvider } from '@/components/Panel'
-import { getRightDockLayout, CENTER_WORKSPACE_MIN_WIDTH } from '@/components/right-tools/layout'
+import { getAuxiliaryWorkspaceLayout, EDITOR_MIN_WIDTH } from '@/lib/auxiliary-layout'
+import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
 import { StatusBar } from '@/components/StatusBar'
 import { FileEditor } from '@/components/FileEditor'
 import { AgentNotificationHost } from '@/components/AgentNotificationHost'
@@ -54,7 +55,7 @@ type IdleWindow = Window & {
 
 const SIDE_PANEL_WIDTH = 'clamp(252px, 15vw, 288px)'
 const SIDE_PANEL_COLLAPSED_WIDTH = '52px'
-const EMBEDDED_EDITOR_MIN_WIDTH = 360
+const EMBEDDED_EDITOR_MIN_WIDTH = EDITOR_MIN_WIDTH
 
 function clampEmbeddedEditorWidth(width: number, maxWidth: number): number {
   return Math.max(EMBEDDED_EDITOR_MIN_WIDTH, Math.min(maxWidth, width))
@@ -94,6 +95,11 @@ export default function App() {
   const rightToolPanelWidths = useRightToolStore((s) => s.panelWidths)
   const rightToolActiveId = useRightToolStore((s) => s.activeToolId)
   const isEditorEmbedded = useEditorStore((s) => s.isEmbedded && s.isVisible)
+  const hasEmbeddedFiles = useEditorStore((s) => s.isEmbedded && s.openFiles.length > 0)
+  const toolsCollapsed = useGlobalToolsStore(s => s.collapsed)
+  const projectTree = useWorkspaceStore(s => s.paneTree)
+  const auxiliaryPriority = useAuxiliaryPanelsStore(s => s.priority)
+  const editorCompact = useAuxiliaryPanelsStore(s => s.editorCompact)
   const embeddedEditorWidth = useEditorStore((s) => s.embeddedWidth)
   const [rightDockResizing, setRightDockResizing] = useState(false)
   const [editorResizing, setEditorResizing] = useState(false)
@@ -106,23 +112,18 @@ export default function App() {
   const sidebarWidth = sidebarCollapsed
     ? 52
     : Math.min(288, Math.max(252, appGridWidth * 0.15))
-  const rightDockLayout = getRightDockLayout({
-    availableWidth: appGridWidth - sidebarWidth
-      - (isEditorEmbedded ? EMBEDDED_EDITOR_MIN_WIDTH : 0),
-    panelCollapsed,
-    panelWidth: rightToolPanelWidth,
-    panelWidths: rightToolPanelWidths,
-    activeToolId: rightToolActiveId,
-    hasActiveTool: rightToolActiveId !== null,
+  const { rightDockLayout, centerReserve, editorMaxWidth, editorVisible: showEmbeddedEditor, editorWidth: editorColumnWidth } = getAuxiliaryWorkspaceLayout({
+    availableWidth: appGridWidth - sidebarWidth,
+    panelCollapsed, panelWidth: rightToolPanelWidth, panelWidths: rightToolPanelWidths,
+    activeToolId: rightToolActiveId, hasActiveTool: rightToolActiveId !== null,
+    hasProject: activeWorkspaceId !== null || projectTree !== null, projectTree,
+    toolsRequested: hasGlobalToolsPane && !toolsCollapsed,
+    editorRequested: isEditorEmbedded, editorWidth: embeddedEditorWidth,
+    editorWasCompact: editorCompact, priority: auxiliaryPriority,
   })
-  const editorMaxWidth = Math.max(
-    EMBEDDED_EDITOR_MIN_WIDTH,
-    appGridWidth - sidebarWidth
-      - rightDockLayout.dockWidth - CENTER_WORKSPACE_MIN_WIDTH,
-  )
-  const editorColumnWidth = isEditorEmbedded
-    ? clampEmbeddedEditorWidth(embeddedEditorWidth, editorMaxWidth)
-    : 0
+  useLayoutEffect(() => {
+    useAuxiliaryPanelsStore.setState({ editorCompact: isEditorEmbedded && !showEmbeddedEditor })
+  }, [isEditorEmbedded, showEmbeddedEditor])
 
   useLayoutEffect(() => {
     const grid = appGridRef.current
@@ -160,7 +161,7 @@ export default function App() {
       editorRightEdge: editorRect.right,
       maxWidth: Math.max(
         EMBEDDED_EDITOR_MIN_WIDTH,
-        editorRect.width + centerRect.width - CENTER_WORKSPACE_MIN_WIDTH,
+        editorRect.width + centerRect.width - centerReserve,
       ),
     }
     editorBodyStyleRef.current = {
@@ -172,7 +173,7 @@ export default function App() {
     event.currentTarget.setPointerCapture(event.pointerId)
     setEditorResizing(true)
     event.preventDefault()
-  }, [finishEditorResize])
+  }, [finishEditorResize, centerReserve])
 
   const handleEditorResizeMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const session = editorResizeSessionRef.current
@@ -283,7 +284,7 @@ export default function App() {
                 aria-hidden={!showWorkspacePane}
               >
                 <WorkbenchErrorBoundary>
-                  <TerminalArea />
+                  <TerminalArea auxiliaryControls />
                 </WorkbenchErrorBoundary>
               </div>
             )}
@@ -299,12 +300,12 @@ export default function App() {
         {/*-- 槽位常驻：关闭时留 0px 空壳占位，网格自动排布才不会把右侧 Panel 挤错轨道 --*/}
         <section
           ref={editorWorkspaceRef}
-          className={`relative min-w-0 overflow-hidden${isEditorEmbedded ? ' border-l border-white/[0.07]' : ''}`}
+          className={`relative min-w-0 overflow-hidden${showEmbeddedEditor ? ' border-l border-white/[0.07]' : ''}`}
           aria-label="Embedded file editor"
-          aria-hidden={!isEditorEmbedded}
-          {...(isEditorEmbedded ? {} : { inert: '' })}
+          aria-hidden={!showEmbeddedEditor}
+          {...(showEmbeddedEditor ? {} : { inert: '' })}
         >
-          {isEditorEmbedded && (
+          {hasEmbeddedFiles && (
             <>
               <div
                 role="separator"
@@ -324,7 +325,7 @@ export default function App() {
                 onLostPointerCapture={handleEditorResizeEnd}
                 onKeyDown={handleEditorResizeKeyDown}
               />
-              <FileEditor />
+              <FileEditor active={showEmbeddedEditor} />
             </>
           )}
         </section>

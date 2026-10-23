@@ -171,6 +171,7 @@
 
 .dock[data-collapsed='true'] .rail { border-left-color: transparent; }
 .railTools { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.auxiliaryTools { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--shell-border-soft); }
 
 .railButton {
   position: relative;

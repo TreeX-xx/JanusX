@@ -170,6 +170,8 @@
     "embedToWorkspace": "嵌入内部工作区",
     "transferFailed": "文件窗口切换失败，文件与草稿仍保留在原处。",
     "collapsePanel": "收起文件面板",
+    "expandPanel": "显示文件预览",
+    "moreActions": "更多文件操作",
     "detachToFloat": "返回独立浮窗",
     "save": "保存",
     "closeTab": "关闭 {{name}}",
@@ -188,6 +190,7 @@
     "cppDefinitionInstallComplete": "clangd 已安装。C/C++ 导航已就绪。"
   },
   "htmlViewer": {
+    "options": "预览选项",
     "viewport": "预览视口",
     "responsive": "响应式（跟随面板）",
     "zoom": "预览缩放",
@@ -205,6 +208,7 @@
     "notSupported": "不支持预览此文件类型"
   },
   "previewMode": {
+    "label": "文件显示模式",
     "code": "代码",
     "split": "双栏",
     "preview": "预览"

@@ -1207,7 +1207,7 @@ function LeafPane({
   )
 }
 
-export function TerminalArea() {
+export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?: boolean }) {
   const { t } = useI18n('terminal')
   // Geometry and collapse are owned by GlobalToolsLayout. Subscribing to them
   // here rerenders every terminal/editor on each outer splitter movement.
@@ -1641,7 +1641,7 @@ export function TerminalArea() {
         ref={terminalAreaRef}
         className={styles.area}
     >
-      <GlobalToolsLayout hasProject={activeWorkspaceId !== null || paneTree !== null} projectTree={paneTree}
+      <GlobalToolsLayout hasProject={activeWorkspaceId !== null || paneTree !== null} projectTree={paneTree} externalControls={auxiliaryControls}
         tools={(visible) => <PaneTreeView
           toolsRegion node={globalTools.paneTree} workspaceVisible={visible}
           terminalsById={terminalsById} focusedPaneId={globalTools.focused ? globalTools.focusedPaneId : null}
@@ -1795,7 +1795,8 @@ export function TerminalArea() {
                     color: contextRatioColor(contextRatio(activeTerminal)),
                   }}
                 >
-                  {contextLabel(activeTerminal, t)}
+                  <span className={styles.contextFull}>{contextLabel(activeTerminal, t)}</span>
+                  <span className={styles.contextCompact}>{contextPercentLabel(activeTerminal)}</span>
                 </span>
                 </TerminalContextTooltip>
               </span>

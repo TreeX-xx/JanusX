@@ -13,6 +13,7 @@ import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
 import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { usePendingToolActivation } from './usePendingToolActivation'
 import styles from './RightDock.module.css'
+import { AuxiliaryPanelButtons } from './AuxiliaryPanelButtons'
 
 interface RightToolRailProps {
   openToolIds: readonly RightToolId[]
@@ -89,7 +90,7 @@ export function RightToolRail({
           )
         })}
       </div>
-
+      <AuxiliaryPanelButtons />
     </div>
   )
 }

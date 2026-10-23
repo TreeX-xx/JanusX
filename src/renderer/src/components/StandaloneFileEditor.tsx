@@ -6,11 +6,14 @@ import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { DiffCounts } from '@/components/shared/DiffCounts'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
-import { GitCompareArrows, PanelRightOpen, PanelRightClose, X, Pin, PinOff, RefreshCw, Save, Search } from 'lucide-react'
+import { GitCompareArrows, Dock, ExternalLink, PanelRightClose, X, Pin, PinOff, RefreshCw, Save, Search } from 'lucide-react'
 import { isEditorDefinitionShortcut, isEditorFindShortcut, isMonacoKeyboardEvent, openEditorDefinition, openEditorFind, watchFindWidgetControls, type FindableEditor } from '@/lib/editor-find'
 import { attachWheelScrollX, revealStripItem } from '@/lib/wheel-scroll-x'
 import { useI18n } from '@/i18n/useI18n'
+import { ViewerActive, ViewerToolbarTarget } from './viewers/ViewerToolbar'
+import { ToolbarMenu } from './viewers/ToolbarMenu'
 import type { DefinitionTarget } from '@/lib/monaco-definition'
+import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
 
 interface EditorWindowParams {
   filePath: string
@@ -25,8 +28,20 @@ function getEditorWindowParams(): EditorWindowParams | null {
   return { filePath, workspacePath }
 }
 
-export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean }) {
+export function StandaloneFileEditor({ embedded = false, active = true }: { embedded?: boolean; active?: boolean }) {
   const { t } = useI18n('editor')
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
+  const [compactControls, setCompactControls] = useState(false)
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const update = () => setCompactControls(root.clientWidth <= 480)
+    const observer = new ResizeObserver(update)
+    observer.observe(root)
+    update()
+    return () => observer.disconnect()
+  }, [])
   const findEditorRef = useRef<FindableEditor | null>(null)
   const tabStripRef = useRef<HTMLDivElement | null>(null)
   const scope = useEditorStore(state => state.workspacePath)
@@ -86,14 +101,14 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (!isEditorDefinitionShortcut(event) || !findEditorRef.current || !isMonacoKeyboardEvent(event)) return
+      if (!active || !isEditorDefinitionShortcut(event) || !findEditorRef.current || !isMonacoKeyboardEvent(event)) return
       event.preventDefault()
       event.stopPropagation()
       void openEditorDefinition(findEditorRef.current)
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [])
+  }, [active])
 
   useEffect(() => {
     if (embedded || !editorParams) return
@@ -170,6 +185,7 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (!active) return
       if (isEditorFindShortcut(event) && findEditorRef.current && !isMonacoKeyboardEvent(event)) {
         event.preventDefault()
         void openEditorFind(findEditorRef.current)
@@ -183,7 +199,7 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [activeFileId, saveFile, transferring, pluginReadOnly])
+  }, [active, activeFileId, saveFile, transferring, pluginReadOnly])
 
   useEffect(() => { findEditorRef.current = null }, [activeFileId])
 
@@ -225,10 +241,14 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
   const canFind = !pluginReadOnly && (activeFile?.viewType === 'code' || activeFile?.viewType === 'markdown' || activeFile?.viewType === 'html')
 
   return (
-    <div data-editor-window-state="ready" data-editor-host={embedded ? 'embedded' : 'floating'} aria-busy={transferring} className={`${embedded ? 'h-full' : 'h-screen'} flex flex-col overflow-hidden`} style={{ background: 'var(--shell-canvas)', color: 'var(--shell-text)' }}>
+    <ViewerActive.Provider value={active}>
+    <ViewerToolbarTarget.Provider value={toolbarTarget}>
+    <div ref={rootRef} data-editor-window-state="ready" data-editor-host={embedded ? 'embedded' : 'floating'} aria-busy={transferring}
+      onPointerDownCapture={() => { if (embedded) useAuxiliaryPanelsStore.getState().activate('editor') }}
+      className={`editor-window ${embedded ? 'h-full' : 'h-screen'} flex flex-col overflow-hidden`} style={{ background: 'var(--shell-canvas)', color: 'var(--shell-text)' }}>
       <div
         {...(transferring ? { inert: '' } : {})}
-        className="relative h-[38px] shrink-0 flex items-center gap-3 px-3 select-none"
+        className="editor-titlebar relative h-[38px] shrink-0 flex items-center select-none"
         style={{
           ...titlebarDrag,
           background: 'var(--shell-pane-chrome)',
@@ -295,71 +315,42 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
             )
           })}
         </div>
-        <div className="relative z-10 flex shrink-0 items-center gap-1.5" style={noDrag}>
-          <DiffCounts additions={activeFile ? changeStats.get(activeFile.path)?.additions ?? 0 : 0}
-            deletions={activeFile ? changeStats.get(activeFile.path)?.deletions ?? 0 : 0} />
-          {canFind && <button type="button" aria-pressed={diffEnabled} data-on={diffEnabled ? 'true' : undefined}
-            aria-label={t('editor:fileEditor.compareHead')} title={t('editor:fileEditor.compareHead')}
-            onClick={() => setDiffFileId(diffEnabled ? null : activeFileId)}
-            className="shell-icon-btn flex h-7 w-7 items-center justify-center rounded-md border border-[var(--control-border)] transition-colors"
-            style={{ color: diffEnabled ? 'var(--shell-accent-strong)' : 'var(--shell-muted)' }}>
-            <GitCompareArrows size={14} strokeWidth={1.8} />
-          </button>}
-          {canFind && (
-            <button
-              type="button"
-              aria-label={t('editor:fileEditor.find')}
-              title={t('editor:fileEditor.findTitle')}
-              onClick={() => void openEditorFind(findEditorRef.current)}
-              onMouseDown={(event) => event.stopPropagation()}
-              className="shell-icon-btn flex h-7 w-7 items-center justify-center rounded-md border border-[var(--control-border)] bg-transparent text-[var(--shell-muted)] transition-colors hover:border-[var(--shell-accent-border)] hover:text-[var(--shell-text)]"
-            >
-              <Search size={14} strokeWidth={1.8} />
+        <div className="relative z-10 flex shrink-0 items-center gap-1" style={noDrag}>
+          <ToolbarMenu label={t('editor:fileEditor.moreActions')}>
+            {compactControls && canFind && <>
+              <button type="button" onClick={() => void openEditorFind(findEditorRef.current)}><Search size={15} />{t('editor:fileEditor.find')}</button>
+              <button type="button" aria-pressed={diffEnabled} onClick={() => setDiffFileId(diffEnabled ? null : activeFileId)}><GitCompareArrows size={15} />{t('editor:fileEditor.compareHead')}</button>
+            </>}
+            <button type="button" disabled={!activeFile || !editorParams || transferring || openFiles.some(file => file.isLoading)}
+              onClick={() => void moveSession()}>
+              {embedded ? <ExternalLink size={15} /> : <Dock size={15} />}
+              {t(embedded ? 'editor:fileEditor.detachToFloat' : 'editor:fileEditor.embedToMain')}
             </button>
-          )}
-          {!embedded && <button
-            type="button"
-            aria-pressed={isPinned} data-on={isPinned ? 'true' : undefined}
-            aria-label={isPinned ? t('editor:fileEditor.unpinWindow') : t('editor:fileEditor.pinWindow')}
-            title={isPinned ? t('editor:fileEditor.unpinWindow') : t('editor:fileEditor.pinWindow')}
-            onClick={() => void togglePinned()}
-            onMouseDown={(event) => event.stopPropagation()}
-            className="shell-icon-btn relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--control-border)] transition-colors"
-            style={{ color: isPinned ? 'var(--shell-accent-strong)' : 'var(--shell-muted)' }}
-          >
-            {isPinned ? <PinOff size={14} strokeWidth={1.8} /> : <Pin size={14} strokeWidth={1.8} />}
-          </button>}
-          <button
-            type="button"
-            aria-label={t(embedded ? 'editor:fileEditor.detachToFloat' : 'editor:fileEditor.embedToMain')}
-            title={t(embedded ? 'editor:fileEditor.detachToFloat' : 'editor:fileEditor.embedToMain')}
-            disabled={!activeFile || !editorParams || transferring || openFiles.some(file => file.isLoading)}
-            onClick={() => void moveSession()}
-            onMouseDown={(event) => event.stopPropagation()}
-            className="shell-icon-btn flex h-7 w-7 items-center justify-center rounded-md border border-[var(--control-border)] bg-transparent text-[var(--shell-muted)] transition-colors enabled:hover:border-[var(--shell-accent-border)] enabled:hover:text-[var(--shell-text)] disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            {embedded ? <PanelRightClose size={14} strokeWidth={1.8} /> : <PanelRightOpen size={14} strokeWidth={1.8} />}
-          </button>
+            {!embedded && <button type="button" aria-pressed={isPinned} onClick={() => void togglePinned()}>
+              {isPinned ? <PinOff size={15} /> : <Pin size={15} />}{t(isPinned ? 'editor:fileEditor.unpinWindow' : 'editor:fileEditor.pinWindow')}
+            </button>}
+          </ToolbarMenu>
+          {embedded && <button type="button" aria-label={t('editor:fileEditor.collapsePanel')} title={t('editor:fileEditor.collapsePanel')}
+            onClick={() => useEditorStore.getState().hidePanel()} className="shell-icon-btn viewer-icon"><PanelRightClose size={15} aria-hidden="true" /></button>}
         </div>
-        {embedded && <button type="button" aria-label={t('editor:fileEditor.collapsePanel')} title={t('editor:fileEditor.collapsePanel')} onClick={() => useEditorStore.getState().hidePanel()} className="shell-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--shell-muted)]"><X size={14} /></button>}
-        {canSave && (
-          <button
-            type="button"
-            onClick={() => activeFileId && void saveFile(activeFileId)}
-            aria-label={t('editor:fileEditor.save')}
-            title={t('editor:fileEditor.save')}
-            data-on={activeFile?.isDirty ? 'true' : undefined}
-            onMouseDown={(event) => event.stopPropagation()}
-            className="shell-icon-btn flex h-7 w-7 items-center justify-center rounded-md border border-[var(--control-border)] transition-colors"
-            style={{
-              ...noDrag,
-              color: activeFile?.isDirty ? 'var(--shell-accent-strong)' : 'var(--shell-dim)',
-            }}
-          >
-            <Save size={14} strokeWidth={1.8} />
-          </button>
-        )}
       </div>
+      {(canFind || canSave) && <div className="editor-toolbar" {...(transferring ? { inert: '' } : {})}>
+        <div ref={setToolbarTarget} className="editor-toolbar-slot" />
+        {canFind && <>
+          <button type="button" aria-pressed={diffEnabled} data-on={diffEnabled ? 'true' : undefined}
+            aria-label={t('editor:fileEditor.compareHead')} title={t('editor:fileEditor.compareHead')}
+            onClick={() => setDiffFileId(diffEnabled ? null : activeFileId)} className="shell-icon-btn viewer-icon editor-wide-action">
+            <GitCompareArrows size={15} aria-hidden="true" />
+          </button>
+          <button type="button" aria-label={t('editor:fileEditor.find')} title={t('editor:fileEditor.findTitle')}
+            onClick={() => void openEditorFind(findEditorRef.current)} className="shell-icon-btn viewer-icon editor-wide-action">
+            <Search size={15} aria-hidden="true" />
+          </button>
+        </>}
+        {canSave && <button type="button" onClick={() => activeFileId && void saveFile(activeFileId)}
+          aria-label={t('editor:fileEditor.save')} title={t('editor:fileEditor.save')} data-on={activeFile?.isDirty ? 'true' : undefined}
+          className="shell-icon-btn viewer-icon"><Save size={15} aria-hidden="true" /></button>}
+      </div>}
       {transferError && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{transferError}</div>}
       {activeFile?.saveConflict && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{t('plugins:documentConflict')}</div>}
       {diffEnabled && baselineStatus && <div role="status" className="px-3 py-1 text-xs" style={{ color: 'var(--shell-muted)' }}>
@@ -390,5 +381,7 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
       </div>
       {closeDialog}
     </div>
+    </ViewerToolbarTarget.Provider>
+    </ViewerActive.Provider>
   )
 }

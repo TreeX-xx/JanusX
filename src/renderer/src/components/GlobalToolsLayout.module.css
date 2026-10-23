@@ -1,5 +1,6 @@
 .layout { position: relative; display: grid; flex: 1; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; transition: grid-template-columns var(--tools-motion) cubic-bezier(0.2, 0.8, 0.2, 1); }
 .project, .tools { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; contain: paint; background: var(--shell-canvas); }
+.project { container: terminal-project / inline-size; }
 .regionContent { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .tools[data-visible='false'] { visibility: hidden; pointer-events: none; transition: visibility 0s linear var(--tools-motion); }
 .project[data-visible='false'], .rail[data-visible='false'] { visibility: hidden; pointer-events: none; }

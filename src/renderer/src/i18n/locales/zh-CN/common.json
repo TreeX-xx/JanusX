@@ -284,6 +284,7 @@
     "badgeTitle": "{{count}} 项待处理需求"
   },
   "toolGroup": {
+    "auxiliaryPanels": "工具箱与文件预览",
     "resizeRegions": "调整项目与工具区宽度",
     "collapseTools": "收起工具区",
     "toolsNeedSpace": "空间不足，请加宽窗口或收起右侧工作区。",

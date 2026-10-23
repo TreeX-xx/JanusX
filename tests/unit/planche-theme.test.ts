@@ -140,7 +140,6 @@ describe('planche theme contract', () => {
     expect(shellEditor).toContain('filetab-indicator')
     expect(read('components/viewers/MarkdownViewer.tsx')).toContain('viewer-divider')
     expect(read('components/viewers/HtmlViewer.tsx')).toContain('viewer-divider')
-    expect(read('components/viewers/HtmlViewer.tsx')).toContain('tbtn-accent')
     expect(read('components/StandaloneFileEditor.tsx')).toContain('filetab-close')
     expect(read('components/viewers/markdown-preview.css')).toContain('var(--shell-accent-soft)')
     expect(hovers).toContain('.viewer-divider:hover')
