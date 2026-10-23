@@ -1,6 +1,7 @@
 import type { PluginErrorCode } from './errors.js'
 import type { PluginIslandStatus } from './island.js'
 import type { PluginDocument } from './documents.js'
+import type { PluginConfiguration } from './configuration.js'
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export interface PluginCallOptions { signal?: AbortSignal }
@@ -9,11 +10,17 @@ export interface PluginContext {
   revision: number
   active: boolean
   document?: PluginDocument
+  /** This plugin declares user settings; SDK consumers may read/watch them. */
+  configuration?: true
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
+  configuration: {
+    get(options?: PluginCallOptions): Promise<PluginConfiguration>
+    watch(listener: (configuration: PluginConfiguration) => void, options?: PluginCallOptions): Promise<{ configuration: PluginConfiguration; unsubscribe: PluginUnsubscribe }>
+  }
   /** Reads only the file bound by the host's viewer selection; accepts no path. */
   documents: {
     readText(options?: PluginCallOptions): Promise<{ path: string; text: string; bytes: number; version: string }>

@@ -83,6 +83,84 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P4a declarative configuration persists, inherits, updates both plugin views and rejects stale forms', async ({}, testInfo) => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.permissions.push({ name: 'configuration.read' }); manifest.capabilities.required.push('configuration.settings')
+    manifest.contributes.settings = [
+      { key: 'label', title: 'Reference label', type: 'string', default: 'Reference', scope: 'project', minLength: 1, maxLength: 40 },
+      { key: 'enabled', title: 'Show details', type: 'boolean', default: true, scope: 'project' },
+      { key: 'limit', title: 'Item limit', type: 'number', default: 10, minimum: 1, maximum: 100, integer: true, scope: 'project' },
+      { key: 'style', title: 'Display style', type: 'enum', default: 'compact', options: ['compact', 'full'], scope: 'application' },
+    ]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    let booted = await boot(f.root); app = booted.app; let page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P4a Settings A', path }), f.project)
+    const other = join(f.root, 'project-b'); await mkdir(other); await writeFile(join(other, 'README.md'), 'B')
+    const workspaceB = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P4a Settings B', path }), other)
+    await page.reload(); await page.getByText('P4a Settings A', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id)
+    await page.evaluate(async ({ id, projects }) => (window as any).electron.plugins.request({ type: 'enable', id, projects }), { id: pluginId, projects: [workspace.id, workspaceB.id] })
+    await openDetails(page)
+    let details = await guest(app, '/dist/index.html')
+    await expect(details.locator('#configuration')).toContainText('Reference')
+    await details.getByRole('button', { name: 'Summary', exact: true }).click()
+    let summary = await guest(app, '/dist/summary.html')
+    await expect(summary.locator('#configuration')).toContainText('Reference')
+    await settings(page)
+    let card = page.locator(`[data-plugin-id="${pluginId}"]`)
+    await card.getByText('Configuration', { exact: true }).click()
+    let form = card.locator('[data-plugin-configuration]')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Reference')
+    await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Global label')
+    await form.getByRole('checkbox', { name: 'Show details', exact: true }).uncheck()
+    await form.getByRole('spinbutton', { name: 'Item limit', exact: true }).fill('101')
+    await expect(form.getByRole('button', { name: 'Save configuration', exact: true })).toBeDisabled()
+    await form.getByRole('spinbutton', { name: 'Item limit', exact: true }).fill('25')
+    await form.getByRole('combobox', { name: 'Display style', exact: true }).selectOption('full')
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(form.getByText('Configuration saved.', { exact: true })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('plugin-configuration.png') })
+    await expect(details.locator('#configuration')).toContainText('Global label')
+    await expect(summary.locator('#configuration')).toContainText('Global label')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await expect(form.getByRole('combobox', { name: 'Display style', exact: true })).toBeDisabled()
+    await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Local label')
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(details.locator('#configuration')).toContainText('Local label')
+    await expect(summary.locator('#configuration')).toContainText('Local label')
+    const stale = await page.evaluate(async ({ id, projectId, scopePath }) => (await (window as any).electron.plugins.request({ type: 'configurationGet', id, projectId, scopePath })).data,
+      { id: pluginId, projectId: workspace.id, scopePath: f.project })
+    await page.evaluate(async ({ id, projectId, scopePath, revision }) => (window as any).electron.plugins.request({ type: 'configurationUpdate', id, projectId, scopePath, expectedRevision: revision, patch: { label: 'Other editor' }, reset: false }),
+      { id: pluginId, projectId: workspace.id, scopePath: f.project, revision: stale.revision })
+    await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('My pending change')
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(form.getByRole('alert')).toContainText('Configuration changed elsewhere')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('My pending change')
+    await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Other editor')
+    await close(app); app = undefined
+    booted = await boot(f.root); app = booted.app; page = booted.page
+    await page.getByText('P4a Settings A', { exact: true }).filter({ visible: true }).first().click()
+    await openDetails(page); details = await guest(app, '/dist/index.html')
+    await expect(details.locator('#configuration')).toContainText('Other editor')
+    await settings(page); card = page.locator(`[data-plugin-id="${pluginId}"]`)
+    await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await form.getByRole('button', { name: 'Reset this scope', exact: true }).click()
+    await expect(details.locator('#configuration')).toContainText('Global label')
+    await page.keyboard.press('Escape')
+    await page.getByText('P4a Settings B', { exact: true }).filter({ visible: true }).first().click()
+    await openDetails(page)
+    await expect((await guest(app, '/dist/index.html')).locator('#configuration')).toContainText('Global label')
+    await settings(page); card = page.locator(`[data-plugin-id="${pluginId}"]`)
+    await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
+    await form.getByRole('button', { name: 'Reset this scope', exact: true }).click()
+    await expect((await guest(app, '/dist/index.html')).locator('#configuration')).toContainText('Reference')
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
 test('P4 plugin drafts are host-owned, reviewed before saving and retained on disk conflict or disable', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

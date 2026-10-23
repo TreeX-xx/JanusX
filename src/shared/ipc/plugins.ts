@@ -1,4 +1,4 @@
-import type { PluginManifest, PluginContext, PluginIslandStatus, PluginDocument, JsonValue } from '@janusx/plugin-sdk'
+import type { PluginManifest, PluginContext, PluginIslandStatus, PluginDocument, JsonValue, PluginSettingValue } from '@janusx/plugin-sdk'
 
 export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
 export interface InstalledPlugin {
@@ -33,6 +33,9 @@ export type PluginManageRequest =
   | { type: 'bounds'; instanceId: string; binding: string; bounds: PluginBounds }
   | { type: 'call'; instanceId: string; binding: string; packet: unknown }
   | { type: 'documentEditResult'; instanceId: string; binding: string; editId: string; applied: boolean }
+  | { type: 'configurationGet'; id: string; projectId: string | null; scopePath: string | null }
+  | { type: 'configurationUpdate'; id: string; projectId: string | null; scopePath: string | null;
+      expectedRevision: string; patch: Record<string, PluginSettingValue | null>; reset: boolean }
   | { type: 'islandAction'; pluginId: string; id: string; instanceId: string; command: string }
 export type PluginHostResult = { ok: true; data: unknown } | { ok: false; code: string; message: string }
 export interface PluginHostEvent { instanceId: string; packet: JsonValue }

@@ -11,6 +11,14 @@ let unsubscribe: (() => void) | undefined
 async function start(api: PluginApi) {
   const options = { signal: controller.signal }
   const context = await api.workspace.getContext(options)
+  if (context.configuration) {
+    const display = document.createElement('p')
+    display.id = 'configuration'
+    status.after(display)
+    const show = (value: { values: Record<string, unknown> }) => { display.textContent = JSON.stringify(value.values) }
+    const configuration = await api.configuration.watch(show, options)
+    show(configuration.configuration)
+  }
   if (context.document) {
     remember.hidden = true
     const file = await api.documents.readText(options)

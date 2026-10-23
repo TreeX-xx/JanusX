@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T03:10:27Z",
+  "updated": "2026-10-23T05:05:29Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -139,6 +139,20 @@ Island 胶囊显示状态数量与受限文本，最多三项紧凑展示，完�
 
 后续 P4 需补持续插件编辑会话、跨外部进程的事务边界／冲突合并、自动变更通知、目录查询及代表内置查看器迁移。当前选择复用宿主缓冲和保存流程，避免再建一套独立脏状态；若需要页面内持续编辑与保存，则应升级宿主文档服务而非绕过版本检查。
 
+## P4a 插件参数配置
+
+已实现声明式设置基础版。清单 `contributes.settings` 为 1–64 个字段，需必需能力 `configuration.settings` 和独立权限 `configuration.read`；旧清单不增加字段或权限，旧宿主拒绝新必需能力。字段包含唯一 key、title、可选 description、type、合法 default 与 scope。key 为小写字母起始的字母／数字／点／横线，拒绝原型保留名。type 支持 boolean、string（minLength/maxLength，最多 4096 字符，无 NUL）、number（有限数字、minimum/maximum、可选 integer）与 enum（1–32 个唯一字符串选项）；默认值必须满足约束，不支持任意 JSON Schema、正则、脚本或凭证字段。
+
+scope=application 的字段仅能设置应用值；scope=project 允许在应用默认上按 project＋真实 root 覆盖，不是只在项目存储。主窗口“设置 → 插件 → 参数配置”生成表单，显示当前作用域、显式／继承值、应用级字段限制、校验及保存错误。用户可逐项使用继承值、重置整个当前作用域或重新读取；项目选择限定当前已授权项目／已验证 worktree，应用设置无需开启插件页面即可修改。原生插件页继续服从设置面遮挡，插件文本均由 React 转义，不执行清单 HTML。
+
+主进程配置与私有 KV 分目录保存，复用 PluginStorage 的串行暂存／rename、配额和错误处理，不允许页面伪造 pluginId、projectId 或磁盘根。有效值依次为声明默认→合法应用值→合法项目覆盖。`configuration.get()` 返回 `{values,overrides,inherited,revision,issues}`；overrides 只含本层合法显式值，inherited 在应用层为声明默认，在项目层为有效应用值。issues 仅包含不兼容字段名。未知字段、升级后不合法的旧值或被收紧为应用级的项目值保留在磁盘，参与诊断而不进入有效值；整个文件损坏则 STORAGE_UNAVAILABLE，不自动重置。恢复默认是显式删除本层覆盖，停用／卸载保留配置，“删除插件数据”同时清除 KV 与配置。
+
+读取与 `configuration.watch(listener)` 均需 configuration.read，绑定页面自身插件与 application/project-root，不接收选择参数。watch 返回初始 configuration 和 unsubscribe；主进程将初始快照／订阅与写入放在同一队列，SDK 将早到事件折入返回快照，后续发送完整有效配置。应用值变化通知本插件全部活动配置订阅，项目值变化只通知同一根的订阅；项目覆盖继续优先，切项目／停用／重载撤销旧订阅。沿用每页 64 订阅和既有调用限额，模板仅在 context.configuration=true 时显示并订阅参数。
+
+写入仅通过可信主窗口管理请求，普通页面没有 configuration.set。写入按字段白名单和作用域校验，修改与重置携带 expectedRevision；revision 哈希包含插件／根身份、字段声明、应用与本层修订，父层变化、模式升级和竞争写入使旧表单报 CONFIGURATION_CONFLICT。表单保留待提交值并提供重新读取入口，不用错误覆盖新配置。写前复查安装记录、包 digest、激活代次及项目上下文，迟到请求不能写入撤销后的范围。成功提交与后续通知仍是异步边界，若写入已完成而页面关闭，不承诺撤回已提交配置。
+
+配置不会扩大文件、网络或执行授权，不存密钥。自定义隔离设置页、插件菜单导航、显式迁移 API 与凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。这里只完成 AC-19 的基础部分，整条 AC-19 与 P4 仍不关闭。复用现有存储而不开放任意 setter，代价是复杂业务需先用宿主表单；当有真实复杂设置消费者时再扩展自定义页契约。
+
 ## 身份与上下文
 
 | 身份 | 格式及来源 | 生命周期 |
@@ -164,6 +178,8 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 | `app.getInfo()` | `{}` → `{pluginApiVersion, capabilities, locale, theme:{id,tokens}}` | 基础握手信息，无项目或机密；tokens 为宿主公开令牌子集 |
 | `workspace.getContext()` | `{}` → `{project:null|{projectId,rootId,name}, revision, active}` | `workspace.context.read`；权限拒绝不泄露项目名 |
 | `workspace.readText()` | `{path}` → `{text, bytes}` | `workspace.files.read` 且 path 在声明与授权的精确路径交集；project 作用域，UTF-8 文本最多 1 MiB，二进制／无效编码拒绝，不悄然截断 |
+| `configuration.get()` | `{}` → `{values,overrides,inherited,revision,issues}` | `configuration.read`；只读自身绑定作用域的有效非敏感参数 |
+| `configuration.watch()` | 初始 configuration 和 unsubscribe，后续完整有效值快照 | `configuration.read`；与应用继承及本层写入串行订阅，不跨插件／项目根 |
 | `documents.readText()` | `{}` → `{path,text,bytes,version}` | `documents.read`；仅宿主已绑定的 viewer 文件，不接收路径；范围、编码和预算见 P4 契约 |
 | `documents.applyEdit()` | `{text,expectedVersion}` → `{applied:true}` | `documents.edit`；仅已绑定文档，交接未保存草稿，不直接写入；宿主脏缓冲或磁盘基线不符拒绝 |
 | `views.open()` | `{view}` → `{instanceId}` | `ui.views.open`；仅本插件已声明 local view，不允许其它插件、任意 location 或 project 参数 |

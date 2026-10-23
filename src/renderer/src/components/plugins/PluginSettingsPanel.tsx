@@ -7,6 +7,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { acquireBrowserOcclusion } from '@/stores/browser-occlusion'
 import type { InstalledPlugin, PluginManageRequest } from '../../../../shared/ipc/plugins'
 import styles from './PluginSettingsPanel.module.css'
+import { PluginConfigurationForm } from './PluginConfigurationForm'
 
 export function PluginSettingsPanel() {
   const { t } = useI18n('plugins')
@@ -60,6 +61,9 @@ export function PluginSettingsPanel() {
           <button disabled={busy} onClick={() => setConfirmation({ type: 'deleteData', id: record.manifest.id })}>{t('plugins:deleteData')}</button>
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
+        {Boolean(record.manifest.contributes.settings?.length) && <details><summary>{t('plugins:configuration')}</summary>
+          <PluginConfigurationForm record={record} />
+        </details>}
         {ownCommands.length > 0 && <details><summary>{t('plugins:entries')}</summary>
           {ownCommands.map(command => <div key={command.id} className={styles.preference}>
             <span>{command.title}</span>

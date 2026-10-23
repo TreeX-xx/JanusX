@@ -5,6 +5,7 @@ import { PluginError } from './errors.js'
 import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { isReservedPluginKeybinding, normalizePluginKeybinding } from './keybindings.js'
 import { pluginViewerSchema } from './documents.js'
+import { pluginSettingSchema, isPluginSettingValue } from './configuration.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
 /** Implemented host features; old hosts reject unknown required capabilities. */
@@ -13,8 +14,9 @@ export const PLUGIN_CAPABILITIES = [
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.island', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
+  'configuration.settings',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -43,20 +45,30 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(8).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(9).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).min(1).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
     menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional(),
-    island: z.array(pluginIslandSchema).max(4).optional(), viewers: z.array(pluginViewerSchema).max(16).optional() }).strict(),
+    island: z.array(pluginIslandSchema).max(4).optional(), viewers: z.array(pluginViewerSchema).max(16).optional(),
+    settings: z.array(pluginSettingSchema).min(1).max(64).optional() }).strict(),
 }).strict().superRefine((manifest, ctx) => {
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
+  const settings = manifest.contributes.settings ?? []
+  if (new Set(settings.map(setting => setting.key)).size !== settings.length) fail('Duplicate setting key')
+  if (settings.length && (!manifest.capabilities.required.includes('configuration.settings')
+    || !manifest.permissions.some(permission => permission.name === 'configuration.read'))) fail('Settings require configuration.settings and configuration.read')
+  for (const setting of settings) {
+    if (!isPluginSettingValue(setting, setting.default)) fail('Invalid setting default')
+    if (setting.type === 'string' && (setting.minLength ?? 0) > (setting.maxLength ?? 4096)) fail('Invalid string bounds')
+    if (setting.type === 'number' && (setting.minimum ?? -Infinity) > (setting.maximum ?? Infinity)) fail('Invalid number bounds')
+  }
   if (new Set(views.map((view) => view.id)).size !== views.length || new Set(commands.map((command) => command.id)).size !== commands.length) fail('Duplicate contribution ID')
   if (commands.some((command) => !views.some((view) => view.id === command.action.view))) fail('Command references an unknown view')
   if ([...menus, ...keybindings].some((entry) => !commands.some((command) => command.id === entry.command))) fail('Entry references an unknown command')

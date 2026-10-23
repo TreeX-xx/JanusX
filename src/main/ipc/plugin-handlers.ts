@@ -29,6 +29,10 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('active'), ...instance, active: z.boolean() }).strict(),
   z.object({ type: z.literal('call'), ...instance, packet: z.unknown() }).strict(),
   z.object({ type: z.literal('documentEditResult'), ...instance, editId: text, applied: z.boolean() }).strict(),
+  z.object({ type: z.literal('configurationGet'), id: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
+  z.object({ type: z.literal('configurationUpdate'), id: text, projectId: text.nullable(), scopePath: nullableText,
+    expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), reset: z.boolean(),
+    patch: z.record(z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()])).refine(value => Object.keys(value).length <= 64) }).strict(),
   z.object({ type: z.literal('islandAction'), pluginId: text, id: text, instanceId: text, command: text }).strict(),
 ])
 
@@ -107,6 +111,8 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'active': service.active(request.instanceId, request.binding, request.active); break
         case 'call': data = await service.call(request.instanceId, request.binding, request.packet); break
         case 'documentEditResult': service.documentEditResult(request.instanceId, request.binding, request.editId, request.applied); break
+        case 'configurationGet': data = await service.getConfiguration(request.id, request.projectId, request.scopePath); break
+        case 'configurationUpdate': data = await service.updateConfiguration(request); break
         case 'islandAction': service.islandAction(request.pluginId, request.id, request.instanceId, request.command); break
       }
       return { ok: true, data }

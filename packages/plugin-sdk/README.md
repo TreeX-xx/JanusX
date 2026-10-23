@@ -2,6 +2,25 @@
 
 The SDK provides the version 1 local-plugin contract, strict manifest and call-policy validation, a MessagePort client, and an independently buildable four-surface scaffold. In JanusX, open Settings → Plugins, import the built directory, enable local development mode, review permissions and project scope, and enable the plugin. The scaffold shows a standalone preview outside the authorized host.
 
+## User configuration
+
+To add a host-generated configuration form, require `configuration.settings`, declare the `configuration.read` permission and add `contributes.settings`. These are ordinary non-secret parameters, separate from private KV and authorization:
+
+```json
+[
+  { "key": "label", "title": "Reference label", "type": "string", "default": "Reference", "scope": "project", "minLength": 1, "maxLength": 40 },
+  { "key": "enabled", "title": "Show details", "type": "boolean", "default": true, "scope": "project" },
+  { "key": "limit", "title": "Item limit", "type": "number", "default": 10, "minimum": 1, "maximum": 100, "integer": true, "scope": "project" },
+  { "key": "style", "title": "Display style", "type": "enum", "default": "compact", "options": ["compact", "full"], "scope": "application" }
+]
+```
+
+Each of up to 64 unique fields has a key, title, optional description, type, valid default and scope. `scope: "project"` permits a project/worktree override of the application value; `application` fields cannot be overridden there. Strings are bounded to 4096 characters, enums to 32 options. Patterns, arbitrary schemas, HTML, executable migrations and credential fields are unsupported.
+
+Users edit these fields in Settings → Plugins → Configuration. Saves and resets check a revision including the schema and inherited layer. Unknown or invalid old values are diagnosed and ignored when computing effective values, but kept on disk until explicitly reset or replaced. Disable and uninstall preserve configuration; Delete plugin data clears it. Corrupt stores fail rather than silently resetting.
+
+`context.configuration` is true for a plugin with settings. `api.configuration.get()` returns `{ values, overrides, inherited, revision, issues }`; `watch(listener, options?)` returns `{ configuration, unsubscribe }` and streams complete effective snapshots. It follows the page's bound project/root, accepts no path or plugin/project ID, and requires `configuration.read`. The generated page displays and watches configuration when present. Configuration writes belong to the trusted host form; plugins cannot call an arbitrary configuration setter. A stale form reports `CONFIGURATION_CONFLICT` and preserves its edits until the user reloads. Custom isolated configuration pages, navigation and credential references are later increments; do not put API keys or tokens in ordinary settings.
+
 Call `await connectPlugin()` from a bundled page module to obtain `PluginApi`. The client accepts the port transferred by the minimal isolated carrier preload (or a parent shell), performs the ready handshake, and converts timeouts, aborts and invalidation into `PluginError`. It does not install a global `window.janusPlugin` or expose Electron IPC. Each page has its own instance and context revision; project/root changes close its port.
 
 Build and pack the SDK from this repository:

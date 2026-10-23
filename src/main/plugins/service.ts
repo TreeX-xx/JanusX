@@ -10,13 +10,15 @@ import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, Plugi
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
 import { PluginStorage } from './storage'
+import { PluginConfigurationStore } from './configuration'
+import type { PluginManageRequest } from '../../shared/ipc/plugins'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
 interface Instance {
   id: string; plugin: string; view: string; binding: string; token: string; generation: string; url: string
   root: string | null; scope: string; context: PluginContext; bound: boolean; ready: boolean
   requests: Map<string, { cancelled: boolean }>; used: Set<string>; times: number[]; timer: ReturnType<typeof setTimeout>
-  subscriptions: Map<string, { kind: 'storage'; keys: string[] } | { kind: 'context' }>
+  subscriptions: Map<string, { kind: 'storage'; keys: string[] } | { kind: 'context' | 'configuration' }>
 }
 export interface PluginServiceDeps {
   directory: string
@@ -51,13 +53,17 @@ export class PluginService {
   private islandTimer?: ReturnType<typeof setTimeout>
   private current = { projectId: null as string | null, root: null as string | null, revision: 0, locale: 'en', theme: { id: '', tokens: {} as Record<string, string> } }
   private storage: PluginStorage
+  private configuration: PluginConfigurationStore
   private initialized: Promise<void> | undefined
   private contextSequence = 0
   private selectionKey = ''
   private pendingEvents = new Map<string, { instance: Instance; subscriptionId: string; values: Record<string, PluginStoredValue> }>()
   private eventTimer?: ReturnType<typeof setTimeout>
   private documentEdits = new Map<string, { instance: Instance; valid(): void; finish(applied: boolean): void }>()
-  constructor(private deps: PluginServiceDeps) { this.storage = new PluginStorage(join(deps.directory, 'data')) }
+  constructor(private deps: PluginServiceDeps) {
+    this.storage = new PluginStorage(join(deps.directory, 'data'))
+    this.configuration = new PluginConfigurationStore(join(deps.directory, 'configuration'))
+  }
   initialize(): Promise<void> { return this.initialized ??= this.restore() }
   private async restore(): Promise<void> {
     let saved: { developmentMode: boolean; plugins: RecordData[] }
@@ -250,7 +256,8 @@ export class PluginService {
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
-      revision: this.current.revision, active: true, ...(document ? { document: { viewer: document.viewer, path: document.path,
+      revision: this.current.revision, active: true, ...(record.manifest.contributes.settings?.length ? { configuration: true as const } : {}),
+      ...(document ? { document: { viewer: document.viewer, path: document.path,
         ...(record.manifest.permissions.some(permission => permission.name === 'documents.edit') ? { editable: true } : {}) } } : {}) }
     const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
       url: `janusx-plugin://${token}/g/${generation}/${view!.entry}`, root: project?.root ?? null, scope, context, bound: false, ready: false,
@@ -412,6 +419,16 @@ export class PluginService {
   }
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
     const record = this.record(instance.plugin)
+    if (method === 'configuration.get' || method === 'configuration.watch') return this.configuration.run(async () => {
+      valid()
+      const configuration = await this.configuration.get(record.manifest, instance.root ? instance.scope : null)
+      valid()
+      if (method === 'configuration.get') return configuration
+      if (instance.subscriptions.size >= 64) error('RATE_LIMITED', 'Too many subscriptions.')
+      const subscriptionId = randomUUID()
+      instance.subscriptions.set(subscriptionId, { kind: 'configuration' })
+      return { configuration, subscriptionId }
+    })
     if (method === 'app.getInfo') return { pluginApiVersion: PLUGIN_API_VERSION, capabilities: [...PLUGIN_CAPABILITIES], locale: this.current.locale, theme: this.current.theme }
     if (method === 'workspace.getContext') return instance.context
     if (method === 'documents.applyEdit') {
@@ -561,6 +578,51 @@ export class PluginService {
     } catch { for (const watcher of state.watchers) watcher.close(); this.log('SOURCE_UNAVAILABLE', { pluginId: record.manifest.id }) }
   }
   private stopWatch(id: string): void { const state = this.watchers.get(id); if (state?.timer) clearTimeout(state.timer); state?.watchers.forEach(watcher => watcher.close()); this.watchers.delete(id) }
-  deleteData(id: string): Promise<void> { this.record(id); this.revokePlugin(id); return this.storage.deletePlugin(id) }
+  private async configurationTarget(id: string, projectId: string | null, scopePath: string | null) {
+    const record = this.record(id)
+    const digest = record.digest; const activation = this.activations.get(record) ?? 0; const revision = this.current.revision
+    if (!record.manifest.contributes.settings?.length) error('INVALID_REQUEST', 'Plugin has no settings.')
+    if (!projectId && scopePath) error('INVALID_REQUEST', 'Application configuration has no project path.')
+    if (projectId && !record.projects.includes(projectId)) error('PERMISSION_DENIED', 'Project is not approved.')
+    const project = projectId ? await this.deps.resolveProject(projectId, scopePath) : null
+    const valid = () => {
+      if (this.records.get(id) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== activation
+        || projectId && this.current.revision !== revision) error('STALE_CONTEXT', 'Configuration target changed.')
+    }
+    valid()
+    return { record, scope: project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : null, valid }
+  }
+  async getConfiguration(id: string, projectId: string | null, scopePath: string | null): Promise<unknown> {
+    const target = await this.configurationTarget(id, projectId, scopePath)
+    return this.configuration.run(async () => {
+      target.valid()
+      const result = await this.configuration.get(target.record.manifest, target.scope)
+      target.valid(); return result
+    })
+  }
+  async updateConfiguration(request: Extract<PluginManageRequest, { type: 'configurationUpdate' }>): Promise<unknown> {
+    const target = await this.configurationTarget(request.id, request.projectId, request.scopePath)
+    return this.configuration.run(async () => {
+      await this.configuration.update(target.record.manifest, target.scope, request.expectedRevision, request.patch, request.reset, target.valid)
+      for (const instance of this.instances.values()) if (instance.plugin === request.id && (!target.scope || instance.scope === target.scope)) {
+        const subscriptions = [...instance.subscriptions].filter(([, sub]) => sub.kind === 'configuration')
+        if (!subscriptions.length) continue
+        try {
+          const configuration = await this.configuration.get(target.record.manifest, instance.root ? instance.scope : null)
+          if (this.instances.get(instance.id) !== instance) continue
+          for (const [subscriptionId] of subscriptions) if (instance.subscriptions.has(subscriptionId)) {
+            this.send(instance, { type: 'event', event: 'configuration', subscriptionId, payload: configuration })
+          }
+        } catch { this.log('STORAGE_UNAVAILABLE', { pluginId: request.id, instanceId: instance.id, method: 'configuration.watch' }) }
+      }
+      this.publish()
+      return this.configuration.get(target.record.manifest, target.scope)
+    })
+  }
+  async deleteData(id: string): Promise<void> {
+    this.record(id); this.revokePlugin(id)
+    await this.storage.deletePlugin(id)
+    await this.configuration.deletePlugin(id)
+  }
   dispose(): void { if (this.eventTimer) clearTimeout(this.eventTimer); if (this.islandTimer) clearTimeout(this.islandTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
 }

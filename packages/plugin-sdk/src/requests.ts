@@ -20,6 +20,8 @@ const json = z.unknown().refine((value) => isJson(value)).refine((value) => {
 })
 const methods = {
   'app.getInfo': { permission: null, params: empty },
+  'configuration.get': { permission: 'configuration.read', params: empty },
+  'configuration.watch': { permission: 'configuration.read', params: empty },
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'documents.readText': { permission: 'documents.read', params: empty },

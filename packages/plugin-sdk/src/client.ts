@@ -1,5 +1,6 @@
 import { PluginError, type PluginErrorCode } from './errors.js'
 import type { PluginApi, PluginCallOptions, PluginStoredValue } from './api.js'
+import type { PluginConfiguration } from './configuration.js'
 
 /** The port contains only this instance's broker. It never carries a host IPC channel. */
 export function createPluginClient(port: MessagePort, contextRevision: number): { api: PluginApi; close(): void } {
@@ -74,6 +75,16 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     return unsubscribe
   }
   const api: PluginApi = {
+    configuration: {
+      get: options => call('configuration.get', {}, options),
+      watch: async (listener, options) => {
+        const result = await call<{ subscriptionId: string; configuration: PluginConfiguration }>('configuration.watch', {}, options)
+        const buffered = early.get(result.subscriptionId)
+        if (buffered?.length) result.configuration = buffered[buffered.length - 1] as PluginConfiguration
+        early.delete(result.subscriptionId)
+        return { configuration: result.configuration, unsubscribe: subscribe(result.subscriptionId, listener, options) }
+      },
+    },
     documents: { readText: options => call('documents.readText', {}, options), applyEdit: (params, options) => call('documents.applyEdit', params, options) },
     app: { getInfo: options => call('app.getInfo', {}, options) },
     workspace: { getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },

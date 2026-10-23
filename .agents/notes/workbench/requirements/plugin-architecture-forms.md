@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-23T03:10:27Z",
+  "updated": "2026-10-23T05:05:29Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -74,6 +74,8 @@ S1 已提供可信渲染器注册与生命周期，S2 已迁移文件树、Git �
 - [ ] AC-17: 正式包的来源和完整性可验证，必需能力不兼容明确拒绝；权限扩大需重新授权，更新失败保留可用版本及用户数据，开发来源不能冒充正式来源。
 - [ ] AC-18: 插件管理界面区分已安装、启用、连接和实际运行状态，提供启用范围、入口控制及跨启动偏好；必要官方功能的限制明确，停用视图不结束宿主共享会话，卸载默认保留用户数据。
 
+- [ ] AC-19: 插件可声明用户设置，宿主生成有类型校验与默认值的配置表单；应用默认与项目／worktree 覆盖隔离，修改及恢复默认有版本检查和变更订阅，升级后非法旧值可诊断且不丢数据。复杂设置可扩展为隔离自定义页，凭证由宿主保管且普通配置不返回明文；配置不扩大执行、网络或文件权限。
+
 ## Risks
 
 - Directory discovery and installation must not execute code; activation is separate and checks development-source rules, grants and the isolated carrier before loading.
@@ -81,6 +83,8 @@ S1 已提供可信渲染器注册与生命周期，S2 已迁移文件树、Git �
 - Keep-alive and bridge memory need measurement before the sandboxed form is declared done.
 
 ## Verification
+
+AC-19 的声明式表单、应用默认／项目与 worktree 覆盖、校验／恢复默认、读取／订阅、模式升级诊断及并发版本检查已实现，验证证据归[设置工作包](../../planning/plugin-platform-roadmap.md#p4a-插件设置基础版新增)。自定义隔离页、菜单导航、迁移 API 及凭证引用仍待续，AC-19 保持未勾选。
 
 P4 首片实现嵌入文件编辑器的只读 viewer、默认选择／恢复、失败回退和按文件绑定实例。AC-10 仅补充文档 viewer 实例身份，通用多实例 pane 尚未开放；后续片已接通版本化草稿交接、宿主审阅保存、未保存关闭及写前版本冲突保护；AC-12 的完整写入事务、持续插件编辑／冲突合并及目录查询仍未完成，两条 AC 保持未勾选。契约归[只读 viewer](../plugin-contract-v1.md#p4-只读文档查看器)，实际验证归[阶段记录](../../planning/plugin-platform-roadmap.md#p4-只读-viewer-首片)。
 
