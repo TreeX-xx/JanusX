@@ -83,6 +83,65 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P6 workflows review the full sequence, share UI and Agent execution, track steps and cancel without running the tail', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile('packages/plugin-sdk/examples/p6-workflow-provider/manifest.json', 'utf8'))
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P6 Workflow project', path }), f.project)
+    await page.reload(); await page.getByText('P6 Workflow project', { exact: true }).filter({ visible: true }).first().click()
+    await settings(page); await importDirectory(app, page, f.source)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const card = page.locator(`[data-plugin-id="${manifest.id}"]`)
+    await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Review permissions and scope' })
+    await expect(review.locator('[data-plugin-workflows]')).toContainText('completed effects are not undone')
+    await expect(review.locator('[data-plugin-workflows]')).toContainText('inputFromTask')
+    await review.getByLabel('P6 Workflow project', { exact: true }).check()
+    await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await card.locator('[data-plugin-background] > summary').click()
+    await card.getByLabel('Background scope', { exact: true }).selectOption('project')
+    await card.getByLabel('Sequential report Input (JSON)', { exact: true }).fill('{"topic":"UI report"}')
+    await card.getByRole('button', { name: 'Run Sequential report', exact: true }).click()
+    const steps = card.locator('[data-plugin-workflow-steps]')
+    await expect(steps.locator('li').filter({ hasText: 'Completed' })).toHaveCount(2)
+    await steps.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'artifacts/plugin-workflows-ui.png' })
+    const loaded = await page.evaluate(async context => {
+      const api = (window as any).electron.agentRuntime; const session = await api.createSession({ ...context, approvalMode: 'plan' })
+      const catalog = await api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.workflows', input: {} } })
+      const workflow = catalog.output.workflows[0]
+      const request = { plugin: workflow.plugin, workflow: workflow.workflow, version: workflow.version, revision: workflow.revision, input: { topic: 'Agent report' } }
+      const denied = await api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.run-workflow', input: request } })
+      return { sessionId: session.id, catalog, request, denied }
+    }, { workspaceId: workspace.id, workspaceRoot: f.project })
+    expect(loaded.catalog).toMatchObject({ status: 'completed', output: { workflows: [{ steps: [{ service: 'collect' }, { service: 'finish' }] }] } })
+    expect(loaded.denied.status).toBe('failed')
+    const approved = await page.evaluate(async ({ sessionId, request }) => {
+      const api = (window as any).electron.agentRuntime; await api.setApprovalMode(sessionId, 'per-action'); let approvals = 0
+      const unsubscribe = api.onEvent((event: any) => { if (event.type === 'approval-requested' && event.request.sessionId === sessionId) {
+        approvals++; void api.resolveApproval({ ...event.request, approvalId: event.request.id, approved: true })
+      } })
+      try { return { result: await api.executeTool({ sessionId, call: { toolName: 'plugin.run-workflow', input: request } }), approvals } }
+      finally { unsubscribe() }
+    }, { sessionId: loaded.sessionId, request: loaded.request })
+    expect(approved).toMatchObject({ approvals: 1, result: { status: 'completed', output: { pluginId: 'janusx.agent', state: 'completed', workflow: { steps: [{ state: 'completed' }, { state: 'completed' }] } } } })
+    await page.evaluate(async ({ sessionId, request }) => {
+      const api = (window as any).electron.agentRuntime; await api.setApprovalMode(sessionId, 'auto-run')
+      ;(window as any).workflowPending = api.executeTool({ sessionId, call: { toolName: 'plugin.run-workflow', input: request } })
+    }, { sessionId: loaded.sessionId, request: loaded.request })
+    await expect.poll(async () => {
+      const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+      return snapshot.data.tasks.some((run: any) => run.pluginId === 'janusx.agent' && run.workflow?.steps[0].state === 'running')
+    }).toBe(true)
+    await page.evaluate(sessionId => (window as any).electron.agentRuntime.cancelSession(sessionId), loaded.sessionId)
+    expect((await page.evaluate(() => (window as any).workflowPending)).status).toBe('cancelled')
+    const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+    expect(snapshot.data.tasks.at(-1).workflow.steps.map((step: any) => step.state)).toEqual(['cancelled', 'skipped'])
+    expect(snapshot.data.tasks.filter((run: any) => run.pluginId === manifest.id)).toHaveLength(1)
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('P6 skills show reviewed inert guidance, load through real Agent tools and retain service approval and revocation', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

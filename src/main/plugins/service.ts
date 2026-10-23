@@ -16,7 +16,7 @@ import { PluginCredentials, PluginNetwork, type PluginEncryption, type PluginNet
 import { PluginBackground, type BackgroundIdentity } from './background'
 import { PluginModels, type PluginModelBackend } from './models'
 import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type PluginAgentService, type PluginTaskRun } from '@janusx/plugin-sdk'
-import { pluginSkillReadSchema, type PluginAgentSkill, type PluginAgentSkillCatalog, type PluginAgentSkillResource } from '@janusx/plugin-sdk'
+import { pluginSkillReadSchema, pluginWorkflowRunSchema, type PluginAgentSkill, type PluginAgentSkillCatalog, type PluginAgentSkillResource, type PluginAgentWorkflow, type PluginAgentWorkflowCatalog } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
 interface Instance {
@@ -781,12 +781,43 @@ export class PluginService {
     return resource
   }
   async callAgentService(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal: AbortSignal): Promise<PluginTaskRun> {
+    return this.agentServiceInvocation(context, params, signal)
+  }
+  async discoverAgentWorkflows(context: { workspaceId: string; workspaceRoot: string }, signal: AbortSignal): Promise<PluginAgentWorkflowCatalog> {
+    if (signal.aborted) error('CANCELLED', 'Workflow discovery stopped.')
+    await this.initialize(); const valid = await this.agentContext(context)
+    const workflows: PluginAgentWorkflow[] = []; let truncated = false; let bytes = 0
+    for (const record of [...this.records.values()].sort((a, b) => a.manifest.id.localeCompare(b.manifest.id))) for (const projectId of [null, context.workspaceId]) {
+      try {
+        for (const workflow of this.background.agentWorkflows(this.backgroundIdentity(record.manifest.id, projectId), record.digest)) {
+          const size = Buffer.byteLength(JSON.stringify(workflow))
+          if (workflows.length >= 32 || bytes + size > 64 * 1024) truncated = true
+          else { workflows.push(workflow); bytes += size }
+        }
+      } catch { /* Unavailable or unauthorized workflows are not advertised. */ }
+    }
+    valid(); if (signal.aborted) error('CANCELLED', 'Workflow discovery stopped.')
+    return { workflows, truncated }
+  }
+  async runAgentWorkflow(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal: AbortSignal): Promise<PluginTaskRun> {
+    const parsed = pluginWorkflowRunSchema.safeParse(params)
+    if (!parsed.success) error('INVALID_REQUEST', 'Workflow input is invalid.')
+    const request = parsed.data!
+    await this.initialize()
+    const record = this.record(request.plugin)
+    const workflow = record.manifest.contributes.workflows?.find(item => item.id === request.workflow && item.version === request.version)
+    if (!workflow || !record.manifest.capabilities.required.includes('agent.workflows')) error('DEPENDENCY_UNAVAILABLE', 'Workflow is unavailable.')
+    return this.agentServiceInvocation(context, { plugin: request.plugin, service: workflow!.service, version: request.version, input: request.input }, signal, request.revision)
+  }
+  private async agentServiceInvocation(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal: AbortSignal, revision?: string): Promise<PluginTaskRun> {
+    if (signal.aborted) error('CANCELLED', 'Agent operation stopped.')
     await this.initialize()
     const parsed = serviceCallSchema.safeParse(params)
     if (!parsed.success) error('INVALID_REQUEST', 'Agent service input is invalid.')
     const request = parsed.data!
     // Capture activation before asynchronous workspace validation; reload/regrant cannot retarget a call.
     const record = this.record(request.plugin); const digest = record.digest; const generation = this.activations.get(record) ?? 0
+    if (revision !== undefined && record.digest !== revision) error('STALE_CONTEXT', 'Workflow revision changed.')
     const valid = await this.agentContext(context)
     if (this.records.get(request.plugin) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== generation) error('STALE_CONTEXT', 'Agent provider activation changed.')
     const service = record.manifest.contributes.services?.find(item => item.id === request.service && item.version === request.version)

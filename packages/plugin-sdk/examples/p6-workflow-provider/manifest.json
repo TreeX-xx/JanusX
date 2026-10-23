@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "example.workflow",
+  "name": "Sequential report workflow",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["agent.workflows", "agent.services", "tasks.declarative", "tasks.inputBindings", "services.public"], "optional": [] },
+  "permissions": [{ "name": "tasks.run" }, { "name": "services.public" }, { "name": "agent.services" }],
+  "contributes": {
+    "views": [],
+    "tasks": [
+      { "id": "report", "title": "Sequential report", "scope": "project", "input": { "topic": "string" }, "timeoutMs": 10000, "steps": [
+        { "type": "service", "plugin": "example.workflow", "service": "collect", "version": 1, "input": {}, "inputFromTask": { "text": "topic" } },
+        { "type": "service", "plugin": "example.workflow", "service": "finish", "version": 1, "input": {} }
+      ] },
+      { "id": "collect", "title": "Collect local report", "scope": "project", "input": { "text": "string" }, "timeoutMs": 8000, "steps": [{ "type": "delay", "milliseconds": 1200 }, { "type": "log", "message": "Local collection completed; no external access." }] },
+      { "id": "finish", "title": "Finish local report", "scope": "project", "input": {}, "timeoutMs": 1000, "steps": [{ "type": "log", "message": "Report sequence completed." }] }
+    ],
+    "services": [
+      { "id": "report", "version": 1, "task": "report", "consumers": ["janusx.agent"] },
+      { "id": "collect", "version": 1, "task": "collect", "consumers": ["example.workflow"] },
+      { "id": "finish", "version": 1, "task": "finish", "consumers": ["example.workflow"] }
+    ],
+    "consumes": { "services": [
+      { "plugin": "example.workflow", "id": "collect", "version": 1, "schema": { "text": "string" } },
+      { "plugin": "example.workflow", "id": "finish", "version": 1, "schema": {} }
+    ] },
+    "workflows": [{ "id": "report", "title": "Sequential local report", "service": "report", "version": 1 }]
+  }
+}

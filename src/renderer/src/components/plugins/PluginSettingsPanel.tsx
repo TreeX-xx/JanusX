@@ -11,6 +11,23 @@ import { PluginConfigurationForm } from './PluginConfigurationForm'
 import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
+function PluginWorkflows({ manifest, review = false }: { manifest: InstalledPlugin['manifest']; review?: boolean }) {
+  const { t } = useI18n('plugins')
+  if (!manifest.contributes.workflows?.length) return null
+  return <details open={review || undefined} data-plugin-workflows><summary>{t('plugins:workflows')}</summary>
+    <p className={styles.hint}>{t('plugins:workflowHint')}</p>
+    {manifest.contributes.workflows.map(workflow => {
+      const service = manifest.contributes.services?.find(service => service.id === workflow.service && service.version === workflow.version)
+      const task = manifest.contributes.tasks?.find(task => task.id === service?.task)
+      return <div className={styles.card} key={workflow.id}><strong>{workflow.title} · v{workflow.version}</strong>
+        <ol>{task?.steps.map((step, index) => step.type === 'service' && <li key={index}>{step.plugin}/{step.service}@{step.version}
+          <pre className={styles.path}>{JSON.stringify({ input: step.input, inputFromTask: step.inputFromTask ?? {} }, null, 2)}</pre>
+        </li>)}</ol>
+      </div>
+    })}
+  </details>
+}
+
 function PluginSkills({ manifest, review = false }: { manifest: InstalledPlugin['manifest']; review?: boolean }) {
   const { t } = useI18n('plugins')
   if (!manifest.contributes.skills?.length) return null
@@ -87,6 +104,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
         <PluginSkills manifest={record.manifest} />
+        <PluginWorkflows manifest={record.manifest} />
         <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
           <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? `${configurationTarget.scope}:${configurationTarget.proposal?.expectedRevision ?? ''}` : 'application'} record={record}
@@ -119,6 +137,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
       <strong>{authorize.manifest.name} — {t('plugins:permissions')}</strong>
       <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
       <PluginSkills manifest={authorize.manifest} review />
+      <PluginWorkflows manifest={authorize.manifest} review />
       {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
       <p>{t('plugins:projectScope')}</p>
       {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {

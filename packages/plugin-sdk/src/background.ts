@@ -37,7 +37,8 @@ export const pluginTaskSchema = z.object({ id: backgroundId, title: z.string().m
     z.object({ type: z.literal('log'), message: z.string().max(240).refine(value => !/[\x00-\x1f\x7f]/.test(value)) }).strict(),
     z.object({ type: z.literal('request'), request: networkRequestSchema, bodyFromInput: z.boolean().optional() }).strict(),
     z.object({ type: z.literal('emit'), event: backgroundId, data: messageSchema, fromInput: z.boolean().optional() }).strict(),
-    z.object({ type: z.literal('service'), ...serviceCallSchema.shape }).strict(),
+    z.object({ type: z.literal('service'), ...serviceCallSchema.shape,
+      inputFromTask: z.record(backgroundId).refine(value => Object.keys(value).length <= 32 && Object.keys(value).every(key => backgroundId.safeParse(key).success)).optional() }).strict(),
   ])).min(1).max(32),
 }).strict()
 const clients = z.array(backgroundId).max(32).refine(values => new Set(values).size === values.length)
@@ -53,6 +54,13 @@ export interface PluginTaskRun {
   state: 'running' | 'completed' | 'cancelled' | 'timeout' | 'failed'; started: string; finished?: string
   logs: Array<{ time: string; code: string; message?: string }>; results: PluginNetworkResult[]; error?: string
   modelResults?: PluginModelResult[]
+  workflow?: { id: string; version: number; steps: PluginWorkflowStepRun[] }
+}
+export interface PluginWorkflowStepRun {
+  plugin: string; service: string; version: number
+  state: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout' | 'skipped'
+  started?: string; finished?: string; error?: string
+  results?: { start: number; end: number }; modelResults?: { start: number; end: number }
 }
 export interface PluginModelResult {
   text: string; finishReason: 'stop' | 'length' | 'other'

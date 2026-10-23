@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { PluginError, matchesPluginMessage, type PluginManifest, type PluginMessage, type PluginTaskRun,
-  type PluginPublicEvent, type PluginNetworkRequest, type PluginAgentService } from '@janusx/plugin-sdk'
+  type PluginPublicEvent, type PluginNetworkRequest, type PluginAgentService, type PluginAgentWorkflow } from '@janusx/plugin-sdk'
 import type { PluginNetwork } from './network'
 import type { PluginModels } from './models'
 
@@ -10,7 +10,7 @@ interface BackgroundOwner {
   plugin: string; scope: string; projectId: string | null; rootId: string | null; valid(): void
 }
 export interface BackgroundIdentity extends BackgroundOwner { manifest: PluginManifest }
-interface Execution { run: PluginTaskRun; identity: BackgroundOwner; controller: AbortController; involved: Set<string>; steps: number; resultBytes: number; modelCalls: number }
+interface Execution { run: PluginTaskRun; identity: BackgroundOwner; controller: AbortController; involved: Set<string>; participants?: Map<string, BackgroundIdentity>; steps: number; resultBytes: number; modelCalls: number }
 interface PublicSubscription { page: string; identity: BackgroundIdentity; plugin: string; event: string; version: number; send(event: PluginPublicEvent): void }
 export class PluginBackground {
   private runs = new Map<string, Execution>()
@@ -33,12 +33,24 @@ export class PluginBackground {
     identity?.valid()
     return structuredClone([...this.runs.values()].filter(item => !identity || item.run.pluginId === identity.plugin && item.identity.scope === identity.scope).map(item => item.run))
   }
+  private settleWorkflow(item: Execution): void {
+    if (item.run.state === 'running') return
+    for (const step of item.run.workflow?.steps ?? []) {
+      if (step.state === 'pending') { step.state = 'skipped'; step.finished = new Date().toISOString() }
+      if (step.state === 'running') {
+        step.state = item.run.state; step.finished = new Date().toISOString()
+        if (item.run.error) step.error = item.run.error
+        if (step.results) step.results.end = item.run.results.length
+        if (step.modelResults) step.modelResults.end = item.run.modelResults?.length ?? 0
+      }
+    }
+  }
   cancel(id: string, identity?: BackgroundOwner): boolean {
     const item = this.runs.get(id)
     if (!item) return false
     if (identity && (item.run.pluginId !== identity.plugin || item.identity.scope !== identity.scope)) throw new PluginError('PERMISSION_DENIED', 'Task belongs to another scope.')
     if (item.run.state !== 'running') return false
-    item.run.state = 'cancelled'; item.run.finished = new Date().toISOString(); item.controller.abort(); this.deps.changed(); return true
+    item.run.state = 'cancelled'; item.run.finished = new Date().toISOString(); item.controller.abort(); this.settleWorkflow(item); this.deps.changed(); return true
   }
   revoke(plugin?: string, projectOnly = false): void {
     for (const item of this.runs.values()) if ((!plugin || item.involved.has(plugin)) && (!projectOnly || item.run.projectId || item.run.pluginId === 'janusx.agent')) this.cancel(item.run.id)
@@ -95,6 +107,19 @@ export class PluginBackground {
         ? [{ plugin: provider.plugin, service: service.id, version: service.version, title: task.title, scope: task.scope, input: structuredClone(task.input) }] : []
     })
   }
+  agentWorkflows(provider: BackgroundIdentity, revision: string): PluginAgentWorkflow[] {
+    if (!provider.manifest.capabilities.required.includes('agent.workflows')) return []
+    const available = this.agentServices(provider)
+    return (provider.manifest.contributes.workflows ?? []).flatMap(workflow => {
+      const service = available.find(item => item.service === workflow.service && item.version === workflow.version)
+      if (!service) return []
+      const task = provider.manifest.contributes.tasks!.find(item => item.id === provider.manifest.contributes.services!.find(item => item.id === service.service)!.task)!
+      const steps = task.steps.flatMap(step => step.type === 'service' ? [{ plugin: step.plugin, service: step.service, version: step.version,
+        input: structuredClone(step.input), inputFromTask: { ...step.inputFromTask } }] : [])
+      try { for (const step of steps) this.service(provider, step.plugin, step.service, step.version) } catch { return [] }
+      return [{ ...service, title: workflow.title, workflow: workflow.id, revision, steps }]
+    })
+  }
   async callAgent(provider: BackgroundIdentity, params: { service: string; version: number; input: PluginMessage }, signal: AbortSignal): Promise<PluginTaskRun> {
     if (signal.aborted) throw new PluginError('CANCELLED', 'Agent tool stopped.')
     if (!this.agentServices(provider).some(service => service.service === params.service && service.version === params.version)) throw new PluginError('DEPENDENCY_UNAVAILABLE', 'Agent service is unavailable.')
@@ -132,15 +157,27 @@ export class PluginBackground {
     const item: Execution = { identity: owner, controller: new AbortController(), involved: new Set([owner.plugin, provider.plugin]), steps: 0, resultBytes: 0, modelCalls: 0,
       run: { id, pluginId: owner.plugin, task: `${provider.plugin}/${task}`, projectId: owner.projectId, rootId: owner.rootId,
         state: 'running', started: new Date().toISOString(), logs: [], results: [] } }
+    const workflow = provider.manifest.contributes.workflows?.find(workflow => provider.manifest.contributes.services?.some(service => service.id === workflow.service && service.version === workflow.version && service.task === task))
+    if (workflow) {
+      // Pin all direct participants before the first effect, including providers used by later steps.
+      item.participants = new Map()
+      for (const step of definition.steps) if (step.type === 'service') {
+        const participant = this.service(provider, step.plugin, step.service, step.version).provider
+        if (active.filter(run => run.involved.has(participant.plugin)).length >= 4) throw new PluginError('RATE_LIMITED', 'Workflow provider concurrency reached.')
+        item.participants.set(participant.plugin, participant); item.involved.add(participant.plugin)
+      }
+      item.run.workflow = { id: workflow.id, version: workflow.version,
+        steps: definition.steps.flatMap(step => step.type === 'service' ? [{ plugin: step.plugin, service: step.service, version: step.version, state: 'pending' as const }] : []) }
+    }
     this.runs.set(id, item); this.deps.changed()
     const timeout = setTimeout(() => { if (item.run.state === 'running') {
-      item.run.state = 'timeout'; item.run.error = 'TIMEOUT'; item.controller.abort(); this.deps.changed()
+      item.run.state = 'timeout'; item.run.error = 'TIMEOUT'; item.run.finished = new Date().toISOString(); item.controller.abort(); this.settleWorkflow(item); this.deps.changed()
     } }, definition.timeoutMs)
     void this.execute(item, provider, task, input, []).then(() => {
       if (item.run.state === 'running') item.run.state = 'completed'
     }, cause => {
-      if (item.run.state === 'running') { item.run.state = 'failed'; item.run.error = cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR' }
-    }).finally(() => { clearTimeout(timeout); item.run.finished ??= new Date().toISOString(); this.deps.changed() })
+      if (item.run.state === 'running') { item.run.state = cause instanceof PluginError && cause.code === 'TIMEOUT' ? 'timeout' : 'failed'; item.run.error = cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR' }
+    }).finally(() => { clearTimeout(timeout); item.run.finished ??= new Date().toISOString(); this.settleWorkflow(item); this.deps.changed() })
     return { id }
   }
   private async execute(item: Execution, identity: BackgroundIdentity, taskId: string, input: PluginMessage, trace: string[]): Promise<void> {
@@ -149,14 +186,15 @@ export class PluginBackground {
     const definition = this.task(identity, taskId, input)
     const deadline = Date.now() + definition.timeoutMs
     const serviceDeadline = trace.length ? setTimeout(() => {
-      if (item.run.state === 'running') { item.run.state = 'timeout'; item.run.error = 'TIMEOUT'; item.controller.abort(); this.deps.changed() }
+      if (item.run.state === 'running') { item.run.state = 'timeout'; item.run.error = 'TIMEOUT'; item.run.finished = new Date().toISOString(); item.controller.abort(); this.settleWorkflow(item); this.deps.changed() }
     }, definition.timeoutMs) : undefined
     const valid = () => {
       item.identity.valid(); identity.valid()
+      for (const participant of item.participants?.values() ?? []) participant.valid()
       if (item.controller.signal.aborted || item.run.state !== 'running') throw new PluginError('CANCELLED', 'Task stopped.')
       if (Date.now() >= deadline) throw new PluginError('TIMEOUT', 'Service deadline reached.')
     }
-    try { for (const step of definition.steps) {
+    try { for (const [index, step] of definition.steps.entries()) {
       valid()
       if (++item.steps > 128) throw new PluginError('RATE_LIMITED', 'Task execution step budget reached.')
       if (step.type === 'model') {
@@ -182,10 +220,23 @@ export class PluginBackground {
       }
       if (step.type === 'emit') this.publish(identity, { event: step.event, data: step.fromInput ? input : step.data })
       if (step.type === 'service') {
-        const { provider, task } = this.service(identity, step.plugin, step.service, step.version, step.input)
-        if (!item.involved.has(provider.plugin) && [...this.runs.values()].filter(run => run.run.state === 'running' && run.involved.has(provider.plugin)).length >= 4) throw new PluginError('RATE_LIMITED', 'Provider task concurrency reached.')
-        item.involved.add(provider.plugin)
-        await this.execute(item, provider, task.id, step.input, [...trace, key])
+        const tracked = trace.length === 0 ? item.run.workflow?.steps[index] : undefined
+        if (tracked) { tracked.state = 'running'; tracked.started = new Date().toISOString()
+          tracked.results = { start: item.run.results.length, end: item.run.results.length }
+          tracked.modelResults = { start: item.run.modelResults?.length ?? 0, end: item.run.modelResults?.length ?? 0 }; this.deps.changed() }
+        try {
+          const bound = { ...step.input, ...Object.fromEntries(Object.entries(step.inputFromTask ?? {}).map(([target, source]) => [target, input[source]])) }
+          const { provider, task } = this.service(identity, step.plugin, step.service, step.version, bound)
+          if (!item.involved.has(provider.plugin) && [...this.runs.values()].filter(run => run.run.state === 'running' && run.involved.has(provider.plugin)).length >= 4) throw new PluginError('RATE_LIMITED', 'Provider task concurrency reached.')
+          item.involved.add(provider.plugin)
+          await this.execute(item, provider, task.id, bound, [...trace, key]); valid()
+          if (tracked) tracked.state = 'completed'
+        } catch (cause) {
+          if (tracked?.state === 'running') { tracked.state = cause instanceof PluginError && cause.code === 'TIMEOUT' ? 'timeout' : 'failed'; tracked.error = cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR' }
+          throw cause
+        } finally {
+          if (tracked) { tracked.finished ??= new Date().toISOString(); tracked.results!.end = item.run.results.length; tracked.modelResults!.end = item.run.modelResults?.length ?? 0 }
+        }
       }
       valid()
       if (item.run.logs.length < 100) item.run.logs.push({ time: new Date().toISOString(), code: step.type, ...(step.type === 'log' ? { message: step.message } : {}) })

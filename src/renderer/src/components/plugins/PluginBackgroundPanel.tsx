@@ -73,6 +73,9 @@ export function PluginBackgroundPanel({ record, runs }: { record: InstalledPlugi
       <span>{run.task} · {t(`plugins:taskState.${run.state}`)} · {run.projectId ?? t('plugins:configurationApplication')}</span>
       {run.state === 'running' && <button onClick={() => { void pluginRequest({ type: 'taskCancel', runId: run.id }).then(refreshPlugins).catch(cause => setFailure(cause.message)) }}>{t('plugins:taskCancel')}</button>}
       {run.error && <p role="status">{run.error}</p>}
+      {run.workflow && <ol data-plugin-workflow-steps>{run.workflow.steps.map((step, index) => <li key={index}>
+        {step.plugin}/{step.service}@{step.version} · {step.state === 'pending' ? t('plugins:workflowPending') : step.state === 'skipped' ? t('plugins:workflowSkipped') : t(`plugins:taskState.${step.state}`)}{step.error ? ` · ${step.error}` : ''}
+      </li>)}</ol>}
       <pre>{run.logs.map(log => `${log.time} ${log.code}${log.message ? `: ${log.message}` : ''}`).join('\n')}</pre>
       {run.modelResults?.map((result, index) => <div key={index} data-plugin-model-result>
         <pre>{result.text}</pre>

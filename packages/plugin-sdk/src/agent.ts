@@ -1,6 +1,6 @@
-// Note: .agents/notes/workbench/plugin-contract-v1.md — P6 inert plugin skill resources.
+// Note: .agents/notes/workbench/plugin-contract-v1.md — P6 reviewed skills and sequential workflow contracts.
 import { z } from 'zod'
-import { backgroundId, type PluginAgentService } from './background.js'
+import { backgroundId, messageSchema, type PluginAgentService, type PluginMessage } from './background.js'
 
 export const pluginSkillSchema = z.object({
   id: backgroundId, version: z.number().int().min(1).max(1000),
@@ -22,3 +22,11 @@ export interface PluginAgentSkillCatalog { skills: PluginAgentSkill[]; truncated
 export interface PluginAgentSkillResource extends PluginAgentSkill {
   trust: 'untrusted-plugin-content'; instructions: string; services: PluginAgentService[]
 }
+export const pluginWorkflowSchema = z.object({ id: backgroundId, title: z.string().min(1).max(80).refine(value => Boolean(value.trim())),
+  service: backgroundId, version: z.number().int().min(1).max(1000) }).strict()
+export const pluginWorkflowRunSchema = z.object({ plugin: backgroundId, workflow: backgroundId,
+  version: z.number().int().min(1).max(1000), revision: z.string().regex(/^[a-f0-9]{64}$/), input: messageSchema }).strict()
+export interface PluginAgentWorkflow extends PluginAgentService {
+  workflow: string; revision: string; steps: Array<{ plugin: string; service: string; version: number; input: PluginMessage; inputFromTask: Record<string, string> }>
+}
+export interface PluginAgentWorkflowCatalog { workflows: PluginAgentWorkflow[]; truncated: boolean }

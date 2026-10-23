@@ -27,7 +27,7 @@ describe('packed SDK development tools', () => {
   })
 
   it('checks manifest-only providers/consumers without a build or dist directory', async () => {
-    for (const name of ['p5-provider', 'p5-consumer', 'p6-status-provider', 'p6-status-consumer', 'p6-model-provider', 'p6-skill-provider']) {
+    for (const name of ['p5-provider', 'p5-consumer', 'p6-status-provider', 'p6-status-consumer', 'p6-model-provider', 'p6-skill-provider', 'p6-workflow-provider']) {
       expect((await checkPlugin(`packages/plugin-sdk/examples/${name}`)).contributes.views).toEqual([])
     }
     const { root } = await fixture()

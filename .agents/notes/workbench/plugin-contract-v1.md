@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T10:41:32Z",
+  "updated": "2026-10-23T11:05:34Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -25,7 +25,7 @@
 
 目标架构归[插件平台设计](plugin-platform-design.md)，验收归[架构需求](requirements/plugin-architecture-forms.md)和[导入需求](requirements/plugin-import-debug.md)，顺序及实施证据归[阶段计划](../planning/plugin-platform-roadmap.md)。全部未来能力不塞进首版 schema；示例只验证契约关系，不指定要交付哪项示范产品。
 
-首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、页面直连网络、自定义模型后端、任意宿主命令、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。P6 已增加宿主默认模型的受限文本生成和按需读取的插件技能资源，具体授权和预算见末节。
+首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、页面直连网络、自定义模型后端、任意宿主命令、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。P6 已增加受限文本模型代发、按需读取的插件技能资源和顺序服务工作流，具体授权和预算见末节。
 
 ## 现有消费者与兼容改造
 
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`、`tasks.declarative`、`network.fetch`、`credentials.use`、`events.public`、`services.public`、`agent.services`、`models.generate`、`agent.skills`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`、`tasks.declarative`、`tasks.inputBindings`、`network.fetch`、`credentials.use`、`events.public`、`services.public`、`agent.services`、`agent.workflows`、`models.generate`、`agent.skills`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -416,7 +416,7 @@ SDK 的 `parsePluginManifest` 使用严格 JSON、重复键检查、Zod 和 SemV
 | 插件 UI／宿主任务 UI | P5 原有服务／任务协议 | 双方声明和白名单 |
 | Claude Code、Codex、OpenCode、Pi、Janus CLI、DSH | 不可用 | 本片未安装插件工具注入或 service hook |
 
-已有外部 CLI 通知／终端／会话集成不等于 P6 工具接入；终端类型、CLI／会话适配器和 PTY 后端仍归宿主。受限文本模型代发已按下节补齐；插件技能资源已按末节接通；工作流编排、文档上下文提供者、MCP 导出及非当前工作区 Agent 调用仍待后续；本片不关闭 P6 或 AC-15。
+已有外部 CLI 通知／终端／会话集成不等于 P6 工具接入；终端类型、CLI／会话适配器和 PTY 后端仍归宿主。受限文本模型代发已按下节补齐；插件技能资源和顺序服务工作流已按末节接通；文档上下文提供者、MCP 导出及非当前工作区 Agent 调用仍待后续；本片不关闭 P6 或 AC-15。
 
 ## P6 受限文本模型代发
 
@@ -438,6 +438,20 @@ services 最多八项唯一的本插件 service／version 引用，必须公开�
 
 内置 Agent 的 `plugin.skills` 为 inspect 工具，返回 skills 元数据和 truncated，不返回正文；按插件 ID、清单顺序最多 32 项，超限报告截断，本片不分页，已知身份仍可直接读取。`plugin.read-skill` 必须传 plugin／skill／version／revision，返回元数据、instructions、实时公开服务输入 schema 及 `trust:untrusted-plugin-content`，序列化结果最多 64 KiB。读取前后检查当前项目／worktree，项目技能另需项目授权；application 技能读取也绑定当前 Agent 工作区。直接读在异步根验证后重查包修订与激活代次，停用／重载／卸载、开发模式关闭和取消不能返回迟到的新结果。
 
-两种工具可在 plan 模式使用，技能内容作为第三方数据返回，不注入系统指令，不替代用户或宿主策略，不增加权限。读取不会运行任务、模型或服务；Agent 需另行调用已有 plugin.call-service，继续经过 run 审批、取消和任务所有权检查。宿主设置与授权界面以 React 纯文本展示技能全文和引用，用户能先审阅再启用；停用阻止新读取，但已读入对话的内容不能撤回。本片没有自动激活／系统提示注入、全局斜杠命令、外部 CLI 分发、模板变量、服务输出插值、可执行工作流图或自动重试。它提供可组合的使用指引，不能据此关闭 P6。
+两种工具可在 plan 模式使用，技能内容作为第三方数据返回，不注入系统指令，不替代用户或宿主策略，不增加权限。读取不会运行任务、模型或服务；Agent 需另行调用已有 plugin.call-service，继续经过 run 审批、取消和任务所有权检查。宿主设置与授权界面以 React 纯文本展示技能全文和引用，用户能先审阅再启用；停用阻止新读取，但已读入对话的内容不能撤回。本片没有自动激活／系统提示注入、全局斜杠命令、外部 CLI 分发、模板变量、服务输出插值、可执行工作流图或自动重试。它提供可组合的使用指引；受监督的顺序服务工作流另见下一节，P6 不因此关闭。
 
 可运行的本地状态示例、完整边界与外部 CLI 未支持说明归 [SDK 技能指南](../../../packages/plugin-sdk/examples/agent-skills.md)。示例没有网络或模型调用；真实服务执行与摘要能力仍沿用前两片契约。
+
+## P6 顺序服务工作流
+
+`contributes.workflows` 最多八项，含唯一 id、title、service、version；必需能力 `agent.workflows` 复用现有 agent.services 授权，不增加执行权限。引用必须是同版本且公开给 janusx.agent 的本插件 service，其 task 只能含 1–8 个 service 步骤；底层 task 不能被多个工作流重复引用。沿用任务的作用域、输入 schema、10–60000ms 截止和消费者双方契约，UI 运行同一 task，普通公开服务调用仍可执行同一序列。工作流／任务修改进入原授权指纹，需重新授权；旧宿主拒绝未知必需能力。
+
+service 步骤的可选 `inputFromTask` 为目标字段到当前 task 原始输入字段的映射，使用必需能力 `tasks.inputBindings` 和既有 tasks.run 授权，普通任务也可使用。源必须存在且 primitive 类型相同，与 input 常量不能重叠；组合后恰好匹配 consumes.services 的 schema。不读取配置、文件、密钥或上一步输出，不进行字符串模板、表达式求值或模型输出插值。
+
+内置 Agent 的 `plugin.workflows` 为 inspect，返回 workflows／truncated，含当前可用契约、输入 schema、包 revision、顺序直接服务参与者、固定输入和映射；目录至多 32 项、条目 JSON 共 64 KiB，本片不分页。`plugin.run-workflow` 为 run，输入 plugin／workflow／version／revision／input，复用公开服务的项目／worktree、激活、预算、审批及取消路径。plan 禁止运行，per-action 的一次审批覆盖整个已审阅序列及其外部操作；不逐步再次审批。宿主设置和授权页展示完整直接序列、输入和映射。所有描述与输出仍是不可信插件数据。
+
+启动前验证全部直接服务，即使声明为 optional；固定各直接提供者的激活／授权并预留既有并发额度，后续步骤的提供者在等待时停用／重载也取消当前 run，不能转向新激活实例。每次执行继续重查上下文和参与者；嵌套服务按进入时的 P5 校验，不声称预检全部传递依赖。整次运行共享全局任务并发／频率、父／子截止、128 步／八层循环控制、64 KiB 结果和一次模型调用预算。普通 application 任务保留 P5 跨项目行为；Agent 发起的 application 工作流仍绑定当前工作区。
+
+`PluginTaskRun.workflow` 记录 id、version 和直接步骤的 pending／running／completed／failed／cancelled／timeout／skipped 状态，含可用时间、稳定错误码及 results／modelResults 在既有结果数组中的半开索引范围。嵌套服务不新增顶层步骤记录，内部信息保留在任务日志和结果中。UI 显示逐步状态；Agent run 仍由 janusx.agent 独立拥有，提供者页面不能读取或取消。历史留在本次应用内存。首个失败、超时、取消或上下文撤销后跳过剩余步骤；保留已完成前缀输出和已发生的外部效果，不回滚、不自动重试，不新增并行分支、条件图、任意代码或持久恢复。
+
+本地无网络示例与完整适配说明归 [SDK 工作流指南](../../../packages/plugin-sdk/examples/agent-workflows.md)。文档上下文提供者仍待续，P6／AC-15 保持未完成。
