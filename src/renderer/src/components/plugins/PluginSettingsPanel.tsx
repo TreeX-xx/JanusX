@@ -11,6 +11,17 @@ import { PluginConfigurationForm } from './PluginConfigurationForm'
 import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
+function PluginContexts({ manifest, review = false }: { manifest: InstalledPlugin['manifest']; review?: boolean }) {
+  const { t } = useI18n('plugins')
+  if (!manifest.contributes.contextProviders?.length) return null
+  return <details open={review || undefined} data-plugin-contexts><summary>{t('plugins:contextProviders')}</summary>
+    <p className={styles.hint}>{t('plugins:contextHint')}</p>
+    {manifest.contributes.contextProviders.map(provider => <div className={styles.card} key={provider.id}>
+      <strong>{provider.title} · v{provider.version}</strong><p>{provider.description}</p><pre className={styles.path}>{provider.path}</pre>
+    </div>)}
+  </details>
+}
+
 function PluginWorkflows({ manifest, review = false }: { manifest: InstalledPlugin['manifest']; review?: boolean }) {
   const { t } = useI18n('plugins')
   if (!manifest.contributes.workflows?.length) return null
@@ -104,6 +115,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
         <PluginSkills manifest={record.manifest} />
+        <PluginContexts manifest={record.manifest} />
         <PluginWorkflows manifest={record.manifest} />
         <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
@@ -137,6 +149,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
       <strong>{authorize.manifest.name} — {t('plugins:permissions')}</strong>
       <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
       <PluginSkills manifest={authorize.manifest} review />
+      <PluginContexts manifest={authorize.manifest} review />
       <PluginWorkflows manifest={authorize.manifest} review />
       {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
       <p>{t('plugins:projectScope')}</p>

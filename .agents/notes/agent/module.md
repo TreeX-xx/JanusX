@@ -78,7 +78,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-23T11:05:34Z",
+  "updated": "2026-10-23T12:32:57Z",
   "moduleState": "partial"
 }
 ---
@@ -97,7 +97,7 @@ WorkflowX v2 中，普通 xdo 直接使用工程工具，不要求建立 Task。
 
 通用工程工具、MCP、Note 编辑、压缩和 WorkflowX 模式由 agentX 提供，Janus 负责模型与会话端口、审批界面、子会话事件归属及产品扩展。项目会话从共享工具清单继承工程能力；受限维护讨论继续使用调用者的工具限制。具体分工见 [agentX 复用边界](../blueprint/agentx-harness-inheritance.md)。
 
-内置 Agent 已通过宿主工具调用显式授权的插件公开服务，复用任务预算、执行审批和取消，不注入第三方 Agent JS；当前会话必须匹配选中项目／worktree。契约、代表状态提供者与外部 CLI 未支持矩阵归[插件公开服务](../workbench/plugin-contract-v1.md#p6-首片内置-agent-调用公开服务)，声明式任务已支持宿主默认模型的受限文本生成，UI 与 Agent 共用公开服务且分别拥有结果；模型预算与限制归[模型代发契约](../workbench/plugin-contract-v1.md#p6-受限文本模型代发)，已增加 plugin.skills／plugin.read-skill 两个 inspect 工具，按授权和精确修订返回不可信指引，不自动执行服务；限制归[技能资源契约](../workbench/plugin-contract-v1.md#p6-插件技能资源)。plugin.workflows／plugin.run-workflow 已支持发现精确修订并按宿主审批执行顺序服务，固定直接提供者、共享取消／预算和结果归属，逐步状态归[工作流契约](../workbench/plugin-contract-v1.md#p6-顺序服务工作流)。文档上下文提供者仍待续。
+内置 Agent 已通过宿主工具调用显式授权的插件公开服务，复用任务预算、执行审批和取消，不注入第三方 Agent JS；当前会话必须匹配选中项目／worktree。契约、代表状态提供者与外部 CLI 未支持矩阵归[插件公开服务](../workbench/plugin-contract-v1.md#p6-首片内置-agent-调用公开服务)，声明式任务已支持宿主默认模型的受限文本生成，UI 与 Agent 共用公开服务且分别拥有结果；模型预算与限制归[模型代发契约](../workbench/plugin-contract-v1.md#p6-受限文本模型代发)，已增加 plugin.skills／plugin.read-skill 两个 inspect 工具，按授权和精确修订返回不可信指引，不自动执行服务；限制归[技能资源契约](../workbench/plugin-contract-v1.md#p6-插件技能资源)。plugin.workflows／plugin.run-workflow 已支持发现精确修订并按宿主审批执行顺序服务，固定直接提供者、共享取消／预算和结果归属，逐步状态归[工作流契约](../workbench/plugin-contract-v1.md#p6-顺序服务工作流)。plugin.contexts／plugin.read-context 已按精确授权返回当前项目已保存文件的文本与哈希，plan 可只读，撤销／取消拒绝迟到结果；项目页面通过 SDK 使用同一资源。边界归[文档上下文契约](../workbench/plugin-contract-v1.md#p6-文档上下文提供者)，P6 按 Windows 声明式代表范围交付。
 
 Janus 模型端口与两个对话入口共用上下文、最大输出额度检测；完整自动资料优先，缺少资料时先更新目录，再支持双额度手动回退。缓存、匹配、生成预算及验证边界由[模型目录决策](model-registry.md)维护。
 

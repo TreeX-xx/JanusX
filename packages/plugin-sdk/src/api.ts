@@ -1,3 +1,4 @@
+import type { PluginContextRead, PluginDocumentContextCatalog, PluginDocumentContextResource } from './context.js'
 import type { PluginErrorCode } from './errors.js'
 import type { PluginIslandStatus } from './island.js'
 import type { PluginDocument } from './documents.js'
@@ -64,7 +65,10 @@ export interface PluginApi {
     delete(params: { key: string; expectedRevision?: number }, options?: PluginCallOptions): Promise<{ revision: number }>
     watch(params: { keys: string[] }, listener: (values: Record<string, PluginStoredValue>) => void, options?: PluginCallOptions): Promise<{ values: Record<string, PluginStoredValue>; unsubscribe: PluginUnsubscribe }>
   }
-  context: { subscribe(listener: (event: { active?: boolean; locale?: string; theme?: { id: string; tokens: Record<string, string> }; invalidated?: boolean }) => void, options?: PluginCallOptions): Promise<PluginUnsubscribe> }
+  context: {
+    providers(options?: PluginCallOptions): Promise<PluginDocumentContextCatalog>
+    read(params: PluginContextRead, options?: PluginCallOptions): Promise<PluginDocumentContextResource>
+    subscribe(listener: (event: { active?: boolean; locale?: string; theme?: { id: string; tokens: Record<string, string> }; invalidated?: boolean }) => void, options?: PluginCallOptions): Promise<PluginUnsubscribe> }
 }
 export interface PluginRequest { protocol: 1; requestId: string; type: 'request'; method: string; params: unknown; contextRevision: number }
 export type PluginResponse = { protocol: 1; requestId: string; type: 'response' } & (

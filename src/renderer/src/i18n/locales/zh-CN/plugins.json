@@ -38,6 +38,8 @@
   "uninstallHint": "卸载移除插件资源和入口，保留私有数据与链接的源目录。", "deleteHint": "永久删除此插件的私有数据？正在运行的插件页面将关闭。", "refresh": "刷新",
   "state": { "disabled": "已停用", "blocked": "已阻止", "ready": "已启用，尚无页面", "loading": "加载中", "active": "正在运行", "error": "发生错误" },
   "background": "后台任务与凭证",
+  "contextProviders": "文档上下文提供者",
+  "contextHint": "授权后内置 Agent 可按需读取这些已保存的项目文件，单文件上限 32 KiB，结果作为不可信数据；不包含编辑器未保存草稿。停用阻止后续读取，但不能清除已进入对话的文本。",
   "skills": "Agent 技能",
   "workflows": "Agent 工作流",
   "workflowHint": "请审阅每一步服务及输入映射。Agent 审批覆盖整个序列及其外部操作。某一步失败或停止后不再执行后续步骤；已完成的操作不会撤销。不自动重试。",

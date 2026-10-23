@@ -3308,6 +3308,8 @@ export type TypedI18nKey =
   | 'plugins:configurationScope'
   | 'plugins:confirm'
   | 'plugins:confirmEnable'
+  | 'plugins:contextHint'
+  | 'plugins:contextProviders'
   | 'plugins:copied'
   | 'plugins:copy'
   | 'plugins:credentialConfigured'

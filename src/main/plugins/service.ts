@@ -16,6 +16,7 @@ import { PluginCredentials, PluginNetwork, type PluginEncryption, type PluginNet
 import { PluginBackground, type BackgroundIdentity } from './background'
 import { PluginModels, type PluginModelBackend } from './models'
 import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type PluginAgentService, type PluginTaskRun } from '@janusx/plugin-sdk'
+import { pluginContextReadSchema, type PluginDocumentContext, type PluginDocumentContextCatalog, type PluginDocumentContextResource } from '@janusx/plugin-sdk'
 import { pluginSkillReadSchema, pluginWorkflowRunSchema, type PluginAgentSkill, type PluginAgentSkillCatalog, type PluginAgentSkillResource, type PluginAgentWorkflow, type PluginAgentWorkflowCatalog } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
@@ -41,7 +42,7 @@ export interface PluginServiceDeps {
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.contextProviders || manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
   ? { permissions: manifest.permissions, contributes: manifest.contributes }
   : manifest.contributes.configurationViews
   ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
@@ -59,6 +60,8 @@ export class PluginService {
   private queue = new SerialQueue()
   private watchers = new Map<string, { watchers: FSWatcher[]; timer?: ReturnType<typeof setTimeout> }>()
   private toasts = new Map<string, number[]>()
+  private contextReads = 0
+  private contextReadTimes: number[] = []
   private configurationOpens = new Map<string, number>()
   private island = new Map<string, PluginIslandEntry>()
   private islandTimes = new Map<string, number[]>()
@@ -420,7 +423,7 @@ export class PluginService {
       const valid = () => {
         this.instance(id, binding)
         if (pending!.cancelled) error('CANCELLED', 'Request was cancelled.')
-        if (Date.now() - start > (method === 'workspace.readText' || method === 'documents.readText' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
+        if (Date.now() - start > (method === 'workspace.readText' || method === 'documents.readText' || method === 'context.read' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
       }
       const result = await this.dispatch(instance, method, params as Record<string, unknown>, valid)
       valid()
@@ -442,13 +445,13 @@ export class PluginService {
       return { protocol: 1, requestId, type: 'response', ok: false, error: { code, message: code } }
     } finally { if (pending) instance.requests.delete(requestId) }
   }
-  private async readText(root: string, path: string): Promise<{ text: string; bytes: number; version: string }> {
+  private async readText(root: string, path: string, limit = 1024 * 1024): Promise<{ text: string; bytes: number; version: string }> {
     if (isSensitivePluginPath(path)) error('SENSITIVE_PATH_DENIED', 'Sensitive files are unavailable.')
     for (const directory of this.deps.protectedDirectories ?? []) {
       const part = relative(await realpath(directory).catch(() => resolve(directory)), resolve(root, path))
       if (!isAbsolute(part) && part !== '..' && !part.startsWith(`..${sep}`)) error('SENSITIVE_PATH_DENIED', 'Host data is unavailable.')
     }
-    const bytes = await readPluginFile(root, path, 1024 * 1024)
+    const bytes = await readPluginFile(root, path, limit)
     try {
       const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
       if (text.includes('\0')) error('NOT_TEXT', 'Binary files are unavailable.')
@@ -507,6 +510,13 @@ export class PluginService {
     })
     if (method === 'app.getInfo') return { pluginApiVersion: PLUGIN_API_VERSION, capabilities: [...PLUGIN_CAPABILITIES], locale: this.current.locale, theme: this.current.theme }
     if (method === 'workspace.getContext') return instance.context
+    if (method === 'context.providers' || method === 'context.read') {
+      if (!instance.root || !instance.context.project) error('CONTEXT_UNAVAILABLE', 'Document context requires a project page.')
+      const context = { workspaceId: instance.context.project!.projectId, workspaceRoot: instance.root! }
+      if (method === 'context.providers') return this.discoverDocumentContexts(context, undefined, instance.plugin)
+      if (params.plugin !== instance.plugin) error('PERMISSION_DENIED', 'Pages can read only their own context providers.')
+      return this.readDocumentContext(context, params, undefined, valid)
+    }
     if (method === 'documents.applyEdit') {
       const document = instance.context.document
       if (!document || !instance.root) error('CONTEXT_UNAVAILABLE', 'No document is bound to this view.')
@@ -720,6 +730,70 @@ export class PluginService {
       if (revision !== this.current.revision || context.workspaceId !== this.current.projectId || root !== this.current.root) error('STALE_CONTEXT', 'Agent service requires the active project/worktree.')
     }
     valid(); return valid
+  }
+  // Note: .agents/notes/workbench/plugin-contract-v1.md — UI and Agent share fixed-file context reads.
+  private documentContext(record: RecordData, id: string, projectId: string): PluginDocumentContext {
+    this.allowed(record)
+    const manifest = record.manifest
+    if (!manifest.capabilities.required.includes('agent.context') || !manifest.permissions.some(item => item.name === 'agent.context')) error('PERMISSION_DENIED', 'Document context is not authorized.')
+    const provider = manifest.contributes.contextProviders?.find(item => item.id === id)
+    if (!provider) error('DEPENDENCY_UNAVAILABLE', 'Document context provider is unavailable.')
+    validatePluginCall(manifest, 'workspace.readText', { path: provider!.path })
+    this.backgroundIdentity(manifest.id, projectId).valid()
+    return { plugin: manifest.id, provider: provider!.id, version: provider!.version, revision: record.digest,
+      title: provider!.title, description: provider!.description, path: provider!.path, scope: 'project' }
+  }
+  async discoverDocumentContexts(context: { workspaceId: string; workspaceRoot: string }, signal?: AbortSignal, plugin?: string): Promise<PluginDocumentContextCatalog> {
+    if (signal?.aborted) error('CANCELLED', 'Document context discovery stopped.')
+    await this.initialize(); const valid = await this.agentContext(context)
+    const providers: PluginDocumentContext[] = []; let truncated = false; let bytes = 0
+    for (const record of [...this.records.values()].sort((a, b) => a.manifest.id.localeCompare(b.manifest.id))) {
+      if (plugin && record.manifest.id !== plugin) continue
+      for (const provider of record.manifest.contributes.contextProviders ?? []) {
+        try {
+          const metadata = this.documentContext(record, provider.id, context.workspaceId)
+          const size = Buffer.byteLength(JSON.stringify(metadata))
+          if (providers.length >= 32 || bytes + size > 64 * 1024) truncated = true
+          else { providers.push(metadata); bytes += size }
+        } catch { /* Unavailable or unauthorized providers are not advertised; discovery never reads files. */ }
+      }
+    }
+    valid(); if (signal?.aborted) error('CANCELLED', 'Document context discovery stopped.')
+    return { providers, truncated }
+  }
+  async readDocumentContext(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal?: AbortSignal, callerValid?: () => void): Promise<PluginDocumentContextResource> {
+    if (signal?.aborted) error('CANCELLED', 'Document context read stopped.')
+    await this.initialize()
+    const parsed = pluginContextReadSchema.safeParse(params)
+    if (!parsed.success) error('INVALID_REQUEST', 'Document context request is invalid.')
+    const request = parsed.data!; const record = this.record(request.plugin)
+    const identity = this.backgroundIdentity(request.plugin, context.workspaceId)
+    if (record.digest !== request.revision) error('STALE_CONTEXT', 'Document context package revision changed.')
+    const metadata = this.documentContext(record, request.provider, context.workspaceId)
+    if (metadata.version !== request.version) error('DEPENDENCY_UNAVAILABLE', 'Document context version is unavailable.')
+    const workspaceValid = await this.agentContext(context); const root = this.current.root!
+    const started = Date.now()
+    const valid = () => {
+      identity.valid(); workspaceValid(); callerValid?.()
+      if (signal?.aborted) error('CANCELLED', 'Document context read stopped.')
+      if (Date.now() - started > 10_000) error('TIMEOUT', 'Document context read timed out.')
+    }
+    valid()
+    this.contextReadTimes = this.contextReadTimes.filter(time => started - time < 60_000)
+    if (this.contextReads >= 4 || this.contextReadTimes.length >= 60) error('RATE_LIMITED', 'Document context read budget reached.')
+    this.contextReadTimes.push(started); this.contextReads++
+    try {
+      const { text, bytes, version } = await this.readText(root, metadata.path, 32 * 1024)
+      valid()
+      const resource: PluginDocumentContextResource = { ...metadata, trust: 'untrusted-plugin-content', text, bytes, documentVersion: version }
+      if (Buffer.byteLength(JSON.stringify(resource)) > 64 * 1024) error('RATE_LIMITED', 'Document context response exceeds its budget.')
+      this.log('OK', { pluginId: request.plugin, method: 'context.read', duration: Date.now() - started })
+      return resource
+    } catch (cause) {
+      this.log(cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR', { pluginId: request.plugin, method: 'context.read', duration: Date.now() - started })
+      if (cause instanceof PluginError) throw cause
+      error('INTERNAL_ERROR', 'Document context is unavailable.')
+    } finally { this.contextReads-- }
   }
   async discoverAgentServices(context: { workspaceId: string; workspaceRoot: string }): Promise<PluginAgentService[]> {
     await this.initialize()

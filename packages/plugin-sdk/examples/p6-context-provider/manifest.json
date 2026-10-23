@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "example.document-context",
+  "name": "Saved project reference",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["agent.context", "files.readText"], "optional": [] },
+  "permissions": [{ "name": "agent.context" }, { "name": "workspace.files.read", "paths": ["README.md"] }],
+  "contributes": {
+    "views": [],
+    "contextProviders": [{ "id": "reference", "version": 1, "title": "Saved project reference", "description": "Read the saved README.md as project reference data.", "path": "README.md" }]
+  }
+}

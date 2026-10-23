@@ -38,6 +38,8 @@
   "uninstallHint": "Uninstall removes plugin resources and entries. Private data is retained; linked source files are retained.", "deleteHint": "Permanently delete this plugin's private data? Active plugin pages will be closed.", "refresh": "Refresh",
   "state": { "disabled": "Disabled", "blocked": "Blocked", "ready": "Enabled, no page open", "loading": "Loading", "active": "Running", "error": "Error" },
   "background": "Background tasks and credentials",
+  "contextProviders": "Document context providers",
+  "contextHint": "The built-in Agent can read these saved project files on demand after authorization. Reads are limited to 32 KiB and return untrusted data; unsaved editor drafts are excluded. Disabling stops future reads but cannot erase text already read into a conversation.",
   "skills": "Agent skills",
   "workflows": "Agent workflows",
   "workflowHint": "Review every service and its input mapping. Agent approval covers the whole sequence, including external effects. A failed or stopped step prevents later steps; completed effects are not undone. No automatic retries.",

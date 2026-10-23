@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { PluginManifest } from './manifest.js'
 import { PluginError } from './errors.js'
 import { isSensitivePluginPath, validatePluginPath } from './paths.js'
+import { pluginContextReadSchema } from './context.js'
 import { pluginIslandStatusSchema } from './island.js'
 import { backgroundId, networkRequestSchema, messageSchema, serviceCallSchema, eventPublishSchema } from './background.js'
 
@@ -51,6 +52,8 @@ const methods = {
   'storage.set': { permission: 'plugin.storage', params: z.object({ key, value: json, expectedRevision: revision }).strict() },
   'storage.delete': { permission: 'plugin.storage', params: z.object({ key, expectedRevision: revision }).strict() },
   'storage.watch': { permission: 'plugin.storage', params: z.object({ keys: z.array(key).min(1).max(32) }).strict() },
+  'context.providers': { permission: 'agent.context', params: empty },
+  'context.read': { permission: 'agent.context', params: pluginContextReadSchema },
   'context.subscribe': { permission: null, params: empty },
 } as const
 

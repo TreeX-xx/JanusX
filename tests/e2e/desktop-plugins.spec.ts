@@ -83,6 +83,56 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P6 document contexts review fixed files, share page and Agent reads, report document revisions and revoke access', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    const provider = JSON.parse(await readFile('packages/plugin-sdk/examples/p6-context-provider/manifest.json', 'utf8'))
+    manifest.capabilities.required.push('agent.context', 'files.readText'); manifest.permissions.push({ name: 'agent.context' })
+    manifest.contributes.contextProviders = provider.contributes.contextProviders
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P6 Context project', path }), f.project)
+    await page.reload(); await page.getByText('P6 Context project', { exact: true }).filter({ visible: true }).first().click()
+    await settings(page); await importDirectory(app, page, f.source)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const card = page.locator(`[data-plugin-id="${manifest.id}"]`)
+    await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Review permissions and scope' })
+    await expect(review.locator('[data-plugin-contexts]')).toContainText('README.md')
+    await expect(review.locator('[data-plugin-contexts]')).toContainText('unsaved editor drafts are excluded')
+    await review.getByLabel('P6 Context project', { exact: true }).check()
+    await review.locator('[data-plugin-contexts]').scrollIntoViewIfNeeded(); await page.screenshot({ path: 'artifacts/plugin-context-ui.png' })
+    await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await openDetails(page); const details = await guest(app, '/dist/index.html')
+    await expect(details.locator('#content')).toHaveText('P2 readable project file')
+    const catalog = await rawCall(details, 'context.providers', {}); const metadata = catalog.result.providers[0]
+    expect(metadata).not.toHaveProperty('text')
+    const request = { plugin: metadata.plugin, provider: metadata.provider, version: metadata.version, revision: metadata.revision }
+    const ui = await rawCall(details, 'context.read', request)
+    expect(ui).toMatchObject({ ok: true, result: { trust: 'untrusted-plugin-content', path: 'README.md', text: 'P2 readable project file' } })
+    const loaded = await page.evaluate(async ({ context, request }) => {
+      const api = (window as any).electron.agentRuntime; const session = await api.createSession({ ...context, approvalMode: 'plan' })
+      return { sessionId: session.id, catalog: await api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.contexts', input: {} } }),
+        resource: await api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.read-context', input: request } }) }
+    }, { context: { workspaceId: workspace.id, workspaceRoot: f.project }, request })
+    expect(loaded.catalog).toMatchObject({ status: 'completed', output: catalog.result })
+    expect(loaded.resource).toMatchObject({ status: 'completed', output: ui.result })
+    await writeFile(join(f.project, 'README.md'), 'Updated saved context')
+    const changed = await rawCall(details, 'context.read', request)
+    expect(changed.result.text).toBe('Updated saved context'); expect(changed.result.documentVersion).not.toBe(ui.result.documentVersion)
+    expect(await rawCall(details, 'context.read', { ...request, path: '../secret.md' })).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+    await settings(page); await card.getByRole('button', { name: 'Disable', exact: true }).click()
+    const revoked = await page.evaluate(async ({ sessionId, request }) => {
+      const api = (window as any).electron.agentRuntime
+      return { catalog: await api.executeTool({ sessionId, call: { toolName: 'plugin.contexts', input: {} } }), read: await api.executeTool({ sessionId, call: { toolName: 'plugin.read-context', input: request } }) }
+    }, { sessionId: loaded.sessionId, request })
+    expect(revoked.catalog.output.providers).toEqual([]); expect(revoked.read.status).toBe('failed')
+    const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' })); expect(snapshot.data.tasks).toEqual([])
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('P6 workflows review the full sequence, share UI and Agent execution, track steps and cancel without running the tail', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
