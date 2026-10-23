@@ -174,6 +174,55 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
   } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
 })
 
+test('P4a users review and explicitly migrate renamed configuration independently in each scope', async ({}, testInfo) => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifestPath = join(f.source, 'manifest.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.permissions.push({ name: 'configuration.read' }); manifest.capabilities.required.push('configuration.settings')
+    manifest.contributes.settings = [{ key: 'label', title: 'Reference label', type: 'string', default: 'Reference', scope: 'project' }]
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Migration project', path }), f.project)
+    await page.reload(); await page.getByText('Migration project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id); await settings(page)
+    const card = page.locator(`[data-plugin-id="${pluginId}"]`)
+    await card.getByText('Configuration', { exact: true }).click()
+    const form = card.locator('[data-plugin-configuration]')
+    await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Application old')
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(form.getByText('Configuration saved.', { exact: true })).toBeVisible()
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Project old')
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(form.getByText('Configuration saved.', { exact: true })).toBeVisible()
+    manifest.capabilities.required.push('configuration.migrations')
+    manifest.contributes.settings[0].key = 'name'
+    manifest.contributes.settings[0].title = 'Reference name'
+    manifest.contributes.settingMigrations = [{ from: 'label', to: 'name' }]
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    await card.getByRole('button', { name: 'Reload', exact: true }).click()
+    const input = form.getByRole('textbox', { name: 'Reference name', exact: true })
+    await expect(input).toHaveValue('Reference')
+    await expect(form.getByText('label → name · Ready', { exact: true })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('configuration-migration.png') })
+    await input.fill('Pending edit')
+    await expect(form.getByRole('button', { name: 'Apply compatible migrations', exact: true })).toBeDisabled()
+    await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await form.getByRole('button', { name: 'Apply compatible migrations', exact: true }).click()
+    await expect(input).toHaveValue('Project old')
+    await expect(form.getByRole('button', { name: 'Apply compatible migrations', exact: true })).toHaveCount(0)
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('application')
+    await expect(input).toHaveValue('Reference')
+    await form.getByRole('button', { name: 'Apply compatible migrations', exact: true }).click()
+    await expect(input).toHaveValue('Application old')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await expect(input).toHaveValue('Project old')
+    await page.keyboard.press('Escape'); await openDetails(page)
+    await expect((await guest(app, '/dist/index.html')).locator('#configuration')).toContainText('Project old')
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
 test('P4 plugin drafts are host-owned, reviewed before saving and retained on disk conflict or disable', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

@@ -1,5 +1,8 @@
 {
   "configuration": "参数配置",
+  "configurationMigration": "应用兼容迁移",
+  "configurationMigrationHint": "请审阅当前作用域的字段重命名。应用后将兼容旧值移入尚未设置的新字段；已有目标值和不兼容旧值保持原样。请先保存或重新读取待提交的编辑。",
+  "configurationMigrationStatus": { "ready": "可迁移", "occupied": "目标已有保存值，保持原样", "incompatible": "值或作用域不兼容，保持原样" },
   "configurationHint": "在此配置插件参数。普通设置不支持凭证字段，修改配置不会授予额外权限。",
   "configurationScope": "配置作用域",
   "configurationApplication": "应用默认配置",

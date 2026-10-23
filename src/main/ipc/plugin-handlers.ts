@@ -31,7 +31,7 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('documentEditResult'), ...instance, editId: text, applied: z.boolean() }).strict(),
   z.object({ type: z.literal('configurationGet'), id: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
   z.object({ type: z.literal('configurationUpdate'), id: text, projectId: text.nullable(), scopePath: nullableText,
-    expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), reset: z.boolean(),
+    expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), reset: z.boolean(), migrate: z.boolean().optional(),
     patch: z.record(z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()])).refine(value => Object.keys(value).length <= 64) }).strict(),
   z.object({ type: z.literal('islandAction'), pluginId: text, id: text, instanceId: text, command: text }).strict(),
 ])

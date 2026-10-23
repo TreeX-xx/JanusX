@@ -1,4 +1,9 @@
-import type { PluginManifest, PluginContext, PluginIslandStatus, PluginDocument, JsonValue, PluginSettingValue } from '@janusx/plugin-sdk'
+import type { PluginManifest, PluginContext, PluginIslandStatus, PluginDocument, JsonValue, PluginSettingValue, PluginConfiguration } from '@janusx/plugin-sdk'
+
+/** Host-only upgrade preview; no raw incompatible values leave storage. */
+export interface PluginConfigurationState extends PluginConfiguration {
+  migrations: Array<{ from: string; to: string; status: 'ready' | 'occupied' | 'incompatible' }>
+}
 
 export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
 export interface InstalledPlugin {
@@ -35,7 +40,7 @@ export type PluginManageRequest =
   | { type: 'documentEditResult'; instanceId: string; binding: string; editId: string; applied: boolean }
   | { type: 'configurationGet'; id: string; projectId: string | null; scopePath: string | null }
   | { type: 'configurationUpdate'; id: string; projectId: string | null; scopePath: string | null;
-      expectedRevision: string; patch: Record<string, PluginSettingValue | null>; reset: boolean }
+      expectedRevision: string; patch: Record<string, PluginSettingValue | null>; reset: boolean; migrate?: boolean }
   | { type: 'islandAction'; pluginId: string; id: string; instanceId: string; command: string }
 export type PluginHostResult = { ok: true; data: unknown } | { ok: false; code: string; message: string }
 export interface PluginHostEvent { instanceId: string; packet: JsonValue }

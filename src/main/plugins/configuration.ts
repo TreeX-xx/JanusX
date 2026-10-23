@@ -4,6 +4,7 @@ import { PluginError, isPluginSettingValue, type PluginConfiguration as Configur
   type PluginManifest, type PluginSettingValue } from '@janusx/plugin-sdk'
 import { SerialQueue } from '../lib/atomic-file'
 import { PluginStorage } from './storage'
+import type { PluginConfigurationState } from '../../shared/ipc/plugins'
 
 export class PluginConfigurationStore {
   private storage: PluginStorage
@@ -42,17 +43,35 @@ export class PluginConfigurationStore {
       }
       if (scope && layer === application) inherited = { ...values }
     }
-    const revision = createHash('sha256').update(JSON.stringify([manifest.id, scope, settings, application.revision, project?.revision ?? null])).digest('hex')
+    const revision = createHash('sha256').update(JSON.stringify([manifest.id, scope, settings, manifest.contributes.settingMigrations ?? [], application.revision, project?.revision ?? null])).digest('hex')
     return { values, overrides, inherited, revision, issues: [...new Set(issues)] }
+  }
+  async management(manifest: PluginManifest, scope: string | null): Promise<PluginConfigurationState> {
+    const configuration = await this.get(manifest, scope)
+    const { values } = await this.stored(manifest.id, scope ?? 'application')
+    const migrations: PluginConfigurationState['migrations'] = []
+    for (const { from, to } of manifest.contributes.settingMigrations ?? []) if (Object.hasOwn(values, from)) {
+      const setting = manifest.contributes.settings!.find(item => item.key === to)!
+      migrations.push({ from, to, status: Object.hasOwn(values, to) ? 'occupied'
+        : scope && setting.scope !== 'project' || !isPluginSettingValue(setting, values[from]) ? 'incompatible' : 'ready' })
+    }
+    return { ...configuration, migrations }
   }
   /** Must run inside run(), so checking both layers and committing is serialized. */
   async update(manifest: PluginManifest, scope: string | null, expected: string,
-    patch: Record<string, PluginSettingValue | null>, reset: boolean, valid: () => void): Promise<void> {
+    patch: Record<string, PluginSettingValue | null>, reset: boolean, valid: () => void, migrate = false): Promise<void> {
     valid()
+    if (migrate && (reset || Object.keys(patch).length)) throw new PluginError('INVALID_REQUEST', 'Migration cannot be combined with edits or reset.')
     const current = await this.get(manifest, scope)
     if (current.revision !== expected) throw new PluginError('CONFIGURATION_CONFLICT', 'Configuration changed. Reload before saving.')
     const stored = await this.stored(manifest.id, scope ?? 'application')
     const values = reset ? {} : { ...stored.values }
+    if (migrate) {
+      const preview = await this.management(manifest, scope)
+      const ready = preview.migrations.filter(item => item.status === 'ready')
+      if (!ready.length) throw new PluginError('INVALID_REQUEST', 'No compatible setting migration is available.')
+      for (const item of ready) { values[item.to] = values[item.from]; delete values[item.from] }
+    }
     for (const [key, value] of Object.entries(patch)) {
       const setting = manifest.contributes.settings?.find(item => item.key === key)
       if (!setting || scope && setting.scope !== 'project' || value !== null && !isPluginSettingValue(setting, value)) {

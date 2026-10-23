@@ -1,7 +1,7 @@
 // Note: .agents/notes/workbench/plugin-contract-v1.md — host-generated plugin settings.
 import { useEffect, useRef, useState } from 'react'
-import { isPluginSettingValue, type PluginConfiguration, type PluginSettingValue } from '@janusx/plugin-sdk'
-import type { InstalledPlugin } from '../../../../shared/ipc/plugins'
+import { isPluginSettingValue, type PluginSettingValue } from '@janusx/plugin-sdk'
+import type { InstalledPlugin, PluginConfigurationState } from '../../../../shared/ipc/plugins'
 import { pluginRequest } from '@/extensions/plugin-runtime'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
@@ -16,7 +16,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application' }
   const [scope, setScope] = useState(initialScope)
   const projectAllowed = Boolean(projectId && record.projects.includes(projectId))
   const projectScope = scope === 'project' && projectAllowed
-  const [configuration, setConfiguration] = useState<PluginConfiguration | null>(null)
+  const [configuration, setConfiguration] = useState<PluginConfigurationState | null>(null)
   const [patch, setPatch] = useState<Record<string, PluginSettingValue | null>>({})
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
@@ -27,7 +27,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application' }
     const current = ++requests.sequence
     setBusy(true); setFailure(''); setSaved(false)
     try {
-      const result = await pluginRequest<PluginConfiguration>({ type: 'configurationGet', ...target })
+      const result = await pluginRequest<PluginConfigurationState>({ type: 'configurationGet', ...target })
       if (current === requests.sequence) { setConfiguration(result); setPatch({}) }
     } catch (cause) { if (current === requests.sequence) { setConfiguration(null); setFailure((cause as Error).message) } }
     finally { if (current === requests.sequence) setBusy(false) }
@@ -38,13 +38,13 @@ export function PluginConfigurationForm({ record, initialScope = 'application' }
     // A schema/root change invalidates the old form and any in-flight response.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record.manifest.id, record.digest, projectScope, projectId, root])
-  const submit = async (reset: boolean) => {
+  const submit = async (reset: boolean, migrate = false) => {
     if (!configuration) return
     const current = ++requests.sequence
     setBusy(true); setFailure(''); setSaved(false)
     try {
-      const result = await pluginRequest<PluginConfiguration>({ type: 'configurationUpdate', ...target,
-        expectedRevision: configuration.revision, patch: reset ? {} : patch, reset })
+      const result = await pluginRequest<PluginConfigurationState>({ type: 'configurationUpdate', ...target,
+        expectedRevision: configuration.revision, patch: reset || migrate ? {} : patch, reset, migrate })
       if (current === requests.sequence) { setConfiguration(result); setPatch({}); setSaved(true) }
     } catch (cause) { if (current === requests.sequence) setFailure((cause as Error).message) }
     finally { if (current === requests.sequence) setBusy(false) }
@@ -83,6 +83,12 @@ export function PluginConfigurationForm({ record, initialScope = 'application' }
       </div>
     })}
     {configuration?.issues.length ? <p role="status" className={styles.error}>{t('plugins:configurationIssues')} {configuration.issues.join(', ')}</p> : null}
+    {configuration && configuration.migrations.length > 0 && <section aria-label={t('plugins:configurationMigration')}>
+      <p className={styles.hint}>{t('plugins:configurationMigrationHint')}</p>
+      <ul>{configuration.migrations.map(item => <li key={item.from}>{item.from} → {item.to} · {t(`plugins:configurationMigrationStatus.${item.status}`)}</li>)}</ul>
+      <button type="button" disabled={busy || Boolean(Object.keys(patch).length) || !configuration.migrations.some(item => item.status === 'ready')}
+        onClick={() => { void submit(false, true) }}>{t('plugins:configurationMigration')}</button>
+    </section>}
     {invalid && <p role="alert" className={styles.error}>{t('plugins:configurationInvalid')}</p>}
     {failure && <p role="alert" className={styles.error}>{failure === 'CONFIGURATION_CONFLICT' ? t('plugins:configurationConflict') : failure}</p>}
     {saved && <p role="status">{t('plugins:configurationSaved')}</p>}

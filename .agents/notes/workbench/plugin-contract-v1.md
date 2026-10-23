@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T05:35:23Z",
+  "updated": "2026-10-23T05:52:50Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -153,7 +153,11 @@ scope=application 的字段仅能设置应用值；scope=project 允许在应用
 
 配置导航已接通宿主外壳按钮和 `api.configuration.open(options?)`。SDK 导航需必需能力 `configuration.open`、已声明设置及 configuration.read，旧宿主在清单兼容检查时拒绝新必需能力。host context.configurationNavigation=true 时模板提供配置按钮，作者也可在页面自身菜单调用。请求参数为空，pluginId 与应用／项目作用域由实例绑定推导；项目页打开当前项目／worktree 配置，应用页打开应用默认。仅 active 页面可请求，每插件跨页面 10 秒最多一次；隐藏页返回 CONTEXT_UNAVAILABLE，频繁请求返回 RATE_LIMITED，撤销仍按实例身份拒绝。返回 opened=true 仅表示已派发宿主导航，不表示用户保存。可信外壳按钮无需插件新增权限。设置窗口切到插件页，展开并滚动定位自身表单，沿用原生页遮挡与关闭恢复；普通页面不能指定他插件、路径或任意设置页，不增加通用命令回调类型。
 
-配置不会扩大文件、网络或执行授权，不存密钥。自定义隔离设置页、显式迁移 API 与凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。这里只完成 AC-19 的基础部分，整条 AC-19 与 P4 仍不关闭。复用现有存储而不开放任意 setter，代价是复杂业务需先用宿主表单；当有真实复杂设置消费者时再扩展自定义页契约。
+声明式字段迁移已实现。清单 `contributes.settingMigrations` 为 1–64 个 `{from,to}`，需 settings 与必需能力 configuration.migrations；源／目标分别唯一，源必须为退役 key，目标必须是当前字段，拒绝在用源、链式迁移、合并、脚本及转换代码。可信配置管理响应补充当前层的迁移预览，仅包含 from／to 和 ready／occupied／incompatible 状态，不返回不兼容原始值；公开 SDK 的配置读取与订阅格式不变。用户在表单审阅后点击“应用兼容迁移”，主窗口管理请求 configurationUpdate 携带 migrate=true、空 patch、reset=false 及 expectedRevision，不可与普通修改／重置混用。主进程在同一配置队列重新检查预览，只将当前层合法旧值移到尚未保存的目标并删除成功迁移的源，已有目标（包括非法值）、不兼容旧值及无关字段保留。一次原子写入提交全部 ready 项并沿用配置订阅通知；没有可迁移项则拒绝。版本哈希包含映射声明及父层修订，模式变化与并发写入不能沿用旧预览。
+
+迁移不自动执行、不跨层复制或提升项目值为应用值，应用默认与各项目／worktree 分别操作。待提交编辑存在时禁用迁移按钮，先保存或重读；存储损坏或写前身份失效继续拒绝覆盖。此片只支持字段重命名，不提供类型转换、历史备份或迁移回滚；成功移动会消费旧 key，若未来需要包降级保留旧格式或复杂模式转换，需另定版本历史及恢复契约。普通插件没有 configuration.migrate／setter，迁移声明不扩大文件、网络或执行授权。
+
+配置不存密钥。自定义隔离设置页、复杂转换及凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。这里只完成 AC-19 的基础部分，整条 AC-19 与 P4 仍不关闭。复用现有存储而不开放任意 setter，代价是复杂业务需先用宿主表单；当有真实复杂设置消费者时再扩展自定义页契约。
 
 ## 身份与上下文
 

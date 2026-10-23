@@ -607,14 +607,14 @@ export class PluginService {
     const target = await this.configurationTarget(id, projectId, scopePath)
     return this.configuration.run(async () => {
       target.valid()
-      const result = await this.configuration.get(target.record.manifest, target.scope)
+      const result = await this.configuration.management(target.record.manifest, target.scope)
       target.valid(); return result
     })
   }
   async updateConfiguration(request: Extract<PluginManageRequest, { type: 'configurationUpdate' }>): Promise<unknown> {
     const target = await this.configurationTarget(request.id, request.projectId, request.scopePath)
     return this.configuration.run(async () => {
-      await this.configuration.update(target.record.manifest, target.scope, request.expectedRevision, request.patch, request.reset, target.valid)
+      await this.configuration.update(target.record.manifest, target.scope, request.expectedRevision, request.patch, request.reset, target.valid, request.migrate)
       for (const instance of this.instances.values()) if (instance.plugin === request.id && (!target.scope || instance.scope === target.scope)) {
         const subscriptions = [...instance.subscriptions].filter(([, sub]) => sub.kind === 'configuration')
         if (!subscriptions.length) continue
@@ -627,7 +627,7 @@ export class PluginService {
         } catch { this.log('STORAGE_UNAVAILABLE', { pluginId: request.id, instanceId: instance.id, method: 'configuration.watch' }) }
       }
       this.publish()
-      return this.configuration.get(target.record.manifest, target.scope)
+      return this.configuration.management(target.record.manifest, target.scope)
     })
   }
   async deleteData(id: string): Promise<void> {

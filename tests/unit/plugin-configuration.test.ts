@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { createPluginClient, parsePluginManifest, validatePluginCall, type PluginConfiguration, type PluginManifest } from '../../packages/plugin-sdk/src/index'
 import { PluginService } from '../../src/main/plugins/service'
 import { PluginConfigurationStore } from '../../src/main/plugins/configuration'
+import type { PluginConfigurationState } from '../../src/shared/ipc/plugins'
 
 const cleanups: Array<() => unknown> = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup() })
@@ -50,6 +51,85 @@ async function fixture() {
 }
 
 describe('declarative plugin configuration', () => {
+  it('validates bounded, unambiguous declarative renames without scripts, chains or live source keys', async () => {
+    const value = await manifest()
+    value.capabilities.required.push('configuration.migrations')
+    value.contributes.settingMigrations = [{ from: 'old-label', to: 'label' }]
+    expect(parsePluginManifest(JSON.stringify(value)).contributes.settingMigrations).toHaveLength(1)
+    for (const migrations of [
+      [{ from: 'label', to: 'enabled' }], [{ from: 'old', to: 'missing' }],
+      [{ from: 'constructor', to: 'label' }], [{ from: 'old', to: 'label', script: 'run()' }],
+      [{ from: 'old', to: 'label' }, { from: 'other', to: 'label' }],
+      [{ from: 'old', to: 'label' }, { from: 'old', to: 'enabled' }],
+      [{ from: 'old', to: 'next' }, { from: 'next', to: 'label' }],
+    ]) expect(() => parsePluginManifest(JSON.stringify({ ...value, contributes: { ...value.contributes, settingMigrations: migrations } }))).toThrow()
+    const unsupported = structuredClone(value); unsupported.capabilities.required = unsupported.capabilities.required.filter(item => item !== 'configuration.migrations')
+    expect(() => parsePluginManifest(JSON.stringify(unsupported))).toThrow()
+    expect(() => validatePluginCall(value, 'configuration.migrate', {})).toThrow()
+  })
+  it('previews and explicitly migrates one layer atomically, preserving conflicts and notifying bound pages', async () => {
+    const f = await fixture()
+    const app = await f.get(); await f.update(app.revision, { label: 'App old', enabled: false, limit: 7, style: 'full' })
+    const local = await f.get('a', f.root); await f.update(local.revision, { label: 'Local old', limit: 8 }, 'a', f.root)
+    const upgraded = structuredClone(f.value)
+    upgraded.capabilities.required.push('configuration.migrations')
+    upgraded.contributes.settings![0].key = 'name'
+    upgraded.contributes.settings![1].key = 'visible'
+    upgraded.contributes.settings![2].key = 'maximum'
+    upgraded.contributes.settings![3].key = 'mode'
+    upgraded.contributes.settingMigrations = [{ from: 'label', to: 'name' }, { from: 'enabled', to: 'visible' }, { from: 'limit', to: 'maximum' }, { from: 'style', to: 'mode' }]
+    const limit = upgraded.contributes.settings![2]; if (limit.type === 'number') limit.minimum = 9
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(upgraded)); await f.service.reload(f.value.id)
+    let preview = await f.get() as PluginConfigurationState
+    expect(preview.migrations).toEqual([
+      { from: 'label', to: 'name', status: 'ready' }, { from: 'enabled', to: 'visible', status: 'ready' },
+      { from: 'limit', to: 'maximum', status: 'incompatible' }, { from: 'style', to: 'mode', status: 'ready' },
+    ])
+    const page = await f.mount(); await f.call(page, 'configuration.watch'); f.deps.event.mockClear()
+    const migrate = (revision: string, projectId: string | null = null, scopePath: string | null = null) => f.service.updateConfiguration({ type: 'configurationUpdate',
+      id: f.value.id, projectId, scopePath, expectedRevision: revision, patch: {}, reset: false, migrate: true }) as Promise<PluginConfigurationState>
+    const migrated = await migrate(preview.revision)
+    expect(migrated.values).toMatchObject({ name: 'App old', visible: false, mode: 'full', maximum: 10 })
+    expect(migrated.issues).toEqual(['limit'])
+    expect(f.deps.event.mock.calls.some(([, packet]) => (packet as any).event === 'configuration' && (packet as any).payload.values.name === 'App old')).toBe(true)
+    await expect(migrate(preview.revision)).rejects.toMatchObject({ code: 'CONFIGURATION_CONFLICT' })
+    preview = await f.get('a', f.root) as PluginConfigurationState
+    expect(preview.values.name).toBe('App old'); expect(preview.migrations[0]).toMatchObject({ from: 'label', status: 'ready' })
+    const project = await migrate(preview.revision, 'a', f.root)
+    expect(project.values.name).toBe('Local old'); expect((await f.get()).values.name).toBe('App old')
+    expect((await f.get('a', f.tree)).values.name).toBe('App old')
+    await expect(migrate(project.revision, 'a', f.root)).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    const publicSnapshot = await f.call(page, 'configuration.get')
+    expect(publicSnapshot.result).not.toHaveProperty('migrations')
+    expect(publicSnapshot.result.values).not.toHaveProperty('label')
+    const beforeRuleChange = await f.get()
+    const changedRules = structuredClone(upgraded); changedRules.contributes.settingMigrations!.pop()
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(changedRules)); await f.service.reload(f.value.id)
+    await expect(migrate(beforeRuleChange.revision)).rejects.toMatchObject({ code: 'CONFIGURATION_CONFLICT' })
+    // A destination explicitly saved by the user is never replaced, even by an old invalid value.
+    const store = new PluginConfigurationStore(join(f.directory, 'isolated'))
+    const initial = await store.run(() => store.get(f.value, null))
+    await store.run(() => store.update(f.value, null, initial.revision, { label: 'Old' }, false, () => {}))
+    const before = await store.run(() => store.get(upgraded, null))
+    await store.run(() => store.update(upgraded, null, before.revision, { name: 'User choice' }, false, () => {}))
+    const occupied = await store.run(() => store.management(upgraded, null))
+    expect(occupied.migrations).toEqual([{ from: 'label', to: 'name', status: 'occupied' }])
+    await expect(store.run(() => store.update(upgraded, null, occupied.revision, { name: 'Replace' }, false, () => {}, true))).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect((await store.run(() => store.management(upgraded, null))).values.name).toBe('User choice')
+    // An application-only destination cannot consume an old project value.
+    const oldProject = await store.run(() => store.get(f.value, 'project'))
+    await store.run(() => store.update(f.value, 'project', oldProject.revision, { label: 'Local' }, false, () => {}))
+    const appOnly = structuredClone(upgraded); appOnly.contributes.settings![0].scope = 'application'
+    const scopePreview = await store.run(() => store.management(appOnly, 'project'))
+    expect(scopePreview.migrations).toEqual([{ from: 'label', to: 'name', status: 'incompatible' }])
+    await expect(store.run(() => store.update(appOnly, 'project', scopePreview.revision, {}, false, () => {}, true))).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    // Reopening the store preserves successful moves and blocked source values.
+    const reopened = new PluginConfigurationStore(join(f.directory, 'profile/configuration'))
+    const persisted = await reopened.run(() => reopened.management(changedRules, null))
+    expect(persisted.values.name).toBe('App old'); expect(persisted.issues).toEqual(['limit'])
+    const staleLayer = await store.run(() => store.management(upgraded, 'another-project'))
+    await expect(store.run(() => store.update(upgraded, 'another-project', staleLayer.revision, {}, false, () => { throw new Error('revoked') }, true))).rejects.toThrow('revoked')
+  })
   it('opens only own declared configuration from an active instance, with a shared plugin cooldown', async () => {
     const f = await fixture()
     const original = await manifest()

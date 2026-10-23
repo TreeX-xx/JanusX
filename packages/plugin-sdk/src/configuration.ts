@@ -18,6 +18,7 @@ export const pluginSettingSchema = z.discriminatedUnion('type', [
     options: z.array(z.string().min(1).max(256)).min(1).max(32).refine(values => new Set(values).size === values.length) }).strict(),
 ])
 export type PluginSetting = z.infer<typeof pluginSettingSchema>
+export const pluginSettingMigrationSchema = z.object({ from: common.key, to: common.key }).strict()
 export function isPluginSettingValue(setting: PluginSetting, value: unknown): value is PluginSettingValue {
   if (setting.type === 'boolean') return typeof value === 'boolean'
   if (setting.type === 'string') return typeof value === 'string' && !value.includes('\0')

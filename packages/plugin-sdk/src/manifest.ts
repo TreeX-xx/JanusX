@@ -5,7 +5,7 @@ import { PluginError } from './errors.js'
 import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { isReservedPluginKeybinding, normalizePluginKeybinding } from './keybindings.js'
 import { pluginViewerSchema } from './documents.js'
-import { pluginSettingSchema, isPluginSettingValue } from './configuration.js'
+import { pluginSettingSchema, pluginSettingMigrationSchema, isPluginSettingValue } from './configuration.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
 /** Implemented host features; old hosts reject unknown required capabilities. */
@@ -14,7 +14,7 @@ export const PLUGIN_CAPABILITIES = [
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.island', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
-  'configuration.settings', 'configuration.open',
+  'configuration.settings', 'configuration.open', 'configuration.migrations',
 ] as const
 export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
@@ -56,11 +56,18 @@ export const pluginManifestSchema = z.object({
   contributes: z.object({ views: z.array(pluginViewSchema).min(1).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
     menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional(),
     island: z.array(pluginIslandSchema).max(4).optional(), viewers: z.array(pluginViewerSchema).max(16).optional(),
-    settings: z.array(pluginSettingSchema).min(1).max(64).optional() }).strict(),
+    settings: z.array(pluginSettingSchema).min(1).max(64).optional(),
+    settingMigrations: z.array(pluginSettingMigrationSchema).min(1).max(64).optional() }).strict(),
 }).strict().superRefine((manifest, ctx) => {
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
   const settings = manifest.contributes.settings ?? []
+  const migrations = manifest.contributes.settingMigrations ?? []
+  if (migrations.length && (!settings.length || !manifest.capabilities.required.includes('configuration.migrations'))) fail('Setting migrations require settings and configuration.migrations')
+  if (new Set(migrations.map(item => item.from)).size !== migrations.length || new Set(migrations.map(item => item.to)).size !== migrations.length) fail('Ambiguous setting migrations')
+  for (const migration of migrations) {
+    if (settings.some(setting => setting.key === migration.from) || !settings.some(setting => setting.key === migration.to)) fail('Migration must rename a retired key to a current setting')
+  }
   if (manifest.capabilities.required.includes('configuration.open') && !settings.length) fail('Configuration navigation requires settings')
   if (new Set(settings.map(setting => setting.key)).size !== settings.length) fail('Duplicate setting key')
   if (settings.length && (!manifest.capabilities.required.includes('configuration.settings')
