@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, BookOpen, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Plug, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
+import { Bell, BookOpen, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Plug, Puzzle, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
 import { ModalFrame } from '@/components/shared/ModalFrame'
 import { GeneralSettingsPanel } from './GeneralSettingsPanel'
 import { AboutSettingsPanel } from './AboutSettingsPanel'
@@ -45,7 +45,7 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   models: ListFilter, usage: ChartNoAxesCombined, agent: ShieldCheck,
   team: Users, hosted: Cloud, about: Info,
   integrations: Plug,
-  plugins: Plug,
+  plugins: Puzzle,
 }
 
 // Note: the modal mounts only while open, so ModalFrame owns the whole
