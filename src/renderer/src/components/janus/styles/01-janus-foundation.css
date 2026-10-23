@@ -541,6 +541,17 @@ body.is-running {
   transition: opacity 0.22s ease, filter 0.22s ease;
 }
 
+/* Janus behavior system output channel (useJanusGaze, P1):
+   CSS vars are written onto .janus-face-mini (custom props inherit);
+   transform lives on the eye group so face-mini's inline scale (workspace
+   switch flash) and hover scale(1.06) stay outer multipliers. Lid folds
+   into scaleY so mode keyframe transforms never conflict. */
+.janus-eye-group {
+  transform:
+    translate(var(--face-x, 0px), var(--face-y, 0px))
+    scale(var(--sx, 1), calc(var(--sy, 1) * var(--lid, 1)));
+}
+
 /* 浼戠湢锛氬崟鐐瑰懠鍚?*/
 .janus-island[data-mode="sleep"] .janus-eye-mini {
   width: 4px;
@@ -558,7 +569,6 @@ body.is-running {
   border-radius: 0;
   background: #fff;
   box-shadow: 0 0 4px #fff, 0 0 8px var(--janus-order), 0 0 16px var(--janus-order-glow);
-  animation: mini-idle 8s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 瑙ｆ瀽锛氭壂鎻忕嚎 + 鏁版嵁鏍兼爡 */

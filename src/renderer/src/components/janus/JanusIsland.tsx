@@ -7,6 +7,7 @@ import { useBlueprintMaintenanceStore } from '@/stores/blueprint-maintenance'
 import { useI18n } from '@/i18n/useI18n'
 import { JanusEye } from './JanusEye'
 import { useIslandGesture } from './useIslandGesture'
+import { useJanusGaze } from './useJanusGaze'
 import { useJanusState } from './useJanusState'
 import { getBlueprintStatusVisual } from '../blueprint/blueprintStatus'
 import { formatKnowledgeMatch } from './islandKnowledgePeek'
@@ -329,6 +330,14 @@ export function JanusIsland({
           keep: t('janus:blackboard.pullHint.keep'),
           release: t('janus:blackboard.pullHint.release'),
         },
+  })
+
+  // P1 行为系统：凝视/眨眼/摸头循环（折叠胶囊态）；事件原语见 P2 接线。
+  const janusGaze = useJanusGaze({
+    faceRef: eyeContainerRef,
+    islandRef,
+    mode,
+    enabled: stage === 'collapsed',
   })
 
   const activeSession = useBlueprintStore((s) => s.activeSession)
@@ -676,7 +685,7 @@ export function JanusIsland({
       >
         <div className="janus-collapsed-core">
           <div ref={(el) => { eyeContainerRef.current = el }} className="janus-face-mini">
-            <JanusEye mode={mode} />
+            <JanusEye mode={mode} className="janus-eye-group" />
           </div>
         </div>
 
