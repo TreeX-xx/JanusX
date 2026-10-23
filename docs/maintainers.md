@@ -52,6 +52,8 @@ git push origin v0.9.3
 
 2026-10-22 维护者明确要求将更新下载与标题栏 UI 修复覆盖到 `v0.9.4`，授权本次移动 tag 并替换 Windows 附件。此例外不改变常规版本递增规则。显式重打包使用 `release-win` 的 `workflow_dispatch`，指定 `release_tag` 和 `replace_existing=true`；该选项在运行时与清单校验通过后才将原 Release 转为 draft、覆盖四个 Windows 附件并恢复公开，保留原说明和 Android 附件。上传失败保留 draft 供恢复，不公开混合附件。替换后维护者须同步 Release 说明和 `SHA256SUMS.txt`，并确认 tag、构建 revision 与附件一致。已有同版本客户端不会自动再次更新，须手动下载安装包。
 
+2026-10-23 维护者在 Windows 10 启动候选包确认可打开后，明确要求将启动修复同步到本地 `main`，替换远程 `v0.9.4` 标签代码及 Windows 安装包，文件名不含 fix。此例外沿用 `0.9.4` 正式版本，从原 v0.9.4 加启动修复独立构建，保留 Android 附件及此前更新下载修复，不把本地 main 的其他开发改动带入发布，也不据此授权推送本地 main 的其他提交。
+
 现有 `npm run release:tag -- <版本>` 是维护者快捷工具：要求干净、同步的 `main`，检查版本递增与 tag 不存在，再生成版本提交、annotated tag 和未入库的发布说明模板；默认只在本地执行，`--dry-run` 可预览，`--verify` 可先跑检查。它**不会创建版本 PR**；`--push` 会直接推送 `main` 和 tag，只能在维护者已明确授权并记录发布例外、且仓库规则允许时使用。不要为了执行脚本临时关闭分支保护。
 
 发布说明写明用户可见变化、修复、已知限制与相关 Issue/PR。若使用生成的模板，完成后通过 `gh release edit <tag> --notes-file <文件>` 或网页更新正文。

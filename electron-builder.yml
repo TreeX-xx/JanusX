@@ -496,11 +496,11 @@ win:
     - nsis
     - portable
   icon: resources/icon.ico
-  # 固定以管理员身份运行：app 自身提权后，它启动的所有终端天然继承管理员权限
-  # （嵌入 pane 的 PTY 无法单独提权 —— ConPTY 伪终端不跨 Windows 完整性级别）。
-  # 代价：每次启动都弹一次 UAC，且非管理员用户无法运行本 app。
-  # dev 不受此影响：electron-vite dev 不走打包清单，dev 下仍是标准权限。
-  requestedExecutionLevel: requireAdministrator
+  # Chromium starts sandboxed subprocesses from this same executable. Requiring
+  # elevation here can prevent GPU process creation on Windows 10 (error 18).
+  # Terminals inherit the ordinary desktop process token.
+  # Note: .agents/notes/desktop/reproducible-verification.md
+  requestedExecutionLevel: asInvoker
 
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -510,9 +510,7 @@ nsis:
 
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
-  # The stub uses ExecWait, which cannot elevate the requireAdministrator app.
-  # Request elevation before extraction so standard-user launches also work.
-  requestExecutionLevel: admin
+  requestExecutionLevel: user
 
 mac:
   target:

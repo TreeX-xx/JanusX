@@ -6,7 +6,7 @@
 // Note: entry — see .agents/notes/desktop/packaged-hoisted-deps.md
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
@@ -22,20 +22,18 @@ if (releaseArg !== -1 && (!process.argv[releaseArg + 1] || process.argv[releaseA
 const releaseDirectory = releaseArg === -1 ? join(root, 'release', packageJson.version) : resolve(process.argv[releaseArg + 1])
 const appAsar = join(releaseDirectory, 'win-unpacked', 'resources', 'app.asar')
 const unpackedExecutable = join(releaseDirectory, 'win-unpacked', 'JanusX.exe')
-const portableExecutable = join(releaseDirectory, `JanusX-${packageJson.version}-x64-portable.exe`)
+// electron-builder omits SemVer build metadata from artifact names.
+const artifactVersion = packageJson.version.split('+')[0]
+const portableExecutable = join(releaseDirectory, `JanusX-${artifactVersion}-x64-portable.exe`)
 const verifyPortable = process.argv.includes('--portable')
 
-// An elevated verifier can launch a user-level stub whose elevated payload would
-// fail with ERROR_ELEVATION_REQUIRED from Explorer. Check the shipped manifests,
-// not just a successful process launch under the verifier's current token.
-if (verifyPortable && existsSync(portableExecutable) && existsSync(unpackedExecutable)) {
-  const executionLevel = (file) => {
+// Chromium reuses the app executable for sandboxed GPU subprocesses. Inspect the
+// shipped PE manifests: a verifier's elevated token must not conceal regression.
+for (const file of [unpackedExecutable, ...(verifyPortable ? [portableExecutable] : [])]) {
+  if (existsSync(file)) {
     const match = readFileSync(file).toString('utf8').match(/<requestedExecutionLevel\b[^>]*\blevel="([^"]+)"/)
     if (!match) throw new Error(`Executable execution-level manifest missing: ${file}`)
-    return match[1]
-  }
-  if (executionLevel(unpackedExecutable) === 'requireAdministrator' && executionLevel(portableExecutable) !== 'requireAdministrator') {
-    throw new Error('Portable launcher cannot elevate its requireAdministrator payload: set portable.requestExecutionLevel to admin and repackage.')
+    if (match[1] !== 'asInvoker') throw new Error(`Packaged GUI executable must use asInvoker, found ${match[1]}: ${file}`)
   }
 }
 
@@ -246,17 +244,13 @@ console.log(
 // in the startup graph rather than in the one module llm-runtime happens to touch.
 const SMOKE_MODES = ['llm-runtime', 'module-graph']
 const STARTUP_TIMEOUT_MS = 60_000
-// Elevated Windows runners cannot start Chromium's sandboxed GPU process.
-// These headless import checks do not exercise GPU rendering; scope the flags
-// to verification children rather than changing the application's launch mode.
-const smokePlatformArgs = process.platform === 'win32' && process.env.CI
-  ? ['--disable-gpu', '--disable-gpu-sandbox'] : []
+const guiResults = []
 
 async function runSmoke(executable, mode, stage, label) {
   const profile = await mkdtemp(join(stage, 'profile-'))
   try {
     await new Promise((resolvePromise, reject) => {
-      const child = spawn(resolve(executable), [...smokePlatformArgs, `--smoke-test=${mode}`, `--user-data-dir=${profile}`], {
+      const child = spawn(resolve(executable), [`--smoke-test=${mode}`, `--user-data-dir=${profile}`], {
         stdio: 'inherit',
         windowsHide: true,
         env: { ...process.env, JANUSX_KNOWLEDGE_ROOT: join(profile, 'knowledge') },
@@ -277,6 +271,43 @@ async function runSmoke(executable, mode, stage, label) {
     })
   } finally {
     await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  }
+}
+
+// Exercise the normal entry, native GPU subprocesses, preload and rendered page.
+// Import-only smoke modes skip normal startup and cannot prove a window opens.
+async function verifyGui(executable, stage, label) {
+  const { _electron } = await import('@playwright/test')
+  const profile = await mkdtemp(join(stage, 'gui-profile-'))
+  const env = { ...process.env, JANUSX_KNOWLEDGE_ROOT: join(profile, 'knowledge'), ELECTRON_RENDERER_URL: '' }
+  delete env.ELECTRON_RUN_AS_NODE
+  let application
+  try {
+    application = await _electron.launch({
+      executablePath: resolve(executable), args: [`--user-data-dir=${profile}`], env, timeout: STARTUP_TIMEOUT_MS,
+    })
+    const page = await application.firstWindow({ timeout: STARTUP_TIMEOUT_MS })
+    await page.waitForFunction(() => Boolean(window.electron) && document.getElementById('root')?.childElementCount > 0 && document.body.innerText.trim().length > 20,
+      undefined, { timeout: STARTUP_TIMEOUT_MS })
+    const result = await application.evaluate(({ app, BrowserWindow }) => ({
+      version: app.getVersion(),
+      windows: BrowserWindow.getAllWindows().map(window => ({ visible: window.isVisible(), url: window.webContents.getURL() })),
+      forbiddenSwitches: ['no-sandbox', 'disable-gpu-sandbox', 'disable-gpu'].filter(name => app.commandLine.hasSwitch(name)),
+      chromiumLog: app.commandLine.getSwitchValue('log-file'),
+      gpu: app.getGPUFeatureStatus(),
+    }))
+    if (result.version !== packageJson.version || !result.windows.some(window => window.visible && window.url.startsWith('file:'))) {
+      throw new Error(`${label} did not display the packaged application window: ${JSON.stringify(result)}`)
+    }
+    if (result.forbiddenSwitches.length) throw new Error(`${label} bypassed the normal GPU launch: ${result.forbiddenSwitches.join(', ')}`)
+    const startupLog = readFileSync(join(profile, 'logs', 'startup.log'), 'utf8')
+    if (!startupLog.includes(`Starting JanusX ${packageJson.version}`) || !result.chromiumLog) {
+      throw new Error(`${label} startup diagnostics were not configured`)
+    }
+    guiResults.push({ label, ...result, startupLog })
+    console.log(`[packaged-gui] ${label} visible, renderer and preload ready, native GPU launch enabled`)
+  } finally {
+    if (application) await application.close()
   }
 }
 
@@ -323,13 +354,14 @@ async function verifyPortablePayload(stage) {
     if (!existsSync(join(extracted, required))) throw new Error(`portable installer is missing ${required}`)
   }
   for (const mode of SMOKE_MODES) await runSmoke(join(extracted, 'JanusX.exe'), mode, stage, 'portable payload')
+  await verifyGui(join(extracted, 'JanusX.exe'), stage, 'portable payload')
 }
 
 async function verifyPortableStub(stage) {
   const alreadyRunning = new Set(processIds('janusx.exe'))
   const profile = await mkdtemp(join(stage, 'profile-'))
   try {
-    const stub = spawn(resolve(portableExecutable), [...smokePlatformArgs, `--smoke-test=module-graph`, `--user-data-dir=${profile}`], {
+    const stub = spawn(resolve(portableExecutable), [`--smoke-test=module-graph`, `--user-data-dir=${profile}`], {
       stdio: 'ignore',
       windowsHide: true,
       env: { ...process.env, JANUSX_KNOWLEDGE_ROOT: join(profile, 'knowledge') },
@@ -363,6 +395,7 @@ const stage = await mkdtemp(join(tmpdir(), 'janusx-packaged-runtime-'))
 try {
   await cp(join(releaseDirectory, 'win-unpacked'), join(stage, 'app'), { recursive: true })
   for (const mode of SMOKE_MODES) await runSmoke(join(stage, 'app', 'JanusX.exe'), mode, stage, 'unpacked')
+  await verifyGui(join(stage, 'app', 'JanusX.exe'), stage, 'unpacked')
 
   if (verifyPortable) {
     if (!existsSync(portableExecutable)) throw new Error(`Portable artifact missing: ${portableExecutable}`)
@@ -370,7 +403,9 @@ try {
     await verifyPortableStub(stage)
   }
 
-  console.log(`Packaged LLM runtime verified${verifyPortable ? ' (unpacked + portable payload + portable stub)' : ''}.`)
+  await mkdir(join(root, 'artifacts'), { recursive: true })
+  await writeFile(join(root, 'artifacts', 'packaged-runtime-gui.json'), JSON.stringify({ version: packageJson.version, platform: process.platform, results: guiResults }, null, 2))
+  console.log(`Packaged runtime and GUI verified${verifyPortable ? ' (unpacked + portable payload + portable stub)' : ''}.`)
 } finally {
   await rm(stage, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }

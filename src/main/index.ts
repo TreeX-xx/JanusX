@@ -2,6 +2,7 @@ import { app, BrowserWindow, crashReporter, dialog, ipcMain } from 'electron'
 import { isAgentHookClientInvocation, runAgentHookClient } from './notifications/agent-hook-client'
 import { configureApplicationProfile, configureChromiumSessionPaths } from './bootstrap/session'
 import { migrateLegacyPortableProfile } from './bootstrap/profile-migration'
+import { configureStartupDiagnostics, logStartupFailure } from './bootstrap/startup-diagnostics'
 import { join } from 'node:path'
 import { registerPluginScheme } from './plugins/scheme'
 
@@ -13,6 +14,7 @@ const isModuleGraphSmoke = process.argv.includes('--smoke-test=module-graph')
 const isSmokeTest = isLlmRuntimeSmoke || isModuleGraphSmoke
 
 configureApplicationProfile(isHookClient || isSmokeTest)
+if (!isHookClient && !isSmokeTest) configureStartupDiagnostics()
 configureChromiumSessionPaths(isHookClient || isSmokeTest)
 
 // AC1 / AC4: process-level exception fences.
@@ -57,7 +59,7 @@ function handleRecoverableBurst(): void {
 }
 
 process.on('uncaughtException', (err) => {
-  console.error('[main] uncaughtException:', err)
+  logStartupFailure('[main] uncaughtException:', err)
   if (!bootstrapComplete) {
     // Fatal: bootstrap stage. Allow exit so failure is visible.
     process.exit(1)
@@ -68,7 +70,7 @@ process.on('uncaughtException', (err) => {
 })
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[main] unhandledRejection:', reason)
+  logStartupFailure('[main] unhandledRejection:', reason)
   if (!bootstrapComplete) {
     process.exit(1)
     return
@@ -90,7 +92,7 @@ if (isHookClient) {
   void bootstrapApp().then(() => {
     bootstrapComplete = true
   }).catch((err) => {
-    console.error('[main] bootstrapApp failed:', err)
+    logStartupFailure('[main] bootstrapApp failed:', err)
     dialog.showErrorBox('JanusX 启动失败 / Startup failed', String(err))
     if (!bootstrapComplete) process.exit(1)
   })

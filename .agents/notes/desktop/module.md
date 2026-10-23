@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-21T17:19:58Z",
+  "updated": "2026-10-23T13:37:00.112Z",
   "moduleState": "partial"
 }
 ---
@@ -30,6 +30,8 @@
 下列链接保留已有决策、阶段需求和交付记录的阅读路径；正文及生命周期由原 Note 负责。历史 parent 仅组织文档，跨模块关联由本声明的 related-to 补充。模块声明只在职责、接口、明确依赖或代码入口变化时维护。
 
 ## Design
+
+v0.9.4 的 Windows 启动修复采用调用者权限启动桌面程序与便携启动器，终端继承当前权限。用户已确认候选包在故障 Windows 10 上可以打开，并授权以正式名称替换 v0.9.4 的 Windows 附件与标签代码。包验证包含不带 GPU 绕过参数的真实窗口启动；启动日志保存于所选用户配置目录的 `logs`。原因、代价及验证范围由 [reproducible-verification](./reproducible-verification.md) 维护。
 
 v0.9.4 相较 v0.9.3 的用户可见变化及安装说明维护在[版本说明](../../../docs/releases/v0.9.4.md)，发布包限定 Android 局域网测试，开发构建保留跨网实现。旧 wiki 已删除，README 和相关专题中的历史素材链接固定至 v0.9.3 Git 存档，避免随 main 删除失效；当前工程文档继续由 `.agents/notes` 与 `docs` 维护。二维码扫描区的白底及其深色加载文字是主题无关的扫描对比度要求，主题例外随组件迁移至 StatusBar.module.css；操作按钮已使用主题变量，不保留旧的白字按钮例外。
 
