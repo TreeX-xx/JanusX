@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "example.status-provider",
+  "name": "GitHub public status provider",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["tasks.declarative", "network.fetch", "services.public", "agent.services"], "optional": [] },
+  "permissions": [{ "name": "tasks.run" }, { "name": "network.fetch", "origins": ["https://www.githubstatus.com"] }, { "name": "services.public" }, { "name": "agent.services" }],
+  "contributes": {
+    "views": [],
+    "tasks": [{ "id": "status", "title": "Read GitHub public status", "scope": "application", "input": {}, "timeoutMs": 5000,
+      "steps": [{ "type": "request", "request": { "url": "https://www.githubstatus.com/api/v2/status.json" } }] }],
+    "services": [{ "id": "status", "version": 1, "task": "status", "consumers": ["janusx.agent", "example.status-consumer"] }]
+  }
+}

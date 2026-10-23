@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "example.status-consumer",
+  "name": "Public status task",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["tasks.declarative", "services.public"], "optional": [] },
+  "permissions": [{ "name": "tasks.run" }, { "name": "services.public" }],
+  "contributes": {
+    "views": [],
+    "tasks": [{ "id": "status", "title": "Read GitHub public status", "scope": "application", "input": {}, "timeoutMs": 6000,
+      "steps": [{ "type": "service", "plugin": "example.status-provider", "service": "status", "version": 1, "input": {} }] }],
+    "consumes": { "services": [{ "plugin": "example.status-provider", "id": "status", "version": 1, "schema": {} }] }
+  }
+}

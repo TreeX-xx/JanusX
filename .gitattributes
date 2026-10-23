@@ -1,0 +1,2 @@
+# Keep the executable SDK CLI importable by the Windows Vite/Vitest loader.
+packages/plugin-sdk/tools/cli.mjs text eol=lf

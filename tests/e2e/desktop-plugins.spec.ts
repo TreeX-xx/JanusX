@@ -83,6 +83,58 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P6 built-in Agent discovers public services, enforces approval, tracks results and cancels its host task', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile('packages/plugin-sdk/examples/p6-status-provider/manifest.json', 'utf8'))
+    // Deterministic desktop fixture: the production HTTPS transport is covered separately.
+    manifest.contributes.tasks[0].steps = [{ type: 'delay', milliseconds: 1200 }, { type: 'log', message: 'Status fixture completed' }]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P6 Project', path }), f.project)
+    await page.reload(); await page.getByText('P6 Project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id, manifest.id)
+    const request = { plugin: manifest.id, service: 'status', version: 1, input: {} }
+    const context = { workspaceId: workspace.id, workspaceRoot: f.project }
+    const sessions = await page.evaluate(async context => {
+      const api = (window as any).electron.agentRuntime
+      const plan = await api.createSession({ ...context, approvalMode: 'plan' })
+      const run = await api.createSession({ ...context, approvalMode: 'per-action' })
+      return { plan: plan.id, run: run.id }
+    }, context)
+    const denied = await page.evaluate(({ sessionId, request }) => (window as any).electron.agentRuntime.executeTool({ sessionId, call: { toolName: 'plugin.call-service', input: request } }), { sessionId: sessions.plan, request })
+    expect(denied.status).toBe('failed')
+    const found = await page.evaluate(sessionId => (window as any).electron.agentRuntime.executeTool({ sessionId, call: { toolName: 'plugin.services', input: {} } }), sessions.run)
+    expect(found.output).toMatchObject([{ plugin: manifest.id, service: 'status' }])
+    const completed = await page.evaluate(async ({ sessionId, request }) => {
+      const api = (window as any).electron.agentRuntime
+      let approvals = 0
+      const unsubscribe = api.onEvent((event: any) => {
+        if (event.type === 'approval-requested' && event.request.sessionId === sessionId) {
+          approvals++; void api.resolveApproval({ ...event.request, approvalId: event.request.id, approved: true })
+        }
+      })
+      try { return { result: await api.executeTool({ sessionId, call: { toolName: 'plugin.call-service', input: request } }), approvals } }
+      finally { unsubscribe() }
+    }, { sessionId: sessions.run, request })
+    expect(completed.approvals).toBe(1)
+    expect(completed.result).toMatchObject({ status: 'completed', output: { pluginId: 'janusx.agent', state: 'completed', logs: [{ code: 'delay' }, { message: 'Status fixture completed' }] } })
+    await page.evaluate(async ({ sessionId, request }) => {
+      const api = (window as any).electron.agentRuntime
+      await api.setApprovalMode(sessionId, 'auto-run')
+      ;(window as any).p6Pending = api.executeTool({ sessionId, call: { toolName: 'plugin.call-service', input: request } })
+    }, { sessionId: sessions.run, request })
+    await expect.poll(async () => {
+      const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+      return snapshot.data.tasks.some((run: any) => run.pluginId === 'janusx.agent' && run.state === 'running')
+    }).toBe(true)
+    await page.evaluate(sessionId => (window as any).electron.agentRuntime.cancelSession(sessionId), sessions.run)
+    expect((await page.evaluate(() => (window as any).p6Pending)).status).toBe('cancelled')
+    const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+    expect(snapshot.data.tasks.map((run: any) => run.state)).toEqual(['completed', 'cancelled'])
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('P5 manifest-only tasks run without pages, expose service logs, survive settings close and stop on provider disable', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

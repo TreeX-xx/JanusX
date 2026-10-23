@@ -14,7 +14,7 @@ import { PluginConfigurationStore } from './configuration'
 import type { PluginManageRequest } from '../../shared/ipc/plugins'
 import { PluginCredentials, PluginNetwork, type PluginEncryption, type PluginNetworkTransport } from './network'
 import { PluginBackground, type BackgroundIdentity } from './background'
-import type { PluginMessage, PluginNetworkRequest } from '@janusx/plugin-sdk'
+import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type PluginAgentService, type PluginTaskRun } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
 interface Instance {
@@ -709,6 +709,40 @@ export class PluginService {
         this.allowed(record)
         if (this.records.get(plugin) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== generation || projectId && this.current.revision !== revision) error('STALE_CONTEXT', 'Background activation changed.')
       } }
+  }
+  private async agentContext(context: { workspaceId: string; workspaceRoot: string }): Promise<() => void> {
+    const revision = this.current.revision
+    const root = await realpath(context.workspaceRoot)
+    const valid = () => {
+      if (revision !== this.current.revision || context.workspaceId !== this.current.projectId || root !== this.current.root) error('STALE_CONTEXT', 'Agent service requires the active project/worktree.')
+    }
+    valid(); return valid
+  }
+  async discoverAgentServices(context: { workspaceId: string; workspaceRoot: string }): Promise<PluginAgentService[]> {
+    await this.initialize()
+    const valid = await this.agentContext(context)
+    const services: PluginAgentService[] = []
+    for (const record of this.records.values()) for (const projectId of [null, context.workspaceId]) {
+      try { valid(); services.push(...this.background.agentServices(this.backgroundIdentity(record.manifest.id, projectId))) } catch { /* Unavailable/unauthorized providers are not advertised. */ }
+    }
+    valid(); return services
+  }
+  async callAgentService(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal: AbortSignal): Promise<PluginTaskRun> {
+    await this.initialize()
+    const parsed = serviceCallSchema.safeParse(params)
+    if (!parsed.success) error('INVALID_REQUEST', 'Agent service input is invalid.')
+    const request = parsed.data!
+    // Capture activation before asynchronous workspace validation; reload/regrant cannot retarget a call.
+    const record = this.record(request.plugin); const digest = record.digest; const generation = this.activations.get(record) ?? 0
+    const valid = await this.agentContext(context)
+    if (this.records.get(request.plugin) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== generation) error('STALE_CONTEXT', 'Agent provider activation changed.')
+    const service = record.manifest.contributes.services?.find(item => item.id === request.service && item.version === request.version)
+    const task = record.manifest.contributes.tasks?.find(item => item.id === service?.task)
+    if (!task) error('DEPENDENCY_UNAVAILABLE', 'Agent service is unavailable.')
+    const identity = this.backgroundIdentity(request.plugin, task!.scope === 'project' ? context.workspaceId : null)
+    const providerValid = identity.valid
+    identity.valid = () => { valid(); providerValid() }
+    return this.background.callAgent(identity, request, signal)
   }
   async backgroundManage(request: Extract<PluginManageRequest, { type: 'taskStart' | 'taskCancel' | 'credentialStatus' | 'credentialSet' }>): Promise<unknown> {
     if (request.type === 'taskCancel') return { cancelled: this.background.cancel(request.runId) }

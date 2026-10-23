@@ -37,6 +37,8 @@ export async function checkPlugin(directory) {
   if (!manifestStat.isFile() || manifestStat.isSymbolicLink()) throw new PluginError('INVALID_PACKAGE_PATH', 'Manifest must be a regular file.')
   if (manifestStat.size > 64 * 1024) throw new PluginError('PACKAGE_LIMIT_EXCEEDED', 'Manifest exceeds 64 KiB.')
   const manifest = parsePluginManifest(await readFile(manifestFile, 'utf8'))
+  // Match the host installer: declarative-only packages deliver only their manifest.
+  if (!manifest.contributes.views.length) return manifest
   const found = new Set()
   let count = 1
   let bytes = manifestStat.size

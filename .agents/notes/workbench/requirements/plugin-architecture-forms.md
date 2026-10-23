@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-23T07:51:04Z",
+  "updated": "2026-10-23T09:47:40Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -83,6 +83,8 @@ S1 已提供可信渲染器注册与生命周期，S2 已迁移文件树、Git �
 - Keep-alive and bridge memory need measurement before the sandboxed form is declared done.
 
 ## Verification
+
+AC-15 已接通内置 Agent 的公开服务首片：显式授权、宿主执行审批、当前项目／worktree 校验、取消与独立结果归属，以及公共状态提供者、普通 UI 消费者和公开适配指南。外部 CLI 插件服务发现／调用统一标为未支持，不注入不存在的 hook。模型代发、插件技能／工作流和文档上下文提供者仍待续，P6 与本条保持未勾选；实际证据和未测边界归[P6 首片](../../planning/plugin-platform-roadmap.md#p6-内置-agent公开服务首片)。
 
 AC-13／AC-14 按 P5 的宿主声明式任务路径交付，当前证据来自 Windows 开发构建。无页面提供者／消费者、任务取消／超时／项目归属、公开事件／服务的双方契约与循环控制、HTTPS 目标及重定向拒绝、离线页面、加密凭证的重启恢复及撤销均有实际验证，详见[P5 交付](../../planning/plugin-platform-roadmap.md#p5-声明式后台网络与事件交付)。Node 权限试验不满足网络隔离，普通后台 JS 未开放；认证响应仅返回状态，原始密钥没有插件读取接口。其他平台和安装包仍未验收，不据此关闭 P4 或 P6。
 

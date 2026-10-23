@@ -8,6 +8,7 @@ import { registerProjectTools } from '../agent/runtime/tools/project-tools'
 import { registerGitTools } from '../agent/runtime/tools/git-tools'
 import { registerCommandTools } from '../agent/runtime/tools/command-tools'
 import { registerUserMemoryTools } from '../agent/runtime/tools/user-memory-tools'
+import { registerPluginTools, type PluginAgentPort } from '../agent/runtime/tools/plugin-tools'
 import { harnessNoteService } from '../harness/service'
 import { registerSuggestionTools } from '../blueprint/suggestions/tools'
 import { blueprintReviewRuntime } from '../blueprint/review/runtime'
@@ -18,7 +19,7 @@ let mcpReady: Promise<McpToolManager> | undefined
 export async function closeAgentMcp(): Promise<void> { await (await mcpReady)?.close() }
 let getMainWindow: () => BrowserWindow | null = () => null
 
-export function registerAgentRuntimeHandlers(windowGetter: () => BrowserWindow | null, ipcMain: IpcMain, resolveWorkspaceRoot?: ResolveWorkspaceRoot): void {
+export function registerAgentRuntimeHandlers(windowGetter: () => BrowserWindow | null, ipcMain: IpcMain, resolveWorkspaceRoot?: ResolveWorkspaceRoot, getPluginPort: () => PluginAgentPort | undefined = () => undefined): void {
   getMainWindow = windowGetter
   // Office guard resolves `undefined` for unknown workspaces; the core port
   // uses `null` for the same case (fail-closed on both sides).
@@ -31,6 +32,7 @@ export function registerAgentRuntimeHandlers(windowGetter: () => BrowserWindow |
   registerGitTools(workspaceAgentRuntime.registry)
   registerCommandTools(workspaceAgentRuntime.registry)
   registerUserMemoryTools(workspaceAgentRuntime.registry)
+  registerPluginTools(workspaceAgentRuntime.registry, getPluginPort)
   mcpReady = connectConfiguredMcp(workspaceAgentRuntime.registry)
   registered = true
   ipcMain.handle(AGENT_RUNTIME_CHANNELS.createSession, async (event, input: CreateAgentSessionInput) => {

@@ -101,7 +101,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
     handleTerminalHostWindowClosed()
   })
 
-  registerAgentRuntimeHandlers(getCurrentMainWindow, ipcMain, options.resolveWorkspaceRoot)
+  registerAgentRuntimeHandlers(getCurrentMainWindow, ipcMain, options.resolveWorkspaceRoot, () => pluginService)
   if (applicationIpcRegistered) {
     mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) pluginService?.closeAll() })
     mainWindow.webContents.on('render-process-gone', () => pluginService?.closeAll())

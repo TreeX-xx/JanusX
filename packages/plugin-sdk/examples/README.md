@@ -1,5 +1,7 @@
 # Declarative background examples
 
+The P6 [Agent service adapter guide](agent-services.md) covers explicit Agent authorization and a public status provider shared with the host task UI. Model mediation and plugin skills/workflows remain future work.
+
 Link `p5-provider` and enable it first, then link and enable `p5-consumer`. Both are manifest-only packages: no Node entry, page, build or dependency install is needed. Open Settings → Plugins → Background tasks and credentials, then run either report task. Close Settings while it runs and reopen to see its logs. Stop a running task there; run it again to retry. Disabling either participant stops its dependent work.
 
 Each package declares its own permissions. The provider's service delegates only the named task and only to the listed consumer. Its input is the task's primitive object schema; the versioned output is the host's `PluginTaskRun` status/log/result contract. Project tasks bind to the current approved project/worktree and stop when that context changes. Application tasks survive project selection changes. Runs are not resumed after an app restart.

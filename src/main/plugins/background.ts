@@ -1,13 +1,15 @@
 // Note: .agents/notes/workbench/plugin-contract-v1.md — P5 supervised declarative tasks and public contracts.
 import { randomUUID } from 'node:crypto'
+import { setTimeout as delay } from 'node:timers/promises'
 import { PluginError, matchesPluginMessage, type PluginManifest, type PluginMessage, type PluginTaskRun,
-  type PluginPublicEvent, type PluginNetworkRequest } from '@janusx/plugin-sdk'
+  type PluginPublicEvent, type PluginNetworkRequest, type PluginAgentService } from '@janusx/plugin-sdk'
 import type { PluginNetwork } from './network'
 
-export interface BackgroundIdentity {
-  plugin: string; manifest: PluginManifest; scope: string; projectId: string | null; rootId: string | null; valid(): void
+interface BackgroundOwner {
+  plugin: string; scope: string; projectId: string | null; rootId: string | null; valid(): void
 }
-interface Execution { run: PluginTaskRun; identity: BackgroundIdentity; controller: AbortController; involved: Set<string>; steps: number; resultBytes: number }
+export interface BackgroundIdentity extends BackgroundOwner { manifest: PluginManifest }
+interface Execution { run: PluginTaskRun; identity: BackgroundOwner; controller: AbortController; involved: Set<string>; steps: number; resultBytes: number }
 interface PublicSubscription { page: string; identity: BackgroundIdentity; plugin: string; event: string; version: number; send(event: PluginPublicEvent): void }
 export class PluginBackground {
   private runs = new Map<string, Execution>()
@@ -26,11 +28,11 @@ export class PluginBackground {
     identity.valid()
     if (!identity.manifest.permissions.some(item => item.name === name)) throw new PluginError('PERMISSION_DENIED', 'Background permission missing.')
   }
-  list(identity?: BackgroundIdentity): PluginTaskRun[] {
+  list(identity?: BackgroundOwner): PluginTaskRun[] {
     identity?.valid()
     return structuredClone([...this.runs.values()].filter(item => !identity || item.run.pluginId === identity.plugin && item.identity.scope === identity.scope).map(item => item.run))
   }
-  cancel(id: string, identity?: BackgroundIdentity): boolean {
+  cancel(id: string, identity?: BackgroundOwner): boolean {
     const item = this.runs.get(id)
     if (!item) return false
     if (identity && (item.run.pluginId !== identity.plugin || item.identity.scope !== identity.scope)) throw new PluginError('PERMISSION_DENIED', 'Task belongs to another scope.')
@@ -38,7 +40,7 @@ export class PluginBackground {
     item.run.state = 'cancelled'; item.run.finished = new Date().toISOString(); item.controller.abort(); this.deps.changed(); return true
   }
   revoke(plugin?: string, projectOnly = false): void {
-    for (const item of this.runs.values()) if ((!plugin || item.involved.has(plugin)) && (!projectOnly || item.run.projectId)) this.cancel(item.run.id)
+    for (const item of this.runs.values()) if ((!plugin || item.involved.has(plugin)) && (!projectOnly || item.run.projectId || item.run.pluginId === 'janusx.agent')) this.cancel(item.run.id)
     for (const [id, sub] of this.subscriptions) if ((!plugin || sub.identity.plugin === plugin || sub.plugin === plugin) && (!projectOnly || sub.identity.projectId)) this.subscriptions.delete(id)
     for (const [id, entry] of this.eventHistory) if ((!plugin || entry.event.trace.includes(plugin)) && (!projectOnly || entry.scope !== 'application')) this.eventHistory.delete(id)
   }
@@ -84,7 +86,37 @@ export class PluginBackground {
     const { provider, task } = this.service(identity, params.plugin, params.service, params.version, params.input)
     return this.launch(identity, provider, task.id, params.input)
   }
-  private launch(owner: BackgroundIdentity, provider: BackgroundIdentity, task: string, input: PluginMessage): { id: string } {
+  agentServices(provider: BackgroundIdentity): PluginAgentService[] {
+    this.permission(provider, 'agent.services'); this.permission(provider, 'services.public')
+    return (provider.manifest.contributes.services ?? []).flatMap(service => {
+      const task = provider.manifest.contributes.tasks?.find(task => task.id === service.task)
+      return service.consumers.includes('janusx.agent') && task && (task.scope === 'project') === Boolean(provider.projectId)
+        ? [{ plugin: provider.plugin, service: service.id, version: service.version, title: task.title, scope: task.scope, input: structuredClone(task.input) }] : []
+    })
+  }
+  async callAgent(provider: BackgroundIdentity, params: { service: string; version: number; input: PluginMessage }, signal: AbortSignal): Promise<PluginTaskRun> {
+    if (signal.aborted) throw new PluginError('CANCELLED', 'Agent tool stopped.')
+    if (!this.agentServices(provider).some(service => service.service === params.service && service.version === params.version)) throw new PluginError('DEPENDENCY_UNAVAILABLE', 'Agent service is unavailable.')
+    const service = provider.manifest.contributes.services!.find(service => service.id === params.service && service.version === params.version)!
+    // The host owns the invocation. Provider pages cannot list/cancel/read Agent results.
+    const owner: BackgroundOwner = { ...provider, plugin: 'janusx.agent', scope: `${provider.scope}:agent:${randomUUID()}` }
+    const { id } = this.launch(owner, provider, service.task, params.input)
+    const cancel = () => { this.cancel(id, owner) }
+    signal.addEventListener('abort', cancel, { once: true })
+    try {
+      if (signal.aborted) cancel()
+      while (this.runs.get(id)?.run.state === 'running') await delay(25, undefined, { signal })
+      if (signal.aborted) throw new PluginError('CANCELLED', 'Agent tool stopped.')
+      owner.valid()
+      const run = this.runs.get(id)?.run
+      if (!run) throw new PluginError('CANCELLED', 'Agent result was removed.')
+      return structuredClone(run)
+    } catch (cause) {
+      if (signal.aborted) throw new PluginError('CANCELLED', 'Agent tool stopped.')
+      throw cause
+    } finally { signal.removeEventListener('abort', cancel); this.cancel(id, owner) }
+  }
+  private launch(owner: BackgroundOwner, provider: BackgroundIdentity, task: string, input: PluginMessage): { id: string } {
     owner.valid(); provider.valid()
     this.budget(owner.plugin, 'task', 20)
     const active = [...this.runs.values()].filter(item => item.run.state === 'running')

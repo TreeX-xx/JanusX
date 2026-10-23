@@ -26,6 +26,18 @@ describe('packed SDK development tools', () => {
     expect((await checkPlugin(root)).id).toBe('example.project-reference')
   })
 
+  it('checks manifest-only providers/consumers without a build or dist directory', async () => {
+    for (const name of ['p5-provider', 'p5-consumer', 'p6-status-provider', 'p6-status-consumer']) {
+      expect((await checkPlugin(`packages/plugin-sdk/examples/${name}`)).contributes.views).toEqual([])
+    }
+    const { root } = await fixture()
+    const manifest = await readFile('packages/plugin-sdk/examples/p6-status-provider/manifest.json', 'utf8')
+    await writeFile(join(root, 'manifest.json'), manifest)
+    // Like the installer, unrelated resources of manifest-only packages are not delivered or executed.
+    await writeFile(join(root, 'dist/native.exe'), 'not a delivered resource')
+    expect((await checkPlugin(root)).id).toBe('example.status-provider')
+  })
+
   it('reports missing entries, resource budgets and unsupported resource types', async () => {
     const { root } = await fixture()
     await rm(join(root, 'dist/summary.html'))

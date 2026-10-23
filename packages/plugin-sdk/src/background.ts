@@ -50,4 +50,9 @@ export interface PluginTaskRun {
   state: 'running' | 'completed' | 'cancelled' | 'timeout' | 'failed'; started: string; finished?: string
   logs: Array<{ time: string; code: string; message?: string }>; results: PluginNetworkResult[]; error?: string
 }
+/** Host Agent adapter uses the same versioned service and primitive task input as plugin UI clients. */
+export interface PluginAgentService {
+  plugin: string; service: string; version: number; title: string
+  scope: 'application' | 'project'; input: PluginMessageShape
+}
 export interface PluginPublicEvent { id: string; source: string; event: string; version: number; data: PluginMessage; trace: string[] }

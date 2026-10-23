@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-23T07:51:04Z",
+  "updated": "2026-10-23T09:48:39Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -22,7 +22,7 @@
 
 目标是让用户通过插件组合中部工作区、工具箱、右侧栏、Island、独立工作台，以及文件、任务、Agent 和外部系统能力，形成完整功能。入口、命令、视图、展示位置与能力授权分别建模；已有官方功能逐步使用同一贡献语义。完整设计归[插件平台架构](../workbench/plugin-platform-design.md)，PI-Desktop 调研继续归[研究 Note](../workbench/ideas/plugin-platform-and-feature-modularization.md)。
 
-保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区。P4 已实施只读 viewer 首片，文件编辑／事务保存、目录查询及完整多实例验收待续，P5 已采用宿主声明式任务交付后台监督、受限网络／凭证及事件／公开服务，P6–P8 尚待实施。实际验证、完整门禁证据及平台限制见下文各阶段专节。
+保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区。P4 已实施只读 viewer 首片，文件编辑／事务保存、目录查询及完整多实例验收待续，P5 已采用宿主声明式任务交付后台监督、受限网络／凭证及事件／公开服务，P6 首片已接通内置 Agent／公开服务，模型代发和技能／工作流仍待续，P7–P8 尚待实施。实际验证、完整门禁证据及平台限制见下文各阶段专节。
 
 本计划采用相对排期，参考工作量按单条主线、主 Agent 顺序实施估算，包含相关测试与文档维护，不指定起始日期或版本，不挤占既有事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。估算不是历史速度或承诺工期，每批开始前按实际代码、依赖和试验结果修订。普通文档维护与普通 xdo 不创建执行 Task，阶段通过仍以所属需求和实际证据为准。
 
@@ -196,13 +196,27 @@ P5 已实现无页面包、任务状态／日志／取消／超时／显式重�
 
 `npm run check:notes` 检查 306 篇，仍只有既有开场编排 Note 的缺 AC 与时间倒置两项错误，见 `artifacts/plugin-p5-notes-final.log`，本轮维护文档无新增错误。未运行整条 verify、完整桌面全集、安装包验收或 macOS／Linux 实机验证；没有真实供应商账号或公网可用性验收。当前认证请求只返回状态，配置页不读明文密钥，任意后台 JS 保持未开放；这些范围不能从上述通过项推导为已支持。
 
+## P6 内置 Agent／公开服务首片
+
+本片复用 P5 声明式服务，不开放任意后台或 Agent 插件代码。新增 agent.services 显式授权、内置 Agent 服务发现／调用工具、宿主 run 审批与审计、当前项目／worktree 校验、取消传递与独立结果归属；应用级服务的 Agent 调用也随上下文撤销。SDK 提供固定 HTTPS 的公共状态提供者与普通消费者任务，二者和 Agent 消费同一版本／输入契约。公开适配指南与外部 CLI 插件服务可用性矩阵一起交付；外部 CLI 均未接通 P6 hook，不将既有通知适配误记为插件服务支持。契约和限制归[首版契约](../workbench/plugin-contract-v1.md#p6-首片内置-agent-调用公开服务)。
+
+本轮由主 Agent 直接实施与自检，无独立 Agent 审查。模型代发、插件技能／工作流和文档上下文提供者尚未实施；当前会话必须匹配选中项目／worktree，未增加持久会话任务索引。公网状态端点没有真实可用性验收，单元网络为替身，桌面为确定性延时／日志夹具。P6 与 AC-15 保持未完成。
+
+插件专项最终 `npm run plugins:check` 通过 11 份／174 项，包括新增 12 项 Agent 服务测试、无页面 CLI 校验和仓库外 SDK 打包安装／类型检查／构建，日志 `artifacts/plugin-p6-plugins-complete.log`；既有 Agent 工具回归 5 份／31 项通过，日志 `artifacts/plugin-p6-agent-regression.log`。新增测试覆盖授权升级、版本／schema、计划模式拒绝、逐次审批、UI／Agent 响应一致、取消与工具超时、跨 worktree／停用的迟到结果拒绝、提供者页面无权读取或取消 Agent 任务。CLI 原先错误要求无页面包存在 dist，已与宿主的 manifest-only 规则对齐；两份 P6 示例实际通过 CLI check。收尾统一换行曾把 CLI 的 LF 改为 CRLF，触发 Vitest 加载失败（`plugin-p6-plugins-delivery.log`），恢复其原有 LF 并用路径级 .gitattributes 固定后，最终专项通过，不把该失败记作成功。
+
+`npm run build:app`、`typecheck:strict-unused`、包边界、exclusions 与 i18n 检查通过；lint 为 0 错误、67 条既有警告。日志分别为 `artifacts/plugin-p6-build.log`、`plugin-p6-types-final.log`、`plugin-p6-boundary.log`、`plugin-p6-exclusions.log`、`plugin-p6-i18n.log` 与 `plugin-p6-lint-final.log`。
+
+Windows Electron 命令 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/unified-file-window.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-p6/desktop` 首轮 18 通过、1 失败，日志 `artifacts/plugin-p6-desktop.log`。新 P6 用例实际验证工具注册、IPC、plan 拒绝、审批、任务 ID／结果及会话取消；失败的 P4a 用例尚未执行即报 worker process exited unexpectedly，退出码 3221226505，不能宣称整轮全绿。随后对同一稳定构建执行 `--grep "P4a declarative configuration"`，1 项通过，日志 `artifacts/plugin-p6-desktop-config-retry.log`；不将定向复测写成 19 项整轮通过。
+
+`npm run check:notes` 最终检查 308 篇，报既有开场编排 Note 缺 AC／时间倒置，以及无关 island-behavior-system Task 缺 Evidence 共 3 项错误，日志 `artifacts/plugin-p6-notes-final.log`；本片维护 Note 没有新增错误。这些无关工作区内容保持未提交。未重跑全仓单测或整条 verify，未验证完整桌面全集、安装包与 macOS／Linux，也没有公网状态端点或真实模型供应商验收。
+
 ### 里程碑与执行顺序
 
 推荐主线为 P0 → P1 → P2 → P3 → P4 → P5 → P6；新增 P4a 的声明式配置基础与隔离自定义设置页已在 P5／P6 前交付，P5 凭证引用已随声明式后台主线交付。P7 是 P3 之后可独立调整优先级的工作包；P8 不依赖全部贡献类型或全部官方功能迁移，在 P2 与来源规则通过后可独立实施，推荐在 P4 形成稳定兼容面后进入。这里的独立表示依赖关系，不安排并行 Agent。
 
 - M1 可开发的本地平台：P0–P2，参考 12–20 有效工作日；另留约 20%–30% 联调与缺陷余量，整体预算约 15–26 日。出口是外部作者完成只读目录插件，不包含工作台、Island、网络、执行或模型开放。
 - M2 可组合的工作台：P3–P4，新增约 10–16 日并单独预留回归余量。出口是完整工作台／Island 联动及文件查看／编辑；保留原工作区、浏览器和终端行为。
-- M3 有业务能力的平台：P5–P6。后台试验已确定宿主声明式路径，任务、网络／凭证及事件／服务已交付，P6 的 Agent／提供者闭环仍待实施；任意后台 JS 的更强沙箱另估。不等于所有 CLI 均可深度扩展。
+- M3 有业务能力的平台：P5–P6。后台试验已确定宿主声明式路径，任务、网络／凭证及事件／服务已交付，P6 已接通内置 Agent 的公开服务首片，模型代发和技能／工作流待续；任意后台 JS 的更强沙箱另估。不等于所有 CLI 均可深度扩展。
 - M4 个性化与分发：P7、P8 分别验收，不合并成一个必须同时完成的版本门槛。社区发布、全部官方包独立更新和多平台覆盖另定增量。
 
 ### P0–P2 的执行拆分
