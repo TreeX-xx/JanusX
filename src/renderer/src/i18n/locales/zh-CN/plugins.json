@@ -38,6 +38,8 @@
   "uninstallHint": "卸载移除插件资源和入口，保留私有数据与链接的源目录。", "deleteHint": "永久删除此插件的私有数据？正在运行的插件页面将关闭。", "refresh": "刷新",
   "state": { "disabled": "已停用", "blocked": "已阻止", "ready": "已启用，尚无页面", "loading": "加载中", "active": "正在运行", "error": "发生错误" },
   "background": "后台任务与凭证",
+  "skills": "Agent 技能",
+  "skillHint": "技能向内置 Agent 提供第三方指引。读取技能不会运行服务或增加权限，服务调用仍遵循宿主审批。启用前请审阅文本；停用插件会阻止后续读取，但无法清除对话中已经读取的内容。",
   "backgroundScope": "后台作用域",
   "taskInput": "输入（JSON）",
   "modelHint": "模型任务会将输入发送给你配置的 Janus 默认模型，可能产生费用。每个插件每分钟最多 2 次请求，每次最多申请 1,024 个输出 token。停用插件会阻止后续请求。",

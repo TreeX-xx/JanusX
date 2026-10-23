@@ -38,6 +38,8 @@
   "uninstallHint": "Uninstall removes plugin resources and entries. Private data is retained; linked source files are retained.", "deleteHint": "Permanently delete this plugin's private data? Active plugin pages will be closed.", "refresh": "Refresh",
   "state": { "disabled": "Disabled", "blocked": "Blocked", "ready": "Enabled, no page open", "loading": "Loading", "active": "Running", "error": "Error" },
   "background": "Background tasks and credentials",
+  "skills": "Agent skills",
+  "skillHint": "Skills supply third-party guidance to the built-in Agent. Reading a skill does not run its services or grant extra access. Service calls still follow host approval. Review this text before enabling; disabling the plugin stops future reads, but cannot erase content already read into a conversation.",
   "backgroundScope": "Background scope",
   "taskInput": "Input (JSON)",
   "modelHint": "Model tasks send their input to your default Janus model and may incur charges. Up to 2 requests per minute per plugin, with at most 1,024 output tokens per request. Disabling the plugin stops new requests.",

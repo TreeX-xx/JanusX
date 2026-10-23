@@ -16,6 +16,7 @@ import { PluginCredentials, PluginNetwork, type PluginEncryption, type PluginNet
 import { PluginBackground, type BackgroundIdentity } from './background'
 import { PluginModels, type PluginModelBackend } from './models'
 import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type PluginAgentService, type PluginTaskRun } from '@janusx/plugin-sdk'
+import { pluginSkillReadSchema, type PluginAgentSkill, type PluginAgentSkillCatalog, type PluginAgentSkillResource } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
 interface Instance {
@@ -40,7 +41,7 @@ export interface PluginServiceDeps {
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
   ? { permissions: manifest.permissions, contributes: manifest.contributes }
   : manifest.contributes.configurationViews
   ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
@@ -728,6 +729,56 @@ export class PluginService {
       try { valid(); services.push(...this.background.agentServices(this.backgroundIdentity(record.manifest.id, projectId))) } catch { /* Unavailable/unauthorized providers are not advertised. */ }
     }
     valid(); return services
+  }
+  // Note: .agents/notes/workbench/plugin-contract-v1.md — skills are inert, versioned plugin data.
+  private agentSkill(record: RecordData, id: string, projectId: string): PluginAgentSkillResource {
+    this.allowed(record)
+    if (!record.manifest.permissions.some(item => item.name === 'agent.skills') || !record.manifest.capabilities.required.includes('agent.skills')) error('PERMISSION_DENIED', 'Plugin skill permission is missing.')
+    const skill = record.manifest.contributes.skills?.find(item => item.id === id)
+    if (!skill) error('DEPENDENCY_UNAVAILABLE', 'Plugin skill is unavailable.')
+    const identity = this.backgroundIdentity(record.manifest.id, skill!.scope === 'project' ? projectId : null)
+    const available = skill!.services.length ? this.background.agentServices(identity) : []
+    const services = skill!.services.map(reference => {
+      const service = available.find(item => item.service === reference.service && item.version === reference.version)
+      if (!service) error('DEPENDENCY_UNAVAILABLE', 'Plugin skill service is unavailable.')
+      return service!
+    })
+    identity.valid()
+    return { plugin: record.manifest.id, skill: skill!.id, version: skill!.version, revision: record.digest,
+      title: skill!.title, description: skill!.description, scope: skill!.scope,
+      trust: 'untrusted-plugin-content', instructions: skill!.instructions, services }
+  }
+  async discoverAgentSkills(context: { workspaceId: string; workspaceRoot: string }, signal: AbortSignal): Promise<PluginAgentSkillCatalog> {
+    if (signal.aborted) error('CANCELLED', 'Skill discovery stopped.')
+    await this.initialize()
+    const valid = await this.agentContext(context)
+    const skills: PluginAgentSkill[] = []; let truncated = false
+    for (const record of [...this.records.values()].sort((a, b) => a.manifest.id.localeCompare(b.manifest.id))) {
+      for (const skill of record.manifest.contributes.skills ?? []) {
+        try {
+          const { instructions: _instructions, services: _services, trust: _trust, ...metadata } = this.agentSkill(record, skill.id, context.workspaceId)
+          if (skills.length < 32) skills.push(metadata); else truncated = true
+        } catch { /* Disabled, unauthorized or unavailable skills are not advertised. */ }
+      }
+    }
+    valid(); if (signal.aborted) error('CANCELLED', 'Skill discovery stopped.')
+    return { skills, truncated }
+  }
+  async readAgentSkill(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal: AbortSignal): Promise<PluginAgentSkillResource> {
+    if (signal.aborted) error('CANCELLED', 'Skill read stopped.')
+    await this.initialize()
+    const parsed = pluginSkillReadSchema.safeParse(params)
+    if (!parsed.success) error('INVALID_REQUEST', 'Plugin skill request is invalid.')
+    const request = parsed.data!
+    const record = this.record(request.plugin); const generation = this.activations.get(record) ?? 0
+    if (record.digest !== request.revision) error('STALE_CONTEXT', 'Plugin skill revision changed.')
+    const valid = await this.agentContext(context)
+    if (this.records.get(request.plugin) !== record || record.digest !== request.revision || (this.activations.get(record) ?? 0) !== generation) error('STALE_CONTEXT', 'Plugin skill activation changed.')
+    const resource = this.agentSkill(record, request.skill, context.workspaceId)
+    if (resource.version !== request.version) error('DEPENDENCY_UNAVAILABLE', 'Plugin skill version is unavailable.')
+    if (Buffer.byteLength(JSON.stringify(resource)) > 64 * 1024) error('RATE_LIMITED', 'Plugin skill resource exceeds its budget.')
+    valid(); if (signal.aborted) error('CANCELLED', 'Skill read stopped.')
+    return resource
   }
   async callAgentService(context: { workspaceId: string; workspaceRoot: string }, params: unknown, signal: AbortSignal): Promise<PluginTaskRun> {
     await this.initialize()

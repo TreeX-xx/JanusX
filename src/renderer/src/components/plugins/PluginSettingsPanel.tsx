@@ -11,6 +11,19 @@ import { PluginConfigurationForm } from './PluginConfigurationForm'
 import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
+function PluginSkills({ manifest, review = false }: { manifest: InstalledPlugin['manifest']; review?: boolean }) {
+  const { t } = useI18n('plugins')
+  if (!manifest.contributes.skills?.length) return null
+  return <details open={review || undefined} data-plugin-skills><summary>{t('plugins:skills')}</summary>
+    <p className={styles.hint}>{t('plugins:skillHint')}</p>
+    {manifest.contributes.skills.map(skill => <div className={styles.card} key={skill.id}>
+      <strong>{skill.title} · v{skill.version}</strong>
+      <p>{skill.description}</p><pre className={styles.path}>{skill.instructions}</pre>
+      <span>{skill.services.map(service => `${service.service}@${service.version}`).join(', ')}</span>
+    </div>)}
+  </details>
+}
+
 export function PluginSettingsPanel({ configurationTarget, onOpened }: { configurationTarget?: PluginConfigurationTarget | null; onOpened?: () => void }) {
   const { t } = useI18n('plugins')
   const snapshot = usePluginSnapshot()
@@ -73,6 +86,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
           <button disabled={busy} onClick={() => setConfirmation({ type: 'deleteData', id: record.manifest.id })}>{t('plugins:deleteData')}</button>
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
+        <PluginSkills manifest={record.manifest} />
         <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
           <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? `${configurationTarget.scope}:${configurationTarget.proposal?.expectedRevision ?? ''}` : 'application'} record={record}
@@ -104,6 +118,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
     {authorize && <section className={styles.card} role="region" aria-label={t('plugins:authorize')}>
       <strong>{authorize.manifest.name} — {t('plugins:permissions')}</strong>
       <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
+      <PluginSkills manifest={authorize.manifest} review />
       {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
       <p>{t('plugins:projectScope')}</p>
       {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {

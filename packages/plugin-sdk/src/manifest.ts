@@ -7,6 +7,7 @@ import { isReservedPluginKeybinding, normalizePluginKeybinding } from './keybind
 import { pluginViewerSchema } from './documents.js'
 import { pluginSettingSchema, pluginSettingMigrationSchema, isPluginSettingValue } from './configuration.js'
 import { networkOriginSchema, pluginTaskSchema, pluginPublicEventSchema, pluginPublicServiceSchema, pluginConsumptionSchema, pluginCredentialSchema } from './background.js'
+import { pluginSkillSchema } from './agent.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
 /** Implemented host features; old hosts reject unknown required capabilities. */
@@ -16,9 +17,9 @@ export const PLUGIN_CAPABILITIES = [
   'views.workbench', 'views.island', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
-  'tasks.declarative', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate',
+  'tasks.declarative', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -48,15 +49,16 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(17).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(18).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
+    skills: z.array(pluginSkillSchema).min(1).max(8).optional(),
     tasks: z.array(pluginTaskSchema).min(1).max(16).optional(), credentials: z.array(pluginCredentialSchema).min(1).max(16).optional(),
     events: z.array(pluginPublicEventSchema).min(1).max(16).optional(), services: z.array(pluginPublicServiceSchema).min(1).max(16).optional(),
     consumes: z.object({ events: z.array(pluginConsumptionSchema).max(16).optional(), services: z.array(pluginConsumptionSchema).max(16).optional() }).strict().optional(),
@@ -70,13 +72,21 @@ export const pluginManifestSchema = z.object({
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
   const { tasks = [], credentials = [], events = [], services = [], consumes } = manifest.contributes
-  if (!views.length && !tasks.length) fail('A plugin requires views or declarative tasks')
+  const skills = manifest.contributes.skills ?? []
+  if (!views.length && !tasks.length && !skills.length) fail('A plugin requires views, declarative tasks or skills')
   const needs = (used: boolean, capability: string, permission: string) => {
     if (used && (!manifest.capabilities.required.includes(capability) || !manifest.permissions.some(item => item.name === permission))) fail(`Requires ${capability} and ${permission}`)
   }
   for (const items of [tasks, credentials, events, services]) if (new Set(items.map(item => item.id)).size !== items.length) fail('Duplicate background contribution')
   for (const items of [consumes?.events ?? [], consumes?.services ?? []]) if (new Set(items.map(item => `${item.plugin}/${item.id}`)).size !== items.length) fail('Duplicate consumption')
   needs(tasks.length > 0, 'tasks.declarative', 'tasks.run')
+  needs(skills.length > 0, 'agent.skills', 'agent.skills')
+  if (new Set(skills.map(item => item.id)).size !== skills.length) fail('Duplicate skill contribution')
+  if (manifest.permissions.some(item => item.name === 'agent.skills') && !skills.length) fail('Skill permission requires a skill')
+  for (const skill of skills) for (const reference of skill.services) {
+    const service = services.find(item => item.id === reference.service && item.version === reference.version && item.consumers.includes('janusx.agent'))
+    if (!service || !tasks.some(task => task.id === service.task && task.scope === skill.scope)) fail('Skill requires an Agent service of the same scope')
+  }
   needs(tasks.some(task => task.steps.some(step => step.type === 'model')), 'models.generate', 'models.generate')
   needs(credentials.length > 0, 'credentials.use', 'credentials.use')
   needs(events.length > 0 || Boolean(consumes?.events?.length), 'events.public', 'events.public')

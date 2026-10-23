@@ -83,6 +83,62 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P6 skills show reviewed inert guidance, load through real Agent tools and retain service approval and revocation', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile('packages/plugin-sdk/examples/p6-skill-provider/manifest.json', 'utf8'))
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P6 Skill project', path }), f.project)
+    await page.reload(); await page.getByText('P6 Skill project', { exact: true }).filter({ visible: true }).first().click()
+    await settings(page); await importDirectory(app, page, f.source)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const card = page.locator(`[data-plugin-id="${manifest.id}"]`)
+    await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Review permissions and scope' })
+    await expect(review.locator('[data-plugin-skills]')).toContainText(manifest.contributes.skills[0].instructions)
+    await expect(review).toContainText('cannot erase content already read')
+    await review.getByLabel('P6 Skill project', { exact: true }).check()
+    await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await expect(card).toContainText('Enabled, no page open')
+    await card.locator('[data-plugin-skills] > summary').click()
+    await card.locator('[data-plugin-skills]').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: 'artifacts/plugin-skills-ui.png' })
+    const loaded = await page.evaluate(async context => {
+      const api = (window as any).electron.agentRuntime
+      const session = await api.createSession({ ...context, approvalMode: 'plan' })
+      const catalog = await api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.skills', input: {} } })
+      const metadata = catalog.output.skills[0]
+      const request = { plugin: metadata.plugin, skill: metadata.skill, version: metadata.version, revision: metadata.revision }
+      const resource = await api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.read-skill', input: request } })
+      return { sessionId: session.id, catalog, request, resource }
+    }, { workspaceId: workspace.id, workspaceRoot: f.project })
+    expect(loaded.catalog).toMatchObject({ status: 'completed', output: { skills: [{ plugin: manifest.id }], truncated: false } })
+    expect(loaded.catalog.output.skills[0]).not.toHaveProperty('instructions')
+    expect(loaded.resource).toMatchObject({ status: 'completed', output: { trust: 'untrusted-plugin-content', instructions: manifest.contributes.skills[0].instructions, services: [{ service: 'status', input: {} }] } })
+    const before = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+    expect(before.data.tasks).toEqual([])
+    const denied = await page.evaluate(({ sessionId, id }) => (window as any).electron.agentRuntime.executeTool({ sessionId, call: { toolName: 'plugin.call-service', input: { plugin: id, service: 'status', version: 1, input: {} } } }), { sessionId: loaded.sessionId, id: manifest.id })
+    expect(denied.status).toBe('failed')
+    const approved = await page.evaluate(async ({ sessionId, id }) => {
+      const api = (window as any).electron.agentRuntime; await api.setApprovalMode(sessionId, 'per-action')
+      let approvals = 0
+      const unsubscribe = api.onEvent((event: any) => { if (event.type === 'approval-requested' && event.request.sessionId === sessionId) {
+        approvals++; void api.resolveApproval({ ...event.request, approvalId: event.request.id, approved: true })
+      } })
+      try { return { result: await api.executeTool({ sessionId, call: { toolName: 'plugin.call-service', input: { plugin: id, service: 'status', version: 1, input: {} } } }), approvals } }
+      finally { unsubscribe() }
+    }, { sessionId: loaded.sessionId, id: manifest.id })
+    expect(approved).toMatchObject({ approvals: 1, result: { status: 'completed', output: { pluginId: 'janusx.agent', state: 'completed' } } })
+    await card.getByRole('button', { name: 'Disable', exact: true }).click()
+    const revoked = await page.evaluate(async ({ sessionId, request }) => {
+      const api = (window as any).electron.agentRuntime
+      return { catalog: await api.executeTool({ sessionId, call: { toolName: 'plugin.skills', input: {} } }), resource: await api.executeTool({ sessionId, call: { toolName: 'plugin.read-skill', input: request } }) }
+    }, { sessionId: loaded.sessionId, request: loaded.request })
+    expect(revoked.catalog.output.skills).toEqual([]); expect(revoked.resource.status).toBe('failed')
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 async function modelServer(holdFirst = false) {
   const requests: Array<{ body: any; authorization?: string }> = []
   let aborted = false

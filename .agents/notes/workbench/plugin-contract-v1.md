@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T10:27:56Z",
+  "updated": "2026-10-23T10:41:32Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -25,7 +25,7 @@
 
 目标架构归[插件平台设计](plugin-platform-design.md)，验收归[架构需求](requirements/plugin-architecture-forms.md)和[导入需求](requirements/plugin-import-debug.md)，顺序及实施证据归[阶段计划](../planning/plugin-platform-roadmap.md)。全部未来能力不塞进首版 schema；示例只验证契约关系，不指定要交付哪项示范产品。
 
-首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、页面直连网络、自定义模型后端、任意宿主命令、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。P6 已增加宿主默认模型的受限文本生成，具体授权和预算见末节。
+首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、页面直连网络、自定义模型后端、任意宿主命令、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。P6 已增加宿主默认模型的受限文本生成和按需读取的插件技能资源，具体授权和预算见末节。
 
 ## 现有消费者与兼容改造
 
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`、`tasks.declarative`、`network.fetch`、`credentials.use`、`events.public`、`services.public`、`agent.services`、`models.generate`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`、`tasks.declarative`、`network.fetch`、`credentials.use`、`events.public`、`services.public`、`agent.services`、`models.generate`、`agent.skills`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -416,7 +416,7 @@ SDK 的 `parsePluginManifest` 使用严格 JSON、重复键检查、Zod 和 SemV
 | 插件 UI／宿主任务 UI | P5 原有服务／任务协议 | 双方声明和白名单 |
 | Claude Code、Codex、OpenCode、Pi、Janus CLI、DSH | 不可用 | 本片未安装插件工具注入或 service hook |
 
-已有外部 CLI 通知／终端／会话集成不等于 P6 工具接入；终端类型、CLI／会话适配器和 PTY 后端仍归宿主。受限文本模型代发已按下节补齐；插件技能／工作流、文档上下文提供者、MCP 导出及非当前工作区 Agent 调用仍待后续；本片不关闭 P6 或 AC-15。
+已有外部 CLI 通知／终端／会话集成不等于 P6 工具接入；终端类型、CLI／会话适配器和 PTY 后端仍归宿主。受限文本模型代发已按下节补齐；插件技能资源已按末节接通；工作流编排、文档上下文提供者、MCP 导出及非当前工作区 Agent 调用仍待后续；本片不关闭 P6 或 AC-15。
 
 ## P6 受限文本模型代发
 
@@ -429,3 +429,15 @@ SDK 的 `parsePluginManifest` 使用严格 JSON、重复键检查、Zod 和 SemV
 `PluginTaskRun.modelResults` 可选，元素仅含 text、规范化 finishReason（stop／length／other）及 usage.inputTokens／outputTokens；未知或非法用量为 null。流只在宿主内部读取，插件接收完成结果。输出按 React 文本显示；不返回模型设置、响应元数据、供应商诊断或凭证。配置 API key 原文出现在生成结果时整份拒绝，这不防御恶意供应商编码泄密，模型供应商仍由用户信任。
 
 授权页和运行页明确提示输入传输及费用。插件授权允许其后续声明式调用，页面发起任务不另弹逐次模型审批；宿主设置页由用户显式运行，Agent 公开服务调用继续受 run 审批与 plan 策略限制。结果沿用任务所有者隔离，提供者页面不能读取或取消 Agent 任务。取消、停用、重载及绑定项目／worktree 失效传递到底层请求并拒绝迟到输出；普通 application 任务沿用 P5 跨项目切换存活规则，Agent 调用的 application 服务仍绑定当前上下文。默认模型配置变化在校验时拒绝结果，不提供配置变更即时取消通知。
+
+## P6 插件技能资源
+
+`contributes.skills` 声明内联静态指引，需要必需能力和权限 `agent.skills`；纯指引包可只包含 skills 与空 views，不要求任务、页面或 dist。每包最多八项，每项包含 id、1–1000 的 version、title（1–80）、description（1–240）、application／project scope、非空 instructions 及 services 数组。指引最多 8000 个 UTF-16 单元、16 KiB UTF-8，禁止控制字符和双向覆盖符，保留制表／换行；整体 manifest 仍最多 64 KiB。不读取 Markdown 路径或 URL，不接受脚本、hooks、权限覆盖或自定义执行器。
+
+services 最多八项唯一的本插件 service／version 引用，必须公开给 janusx.agent，且任务与技能同作用域；所需 agent.services、services.public 和 tasks.run 等授权仍独立校验。纯指引可设 services=[]。旧宿主通过未知必需能力明确拒绝。技能正文、元数据或引用改变，即使 version 不变，也必须重新授权；授权指纹包含 skills，revision 使用整个已加载包的 digest，因此无关资源变化也使旧读取请求失效。
+
+内置 Agent 的 `plugin.skills` 为 inspect 工具，返回 skills 元数据和 truncated，不返回正文；按插件 ID、清单顺序最多 32 项，超限报告截断，本片不分页，已知身份仍可直接读取。`plugin.read-skill` 必须传 plugin／skill／version／revision，返回元数据、instructions、实时公开服务输入 schema 及 `trust:untrusted-plugin-content`，序列化结果最多 64 KiB。读取前后检查当前项目／worktree，项目技能另需项目授权；application 技能读取也绑定当前 Agent 工作区。直接读在异步根验证后重查包修订与激活代次，停用／重载／卸载、开发模式关闭和取消不能返回迟到的新结果。
+
+两种工具可在 plan 模式使用，技能内容作为第三方数据返回，不注入系统指令，不替代用户或宿主策略，不增加权限。读取不会运行任务、模型或服务；Agent 需另行调用已有 plugin.call-service，继续经过 run 审批、取消和任务所有权检查。宿主设置与授权界面以 React 纯文本展示技能全文和引用，用户能先审阅再启用；停用阻止新读取，但已读入对话的内容不能撤回。本片没有自动激活／系统提示注入、全局斜杠命令、外部 CLI 分发、模板变量、服务输出插值、可执行工作流图或自动重试。它提供可组合的使用指引，不能据此关闭 P6。
+
+可运行的本地状态示例、完整边界与外部 CLI 未支持说明归 [SDK 技能指南](../../../packages/plugin-sdk/examples/agent-skills.md)。示例没有网络或模型调用；真实服务执行与摘要能力仍沿用前两片契约。

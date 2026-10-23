@@ -3348,6 +3348,8 @@ export type TypedI18nKey =
   | 'plugins:reviewDraft'
   | 'plugins:runtime'
   | 'plugins:shortcut'
+  | 'plugins:skillHint'
+  | 'plugins:skills'
   | 'plugins:state.active'
   | 'plugins:state.blocked'
   | 'plugins:state.disabled'

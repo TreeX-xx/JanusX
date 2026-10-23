@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "example.status-skill",
+  "name": "Status skill",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["agent.skills", "tasks.declarative", "services.public", "agent.services"], "optional": [] },
+  "permissions": [{ "name": "agent.skills" }, { "name": "tasks.run" }, { "name": "services.public" }, { "name": "agent.services" }],
+  "contributes": {
+    "views": [],
+    "tasks": [{ "id": "status", "title": "Read example status", "scope": "project", "input": {}, "timeoutMs": 1000,
+      "steps": [{ "type": "log", "message": "Example status: operational (local demonstration)." }] }],
+    "services": [{ "id": "status", "version": 1, "task": "status", "consumers": ["janusx.agent"] }],
+    "skills": [{ "id": "explain-status", "version": 1, "title": "Explain example status", "description": "Read the local demonstration status and explain its task record.", "scope": "project",
+      "instructions": "When the user requests this example status, call the listed status service using plugin.call-service with version 1 and an empty input object. Wait for its task result, then explain the log and terminal state. This is a local demonstration, not a live external status source. If the service is unavailable or approval is denied, report that outcome; do not infer a successful status.",
+      "services": [{ "service": "status", "version": 1 }] }]
+  }
+}
