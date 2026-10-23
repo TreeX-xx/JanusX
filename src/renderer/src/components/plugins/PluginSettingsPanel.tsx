@@ -104,6 +104,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
     {authorize && <section className={styles.card} role="region" aria-label={t('plugins:authorize')}>
       <strong>{authorize.manifest.name} — {t('plugins:permissions')}</strong>
       <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
+      {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
       <p>{t('plugins:projectScope')}</p>
       {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {
         setProjects(values => event.target.checked ? [...values, workspace.id] : values.filter(id => id !== workspace.id))

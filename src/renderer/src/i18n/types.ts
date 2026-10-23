@@ -3332,6 +3332,8 @@ export type TypedI18nKey =
   | 'plugins:link'
   | 'plugins:linked'
   | 'plugins:logs'
+  | 'plugins:modelHint'
+  | 'plugins:modelUsage'
   | 'plugins:nav'
   | 'plugins:open'
   | 'plugins:order'

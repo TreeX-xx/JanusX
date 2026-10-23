@@ -4,12 +4,13 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { PluginError, matchesPluginMessage, type PluginManifest, type PluginMessage, type PluginTaskRun,
   type PluginPublicEvent, type PluginNetworkRequest, type PluginAgentService } from '@janusx/plugin-sdk'
 import type { PluginNetwork } from './network'
+import type { PluginModels } from './models'
 
 interface BackgroundOwner {
   plugin: string; scope: string; projectId: string | null; rootId: string | null; valid(): void
 }
 export interface BackgroundIdentity extends BackgroundOwner { manifest: PluginManifest }
-interface Execution { run: PluginTaskRun; identity: BackgroundOwner; controller: AbortController; involved: Set<string>; steps: number; resultBytes: number }
+interface Execution { run: PluginTaskRun; identity: BackgroundOwner; controller: AbortController; involved: Set<string>; steps: number; resultBytes: number; modelCalls: number }
 interface PublicSubscription { page: string; identity: BackgroundIdentity; plugin: string; event: string; version: number; send(event: PluginPublicEvent): void }
 export class PluginBackground {
   private runs = new Map<string, Execution>()
@@ -17,7 +18,7 @@ export class PluginBackground {
   private eventHistory = new Map<string, { event: PluginPublicEvent; scope: string; delivered: Set<string>; time: number }>()
   private budgets = new Map<string, number[]>()
   constructor(private deps: {
-    network: PluginNetwork; identity(plugin: string, source: BackgroundIdentity): BackgroundIdentity; changed(): void
+    network: PluginNetwork; models?: PluginModels; identity(plugin: string, source: BackgroundIdentity): BackgroundIdentity; changed(): void
   }) {}
   private budget(plugin: string, kind: string, maximum: number): void {
     const key = `${plugin}:${kind}`; const times = (this.budgets.get(key) ?? []).filter(time => Date.now() - time < 60_000)
@@ -128,7 +129,7 @@ export class PluginBackground {
     }
     const definition = this.task(provider, task, input)
     const id = randomUUID()
-    const item: Execution = { identity: owner, controller: new AbortController(), involved: new Set([owner.plugin, provider.plugin]), steps: 0, resultBytes: 0,
+    const item: Execution = { identity: owner, controller: new AbortController(), involved: new Set([owner.plugin, provider.plugin]), steps: 0, resultBytes: 0, modelCalls: 0,
       run: { id, pluginId: owner.plugin, task: `${provider.plugin}/${task}`, projectId: owner.projectId, rootId: owner.rootId,
         state: 'running', started: new Date().toISOString(), logs: [], results: [] } }
     this.runs.set(id, item); this.deps.changed()
@@ -158,6 +159,15 @@ export class PluginBackground {
     try { for (const step of definition.steps) {
       valid()
       if (++item.steps > 128) throw new PluginError('RATE_LIMITED', 'Task execution step budget reached.')
+      if (step.type === 'model') {
+        this.permission(identity, 'models.generate')
+        if (++item.modelCalls > 1) throw new PluginError('RATE_LIMITED', 'One model request is allowed per task run.')
+        if (!this.deps.models) throw new PluginError('MODEL_UNAVAILABLE', 'Host model is unavailable.')
+        const result = await this.deps.models.generate(identity.manifest, step, input[step.promptInput], valid, item.controller.signal)
+        valid(); item.resultBytes += Buffer.byteLength(result.text)
+        if (item.resultBytes > 64 * 1024) throw new PluginError('RATE_LIMITED', 'Task result budget reached.')
+        ;(item.run.modelResults ??= []).push(result)
+      }
       if (step.type === 'delay') await new Promise<void>((resolve, reject) => {
         const abort = () => { clearTimeout(timer); reject(new PluginError('CANCELLED', 'Task stopped.')) }
         const timer = setTimeout(() => { item.controller.signal.removeEventListener('abort', abort); resolve() }, step.milliseconds)

@@ -14,6 +14,7 @@ import { PluginConfigurationStore } from './configuration'
 import type { PluginManageRequest } from '../../shared/ipc/plugins'
 import { PluginCredentials, PluginNetwork, type PluginEncryption, type PluginNetworkTransport } from './network'
 import { PluginBackground, type BackgroundIdentity } from './background'
+import { PluginModels, type PluginModelBackend } from './models'
 import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type PluginAgentService, type PluginTaskRun } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
@@ -27,6 +28,7 @@ export interface PluginServiceDeps {
   directory: string
   encryption?: PluginEncryption
   networkTransport?: PluginNetworkTransport
+  modelBackend?: PluginModelBackend
   protectedDirectories?: string[]
   resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
   changed(): void
@@ -77,7 +79,7 @@ export class PluginService {
     this.configuration = new PluginConfigurationStore(join(deps.directory, 'configuration'))
     this.credentials = new PluginCredentials(join(deps.directory, 'credentials'), deps.encryption)
     this.network = new PluginNetwork(this.credentials, deps.networkTransport)
-    this.background = new PluginBackground({ network: this.network, identity: (plugin, source) => this.backgroundIdentity(plugin, source.projectId, source.scope), changed: () => this.publish() })
+    this.background = new PluginBackground({ network: this.network, models: new PluginModels(deps.modelBackend), identity: (plugin, source) => this.backgroundIdentity(plugin, source.projectId, source.scope), changed: () => this.publish() })
   }
   initialize(): Promise<void> { return this.initialized ??= this.restore() }
   private async restore(): Promise<void> {

@@ -26,10 +26,13 @@ export function matchesPluginMessage(shape: PluginMessageShape, data: PluginMess
 export const serviceCallSchema = z.object({ plugin: backgroundId, service: backgroundId,
   version: z.number().int().min(1).max(1000), input: messageSchema }).strict()
 export const eventPublishSchema = z.object({ event: backgroundId, data: messageSchema, cause: z.string().uuid().optional() }).strict()
+export const pluginModelStepSchema = z.object({ type: z.literal('model'), promptInput: backgroundId,
+  instruction: z.string().min(1).max(1000), maxOutputTokens: z.number().int().min(16).max(1024) }).strict()
 export const pluginTaskSchema = z.object({ id: backgroundId, title: z.string().min(1).max(80),
   scope: z.enum(['application', 'project']), input: messageShapeSchema,
   timeoutMs: z.number().int().min(10).max(60_000),
   steps: z.array(z.discriminatedUnion('type', [
+    pluginModelStepSchema,
     z.object({ type: z.literal('delay'), milliseconds: z.number().int().min(0).max(60_000) }).strict(),
     z.object({ type: z.literal('log'), message: z.string().max(240).refine(value => !/[\x00-\x1f\x7f]/.test(value)) }).strict(),
     z.object({ type: z.literal('request'), request: networkRequestSchema, bodyFromInput: z.boolean().optional() }).strict(),
@@ -49,6 +52,11 @@ export interface PluginTaskRun {
   id: string; pluginId: string; task: string; projectId: string | null; rootId: string | null
   state: 'running' | 'completed' | 'cancelled' | 'timeout' | 'failed'; started: string; finished?: string
   logs: Array<{ time: string; code: string; message?: string }>; results: PluginNetworkResult[]; error?: string
+  modelResults?: PluginModelResult[]
+}
+export interface PluginModelResult {
+  text: string; finishReason: 'stop' | 'length' | 'other'
+  usage: { inputTokens: number | null; outputTokens: number | null }
 }
 /** Host Agent adapter uses the same versioned service and primitive task input as plugin UI clients. */
 export interface PluginAgentService {

@@ -24,4 +24,4 @@ Cancellation of the Agent tool/session aborts its host task, including network r
 | Isolated plugin UI / host task UI | Existing P5 service/task protocol | Consumer declarations and provider whitelist |
 | Claude Code, Codex, OpenCode, Pi, Janus CLI, DSH | Unavailable | No plugin-service hook or tool injection is installed by P6 |
 
-Existing external CLI terminal/session/notification integrations remain host-owned. Their presence does not advertise P6 tools as available. This slice does not implement model mediation, plugin skills/workflows, document context providers, MCP export or third-party CLI/session/PTY adapters. These require separate host contracts and validation.
+Existing external CLI terminal/session/notification integrations remain host-owned. Their presence does not advertise P6 tools as available. [Model tasks](model-tasks.md) add bounded host-mediated text generation. Plugin skills/workflows, document context providers, MCP export and third-party CLI/session/PTY adapters are not implemented by this adapter.

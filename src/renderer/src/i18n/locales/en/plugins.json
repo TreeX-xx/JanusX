@@ -40,6 +40,8 @@
   "background": "Background tasks and credentials",
   "backgroundScope": "Background scope",
   "taskInput": "Input (JSON)",
+  "modelHint": "Model tasks send their input to your default Janus model and may incur charges. Up to 2 requests per minute per plugin, with at most 1,024 output tokens per request. Disabling the plugin stops new requests.",
+  "modelUsage": "Reported tokens · input {{input}} · output {{output}}",
   "taskRun": "Run {{title}}",
   "taskCancel": "Stop task",
   "credentialConfigured": "Credential configured",

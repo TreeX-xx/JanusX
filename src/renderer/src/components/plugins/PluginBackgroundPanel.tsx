@@ -67,12 +67,17 @@ export function PluginBackgroundPanel({ record, runs }: { record: InstalledPlugi
       <button disabled={busy || !record.enabled || scope === 'project' && !activeProject} onClick={() => { void start(task) }}>{t('plugins:taskRun', { title: task.title })}</button>
     </div>)}
     <p className={styles.hint}>{t('plugins:backgroundHint')}</p>
+    {record.manifest.permissions.some(permission => permission.name === 'models.generate') && <p className={styles.hint}>{t('plugins:modelHint')}</p>}
     {failure && <p role="alert">{failure}</p>}
     {runs.filter(run => run.pluginId === record.manifest.id).slice().reverse().map(run => <div key={run.id} className={styles.card} data-plugin-task={run.id}>
       <span>{run.task} · {t(`plugins:taskState.${run.state}`)} · {run.projectId ?? t('plugins:configurationApplication')}</span>
       {run.state === 'running' && <button onClick={() => { void pluginRequest({ type: 'taskCancel', runId: run.id }).then(refreshPlugins).catch(cause => setFailure(cause.message)) }}>{t('plugins:taskCancel')}</button>}
       {run.error && <p role="status">{run.error}</p>}
       <pre>{run.logs.map(log => `${log.time} ${log.code}${log.message ? `: ${log.message}` : ''}`).join('\n')}</pre>
+      {run.modelResults?.map((result, index) => <div key={index} data-plugin-model-result>
+        <pre>{result.text}</pre>
+        <span>{t('plugins:modelUsage', { input: result.usage.inputTokens ?? '—', output: result.usage.outputTokens ?? '—' })}</span>
+      </div>)}
     </div>)}
   </details>
 }

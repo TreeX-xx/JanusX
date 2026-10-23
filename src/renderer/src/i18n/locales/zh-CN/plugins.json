@@ -40,6 +40,8 @@
   "background": "后台任务与凭证",
   "backgroundScope": "后台作用域",
   "taskInput": "输入（JSON）",
+  "modelHint": "模型任务会将输入发送给你配置的 Janus 默认模型，可能产生费用。每个插件每分钟最多 2 次请求，每次最多申请 1,024 个输出 token。停用插件会阻止后续请求。",
+  "modelUsage": "提供者报告的 token · 输入 {{input}} · 输出 {{output}}",
   "taskRun": "运行 {{title}}",
   "taskCancel": "停止任务",
   "credentialConfigured": "已配置凭证",

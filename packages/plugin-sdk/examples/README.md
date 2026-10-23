@@ -1,6 +1,7 @@
 # Declarative background examples
 
-The P6 [Agent service adapter guide](agent-services.md) covers explicit Agent authorization and a public status provider shared with the host task UI. Model mediation and plugin skills/workflows remain future work.
+The P6 [Agent service adapter guide](agent-services.md) covers explicit Agent authorization and a public status provider shared with the host task UI.
+The [model task guide](model-tasks.md) and `p6-model-provider` add bounded host-mediated text generation through the user's default Janus model. Plugin skills/workflows remain future work.
 
 Link `p5-provider` and enable it first, then link and enable `p5-consumer`. Both are manifest-only packages: no Node entry, page, build or dependency install is needed. Open Settings → Plugins → Background tasks and credentials, then run either report task. Close Settings while it runs and reopen to see its logs. Stop a running task there; run it again to retry. Disabling either participant stops its dependent work.
 

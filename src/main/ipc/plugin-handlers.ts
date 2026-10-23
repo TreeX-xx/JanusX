@@ -7,6 +7,7 @@ import { PLUGIN_CHANNELS, type PluginManageRequest, type PluginHostResult } from
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
 import { PluginService } from '../plugins/service'
 import { PluginRuntime } from '../plugins/runtime'
+import { hostPluginModelBackend } from '../plugins/model-backend'
 import { listWorktrees } from '../git/worktrees'
 import { promises as originalFiles } from 'original-fs'
 import { configurePluginFileSystem } from '../plugins/files'
@@ -44,6 +45,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
   configurePluginFileSystem(originalFiles)
   const send = (channel: string, payload?: unknown) => { const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload) }
   const service = new PluginService({
+    modelBackend: hostPluginModelBackend,
     directory: join(app.getPath('userData'), 'janusx', 'plugins'),
     encryption: {
       encrypt: value => {

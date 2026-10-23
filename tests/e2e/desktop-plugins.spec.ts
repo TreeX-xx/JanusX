@@ -83,6 +83,103 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+async function modelServer(holdFirst = false) {
+  const requests: Array<{ body: any; authorization?: string }> = []
+  let aborted = false
+  const token = 'p6-fixture-model-secret-token'
+  const server = createServer(async (request, response) => {
+    if (request.method !== 'POST' || request.url !== '/v1/chat/completions') { response.writeHead(404).end(); return }
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(chunk)
+    const body = JSON.parse(Buffer.concat(chunks).toString())
+    requests.push({ body, authorization: request.headers.authorization })
+    response.writeHead(200, { 'content-type': 'text/event-stream' })
+    const send = (delta: unknown, reason: string | null = null) => response.write(`data: ${JSON.stringify({ id: 'chatcmpl-p6', object: 'chat.completion.chunk', created: 1, model: 'gpt-4o-mini', choices: [{ index: 0, delta, finish_reason: reason }] })}\n\n`)
+    send({ role: 'assistant', content: holdFirst && requests.length > 1 ? token : 'Fixture summary.' })
+    if (holdFirst && requests.length === 1) { response.on('close', () => { aborted = true }); return }
+    send({}, 'stop')
+    response.write(`data: ${JSON.stringify({ id: 'chatcmpl-p6', object: 'chat.completion.chunk', created: 1, model: 'gpt-4o-mini', choices: [], usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 } })}\n\n`)
+    response.end('data: [DONE]\n\n')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address(); if (!address || typeof address === 'string') throw new Error('Model fixture has no port')
+  const configure = async (page: Page) => {
+    const saved = await page.evaluate(async ({ baseURL, token }) => {
+      const api = (window as any).electron.llm
+      const saved = await api.saveTerminalProvider('janus', { id: 'p6-model-fixture', name: 'Model fixture', authType: 'api-key', enabled: true, baseURL, apiKey: token, modelId: 'gpt-4o-mini', defaultModelId: 'gpt-4o-mini' })
+      await api.setTerminalDefault('janus', 'p6-model-fixture'); return saved
+    }, { baseURL: `http://127.0.0.1:${address.port}/v1`, token })
+    expect(saved.success).toBe(true)
+  }
+  return { requests, token, configure, aborted: () => aborted, close: async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())) } }
+}
+
+test('P6 model tasks use the real host model adapter for UI and Agent without exposing credentials or tools', async () => {
+  const f = await fixture(); const model = await modelServer(); let app: ElectronApplication | undefined
+  try {
+    await writeFile(join(f.source, 'manifest.json'), await readFile('packages/plugin-sdk/examples/p6-model-provider/manifest.json'))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P6 Model project', path }), f.project)
+    await page.reload(); await page.getByText('P6 Model project', { exact: true }).filter({ visible: true }).first().click()
+    await model.configure(page); await enableFixture(app, page, f.source, workspace.id, 'example.text-summary')
+    await settings(page)
+    const card = page.locator('[data-plugin-id="example.text-summary"]'); await card.locator('[data-plugin-background] > summary').click()
+    await expect(card).toContainText('may incur charges')
+    await card.getByLabel('Summarize supplied text Input (JSON)').fill(JSON.stringify({ text: 'A supplied UI text.' }))
+    await card.getByRole('button', { name: 'Run Summarize supplied text', exact: true }).click()
+    await expect(card.locator('[data-plugin-model-result]')).toContainText('Fixture summary.')
+    const result = await page.evaluate(async ({ workspaceId, workspaceRoot }) => {
+      const api = (window as any).electron.agentRuntime
+      const session = await api.createSession({ workspaceId, workspaceRoot, approvalMode: 'auto-run' })
+      return api.executeTool({ sessionId: session.id, call: { toolName: 'plugin.call-service', input: { plugin: 'example.text-summary', service: 'summarize', version: 1, input: { text: 'A supplied Agent text.' } } } })
+    }, { workspaceId: workspace.id, workspaceRoot: f.project })
+    expect(result).toMatchObject({ status: 'completed', output: { pluginId: 'janusx.agent', state: 'completed', modelResults: [{ text: 'Fixture summary.', usage: { inputTokens: 12, outputTokens: 5 } }] } })
+    expect(model.requests).toHaveLength(2)
+    for (const request of model.requests) {
+      expect(request.authorization).toBe(`Bearer ${model.token}`)
+      expect(request.body.model).toBe('gpt-4o-mini')
+      expect(request.body.max_tokens ?? request.body.max_completion_tokens).toBe(256)
+      expect(request.body.tools).toBeUndefined()
+      expect(JSON.stringify(request.body.messages)).not.toContain(model.token)
+    }
+    expect(JSON.stringify(result)).not.toContain(model.token)
+    await card.locator('[data-plugin-model-result]').scrollIntoViewIfNeeded()
+    await expect(card.locator('[data-plugin-model-result]')).toBeVisible()
+    await page.screenshot({ path: 'artifacts/plugin-model-ui.png' })
+  } finally { await close(app); await model.close(); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
+test('P6 model task revocation aborts the real request and a credential echo never reaches the task result', async () => {
+  const f = await fixture(); const model = await modelServer(true); let app: ElectronApplication | undefined
+  try {
+    await writeFile(join(f.source, 'manifest.json'), await readFile('packages/plugin-sdk/examples/p6-model-provider/manifest.json'))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    await model.configure(page); await settings(page); await importDirectory(app, page, f.source)
+    const id = 'example.text-summary'
+    await page.evaluate(async id => {
+      const api = (window as any).electron.plugins
+      for (const request of [{ type: 'development', enabled: true }, { type: 'enable', id, projects: [] }, { type: 'taskStart', id, task: 'summarize', input: { text: 'Supplied text.' }, projectId: null, scopePath: null }]) {
+        const result = await api.request(request); if (!result.ok) throw new Error(result.code)
+      }
+    }, id)
+    await expect.poll(() => model.requests.length).toBe(1)
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), id)
+    await expect.poll(model.aborted).toBe(true)
+    await page.evaluate(async id => {
+      const api = (window as any).electron.plugins
+      await api.request({ type: 'enable', id, projects: [] })
+      await api.request({ type: 'taskStart', id, task: 'summarize', input: { text: 'Supplied text.' }, projectId: null, scopePath: null })
+    }, id)
+    await expect.poll(async () => {
+      const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+      return snapshot.data.tasks.at(-1)?.error
+    }).toBe('MODEL_UNAVAILABLE')
+    const snapshot = await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))
+    expect(snapshot.data.tasks.map((run: any) => run.state)).toEqual(['cancelled', 'failed'])
+    expect(JSON.stringify(snapshot.data.tasks)).not.toContain(model.token)
+    expect(snapshot.data.tasks.every((run: any) => !run.modelResults?.length)).toBe(true)
+  } finally { await close(app); await model.close(); await rm(f.root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('P6 built-in Agent discovers public services, enforces approval, tracks results and cancels its host task', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
