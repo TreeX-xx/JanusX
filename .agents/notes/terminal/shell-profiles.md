@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-11",
-  "updated": "2026-10-23T13:37:00.112Z",
+  "updated": "2026-10-23T16:36:37Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -54,6 +54,10 @@ shell 的扩展设置与工作区上方的添加控件也要记得适配。工�
 无。原三条已于 2026-10-13 收敛，见 Decisions。
 
 ## Implementation
+
+Janus CLI（用户所称 AgentX）暂时采用默认隐藏：首次使用、缺少合法显隐列表、renderer 首帧与加载失败回退均将 janus 放入默认隐藏列表，空白终端卡片与标签栏新建菜单共用既有过滤。设置 → 终端管理仍保留 Janus 管理项，用户可以开启显示，保存后跨启动保留。已有合法 hiddenCliPresets（包括空列表）继续尊重，不强行迁移覆盖用户偏好；已运行终端、会话恢复与内置聊天／Agent 底座不受影响。主进程默认配置、共享归一化及 renderer 回退共用 DEFAULT_HIDDEN_CLI_PRESETS。
+
+验证：shell-profiles 与 shell-profile-launch 既有两份单测共 37 项通过，日志 artifacts/janus-default-hidden-unit.log；未新增 UI 测试或运行桌面实测。
 
 2026-10-15 「已配置 Shell」改为通栏概览列表：每行显示名称与完整启动行摘要，显式文字按钮管理默认项与显隐；终端字形只承担识别，不再兼任显隐开关。点击名称/命令所在主体展开名称、自由命令与可选启动后缀，字段各占整行，删除位于展开区底部；新建空命令条目自动展开并聚焦名称。默认项唯一、即时保存及失败回滚继续沿用既有 store。取舍是修改既有条目需多一次展开，换取多 Shell 时更紧凑的扫读和长路径编辑空间；外部 CLI 与候选区布局保持原实现。样式独立于共享设置 CSS，沿用设置令牌适配纸面/深色主题；窄容器将操作组换行。验证：`npx playwright test tests/e2e/shell-settings.spec.ts --project=island --workers=2` 9 项通过（双主题、1100/640/390px、键盘展开、默认/显隐、新增/删除、保存失败回滚），`npx vitest run tests/unit/shell-profiles.test.ts tests/unit/shell-profile-launch.test.ts tests/unit/planche-theme.test.ts` 51 项通过，`npm run typecheck`、`npm run i18n:check` 通过。浏览器验证使用隔离 fixture，未对正在运行的 Electron 会话做人工点击。
 

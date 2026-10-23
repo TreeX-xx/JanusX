@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   createShellProfileSeed,
+  DEFAULT_HIDDEN_CLI_PRESETS,
   normalizeShellProfiles,
   type ShellCandidate,
   type ShellProfilesSettings,
@@ -18,7 +19,7 @@ let loadPromise: Promise<void> | null = null
 
 function fallbackSettings(): ShellProfilesSettings {
   const platform = window.electron?.platform ?? 'win32'
-  return normalizeShellProfiles({ entries: [createShellProfileSeed(platform)], hiddenCliPresets: [] })
+  return normalizeShellProfiles({ entries: [createShellProfileSeed(platform)], hiddenCliPresets: [...DEFAULT_HIDDEN_CLI_PRESETS] })
 }
 
 /**

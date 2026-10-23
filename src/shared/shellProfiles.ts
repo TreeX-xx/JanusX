@@ -1,5 +1,8 @@
 import type { TerminalPreset } from './terminalLaunch'
 
+// Note: .agents/notes/terminal/shell-profiles.md — Janus is opt-in at new-terminal entry points.
+export const DEFAULT_HIDDEN_CLI_PRESETS: readonly TerminalPreset[] = ['janus']
+
 /**
  * One user-built ordinary-shell entry in the settings "终端管理" list.
  * The command is free-form: JanusX never parses or restricts what the user
@@ -188,7 +191,7 @@ export function normalizeShellProfiles(raw: unknown): ShellProfilesSettings {
 
   const hiddenCliPresets = Array.isArray(source.hiddenCliPresets)
     ? source.hiddenCliPresets.filter((value): value is TerminalPreset => typeof value === 'string')
-    : []
+    : DEFAULT_HIDDEN_CLI_PRESETS
 
   return {
     entries,

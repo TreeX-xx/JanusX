@@ -29,6 +29,7 @@ import { normalizeAgentApprovalMode, type AgentApprovalMode } from '../../shared
 import { DEFAULT_APP_THEME, normalizeAppTheme, type AppTheme } from '../../shared/ipc/theme'
 import {
   createShellProfileSeed,
+  DEFAULT_HIDDEN_CLI_PRESETS,
   normalizeShellProfiles,
   type ShellProfilesSettings,
 } from '../../shared/shellProfiles'
@@ -57,7 +58,7 @@ const DEFAULT_CONFIG: GlobalConfig = {
   // 首版种子：全新用户只预置 PowerShell 一条默认项，其余 shell 经检测候选区确认。
   shellProfiles: {
     entries: [createShellProfileSeed(process.platform)],
-    hiddenCliPresets: [],
+    hiddenCliPresets: [...DEFAULT_HIDDEN_CLI_PRESETS],
   },
   registeredCLIs: [
     {
