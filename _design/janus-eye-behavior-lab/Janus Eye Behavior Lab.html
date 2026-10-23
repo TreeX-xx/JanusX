@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Janus 眼睛行为实验台</title>
+<!--
+  Janus Eye Behavior Lab · v1
+  ────────────────────────────────────────────────
+  假设与推理（Junior pass）：
+  1. 胶囊按仓库真实规格复刻：52×26px、皮肤 #161619→#08080a、
+     order 白矩形眼 8×10 + #ff7830 辉光（01-janus-foundation.css）。
+  2. 本页是"手感调参台"：gaze 调度器为纯逻辑（时间可注入），
+     参数定稿后移植为 src/renderer/.../janusBehavior.ts + useJanusGaze()。
+  3. 对照组 = 仓库当前 mini-idle 8s keyframe 原样复刻（data-behavior="legacy"）。
+  4. 放大镜视图是同一实例的 6× 放大，不是第二只 Janus。
+  5. 输出通道 = CSS 变量（--gaze-x/--gaze-y/--lid/…），视觉样式留在 CSS。
+-->
+<style>
+  /* ── 实验台画布：石板浅色 · 透明面板 + 1px 发丝线 · 无填充色块 ── */
+  :root {
+    --bg: #eef0f2;
+    --ink: #24272b;
+    --muted: #6b727c;
+    --faint: #9aa1aa;
+    --line: rgba(36, 39, 43, 0.14);
+    --line-strong: rgba(36, 39, 43, 0.28);
+    --accent: #ff7830;
+    --mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+    --serif: Georgia, "Songti SC", "Noto Serif SC", serif;
+    --sans: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.55;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── 页眉 ── */
+  header {
+    padding: 22px 28px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  header h1 em { font-style: italic; color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 12.5px; max-width: 520px; }
+  header .assume {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--faint);
+    max-width: 340px;
+    line-height: 1.7;
+    text-align: right;
+  }
+  header .assume b { color: var(--muted); font-weight: 600; }
+
+  /* ── 主栅格：视口锁定，右栏内部滚动，放大镜首屏可见 ── */
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(560px, 1fr) 372px;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+  }
+  .stage-col {
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .panel-col { padding: 20px 22px 40px; overflow-y: auto; min-height: 0; }
+
+  /* ── 舞台：模拟 App 窗口顶部 ── */
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 240px;
+    margin: 20px 24px 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 31px, rgba(36,39,43,0.035) 31px 32px),
+      repeating-linear-gradient(90deg, transparent 0 31px, rgba(36,39,43,0.035) 31px 32px);
+    overflow: hidden;
+  }
+  .stage .titlebar {
+    height: 38px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 7px;
+  }
+  .stage .titlebar .dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line-strong); }
+  .stage .titlebar .tb-label {
+    margin-left: 10px; font-family: var(--mono); font-size: 10.5px;
+    color: var(--faint); letter-spacing: 0.08em;
+  }
+  .stage-hint {
+    position: absolute; left: 50%; top: 54%;
+    transform: translate(-50%, -50%);
+    color: var(--faint); font-size: 12px; letter-spacing: 0.12em;
+    pointer-events: none; text-align: center; line-height: 2.1;
+  }
+  .stage-hint .k {
+    font-family: var(--mono); font-size: 10px;
+    border: 1px solid var(--line); border-radius: 3px;
+    padding: 1px 7px; margin: 0 2px;
+  }
+
+  /* 感知半径可视化（虚线圈） */
+  .radius-ring {
+    position: absolute;
+    border: 1px dashed rgba(255, 120, 48, 0.35);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s;
+  }
+
+  /* 传话文字：胶囊皮肤上的排印（不是浮层卡片） */
+  .island-notice {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-left: 22px;
+    padding-left: 11px;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(10px);
+    transition:
+      opacity 220ms ease,
+      transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .island.noticing .island-notice {
+    opacity: 1;
+    transform: translateX(0);
+    transition-delay: 150ms;   /* 文字等胶囊张开一点再出 */
+  }
+  .island-notice .in-tag {
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: 0.14em;
+    color: rgba(255, 255, 255, 0.42);
+  }
+  .island-notice .in-body {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  /* 未读数字：左上角小灰字（不在 island 上），可点击打开通知中心 */
+  .notif-count {
+    position: absolute;
+    top: 52px; left: 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.25s ease, color 0.18s ease;
+    z-index: 6;
+    user-select: none;
+  }
+  .notif-count.show { opacity: 1; }
+  .notif-count:hover { color: var(--muted); }
+
+  /* 通知中心内容：island 变大后内部的通知面（不是悬浮窗） */
+  .notif-sheet {
+    display: none;
+    width: 100%;
+  }
+  .island.notif-open .notif-sheet { display: block; }
+  .island.notif-open .island-notice { display: none; }
+  .ns-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    height: 22px;
+    padding-left: 34px;   /* 给左上角的眼睛让位 */
+    margin-bottom: 4px;
+  }
+  .ns-title { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.92); }
+  .ns-hint {
+    font-family: var(--mono); font-size: 8.5px;
+    letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.38);
+  }
+  .np-item {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 7px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    transition: opacity 0.26s ease, transform 0.26s ease;
+  }
+  .np-item .t {
+    font-family: var(--mono); font-size: 9px;
+    color: rgba(255, 255, 255, 0.35); flex-shrink: 0;
+  }
+  .np-item .b { font-size: 11px; color: rgba(255, 255, 255, 0.85); line-height: 1.5; }
+  .np-item.gone { opacity: 0; transform: translateY(-5px); }
+  .np-empty {
+    font-size: 11px; color: rgba(255, 255, 255, 0.35);
+    text-align: center; padding: 12px 0 8px;
+    display: none;
+  }
+
+  /* ── 岛屿胶囊（仓库真实规格） ── */
+  .island-slot {
+    position: absolute;
+    top: 5px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+  }
+  .island {
+    width: 52px; height: 26px;
+    border-radius: 13px;
+    background: linear-gradient(180deg, #161619 0%, #08080a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 4px 14px rgba(0, 0, 0, 0.42),
+      0 0 12px rgba(255, 255, 255, 0.02);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: 12px;
+    overflow: hidden;     /* 传话文字收起时被裁掉，宽度动画的搭档 */
+    cursor: default;
+    user-select: none;
+    position: relative;
+    height: 26px;
+    transition:
+      box-shadow 0.35s ease,
+      width 420ms cubic-bezier(0.32, 0.72, 0.24, 1),
+      height 420ms cubic-bezier(0.32, 0.72, 0.24, 1),
+      padding 420ms cubic-bezier(0.32, 0.72, 0.24, 1),
+      border-radius 420ms cubic-bezier(0.32, 0.72, 0.24, 1);
+  }
+  /* 传话态：胶囊横向长出，眼在左、话在右（同一个物体，不是弹卡片） */
+  .island.noticing {
+    width: 272px;
+  }
+  /* 通知中心态：胶囊整体变大（纵向展开），眼在左上 */
+  .island.notif-open {
+    width: 302px;
+    border-radius: 20px;
+    padding: 8px 12px 6px;
+    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .island:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 7px 18px rgba(0, 0, 0, 0.5),
+      0 0 10px rgba(255, 120, 48, 0.14);
+  }
+  .face {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    margin-top: -5px;
+    transition:
+      top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+      margin-top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+      left 0.3s ease;
+    /* 头部微移（转头暗示） */
+    transform: translate(calc(var(--face-x, 0) * 1px), calc(var(--face-y, 0) * 1px));
+  }
+  .island.notif-open .face { top: 18px; margin-top: 0; }
+  .eyes {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    /* 注视位移 */
+    transform: translate(calc(var(--gaze-x, 0) * 1px), calc(var(--gaze-y, 0) * 1px));
+  }
+  .eye {
+    width: 8px; height: 10px;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: 0 0 4px #fff, 0 0 8px #ff7830, 0 0 16px rgba(255, 120, 48, 0.6);
+    /* 眼睑 */
+    transform: scaleY(var(--lid, 1));
+  }
+
+  /* 惊跳：整体 squash & stretch */
+  .island {
+    transform: scale(calc(var(--sx, 1)), calc(var(--sy, 1)));
+  }
+
+  /* ── 模式眼形（复刻 01-janus-foundation.css） ── */
+  .island[data-mode="sleep"] .eye.right { display: none; }
+  .island[data-mode="sleep"] .eye {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: #ff7830;
+    box-shadow: 0 0 3px rgba(255, 120, 48, 0.6);
+    animation: janus-breathe 3s ease-in-out infinite;
+  }
+  .island[data-mode="analytics"] .eye.left {
+    width: 10px; height: 2px;
+    background: #ff7830;
+    box-shadow: 0 0 4px #ff7830, 0 0 8px rgba(255, 120, 48, 0.6);
+    animation: data-scan-mini 1s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+  }
+  .island[data-mode="analytics"] .eye.right {
+    width: 8px; height: 10px;
+    background: repeating-linear-gradient(to bottom, #fff 0, #fff 2px, transparent 2px, transparent 4px);
+    background-size: 100% 200%;
+    box-shadow: 0 0 10px #ff7830;
+    animation: data-crunching 0.3s linear infinite;
+  }
+  .island[data-mode="running"] .eye {
+    width: 4.5px;
+    border-radius: 2px;
+    background: #00ff88;
+    box-shadow: 0 0 4px rgba(0, 255, 136, 0.9), 0 0 8px rgba(0, 255, 136, 0.35);
+  }
+  .island[data-mode="running"] .eye.left { animation: janus-eq-a 0.35s ease-in-out infinite alternate; }
+  .island[data-mode="running"] .eye.right { animation: janus-eq-b 0.28s ease-in-out infinite alternate-reverse; }
+
+  @keyframes janus-breathe {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(0.85); }
+  }
+  @keyframes data-scan-mini {
+    0%   { transform: translateY(-4px); }
+    100% { transform: translateY(4px); }
+  }
+  @keyframes data-crunching { 100% { background-position: 0 100%; } }
+  @keyframes janus-eq-a { from { height: 4px; } to { height: 13px; } }
+  @keyframes janus-eq-b { from { height: 3px; } to { height: 14px; } }
+
+  /* ── 旧版对照：仓库 mini-idle 8s 循环原样复刻 ── */
+  body[data-behavior="legacy"] .eye {
+    animation: mini-idle 8s infinite cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transform: none;
+    --lid: 1;
+  }
+  body[data-behavior="legacy"] .eyes,
+  body[data-behavior="legacy"] .face { transform: none; }
+  body[data-behavior="legacy"] .island[data-mode="sleep"] .eye { animation: janus-breathe 3s ease-in-out infinite !important; }
+  body[data-behavior="legacy"] .island[data-mode="analytics"] .eye.left { animation: data-scan-mini 1s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate !important; }
+  body[data-behavior="legacy"] .island[data-mode="analytics"] .eye.right { animation: data-crunching 0.3s linear infinite !important; }
+  body[data-behavior="legacy"] .island[data-mode="running"] .eye.left { animation: janus-eq-a 0.35s ease-in-out infinite alternate !important; }
+  body[data-behavior="legacy"] .island[data-mode="running"] .eye.right { animation: janus-eq-b 0.28s ease-in-out infinite alternate-reverse !important; }
+  @keyframes mini-idle {
+    0%, 15%, 35%, 100% { transform: translateX(0) scale(1); }
+    17%, 19%            { transform: translateX(0) scaleY(0.1); }
+    21%                 { transform: translateX(0) scale(1); }
+    40%, 48%            { transform: translateX(-2px) scale(0.9); }
+    55%, 65%            { transform: translateX(2px) scale(0.9); }
+    70%                 { transform: translateX(0) scale(1); }
+    85%                 { transform: scale(1.1); }
+    90%                 { transform: scale(1); }
+  }
+
+  /* ── 底部条：放大镜 + HUD ── */
+  .inspect {
+    display: grid;
+    grid-template-columns: 372px 1fr;
+    border-top: 1px solid var(--line);
+    margin-top: 16px;
+    min-height: 236px;
+    flex-shrink: 0;
+  }
+  .zoom-box {
+    border-right: 1px solid var(--line);
+    padding: 18px 24px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .zoom-label {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.12em; color: var(--faint);
+  }
+  .zoom-frame {
+    width: 312px; height: 156px;   /* 52×26 × 6 */
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zoom-frame .island-wrap { transform: scale(6); }
+  .size-note { font-size: 11px; color: var(--faint); text-align: center; line-height: 1.8; }
+  .size-note .chip {
+    display: inline-flex; vertical-align: middle;
+    margin-right: 6px;
+  }
+  .size-note .chip .island-wrap { transform: scale(1); display: block; }
+
+  .hud {
+    padding: 18px 24px 22px;
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    gap: 22px;
+    align-content: start;
+  }
+  .hud h3, .panel-col h2 {
+    font-family: var(--serif);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .hud h3 { margin-bottom: 12px; }
+  .hud .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 4.5px 0;
+    border-bottom: 1px solid rgba(36, 39, 43, 0.07);
+  }
+  .hud .row .k { color: var(--muted); font-size: 11.5px; }
+  .hud .row .v { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .hud .row .v.hot { color: var(--accent); }
+  .log {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--muted); line-height: 1.9;
+    max-height: 170px; overflow: hidden;
+  }
+  .log .t { color: var(--faint); margin-right: 8px; }
+
+  /* ── 右栏：模式 / 事件 / 参数 ── */
+  .panel-col section { margin-bottom: 26px; }
+  .panel-col h2 {
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .panel-col h2 .badge {
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: 0.1em; color: var(--faint); font-weight: 400;
+  }
+  .seg {
+    display: flex; flex-direction: column; gap: 0;
+    margin: 8px 0 2px;
+  }
+  .seg button, .acts button {
+    appearance: none; background: none; border: none;
+    font-family: var(--sans); font-size: 12.5px; color: var(--muted);
+    text-align: left;
+    padding: 7px 10px 7px 12px;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.18s;
+  }
+  .seg button:hover, .acts button:hover { color: var(--ink); }
+  .seg button.on { color: var(--ink); font-weight: 600; }
+  /* 选中 = 文字 + 2px 强调条（无填充） */
+  .seg button.on::before {
+    content: "";
+    position: absolute; left: 0; top: 6px; bottom: 6px;
+    width: 2px; background: var(--accent);
+  }
+  .seg button .en {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--faint); margin-left: 8px; letter-spacing: 0.08em;
+  }
+  .acts { display: flex; flex-wrap: wrap; gap: 4px 2px; margin: 8px 0 2px; }
+  .acts button {
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 6px 11px;
+    font-size: 12px;
+    margin: 0;
+  }
+  .acts button:hover { border-color: var(--line-strong); }
+  .acts button:active { border-color: var(--accent); color: var(--accent); }
+
+  .param {
+    padding: 9px 0 10px;
+    border-bottom: 1px solid rgba(36, 39, 43, 0.07);
+  }
+  .param .top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 5px;
+  }
+  .param .name { font-size: 12px; color: var(--ink); }
+  .param .val { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .param .why { font-size: 10.5px; color: var(--faint); margin-top: 3px; line-height: 1.6; }
+  input[type="range"] {
+    width: 100%; height: 18px;
+    appearance: none; background: transparent; cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 1px; background: var(--line-strong);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1.5px solid var(--ink);
+    margin-top: -5px;
+  }
+  input[type="range"]:hover::-webkit-slider-thumb { border-color: var(--accent); }
+
+  .switch-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(36, 39, 43, 0.07);
+  }
+  .switch-row .name { font-size: 12px; }
+  .switch-row .why { font-size: 10.5px; color: var(--faint); }
+  .switch {
+    appearance: none;
+    width: 30px; height: 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    position: relative;
+    cursor: pointer;
+    background: none;
+    flex-shrink: 0;
+    transition: border-color 0.2s;
+  }
+  .switch::after {
+    content: "";
+    position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--faint);
+    transition: transform 0.2s, background 0.2s;
+  }
+  .switch.on { border-color: var(--accent); }
+  .switch.on::after { transform: translateX(14px); background: var(--accent); }
+
+  .foot-note {
+    font-size: 10.5px; color: var(--faint); line-height: 1.8;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+</style>
+</head>
+<body data-behavior="new">
+
+<header>
+  <h1>Janus <em>眼睛行为实验台</em></h1>
+  <div class="sub">
+    不是循环动画，是注意力生物。移动鼠标看它跟过来——然后自己走神；
+    点胶囊会有惊跳。右栏调参数，玩到手感对为止。
+  </div>
+  <div class="assume">
+    <b>假设</b> · 胶囊按仓库真实规格复刻（52×26 / #161619→#08080a）·
+    6× 视图是同一实例的放大镜 · 「旧·8s 循环」为当前线上 mini-idle 原样对照 ·
+    参数定稿后移植 janusBehavior.ts
+  </div>
+</header>
+
+<div class="grid">
+  <!-- ════════ 舞台 ════════ -->
+  <div class="stage-col">
+    <div class="stage" id="stage">
+      <div class="titlebar">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="tb-label">JANUS · CAPSULE STAGE</div>
+      </div>
+
+      <div class="radius-ring" id="radiusRing"></div>
+
+      <div class="island-slot" id="islandSlot">
+        <div class="island-wrap">
+          <div class="island" id="island" data-mode="order" role="img" aria-label="Janus 眼睛">
+            <div class="face">
+              <div class="eyes">
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+              </div>
+            </div>
+            <div class="island-notice" id="islandNotice">
+              <span class="in-tag">NOTICE</span>
+              <span class="in-body">coderX 完成了插件配置重构</span>
+            </div>
+            <div class="notif-sheet" id="notifSheet">
+              <div class="ns-head">
+                <span class="ns-title">通知</span>
+                <span class="ns-hint">看过即焚 · 收起自动清空</span>
+              </div>
+              <div class="ns-list" id="npList"></div>
+              <div class="np-empty" id="npEmpty">没有历史通知</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notif-count" id="notifCount">通知 0</div>
+
+      <div class="stage-hint">
+        在页面任意处移动鼠标 · 观察它的注意力<br>
+        <span class="k">点击胶囊</span> 惊跳 ·
+        <span class="k">下拉胶囊</span> 历史通知 ·
+        <span class="k">右栏</span> 触发事件
+      </div>
+    </div>
+
+    <!-- ════════ 底部：放大镜 + HUD ════════ -->
+    <div class="inspect">
+      <div class="zoom-box">
+        <div class="zoom-label">6× INSPECTION · 同一实例放大镜</div>
+        <div class="zoom-frame">
+          <div class="island-wrap">
+            <div class="island" id="islandZoom" data-mode="order" aria-hidden="true">
+              <div class="face">
+                <div class="eyes">
+                  <div class="eye left"></div>
+                  <div class="eye right"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="size-note">
+          <span class="chip">
+            <span class="island-wrap">
+              <span class="island" data-mode="order" aria-hidden="true" style="display:flex">
+                <span class="face"><span class="eyes">
+                  <span class="eye left"></span><span class="eye right"></span>
+                </span></span>
+              </span>
+            </span>
+          </span>
+          1× 实际尺寸参考（与舞台一致）
+        </div>
+      </div>
+
+      <div class="hud">
+        <div>
+          <h3>调度器状态</h3>
+          <div class="row"><span class="k">注意力</span><span class="v hot" id="hudState">自主游荡</span></div>
+          <div class="row"><span class="k">注视目标</span><span class="v" id="hudGaze">0.00 , 0.00</span></div>
+          <div class="row"><span class="k">下次眨眼</span><span class="v" id="hudBlink">—</span></div>
+          <div class="row"><span class="k">连续跟随 / 疲劳阈值</span><span class="v" id="hudFatigue">0 / 3</span></div>
+          <div class="row"><span class="k">历史通知（未焚）</span><span class="v" id="hudHist">0</span></div>
+          <div class="row"><span class="k">模式</span><span class="v" id="hudMode">order</span></div>
+          <div class="row"><span class="k">行为系统</span><span class="v" id="hudBehavior">新 · 行为系统</span></div>
+        </div>
+        <div>
+          <h3>行为日志</h3>
+          <div class="log" id="hudLog"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ 右栏 ════════ -->
+  <div class="panel-col">
+
+    <section>
+      <h2>行为系统 <span class="badge">A/B</span></h2>
+      <div class="seg" id="segBehavior">
+        <button data-v="new" class="on">新 · 注意力行为系统<span class="en">GAZE SCHEDULER</span></button>
+        <button data-v="legacy">旧 · 8s 死板循环<span class="en">MINI-IDLE (CURRENT)</span></button>
+      </div>
+    </section>
+
+    <section>
+      <h2>模式 <span class="badge">MODE</span></h2>
+      <div class="seg" id="segMode">
+        <button data-v="order" class="on">order · 待命<span class="en">FULL GAZE</span></button>
+        <button data-v="sleep">sleep · 休眠<span class="en">DOT · NAP</span></button>
+        <button data-v="analytics">analytics · 扫描<span class="en">READ-SCAN</span></button>
+        <button data-v="running">running · 运转<span class="en">EQ · GAZE 降权</span></button>
+      </div>
+    </section>
+
+    <section>
+      <h2>事件反应 <span class="badge">REACT</span></h2>
+      <div class="acts" id="acts">
+        <button data-a="flinch">惊跳 flinch</button>
+        <button data-a="notice">通知 · 胶囊传话</button>
+        <button data-a="burst">通知 · 连发 ×3</button>
+        <button data-a="nod">点头 nod</button>
+        <button data-a="fail">失败垂眼</button>
+        <button data-a="greet">眨眼打招呼</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>注意力参数 <span class="badge">GAZE</span></h2>
+
+      <div class="param" data-p="radius">
+        <div class="top"><span class="name">感知半径</span><span class="val">260 px</span></div>
+        <input type="range" min="100" max="600" step="10" value="260">
+        <div class="why">鼠标进入这个距离才可能吸引它；太大会觉得被监视</div>
+      </div>
+
+      <div class="param" data-p="dwell">
+        <div class="top"><span class="name">驻留时长</span><span class="val">2.6 s</span></div>
+        <input type="range" min="800" max="6000" step="100" value="2600">
+        <div class="why">跟住鼠标多久后主动移开视线——「看一会」的灵魂</div>
+      </div>
+
+      <div class="param" data-p="lerp">
+        <div class="top"><span class="name">跟随阻尼</span><span class="val">0.12</span></div>
+        <input type="range" min="4" max="35" step="1" value="12">
+        <div class="why">越大越跟手，太大会像机械眼；0.10–0.16 接近生物感</div>
+      </div>
+
+      <div class="param" data-p="gazeAmp">
+        <div class="top"><span class="name">眼动幅度</span><span class="val">2.5 px</span></div>
+        <input type="range" min="10" max="40" step="1" value="25">
+        <div class="why">眼球位移上限（1× 尺寸下）；胶囊很小，2–3px 就够</div>
+      </div>
+
+      <div class="param" data-p="headAmp">
+        <div class="top"><span class="name">头部微移</span><span class="val">1.0 px</span></div>
+        <input type="range" min="0" max="20" step="1" value="10">
+        <div class="why">眼球到极限后用整脸轻移代偿「转头」</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>生理参数 <span class="badge">BLINK</span></h2>
+
+      <div class="param" data-p="blinkMin">
+        <div class="top"><span class="name">眨眼间隔 · 下限</span><span class="val">2.2 s</span></div>
+        <input type="range" min="10" max="50" step="1" value="22">
+        <div class="why">非均匀分布：实际间隔在上下限之间随机</div>
+      </div>
+
+      <div class="param" data-p="blinkMax">
+        <div class="top"><span class="name">眨眼间隔 · 上限</span><span class="val">6.5 s</span></div>
+        <input type="range" min="40" max="120" step="1" value="65">
+        <div class="why">上限拉开才有「不规律感」，等距循环 = 死板本源</div>
+      </div>
+
+      <div class="param" data-p="doubleP">
+        <div class="top"><span class="name">双眨概率</span><span class="val">0.18</span></div>
+        <input type="range" min="0" max="50" step="1" value="18">
+        <div class="why">偶尔连眨两下，生物感的关键小细节</div>
+      </div>
+
+      <div class="param" data-p="wander">
+        <div class="top"><span class="name">游荡间隔</span><span class="val">4.5 s</span></div>
+        <input type="range" min="20" max="120" step="1" value="45">
+        <div class="why">空闲时自主扫视的平均节奏（实际 ±40% 抖动）</div>
+      </div>
+
+      <div class="param" data-p="fatigueAfter">
+        <div class="top"><span class="name">疲劳阈值</span><span class="val">3 次</span></div>
+        <input type="range" min="1" max="10" step="1" value="3">
+        <div class="why">连续跟住几次鼠标后进入「兴趣衰退」休息</div>
+      </div>
+
+      <div class="param" data-p="restMs">
+        <div class="top"><span class="name">疲劳休息</span><span class="val">6.0 s</span></div>
+        <input type="range" min="20" max="150" step="1" value="60">
+        <div class="why">休息期间忽略鼠标，防止每秒都在讨好</div>
+      </div>
+
+      <div class="param" data-p="closeMs">
+        <div class="top"><span class="name">闭眼享受时长</span><span class="val">2.2 s</span></div>
+        <input type="range" min="10" max="50" step="1" value="22">
+        <div class="why">鼠标停在胶囊上时闭眼多久，到点自己睁开偷看（睁眼段固定约 2.8s）</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>开关 <span class="badge">FLAGS</span></h2>
+      <div class="switch-row">
+        <div><div class="name">鼠标跟随</div><div class="why">核心能力</div></div>
+        <button class="switch on" data-f="mouseFollow"></button>
+      </div>
+      <div class="switch-row">
+        <div><div class="name">被摸头闭眼</div><div class="why">鼠标停在胶囊上 → 闭眼享受 → 睁眼偷看</div></div>
+        <button class="switch on" data-f="hoverClose"></button>
+      </div>
+      <div class="switch-row">
+        <div><div class="name">自主游荡</div><div class="why">空闲时非均匀扫视</div></div>
+        <button class="switch on" data-f="wanderOn"></button>
+      </div>
+      <div class="switch-row">
+        <div><div class="name">扫视前眨眼</div><div class="why">大幅转向前先眨（真实眼动特征）</div></div>
+        <button class="switch on" data-f="blinkSaccade"></button>
+      </div>
+      <div class="switch-row">
+        <div><div class="name">显示感知半径</div><div class="why">舞台上的虚线圈</div></div>
+        <button class="switch on" data-f="showRadius"></button>
+      </div>
+      <div class="switch-row">
+        <div><div class="name">减弱动效</div><div class="why">prefers-reduced-motion 同款降级</div></div>
+        <button class="switch" data-f="reduced"></button>
+      </div>
+    </section>
+
+    <div class="foot-note">
+      手感定稿 → 移植为 <span style="font-family:var(--mono)">janusBehavior.ts</span> +
+      <span style="font-family:var(--mono)">useJanusGaze()</span>，
+      调度器纯逻辑可单测；rAF 只写 CSS 变量，鼠标静止后自动停帧。
+      参数会存在 localStorage，刷新不丢。
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   Janus Gaze Scheduler · 原型实现
+   （生产版应为纯逻辑类 + 注入 time/random，此处直接跑 rAF）
+   ══════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /*── 参数（localStorage 持久化） ──*/
+  // 2026-10-23 手感定稿：250 / 3.0s / 0.12 / 2.4 / 1.0（用户实测选定）
+  const DEFAULTS = {
+    radius: 250, dwell: 3000, lerp: 12, gazeAmp: 24, headAmp: 10,
+    blinkMin: 22, blinkMax: 65, doubleP: 18, wander: 45,
+    fatigueAfter: 3, restMs: 60, closeMs: 22,
+  };
+  const FLAGS = { mouseFollow: true, wanderOn: true, blinkSaccade: true, showRadius: true, reduced: false, hoverClose: true };
+  const P = Object.assign({}, DEFAULTS);
+  try {
+    const saved = JSON.parse(localStorage.getItem('janus-gaze-lab-v2') || '{}');
+    Object.assign(P, saved.p || {});
+    Object.assign(FLAGS, saved.f || {});
+  } catch (e) { /* 忽略 */ }
+  function persist() {
+    try { localStorage.setItem('janus-gaze-lab-v2', JSON.stringify({ p: P, f: FLAGS })); } catch (e) {}
+  }
+
+  // slider 显示值换算
+  const fmt = {
+    radius: v => v + ' px',
+    dwell: v => (v / 1000).toFixed(1) + ' s',
+    lerp: v => (v / 100).toFixed(2),
+    gazeAmp: v => (v / 10).toFixed(1) + ' px',
+    headAmp: v => (v / 10).toFixed(1) + ' px',
+    blinkMin: v => (v / 10).toFixed(1) + ' s',
+    blinkMax: v => (v / 10).toFixed(1) + ' s',
+    doubleP: v => (v / 100).toFixed(2),
+    wander: v => (v / 10).toFixed(1) + ' s',
+    fatigueAfter: v => v + ' 次',
+    restMs: v => (v / 10).toFixed(1) + ' s',
+    closeMs: v => (v / 10).toFixed(1) + ' s',
+  };
+
+  /*── DOM ──*/
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage');
+  const islandSlot = $('#islandSlot');
+  const islandEls = [$('#island'), $('#islandZoom')];
+  const radiusRing = $('#radiusRing');
+  const islandNotice = $('#islandNotice');
+  const notifCount = $('#notifCount');
+  const npList = $('#npList');
+  const npEmpty = $('#npEmpty');
+
+  /*── 状态 ──*/
+  const S = {
+    attention: 'auto',        // auto | mouse | event
+    stateLabel: '自主游荡',
+    dwellUntil: 0,
+    restUntil: 0,
+    followCount: 0,
+    gaze: { x: 0, y: 0 },
+    gazeTarget: { x: 0, y: 0 },
+    lid: 1,
+    blink: null,              // { t0, dur, phase }
+    nextBlinkAt: 0,
+    nextWanderAt: 0,
+    wanderTarget: { x: 0, y: 0 },
+    lookawayUntil: 0,         // 主动移开后的偏置
+    lookawayBias: { x: 0, y: 0 },
+    eventUntil: 0,
+    face: { x: 0, y: 0 },
+    flinchT0: -1e9,
+    nodT0: -1e9,
+    failT0: -1e9,
+    pointer: { x: -1e4, y: -1e4 },
+    lastPointerMove: 0,
+    hoverT0: 0,               // 被摸头起点（0 = 未在摸）
+    hoverPeekLogged: false,
+    noticing: false,          // 胶囊传话中
+    noticeTimers: [],         // 传话链路定时器（可整体清）
+    burstTimers: [],          // 连发模拟的「到达」定时器（独立于传话，不被收起连坐）
+    speaking: false,          // 传话状态机占用中
+    speakQueue: [],           // 待传话正文
+    history: [],              // 历史通知（看过即焚）
+    panelOpen: false,
+    dragging: false,
+    mode: 'order',
+    behavior: 'new',
+    logs: [],
+  };
+
+  function log(msg) {
+    const d = new Date();
+    const t = String(d.getMinutes()).padStart(2, '0') + ':' +
+              String(d.getSeconds()).padStart(2, '0') + '.' +
+              String(Math.floor(d.getMilliseconds() / 100));
+    S.logs.unshift({ t, msg });
+    if (S.logs.length > 7) S.logs.pop();
+    $('#hudLog').innerHTML = S.logs.map(l => '<div><span class="t">' + l.t + '</span>' + l.msg + '</div>').join('');
+  }
+
+  /*── 工具 ──*/
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  function islandCenter() {
+    const r = islandEls[0].getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  // 指针是否停在胶囊上（含 14px 抚摸容差）
+  function pointerOnIsland() {
+    const r = islandEls[0].getBoundingClientRect();
+    const pad = 14;
+    return S.pointer.x >= r.left - pad && S.pointer.x <= r.right + pad &&
+           S.pointer.y >= r.top - pad && S.pointer.y <= r.bottom + pad;
+  }
+
+  function dirToPointer() {
+    const c = islandCenter();
+    const dx = S.pointer.x - c.x, dy = S.pointer.y - c.y;
+    const d = Math.hypot(dx, dy) || 1;
+    return { x: dx / d, y: dy / d, dist: d };
+  }
+
+  /*── 眨眼 ──*/
+  function scheduleBlink(now, extraDelay) {
+    const min = P.blinkMin * 100, max = Math.max(P.blinkMax * 100, P.blinkMin * 100 + 10);
+    S.nextBlinkAt = now + (extraDelay || 0) + rand(min, max);
+  }
+  function triggerBlink(now, quick) {
+    S.blink = { t0: now, dur: quick ? 110 : rand(140, 210), double: Math.random() < P.doubleP / 100 };
+    scheduleBlink(now);
+  }
+
+  /*── 游荡：非均匀扫视 ──*/
+  function pickWanderTarget() {
+    // 70% 近中心微漂，30% 明显扫视
+    const amp = P.gazeAmp / 10;
+    if (Math.random() < 0.7) {
+      S.wanderTarget = { x: rand(-0.35, 0.35) * amp, y: rand(-0.3, 0.3) * amp };
+    } else if (S.mode === 'analytics') {
+      // 扫描模式：像在读内容，横向定格
+      S.wanderTarget = { x: (Math.random() < 0.5 ? -1 : 1) * rand(0.6, 1) * amp, y: rand(-0.2, 0.2) * amp };
+    } else {
+      S.wanderTarget = { x: rand(-1, 1) * amp, y: rand(-0.8, 0.8) * amp };
+    }
+    const dist = Math.hypot(S.wanderTarget.x - S.gaze.x, S.wanderTarget.y - S.gaze.y);
+    // 大幅扫视 → 扫视前眨眼（真实眼动特征）
+    if (FLAGS.blinkSaccade && dist > amp * 0.55 && S.blink === null) {
+      triggerBlink(performance.now(), true);
+    }
+    S.nextWanderAt = performance.now() + P.wander * 100 * rand(0.6, 1.4);
+  }
+
+  /*── 事件反应 ──*/
+  function clearSpeakTimers() {
+    S.noticeTimers.forEach(clearTimeout);
+    S.noticeTimers = [];
+  }
+
+  // keepQueue=true：收起当前这条，队列继续播下一条（bug fix：以前会把队列连坐清掉）
+  function dismissNotice(keepQueue) {
+    const was = S.noticing || S.speaking;
+    clearSpeakTimers();
+    if (S.noticing) {
+      islandEls[0].classList.remove('noticing');
+      S.noticing = false;
+    }
+    S.speaking = false;
+    if (S.attention === 'event') {
+      S.attention = 'auto';
+      S.lookawayUntil = performance.now() + 600;
+      S.lookawayBias = { x: -0.5 * (P.gazeAmp / 10), y: 0 };
+    }
+    if (was) log('收起传话');
+    if (keepQueue && S.speakQueue.length) {
+      S.noticeTimers.push(setTimeout(() => pumpSpeak(), 380));
+    }
+    return was;
+  }
+
+  function flinch() {
+    // 传话中点击 = 收起当前这条，但队列继续（keepQueue）
+    if (dismissNotice(true)) return;
+    S.flinchT0 = performance.now();
+    // 闭眼享受时被点击 = 惊醒：直接跳进「睁眼偷看」阶段
+    if (S.hoverT0 && S.lid < 0.35) {
+      const closeDur = P.closeMs * 100;
+      S.hoverT0 = performance.now() - closeDur - 60;
+      log('惊醒 · 被点醒了');
+      return;
+    }
+    triggerBlink(performance.now(), true);
+    log('惊跳 flinch · 被点击');
+  }
+  function nod() {
+    S.nodT0 = performance.now();
+    log('点头 nod · 完成信号');
+  }
+  function fail() {
+    S.failT0 = performance.now();
+    log('失败垂眼 · 情绪降级');
+  }
+  function greet() {
+    triggerBlink(performance.now());
+    setTimeout(() => triggerBlink(performance.now(), true), 260);
+    log('眨眼打招呼 · double-blink');
+  }
+  /*── 通知系统：串行传话 + 历史（看过即焚） ──*/
+  const BURST_BODIES = [
+    'coderX 完成了插件配置重构',
+    'evaluatorX 评审通过 · 0 阻塞',
+    'e2e desktop-plugins 19/19 全绿',
+  ];
+
+  function fmtTime(d) {
+    const p = n => String(n).padStart(2, '0');
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  function renderCount() {
+    const n = S.history.length;
+    notifCount.textContent = '通知 ' + n;
+    notifCount.classList.toggle('show', n > 0);
+  }
+
+  function renderList() {
+    npList.innerHTML = S.history.map(it =>
+      '<div class="np-item"><span class="t">' + fmtTime(it.at) + '</span><span class="b">' + it.body + '</span></div>'
+    ).join('');
+    npEmpty.style.display = S.history.length ? 'none' : 'block';
+  }
+
+  function enqueueNotice(body) {
+    S.history.push({ body, at: new Date() });
+    S.speakQueue.push(body);
+    renderCount();
+    renderList();
+    log('通知到达 · 入队「' + body.slice(0, 6) + '…」');
+    pumpSpeak();
+  }
+
+  function pumpSpeak() {
+    if (S.speaking || S.panelOpen || !S.speakQueue.length) return;
+    speakOne(S.speakQueue.shift());
+  }
+
+  function speakOne(body) {
+    // 胶囊传话：展开（眼在左）→ 文字出 → 眼神「念」→ 念完移开 → 收起
+    S.speaking = true;
+    S.noticing = true;
+    islandNotice.querySelector('.in-body').textContent = body;
+    islandEls[0].classList.add('noticing');
+    triggerBlink(performance.now(), true);   // 清嗓式急眨眼
+    log('胶囊传话 · 展开');
+    const push = (fn, ms) => S.noticeTimers.push(setTimeout(fn, ms));
+    const hold = S.speakQueue.length ? 1900 : 2600;   // 还有排队时略赶一点
+
+    push(() => {
+      const amp = P.gazeAmp / 10;
+      S.attention = 'event';
+      S.eventUntil = performance.now() + hold - 400;
+      S.gazeTarget = { x: amp * 0.75, y: 0 };
+      S.stateLabel = '念通知';
+      log('念通知 · 眼神扫向文字');
+    }, 420);
+    push(() => {
+      if (S.attention === 'event') {
+        S.attention = 'auto';
+        S.lookawayUntil = performance.now() + 700;
+        S.lookawayBias = { x: -0.55 * (P.gazeAmp / 10), y: 0 };
+        S.stateLabel = '主动移开';
+        log('念完 · 视线移开');
+      }
+    }, hold - 300);
+    push(() => {
+      islandEls[0].classList.remove('noticing');
+      S.noticing = false;
+      S.speaking = false;
+      log('胶囊收起');
+      push(pumpSpeak, 420);   // 串行：下一条接着说
+    }, hold);
+  }
+
+  /*── 通知中心：island 整体变大（纵向展开）· 看过即焚 ──*/
+  function openPanel() {
+    if (S.panelOpen) return;
+    dismissNotice(false);       // 中断当前传话；打开即「看到」，队列不再逐条弹
+    S.speakQueue = [];
+    S.panelOpen = true;
+    renderList();
+    renderCount();
+    const isl = islandEls[0];
+    isl.classList.add('notif-open');
+    // 按最终内容宽量高：宽度过渡中途量会把长文案折行，量出虚高（实测 283）
+    const sheet = $('#notifSheet');
+    sheet.style.width = '276px';          // 302 - border 2 - padding 24
+    const h = sheet.offsetHeight + 14;
+    sheet.style.width = '';
+    isl.style.height = '26px';
+    void isl.offsetHeight;
+    isl.style.height = h + 'px';
+    log('通知中心展开 · ' + S.history.length + ' 条');
+  }
+
+  function closePanel(clear) {
+    if (!S.panelOpen) return;
+    S.panelOpen = false;
+    const isl = islandEls[0];
+    const items = Array.from(npList.querySelectorAll('.np-item'));
+    const finish = () => {
+      isl.classList.remove('notif-open');
+      isl.style.height = '';
+      if (S.stateLabel === '看通知') S.stateLabel = '自主游荡';
+    };
+    if (clear && items.length) {
+      // 看过即焚：先逐条 stagger 溶解，再收拢回胶囊
+      S.speakQueue = [];
+      items.forEach((el, i) => {
+        el.style.transitionDelay = (i * 45) + 'ms';
+        el.classList.add('gone');
+      });
+      log('看过即焚 · 清空 ' + items.length + ' 条');
+      setTimeout(() => {
+        S.history = [];
+        renderList();
+        renderCount();
+        finish();
+      }, items.length * 45 + 280);
+    } else {
+      if (clear) {
+        S.speakQueue = [];
+        S.history = [];
+        renderList();
+        renderCount();
+      }
+      finish();
+    }
+  }
+
+  /*── 主循环 ──*/
+  let lastT = performance.now();
+  let idleFrames = 0;
+
+  function tick(now) {
+    const dt = Math.min(64, now - lastT);
+    lastT = now;
+
+    const legacy = S.behavior === 'legacy';
+    const reduced = FLAGS.reduced ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (legacy || reduced) {
+      // 旧循环 / 减弱动效：清掉行为输出，交给 CSS keyframe 或静止
+      islandEls.forEach(el => {
+        el.style.setProperty('--gaze-x', 0);
+        el.style.setProperty('--gaze-y', 0);
+        el.style.setProperty('--face-x', 0);
+        el.style.setProperty('--face-y', 0);
+        el.style.setProperty('--lid', 1);
+        el.style.setProperty('--sx', 1);
+        el.style.setProperty('--sy', 1);
+      });
+      S.stateLabel = legacy ? '（旧循环接管）' : '（减弱动效 · 静止）';
+      updateHud(now);
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    /*─ 1. 注意力调度 ─*/
+    const dir = dirToPointer();
+    const pointerFresh = (now - S.lastPointerMove) < 1400;
+    const hover = FLAGS.hoverClose && !S.noticing && !S.dragging && !S.panelOpen && pointerOnIsland();
+    let lidTarget = 1;
+
+    if (S.panelOpen) {
+      /*─ 通知中心开着：低头看列表 ─*/
+      lidTarget = 1;
+      S.stateLabel = '看通知';
+      S.gazeTarget = { x: 0, y: (P.gazeAmp / 10) * 0.65 };
+    } else if (S.attention === 'event') {
+      if (now > S.eventUntil) { S.attention = 'auto'; S.stateLabel = '自主游荡'; }
+    } else if (hover) {
+      /*─ 被摸头：闭眼享受 ↔ 睁眼偷看 循环 ─
+         闭眼是慢速享受式（区别于急眨眼），时间到自己睁开看，
+         不是永久闭眼——像被摸头的猫。 */
+      const closeDur = P.closeMs * 100;
+      const peekDur = 2800;
+      if (!S.hoverT0) {
+        S.hoverT0 = now;
+        S.hoverPeekLogged = false;
+        log('被抚摸 · 闭眼享受');
+      }
+      const cyc = (now - S.hoverT0) % (closeDur + peekDur);
+      if (cyc < closeDur) {
+        lidTarget = 0.05;
+        S.stateLabel = '闭眼享受';
+        S.gazeTarget = { x: 0, y: 0.5 };
+        S.hoverPeekLogged = false;
+      } else {
+        lidTarget = 1;
+        S.stateLabel = '睁眼偷看';
+        const amp = P.gazeAmp / 10;
+        S.gazeTarget = { x: dir.x * amp * 0.85, y: dir.y * amp * 0.55 };
+        if (!S.hoverPeekLogged) {
+          S.hoverPeekLogged = true;
+          log('时间到 · 睁眼偷看');
+        }
+      }
+    } else if (S.hoverT0) {
+      S.hoverT0 = 0;
+      S.stateLabel = '自主游荡';
+      log('抬头 · 注意力回游荡');
+    } else if (S.attention === 'mouse') {
+      const amp = P.gazeAmp / 10;
+      S.gazeTarget = { x: dir.x * amp, y: dir.y * amp * 0.85 };
+      if (now > S.dwellUntil || dir.dist > P.radius * 1.35 || !pointerFresh) {
+        // 主动移开：先看向别处（与鼠标相反方向偏置）
+        S.attention = 'auto';
+        S.lookawayUntil = now + 700;
+        S.lookawayBias = { x: -dir.x * amp * 0.55, y: -dir.y * amp * 0.3 };
+        S.followCount++;
+        S.stateLabel = '主动移开';
+        log('驻留结束 · 主动移开视线');
+        if (S.followCount >= P.fatigueAfter) {
+          S.restUntil = now + P.restMs * 100;
+          S.followCount = 0;
+          S.stateLabel = '疲劳休息';
+          log('兴趣衰退 · 休息 ' + (P.restMs / 10).toFixed(1) + 's');
+        }
+      } else {
+        S.stateLabel = '驻留跟随';
+      }
+    } else {
+      // auto：被吸引？
+      if (FLAGS.mouseFollow && pointerFresh && dir.dist < P.radius && now > S.restUntil) {
+        S.attention = 'mouse';
+        S.dwellUntil = now + P.dwell * 100;
+        S.stateLabel = '被吸引';
+        log('鼠标进入感知半径 · 被吸引');
+      } else {
+        if (now > S.restUntil && S.stateLabel === '疲劳休息') S.stateLabel = '自主游荡';
+        // 游荡
+        if (FLAGS.wanderOn && now > S.nextWanderAt) pickWanderTarget();
+        const bias = now < S.lookawayUntil ? S.lookawayBias : { x: 0, y: 0 };
+        S.gazeTarget = { x: S.wanderTarget.x + bias.x, y: S.wanderTarget.y + bias.y };
+      }
+    }
+
+    /*─ 2. 眨眼生理 ─*/
+    // 闭眼享受时不做无意义眨眼，顺延
+    if (lidTarget < 0.3 && S.blink === null) S.nextBlinkAt = Math.max(S.nextBlinkAt, now + 800);
+    if (now >= S.nextBlinkAt && S.blink === null) triggerBlink(now);
+    if (S.blink) {
+      const b = S.blink;
+      const p = (now - b.t0) / b.dur;
+      if (p >= 1) {
+        if (b.double) {
+          S.blink = { t0: now + 60, dur: b.dur * 0.8, double: false };
+        } else {
+          S.blink = null;
+          S.lid = lidTarget;
+        }
+      } else if (now >= b.t0) {
+        // 闭合-睁开曲线：快闭慢开
+        S.lid = p < 0.35 ? lerp(1, 0.06, p / 0.35) : lerp(0.06, 1, (p - 0.35) / 0.65);
+      }
+    } else {
+      // 无眨眼：眼睑向目标缓动（摸头闭眼 / 睁眼的慢速曲线在这里）
+      const lk = clamp((P.lerp / 100) * (dt / 16.7) * 1.5, 0, 1);
+      S.lid = lerp(S.lid, lidTarget, lk);
+    }
+
+    /*─ 3. 睡眠模式：droop 基线 + 偶尔半睁 ─*/
+    if (S.mode === 'sleep') {
+      const t = now / 1000;
+      const halfOpen = (Math.sin(t * 0.35) > 0.97) ? 0.85 : 0.42;
+      S.lid = Math.min(S.lid, halfOpen);
+    }
+    if (S.mode === 'running') {
+      // running：凝视降权
+      S.gazeTarget.x *= 0.35; S.gazeTarget.y *= 0.35;
+    }
+
+    /*─ 4. 失败情绪 ─*/
+    if (now - S.failT0 < 1400) {
+      const p = (now - S.failT0) / 1400;
+      S.gazeTarget.y += 2 * (1 - p);
+      S.lid = Math.min(S.lid, lerp(0.55, 1, p));
+    }
+
+    /*─ 5. 物理积分：注视（lerp 弹簧） ─*/
+    const k = P.lerp / 100 * (dt / 16.7);
+    const amp = P.gazeAmp / 10;
+    S.gaze.x = lerp(S.gaze.x, clamp(S.gazeTarget.x, -amp, amp), clamp(k, 0, 1));
+    S.gaze.y = lerp(S.gaze.y, clamp(S.gazeTarget.y, -amp, amp), clamp(k, 0, 1));
+
+    // 头部微移：注视到量程 70% 以上才带一点
+    const headAmp = P.headAmp / 10;
+    const overload = clamp((Math.hypot(S.gaze.x, S.gaze.y) / (amp || 1) - 0.7) / 0.3, 0, 1);
+    S.face.x = lerp(S.face.x, S.gaze.x / (amp || 1) * headAmp * overload, clamp(k, 0, 1));
+    S.face.y = lerp(S.face.y, S.gaze.y / (amp || 1) * headAmp * 0.6 * overload, clamp(k, 0, 1));
+
+    /*─ 6. 惊跳 / 点头变换 ─*/
+    let sx = 1, sy = 1, fy = 0;
+    const fAge = now - S.flinchT0;
+    if (fAge < 320) {
+      const p = fAge / 320;
+      const squash = p < 0.25 ? lerp(1, 0.86, p / 0.25) : lerp(0.86, 1, (p - 0.25) / 0.75);
+      sy = squash; sx = 1 + (1 - squash) * 0.7;
+    }
+    const nAge = now - S.nodT0;
+    if (nAge < 800) {
+      const p = nAge / 800;
+      fy = Math.sin(p * Math.PI * 2) * 1.6 * (1 - p);
+    }
+
+    /*─ 7. 写 CSS 变量 ─*/
+    islandEls.forEach(el => {
+      el.style.setProperty('--gaze-x', S.gaze.x.toFixed(3));
+      el.style.setProperty('--gaze-y', S.gaze.y.toFixed(3));
+      el.style.setProperty('--face-x', S.face.x.toFixed(3));
+      el.style.setProperty('--face-y', (S.face.y + fy).toFixed(3));
+      el.style.setProperty('--lid', S.lid.toFixed(3));
+      el.style.setProperty('--sx', sx.toFixed(3));
+      el.style.setProperty('--sy', sy.toFixed(3));
+    });
+
+    updateHud(now);
+    requestAnimationFrame(tick);
+  }
+
+  function updateHud(now) {
+    $('#hudState').textContent = S.stateLabel;
+    $('#hudGaze').textContent = S.gaze.x.toFixed(2) + ' , ' + S.gaze.y.toFixed(2);
+    $('#hudBlink').textContent = S.blink ? '眨眼中'
+      : Math.max(0, (S.nextBlinkAt - now) / 1000).toFixed(1) + ' s';
+    $('#hudFatigue').textContent = S.followCount + ' / ' + P.fatigueAfter;
+    $('#hudHist').textContent = String(S.history.length);
+    $('#hudMode').textContent = S.mode;
+    $('#hudBehavior').textContent = S.behavior === 'new' ? '新 · 行为系统' : '旧 · 8s 循环';
+  }
+
+  /*── 指针 ──*/
+  window.addEventListener('pointermove', e => {
+    S.pointer.x = e.clientX; S.pointer.y = e.clientY;
+    S.lastPointerMove = performance.now();
+  }, { passive: true });
+
+  /*── 胶囊手势：轻点=惊跳 / 下拉=通知中心 ──*/
+  (function bindIslandGesture() {
+    const isl = islandEls[0];
+    let downAt = null, pullArmed = false;
+    isl.addEventListener('pointerdown', e => {
+      if (S.panelOpen) { closePanel(true); return; }   // 传话/面板开着时点胶囊=收起
+      downAt = { x: e.clientX, y: e.clientY };
+      pullArmed = false;
+      S.dragging = false;
+      try { isl.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    isl.addEventListener('pointermove', e => {
+      if (!downAt) return;
+      if (e.clientY - downAt.y > 14) { S.dragging = true; pullArmed = true; }
+    });
+    isl.addEventListener('pointerup', e => {
+      if (!downAt) return;
+      const dx = Math.abs(e.clientX - downAt.x), dy = Math.abs(e.clientY - downAt.y);
+      if (pullArmed) openPanel();
+      else if (dx < 8 && dy < 8) flinch();
+      downAt = null;
+      S.dragging = false;
+    });
+  })();
+
+  // 点舞台空白 / Esc 收起通知中心（看过即焚）
+  stage.addEventListener('pointerdown', e => {
+    if (S.panelOpen && !e.target.closest('#island') && !e.target.closest('#notifPanel')) {
+      closePanel(true);
+    }
+  });
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && S.panelOpen) closePanel(true);
+  });
+
+  // 左上角灰字：未读计数 + 点击入口
+  notifCount.addEventListener('click', () => {
+    if (S.panelOpen) closePanel(true);
+    else openPanel();
+  });
+
+  /*── 感知半径圈 ──*/
+  function layoutRing() {
+    const c = islandCenter();
+    const r = islandEls[0].getBoundingClientRect();
+    radiusRing.style.width = radiusRing.style.height = (P.radius * 2) + 'px';
+    radiusRing.style.left = (r.left + r.width / 2) + 'px';
+    radiusRing.style.top = (r.top + r.height / 2 + window.scrollY) + 'px';
+    radiusRing.style.opacity = FLAGS.showRadius && S.behavior === 'new' ? '1' : '0';
+  }
+  // 舞台内用舞台坐标；ring 挂在 stage 里更稳
+  stage.appendChild(radiusRing);
+  radiusRing.style.position = 'absolute';
+  function layoutRingInStage() {
+    const sr = stage.getBoundingClientRect();
+    const ir = islandEls[0].getBoundingClientRect();
+    radiusRing.style.width = radiusRing.style.height = (P.radius * 2) + 'px';
+    radiusRing.style.left = (ir.left + ir.width / 2 - sr.left) + 'px';
+    radiusRing.style.top = (ir.top + ir.height / 2 - sr.top) + 'px';
+    radiusRing.style.opacity = FLAGS.showRadius && S.behavior === 'new' ? '0.9' : '0';
+  }
+  window.addEventListener('resize', layoutRingInStage);
+
+  /*── 控件绑定 ──*/
+  // 滑杆
+  document.querySelectorAll('.param').forEach(row => {
+    const key = row.dataset.p;
+    const input = row.querySelector('input');
+    const valEl = row.querySelector('.val');
+    input.value = P[key];
+    valEl.textContent = fmt[key](P[key]);
+    input.addEventListener('input', () => {
+      P[key] = Number(input.value);
+      if (key === 'blinkMax' && P.blinkMax < P.blinkMin) { P.blinkMin = P.blinkMax; }
+      if (key === 'blinkMin' && P.blinkMin > P.blinkMax) { P.blinkMax = P.blinkMin; }
+      document.querySelectorAll('.param').forEach(r2 => {
+        const k2 = r2.dataset.p;
+        r2.querySelector('input').value = P[k2];
+        r2.querySelector('.val').textContent = fmt[k2](P[k2]);
+      });
+      layoutRingInStage();
+      persist();
+    });
+  });
+
+  // 分段：模式 / 行为
+  function bindSeg(id, fn) {
+    const seg = $(id);
+    seg.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+      fn(btn.dataset.v);
+      persist();
+    });
+  }
+  bindSeg('#segMode', v => {
+    S.mode = v;
+    islandEls.forEach(el => el.dataset.mode = v);
+    document.querySelectorAll('.island').forEach(el => el.dataset.mode = v);
+    log('切换模式 · ' + v);
+  });
+  bindSeg('#segBehavior', v => {
+    S.behavior = v;
+    document.body.dataset.behavior = v;
+    layoutRingInStage();
+    log(v === 'new' ? '行为系统接管' : '旧 8s 循环接管');
+  });
+
+  // 事件按钮
+  $('#acts').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const a = btn.dataset.a;
+    if (a === 'flinch') flinch();
+    else if (a === 'notice') enqueueNotice('coderX 完成了插件配置重构');
+    else if (a === 'burst') {
+      // 「到达」时刻表独立于传话链路；重复点击会叠加到达（模拟真实连发）
+      BURST_BODIES.forEach((body, i) => {
+        S.burstTimers.push(setTimeout(() => enqueueNotice(body), i * 700));
+      });
+    }
+    else if (a === 'nod') nod();
+    else if (a === 'fail') fail();
+    else if (a === 'greet') greet();
+  });
+
+  // 开关
+  document.querySelectorAll('.switch').forEach(sw => {
+    const f = sw.dataset.f;
+    sw.classList.toggle('on', !!FLAGS[f]);
+    sw.addEventListener('click', () => {
+      FLAGS[f] = !FLAGS[f];
+      sw.classList.toggle('on', FLAGS[f]);
+      if (f === 'showRadius') layoutRingInStage();
+      persist();
+    });
+  });
+
+  /*── 启动 ──*/
+  scheduleBlink(performance.now());
+  pickWanderTarget();
+  layoutRingInStage();
+  log('实验台就绪 · 移动鼠标试试');
+  requestAnimationFrame(tick);
+
+  // 供 Playwright / 调试读取
+  window.__lab = {
+    S, P, FLAGS,
+    forceLook: (x, y) => { S.attention = 'event'; S.eventUntil = performance.now() + 3000; S.gazeTarget = { x, y }; },
+    flinch, nod, fail, greet,
+    enqueueNotice, openPanel, closePanel,
+  };
+})();
+</script>
+</body>
+</html>

@@ -111,6 +111,8 @@ CLI 派发子智能体监控（已定案、未实现）：monitor 子代理运�
 
 下拉副黑板（演示切片已落地）：岛胶囊下拉 ≥60px 让中部工作区下滑让位，副黑板在中央列上带长出，下拉手势 toggle（再下拉自动回收，另有图标收起控件）；中断代价判据与投影/借调分类见[下拉副黑板决策](./island-blackboard.md)。整窗宽覆盖与蓝图翻牌（`blueprintMode`）已否决并退役，蓝图入口只留工作台切换器；板面复用蓝图界面（画布交互 + 左详情槽，无右侧对话），文件钉已移除，下缘拖高收板保留；借调钉与多槽未做。
 
+眼睛行为与通知系统（定稿待移植）：折叠胶囊从 mini-idle 8s 循环升级为注意力行为（凝视调度、摸头闭眼、事件原语），通知改串行传话 + 左上角灰字计数 + 点击式通知中心（island 整体变大、看过即焚）；手势仲裁定案（2026-10-23 B 案）：下拉专属副黑板、flinch/惊醒为 peek 展开伴随反应，通知中心走灰字计数/传话胶囊/peek 历史三路点击入口。手感参数与移植排期归[行为系统移植任务](./tasks/island-behavior-system.md)，可玩原型在 `_design/janus-eye-behavior-lab/`。
+
 产物语义：[workspace 重构](./product-workspace.md)、[notice-matrix](./product-workspace.md)、[peek-race](./product-workspace.md)、[preview-p0](./product-workspace.md)、[tour](./product-tour.md)、[landing](../desktop/landing-page.md)。
 
 Note 工具链三件各司其职：[drawer-toolbar](./note-drawer-markdown-toolbar.md)、[mechanical-gates](../blueprint/documents/note-mechanical-checks.md)、[rename-draftcard](./notecard-rename-draft-card.md)；[Markdown 独立 pane 与顶栏工具分组](./markdown-pane-entry.md)记录移出底部的已确定方向，以及终端解耦、保存与迁移建议，尚未实现。工作便签归属：[own-namespace implemented](../blueprint/documents/history/own-notes-namespace.md)与[own-namespace proposed](../blueprint/documents/history/own-notes-namespace-proposal.md)为生命周期对，成对保留。
