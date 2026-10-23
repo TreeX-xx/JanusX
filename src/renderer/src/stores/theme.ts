@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { DEFAULT_APP_THEME, normalizeAppTheme, type AppTheme } from '../../../shared/ipc/theme'
-import { getThemeDefinition } from '../../../shared/theme/registry'
+import { useSyncExternalStore } from 'react'
+import { getThemeDefinition, subscribeThemeRegistry, themeRegistryRevision } from '../../../shared/theme/registry'
+import { useBrowserOcclusionStore } from './browser-occlusion'
 import { applyThemeToDocument, getAppTheme } from '@/services/theme'
 
 interface ThemeStore {
@@ -62,6 +64,14 @@ export function useThemeInit(): void {
 
 /** JS 侧令牌读取：返回当前主题的 token→value 表（xterm/Monaco 之外的动态色走这里）。 */
 export function useThemeTokens(): Record<string, string> {
-  const theme = useThemeStore((s) => s.theme)
-  return getThemeDefinition(theme).tokens
+  return useThemeDefinition().tokens
+}
+
+// Note: .agents/notes/workbench/plugin-contract-v1.md — catalog arrival/revocation can change a theme without changing its saved ID.
+export function useThemeDefinition() {
+  const theme = useThemeStore(s => s.theme)
+  useSyncExternalStore(subscribeThemeRegistry, themeRegistryRevision)
+  const covered = useBrowserOcclusionStore(s => s.count > 0)
+  const definition = getThemeDefinition(theme)
+  return covered && definition.pluginBase ? getThemeDefinition(definition.pluginBase) : definition
 }

@@ -8,6 +8,7 @@ export type ExtensionViewScope = 'application' | 'project'
 export type ExtensionViewId = `extension:${string}/${string}`
 
 export interface ExtensionViewProps {
+  instanceKey?: string
   viewId: ExtensionViewId
   location: ExtensionViewLocation
   active: boolean
@@ -16,6 +17,7 @@ export interface ExtensionViewProps {
 }
 
 export interface ExtensionView {
+  instancePolicy?: 'single' | 'multiple'
   id: string
   title: string
   location: ExtensionViewLocation

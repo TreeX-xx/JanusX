@@ -9,18 +9,19 @@ import { pluginSettingSchema, pluginSettingMigrationSchema, isPluginSettingValue
 import { networkOriginSchema, pluginTaskSchema, pluginPublicEventSchema, pluginPublicServiceSchema, pluginConsumptionSchema, pluginCredentialSchema, matchesPluginMessage } from './background.js'
 import { pluginSkillSchema, pluginWorkflowSchema } from './agent.js'
 import { pluginContextProviderSchema } from './context.js'
+import { pluginThemeSchema } from './themes.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
 /** Implemented host features; old hosts reject unknown required capabilities. */
 export const PLUGIN_CAPABILITIES = [
-  'views.workspace', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
-  'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
-  'views.workbench', 'views.island', 'views.window', 'island.status',
-  'documents.viewers', 'documents.readText', 'documents.applyEdit',
+  'views.workspace', 'views.multiple', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
+  'keybindings.local', 'context.project', 'files.readText', 'files.listDirectory', 'storage.kv', 'storage.watch', 'ui.toast',
+  'views.workbench', 'views.island', 'views.window', 'themes.palette', 'island.status',
+  'documents.viewers', 'documents.readText', 'documents.applyEdit', 'documents.draft',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
   'tasks.declarative', 'tasks.inputBindings', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'agent.workflows', 'models.generate', 'agent.skills', 'agent.context',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.directories.list', 'workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'documents.draft', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows', 'ui.themes'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -33,7 +34,7 @@ const path = z.string().superRefine((value, ctx) => {
 export const pluginViewSchema = z.object({
   id, title, entry: path.refine((value) => value.endsWith('.html')),
   location: z.enum(['workspace', 'right', 'workbench', 'island', 'window']), scope: z.enum(['application', 'project']),
-  instancePolicy: z.literal('single'), icon: z.enum(['puzzle', 'book', 'list', 'chart', 'file', 'code', 'clock']).optional(), order,
+  instancePolicy: z.enum(['single', 'multiple']), icon: z.enum(['puzzle', 'book', 'list', 'chart', 'file', 'code', 'clock']).optional(), order,
 }).strict()
 export const pluginCommandSchema = z.object({ id, title, action: z.object({ type: z.literal('openView'), view: id }).strict() }).strict()
 export const pluginIslandSchema = z.object({
@@ -46,19 +47,23 @@ export const pluginKeybindingSchema = z.object({
   mac: z.string().refine((value) => normalizePluginKeybinding(value) !== null && !isReservedPluginKeybinding(value)).optional(), when: condition,
 }).strict()
 const permission = z.union([
+  z.object({ name: z.literal('workspace.directories.list'), paths: z.array(z.union([z.literal('.'), path]))
+    .min(1).max(16).refine(items => new Set(items.map(item => item.toLowerCase())).size === items.length)
+    .refine(items => !items.some(isSensitivePluginPath)) }).strict(),
   z.object({ name: z.literal('network.fetch'), origins: z.array(networkOriginSchema).min(1).max(16).refine(items => new Set(items).size === items.length) }).strict(),
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'documents.draft', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows', 'ui.themes']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(20).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(21).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
+    themes: z.array(pluginThemeSchema).min(1).max(4).optional(),
     skills: z.array(pluginSkillSchema).min(1).max(8).optional(),
     contextProviders: z.array(pluginContextProviderSchema).min(1).max(8).optional(),
     workflows: z.array(pluginWorkflowSchema).min(1).max(8).optional(),
@@ -77,11 +82,18 @@ export const pluginManifestSchema = z.object({
   const { tasks = [], credentials = [], events = [], services = [], consumes } = manifest.contributes
   const skills = manifest.contributes.skills ?? []
   const providers = manifest.contributes.contextProviders ?? []
-  if (!views.length && !tasks.length && !skills.length && !providers.length) fail('A plugin requires views, tasks, skills or context providers')
+  const themes = manifest.contributes.themes ?? []
+  if (!views.length && !tasks.length && !skills.length && !providers.length && !themes.length) fail('A plugin requires views, tasks, skills, context providers or themes')
   const needs = (used: boolean, capability: string, permission: string) => {
     if (used && (!manifest.capabilities.required.includes(capability) || !manifest.permissions.some(item => item.name === permission))) fail(`Requires ${capability} and ${permission}`)
   }
   needs(views.some(view => view.location === 'window'), 'views.window', 'ui.windows')
+  if (views.some(view => view.instancePolicy === 'multiple') && (!manifest.capabilities.required.includes('views.multiple')
+    || views.some(view => view.instancePolicy === 'multiple' && view.location !== 'workspace'))) fail('Multiple instances require views.multiple and workspace views')
+  needs(themes.length > 0, 'themes.palette', 'ui.themes')
+  needs(manifest.permissions.some(item => item.name === 'workspace.directories.list'), 'files.listDirectory', 'workspace.directories.list')
+  if (new Set(themes.map(item => item.id)).size !== themes.length) fail('Duplicate theme')
+  if (manifest.permissions.some(item => item.name === 'ui.themes') && !themes.length) fail('Theme permission requires a palette')
   if (manifest.permissions.some(item => item.name === 'ui.windows') && !views.some(view => view.location === 'window')) fail('Window permission requires a window view')
   for (const items of [tasks, credentials, events, services]) if (new Set(items.map(item => item.id)).size !== items.length) fail('Duplicate background contribution')
   for (const items of [consumes?.events ?? [], consumes?.services ?? []]) if (new Set(items.map(item => `${item.plugin}/${item.id}`)).size !== items.length) fail('Duplicate consumption')
@@ -178,6 +190,8 @@ export const pluginManifestSchema = z.object({
   for (const viewer of viewers) if (!views.some(view => view.id === viewer.view && view.scope === 'project' && view.location === 'workspace')) fail('Viewer requires a project workspace view')
   if (manifest.permissions.some(item => item.name === 'documents.edit') && (!viewers.length
     || !manifest.capabilities.required.includes('documents.applyEdit'))) fail('Document editing requires viewers and the required documents.applyEdit capability')
+  if (manifest.permissions.some(item => item.name === 'documents.draft') && (!manifest.permissions.some(item => item.name === 'documents.edit')
+    || !manifest.capabilities.required.includes('documents.draft'))) fail('Draft sessions require document editing and documents.draft')
   const island = manifest.contributes.island ?? []
   if (new Set(island.map(item => item.id)).size !== island.length) fail('Duplicate Island ID')
   if (island.length && !manifest.permissions.some(item => item.name === 'ui.island')) fail('Island requires ui.island permission')
@@ -230,7 +244,9 @@ export function parsePluginManifest(source: string, host: { apiVersion: string; 
       if (view && typeof view === 'object' && 'entry' in view) paths.push(view.entry)
     }
     if (Array.isArray(raw.permissions)) for (const permission of raw.permissions) {
-      if (permission && typeof permission === 'object' && 'paths' in permission && Array.isArray(permission.paths)) paths.push(...permission.paths)
+      if (permission && typeof permission === 'object' && 'paths' in permission && Array.isArray(permission.paths)) {
+        paths.push(...permission.paths.filter((item: unknown) => !(permission.name === 'workspace.directories.list' && item === '.')))
+      }
     }
     for (const path of paths) if (typeof path === 'string') validatePluginPath(path)
   }

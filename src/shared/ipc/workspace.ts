@@ -126,6 +126,7 @@ export interface FileStatResult {
 }
 
 export interface FileSaveResult {
+  current?: { text: string; version: string }
   success?: boolean
   error?: string
   conflict?: boolean

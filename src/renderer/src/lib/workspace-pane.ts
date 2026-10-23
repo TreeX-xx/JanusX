@@ -33,6 +33,7 @@ export type MarkdownPaneContent = {
 }
 
 export type ExtensionPaneContent = {
+  instanceKey?: string
   type: 'extension'
   id: `extension-pane:${string}`
   viewId: ExtensionViewId
@@ -85,19 +86,22 @@ export function createMarkdownPaneContent(panelId: string): MarkdownPaneContent 
   return { type: 'markdown', id: `markdown:${panelId}`, panelId }
 }
 
-export function createExtensionPaneContent(viewId: ExtensionViewId, projectId: string | null): ExtensionPaneContent | null {
+export function createExtensionPaneContent(viewId: ExtensionViewId, projectId: string | null, instanceKey?: string): ExtensionPaneContent | null {
   const view = extensionRegistry.getView(viewId)
   if (!view || view.location !== 'workspace' || (view.scope === 'project' && !projectId)) return null
   const scopeId = view.scope === 'project' ? projectId : null
+  if (instanceKey !== undefined && (view.instancePolicy !== 'multiple' || !/^[a-zA-Z0-9_-]{1,64}$/.test(instanceKey))) return null
+  const key = view.instancePolicy === 'multiple' ? instanceKey ?? crypto.randomUUID() : undefined
   return {
-    type: 'extension', id: `extension-pane:${viewId}:${scopeId === null ? 'application' : `project:${encodeURIComponent(scopeId)}`}`,
-    viewId, scope: view.scope, projectId: scopeId,
+    type: 'extension', id: `extension-pane:${viewId}:${scopeId === null ? 'application' : `project:${encodeURIComponent(scopeId)}`}${key ? `:instance:${key}` : ''}`,
+    viewId, scope: view.scope, projectId: scopeId, ...(key ? { instanceKey: key } : {}),
   }
 }
 
 export function isAvailableExtensionPane(tab: ExtensionPaneContent): boolean {
   const view = extensionRegistry.getView(tab.viewId)
   return view?.location === 'workspace' && view.scope === tab.scope
+    && (view.instancePolicy === 'multiple' ? typeof tab.instanceKey === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(tab.instanceKey) : tab.instanceKey === undefined)
     && (tab.scope === 'application' ? tab.projectId === null : typeof tab.projectId === 'string' && tab.projectId.length > 0)
 }
 

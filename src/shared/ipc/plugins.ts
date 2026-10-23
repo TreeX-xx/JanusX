@@ -39,12 +39,13 @@ export type PluginManageRequest =
   | { type: 'enable'; id: string; projects: string[] }
   | { type: 'disable' | 'reload' | 'uninstall' | 'deleteData'; id: string }
   | { type: 'context'; projectId: string | null; scopePath: string | null; locale: string; theme: { id: string; tokens: Record<string, string> } }
-  | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null; document?: PluginDocument }
+  | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null; document?: PluginDocument; instanceKey?: string }
   | { type: 'close' | 'devtools'; instanceId: string; binding: string }
   | { type: 'active'; instanceId: string; binding: string; active: boolean }
   | { type: 'bounds'; instanceId: string; binding: string; bounds: PluginBounds }
   | { type: 'call'; instanceId: string; binding: string; packet: unknown }
   | { type: 'documentEditResult'; instanceId: string; binding: string; editId: string; applied: boolean }
+  | { type: 'documentDraftResult'; instanceId: string; binding: string; editId: string; draft: { text: string; revision: number; version: string; dirty: boolean; externalChanged: boolean } | null }
   | { type: 'configurationGet'; id: string; projectId: string | null; scopePath: string | null }
   | { type: 'configurationUpdate'; id: string; projectId: string | null; scopePath: string | null;
       expectedRevision: string; patch: Record<string, PluginSettingValue | null>; reset: boolean; migrate?: boolean }

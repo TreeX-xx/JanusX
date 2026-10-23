@@ -70,6 +70,9 @@ function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOr
 
   if (productKindForPath(file.absolutePath) === 'office') return <OfficeFileViewer absolutePath={file.absolutePath} onClose={() => useEditorStore.getState().closeFile(file.id)} />
 
+  if (file.saveConflict && file.conflictDisk) return <MonacoViewer content={file.content} originalContent={file.conflictDisk.text}
+    language={getMonacoLanguage(file.path)} modelPath={file.absolutePath} workspacePath={workspacePath} onChange={onContentChange} onEditorMount={onEditorMount} />
+
   switch (file.viewType) {
     case 'code':
       return (

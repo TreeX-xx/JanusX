@@ -1,6 +1,6 @@
-import { useId, type CSSProperties } from 'react'
+import { useId, useSyncExternalStore, type CSSProperties } from 'react'
 import { Check } from 'lucide-react'
-import { listThemeDefinitions } from '../../../shared/theme/registry'
+import { getThemeDefinition, listThemeDefinitions, subscribeThemeRegistry, themeRegistryRevision } from '../../../shared/theme/registry'
 import styles from './ThemePreviewPicker.module.css'
 
 interface ThemePreviewPickerProps {
@@ -13,16 +13,17 @@ interface ThemePreviewPickerProps {
 
 export function ThemePreviewPicker({ value, label, disabled, getLabel, onChange }: ThemePreviewPickerProps) {
   const name = useId()
+  useSyncExternalStore(subscribeThemeRegistry, themeRegistryRevision)
   return (
     <fieldset className={styles.picker} aria-label={label} disabled={disabled} aria-busy={disabled}>
       {listThemeDefinitions().map((definition) => (
-        <label key={definition.id} className={styles.card} data-selected={value === definition.id}>
+        <label key={definition.id} className={styles.card} data-selected={getThemeDefinition(value).id === definition.id}>
           <input
             className={styles.radio}
             type="radio"
             name={name}
             value={definition.id}
-            checked={value === definition.id}
+            checked={getThemeDefinition(value).id === definition.id}
             onChange={() => onChange(definition.id)}
           />
           <span

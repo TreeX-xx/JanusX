@@ -54,6 +54,23 @@ async function start(api: PluginApi) {
   }
   if (context.document) {
     remember.hidden = true
+    if (context.document.draftSession) {
+      let draft = await api.documents.readDraft(options)
+      const editor = document.createElement('textarea'); editor.setAttribute('aria-label', 'Document draft')
+      editor.value = draft.text; editor.style.cssText = 'width:100%;min-height:12rem'
+      const submit = document.createElement('button'); submit.textContent = 'Keep draft in host'
+      status.textContent = `${context.document.path} · host draft session`
+      content.textContent = 'Use the host Save button to write the file. Changes submitted here remain editable.'
+      content.after(editor, submit)
+      submit.onclick = () => {
+        submit.disabled = true
+        void api.documents.updateDraft({ text: editor.value, expectedRevision: draft.revision }, options)
+          .then(next => { draft = next; status.textContent = next.externalChanged ? 'Disk changed. Save in the host to review differences.' : 'Draft kept by JanusX. You can continue editing.' })
+          .catch((error: Error) => { status.textContent = error.message })
+          .finally(() => { submit.disabled = false })
+      }
+      return
+    }
     const file = await api.documents.readText(options)
     status.textContent = `${file.path} · read-only`
     content.textContent = file.text

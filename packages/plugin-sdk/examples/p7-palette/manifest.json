@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "example.ocean-palette",
+  "name": "Ocean palette",
+  "version": "1.0.0",
+  "engines": { "pluginApi": "^1.0.0" },
+  "capabilities": { "required": ["themes.palette"], "optional": [] },
+  "permissions": [{ "name": "ui.themes" }],
+  "contributes": {
+    "views": [],
+    "themes": [{ "id": "ocean", "title": "Ocean", "base": "dark", "colors": {
+      "canvas": "#102030", "text": "#f5f5f5", "muted": "#b0c0d0", "card": "#203040", "border": "#607080", "accent": "#80c0ff"
+    } }]
+  }
+}

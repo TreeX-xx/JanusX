@@ -31,6 +31,9 @@ export interface ContextScaleDefinition {
 }
 
 export interface ThemeDefinition {
+  /** Authorized plugin palettes inherit built-in structural styles. */
+  pluginBase?: 'planche' | 'dark'
+  overrides?: Record<string, string>
   /** 主题 id，与 GlobalConfig.theme / data-theme 取值一致。 */
   id: AppTheme
   /** 回退展示名（renderer 侧优先走 i18n）。 */

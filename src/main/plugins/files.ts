@@ -3,16 +3,63 @@ import { constants } from 'node:fs'
 import * as nodeFiles from 'node:fs/promises'
 import { resolve, join, relative, sep, isAbsolute } from 'node:path'
 import { createHash } from 'node:crypto'
-import { parsePluginManifest, PluginError, validatePluginPath, type PluginManifest } from '@janusx/plugin-sdk'
+import { parsePluginManifest, PluginError, validatePluginPath, isSensitivePluginPath, type PluginManifest } from '@janusx/plugin-sdk'
 
 export interface PluginPackage { manifest: PluginManifest; directory: string; digest: string; files: Map<string, Buffer> }
-let { lstat, realpath, open, readdir } = nodeFiles
+let { lstat, realpath, open, readdir, opendir } = nodeFiles
 /** Bypass Electron's virtual ASAR paths; plugins contain only ordinary OS files. */
-export function configurePluginFileSystem(files: Pick<typeof nodeFiles, 'lstat' | 'realpath' | 'open' | 'readdir'>): void {
+export function configurePluginFileSystem(files: Pick<typeof nodeFiles, 'lstat' | 'realpath' | 'open' | 'readdir'> & Partial<Pick<typeof nodeFiles, 'opendir'>>): void {
   ;({ lstat, realpath, open, readdir } = files)
+  opendir = files.opendir ?? nodeFiles.opendir
 }
 const fail = (code: ConstructorParameters<typeof PluginError>[0], message: string): never => { throw new PluginError(code, message) }
 const outside = (root: string, path: string) => { const part = relative(root, path); return isAbsolute(part) || part === '..' || part.startsWith(`..${sep}`) }
+
+// Note: .agents/notes/workbench/plugin-contract-v1.md — bounded, nonrecursive directory metadata only.
+export async function listPluginDirectory(root: string, path: string, limit: number, valid: () => void, protectedDirectories: string[] = []) {
+  if (path !== '.') validatePluginPath(path)
+  if (isSensitivePluginPath(path)) fail('SENSITIVE_PATH_DENIED', 'Sensitive directories are unavailable.')
+  const canonical = await realpath(root)
+  if (canonical !== resolve(root)) fail('RESOURCE_CHANGED', 'Resource root changed.')
+  const target = resolve(canonical, path)
+  const protectedRoots = await Promise.all(protectedDirectories.map(directory => realpath(directory).catch(() => resolve(directory))))
+  const protectedPath = (candidate: string) => protectedRoots.some(directory => !outside(directory, candidate))
+  if (protectedPath(target)) fail('SENSITIVE_PATH_DENIED', 'Host data is unavailable.')
+  const chain = [canonical]
+  if (path !== '.') for (const segment of path.split('/')) chain.push(join(chain[chain.length - 1], segment))
+  const identities = []
+  for (const entry of chain) {
+    valid()
+    const info = await lstat(entry, { bigint: true })
+    if (info.isSymbolicLink() || !info.isDirectory() || await realpath(entry) !== entry) fail('INVALID_PACKAGE_PATH', 'Linked directories are unavailable.')
+    identities.push(info.ino)
+  }
+  const entries: Array<{ name: string; type: 'file' | 'directory' }> = []
+  let inspected = 0; let bytes = 0; let truncated = false
+  const directory = await opendir(target)
+  for await (const entry of directory) {
+    valid()
+    if (++inspected > 2000) { truncated = true; break }
+    const relativePath = path === '.' ? entry.name : `${path}/${entry.name}`
+    try { validatePluginPath(relativePath) } catch { continue }
+    if (isSensitivePluginPath(relativePath) || entry.isSymbolicLink()) continue
+    const fullPath = join(target, entry.name)
+    if (protectedPath(fullPath)) continue
+    const info = await lstat(fullPath).catch(() => null)
+    if (!info || info.isSymbolicLink() || !(info.isFile() || info.isDirectory()) || info.isFile() && info.nlink !== 1) continue
+    if (await realpath(fullPath) !== fullPath) fail('RESOURCE_CHANGED', 'Directory changed while reading.')
+    bytes += Buffer.byteLength(entry.name, 'utf8') + 64
+    if (entries.length >= limit || bytes > 32 * 1024) { truncated = true; break }
+    entries.push({ name: entry.name, type: info.isDirectory() ? 'directory' : 'file' })
+  }
+  for (const [index, entry] of chain.entries()) {
+    const info = await lstat(entry, { bigint: true })
+    if (info.ino !== identities[index] || info.isSymbolicLink() || await realpath(entry) !== entry) fail('RESOURCE_CHANGED', 'Directory changed while reading.')
+  }
+  valid()
+  entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+  return { entries, truncated }
+}
 
 export async function readPluginFile(root: string, path: string, limit: number): Promise<Buffer> {
   validatePluginPath(path)

@@ -15,7 +15,8 @@ export function saveEditorText(path: string, content: string, expectedVersion: s
       if (!/^[a-f0-9]{64}$/.test(expectedVersion)) throw new Error('Invalid document version')
       try {
         const current = await readPluginFile(dirname(path), basename(path), 1024 * 1024)
-        if (createHash('sha256').update(current).digest('hex') !== expectedVersion) return { conflict: true, error: 'DOCUMENT_CONFLICT' }
+        const version = createHash('sha256').update(current).digest('hex')
+        if (version !== expectedVersion) return { conflict: true, error: 'DOCUMENT_CONFLICT', current: { text: new TextDecoder('utf-8', { fatal: true }).decode(current), version } }
       } catch { return { conflict: true, error: 'DOCUMENT_CONFLICT' } }
     }
     await write()

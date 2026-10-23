@@ -11,14 +11,21 @@ const registry = new Map<string, ThemeDefinition>([
   [PLANCHE_THEME_DEFINITION.id, PLANCHE_THEME_DEFINITION],
   [DARK_THEME_DEFINITION.id, DARK_THEME_DEFINITION],
 ])
+let revision = 0
+const listeners = new Set<() => void>()
+export const themeRegistryRevision = () => revision
+export function subscribeThemeRegistry(listener: () => void): () => void { listeners.add(listener); return () => { listeners.delete(listener) } }
+function changed(): void { revision++; for (const listener of listeners) listener() }
 
 export function defineTheme(definition: ThemeDefinition): void {
   registry.set(definition.id, definition)
+  changed()
 }
 
 /** 注销自定义主题（测试隔离用；内置主题不要注销）。 */
 export function removeTheme(id: string): void {
   registry.delete(id)
+  changed()
 }
 
 /** 读取侧唯一解析入口：未注册 id（含历史 'light'）回落默认，永不白屏。 */

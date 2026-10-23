@@ -6,7 +6,7 @@ import type { editor as MonacoEditor, IDisposable } from 'monaco-editor'
 import { Uri } from 'monaco-editor/esm/vs/editor/editor.main'
 import type { FindableEditor } from '@/lib/editor-find'
 import { defineJanusxThemes, getMonacoThemeName } from '@/lib/monaco-theme'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeDefinition, useThemeStore } from '@/stores/theme'
 import { configureMonacoRuntime } from '@/lib/monaco-runtime'
 import { registerDefinitionNavigation, type DefinitionTarget } from '@/lib/monaco-definition'
 import type { EditorNavigationTarget } from '@/stores/editor'
@@ -106,7 +106,7 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
     monaco.languages.typescript?.javascriptDefaults.setDiagnosticsOptions(diagnostics)
   }, [])
 
-  const appTheme = useThemeStore((s) => s.theme)
+  const appTheme = useThemeDefinition().id
   const monacoThemeName = getMonacoThemeName(appTheme)
 
   useEffect(() => {

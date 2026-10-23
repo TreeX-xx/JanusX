@@ -5,7 +5,6 @@ import { Select } from './ui/Select'
 import { LanguageServiceManager } from './LanguageServiceManager'
 import { WorkflowXStatus } from './janus/WorkflowXMonitor'
 import { useThemeStore } from '@/stores/theme'
-import { getThemeDefinition } from '../../../shared/theme/registry'
 import { ThemePreviewPicker } from './ThemePreviewPicker'
 import { DEFAULT_APP_THEME } from '../../../shared/ipc/theme'
 import type { AppTheme } from '../../../shared/ipc/theme'
@@ -50,7 +49,7 @@ export function GeneralSettingsPanel() {
           </div>
           <div className={styles.generalControlCol}>
             <ThemePreviewPicker
-              value={getThemeDefinition(themeLoaded ? theme : DEFAULT_APP_THEME).id}
+              value={themeLoaded ? theme : DEFAULT_APP_THEME}
               onChange={handleThemeChange}
               disabled={!themeLoaded || themeSaving}
               label={t('settings:general.theme.label')}

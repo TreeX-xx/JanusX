@@ -14,9 +14,10 @@ import { useThemeStore } from '@/stores/theme'
 import i18n from '@/i18n'
 import { useI18n } from '@/i18n/useI18n'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
+import { syncPluginThemes } from '../../../shared/theme/plugin-themes'
 import { useAppStore } from '@/stores/app'
 import { useIslandStore } from '@/stores/island'
-import type { PluginDocument } from '@janusx/plugin-sdk'
+import type { PluginDocument, PluginDraft } from '@janusx/plugin-sdk'
 import { openPluginConfiguration } from './plugin-configuration-navigation'
 import type { PluginConfigurationTarget } from './plugin-configuration-navigation'
 
@@ -39,6 +40,9 @@ export async function refreshPlugins(): Promise<void> {
   const next = await pluginRequest<PluginHostSnapshot>({ type: 'list' })
   if (sequence !== refreshSequence) return
   snapshot = next
+  syncPluginThemes(next.developmentMode ? next.plugins.filter(record => record.enabled
+    && (['ready', 'loading', 'active'].includes(record.state) || record.state === 'error' && record.error === 'VIEW_LOAD_FAILED')).map(record => record.manifest) : [])
+  useThemeStore.getState().applyExternal(useThemeStore.getState().theme)
   for (const [id, entry] of mounted) {
     const record = next.plugins.find(record => record.manifest.id === id)
     if (!record || !record.enabled || !next.developmentMode || !['ready', 'loading', 'active', 'error'].includes(record.state)
@@ -53,12 +57,13 @@ export async function refreshPlugins(): Promise<void> {
     mounted.set(id, { digest: record.digest, unregister: extensionRegistry.register(definition) })
   }
   for (const listener of listeners) listener()
+  void syncPluginContext().catch(console.error)
 }
 function publicTheme() {
   const tokens: Record<string, string> = {}
   const style = getComputedStyle(document.documentElement)
   for (const token of ['shell-canvas', 'shell-text', 'shell-muted', 'shell-card', 'shell-border', 'shell-accent']) tokens[`--${token}`] = style.getPropertyValue(`--${token}`).trim()
-  return { id: document.documentElement.dataset.theme ?? '', tokens }
+  return { id: document.documentElement.dataset.pluginTheme || document.documentElement.dataset.theme || '', tokens }
 }
 export function syncPluginContext(): Promise<void> {
   const state = useWorkspaceStore.getState()
@@ -67,17 +72,21 @@ export function syncPluginContext(): Promise<void> {
   const scopePath = id ? useWorktreeStore.getState().activePaths[id] ?? workspace?.path ?? null : null
   return pluginRequest({ type: 'context', projectId: id, scopePath, locale: i18n.language ?? 'en', theme: publicTheme() })
 }
-function openViews(): string[] {
+function openViews(): Array<{ id: string; instanceKey?: string }> {
   const trees = [useWorkspaceStore.getState().paneTree, useGlobalToolsStore.getState().paneTree]
-  return [...new Set([...trees.flatMap(tree => getLeafPanes(tree).flatMap(leaf => leaf.tabs.flatMap(tab => tab.type === 'extension' ? [tab.viewId] : []))),
+  return [...trees.flatMap(tree => getLeafPanes(tree).flatMap(leaf => leaf.tabs.flatMap(tab => tab.type === 'extension' ? [{ id: tab.viewId, instanceKey: tab.instanceKey }] : []))),
+    ...[...new Set([
     ...useRightToolStore.getState().openToolIds.filter(id => id.startsWith('extension:')),
     ...[useAppStore.getState().activeWorkbench].filter((id): id is `extension:${string}/${string}` => Boolean(id?.startsWith('extension:'))),
-    ...(useIslandStore.getState().stage === 'expanded' && useIslandStore.getState().activePluginViewId ? [useIslandStore.getState().activePluginViewId!] : [])])]
+    ...(useIslandStore.getState().stage === 'expanded' && useIslandStore.getState().activePluginViewId ? [useIslandStore.getState().activePluginViewId!] : [])])].map(id => ({ id }))]
 }
 export function initializePluginRuntime(): void {
   if (started || !window.electron.plugins) return
   started = true
-  const coverWindows = () => { void pluginRequest({ type: 'windowCover', covered: useBrowserOcclusionStore.getState().count > 0 }).catch(console.error) }
+  const coverWindows = () => {
+    void pluginRequest({ type: 'windowCover', covered: useBrowserOcclusionStore.getState().count > 0 }).catch(console.error)
+    void syncPluginContext().catch(console.error)
+  }
   useBrowserOcclusionStore.subscribe(coverWindows); coverWindows()
   window.addEventListener('janusx:plugin-window-open', event => {
     const id = (event as CustomEvent<string>).detail
@@ -90,17 +99,17 @@ export function initializePluginRuntime(): void {
       .catch(cause => window.dispatchEvent(new CustomEvent('janusx:plugin-toast', { detail: { source: view.extensionId, message: cause.message } })))
   })
   window.electron.plugins.onChanged(() => {
-    const opened = openViews().map(id => ({ id, digest: mounted.get(extensionRegistry.getView(id)?.extensionId ?? '')?.digest }))
+    const opened = openViews().map(entry => ({ ...entry, digest: mounted.get(extensionRegistry.getView(entry.id)?.extensionId ?? '')?.digest }))
     void refreshPlugins().then(() => {
       for (const entry of opened) {
         const view = extensionRegistry.getView(entry.id)
-        if (view && entry.digest !== mounted.get(view.extensionId)?.digest) openExtensionView(entry.id as `extension:${string}/${string}`)
+        if (view && entry.digest !== mounted.get(view.extensionId)?.digest) openExtensionView(entry.id as `extension:${string}/${string}`, entry.instanceKey)
       }
     }).catch(console.error)
   })
   window.electron.plugins.onEvent(({ packet }: PluginHostEvent) => {
     if (!packet || typeof packet !== 'object' || Array.isArray(packet)) return
-    if (packet.type === 'openView' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') openExtensionView(`extension:${packet.pluginId}/${packet.viewId}`)
+    if (packet.type === 'openView' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') openExtensionView(`extension:${packet.pluginId}/${packet.viewId}`, typeof packet.instanceKey === 'string' ? packet.instanceKey : undefined)
     if (packet.type === 'openConfiguration' && typeof packet.pluginId === 'string'
       && (packet.scope === 'application' || packet.scope === 'project')) openPluginConfiguration({ pluginId: packet.pluginId, scope: packet.scope })
     if (packet.type === 'configurationProposal' && typeof packet.pluginId === 'string' && packet.proposal && typeof packet.proposal === 'object'
@@ -115,7 +124,7 @@ export function initializePluginRuntime(): void {
   const sync = () => {
     const state = useWorkspaceStore.getState()
     const key = JSON.stringify([state.activeWorkspaceId, state.workspaces.find(workspace => workspace.id === state.activeWorkspaceId)?.path,
-      useWorktreeStore.getState().activePaths, document.documentElement.dataset.theme, i18n.language])
+      useWorktreeStore.getState().activePaths, publicTheme(), i18n.language])
     if (key === contextKey) return
     contextKey = key
     void syncPluginContext().catch(console.error)
@@ -125,9 +134,10 @@ export function initializePluginRuntime(): void {
   void refreshPlugins().catch(console.error)
 }
 
-export function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location, document: boundDocument, onFailure, onDocumentEdit }: ExtensionViewProps & {
+export function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location, instanceKey, document: boundDocument, onFailure, onDocumentEdit, onDocumentDraft }: ExtensionViewProps & {
   pluginId: string; localViewId: string; document?: PluginDocument; onFailure?: (code: string) => void
   onDocumentEdit?: (baseText: string, text: string, version: string) => boolean
+  onDocumentDraft?: (baseText: string, version: string, update?: { text: string; expectedRevision: number }) => PluginDraft | null
 }) {
   const { t } = useI18n('plugins')
   const body = useRef<HTMLDivElement>(null)
@@ -151,6 +161,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     setMount(null); setFailure('')
     if (workspaceId && selectedProject !== workspaceId) return
     void syncPluginContext().then(() => cancelled ? undefined : pluginRequest<PluginMount>({ type: 'mount', id: pluginId, view: localViewId, projectId: workspaceId, scopePath: activeScope,
+      ...(instanceKey ? { instanceKey } : {}),
       ...(documentViewer && documentPath ? { document: { viewer: documentViewer, path: documentPath } } : {}) }))
       .then(result => {
         if (!result) return
@@ -162,7 +173,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
       cancelled = true
       if (current) void pluginRequest({ type: 'close', instanceId: current.instanceId, binding: current.binding }).catch(() => {})
     }
-  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry, documentViewer, documentPath])
+  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry, documentViewer, documentPath, instanceKey])
   useEffect(() => { if (failure) onFailure?.(failure) }, [failure, onFailure])
   useEffect(() => {
     if (!mount) return
@@ -173,6 +184,12 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     return window.electron.plugins.onEvent(event => {
       if (event.instanceId !== mount.instanceId) return
       const packet = event.packet
+      if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.type === 'documentDraft'
+        && packet.path === documentPath && typeof packet.editId === 'string' && typeof packet.baseText === 'string' && typeof packet.version === 'string') {
+        const update = typeof packet.text === 'string' && typeof packet.expectedRevision === 'number' ? { text: packet.text, expectedRevision: packet.expectedRevision } : undefined
+        const draft = onDocumentDraft?.(packet.baseText, packet.version, update) ?? null
+        void pluginRequest({ type: 'documentDraftResult', instanceId: mount.instanceId, binding: mount.binding, editId: packet.editId, draft }).catch(() => {})
+      }
       if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.type === 'documentEdit'
         && packet.path === documentPath && typeof packet.editId === 'string' && typeof packet.baseText === 'string'
         && typeof packet.text === 'string' && typeof packet.version === 'string') {
@@ -184,7 +201,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
         else setFailure('INSTANCE_CLOSED')
       }
     })
-  }, [mount, documentPath, onDocumentEdit])
+  }, [mount, documentPath, onDocumentEdit, onDocumentDraft])
   useLayoutEffect(() => {
     if (!mount || !body.current) return
     const element = body.current

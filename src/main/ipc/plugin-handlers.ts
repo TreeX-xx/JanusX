@@ -29,14 +29,19 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256) }).strict(),
   ...(['disable', 'reload', 'uninstall', 'deleteData'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
   z.object({ type: z.literal('context'), projectId: text.nullable(), scopePath: nullableText, locale: z.string().max(32),
-    theme: z.object({ id: z.string().max(128), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
+    theme: z.object({ id: z.string().max(256), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
   z.object({ type: z.literal('mount'), id: text, view: text, projectId: text.nullable(), scopePath: nullableText,
+    instanceKey: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/).optional(),
     document: z.object({ viewer: text, path: z.string().min(1).max(4096) }).strict().optional() }).strict(),
   ...(['close', 'devtools'] as const).map(type => z.object({ type: z.literal(type), ...instance }).strict()),
   z.object({ type: z.literal('bounds'), ...instance, bounds: z.object({ x: z.number().finite(), y: z.number().finite(), width: z.number().finite().nonnegative(), height: z.number().finite().nonnegative() }).strict() }).strict(),
   z.object({ type: z.literal('active'), ...instance, active: z.boolean() }).strict(),
   z.object({ type: z.literal('call'), ...instance, packet: z.unknown() }).strict(),
   z.object({ type: z.literal('documentEditResult'), ...instance, editId: text, applied: z.boolean() }).strict(),
+  z.object({ type: z.literal('documentDraftResult'), ...instance, editId: text, draft: z.object({
+    text: z.string().max(1024 * 1024).refine(value => Buffer.byteLength(value) <= 1024 * 1024 && !value.includes('\0')),
+    revision: z.number().int().nonnegative(), version: z.string().regex(/^[a-f0-9]{64}$/), dirty: z.boolean(), externalChanged: z.boolean(),
+  }).strict().nullable() }).strict(),
   z.object({ type: z.literal('configurationGet'), id: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
   z.object({ type: z.literal('configurationUpdate'), id: text, projectId: text.nullable(), scopePath: nullableText,
     expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), reset: z.boolean(), migrate: z.boolean().optional(),
@@ -78,7 +83,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     changed: () => send(PLUGIN_CHANNELS.changed),
     event: (instanceId, packet) => { runtime?.send(instanceId, packet); send(PLUGIN_CHANNELS.event, { instanceId, packet }) },
     closed: instanceId => runtime?.close(instanceId),
-    openView: (pluginId, viewId) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'openView', pluginId, viewId } }),
+    openView: (pluginId, viewId, instanceKey) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'openView', pluginId, viewId, ...(instanceKey ? { instanceKey } : {}) } }),
     toast: (pluginId, message, level) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'toast', pluginId, message, level } }),
   })
   const runtime = new PluginRuntime(service, getWindow, new PluginWindowLayout(join(app.getPath('userData'), 'janusx', 'plugins', 'window-layout.json'), () => service.log('STORAGE_UNAVAILABLE')))
@@ -119,7 +124,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'deleteData': await service.deleteData(request.id); break
         case 'context': await service.setContext(request.projectId, request.scopePath, request.locale, request.theme); break
         case 'mount': {
-          const mount = await service.mount(request.id, request.view, request.projectId, request.scopePath, request.document)
+          const mount = await service.mount(request.id, request.view, request.projectId, request.scopePath, request.document, request.instanceKey)
           try { await runtime.create(request.id, mount); data = mount }
           catch (cause) { service.close(mount.instanceId); throw cause }
           break
@@ -134,6 +139,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'active': service.active(request.instanceId, request.binding, request.active); break
         case 'call': data = await service.call(request.instanceId, request.binding, request.packet); break
         case 'documentEditResult': service.documentEditResult(request.instanceId, request.binding, request.editId, request.applied); break
+        case 'documentDraftResult': service.documentDraftResult(request.instanceId, request.binding, request.editId, request.draft); break
         case 'configurationGet': data = await service.getConfiguration(request.id, request.projectId, request.scopePath); break
         case 'configurationUpdate': data = await service.updateConfiguration(request); break
         case 'islandAction': service.islandAction(request.pluginId, request.id, request.instanceId, request.command); break

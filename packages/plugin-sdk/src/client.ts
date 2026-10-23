@@ -97,9 +97,9 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
         return { configuration: result.configuration, unsubscribe: subscribe(result.subscriptionId, listener, options) }
       },
     },
-    documents: { readText: options => call('documents.readText', {}, options), applyEdit: (params, options) => call('documents.applyEdit', params, options) },
+    documents: { readDraft: options => call('documents.readDraft', {}, options), updateDraft: (params, options) => call('documents.updateDraft', params, options), readText: options => call('documents.readText', {}, options), applyEdit: (params, options) => call('documents.applyEdit', params, options) },
     app: { getInfo: options => call('app.getInfo', {}, options) },
-    workspace: { getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
+    workspace: { listDirectory: (params, options) => call('workspace.listDirectory', params, options), getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
     views: { open: (params, options) => call('views.open', params, options) },
     island: { update: (params, options) => call('island.update', params, options) },
     ui: { showToast: (params, options) => call('ui.showToast', params, options) },

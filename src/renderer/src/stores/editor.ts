@@ -2,6 +2,7 @@ import type { EditorDelivery, EditorSession, FileViewState } from '../../../shar
 import { create } from 'zustand'
 import { useAuxiliaryPanelsStore } from './auxiliary-panels'
 import type { OpenFile, FileViewType } from '@/types'
+import type { PluginDraft } from '@janusx/plugin-sdk'
 import { getFileViewType, getFileName } from '@/lib/file-utils'
 
 type LoadedFileSnapshot = Pick<
@@ -213,7 +214,9 @@ interface EditorStore {
   markDirty: (id: string) => void
   updateContent: (id: string, content: string) => void
   applyPluginDraft: (id: string, baseText: string, text: string, version: string, viewer: string) => boolean
+  accessPluginDraft: (id: string, viewer: string, baseText: string, version: string, update?: { text: string; expectedRevision: number }) => PluginDraft | null
   saveFile: (id: string) => Promise<boolean>
+  saveReviewedConflict: (id: string, version: string) => Promise<boolean>
   reloadOpenFile: (absolutePath: string) => Promise<void>
   reloadOpenFiles: (workspacePath: string, changedFilePath?: string | null) => Promise<void>
   hasDirtyFiles: () => boolean
@@ -379,9 +382,26 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   updateContent: (id, content) => {
     set(s => ({
       openFiles: s.openFiles.map(f =>
-        f.id === id && f.content !== content ? { ...f, content, isDirty: true } : f
+        f.id === id && f.content !== content ? { ...f, content, isDirty: true, draftRevision: (f.draftRevision ?? 0) + 1 } : f
       ),
     }))
+  },
+
+  accessPluginDraft: (id, viewer, baseText, version, update) => {
+    const file = get().openFiles.find(f => f.id === id)
+    if (!file || file.isLoading || file.error || file.saveConflict) return null
+    const owns = file.pluginDraftViewer === viewer && file.pluginDraftSession
+    if (!owns && (file.isDirty || file.content !== baseText)) return null
+    const revision = file.draftRevision ?? 0
+    if (update && update.expectedRevision !== revision) return null
+    const changed = update !== undefined && update.text !== file.content
+    const next = { ...file, pluginDraftViewer: viewer, pluginDraftSession: true,
+      saveVersion: owns ? file.saveVersion! : version, draftRevision: revision + (changed ? 1 : 0),
+      content: update?.text ?? file.content, isDirty: file.isDirty || changed,
+      externalChanged: owns ? file.saveVersion !== version : false }
+    if (next.content.length > 1024 * 1024 || new TextEncoder().encode(next.content).byteLength > 1024 * 1024 || next.content.includes('\0')) return null
+    set(s => ({ openFiles: s.openFiles.map(f => f === file ? next : f) }))
+    return { text: next.content, revision: next.draftRevision, version: next.saveVersion, dirty: next.isDirty, externalChanged: next.externalChanged }
   },
 
   applyPluginDraft: (id, baseText, text, version, viewer) => {
@@ -402,7 +422,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       if (result.conflict) {
         set(s => {
           const patch = (f: OpenFile) => f.id === id && f.saveVersion === file.saveVersion
-            ? { ...f, externalChanged: true, saveConflict: true } : f
+            ? { ...f, externalChanged: true, saveConflict: true, conflictDisk: result.current } : f
           return { openFiles: s.openFiles.map(patch), sessions: Object.fromEntries(Object.entries(s.sessions)
             .map(([key, session]) => [key, { ...session, files: session.files.map(patch) }])) }
         })
@@ -420,7 +440,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set(s => {
         const patch = (f: OpenFile) => f.id === id && f.saveVersion === file.saveVersion ? { ...f,
           isDirty: f.content !== file.content, mtime: Date.now(), saveVersion: result.version ?? f.saveVersion,
-          pluginDraftViewer: undefined, externalChanged: false, saveConflict: false } : f
+          pluginDraftViewer: f.pluginDraftSession ? f.pluginDraftViewer : undefined, draftRevision: (f.draftRevision ?? 0) + 1,
+          externalChanged: false, saveConflict: false, conflictDisk: undefined } : f
         return { openFiles: s.openFiles.map(patch), sessions: Object.fromEntries(Object.entries(s.sessions)
           .map(([key, session]) => [key, { ...session, files: session.files.map(patch) }])) }
       })
@@ -431,6 +452,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+
+  saveReviewedConflict: async (id, version) => {
+    const file = get().openFiles.find(f => f.id === id)
+    if (!file?.saveConflict || file.conflictDisk?.version !== version) return false
+    // The user reviewed this exact disk snapshot. A subsequent save rechecks it.
+    set(s => ({ openFiles: s.openFiles.map(f => f === file ? { ...f, saveVersion: version } : f) }))
+    return get().saveFile(id)
+  },
 
   reloadOpenFile: async (absolutePath) => {
     const id = getEditorFileId(absolutePath)
@@ -449,7 +478,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const snapshot = await request
       if (fileReadRequests.get(file) !== request) return
       set(s => replaceLoadedFile(s, file, { ...snapshot, error: undefined, externalChanged: false, isLoading: false,
-        saveVersion: undefined, pluginDraftViewer: undefined, saveConflict: false }))
+        saveVersion: undefined, pluginDraftViewer: undefined, saveConflict: false, conflictDisk: undefined }))
     } catch (err) {
       if (fileReadRequests.get(file) !== request) return
       const msg = err instanceof Error ? err.message : String(err)

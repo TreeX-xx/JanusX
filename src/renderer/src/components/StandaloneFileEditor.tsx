@@ -352,7 +352,12 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
           className="shell-icon-btn viewer-icon"><Save size={15} aria-hidden="true" /></button>}
       </div>}
       {transferError && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{transferError}</div>}
-      {activeFile?.saveConflict && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{t('plugins:documentConflict')}</div>}
+      {activeFile?.saveConflict && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">
+        {t('plugins:documentConflict')}
+        {activeFile.conflictDisk && <><p>{t('plugins:conflictReviewHint')}</p>
+          <button type="button" onClick={() => void useEditorStore.getState().saveReviewedConflict(activeFile.id, activeFile.conflictDisk!.version)}>{t('plugins:saveReviewedConflict')}</button>
+        </>}
+      </div>}
       {diffEnabled && baselineStatus && <div role="status" className="px-3 py-1 text-xs" style={{ color: 'var(--shell-muted)' }}>
         {t(baselineStatus === 'loading' ? 'editor:fileEditor.diffLoading' : 'editor:fileEditor.diffUnavailable')}
       </div>}
@@ -369,7 +374,7 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
             onNavigationComplete={consumeNavigationTarget}
             definitionActionLabel={t('editor:fileEditor.goToDefinition')}
             definitionErrorMessage={t('editor:fileEditor.cppDefinitionUnavailable')}
-            diffOriginalContent={activeBaselineContent}
+            diffOriginalContent={activeFile.saveConflict ? activeFile.conflictDisk?.text : activeBaselineContent}
             onContentChange={(content) => updateContent(activeFile.id, content)}
             onEditorMount={handleEditorMount}
           />

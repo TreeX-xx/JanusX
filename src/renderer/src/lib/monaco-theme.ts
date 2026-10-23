@@ -7,7 +7,7 @@
  * here means the editor chrome, and in particular the find widget, looks the same whichever
  * viewer opened the file.
  */
-import { getThemeDefinition, listThemeDefinitions } from '../../../shared/theme/registry'
+import { getThemeDefinition, listThemeDefinitions, subscribeThemeRegistry } from '../../../shared/theme/registry'
 
 export const JANUSX_DARK_THEME_NAME = 'janusx-dark'
 export const JANUSX_PLANCHE_THEME_NAME = 'janusx-planche'
@@ -32,10 +32,18 @@ export function defineJanusxPlancheTheme(monaco: MonacoThemeApi): void {
   monaco.editor.defineTheme(JANUSX_PLANCHE_THEME_NAME, JANUSX_PLANCHE_THEME)
 }
 
-export function defineJanusxThemes(monaco: MonacoThemeApi): void {
+let activeMonaco: MonacoThemeApi | undefined
+// Monaco is a page-wide singleton; late plugin catalogs must reach already-mounted editors.
+subscribeThemeRegistry(() => { if (activeMonaco) registerThemes(activeMonaco) })
+function registerThemes(monaco: MonacoThemeApi): void {
   for (const definition of listThemeDefinitions()) {
     monaco.editor.defineTheme(definition.monacoName, definition.monaco)
   }
+}
+
+export function defineJanusxThemes(monaco: MonacoThemeApi): void {
+  activeMonaco = monaco
+  registerThemes(monaco)
 }
 
 export function getMonacoThemeName(theme: string | unknown): string {

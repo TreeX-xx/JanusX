@@ -1,13 +1,15 @@
 import type { PluginContextRead, PluginDocumentContextCatalog, PluginDocumentContextResource } from './context.js'
 import type { PluginErrorCode } from './errors.js'
 import type { PluginIslandStatus } from './island.js'
-import type { PluginDocument } from './documents.js'
+import type { PluginDocument, PluginDraft } from './documents.js'
 import type { PluginConfiguration, PluginSettingValue } from './configuration.js'
 import type { PluginNetworkRequest, PluginNetworkResult, PluginMessage, PluginPublicEvent, PluginTaskRun } from './background.js'
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export interface PluginCallOptions { signal?: AbortSignal }
 export interface PluginContext {
+  /** Stable host-owned key of a general multi-instance workspace page. */
+  instanceKey?: string
   project: { projectId: string; rootId: string; name: string } | null
   revision: number
   active: boolean
@@ -47,16 +49,20 @@ export interface PluginApi {
   }
   /** Reads only the file bound by the host's viewer selection; accepts no path. */
   documents: {
+    readDraft(options?: PluginCallOptions): Promise<PluginDraft>
+    updateDraft(params: { text: string; expectedRevision: number }, options?: PluginCallOptions): Promise<PluginDraft>
     readText(options?: PluginCallOptions): Promise<{ path: string; text: string; bytes: number; version: string }>
     /** Hands a full-text draft to the host for review and saving; does not write to disk. */
     applyEdit(params: { text: string; expectedVersion: string }, options?: PluginCallOptions): Promise<{ applied: true }>
   }
   app: { getInfo(options?: PluginCallOptions): Promise<{ pluginApiVersion: string; capabilities: string[]; locale: string; theme: { id: string; tokens: Record<string, string> } }> }
   workspace: {
+    /** Lists one explicitly granted directory, without granting file contents or recursive traversal. */
+    listDirectory(params: { path: string; limit?: number }, options?: PluginCallOptions): Promise<{ entries: Array<{ name: string; type: 'file' | 'directory' }>; truncated: boolean }>
     getContext(options?: PluginCallOptions): Promise<PluginContext>
     readText(params: { path: string }, options?: PluginCallOptions): Promise<{ text: string; bytes: number }>
   }
-  views: { open(params: { view: string }, options?: PluginCallOptions): Promise<{ instanceId: string }> }
+  views: { open(params: { view: string; instanceKey?: string }, options?: PluginCallOptions): Promise<{ instanceId: string }> }
   island: { update(params: { id: string; status: PluginIslandStatus | null }, options?: PluginCallOptions): Promise<{ updated: boolean }> }
   ui: { showToast(params: { message: string; level?: 'info' | 'warning' | 'error' }, options?: PluginCallOptions): Promise<{ shown: boolean }> }
   storage: {

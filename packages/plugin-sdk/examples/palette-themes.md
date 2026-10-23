@@ -1,0 +1,13 @@
+# Declarative palette themes
+
+Import the manifest-only [Ocean palette](p7-palette/manifest.json) directory as a development plugin, review its permission and enable it. No dist directory, build or executable page is needed. In Settings → General, select its named preview. Settings and approvals keep built-in colors; closing them reveals the selected palette.
+
+Declare `themes.palette` as a required capability, request `ui.themes`, and add up to four `contributes.themes`. Each has a unique local `id`, a `title`, built-in structural `base` (`dark` or `planche`) and six required opaque `#RRGGBB` colors: `canvas`, `text`, `muted`, `card`, `border`, `accent`. The host checks text against canvas/card at 4.5:1 and muted/accent against canvas (accent also card) at 3:1. This checks the declared palette pairs, not the accessibility of every inherited widget or artwork. CSS, alpha, URLs, arbitrary tokens, images, fonts and executable theme modules are rejected.
+
+The host assigns `plugin:<plugin-id>/<local-id>` and displays the plugin identity. Palettes inherit built-in structural CSS, state colors, artwork and editor syntax rules; they override a finite map of ordinary surface/text/border/accent roles and terminal/editor background, foreground and cursor. This is a palette preset, not a complete skin. Built-ins cannot be overwritten. Changing a theme declaration requires renewed authorization.
+
+Selection uses the existing application-wide theme preference. It is not a plugin setting and does not create project-specific themes. Parameters retain the existing plugin configuration schema, application defaults, project/worktree overrides, migrations and revision checks; themes grant no configuration setter or data access. Theme packages may declare ordinary settings using the existing separate capabilities, but the palette is fixed manifest data and cannot contain configuration expressions.
+
+Disable, reload awaiting review, uninstall, or turning development mode off removes that plugin's palettes. An unavailable selection renders the built-in default without erasing the saved ID; reauthorization restores it. Startup initially renders a safe built-in until the authorized catalog arrives. Main-window content receives the palette; auxiliary windows without an authorized theme catalog retain their existing built-in fallback. Plugin pages receive the existing public theme context; the host does not inject styles into guest documents. Themes do not open windows or gain session/Agent/file/network privileges.
+
+Windows development builds are covered by the recorded automated tests. Packaged installers and other platforms remain unverified. Role/skin resources and chat contributions are separate future contracts.

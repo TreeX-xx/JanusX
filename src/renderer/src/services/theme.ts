@@ -1,16 +1,29 @@
 import { DEFAULT_APP_THEME, normalizeAppTheme, type AppTheme } from '../../../shared/ipc/theme'
 import { getThemeDefinition } from '../../../shared/theme/registry'
+import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 
 export type { AppTheme }
 export { normalizeAppTheme }
+const ownedTokens = new Set<string>()
+let selectedTheme: AppTheme = DEFAULT_APP_THEME
+useBrowserOcclusionStore.subscribe(() => applyThemeToDocument(selectedTheme))
 
 export function applyThemeToDocument(theme: AppTheme): void {
+  selectedTheme = theme
+  if (typeof document === 'undefined') return
   const root = document.documentElement
   // data-theme 始终挂载：石板色（默认）与经典黑都显式声明，手写皮肤
   //（[data-theme='planche'] / [data-theme='dark']）在两种模式下都命中；
   // 未知 id 经 getThemeDefinition 回落默认，永不白屏。
   const resolved = getThemeDefinition(theme)
-  root.dataset.theme = resolved.id
+  const protectedSurface = useBrowserOcclusionStore.getState().count > 0
+  root.dataset.theme = resolved.pluginBase ?? resolved.id
+  root.dataset.pluginTheme = resolved.pluginBase ? resolved.id : ''
+  for (const key of ownedTokens) root.style.removeProperty(`--${key}`)
+  ownedTokens.clear()
+  if (!protectedSurface) for (const [key, value] of Object.entries(resolved.overrides ?? {})) {
+    root.style.setProperty(`--${key}`, value); ownedTokens.add(key)
+  }
   root.style.colorScheme = resolved.base
 }
 

@@ -38,7 +38,7 @@ import {
 import { createTerminalOutputScheduler } from '@/lib/terminal-output-scheduler'
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeDefinition, useThemeStore } from '@/stores/theme'
 import type { TerminalDataEvent, TerminalReplayResult } from '../../../shared/ipc/terminal'
 import {
   getXtermPalette,
@@ -78,7 +78,7 @@ export const CLITerminal = memo(function CLITerminal({
   })
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const panelCollapsed = useAppStore((s) => s.panelCollapsed)
-  const appTheme = useThemeStore((s) => s.theme)
+  const themeDefinition = useThemeDefinition()
 
   const applyTelemetryPatch = useCallback((telemetry: RuntimeTelemetrySnapshot) => {
     const store = useWorkspaceStore.getState()
@@ -180,8 +180,8 @@ export const CLITerminal = memo(function CLITerminal({
   // 已运行的 TUI 应用缓存了启动色，切换后需 pane 重绘/重启以纠正对比。
   useEffect(() => {
     const term = termRef.current
-    if (term) term.options.theme = { ...getXtermPalette(appTheme) }
-  }, [appTheme])
+    if (term) term.options.theme = { ...themeDefinition.xterm }
+  }, [themeDefinition])
 
   useEffect(() => {
     if (!containerRef.current) return

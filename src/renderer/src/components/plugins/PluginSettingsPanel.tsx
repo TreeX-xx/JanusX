@@ -12,6 +12,15 @@ import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { openExtensionView } from '@/extensions/workbench'
 
+function PluginThemes({ manifest }: { manifest: InstalledPlugin['manifest'] }) {
+  const { t } = useI18n('plugins')
+  if (!manifest.contributes.themes?.length) return null
+  return <section data-plugin-themes><strong>{t('plugins:themes')}</strong><p className={styles.hint}>{t('plugins:themeHint')}</p>
+    {manifest.contributes.themes.map(theme => <div className={styles.row} key={theme.id}><span>{theme.title} · {theme.base}</span>
+      <code>{Object.values(theme.colors).join(' · ')}</code></div>)}
+  </section>
+}
+
 function PluginWindows({ manifest, review = false, enabled = false }: { manifest: InstalledPlugin['manifest']; review?: boolean; enabled?: boolean }) {
   const { t } = useI18n('plugins')
   const windows = manifest.contributes.views.filter(view => view.location === 'window')
@@ -131,6 +140,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
         <PluginContexts manifest={record.manifest} />
         <PluginWorkflows manifest={record.manifest} />
         <PluginWindows manifest={record.manifest} enabled={record.enabled && snapshot.developmentMode} />
+        <PluginThemes manifest={record.manifest} />
         <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
           <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? `${configurationTarget.scope}:${configurationTarget.proposal?.expectedRevision ?? ''}` : 'application'} record={record}
@@ -166,6 +176,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
       <PluginContexts manifest={authorize.manifest} review />
       <PluginWorkflows manifest={authorize.manifest} review />
       <PluginWindows manifest={authorize.manifest} review />
+      <PluginThemes manifest={authorize.manifest} />
       {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
       <p>{t('plugins:projectScope')}</p>
       {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {

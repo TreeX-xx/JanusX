@@ -28,7 +28,10 @@ export interface OpenFile {
   /** Plugin drafts retain the disk baseline after fallback, scope changes and detach. */
   saveVersion?: string
   saveConflict?: boolean
+  conflictDisk?: { text: string; version: string }
   pluginDraftViewer?: string
+  pluginDraftSession?: boolean
+  draftRevision?: number
   viewState?: FileViewState
 }
 export interface EditorSession { files: OpenFile[]; activeFileId: string | null }

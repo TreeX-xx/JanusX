@@ -8,7 +8,7 @@ import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManife
   isSensitivePluginPath, matchesPluginViewer, type PluginDocument, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus, type PluginSettingValue } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, PluginIslandEntry } from '../../shared/ipc/plugins'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
-import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
+import { readPluginFile, readPluginPackage, listPluginDirectory, type PluginPackage } from './files'
 import { PluginStorage } from './storage'
 import { PluginConfigurationStore } from './configuration'
 import type { PluginManageRequest } from '../../shared/ipc/plugins'
@@ -18,6 +18,7 @@ import { PluginModels, type PluginModelBackend } from './models'
 import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type PluginAgentService, type PluginTaskRun } from '@janusx/plugin-sdk'
 import { pluginContextReadSchema, type PluginDocumentContext, type PluginDocumentContextCatalog, type PluginDocumentContextResource } from '@janusx/plugin-sdk'
 import { pluginSkillReadSchema, pluginWorkflowRunSchema, type PluginAgentSkill, type PluginAgentSkillCatalog, type PluginAgentSkillResource, type PluginAgentWorkflow, type PluginAgentWorkflowCatalog } from '@janusx/plugin-sdk'
+import type { PluginDraft } from '@janusx/plugin-sdk'
 
 interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
 interface Instance {
@@ -36,13 +37,13 @@ export interface PluginServiceDeps {
   changed(): void
   closed?(instanceId: string): void
   event(instanceId: string, packet: JsonValue): void
-  openView(pluginId: string, viewId: string): void
+  openView(pluginId: string, viewId: string, instanceKey?: string): void
   toast(pluginId: string, message: string, level: string): void
 }
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.views.some(view => view.location === 'window') || manifest.contributes.contextProviders || manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.themes || manifest.contributes.views.some(view => view.location === 'window' || view.instancePolicy === 'multiple') || manifest.contributes.contextProviders || manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
   ? { permissions: manifest.permissions, contributes: manifest.contributes }
   : manifest.contributes.configurationViews
   ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
@@ -62,6 +63,8 @@ export class PluginService {
   private toasts = new Map<string, number[]>()
   private contextReads = 0
   private contextReadTimes: number[] = []
+  private directoryReads = 0
+  private directoryReadTimes: number[] = []
   private configurationOpens = new Map<string, number>()
   private island = new Map<string, PluginIslandEntry>()
   private islandTimes = new Map<string, number[]>()
@@ -74,10 +77,12 @@ export class PluginService {
   private network: PluginNetwork
   private background: PluginBackground
   private contextSequence = 0
+  private contextReady: Promise<void> = Promise.resolve()
   private selectionKey = ''
   private pendingEvents = new Map<string, { instance: Instance; subscriptionId: string; values: Record<string, PluginStoredValue> }>()
   private eventTimer?: ReturnType<typeof setTimeout>
   private documentEdits = new Map<string, { instance: Instance; valid(): void; finish(applied: boolean): void }>()
+  private documentDrafts = new Map<string, { instance: Instance; valid(): void; finish(draft: PluginDraft | null): void }>()
   constructor(private deps: PluginServiceDeps) {
     this.storage = new PluginStorage(join(deps.directory, 'data'))
     this.configuration = new PluginConfigurationStore(join(deps.directory, 'configuration'))
@@ -241,18 +246,28 @@ export class PluginService {
       for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
       this.current.root = null
     }
-    const project = projectId ? await this.deps.resolveProject(projectId, scopePath) : null
-    if (sequence !== this.contextSequence) return
-    if (this.current.projectId !== projectId || this.current.root !== (project?.root ?? null)) {
-      this.current.revision++
-      for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
-    }
-    this.current = { ...this.current, projectId, root: project?.root ?? null, locale, theme }
-    for (const instance of this.instances.values()) for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'context') {
-      this.send(instance, { type: 'event', subscriptionId, event: 'context', payload: { locale, theme } })
+    const ready = this.contextReady = (async () => {
+      const project = projectId ? await this.deps.resolveProject(projectId, scopePath) : null
+      if (sequence !== this.contextSequence) return
+      if (this.current.projectId !== projectId || this.current.root !== (project?.root ?? null)) {
+        this.current.revision++
+        for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
+      }
+      this.current = { ...this.current, projectId, root: project?.root ?? null, locale, theme }
+      for (const instance of this.instances.values()) for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'context') {
+        this.send(instance, { type: 'event', subscriptionId, event: 'context', payload: { locale, theme } })
+      }
+    })()
+    // A caller may mount immediately after this returns. Wait for any newer
+    // resolution too, rather than exposing the temporarily revoked root.
+    let pending = ready
+    for (;;) {
+      await pending
+      if (pending === this.contextReady) return
+      pending = this.contextReady
     }
   }
-  async mount(id: string, viewId: string, projectId: string | null, scopePath: string | null, document?: PluginDocument): Promise<PluginMount> {
+  async mount(id: string, viewId: string, projectId: string | null, scopePath: string | null, document?: PluginDocument, instanceKey?: string): Promise<PluginMount> {
     const record = this.record(id)
     this.allowed(record)
     const digest = record.digest
@@ -260,6 +275,8 @@ export class PluginService {
     const revision = this.current.revision
     const view = record.manifest.contributes.views.find(view => view.id === viewId)
     if (!view) error('INVALID_REQUEST', 'View is unavailable.')
+    if (instanceKey !== undefined && (document || view!.instancePolicy !== 'multiple' || !/^[a-zA-Z0-9_-]{1,64}$/.test(instanceKey))) error('INVALID_REQUEST', 'Invalid view instance key.')
+    if (!document && view!.instancePolicy === 'multiple' && !instanceKey) error('INVALID_REQUEST', 'A multi-instance view requires a host key.')
     if (document) {
       const viewer = record.manifest.contributes.viewers?.find(item => item.id === document.viewer && item.view === viewId)
       if (!viewer || !matchesPluginViewer(viewer, document.path)) error('PATH_NOT_GRANTED', 'File does not match the declared viewer.')
@@ -278,15 +295,17 @@ export class PluginService {
     const scope = project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : 'application'
     const documentKey = document ? JSON.stringify([document.viewer, process.platform === 'win32' ? document.path.toLowerCase() : document.path]) : ''
     const existing = [...this.instances.values()].find(instance => instance.plugin === id && instance.view === viewId && instance.scope === scope
+      && instance.context.instanceKey === instanceKey
       && (instance.context.document ? JSON.stringify([instance.context.document.viewer, process.platform === 'win32' ? instance.context.document.path.toLowerCase() : instance.context.document.path]) : '') === documentKey)
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
-      revision: this.current.revision, active: true, ...(record.manifest.contributes.settings?.length ? { configuration: true as const } : {}),
+      revision: this.current.revision, active: true, ...(instanceKey ? { instanceKey } : {}), ...(record.manifest.contributes.settings?.length ? { configuration: true as const } : {}),
       ...(record.manifest.capabilities.required.includes('configuration.open') ? { configurationNavigation: true as const } : {}),
       ...(Object.values(record.manifest.contributes.configurationViews ?? {}).includes(viewId) ? { configurationEditor: true as const } : {}),
       ...(document ? { document: { viewer: document.viewer, path: document.path,
-        ...(record.manifest.permissions.some(permission => permission.name === 'documents.edit') ? { editable: true } : {}) } } : {}) }
+        ...(record.manifest.permissions.some(permission => permission.name === 'documents.edit') ? { editable: true } : {}),
+        ...(record.manifest.permissions.some(permission => permission.name === 'documents.draft') ? { draftSession: true } : {}) } } : {}) }
     const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
       url: `janusx-plugin://${token}/g/${generation}/${view!.entry}`, root: project?.root ?? null, scope, context, bound: false, ready: false,
       requests: new Map(), used: new Set(), times: [], subscriptions: new Map(),
@@ -354,6 +373,7 @@ export class PluginService {
     this.deps.closed?.(id)
     for (const request of instance.requests.values()) request.cancelled = true
     for (const edit of this.documentEdits.values()) if (edit.instance === instance) edit.finish(false)
+    for (const edit of this.documentDrafts.values()) if (edit.instance === instance) edit.finish(null)
     instance.subscriptions.clear()
     const record = this.records.get(instance.plugin)
     if (record?.enabled && record.state !== 'blocked' && record.state !== 'error') {
@@ -533,6 +553,23 @@ export class PluginService {
       if (params.plugin !== instance.plugin) error('PERMISSION_DENIED', 'Pages can read only their own context providers.')
       return this.readDocumentContext(context, params, undefined, valid)
     }
+    if (method === 'documents.readDraft' || method === 'documents.updateDraft') {
+      const document = instance.context.document
+      if (!document?.draftSession || !instance.root) error('CONTEXT_UNAVAILABLE', 'A draft session is required.')
+      const base = await this.readText(instance.root!, document!.path)
+      valid()
+      const editId = randomUUID()
+      return new Promise<JsonValue>((resolve, reject) => {
+        const timer = setTimeout(() => { this.documentDrafts.delete(editId); reject(new PluginError('TIMEOUT', 'Editor did not respond.')) }, 4000)
+        this.documentDrafts.set(editId, { instance, valid, finish: draft => {
+          clearTimeout(timer); this.documentDrafts.delete(editId)
+          if (draft) resolve({ ...draft })
+          else reject(new PluginError('DOCUMENT_CONFLICT', 'Editor draft changed or is unavailable.'))
+        } })
+        this.send(instance, { type: 'documentDraft', editId, path: document!.path, baseText: base.text, version: base.version,
+          ...(method === 'documents.updateDraft' ? { text: params.text as string, expectedRevision: params.expectedRevision as number } : {}) })
+      })
+    }
     if (method === 'documents.applyEdit') {
       const document = instance.context.document
       if (!document || !instance.root) error('CONTEXT_UNAVAILABLE', 'No document is bound to this view.')
@@ -550,6 +587,17 @@ export class PluginService {
         this.send(instance, { type: 'documentEdit', editId, path: document!.path, baseText: base.text, version: base.version, text: params.text })
       })
     }
+    if (method === 'workspace.listDirectory') {
+      if (!instance.root) error('CONTEXT_UNAVAILABLE', 'Directory queries require a project page.')
+      this.directoryReadTimes = this.directoryReadTimes.filter(time => Date.now() - time < 60_000)
+      if (this.directoryReads >= 4 || this.directoryReadTimes.length >= 60) error('RATE_LIMITED', 'Directory query budget reached.')
+      this.directoryReads++; this.directoryReadTimes.push(Date.now())
+      try { return await listPluginDirectory(instance.root!, params.path as string, params.limit as number ?? 100, valid, this.deps.protectedDirectories) }
+      catch (cause) {
+        if (cause instanceof PluginError) throw cause
+        error('FILE_NOT_FOUND', 'Directory is unavailable.')
+      } finally { this.directoryReads-- }
+    }
     if (method === 'workspace.readText' || method === 'documents.readText') {
       if (!instance.root) error('CONTEXT_UNAVAILABLE', 'No project is bound to this view.')
       if (method === 'documents.readText' && !instance.context.document) error('CONTEXT_UNAVAILABLE', 'No document is bound to this view.')
@@ -561,10 +609,12 @@ export class PluginService {
     if (method === 'views.open') {
       const target = record.manifest.contributes.views.find(view => view.id === params.view)!
       if (!instance.root && target.scope === 'project') error('CONTEXT_UNAVAILABLE', 'No project is bound to this view.')
-      valid(); this.deps.openView(instance.plugin, target.id)
+      const instanceKey = target.instancePolicy === 'multiple' ? params.instanceKey as string ?? randomUUID() : undefined
+      valid(); this.deps.openView(instance.plugin, target.id, instanceKey)
       for (;;) {
         valid()
         const opened = [...this.instances.values()].find(item => item.plugin === instance.plugin && item.view === target.id
+          && item.context.instanceKey === instanceKey
           && !item.context.document && item.scope === (target.scope === 'application' ? 'application' : instance.scope))
         if (opened) return { instanceId: opened.id }
         await new Promise(resolve => setTimeout(resolve, 25))
@@ -632,6 +682,13 @@ export class PluginService {
     if (!edit || edit.instance !== instance) error('INVALID_REQUEST', 'Draft is unavailable.')
     try { edit!.valid() } catch (cause) { edit!.finish(false); throw cause }
     edit!.finish(applied)
+  }
+  documentDraftResult(id: string, binding: string, editId: string, draft: PluginDraft | null): void {
+    const instance = this.instance(id, binding)
+    const edit = this.documentDrafts.get(editId)
+    if (!edit || edit.instance !== instance) error('INVALID_REQUEST', 'Draft request is unavailable.')
+    try { edit!.valid() } catch (cause) { edit!.finish(null); throw cause }
+    edit!.finish(draft)
   }
   islandAction(pluginId: string, id: string, instanceId: string, commandId: string): void {
     const entry = this.island.get(`${pluginId}/${id}`)

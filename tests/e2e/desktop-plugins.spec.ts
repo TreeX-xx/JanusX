@@ -83,6 +83,46 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P7 palette-only plugins require review, persist selection, shield settings and fall back on revocation', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'janusx-palette-desktop-')); let app: ElectronApplication | undefined
+  try {
+    const source = join(root, 'palette'); await mkdir(source)
+    await cp('packages/plugin-sdk/examples/p7-palette/manifest.json', join(source, 'manifest.json'))
+    const id = 'example.ocean-palette'; const theme = `plugin:${id}/ocean`
+    let booted = await boot(root); app = booted.app; let page = booted.page
+    await settings(page); await importDirectory(app, page, source)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const card = page.locator(`[data-plugin-id="${id}"]`)
+    await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Review permissions and scope' })
+    await expect(review.locator('[data-plugin-themes]')).toContainText('Ocean')
+    await expect(review.locator('[data-plugin-themes]')).toContainText('No CSS or scripts')
+    await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await page.locator('[data-tab="general"]').click()
+    await page.locator(`[data-theme-preview="${theme}"]`).click()
+    await expect.poll(() => page.evaluate(() => (window as any).electron.theme.get())).toBe(theme)
+    const canvas = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--shell-canvas').trim())
+    await expect.poll(canvas).toBe('#151517')
+    await page.screenshot({ path: 'artifacts/plugin-theme-settings.png' })
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await expect.poll(canvas).toBe('#102030')
+    await settings(page); await expect.poll(canvas).toBe('#151517')
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), id)
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await expect.poll(canvas).toBe('#EFE4C5')
+    expect(await page.evaluate(() => (window as any).electron.theme.get())).toBe(theme)
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), id)
+    await expect.poll(canvas).toBe('#102030')
+    expect(await page.evaluate(async () => (await (window as any).electron.plugins.request({ type: 'list' })).data.plugins[0].runtime.pages)).toBe(0)
+    await close(app); app = undefined
+    booted = await boot(root); app = booted.app; page = booted.page
+    await expect.poll(canvas).toBe('#102030')
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: false }))
+    await expect.poll(canvas).toBe('#EFE4C5')
+    expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--shell-canvas'))).toBe('')
+  } finally { await close(app); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('P7 windows preserve isolated bridges, restore geometry, shield host dialogs and revoke project ownership', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
@@ -784,6 +824,87 @@ test('P4a users review and explicitly migrate renamed configuration independentl
   } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
 })
 
+test('P4 multiple pages retain their keys across reload and list only granted directory metadata', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.capabilities.required.push('views.multiple', 'files.listDirectory')
+    manifest.permissions.push({ name: 'workspace.directories.list', paths: ['docs'] })
+    manifest.contributes.views.find((view: any) => view.id === 'details').instancePolicy = 'multiple'
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    await mkdir(join(f.project, 'docs')); await writeFile(join(f.project, 'docs/a.txt'), 'not granted'); await writeFile(join(f.project, 'docs/.env'), 'secret')
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P4 Instances', path }), f.project)
+    await page.reload(); await page.getByText('P4 Instances', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id)
+    await openDetails(page); const first = await guest(app, '/dist/index.html')
+    const firstContext = await rawCall(first, 'workspace.getContext', {})
+    await openDetails(page); const second = await guest(app, '/dist/index.html', first.url())
+    const secondContext = await rawCall(second, 'workspace.getContext', {})
+    expect(firstContext.result.instanceKey).not.toBe(secondContext.result.instanceKey)
+    expect(await rawCall(second, 'workspace.listDirectory', { path: 'docs' })).toMatchObject({ ok: true, result: { entries: [{ name: 'a.txt', type: 'file' }], truncated: false } })
+    expect(await rawCall(second, 'workspace.readText', { path: 'docs/a.txt' })).toMatchObject({ ok: false, error: { code: 'PATH_NOT_GRANTED' } })
+    expect(await rawCall(second, 'workspace.listDirectory', { path: '.' })).toMatchObject({ ok: false, error: { code: 'PATH_NOT_GRANTED' } })
+    expect(await rawCall(second, 'views.open', { view: 'details', instanceKey: firstContext.result.instanceKey })).toMatchObject({ ok: true })
+    const detailsPages = () => app!.context().pages().filter(item => item.url().startsWith('janusx-plugin:') && item.url().endsWith('/dist/index.html'))
+    expect(detailsPages()).toHaveLength(2)
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'reload', id }), pluginId)
+    await expect.poll(async () => {
+      try { return (await Promise.all(detailsPages().map(item => rawCall(item, 'workspace.getContext', {})))).map(result => result.result.instanceKey).sort() } catch { return [] }
+    }).toEqual([firstContext.result.instanceKey, secondContext.result.instanceKey].sort())
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), pluginId)
+    await expect.poll(() => detailsPages().length).toBe(0)
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
+test('P4 continuous drafts survive saves and offer manual diff review with a second disk-version check', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.permissions.push({ name: 'documents.read' }, { name: 'documents.edit' }, { name: 'documents.draft' })
+    manifest.capabilities.required.push('documents.viewers', 'documents.readText', 'documents.applyEdit', 'documents.draft')
+    manifest.contributes.viewers = [{ id: 'text', title: 'Reference text', view: 'details', extensions: ['.txt'] }]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const filePath = join(f.project, 'draft.txt'); await writeFile(filePath, 'original')
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P4 Continuous', path }), f.project)
+    await page.reload(); await page.getByText('P4 Continuous', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id)
+    await page.evaluate(payload => (window as any).electron.window.openEditor(payload), { filePath, workspacePath: f.project })
+    const editor = page.locator('[data-editor-host="embedded"]')
+    await editor.getByRole('combobox', { name: 'Open with', exact: true }).selectOption(`${pluginId}/text`)
+    let plugin = await guest(app, '/dist/index.html')
+    const keep = async (text: string) => {
+      await plugin.getByRole('textbox', { name: 'Document draft', exact: true }).fill(text)
+      await plugin.getByRole('button', { name: 'Keep draft in host', exact: true }).click()
+      await expect(plugin.locator('#status')).toContainText('Draft kept by JanusX')
+    }
+    await keep('first draft'); await keep('second draft')
+    expect(await readFile(filePath, 'utf8')).toBe('original')
+    const oldUrl = plugin.url()
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => readFile(filePath, 'utf8')).toBe('second draft')
+    plugin = await guest(app, '/dist/index.html', oldUrl)
+    await expect(plugin.getByRole('textbox', { name: 'Document draft', exact: true })).toHaveValue('second draft')
+    await keep('my changes'); await writeFile(filePath, 'external changes')
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(editor.getByRole('alert')).toContainText('Your draft is kept')
+    await expect(editor.locator('.monaco-diff-editor')).toBeVisible()
+    await expect(editor.locator('.view-lines')).toContainText(['external changes', 'my changes'])
+    await writeFile(filePath, 'external again')
+    await editor.getByRole('button', { name: 'Save reviewed result', exact: true }).click()
+    expect(await readFile(filePath, 'utf8')).toBe('external again')
+    await expect(editor.locator('.view-lines')).toContainText(['external again', 'my changes'])
+    await expect(editor.locator('.monaco-diff-editor .view-lines.line-delete').filter({ visible: true })).toContainText('external again')
+    const modified = editor.locator('.monaco-diff-editor .modified .view-lines:not(.line-delete)')
+    await modified.click(); await page.keyboard.press('Control+A'); await page.keyboard.type('manually merged')
+    await page.screenshot({ path: 'artifacts/plugin-p4-conflict-review.png' })
+    await editor.getByRole('button', { name: 'Save reviewed result', exact: true }).click()
+    await expect.poll(() => readFile(filePath, 'utf8')).toBe('manually merged')
+    await expect(editor.getByRole('button', { name: 'Save reviewed result', exact: true })).toHaveCount(0)
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
 test('P4 plugin drafts are host-owned, reviewed before saving and retained on disk conflict or disable', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
@@ -824,28 +945,30 @@ test('P4 plugin drafts are host-owned, reviewed before saving and retained on di
     await writeFile(second, 'external B')
     await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), pluginId)
     await expect(editor.locator('[data-document-viewer="builtin"]')).toBeVisible()
-    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await expect(editor.locator('.view-lines').filter({ hasText: 'plugin draft B' }).last()).toContainText('plugin draft B')
     await editor.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(editor.getByRole('alert')).toContainText('Your draft is kept')
     expect(await readFile(second, 'utf8')).toBe('external B')
-    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await expect(editor.locator('.view-lines').filter({ hasText: 'plugin draft B' }).last()).toContainText('plugin draft B')
     await open(first); await open(second)
-    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await expect(editor.locator('.view-lines').filter({ hasText: 'plugin draft B' }).last()).toContainText('plugin draft B')
     await editor.getByRole('button', { name: 'Close b.txt', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Save and close', exact: true }).click()
     await expect(dialog.getByRole('alert')).toBeVisible()
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
-    await editor.getByRole('button', { name: 'Return to floating window', exact: true }).click()
+    await expect(editor.locator('.view-lines').filter({ hasText: 'plugin draft B' }).last()).toContainText('plugin draft B')
+    await editor.getByRole('button', { name: 'More file actions', exact: true }).click()
+    await page.getByRole('dialog', { name: 'More file actions', exact: true }).getByRole('button', { name: 'Return to floating window', exact: true }).click()
     await expect.poll(() => app!.windows().some(window => window.url().includes('editorWindow=1'))).toBe(true)
     const floating = app.windows().find(window => window.url().includes('editorWindow=1'))!
-    await expect(floating.locator('.view-lines')).toContainText('plugin draft B')
+    await expect(floating.locator('.view-lines').filter({ hasText: 'plugin draft B' }).last()).toContainText('plugin draft B')
     await floating.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(floating.getByRole('alert').filter({ hasText: 'Your draft is kept' })).toBeVisible()
     expect(await readFile(second, 'utf8')).toBe('external B')
-    await floating.getByRole('button', { name: 'Embed into main workspace', exact: true }).click()
-    await expect(editor.locator('.view-lines')).toContainText('plugin draft B')
+    await floating.getByRole('button', { name: 'More file actions', exact: true }).click()
+    await floating.getByRole('dialog', { name: 'More file actions', exact: true }).getByRole('button', { name: 'Embed into main workspace', exact: true }).click()
+    await expect(editor.locator('.view-lines').filter({ hasText: 'plugin draft B' }).last()).toContainText('plugin draft B')
   } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
 })
 

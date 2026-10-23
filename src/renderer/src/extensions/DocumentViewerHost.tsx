@@ -26,12 +26,18 @@ export function DocumentViewerHost({ file, workspacePath, children, forceBuiltin
   const ownsDraft = Boolean(identity && file.pluginDraftViewer === identity)
   const showPlugin = selected && (!file.isDirty || ownsDraft) && !forceBuiltin && failedViewer !== identity
   const pluginVisible = Boolean(showPlugin)
-  useEffect(() => { onReadOnlyChange?.(pluginVisible); return () => onReadOnlyChange?.(false) }, [pluginVisible, onReadOnlyChange])
+  const readOnly = pluginVisible && !(ownsDraft && file.pluginDraftSession)
+  useEffect(() => { onReadOnlyChange?.(readOnly); return () => onReadOnlyChange?.(false) }, [readOnly, onReadOnlyChange])
   const onFailure = useCallback((code: string) => { setFailedViewer(identity); setFailure(code) }, [identity])
   const onDocumentEdit = useCallback((baseText: string, text: string, version: string) => {
     const state = useEditorStore.getState()
     if (state.workspacePath !== workspacePath) return false
     return state.applyPluginDraft(file.id, baseText, text, version, identity)
+  }, [file.id, workspacePath, identity])
+  const onDocumentDraft = useCallback((baseText: string, version: string, update?: { text: string; expectedRevision: number }) => {
+    const state = useEditorStore.getState()
+    if (state.workspacePath !== workspacePath) return null
+    return state.accessPluginDraft(file.id, identity, baseText, version, update)
   }, [file.id, workspacePath, identity])
   const choose = (viewerId: string) => {
     setFailedViewer(''); setFailure('')
@@ -58,7 +64,7 @@ export function DocumentViewerHost({ file, workspacePath, children, forceBuiltin
     <div className="relative flex-1 min-h-0 overflow-hidden">
       {showPlugin ? <PluginViewShell key={`${identity}:${file.absolutePath}:${file.mtime}`} pluginId={selected.pluginId} localViewId={selected.view}
         viewId={`extension:${selected.pluginId}/${selected.view}`} location="workspace" active workspaceId={projectId} workspacePath={workspacePath ?? null}
-        document={{ viewer: selected.id, path: file.path.replaceAll('\\', '/') }} onFailure={onFailure} onDocumentEdit={onDocumentEdit} /> : children}
+        document={{ viewer: selected.id, path: file.path.replaceAll('\\', '/') }} onFailure={onFailure} onDocumentEdit={onDocumentEdit} onDocumentDraft={onDocumentDraft} /> : children}
     </div>
   </div>
 }

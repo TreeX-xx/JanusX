@@ -15,13 +15,14 @@ async function manifest(): Promise<PluginManifest> {
   value.contributes.viewers = [{ id: 'text', title: 'Text preview', view: 'details', extensions: ['.txt'], filenames: ['Makefile'] }]
   return parsePluginManifest(JSON.stringify(value))
 }
-async function fixture(editing = false) {
+async function fixture(editing = false, drafts = false) {
   const directory = await mkdtemp(join(tmpdir(), 'janusx-p4-unit-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const source = join(directory, 'source'); const root = join(directory, 'project'); const other = join(directory, 'other')
   await mkdir(join(source, 'dist'), { recursive: true }); await mkdir(root); await mkdir(other)
   const value = await manifest()
   if (editing) { value.permissions.push({ name: 'documents.edit' }); value.capabilities.required.push('documents.applyEdit') }
+  if (drafts) { value.permissions.push({ name: 'documents.draft' }); value.capabilities.required.push('documents.draft') }
   await writeFile(join(source, 'manifest.json'), JSON.stringify(value))
   await writeFile(join(source, 'dist/index.html'), '<p>viewer</p>'); await writeFile(join(source, 'dist/summary.html'), '<p>summary</p>')
   await writeFile(join(root, 'a.txt'), 'file A'); await writeFile(join(root, 'b.txt'), 'file B')
@@ -42,6 +43,33 @@ async function fixture(editing = false) {
 }
 
 describe('P4 read-only document viewers', () => {
+  it('requires separately granted draft sessions and binds acknowledgements to their source page', async () => {
+    const f = await fixture(true, true); const page = await f.mount('a.txt'); const other = await f.mount('b.txt')
+    expect(page.context.document?.draftSession).toBe(true)
+    const { result } = await f.call(page)
+    f.deps.event.mockImplementation((instanceId, packet: any) => {
+      if (packet.type !== 'documentDraft') return
+      expect(instanceId).toBe(page.instanceId)
+      expect(packet).toMatchObject({ path: 'a.txt', baseText: 'file A', version: result.version })
+      const draft = { text: 'kept draft', revision: 1, version: result.version, dirty: true, externalChanged: false }
+      expect(() => f.service.documentDraftResult(other.instanceId, other.binding, packet.editId, draft)).toThrow()
+      f.service.documentDraftResult(page.instanceId, page.binding, packet.editId, draft)
+    })
+    expect(await f.call(page, 'documents.readDraft')).toMatchObject({ ok: true, result: { text: 'kept draft', revision: 1 } })
+    expect(await f.call(page, 'documents.updateDraft', { text: 'kept draft', expectedRevision: 0 })).toMatchObject({ ok: true })
+    expect(await readFile(join(f.root, 'a.txt'), 'utf8')).toBe('file A')
+    const legacy = await fixture(true); const legacyPage = await legacy.mount('a.txt')
+    expect(await legacy.call(legacyPage, 'documents.readDraft')).toMatchObject({ ok: false, error: { code: 'PERMISSION_DENIED' } })
+  })
+  it('rejects a draft response cancelled before acknowledgement', async () => {
+    const f = await fixture(true, true); const page = await f.mount('a.txt')
+    f.deps.event.mockImplementation((_id, packet: any) => {
+      if (packet.type !== 'documentDraft') return
+      void f.service.call(page.instanceId, page.binding, { protocol: 1, type: 'cancel', requestId: '1' })
+      expect(() => f.service.documentDraftResult(page.instanceId, page.binding, packet.editId, null)).toThrow()
+    })
+    expect(await f.call(page, 'documents.readDraft')).toMatchObject({ ok: false })
+  })
   it('requires explicit editing permission, capability and a document binding', async () => {
     const value = await manifest()
     const params = { text: 'draft', expectedVersion: 'a'.repeat(64) }

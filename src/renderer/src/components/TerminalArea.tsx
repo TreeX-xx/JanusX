@@ -1112,7 +1112,7 @@ function LeafPane({
             return (
               <div key={tab.id} className="absolute inset-0" hidden={!isActive}
                 aria-hidden={!isActive} {...(!isActive ? { inert: '' } : {})}>
-                <ExtensionViewHost viewId={tab.viewId} location="workspace" active={workspaceVisible && isActive}
+                <ExtensionViewHost viewId={tab.viewId} instanceKey={tab.instanceKey} location="workspace" active={workspaceVisible && isActive}
                   workspaceId={tab.projectId} workspacePath={workspace?.path ?? null} />
               </div>
             )

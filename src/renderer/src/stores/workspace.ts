@@ -72,7 +72,7 @@ interface WorkspaceStore {
   addBrowserSurfaceToTree: (surfaceId: string) => void
   openBrowserInWorkspace: (url?: string) => Promise<void>
   openMarkdownInWorkspace: () => void
-  openExtensionView: (viewId: ExtensionViewId) => void
+  openExtensionView: (viewId: ExtensionViewId, instanceKey?: string) => void
   splitPane: (paneId: string | null, direction: PaneSplitDirection) => void
   unsplitPane: (paneId: string | null) => void
   collapsePaneLayout: () => void
@@ -410,8 +410,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   addBrowserSurfaceToTree: (surfaceId) => useGlobalToolsStore.getState().attachBrowser(surfaceId),
   openBrowserInWorkspace: (url) => useGlobalToolsStore.getState().openBrowser(url),
   openMarkdownInWorkspace: () => useGlobalToolsStore.getState().openMarkdown(get().activeWorkspaceId),
-  openExtensionView: (viewId) => {
-    const content = createExtensionPaneContent(viewId, get().activeWorkspaceId)
+  openExtensionView: (viewId, instanceKey) => {
+    const content = createExtensionPaneContent(viewId, get().activeWorkspaceId, instanceKey)
     if (!content) return
     if (content.scope === 'application') { useGlobalToolsStore.getState().openContent(content); return }
     useGlobalToolsStore.getState().setFocused(false)

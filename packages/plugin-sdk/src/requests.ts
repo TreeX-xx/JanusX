@@ -39,13 +39,19 @@ const methods = {
       .refine(value => Object.keys(value).length > 0 && Object.keys(value).length <= 64),
   }).strict() },
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
+  'workspace.listDirectory': { permission: 'workspace.directories.list', params: z.object({ path: z.string().min(1).max(1024), limit: z.number().int().min(1).max(200).optional() }).strict() },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'documents.readText': { permission: 'documents.read', params: empty },
+  'documents.readDraft': { permission: 'documents.draft', params: empty },
+  'documents.updateDraft': { permission: 'documents.draft', params: z.object({
+    text: z.string().max(1024 * 1024).refine(value => !value.includes('\0') && new TextEncoder().encode(value).byteLength <= 1024 * 1024),
+    expectedRevision: z.number().int().nonnegative(),
+  }).strict() },
   'documents.applyEdit': { permission: 'documents.edit', params: z.object({
     text: z.string().max(1024 * 1024).refine(value => !value.includes('\0') && new TextEncoder().encode(value).byteLength <= 1024 * 1024),
     expectedVersion: z.string().regex(/^[a-f0-9]{64}$/),
   }).strict() },
-  'views.open': { permission: 'ui.views.open', params: z.object({ view: z.string() }).strict() },
+  'views.open': { permission: 'ui.views.open', params: z.object({ view: z.string(), instanceKey: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/).optional() }).strict() },
   'island.update': { permission: 'ui.island', params: z.object({ id: z.string(), status: pluginIslandStatusSchema.nullable() }).strict() },
   'ui.showToast': { permission: 'ui.toast', params: z.object({ message: z.string().max(500), level: z.enum(['info', 'warning', 'error']).optional() }).strict() },
   'storage.get': { permission: 'plugin.storage', params: z.object({ key }).strict() },
@@ -80,8 +86,20 @@ export function validatePluginCall(manifest: PluginManifest, method: string, par
       throw new PluginError('PATH_NOT_GRANTED', 'The path is outside the declared files.')
     }
   }
+  if (method === 'workspace.listDirectory') {
+    const path = (params as { path: string }).path
+    if (path !== '.') validatePluginPath(path)
+    if (isSensitivePluginPath(path)) throw new PluginError('SENSITIVE_PATH_DENIED', 'Sensitive directories are unavailable.')
+    if (!manifest.capabilities.required.includes('files.listDirectory') || !manifest.permissions.some(permission => permission.name === 'workspace.directories.list' && permission.paths.includes(path))) {
+      throw new PluginError('PATH_NOT_GRANTED', 'The directory is outside the declared scope.')
+    }
+  }
   if (method === 'views.open' && !manifest.contributes.views.some((view) => view.id === (params as { view: string }).view)) {
     throw new PluginError('INVALID_REQUEST', 'Only a declared view can be opened.')
+  }
+  if (method === 'views.open' && (params as { instanceKey?: string }).instanceKey !== undefined
+    && !manifest.contributes.views.some(view => view.id === (params as { view: string }).view && view.instancePolicy === 'multiple')) {
+    throw new PluginError('INVALID_REQUEST', 'Instance keys require a multi-instance view.')
   }
   if (method === 'island.update' && !manifest.contributes.island?.some(item => item.id === (params as { id: string }).id)) {
     throw new PluginError('INVALID_REQUEST', 'Only a declared Island contribution can be updated.')

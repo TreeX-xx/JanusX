@@ -9,7 +9,7 @@ import { useCallback } from 'react'
 import Editor from '@monaco-editor/react'
 import { configureMonacoRuntime } from '@/lib/monaco-runtime'
 import { defineJanusxThemes, getMonacoThemeName } from '@/lib/monaco-theme'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeDefinition } from '@/stores/theme'
 import { useI18n } from '@/i18n/useI18n'
 
 configureMonacoRuntime()
@@ -44,7 +44,7 @@ function LoadingIndicator() {
  */
 export function JsonEditor({ value, onChange, readOnly = false }: JsonEditorProps) {
   const { t } = useI18n('editor')
-  const appTheme = useThemeStore((s) => s.theme)
+  const appTheme = useThemeDefinition().id
   const handleChange = useCallback(
     (val: string | undefined) => {
       onChange(val || '')
