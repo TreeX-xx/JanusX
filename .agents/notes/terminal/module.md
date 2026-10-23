@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-22T09:48:49.024Z",
+  "updated": "2026-10-23T10:35:27Z",
   "moduleState": "partial"
 }
 ---
@@ -68,7 +68,7 @@ cc-switch 机制从[port 总纲](./requirements/cc-switch-port.md)进入，detec
 
 Shell 语义与外围：[adhoc-parity](./adhoc-shell-parity.md)、[self-heal-parity](./command-error-self-heal-parity.md)、[cold-restore](./shell-cold-restore.md)、[orca-parsing](./orca-terminal-acquisition-parsing.md)、[ime-drift](./ime-candidate-drift.md)、[pane-tree](./pane-tree-subagent.md)、[monaco-diff](./monaco-diff-single-line-number.md)、[turn-history](./terminal-right-island-turn-history.md)。
 
-Shell 入口探索：[可选择的普通终端 Shell](./shell-profiles.md)已定稿终端管理设计（用户自建条目、自由命令与启动后缀、显隐与检测候选区、全局默认 PowerShell 种子），P1–P5 已实现；`--login -i` 建议后缀与 Git Bash 落位待 Windows 实测定型（见 Task Results）。
+Shell 入口探索：[可选择的普通终端 Shell](./shell-profiles.md)已定稿终端管理设计（用户自建条目、自由命令与启动后缀、显隐与检测候选区、全局默认 PowerShell 种子），P1–P5 已实现；`--login -i` 建议后缀与 Git Bash 落位待 Windows 实测定型（见 Task Results）。工作区运行时方向（WSL 与 SSH 连接途径，`kind: 'windows' | 'wsl' | 'ssh'` 三态）与两条分阶段适配线见 [wsl-support-direction](./wsl-support-direction.md)（accepted，取代首版 WSL 留白；手机远控经桌面转发、不直连 SSH 的边界同篇维护）。
 
 island 一词两义（pane 姿态层与 turn 历史浮层）为术语债，改名消歧前两篇并存，不合并。
 

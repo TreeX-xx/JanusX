@@ -91,6 +91,8 @@
 
 最右侧竖排功能控件的中性选中底板以 160ms 滑向目标，用 100ms 窗口合并快速连点，只激活最后一个面板；等待期间保留当前内容。反向点击、收起卡片或目标失效取消待执行切换；直接再点当前竖排工具仍可折叠／展开。未变化的隐藏工具跳过父层切换引起的重复渲染。终端等 pane 标签也采用滑动底板，内容选择保持即时，拖动时隐藏底板。此调度不打断已经执行的同步渲染，也不缩短 IPC 耗时，取舍和验证归[工具区](./right-dock.md)与[工作区标签](./pane-tab-reorder.md)。
 
+启动开场编排（设计已敲定、未实现）：窗口按横带装配——island 休眠充能→CRT 热身裂眼自检（第一幕），再顶部（字标+工具组）→底部（状态栏）→终端类型卡片逐个弹起→左展开→右展开，island 视线随动；右轨常驻右缘，任意输入跳到终态，终点尊重用户折叠偏好。时序数据与验收归[开场编排](./requirements/entrance-choreography.md)。
+
 负责布局、预览、导航及可达交互，不承诺所有插件、主题或预览提案均已交付。下面保留历史阅读链，Note 工具的界面承载在本模块，文档身份和蓝图解析见 [Note 与蓝图](../blueprint/module.md)。
 
 中央工作区以 pane 树统一承载终端、浏览器与 Markdown 内容；[工作区标签拖拽与布局](./pane-tab-reorder.md)负责排序、跨 pane 合并与分屏。工作区直角铺满，不保留外侧留缝、双层描边与阴影；圆角和轻底色集中到标签，分屏焦点由当前标签表达。每个 pane 的标签区独立横向滚动，右侧操作区固定，纯浏览器工作区也可分屏。分屏边界为 1px 细线、9px 拖动命中区，支持键盘调整和双击平分；底部监控条弱化分隔并移除身份、模型和其它终端摘要的胶囊边框。
@@ -104,6 +106,8 @@ Chat 会话删除确认框虽通过 portal 挂到 body，仍属于 island 的交
 2026-10-14 回归：修复前真实组件测试复现点击删除确认后 data-stage 变为 collapsed；修复后 `npx playwright test tests/e2e/chat-conversation-delete.spec.ts --project=island --workers=1 --output=artifacts/chat-delete/verified` 5 项通过，覆盖置顶／未置顶、取消／Esc／遮罩、Enter 删除末会话、删除进行中回复与保留另一会话回复。使用真实组件和会话控制器，持久化与流式 IPC 为测试替身；未另跑桌面删除持久化。`npm run typecheck` 与 `npm run build:app` 通过；JanusChat 范围 ESLint 为 0 错误、4 条既有中文字符串警告。
 
 槽位演进链（非重复，保留先后）：[island-slots](./requirements/island-rightdock-slots.md)、[right-dock](./right-dock.md)、[empty-collapse](./right-rail-toggle-motion.md)、[toggle-motion](./right-rail-toggle-motion.md)、[drawer-resize](./runtime-drawer-cards-resize.md)、[run-orb](./run-orb-budding.md)、[hifi-alignment](./island-hifi-optimized-alignment.md)、[capsule](./island-hifi-optimized-alignment.md)；turn 双件[island](./turn-change-island.md)与[card](./turn-change-card-external-cli.md)同属本域。
+
+CLI 派发子智能体监控（已定案、未实现）：monitor 子代理运行时列表以被动观察各 CLI session 持久化（transcript/rollout/sqlite，零 hook）投影为既有 `SubAgentRun` 树，右列表按 `parentRunId` 组树做主次分层；三家实测样本归[子智能体会话结构实测](../sessions/records/session-subagent-structures.md)，分层纪律与排期归[监控投影方案](./cli-subagent-monitoring.md)。
 
 下拉副黑板（演示切片已落地）：岛胶囊下拉 ≥60px 让中部工作区下滑让位，副黑板在中央列上带长出，下拉手势 toggle（再下拉自动回收，另有图标收起控件）；中断代价判据与投影/借调分类见[下拉副黑板决策](./island-blackboard.md)。整窗宽覆盖与蓝图翻牌（`blueprintMode`）已否决并退役，蓝图入口只留工作台切换器；板面复用蓝图界面（画布交互 + 左详情槽，无右侧对话），文件钉已移除，下缘拖高收板保留；借调钉与多槽未做。
 
