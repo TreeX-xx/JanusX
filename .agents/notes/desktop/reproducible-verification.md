@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-23T13:37:00.112Z",
+  "updated": "2026-10-23T13:48:41.442Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -29,6 +29,8 @@ The v0.9.4 Windows startup replacement is based on the prior release commit `23f
 Packaged-runtime verification checks both PE manifests and runs normal GUI startup for the unpacked application and extracted portable payload, without disabling GPU or its sandbox. It requires a visible window, rendered content, preload bridge, matching version and startup logging, in addition to the existing dependency, budget, module and portable-stub checks. Results are written to `artifacts/packaged-runtime-gui.json`. Normal packaged startup writes `logs/startup.log` and configures Chromium's native log at `logs/startup-chromium.log` under the selected user-data directory; explicit logging switches retain precedence. This captures native fatal errors that JavaScript exception handlers cannot catch.
 
 The candidate packages at `release/0.9.4-win10fix.1` passed the final `node scripts/check-packaged-runtime.mjs --portable --release-dir C:/Users/Tree/Desktop/git/JanusX/release/0.9.4-win10fix.1` run on Windows 11 build 26200. Both GUI paths reported active GPU rendering and no GPU or sandbox bypass switches. A separate check extracted the final NSIS setup payload, opened its rendered window and created a working PowerShell PTY. This host runs at high integrity (`S-1-16-12288`); the Windows 10 user confirmed startup but did not separately report the process integrity level or terminal checks. Build, typecheck, lint, package boundary and 23 focused unit cases passed. Note validation reported 300 Notes with zero errors and 17 external-link diagnostics; WorkflowX sibling references remain unresolved in the isolated input directory. The local candidate build used Node 24.15.0 rather than the tag's 24.20.0 pin, with Electron 35.7.5. Formal publication rebuilds with package version `0.9.4` and retains the manifest, dependency, GUI and update-hash gates; renaming candidate executables alone does not constitute that rebuild.
+
+The formal v0.9.4 rebuild and replacement completed in [release run 39963065717](https://github.com/TreeX-X/JanusX/actions/runs/39963065717), using Node 24.20.0 and source `4112a0fda61528b73ef90c9f1e57dc54ef9c3e4e`. Both normal GUI launches, both module smoke modes, PE manifests, package budgets, portable launcher and update-manifest hashes passed before publication. The existing Release identity and Android asset IDs were retained; the four Windows artifacts, release notes and SHA256SUMS were replaced with plain 0.9.4 names. Local main implementation was committed as `05f597e1`; unrelated pending work and remote main were retained. The release API metadata, asset digests, build log and publication report are preserved under `artifacts/v094-publish-20261023/`.
 
 The same Windows 10 installation reported eight JanusX processes with missing executable paths, and `taskkill` returned access denied even at high integrity. The NSIS template checks executable names rather than the chosen installation directory, so any remaining JanusX process can block installation. Restarting before installation is the recovery advice; no installer bypass or guaranteed repair of unkillable processes is claimed. Same-version clients must manually download the replacement because the version number remains 0.9.4.
 
