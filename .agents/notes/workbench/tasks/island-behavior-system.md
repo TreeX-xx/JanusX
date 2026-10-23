@@ -55,7 +55,7 @@
     ],
     "review": "self"
   },
-  "updated": "2026-10-23T09:20:00Z",
+  "updated": "2026-10-24T00:05:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/2a85ca64-bc0b-48b1-91b5-a89c44e13321" },
@@ -94,7 +94,7 @@
 
 **P1 行为内核**：新建 `janusBehavior.ts`（GazeScheduler/Blink/Reaction 纯逻辑，含吸引·驻留·移开·疲劳·游荡·摸头循环状态机）+ `useJanusGaze()`（rAF 桥、CSS 变量输出、闲置停帧、reduced-motion 降级）；`01-janus-foundation.css` 的 `mini-idle` 由 var() 驱动 transform 替代，EQ/scan 模式 keyframe 保留。参数默认值=定稿值。
 
-**P2 事件与摸头接入**：JanusIsland 折叠态接 hover 判定（胶囊+14px 容差）与摸头闭眼循环；flinch/nod/fail/greet 映射真实事件（peek 展开伴随/任务完成/失败/会话恢复），惊醒=闭眼时展开的伴随反应。与 hover 呼吸动画互斥规则明确。
+**P2 事件与摸头接入**：JanusIsland 折叠态接 hover 判定（胶囊+14px 容差）与摸头闭眼循环；flinch/nod/fail/greet 映射真实事件。实现时修订（2026-10-24）：peek 展开首帧即隐藏胶囊（`island-expand-from-pill` 放大的是 `.janus-expanded`），「展开伴随」改挂**单击即时回调**（`onQuickTap`，420ms 单击仲裁期内播放、胶囊仍可见；惊醒=闭眼时点击的 kernel 内逻辑不变）；nod=流式下降沿且无错误、fail=错误出现上升沿、greet=工作区切换落定。摸头与 hover 呼吸分层共存（呼吸在 island、凝视在眼组 transform 链），拖拽（is-dragging）期间摸头挂起（`suspendRef`），与呼吸的 `:not(.is-dragging)` 对齐；`useIslandGesture` 仅增量接口（onQuickTap/isDraggingRef），下拉路径零改动。
 
 **P3 胶囊传话 + 队列 + 计数**：通知到达走 `islandNotifications.ts` 统一入口 → 串行传话队列（收起续播、面板打开清队）；左上角灰色计数与历史一致；替换现行折叠态通知弹出（peek 一级展开通知胶囊不动）。
 
@@ -117,7 +117,7 @@ V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior`（新�
 
 ## Progress
 
-未开始。原型设计与参数定稿完成（2026-10-23，用户确认手感参数与通知形态三条反馈：整体展开、灰字计数、连发/展开 bug 修复）。手势仲裁定案（2026-10-23）：采纳 B 案——下拉专属副黑板，通知中心走点击入口，flinch/惊醒为 peek 展开伴随反应。
+P1 行为内核已落地（2026-10-24，feat/island-behavior-system f8630f51）：janusBehavior.ts 调度器 + useJanusGaze rAF 桥 + 21 项单测全绿、typecheck 干净；order 态 mini-idle 用法退役（AC-6 用法侧）。P2 事件映射已落地（同分支）：onQuickTap flinch/惊醒伴随、nod/fail/greet 真实事件、拖拽挂起摸头。手势仲裁定案（2026-10-23）：采纳 B 案——下拉专属副黑板，通知中心走点击入口。原型设计与参数定稿完成（2026-10-23，用户确认手感参数与通知形态三条反馈：整体展开、灰字计数、连发/展开 bug 修复）。
 
 ## Handoff
 

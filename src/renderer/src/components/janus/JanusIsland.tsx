@@ -7,7 +7,7 @@ import { useBlueprintMaintenanceStore } from '@/stores/blueprint-maintenance'
 import { useI18n } from '@/i18n/useI18n'
 import { JanusEye } from './JanusEye'
 import { useIslandGesture } from './useIslandGesture'
-import { useJanusGaze } from './useJanusGaze'
+import { useJanusGaze, type JanusGazeControls } from './useJanusGaze'
 import { useJanusState } from './useJanusState'
 import { getBlueprintStatusVisual } from '../blueprint/blueprintStatus'
 import { formatKnowledgeMatch } from './islandKnowledgePeek'
@@ -306,9 +306,17 @@ export function JanusIsland({
     useAppStore.getState().setBlackboardDrag(null)
   }, [])
 
+  // P2 事件原语：flinch/惊醒=轻点伴随（420ms 单击仲裁期内播放，胶囊仍可见）。
+  // 经 ref 取控件，避免手势 hook 与 gaze hook 的循环依赖。
+  const janusGazeRef = useRef<JanusGazeControls | null>(null)
+  const handleQuickTap = useCallback(() => {
+    janusGazeRef.current?.react('flinch')
+  }, [])
+
   const {
     islandRef,
     pullHintRef,
+    isDraggingRef,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
@@ -318,6 +326,7 @@ export function JanusIsland({
     onSwipeCancel: handleSwipeCancel,
     onDoubleTap: handleDoubleTap,
     onSingleTap: handleSingleTap,
+    onQuickTap: handleQuickTap,
     onDragProgress: handleDragProgress,
     isRunning: janusRunning,
     enableComplexGestures: stage !== 'expanded',
@@ -332,13 +341,35 @@ export function JanusIsland({
         },
   })
 
-  // P1 行为系统：凝视/眨眼/摸头循环（折叠胶囊态）；事件原语见 P2 接线。
+  // P1 行为系统：凝视/眨眼/摸头循环（折叠胶囊态）；P2 事件原语映射见下。
   const janusGaze = useJanusGaze({
     faceRef: eyeContainerRef,
     islandRef,
     mode,
     enabled: stage === 'collapsed',
+    suspendRef: isDraggingRef,
   })
+  janusGazeRef.current = janusGaze
+
+  // P2 真实事件 → 原语：nod=回合完成（流式下降沿且无错误）、fail=出错、greet=工作区落定。
+  const prevStreamingRef = useRef(isStreaming)
+  const prevErrorRef = useRef(error)
+  const prevWorkspaceRef = useRef(activeWorkspace)
+  useEffect(() => {
+    const was = prevStreamingRef.current
+    prevStreamingRef.current = isStreaming
+    if (was && !isStreaming && !error) janusGazeRef.current?.react('nod')
+  }, [isStreaming, error])
+  useEffect(() => {
+    const prev = prevErrorRef.current
+    prevErrorRef.current = error
+    if (!prev && error) janusGazeRef.current?.react('fail')
+  }, [error])
+  useEffect(() => {
+    if (prevWorkspaceRef.current === activeWorkspace) return
+    prevWorkspaceRef.current = activeWorkspace
+    janusGazeRef.current?.react('greet')
+  }, [activeWorkspace])
 
   const activeSession = useBlueprintStore((s) => s.activeSession)
   const currentBlueprint = useBlueprintStore((s) => s.currentBlueprint)

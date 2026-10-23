@@ -18,6 +18,8 @@ export interface UseJanusGazeOptions {
   enabled: boolean
   /** 通知中心展开中（P4 接线） */
   panelOpen?: boolean
+  /** 拖拽进行中（下拉副黑板）：悬停判定挂起，不触发摸头 */
+  suspendRef?: RefObject<boolean>
 }
 
 export interface JanusGazeControls {
@@ -27,7 +29,7 @@ export interface JanusGazeControls {
 }
 
 export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
-  const { faceRef, islandRef, mode, enabled, panelOpen = false } = options
+  const { faceRef, islandRef, mode, enabled, panelOpen = false, suspendRef } = options
   const schedulerRef = useRef<JanusGazeScheduler | null>(null)
   if (!schedulerRef.current) schedulerRef.current = new JanusGazeScheduler()
   const scheduler = schedulerRef.current
@@ -72,7 +74,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
         : { x: 0, y: 0 }
       const pointer = pointerRef.current
       const pointerFresh = !!pointer && now - pointer.movedAt < 1400
-      const hover = !!pointer && !!rect &&
+      const hover = !!pointer && !!rect && suspendRef?.current !== true &&
         pointer.x >= rect.left - HOVER_PAD && pointer.x <= rect.right + HOVER_PAD &&
         pointer.y >= rect.top - HOVER_PAD && pointer.y <= rect.bottom + HOVER_PAD
 
@@ -143,7 +145,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
       if (wakeTimer) clearTimeout(wakeTimer)
       window.removeEventListener('pointermove', onPointerMove)
     }
-  }, [enabled, islandRef, scheduler, writeVars])
+  }, [enabled, islandRef, scheduler, suspendRef, writeVars])
 
   const react = useCallback((kind: JanusReaction) => {
     scheduler.react(kind, performance.now())

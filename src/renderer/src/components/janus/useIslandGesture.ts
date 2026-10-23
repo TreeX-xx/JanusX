@@ -14,6 +14,8 @@ interface IslandGestureOptions {
   onSwipeCancel?: () => void
   onDoubleTap: () => void           // 双击回调
   onSingleTap?: () => void
+  /** 轻点即时回调（位移≤12px 松手即触发，早于单击确认；用于 flinch/惊醒 伴随反应） */
+  onQuickTap?: () => void
   /** 拖拽过程中实时回调：副黑板预览高度跟手 */
   onDragProgress?: (deltaY: number, progress: number) => void
   isRunning: boolean
@@ -27,6 +29,7 @@ export function useIslandGesture({
   onSwipeCancel,
   onDoubleTap,
   onSingleTap,
+  onQuickTap,
   onDragProgress,
   isRunning,
   enableComplexGestures = true,
@@ -51,6 +54,8 @@ export function useIslandGesture({
   const DOUBLE_TAP_TOLERANCE = 18
 
   singleTapCallbackRef.current = onSingleTap
+  const quickTapCallbackRef = useRef(onQuickTap)
+  quickTapCallbackRef.current = onQuickTap
   const pullHintLabelsRef = useRef(pullHint)
   pullHintLabelsRef.current = pullHint
 
@@ -194,7 +199,7 @@ export function useIslandGesture({
       } else {
         // 非拖�?�?检查双�?
         if (enableComplexGestures && Math.hypot(e.clientX - startX.current, e.clientY - startY.current) <= 12) {
-
+          quickTapCallbackRef.current?.()
           const now = Date.now()
           const tapPoint = { x: e.clientX, y: e.clientY }
           if (isDoubleTapWithinTolerance(
@@ -259,6 +264,7 @@ export function useIslandGesture({
   return {
     islandRef,
     pullHintRef,
+    isDraggingRef: isDragging,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
