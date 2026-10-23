@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-22T17:23:32Z",
+  "updated": "2026-10-23T02:07:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -22,7 +22,7 @@
 
 目标是让用户通过插件组合中部工作区、工具箱、右侧栏、Island、独立工作台，以及文件、任务、Agent 和外部系统能力，形成完整功能。入口、命令、视图、展示位置与能力授权分别建模；已有官方功能逐步使用同一贡献语义。完整设计归[插件平台架构](../workbench/plugin-platform-design.md)，PI-Desktop 调研继续归[研究 Note](../workbench/ideas/plugin-platform-and-feature-modularization.md)。
 
-保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区，验证见专节。完整门禁证据及平台限制见下文；P4–P8 尚待实施。
+保留 S1 至 S5 的既有标识与历史证据；S1 至 S3 已交付，S4 为首个本地插件闭环，S5 为分发。执行细分为 P0 至 P8：P0–P2 对应 S4，P3–P7 扩大贡献和能力，P8 对应 S5。P0 契约、P1 SDK／校验／脚手架和命令入口、P2 本地加载／授权／隔离桥／管理调试已完成；S4 本地只读范围闭合。P3 已接入工作台根页面和 Island 声明式状态、动作、预览及隔离展开工具区。P4 已实施只读 viewer 首片，文件编辑／事务保存、目录查询及完整多实例验收待续，P5–P8 尚待实施。实际验证、完整门禁证据及平台限制见下文各阶段专节。
 
 本计划采用相对排期，参考工作量按单条主线、主 Agent 顺序实施估算，包含相关测试与文档维护，不指定起始日期或版本，不挤占既有事项；统一列入[工程排期的未归入节点](engineering-milestones.md)。估算不是历史速度或承诺工期，每批开始前按实际代码、依赖和试验结果修订。普通文档维护与普通 xdo 不创建执行 Task，阶段通过仍以所属需求和实际证据为准。
 
@@ -99,6 +99,22 @@ Windows Electron 专项：设置 `JANUS_E2E_MAIN_ENTRY=out/main/index.js`、`JAN
 完整 `npm run verify` 使用四个 Vitest worker 执行，日志 `artifacts/plugin-p3-verify.log`：插件专项 88 项通过，主单元 434 份／3793 项通过、6 份／23 项跳过，LLM 核心 80 项通过；主题、类型、strict-unused、构建、包边界、打包排除及 i18n 通过。在 Notes 门禁处退出 1：执行期间新增的未跟踪 `requirements/entrance-choreography.md` 缺少 AC 冒号且 updated 早于 created，两项均属本批之外并保留未改。P3 维护的五份 Note 单独筛查无错误；全仓仍有 17 条既有跨仓库链接诊断。保留已有 CRLF 文件，使用 `git -c core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol diff --check` 检查通过。
 
 随后独立补跑 `npm run lint` 与 `npm run test:e2e:desktop`，日志 `artifacts/plugin-p3-lint.log`、`artifacts/plugin-p3-desktop-all.log`：lint 0 错误／67 既有警告，Electron 40 项通过、2 项跳过、0 失败，包含全部九项插件用例、CPA、会话、终端、浏览器、编辑器、备忘录、审批及文件窗口回归。完整 verify 并非一次全绿；代码和桌面验证支持架构 AC-11，但不消除其它 Note 的格式问题。macOS／Linux 和安装包未验收。P3 不开放文档写入、目录遍历、后台任意 JS、网络／凭证、模型、终端类型、CLI／会话适配器、PTY 后端或多实例，不创建独立原生窗口，也不提供跨插件布局引擎。
+
+## P4 只读 viewer 首片
+
+2026-10-23 按“先 viewer、后编辑”的既定顺序交付主窗口嵌入文件编辑器的插件打开方式：清单 viewer 以明确扩展名／文件名匹配已声明 project/workspace 页面，用户可选择并保存／恢复默认。新增独立 documents.read 权限及 documents.viewers/readText 必需能力，旧宿主不误接收新清单；模板 bundle 已支持文档上下文，旧四区域清单继续兼容。具体字段、实例键及限制归[首版契约](../workbench/plugin-contract-v1.md#p4-只读文档查看器)。
+
+主进程按真实项目/root、viewer 和文档路径绑定页面；documents.readText 不接收可变路径，沿用 1 MiB／UTF-8、敏感目录和真实路径保护。文档页可多文件共存，普通 pane 维持 single，KV 按原 project/root 共享。异步挂载增加上下文与激活代次复验，防止重载后迟到挂载复活。viewers 声明进入授权指纹，变化需确认。脏缓冲、diff／导航及浮窗继续内置路径，插件失效回退；只读插件显示期间停用宿主保存按钮和 Ctrl/Cmd+S 写入，避免旧干净缓冲覆盖磁盘新内容。
+
+本片不包含文档写入／事务保存、编辑冲突、自动文件变更事件、受限目录查询、通用多实例 pane、代表内置查看器迁移或浮窗插件宿主，因此不关闭 P4、M2 或架构 AC-10／AC-12。Windows 开发构建为本片验证平台，macOS／Linux 和安装包未验收。本轮为主 Agent 实施与自审，无独立 Agent review。
+
+`npm run plugins:check` 通过六份／103 项，含新增 `plugin-documents.test.ts` 的 11 项，日志 `artifacts/plugin-p4-plugins.log`；覆盖声明／必需能力、权限、选择器、不同文件／普通页身份、任意改路径拒绝、真实文件及 junction 边界、UTF-8／预算、内容版本变化、项目／重载期间迟到挂载拒绝、重新授权、默认偏好和存储失败。门禁实际打包 SDK 并在仓库外安装、typecheck、构建及校验，回执仍为 `artifacts/plugin-p1/scaffold.json`。本片模板四区域清单未扩大权限，桌面夹具在仓库外成品上显式添加 viewer 声明并使用相同 bundle。
+
+真实 Windows Electron 执行：设置 `NO_PROXY=localhost,127.0.0.1,::1`，运行 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/unified-file-window.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-p4/desktop-reviewed`，11 项通过，日志 `artifacts/plugin-p4-desktop-reviewed.log`。包含全部十项插件用例及文件宿主／浮窗迁移；新用例实际验证不同文件隔离页并存、越权路径拒绝、默认选择跨启动恢复、设置面遮挡、外部更新重读、只读页宿主保存拦截、脏缓冲禁止切换、崩溃／停用回退及草稿保留。首轮 P4 单项亦通过，日志 `plugin-p4-desktop-first.log`；最终专项包含后续保存保护补验。完整桌面全集未重跑，不将 11 项表述为全量桌面验收。
+
+完整 `npm run verify` 设置 Vitest threads/forks 上限 4、下限 1，日志 `artifacts/plugin-p4-verify.log`：主题、插件门禁、主类型、LLM 类型及核心构建通过；主单元 434 份／3803 项通过、6 份／23 项跳过，`agent-notes-check.test.ts` 一份／一项失败。唯一失败来源仍为本轮前已存在、未跟踪的 `workbench/requirements/entrance-choreography.md`：缺少 AC 冒号且 updated 早于 created。命令在单元阶段返回 1，后续完整门禁未继续，不记作一次全绿；该 Note 和模块中的既有开场编排变更保留，不并入本片提交。
+
+严格 unused 类型、生产构建、i18n、包边界、打包排除清单和变更范围 ESLint 已独立通过，日志为 `artifacts/plugin-p4-types.log`、`plugin-p4-build-closeout.log`、`plugin-p4-i18n.log`、`plugin-p4-package-boundary.log`、`plugin-p4-exclusions.log`、`plugin-p4-eslint.log`。另补跑 `npm run test:llm-core`，80 项通过，日志 `artifacts/plugin-p4-llm.log`；`npm run lint` 为 0 错误／67 条既有警告，日志 `artifacts/plugin-p4-lint.log`。全仓 Notes 单独检查仍只有上述两处错误，304 份 Note 与 17 条既有跨仓库链接诊断；本片维护的七份 Note 无错误。未生成安装包或测试其它平台。
 
 ## 交付顺序
 

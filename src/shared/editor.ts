@@ -1,6 +1,8 @@
 // Note: .agents/notes/workbench/unified-file-window.md
 export type FileViewType = 'code' | 'markdown' | 'html' | 'image' | 'binary'
 export interface FileViewState {
+  /** Qualified plugin viewer ID, or builtin; independent of the default preference. */
+  viewerId?: string
   previewMode?: 'editor' | 'split' | 'preview'
   viewport?: string
   zoom?: string

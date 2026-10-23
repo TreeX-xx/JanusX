@@ -21,7 +21,7 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
       reject(new PluginError(code, code))
     }
     const abort = () => cancel('CANCELLED')
-    const timer = setTimeout(() => cancel('TIMEOUT'), method === 'workspace.readText' ? 10_000 : 5_000)
+    const timer = setTimeout(() => cancel('TIMEOUT'), method === 'workspace.readText' || method === 'documents.readText' ? 10_000 : 5_000)
     const cleanup = () => { clearTimeout(timer); options?.signal?.removeEventListener('abort', abort) }
     pending.set(requestId, { resolve: value => resolve(value as T), reject, cleanup })
     options?.signal?.addEventListener('abort', abort, { once: true })
@@ -74,6 +74,7 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     return unsubscribe
   }
   const api: PluginApi = {
+    documents: { readText: options => call('documents.readText', {}, options) },
     app: { getInfo: options => call('app.getInfo', {}, options) },
     workspace: { getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
     views: { open: (params, options) => call('views.open', params, options) },

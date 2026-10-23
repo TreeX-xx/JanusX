@@ -4,6 +4,7 @@ import { parseTree, type Node as JsonNode, type ParseError } from 'jsonc-parser'
 import { PluginError } from './errors.js'
 import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { isReservedPluginKeybinding, normalizePluginKeybinding } from './keybindings.js'
+import { pluginViewerSchema } from './documents.js'
 
 export const PLUGIN_API_VERSION = '1.0.0'
 /** Implemented host features; old hosts reject unknown required capabilities. */
@@ -11,8 +12,9 @@ export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.island', 'island.status',
+  'documents.viewers', 'documents.readText',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -41,17 +43,17 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(6).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(7).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).min(1).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
     menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional(),
-    island: z.array(pluginIslandSchema).max(4).optional() }).strict(),
+    island: z.array(pluginIslandSchema).max(4).optional(), viewers: z.array(pluginViewerSchema).max(16).optional() }).strict(),
 }).strict().superRefine((manifest, ctx) => {
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
@@ -60,6 +62,11 @@ export const pluginManifestSchema = z.object({
   if ([...menus, ...keybindings].some((entry) => !commands.some((command) => command.id === entry.command))) fail('Entry references an unknown command')
   if (new Set(menus.map((menu) => `${menu.location}:${menu.command}`)).size !== menus.length) fail('Duplicate menu entry')
   if (manifest.capabilities.required.some((item) => manifest.capabilities.optional.includes(item))) fail('Required and optional capabilities overlap')
+  const viewers = manifest.contributes.viewers ?? []
+  if (new Set(viewers.map(viewer => viewer.id)).size !== viewers.length) fail('Duplicate viewer ID')
+  if (viewers.length && (!manifest.permissions.some(item => item.name === 'documents.read')
+    || !manifest.capabilities.required.includes('documents.viewers') || !manifest.capabilities.required.includes('documents.readText'))) fail('Viewers require documents.read and required document capabilities')
+  for (const viewer of viewers) if (!views.some(view => view.id === viewer.view && view.scope === 'project' && view.location === 'workspace')) fail('Viewer requires a project workspace view')
   const island = manifest.contributes.island ?? []
   if (new Set(island.map(item => item.id)).size !== island.length) fail('Duplicate Island ID')
   if (island.length && !manifest.permissions.some(item => item.name === 'ui.island')) fail('Island requires ui.island permission')

@@ -22,6 +22,7 @@ const methods = {
   'app.getInfo': { permission: null, params: empty },
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
+  'documents.readText': { permission: 'documents.read', params: empty },
   'views.open': { permission: 'ui.views.open', params: z.object({ view: z.string() }).strict() },
   'island.update': { permission: 'ui.island', params: z.object({ id: z.string(), status: pluginIslandStatusSchema.nullable() }).strict() },
   'ui.showToast': { permission: 'ui.toast', params: z.object({ message: z.string().max(500), level: z.enum(['info', 'warning', 'error']).optional() }).strict() },

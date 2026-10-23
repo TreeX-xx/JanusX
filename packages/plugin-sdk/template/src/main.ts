@@ -11,6 +11,13 @@ let unsubscribe: (() => void) | undefined
 async function start(api: PluginApi) {
   const options = { signal: controller.signal }
   const context = await api.workspace.getContext(options)
+  if (context.document) {
+    remember.hidden = true
+    const file = await api.documents.readText(options)
+    status.textContent = `${file.path} · read-only`
+    content.textContent = file.text
+    return
+  }
   const navigation = document.createElement('nav')
   for (const [view, title] of [['details', 'Reference'], ['summary', 'Summary'], ['desk', 'Reference desk'], ['island', 'Reference tool']]) {
     const button = document.createElement('button')

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-22T17:01:40Z",
+  "updated": "2026-10-23T02:07:34Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -25,7 +25,7 @@
 
 目标架构归[插件平台设计](plugin-platform-design.md)，验收归[架构需求](requirements/plugin-architecture-forms.md)和[导入需求](requirements/plugin-import-debug.md)，顺序及实施证据归[阶段计划](../planning/plugin-platform-roadmap.md)。全部未来能力不塞进首版 schema；示例只验证契约关系，不指定要交付哪项示范产品。
 
-首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。视图只支持每作用域单实例。文件写入、目录遍历、任意后台 JS、网络、模型、任意宿主命令、跨插件服务、全局快捷键和多实例暂不支持，传入这些贡献或权限明确拒绝。多实例在 P4 引入前需要修订 pane 与存储契约，不能仅扩大类型枚举。
+首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、网络、模型、任意宿主命令、跨插件服务、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。文档编辑、事务保存及冲突验收仍归后续 P4。
 
 ## 现有消费者与兼容改造
 
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -115,6 +115,18 @@ Island 胶囊显示状态数量与受限文本，最多三项紧凑展示，完�
 
 `views.open` 同时支持 workbench 与 island，仍返回真实实例 ID。外部脚手架只依赖打包 SDK，复用两份 HTML 贡献四个页面，通过 storage.watch 联动同 project/root 的 KV。完整测试证据归阶段计划。
 
+## P4 只读文档查看器
+
+公开能力新增 `documents.viewers`、`documents.readText`，viewer 包必须将两者列入 required，以便旧宿主明确拒绝；新增权限 `documents.read`。原四区域模板和既有清单仍合法，SDK 模板页面已能处理文档绑定；作者按 SDK README 显式添加 viewer 声明，不自动扩大既有示例权限。`contributes.viewers` 最多 16 项，每项包含独立 id、title、引用的 view、extensions 和 filenames；必须有至少一个选择条件。view 只能引用本插件 project/workspace 页面。扩展名以点开头、使用小写后缀，文件名无目录，匹配不区分大小写，不支持 glob；敏感路径和越界路径不匹配。viewer 声明进入授权指纹，改变选择规则需重新确认。
+
+主窗口嵌入文件编辑器提供“打开方式”，默认仍为内置查看器；用户可按扩展名、或无扩展名文件的完整名称保存默认，并恢复内置默认。选择记入各文件的 FileViewState，偏好独立保存在 window localStorage；写入失败明确报告，不伪装保存成功。已停用、未授权项目、开发模式关闭或不再匹配的 viewer 不成为候选。浮窗、Office／二进制、diff／定位导航使用内置路径；未保存文件禁止切换并保留原缓冲。
+
+文档实例逻辑键为 plugin＋view＋project/root＋viewer＋规范化相对 path；相同绑定不重复挂载，不同文件可以同时拥有隔离页，普通视图实例与文档实例分别计数。Windows 同路径大小写不创建重复实例。沿用每插件 8 页和全局 64 页预算。宿主在挂载前验证匹配、项目授权、真实路径、敏感目录、UTF-8 和 1 MiB 上限，异步校验后重查上下文及激活代次；重载或项目切换期间未完成的挂载不能复活旧页。
+
+文档页 context 额外包含 `document:{viewer,path}`，`documents.readText()` 只接受空参数并返回 `{path,text,bytes,version}`；version 是当前内容 SHA-256，不是保存令牌。普通视图不能借此方法读取文档，文档页不能通过它改选其它文件；额外的 workspace.readText 仍独立检查精确路径授权。读取观察磁盘当前内容，不自动推送文件变化；插件需要主动重读，用户可重开或刷新文件。KV 仍按插件/project/root 共享，不因文档实例增多而改变业务存储作用域。
+
+文档页使用原生隔离壳与宿主遮挡租约；挂载失败、页面失效／崩溃或插件停用后回退内置查看器。插件内部业务错误仍由插件展示，不假定可以识别任意脚本错误。只读插件显示期间，宿主保存按钮和 Ctrl/Cmd+S 写入关闭，避免把旧的干净缓冲覆盖到外部更新；关页、切换、停用不写磁盘，未保存缓冲保留。自动变更通知、文档事务写入／保存冲突、目录查询、通用多实例 pane 和代表内置查看器迁移尚未实施，架构 AC-10／AC-12 不因此整条关闭。
+
 ## 身份与上下文
 
 | 身份 | 格式及来源 | 生命周期 |
@@ -123,7 +135,7 @@ Island 胶囊显示状态数量与受限文本，最多三项紧凑展示，完�
 | viewId／commandId | `extension:<pluginId>/<localId>`／`command:<pluginId>/<localId>` | 稳定贡献身份，兼容现有 view ID |
 | projectId | 已登记 workspace 的 ID，作为不透明字符串 | 项目删除后失效，重建项目不自动继承旧授权 |
 | rootId | 主进程按 projectId＋已验证真实根目录登记的 UUID | 主目录和每个 worktree 分开，路径不作为公开权限参数 |
-| instanceId | 主进程创建的 UUID，逻辑键为 plugin＋view＋scope（应用或 projectId/rootId） | 同一作用域重复打开定位原实例；关页再开得到新 UUID |
+| instanceId | 主进程创建的 UUID，普通视图逻辑键为 plugin＋view＋scope；文档页另含 viewer/path | 普通宿主入口重复打开定位原实例；重复挂载请求拒绝；关页再开得到新 UUID |
 | generation | 每次加载生成的不可预测运行代次 | reload、context 切换、disable、来源变化全部撤销旧代次 |
 | contextRevision | 每次上下文生命周期变更增加的整数 | 请求捕获 revision，返回时再次检查 |
 
@@ -140,6 +152,7 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 | `app.getInfo()` | `{}` → `{pluginApiVersion, capabilities, locale, theme:{id,tokens}}` | 基础握手信息，无项目或机密；tokens 为宿主公开令牌子集 |
 | `workspace.getContext()` | `{}` → `{project:null|{projectId,rootId,name}, revision, active}` | `workspace.context.read`；权限拒绝不泄露项目名 |
 | `workspace.readText()` | `{path}` → `{text, bytes}` | `workspace.files.read` 且 path 在声明与授权的精确路径交集；project 作用域，UTF-8 文本最多 1 MiB，二进制／无效编码拒绝，不悄然截断 |
+| `documents.readText()` | `{}` → `{path,text,bytes,version}` | `documents.read`；仅宿主已绑定的 viewer 文件，不接收路径；范围、编码和预算见 P4 契约 |
 | `views.open()` | `{view}` → `{instanceId}` | `ui.views.open`；仅本插件已声明 local view，不允许其它插件、任意 location 或 project 参数 |
 | `island.update()` | `{id,status}` → `{updated}` | `ui.island`；仅本插件已声明同 scope 的贡献，文本和配额见 P3 契约 |
 | `ui.showToast()` | `{message,level?:info|warning|error}` → `{shown}` | `ui.toast`，消息最多 500 字，显示插件来源，不渲染 HTML；速率限制时明确报错 |
@@ -151,7 +164,7 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 
 清单里的 `openView` 命令由宿主处理，只定位声明的自有视图，不需要插件页面先运行，也不会调用任意用户 JS。命令以用户宿主入口触发时无需 ui.views.open 权限；页面主动打开视图仍需该权限。首版不实现任意 commands.execute 或 renderer callback。
 
-权限枚举为 `workspace.context.read`、`workspace.files.read`、`plugin.storage`、`ui.views.open`、`ui.toast`、`ui.island`。仅 files.read 带 `paths`：1–64 个精确、规范化的相对文件路径，无 glob、目录前缀或符号链接授权；其它权限只允许 name。所有资源权限受用户选择项目范围和当前策略再次约束。宿主按安装记录绑定来源、权限指纹及批准项目；资源另绑定内容摘要和实例代次。开发资源内容变化允许重新校验后热重载，权限指纹变化先阻断并重新确认，不把内容重建误作新授权。
+权限枚举为 `workspace.context.read`、`workspace.files.read`、`plugin.storage`、`ui.views.open`、`ui.toast`、`ui.island`、`documents.read`。仅 files.read 带 `paths`：1–64 个精确、规范化的相对文件路径，无 glob、目录前缀或符号链接授权；其它权限只允许 name。所有资源权限受用户选择项目范围和当前策略再次约束。宿主按安装记录绑定来源、权限指纹及批准项目；资源另绑定内容摘要和实例代次。开发资源内容变化允许重新校验后热重载，权限指纹变化先阻断并重新确认，不把内容重建误作新授权。
 
 KV key 为 1–128 字符的普通字符串，拒绝空、NUL 及 `__proto__|prototype|constructor`；value 为 JSON 值，单值序列化 UTF-8 最多 64 KiB，每插件每 scope 最多 1 MiB、1024 key。存储失败不发送成功事件，revision 在主进程序列化写中产生，卸载默认保留。project 页不能选择 application 存储；同插件 application／不同 root 的数据不默认共享。多页的摘要／详情可通过同 scope 的 storage.watch 联动。
 

@@ -1,3 +1,4 @@
+// Note: .agents/notes/workbench/plugin-contract-v1.md — optional read-only plugin viewers in the embedded editor.
 import { productKindForPath } from '../../../shared/product'
 import { OfficeFileViewer } from './office/OfficeFileViewer'
 import { useEditorStore } from '@/stores/editor'
@@ -7,8 +8,11 @@ import type { FindableEditor } from '@/lib/editor-find'
 import type { OpenFile } from '@/types'
 import type { DefinitionTarget } from '@/lib/monaco-definition'
 import type { EditorNavigationTarget } from '@/stores/editor'
+import { DocumentViewerHost } from '@/extensions/DocumentViewerHost'
 
 interface FileViewerContentProps {
+  pluginViewers?: boolean
+  onReadOnlyChange?: (value: boolean) => void
   file: OpenFile
   onContentChange: (content: string) => void
   onEditorMount?: (editor: FindableEditor | null) => void
@@ -21,7 +25,16 @@ interface FileViewerContentProps {
   definitionErrorMessage?: string
 }
 
-export function FileViewerContent({ file, onContentChange, onEditorMount, diffOriginalContent, workspacePath, navigationTarget, onDefinitionNavigate, onNavigationComplete, definitionActionLabel, definitionErrorMessage }: FileViewerContentProps) {
+export function FileViewerContent(props: FileViewerContentProps) {
+  const builtin = <BuiltinFileViewerContent {...props} />
+  if (!props.pluginViewers || props.file.isLoading || props.file.error || ['image', 'binary'].includes(props.file.viewType)
+    || productKindForPath(props.file.absolutePath) === 'office') return builtin
+  return <DocumentViewerHost file={props.file} workspacePath={props.workspacePath}
+    onReadOnlyChange={props.onReadOnlyChange}
+    forceBuiltin={props.diffOriginalContent !== undefined || Boolean(props.navigationTarget)}>{builtin}</DocumentViewerHost>
+}
+
+function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOriginalContent, workspacePath, navigationTarget, onDefinitionNavigate, onNavigationComplete, definitionActionLabel, definitionErrorMessage }: FileViewerContentProps) {
   if (file.isLoading) {
     return (
       <div

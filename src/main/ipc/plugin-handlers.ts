@@ -22,7 +22,8 @@ const inputSchema = z.discriminatedUnion('type', [
   ...(['disable', 'reload', 'uninstall', 'deleteData'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
   z.object({ type: z.literal('context'), projectId: text.nullable(), scopePath: nullableText, locale: z.string().max(32),
     theme: z.object({ id: z.string().max(128), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
-  z.object({ type: z.literal('mount'), id: text, view: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
+  z.object({ type: z.literal('mount'), id: text, view: text, projectId: text.nullable(), scopePath: nullableText,
+    document: z.object({ viewer: text, path: z.string().min(1).max(4096) }).strict().optional() }).strict(),
   ...(['close', 'devtools'] as const).map(type => z.object({ type: z.literal(type), ...instance }).strict()),
   z.object({ type: z.literal('bounds'), ...instance, bounds: z.object({ x: z.number().finite(), y: z.number().finite(), width: z.number().finite().nonnegative(), height: z.number().finite().nonnegative() }).strict() }).strict(),
   z.object({ type: z.literal('active'), ...instance, active: z.boolean() }).strict(),
@@ -90,7 +91,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'deleteData': await service.deleteData(request.id); break
         case 'context': await service.setContext(request.projectId, request.scopePath, request.locale, request.theme); break
         case 'mount': {
-          const mount = await service.mount(request.id, request.view, request.projectId, request.scopePath)
+          const mount = await service.mount(request.id, request.view, request.projectId, request.scopePath, request.document)
           try { await runtime.create(request.id, mount); data = mount }
           catch (cause) { service.close(mount.instanceId); throw cause }
           break

@@ -16,6 +16,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import { useAppStore } from '@/stores/app'
 import { useIslandStore } from '@/stores/island'
+import type { PluginDocument } from '@janusx/plugin-sdk'
 
 let snapshot: PluginHostSnapshot = { developmentMode: false, plugins: [], logs: [] }
 const listeners = new Set<() => void>()
@@ -105,7 +106,9 @@ export function initializePluginRuntime(): void {
   void refreshPlugins().catch(console.error)
 }
 
-function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location }: ExtensionViewProps & { pluginId: string; localViewId: string }) {
+export function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, active, location, document: boundDocument, onFailure }: ExtensionViewProps & {
+  pluginId: string; localViewId: string; document?: PluginDocument; onFailure?: (code: string) => void
+}) {
   const { t } = useI18n('plugins')
   const body = useRef<HTMLDivElement>(null)
   const covered = useBrowserOcclusionStore(state => state.count > 0)
@@ -117,6 +120,8 @@ function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, ac
   const [mount, setMount] = useState<PluginMount | null>(null)
   const [failure, setFailure] = useState('')
   const [retry, setRetry] = useState(0)
+  const documentViewer = boundDocument?.viewer
+  const documentPath = boundDocument?.path
   const visible = active && !covered && !dragging && !failure
     && (location === 'workbench' ? workbench === `extension:${pluginId}/${localViewId}` && islandStage === 'collapsed'
       : location === 'island' ? (!workbench || workbench.startsWith('extension:')) && islandStage === 'expanded' : !workbench && islandStage === 'collapsed')
@@ -125,7 +130,8 @@ function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, ac
     let current: PluginMount | undefined
     setMount(null); setFailure('')
     if (workspaceId && selectedProject !== workspaceId) return
-    void syncPluginContext().then(() => cancelled ? undefined : pluginRequest<PluginMount>({ type: 'mount', id: pluginId, view: localViewId, projectId: workspaceId, scopePath: activeScope }))
+    void syncPluginContext().then(() => cancelled ? undefined : pluginRequest<PluginMount>({ type: 'mount', id: pluginId, view: localViewId, projectId: workspaceId, scopePath: activeScope,
+      ...(documentViewer && documentPath ? { document: { viewer: documentViewer, path: documentPath } } : {}) }))
       .then(result => {
         if (!result) return
         current = result
@@ -136,7 +142,8 @@ function PluginViewShell({ pluginId, localViewId, workspaceId, workspacePath, ac
       cancelled = true
       if (current) void pluginRequest({ type: 'close', instanceId: current.instanceId, binding: current.binding }).catch(() => {})
     }
-  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry])
+  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry, documentViewer, documentPath])
+  useEffect(() => { if (failure) onFailure?.(failure) }, [failure, onFailure])
   useEffect(() => {
     if (!mount) return
     void pluginRequest({ type: 'active', instanceId: mount.instanceId, binding: mount.binding, active: Boolean(visible) }).catch(() => {})

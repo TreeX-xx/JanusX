@@ -34,6 +34,7 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
   const editorParams = useMemo(() => embedded ? (scope ? { filePath: '', workspacePath: scope } : null) : initialParams, [embedded, scope, initialParams])
   const [transferring, setTransferring] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
+  const [pluginReadOnly, setPluginReadOnly] = useState(false)
   const openFiles = useEditorStore((state) => state.openFiles)
   const activeFileId = useEditorStore((state) => state.activeFileId)
   const openFile = useEditorStore((state) => state.openFile)
@@ -177,12 +178,12 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
       if (transferring) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        if (activeFileId) void saveFile(activeFileId)
+        if (activeFileId && !pluginReadOnly) void saveFile(activeFileId)
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [activeFileId, saveFile, transferring])
+  }, [activeFileId, saveFile, transferring, pluginReadOnly])
 
   useEffect(() => { findEditorRef.current = null }, [activeFileId])
 
@@ -220,8 +221,8 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
   const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties
   const diffEnabled = Boolean(activeFile && diffFileId === activeFile.id)
   const activeBaselineContent = diffEnabled && baselineFileId === activeFile?.id ? baselineContent : undefined
-  const canSave = Boolean(activeFile && activeFile.viewType !== 'image' && activeFile.viewType !== 'binary')
-  const canFind = activeFile?.viewType === 'code' || activeFile?.viewType === 'markdown' || activeFile?.viewType === 'html'
+  const canSave = Boolean(!pluginReadOnly && activeFile && activeFile.viewType !== 'image' && activeFile.viewType !== 'binary')
+  const canFind = !pluginReadOnly && (activeFile?.viewType === 'code' || activeFile?.viewType === 'markdown' || activeFile?.viewType === 'html')
 
   return (
     <div data-editor-window-state="ready" data-editor-host={embedded ? 'embedded' : 'floating'} aria-busy={transferring} className={`${embedded ? 'h-full' : 'h-screen'} flex flex-col overflow-hidden`} style={{ background: 'var(--shell-canvas)', color: 'var(--shell-text)' }}>
@@ -366,6 +367,8 @@ export function StandaloneFileEditor({ embedded = false }: { embedded?: boolean 
       <div {...(transferring ? { inert: '' } : {})} className="relative flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {activeFile ? (
           <FileViewerContent
+            pluginViewers={embedded}
+            onReadOnlyChange={setPluginReadOnly}
             key={`${activeFile.id}:${activeFile.absolutePath}`}
             file={activeFile}
             workspacePath={editorParams?.workspacePath}

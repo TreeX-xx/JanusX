@@ -1,4 +1,5 @@
 {
+  "documentViewer": "打开方式", "builtinViewer": "内置查看器", "defaultViewer": "设为此类文件默认", "resetViewer": "恢复内置默认", "viewerDirty": "保存或放弃更改后才能切换查看器。", "viewerFallback": "插件查看器不可用，已回退到内置查看器。",
   "returnToWorkspace": "返回原界面", "open": "打开插件",
   "islandStatusCount": "插件状态：{{count}}",
   "switchProject": "切换项目",

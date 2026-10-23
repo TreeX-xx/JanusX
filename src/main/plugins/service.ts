@@ -5,7 +5,7 @@ import { watch, type FSWatcher } from 'node:fs'
 import { join, resolve, relative, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
 import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManifest, validatePluginCall,
-  isSensitivePluginPath, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus } from '@janusx/plugin-sdk'
+  isSensitivePluginPath, matchesPluginViewer, type PluginDocument, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, PluginIslandEntry } from '../../shared/ipc/plugins'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
@@ -31,11 +31,13 @@ export interface PluginServiceDeps {
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.permissions)).digest('hex')
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.viewers?.length
+  ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers } : manifest.permissions)).digest('hex')
 const error = (code: ConstructorParameters<typeof PluginError>[0], message: string): never => { throw new PluginError(code, message) }
 
 export class PluginService {
   private records = new Map<string, RecordData>()
+  private activations = new WeakMap<RecordData, number>()
   private packages = new Map<string, PluginPackage>()
   private instances = new Map<string, Instance>()
   private recoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -217,22 +219,37 @@ export class PluginService {
       this.send(instance, { type: 'event', subscriptionId, event: 'context', payload: { locale, theme } })
     }
   }
-  async mount(id: string, viewId: string, projectId: string | null, scopePath: string | null): Promise<PluginMount> {
+  async mount(id: string, viewId: string, projectId: string | null, scopePath: string | null, document?: PluginDocument): Promise<PluginMount> {
     const record = this.record(id)
     this.allowed(record)
+    const digest = record.digest
+    const activation = this.activations.get(record) ?? 0
+    const revision = this.current.revision
     const view = record.manifest.contributes.views.find(view => view.id === viewId)
     if (!view) error('INVALID_REQUEST', 'View is unavailable.')
+    if (document) {
+      const viewer = record.manifest.contributes.viewers?.find(item => item.id === document.viewer && item.view === viewId)
+      if (!viewer || !matchesPluginViewer(viewer, document.path)) error('PATH_NOT_GRANTED', 'File does not match the declared viewer.')
+    }
     const project = view!.scope === 'project' && projectId ? await this.deps.resolveProject(projectId, scopePath) : null
+    if (document) {
+      if (!project) error('CONTEXT_UNAVAILABLE', 'Document viewers require a project.')
+      await this.readText(project!.root, document.path)
+    }
     this.allowed(record)
+    if (this.records.get(id) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== activation
+      || this.current.revision !== revision) error('STALE_CONTEXT', 'Context changed while mounting.')
     if (view!.scope === 'project' && (!project || !record.projects.includes(projectId!)
       || this.current.projectId !== projectId || this.current.root !== project.root)) error('CONTEXT_UNAVAILABLE', 'Project scope is unavailable.')
     if (this.instances.size >= 64 || [...this.instances.values()].filter(instance => instance.plugin === id).length >= 8) error('RATE_LIMITED', 'Too many plugin pages.')
     const scope = project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : 'application'
-    const existing = [...this.instances.values()].find(instance => instance.plugin === id && instance.view === viewId && instance.scope === scope)
+    const documentKey = document ? JSON.stringify([document.viewer, process.platform === 'win32' ? document.path.toLowerCase() : document.path]) : ''
+    const existing = [...this.instances.values()].find(instance => instance.plugin === id && instance.view === viewId && instance.scope === scope
+      && (instance.context.document ? JSON.stringify([instance.context.document.viewer, process.platform === 'win32' ? instance.context.document.path.toLowerCase() : instance.context.document.path]) : '') === documentKey)
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
-      revision: this.current.revision, active: true }
+      revision: this.current.revision, active: true, ...(document ? { document: { ...document } } : {}) }
     const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
       url: `janusx-plugin://${token}/g/${generation}/${view!.entry}`, root: project?.root ?? null, scope, context, bound: false, ready: false,
       requests: new Map(), used: new Set(), times: [], subscriptions: new Map(),
@@ -291,7 +308,12 @@ export class PluginService {
     this.publish()
   }
   private clearRecovery(id: string): void { clearTimeout(this.recoveryTimers.get(id)); this.recoveryTimers.delete(id) }
-  private revokePlugin(id: string, reason?: string): void { this.clearRecovery(id); for (const instance of [...this.instances.values()]) if (instance.plugin === id) this.close(instance.id, undefined, reason) }
+  private revokePlugin(id: string, reason?: string): void {
+    const record = this.records.get(id)
+    if (record) this.activations.set(record, (this.activations.get(record) ?? 0) + 1)
+    this.clearRecovery(id)
+    for (const instance of [...this.instances.values()]) if (instance.plugin === id) this.close(instance.id, undefined, reason)
+  }
   private loadFailed(id: string): void {
     const instance = this.instances.get(id)
     if (!instance) return
@@ -350,7 +372,7 @@ export class PluginService {
       const valid = () => {
         this.instance(id, binding)
         if (pending!.cancelled) error('CANCELLED', 'Request was cancelled.')
-        if (Date.now() - start > (method === 'workspace.readText' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
+        if (Date.now() - start > (method === 'workspace.readText' || method === 'documents.readText' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
       }
       const result = await this.dispatch(instance, method, params as Record<string, unknown>, valid)
       valid()
@@ -372,25 +394,30 @@ export class PluginService {
       return { protocol: 1, requestId, type: 'response', ok: false, error: { code, message: code } }
     } finally { if (pending) instance.requests.delete(requestId) }
   }
+  private async readText(root: string, path: string): Promise<{ text: string; bytes: number; version: string }> {
+    if (isSensitivePluginPath(path)) error('SENSITIVE_PATH_DENIED', 'Sensitive files are unavailable.')
+    for (const directory of this.deps.protectedDirectories ?? []) {
+      const part = relative(await realpath(directory).catch(() => resolve(directory)), resolve(root, path))
+      if (!isAbsolute(part) && part !== '..' && !part.startsWith(`..${sep}`)) error('SENSITIVE_PATH_DENIED', 'Host data is unavailable.')
+    }
+    const bytes = await readPluginFile(root, path, 1024 * 1024)
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+      if (text.includes('\0')) error('NOT_TEXT', 'Binary files are unavailable.')
+      return { text, bytes: bytes.length, version: createHash('sha256').update(bytes).digest('hex') }
+    } catch { return error('NOT_TEXT', 'File must be UTF-8 text.') }
+  }
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
     const record = this.record(instance.plugin)
     if (method === 'app.getInfo') return { pluginApiVersion: PLUGIN_API_VERSION, capabilities: [...PLUGIN_CAPABILITIES], locale: this.current.locale, theme: this.current.theme }
     if (method === 'workspace.getContext') return instance.context
-    if (method === 'workspace.readText') {
+    if (method === 'workspace.readText' || method === 'documents.readText') {
       if (!instance.root) error('CONTEXT_UNAVAILABLE', 'No project is bound to this view.')
-      const path = params.path as string
-      if (isSensitivePluginPath(path)) error('SENSITIVE_PATH_DENIED', 'Sensitive files are unavailable.')
-      for (const directory of this.deps.protectedDirectories ?? []) {
-        const part = relative(await realpath(directory).catch(() => resolve(directory)), resolve(instance.root!, path))
-        if (!isAbsolute(part) && part !== '..' && !part.startsWith(`..${sep}`)) error('SENSITIVE_PATH_DENIED', 'Host data is unavailable.')
-      }
-      const bytes = await readPluginFile(instance.root!, path, 1024 * 1024)
+      if (method === 'documents.readText' && !instance.context.document) error('CONTEXT_UNAVAILABLE', 'No document is bound to this view.')
+      const path = method === 'documents.readText' ? instance.context.document!.path : params.path as string
+      const result = await this.readText(instance.root!, path)
       valid()
-      try {
-        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-        if (text.includes('\0')) error('NOT_TEXT', 'Binary files are unavailable.')
-        return { text, bytes: bytes.length }
-      } catch { error('NOT_TEXT', 'File must be UTF-8 text.') }
+      return method === 'documents.readText' ? { ...result, path } : { text: result.text, bytes: result.bytes }
     }
     if (method === 'views.open') {
       const target = record.manifest.contributes.views.find(view => view.id === params.view)!
@@ -399,7 +426,7 @@ export class PluginService {
       for (;;) {
         valid()
         const opened = [...this.instances.values()].find(item => item.plugin === instance.plugin && item.view === target.id
-          && item.scope === (target.scope === 'application' ? 'application' : instance.scope))
+          && !item.context.document && item.scope === (target.scope === 'application' ? 'application' : instance.scope))
         if (opened) return { instanceId: opened.id }
         await new Promise(resolve => setTimeout(resolve, 25))
       }

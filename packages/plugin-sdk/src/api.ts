@@ -1,5 +1,6 @@
 import type { PluginErrorCode } from './errors.js'
 import type { PluginIslandStatus } from './island.js'
+import type { PluginDocument } from './documents.js'
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export interface PluginCallOptions { signal?: AbortSignal }
@@ -7,11 +8,14 @@ export interface PluginContext {
   project: { projectId: string; rootId: string; name: string } | null
   revision: number
   active: boolean
+  document?: PluginDocument
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
+  /** Reads only the file bound by the host's viewer selection; accepts no path. */
+  documents: { readText(options?: PluginCallOptions): Promise<{ path: string; text: string; bytes: number; version: string }> }
   app: { getInfo(options?: PluginCallOptions): Promise<{ pluginApiVersion: string; capabilities: string[]; locale: string; theme: { id: string; tokens: Record<string, string> } }> }
   workspace: {
     getContext(options?: PluginCallOptions): Promise<PluginContext>

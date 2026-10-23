@@ -1,4 +1,4 @@
-import type { PluginManifest, PluginContext, PluginIslandStatus, JsonValue } from '@janusx/plugin-sdk'
+import type { PluginManifest, PluginContext, PluginIslandStatus, PluginDocument, JsonValue } from '@janusx/plugin-sdk'
 
 export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
 export interface InstalledPlugin {
@@ -27,7 +27,7 @@ export type PluginManageRequest =
   | { type: 'enable'; id: string; projects: string[] }
   | { type: 'disable' | 'reload' | 'uninstall' | 'deleteData'; id: string }
   | { type: 'context'; projectId: string | null; scopePath: string | null; locale: string; theme: { id: string; tokens: Record<string, string> } }
-  | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null }
+  | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null; document?: PluginDocument }
   | { type: 'close' | 'devtools'; instanceId: string; binding: string }
   | { type: 'active'; instanceId: string; binding: string; active: boolean }
   | { type: 'bounds'; instanceId: string; binding: string; bounds: PluginBounds }

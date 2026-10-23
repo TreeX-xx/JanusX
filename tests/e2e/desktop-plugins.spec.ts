@@ -83,6 +83,81 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('P4 document viewers bind files, persist defaults, shield dialogs and fall back without losing drafts', async () => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.permissions.push({ name: 'documents.read' })
+    manifest.capabilities.required.push('documents.viewers', 'documents.readText')
+    manifest.contributes.viewers = [{ id: 'text', title: 'Reference text', view: 'details', extensions: ['.txt'] }]
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const first = join(f.project, 'a.txt'); const second = join(f.project, 'b.txt')
+    await writeFile(first, 'P4 file A'); await writeFile(second, 'P4 file B')
+    let booted = await boot(f.root); app = booted.app; let page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'P4 Files', path }), f.project)
+    await page.reload(); await page.getByText('P4 Files', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id)
+    const open = (filePath: string) => page.evaluate(payload => (window as any).electron.window.openEditor(payload), { filePath, workspacePath: f.project })
+    await open(first)
+    let editor = page.locator('[data-editor-host="embedded"]')
+    const viewerId = `${pluginId}/text`
+    await editor.getByRole('combobox', { name: 'Open with', exact: true }).selectOption(viewerId)
+    const firstGuest = await guest(app, '/dist/index.html')
+    await expect(firstGuest.locator('#content')).toHaveText('P4 file A')
+    expect(await rawCall(firstGuest, 'documents.readText', { path: 'b.txt' })).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+    expect(await rawCall(firstGuest, 'workspace.readText', { path: 'b.txt' })).toMatchObject({ ok: false, error: { code: 'PATH_NOT_GRANTED' } })
+    const secondMount = await page.evaluate(async payload => {
+      const result = await (window as any).electron.plugins.request(payload)
+      if (!result.ok) throw new Error(result.code)
+      return result.data
+    }, { type: 'mount', id: pluginId, view: 'details', projectId: workspace.id, scopePath: f.project, document: { viewer: 'text', path: 'b.txt' } })
+    const secondGuest = await guest(app, '/dist/index.html', firstGuest.url())
+    await expect(secondGuest.locator('#content')).toHaveText('P4 file B')
+    expect((await rawCall(firstGuest, 'documents.readText', {})).result.text).toBe('P4 file A')
+    await page.evaluate(mount => (window as any).electron.plugins.request({ type: 'close', instanceId: mount.instanceId, binding: mount.binding }), secondMount)
+    await editor.getByRole('button', { name: 'Use by default for this file type', exact: true }).click()
+    await settings(page)
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(0)
+    await page.keyboard.press('Escape')
+    await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(1)
+    await close(app); app = undefined
+
+    booted = await boot(f.root); app = booted.app; page = booted.page
+    await page.getByText('P4 Files', { exact: true }).filter({ visible: true }).first().click()
+    await open(second); editor = page.locator('[data-editor-host="embedded"]')
+    const restored = await guest(app, '/dist/index.html')
+    await expect(restored.locator('#content')).toHaveText('P4 file B')
+    await expect(editor.getByRole('combobox', { name: 'Open with', exact: true })).toHaveValue(viewerId)
+    await writeFile(second, 'P4 external update')
+    expect((await rawCall(restored, 'documents.readText', {})).result.text).toBe('P4 external update')
+    await expect(editor.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+    await editor.getByRole('combobox', { name: 'Open with', exact: true }).focus(); await page.keyboard.press('Control+s')
+    expect(await readFile(second, 'utf8')).toBe('P4 external update')
+    await editor.getByRole('button', { name: 'Restore built-in default', exact: true }).click()
+    await expect(editor.locator('.monaco-editor')).toBeVisible()
+    await editor.locator('.monaco-editor').click(); await page.keyboard.press('Control+End'); await page.keyboard.type(' unsaved P4 draft')
+    await expect(editor.getByRole('combobox', { name: 'Open with', exact: true })).toBeDisabled()
+    await expect(editor.locator('.view-lines')).toContainText('unsaved P4 draft')
+    await open(first)
+    await expect(editor.getByRole('combobox', { name: 'Open with', exact: true })).toHaveValue('builtin')
+    await editor.getByRole('combobox', { name: 'Open with', exact: true }).selectOption(viewerId)
+    const doomed = await guest(app, '/dist/index.html')
+    await expect(doomed.locator('#content')).toHaveText('P4 file A')
+    await app.evaluate(({ webContents }) => { webContents.getAllWebContents().find(contents => contents.getURL().startsWith('janusx-plugin:'))!.forcefullyCrashRenderer() })
+    await expect(editor.locator('[data-document-viewer="builtin"]')).toBeVisible()
+    await expect(editor.getByRole('status')).toContainText('Plugin viewer unavailable')
+    await expect(editor.locator('.monaco-editor')).toBeVisible()
+    await editor.getByRole('combobox', { name: 'Open with', exact: true }).selectOption('builtin')
+    await editor.getByRole('combobox', { name: 'Open with', exact: true }).selectOption(viewerId)
+    await expect((await guest(app, '/dist/index.html')).locator('#content')).toHaveText('P4 file A')
+    await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), pluginId)
+    await expect(editor.locator('[data-document-viewer="builtin"]')).toBeVisible()
+    await open(second)
+    await expect(editor.locator('.view-lines')).toContainText('unsaved P4 draft')
+    expect(await readFile(second, 'utf8')).toBe('P4 external update')
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true }) }
+})
+
 test('P3 four surfaces preserve panes, return focus, shield approvals and revoke on project switch/disable', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
