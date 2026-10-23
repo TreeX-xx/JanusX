@@ -5,7 +5,7 @@ import { watch, type FSWatcher } from 'node:fs'
 import { join, resolve, relative, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
 import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManifest, validatePluginCall,
-  isSensitivePluginPath, matchesPluginViewer, type PluginDocument, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus } from '@janusx/plugin-sdk'
+  isSensitivePluginPath, matchesPluginViewer, type PluginDocument, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus, type PluginSettingValue } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, PluginIslandEntry } from '../../shared/ipc/plugins'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { readPluginFile, readPluginPackage, type PluginPackage } from './files'
@@ -33,8 +33,9 @@ export interface PluginServiceDeps {
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.viewers?.length
-  ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers } : manifest.permissions)).digest('hex')
+const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.configurationViews
+  ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
+  : manifest.contributes.viewers?.length ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers } : manifest.permissions)).digest('hex')
 const error = (code: ConstructorParameters<typeof PluginError>[0], message: string): never => { throw new PluginError(code, message) }
 
 export class PluginService {
@@ -259,6 +260,7 @@ export class PluginService {
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
       revision: this.current.revision, active: true, ...(record.manifest.contributes.settings?.length ? { configuration: true as const } : {}),
       ...(record.manifest.capabilities.required.includes('configuration.open') ? { configurationNavigation: true as const } : {}),
+      ...(Object.values(record.manifest.contributes.configurationViews ?? {}).includes(viewId) ? { configurationEditor: true as const } : {}),
       ...(document ? { document: { viewer: document.viewer, path: document.path,
         ...(record.manifest.permissions.some(permission => permission.name === 'documents.edit') ? { editable: true } : {}) } } : {}) }
     const instance: Instance = { id: instanceId, plugin: id, view: viewId, binding: randomUUID(), token, generation,
@@ -421,6 +423,20 @@ export class PluginService {
   }
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
     const record = this.record(instance.plugin)
+    if (method === 'configuration.propose') return this.configuration.run(async () => {
+      valid()
+      if (!instance.context.configurationEditor) error('PERMISSION_DENIED', 'Only a declared configuration editor may propose edits.')
+      if (!instance.context.active) error('CONTEXT_UNAVAILABLE', 'Only an active page can propose configuration.')
+      const patch = params.patch as Record<string, PluginSettingValue | null>
+      await this.configuration.proposal(record.manifest, instance.root ? instance.scope : null, params.expectedRevision as string, patch, valid)
+      if (!instance.context.active) error('CONTEXT_UNAVAILABLE', 'Configuration page is no longer active.')
+      const previous = this.configurationOpens.get(instance.plugin)
+      if (previous !== undefined && Date.now() - previous < 10_000) error('RATE_LIMITED', 'Configuration navigation limit reached.')
+      this.configurationOpens.set(instance.plugin, Date.now())
+      this.deps.event(instance.id, { type: 'configurationProposal', pluginId: instance.plugin, scope: instance.root ? 'project' : 'application',
+        proposal: { patch, expectedRevision: params.expectedRevision as string } })
+      return { proposed: true }
+    })
     if (method === 'configuration.open') {
       valid()
       if (!instance.context.active) error('CONTEXT_UNAVAILABLE', 'Only an active page can open configuration.')

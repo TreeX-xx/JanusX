@@ -1,5 +1,7 @@
 {
   "configuration": "参数配置",
+  "configurationCustom": "打开自定义设置",
+  "configurationReview": "插件建议修改以下参数。请审阅各字段，保存后才会生效；目前尚未保存。",
   "configurationMigration": "应用兼容迁移",
   "configurationMigrationHint": "请审阅当前作用域的字段重命名。应用后将兼容旧值移入尚未设置的新字段；已有目标值和不兼容旧值保持原样。请先保存或重新读取待提交的编辑。",
   "configurationMigrationStatus": { "ready": "可迁移", "occupied": "目标已有保存值，保持原样", "incompatible": "值或作用域不兼容，保持原样" },

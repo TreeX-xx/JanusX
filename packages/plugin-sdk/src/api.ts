@@ -1,7 +1,7 @@
 import type { PluginErrorCode } from './errors.js'
 import type { PluginIslandStatus } from './island.js'
 import type { PluginDocument } from './documents.js'
-import type { PluginConfiguration } from './configuration.js'
+import type { PluginConfiguration, PluginSettingValue } from './configuration.js'
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 export interface PluginCallOptions { signal?: AbortSignal }
@@ -14,12 +14,16 @@ export interface PluginContext {
   configuration?: true
   /** This plugin opted into opening its host-owned settings. */
   configurationNavigation?: true
+  /** Only a declared custom settings workbench may hand proposed edits to the host. */
+  configurationEditor?: true
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
   configuration: {
+    /** Hands edits to the host form for review; success does not mean saved. */
+    propose(params: { patch: Record<string, PluginSettingValue | null>; expectedRevision: string }, options?: PluginCallOptions): Promise<{ proposed: true }>
     /** Opens this plugin's host settings; requires configuration.open capability. */
     open(options?: PluginCallOptions): Promise<{ opened: true }>
     get(options?: PluginCallOptions): Promise<PluginConfiguration>

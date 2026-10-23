@@ -76,6 +76,7 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
   }
   const api: PluginApi = {
     configuration: {
+      propose: (params, options) => call('configuration.propose', params, options),
       open: options => call('configuration.open', {}, options),
       get: options => call('configuration.get', {}, options),
       watch: async (listener, options) => {

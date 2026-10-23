@@ -174,6 +174,77 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
   } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
 })
 
+test('P4a isolated custom settings propose edits for host review and keep application and project scopes separate', async ({}, testInfo) => {
+  const f = await fixture(); let app: ElectronApplication | undefined
+  try {
+    const manifest = JSON.parse(await readFile(join(f.source, 'manifest.json'), 'utf8'))
+    manifest.permissions.push({ name: 'configuration.read' }, { name: 'configuration.propose' })
+    manifest.capabilities.required.push('configuration.settings', 'configuration.customViews')
+    manifest.contributes.settings = [
+      { key: 'label', title: 'Reference label', type: 'string', default: 'Reference', scope: 'project' },
+      { key: 'style', title: 'Display style', type: 'enum', default: 'compact', options: ['compact', 'full'], scope: 'application' },
+    ]
+    manifest.contributes.views.push({ ...manifest.contributes.views.find((view: any) => view.id === 'desk'), id: 'app-config', scope: 'application', entry: 'dist/summary.html' })
+    manifest.contributes.configurationViews = { application: 'app-config', project: 'desk' }
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(manifest))
+    const booted = await boot(f.root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Custom settings project', path }), f.project)
+    await page.reload(); await page.getByText('Custom settings project', { exact: true }).filter({ visible: true }).first().click()
+    await enableFixture(app, page, f.source, workspace.id); await settings(page)
+    const card = page.locator(`[data-plugin-id="${pluginId}"]`)
+    await card.getByText('Configuration', { exact: true }).click()
+    const form = card.locator('[data-plugin-configuration]')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await form.getByRole('button', { name: 'Open custom settings', exact: true }).click()
+    const custom = await guest(app, '/dist/index.html')
+    await expect(page.locator('[data-plugin-workbench]')).toBeVisible()
+    await expect(custom.getByRole('textbox', { name: 'Configuration patch', exact: true })).toBeVisible()
+    expect(await custom.evaluate(() => ({ node: typeof (window as any).require, bridge: typeof (window as any).electron, origin: self.origin }))).toEqual({ node: 'undefined', bridge: 'undefined', origin: 'null' })
+    await custom.getByRole('textbox', { name: 'Configuration patch', exact: true }).fill('{"label":"Custom project"}')
+    await custom.getByRole('button', { name: 'Review configuration changes', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Custom project')
+    await expect(form.getByText('This plugin proposed these changes.', { exact: false })).toBeVisible()
+    await expect(page.locator('[data-plugin-workbench]')).toBeHidden()
+    const read = (projectId: string | null, scopePath: string | null) => page.evaluate(async target => (await (window as any).electron.plugins.request({ type: 'configurationGet', ...target })).data,
+      { id: pluginId, projectId, scopePath })
+    expect((await read(workspace.id, f.project)).values.label).toBe('Reference')
+    await page.screenshot({ path: testInfo.outputPath('custom-settings-review.png') })
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(form.getByText('Configuration saved.', { exact: true })).toBeVisible()
+    expect((await read(workspace.id, f.project)).values.label).toBe('Custom project')
+    expect((await read(null, null)).values.label).toBe('Reference')
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Return to previous view', exact: true }).click()
+    await expect.poll(() => custom.isClosed()).toBe(true)
+    await settings(page); await card.getByText('Configuration', { exact: true }).click()
+    await form.getByRole('button', { name: 'Open custom settings', exact: true }).click()
+    const application = await guest(app, '/dist/summary.html')
+    await application.getByRole('textbox', { name: 'Configuration patch', exact: true }).fill('{"style":"full","label":"Custom app"}')
+    // App and project pages share a navigation budget; advance the cooldown without weakening production policy.
+    await page.waitForTimeout(10_000)
+    await application.getByRole('button', { name: 'Review configuration changes', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Custom app')
+    await expect(form.getByRole('combobox', { name: 'Configuration scope', exact: true })).toHaveValue('application')
+    // A competing host update after handoff must leave the review draft intact on conflict.
+    const state = await read(null, null)
+    await page.evaluate(async input => (window as any).electron.plugins.request(input), { type: 'configurationUpdate', id: pluginId, projectId: null, scopePath: null,
+      expectedRevision: state.revision, patch: { label: 'Concurrent app' }, reset: false })
+    await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await expect(form.getByRole('alert')).toContainText('Configuration changed elsewhere')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Custom app')
+    await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Concurrent app')
+    await expect(form.getByText('This plugin proposed these changes.', { exact: false })).toHaveCount(0)
+    expect((await read(workspace.id, f.project)).values.label).toBe('Custom project')
+    await page.keyboard.press('Escape')
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(contents => contents.getURL() === url)!.forcefullyCrashRenderer(), application.url())
+    await page.locator(`[data-plugin-view="${pluginId}/app-config"]`).getByRole('button', { name: 'Configuration', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Concurrent app')
+    await card.getByRole('button', { name: 'Disable', exact: true }).click()
+    await expect.poll(() => application.isClosed()).toBe(true)
+  } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
+})
+
 test('P4a users review and explicitly migrate renamed configuration independently in each scope', async ({}, testInfo) => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {

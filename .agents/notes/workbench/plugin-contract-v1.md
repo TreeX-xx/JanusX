@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T05:52:50Z",
+  "updated": "2026-10-23T06:30:55Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -97,7 +97,7 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 快捷键为应用内单段组合，不使用 Electron globalShortcut；至少一个 Ctrl／Meta／Alt 修饰键，不使用裸键、Escape、Tab 或宿主保留组合。宿主保留组合优先，用户重绑定其次，插件默认组合最后；同级冲突使这些默认组合都不生效并在管理页报告 `KEYBINDING_CONFLICT`，菜单仍可用。输入框、Monaco、终端及隔离插件页面获得焦点时默认不抢键。首版仅保证宿主非编辑区域焦点下触发，跨隔离页面快捷键转发后置，不监听插件键盘内容。插件不能通过配置覆盖终端快捷键。
 
-`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
+`capabilities.required`／`optional` 为无重复短字符串列表。必需能力不支持则 `INCOMPATIBLE_API`；不认识的可选能力可以报告 unsupported，但它不使未知贡献／方法合法。使用某能力的贡献仍需宿主认识。宿主公开能力集为 `views.workspace`、`views.right`、`commands.openView`、`menus.toolbox`、`menus.workspace-add`、`keybindings.local`、`context.project`、`files.readText`、`storage.kv`、`storage.watch`、`ui.toast`、`views.workbench`、`views.island`、`island.status`、`documents.viewers`、`documents.readText`、`documents.applyEdit`、`configuration.settings`、`configuration.open`、`configuration.migrations`、`configuration.customViews`。permissions 全部为必需，拒绝任一权限就不激活；可选权限留给后续版本。
 
 ## P3 工作台与 Island 契约
 
@@ -157,7 +157,13 @@ scope=application 的字段仅能设置应用值；scope=project 允许在应用
 
 迁移不自动执行、不跨层复制或提升项目值为应用值，应用默认与各项目／worktree 分别操作。待提交编辑存在时禁用迁移按钮，先保存或重读；存储损坏或写前身份失效继续拒绝覆盖。此片只支持字段重命名，不提供类型转换、历史备份或迁移回滚；成功移动会消费旧 key，若未来需要包降级保留旧格式或复杂模式转换，需另定版本历史及恢复契约。普通插件没有 configuration.migrate／setter，迁移声明不扩大文件、网络或执行授权。
 
-配置不存密钥。自定义隔离设置页、复杂转换及凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。这里只完成 AC-19 的基础部分，整条 AC-19 与 P4 仍不关闭。复用现有存储而不开放任意 setter，代价是复杂业务需先用宿主表单；当有真实复杂设置消费者时再扩展自定义页契约。
+隔离自定义设置页已接通工作台载体。清单 `contributes.configurationViews` 可声明 application／project 中的一项或两项，值引用同插件、同作用域且 location=workbench 的已有视图；需 settings、必需能力 configuration.customViews 和独立必需权限 configuration.propose。不能声明远程入口、任意宿主组件或与作用域不符的位置。该权限及视图绑定纳入授权指纹，新增或重绑需重新授权；不声明自定义页的既有授权指纹保持兼容。配置表单按当前层显示“打开自定义设置”，进入工作台并关闭设置窗口；宿主普通表单始终可达，现有工作台返回／故障重试、上下文撤销和原生页遮挡规则继续适用，不在设置弹窗上穿透绘制原生页。
+
+主进程仅为声明中的页面设置 context.configurationEditor=true。`configuration.propose({patch,expectedRevision})` 接受 1–64 个声明字段的非敏感值或 null（恢复继承），沿用字段类型／范围／项目限制，不接受插件、项目、路径或其他调用目标。只有活动且已授权的配置页能调用，与 configuration.open 共用每插件 10 秒一次的导航预算；普通页面即使同属该插件也不能提出修改。主进程与读取／写入同队列校验修订和生命周期，随后把建议值交给自身宿主表单；`{proposed:true}` 仅表示导航已派发，不表示写入或用户同意。
+
+宿主展开对应表单、显示建议来源及待审阅字段，用户可修改后保存或重新读取以放弃。父层／本层在交接后被竞争修改时，保存继续使用交接修订，报 CONFIGURATION_CONFLICT 并保留编辑，不能用较新的读取结果自动覆盖修订。切项目／根或模式变化清除旧表单目标，重新读取不会重复灌入同一建议。待提交修改阻止再次进入自定义页；已交接草稿属于当前设置表单，关窗丢弃，不保证重启恢复，尚未交接的页面局部编辑仍随页面销毁而丢失。提交后的取消、确认丢失不撤回已交接内容，普通页面仍没有直接 setter。SDK 外部模板提供可独立构建的 JSON patch 编辑／重读与交接示例，作者可替换成业务表单。
+
+配置不存密钥。复杂类型转换、历史恢复及凭证引用尚未实现；凭证随 P5 宿主代理交付，原始密钥不通过普通配置、日志或 UI 返回。AC-19 因凭证部分未闭合继续保持未勾选，P4 也不关闭。此片复用离线工作台和宿主审阅保存，保留一次交接的编辑边界；需要页面内连续保存或设置内嵌原生页时应另定确认与遮挡契约。
 
 ## 身份与上下文
 
@@ -186,6 +192,7 @@ application 视图始终得到 `project: null`，不能通过文件读取方法�
 | `workspace.readText()` | `{path}` → `{text, bytes}` | `workspace.files.read` 且 path 在声明与授权的精确路径交集；project 作用域，UTF-8 文本最多 1 MiB，二进制／无效编码拒绝，不悄然截断 |
 | `configuration.get()` | `{}` → `{values,overrides,inherited,revision,issues}` | `configuration.read`；只读自身绑定作用域的有效非敏感参数 |
 | `configuration.open()` | `{}` → `{opened:true}` | `configuration.read` 与必需能力 `configuration.open`；活动页面只请求导航至自身宿主表单 |
+| `configuration.propose()` | `{patch,expectedRevision}` → `{proposed:true}` | `configuration.propose`；仅声明的活动配置页，把建议值交给宿主审阅，不直接保存 |
 | `configuration.watch()` | 初始 configuration 和 unsubscribe，后续完整有效值快照 | `configuration.read`；与应用继承及本层写入串行订阅，不跨插件／项目根 |
 | `documents.readText()` | `{}` → `{path,text,bytes,version}` | `documents.read`；仅宿主已绑定的 viewer 文件，不接收路径；范围、编码和预算见 P4 契约 |
 | `documents.applyEdit()` | `{text,expectedVersion}` → `{applied:true}` | `documents.edit`；仅已绑定文档，交接未保存草稿，不直接写入；宿主脏缓冲或磁盘基线不符拒绝 |

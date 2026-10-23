@@ -1,5 +1,7 @@
 {
   "configuration": "Configuration",
+  "configurationCustom": "Open custom settings",
+  "configurationReview": "This plugin proposed these changes. Review the fields and save to apply them. Nothing has been saved yet.",
   "configurationMigration": "Apply compatible migrations",
   "configurationMigrationHint": "Review renamed settings in this scope. Applying moves compatible old values to empty new fields. Existing or incompatible values are preserved. Save or reload pending edits first.",
   "configurationMigrationStatus": { "ready": "Ready", "occupied": "Destination already saved; kept unchanged", "incompatible": "Value or scope incompatible; kept unchanged" },

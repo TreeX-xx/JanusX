@@ -14,9 +14,9 @@ export const PLUGIN_CAPABILITIES = [
   'keybindings.local', 'context.project', 'files.readText', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.island', 'island.status',
   'documents.viewers', 'documents.readText', 'documents.applyEdit',
-  'configuration.settings', 'configuration.open', 'configuration.migrations',
+  'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -45,23 +45,33 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'configuration.read', 'configuration.propose']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(9).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  permissions: z.array(permission).max(10).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).min(1).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
     menus: z.array(pluginMenuSchema).max(128).optional(), keybindings: z.array(pluginKeybindingSchema).max(32).optional(),
     island: z.array(pluginIslandSchema).max(4).optional(), viewers: z.array(pluginViewerSchema).max(16).optional(),
     settings: z.array(pluginSettingSchema).min(1).max(64).optional(),
-    settingMigrations: z.array(pluginSettingMigrationSchema).min(1).max(64).optional() }).strict(),
+    settingMigrations: z.array(pluginSettingMigrationSchema).min(1).max(64).optional(),
+    configurationViews: z.object({ application: id.optional(), project: id.optional() }).strict()
+      .refine(value => Boolean(value.application || value.project)).optional() }).strict(),
 }).strict().superRefine((manifest, ctx) => {
   const { views, commands = [], menus = [], keybindings = [] } = manifest.contributes
   const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
   const settings = manifest.contributes.settings ?? []
+  const configurationViews = manifest.contributes.configurationViews
+  if (configurationViews) {
+    if (!settings.length || !manifest.capabilities.required.includes('configuration.customViews')
+      || !manifest.permissions.some(item => item.name === 'configuration.propose')) fail('Custom configuration views require settings, configuration.customViews and configuration.propose')
+    for (const scope of ['application', 'project'] as const) if (configurationViews[scope]
+      && !views.some(view => view.id === configurationViews[scope] && view.location === 'workbench' && view.scope === scope)) fail('Custom configuration view requires a workbench view of the same scope')
+  }
+  if (manifest.permissions.some(item => item.name === 'configuration.propose') && !configurationViews) fail('Configuration proposals require a declared editor view')
   const migrations = manifest.contributes.settingMigrations ?? []
   if (migrations.length && (!settings.length || !manifest.capabilities.required.includes('configuration.migrations'))) fail('Setting migrations require settings and configuration.migrations')
   if (new Set(migrations.map(item => item.from)).size !== migrations.length || new Set(migrations.map(item => item.to)).size !== migrations.length) fail('Ambiguous setting migrations')

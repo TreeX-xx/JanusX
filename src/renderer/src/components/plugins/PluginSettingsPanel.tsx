@@ -10,7 +10,7 @@ import styles from './PluginSettingsPanel.module.css'
 import { PluginConfigurationForm } from './PluginConfigurationForm'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
-export function PluginSettingsPanel({ configurationTarget }: { configurationTarget?: PluginConfigurationTarget | null }) {
+export function PluginSettingsPanel({ configurationTarget, onOpened }: { configurationTarget?: PluginConfigurationTarget | null; onOpened?: () => void }) {
   const { t } = useI18n('plugins')
   const snapshot = usePluginSnapshot()
   const configurationSection = useRef<HTMLDetailsElement>(null)
@@ -73,8 +73,9 @@ export function PluginSettingsPanel({ configurationTarget }: { configurationTarg
         </div>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
-          <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.scope : 'application'} record={record}
-            initialScope={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.scope : undefined} />
+          <PluginConfigurationForm key={configurationTarget?.pluginId === record.manifest.id ? `${configurationTarget.scope}:${configurationTarget.proposal?.expectedRevision ?? ''}` : 'application'} record={record}
+            initialScope={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.scope : undefined}
+            proposal={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.proposal : undefined} onOpened={onOpened} />
         </details>}
         {ownCommands.length > 0 && <details><summary>{t('plugins:entries')}</summary>
           {ownCommands.map(command => <div key={command.id} className={styles.preference}>

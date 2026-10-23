@@ -51,6 +51,91 @@ async function fixture() {
 }
 
 describe('declarative plugin configuration', () => {
+  it('rechecks activity and navigation budgets after asynchronous proposal validation', async () => {
+    const f = await fixture(); const value = structuredClone(f.value)
+    value.capabilities.required.push('configuration.customViews', 'configuration.open'); value.permissions.push({ name: 'configuration.propose' })
+    value.contributes.configurationViews = { project: 'desk' }
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(value)); await f.service.reload(value.id); await f.service.enable(value.id, ['a'])
+    const page = await f.mount('desk'); const baseline = await f.get('a', f.root)
+    const configuration = (f.service as any).configuration as PluginConfigurationStore
+    const original = configuration.proposal.bind(configuration)
+    for (const scenario of ['navigation', 'hidden'] as const) {
+      let unblock!: () => void; let signal!: () => void
+      const blocked = new Promise<void>(resolve => { unblock = resolve }); const entered = new Promise<void>(resolve => { signal = resolve })
+      const spy = vi.spyOn(configuration, 'proposal').mockImplementationOnce(async (...args) => { signal(); await blocked; return original(...args) })
+      try {
+        const pending = f.call(page, 'configuration.propose', { expectedRevision: baseline.revision, patch: { label: 'Pending' } })
+        await entered
+        if (scenario === 'navigation') expect((await f.call(page, 'configuration.open')).result).toEqual({ opened: true })
+        else f.service.active(page.instanceId, page.binding, false)
+        unblock()
+        expect((await pending).error.code).toBe(scenario === 'navigation' ? 'RATE_LIMITED' : 'CONTEXT_UNAVAILABLE')
+      } finally { unblock(); spy.mockRestore() }
+    }
+    expect(f.deps.event.mock.calls.some(([, packet]) => (packet as any).type === 'configurationProposal')).toBe(false)
+    expect((await f.get('a', f.root)).values.label).toBe('Reference')
+  })
+  it('validates custom editor references, scope, capabilities and separate proposal permission', async () => {
+    const value = await manifest()
+    value.capabilities.required.push('configuration.customViews')
+    value.permissions.push({ name: 'configuration.propose' })
+    value.contributes.configurationViews = { project: 'desk' }
+    expect(parsePluginManifest(JSON.stringify(value)).contributes.configurationViews).toEqual({ project: 'desk' })
+    for (const change of [
+      (m: any) => { m.contributes.configurationViews = {} },
+      (m: any) => { m.contributes.configurationViews = { project: 'missing' } },
+      (m: any) => { m.contributes.configurationViews = { project: 'details' } },
+      (m: any) => { m.contributes.configurationViews = { application: 'desk' } },
+      (m: any) => { m.contributes.configurationViews = { project: 'desk', entry: 'remote.html' } },
+      (m: any) => { delete m.contributes.configurationViews },
+      (m: any) => { delete m.contributes.settings },
+      (m: any) => { m.permissions = m.permissions.filter((p: any) => p.name !== 'configuration.propose') },
+      (m: any) => { m.capabilities.required = m.capabilities.required.filter((c: string) => c !== 'configuration.customViews') },
+    ]) { const copy = structuredClone(value); change(copy); expect(() => parsePluginManifest(JSON.stringify(copy))).toThrow() }
+    const params = { expectedRevision: 'a'.repeat(64), patch: { label: 'Proposed' } }
+    expect(() => validatePluginCall(value, 'configuration.propose', params)).not.toThrow()
+    for (const extra of [{ id: 'other.plugin' }, { projectId: 'b' }, { scopePath: '/elsewhere' }]) {
+      expect(() => validatePluginCall(value, 'configuration.propose', { ...params, ...extra })).toThrow()
+    }
+    expect(() => validatePluginCall(value, 'configuration.propose', { ...params, patch: {} })).toThrow()
+  })
+  it('hands typed proposals to the host without writing and revokes editors when declarations change', async () => {
+    const f = await fixture(); const value = structuredClone(f.value)
+    value.capabilities.required.push('configuration.customViews'); value.permissions.push({ name: 'configuration.propose' })
+    value.contributes.configurationViews = { project: 'desk', application: 'app-settings' }
+    value.contributes.views.push({ ...value.contributes.views.find(view => view.id === 'desk')!, id: 'app-settings', scope: 'application' })
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(value)); await f.service.reload(value.id)
+    expect(f.service.snapshot().plugins[0]).toMatchObject({ state: 'blocked', error: 'PERMISSION_RECONFIRM_REQUIRED' })
+    await f.service.enable(value.id, ['a', 'b'])
+    const normal = await f.mount(); const editor = await f.mount('desk')
+    expect(normal.context.configurationEditor).toBeUndefined(); expect(editor.context.configurationEditor).toBe(true)
+    const initial = await f.get('a', f.root); const params = { expectedRevision: initial.revision, patch: { label: 'Proposed' } }
+    expect((await f.call(normal, 'configuration.propose', params)).error.code).toBe('PERMISSION_DENIED')
+    f.service.active(editor.instanceId, editor.binding, false)
+    expect((await f.call(editor, 'configuration.propose', params)).error.code).toBe('CONTEXT_UNAVAILABLE')
+    f.service.active(editor.instanceId, editor.binding, true)
+    for (const patch of [{ style: 'full' }, { limit: 999 }, { missing: 'unknown' }]) {
+      expect((await f.call(editor, 'configuration.propose', { ...params, patch })).error.code).toBe('INVALID_REQUEST')
+    }
+    expect((await f.call(editor, 'configuration.propose', { ...params, expectedRevision: 'a'.repeat(64) })).error.code).toBe('CONFIGURATION_CONFLICT')
+    expect((await f.call(editor, 'configuration.propose', params)).result).toEqual({ proposed: true })
+    expect(f.deps.event).toHaveBeenLastCalledWith(editor.instanceId, { type: 'configurationProposal', pluginId: value.id, scope: 'project', proposal: params })
+    expect((await f.get('a', f.root)).values.label).toBe('Reference')
+    expect((await f.call(editor, 'configuration.propose', params)).error.code).toBe('RATE_LIMITED')
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_001)
+    try {
+      const application = await f.mount('app-settings'); const app = await f.get()
+      expect((await f.call(application, 'configuration.propose', { expectedRevision: app.revision, patch: { style: 'full' } })).result).toEqual({ proposed: true })
+      expect(f.deps.event).toHaveBeenLastCalledWith(application.instanceId, expect.objectContaining({ scope: 'application' }))
+      expect((await f.get()).values.style).toBe('compact')
+    } finally { clock.mockRestore() }
+    // Reassigning the project editor adds authority to another view and requires a new grant.
+    value.contributes.configurationViews.project = 'another-editor'
+    value.contributes.views.push({ ...value.contributes.views.find(view => view.id === 'desk')!, id: 'another-editor' })
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(value)); await f.service.reload(value.id)
+    expect(f.service.snapshot().plugins[0]).toMatchObject({ state: 'blocked', error: 'PERMISSION_RECONFIRM_REQUIRED' })
+    await expect(f.call(editor, 'configuration.propose', params)).rejects.toMatchObject({ code: 'INSTANCE_CLOSED' })
+  })
   it('validates bounded, unambiguous declarative renames without scripts, chains or live source keys', async () => {
     const value = await manifest()
     value.capabilities.required.push('configuration.migrations')

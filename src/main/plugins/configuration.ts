@@ -58,6 +58,22 @@ export class PluginConfigurationStore {
     return { ...configuration, migrations }
   }
   /** Must run inside run(), so checking both layers and committing is serialized. */
+  async proposal(manifest: PluginManifest, scope: string | null, expected: string,
+    patch: Record<string, PluginSettingValue | null>, valid: () => void): Promise<void> {
+    valid()
+    const current = await this.get(manifest, scope)
+    if (current.revision !== expected) throw new PluginError('CONFIGURATION_CONFLICT', 'Configuration changed. Reload before proposing.')
+    this.validatePatch(manifest, scope, patch)
+    valid()
+  }
+  private validatePatch(manifest: PluginManifest, scope: string | null, patch: Record<string, PluginSettingValue | null>): void {
+    for (const [key, value] of Object.entries(patch)) {
+      const setting = manifest.contributes.settings?.find(item => item.key === key)
+      if (!setting || scope && setting.scope !== 'project' || value !== null && !isPluginSettingValue(setting, value)) {
+        throw new PluginError('INVALID_REQUEST', 'Invalid setting value or scope.')
+      }
+    }
+  }
   async update(manifest: PluginManifest, scope: string | null, expected: string,
     patch: Record<string, PluginSettingValue | null>, reset: boolean, valid: () => void, migrate = false): Promise<void> {
     valid()
@@ -72,11 +88,8 @@ export class PluginConfigurationStore {
       if (!ready.length) throw new PluginError('INVALID_REQUEST', 'No compatible setting migration is available.')
       for (const item of ready) { values[item.to] = values[item.from]; delete values[item.from] }
     }
+    this.validatePatch(manifest, scope, patch)
     for (const [key, value] of Object.entries(patch)) {
-      const setting = manifest.contributes.settings?.find(item => item.key === key)
-      if (!setting || scope && setting.scope !== 'project' || value !== null && !isPluginSettingValue(setting, value)) {
-        throw new PluginError('INVALID_REQUEST', 'Invalid setting value or scope.')
-      }
       if (value === null) delete values[key]
       else values[key] = value
     }

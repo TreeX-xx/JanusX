@@ -23,6 +23,11 @@ const methods = {
   'configuration.get': { permission: 'configuration.read', params: empty },
   'configuration.watch': { permission: 'configuration.read', params: empty },
   'configuration.open': { permission: 'configuration.read', params: empty },
+  'configuration.propose': { permission: 'configuration.propose', params: z.object({
+    expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
+    patch: z.record(z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]))
+      .refine(value => Object.keys(value).length > 0 && Object.keys(value).length <= 64),
+  }).strict() },
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'documents.readText': { permission: 'documents.read', params: empty },
@@ -48,6 +53,10 @@ export function validatePluginCall(manifest: PluginManifest, method: string, par
     throw new PluginError('PERMISSION_DENIED', 'The method is outside the declared permissions.')
   }
   if (!definition.params.safeParse(params).success) throw new PluginError('INVALID_REQUEST', 'Invalid method parameters.')
+  if (method === 'configuration.propose' && (!manifest.contributes.configurationViews
+    || !manifest.capabilities.required.includes('configuration.customViews'))) {
+    throw new PluginError('INVALID_REQUEST', 'Configuration proposals require declared custom views.')
+  }
   if (method === 'configuration.open' && (!manifest.contributes.settings?.length
     || !manifest.capabilities.required.includes('configuration.open'))) {
     throw new PluginError('INVALID_REQUEST', 'Configuration navigation requires settings and the required configuration.open capability.')

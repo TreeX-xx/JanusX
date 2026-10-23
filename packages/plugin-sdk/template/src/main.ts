@@ -11,6 +11,33 @@ let unsubscribe: (() => void) | undefined
 async function start(api: PluginApi) {
   const options = { signal: controller.signal }
   const context = await api.workspace.getContext(options)
+  if (context.configurationEditor) {
+    remember.hidden = true
+    let initial = await api.configuration.get(options)
+    const editor = document.createElement('textarea')
+    editor.setAttribute('aria-label', 'Configuration patch')
+    editor.value = JSON.stringify(initial.overrides, null, 2)
+    editor.style.cssText = 'width:100%;min-height:12rem'
+    const submit = document.createElement('button')
+    submit.textContent = 'Review configuration changes'
+    const reload = document.createElement('button')
+    reload.textContent = 'Reload configuration'
+    reload.onclick = () => {
+      void api.configuration.get(options).then(configuration => {
+        initial = configuration; editor.value = JSON.stringify(configuration.overrides, null, 2); submit.disabled = false
+        status.textContent = 'Configuration reloaded.'
+      }).catch((error: Error) => { status.textContent = error.message })
+    }
+    status.textContent = 'Edit a JSON patch of declared settings. Null restores inheritance. The host reviews and saves.'
+    content.after(editor, submit, reload)
+    submit.onclick = () => {
+      submit.disabled = true
+      void Promise.resolve().then(() => api.configuration.propose({ expectedRevision: initial.revision, patch: JSON.parse(editor.value) }, options))
+        .then(() => { status.textContent = 'Proposal sent to host settings. Review and save there. Reload configuration before making further changes.'; submit.disabled = false })
+        .catch((error: Error) => { status.textContent = error.message; submit.disabled = false })
+    }
+    return
+  }
   if (context.configuration) {
     const display = document.createElement('p')
     display.id = 'configuration'

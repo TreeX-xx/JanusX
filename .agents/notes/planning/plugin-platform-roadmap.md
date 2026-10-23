@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-16",
-  "updated": "2026-10-23T05:52:50Z",
+  "updated": "2026-10-23T06:30:55Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -160,7 +160,7 @@ S1、S2 优先形成可独立验收的内置扩展基础，不等待市场完成
 
 ### P4a 插件设置基础版（新增）
 
-用户要求插件可扩展设置界面以配置参数。P4a 已交付声明式表单、应用默认／项目与 worktree 覆盖、校验／恢复默认、读取／订阅、旧值诊断和并发版本检查，独立于插件私有 KV；后续片接通插件页面／菜单与可信外壳的自身配置导航，自动展开定位并选择对应配置层。清单、SDK、管理页和外部模板一起验证，追踪架构 AC-19 的基础部分；P5／P6 接入前需有可用配置入口。声明式重命名迁移已接入宿主预览及显式应用，复杂隔离自定义设置页和类型转换／历史恢复后续扩展；敏感字段与凭证引用随 P5 实施，不通过普通配置返回明文密钥。AC-19 在后续范围闭合前保持未勾选。
+用户要求插件可扩展设置界面以配置参数。P4a 已交付声明式表单、应用默认／项目与 worktree 覆盖、校验／恢复默认、读取／订阅、旧值诊断和并发版本检查，独立于插件私有 KV；后续片接通插件页面／菜单与可信外壳的自身配置导航，自动展开定位并选择对应配置层。清单、SDK、管理页和外部模板一起验证，追踪架构 AC-19 的基础部分；P5／P6 接入前需有可用配置入口。声明式重命名迁移已接入宿主预览及显式应用，隔离自定义工作台设置页与宿主审阅配置建议已交付，类型转换／历史恢复后续扩展；敏感字段与凭证引用随 P5 实施，不通过普通配置返回明文密钥。AC-19 在后续范围闭合前保持未勾选。
 
 本片由主 Agent 实施并自检，未进行独立 Agent 审查。`npm run plugins:check` 通过 124 项（含仓库外打包 SDK 的安装、类型检查和构建）；`npm run build:app`、`npm run typecheck:strict-unused`、i18n、包边界及 exclusions 检查通过，lint 为 0 错误、67 条既有警告。证据为 `artifacts/plugin-settings-plugins-reviewed.log`、`plugin-settings-build-reviewed.log`、`plugin-settings-types-reviewed.log`、`plugin-settings-lint-reviewed.log` 与对应检查日志。
 
@@ -172,9 +172,15 @@ Windows Electron 定向回归 `npx playwright test tests/e2e/desktop-plugins.spe
 
 迁移增量 lint 为 0 错误、67 条既有警告，见 `artifacts/plugin-migrations-lint-final.log`。最终 Windows Electron 执行 `npx playwright test tests/e2e/desktop-plugins.spec.ts --config=playwright.desktop.config.ts --workers=1 --grep 'P4a' --output=artifacts/plugin-migrations/desktop-final`，2 项通过；验证已有配置导航／保存／冲突／重启，以及升级前分别保存应用与项目值、升级预览不自动迁移、待提交编辑阻止迁移、逐层应用及插件重新读取有效值，日志为 `artifacts/plugin-migrations-desktop-final.log`，预览截图为该输出中迁移用例的 `configuration-migration.png`。Notes 检查 306 篇仍有既有开场编排的缺 AC 与时间倒置两项错误，本片维护文档无新增错误，见 `artifacts/plugin-migrations-notes.log`。未重跑完整桌面集、全量单测或 verify，未验证安装包与 macOS／Linux。
 
+隔离自定义设置页增量已交付。插件可分别声明应用／项目工作台配置页；页面通过 `configuration.propose` 提交带原始版本的建议值，宿主打开普通配置表单供用户审阅并显式保存，提交建议本身不写配置。页面崩溃时普通表单仍可用。新增编辑器映射参与重新授权，旧插件的授权指纹保持兼容；异步校验后再次检查活动状态和共享导航限流。前述迁移增量当时尚未交付的复杂设置页在本片接通，凭证代理仍归 P5；类型转换、迁移历史／恢复及 AC-19 的其余范围保持未完成。
+
+本增量由主 Agent 实施并自检，未进行独立 Agent 审查。`npm run plugins:check` 130 项通过（8 份测试，另含外部打包 SDK 安装／类型检查／构建），覆盖编辑器声明、权限／作用域／类型／版本校验、建议不直接写入、映射变更重新授权、异步校验期间隐藏页面和竞争导航。应用构建、严格未使用类型检查、i18n、包边界及 exclusions 通过；lint 为 0 错误、67 条既有警告。证据为 `artifacts/plugin-custom-settings-{plugins-final,build-final,types-final,lint-final,i18n,boundary,exclusions}.log`。
+
+最终 Windows Electron 执行 `npx playwright test tests/e2e/desktop-plugins.spec.ts tests/e2e/unified-file-window.spec.ts --config=playwright.desktop.config.ts --workers=1 --output=artifacts/plugin-custom-settings/desktop-final`，15 项全部通过，见 `artifacts/plugin-custom-settings-desktop-final.log`。新用例使用独立打包 SDK 插件，验证隔离配置页、宿主审阅后保存、应用／项目隔离、交接后的竞争写入阻止保存并保留编辑、显式重载丢弃建议及崩溃回退，同时回归插件生命周期与文件窗口。Notes 检查 306 篇，仍有既有 `entrance-choreography.md` 缺少 AC 与时间倒置两项错误，本片维护文档未新增错误，见 `artifacts/plugin-custom-settings-notes-final.log`。未重跑全量单测或整条 verify，未验证安装包与 macOS／Linux。
+
 ### 里程碑与执行顺序
 
-推荐主线为 P0 → P1 → P2 → P3 → P4 → P5 → P6；新增 P4a 的声明式配置基础已在 P5／P6 前交付，复杂设置和凭证增量按依赖续做。P7 是 P3 之后可独立调整优先级的工作包；P8 不依赖全部贡献类型或全部官方功能迁移，在 P2 与来源规则通过后可独立实施，推荐在 P4 形成稳定兼容面后进入。这里的独立表示依赖关系，不安排并行 Agent。
+推荐主线为 P0 → P1 → P2 → P3 → P4 → P5 → P6；新增 P4a 的声明式配置基础与隔离自定义设置页已在 P5／P6 前交付，凭证增量按依赖续做。P7 是 P3 之后可独立调整优先级的工作包；P8 不依赖全部贡献类型或全部官方功能迁移，在 P2 与来源规则通过后可独立实施，推荐在 P4 形成稳定兼容面后进入。这里的独立表示依赖关系，不安排并行 Agent。
 
 - M1 可开发的本地平台：P0–P2，参考 12–20 有效工作日；另留约 20%–30% 联调与缺陷余量，整体预算约 15–26 日。出口是外部作者完成只读目录插件，不包含工作台、Island、网络、执行或模型开放。
 - M2 可组合的工作台：P3–P4，新增约 10–16 日并单独预留回归余量。出口是完整工作台／Island 联动及文件查看／编辑；保留原工作区、浏览器和终端行为。

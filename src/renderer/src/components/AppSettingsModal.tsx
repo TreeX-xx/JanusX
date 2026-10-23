@@ -172,7 +172,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'about' && <AboutSettingsPanel />}
               {activeTab === 'terminal' && <TerminalManagerPanel />}
               {activeTab === 'integrations' && <CpaSettingsPanel onOpened={requestClose} />}
-              {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} />}
+              {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} onOpened={requestClose} />}
               {activeTab === 'experimental' && <ExperimentalSettingsPanel />}
               {activeTab === 'notifications' && <NotificationSettingsPanel />}
               {activeTab === 'personal' && <PersonalMemorySettingsPanel />}

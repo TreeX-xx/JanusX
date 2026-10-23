@@ -7,8 +7,12 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './PluginSettingsPanel.module.css'
+import { openExtensionView } from '@/extensions/workbench'
+import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 
-export function PluginConfigurationForm({ record, initialScope = 'application' }: { record: InstalledPlugin; initialScope?: 'application' | 'project' }) {
+export function PluginConfigurationForm({ record, initialScope = 'application', proposal, onOpened }: {
+  record: InstalledPlugin; initialScope?: 'application' | 'project'; proposal?: PluginConfigurationTarget['proposal']; onOpened?: () => void
+}) {
   const { t } = useI18n('plugins')
   const projectId = useWorkspaceStore(state => state.activeWorkspaceId)
   const project = useWorkspaceStore(state => state.workspaces.find(item => item.id === projectId))
@@ -23,12 +27,22 @@ export function PluginConfigurationForm({ record, initialScope = 'application' }
   const [saved, setSaved] = useState(false)
   const requests = useRef({ sequence: 0 }).current
   const target = { id: record.manifest.id, projectId: projectScope ? projectId : null, scopePath: projectScope ? root ?? null : null }
+  const initialTarget = useRef(JSON.stringify(target))
+  const proposalConsumed = useRef(false)
+  const [reviewing, setReviewing] = useState(false)
   const load = async () => {
     const current = ++requests.sequence
     setBusy(true); setFailure(''); setSaved(false)
     try {
       const result = await pluginRequest<PluginConfigurationState>({ type: 'configurationGet', ...target })
-      if (current === requests.sequence) { setConfiguration(result); setPatch({}) }
+      if (current === requests.sequence) {
+        setConfiguration(result); setPatch({}); setReviewing(false)
+        if (proposal && !proposalConsumed.current && initialTarget.current === JSON.stringify(target)) {
+          proposalConsumed.current = true
+          setConfiguration({ ...result, revision: proposal.expectedRevision }); setPatch(proposal.patch); setReviewing(true)
+          if (proposal.expectedRevision !== result.revision) setFailure('CONFIGURATION_CONFLICT')
+        }
+      }
     } catch (cause) { if (current === requests.sequence) { setConfiguration(null); setFailure((cause as Error).message) } }
     finally { if (current === requests.sequence) setBusy(false) }
   }
@@ -45,16 +59,22 @@ export function PluginConfigurationForm({ record, initialScope = 'application' }
     try {
       const result = await pluginRequest<PluginConfigurationState>({ type: 'configurationUpdate', ...target,
         expectedRevision: configuration.revision, patch: reset || migrate ? {} : patch, reset, migrate })
-      if (current === requests.sequence) { setConfiguration(result); setPatch({}); setSaved(true) }
+      if (current === requests.sequence) { setConfiguration(result); setPatch({}); setSaved(true); setReviewing(false) }
     } catch (cause) { if (current === requests.sequence) setFailure((cause as Error).message) }
     finally { if (current === requests.sequence) setBusy(false) }
   }
   const settings = record.manifest.contributes.settings ?? []
+  const customView = record.manifest.contributes.configurationViews?.[projectScope ? 'project' : 'application']
   const valueFor = (key: string) => Object.hasOwn(patch, key)
     ? patch[key] ?? configuration?.inherited[key] : configuration?.values[key]
   const invalid = settings.some(setting => Object.hasOwn(patch, setting.key) && patch[setting.key] !== null && !isPluginSettingValue(setting, patch[setting.key]))
   return <div data-plugin-configuration>
     <p className={styles.hint}>{t('plugins:configurationHint')}</p>
+    {reviewing && <p role="status">{t('plugins:configurationReview')}</p>}
+    {customView && <button type="button" disabled={busy || !record.enabled || Boolean(Object.keys(patch).length)} onClick={() => {
+      if (openExtensionView(`extension:${record.manifest.id}/${customView}`)) onOpened?.()
+      else setFailure('CONTEXT_UNAVAILABLE')
+    }}>{t('plugins:configurationCustom')}</button>}
     <label className={styles.row}>{t('plugins:configurationScope')}
       <select aria-label={t('plugins:configurationScope')} value={projectScope ? 'project' : 'application'} disabled={busy} onChange={event => setScope(event.target.value as 'application' | 'project')}>
         <option value="application">{t('plugins:configurationApplication')}</option>
