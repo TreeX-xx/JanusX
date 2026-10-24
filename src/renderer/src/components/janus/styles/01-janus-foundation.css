@@ -771,16 +771,8 @@ body.is-running {
   50%      { opacity: 0.4; transform: scale(0.85); }
 }
 
-@keyframes mini-idle {
-  0%, 15%, 35%, 100% { transform: translateX(0) scale(1); }
-  17%, 19%            { transform: translateX(0) scaleY(0.1); }
-  21%                 { transform: translateX(0) scale(1); }
-  40%, 48%            { transform: translateX(-2px) scale(0.9); }
-  55%, 65%            { transform: translateX(2px) scale(0.9); }
-  70%                 { transform: translateX(0) scale(1); }
-  85%                 { transform: scale(1.1); }
-  90%                 { transform: scale(1); }
-}
+/* mini-idle keyframes retired (2026-10-24): order-mode idle now runs on the
+   behavior scheduler (janusBehavior.ts). See AC-6 in island-behavior-system. */
 
 @keyframes data-scan-mini {
   0%   { transform: translateY(-4px); }
