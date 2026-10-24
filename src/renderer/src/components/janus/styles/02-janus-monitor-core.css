@@ -815,4 +815,8 @@
     animation: none;
     transform: scale(1.015);
   }
+
+  .janus-island[data-mode="order"][data-stage="collapsed"] .janus-collapsed-core {
+    animation: none;
+  }
 }

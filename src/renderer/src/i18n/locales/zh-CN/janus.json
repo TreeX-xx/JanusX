@@ -242,6 +242,8 @@
     },
     "aria": {
       "openIsland": "打开 Janus Island",
+      "openNotif": "打开通知中心",
+      "closeNotif": "收起通知中心",
       "closeKnowledgePeek": "关闭知识预览",
       "openProductPreview": "打开 {{path}} 的产物预览"
     },

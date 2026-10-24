@@ -284,8 +284,8 @@
       top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
       margin-top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
       left 0.3s ease;
-    /* 头部微移（转头暗示） */
-    transform: translate(calc(var(--face-x, 0) * 1px), calc(var(--face-y, 0) * 1px));
+    /* 头部微移（转头暗示）+ 歪头（待机动作） */
+    transform: translate(calc(var(--face-x, 0) * 1px), calc(var(--face-y, 0) * 1px)) rotate(calc(var(--rot, 0) * 1deg));
   }
   .island.notif-open .face { top: 18px; margin-top: 0; }
   .eyes {
@@ -557,7 +557,7 @@
   <h1>Janus <em>眼睛行为实验台</em></h1>
   <div class="sub">
     不是循环动画，是注意力生物。移动鼠标看它跟过来——然后自己走神；
-    点胶囊会有惊跳。右栏调参数，玩到手感对为止。
+    单击胶囊开通知中心，它还会时不时自己换动作。右栏调参数，玩到手感对为止。
   </div>
   <div class="assume">
     <b>假设</b> · 胶囊按仓库真实规格复刻（52×26 / #161619→#08080a）·
@@ -606,9 +606,9 @@
 
       <div class="stage-hint">
         在页面任意处移动鼠标 · 观察它的注意力<br>
-        <span class="k">点击胶囊</span> 惊跳 ·
-        <span class="k">下拉胶囊</span> 历史通知 ·
-        <span class="k">右栏</span> 触发事件
+        <span class="k">单击胶囊</span> 通知中心 ·
+        <span class="k">右栏</span> 触发事件 ·
+        岛会时不时自己换动作
       </div>
     </div>
 
@@ -691,6 +691,18 @@
         <button data-a="nod">点头 nod</button>
         <button data-a="fail">失败垂眼</button>
         <button data-a="greet">眨眼打招呼</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>待机动作 <span class="badge">IDLE</span></h2>
+      <div class="acts" id="idleActs">
+        <button data-k="stretch">伸懒腰 stretch</button>
+        <button data-k="tilt">歪头好奇 tilt</button>
+        <button data-k="lookaround">环顾 lookaround</button>
+        <button data-k="hop">小跳 hop</button>
+        <button data-k="doze">打瞌睡 doze</button>
+        <button data-k="breathe">深呼吸 breathe</button>
       </div>
     </section>
 
@@ -789,6 +801,10 @@
         <button class="switch on" data-f="wanderOn"></button>
       </div>
       <div class="switch-row">
+        <div><div class="name">自主动作</div><div class="why">时不时自己切换做动作：伸懒腰/歪头/环顾/小跳/瞌睡/深呼吸 + 惊跳/点头/招呼/垂眼/传话</div></div>
+        <button class="switch on" data-f="autoAct"></button>
+      </div>
+      <div class="switch-row">
         <div><div class="name">扫视前眨眼</div><div class="why">大幅转向前先眨（真实眼动特征）</div></div>
         <button class="switch on" data-f="blinkSaccade"></button>
       </div>
@@ -826,7 +842,7 @@
     blinkMin: 22, blinkMax: 65, doubleP: 18, wander: 45,
     fatigueAfter: 3, restMs: 60, closeMs: 22,
   };
-  const FLAGS = { mouseFollow: true, wanderOn: true, blinkSaccade: true, showRadius: true, reduced: false, hoverClose: true };
+  const FLAGS = { mouseFollow: true, wanderOn: true, blinkSaccade: true, showRadius: true, reduced: false, hoverClose: true, autoAct: true };
   const P = Object.assign({}, DEFAULTS);
   try {
     const saved = JSON.parse(localStorage.getItem('janus-gaze-lab-v2') || '{}');
@@ -899,6 +915,9 @@
     dragging: false,
     mode: 'order',
     behavior: 'new',
+    lastAutoAct: null,        // 自主动作：避免连续重复同一个
+    nextAutoActAt: 0,         // 自主动作：下次触发时刻
+    act: null,                // 正在播的待机动作 { kind, t0 }
     logs: [],
   };
 
@@ -916,6 +935,8 @@
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const lerp = (a, b, t) => a + (b - a) * t;
   const rand = (a, b) => a + Math.random() * (b - a);
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  const easeInOut = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
   function islandCenter() {
     const r = islandEls[0].getBoundingClientRect();
@@ -995,18 +1016,21 @@
   }
 
   function flinch() {
-    // 传话中点击 = 收起当前这条，但队列继续（keepQueue）
-    if (dismissNotice(true)) return;
+    // 传话中点击 = 收起当前这条，但队列继续（keepQueue）；惊跳伴随仍播放
+    // （对齐生产 quickTap：dismiss + flinch）。返回是否消费了传话点击。
+    const was = dismissNotice(true);
+    S.act = null;               // 被点击：待机动作让位
     S.flinchT0 = performance.now();
     // 闭眼享受时被点击 = 惊醒：直接跳进「睁眼偷看」阶段
     if (S.hoverT0 && S.lid < 0.35) {
       const closeDur = P.closeMs * 100;
       S.hoverT0 = performance.now() - closeDur - 60;
       log('惊醒 · 被点醒了');
-      return;
+      return was;
     }
     triggerBlink(performance.now(), true);
     log('惊跳 flinch · 被点击');
+    return was;
   }
   function nod() {
     S.nodT0 = performance.now();
@@ -1020,6 +1044,161 @@
     triggerBlink(performance.now());
     setTimeout(() => triggerBlink(performance.now(), true), 260);
     log('眨眼打招呼 · double-blink');
+  }
+
+  /*── 待机动作：每个动作一段包络（pose=形变 / aim=接管视线与眼睑）──
+     aim 输出在注意力调度之后生效：动作播完前视线归动作管（像真的在「做一件事」）。 */
+  const IDLE_ACTS = {
+    stretch: {   // 伸懒腰：蹲下蓄力 → 拉长 → 回位
+      dur: 1500,
+      start: (now) => { triggerBlink(now, true); log('待机 · 伸懒腰'); },
+      aim: () => ({}),
+      pose: (p) => {
+        let sx, sy;
+        if (p < 0.22) { const q = p / 0.22; sy = lerp(1, 0.86, q); sx = lerp(1, 1.09, q); }
+        else if (p < 0.55) { const q = (p - 0.22) / 0.33; sy = lerp(0.86, 1.14, q); sx = lerp(1.09, 0.92, q); }
+        else { const q = (p - 0.55) / 0.45; sy = lerp(1.14, 1, q); sx = lerp(0.92, 1, q); }
+        return { sx, sy, fy: 0, rot: 0 };
+      },
+    },
+    tilt: {      // 歪头好奇：视线抢先 → 头带回弹入倾（微颤）→ 第二感缩回再倾更深 → 回正
+      dur: 2900,
+      start: (now) => {
+        triggerBlink(now, true);
+        S.act.dir = Math.random() < 0.5 ? -1 : 1;   // 左右随机，不老歪一边
+        setTimeout(() => triggerBlink(performance.now(), true), 2450); // 收尾定神一眨
+        log('待机 · 歪头好奇');
+      },
+      aim: (p) => {
+        const amp = P.gazeAmp / 10;
+        const d = (S.act && S.act.dir) || 1;
+        // 视线先于头部到位；中段端详微漂；第二感看得更远；回正先收视线
+        let k;
+        if (p < 0.12) k = easeOut(p / 0.12) * 0.95;
+        else if (p < 0.42) k = 0.95 + 0.05 * Math.sin((p - 0.12) * 26);
+        else if (p < 0.52) k = lerp(0.95, 0.78, easeInOut((p - 0.42) / 0.1));
+        else if (p < 0.8) k = lerp(0.82, 1.15, easeOut((p - 0.52) / 0.28));
+        else k = lerp(1.15, 0, easeInOut((p - 0.8) / 0.2));
+        return { gaze: { x: d * amp * 0.72 * k, y: -amp * 0.24 * k } };
+      },
+      pose: (p) => {
+        const d = (S.act && S.act.dir) || 1;
+        // 入倾冲过 12.5° 再回落 10°（物理感）；两段微颤保持「活着」
+        let deg;
+        if (p < 0.12) deg = lerp(0, 12.5, easeOut(p / 0.12));
+        else if (p < 0.22) deg = lerp(12.5, 10, easeInOut((p - 0.12) / 0.1));
+        else if (p < 0.42) deg = 10 + 0.4 * Math.sin((p - 0.22) * 34);
+        else if (p < 0.52) deg = lerp(10, 5, easeInOut((p - 0.42) / 0.1));
+        else if (p < 0.64) deg = lerp(5, 12, easeOut((p - 0.52) / 0.12));
+        else if (p < 0.8) deg = 12 + 0.35 * Math.sin((p - 0.64) * 30);
+        else deg = lerp(12, 0, easeInOut((p - 0.8) / 0.2));
+        return { sx: 1, sy: 1, fy: 0, rot: d * deg };
+      },
+    },
+    lookaround: { // 环顾四周：左看 → 右看 → 回中，转向前急眨眼
+      dur: 3000,
+      start: () => {
+        log('待机 · 环顾四周');
+        setTimeout(() => triggerBlink(performance.now(), true), 750);
+        setTimeout(() => triggerBlink(performance.now(), true), 1550);
+        setTimeout(() => triggerBlink(performance.now(), true), 2380);
+      },
+      aim: (p) => {
+        const amp = P.gazeAmp / 10;
+        let x = 0;
+        if (p < 0.22) x = lerp(0, -amp * 0.95, p / 0.22);
+        else if (p < 0.42) x = -amp * 0.95;
+        else if (p < 0.62) x = lerp(-amp * 0.95, amp * 0.95, (p - 0.42) / 0.2);
+        else if (p < 0.82) x = amp * 0.95;
+        else x = lerp(amp * 0.95, 0, (p - 0.82) / 0.18);
+        return { gaze: { x, y: amp * 0.12 } };
+      },
+      pose: () => ({ sx: 1, sy: 1, fy: 0, rot: 0 }),
+    },
+    hop: {       // 小跳：蹲 → 起跳 → 落地压扁 → 回位
+      dur: 850,
+      start: () => log('待机 · 小跳'),
+      aim: () => ({}),
+      pose: (p) => {
+        let fy = 0, sx = 1, sy = 1;
+        if (p < 0.16) { const q = p / 0.16; sy = lerp(1, 0.8, q); sx = lerp(1, 1.13, q); }
+        else if (p < 0.48) { const q = (p - 0.16) / 0.32; fy = -3.4 * Math.sin(q * Math.PI * 0.5); sy = lerp(1.1, 1.13, q); sx = lerp(0.95, 0.9, q); }
+        else if (p < 0.7) { const q = (p - 0.48) / 0.22; fy = -3.4 * (1 - q * q); sy = lerp(1.1, 0.84, q); sx = lerp(0.93, 1.11, q); }
+        else { const q = (p - 0.7) / 0.3; sy = lerp(0.84, 1, q); sx = lerp(1.11, 1, q); }
+        return { sx, sy, fy, rot: 0 };
+      },
+    },
+    doze: {      // 打瞌睡钓鱼：垂眼耷拉 → 一激灵惊醒
+      dur: 3400,
+      start: () => {
+        log('待机 · 打瞌睡');
+        setTimeout(() => triggerBlink(performance.now(), true), 2450); // 钓鱼惊醒
+      },
+      aim: (p) => (p < 0.72
+        ? { lid: lerp(1, 0.22, Math.min(1, p / 0.55)), gaze: { x: 0, y: (P.gazeAmp / 10) * 0.5 } }
+        : { lid: 1 }),
+      pose: (p) => {
+        if (p < 0.72) return { sx: 1, sy: 1, fy: 1.3 * Math.min(1, p / 0.55), rot: 0 };
+        const q = (p - 0.72) / 0.28;
+        const k = (1 - q) * Math.sin(q * Math.PI);
+        return { sx: 1 + 0.08 * k, sy: 1 - 0.1 * k, fy: lerp(1.3, 0, q), rot: 0 };
+      },
+    },
+    breathe: {   // 深呼吸：整体缓慢舒展 + 眼睑轻合
+      dur: 3000,
+      start: () => log('待机 · 深呼吸'),
+      aim: (p) => ({ lid: 1 - 0.18 * Math.sin(p * Math.PI) }),
+      pose: (p) => {
+        const b = Math.sin(p * Math.PI);
+        return { sx: 1 + 0.03 * b, sy: 1 + 0.055 * b, fy: 0, rot: 0 };
+      },
+    },
+  };
+
+  /*── 自主动作：待机动作 + 事件反应加权轮换，时不时切换做 ──*/
+  const AUTO_ACTIONS = [
+    { kind: 'stretch', w: 3 }, { kind: 'tilt', w: 3 }, { kind: 'lookaround', w: 3 },
+    { kind: 'breathe', w: 2 }, { kind: 'hop', w: 2 }, { kind: 'doze', w: 2 },
+    { kind: 'flinch', w: 1 }, { kind: 'nod', w: 1 }, { kind: 'greet', w: 1 }, { kind: 'fail', w: 1 },
+    { kind: 'notice', w: 1 },
+  ];
+  function pickAutoAct() {
+    let total = 0;
+    for (const a of AUTO_ACTIONS) if (a.kind !== S.lastAutoAct) total += a.w; // 不连重
+    let r = Math.random() * total;
+    for (const a of AUTO_ACTIONS) {
+      if (a.kind === S.lastAutoAct) continue;
+      r -= a.w;
+      if (r <= 0) return a.kind;
+    }
+    return 'stretch';
+  }
+  /** 立即播放一个动作（右栏按钮/自主调度共用；kind 见 AUTO_ACTIONS）。 */
+  function doAct(kind) {
+    if (IDLE_ACTS[kind]) {
+      S.act = { kind, t0: performance.now() };
+      IDLE_ACTS[kind].start(performance.now());
+    } else if (kind === 'notice') enqueueNotice('coderX 完成了插件配置重构');
+    else if (kind === 'flinch') flinch();
+    else if (kind === 'nod') nod();
+    else if (kind === 'fail') fail();
+    else if (kind === 'greet') greet();
+    else return false;
+    return true;
+  }
+  function maybeAutoAct(now) {
+    if (S.behavior === 'legacy' || !FLAGS.autoAct) return;
+    if (now < S.nextAutoActAt) return;
+    // 忙时让位：传话/面板/摸头/拖拽/动作进行中不抢戏，稍后再试
+    if (S.noticing || S.speaking || S.panelOpen || S.dragging || S.hoverT0 || S.act) {
+      S.nextAutoActAt = now + 2200;
+      return;
+    }
+    const pick = pickAutoAct();
+    S.lastAutoAct = pick;
+    S.nextAutoActAt = now + rand(5000, 10500);
+    doAct(pick);
+    log('自主动作 · ' + pick);
   }
   /*── 通知系统：串行传话 + 历史（看过即焚） ──*/
   const BURST_BODIES = [
@@ -1102,6 +1281,7 @@
     if (S.panelOpen) return;
     dismissNotice(false);       // 中断当前传话；打开即「看到」，队列不再逐条弹
     S.speakQueue = [];
+    S.act = null;               // 打开通知中心：待机动作让位
     S.panelOpen = true;
     renderList();
     renderCount();
@@ -1172,6 +1352,7 @@
         el.style.setProperty('--gaze-y', 0);
         el.style.setProperty('--face-x', 0);
         el.style.setProperty('--face-y', 0);
+        el.style.setProperty('--rot', 0);
         el.style.setProperty('--lid', 1);
         el.style.setProperty('--sx', 1);
         el.style.setProperty('--sy', 1);
@@ -1181,6 +1362,9 @@
       requestAnimationFrame(tick);
       return;
     }
+
+    /*─ 0. 自主动作：时不时切换做设计的动作 ─*/
+    maybeAutoAct(now);
 
     /*─ 1. 注意力调度 ─*/
     const dir = dirToPointer();
@@ -1204,6 +1388,7 @@
       if (!S.hoverT0) {
         S.hoverT0 = now;
         S.hoverPeekLogged = false;
+        S.act = null;   // 被摸头：待机动作让位
         log('被抚摸 · 闭眼享受');
       }
       const cyc = (now - S.hoverT0) % (closeDur + peekDur);
@@ -1262,6 +1447,22 @@
       }
     }
 
+    /*─ 1.5 待机动作接管（视线/眼睑归动作管，播完自动归还） ─*/
+    let actPose = null;
+    if (S.act) {
+      const def = IDLE_ACTS[S.act.kind];
+      const age = now - S.act.t0;
+      if (age >= def.dur) {
+        S.act = null;
+      } else {
+        const p = age / def.dur;
+        const aim = def.aim ? def.aim(p, now) : {};
+        if (aim.lid !== undefined) lidTarget = aim.lid;
+        if (aim.gaze) S.gazeTarget = { x: aim.gaze.x, y: aim.gaze.y };
+        actPose = def.pose ? def.pose(p, now) : null;
+      }
+    }
+
     /*─ 2. 眨眼生理 ─*/
     // 闭眼享受时不做无意义眨眼，顺延
     if (lidTarget < 0.3 && S.blink === null) S.nextBlinkAt = Math.max(S.nextBlinkAt, now + 800);
@@ -1316,8 +1517,8 @@
     S.face.x = lerp(S.face.x, S.gaze.x / (amp || 1) * headAmp * overload, clamp(k, 0, 1));
     S.face.y = lerp(S.face.y, S.gaze.y / (amp || 1) * headAmp * 0.6 * overload, clamp(k, 0, 1));
 
-    /*─ 6. 惊跳 / 点头变换 ─*/
-    let sx = 1, sy = 1, fy = 0;
+    /*─ 6. 惊跳 / 点头 / 待机动作 变换 ─*/
+    let sx = 1, sy = 1, fy = 0, rot = 0;
     const fAge = now - S.flinchT0;
     if (fAge < 320) {
       const p = fAge / 320;
@@ -1329,6 +1530,13 @@
       const p = nAge / 800;
       fy = Math.sin(p * Math.PI * 2) * 1.6 * (1 - p);
     }
+    if (actPose) {
+      sx *= actPose.sx; sy *= actPose.sy;
+      fy += actPose.fy; rot += actPose.rot;
+    }
+    // 待机呼吸基线：无动作时的极轻起伏（幅度小于任何动作）
+    const breath = 1 + 0.012 * Math.sin(now / 3800 * Math.PI * 2);
+    sx *= breath; sy *= breath;
 
     /*─ 7. 写 CSS 变量 ─*/
     islandEls.forEach(el => {
@@ -1336,6 +1544,7 @@
       el.style.setProperty('--gaze-y', S.gaze.y.toFixed(3));
       el.style.setProperty('--face-x', S.face.x.toFixed(3));
       el.style.setProperty('--face-y', (S.face.y + fy).toFixed(3));
+      el.style.setProperty('--rot', rot.toFixed(3));
       el.style.setProperty('--lid', S.lid.toFixed(3));
       el.style.setProperty('--sx', sx.toFixed(3));
       el.style.setProperty('--sy', sy.toFixed(3));
@@ -1362,26 +1571,34 @@
     S.lastPointerMove = performance.now();
   }, { passive: true });
 
-  /*── 胶囊手势：轻点=惊跳 / 下拉=通知中心 ──*/
+  /*── 胶囊手势：单击=通知中心开合（惊跳/惊醒伴随）/ 下拉不映射 ──
+     对齐生产单击语义（2026-10-24）：轻点 → flinch()/惊醒/收起续播 伴随，
+     未被传话消费时开通知中心；面板开着时点胶囊=看过即焚收起。 ──*/
   (function bindIslandGesture() {
     const isl = islandEls[0];
-    let downAt = null, pullArmed = false;
+    let downAt = null, dragged = false;
     isl.addEventListener('pointerdown', e => {
-      if (S.panelOpen) { closePanel(true); return; }   // 传话/面板开着时点胶囊=收起
+      if (S.panelOpen) { closePanel(true); return; }   // 面板开着时点胶囊=看过即焚收起
       downAt = { x: e.clientX, y: e.clientY };
-      pullArmed = false;
+      dragged = false;
       S.dragging = false;
       try { isl.setPointerCapture(e.pointerId); } catch (err) {}
     });
     isl.addEventListener('pointermove', e => {
       if (!downAt) return;
-      if (e.clientY - downAt.y > 14) { S.dragging = true; pullArmed = true; }
+      // 拖拽只挂起摸头（hover 判定暂停），不再映射任何开面手势
+      if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 14) {
+        S.dragging = true;
+        dragged = true;
+      }
     });
     isl.addEventListener('pointerup', e => {
       if (!downAt) return;
       const dx = Math.abs(e.clientX - downAt.x), dy = Math.abs(e.clientY - downAt.y);
-      if (pullArmed) openPanel();
-      else if (dx < 8 && dy < 8) flinch();
+      if (!dragged && dx < 8 && dy < 8) {
+        const consumed = flinch();   // 惊跳/惊醒/收起续播 伴随
+        if (!consumed) openPanel();  // 传话中轻点只收续播，不开面（对齐生产）
+      }
       downAt = null;
       S.dragging = false;
     });
@@ -1471,11 +1688,12 @@
     log(v === 'new' ? '行为系统接管' : '旧 8s 循环接管');
   });
 
-  // 事件按钮
+  // 事件按钮（手动优先：打断进行中的待机动作）
   $('#acts').addEventListener('click', e => {
     const btn = e.target.closest('button');
     if (!btn) return;
     const a = btn.dataset.a;
+    S.act = null;
     if (a === 'flinch') flinch();
     else if (a === 'notice') enqueueNotice('coderX 完成了插件配置重构');
     else if (a === 'burst') {
@@ -1487,6 +1705,13 @@
     else if (a === 'nod') nod();
     else if (a === 'fail') fail();
     else if (a === 'greet') greet();
+  });
+
+  // 待机动作按钮：手动点名即播（doAct 会替换进行中的动作）
+  $('#idleActs').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    doAct(btn.dataset.k);
   });
 
   // 开关
@@ -1504,15 +1729,17 @@
   /*── 启动 ──*/
   scheduleBlink(performance.now());
   pickWanderTarget();
+  S.nextAutoActAt = performance.now() + 4500;   // 首个自主动作约 4.5s 后
   layoutRingInStage();
   log('实验台就绪 · 移动鼠标试试');
   requestAnimationFrame(tick);
 
   // 供 Playwright / 调试读取
   window.__lab = {
-    S, P, FLAGS,
+    S, P, FLAGS, IDLE_ACTS, AUTO_ACTIONS,
     forceLook: (x, y) => { S.attention = 'event'; S.eventUntil = performance.now() + 3000; S.gazeTarget = { x, y }; },
     flinch, nod, fail, greet,
+    doAct,   // doAct('stretch'|'yawn'|'tilt'|'lookaround'|'hop'|'doze'|'breathe'|'flinch'|...)
     enqueueNotice, openPanel, closePanel,
   };
 })();

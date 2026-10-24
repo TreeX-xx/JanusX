@@ -411,6 +411,7 @@ function Harness() {
     >
       <button data-testid="replace-single" onClick={() => setCallbackVersion(2)}>Replace single callback</button>
       <button data-testid="reopen-island" onClick={() => dispatch({ type: 'double-activate' })}>Reopen Island</button>
+      <button data-testid="open-peek" onClick={() => dispatch({ type: 'plugin-peek' })}>Open peek</button>
       <button data-testid="open-general-settings" onClick={() => setSettingsOpen(true)}>Open general settings</button>
       {settingsOpen && <React.Suspense fallback={null}><SettingsModal isOpen onClose={() => setSettingsOpen(false)} /></React.Suspense>}
       <button data-testid="toggle-streaming" onClick={() => setIsStreaming((value) => !value)}>Toggle streaming</button>

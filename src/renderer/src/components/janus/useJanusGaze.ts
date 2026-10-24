@@ -20,6 +20,8 @@ export interface UseJanusGazeOptions {
   panelOpen?: boolean
   /** 拖拽进行中（下拉副黑板）：悬停判定挂起，不触发摸头 */
   suspendRef?: RefObject<boolean>
+  /** 外部忙（传话中等）：待机动作让位 */
+  busyRef?: RefObject<boolean>
 }
 
 export interface JanusGazeControls {
@@ -29,7 +31,7 @@ export interface JanusGazeControls {
 }
 
 export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
-  const { faceRef, islandRef, mode, enabled, panelOpen = false, suspendRef } = options
+  const { faceRef, islandRef, mode, enabled, panelOpen = false, suspendRef, busyRef } = options
   const schedulerRef = useRef<JanusGazeScheduler | null>(null)
   if (!schedulerRef.current) schedulerRef.current = new JanusGazeScheduler()
   const scheduler = schedulerRef.current
@@ -49,6 +51,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
     s.setProperty('--gaze-y', `${frame.gazeY.toFixed(3)}px`)
     s.setProperty('--face-x', `${frame.faceX.toFixed(3)}px`)
     s.setProperty('--face-y', `${frame.faceY.toFixed(3)}px`)
+    s.setProperty('--rot', `${frame.rot.toFixed(2)}deg`)
     s.setProperty('--lid', frame.lid.toFixed(3))
     s.setProperty('--sx', frame.sx.toFixed(3))
     s.setProperty('--sy', frame.sy.toFixed(3))
@@ -88,6 +91,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
         islandCenter: center,
         hover,
         panelOpen: panelOpenRef.current,
+        busy: suspendRef?.current === true || busyRef?.current === true,
         reducedMotion,
       })
       writeVars(frame)
@@ -132,7 +136,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
 
     scheduler.reset(performance.now())
     writeVars({
-      gazeX: 0, gazeY: 0, faceX: 0, faceY: 0, lid: 1, sx: 1, sy: 1,
+      gazeX: 0, gazeY: 0, faceX: 0, faceY: 0, lid: 1, sx: 1, sy: 1, rot: 0, act: null,
       state: 'wander', settled: false, nextWakeupAt: performance.now() + 2000,
     })
     window.addEventListener('pointermove', onPointerMove, { passive: true })
@@ -145,7 +149,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
       if (wakeTimer) clearTimeout(wakeTimer)
       window.removeEventListener('pointermove', onPointerMove)
     }
-  }, [enabled, islandRef, scheduler, suspendRef, writeVars])
+  }, [busyRef, enabled, islandRef, scheduler, suspendRef, writeVars])
 
   const react = useCallback((kind: JanusReaction) => {
     scheduler.react(kind, performance.now())

@@ -379,7 +379,13 @@ body.is-running {
   user-select: none;
   position: relative;
   outline: none;
-  transition: border-color 0.4s, box-shadow 0.4s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+  overflow: hidden; /* 宽高动画的搭档：通知面/传话在形变中被裁进胶囊，文字不外泄（lab 同款） */
+  transition:
+    border-color 0.4s,
+    box-shadow 0.4s,
+    transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
   margin-top: 5px;
   will-change: transform;
 }
@@ -544,12 +550,28 @@ body.is-running {
 /* Janus behavior system output channel (useJanusGaze, P1):
    CSS vars are written onto .janus-face-mini (custom props inherit);
    transform lives on the eye group so face-mini's inline scale (workspace
-   switch flash) and hover scale(1.06) stay outer multipliers. Lid folds
-   into scaleY so mode keyframe transforms never conflict. */
+   switch flash) and hover scale(1.06) stay outer multipliers. Gaze shift
+   (eye tracking) + face shift (head micro-move) + head rotation (idle
+   acts) compose before the squash/lid scale so reaction offsets stay
+   unscaled and gaze rotates with the head. Lid folds into scaleY so mode
+   keyframe transforms never conflict. */
 .janus-eye-group {
   transform:
     translate(var(--face-x, 0px), var(--face-y, 0px))
+    rotate(var(--rot, 0deg))
+    translate(var(--gaze-x, 0px), var(--gaze-y, 0px))
     scale(var(--sx, 1), calc(var(--sy, 1) * var(--lid, 1)));
+}
+
+/* Idle breath (act system baseline): a barely-there swell on the face core
+   while collapsed in order mode. Kept off .janus-island so the hover breathe
+   keyframes and switching flash stay untouched. Reduced-motion kills it. */
+@keyframes janus-idle-breath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.012); }
+}
+.janus-island[data-mode="order"][data-stage="collapsed"] .janus-collapsed-core {
+  animation: janus-idle-breath 3.8s ease-in-out infinite;
 }
 
 /* Capsule speech (P3): the island widens to speak, face inset glides left. */
@@ -625,19 +647,45 @@ body.is-running {
 .janus-island-shell[data-notif="true"] {
   width: 302px;
   border-radius: 20px;
-  transition:
-    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
-    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
 }
 .janus-island-shell[data-notif="true"] .janus-island {
-  width: 302px;
+  /* 尺寸 100% 跟随壳的形变（lab「同一个物体生长」观感）；圆角随行 */
   border-radius: 20px;
 }
 .janus-island-shell[data-notif="true"] .janus-collapsed-core {
-  inset: 4px auto auto 4px;
+  /* 眼睛落到左上（lab：face left 15 / top 18 的同位） */
+  inset: 10px auto auto 2px;
   width: 46px;
   height: 26px;
-  transition: inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+/* 形变过渡：lab 定稿 420ms cubic-bezier(0.32, 0.72, 0.24, 1)，开/合同一条节奏、
+   同一物体生长（宽/高/圆角/眼位同一拍）。CSS 过渡取「后态」时序——收起的后态是
+   基础壳/岛规则（另一套节奏），故 JS 在开合两向都打 data-notif-anim 供给同款过渡；
+   限定 collapsed，阶段形变（peek/expanded）仍走各自节奏。 */
+.janus-island-shell[data-notif="true"],
+.janus-island-shell[data-notif-anim][data-stage="collapsed"] {
+  transition:
+    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-island-shell[data-notif="true"] .janus-island,
+.janus-island-shell[data-notif-anim][data-stage="collapsed"] .janus-island {
+  transition:
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    box-shadow 0.26s ease,
+    border-color 0.26s ease,
+    background 0.26s ease,
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.janus-island-shell[data-notif="true"] .janus-collapsed-core,
+.janus-island-shell[data-notif-anim][data-stage="collapsed"] .janus-collapsed-core {
+  transition:
+    opacity 0.12s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    visibility 0s linear 0.38s;
 }
 .janus-notif-sheet {
   position: absolute;
@@ -646,7 +694,7 @@ body.is-running {
   top: 0;
   display: none;
   flex-direction: column;
-  padding: 8px 12px 10px;
+  padding: 8px 12px 6px;
 }
 .janus-island-shell[data-notif="true"] .janus-notif-sheet {
   display: flex;
@@ -656,7 +704,7 @@ body.is-running {
   justify-content: space-between;
   align-items: baseline;
   height: 22px;
-  padding-left: 44px;
+  padding-left: 34px; /* 给左上角的眼睛让位（lab 同宽） */
   margin-bottom: 4px;
 }
 .janus-notif-title {
@@ -697,9 +745,8 @@ body.is-running {
   color: rgba(255, 255, 255, 0.85);
   line-height: 1.5;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* lab 同款：正文折行不截断（高度按最终内容宽测量，防折行量高） */
+  overflow-wrap: anywhere;
 }
 .janus-notif-empty {
   font-size: 11px;

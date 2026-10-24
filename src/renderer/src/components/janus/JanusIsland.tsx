@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Download } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
@@ -274,15 +274,73 @@ export function JanusIsland({
     }
   }, [knowledgeTraceRequestId, personaEnabled])
 
+  // P2/P3/P4 伴随控件 refs：经 ref 取控件，避免手势 hook 与 gaze/speak hook 的循环依赖。
+  const janusGazeRef = useRef<JanusGazeControls | null>(null)
+  const islandSpeakRef = useRef<IslandSpeakControls | null>(null)
+  // 传话中轻点已被 quickTap 消费为「收起当前条续播」时置位，
+  // 随后的单击仲裁不再连带开/合通知中心。
+  const speakTapConsumedRef = useRef(false)
+
+  // P4 通知中心：入口=岛体单击/灰字计数/传话条点击；看过即焚=收起时 stagger 溶解后清史。
+  const notifSheetRef = useRef<HTMLDivElement | null>(null)
+  const notifBurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const notifMorphTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // lab 同款形变时序（420ms cubic-bezier(0.32, 0.72, 0.24, 1)）由 CSS [data-notif-anim]
+  // 在开/合两向供给（过渡取后态时序，收起后态是基础壳规则，故 JS 补打属性对齐节奏）。
+  const markNotifMorph = useCallback(() => {
+    const shell = shellRef.current
+    if (shell) shell.setAttribute('data-notif-anim', 'true')
+    if (notifMorphTimerRef.current) clearTimeout(notifMorphTimerRef.current)
+    notifMorphTimerRef.current = setTimeout(() => {
+      notifMorphTimerRef.current = null
+      shellRef.current?.removeAttribute('data-notif-anim')
+    }, 450)
+  }, [])
+  const openNotifCenter = useCallback(() => {
+    markNotifMorph()
+    islandSpeakRef.current?.markSeen()
+    setNotifOpen(true)
+  }, [markNotifMorph])
+  const closeNotifCenter = useCallback(() => {
+    const sheet = notifSheetRef.current
+    const rows = sheet
+      ? Array.from(sheet.querySelectorAll<HTMLElement>('.janus-notif-row'))
+      : []
+    rows.forEach((el, i) => {
+      el.style.transitionDelay = `${i * 45}ms`
+      el.classList.add('gone')
+    })
+    if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
+    notifBurnTimerRef.current = setTimeout(() => {
+      notifBurnTimerRef.current = null
+      islandSpeakRef.current?.burnHistory()
+      markNotifMorph()
+      setNotifOpen(false)
+    }, rows.length * 45 + 280)
+  }, [markNotifMorph])
+
   const handleDoubleTap = useCallback(() => {
     // Explicit collapse always wins: a pinned island window still returns to
     // the capsule in one gesture and drops the pin on the way.
+    speakTapConsumedRef.current = false
     if (islandPinned) updateIslandPinned(false)
     onDoubleActivate()
   }, [islandPinned, onDoubleActivate, updateIslandPinned])
   const handleSingleTap = useCallback(() => {
+    // 传话中轻点 = 收起当前条（队列续播，quickTap 已处理）：单击仲裁到点后不再动作。
+    if (speakTapConsumedRef.current) {
+      speakTapConsumedRef.current = false
+      return
+    }
+    // 折叠态单击 = 开/合通知中心（2026-10-24 用户修订：单击直达新的通知面）。
+    // peek 态单击维持收起语义；expanded 不劫持。
+    if (stage === 'collapsed') {
+      if (notifOpen) closeNotifCenter()
+      else openNotifCenter()
+      return
+    }
     onSingleActivate()
-  }, [onSingleActivate])
+  }, [stage, notifOpen, closeNotifCenter, openNotifCenter, onSingleActivate])
 
   const handleIslandKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.repeat) return
@@ -317,12 +375,10 @@ export function JanusIsland({
   }, [])
 
   // P2 事件原语：flinch/惊醒=轻点伴随（420ms 单击仲裁期内播放，胶囊仍可见）。
-  // 经 ref 取控件，避免手势 hook 与 gaze/speak hook 的循环依赖。
-  // P3：传话中轻点 = 收起当前条（队列续播），叠加 flinch。
-  const janusGazeRef = useRef<JanusGazeControls | null>(null)
-  const islandSpeakRef = useRef<IslandSpeakControls | null>(null)
+  // P3：传话中轻点 = 收起当前条（队列续播），叠加 flinch；此消费同时抑制
+  // 单击仲裁开通知中心（保留「收起续播」语义，开口在传话条/灰字计数）。
   const handleQuickTap = useCallback(() => {
-    islandSpeakRef.current?.dismiss()
+    if (islandSpeakRef.current?.dismiss()) speakTapConsumedRef.current = true
     janusGazeRef.current?.react('flinch')
   }, [])
 
@@ -355,6 +411,8 @@ export function JanusIsland({
   })
 
   // P1 行为系统：凝视/眨眼/摸头循环（折叠胶囊态）；P2 事件原语映射见下。
+  // 待机动作（2026-10-24 移植）：传话中让位（busyRef），摸头/点击/开面在内核让位。
+  const speakBusyRef = useRef(false)
   const janusGaze = useJanusGaze({
     faceRef: eyeContainerRef,
     islandRef,
@@ -362,53 +420,50 @@ export function JanusIsland({
     enabled: stage === 'collapsed',
     panelOpen: notifOpen,
     suspendRef: isDraggingRef,
+    busyRef: speakBusyRef,
   })
   janusGazeRef.current = janusGaze
 
   // P3 胶囊传话：通知到达串行播报（收起续播 / 面板清队 / 看过即焚 语义在队列里）。
   const islandSpeak = useIslandSpeak()
   islandSpeakRef.current = islandSpeak
+  speakBusyRef.current = islandSpeak.snapshot.speaking !== null
 
-  // P4 通知中心：入口=灰字计数/传话条点击；看过即焚=收起时 stagger 溶解后清史。
-  const notifSheetRef = useRef<HTMLDivElement | null>(null)
-  const notifBurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const openNotifCenter = useCallback(() => {
-    islandSpeakRef.current?.markSeen()
-    setNotifOpen(true)
-  }, [])
-  const closeNotifCenter = useCallback(() => {
-    const sheet = notifSheetRef.current
-    const rows = sheet
-      ? Array.from(sheet.querySelectorAll<HTMLElement>('.janus-notif-row'))
-      : []
-    rows.forEach((el, i) => {
-      el.style.transitionDelay = `${i * 45}ms`
-      el.classList.add('gone')
-    })
-    if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
-    notifBurnTimerRef.current = setTimeout(() => {
-      notifBurnTimerRef.current = null
-      islandSpeakRef.current?.burnHistory()
-      setNotifOpen(false)
-    }, rows.length * 45 + 280)
-  }, [])
   // 打开后按最终内容宽测高再动画：宽度过渡中途测会因文案折行量虚高（lab 283px 坑）。
-  useEffect(() => {
+  // 302 壳宽 − 2 边框 = 300 border-box → 内容宽 276（与 lab 定稿同宽），正文折行点一致。
+  // lab 同款起跳（openPanel）：先钉 26px 强制回流再落目标高，保证高度过渡从胶囊高
+  // 起跑；layout effect 保证与 data-notif 同帧生效，无「先画全高再收」的闪帧。
+  // 高度只驱动壳（内岛 100% 随行），避免两层各画各的高度错位。
+  // 面板开中补行（historyCount 变）只重落目标高——从当前高平滑长到新高，不回跳26px。
+  useLayoutEffect(() => {
     const sheet = notifSheetRef.current
-    const island = islandRef.current
     const shell = shellRef.current
     if (!notifOpen) {
-      if (island) island.style.height = ''
       if (shell) shell.style.height = ''
       return
     }
-    if (!sheet) return
-    sheet.style.width = '302px'
+    if (!sheet || !shell) return
+    sheet.style.width = '300px'
     const h = sheet.offsetHeight
     sheet.style.width = ''
-    if (island) island.style.height = `${h}px`
-    if (shell) shell.style.height = `${h}px`
-  }, [notifOpen, islandSpeak.snapshot.historyCount, islandRef])
+    if (!shell.style.height) {
+      shell.style.height = '26px'
+      void shell.offsetHeight
+    }
+    shell.style.height = `${h}px`
+  }, [notifOpen, islandSpeak.snapshot.historyCount])
+  // 点空白处 = 看过即焚收起（lab「点舞台空白」语义；壳内点击不算）。
+  useEffect(() => {
+    if (!notifOpen) return
+    const handleOutsideDown = (event: PointerEvent) => {
+      const shell = shellRef.current
+      const target = event.target
+      if (shell && target instanceof Node && shell.contains(target)) return
+      closeNotifCenter()
+    }
+    document.addEventListener('pointerdown', handleOutsideDown, true)
+    return () => document.removeEventListener('pointerdown', handleOutsideDown, true)
+  }, [notifOpen, closeNotifCenter])
   useEffect(() => {
     if (!notifOpen) return
     const onKey = (event: KeyboardEvent) => {
@@ -425,6 +480,7 @@ export function JanusIsland({
   useEffect(() => {
     return () => {
       if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
+      if (notifMorphTimerRef.current) clearTimeout(notifMorphTimerRef.current)
     }
   }, [])
 
@@ -622,8 +678,10 @@ export function JanusIsland({
     prevNotifyCountRef.current = visibleNotifications.length
   }, [stage, visibleNotifications])
 
-  // P3 到达 → 传话：新通知 id 在折叠态入队播报（peek/expanded 表面不动）。
-  // 首次挂载只登记基线不播报，避免启动时把存量通知全念一遍。
+  // P3 到达 → 传话：折叠态入队播报；P4「到达即入史」：peek 到达也进史
+  // （知识召回一到就上台 peek，旧门控会让通知中心历史缺这类条目）。
+  // peek/面板呈现 = 用户在看：进史不播（markSeen 清队，防传话条叠画 peek 胶囊）。
+  // expanded 表面（托盘）自呈现，不进传话链。首次挂载只登记基线不播报。
   const speakSeenIdsRef = useRef<Set<string> | null>(null)
   useEffect(() => {
     if (!speakSeenIdsRef.current) {
@@ -633,16 +691,14 @@ export function JanusIsland({
     for (const n of visibleNotifications) {
       if (speakSeenIdsRef.current.has(n.id)) continue
       speakSeenIdsRef.current.add(n.id)
-      if (stage === 'collapsed') {
-        islandSpeak.enqueue({
-          id: n.id,
-          body: n.copy.titleText ?? t(n.copy.titleKey),
-          kicker: n.plugin?.pluginId ?? t(notificationKickerKey(n.kind)),
-          at: Date.now(),
-        })
-        // 面板开着 = 用户在看：只进历史（列表实时补行），不打断传话队列
-        if (notifOpen) islandSpeak.markSeen()
-      }
+      if (stage === 'expanded') continue
+      islandSpeak.enqueue({
+        id: n.id,
+        body: n.copy.titleText ?? t(n.copy.titleKey),
+        kicker: n.plugin?.pluginId ?? t(notificationKickerKey(n.kind)),
+        at: Date.now(),
+      })
+      if (stage === 'peek' || notifOpen) islandSpeak.markSeen()
     }
   }, [visibleNotifications, stage, islandSpeak, notifOpen, t])
 
@@ -829,7 +885,11 @@ export function JanusIsland({
         aria-label={stage !== 'expanded' && !splitCapsule
           ? capsuleTopNotification?.kind === 'product' && productNotice
             ? t('janus:island.aria.openProductPreview', { path: productNotice.relPath })
-            : stage === 'peek' ? t('janus:island.aria.closeKnowledgePeek') : t('janus:island.aria.openIsland')
+            : stage === 'peek'
+              ? t('janus:island.aria.closeKnowledgePeek')
+              : notifOpen
+                ? t('janus:island.aria.closeNotif')
+                : t('janus:island.aria.openNotif')
           : undefined}
         onKeyDown={stage !== 'expanded' ? handleIslandKeyDown : undefined}
         onPointerDown={handlePointerDown}
