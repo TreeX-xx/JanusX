@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { JanusEye } from './JanusEye'
 import { useIslandGesture } from './useIslandGesture'
 import { useJanusGaze, type JanusGazeControls } from './useJanusGaze'
+import { useIslandSpeak, type IslandSpeakControls } from './useIslandSpeak'
 import { useJanusState } from './useJanusState'
 import { getBlueprintStatusVisual } from '../blueprint/blueprintStatus'
 import { formatKnowledgeMatch } from './islandKnowledgePeek'
@@ -307,9 +308,12 @@ export function JanusIsland({
   }, [])
 
   // P2 事件原语：flinch/惊醒=轻点伴随（420ms 单击仲裁期内播放，胶囊仍可见）。
-  // 经 ref 取控件，避免手势 hook 与 gaze hook 的循环依赖。
+  // 经 ref 取控件，避免手势 hook 与 gaze/speak hook 的循环依赖。
+  // P3：传话中轻点 = 收起当前条（队列续播），叠加 flinch。
   const janusGazeRef = useRef<JanusGazeControls | null>(null)
+  const islandSpeakRef = useRef<IslandSpeakControls | null>(null)
   const handleQuickTap = useCallback(() => {
+    islandSpeakRef.current?.dismiss()
     janusGazeRef.current?.react('flinch')
   }, [])
 
@@ -350,6 +354,10 @@ export function JanusIsland({
     suspendRef: isDraggingRef,
   })
   janusGazeRef.current = janusGaze
+
+  // P3 胶囊传话：通知到达串行播报（收起续播 / 面板清队 / 看过即焚 语义在队列里）。
+  const islandSpeak = useIslandSpeak()
+  islandSpeakRef.current = islandSpeak
 
   // P2 真实事件 → 原语：nod=回合完成（流式下降沿且无错误）、fail=出错、greet=工作区落定。
   const prevStreamingRef = useRef(isStreaming)
@@ -545,6 +553,38 @@ export function JanusIsland({
     prevNotifyCountRef.current = visibleNotifications.length
   }, [stage, visibleNotifications])
 
+  // P3 到达 → 传话：新通知 id 在折叠态入队播报（peek/expanded 表面不动）。
+  // 首次挂载只登记基线不播报，避免启动时把存量通知全念一遍。
+  const speakSeenIdsRef = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (!speakSeenIdsRef.current) {
+      speakSeenIdsRef.current = new Set(visibleNotifications.map((n) => n.id))
+      return
+    }
+    for (const n of visibleNotifications) {
+      if (speakSeenIdsRef.current.has(n.id)) continue
+      speakSeenIdsRef.current.add(n.id)
+      if (stage === 'collapsed') {
+        islandSpeak.enqueue({
+          id: n.id,
+          body: n.copy.titleText ?? t(n.copy.titleKey),
+          kicker: n.plugin?.pluginId ?? t(notificationKickerKey(n.kind)),
+          at: Date.now(),
+        })
+      }
+    }
+  }, [visibleNotifications, stage, islandSpeak, t])
+
+  // P3 念词伴随：开讲时眼神扫向文字侧。
+  const prevSpeakIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const id = islandSpeak.snapshot.speaking?.id ?? null
+    if (id && id !== prevSpeakIdRef.current) {
+      janusGazeRef.current?.lookAt(1.8, 0, 2000)
+    }
+    prevSpeakIdRef.current = id
+  }, [islandSpeak.snapshot.speaking])
+
   const bannerNotification = bannerId && topNotificationItem?.id === bannerId ? topNotificationItem : null
   const modeLabel = activeNode ? t('janus:island.modeLabel.blueprint') : mode === 'analytics' ? t('janus:island.modeLabel.analytics') : mode === 'running' ? t('janus:island.modeLabel.running') : t('janus:island.modeLabel.order')
   const modeColor = activeVisual?.color ?? (mode === 'running' ? '#00ff88' : '#ff7830')
@@ -689,12 +729,18 @@ export function JanusIsland({
       data-capsule-tier={capsuleTierValue}
       data-pinned={islandPinned ? 'true' : 'false'}
       data-loading={chatLoading ? 'true' : 'false'}
+      data-speaking={islandSpeak.snapshot.speaking ? 'true' : 'false'}
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
       {stage === 'collapsed' && (pluginSnapshot.island?.length ?? 0) > 0 && <button type="button" className="plugin-island-count"
         data-plugin-island-count aria-label={t('plugins:islandStatusCount', { count: pluginSnapshot.island!.length })}
         onClick={() => useIslandStore.getState().dispatch({ type: 'plugin-peek' })}>{pluginSnapshot.island!.length}</button>}
+      {stage === 'collapsed' && islandSpeak.snapshot.historyCount > 0 && (
+        <div className="janus-history-count" aria-label={t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}>
+          {t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}
+        </div>
+      )}
       <div ref={pullHintRef} className="pull-hint" />
       <div
         ref={islandRef}
@@ -718,6 +764,11 @@ export function JanusIsland({
           <div ref={(el) => { eyeContainerRef.current = el }} className="janus-face-mini">
             <JanusEye mode={mode} className="janus-eye-group" />
           </div>
+        </div>
+
+        <div className="janus-speak-strip" aria-hidden="true">
+          <span className="janus-speak-kicker">{islandSpeak.snapshot.speaking?.kicker ?? ''}</span>
+          <span className="janus-speak-body">{islandSpeak.snapshot.speaking?.body ?? ''}</span>
         </div>
 
         <div className="janus-peek-shell">

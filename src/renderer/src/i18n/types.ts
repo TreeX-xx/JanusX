@@ -1896,6 +1896,7 @@ export type TypedI18nKey =
   | 'janus:island.age.unknown'
   | 'janus:island.aria.closeKnowledgePeek'
   | 'janus:island.aria.openIsland'
+  | 'janus:island.historyCount'
   | 'janus:island.aria.openProductPreview'
   | 'janus:island.capsule.action.openBlueprint'
   | 'janus:island.capsule.action.openKnowledge'

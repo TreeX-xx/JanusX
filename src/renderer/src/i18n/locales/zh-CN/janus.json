@@ -234,6 +234,7 @@
     }
   },
   "island": {
+    "historyCount": "通知 {{count}}",
     "aria": {
       "openIsland": "打开 Janus Island",
       "closeKnowledgePeek": "关闭知识预览",

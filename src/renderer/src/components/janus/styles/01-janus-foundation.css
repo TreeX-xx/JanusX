@@ -379,7 +379,7 @@ body.is-running {
   user-select: none;
   position: relative;
   outline: none;
-  transition: border-color 0.4s, box-shadow 0.4s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: border-color 0.4s, box-shadow 0.4s, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
   margin-top: 5px;
   will-change: transform;
 }
@@ -550,6 +550,66 @@ body.is-running {
   transform:
     translate(var(--face-x, 0px), var(--face-y, 0px))
     scale(var(--sx, 1), calc(var(--sy, 1) * var(--lid, 1)));
+}
+
+/* Capsule speech (P3): the island widens to speak, face inset glides left. */
+.janus-island-shell[data-speaking="true"] {
+  width: 272px;
+  transition: width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-island-shell[data-speaking="true"] .janus-island {
+  width: 272px;
+}
+.janus-island-shell[data-speaking="true"] .janus-collapsed-core {
+  right: 216px;
+  transition: inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-speak-strip {
+  position: absolute;
+  left: 50px;
+  right: 14px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.janus-island-shell[data-speaking="true"] .janus-speak-strip {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.15s;
+}
+.janus-speak-kicker {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.42);
+  flex-shrink: 0;
+}
+.janus-speak-body {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* History count: small gray text at the window top-left, never on the island. */
+.janus-history-count {
+  position: fixed;
+  left: 16px;
+  top: 44px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--shell-muted, #9aa1aa);
+  z-index: 2001;
+  pointer-events: none;
+  user-select: none;
 }
 
 /* 浼戠湢锛氬崟鐐瑰懠鍚?*/

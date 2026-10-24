@@ -234,6 +234,7 @@
     }
   },
   "island": {
+    "historyCount": "Notices {{count}}",
     "aria": {
       "openIsland": "Open Janus Island",
       "closeKnowledgePeek": "Close knowledge peek",
