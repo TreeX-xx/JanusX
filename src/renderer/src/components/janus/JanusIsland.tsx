@@ -83,6 +83,13 @@ import { useAuxiliaryIslandLayout } from './useAuxiliaryIslandLayout'
 /** useProjectRunning �?管理项目运行状�?*/
 
 
+/** 通知中心行内时钟（HH:MM:SS）。 */
+function formatSpeakClock(at: number): string {
+  const d = new Date(at)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 export function JanusIsland({
   stage = 'collapsed',
   onSingleActivate,
@@ -141,6 +148,8 @@ export function JanusIsland({
    * streaming never blocks the collapse. */
   const [islandPinned, setIslandPinned] = useState<boolean>(() => loadIslandPinned())
   const chatLoading = isStreaming || pendingContent.length > 0
+  // P4 通知中心展开态（island 整体纵向变大；非 stage）
+  const [notifOpen, setNotifOpen] = useState(false)
 
   const updateIslandPinned = useCallback((next: boolean) => {
     setIslandPinned(next)
@@ -351,6 +360,7 @@ export function JanusIsland({
     islandRef,
     mode,
     enabled: stage === 'collapsed',
+    panelOpen: notifOpen,
     suspendRef: isDraggingRef,
   })
   janusGazeRef.current = janusGaze
@@ -358,6 +368,65 @@ export function JanusIsland({
   // P3 胶囊传话：通知到达串行播报（收起续播 / 面板清队 / 看过即焚 语义在队列里）。
   const islandSpeak = useIslandSpeak()
   islandSpeakRef.current = islandSpeak
+
+  // P4 通知中心：入口=灰字计数/传话条点击；看过即焚=收起时 stagger 溶解后清史。
+  const notifSheetRef = useRef<HTMLDivElement | null>(null)
+  const notifBurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openNotifCenter = useCallback(() => {
+    islandSpeakRef.current?.markSeen()
+    setNotifOpen(true)
+  }, [])
+  const closeNotifCenter = useCallback(() => {
+    const sheet = notifSheetRef.current
+    const rows = sheet
+      ? Array.from(sheet.querySelectorAll<HTMLElement>('.janus-notif-row'))
+      : []
+    rows.forEach((el, i) => {
+      el.style.transitionDelay = `${i * 45}ms`
+      el.classList.add('gone')
+    })
+    if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
+    notifBurnTimerRef.current = setTimeout(() => {
+      notifBurnTimerRef.current = null
+      islandSpeakRef.current?.burnHistory()
+      setNotifOpen(false)
+    }, rows.length * 45 + 280)
+  }, [])
+  // 打开后按最终内容宽测高再动画：宽度过渡中途测会因文案折行量虚高（lab 283px 坑）。
+  useEffect(() => {
+    const sheet = notifSheetRef.current
+    const island = islandRef.current
+    const shell = shellRef.current
+    if (!notifOpen) {
+      if (island) island.style.height = ''
+      if (shell) shell.style.height = ''
+      return
+    }
+    if (!sheet) return
+    sheet.style.width = '302px'
+    const h = sheet.offsetHeight
+    sheet.style.width = ''
+    if (island) island.style.height = `${h}px`
+    if (shell) shell.style.height = `${h}px`
+  }, [notifOpen, islandSpeak.snapshot.historyCount, islandRef])
+  useEffect(() => {
+    if (!notifOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeNotifCenter()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [notifOpen, closeNotifCenter])
+  useEffect(() => {
+    if (stage !== 'collapsed' && notifOpen) closeNotifCenter()
+  }, [stage, notifOpen, closeNotifCenter])
+  useEffect(() => {
+    return () => {
+      if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
+    }
+  }, [])
 
   // P2 真实事件 → 原语：nod=回合完成（流式下降沿且无错误）、fail=出错、greet=工作区落定。
   const prevStreamingRef = useRef(isStreaming)
@@ -571,9 +640,11 @@ export function JanusIsland({
           kicker: n.plugin?.pluginId ?? t(notificationKickerKey(n.kind)),
           at: Date.now(),
         })
+        // 面板开着 = 用户在看：只进历史（列表实时补行），不打断传话队列
+        if (notifOpen) islandSpeak.markSeen()
       }
     }
-  }, [visibleNotifications, stage, islandSpeak, t])
+  }, [visibleNotifications, stage, islandSpeak, notifOpen, t])
 
   // P3 念词伴随：开讲时眼神扫向文字侧。
   const prevSpeakIdRef = useRef<string | null>(null)
@@ -730,16 +801,22 @@ export function JanusIsland({
       data-pinned={islandPinned ? 'true' : 'false'}
       data-loading={chatLoading ? 'true' : 'false'}
       data-speaking={islandSpeak.snapshot.speaking ? 'true' : 'false'}
+      data-notif={notifOpen ? 'true' : 'false'}
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
       {stage === 'collapsed' && (pluginSnapshot.island?.length ?? 0) > 0 && <button type="button" className="plugin-island-count"
         data-plugin-island-count aria-label={t('plugins:islandStatusCount', { count: pluginSnapshot.island!.length })}
         onClick={() => useIslandStore.getState().dispatch({ type: 'plugin-peek' })}>{pluginSnapshot.island!.length}</button>}
-      {stage === 'collapsed' && islandSpeak.snapshot.historyCount > 0 && (
-        <div className="janus-history-count" aria-label={t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}>
+      {stage === 'collapsed' && (islandSpeak.snapshot.historyCount > 0 || notifOpen) && (
+        <button
+          type="button"
+          className="janus-history-count"
+          aria-label={t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}
+          onClick={() => (notifOpen ? closeNotifCenter() : openNotifCenter())}
+        >
           {t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}
-        </div>
+        </button>
       )}
       <div ref={pullHintRef} className="pull-hint" />
       <div
@@ -766,9 +843,36 @@ export function JanusIsland({
           </div>
         </div>
 
-        <div className="janus-speak-strip" aria-hidden="true">
+        <div
+          className="janus-speak-strip"
+          aria-hidden="true"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            openNotifCenter()
+          }}
+        >
           <span className="janus-speak-kicker">{islandSpeak.snapshot.speaking?.kicker ?? ''}</span>
           <span className="janus-speak-body">{islandSpeak.snapshot.speaking?.body ?? ''}</span>
+        </div>
+
+        <div className="janus-notif-sheet" ref={notifSheetRef} aria-hidden={!notifOpen}>
+          <div className="janus-notif-head">
+            <span className="janus-notif-title">{t('janus:island.notif.title')}</span>
+            <span className="janus-notif-hint">{t('janus:island.notif.hint')}</span>
+          </div>
+          <div className="janus-notif-list">
+            {islandSpeak.snapshot.history.length === 0 ? (
+              <div className="janus-notif-empty">{t('janus:island.notif.empty')}</div>
+            ) : (
+              islandSpeak.snapshot.history.map((entry) => (
+                <div className="janus-notif-row" key={entry.id}>
+                  <span className="janus-notif-time">{formatSpeakClock(entry.at)}</span>
+                  <span className="janus-notif-body">{entry.body}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <div className="janus-peek-shell">

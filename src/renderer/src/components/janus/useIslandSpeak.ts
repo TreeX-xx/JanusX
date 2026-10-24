@@ -10,6 +10,7 @@ import {
 const IDLE_SNAPSHOT: IslandSpeakSnapshot = {
   speaking: null,
   historyCount: 0,
+  history: [],
   pendingCount: 0,
   nextEventAt: Number.POSITIVE_INFINITY,
 }

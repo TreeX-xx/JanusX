@@ -235,6 +235,11 @@
   },
   "island": {
     "historyCount": "通知 {{count}}",
+    "notif": {
+      "title": "通知",
+      "hint": "看过即焚 · 收起自动清空",
+      "empty": "没有历史通知"
+    },
     "aria": {
       "openIsland": "打开 Janus Island",
       "closeKnowledgePeek": "关闭知识预览",

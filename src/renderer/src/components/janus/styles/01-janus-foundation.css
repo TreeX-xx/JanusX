@@ -598,7 +598,8 @@ body.is-running {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* History count: small gray text at the window top-left, never on the island. */
+/* History count: small gray text at the window top-left, never on the island.
+   Clicking it opens the notification center (P4 entry). */
 .janus-history-count {
   position: fixed;
   left: 16px;
@@ -608,8 +609,107 @@ body.is-running {
   letter-spacing: 0.08em;
   color: var(--shell-muted, #9aa1aa);
   z-index: 2001;
-  pointer-events: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
   user-select: none;
+  -webkit-app-region: no-drag;
+}
+.janus-history-count:hover {
+  color: var(--shell-text, #6b727c);
+}
+
+/* Notification center (P4): the island grows into the sheet (eyes stay top-left).
+   Seen-and-burn: closing staggers rows out then clears history. */
+.janus-island-shell[data-notif="true"] {
+  width: 302px;
+  border-radius: 20px;
+  transition:
+    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-island-shell[data-notif="true"] .janus-island {
+  width: 302px;
+  border-radius: 20px;
+}
+.janus-island-shell[data-notif="true"] .janus-collapsed-core {
+  inset: 4px auto auto 4px;
+  width: 46px;
+  height: 26px;
+  transition: inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-notif-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: none;
+  flex-direction: column;
+  padding: 8px 12px 10px;
+}
+.janus-island-shell[data-notif="true"] .janus-notif-sheet {
+  display: flex;
+}
+.janus-notif-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  height: 22px;
+  padding-left: 44px;
+  margin-bottom: 4px;
+}
+.janus-notif-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+.janus-notif-hint {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.38);
+}
+.janus-notif-list {
+  min-height: 0;
+  overflow: hidden;
+}
+.janus-notif-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+.janus-notif-row.gone {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+.janus-notif-time {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+.janus-notif-body {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.janus-notif-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  padding: 12px 0 8px;
+}
+.janus-island-shell[data-speaking="true"] .janus-speak-strip {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* 浼戠湢锛氬崟鐐瑰懠鍚?*/

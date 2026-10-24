@@ -16,6 +16,8 @@ export interface IslandSpeakSnapshot {
   speaking: IslandSpeakEntry | null
   /** 历史条数（= 左上角计数；看过即焚由 burnHistory 清零） */
   historyCount: number
+  /** 历史列表（通知中心数据源，时间正序） */
+  history: readonly IslandSpeakEntry[]
   /** 含当前在内的待播总数 */
   pendingCount: number
   /** 下一个必然变化的时刻（毫秒时间戳；空闲时为远期哨兵） */
@@ -79,6 +81,7 @@ export class IslandSpeakQueue {
     return {
       speaking: this.current,
       historyCount: this.history.length,
+      history: this.history,
       pendingCount: this.pending.length + (this.current ? 1 : 0),
       nextEventAt: this.current
         ? this.speakUntil
