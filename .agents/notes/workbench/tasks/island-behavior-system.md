@@ -55,7 +55,7 @@
     ],
     "review": "self"
   },
-  "updated": "2026-10-24T15:28:32Z",
+  "updated": "2026-10-24T15:30:11Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/2a85ca64-bc0b-48b1-91b5-a89c44e13321" },
@@ -119,11 +119,11 @@ V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior.test.ts 
 
 P1–P5 全部落地（2026-10-24，feat/island-behavior-system，f8630f51→2d8a728a 五笔）：P1 内核+21 单测、P2 事件映射、P3 传话队列+灰字计数、P4 通知中心+看过即焚、P5 退役清理；27 用例全绿、typecheck 干净、eslint 0 错误、手势 diff 复核零语义改动。用户实测反馈修复（2026-10-24 二次落地）：① 凝视吸引无视觉输出——`.janus-eye-group` 补接 `--gaze-x/--gaze-y`（P1 CSS 通道漏接）；② 单击直达通知中心——折叠态单击开/合 P4 通知面（保留传话中轻点收起续播）、aria 同步 openNotif/closeNotif、peek 到达补史（到达即入史补漏）；e2e 两用例随新语义改写（island-harness 新增 open-peek 钮供 peek 路径编排）。待机动作移植生产（2026-10-24 三次落地）：lab 六动作（打哈欠已按用户要求移除）经内核包络+加权调度移植，`--rot` 通道、呼吸基线、传话忙让位接线，8 新单测全绿。遗留缺口：真机 App e2e 回归未跑（见 Verification）；peek 历史入口 deferred；合并前跑一次真实 App 冒烟。手势仲裁定案（2026-10-23）：采纳 B 案。原型设计与参数定稿完成（2026-10-23，用户确认手感参数与通知形态三条反馈）。展开手感对齐 lab（2026-10-24 四次落地）：用户实测生产点击展开的加载方式/节奏不如 lab——壳单一驱动 + `data-notif-anim` 双向 420ms lab 时序 + 26px reflow 起跳 + layout effect 同帧（P4 ④）；V-1/V-2 全绿、e2e 通知面 4 用例全过、eslint 0 错误。
 
-## Integration ? 2026-10-24
+## Integration — 2026-10-24
 
-??????????? `e1fe16a0` ??? `12dc90e5` ???? main???? main????????????????????????????????? worktree ????????main ??????????????????? main ???????????????? 2 ?????
+后续修改提交为 `e1fe16a0`，通过 `12dc90e5` 合入本地 main，包括原型、验证脚本与截图。验证脚本使用相对模块路径。main 现有未提交改动保留；端口配置工作区保留系统分配空闲端口实现，相关 2 单测通过。行为系统 worktree 已移除；忽略文件（检查点、构建缓存、验证产物与依赖）保存在主仓库 `.git/island-integration-backup-20261024/ignored/`。功能分支保留。
 
-??????`npm run typecheck` ???`npx vitest run tests/unit/janus-behavior.test.ts tests/unit/janus tests/unit/electron-dev-port.test.ts` 140 ???`tests/unit/island-speak-queue.test.ts` 6 ???????????????????????? 4 ? Playwright harness ????????? 4 ? TypeScript ???? eslint ?????????? Electron ????????????? Verification ???????
+合并后验证：`npm run typecheck` 通过；`npx vitest run tests/unit/janus-behavior.test.ts tests/unit/janus tests/unit/electron-dev-port.test.ts` 140 通过；`tests/unit/island-speak-queue.test.ts` 6 通过；通知中心单击、双击仲裁、延迟回调和视口几何 4 项 Playwright harness 回归通过；行为系统 4 个 TypeScript 实现文件 eslint 通过。本次未运行真机 Electron 视觉冒烟和完整回归，保留原 Verification 中的验证缺口。
 
 ## Evidence
 
@@ -140,4 +140,4 @@ P1–P5 全部落地（2026-10-24，feat/island-behavior-system，f8630f51→2d8
 
 ## Handoff
 
-P1–P5、2026-10-24 实测反馈修复与待机动作移植均已落地，待合并前真机冒烟。注意 CRLF 工作区（提交前 tr 计数 CR）；`useIslandGesture.ts` 按 B 案零改动（下拉语义不动，只挂伴随反应挂点）；e2e 带 `NO_PROXY=127.0.0.1,localhost`。
+P1–P5、2026-10-24 实测反馈修复与待机动作移植均已合入 main；真机冒烟仍未运行，保留验证缺口。注意 CRLF 工作区（提交前 tr 计数 CR）；`useIslandGesture.ts` 按 B 案零改动（下拉语义不动，只挂伴随反应挂点）；e2e 带 `NO_PROXY=127.0.0.1,localhost`。
