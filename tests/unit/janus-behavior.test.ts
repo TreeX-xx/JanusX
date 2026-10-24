@@ -274,3 +274,85 @@ describe('停帧判定', () => {
     expect(frame.settled).toBe(false)
   })
 })
+
+describe('待机动作（2026-10-24 lab 移植）', () => {
+  it('默认参数含待机动作间隔 = 7500ms（抖动后 5–10.5s）', () => {
+    expect(JANUS_BEHAVIOR_DEFAULTS.actIntervalMs).toBe(7500)
+  })
+
+  it('空闲到点自动开演，播完归还且动作中不停帧', () => {
+    const s = makeScheduler(() => 0.5)
+    const before = s.step(baseInput({ now: T0 + 4400 }))
+    expect(before.act).toBeNull()
+    const mid = s.step(baseInput({ now: T0 + 4600 }))
+    expect(mid.act).not.toBeNull()
+    expect(mid.settled).toBe(false)
+    const end = s.step(baseInput({ now: T0 + 4600 + 3100 }))
+    expect(end.act).toBeNull()
+  })
+
+  it('tilt：中段约 ±10°，方向随机，视线随头同侧', () => {
+    const s = makeScheduler(() => 0.2) // random < 0.5 → dir = -1
+    s.startAct('tilt', T0)
+    const mid = s.step(baseInput({ now: T0 + 1000 })) // p≈0.35 微颤稳态段
+    expect(mid.act).toBe('tilt')
+    expect(mid.rot).toBeLessThan(-5)
+    expect(mid.rot).toBeGreaterThan(-12)
+    expect(mid.gazeX).toBeLessThan(0)
+    expect(mid.settled).toBe(false)
+  })
+
+  it('hop：腾空段 faceY 上移', () => {
+    const s = makeScheduler()
+    s.startAct('hop', T0)
+    const mid = s.step(baseInput({ now: T0 + 300 })) // p≈0.35 腾空
+    expect(mid.act).toBe('hop')
+    expect(mid.faceY).toBeLessThan(-1)
+  })
+
+  it('doze：耷拉段压眼皮垂脸', () => {
+    const s = makeScheduler()
+    s.startAct('doze', T0)
+    const droop = run(s, T0, 100) // ≈ T0+1.65s，p≈0.49
+    expect(droop.act).toBe('doze')
+    expect(droop.lid).toBeLessThan(0.6)
+    expect(droop.faceY).toBeGreaterThan(0.5)
+  })
+
+  it('lookaround 伴随扫视前眨眼', () => {
+    const s = makeScheduler()
+    s.startAct('lookaround', T0)
+    const frame = run(s, T0, 48) // ≈ T0+786ms，第一颗眨眼 750ms 起
+    expect(frame.lid).toBeLessThan(0.95)
+  })
+
+  it('hover/panelOpen/busy 不开演；busy 消失后到点开演', () => {
+    for (const extra of [{ hover: true }, { panelOpen: true }, { busy: true }]) {
+      const s = makeScheduler(() => 0.5)
+      const frame = s.step(baseInput({ now: T0 + 4600, ...extra }))
+      expect(frame.act).toBeNull()
+    }
+    const s = makeScheduler(() => 0.5)
+    s.step(baseInput({ now: T0 + 4600, busy: true })) // 推迟
+    const frame = s.step(baseInput({ now: T0 + 7000 }))
+    expect(frame.act).not.toBeNull()
+  })
+
+  it('非 order 模式不开演；点击/reduced-motion 即时打断', () => {
+    const sMode = makeScheduler(() => 0.5)
+    expect(sMode.step(baseInput({ now: T0 + 4600, mode: 'running' })).act).toBeNull()
+
+    const s = makeScheduler(() => 0.5)
+    s.step(baseInput({ now: T0 + 4600 }))
+    expect(s.step(baseInput({ now: T0 + 4620 })).act).not.toBeNull()
+    s.react('flinch', T0 + 4620)
+    expect(s.step(baseInput({ now: T0 + 4640 })).act).toBeNull()
+
+    const s2 = makeScheduler()
+    s2.startAct('tilt', T0)
+    const frame = s2.step(baseInput({ now: T0 + 1000, reducedMotion: true }))
+    expect(frame.act).toBeNull()
+    expect(frame.rot).toBe(0)
+    expect(frame.settled).toBe(true)
+  })
+})

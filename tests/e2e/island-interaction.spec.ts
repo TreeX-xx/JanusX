@@ -69,15 +69,26 @@ test('approval panel is distinct, compact, and exposes explicit decisions', asyn
   await expect(harness(page)).toHaveAttribute('data-approval-decision', 'rejected')
 })
 
-test('single activation shows only the empty Knowledge peek after confirmation', async ({ page }) => {
+test('single activation opens the notification center sheet on the capsule', async ({ page }) => {
   const island = page.locator('.janus-island')
+  const shell = page.locator('.janus-island-shell')
   await tap(island)
 
+  // 单击不进 peek：折叠胶囊自身纵向长出通知面（空态可见）。
   await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
+  await expect(shell).toHaveAttribute('data-notif', 'true', { timeout: 1_000 })
   await expect(harness(page)).toHaveAttribute('data-single-count', '0')
-  await expect(harness(page)).toHaveAttribute('data-stage', 'peek', { timeout: 1_000 })
-  await expect(harness(page)).toHaveAttribute('data-single-count', '1')
-  await expect(page.getByText('No knowledge match')).toBeVisible()
+  await expect(page.getByText('No notice history')).toBeVisible()
+
+  // 点空白处 = 看过即焚收起（lab「点舞台空白」语义）。
+  await page.mouse.click(30, 500)
+  await expect(shell).toHaveAttribute('data-notif', 'false', { timeout: 2_000 })
+
+  // 再开再单击 = 看过即焚收起（stagger 溶解后清史）。
+  await tap(island)
+  await expect(shell).toHaveAttribute('data-notif', 'true', { timeout: 1_000 })
+  await tap(island)
+  await expect(shell).toHaveAttribute('data-notif', 'false', { timeout: 2_000 })
 })
 
 test('second pointerdown activates expanded exactly once and cancels single activation', async ({ page }) => {
@@ -487,12 +498,18 @@ test('dragged nonmatching second press clears the pending first tap', async ({ p
 
 test('delayed single activation calls the latest callback identity', async ({ page }) => {
   const island = page.locator('.janus-island')
+  // 折叠态单击已直通通知中心（不走 onSingleActivate）；延迟单击仲裁的
+  // 回调身份契约在 peek→收起 路径上验证。
+  await page.getByTestId('open-peek').click()
+  await expect(harness(page)).toHaveAttribute('data-stage', 'peek')
   await tap(island)
-  await page.getByTestId('replace-single').click()
+  // dispatchEvent 而非真实点击：真实 pointerdown 落在岛外会触发 peek 隐式收起，
+  // 污染本用例要观察的延迟单击仲裁路径。
+  await page.getByTestId('replace-single').dispatchEvent('click')
 
-  await expect(harness(page)).toHaveAttribute('data-stage', 'peek', { timeout: 1_000 })
+  await expect(harness(page)).toHaveAttribute('data-single-count', '1', { timeout: 1_000 })
   await expect(harness(page)).toHaveAttribute('data-called-version', '2')
-  await expect(harness(page)).toHaveAttribute('data-single-count', '1')
+  await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
 })
 
 test('dragging does not leave a stale single activation', async ({ page }) => {
@@ -632,16 +649,22 @@ test('island pin covers every view and the session rail collapses', async ({ pag
   await expect(chat.locator('.janus-chat-sidebar-list')).toBeVisible()
 })
 
-test('peek and expanded geometry stay inside desktop and compact viewports', async ({ page }) => {
+test('notification sheet and expanded geometry stay inside desktop and compact viewports', async ({ page }) => {
   for (const viewport of [{ width: 1280, height: 720 }, { width: 720, height: 540 }]) {
     await page.setViewportSize(viewport)
     const island = page.locator('.janus-island')
+    const shell = page.locator('.janus-island-shell')
+    // 单击直达通知中心：island 纵向长出的通知面也必须完整落在视口内。
     await tap(island)
-    await expect(harness(page)).toHaveAttribute('data-stage', 'peek', { timeout: 1_000 })
+    await expect(shell).toHaveAttribute('data-notif', 'true', { timeout: 1_000 })
     await expect(island).toBeInViewport()
+    const sheetBox = await island.boundingBox()
+    expect(sheetBox).not.toBeNull()
+    expect(sheetBox!.x).toBeGreaterThanOrEqual(0)
+    expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(viewport.width)
 
     await tap(island)
-    await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
+    await expect(shell).toHaveAttribute('data-notif', 'false', { timeout: 2_000 })
     await tap(island)
     await page.waitForTimeout(50)
     await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })

@@ -242,6 +242,8 @@
     },
     "aria": {
       "openIsland": "Open Janus Island",
+      "openNotif": "Open notification center",
+      "closeNotif": "Close notification center",
       "closeKnowledgePeek": "Close knowledge peek",
       "openProductPreview": "Open product preview for {{path}}"
     },

@@ -4,6 +4,9 @@
 
 export type JanusBehaviorMode = 'sleep' | 'order' | 'analytics' | 'running'
 
+/** 待机动作（2026-10-24 lab 定稿移植；事件反应仍走真实事件，不进此池）。 */
+export type JanusActKind = 'stretch' | 'tilt' | 'lookaround' | 'hop' | 'doze' | 'breathe'
+
 export type JanusGazeState =
   | 'static'      // reduced-motion 降级
   | 'wander'      // 自主游荡
@@ -42,6 +45,8 @@ export interface JanusBehaviorParams {
   closeMs: number
   /** 睁眼偷看时长 ms */
   peekMs: number
+  /** 待机动作间隔 ms（实际 ×0.67–1.4 抖动 ≈ 5–10.5s） */
+  actIntervalMs: number
   /** 大幅扫视前先眨眼 */
   blinkBeforeSaccade: boolean
   /** running 态凝视降权系数 */
@@ -63,6 +68,7 @@ export const JANUS_BEHAVIOR_DEFAULTS: JanusBehaviorParams = {
   restMs: 6000,
   closeMs: 2200,
   peekMs: 2800,
+  actIntervalMs: 7500,
   blinkBeforeSaccade: true,
   runningGazeScale: 0.35,
 }
@@ -82,6 +88,8 @@ export interface GazeStepInput {
   hover: boolean
   /** 通知中心展开中 */
   panelOpen: boolean
+  /** 外部忙（传话中/拖拽中）：待机动作让位 */
+  busy?: boolean
   reducedMotion: boolean
 }
 
@@ -95,6 +103,10 @@ export interface JanusGazeFrame {
   /** 惊跳压扁 */
   sx: number
   sy: number
+  /** 头部旋转（度，歪头等动作） */
+  rot: number
+  /** 进行中的待机动作 */
+  act: JanusActKind | null
   state: JanusGazeState
   /** 输出全部收敛、可停帧 */
   settled: boolean
@@ -112,6 +124,161 @@ interface BlinkState {
   dur: number
   double: boolean
 }
+
+/*── 待机动作包络（2026-10-24 lab 定稿，verify-lab7 全绿后移植）──
+   aim 输出接管视线/眼睑（动作播完归还），pose 输出形变（叠加在 flinch/nod 之上）。
+   blinks = 伴随急眨眼相对起点的 ms 偏移（扫视前眨眼/钓鱼惊醒等）。 */
+interface ActPose {
+  sx: number
+  sy: number
+  fy: number
+  rot: number
+}
+interface ActAim {
+  lid?: number
+  gaze?: { x: number; y: number }
+}
+interface ActDef {
+  dur: number
+  blinks: number[]
+  aim(p: number, dir: number, amp: number): ActAim
+  pose(p: number, dir: number): ActPose
+}
+
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
+const JANUS_ACTS: Record<JanusActKind, ActDef> = {
+  stretch: {
+    // 伸懒腰：蹲下蓄力 → 拉长 → 回位
+    dur: 1500,
+    blinks: [0],
+    aim: () => ({}),
+    pose: (p) => {
+      let sx: number
+      let sy: number
+      if (p < 0.22) {
+        const q = p / 0.22
+        sy = lerpNum(1, 0.86, q)
+        sx = lerpNum(1, 1.09, q)
+      } else if (p < 0.55) {
+        const q = (p - 0.22) / 0.33
+        sy = lerpNum(0.86, 1.14, q)
+        sx = lerpNum(1.09, 0.92, q)
+      } else {
+        const q = (p - 0.55) / 0.45
+        sy = lerpNum(1.14, 1, q)
+        sx = lerpNum(0.92, 1, q)
+      }
+      return { sx, sy, fy: 0, rot: 0 }
+    },
+  },
+  tilt: {
+    // 歪头好奇：视线抢先 → 回弹入倾（冲过 12.5° 回落 10°，微颤）→ 第二感缩回再倾 12° → 回正
+    dur: 2900,
+    blinks: [0, 2450],
+    aim: (p, dir, amp) => {
+      let k: number
+      if (p < 0.12) k = easeOut(p / 0.12) * 0.95
+      else if (p < 0.42) k = 0.95 + 0.05 * Math.sin((p - 0.12) * 26)
+      else if (p < 0.52) k = lerpNum(0.95, 0.78, easeInOut((p - 0.42) / 0.1))
+      else if (p < 0.8) k = lerpNum(0.82, 1.15, easeOut((p - 0.52) / 0.28))
+      else k = lerpNum(1.15, 0, easeInOut((p - 0.8) / 0.2))
+      return { gaze: { x: dir * amp * 0.72 * k, y: -amp * 0.24 * k } }
+    },
+    pose: (p, dir) => {
+      let deg: number
+      if (p < 0.12) deg = lerpNum(0, 12.5, easeOut(p / 0.12))
+      else if (p < 0.22) deg = lerpNum(12.5, 10, easeInOut((p - 0.12) / 0.1))
+      else if (p < 0.42) deg = 10 + 0.4 * Math.sin((p - 0.22) * 34)
+      else if (p < 0.52) deg = lerpNum(10, 5, easeInOut((p - 0.42) / 0.1))
+      else if (p < 0.64) deg = lerpNum(5, 12, easeOut((p - 0.52) / 0.12))
+      else if (p < 0.8) deg = 12 + 0.35 * Math.sin((p - 0.64) * 30)
+      else deg = lerpNum(12, 0, easeInOut((p - 0.8) / 0.2))
+      return { sx: 1, sy: 1, fy: 0, rot: dir * deg }
+    },
+  },
+  lookaround: {
+    // 环顾四周：左看 → 右看 → 回中，转向前急眨眼（真实眼动特征）
+    dur: 3000,
+    blinks: [750, 1550, 2380],
+    aim: (p, _dir, amp) => {
+      let x: number
+      if (p < 0.22) x = lerpNum(0, -amp * 0.95, p / 0.22)
+      else if (p < 0.42) x = -amp * 0.95
+      else if (p < 0.62) x = lerpNum(-amp * 0.95, amp * 0.95, (p - 0.42) / 0.2)
+      else if (p < 0.82) x = amp * 0.95
+      else x = lerpNum(amp * 0.95, 0, (p - 0.82) / 0.18)
+      return { gaze: { x, y: amp * 0.12 } }
+    },
+    pose: () => ({ sx: 1, sy: 1, fy: 0, rot: 0 }),
+  },
+  hop: {
+    // 小跳：蹲 → 腾空拉伸 → 落地压扁 → 回位
+    dur: 850,
+    blinks: [],
+    aim: () => ({}),
+    pose: (p) => {
+      let fy = 0
+      let sx = 1
+      let sy = 1
+      if (p < 0.16) {
+        const q = p / 0.16
+        sy = lerpNum(1, 0.8, q)
+        sx = lerpNum(1, 1.13, q)
+      } else if (p < 0.48) {
+        const q = (p - 0.16) / 0.32
+        fy = -3.4 * Math.sin(q * Math.PI * 0.5)
+        sy = lerpNum(1.1, 1.13, q)
+        sx = lerpNum(0.95, 0.9, q)
+      } else if (p < 0.7) {
+        const q = (p - 0.48) / 0.22
+        fy = -3.4 * (1 - q * q)
+        sy = lerpNum(1.1, 0.84, q)
+        sx = lerpNum(0.93, 1.11, q)
+      } else {
+        const q = (p - 0.7) / 0.3
+        sy = lerpNum(0.84, 1, q)
+        sx = lerpNum(1.11, 1, q)
+      }
+      return { sx, sy, fy, rot: 0 }
+    },
+  },
+  doze: {
+    // 打瞌睡钓鱼：垂眼耷拉 → 一激灵惊醒
+    dur: 3400,
+    blinks: [2450],
+    aim: (p, _dir, amp) => (p < 0.72
+      ? { lid: lerpNum(1, 0.22, Math.min(1, p / 0.55)), gaze: { x: 0, y: amp * 0.5 } }
+      : { lid: 1 }),
+    pose: (p) => {
+      if (p < 0.72) return { sx: 1, sy: 1, fy: 1.3 * Math.min(1, p / 0.55), rot: 0 }
+      const q = (p - 0.72) / 0.28
+      const k = (1 - q) * Math.sin(q * Math.PI)
+      return { sx: 1 + 0.08 * k, sy: 1 - 0.1 * k, fy: lerpNum(1.3, 0, q), rot: 0 }
+    },
+  },
+  breathe: {
+    // 深呼吸：整体缓慢舒展 + 眼睑轻合
+    dur: 3000,
+    blinks: [],
+    aim: (p) => ({ lid: 1 - 0.18 * Math.sin(p * Math.PI) }),
+    pose: (p) => {
+      const b = Math.sin(p * Math.PI)
+      return { sx: 1 + 0.03 * b, sy: 1 + 0.055 * b, fy: 0, rot: 0 }
+    },
+  },
+}
+
+/** 生产池只含待机动作（权重同 lab）；事件反应由真实事件驱动，不自发。 */
+const JANUS_ACT_POOL: { kind: JanusActKind; weight: number }[] = [
+  { kind: 'stretch', weight: 3 },
+  { kind: 'tilt', weight: 3 },
+  { kind: 'lookaround', weight: 3 },
+  { kind: 'breathe', weight: 2 },
+  { kind: 'hop', weight: 2 },
+  { kind: 'doze', weight: 2 },
+]
 
 export class JanusGazeScheduler {
   params: JanusBehaviorParams
@@ -149,6 +316,11 @@ export class JanusGazeScheduler {
   private nodT0 = -1e9
   private failT0 = -1e9
 
+  // 待机动作
+  private act: { kind: JanusActKind; t0: number; dir: number; blinks: number[] } | null = null
+  private nextActAt = 0
+  private lastActKind: JanusActKind | null = null
+
   constructor(params: Partial<JanusBehaviorParams> = {}, random: () => number = Math.random) {
     this.params = { ...JANUS_BEHAVIOR_DEFAULTS, ...params }
     this.random = random
@@ -170,6 +342,9 @@ export class JanusGazeScheduler {
     this.flinchT0 = -1e9
     this.nodT0 = -1e9
     this.failT0 = -1e9
+    this.act = null
+    this.lastActKind = null
+    this.nextActAt = now + this.params.actIntervalMs * 0.6
     this.scheduleBlink(now)
     this.nextWanderAt = now + this.params.wanderIntervalMs
   }
@@ -177,12 +352,25 @@ export class JanusGazeScheduler {
   /** 事件注视：看向指定方向（相对幅度坐标，调用方换算）。 */
   lookAt(x: number, y: number, durationMs: number, now: number): void {
     const amp = this.params.gazeAmp
+    this.act = null // 念词/事件注视优先，待机动作让位
     this.attention = 'event'
     this.eventUntil = now + durationMs
     this.eventTarget = { x: clamp(x, -amp, amp), y: clamp(y, -amp, amp) }
   }
 
+  /** 手动/测试：立即播一个待机动作（打断当前动作）。 */
+  startAct(kind: JanusActKind, now: number): void {
+    this.act = {
+      kind,
+      t0: now,
+      dir: this.random() < 0.5 ? -1 : 1,
+      blinks: [...JANUS_ACTS[kind].blinks],
+    }
+    this.lastActKind = kind
+  }
+
   react(kind: JanusReaction, now: number): void {
+    this.act = null // 点击/事件反应优先，待机动作让位
     if (kind === 'flinch') {
       // 闭眼享受时被点击 = 惊醒：直接进入睁眼偷看阶段
       if (this.hoverT0 >= 0 && this.lid < 0.35) {
@@ -215,6 +403,7 @@ export class JanusGazeScheduler {
       this.lid = 1
       this.gaze = { x: 0, y: 0 }
       this.face = { x: 0, y: 0 }
+      this.act = null
       return this.composeFrame(now, 1, 1, 'static', true)
     }
 
@@ -286,6 +475,32 @@ export class JanusGazeScheduler {
       }
     }
 
+    /*─ 1.5 待机动作：让位/开演/接管视线与眼睑 ─*/
+    if (hover || panelOpen || this.attention === 'event') {
+      this.act = null // 交互/事件即时打断（摸头、开面、点击、念词）
+    } else {
+      this.maybeStartAct(now, mode, input.busy === true)
+    }
+    let actPose: ActPose | null = null
+    if (this.act) {
+      const def = JANUS_ACTS[this.act.kind]
+      const age = now - this.act.t0
+      if (age >= def.dur) {
+        this.act = null
+      } else {
+        // 伴随急眨眼按偏移到期消费（不与进行中眨眼叠加）
+        while (this.act.blinks.length && now >= this.act.t0 + this.act.blinks[0]) {
+          this.act.blinks.shift()
+          if (!this.blink) this.triggerBlink(now, true)
+        }
+        const pr = age / def.dur
+        const aim = def.aim(pr, this.act.dir, amp)
+        if (aim.lid !== undefined) lidTarget = aim.lid
+        if (aim.gaze) this.gazeTarget = { x: aim.gaze.x, y: aim.gaze.y }
+        actPose = def.pose(pr, this.act.dir)
+      }
+    }
+
     /*─ 2. 眨眼生理 ─*/
     this.lidTarget = lidTarget
     if (lidTarget < 0.3 && !this.blink) {
@@ -341,10 +556,11 @@ export class JanusGazeScheduler {
     this.face.x = lerpNum(this.face.x, (this.gaze.x / (amp || 1)) * p.headAmp * overload, k)
     this.face.y = lerpNum(this.face.y, (this.gaze.y / (amp || 1)) * p.headAmp * 0.6 * overload, k)
 
-    /*─ 6. 惊跳 / 点头 ─*/
+    /*─ 6. 惊跳 / 点头 / 待机动作 变换 ─*/
     let sx = 1
     let sy = 1
     let faceYExtra = 0
+    let rot = 0
     const f2 = now - this.flinchT0
     if (f2 < 320) {
       const pr = f2 / 320
@@ -356,6 +572,12 @@ export class JanusGazeScheduler {
     if (nAge < 800) {
       const pr = nAge / 800
       faceYExtra = Math.sin(pr * Math.PI * 2) * 1.6 * (1 - pr)
+    }
+    if (actPose) {
+      sx *= actPose.sx
+      sy *= actPose.sy
+      faceYExtra += actPose.fy
+      rot = actPose.rot
     }
 
     /*─ 7. 状态归类 ─*/
@@ -369,7 +591,7 @@ export class JanusGazeScheduler {
     else if (now < this.lookawayUntil) state = 'lookaway'
     else state = 'wander'
 
-    return this.composeFrame(now, sx, sy, state, false, faceYExtra)
+    return this.composeFrame(now, sx, sy, state, false, faceYExtra, rot)
   }
 
   /*── 内部 ──*/
@@ -419,6 +641,29 @@ export class JanusGazeScheduler {
     this.nextWanderAt = now + this.params.wanderIntervalMs * (0.6 + r() * 0.8)
   }
 
+  private maybeStartAct(now: number, mode: JanusBehaviorMode, busy: boolean): void {
+    if (this.act || now < this.nextActAt) return
+    if (mode !== 'order' || busy) {
+      // 忙时让位（传话/拖拽）：稍后再试；非 order 模式各有本职表情，不开演
+      this.nextActAt = now + 2200
+      return
+    }
+    this.startAct(this.pickActKind(), now)
+    this.nextActAt = now + this.params.actIntervalMs * (0.67 + this.random() * 0.73)
+  }
+
+  private pickActKind(): JanusActKind {
+    const pool = JANUS_ACT_POOL.filter((a) => a.kind !== this.lastActKind) // 不连重
+    let total = 0
+    for (const a of pool) total += a.weight
+    let r = this.random() * total
+    for (const a of pool) {
+      r -= a.weight
+      if (r <= 0) return a.kind
+    }
+    return 'stretch'
+  }
+
   private composeFrame(
     now: number,
     sx: number,
@@ -426,6 +671,7 @@ export class JanusGazeScheduler {
     state: JanusGazeState,
     forceSettled: boolean,
     faceYExtra = 0,
+    rot = 0,
   ): JanusGazeFrame {
     const p = this.params
     const amp = p.gazeAmp || 1
@@ -437,16 +683,18 @@ export class JanusGazeScheduler {
       now - this.flinchT0 < 320 || now - this.nodT0 < 800 || now - this.failT0 < 1400
 
     // 下一个会改变输出的时刻（未设置的 0 哨兵要滤掉）
-    const wakeups = [this.nextBlinkAt, this.nextWanderAt, this.eventUntil, this.restUntil, this.lookawayUntil]
+    const wakeups = [this.nextBlinkAt, this.nextWanderAt, this.eventUntil, this.restUntil, this.lookawayUntil, this.nextActAt]
       .filter((t) => t > now)
     if (this.attention === 'mouse') wakeups.push(this.dwellUntil)
     if (this.hoverT0 >= 0) {
       const cyc = (now - this.hoverT0) % (p.closeMs + p.peekMs)
       wakeups.push(now + (cyc < p.closeMs ? p.closeMs - cyc : p.closeMs + p.peekMs - cyc))
     }
+    if (this.act) wakeups.push(this.act.t0 + JANUS_ACTS[this.act.kind].dur)
     const nextWakeupAt = wakeups.length ? Math.min(...wakeups) : now + 5000
 
-    const settled = forceSettled || (gazeSettled && lidSettled && !reactionActive && nextWakeupAt - now > 300)
+    // 动作进行中形变每帧在变，不得停帧
+    const settled = forceSettled || (gazeSettled && lidSettled && !reactionActive && !this.act && nextWakeupAt - now > 300)
 
     return {
       gazeX: this.gaze.x,
@@ -456,6 +704,8 @@ export class JanusGazeScheduler {
       lid: this.lid,
       sx,
       sy,
+      rot,
+      act: this.act?.kind ?? null,
       state,
       settled,
       nextWakeupAt,

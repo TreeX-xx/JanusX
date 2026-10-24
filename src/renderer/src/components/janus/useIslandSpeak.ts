@@ -18,7 +18,8 @@ const IDLE_SNAPSHOT: IslandSpeakSnapshot = {
 export interface IslandSpeakControls {
   snapshot: IslandSpeakSnapshot
   enqueue: (entry: IslandSpeakEntry) => void
-  dismiss: () => void
+  /** 收起当前传话条（队列续播）；返回是否确实有条目被收起 */
+  dismiss: () => boolean
   markSeen: () => void
   burnHistory: () => number
 }
@@ -57,8 +58,9 @@ export function useIslandSpeak(): IslandSpeakControls {
   }, [queue, kick])
 
   const dismiss = useCallback(() => {
-    queue.dismiss(Date.now())
+    const dismissed = queue.dismiss(Date.now())
     kick()
+    return dismissed
   }, [queue, kick])
 
   const markSeen = useCallback(() => {
