@@ -234,6 +234,12 @@
     }
   },
   "island": {
+    "historyCount": "Notices {{count}}",
+    "notif": {
+      "title": "Notices",
+      "hint": "SEEN ONCE - CLEARS ON CLOSE",
+      "empty": "No notice history"
+    },
     "aria": {
       "openIsland": "Open Janus Island",
       "closeKnowledgePeek": "Close knowledge peek",

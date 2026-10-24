@@ -55,7 +55,7 @@
     ],
     "review": "self"
   },
-  "updated": "2026-10-23T09:20:00Z",
+  "updated": "2026-10-24T09:20:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/2a85ca64-bc0b-48b1-91b5-a89c44e13321" },
@@ -94,13 +94,13 @@
 
 **P1 行为内核**：新建 `janusBehavior.ts`（GazeScheduler/Blink/Reaction 纯逻辑，含吸引·驻留·移开·疲劳·游荡·摸头循环状态机）+ `useJanusGaze()`（rAF 桥、CSS 变量输出、闲置停帧、reduced-motion 降级）；`01-janus-foundation.css` 的 `mini-idle` 由 var() 驱动 transform 替代，EQ/scan 模式 keyframe 保留。参数默认值=定稿值。
 
-**P2 事件与摸头接入**：JanusIsland 折叠态接 hover 判定（胶囊+14px 容差）与摸头闭眼循环；flinch/nod/fail/greet 映射真实事件（peek 展开伴随/任务完成/失败/会话恢复），惊醒=闭眼时展开的伴随反应。与 hover 呼吸动画互斥规则明确。
+**P2 事件与摸头接入**：JanusIsland 折叠态接 hover 判定（胶囊+14px 容差）与摸头闭眼循环；flinch/nod/fail/greet 映射真实事件。实现时修订（2026-10-24）：peek 展开首帧即隐藏胶囊（`island-expand-from-pill` 放大的是 `.janus-expanded`），「展开伴随」改挂**单击即时回调**（`onQuickTap`，420ms 单击仲裁期内播放、胶囊仍可见；惊醒=闭眼时点击的 kernel 内逻辑不变）；nod=流式下降沿且无错误、fail=错误出现上升沿、greet=工作区切换落定。摸头与 hover 呼吸分层共存（呼吸在 island、凝视在眼组 transform 链），拖拽（is-dragging）期间摸头挂起（`suspendRef`），与呼吸的 `:not(.is-dragging)` 对齐；`useIslandGesture` 仅增量接口（onQuickTap/isDraggingRef），下拉路径零改动。
 
 **P3 胶囊传话 + 队列 + 计数**：通知到达走 `islandNotifications.ts` 统一入口 → 串行传话队列（收起续播、面板打开清队）；左上角灰色计数与历史一致；替换现行折叠态通知弹出（peek 一级展开通知胶囊不动）。
 
-**P4 通知中心**：点击入口展开 island 通知面（灰字计数、传话胶囊可点、peek 历史入口三路；高度测宽陷阱见上）、看过即焚（stagger 溶解）、历史数据源接入、空态；与 `island-hifi` 通知面样式令牌对齐。
+**P4 通知中心**：点击入口展开 island 通知面（灰字计数、传话胶囊可点、peek 历史入口三路；高度测宽陷阱见上）、看过即焚（stagger 溶解）、历史数据源接入、空态；与 `island-hifi` 通知面样式令牌对齐。实现备注（2026-10-24）：历史数据源=传话队列历史（到达即入史）；两路入口已接（计数按钮、传话条点击），**peek 历史入口 deferred**（需 peek↔collapsed 跨 stage 编排，另行设计）；打开=已读（清队、面板期到达只补行不打断）。
 
-**P5 手势仲裁与收尾**：**仲裁已定案（2026-10-23 采纳 B 案）**：下拉 ≥60px 保持副黑板专属语义（toggle + 0–60px 全程跟手预览 + <60px cancel，见[下拉副黑板](../island-blackboard.md)），`useIslandGesture` 下拉路径**零改动**；通知中心不占用下拉，只走点击入口；flinch/惊醒降级为 peek 展开伴随反应，单击 peek / 双击控制台语义零改动（实验台的轻点=惊跳手势不移植）。收尾：reduced-motion、aria-label、i18n 文案、`mini-idle` 退役清理。
+**P5 手势仲裁与收尾**：**仲裁已定案（2026-10-23 采纳 B 案）**：下拉 ≥60px 保持副黑板专属语义（toggle + 0–60px 全程跟手预览 + <60px cancel，见[下拉副黑板](../island-blackboard.md)），`useIslandGesture` 下拉路径**零改动**（落地后 diff 复核：仅 onQuickTap/isDraggingRef 增量）；通知中心不占用下拉，只走点击入口；flinch/惊醒为轻点伴随反应，单击 peek / 双击控制台语义零改动。收尾：reduced-motion 内核静止化、aria-label/计数钮可访问名、i18n 文案（historyCount/notif 三键）、`mini-idle` keyframes 退役删除（AC-6 完成）。
 
 ## Acceptance criteria
 
@@ -113,11 +113,11 @@
 
 ## Verification
 
-V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior`（新建，纯逻辑调度器）。原型层证据：`_design/janus-eye-behavior-lab/verify-lab2.mjs`–`verify-lab5.mjs`（摸头/惊醒/传话/队列续播/展开/看过即焚断言全绿，0 pageerror）。真组件落地后补 e2e 回归：下拉只落副黑板不误触通知、三路点击入口可达通知中心。
+V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior.test.ts tests/unit/island-speak-queue.test.ts`（27 用例：调度器状态机 + 传话队列语义）。原型层证据：`_design/janus-eye-behavior-lab/verify-lab2.mjs`–`verify-lab5.mjs`（摸头/惊醒/传话/队列续播/展开/看过即焚断言全绿，0 pageerror）。未跑（显式缺口）：真机 e2e 回归（下拉只落副黑板、点击入口可达通知中心、传话/摸头视觉冒烟）——需真实 App 运行环境，留待合并前补。eslint 对改动文件 0 错误。
 
 ## Progress
 
-未开始。原型设计与参数定稿完成（2026-10-23，用户确认手感参数与通知形态三条反馈：整体展开、灰字计数、连发/展开 bug 修复）。手势仲裁定案（2026-10-23）：采纳 B 案——下拉专属副黑板，通知中心走点击入口，flinch/惊醒为 peek 展开伴随反应。
+P1–P5 全部落地（2026-10-24，feat/island-behavior-system，f8630f51→2d8a728a 五笔）：P1 内核+21 单测、P2 事件映射、P3 传话队列+灰字计数、P4 通知中心+看过即焚、P5 退役清理；27 用例全绿、typecheck 干净、eslint 0 错误、手势 diff 复核零语义改动。遗留缺口：真机 e2e 回归未跑（见 Verification）；peek 历史入口 deferred；合并前跑一次真实 App 冒烟。手势仲裁定案（2026-10-23）：采纳 B 案。原型设计与参数定稿完成（2026-10-23，用户确认手感参数与通知形态三条反馈）。
 
 ## Handoff
 
