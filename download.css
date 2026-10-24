@@ -97,14 +97,14 @@ nav [aria-current]::after {
 }
 .nav-cta:hover { color: #fafafa; filter: brightness(1.12); transform: translateY(-1px); }
 
-/* Aigocy's supplied soft-focus artwork leaves a quiet center for the message. */
+/* Original soft-focus glass artwork; quiet center for the message. */
 .intro {
   position: relative;
   isolation: isolate;
   overflow: hidden;
   margin: 16px var(--panel-gutter) 0;
   border-radius: var(--panel-radius);
-  background: #e3e5ea url('assets/download-atmosphere.jpg') center 48% / cover no-repeat;
+  background: #e3e5ea url('assets/intro-atmosphere.svg') center 48% / cover no-repeat;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / .3);
 }
 .intro-inner {
@@ -287,7 +287,7 @@ h1 {
   border-radius: calc(var(--panel-radius) * (1 - var(--p, 0)));
 }
 .hero-scene { position: relative; height: var(--hero-h); overflow: hidden; background: radial-gradient(ellipse at 78% 0%, #262124 0%, #141416 45%, #101012 78%); }
-.hero-scene-label { position: absolute; top: 26px; left: 30px; color: #a3a1a6; font: 10px/1.5 var(--mono); letter-spacing: .12em; }
+.hero-scene-label { position: absolute; top: 26px; left: 30px; color: #a3a1a6; font: 10px/1.5 var(--mono); letter-spacing: .12em; animation: scene-enter .6s ease .2s backwards; }
 .hero-motion .hero-scene { position: absolute; inset: 0; height: auto; opacity: calc(1 - var(--workspace, 0)); }
 .hero-scene::after {
   content: '';
@@ -301,6 +301,9 @@ h1 {
 @keyframes janus-breathe {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-7px) scale(1.014); }
+}
+@keyframes scene-enter {
+  from { opacity: 0; translate: 0 12px; }
 }
 .hero-atmos { position: absolute; inset: 0; pointer-events: none; }
 .hero-atmos .glow { position: absolute; border-radius: 50%; }
@@ -366,7 +369,11 @@ h1 {
   0%, 100% { transform: translate(-50%, -50%) translateY(0) scale(1); }
   50% { transform: translate(-50%, -50%) translateY(-7px) scale(1.014); }
 }
-.hero-fallback span { width: 20px; height: 54px; border-radius: 10px; background: #ededed; }
+.hero-fallback span { width: 20px; height: 54px; border-radius: 10px; background: #ededed; transform-origin: 50% 50%; animation: eye-blink 6.8s ease-in-out infinite; }
+@keyframes eye-blink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  96.5% { transform: scaleY(.08); }
+}
 .hero-canvas-ready .hero-fallback { visibility: hidden; }
 .hero-wordmark {
   position: absolute;
@@ -380,7 +387,7 @@ h1 {
   font-weight: 620;
   line-height: 1.1;
   letter-spacing: -.05em;
-  animation: wordmark-float 8s ease-in-out infinite;
+  animation: scene-enter .8s ease .75s backwards, wordmark-float 8s ease-in-out infinite;
 }
 .hero-wordmark span {
   color: var(--brand-strong);
@@ -399,9 +406,9 @@ h1 {
   color: #a7a4ab;
   font-size: 12px;
   letter-spacing: .12em;
-  animation: wordmark-float 8s ease-in-out .25s infinite;
+  animation: scene-enter .8s ease 1s backwards, wordmark-float 8s ease-in-out .25s infinite;
 }
-.hero-scene-footer { position: absolute; bottom: 24px; left: 30px; right: 30px; display: flex; justify-content: space-between; gap: 20px; color: #888; font-size: 10px; }
+.hero-scene-footer { position: absolute; bottom: 24px; left: 30px; right: 30px; display: flex; justify-content: space-between; gap: 20px; color: #888; font-size: 10px; animation: scene-enter .7s ease 1.25s backwards; }
 .scene-scroll { color: #b6b2b9; }
 .scene-scroll span { display: inline-block; margin-left: 12px; color: var(--brand-strong); }
 .hero-scene-footer .mono { letter-spacing: .12em; }

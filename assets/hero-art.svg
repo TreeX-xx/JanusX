@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="920" viewBox="0 0 1440 920">
+  <defs>
+    <linearGradient id="base" x1=".15" y1="0" x2=".9" y2="1">
+      <stop offset="0" stop-color="#f2f1f0"/>
+      <stop offset=".5" stop-color="#e9e7e5"/>
+      <stop offset="1" stop-color="#dedad6"/>
+    </linearGradient>
+    <radialGradient id="wash-left" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="wash-shadow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#9a938c" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#9a938c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="red-glow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff3b26" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#ff3b26" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur-s" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="blur-m" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="blur-l" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="34"/></filter>
+  </defs>
+
+  <!-- clean canvas: large soft shading only, no fog -->
+  <rect width="1440" height="920" fill="url(#base)"/>
+  <ellipse cx="220" cy="420" rx="520" ry="420" fill="url(#wash-left)"/>
+  <ellipse cx="80" cy="860" rx="420" ry="300" fill="url(#wash-shadow)"/>
+  <ellipse cx="1180" cy="260" rx="430" ry="330" fill="url(#red-glow)"/>
+
+  <!-- black glass band: crisp stacked strokes, glossy edge -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#0a0a0c" stroke-width="150" opacity=".16" filter="url(#blur-m)" transform="translate(0 26)"/>
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#050506" stroke-width="132"/>
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#232327" stroke-width="104" transform="translate(-10 -8)"/>
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#4a4a52" stroke-width="40" transform="translate(-22 -18)"/>
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#b9b9c2" stroke-width="11" transform="translate(-30 -28)"/>
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#f2f2f6" stroke-width="3.5" transform="translate(-34 -34)"/>
+    <path d="M1252 268 C 1392 472 1482 638 1552 802 C 1588 888 1612 952 1632 1010" stroke="#8e8e98" stroke-width="1.5" transform="translate(-40 -42)" opacity=".7"/>
+  </g>
+
+  <!-- red glass band: layered tube with specular highlights -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#c41e10" stroke-width="180" opacity=".22" filter="url(#blur-l)"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#5c0f04" stroke-width="152" transform="translate(0 30)"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#c41e10" stroke-width="138"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#ff3b26" stroke-width="104" transform="translate(0 -10)"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#ff6a55" stroke-width="56" transform="translate(0 -22)"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#ffb3a6" stroke-width="18" transform="translate(0 -36)"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#ffffff" stroke-width="5" transform="translate(0 -46)"/>
+    <path d="M868 -60 C 1068 168 1156 322 1372 428 C 1484 484 1562 514 1646 534" stroke="#ffd2cb" stroke-width="2" transform="translate(0 -58)" opacity=".75"/>
+    <path d="M900 -40 C 1090 172 1172 318 1380 418" stroke="#ffffff" stroke-width="2.5" transform="translate(0 -48)" opacity=".5" filter="url(#blur-s)"/>
+  </g>
+
+  <!-- sparkles on the glass -->
+  <circle cx="1112" cy="150" r="5" fill="#ffffff" opacity=".9"/>
+  <circle cx="1298" cy="368" r="4" fill="#ffffff" opacity=".85"/>
+  <circle cx="1472" cy="474" r="3" fill="#ffd2cb" opacity=".9"/>
+  <path d="M1105 128 l4 14 14 4 -14 4 -4 14 -4 -14 -14 -4 14 -4 z" fill="#ffffff" opacity=".8"/>
+  <path d="M1385 405 l3 10 10 3 -10 3 -3 10 -3 -10 -10 -3 10 -3 z" fill="#ffffff" opacity=".7"/>
+
+  <!-- hairline arcs: geometry, crisp -->
+  <g fill="none" stroke="#17171a" stroke-opacity=".07" stroke-width="1.5">
+    <circle cx="1330" cy="80" r="250"/>
+    <circle cx="1330" cy="80" r="345"/>
+    <circle cx="1330" cy="80" r="445"/>
+    <circle cx="90" cy="830" r="210"/>
+    <circle cx="90" cy="830" r="300"/>
+  </g>
+  <g fill="none" stroke="#ff3b26" stroke-opacity=".12" stroke-width="1.5">
+    <circle cx="1330" cy="80" r="297"/>
+    <circle cx="90" cy="830" r="255"/>
+  </g>
+</svg>

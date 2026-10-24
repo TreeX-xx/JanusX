@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1300" viewBox="0 0 2000 1300">
+  <!-- Original soft-focus glass artwork for the intro panel. Quiet center for the headline;
+       a red glass sweep enters at the top and exits along the right edge, continuing the light
+       into the dark scene below. One crisp specular edge against otherwise out-of-focus forms. -->
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#eef0f3"/>
+      <stop offset=".5" stop-color="#e7e9ee"/>
+      <stop offset="1" stop-color="#dcdee5"/>
+    </linearGradient>
+    <radialGradient id="haze" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/>
+      <stop offset=".5" stop-color="#ffffff" stop-opacity=".58"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="red-bloom" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff4a2c" stop-opacity=".34"/>
+      <stop offset=".55" stop-color="#ff7a5e" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#ff7a5e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gray-tube" x1="0" y1="0" x2=".35" y2="1">
+      <stop offset="0" stop-color="#c9cdd5"/>
+      <stop offset=".55" stop-color="#9aa0ab"/>
+      <stop offset="1" stop-color="#767c87"/>
+    </linearGradient>
+    <linearGradient id="red-body" x1="1120" y1="-140" x2="2100" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffa88f"/>
+      <stop offset=".3" stop-color="#fb4e30"/>
+      <stop offset=".68" stop-color="#dc3218"/>
+      <stop offset="1" stop-color="#a01e0c"/>
+    </linearGradient>
+    <linearGradient id="red-deep" x1="1160" y1="-120" x2="2100" y2="860" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b32410"/>
+      <stop offset=".4" stop-color="#5c1004"/>
+      <stop offset=".78" stop-color="#2a0e08"/>
+      <stop offset="1" stop-color="#121215"/>
+    </linearGradient>
+    <linearGradient id="red-light" x1="1100" y1="-140" x2="2050" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffc9bb"/>
+      <stop offset=".5" stop-color="#ff8163"/>
+      <stop offset="1" stop-color="#ea4a30"/>
+    </linearGradient>
+
+    <filter id="b60" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="b44" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="44"/></filter>
+    <filter id="b26" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="b16" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="16"/></filter>
+    <filter id="b9" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
+    <filter id="b3" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="b08" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation=".8"/></filter>
+    <filter id="grain" filterUnits="userSpaceOnUse" x="0" y="0" width="2000" height="1300">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="2000" height="1300" fill="url(#canvas)"/>
+
+  <!-- quiet light across the message zone -->
+  <ellipse cx="900" cy="640" rx="720" ry="510" fill="url(#haze)"/>
+
+  <!-- soft gray glass sweep, far out of focus -->
+  <g filter="url(#b44)" opacity=".5">
+    <path d="M 320 -170 C 630 200 740 540 630 880 C 550 1140 425 1300 340 1520"
+          fill="none" stroke="url(#gray-tube)" stroke-width="200" stroke-linecap="round"/>
+  </g>
+  <g filter="url(#b26)" opacity=".3">
+    <path d="M 360 -150 C 655 215 760 545 650 885 C 572 1140 452 1300 372 1510"
+          fill="none" stroke="#5f656f" stroke-width="30" stroke-linecap="round"/>
+  </g>
+
+  <!-- light puffs: above the red entry and lower left -->
+  <ellipse cx="1180" cy="120" rx="360" ry="220" fill="#ffffff" opacity=".5" filter="url(#b60)"/>
+  <ellipse cx="260" cy="1180" rx="380" ry="260" fill="#8f959f" opacity=".22" filter="url(#b60)"/>
+  <ellipse cx="980" cy="1345" rx="520" ry="230" fill="#969ca6" opacity=".3" filter="url(#b60)"/>
+
+  <!-- red bloom above the glass -->
+  <ellipse cx="1520" cy="360" rx="640" ry="430" fill="url(#red-bloom)"/>
+
+  <!-- red glass sweep: body, dark outer side, one crisp specular edge -->
+  <g filter="url(#b44)" opacity=".48">
+    <path d="M 1120 -170 C 1185 120 1325 365 1555 515 C 1785 665 1990 745 2260 785"
+          fill="none" stroke="#ff5c3e" stroke-width="280" stroke-linecap="round"/>
+  </g>
+  <g filter="url(#b16)" opacity=".95">
+    <path d="M 1120 -170 C 1185 120 1325 365 1555 515 C 1785 665 1990 745 2260 785"
+          fill="none" stroke="url(#red-body)" stroke-width="164" stroke-linecap="round"/>
+  </g>
+  <!-- dark outer side of the tube -->
+  <g filter="url(#b9)" opacity=".92">
+    <path d="M 1120 -170 C 1185 120 1325 365 1555 515 C 1785 665 1990 745 2260 785"
+          fill="none" stroke="url(#red-deep)" stroke-width="96" stroke-linecap="round"
+          transform="translate(58 66)"/>
+  </g>
+  <!-- black fringe where the glass meets the right edge -->
+  <g filter="url(#b26)" opacity=".85">
+    <path d="M 1120 -170 C 1185 120 1325 365 1555 515 C 1785 665 1990 745 2260 785"
+          fill="none" stroke="#131316" stroke-width="92" stroke-linecap="round"
+          transform="translate(118 132)"/>
+  </g>
+  <!-- dark corner sinking below -->
+  <ellipse cx="2060" cy="1130" rx="260" ry="400" fill="#141417" opacity=".88" filter="url(#b44)"/>
+  <ellipse cx="1820" cy="1370" rx="360" ry="240" fill="#17171a" opacity=".7" filter="url(#b44)"/>
+
+  <!-- inner light band on the near side -->
+  <g filter="url(#b9)" opacity=".85">
+    <path d="M 1120 -170 C 1185 120 1325 365 1555 515 C 1785 665 1990 745 2260 785"
+          fill="none" stroke="url(#red-light)" stroke-width="56" stroke-linecap="round"
+          transform="translate(-32 -30)"/>
+  </g>
+  <!-- the one sharp element: specular edge -->
+  <path d="M 1120 -170 C 1185 120 1325 365 1555 515 C 1785 665 1990 745 2260 785"
+        fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" opacity=".9"
+        transform="translate(-44 -42)"/>
+  <!-- faint secondary refraction -->
+  <path d="M 1132 -150 C 1196 130 1334 372 1560 520 C 1780 662 1975 740 2200 780"
+        fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity=".32"
+        transform="translate(-26 -24)" filter="url(#b08)"/>
+
+  <!-- elongated reflection smears along the specular, as real glass shows -->
+  <ellipse cx="1470" cy="428" rx="74" ry="12" fill="#ffffff" opacity=".38" filter="url(#b3)" transform="rotate(30 1470 428)"/>
+  <ellipse cx="1852" cy="672" rx="46" ry="8" fill="#ffffff" opacity=".26" filter="url(#b3)" transform="rotate(18 1852 672)"/>
+
+  <!-- fine grain to keep the surface photographic -->
+  <rect width="2000" height="1300" filter="url(#grain)" opacity=".045"/>
+</svg>

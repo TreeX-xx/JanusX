@@ -55,6 +55,11 @@ const installer = `${history}/download/v1.2.3/JanusX-1.2.3-x64-setup.exe`;
     await waitForIdle();
     console.log('PASS pointer interaction returns to rest');
 
+    const rest = await page.locator('#hero-particles').evaluate(canvas => canvas.toDataURL());
+    await page.waitForFunction(previous => document.getElementById('hero-particles').toDataURL() !== previous, rest, { polling: 120, timeout: 12000 });
+    await waitForIdle();
+    console.log('PASS idle gesture redraws the eyes and the canvas sleeps again');
+
     const endScroll = await page.locator('#zoom-stage').evaluate(stage => stage.getBoundingClientRect().top + scrollY + innerHeight * .6 - 16);
     await page.evaluate(y => scrollTo(0, y), endScroll);
     await page.waitForFunction(() => Number(document.getElementById('hero').style.getPropertyValue('--p')) > .999);
