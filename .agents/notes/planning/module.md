@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-15",
-  "updated": "2026-10-25T14:12:54.027Z",
+  "updated": "2026-10-26T09:22:10.931Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b2e7f160-2d77-4cc4-8828-b9cf3e5d931a",
   "moduleState": "partial"
 }
@@ -27,6 +27,6 @@
 
 [蓝图官方可下载插件实施计划](blueprint-official-plugin.md)维护按需下载目标下的代码边界、官方来源、接口试验、迁移与发布门禁。独立 UI／后台、签名分发、MCP、仓库外构建及旧数据导入已有实现和定向证据，构建与真实载体回归已接入本地及 CI 命令；插件树排除已落地，宿主旧业务和完整功能验收继续推进。生产目录、可消费共享修订及实际安装包验证仍有缺口，BP-0–BP-6 不以局部测试通过签收，分发衔接 P8。
 
-蓝图本地试用使用 `npm run dev:blueprint`，独立 profile、签名安装、启用和桌面关闭后的 MCP 已有完整桌面定向证据；不依赖 Release。蓝图专项的[产品方向](../blueprint/product-direction.md)与[交付计划](../blueprint/evolution-roadmap.md)继续归蓝图维护，本模块引用专项计划而不复制其正文。应用内备忘录和星座里程碑的产品能力归[个人记忆与共享来源](../knowledge/module.md)，与这里的仓库排期资料分别维护。
+蓝图本地试用使用 `npm run dev:blueprint`，独立 profile、签名安装、启用和桌面关闭后的 MCP 已有完整桌面定向证据；不依赖 Release。10-26 已交付本地安装器与单文件 .jxp，真实打包桌面启动及插件导入／授权／设置／节点渲染已验证；[宿主残留依赖与主包瘦身缺口](blueprint-official-plugin.md#宿主残留依赖与主包瘦身缺口)记录旧存储与 IPC、图投影、文档／远程后端适配、迁移与作者工具、公共 UI 的待清理范围，不将独立安装等同于宿主完全拆分。蓝图专项的[产品方向](../blueprint/product-direction.md)与[交付计划](../blueprint/evolution-roadmap.md)继续归蓝图维护，本模块引用专项计划而不复制其正文。应用内备忘录和星座里程碑的产品能力归[个人记忆与共享来源](../knowledge/module.md)，与这里的仓库排期资料分别维护。
 
 项目 Notes 根目录仅保留项目入口，跨模块排期归本模块。新增专题使用稳定文件名并声明本模块 URI；以后明确退出当前排期的资料可移入本目录的 history/，同步生命周期、引用与维护时间。归档是另行确认的内容处置，不由目录整理自动推断。

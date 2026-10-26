@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-26T09:10:38.226Z",
+  "updated": "2026-10-26T09:22:10.926Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -284,6 +284,24 @@ src/main/harness/service.ts 已直接继承共享 NoteService，不再转导出�
 宿主 `typecheck:strict-unused`、插件独立 typecheck、`build:check` 及本轮修改宿主文件 ESLint 通过。全仓 Note 检查为 312 篇、2 错误，仍只来自未修改的 entrance-choreography.md；本轮五份 Note 无新增错误。没有提交混合工作区或执行远端发布。
 
 剩余主包清理优先处理 janus-handlers 的兼容 CRUD、harness projectGraph 的兼容投影，以及迁移和圆桌仍使用的作者工具。随后补真实安装器／便携包、无插件冷启动、资源基线、完整旧功能与版本矩阵。正式签名与目录发布继续单列；AC-20–27 不因本轮定向通过而签收。
+
+## 宿主残留依赖与主包瘦身缺口
+
+2026-10-26 对当前源码执行 esbuild 内存构建，检查 `src/main/index.ts`、`src/renderer/src/main.tsx` 和 `src/main/workspace/backend-entry.ts` 的 metafile.inputs。确认插件独立安装与宿主完全移除蓝图代码是两个出口：排除 plugins/ 目录不会阻止构建工具把宿主直接引用的插件源码编入 JavaScript。以下事项尚未完成，后续清理需分别验证依赖断开及原有功能。
+
+| 待处理项 | 实际调用链与残留内容 | 后续处理范围 |
+| --- | --- | --- |
+| 旧蓝图存储与操作接口 | [janus-handlers](../../../src/main/ipc/janus-handlers.ts) → [blueprint-store](../../../src/main/janus/blueprint-store.ts)，继续引入 blueprint-paths、factory、persistence、migration、requirement-candidates、relations 及 maintenance/changeset。 | 梳理旧蓝图／节点／功能项 CRUD 和历史分析采纳的调用方，将专属业务归入插件；旧数据保留与兼容策略必须明确，不能直接删除用户数据。 |
+| Note 图投影与组合关系 | [宿主适配器](../../../src/main/blueprint/note-service.ts) 实例化插件的 BlueprintNoteProjection，引入 note-to-blueprint、projection 和 blueprint-composition。 | 移除宿主对蓝图专属投影的直接引用；通用 Note 索引、身份和事务留在共享能力中，不为瘦身删除其他功能仍需的引擎。 |
+| 文档与项目初始化适配 | [document-handlers](../../../src/main/harness/document-handlers.ts) 的 resolve、projectGraph、apply 仍使用上述投影，workspace-blueprint 直接继承插件的 WorkspaceBlueprintService；[远程后端入口](../../../src/main/workspace/backend-entry.ts) 仍调用投影保存蓝图 UI 状态。 | 通用文档解析／写入和项目初始化摆脱蓝图图结构；蓝图图读取与视口状态回归插件。桌面和远程后端同时检查，保留无插件场景下的文档能力。 |
+| 旧数据迁移与文档作者工具 | [harness-handlers](../../../src/main/ipc/harness-handlers.ts) 保留旧 JSON → Notes 迁移及维护审计读取；圆桌 service／artifact-bundle 直接引用插件的 note-authoring。 | 将通用文档作者工具归回共享模块，明确历史迁移的所有者及调用入口；验证迁移与圆桌生成文档，不把旧数据读取误删成运行时清理。 |
+| 蓝图目录内的公共 UI | 实际 renderer 依赖包含 PromptDialog、NoteTimelineDetails、NoteChatActivity 及相关样式，主界面、Git／文件操作、备忘录及普通聊天仍有消费者。 | 提取为公共组件并修正目录和导入；保留退出确认、文件操作及聊天中的文档变更展示，不能整目录删除。 |
+
+旧审核 IPC 当前只返回 BLUEPRINT_PLUGIN_REQUIRED，旧审核、建议、维护后台和 analyzer 已退出宿主运行链；旧蓝图工作台及 store 已退出 renderer 入口。源码文件仍在仓库、类型导入存在或路径包含 blueprint，都不足以判断它是否进入安装包，后续以实际构建输入和输出复核。
+
+清理顺序为旧业务 IPC／存储、通用文档与图投影解耦、作者工具归属、公共 UI 提取。完成后需检查 main／renderer／远程 workspace 三个入口、无插件启动和通用文档／圆桌回归，再验证同批宿主与 .jxp 的安装、授权和蓝图功能。[边界测试](../../../tests/unit/blueprint-host-boundary.test.ts)除禁止已列旧运行时外，已对三个入口加棘轮：metafile.inputs 中 plugins/blueprint 源码与宿主路径含 blueprint 的源码必须与 RESIDUAL 清单完全一致。10-26 基线为 main 14 个插件源码／7 个宿主文件，远程后端 5／2，renderer 0 个插件源码、8 个仍在 blueprint 目录下的公共 UI 文件。新增残留直接失败；断开依赖后清单不缩小也会失败，清理步骤须在同一变更中删除对应条目。棘轮只约束源码输入，不代表体积、无插件冷启动或功能已验收；以上清理本次未实施或签收。
+
+10-26 安装器为 132.5 MiB，蓝图 .jxp 为 1.71 MiB。按实际解包文件统计，Electron／Chromium 约 284 MiB、归档中公共 npm 文件约 142 MiB、主程序编译产物约 35 MiB、OfficeCLI 约 32 MiB；这些是未压缩内容分类，不能与安装器体积直接比较或推导可节省量。公共依赖仍有其他消费者，蓝图清理不能承诺安装包大幅缩小；实际收益须用相同平台与构建条件做前后对比。性能、跨包重复和通用依赖资源裁剪另行度量，不把插件包大小当作可直接扣除的体积。
 
 ## 10-26 本地交付签名
 
