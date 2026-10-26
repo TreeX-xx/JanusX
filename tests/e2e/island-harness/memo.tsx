@@ -18,7 +18,6 @@ import { AuthType } from '../../../packages/llm-core/src/core/types'
 import '../../../src/renderer/src/styles/themes.generated.css'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/components/janus/janus-island.css'
-import '../../../src/renderer/src/components/blueprint/blueprint.css'
 
 installElectronApiFallback()
 Object.assign(window.electron.subAgentRun, { list: async () => [] })

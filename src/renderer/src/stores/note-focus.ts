@@ -1,7 +1,7 @@
 // Note: passive scope and explicit navigation stay separate — see .agents/notes/blueprint/navigation/requirements/module-focus-navigation.md
 import { create } from 'zustand'
 import type { NoteBrowserState, NoteFocusAction, NoteFocusEvent, NoteScopeItem } from '../../../shared/note-chat'
-import { sameCheckoutPath } from '../features/blueprint/resolveNodeWorkspace'
+import { sameCheckoutPath } from '../lib/checkout-path'
 
 export interface WorkingScope { workspacePath: string; notes: NoteScopeItem[]; excluded: string[] }
 export const useNoteFocusStore = create<{
