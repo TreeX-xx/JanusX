@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-15",
-  "updated": "2026-10-26T16:34:12Z",
+  "updated": "2026-10-26T17:01:34Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b2e7f160-2d77-4cc4-8828-b9cf3e5d931a",
   "moduleState": "partial"
 }
@@ -30,3 +30,5 @@
 蓝图本地试用使用 `npm run dev:blueprint`，独立 profile、签名安装、启用和桌面关闭后的 MCP 已有完整桌面定向证据；不依赖 Release。BP-5 清理三个宿主入口、公共组件和作者工具，Windows 实物及三态资源已有代表证据，体积小幅减少而启动未见明显收益。用户已移除旧版升级兼容，暂缓撤销并取消对话修改审计；1.0.3 保留文件预览／确认，直接提交 Note 事务，右侧无审计和撤销入口。BP-6 继续验证新版本完整功能、故障及持续资源，生产目录与可消费共享修订仍待交付，详见[官方插件专项](blueprint-official-plugin.md)。蓝图专项的[产品方向](../blueprint/product-direction.md)与[交付计划](../blueprint/evolution-roadmap.md)继续归蓝图维护，本模块引用专项计划而不复制其正文。应用内备忘录和星座里程碑的产品能力归[个人记忆与共享来源](../knowledge/module.md)，与这里的仓库排期资料分别维护。
 
 项目 Notes 根目录仅保留项目入口，跨模块排期归本模块。新增专题使用稳定文件名并声明本模块 URI；以后明确退出当前排期的资料可移入本目录的 history/，同步生命周期、引用与维护时间。归档是另行确认的内容处置，不由目录整理自动推断。
+
+蓝图下次继续从专项的[后续接续入口](blueprint-official-plugin.md#后续接续入口)恢复：worktree 选择和正文往返已有实现及证据，接着补写入／建议隔离与配套实物；外部 MCP 先补 Codex 写入验证和 Pi 扩展接入，实际兼容矩阵由 Note MCP 专题维护。

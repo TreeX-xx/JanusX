@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "proposed",
   "created": "2026-10-09",
-  "updated": "2026-10-13T03:34:53.540Z",
+  "updated": "2026-10-26T17:01:34Z",
   "class": "architecture",
   "tags": ["note", "mcp", "onboarding", "blueprint"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
@@ -163,3 +163,11 @@ Q7–Q8 已确认首版工具范围、终端顺序、全局导入、项目定位
 | Pi | 已安装版本的 README 明确无原生 MCP，需扩展；当前未提供扩展与一键导入，不标为支持。 |
 
 开发实测用本机确定性提供方和隔离 home，未使用真实模型推理，也未导入用户配置。脚本为 scripts/verify-note-mcp-clients.mjs；受控结果见 docs/validation/blueprint-refactor/clients.json。服务探测仅握手、列工具和临时目录读 Note，不能替代客户端调用。Node 独立运行已验证，Electron 与安装包路径分别验收；无桌面进程仍可消费相同 SQLite。
+
+### 后续兼容验证
+
+“外部 MCP 客户端兼容验证”是让实际 Agent 终端发现并调用 Note 工具，核对读取、经宿主授权的写入、建议查询和项目／worktree 路径定位，以及桌面关闭后的独立启动、插件更新后稳定入口仍可用。客户端传入的 workspacePath 决定目标，不能跟随蓝图界面当前选择切到其它工作树。
+
+当前优先补 Codex 写入：在允许测试写入的隔离客户端环境中完成 read/context → write → read，核对实际文件和冲突拒绝；既有 never 审批拒绝仅说明该次验证受宿主策略阻止，不据此认定 MCP 写入实现失败，也不修改用户真实审批配置。Pi 的已安装版本无原生 MCP，需先确认扩展接入方式，再补实现和实际工具调用；未完成前保持不支持状态。
+
+沿用 scripts/verify-note-mcp-clients.mjs 与上述真实进程矩阵；已有通过项保留，不把连接检测扩大为实际客户端验收。新版本配套安装包的启动路径与更新生命周期仍需实物验证。本轮仅记录后续出口；与 worktree 界面验证的接续关系归[官方插件专项](../planning/blueprint-official-plugin.md#后续接续入口)。

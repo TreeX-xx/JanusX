@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-26T16:58:16Z",
+  "updated": "2026-10-26T17:01:34Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -246,6 +246,17 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 `tests/unit/plugin-runtime.test.ts` 与 plugin-surfaces 共 48 项通过，覆盖不透明身份、未知／已移除目标拒绝、撤权后迟到列表不派发，以及切换根后旧页面失效、新页面读取新正文；日志为 artifacts/plugins/worktree-host-tests-final.log。宿主严格未用类型检查、修改宿主文件 ESLint 及 i18n 检查通过。`npm run test:blueprint:local -- --output artifacts/blueprint-worktree-results` 的完整桌面一项通过：创建两个真实 Git worktree，同一 Note 身份在 feature 修改正文，使用左上角切换后读到 feature 文本，切回主工作树恢复原文，外框持续打开；原设置、卡片和退出后 MCP 回归也通过，日志为 artifacts/plugins/worktree-desktop.log。已查看三卡截图。该用例不替代维护写入、建议和长时切换的全部 worktree 矩阵。
 
 最终 `npm run plugins:blueprint:check` 通过，以九个锁定公开归档进行仓库外 npm ci、类型检查和构建，同包签名 Electron 回归一项通过；收据 artifacts/plugins/blueprint-build.json 的 runtime.status 为 passed，日志为 artifacts/plugins/worktree-final-gate.log。共享归档仅 SDK 因公开契约和说明更新而变化，其余八个保持原哈希，核对收据为 artifacts/plugins/worktree-dependency-review.json。同步清理已退役的审计方法声明和仍承诺撤销的问候文字。全仓 Note 校验仍只有 entrance-choreography.md 两项既有错误，未重跑完整测试套件；1.0.4 及配套宿主未发布，原 1.0.3 本地产物不含本功能。
+
+## 后续接续入口
+
+当前实现基线为 d37a4aee，蓝图源码版本 1.0.4；配套宿主和插件尚未正式交付，原 1.0.3 本地产物不包含 worktree 切换。用户本轮要求先记录，剩余实施留待后续继续。
+
+| 事项 | 已确认事实与下一步 |
+| --- | --- |
+| 外部 MCP 客户端兼容 | 指 Claude Code、Codex、OpenCode 等外部终端实际发现／调用 Note 工具、读写及建议查询、按调用提供的项目／worktree 路径定位，以及桌面关闭后的独立运行；不等同于设置页连接探测。先补 Codex 在允许测试写入的隔离环境中的真实写入验证，再处理 Pi 所需的扩展接入；既有通过项、限制和具体出口归[Note MCP 后续验证](../blueprint/note-mcp.md#后续兼容验证)。 |
+| Worktree 切换 | 左上角按 worktree 切换显示是必要功能，入口和双工作树正文往返已完成，无需重新开发。接着补维护确认写入、建议隔离、快速切换／迟到结果及长期资源验证；核对同一 Note 身份在不同根下互不串写，再验证配套宿主与 1.0.4 插件实物。 |
+
+继续遵循当前范围：面向新版本用户，撤销暂缓，蓝图修改审计已取消；对话修改保留预览、确认、权限与冲突检查，确认后直接提交文件事务。
 
 ## 剩余交付出口
 
