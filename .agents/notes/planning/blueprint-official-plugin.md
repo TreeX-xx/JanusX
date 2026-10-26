@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-26T15:35:58.159Z",
+  "updated": "2026-10-26T15:45:23.290Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -304,7 +304,7 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 旧 JSON 导入入口位于插件工具栏“导入旧蓝图”。先列出来源并预览目标路径及完整 Markdown，再用一次性 token 确认；token 绑定项目根、repoId、页面所有者和源文件哈希，过期、换页、来源变更或越权时拒绝写入。确认使用预览时生成的同一批身份和文档，通过共享事务写入 draft Notes 与迁移报告，再归档插件副本。转换标记与 Notes 同事务落盘：写后归档失败返回 RECOVERY_REQUIRED，重新打开也拒绝生成第二套文档。harness-note/2 中的历史任务转普通 Note，不伪造执行合同、验收或回执。维护审计沿用历史读取规则；完整历史版本及真实旧用户矩阵仍待验收。
 
-无插件文档回归覆盖初始化、项目解析、原文、重命名、共享、归档、冲突和归档撤销。重命名的 undoPreview 可读，但共享引擎 applyUndo 对重命名日志返回 duplicate operationId；这是本轮新增集成测试发现的共享引擎缺口，未在宿主复制一套撤销实现。独立签名载体还复现过维护写入后审计停留 pending／BUSY 的锁竞争，存在同包通过记录；UI 现等本轮写入完成后刷新已展开的审计列表，门禁状态按最新收据报告，不把复测通过当成所有锁竞争已修复。
+无插件文档回归覆盖初始化、项目解析、原文、重命名、共享、归档、冲突和归档撤销。重命名的 undoPreview 可读，但共享引擎 applyUndo 对重命名日志返回 duplicate operationId；这是本轮新增集成测试发现的共享引擎缺口，未在宿主复制一套撤销实现。独立签名载体还复现过维护写入后审计停留 pending／BUSY。现已补齐审计列表在写入完成后的刷新，以及下述覆盖证明读取等待；持续锁、非 BUSY 错误与中断后的审计恢复仍需故障矩阵，不以复测通过签收全部锁问题。
 
 | 本轮验证 | 实测结果与证据 |
 | --- | --- |
@@ -322,7 +322,7 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 源码边界与旧 JSON 转换提交为 4fd7f348。后续打包将只供插件和测试使用的 @xyflow/react 移到宿主 devDependencies，保持原锁定版本不升级，按生产闭包新增 18 条排除；插件继续独立声明自己的 React Flow。实际 asar 门禁同时拒绝 @xyflow 与蓝图树，根目录 *.tmp.* 也排除。三个宿主入口业务依赖均为零，包中无插件源码、产物、vendor、React Flow 或本轮临时脚本。
 
-本地产物位于 release/2026-10-26-migration-r2，主程序 0.9.4，蓝图 1.0.1。独立插件沿用九个锁定公开归档，仓库外 npm ci／typecheck／build 与同包签名 Electron 回归通过，再以既有 janusx-blueprint-20261026 身份签为单文件 .jxp。原 release/2026-10-26 和 1.0.0 包未覆盖，生产目录仍未发布。主程序 Windows Authenticode 未签署；插件包的 Ed25519 签名已由正常安装器验证，两者是不同签名。
+本地产物位于 release/2026-10-26-migration-r2，主程序 0.9.4，首次实物测量的蓝图为 1.0.1，随后覆盖证明读取修复升为 1.0.2。独立插件沿用九个锁定公开归档，仓库外 npm ci／typecheck／build 与同包签名 Electron 回归通过，再以既有 janusx-blueprint-20261026 身份签为单文件 .jxp。原 release/2026-10-26、1.0.0 和本轮 1.0.1 包未覆盖，生产目录仍未发布。主程序 Windows Authenticode 未签署；插件包的 Ed25519 签名已由正常安装器验证，两者是不同签名。
 
 | 测量 | 原 10-26 交付 | 清理后候选 |
 | --- | --- | --- |
@@ -340,9 +340,11 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 [实物验证脚本](../../../scripts/plugins/check-blueprint-packaged.mjs)仅将文件选择器指定到待测包，其余走正常主窗口导入、生产 signer、默认停用、授权、设置自动保存、真实图和正文、停用及重启。副本根 Note 的 SHA-256 保持不变。资源收据为该目录 verification/blueprint-packaged.json，包体积为 verification/package-size.json；插件页面截图已检查，宿主截图只记录原生子页面下方的背景，不能当作合成后的整窗截图。首轮工具读取因 Playwright 调试上下文失效中断，随后只读采样有界重试通过；不将其称为产品启动问题已修复。
 
-同一候选宿主另通过真实 1.0.0 包重装、升级到 1.0.1、回退到 1.0.0：设置提交阈值从 9 改为 11，升级与回退均保留 11，更新后等待显式启用，根 Note 未改。收据为 verification/compatibility/blueprint-packaged.json 的 versionChecks。这只验证同为宿主 0.9.4 的候选打包版与两版插件的设置／安装生命周期，不覆盖所有数据 schema、旧宿主或外部 MCP 在用版本。
+同一候选宿主另通过真实 1.0.0 包重装、升级到 1.0.1／1.0.2、回退到 1.0.0：设置提交阈值从 9 改为 11，升级与回退均保留 11，更新后等待显式启用，根 Note 未改。1.0.1 收据保留在 verification/compatibility-1.0.1，当前 verification/compatibility/blueprint-packaged.json 记录 1.0.2 的 versionChecks；未安装及重启停用的原资源采样仍明确来自 1.0.1。这只验证同为宿主 0.9.4 的候选打包版与这些插件的设置／安装生命周期，不覆盖所有数据 schema、旧宿主或外部 MCP 在用版本。
 
 `node scripts/check-packaged-runtime.mjs --portable --release-dir release/2026-10-26-migration-r2` 通过：实际归档闭包与体积预算、仓库外完整模块图、LLM adapters、正常 GPU 的可见 GUI、便携载荷与启动器均有证据。安装向导尚未操作。补充的严格未用类型检查、包边界／exclusions、三份单元 26 项及本地版本递增 1 项通过；未重跑完整测试套件。完整历史副本、磁盘满／杀进程恢复、全部宿主／插件组合和生产下载仍未验收。
+
+覆盖证明读取与索引一样使用共享 Notes 锁；原等待只覆盖索引，导致事务已提交后，projectView 的 listTaskResults／验收证明读取仍可直接报 BUSY，审计停在 pending。插件 1.0.2 将这个只读分支纳入相同的 100ms 间隔、最多 10 秒等待。没有捕获写事务并重放、放宽权限或跳过证明。新增真实锁回归在修改前准确复现 BUSY，修复后验证只提交一次、正文及事务目录保持提交后的结果；非 BUSY 的 IO_ERROR 原样返回。新回归 2 项通过，相关 maintenance-harness-apply 11 项及真实 native 15 项通过，日志为 artifacts/plugins/migration-coverage-before.log、migration-coverage-final.log 和 migration-coverage-after.log。1.0.2 另通过九依赖独立构建、同包签名 Electron 载体及正常生产包导入／设置升级回退，门禁日志为 migration-proof-independent-check.log、migration-proof-packaged-compatibility.log。持续锁与持久化后读取的其它失败仍不属于已完成的恢复保证。
 
 ## 10-26 本地交付签名
 

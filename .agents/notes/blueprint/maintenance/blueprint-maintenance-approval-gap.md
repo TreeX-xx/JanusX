@@ -7,7 +7,7 @@
   "created": "2026-09-29",
   "class": "bug-fix",
   "tags": ["blueprint","maintenance","approval","janus-chat"],
-  "updated": "2026-10-24T18:05:11.031Z",
+  "updated": "2026-10-26T15:45:23.294Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b"
 }
 ---
@@ -68,6 +68,8 @@ Note 的 delete-node 沿用归档映射，预览明确显示文件保留及 life
 辅助证据以工作区为完整单元取舍，可能留下未用满的窗口，换取不截断文件上下文。必要 Note 与讨论本身超过真实窗口仍需要缩小范围或更大模型。未知模型的应用上限限制单次发送成本，但仍可能超过供应商容量；服务端最终拒绝时不写入 Note。若必要内容超过应用上限，应补齐可靠模型元数据或另行设计分阶段整理。schema 预留是保守估算，操作结构扩展时应重新核对。预算复现与真实 Note 应用验证见[实施任务](./tasks/blueprint-review-implementation.md#verification)。
 
 ## Verification
+
+插件迁移后的写入会再次投影图，供审计和后续撤销使用。覆盖证明读取同样取得共享 Notes 锁，原有索引等待没有覆盖它；短暂竞争可发生在事务已经提交之后。插件现仅对这类只读 BUSY 每 100ms 等待、最多 10 秒，非 BUSY 错误仍返回，不重放写入。`tests/unit/blueprint-coverage-lock.test.ts` 使用真实文件锁，在修复前复现错误、修复后两项通过，并核对只提交一次、正文与事务目录不变；maintenance-harness-apply 11 项和真实 native 15 项通过。持续占锁、审计文件写入失败及进程中断仍需独立恢复验证，当前包与完整证据归[官方插件专项](../../planning/blueprint-official-plugin.md)。
 
 蓝图插件迁移期间新增 blueprint-maintenance-sections 2 项，以及 harness-routing 中的多操作／部分选择／新增章节／再次撤销回归；相关两文件共 35 项通过。blueprint-native 的真实独立后台同样完成“生成章节提案 → 预览 → 应用 → 撤销”并核对原文。模型响应为确定性测试数据，不代表真实模型质量验收。
 

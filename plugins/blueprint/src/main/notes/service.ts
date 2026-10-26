@@ -14,8 +14,8 @@ export const stripRemoteCreds = sharedHarness.stripRemoteCreds
 export type { ResolveResult, ShareSelection, ShareSnapshot, BindingRecord, ChangeListener } from '@janus-agent/harness-node'
 
 // The host and standalone MCP may scan the same checkout in another process.
-// Retry only index reads after lock contention; never replay a submitted write.
-async function waitForIndex<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+// Retry only index/proof reads after lock contention; never replay a submitted write.
+async function waitForNoteRead<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const deadline = Date.now() + 10_000
   for (;;) {
     signal?.throwIfAborted()
@@ -35,14 +35,14 @@ export class BlueprintNoteService extends NoteService {
     const path = resolve(root)
     const key = process.platform === 'win32' ? path.toLowerCase() : path
     return this.indexReads.run(key, async signal => {
-      const result = await waitForIndex(() => super.refreshIndex(path), signal)
+      const result = await waitForNoteRead(() => super.refreshIndex(path), signal)
       signal.throwIfAborted()
       return result
     })
   }
 
   override rescan(root: string): Promise<{ rev: number; ms: number }> {
-    return waitForIndex(() => super.rescan(root))
+    return waitForNoteRead(() => super.rescan(root))
   }
 
   override async warmup(root: string): Promise<{ rev: number; ms: number }> {
@@ -56,7 +56,8 @@ export class BlueprintNoteService extends NoteService {
   private readonly projection = new BlueprintNoteProjection({
     readIndex: root => this.refreshIndex(root),
     repoName: root => this.repoName(root),
-    readCoverage: (root, rev, entries, repoId) => this.coverageOverlay(root, rev, entries, repoId),
+    // Note: post-commit audit snapshots also read lock-protected evidence; see .agents/notes/planning/blueprint-official-plugin.md.
+    readCoverage: (root, rev, entries, repoId) => waitForNoteRead(() => this.coverageOverlay(root, rev, entries, repoId)),
   })
 
   projectView(root: string): Promise<ProjectView> { return this.projection.projectView(root) }
