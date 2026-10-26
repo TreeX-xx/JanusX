@@ -7,8 +7,6 @@ import type { BlueprintNode } from '../shared/janus/types'
 import type {
   BlueprintMaintenanceTask,
   BlueprintMaintenancePreview,
-  BlueprintMaintenanceAuditRecord,
-  BlueprintMaintenanceUndoPrepareResult,
   BlueprintDispatchBriefResult,
 } from '../shared/janus/maintenance-types'
 import { call, job, plugin } from './client'
@@ -44,11 +42,7 @@ export function Maintenance({
   const [task, setTask] = useState<BlueprintMaintenanceTask>(),
     [selected, setSelected] = useState<string[]>([]),
     [deletes, setDeletes] = useState<string[]>([])
-  const [preview, setPreview] = useState<BlueprintMaintenancePreview>(),
-    [audits, setAudits] = useState<BlueprintMaintenanceAuditRecord[]>([])
-  const [auditOpen, setAuditOpen] = useState(false)
-  const [undo, setUndo] = useState<BlueprintMaintenanceUndoPrepareResult>()
-  const [undoDeletes, setUndoDeletes] = useState<string[]>([])
+  const [preview, setPreview] = useState<BlueprintMaintenancePreview>()
   const [scope, setScope] = useState<'node' | 'subtree' | 'blueprint'>('node')
   const [progress, setProgress] = useState<NativeAgentProgress>(),
     [pendingQuestion, setPendingQuestion] = useState('')
@@ -92,17 +86,6 @@ export function Maintenance({
     setDeletes([])
     setPreview(undefined)
   }, [task?.changeSet?.id])
-  useEffect(() => setUndoDeletes([]), [undo?.changeSet.id])
-  // A Note file can become visible before the write and its audit finish.
-  // Read history after the action settles, including a history panel opened mid-write.
-  useEffect(() => {
-    if (!auditOpen || busy) return
-    const abort = new AbortController()
-    void call<BlueprintMaintenanceAuditRecord[]>('maintenance.audits', null, abort.signal)
-      .then(value => { if (!abort.signal.aborted) setAudits(value) })
-      .catch(error => { if (!abort.signal.aborted) setError(String(error)) })
-    return () => abort.abort()
-  }, [auditOpen, busy, task?.updatedAt])
   useEffect(() => {
     let stop: (() => void) | undefined,
       disposed = false
@@ -347,83 +330,6 @@ export function Maintenance({
           {t('结束本轮维护')}
         </button>
       )}
-      <details hidden={!history?.messages.length && !task && !audits.length}
-        onToggle={event => setAuditOpen(event.currentTarget.open)}
-      >
-        <summary>{t('已应用记录与撤销')}</summary>
-        {activeTask && <p>{t('请先结束本轮维护，再撤销已应用记录。')}</p>}
-        {audits
-          .filter((audit) => audit.status === 'applied')
-          .map((audit) => (
-            <div key={audit.id}>
-              <p>{audit.changeSetSnapshot.reason}</p>
-              <button
-                disabled={Boolean(busy) || Boolean(activeTask)}
-                onClick={() =>
-                  void action(t('准备撤销'), async (signal) => setUndo(await call('maintenance.undo-prepare', audit.id, signal)))
-                }
-              >
-                {t('查看撤销操作')}
-              </button>
-            </div>
-          ))}
-        {undo && (
-          <section>
-            <h3>{t('确认撤销')}</h3>
-            {undo.conflicts.map((text) => (
-              <p role="alert" key={text}>
-                {text}
-              </p>
-            ))}
-            {undo.changeSet.operations.map((op) => (
-              <p key={op.operationId}>{op.reason}</p>
-            ))}
-            {undo.changeSet.operations
-              .filter((op) => op.type === 'delete-node')
-              .map((op) => (
-                <label key={op.operationId}>
-                  <input
-                    type="checkbox"
-                    checked={undoDeletes.includes(op.operationId)}
-                    disabled={Boolean(busy)}
-                    onChange={(event) =>
-                      setUndoDeletes(
-                        event.target.checked ? [...undoDeletes, op.operationId] : undoDeletes.filter((id) => id !== op.operationId),
-                      )
-                    }
-                  />
-                  {t('确认归档本次新增的文档：')}
-                  {op.reason}
-                </label>
-              ))}
-            <button
-              disabled={
-                Boolean(busy) ||
-                undo.conflicts.length > 0 ||
-                undo.changeSet.operations.some((op) => op.type === 'delete-node' && !undoDeletes.includes(op.operationId))
-              }
-              onClick={() =>
-                void action(t('撤销修改'), async (signal) => {
-                  await call(
-                    'maintenance.undo-apply',
-                    {
-                      undoChangeSetId: undo.changeSet.id,
-                      operationIds: undo.changeSet.operations.map((op) => op.operationId),
-                      confirmedDeleteOperationIds: undoDeletes,
-                    },
-                    signal,
-                  )
-                  setUndo(undefined)
-                  setAudits(await call('maintenance.audits'))
-                  refresh()
-                })
-              }
-            >
-              {t('确认撤销')}
-            </button>
-          </section>
-        )}
-      </details>
       </div>
       <footer className="bp-maintenance-composer janus-chat" data-minimal-composer="true">
       <details className="bp-maintenance-controls"><summary>{t('维护范围')} · {scopeNode?.title ?? t('整个工作区')}</summary>

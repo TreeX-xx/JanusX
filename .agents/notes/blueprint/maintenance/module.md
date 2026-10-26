@@ -5,23 +5,23 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-11T17:33:26.558Z",
+  "updated": "2026-10-26T16:23:44Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
   "moduleState": "partial",
   "codeRefs": [
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx",
+      "path": "plugins/blueprint/src/ui/Maintenance.tsx",
       "role": "entry"
     },
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/main/harness/note-chat.ts",
+      "path": "plugins/blueprint/src/main/janus/maintenance/service.ts",
       "role": "implementation"
     },
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/main/harness/maintenance-apply.ts",
+      "path": "plugins/blueprint/src/main/notes/maintenance-apply.ts",
       "role": "implementation"
     }
   ]
@@ -32,11 +32,11 @@
 
 ## Responsibility
 
-承接蓝图连续讨论、获授权的 Note 读写、建议定向修复与复核，以及修改差异和版本校验撤销。旧维护提案服务继续维护其独立审批与简报协议。范围、展示意图和写入权限分别维护，普通访问和关注变化不授权写入。
+承接蓝图连续讨论、获授权的 Note 修改预览、确认写入、建议定向修复与复核，以及实施简报。范围、展示意图和写入权限分别维护，普通访问和关注变化不授权写入。用户已暂缓撤销并取消蓝图修改审计，确认后的文件事务直接生效。
 
 ## Design
 
-普通右侧复用 JanusChat 的连续会话、流式能力和 agentX 的受管 Note 编辑，不要求先整理并批准。建议定向修复绑定来源、工作区、分支、所选问题及文件版本，宿主在实际修改后复核，卡片显示加载、差异与撤销；[建议交接专题](../navigation/note-updates-and-suggestion-navigation.md#建议定向修复)持有详细边界。旧维护任务仍绑定提案版本，继续讨论可以使其旧稿失效。对话线程生命周期见 [职责入口](../../sessions/threads/module.md)，画布关注与定位见 [职责入口](../navigation/module.md)。执行 Task 和独立评估仍由 Agent 对话与执行模块负责。
+右侧插件对话复用共享会话和流式能力；普通讨论只读，整理后展示文件预览，用户确认才经共享 Note 事务写入。继续讨论、提案替换或源变化使旧预览失效。1.0.3 移除蓝图维护审计写入、查询和撤销入口；图刷新独立于已完成的确认结果，详见[文件审批决策](blueprint-maintenance-approval-gap.md)。建议定向修复绑定来源、工作区、分支、所选问题及文件版本；[建议交接专题](../navigation/note-updates-and-suggestion-navigation.md#建议定向修复)保留原宿主行为和历史边界。对话线程生命周期见 [职责入口](../../sessions/threads/module.md)，画布关注与定位见 [职责入口](../navigation/module.md)。执行 Task 和独立评估仍由 Agent 对话与执行模块负责。
 
 本层保留审核生成与维护对话职责，使用[建议管理子模块](suggestions/module.md)，集中维护 Note 各种变化下的建议状态、版本和清理。目标 Note 删除后自动清理其建议，界面、原生 MCP 和独立 MCP 共用同一机制；不留建议历史。建议模块已接入桌面、原生工具和独立 MCP，共用 SQLite 当前状态；不把读取作为生成入口。
 

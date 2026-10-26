@@ -17,6 +17,5 @@ export interface MaintenancePorts {
   }
   models: MaintenanceModelPort
   workspaces(): Promise<Array<{ id: string; path: string }>>
-  auditDirectory: string
   changed(task: BlueprintMaintenanceTask): void
 }

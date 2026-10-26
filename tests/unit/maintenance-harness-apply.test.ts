@@ -242,11 +242,13 @@ describe('maintenance harness apply wiring (S6-c slice 2b)', () => {
       reason: 'test relation',
     })
     const view = await svc.projectView(root)
-    expect(view.blueprint.relations.find((r) => r.id === result.createdRelationIds['tmp-rel-1']))
+    const relation = view.blueprint.relations.find((r) => r.sourceNodeId === TASK && r.targetNodeId === REQ && r.type === 'depends-on')!
+    expect(result.appliedMaintenanceIds).toEqual(['m-rel-1'])
+    expect(relation)
       .toMatchObject({ sourceNodeId: TASK, targetNodeId: REQ, type: 'depends-on' })
     await applyMaintenanceSelection(svc, {
       root, repoId: REPO, taskId: 'task-undo-relation', changeSetVersion: 1, reason: 'Undo relation',
-      operations: [{ operationId: 'remove', type: 'remove-relation', relationId: result.createdRelationIds['tmp-rel-1'],
+      operations: [{ operationId: 'remove', type: 'remove-relation', relationId: relation.id,
         reason: 'undo', evidenceRefs: [], dependsOn: [], risk: 'medium' }],
     })
     expect((await svc.projectView(root)).blueprint.relations).toEqual([])

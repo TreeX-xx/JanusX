@@ -11,7 +11,7 @@ export const BLUEPRINT_NATIVE_METHODS = [
   'mcp.status', 'mcp.change', 'mcp.probe', 'mcp.guide',
   'discussion.read', 'discussion.clear', 'discussion.run',
   'maintenance.list', 'maintenance.start', 'maintenance.propose', 'maintenance.dispatch', 'maintenance.preview', 'maintenance.apply',
-  'maintenance.cancel', 'maintenance.complete', 'maintenance.dismiss', 'maintenance.audits', 'maintenance.undo-prepare', 'maintenance.undo-apply',
+  'maintenance.cancel', 'maintenance.complete', 'maintenance.dismiss',
 ] as const
 export const nativeProjectSchema = z.object({ id: z.string().min(1).max(256), root: z.string().min(1).max(4096), name: z.string().max(4096) }).strict()
 export const blueprintServiceContextSchema = z.object({

@@ -56,7 +56,7 @@ export class BlueprintNoteService extends NoteService {
   private readonly projection = new BlueprintNoteProjection({
     readIndex: root => this.refreshIndex(root),
     repoName: root => this.repoName(root),
-    // Note: post-commit audit snapshots also read lock-protected evidence; see .agents/notes/planning/blueprint-official-plugin.md.
+    // Graph proof reads share the Notes lock; see .agents/notes/planning/blueprint-official-plugin.md.
     readCoverage: (root, rev, entries, repoId) => waitForNoteRead(() => this.coverageOverlay(root, rev, entries, repoId)),
   })
 

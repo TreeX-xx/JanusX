@@ -29,7 +29,7 @@ export function nativeMaintenance(options: { directory: string; notes: Blueprint
   const legacyFile = (value: string) => join(options.directory, 'legacy', id.parse(value) + '.json')
   const service = new BlueprintMaintenanceService({
     notes: options.notes, models: nativeMaintenanceModels(options.host), workspaces: async () => options.projects().map(project => ({ id: project.id, path: project.root })),
-    auditDirectory: join(options.directory, 'maintenance-audit'), changed: options.changed,
+    changed: options.changed,
     store: {
       loadBlueprint: async (_scope, id) => readJson<Blueprint>(legacyFile(id)),
       applyMaintenanceOperations: (id, revision, operations, allowed) => lock.run(async () => {
@@ -72,18 +72,6 @@ export function nativeMaintenance(options: { directory: string; notes: Blueprint
       if (['maintenance.cancel', 'maintenance.complete', 'maintenance.dismiss'].includes(method)) {
         const taskId = id.parse(input); checkTask(taskId, project)
         return json(method === 'maintenance.cancel' ? service.cancel(taskId) : method === 'maintenance.complete' ? service.complete(taskId) : service.dismissProposal(taskId))
-      }
-      const { blueprint } = await options.notes.projectView(project.root)
-      if (method === 'maintenance.audits') return json((await service.listAudits({ blueprintId: blueprint.id })).filter(audit => audit.harnessRoot === project.root))
-      if (method === 'maintenance.undo-prepare') {
-        const auditId = id.parse(input)
-        const audit = (await service.listAudits({ blueprintId: blueprint.id })).find(audit => audit.id === auditId)
-        if (!audit || audit.harnessRoot !== project.root) throw new NativeServiceError('PATH_NOT_GRANTED')
-        return json(await service.prepareUndo({ blueprintId: blueprint.id, auditId }))
-      }
-      if (method === 'maintenance.undo-apply') {
-        const args = z.object({ undoChangeSetId: id, operationIds: ids, confirmedDeleteOperationIds: ids.optional() }).strict().parse(input)
-        return json(await service.applyUndo({ ...args, blueprintId: blueprint.id }))
       }
       throw new NativeServiceError('UNKNOWN_METHOD')
     },

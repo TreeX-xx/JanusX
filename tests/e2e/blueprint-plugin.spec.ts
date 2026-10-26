@@ -2,13 +2,13 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
 import { packagePlugin } from '../../scripts/plugins/package-plugin.mjs'
 
-test('signed Blueprint UI preserves drafts, applies and undoes files, and restores data after reinstall', async () => {
+test('signed Blueprint UI preserves drafts, applies confirmed files without audit history, and restores data after reinstall', async () => {
   test.setTimeout(120_000)
   const directory = await mkdtemp(join(tmpdir(), 'blueprint-ui-'))
   let app: ElectronApplication | undefined
@@ -243,12 +243,13 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     expect(await readFile(join(project, '.agents/notes/module.md'), 'utf8')).toBe(note)
     await page.getByRole('button', { name: '确认写入已选文件', exact: true }).click()
     await expect.poll(() => readFile(join(project, '.agents/notes/module.md'), 'utf8')).toContain('A persistent queue is planned.')
-    await page.getByText('已应用记录与撤销', { exact: true }).click()
-    await expect(page.getByRole('button', { name: '查看撤销操作', exact: true }).first()).toBeDisabled()
+    await expect(page.getByText('已应用记录与撤销', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '确认撤销', exact: true })).toHaveCount(0)
+    await expect.poll(() => app!.evaluate(() => (globalThis as any).blueprintProbe.readTasks().then((tasks: any[]) => tasks[0].status))).toBe('active')
+    await expect(readFile(join(directory, 'profile/janusx/plugins/data/official.blueprint/native/maintenance-audit'))).rejects.toMatchObject({ code: 'ENOENT' })
     await page.getByRole('button', { name: '结束本轮维护', exact: true }).click()
-    await page.getByRole('button', { name: '查看撤销操作', exact: true }).first().click()
-    await page.getByRole('button', { name: '确认撤销', exact: true }).click()
-    await expect.poll(() => readFile(join(project, '.agents/notes/module.md'), 'utf8')).toContain('A queue is planned.')
+    await expect(page.getByRole('button', { name: '结束本轮维护', exact: true })).toHaveCount(0)
+    expect(await readFile(join(project, '.agents/notes/module.md'), 'utf8')).toContain('A persistent queue is planned.')
     await mkdir('artifacts/plugins', { recursive: true })
     await page.screenshot({ path: 'artifacts/plugins/blueprint-workbench.png' })
     expect(errors).toEqual([])
@@ -290,12 +291,7 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     await page.screenshot({ path: 'artifacts/plugins/blueprint-settings.png' })
     expect(errors).toEqual([])
   } catch (cause) {
-    const audits = join(directory, 'profile/janusx/plugins/data/official.blueprint/native/maintenance-audit')
     console.log('Blueprint process errors:', stderr)
-    console.log('Blueprint audit status:', await readdir(audits).then(files => Promise.all(files.map(async file => {
-      const record = JSON.parse(await readFile(join(audits, file), 'utf8'))
-      return { id: record.id, status: record.status, harnessRoot: record.harnessRoot }
-    }))).catch(() => 'unavailable'))
     console.log('Blueprint failed calls:', await app?.evaluate(() => (globalThis as any).blueprintProbe.failedCalls).catch(() => 'unavailable'))
     console.log('Blueprint maintenance state:', await app?.evaluate(() => (globalThis as any).blueprintProbe.readTasks()).catch(() => 'unavailable'))
     console.log('Blueprint review state:', await app?.evaluate(() => (globalThis as any).blueprintProbe.readReview()).catch(() => 'unavailable'))

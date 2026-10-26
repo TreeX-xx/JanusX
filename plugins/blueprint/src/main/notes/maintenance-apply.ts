@@ -45,8 +45,6 @@ export interface HarnessSelectionResult {
   appliedMaintenanceIds: string[]
   /** tempNodeId -> minted note id for creates in this selection. */
   createdNodeIds: Record<string, string>
-  /** tempRelationId -> synthetic projection id for adds in this selection. */
-  createdRelationIds: Record<string, string>
 }
 
 /**
@@ -275,20 +273,10 @@ export async function applyPreparedMaintenanceSelection(
     req.reason,
   )
   const appliedSet = new Set(applied.applied.map((item) => item.operationId))
-  const createdRelationIds: Record<string, string> = {}
-  if (Object.keys(bridge.createdRelations).length) {
-    const fresh = await service.projectView(req.root)
-    for (const [tempId, ref] of Object.entries(bridge.createdRelations)) {
-      const relation = fresh.blueprint.relations.find(item => item.sourceNodeId === ref.ownerId
-        && item.targetNodeId === ref.targetId && item.type === ref.type)
-      if (relation) createdRelationIds[tempId] = relation.id
-    }
-  }
   return {
     txId: applied.txId,
     appliedMaintenanceIds: bridge.ops.filter((op) => appliedSet.has(op.operationId)).flatMap((op) => op.maintenanceOperationIds),
     createdNodeIds: { ...bridge.createdNodeIds },
-    createdRelationIds,
   }
 }
 

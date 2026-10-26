@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, expect, it } from 'vitest'
 import { fork, execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { acquireLock, releaseLock, SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
@@ -27,6 +27,7 @@ async function fixture() {
   const project = { id: 'granted-project', root, name: 'Native fixture' }
   const events: Array<{ name: string; value: any }> = [], failures: string[] = []
   let requestCount = 0, slow = false, service: NativePluginService, child: ReturnType<typeof fork>
+  let proposedDesign = 'A persistent queue is planned.'
   let agentReply: ((value: any, tool: (name: string, input: JsonValue) => Promise<any>, signal: AbortSignal) => Promise<JsonValue>) | undefined
   const open = async () => {
     service = new NativePluginService({
@@ -41,7 +42,7 @@ async function fixture() {
       async host(method, value, signal) {
         if (method === 'models.select') return { providerId: 'fixture', modelId: 'fixture', contextWindow: 262144, maxOutputTokens: 8192 }
         if (method === 'models.generate') return { text: JSON.stringify({ summary: 'Clarify design', operations: [{ operationId: 'clarify', type: 'update-node',
-          nodeId: noteId, reason: 'User approved clarification', evidenceRefs: [], dependsOn: [], risk: 'low', after: { sections: { Design: 'A persistent queue is planned.' } } }] }) }
+          nodeId: noteId, reason: 'User approved clarification', evidenceRefs: [], dependsOn: [], risk: 'low', after: { sections: { Design: proposedDesign } } }] }) }
         if (method !== 'agent.run') throw new NativeServiceError('UNKNOWN_METHOD')
         requestCount++
         if (slow) await new Promise<void>(resolve => { signal.addEventListener('abort', () => resolve(), { once: true }); if (signal.aborted) resolve() })
@@ -66,6 +67,7 @@ async function fixture() {
   }) as Promise<any>
   return { root, state, directory, project, repoId, noteId, notePath, body, events, failures, call, open, stop,
     slow: () => { slow = true }, requests: () => requestCount, raw: () => service,
+    propose: (design: string) => { proposedDesign = design },
     agent: (reply: NonNullable<typeof agentReply>) => { agentReply = reply } }
 }
 
@@ -202,8 +204,11 @@ it('rejects cross-project requests and cancels an in-flight review without termi
   expect((await f.call('review.saved')).items.find((item: any) => item.noteId === f.noteId)?.pending).toBeNull()
 })
 
-it('generates a maintenance proposal in the native package and writes only the previewed selection with recoverable undo', async () => {
+it('applies the confirmed preview directly without audit files or audit/undo methods', async () => {
   const f = await fixture(), conversationId = randomUUID()
+  // An unusable audit path must never block a confirmed Note transaction.
+  const auditPath = join(f.state, 'maintenance-audit')
+  await writeFile(auditPath, 'existing user data: preserve exactly')
   const task = await f.call('maintenance.start', { conversationId, goal: 'Clarify the planned queue', nodeScope: { type: 'blueprint' } })
   const job = await f.call('maintenance.propose', { taskId: task.id, conversationId, providerId: 'fixture', modelId: 'fixture',
     messages: [{ role: 'user', content: 'Clarify the design to say a persistent queue is planned.' }] })
@@ -217,16 +222,28 @@ it('generates a maintenance proposal in the native package and writes only the p
   const preview = await f.call('maintenance.preview', { ...selected, conversationId })
   expect(preview.files[0].after).toContain('A persistent queue is planned.')
   expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
-  await f.call('maintenance.apply', { ...selected, previewId: preview.id })
+  const applied = await f.call('maintenance.apply', { ...selected, previewId: preview.id })
+  expect(applied.task).toMatchObject({ status: 'active', changeSet: null })
+  expect(applied.appliedOperationIds).toEqual(['clarify'])
   const withoutUpdate = (source: string) => source.replace(/"updated": "[^"]+"/, '"updated": "transaction-time"')
   expect(withoutUpdate(await readFile(f.notePath, 'utf8'))).toBe(withoutUpdate(preview.files[0].after))
+  expect(await readFile(auditPath, 'utf8')).toBe('existing user data: preserve exactly')
+  for (const method of ['maintenance.audits', 'maintenance.undo-prepare', 'maintenance.undo-apply']) {
+    await expect(f.call(method)).rejects.toThrow('UNKNOWN_METHOD')
+  }
+  const transactions = await readdir(join(f.root, '.agents/.local/transactions'))
+  await expect(f.call('maintenance.apply', { ...selected, previewId: preview.id })).rejects.toThrow()
+  expect(await readdir(join(f.root, '.agents/.local/transactions'))).toEqual(transactions)
+  // A follow-up proposal reads the committed revision without an audit snapshot.
+  f.propose('A persistent queue with retries is planned.')
+  const next = await f.call('maintenance.propose', { taskId: task.id, conversationId, providerId: 'fixture', modelId: 'fixture',
+    messages: [{ role: 'user', content: 'Clarify the queue again.' }] })
+  await expect.poll(async () => (await f.call('jobs.read', next.id)).status, { timeout: 15_000 }).not.toBe('running')
+  expect((await f.call('jobs.read', next.id)).status).toBe('completed')
   await f.call('maintenance.complete', task.id)
-  const audit = (await f.call('maintenance.audits'))[0]
-  const undo = await f.call('maintenance.undo-prepare', audit.id)
-  await f.call('maintenance.undo-apply', { undoChangeSetId: undo.changeSet.id, operationIds: undo.changeSet.operations.map((operation: any) => operation.operationId) })
-  const restored = await readFile(f.notePath, 'utf8')
-  expect(restored).toContain('A queue is planned.')
-  expect(restored).not.toContain('A persistent queue is planned.')
+  await f.stop(); await f.open()
+  expect(withoutUpdate(await readFile(f.notePath, 'utf8'))).toBe(withoutUpdate(preview.files[0].after))
+  expect(await readFile(auditPath, 'utf8')).toBe('existing user data: preserve exactly')
 })
 
 it.each(['repair', 'discuss', 'drift'] as const)('runs a scoped native Note %s with source validation and no Agent write tool', async mode => {

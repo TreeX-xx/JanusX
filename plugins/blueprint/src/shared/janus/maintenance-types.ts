@@ -334,7 +334,8 @@ export interface BlueprintMaintenancePreview {
 
 export interface BlueprintMaintenanceApplyResult {
   task: BlueprintMaintenanceTask
-  blueprintRevision: number
+  /** Legacy JSON writes return their revision; Note writes refresh the graph separately. */
+  blueprintRevision?: number
   appliedOperationIds: string[]
 }
 
