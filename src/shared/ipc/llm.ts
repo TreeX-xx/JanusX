@@ -5,7 +5,7 @@ import type {
   ProviderSettings,
 } from '@janusx/llm-core'
 import type { KnowledgeRecallTrace } from '../knowledge'
-import type { BlueprintMaintenanceTask } from '../janus/maintenance-types'
+import type { BlueprintMaintenanceTask } from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import type { MemoBinding } from '../memo'
 import type { AgentModelBinding, LlmConfiguration } from '../llm-configuration'
 import type { NativeLoginState } from '../native-login'
@@ -122,7 +122,7 @@ export interface ChatAnswerQuestionPayload {
 export type ChatAgentEvent =
   | { type: 'memo_created'; requestId: string; conversationId: string; binding: MemoBinding }
   | { type: 'context_state'; requestId: string; state: import('../chat-context').ChatContextStatus }
-  | { type: 'note_repair'; requestId: string; update: import('../note-repair').NoteRepairUpdate }
+  | { type: 'note_repair'; requestId: string; update: import('../../../plugins/blueprint/src/shared/note-repair').NoteRepairUpdate }
   | { type: 'note_change'; requestId: string; callId?: string; change: import('../note-chat').NoteChatChange }
   | { type: 'config_change'; requestId: string; callId?: string; change: import('../launch-config-chat').LaunchConfigChange }
   | { type: 'note_focus'; requestId: string; callId?: string; focus: import('../note-chat').NoteFocusEvent }

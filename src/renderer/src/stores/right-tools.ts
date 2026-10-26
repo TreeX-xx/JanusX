@@ -54,7 +54,27 @@ export function selectPersistedRightToolPreferences(
 export function createSafeRightToolStorage(
   getStorage: () => StateStorage,
 ): PersistStorage<RightToolPreferencesV1> | undefined {
-  const storage = createJSONStorage<RightToolPreferencesV1>(getStorage)
+  const storage = createJSONStorage<RightToolPreferencesV1>(() => {
+    const underlying = getStorage()
+    // Switching tools changes runtime state, but not the persisted widths.
+    // Avoid synchronous localStorage writes on that interaction path.
+    const written = new Map<string, string>()
+    return {
+      getItem: (name) => underlying.getItem(name),
+      setItem: (name, value) => {
+        if (written.get(name) === value) return
+        const result = underlying.setItem(name, value)
+        // Only cache completed synchronous writes; asynchronous backends retain
+        // their own ordering and retry semantics.
+        if (!(result instanceof Promise)) written.set(name, value)
+        return result
+      },
+      removeItem: (name) => {
+        written.delete(name)
+        return underlying.removeItem(name)
+      },
+    }
+  })
   if (!storage) return undefined
 
   return {
@@ -121,8 +141,8 @@ export const useRightToolStore = create<RightToolStore>()(
 function applyPanelCollapseCommand(command: PanelCollapseCommand): void {
   const appStore = useAppStore.getState()
 
-  if (command === 'expand') appStore.setPanelCollapsed(false)
-  if (command === 'collapse') appStore.setPanelCollapsed(true)
+  if (command === 'expand' && appStore.panelCollapsed) appStore.setPanelCollapsed(false)
+  if (command === 'collapse' && !appStore.panelCollapsed) appStore.setPanelCollapsed(true)
   if (command === 'toggle') appStore.togglePanel()
 }
 

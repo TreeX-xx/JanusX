@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-10-24T10:01:54Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -61,6 +61,20 @@ The registry gains two rows with different strategies. Pi Agent is a standard np
 
 
 
+### OpenCode v1 and v2 updates
+
+The shared version probe accepts both bare semantic versions and a leading `v` (OpenCode v2 prints `opencode v<major>.<minor>.<patch>`). It returns the normalized numeric version for release-line selection; nonzero exits still report broken. The former word-boundary regex rejected the v-prefixed output despite exit code zero. Regression coverage in `cli-detector.test.ts` includes v1, v2, prereleases and failed probes. On 2026-10-24, the actual Windows npm shim was probed with the corrected `CliDetector`: installed=true, runnable=true, version=2.1.4. All 135 external-cli unit tests passed; the running desktop UI was not exercised for this fix.
+
+OpenCode maintains separate npm packages: `opencode-ai` for v1 and `@opencode/cli` for v2. The official [installation instructions](https://github.com/anomalyco/opencode/blob/dev/README.md) and both npm manifests were checked on 2026-10-24. The historical `tui-v2` tag on `opencode-ai` is a snapshot, not the current v2 release source. Package mappings live in `tool-registry.ts`; `opencode-releases.ts` queries each package's `latest` independently and accepts only stable versions belonging to the expected major. A failed query leaves that line unknown without hiding the other line.
+
+Settings offers a same-line update plus a separate explicit upgrade-to-v2 action for v1. Existing v2 installs update only v2; new installations default to v2. The shared IPC options carry the release line and exact version displayed. Main validates both, computes the npm package itself, rejects downgrades, and requires the post-install active command to report the exact target. The legacy install call also detects the current line before choosing a target; an existing unversioned binary requires an explicit choice. There is no v2-to-v1 downgrade action because installation rollback does not establish configuration or session-format downgrade compatibility.
+
+Both npm packages publish the `opencode` command. During migration to v2, the installer inspects the installed v1 npm version, removes that package only if present, and installs the pinned v2 version under one lock. A failed installation removes the partial target and attempts to restore the exact previous npm version, reporting recovery failure. An empty filtered `npm ls` result may exit 1 and is accepted only with valid root JSON. Unreliable package inspection stops before removal. Existing v2 updates do not remove a stale v1 package or invoke migration recovery. The service lock also covers detection, version lookup and post-install verification.
+
+This remains an npm update path. A native installer or another npm prefix earlier on PATH can shadow the result; main reports the mismatch and active path instead of claiming success or deleting that binary. Recovery relies on npm/cache availability and is not a backup of user configuration or sessions. Revisit installer-specific routing if users need automatic migration from native installs.
+
+Verification: `npx vitest run tests/unit/external-cli --maxWorkers=2` covers release routing, stable/prerelease boundaries, exact targets, invalid IPC input, concurrency, package migration and recovery. `npx playwright test tests/e2e/external-cli-settings.spec.ts --project=island --workers=2` covers v1 updates, explicit v2 upgrades, v2 updates, new installs, unavailable releases, persistent failures and layout at 390/640/1100 px in both themes. These are isolated mocked installs; the developer's global CLI packages were not upgraded. Local Playwright runs bypass the configured HTTP proxy for localhost using `NO_PROXY=127.0.0.1,localhost`.
+
 ## Alternatives considered
 - Copy the Claude files per tool — strongest case is zero abstraction risk and per-tool quirks stay local. The driver that rules it out is per-tool drift: probe priority, PowerShell encoding, busy-guard, and semver fixes would need a landing per tool, and the GBK fix already proved single-point fixes matter.
 - Third-party brand SVGs per tool — strongest case is real product icons with zero drawing work. The driver that rules it out is provenance: the repo already vendors the terminal icon set the sidebar uses, so rows reuse those assets with the monogram badge as load fallback instead of pulling new vendor marks.
@@ -68,7 +82,7 @@ The registry gains two rows with different strategies. Pi Agent is a standard np
 - Do nothing / Claude-only cards — staying put keeps every current path green. The cost is the gap above: the presets launch tools Settings cannot see, and users install or upgrade blind.
 
 ### Claude Code version detection and install in Settings
-- Reuse `language-service/installer.ts` staged-binary flow for the install — strongest case is a proven download-verify-commit layout with progress events. The driver that rules it out is distribution shape: Claude Code ships via npm, so the correct primitive is an anchored package-manager command with `PATH` augmentation, not an artifact fetch; the installer stays a referenced template.
+- Reuse the former language-service staged-binary flow for the install — strongest case is a proven download-verify-commit layout with progress events. The driver that rules it out is distribution shape: Claude Code ships via npm, so the correct primitive is an anchored package-manager command with `PATH` augmentation, not an artifact fetch; the language-service installer has since been removed and is not a runtime dependency.
 - Poll latest versions on a timer — strongest case is always-fresh badges. The driver that rules it out is cost without benefit: versions change rarely, probes spawn processes, and the card re-checks on every mount and on demand, which covers the freshness need with zero background load.
 - Fold detection into `terminal/presets.ts checkCommandExists` — strongest case is one home for CLI readiness. The driver that rules it out is contract depth: presence booleans cannot carry versions, sources, or broken states, and terminal launch must stay a pure string splice with no probe latency on the spawn path.
 - Do nothing / reuse manual terminal installs — staying put keeps every current path green. The cost is the gap above: no version signal, no in-app install, and provider changes remain hand edits outside the app.

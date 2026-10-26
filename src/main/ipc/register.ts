@@ -4,8 +4,6 @@ import type { OfficeWatchPool } from '../office/office-watch-pool'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
 import { createProductionOfficeOperations } from '../office/office-handler-operations'
 import type { BrowserSurfaceManager } from '../browser/surface-manager'
-import type { ManagedBinaryInstaller } from '../language-service/installer'
-import type { LanguageServiceId } from '../../shared/ipc/language-service'
 import { registerAgentHandlers } from './janus-runner-handlers'
 import { registerBrowserHandlers } from './browser-handlers'
 import { registerCpaHandlers } from './cpa-handlers'
@@ -25,8 +23,6 @@ import { registerMemoHandlers } from './memo-handlers'
 import { registerRoundtableHandlers } from './roundtable-handlers'
 import { registerKnowledgeHandlers } from './knowledge-handlers'
 import { registerLanguageHandlers } from './language-handlers'
-import { registerLanguageServiceHandlers } from './language-service-handlers'
-import { registerLanguageServiceInstallerHandlers } from './language-service-installer-handlers'
 import { registerLlmHandlers } from './llm-handlers'
 import { registerOfficeHandlers } from './office-handlers'
 import { registerProjectHandlers } from './project-handlers'
@@ -49,13 +45,12 @@ import { runLlmStage } from '../knowledge/llm-stage'
 import { appShutdown } from '../shutdown/AppShutdown'
 import { knowledgeRefinementTasks } from '../knowledge/refinement-tasks'
 import { terminalManager } from '../terminal/manager'
-import { analyzer } from '../janus/analyzer'
-import { blueprintMaintenanceService } from '../janus/maintenance/service'
 import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import { ipcMain } from 'electron'
 import { registerAgentRuntimeHandlers } from './agent-runtime-handlers'
 import { registerExternalCliHandlers } from './external-cli-handlers'
 import { registerWorkflowXHandlers } from './workflowx-handlers'
+import { registerWorkspaceRuntimeHandlers } from './workspace-runtime-handlers'
 export interface RegisterApplicationIpcOptions {
   mainWindow: BrowserWindow
   getAllowedWindows: () => BrowserWindow[]
@@ -63,7 +58,6 @@ export interface RegisterApplicationIpcOptions {
   officeWatchPool: OfficeWatchPool
   officeArtifactIndex: OfficeArtifactIndex
   browserSurfaces: BrowserSurfaceManager
-  languageServiceInstallers: ReadonlyMap<LanguageServiceId, ManagedBinaryInstaller>
 }
 
 /** 幂等守卫：重复调用不再触发 "Attempted to register a second handler"。 */
@@ -86,14 +80,10 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
 
   // 每次窗口重建都重绑窗口级引用与生命周期监听；幂等守卫只拦 handler 注册。
   currentMainWindow = mainWindow
-  analyzer.setMainWindow(mainWindow)
-  blueprintMaintenanceService.setMainWindow(mainWindow)
   subAgentRunRegistry.setMainWindow(mainWindow)
   mainWindow.on('closed', () => {
     pluginService?.closeAll()
     if (currentMainWindow === mainWindow) currentMainWindow = null
-    analyzer.setMainWindow(null)
-    blueprintMaintenanceService.setMainWindow(null)
     subAgentRunRegistry.setMainWindow(null)
     // Also disposed from AppShutdown; function is idempotent.
     disposeWorkspaceWatchers()
@@ -118,6 +108,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
       officeArtifactIndex.dispose(workspaceId)
     },
   })
+  registerWorkspaceRuntimeHandlers(options.getAllowedWindows)
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
   pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
@@ -143,11 +134,6 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerRuntimeTelemetryHandlers()
   registerSettingsHandlers()
   registerLanguageHandlers()
-  registerLanguageServiceHandlers()
-  registerLanguageServiceInstallerHandlers({
-    getAllowedWindows: options.getAllowedWindows,
-    installers: options.languageServiceInstallers,
-  })
   registerSubAgentRunHandlers()
   registerKnowledgeHandlers()
   registerTeamHandlers()

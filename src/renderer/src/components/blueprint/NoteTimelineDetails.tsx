@@ -1,16 +1,37 @@
 // Note: process cards reference current business records; rendering never replays writes — see .agents/notes/agent/requirements/chat-work-timeline.md
 import type { ChatToolBlock } from '../../../../shared/chat-timeline'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNoteChatStore } from '@/stores/note-chat'
 import { useNoteFocusStore } from '@/stores/note-focus'
 import { useI18n } from '@/i18n/useI18n'
+import { useEditorStore } from '@/stores/editor'
+import type { NoteFocusEvent } from '../../../../shared/note-chat'
 import { ChangeCard } from './NoteChatActivity'
-import { FocusNoteList } from './NoteWorkingScope'
+import './note-focus.css'
+
+// Note: host chat reads sources without a Blueprint projection — see .agents/notes/planning/blueprint-official-plugin.md
+function SourceNotes({ event }: { event: NoteFocusEvent }) {
+  const { t } = useI18n('blueprint')
+  const [error, setError] = useState('')
+  const open = async (uri: string) => {
+    setError('')
+    try {
+      const source = await window.electron.harness.noteRead(event.workspacePath, uri)
+      await useEditorStore.getState().openFile(event.workspacePath.replace(/[\\/]$/, '') + '/' + source.relPath, event.workspacePath)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+  return <div className="bp-note-groups"><section className="bp-note-group"><ul>{event.notes.map(note => <li key={note.uri}>
+    <span className={`bp-note-role-${note.role}`}>{t(`blueprint:noteFocus.${note.role}`)}</span>
+    <button className="bp-note-title" type="button" onClick={() => void open(note.uri)}>{note.title}</button>
+    {note.reason && <p>{note.reason}</p>}
+  </li>)}</ul></section>{error && <p role="alert">{error}</p>}</div>
+}
 
 export function NoteTimelineDetails({ block }: { block: ChatToolBlock }) {
   const { t } = useI18n(['janus', 'blueprint'])
   const changes = useNoteChatStore(state => state.changes)
-  const locate = useNoteFocusStore(state => state.locate)
   useEffect(() => {
     const missing = block.details?.find(detail => detail.kind === 'note-change' && detail.workspacePath && detail.conversationId
       && !useNoteChatStore.getState().changes.some(change => change.id === detail.id))
@@ -34,8 +55,7 @@ export function NoteTimelineDetails({ block }: { block: ChatToolBlock }) {
     }
     return <details key={detail.focus.id} className="bp-note-access">
       <summary>{t('blueprint:noteFocus.read')} · {detail.focus.notes.length}</summary>
-      <FocusNoteList event={detail.focus} />
-      <button type="button" onClick={() => locate(detail.focus)}>{t('blueprint:noteFocus.locate')}</button>
+      <SourceNotes event={detail.focus} />
       <button type="button" onClick={() => {
         const state = useNoteFocusStore.getState()
         const current = state.scopes[detail.focus.conversationId]?.notes ?? []

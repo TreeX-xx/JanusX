@@ -33,8 +33,9 @@ export class EditorRouting {
 
   private enqueue(payload: EditorOpenRequest, action: () => Promise<EditorOpenResult>): Promise<EditorOpenResult> {
     if (!payload.filePath || !payload.workspacePath) return Promise.resolve({ success: false, error: 'Missing file scope' })
-    const normalized = normalize(payload.workspacePath).replace(/[\\/]+$/, '')
-    const key = process.platform === 'win32' ? normalized.toLowerCase() : normalized
+    const remote = payload.workspacePath.startsWith('janusx-workspace://')
+    const normalized = (remote ? payload.workspacePath : normalize(payload.workspacePath)).replace(/[\\/]+$/, '')
+    const key = !remote && process.platform === 'win32' ? normalized.toLowerCase() : normalized
     const previous = this.queues.get(key) ?? Promise.resolve({ success: true })
     const next = previous.catch(() => ({ success: false })).then(action).catch(error => ({ success: false, error: String(error) }))
     this.queues.set(key, next)

@@ -16,12 +16,13 @@ export const PLUGIN_API_VERSION = '1.0.0'
 export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.multiple', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'files.listDirectory', 'storage.kv', 'storage.watch', 'ui.toast',
-  'views.workbench', 'views.island', 'views.window', 'themes.palette', 'island.status',
+  'views.workbench', 'views.workbench.frame', 'views.settings', 'views.island', 'views.window', 'themes.palette', 'island.status',
+  'runtime.native', 'models.agent.progress', 'workspace.handoff',
   'documents.viewers', 'documents.readText', 'documents.applyEdit', 'documents.draft',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
   'tasks.declarative', 'tasks.inputBindings', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'agent.workflows', 'models.generate', 'agent.skills', 'agent.context',
 ] as const
-export const PLUGIN_PERMISSION_NAMES = ['workspace.directories.list', 'workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'documents.draft', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows', 'ui.themes'] as const
+export const PLUGIN_PERMISSION_NAMES = ['workspace.directories.list', 'workspace.context.read', 'workspace.files.read', 'plugin.storage', 'ui.views.open', 'ui.workspace', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'documents.draft', 'configuration.read', 'configuration.propose', 'tasks.run', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows', 'ui.themes', 'runtime.native'] as const
 const identifier = (min: number, max: number) => z.string().min(min).max(max).regex(/^[a-z][a-z0-9.-]*$/).refine((value) => !value.endsWith('.') && !value.includes('..'))
 const id = identifier(1, 64)
 const title = z.string().min(1).max(80).refine((value) => value.trim().length > 0)
@@ -33,8 +34,9 @@ const path = z.string().superRefine((value, ctx) => {
 })
 export const pluginViewSchema = z.object({
   id, title, entry: path.refine((value) => value.endsWith('.html')),
-  location: z.enum(['workspace', 'right', 'workbench', 'island', 'window']), scope: z.enum(['application', 'project']),
+  location: z.enum(['workspace', 'right', 'workbench', 'settings', 'island', 'window']), scope: z.enum(['application', 'project']),
   instancePolicy: z.enum(['single', 'multiple']), icon: z.enum(['puzzle', 'book', 'list', 'chart', 'file', 'code', 'clock']).optional(), order,
+  frame: z.literal('plugin').optional(),
 }).strict()
 export const pluginCommandSchema = z.object({ id, title, action: z.object({ type: z.literal('openView'), view: id }).strict() }).strict()
 export const pluginIslandSchema = z.object({
@@ -54,14 +56,17 @@ const permission = z.union([
   z.object({ name: z.literal('workspace.files.read'), paths: z.array(path).min(1).max(64)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length)
     .refine((items) => !items.some(isSensitivePluginPath)) }).strict(),
-  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'documents.draft', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows', 'ui.themes']) }).strict(),
+  z.object({ name: z.enum(['workspace.context.read', 'plugin.storage', 'ui.views.open', 'ui.workspace', 'ui.toast', 'ui.island', 'documents.read', 'documents.edit', 'documents.draft', 'configuration.read', 'configuration.propose', 'tasks.run', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'models.generate', 'agent.skills', 'agent.context', 'ui.windows', 'ui.themes', 'runtime.native']) }).strict(),
 ])
 export const pluginManifestSchema = z.object({
   schemaVersion: z.literal(1), id: identifier(3, 128).refine((value) => !value.startsWith('janusx.')),
   name: title, description: z.string().max(1000).optional(), version: z.string().refine((value) => semver.valid(value) !== null),
   engines: z.object({ pluginApi: z.string().max(128).refine((value) => Boolean(value.trim()) && semver.validRange(value) !== null) }).strict(),
   capabilities: z.object({ required: uniqueStrings, optional: uniqueStrings }).strict(),
-  permissions: z.array(permission).max(21).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
+  native: z.object({ entry: path.refine(value => value.endsWith('.cjs')), dataVersion: z.number().int().positive(),
+    methods: z.array(id).min(1).max(128).refine(items => new Set(items).size === items.length),
+    mcp: z.object({ entry: path.refine(value => value.endsWith('.cjs')), command: id }).strict().optional() }).strict().optional(),
+  permissions: z.array(permission).max(PLUGIN_PERMISSION_NAMES.length).refine((items) => new Set(items.map((item) => item.name)).size === items.length),
   contributes: z.object({ views: z.array(pluginViewSchema).max(16), commands: z.array(pluginCommandSchema).max(64).optional(),
     themes: z.array(pluginThemeSchema).min(1).max(4).optional(),
     skills: z.array(pluginSkillSchema).min(1).max(8).optional(),
@@ -83,11 +88,20 @@ export const pluginManifestSchema = z.object({
   const skills = manifest.contributes.skills ?? []
   const providers = manifest.contributes.contextProviders ?? []
   const themes = manifest.contributes.themes ?? []
-  if (!views.length && !tasks.length && !skills.length && !providers.length && !themes.length) fail('A plugin requires views, tasks, skills, context providers or themes')
+  if (!views.length && !tasks.length && !skills.length && !providers.length && !themes.length && !manifest.native) fail('A plugin requires views, tasks, skills, context providers or themes')
   const needs = (used: boolean, capability: string, permission: string) => {
     if (used && (!manifest.capabilities.required.includes(capability) || !manifest.permissions.some(item => item.name === permission))) fail(`Requires ${capability} and ${permission}`)
   }
+  needs(Boolean(manifest.native), 'runtime.native', 'runtime.native')
+  needs(views.some(view => view.frame === 'plugin'), 'views.workbench.frame', 'ui.views.open')
+  if (views.some(view => view.frame && view.location !== 'workbench')) fail('Plugin frames require workbench views')
+  needs(manifest.permissions.some(item => item.name === 'ui.workspace'), 'workspace.handoff', 'ui.workspace')
+  needs(manifest.capabilities.required.includes('models.agent.progress'), 'models.agent.progress', 'models.generate')
+  if ([manifest.native?.entry, manifest.native?.mcp?.entry].some(entry => entry && !entry.startsWith('dist/'))) fail('Native entries must be in dist')
+  if (manifest.permissions.some(item => item.name === 'runtime.native') && !manifest.native) fail('Native permission requires a native service')
   needs(views.some(view => view.location === 'window'), 'views.window', 'ui.windows')
+  needs(views.some(view => view.location === 'settings'), 'views.settings', 'ui.views.open')
+  if (views.some(view => view.location === 'settings' && (view.scope !== 'application' || view.instancePolicy !== 'single'))) fail('Settings pages require application scope and a single instance')
   if (views.some(view => view.instancePolicy === 'multiple') && (!manifest.capabilities.required.includes('views.multiple')
     || views.some(view => view.instancePolicy === 'multiple' && view.location !== 'workspace'))) fail('Multiple instances require views.multiple and workspace views')
   needs(themes.length > 0, 'themes.palette', 'ui.themes')
@@ -169,7 +183,7 @@ export const pluginManifestSchema = z.object({
   for (const migration of migrations) {
     if (settings.some(setting => setting.key === migration.from) || !settings.some(setting => setting.key === migration.to)) fail('Migration must rename a retired key to a current setting')
   }
-  if (manifest.capabilities.required.includes('configuration.open') && !settings.length) fail('Configuration navigation requires settings')
+  if (manifest.capabilities.required.includes('configuration.open') && !settings.length && !credentials.length) fail('Configuration navigation requires settings or credentials')
   if (new Set(settings.map(setting => setting.key)).size !== settings.length) fail('Duplicate setting key')
   if (settings.length && (!manifest.capabilities.required.includes('configuration.settings')
     || !manifest.permissions.some(permission => permission.name === 'configuration.read'))) fail('Settings require configuration.settings and configuration.read')

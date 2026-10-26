@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 // Note: roundtable result card builds/applies native bundles — see .agents/notes/agent/roundtable-artifact-bundle-s5.md
 import { useI18n } from '@/i18n/useI18n'
-import { useBlueprintStore } from '@/stores/blueprint'
-import { useHarnessStore } from '@/stores/harness'
 import type { RoundtableFact } from '../../../../shared/roundtable/events'
 
 interface BundleDiagnostic {
@@ -27,7 +25,6 @@ interface ScopeInfo {
   root: string
   repoId: string
   repoName: string
-  projectId: string
 }
 
 interface ParentOption {
@@ -74,7 +71,7 @@ function failureMessage(err: unknown): string {
 /**
  * Result card (S5): builds a native artifact proposal from session facts,
  * previews coverage and diagnostics, applies it to the bound checkout, and
- * refreshes the blueprint graph so new nodes and relations appear at once.
+ * reads parent Notes through the shared snapshot and refreshes the shared index.
  * The meeting-log Markdown export stays a separate explicit action.
  */
 export function RoundtableArtifactCard({ sessionId, facts, roundNumber, cwd }: RoundtableArtifactCardProps) {
@@ -119,13 +116,11 @@ export function RoundtableArtifactCard({ sessionId, facts, roundNumber, cwd }: R
           setScopeError(!resolved.ok ? t('janus:roundtable.artifact.resolveFailed') : t('janus:roundtable.artifact.noRepoId'))
           return
         }
-        setScope({ root: resolved.root, repoId: resolved.repoId, repoName: resolved.repoName ?? '', projectId: resolved.projectId ?? '' })
-        const graph = await window.electron.harness.projectGraph(cwd)
-        if (cancelled || !graph) return
+        setScope({ root: resolved.root, repoId: resolved.repoId, repoName: resolved.repoName ?? '' })
+        const snapshot = await window.electron.harness.noteSnapshot(cwd)
+        if (cancelled) return
         setParents(
-          Object.values(graph.blueprint.nodes)
-            .filter((node) => node.sourceUri)
-            .map((node) => ({ id: node.id, title: node.title, sourceUri: node.sourceUri as string }))
+          snapshot.entries.flatMap(entry => entry.doc && entry.uri ? [{ id: entry.doc.id, title: entry.doc.title, sourceUri: entry.uri }] : [])
             .sort((a, b) => a.title.localeCompare(b.title)),
         )
       } catch (err: unknown) {
@@ -180,11 +175,7 @@ export function RoundtableArtifactCard({ sessionId, facts, roundNumber, cwd }: R
     setError(null)
     try {
       const result = await window.electron.roundtable.applyBundle(scope.root, preview.bundle, `roundtable ${sessionId} r${roundNumber}`)
-      await useHarnessStore.getState().refreshGraph(scope.root)
-      const current = useBlueprintStore.getState().currentBlueprint
-      if (current && current.id === scope.projectId && current.source === 'harness') {
-        await useBlueprintStore.getState().loadBlueprint(current.id)
-      }
+      await window.electron.harness.rescan(scope.root)
       setAppliedCount(result.applied.length)
     } catch (err: unknown) {
       setError(t('janus:roundtable.artifact.applyFailed', { message: failureMessage(err) }))

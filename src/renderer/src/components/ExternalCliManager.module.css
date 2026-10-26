@@ -20,7 +20,8 @@
 .status[data-state='update-available'] { color: var(--so-accent-ink); }
 .meta { color: var(--shell-muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .feedback { margin: 8px 0 0 48px; }
+.actions { flex-wrap: wrap; justify-content: flex-end; }
 @container general-settings (max-width: 520px) {
   .main { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .actions { margin-left: 48px; }
+  .actions { margin-left: 48px; justify-content: flex-start; }
 }

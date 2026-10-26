@@ -37,7 +37,7 @@ export function JanusRunOrb({ info, open, leaving = false, focusScopePath = null
   const isActive = useWorkspaceStore(s => s.activeWorkspaceId === info.workspaceId)
   const uptime = info.projects.reduce((max, project) => Math.max(max, project.uptime), 0)
   return <div className="janus-run-orb-anchor">
-    <ThemedTooltip placement="bottom" label={t('janus:island.runOrb.tooltip', { name: info.workspaceName, config: orbConfigLabel(info), count: info.projects.length, uptime: formatOrbUptime(uptime) })}>
+    <ThemedTooltip placement="bottom" disabled={open} label={t('janus:island.runOrb.tooltip', { name: info.workspaceName, config: orbConfigLabel(info), count: info.projects.length, uptime: formatOrbUptime(uptime) })}>
       <button type="button"
       className={`janus-run-orb${open ? ' is-open' : ''}${isActive ? ' is-active' : ''}`}
       data-workspace-id={info.workspaceId}

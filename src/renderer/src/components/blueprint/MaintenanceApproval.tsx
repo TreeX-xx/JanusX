@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
-import type { BlueprintChangeSet, BlueprintOperation } from '../../../../shared/janus/maintenance-types'
+import type { BlueprintChangeSet, BlueprintOperation } from '../../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import { maintenanceSelection } from './maintenanceSelection'
 import { MaintenanceFileReview, type MaintenanceReviewContext } from './MaintenanceFileReview'
 

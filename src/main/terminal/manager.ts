@@ -76,6 +76,26 @@ function hasBundledConptyFiles(): boolean {
 export class TerminalManager {
   private instances = new Map<string, TerminalInstance>()
 
+  adopt(instance: TerminalInstance): void {
+    if (this.instances.has(instance.id)) throw new Error('Terminal is already attached')
+    this.instances.set(instance.id, instance)
+  }
+
+  detach(id: string): void {
+    const instance = this.instances.get(id)
+    if (!instance?.remote) return
+    instance.remote.detach()
+    this.instances.delete(id)
+  }
+
+  async endRemote(id: string): Promise<boolean> {
+    const instance = this.instances.get(id)
+    if (!instance?.remote) return false
+    await instance.remote.end()
+    this.detach(id)
+    return true
+  }
+
   private spawnPty(
     file: string,
     args: string[],
@@ -168,6 +188,7 @@ export class TerminalManager {
     // new pty and the old pty does not leak (Vector A/E).
     const existing = this.instances.get(config.id)
     if (existing) {
+      if (existing.remote) throw new Error('A remote terminal cannot be replaced by a local process')
       try {
         existing.pty.kill()
       } catch {
@@ -263,6 +284,10 @@ export class TerminalManager {
   kill(id: string): void {
     const instance = this.instances.get(id)
     if (instance) {
+      if (instance.remote) {
+        void this.endRemote(id).catch(error => logTerminalDiagnostic('remote terminal end failed', { id, error: String(error) }))
+        return
+      }
       const pid = instance.pty.pid
       try {
         instance.pty.kill()
@@ -319,7 +344,8 @@ export class TerminalManager {
   /** 同步发起全部 kill；返回的 Promise 在所有 taskkill 兜底进程退出后 resolve。 */
   killAll(): Promise<void> {
     for (const [id] of this.instances) {
-      this.kill(id)
+      if (this.instances.get(id)?.remote) this.detach(id)
+      else this.kill(id)
     }
     return Promise.all([...this.pendingKillers]).then(() => undefined)
   }

@@ -1,0 +1,9 @@
+.panel { width: min(760px, calc(100vw - 48px)); max-height: calc(100vh - 72px); overflow: auto; padding: 24px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-card); color: var(--shell-text); }
+.panel h2 { margin: 0 0 12px; }
+.panel p { overflow-wrap: anywhere; }
+.panel label { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+.panel textarea { width: 100%; min-height: 260px; resize: vertical; padding: 12px; }
+.panel select, .panel textarea { color: var(--shell-text); background: var(--shell-canvas); border: 1px solid var(--shell-border); border-radius: 6px; font: inherit; }
+.panel footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+.panel button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--shell-border); background: var(--shell-canvas); color: var(--shell-text); }
+.panel button:disabled { opacity: .5; }

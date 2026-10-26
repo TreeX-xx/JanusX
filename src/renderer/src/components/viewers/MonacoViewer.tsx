@@ -8,8 +8,6 @@ import type { FindableEditor } from '@/lib/editor-find'
 import { defineJanusxThemes, getMonacoThemeName } from '@/lib/monaco-theme'
 import { useThemeDefinition, useThemeStore } from '@/stores/theme'
 import { configureMonacoRuntime } from '@/lib/monaco-runtime'
-import { registerDefinitionNavigation, type DefinitionTarget } from '@/lib/monaco-definition'
-import type { EditorNavigationTarget } from '@/stores/editor'
 import { useI18n } from '@/i18n/useI18n'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import { numberInlineDeletions } from '@/lib/monaco-diff-line-numbers'
@@ -26,12 +24,6 @@ interface MonacoViewerProps {
   onEditorMount?: (editor: FindableEditor | null) => void
   originalContent?: string
   modelPath?: string
-  workspacePath?: string
-  navigationTarget?: EditorNavigationTarget | null
-  onDefinitionNavigate?: (target: DefinitionTarget) => void
-  onNavigationComplete?: (requestId: number) => void
-  definitionActionLabel?: string
-  definitionErrorMessage?: string
 }
 
 function LoadingIndicator() {
@@ -52,7 +44,7 @@ function LoadingIndicator() {
   )
 }
 
-export function MonacoViewer({ content, language, onChange, readOnly = false, onEditorMount, originalContent, modelPath, workspacePath, navigationTarget, onDefinitionNavigate, onNavigationComplete, definitionActionLabel, definitionErrorMessage }: MonacoViewerProps) {
+export function MonacoViewer({ content, language, onChange, readOnly = false, onEditorMount, originalContent, modelPath }: MonacoViewerProps) {
   // Note: one number per pane keeps the preview readable — see .agents/notes/terminal/monaco-diff-single-line-number.md
   const { t } = useI18n('editor')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -81,15 +73,12 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
   const contentRef = useRef(content)
   const diffChangeSubscriptionRef = useRef<{ dispose(): void } | null>(null)
   const viewStateSubscriptionRef = useRef<{ dispose(): void } | null>(null)
-  const definitionActionRef = useRef<IDisposable | null>(null)
   const diffIndicatorRef = useRef<{
     original: MonacoEditor.IEditorDecorationsCollection
     modified: MonacoEditor.IEditorDecorationsCollection
     subscription: IDisposable
     numbering: IDisposable
   } | null>(null)
-  const definitionErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [definitionError, setDefinitionError] = useState<string | null>(null)
   contentRef.current = content
   const handleChange = useCallback(
     (value: string | undefined) => {
@@ -113,22 +102,7 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
     void useThemeStore.getState().load()
   }, [])
 
-  const revealNavigationTarget = useCallback((editor: MonacoEditor.IStandaloneCodeEditor, target: EditorNavigationTarget | null | undefined) => {
-    if (!target) return
-    editor.setSelection(target.selection)
-    editor.revealRangeInCenter(target.selection)
-    editor.focus()
-    onNavigationComplete?.(target.requestId)
-  }, [onNavigationComplete])
-
-  const showDefinitionError = useCallback(() => {
-    if (!definitionErrorMessage) return
-    if (definitionErrorTimerRef.current) clearTimeout(definitionErrorTimerRef.current)
-    setDefinitionError(definitionErrorMessage)
-    definitionErrorTimerRef.current = setTimeout(() => setDefinitionError(null), 5000)
-  }, [definitionErrorMessage])
-
-  const handleMount = useCallback((editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
+  const handleMount = useCallback((editor: MonacoEditor.IStandaloneCodeEditor) => {
     editorRef.current = editor
     onEditorMount?.(editor)
     viewStateSubscriptionRef.current?.dispose()
@@ -141,7 +115,7 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
       const subscriptions = [editor.onDidScrollChange(saveViewState), editor.onDidChangeCursorPosition(saveViewState)]
       viewStateSubscriptionRef.current = { dispose: () => subscriptions.forEach((subscription) => subscription.dispose()) }
     }
-    if (modelPath && !navigationTarget) {
+    if (modelPath) {
       const viewState = editorViewStates.get(modelPath)
       if (viewState) {
         window.requestAnimationFrame(() => {
@@ -150,25 +124,18 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
         })
       }
     }
-    if (!navigationTarget) {
-      const state = readFileViewState(modelPath)
-      if (state.cursor) editor.setPosition(state.cursor)
-      if (state.scrollTop !== undefined) editor.setScrollTop(state.scrollTop)
-      if (state.scrollLeft !== undefined) editor.setScrollLeft(state.scrollLeft)
-    }
+    const state = readFileViewState(modelPath)
+    if (state.cursor) editor.setPosition(state.cursor)
+    if (state.scrollTop !== undefined) editor.setScrollTop(state.scrollTop)
+    if (state.scrollLeft !== undefined) editor.setScrollLeft(state.scrollLeft)
     const model = editor.getModel()
     if (model && model.getValue() !== contentRef.current) model.setValue(contentRef.current)
-    definitionActionRef.current?.dispose()
-    definitionActionRef.current = workspacePath && onDefinitionNavigate && definitionActionLabel
-      ? registerDefinitionNavigation(editor, monaco, workspacePath, definitionActionLabel, onDefinitionNavigate, showDefinitionError)
-      : null
-    revealNavigationTarget(editor, navigationTarget)
-  }, [definitionActionLabel, modelPath, navigationTarget, onDefinitionNavigate, onEditorMount, revealNavigationTarget, showDefinitionError, workspacePath])
+  }, [modelPath, onEditorMount])
 
   const handleDiffMount = useCallback((editor: MonacoEditor.IStandaloneDiffEditor, monaco: Monaco) => {
     diffEditorRef.current = editor
     const modifiedEditor = editor.getModifiedEditor()
-    handleMount(modifiedEditor, monaco)
+    handleMount(modifiedEditor)
     diffChangeSubscriptionRef.current?.dispose()
     diffChangeSubscriptionRef.current = modifiedEditor.onDidChangeModelContent(() => {
       const value = modifiedEditor.getValue()
@@ -229,14 +196,12 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
   useEffect(() => () => {
     diffChangeSubscriptionRef.current?.dispose()
     viewStateSubscriptionRef.current?.dispose()
-    definitionActionRef.current?.dispose()
     diffIndicatorRef.current?.subscription.dispose()
     diffIndicatorRef.current?.numbering.dispose()
     diffIndicatorRef.current?.original.clear()
     diffIndicatorRef.current?.modified.clear()
     diffIndicatorRef.current = null
     diffEditorRef.current = null
-    if (definitionErrorTimerRef.current) clearTimeout(definitionErrorTimerRef.current)
     if (editorRef.current) {
       if (modelPath) {
         const viewState = editorRef.current.saveViewState()
@@ -245,10 +210,6 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
       onEditorMount?.(null)
     }
   }, [modelPath, onEditorMount])
-
-  useEffect(() => {
-    if (editorRef.current) revealNavigationTarget(editorRef.current, navigationTarget)
-  }, [navigationTarget, revealNavigationTarget])
 
   useEffect(() => {
     const editor = editorRef.current
@@ -331,15 +292,6 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
           </div>
         </div>
       )}
-      {definitionError && (
-        <div
-          role="status"
-          className="absolute bottom-3 right-3 z-10 max-w-[min(360px,calc(100%-24px))] border px-3 py-2 text-xs shadow-lg"
-          style={{ color: 'var(--shell-text)', background: 'var(--popover-background)', borderColor: 'var(--shell-border)' }}
-        >
-          {definitionError}
-        </div>
-      )}
       {originalContent !== undefined && sideBySide && (
         <div className="grid shrink-0 grid-cols-2 px-3 py-1 text-[10px]" style={{ color: 'var(--shell-dim)' }}>
           <span>{t('editor:fileEditor.diffOriginal')}</span>
@@ -381,5 +333,6 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
 }
 
 function monacoFileUri(filePath: string): string {
+  if (filePath.startsWith('janusx-workspace://')) return Uri.parse(filePath).toString()
   return Uri.file(filePath).toString()
 }

@@ -4,10 +4,11 @@ import { useAuxiliaryPanelsStore } from './auxiliary-panels'
 import type { OpenFile, FileViewType } from '@/types'
 import type { PluginDraft } from '@janusx/plugin-sdk'
 import { getFileViewType, getFileName } from '@/lib/file-utils'
+import { parseRuntimeResource } from '../../../shared/workspace-runtime'
 
 type LoadedFileSnapshot = Pick<
   OpenFile,
-  'viewType' | 'content' | 'base64' | 'mimeType' | 'size' | 'mtime'
+  'viewType' | 'content' | 'base64' | 'mimeType' | 'size' | 'mtime' | 'saveVersion'
 >
 
 // Evicting a cached disk snapshot never removes an open/dirty tab from openFiles.
@@ -56,15 +57,15 @@ export function getEditorFileId(filePath: string): string {
 }
 
 function isPathInWorkspace(filePath: string, workspacePath: string): boolean {
-  const normalizedFile = filePath.replace(/\\/g, '/').toLowerCase()
-  const normalizedWorkspace = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const normalizedFile = getEditorFileId(filePath)
+  const normalizedWorkspace = getEditorFileId(workspacePath)
   return normalizedFile === normalizedWorkspace || normalizedFile.startsWith(`${normalizedWorkspace}/`)
 }
 
 /** target 与 base 相同,或位于 base 目录之下(分隔符/大小写不敏感) */
 function isSameOrUnderPath(target: string, base: string): boolean {
-  const t = target.replace(/\\/g, '/').toLowerCase()
-  const b = base.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const t = getEditorFileId(target)
+  const b = getEditorFileId(base)
   return t === b || t.startsWith(`${b}/`)
 }
 
@@ -138,6 +139,7 @@ async function loadFileSnapshot(absolutePath: string, viewType: FileViewType): P
     return {
       viewType,
       content: result.content ?? '',
+      saveVersion: result.version,
       size: result.size,
       mtime: result.mtime,
     }
@@ -204,11 +206,8 @@ interface EditorStore {
   isVisible: boolean
   isEmbedded: boolean
   embeddedWidth: number
-  navigationTarget: EditorNavigationTarget | null
 
   openFile: (absolutePath: string, workspacePath: string) => Promise<void>
-  openFileAt: (absolutePath: string, workspacePath: string, selection: EditorSelection) => Promise<void>
-  consumeNavigationTarget: (requestId: number) => void
   closeFile: (id: string) => void
   setActiveFile: (id: string) => void
   markDirty: (id: string) => void
@@ -228,25 +227,10 @@ interface EditorStore {
   setEmbeddedWidth: (width: number) => void
 }
 
-export interface EditorSelection {
-  startLineNumber: number
-  startColumn: number
-  endLineNumber: number
-  endColumn: number
-}
-
-export interface EditorNavigationTarget {
-  requestId: number
-  fileId: string
-  selection: EditorSelection
-}
-
 function replaceLoadedFile(state: EditorStore, target: OpenFile, patch: Partial<OpenFile>) {
   const replace = (files: OpenFile[]) => files.map(file => file === target ? { ...file, ...patch } : file)
   return { openFiles: replace(state.openFiles), sessions: Object.fromEntries(Object.entries(state.sessions).map(([key, session]) => [key, { ...session, files: replace(session.files) }])) }
 }
-
-let navigationRequestId = 0
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   workspacePath: null,
@@ -260,7 +244,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
     const session = workspacePath ? sessions[getEditorFileId(workspacePath)] : undefined
     set({ workspacePath, sessions, openFiles: session?.files ?? [], activeFileId: session?.activeFileId ?? null,
-      isVisible: session?.visible ?? false, isEmbedded: true, navigationTarget: null })
+      isVisible: session?.visible ?? false, isEmbedded: true })
   },
   releaseScope: (workspacePath) => {
     const key = getEditorFileId(workspacePath)
@@ -268,7 +252,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const { [key]: released, ...sessions } = s.sessions
       void released
       return getEditorFileId(s.workspacePath ?? '') === key
-        ? { sessions, openFiles: [], activeFileId: null, isVisible: false, navigationTarget: null }
+        ? { sessions, openFiles: [], activeFileId: null, isVisible: false }
         : { sessions }
     })
   },
@@ -293,7 +277,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   isVisible: false,
   isEmbedded: true,
   embeddedWidth: 560,
-  navigationTarget: null,
 
   openFile: async (absolutePath, workspacePath) => {
     useAuxiliaryPanelsStore.getState().activate('editor')
@@ -307,7 +290,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     const viewType = getFileViewType(absolutePath)
     const name = getFileName(absolutePath)
-    const relativePath = absolutePath.replace(workspacePath, '').replace(/^[\\/]/, '')
+    const relativePath = (parseRuntimeResource(absolutePath)?.path ?? absolutePath).replace(parseRuntimeResource(workspacePath)?.path ?? workspacePath, '').replace(/^[\\/]/, '')
     const cached = getCachedFile(id)
 
     const newFile: OpenFile = {
@@ -315,6 +298,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       content: cached?.content ?? '', isDirty: false, isLoading: !cached,
       base64: cached?.base64, mimeType: cached?.mimeType,
       size: cached?.size, mtime: cached?.mtime,
+      saveVersion: cached?.saveVersion,
     }
 
     set(s => ({
@@ -337,21 +321,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  openFileAt: async (absolutePath, workspacePath, selection) => {
-    await get().openFile(absolutePath, workspacePath)
-    const fileId = getEditorFileId(absolutePath)
-    if (!get().openFiles.some((file) => file.id === fileId)) return
-    set({
-      activeFileId: fileId,
-      isVisible: true,
-      navigationTarget: { requestId: ++navigationRequestId, fileId, selection },
-    })
-  },
-
-  consumeNavigationTarget: (requestId) => {
-    set((state) => state.navigationTarget?.requestId === requestId ? { navigationTarget: null } : {})
-  },
-
   closeFile: (id) => {
     pendingFileLoads.delete(id)
     set(s => {
@@ -366,12 +335,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         activeFileId: newActive,
         isVisible: filtered.length > 0 ? s.isVisible : false,
         isEmbedded: true,
-        navigationTarget: s.navigationTarget?.fileId === id ? null : s.navigationTarget,
       }
     })
   },
 
-  setActiveFile: (id) => set({ activeFileId: id, navigationTarget: null }),
+  setActiveFile: (id) => set({ activeFileId: id }),
 
   markDirty: (id) => {
     set(s => ({
@@ -504,7 +472,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   closePanel: () => {
     pendingFileLoads.clear()
     if (get().workspacePath) get().releaseScope(get().workspacePath!)
-    else set({ openFiles: [], activeFileId: null, isVisible: false, isEmbedded: true, navigationTarget: null })
+    else set({ openFiles: [], activeFileId: null, isVisible: false, isEmbedded: true })
   },
   hidePanel: () => set({ isVisible: false }),
   showPanel: () => {

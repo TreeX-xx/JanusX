@@ -15,8 +15,8 @@ import {
   projectGraph,
   projectGraphId,
   projectRelations,
-} from '../../src/main/notes/note-to-blueprint'
-import type { NoteDoc } from '../../src/main/notes/note-types'
+} from '../../plugins/blueprint/src/main/notes/note-to-blueprint'
+import type { NoteDoc } from '../../plugins/blueprint/src/main/notes/note-types'
 
 const doc = (over: Partial<NoteDoc> = {}): NoteDoc => ({
   id: 'n1',

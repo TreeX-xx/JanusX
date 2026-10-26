@@ -1,4 +1,4 @@
-import type { Blueprint } from '../../../src/shared/janus/types'
+import type { Blueprint } from '../../../plugins/blueprint/src/shared/janus/types'
 import type { HarnessWorkspaceStatus } from '../../../src/shared/ipc/harness'
 
 export function installBootstrapFixture(graph: Blueprint) {

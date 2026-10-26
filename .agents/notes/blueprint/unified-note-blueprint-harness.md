@@ -55,7 +55,7 @@
       }
     }
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-10-24T18:12:24.141Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd"
 }
 ---
@@ -77,7 +77,7 @@
 | 仓库 | 已存在的机制与证据 | 对统一方案的约束 |
 |---|---|---|
 | WorkFlowX | [noteX](../../../../WorkFlowX/.codex/skills/noteX/SKILL.md) 定义 Note；[orchestrateX](../../../../WorkFlowX/.codex/skills/orchestrateX/SKILL.md) 定义 xdo/xdel/xflow；[标准 task 模板](../../../../WorkFlowX/standards/harness-note/1/templates/task.md) 定义实施资产 | 拥有新标准及工作流语义，供不同终端使用 |
-| JanusX | [Blueprint 类型](../../../src/shared/janus/types.ts)、[Store](../../../src/main/janus/blueprint-store.ts)、[维护服务](../../../src/main/janus/maintenance/service.ts) 和 [界面 Store](../../../src/renderer/src/stores/blueprint.ts) 实现蓝图持久化、关系、维护及显示 | 应成为同一资产的图形编辑器，重用现有图形交互与维护能力 |
+| JanusX | [Blueprint 类型](../../../plugins/blueprint/src/shared/janus/types.ts)、[Store](../../../src/main/janus/blueprint-store.ts)、[维护服务](../../../src/main/janus/maintenance/service.ts) 和 [界面 Store](../../../src/renderer/src/stores/blueprint.ts) 实现蓝图持久化、关系、维护及显示 | 应成为同一资产的图形编辑器，重用现有图形交互与维护能力 |
 | janus-agentX | [ChatTurnPorts](../../../../janus-agentX/packages/janus-agent/src/ports.ts)、[Node Host 工具](../../../../janus-agentX/packages/node-hosts/src/index.ts)、[CLI Session](../../../../janus-agentX/packages/cli/src/session.ts) 提供共享运行时与终端宿主 | 应提供无 Electron 依赖的解析、文件操作和 harness 执行能力 |
 
 JanusX 的 [package.json](../../../package.json) 已通过 `file:../janus-agentX/packages/...` 引用 `agent-core`、`chat-core`、`janus-agent`。WorkFlowX 本地采用 task Note 规则，JanusX 与 janus-agentX 的运行入口仍采用旧规则；工作流分发的三仓切换必须单独验收，不能从同名 skill 推断版本一致。
@@ -99,7 +99,7 @@ WorkFlowX 的 Note 已包含问题、方案或决策、替代选项、验收或�
 | 并发 | 多终端直接编辑 Git 工作树 | 进程内锁、内存缓存、JSON 原子替换和维护修订校验 | 单进程锁不能保护其他终端的 Markdown 写入 |
 | 宿主 | 主要由 skill、模板和代理纪律约束 | Electron IPC、应用 Store 与本地审计 | 新标准必须可在没有 JanusX 的终端运行 |
 
-当前 [受控蓝图维护 Note](./maintenance/history/blueprint-maintenance.md) 与 [维护契约](../../../src/shared/janus/maintenance-types.ts) 已覆盖提案、变更集、证据、选择应用、过期检测和撤销。新方案应保留这些能力的作用，把操作对象改为 Note 文件及其关系。现有普通节点编辑和分析回写也能修改 Store，因此不能仅更换维护面板而保留其他 JSON 写入口。
+当前 [受控蓝图维护 Note](./maintenance/history/blueprint-maintenance.md) 与 [维护契约](../../../plugins/blueprint/src/shared/janus/maintenance-types.ts) 已覆盖提案、变更集、证据、选择应用、过期检测和撤销。新方案应保留这些能力的作用，把操作对象改为 Note 文件及其关系。现有普通节点编辑和分析回写也能修改 Store，因此不能仅更换维护面板而保留其他 JSON 写入口。
 
 WorkFlowX 的 [Notes 与 Hybrid Tree 设计](../../../../WorkFlowX/docs/agent-notes-and-hybrid-tree-design.md) 记录长期决策和短期执行的历史区分。当前格式及模板见 [Harness 标准](../../../../WorkFlowX/standards/harness-note/1/manifest.json)，当前运行规则以各仓库 skills 为准。统一应减少独立载体，同时保留不同内容的用途与质量要求；历史设计中的设想不能作为现有门禁的证据。
 

@@ -20,6 +20,23 @@ export function configureMonacoRuntime(): void {
       return new editorWorker()
     },
   }
+  // Note: previews keep file-local editing and find, without symbol navigation.
+  // .agents/notes/workbench/file-editor-experience.md
+  const { typescript, css, html, json } = monaco
+  for (const defaults of [
+    typescript.typescriptDefaults, typescript.javascriptDefaults,
+    css.cssDefaults, css.scssDefaults, css.lessDefaults,
+  ]) {
+    defaults.setModeConfiguration({
+      ...defaults.modeConfiguration,
+      definitions: false,
+      references: false,
+      documentSymbols: false,
+    })
+  }
+  for (const defaults of [html.htmlDefaults, json.jsonDefaults]) {
+    defaults.setModeConfiguration({ ...defaults.modeConfiguration, documentSymbols: false })
+  }
   loader.config({ monaco })
   configured = true
 }

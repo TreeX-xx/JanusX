@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JanusAPI } from '../../src/shared/ipc/janus'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 
 const janus = {
   listBlueprints: vi.fn(),

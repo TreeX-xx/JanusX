@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 
 const context = vi.hoisted(() => ({
   userData: `${process.env.TEMP ?? process.cwd()}\\janusx-blueprint-store-${process.pid}`
@@ -10,7 +10,7 @@ const context = vi.hoisted(() => ({
 vi.mock('electron', () => ({ app: { getPath: () => context.userData } }))
 
 import { BlueprintStore } from '../../src/main/janus/blueprint-store'
-import { BLUEPRINT_SCHEMA_VERSION } from '../../src/main/janus/blueprint-migration'
+import { BLUEPRINT_SCHEMA_VERSION } from '../../plugins/blueprint/src/main/janus/blueprint-migration'
 
 const dataDir = join(context.userData, 'janusx')
 

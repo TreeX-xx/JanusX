@@ -6,10 +6,14 @@ import { fileURLToPath } from 'node:url'
 // may reach the archive, and nothing build-only may stay in node_modules.
 const REQUIRED_TREE_EXCLUSIONS = [
   'src',
+  'plugins',
   'tests',
   'wiki',
   'design',
   'artifacts',
+  'apps',
+  'scripts/android-lab',
+  'scripts/remote-lab',
   'test-results',
   'release',
   '.agents',
@@ -93,7 +97,7 @@ export function validateFilePatterns(patterns) {
   if (!inclusions.includes('package.json')) {
     throw new Error('Package files must include package.json')
   }
-  const leaked = inclusions.filter((pattern) => REQUIRED_TREE_EXCLUSIONS.some((prefix) => pattern === prefix))
+  const leaked = inclusions.filter((pattern) => REQUIRED_TREE_EXCLUSIONS.some((prefix) => pattern === prefix || pattern.startsWith(`${prefix}/`)))
   if (leaked.length) {
     throw new Error(`Package files must not include repository sources or caches: ${leaked.join(', ')}`)
   }
@@ -117,6 +121,14 @@ export function validateFilePatterns(patterns) {
   if (unexpected.length) {
     throw new Error(`Package files exclude unknown paths: ${unexpected.join(', ')}`)
   }
+}
+
+// Check the assembled archive as well as the builder configuration. This does
+// not prove the host bundles are free of legacy Blueprint business imports.
+export function validatePackagedPluginEntries(entries) {
+  const leaked = [...entries].map((entry) => entry.replaceAll('\\', '/').replace(/^\/+/, '')).filter((entry) =>
+    /^(?:plugins|node_modules\/@janusx\/blueprint)(?:\/|$)/.test(entry))
+  if (leaked.length) throw new Error(`Downloadable plugin files must not ship in the application: ${leaked.slice(0, 5).join(', ')}`)
 }
 
 export function validateDependencyContract(root) {

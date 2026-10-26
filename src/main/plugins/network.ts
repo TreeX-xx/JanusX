@@ -44,6 +44,31 @@ export class PluginCredentials {
   deletePlugin(plugin: string): Promise<void> {
     return this.queue.run(() => rm(join(this.directory, createHash('sha256').update(plugin).digest('hex')), { recursive: true, force: true }))
   }
+  /** Only host-owned migration mappings may supply a legacy encrypted path; the plugin never receives the secret. */
+  importLegacy(plugin: string, slot: string, origin: string, source: string, valid: () => void): Promise<void> {
+    return this.queue.run(async () => {
+      const target = this.path(plugin, 'application', slot, origin), marker = target + '.imported'
+      const exists = async (path: string) => {
+        try { await readFile(path); return true } catch (cause) { if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return false; throw cause }
+      }
+      try {
+        valid()
+        if (await exists(marker)) return
+        if (!await exists(target)) {
+          let encrypted: Buffer | undefined
+          try { encrypted = await readFile(source) } catch (cause) { if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause }
+          if (encrypted) {
+            if (!this.encryption) throw new Error('Unavailable')
+            const value = this.encryption.decrypt(encrypted)
+            if (!value.length || value.length > 4096 || /[^\x21-\x7e]/.test(value)) throw new Error('Invalid credential')
+            const migrated = this.encryption.encrypt(value)
+            valid(); await writeFileAtomic(target, migrated)
+          }
+        }
+        valid(); await writeFileAtomic(marker, '1\n')
+      } catch (cause) { if (cause instanceof PluginError) throw cause; throw new PluginError('CREDENTIAL_UNAVAILABLE', 'Legacy credential could not be migrated; configure this credential in plugin settings.') }
+    })
+  }
 }
 /** Only public IPv4 destinations in this increment. DNS is pinned to the checked answer. */
 export function isPluginPublicAddress(address: string): boolean {

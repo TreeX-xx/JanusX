@@ -27,7 +27,8 @@ export function OfficeFileViewer({ absolutePath, onClose }: { absolutePath: stri
         }
       }
       if (!workspace || !scopePath) { if (!disposed) setPreview({ status: 'error', errorCode: 'OUTSIDE_ROOT' }); return }
-      const relPath = normalized.slice(scopePath.replace(/[\\/]+$/, '').length + 1)
+      const relative = normalized.slice(scopePath.replace(/[\\/]+$/, '').length + 1)
+      const relPath = scopePath.startsWith('janusx-workspace://') ? relative.split('/').map(decodeURIComponent).join('/') : relative
       const result = await officeService.startPreview({ workspaceId: workspace.id, scopePath, relPath })
       if (!result.ok) { if (!disposed) setPreview({ status: 'error', errorCode: result.error.code }); return }
       const lease: OfficePreviewLease = result.value

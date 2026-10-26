@@ -1,7 +1,7 @@
 import { useI18n } from '@/i18n/useI18n'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Cpu, Eye, EyeOff, Minus, Plus, RefreshCw, Timer } from 'lucide-react'
-import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS, type BlueprintReviewSettings, type ReviewConfigurationStatus } from '../../../../shared/blueprint-review-settings'
+import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS, type BlueprintReviewSettings, type ReviewConfigurationStatus } from '../../../../../plugins/blueprint/src/shared/blueprint-review-settings'
 import { Select } from '../ui/Select'
 import settingsStyles from '../KnowledgeSettingsPanel.module.css'
 import styles from './BlueprintSettingsPanel.module.css'

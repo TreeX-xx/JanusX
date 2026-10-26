@@ -34,6 +34,12 @@
 }
 
 /* 提交列表行：hover 只抬底色，文字色不变，避免闪烁（与 pane-tab 同语言）。 */
+.commitRow {
+  /* Keep the full history accessible without laying out offscreen rows on reveal. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 49px;
+}
+
 .commitRow:hover {
   background: color-mix(in srgb, var(--shell-text) 6%, transparent);
 }
@@ -104,6 +110,11 @@
 }
 
 /* 文件行 hover：同上走令牌混色。 */
+.fileGroup {
+  /* Skip whole offscreen batches, including their row layout and style work. */
+  content-visibility: auto;
+}
+
 .fileRow:hover {
   background: color-mix(in srgb, var(--shell-text) 5%, transparent);
 }

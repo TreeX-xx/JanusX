@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUpRight, GitBranch, LoaderCircle, Play, RotateCcw, Square, X } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { projectService } from '@/services/project'
@@ -121,12 +122,16 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
 
   const armStopOne = (projectId: string) => {
     if (armTimerRef.current) clearTimeout(armTimerRef.current)
+    setArmedScopePath(null)
+    setArmedAll(false)
     setArmedProjectId(projectId)
     armTimerRef.current = setTimeout(() => setArmedProjectId(null), ARM_TIMEOUT_MS)
   }
 
   const armStopScope = (scopePath: string) => {
     if (armTimerRef.current) clearTimeout(armTimerRef.current)
+    setArmedProjectId(null)
+    setArmedAll(false)
     setArmedScopePath(scopePath)
     armTimerRef.current = setTimeout(() => setArmedScopePath(null), ARM_TIMEOUT_MS)
   }
@@ -151,6 +156,8 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
   const handleStopAll = () => {
     if (!info) return
     if (!armedAll) {
+      setArmedProjectId(null)
+      setArmedScopePath(null)
       setArmedAll(true)
       return
     }
@@ -207,12 +214,14 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
     return (
       <div className="janus-run-orb-popover" role="dialog" aria-label={stoppedSnapshot?.workspaceName ?? ''}>
         <div className="janus-run-orb-popover-empty">
+          <span className="janus-run-orb-empty-icon"><Square size={18} strokeWidth={1.5} aria-hidden="true" /></span>
           <span>{t('janus:island.runOrb.stoppedEmpty')}</span>
           {stoppedSnapshot && <small>{stoppedSnapshot.workspaceName}</small>}
         </div>
         {actionError && <div className="janus-run-orb-popover-error" role="alert">{actionError}</div>}
         <div className="janus-run-orb-popover-footer">
-          <button type="button" className="janus-run-orb-btn" disabled={restarting} onClick={() => void handleRestart()}>
+          <button type="button" className="janus-run-orb-btn janus-run-orb-btn--primary" disabled={restarting} onClick={() => void handleRestart()}>
+            {restarting ? <LoaderCircle size={13} className="janus-run-orb-spinner" aria-hidden="true" /> : <RotateCcw size={13} aria-hidden="true" />}
             {t('janus:island.runOrb.restartDev')}
           </button>
           <button type="button" className="janus-run-orb-btn janus-run-orb-btn--ghost" onClick={onClose}>
@@ -226,7 +235,13 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
   return (
     <div className="janus-run-orb-popover" role="dialog" aria-label={info.workspaceName}>
       <header className="janus-run-orb-popover-header">
-        <strong>{info.workspaceName}</strong>
+        <div className="janus-run-orb-popover-heading">
+          <strong title={info.workspaceName}>{info.workspaceName}</strong>
+          <span className="janus-run-orb-popover-summary" data-stopping={stopping || undefined}>
+            <i aria-hidden="true" />{stopping ? t('janus:island.runOrb.stopping') : t('janus:expanded.peek.running')}
+            <span aria-hidden="true">·</span>{t('janus:island.runOrb.scopeMeta', { count: info.projects.length })}
+          </span>
+        </div>
         <button
           type="button"
           className="janus-run-orb-popover-close"
@@ -234,12 +249,13 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
           title={t('janus:island.runOrb.panelClose')}
           onClick={onClose}
         >
-          ×
+          <X size={15} aria-hidden="true" />
         </button>
       </header>
 
       {actionError && <div className="janus-run-orb-popover-error" role="alert">{actionError}</div>}
 
+      <div className="janus-run-orb-popover-body">
       {info.scopes.map((scope) => {
         const isFocus = focusScopePath != null && scopeKey(scope.scopePath) === scopeKey(focusScopePath)
         const scopeStopping = stoppingByScope[scopeKey(scope.scopePath)] != null
@@ -247,6 +263,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
         return (
           <section key={scopeKey(scope.scopePath)} className={`janus-run-orb-scope${isFocus ? ' is-focus' : ''}`}>
             <div className="janus-run-orb-scope-head" title={scope.scopePath}>
+              <GitBranch size={13} aria-hidden="true" />
               <span className="janus-run-orb-scope-label">
                 {scopeLabel(scope, info.workspacePath, t('janus:island.runOrb.mainCheckout'))}
               </span>
@@ -263,7 +280,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
                     {t('janus:island.runOrb.cancel')}
                   </button>
                 </span>
-              ) : (
+              ) : scope.projects.length > 1 && (
                 <button
                   type="button"
                   className="janus-run-orb-stop-one"
@@ -272,7 +289,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
                   disabled={scopeStopping}
                   onClick={() => armStopScope(scope.scopePath)}
                 >
-                  ⊘
+                  {scopeStopping ? <LoaderCircle size={13} className="janus-run-orb-spinner" aria-hidden="true" /> : <Square size={12} aria-hidden="true" />}
                 </button>
               )}
             </div>
@@ -283,14 +300,14 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
                 return (
                   <li key={project.id} className="janus-run-orb-process">
                     <div className="janus-run-orb-process-main">
-                      <span className="janus-run-orb-process-name">{project.name}</span>
+                      <span className="janus-run-orb-process-name" title={project.name}>{project.name}</span>
                       <span className="janus-run-orb-process-meta">
                         PID {project.pid}
                         {typeof project.port === 'number' && project.port > 0 ? ` · :${project.port}` : ''}
-                        {portConflict ? ` · ⚠ ${t('janus:island.runOrb.portConflict')}` : ''}
                         {` · ${formatOrbUptime(project.uptime)}`}
                       </span>
-                      <span className="janus-run-orb-process-output">
+                      {portConflict && <span className="janus-run-orb-port-warning">{t('janus:island.runOrb.portConflict')} · :{project.port}</span>}
+                      <span className="janus-run-orb-process-output" title={outputByProject[project.id] || undefined}>
                         {outputByProject[project.id] || t('janus:island.runOrb.outputEmpty')}
                       </span>
                     </div>
@@ -312,7 +329,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
                         aria-label={t('janus:island.runOrb.stopOneConfirm')}
                         onClick={() => armStopOne(project.id)}
                       >
-                        ⊘
+                        <Square size={12} aria-hidden="true" />
                       </button>
                     )}
                   </li>
@@ -344,6 +361,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
                   disabled={startingScope != null}
                   onClick={() => void handleStartScope(entry.path)}
                 >
+                  {startingScope && sameScopePath(startingScope, entry.path) ? <LoaderCircle size={13} className="janus-run-orb-spinner" aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}
                   {startingScope && sameScopePath(startingScope, entry.path)
                     ? t('janus:island.runOrb.starting')
                     : t('janus:island.runOrb.startScope')}
@@ -353,9 +371,11 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
           </ul>
         </section>
       )}
+      </div>
 
       <div className="janus-run-orb-popover-footer">
-        <button type="button" className="janus-run-orb-btn" onClick={handleSwitch}>
+        <button type="button" className="janus-run-orb-btn janus-run-orb-btn--ghost" onClick={handleSwitch}>
+          <ArrowUpRight size={13} aria-hidden="true" />
           {t('janus:island.runOrb.switchTo')}
         </button>
         <button
@@ -363,6 +383,7 @@ export function JanusRunOrbPopover({ info, stopping, stoppedSnapshot = null, foc
           title={t('janus:island.runOrb.stopAllConfirm')}
           disabled={stopping}
           className="janus-run-orb-btn janus-run-orb-btn--danger"
+          data-armed={armedAll || undefined}
           onClick={handleStopAll}
           onBlur={() => setArmedAll(false)}
         >

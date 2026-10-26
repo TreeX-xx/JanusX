@@ -24,11 +24,11 @@ const mocks = vi.hoisted(() => {
       },
     }
   })
-  return { handlers, watchers, watch }
+  const trackBlueprintReviewWorkspace = vi.fn()
+  return { handlers, watchers, watch, trackBlueprintReviewWorkspace }
 })
 
-// The watcher registration path also constructs a ReviewStore, whose constructor
-// calls mkdirSync; keep the real fs and override only watch.
+// Keep the real fs and override only watch.
 vi.mock('fs', async (importOriginal) => ({ ...(await importOriginal()), watch: mocks.watch }))
 
 vi.mock('electron', () => ({
@@ -38,6 +38,10 @@ vi.mock('electron', () => ({
   },
   dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
   shell: { openPath: vi.fn(), showItemInFolder: vi.fn() },
+}))
+
+vi.mock('../../../src/main/blueprint/review/runtime', () => ({
+  trackBlueprintReviewWorkspace: mocks.trackBlueprintReviewWorkspace,
 }))
 
 import {
@@ -66,7 +70,7 @@ describe('workspace watcher coordinator', () => {
     await rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  it('shares one watcher between filetree and independent Office subscribers', async () => {
+  it('shares one watcher without activating the Blueprint plugin', async () => {
     const first = vi.fn()
     const second = vi.fn()
     const unsubscribeFirst = subscribeWorkspaceWatcher(temporaryRoot, first)
@@ -81,6 +85,7 @@ describe('workspace watcher coordinator', () => {
     await mocks.handlers.get('filetree:load')!({}, temporaryRoot)
 
     expect(mocks.watch).toHaveBeenCalledTimes(1)
+    expect(mocks.trackBlueprintReviewWorkspace).not.toHaveBeenCalled()
     mocks.watchers[0].callback('change', 'report.docx')
     expect(first).toHaveBeenCalledWith('change', 'report.docx')
     expect(second).toHaveBeenCalledWith('change', 'report.docx')
@@ -96,6 +101,7 @@ describe('workspace watcher coordinator', () => {
     expect(mocks.watchers[0].close).not.toHaveBeenCalled()
     disposeWorkspaceWatcher(temporaryRoot)
     expect(mocks.watchers[0].close).toHaveBeenCalledTimes(1)
+    expect(mocks.trackBlueprintReviewWorkspace).not.toHaveBeenCalled()
   })
 
   it('closes a subscriber-only watcher after its final independent unsubscribe', () => {

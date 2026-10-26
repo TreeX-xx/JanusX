@@ -345,7 +345,8 @@
       "captionJanus": "Janus",
       "openMaintenance": "Open Maintenance",
       "cancelAnalysis": "Cancel Analysis",
-      "openBlueprint": "Open Blueprint"
+      "openBlueprint": "Open Blueprint",
+      "openPlugins": "Manage plugins"
     },
     "activeNodeFallback": "No active blueprint node",
     "workspaceFallback": "Workspace",
@@ -766,6 +767,11 @@
   },
   "blackboard": {
     "title": "Second board",
+    "managePlugins": "Manage plugins",
+    "pluginHint": "Open a plugin in its workspace.",
+    "pluginsEmpty": "Install and enable plugins to open them here.",
+    "needsProject": "Select a project first",
+    "openView": "Open {{title}}",
     "pullHint": {
       "keep": "Keep pulling to drop the board",
       "release": "Release to drop the board",

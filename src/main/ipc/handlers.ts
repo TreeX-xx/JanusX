@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { projectWorkspace, validateRuntime, runtimeRequest } from '../workspace/runtime'
+import { workspaceFileIpc } from '../workspace/runtime-ipc'
 import { spawn } from 'node:child_process'
 import { getGitIgnoredPaths } from './file-tree-ignore'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
@@ -20,7 +22,6 @@ import { authorizeRendererAction, type RendererActionAuthorizer } from '../agent
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
 import { buildVSCodeLaunchArgs } from '../ide-launch'
 import { watchNativeDialogPosition } from '../windows/center-native-dialog'
-import { trackBlueprintReviewWorkspace } from '../blueprint/review/runtime'
 import { createApplicationDataEventFilter } from './workspace-event-filter'
 import {
   detectShellCandidates,
@@ -318,8 +319,7 @@ function ensureWorkspaceWatcher(workspacePath: string): void {
   }
 }
 
-function registerWorkspaceWatcher(mainWindow: BrowserWindow | null, workspacePath: string, refreshReview = true): void {
-  if (refreshReview || !watcherWindows.has(workspacePath)) trackBlueprintReviewWorkspace(workspacePath, true)
+function registerWorkspaceWatcher(mainWindow: BrowserWindow | null, workspacePath: string): void {
   const windows = watcherWindows.get(workspacePath) ?? new Set<BrowserWindow>()
   if (mainWindow) windows.add(mainWindow)
   watcherWindows.set(workspacePath, windows)
@@ -344,7 +344,6 @@ export function subscribeWorkspaceWatcher(
 }
 
 export function disposeWorkspaceWatcher(workspacePath: string): void {
-  trackBlueprintReviewWorkspace(workspacePath, false)
   closeWorkspaceWatcher(workspacePath)
   watcherWindows.delete(workspacePath)
   watcherSubscribers.delete(workspacePath)
@@ -379,7 +378,7 @@ export function registerWorkspaceHandlers(
       for (const file of files) {
         if (file.endsWith('.json')) {
           const data = await readFile(join(WORKSPACES_DIR, file), 'utf-8')
-          workspaces.push(JSON.parse(data))
+          workspaces.push(projectWorkspace(JSON.parse(data)))
         }
       }
       const orderedWorkspaces = sortWorkspaceSidebar(workspaces)
@@ -400,7 +399,7 @@ export function registerWorkspaceHandlers(
     for (const file of files) {
       if (file.endsWith('.json')) {
         const data = await readFile(join(WORKSPACES_DIR, file), 'utf-8')
-        workspaces.push(JSON.parse(data))
+        workspaces.push(projectWorkspace(JSON.parse(data)))
       }
     }
     return sortWorkspaceSidebar(workspaces)
@@ -408,23 +407,29 @@ export function registerWorkspaceHandlers(
 
   ipcMain.handle(WORKSPACE_CHANNELS.load, async (_event, id: string) => {
     const data = await readFile(join(WORKSPACES_DIR, `${id}.json`), 'utf-8')
-    return JSON.parse(data)
+    return projectWorkspace(JSON.parse(data))
   })
 
   ipcMain.handle(WORKSPACE_CHANNELS.create, async (event, dto: WorkspaceCreateInput) => {
+    const runtime = dto.runtime && dto.runtime.kind !== 'windows' ? validateRuntime(dto.runtime) : undefined
+    if (runtime) {
+      const info = await runtimeRequest<{ isDirectory: boolean }>(runtime, 'fs.stat', { root: runtime.root })
+      if (!info.isDirectory) throw new Error('Select a Linux project directory')
+    }
     if (!await authorize(event, { workspaceRoot: dto.path, toolName: 'legacy.workspace.create', actionRisk: 'create', source: 'renderer-user', preview: { summary: 'Create workspace record', paths: [dto.path], truncated: false } })) throw new Error('Workspace creation denied by workspace policy')
     await ensureDir(WORKSPACES_DIR)
     const workspace = {
       id: randomUUID(),
       name: dto.name,
       path: dto.path,
+      ...(runtime ? { path: runtime.root, runtime } : {}),
       clis: [],
       layout: { mode: 'grid', positions: [] },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
     await writeFile(join(WORKSPACES_DIR, `${workspace.id}.json`), JSON.stringify(workspace, null, 2))
-    return workspace
+    return projectWorkspace(workspace as Workspace)
   })
 
   ipcMain.handle(WORKSPACE_CHANNELS.update, async (event, id: string, updates: WorkspaceUpdates) => {
@@ -432,9 +437,14 @@ export function registerWorkspaceHandlers(
     const data = JSON.parse(await readFile(filePath, 'utf-8'))
     const workspaceRoot = typeof data.path === 'string' ? data.path : id
     if (!await authorize(event, { workspaceRoot, toolName: 'legacy.workspace.update', actionRisk: 'write', source: 'renderer-user', preview: { summary: 'Update workspace record', paths: [workspaceRoot], detail: Object.keys(updates).join(', '), truncated: false } })) throw new Error('Workspace update denied by workspace policy')
-    const updated = { ...data, ...updates, updatedAt: new Date().toISOString() }
+    // Location changes require a new import; sidebar saves must never persist
+    // the projected resource URI over the target's native directory.
+    const { path: _path, runtime: _runtime, id: _id, ...editable } = updates
+    const updated = { ...data, ...editable,
+      ...(!data.runtime || data.runtime.kind === 'windows' ? (typeof _path === 'string' ? { path: _path } : {}) : {}),
+      updatedAt: new Date().toISOString() }
     await writeFile(filePath, JSON.stringify(updated, null, 2))
-    return updated
+    return projectWorkspace(updated)
   })
 
   ipcMain.handle(WORKSPACE_CHANNELS.delete, async (event, id: string) => {
@@ -519,13 +529,13 @@ export function registerWorkspaceHandlers(
     }
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.load, async (_event, rootPath: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.load, async (_event, rootPath: string) => {
     registerWorkspaceWatcher(getMainWindow(), rootPath)
     // 根层在非递归模式下已由 ensureWorkspaceWatcher 监听
     return readDirectoryNodes(rootPath, rootPath)
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.children, async (_event, rootPath: string, relativePathValue: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.children, async (_event, rootPath: string, relativePathValue: string) => {
     const targetDir = resolveWorkspacePath(rootPath, relativePathValue)
     if (!targetDir) return []
 
@@ -536,13 +546,13 @@ export function registerWorkspaceHandlers(
       return []
     }
 
-    registerWorkspaceWatcher(getMainWindow(), rootPath, false)
+    registerWorkspaceWatcher(getMainWindow(), rootPath)
     // Linux 非递归降级:children 成功后为该绝对目录补 watcher,才能收到深层变更
     ensureNestedDirectoryWatcher(rootPath, targetDir)
     return readDirectoryNodes(rootPath, targetDir)
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.createFile, async (event, rootPath: string, parentRelativePath: string, nameValue: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.createFile, async (event, rootPath: string, parentRelativePath: string, nameValue: string) => {
     const name = sanitizeEntryName(nameValue)
     const parentDir = resolveWorkspacePath(rootPath, parentRelativePath)
     if (!name || !parentDir) return fileTreeResult(false, 'Invalid file name')
@@ -561,7 +571,7 @@ export function registerWorkspaceHandlers(
     }
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.createDirectory, async (event, rootPath: string, parentRelativePath: string, nameValue: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.createDirectory, async (event, rootPath: string, parentRelativePath: string, nameValue: string) => {
     const name = sanitizeEntryName(nameValue)
     const parentDir = resolveWorkspacePath(rootPath, parentRelativePath)
     if (!name || !parentDir) return fileTreeResult(false, 'Invalid folder name')
@@ -580,7 +590,7 @@ export function registerWorkspaceHandlers(
     }
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.rename, async (event, rootPath: string, relativePathValue: string, nameValue: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.rename, async (event, rootPath: string, relativePathValue: string, nameValue: string) => {
     const name = sanitizeEntryName(nameValue)
     const sourcePath = resolveWorkspacePath(rootPath, relativePathValue)
     if (!name || !sourcePath || resolve(sourcePath) === resolve(rootPath)) {
@@ -599,7 +609,7 @@ export function registerWorkspaceHandlers(
     }
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.move, async (event, rootPath: string, sourceRelativePath: string, targetDirectoryRelativePath: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.move, async (event, rootPath: string, sourceRelativePath: string, targetDirectoryRelativePath: string) => {
     const sourcePath = resolveWorkspacePath(rootPath, sourceRelativePath)
     const targetDirectory = resolveWorkspacePath(rootPath, targetDirectoryRelativePath)
     if (!sourcePath || !targetDirectory || resolve(sourcePath) === resolve(rootPath)) {
@@ -632,7 +642,7 @@ export function registerWorkspaceHandlers(
     }
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.delete, async (event, rootPath: string, relativePathValue: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.delete, async (event, rootPath: string, relativePathValue: string) => {
     const targetPath = resolveWorkspacePath(rootPath, relativePathValue)
     if (!targetPath || resolve(targetPath) === resolve(rootPath)) {
       return fileTreeResult(false, 'Cannot delete workspace root')
@@ -647,7 +657,7 @@ export function registerWorkspaceHandlers(
     }
   })
 
-  ipcMain.handle(FILE_TREE_CHANNELS.reveal, async (_event, rootPath: string, relativePathValue: string) => {
+  workspaceFileIpc.handle(FILE_TREE_CHANNELS.reveal, async (_event, rootPath: string, relativePathValue: string) => {
     const targetPath = resolveWorkspacePath(rootPath, relativePathValue)
     if (!targetPath) return fileTreeResult(false, 'Invalid target path')
 

@@ -5,13 +5,19 @@
 // Note: creation metadata plus local Ship diff/merge/abort — see
 // .agents/notes/sessions/worktrees/worktree-create-delete.md
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { access, copyFile, lstat, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve, posix } from 'node:path'
 import { promisify } from 'node:util'
 import type { RepoIdentity, WorktreeInfo } from '../../shared/ipc/worktree'
 import { worktreeMetaStore } from './worktree-meta'
+import { parseRuntimeResource, runtimeResource } from '../../shared/workspace-runtime'
+import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
+import { runWorkspaceProcess } from '../workspace/runtime-process'
+
+const commandRoot = (value: string) => parseRuntimeResource(value) ? value : resolve(value)
+const remoteCreations = new Map<string, { workspacePath: string; operationId: string }>()
 
 const execFileAsync = promisify(execFile)
 const LOCAL_GIT_TIMEOUT_MS = 10000
@@ -85,6 +91,10 @@ export function parseWorktreeList(output: string): ParsedWorktree[] {
 
 async function runGit(cwd: string, args: string[]): Promise<string | null> {
   try {
+    if (parseRuntimeResource(cwd)) {
+      const result = await runWorkspaceProcess(cwd, ['git', ...args], { timeout: LOCAL_GIT_TIMEOUT_MS, maxBytes: 8 * 1024 * 1024 })
+      return result.exitCode === 0 ? result.stdout : null
+    }
     const { stdout } = await execFileAsync('git', args, { cwd, timeout: LOCAL_GIT_TIMEOUT_MS })
     return stdout
   } catch {
@@ -110,6 +120,10 @@ type GitCapture = GitCaptureOk | GitCaptureFail;
 /** Run git while preserving stderr so failures stay actionable instead of collapsing to null. */
 async function runGitCapture(cwd: string, args: string[]): Promise<GitCapture> {
   try {
+    if (parseRuntimeResource(cwd)) {
+      const result = await runWorkspaceProcess(cwd, ['git', ...args], { timeout: LOCAL_GIT_TIMEOUT_MS, maxBytes: 8 * 1024 * 1024 })
+      return result.exitCode === 0 ? { ok: true, ...result } : { ok: false, ...result, message: result.stderr || 'Git command failed' }
+    }
     const { stdout, stderr } = await execFileAsync('git', args, { cwd, timeout: LOCAL_GIT_TIMEOUT_MS })
     return { ok: true, stdout: stdout ?? '', stderr: (stderr as string | undefined) ?? '' }
   } catch (err) {
@@ -182,6 +196,8 @@ async function remoteUrl(cwd: string, name: string): Promise<string | null> {
  * to plain resolve so a missing path never breaks listing.
  */
 export function normalizeFsPath(value: string): string {
+  const resource = parseRuntimeResource(value)
+  if (resource) return runtimeResource(resource.workspaceId, posix.normalize(resource.path))
   const trimmed = value.trim()
   let resolved = resolve(trimmed)
   try {
@@ -214,6 +230,8 @@ export async function gitCommonDir(cwd: string): Promise<string | null> {
   const output = await runGit(cwd, ['rev-parse', '--git-common-dir'])
   const raw = output?.trim()
   if (!raw) return null
+  const resource = parseRuntimeResource(cwd)
+  if (resource) return runtimeResource(resource.workspaceId, posix.resolve(resource.path, raw))
   return resolve(cwd, raw)
 }
 
@@ -263,6 +281,17 @@ export function avatarUrlFor(host: string, owner: string): string | null {
 
 /** List linked worktrees; the main checkout is always first. */
 export async function listWorktrees(workspaceId: string, workspacePath: string): Promise<WorktreeInfo[]> {
+  const resource = await resolveRuntimeResource(workspacePath)
+  if (resource) {
+    const entries = await runtimeRequest<ParsedWorktree[]>(resource.runtime, 'worktree.list', { root: resource.path })
+    return Promise.all(entries.filter(entry => !entry.bare).map(async entry => {
+      const path = runtimeResource(resource.workspaceId, entry.path)
+      const meta = await worktreeMetaStore.get(path).catch(() => null)
+      const isMain = entry.path === resource.path
+      return { id: path, workspaceId, path, branch: entry.branch, detached: entry.detached,
+        isMain, external: !isMain && !meta, ...(meta ?? {}), locked: entry.locked, prunable: entry.prunable }
+    }))
+  }
   const main: WorktreeInfo = {
     id: workspacePath,
     workspaceId,
@@ -443,7 +472,23 @@ export async function createWorktree(
   input: CreateWorktreeInput,
   creationId?: string,
 ): Promise<CreateWorktreeResult> {
-  const root = resolve(workspacePath)
+  const resource = await resolveRuntimeResource(workspacePath)
+  if (resource) {
+    const operationId = randomUUID()
+    if (creationId) remoteCreations.set(creationId, { workspacePath, operationId })
+    try {
+      const created = await runtimeRequest<{ path: string; branch: string }>(resource.runtime, 'worktree.create', {
+        root: resource.path, ...input, operationId,
+      })
+      const path = runtimeResource(resource.workspaceId, created.path)
+      const startFrom = input.startFrom?.trim() || 'origin/main'
+      await worktreeMetaStore.set(path, { startFrom, branch: created.branch, createdAt: new Date().toISOString(),
+        ...(input.linkedIssue?.trim() ? { linkedIssue: input.linkedIssue.trim() } : {}) }).catch(() => undefined)
+      return { worktree: { id: path, path, workspaceId: resource.workspaceId, branch: created.branch,
+        detached: false, isMain: false, external: false, startFrom }, shared: [], copied: [] }
+    } finally { if (creationId) remoteCreations.delete(creationId) }
+  }
+  const root = commandRoot(workspacePath)
   const branch = (input.branch?.trim() || slugifyWorktreeName(input.name))
   const startFrom = input.startFrom?.trim() || 'origin/main'
   if (!input.name.trim()) throw new Error('任务盘名称不能为空')
@@ -511,6 +556,13 @@ function runWorktreeAdd(
 
 /** Cancel a running creation; best-effort prune of partial state. */
 export async function cancelCreateWorktree(workspacePath: string, creationId: string): Promise<boolean> {
+  if (parseRuntimeResource(workspacePath)) {
+    const pending = remoteCreations.get(creationId)
+    if (!pending || pending.workspacePath !== workspacePath) return false
+    const resource = await resolveRuntimeResource(workspacePath)
+    await runtimeRequest(resource!.runtime, 'process.cancel', { operationId: pending.operationId })
+    return true
+  }
   const pending = pendingCreations.get(creationId)
   if (!pending) return false
   pendingCreations.delete(creationId)
@@ -519,7 +571,7 @@ export async function cancelCreateWorktree(workspacePath: string, creationId: st
   } catch {
     return false
   }
-  const root = resolve(workspacePath)
+  const root = commandRoot(workspacePath)
   await runGit(root, ['worktree', 'prune'])
   await rm(pending.path, { recursive: true, force: true }).catch(() => undefined)
   return true
@@ -566,7 +618,18 @@ export async function removeWorktree(
   force = false,
   branchHint?: string | null,
 ): Promise<RemoveWorktreeResult> {
-  const root = resolve(workspacePath)
+  const resource = await resolveRuntimeResource(workspacePath)
+  if (resource) {
+    const target = parseRuntimeResource(worktreePath)
+    if (!target || target.workspaceId !== resource.workspaceId) throw new Error('Worktree belongs to another workspace')
+    const removed = await runtimeRequest<RemoveWorktreeResult>(resource.runtime, 'worktree.remove', {
+      root: resource.path, target: target.path, force,
+    })
+    const path = runtimeResource(resource.workspaceId, removed.path)
+    await removeMetaKeys(metaKeysFor(path, worktreePath))
+    return { ...removed, path }
+  }
+  const root = commandRoot(workspacePath)
   const requested = resolve(worktreePath)
   if (samePath(requested, root)) throw new Error('主盘不能在这里删除')
   const hint = branchHint?.trim() ? branchHint.trim() : null
@@ -636,7 +699,7 @@ export async function removeWorktree(
 export async function deleteBranch(workspacePath: string, branch: string, force = false): Promise<void> {
   const name = branch.trim()
   if (!name) throw new Error('分支名不能为空')
-  const root = resolve(workspacePath)
+  const root = commandRoot(workspacePath)
   const listing = await runGit(root, ['worktree', 'list', '--porcelain'])
   const occupant = listing
     ? parseWorktreeList(listing).find((item) => !item.bare && item.branch === name)
@@ -677,7 +740,7 @@ export interface BranchDiff {
 
 /** Committed diff of a branch against its base (three-dot range). */
 export async function diffBranchToBase(mainPath: string, base: string, branch: string): Promise<BranchDiff> {
-  const root = resolve(mainPath)
+  const root = commandRoot(mainPath)
   const output = await runGit(root, ['diff', '--numstat', `${base}...${branch}`])
   if (output === null) throw new Error(`读取分支差异失败：${branch} → ${base}`)
   const files: BranchFileDiff[] = []
@@ -706,7 +769,7 @@ export interface MergeResult {
  * Conflicts return as a list for explicit abort; nothing merges silently.
  */
 export async function mergeBranchToBase(mainPath: string, branch: string): Promise<MergeResult> {
-  const root = resolve(mainPath)
+  const root = commandRoot(mainPath)
   const current = await currentBranch(root)
   if (current && current === branch) throw new Error('不能把分支合并到自己')
   const dirty = await runGit(root, ['status', '--porcelain'])
@@ -726,6 +789,6 @@ export async function mergeBranchToBase(mainPath: string, branch: string): Promi
 
 /** Abort an in-progress conflicted merge in the main checkout. */
 export async function abortMerge(mainPath: string): Promise<void> {
-  const aborted = await runGit(resolve(mainPath), ['merge', '--abort'])
+  const aborted = await runGit(commandRoot(mainPath), ['merge', '--abort'])
   if (aborted === null) throw new Error('中止合并失败')
 }

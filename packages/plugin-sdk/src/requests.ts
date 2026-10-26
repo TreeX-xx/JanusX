@@ -5,6 +5,8 @@ import { isSensitivePluginPath, validatePluginPath } from './paths.js'
 import { pluginContextReadSchema } from './context.js'
 import { pluginIslandStatusSchema } from './island.js'
 import { backgroundId, networkRequestSchema, messageSchema, serviceCallSchema, eventPublishSchema } from './background.js'
+import { nativeValueSchema } from './native-protocol.js'
+import { terminalDraftSchema } from './handoff.js'
 
 const empty = z.object({}).strict()
 const key = z.string().min(1).max(128).refine((value) => !value.includes('\0') && !['__proto__', 'prototype', 'constructor'].includes(value))
@@ -21,6 +23,8 @@ const json = z.unknown().refine((value) => isJson(value)).refine((value) => {
   try { return new TextEncoder().encode(JSON.stringify(value)).byteLength <= 64 * 1024 } catch { return false }
 })
 const methods = {
+  'native.call': { permission: 'runtime.native', params: z.object({ method: backgroundId, input: nativeValueSchema }).strict() },
+  'native.watch': { permission: 'runtime.native', params: empty },
   'tasks.start': { permission: 'tasks.run', params: z.object({ task: backgroundId, input: messageSchema }).strict() },
   'tasks.list': { permission: 'tasks.run', params: empty },
   'tasks.cancel': { permission: 'tasks.run', params: z.object({ id: z.string().uuid() }).strict() },
@@ -39,6 +43,8 @@ const methods = {
       .refine(value => Object.keys(value).length > 0 && Object.keys(value).length <= 64),
   }).strict() },
   'workspace.getContext': { permission: 'workspace.context.read', params: empty },
+  'workspace.openDocument': { permission: 'ui.workspace', params: z.object({ path: z.string().min(1).max(4096), expectedVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict() },
+  'workspace.proposeTerminal': { permission: 'ui.workspace', params: terminalDraftSchema },
   'workspace.listDirectory': { permission: 'workspace.directories.list', params: z.object({ path: z.string().min(1).max(1024), limit: z.number().int().min(1).max(200).optional() }).strict() },
   'workspace.readText': { permission: 'workspace.files.read', params: z.object({ path: z.string() }).strict() },
   'documents.readText': { permission: 'documents.read', params: empty },
@@ -52,6 +58,11 @@ const methods = {
     expectedVersion: z.string().regex(/^[a-f0-9]{64}$/),
   }).strict() },
   'views.open': { permission: 'ui.views.open', params: z.object({ view: z.string(), instanceKey: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/).optional() }).strict() },
+  'views.getFrame': { permission: 'workspace.context.read', params: empty },
+  'views.requestFrame': { permission: 'ui.views.open', params: z.union([
+    z.object({ action: z.literal('close') }).strict(),
+    z.object({ action: z.literal('selectProject'), projectId: z.string().min(1).max(128) }).strict(),
+  ]) },
   'island.update': { permission: 'ui.island', params: z.object({ id: z.string(), status: pluginIslandStatusSchema.nullable() }).strict() },
   'ui.showToast': { permission: 'ui.toast', params: z.object({ message: z.string().max(500), level: z.enum(['info', 'warning', 'error']).optional() }).strict() },
   'storage.get': { permission: 'plugin.storage', params: z.object({ key }).strict() },
@@ -71,13 +82,24 @@ export function validatePluginCall(manifest: PluginManifest, method: string, par
     throw new PluginError('PERMISSION_DENIED', 'The method is outside the declared permissions.')
   }
   if (!definition.params.safeParse(params).success) throw new PluginError('INVALID_REQUEST', 'Invalid method parameters.')
+  if ((method === 'views.getFrame' || method === 'views.requestFrame') && !manifest.capabilities.required.includes('views.workbench.frame')) {
+    throw new PluginError('PERMISSION_DENIED', 'Workbench frame capability was not declared.')
+  }
+  if (method === 'workspace.openDocument' || method === 'workspace.proposeTerminal') {
+    if (!manifest.capabilities.required.includes('workspace.handoff')) throw new PluginError('PERMISSION_DENIED', 'Workspace handoffs were not declared.')
+    if (method === 'workspace.openDocument') {
+      const path = validatePluginPath((params as { path: string }).path)
+      if (isSensitivePluginPath(path)) throw new PluginError('SENSITIVE_PATH_DENIED', 'Sensitive files are unavailable.')
+    }
+  }
+  if (method === 'native.call' && !manifest.native?.methods.includes((params as { method: string }).method)) throw new PluginError('UNKNOWN_METHOD', 'Native method is not declared.')
   if (method === 'configuration.propose' && (!manifest.contributes.configurationViews
     || !manifest.capabilities.required.includes('configuration.customViews'))) {
     throw new PluginError('INVALID_REQUEST', 'Configuration proposals require declared custom views.')
   }
-  if (method === 'configuration.open' && (!manifest.contributes.settings?.length
+  if (method === 'configuration.open' && (!(manifest.contributes.settings?.length || manifest.contributes.credentials?.length)
     || !manifest.capabilities.required.includes('configuration.open'))) {
-    throw new PluginError('INVALID_REQUEST', 'Configuration navigation requires settings and the required configuration.open capability.')
+    throw new PluginError('INVALID_REQUEST', 'Configuration navigation requires settings or credentials and the required configuration.open capability.')
   }
   if (method === 'workspace.readText') {
     const path = validatePluginPath((params as { path: string }).path)

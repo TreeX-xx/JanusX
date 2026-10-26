@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 import type { NoteReadSnapshot } from '../../src/shared/notes'
 import type { ArchitectureProjection } from '../../src/renderer/src/features/blueprint/architecture-view'
 import { attentionRoots } from '../../src/renderer/src/features/blueprint/attention-model'

@@ -4,32 +4,20 @@
  *  single HarnessNoteService. Failures cross IPC as plain HarnessFailure
  *  data; the renderer matches `code`, never Error identity.
  */
-import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { registerHarnessDocumentHandlers } from '../harness/document-handlers'
+import { registerRemoteHarnessHandler } from '../workspace/remote-harness'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
-import type { ParsedNote } from '@janus-agent/harness-core'
 import { collectTaskSnapshot } from '@janus-agent/harness-node'
-import { readMarkdownView, taskExecutionPolicy } from '@janus-agent/harness-core'
-import {
-  applyNodePatch,
-  archiveNoteOp,
-  checkWritablePatch,
-  createNoteOp,
-  nodeTypeToKind,
-} from '../harness/artifact-producer'
-import { toNoteDoc } from '../notes/note-provider'
+import { taskExecutionPolicy } from '@janus-agent/harness-core'
 import { harnessNoteService } from '../harness/service'
-import { workspaceBlueprintService } from '../harness/workspace-blueprint'
-import type { IncomingSnapshot } from '../harness/share-import'
-import { adoptTask, readTaskDraft } from '../harness/task-adoption'
-import { applyUndo, previewUndo } from '../harness/undo'
+import { blueprintNoteView } from '../blueprint/note-service'
 import { listNoteChatChanges } from '../harness/note-chat'
 import { applyMigration, archiveBlueprintSource, previewMigration } from '../janus/blueprint-migrate'
 import { blueprintStore } from '../janus/blueprint-store'
 import { GLOBAL_BLUEPRINT_SCOPE } from '../janus/blueprint-paths'
-import { blueprintMaintenanceService } from '../janus/maintenance/service'
+import { readMaintenanceAudits } from '../../../plugins/blueprint/src/main/janus/maintenance/audit-records'
 import { buildEvaluatorPrompt, createModelReviewPort } from '../harness/desktop-review'
 import { executeDesktopTask, runDesktopCommand } from '../harness/desktop-executor'
 import { createDesktopImplementationPort, generateDesktopReviewText } from '../harness/desktop-task-turn'
@@ -40,7 +28,6 @@ import { finishWithLatestReceipt, requestIndependentReview } from '../harness/in
 import { ensureTaskThread, readDesktopConcurrency, setThreadModel, setThreadReviewer } from '../harness/task-thread'
 import { llmService } from '../llm/LlmService'
 import { streamText } from '../llm/ai-runtime'
-import type { HarnessTaskContractInput } from '../../shared/ipc/harness'
 import {
   cancelTaskRun,
   closeoutTaskRun,
@@ -63,11 +50,7 @@ import {
 import {
   HARNESS_COMMAND_CHANNELS,
   HARNESS_EVENT_CHANNELS,
-  type HarnessApplyResult,
-  type HarnessBinding,
-  type HarnessEditOp,
   type HarnessFailure,
-  type HarnessResolveResult,
   type HarnessRunCloseoutResult,
   type HarnessRunExecuteInput,
   type HarnessRunExecuteResult,
@@ -77,11 +60,8 @@ import {
   type HarnessRunReviewInput,
   type HarnessRunReviewResult,
   type HarnessRunState,
-  type HarnessUndoPreview,
-  type HarnessUndoResult,
   type HarnessMigrationPreview,
   type HarnessMigrationResult,
-  type HarnessShareSelection,
 } from '../../shared/ipc/harness'
 
 const throwFailure = (code: HarnessFailure['code'], message: string, extra?: Partial<HarnessFailure>): never => {
@@ -121,247 +101,16 @@ async function withRoot(cwd: string): Promise<string> {
   return resolved.root as string
 }
 
-interface CurrentNote {
-  note: ParsedNote
-  relPath: string
-  sha256: string
-}
-
-async function currentNote(root: string, uri: string): Promise<CurrentNote> {
-  return harnessNoteService.readNote(root, uri)
-}
-
 export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): void {
-  const previewOwners = new Set<number>()
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.workspaceStatus, (_e, cwd: string) => workspaceBlueprintService.status(cwd))
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.initPreview, (event, cwd: string, name: string) => {
-    const owner = event.sender.id
-    if (!previewOwners.has(owner)) {
-      previewOwners.add(owner)
-      event.sender.once('destroyed', () => { previewOwners.delete(owner); workspaceBlueprintService.release(owner) })
-    }
-    return workspaceBlueprintService.preview(cwd, name, owner)
+  const handle = registerRemoteHarnessHandler(ipcMain, getWindow)
+  registerHarnessDocumentHandlers(handle)
+  harnessNoteService.onChange(event => {
+    getWindow()?.webContents.send(HARNESS_EVENT_CHANNELS.changed, { root: event.root, rev: event.rev,
+      kinds: [...new Set(event.events.map(e => e.type))], external: event.external, error: event.error })
   })
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.initApply, (event, cwd: string, id: string, foreign: boolean) => workspaceBlueprintService.apply(cwd, id, event.sender.id, foreign))
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.initUndo, (event, cwd: string, id: string) => workspaceBlueprintService.undo(cwd, id, event.sender.id))
-  // Note: wiki and blueprint resolve the same source — see .agents/notes/blueprint/documents/tasks/note-wiki-r3.md
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.noteRead, async (_e, cwd: string, uri: string) => {
-    if (typeof uri !== 'string' || !uri.startsWith('note://')) throw new Error('A complete Note URI is required')
-    const source = await harnessNoteService.readNote(await withRoot(cwd), uri)
-    return { uri, relPath: source.relPath, raw: source.raw, sourceHash: source.sha256,
-      indexedSourceHash: source.indexedSourceHash, matchesSnapshot: source.matchesSnapshot,
-      doc: toNoteDoc(source.note), view: readMarkdownView(source.note.body) }
-  })
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.taskRead, async (_e, cwd: string, uri: string) => readTaskDraft(await withRoot(cwd), uri))
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.taskAdopt, async (_e, cwd: string, uri: string, expectedHash: string, contract: HarnessTaskContractInput) => adoptTask(await withRoot(cwd), uri, expectedHash, contract))
-  harnessNoteService.onChange((event) => {
-    getWindow()?.webContents.send(HARNESS_EVENT_CHANNELS.changed, {
-      root: event.root,
-      rev: event.rev,
-      kinds: [...new Set(event.events.map((e) => e.type))],
-      external: event.external,
-      error: event.error,
-    })
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.resolve, async (_e, cwd: string): Promise<HarnessResolveResult> => {
-    const resolved = await harnessNoteService.resolveRoot(cwd)
-    if (!resolved.ok || !resolved.root) return { ok: false, diagnostics: resolved.diagnostics }
-    const view = await harnessNoteService.projectView(resolved.root)
-    return {
-      ok: true,
-      root: resolved.root,
-      repoId: view.repoId,
-      repoName: view.repoName,
-      projectId: view.blueprint.id,
-      diagnostics: [],
-    }
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.projectGraph, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    await harnessNoteService.watch(root)
-    const view = await harnessNoteService.projectView(root)
-    for (const checkout of view.blueprint.composition?.checkouts ?? []) {
-      if (checkout.status === 'unbound') continue
-      try { await harnessNoteService.watch(checkout.path) }
-      catch (error) { view.blueprint.composition!.diagnostics.push({ code: 'WATCH_FAILED', checkoutId: checkout.checkoutId, message: String(error) }) }
-    }
-    return view
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.rescan, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    return harnessNoteService.rescan(root)
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.getRev, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    return harnessNoteService.getRev(root)
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.warmup, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    return harnessNoteService.warmup(root)
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.noteSnapshot, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    return harnessNoteService.readSnapshot(root)
-  })
-
-  ipcMain.handle(
-    HARNESS_COMMAND_CHANNELS.apply,
-    async (_e, cwd: string, operations: HarnessEditOp[], reason: string): Promise<HarnessApplyResult> => {
-      const root = await withRoot(cwd)
-      const view = await harnessNoteService.projectView(root)
-      if (!view.repoId) throwFailure('NOT_FOUND', 'init .agents/harness.json with a repoId first')
-      const repoId = view.repoId as string
-      const ops: Array<{
-        operationId: string
-        type: 'create' | 'replace' | 'delete'
-        uri: string
-        expectedHash: string | null
-        relativePath?: string
-        afterMarkdown?: string
-      }> = []
-      const uris: string[] = []
-      for (const op of operations) {
-        if (op.kind === 'create') {
-          const created = createNoteOp(repoId, nodeTypeToKind(op.nodeType), op.title, op.parentUri ?? null, reason)
-          ops.push({ ...created })
-          uris.push(created.uri)
-        } else if (op.kind === 'update') {
-          const current = await currentNote(root, op.uri)
-          const managed = checkWritablePatch(op.patch)
-          if (managed) throwFailure('HARNESS_MANAGED', managed.message, { path: op.uri })
-          const produced = applyNodePatch(toNoteDoc(current.note), op.patch)
-          if ('edit' in produced) {
-            const raw = await readFile(join(root, current.relPath), 'utf8')
-            const markdown = harnessNoteService.mergeNoteEdit(current.note, raw, produced.edit, reason)
-            ops.push({
-              operationId: `replace-${current.note.meta.id.slice(0, 8)}-${randomUUID().slice(0, 4)}`,
-              type: 'replace',
-              uri: op.uri,
-              expectedHash: op.expectedHash,
-              afterMarkdown: markdown,
-            })
-            uris.push(op.uri)
-          } else {
-            throw { code: produced.code ?? 'SCHEMA_INVALID', message: produced.message, path: op.uri } as HarnessFailure
-          }
-        } else if (op.kind === 'rename') {
-          const current = await currentNote(root, op.uri)
-          const raw = await readFile(join(root, current.relPath), 'utf8')
-          ops.push({
-            operationId: `rename-${current.note.meta.id.slice(0, 8)}`,
-            type: 'replace',
-            uri: op.uri,
-            expectedHash: op.expectedHash,
-            relativePath: op.relativePath,
-            afterMarkdown: raw,
-          })
-          uris.push(op.uri)
-        } else if (op.kind === 'reparent') {
-          const current = await currentNote(root, op.uri)
-          const raw = await readFile(join(root, current.relPath), 'utf8')
-          const markdown = harnessNoteService.mergeNoteEdit(
-            current.note,
-            raw,
-            { sections: {}, frontmatter: { parent: op.parentUri } },
-            reason,
-          )
-          ops.push({
-            operationId: `reparent-${current.note.meta.id.slice(0, 8)}`,
-            type: 'replace',
-            uri: op.uri,
-            expectedHash: op.expectedHash,
-            afterMarkdown: markdown,
-          })
-          uris.push(op.uri)
-        } else {
-          const current = await currentNote(root, op.uri)
-          const raw = await readFile(join(root, current.relPath), 'utf8')
-          const markdown = harnessNoteService.mergeNoteEdit(
-            current.note,
-            raw,
-            { sections: {}, frontmatter: { lifecycle: 'archived' } },
-            op.reason,
-          )
-          const archived = archiveNoteOp(op.uri, op.expectedHash, markdown, op.reason)
-          ops.push({ ...archived })
-          uris.push(op.uri)
-        }
-      }
-      try {
-        const report = await harnessNoteService.applyOperations(root, ops, reason || 'canvas edit')
-        return {
-          txId: report.txId,
-          applied: report.applied.map((r, i) => ({ ...r, uri: uris[i] ?? '' })),
-        }
-      } catch (e) {
-        const err = e as Partial<HarnessFailure> & { message?: unknown }
-        if (err.code === 'HARNESS_CONFLICT' || err.code === 'CONFLICT') {
-          throw {
-            code: 'HARNESS_CONFLICT',
-            message: String(err.message ?? 'conflict'),
-            path: err.path,
-            expectedHash: err.expectedHash,
-            currentHash: err.currentHash,
-          } as HarnessFailure
-        }
-        throw { code: err.code ?? 'SCHEMA_INVALID', message: String(err.message ?? e) } as HarnessFailure
-      }
-    },
-  )
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.bindingsGet, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    return harnessNoteService.getBindings(root)
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.bindingsSet, async (_e, cwd: string, binding: HarnessBinding) => {
-    const root = await withRoot(cwd)
-    return harnessNoteService.setBinding(root, binding)
-  })
-
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.sharePreview, async (_e, cwd: string, selection: HarnessShareSelection) => {
-    const root = await withRoot(cwd)
-    const snapshot = await harnessNoteService.shareSnapshot(root, selection)
-    return { notes: snapshot.notes.length, json: JSON.stringify(snapshot, null, 2) }
-  })
-
-  ipcMain.handle(
-    HARNESS_COMMAND_CHANNELS.shareExport,
-    async (_e, cwd: string, selection: HarnessShareSelection, outPath: string) => {
-      const root = await withRoot(cwd)
-      return harnessNoteService.exportSnapshot(root, selection, outPath)
-    },
-  )
-
-  ipcMain.handle(
-    HARNESS_COMMAND_CHANNELS.shareImportPreview,
-    async (_e, cwd: string, snapshot: IncomingSnapshot) => {
-      const root = await withRoot(cwd)
-      const plan = await harnessNoteService.previewShareImport(root, snapshot)
-      return {
-        notes: plan.notes.map((item) => ({ id: item.id, action: item.kind, ...('reason' in item && item.reason ? { reason: item.reason } : {}) })),
-        receipts: plan.receipts.map((item) => ({ id: item.id, action: item.action, ...(item.reason ? { reason: item.reason } : {}) })),
-      }
-    },
-  )
-
-  ipcMain.handle(
-    HARNESS_COMMAND_CHANNELS.shareImportApply,
-    async (_e, cwd: string, snapshot: IncomingSnapshot) => {
-      const root = await withRoot(cwd)
-      return harnessNoteService.applyShareImport(root, snapshot)
-    },
-  )
-
   // ── task runs (S8-JanusX): adapter OpResults cross IPC as data or coded failure ──
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runPrepare,
     async (_e, cwd: string, input: HarnessRunPrepareInput): Promise<HarnessRunPrepared> => {
       const root = await withRoot(cwd)
@@ -392,7 +141,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runStart,
     async (
       _e,
@@ -410,7 +159,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runStatus,
     async (_e, cwd: string, runId: string): Promise<HarnessRunState> => {
       const root = await withRoot(cwd)
@@ -419,7 +168,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runList,
     async (_e, cwd: string): Promise<HarnessRunState[]> => {
       const root = await withRoot(cwd)
@@ -427,7 +176,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runCancel,
     async (_e, cwd: string, runId: string): Promise<{ state: string }> => {
       const root = await withRoot(cwd)
@@ -443,7 +192,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runCloseout,
     async (_e, cwd: string, runId: string): Promise<HarnessRunCloseoutResult> => {
       const root = await withRoot(cwd)
@@ -454,7 +203,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runHandoff,
     async (_e, cwd: string, runId: string): Promise<{ path: string }> => {
       const root = await withRoot(cwd)
@@ -471,7 +220,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
   const inFlight = new Map<string, AbortController>()
   const executionKey = (root: string, runId: string) => JSON.stringify([process.platform === 'win32' ? root.toLowerCase() : root, runId])
 
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.runTranscript, async (_e, cwd: string, runId: string) => {
+  handle(HARNESS_COMMAND_CHANNELS.runTranscript, async (_e, cwd: string, runId: string) => {
     const root = await withRoot(cwd)
     try {
       const transcript = await readTaskTranscript(root, runId)
@@ -509,7 +258,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     return null
   }
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runExecute,
     async (_e, cwd: string, input: HarnessRunExecuteInput): Promise<HarnessRunExecuteResult> => {
       const root = await withRoot(cwd)
@@ -597,7 +346,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runPause,
     async (_e, cwd: string, runId: string): Promise<{ state: string }> => {
       const root = await withRoot(cwd)
@@ -610,7 +359,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runResume,
     async (_e, cwd: string, runId: string): Promise<{ state: string }> => {
       const root = await withRoot(cwd)
@@ -623,7 +372,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runRebaseline,
     async (_e, cwd: string, runId: string, authorization: { by: string; ref?: string } | null): Promise<{ state: string }> => {
       const root = await withRoot(cwd)
@@ -636,7 +385,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runAbort,
     async (_e, cwd: string, runId: string): Promise<{ state: string }> => {
       const root = await withRoot(cwd)
@@ -653,7 +402,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
   // pinned baseline and validates whatever evidence comes back through the
   // shared kernel. Takeover tokens stay in the main process.
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runHandoffRead,
     async (_e, cwd: string, runId: string): Promise<{ path: string; markdown: string }> => {
       const root = await withRoot(cwd)
@@ -664,7 +413,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runTakeover,
     async (_e, cwd: string, runId: string, newOwner: string, reason: string): Promise<{ state: string }> => {
       const root = await withRoot(cwd)
@@ -683,7 +432,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
   // thread file plus briefs after an explicit user decision; Notes, receipts,
   // and run records always survive.
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runThreads,
     async (_e, cwd: string) => {
       const root = await withRoot(cwd)
@@ -691,7 +440,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runThread,
     async (_e, cwd: string, runId: string) => {
       const root = await withRoot(cwd)
@@ -702,7 +451,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runThreadClose,
     async (_e, cwd: string, runId: string): Promise<{ closed: boolean }> => {
       const root = await withRoot(cwd)
@@ -728,7 +477,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     return { token: token as string, owner: owner as string }
   }
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runReview,
     async (_e, cwd: string, input: HarnessRunReviewInput): Promise<HarnessRunReviewResult> => {
       const root = await withRoot(cwd)
@@ -760,7 +509,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runFinish,
     async (_e, cwd: string, runId: string): Promise<{ receiptId: string; completed: boolean }> => {
       const root = await withRoot(cwd)
@@ -773,7 +522,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.runRepair,
     async (_e, cwd: string, input: HarnessRunRepairInput): Promise<{ attempt: number; state: string }> => {
       const root = await withRoot(cwd)
@@ -799,7 +548,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(HARNESS_COMMAND_CHANNELS.noteChatChanges, async (_e, cwd: string, conversationId: string) => {
+  handle(HARNESS_COMMAND_CHANNELS.noteChatChanges, async (_e, cwd: string, conversationId: string) => {
     // Note: preserve useful diagnostics through Electron's Error serialization — see .agents/notes/blueprint/workspaces/requirements/blueprint-empty-init.md
     try {
       if (typeof conversationId !== 'string' || !conversationId.trim() || conversationId.length > 128) throwFailure('SCHEMA_INVALID', 'Invalid conversation id')
@@ -816,26 +565,6 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
   // Undo reverses one committed write as a new undoable changeset. Conflicts
   // refuse the whole package; evidence and receipts never move.
 
-  ipcMain.handle(
-    HARNESS_COMMAND_CHANNELS.undoPreview,
-    async (_e, cwd: string, txId?: string): Promise<HarnessUndoPreview> => {
-      const root = await withRoot(cwd)
-      const previewed = await previewUndo(root, txId)
-      if (!previewed.preview) throwRunFailure(previewed.errors)
-      return previewed.preview
-    },
-  )
-
-  ipcMain.handle(
-    HARNESS_COMMAND_CHANNELS.undoApply,
-    async (_e, cwd: string, txId?: string): Promise<HarnessUndoResult> => {
-      const root = await withRoot(cwd)
-      const applied = await applyUndo(root, txId)
-      if (applied.errors.length > 0) throwRunFailure(applied.errors)
-      return { txId: applied.txId, reverted: applied.reverted }
-    },
-  )
-
   // ── on-demand legacy migration (S8-JanusX): JSON blueprint becomes Notes ──
   // Preview never writes. Apply validates every note, writes once through
   // the managed transaction, then archives (never deletes) the JSON source.
@@ -843,11 +572,11 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
   async function migrationSource(cwd: string, blueprintId: string) {
     const root = await withRoot(cwd)
     if (typeof blueprintId !== 'string' || !blueprintId) throwFailure('SCHEMA_INVALID', 'migration needs a blueprint id', { path: 'blueprintId' })
-    const view = await harnessNoteService.projectView(root)
+    const view = await blueprintNoteView.projectView(root)
     if (!view.repoId) throwFailure('NOT_FOUND', 'init .agents/harness.json with a repoId first')
     const blueprint = await blueprintStore.loadBlueprint(GLOBAL_BLUEPRINT_SCOPE, blueprintId)
     if (!blueprint) throwFailure('NOT_FOUND', `unknown blueprint ${blueprintId}`, { path: 'blueprintId' })
-    const audits = await blueprintMaintenanceService.listAudits({ blueprintId }).catch(() => [])
+    const audits = await readMaintenanceAudits(join(app.getPath('userData'), 'janusx', 'blueprint-maintenance-audit'), { blueprintId }).catch(() => [])
     return { root: root as string, repoId: view.repoId as string, blueprint: blueprint!, audits }
   }
 
@@ -856,12 +585,12 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     throwRunFailure([{ code: failure.code ?? 'SCHEMA_INVALID', message: failure.message ?? String(error), ...(failure.path ? { path: failure.path } : {}) }])
   }
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.migratePreview,
     async (_e, cwd: string, blueprintId: string): Promise<HarnessMigrationPreview> => {
       const { root, repoId, blueprint, audits } = await migrationSource(cwd, blueprintId)
       try {
-        const { noteAuthoringContext } = await import('../harness/note-authoring')
+        const { noteAuthoringContext } = await import('../../../plugins/blueprint/src/main/notes/note-authoring')
         return previewMigration(blueprint, repoId, audits, await noteAuthoringContext(harnessNoteService, root))
       } catch (error) {
         throwMigrationFailure(error)
@@ -869,7 +598,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     },
   )
 
-  ipcMain.handle(
+  handle(
     HARNESS_COMMAND_CHANNELS.migrateApply,
     async (_e, cwd: string, blueprintId: string): Promise<HarnessMigrationResult> => {
       const { root, repoId, blueprint, audits } = await migrationSource(cwd, blueprintId)

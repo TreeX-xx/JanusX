@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-15T09:57:45.034Z",
+  "updated": "2026-10-25T14:12:54.027Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/17bbe20e-f05c-470c-aee1-3f92a86369ab"
 }
 ---
@@ -58,6 +58,8 @@
 - [x] AC-9: 两种蓝图入口均移除常驻“蓝图信息”和“组合蓝图”，工具栏按需打开来源窗口；正常状态无异常提示，异常时可读到本工作区诊断，外部工作区引用静默。来源窗口不改变模块范围或画布布局尺寸，Tab 保持在窗口内，Escape 关闭后焦点返回入口且不关闭右侧会话。当前模块接口留在左侧，本工作区提供方仍能定位到准确来源。
 
 ## Verification
+
+可下载插件的模块浏览已补选中／范围／视口统一历史、双击进入、跨模块定位和未归属入口。`npx vitest run tests/unit/blueprint-plugin-navigation.test.ts --maxWorkers=1 --minWorkers=1` 的 4 项通过，包含真实 Graph 的 Chromium 操作，验证嵌套进入、返回／前进后的选择与缩放恢复、空模块、单根首页、文件夹／文档卡片及意见提示灯。修复默认双击缩放拦截进入事件，以及初始 fitView 覆盖恢复视口。插件仍未完成来源窗口、关联阅读及全部现行视觉矩阵的对齐；这些定向证据不重写下述旧入口验收，也不签收插件 AC-20–27。完整桌面与剩余出口归[官方插件专项](../../../planning/blueprint-official-plugin.md)。
 
 当前轻量卡片替代下述历史页签方案；缩放、选中、命中及关注的现行验证位于 `tests/e2e/blueprint-module-card.spec.ts`，浏览与返回回归位于 `tests/e2e/blueprint-v2.spec.ts`。
 

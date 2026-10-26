@@ -431,22 +431,21 @@ body.is-running[data-theme='planche'] {
   box-shadow: none;
 }
 
-/* 运行球：纸面 + 墨线，去霓虹辉光（形状与簇布局不动） */
+/* Run details share the shell surface and neutral shadow in both themes. */
 [data-theme='planche'] .janus-run-orb-popover {
-  background: #EFE4C5;
-  border: 1px solid #1C343B;
-  box-shadow: none;
-  color: #1C343B;
+  background: var(--shell-chrome);
+  border-color: var(--shell-border);
+  box-shadow: var(--popover-shadow);
+  color: var(--shell-text);
 }
 
 [data-theme='planche'] .janus-run-orb-popover-close,
 [data-theme='planche'] .janus-run-orb-popover-close:hover {
-  border-color: #1C343B;
-  color: rgba(28, 52, 59, 0.62);
+  color: var(--shell-muted);
 }
 
 [data-theme='planche'] .janus-run-orb-process {
-  border-color: rgba(28, 52, 59, 0.22);
+  border-color: var(--shell-border-soft);
   background: transparent;
 }
 
@@ -460,9 +459,9 @@ body.is-running[data-theme='planche'] {
   color: rgba(28, 52, 59, 0.38);
 }
 
-/* +N 溢出列表行 hover：暗底是绿色身份光，纸面改朱红 */
+/* Overflow rows use the same quiet hover as the process controls. */
 [data-theme='planche'] .janus-run-orb-overflow-main:hover {
-  border-color: #D43D2A;
+  background: var(--shell-hover);
 }
 
 /* 遗留展开面板（.janus-expanded，变量驱动） */

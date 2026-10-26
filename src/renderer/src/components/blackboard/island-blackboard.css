@@ -2,7 +2,7 @@
    材质纪律：透明面板 + 1px 发丝线、无色块填充；选中 = 文字提亮 + 2px 强调条。
    形态：中部工作区列内的上带（flex 首子），主工作区下滑让位；
    不是整窗宽卷帘，不碰左右栏架。下缘发丝线即天际线。
-   板面复用蓝图界面：左详情槽 + 画布，无右侧对话。 */
+   板面只列出插件入口，页面在各自宿主槽位打开。 */
 
 .island-blackboard {
   position: relative;
@@ -21,8 +21,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .island-blackboard,
-  .bb-detail-slot {
+  .island-blackboard {
     transition: none;
   }
 }
@@ -44,6 +43,20 @@
   letter-spacing: 0.04em;
   color: var(--shell-muted);
   white-space: nowrap;
+}
+
+.bb-manage {
+  margin-left: auto;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--shell-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.bb-manage:hover {
+  color: var(--shell-text);
 }
 
 /*-- 收起控件：图标式（上推语义），透明底 + 1px 发丝线 --*/
@@ -70,49 +83,60 @@
   outline-offset: -1px;
 }
 
-/*-- 板面：左详情槽 + 蓝图画布 --*/
+/*-- 板面：已启用插件的入口 --*/
 .bb-slot {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
+  padding: 16px 16px 20px;
   background: var(--shell-canvas);
 }
 
-.bb-blueprint-row {
+.bb-hint {
+  margin: 0 0 12px;
+  color: var(--shell-muted);
+  font-size: 12px;
+}
+
+.bb-plugins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 8px;
+}
+
+.bb-plugin {
   display: flex;
-  height: 100%;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
-  min-height: 0;
+  padding: 12px;
+  border: 1px solid var(--shell-border);
+  background: transparent;
+  color: var(--shell-text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
 
-.bb-detail-slot {
-  display: flex;
-  flex: 0 0 0;
-  min-width: 0;
-  overflow: hidden;
-  transition:
-    flex-basis 280ms cubic-bezier(0.16, 1, 0.3, 1),
-    margin-right 280ms cubic-bezier(0.16, 1, 0.3, 1);
+.bb-plugin:hover:not(:disabled) {
+  border-color: var(--shell-accent-border);
 }
 
-.bb-detail-slot[data-open='true'] {
-  flex-basis: clamp(240px, 34%, 360px);
-  margin-right: 12px;
+.bb-plugin:disabled {
+  color: var(--shell-muted);
+  cursor: default;
 }
 
-.bb-detail-slot .bp-node-detail {
-  flex: 1 0 auto;
-  width: 100%;
-  min-width: 240px;
-  min-height: 0;
-  max-height: none;
+.bb-plugin-action {
+  margin-left: auto;
+  color: var(--shell-muted);
+  font-size: 11px;
 }
 
-.bb-canvas-slot {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
+.bb-plugin:focus-visible,
+.bb-manage:focus-visible {
+  outline: 1px solid var(--shell-accent-border);
+  outline-offset: 2px;
 }
 
 /*-- 下缘拖高/上推收板命中区（9px，与工作区分隔线同语言） --*/

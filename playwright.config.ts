@@ -18,7 +18,7 @@ export default defineConfig({
   projects: [
     {
       name: 'island',
-      testIgnore: ['desktop-smoke.spec.ts', 'desktop-cpa.spec.ts', 'desktop-plugins.spec.ts'],
+      testIgnore: ['desktop-smoke.spec.ts', 'desktop-cpa.spec.ts', 'desktop-plugins.spec.ts', 'desktop-workspace-runtime.spec.ts', 'blueprint-plugin.spec.ts', 'blueprint-local.spec.ts'],
       timeout: 20_000,
       expect: { timeout: 5_000 },
       use: {
@@ -29,7 +29,7 @@ export default defineConfig({
     },
     {
       name: 'desktop',
-      testMatch: ['desktop-plugins.spec.ts', 'unified-file-window.spec.ts', 'desktop-cpa.spec.ts', 'desktop-smoke.spec.ts', 'desktop-harness-runtime.spec.ts', 'desktop-session-continue.spec.ts', 'editor-definition.spec.ts', 'editor-find-widget.spec.ts', 'editor-window-tabs.spec.ts', 'blueprint-janus-capsule.spec.ts', 'blueprint-review-desktop.spec.ts', 'run-config-assistant.spec.ts', 'memo-desktop.spec.ts', 'memo-layout-desktop.spec.ts', 'memo-chat-desktop.spec.ts'],
+      testMatch: ['blueprint-plugin.spec.ts', 'desktop-workspace-runtime.spec.ts', 'desktop-plugins.spec.ts', 'unified-file-window.spec.ts', 'desktop-cpa.spec.ts', 'desktop-smoke.spec.ts', 'desktop-harness-runtime.spec.ts', 'desktop-session-continue.spec.ts', 'editor-definition.spec.ts', 'editor-find-widget.spec.ts', 'editor-window-tabs.spec.ts', 'blueprint-janus-capsule.spec.ts', 'blueprint-review-desktop.spec.ts', 'run-config-assistant.spec.ts', 'memo-desktop.spec.ts', 'memo-layout-desktop.spec.ts', 'memo-chat-desktop.spec.ts'],
       timeout: 90_000,
       expect: { timeout: 10_000 },
       use: {

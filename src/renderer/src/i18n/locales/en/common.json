@@ -300,7 +300,8 @@
     "markdown": "Markdown",
     "markdownAction": "Open a Markdown document",
     "markdownOpened": "A Markdown document is open",
-    "openedBadge": "Open"
+    "openedBadge": "Open",
+    "returnToTool": "Return to {{name}}"
   },
   "trafficLight": {
     "close": "Close",

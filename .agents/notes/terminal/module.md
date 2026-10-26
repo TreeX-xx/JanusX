@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-23T16:36:37Z",
+  "updated": "2026-10-24T08:06:37Z",
   "moduleState": "partial"
 }
 ---
@@ -58,6 +58,8 @@
 
 新建终端立即显示启动反馈，直到 xterm 实际绘出文字；进程创建与首屏内容就绪分别表达。启动链路只读应用启动时已验证的 OfficeCLI 缓存，不因 Office 能力探测等待；AI 终端的文件基线保留在进程创建之前，采用最多八文件并发、按路径顺序提交与 16 MiB 文本保留上限。分段计时、验证结果和大目录限制见 [turn-history](./terminal-right-island-turn-history.md)。
 
+WSL／SSH 新建 Agent 终端在目标 Linux 检测 CLI：已安装直接打开，缺失则在终端内显示“安装并打开”，完成后继续原启动；错误、重试、安装日志及普通 Linux 终端入口保持在同一面板。安装使用目标用户目录，兼容 WSL 登录 PATH／nvm，缺少依赖时按 Linux 架构准备私有 Node，不使用 Windows npm 或 sudo。已启动的安装 worker 和既有 PTY 均不随桌面断开退出；依赖准备阶段仍需桌面连接。实现、真实 Codex/Pi 安装证据和未测边界见[工作区运行时](../sessions/workspace-runtime-import.md)。
+
 已有终端标签切换保留实例和输出缓冲；同尺寸直接请求绘制，避免每次激活两轮适配与整屏刷新。尺寸变化、工作区返回和显式恢复仍保留适配及滚动意图恢复；标签和终端视图通过稳定参数隔离无关渲染。多终端基准、TUI／后台输出回归及限制见[工作区标签](../workbench/pane-tab-reorder.md)。隐藏终端继续解析输出，尚无跨终端总预算。
 
 [终端原生滚动与 island 快速翻屏](./terminal-scrollback-navigation.md)保留各 CLI 的原生渲染方式及固定输入区，移除模式选择和会话阅读面板。文件 island 上方独立的两个按钮支持点击翻屏、按住连续滚动及切换／失焦停止；普通缓冲翻动真实历史，全屏按鼠标能力转发原生滚轮或翻页。滚轮支持 Alt 加速，不伪造全屏比例轨道或精确提交跳转。窄分屏、小高度及输入焦点已通过浏览器验证，真实 CLI 持续长输出与打包现场使用仍待验收。
@@ -73,6 +75,8 @@
 LLM 配置以共享渠道目录和各 Agent 独立模型选择为入口，官方 API、CPA、自定义服务共用一份渠道信息。协议兼容检查、旧配置迁移与完整连接写回由 [共享渠道设计](./terminal-provider-collections.md) 维护；原生登录沿用各 Agent 自身状态——设置面板按 [登录在前](./native-login-first.md)（2026-10-17 实施）探测凭据存在性，未登录时以终端引导该 Agent 自己的登录并阻塞应用，不代持令牌；路由、故障转移和远程环境留在后续阶段。
 
 cc-switch 机制从[port 总纲](./requirements/cc-switch-port.md)进入，detect-install、cli-matrix、multi-terminal、pi-janus 四篇维护具体能力；总纲与专题都直接归属终端模块，历史 parent 只表示原交付脉络，不形成子模块。profile-switch 与 llm-sync 两篇 archived 历史保留在 history/，不复活或改写。
+
+OpenCode 更新按 npm 包区分维护线：v1 使用 `opencode-ai`，v2 使用 `@opencode/cli`；常规更新留在本地所属分支，v1 另提供显式升级 v2，新装默认 v2。精确版本安装、冲突包迁移、失败恢复及 PATH 遮挡限制由[多 CLI 生命周期](./cc-switch-multi-terminal.md)维护。
 
 Shell 语义与外围：[adhoc-parity](./adhoc-shell-parity.md)、[self-heal-parity](./command-error-self-heal-parity.md)、[cold-restore](./shell-cold-restore.md)、[orca-parsing](./orca-terminal-acquisition-parsing.md)、[ime-drift](./ime-candidate-drift.md)、[pane-tree](./pane-tree-subagent.md)、[monaco-diff](./monaco-diff-single-line-number.md)、[turn-history](./terminal-right-island-turn-history.md)。
 

@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "id": "official.blueprint",
+  "name": "Blueprint",
+  "description": "Engineering Notes, architecture navigation, review and independent Note MCP.",
+  "version": "1.0.0",
+  "engines": {
+    "pluginApi": ">=1.0.0 <2.0.0"
+  },
+  "capabilities": {
+    "required": [
+      "runtime.native",
+      "models.generate",
+      "models.agent.progress",
+      "workspace.handoff",
+      "network.fetch",
+      "credentials.use",
+      "views.workbench",
+      "views.workbench.frame",
+      "views.settings",
+      "commands.openView",
+      "menus.toolbox",
+      "context.project",
+      "configuration.open",
+      "storage.kv"
+    ],
+    "optional": []
+  },
+  "permissions": [
+    {
+      "name": "runtime.native"
+    },
+    {
+      "name": "models.generate"
+    },
+    {
+      "name": "network.fetch",
+      "origins": [
+        "https://api.typesafe.ai"
+      ]
+    },
+    {
+      "name": "credentials.use"
+    },
+    {
+      "name": "workspace.context.read"
+    },
+    {
+      "name": "ui.views.open"
+    },
+    {
+      "name": "ui.workspace"
+    },
+    {
+      "name": "configuration.read"
+    },
+    {
+      "name": "plugin.storage"
+    }
+  ],
+  "native": {
+    "entry": "dist/service.cjs",
+    "dataVersion": 1,
+    "methods": [
+      "migration.status",
+      "workspace.activate",
+      "workspace.release",
+      "workspace.status",
+      "workspace.init-preview",
+      "workspace.init-apply",
+      "workspace.init-undo",
+      "blueprint.graph",
+      "blueprint.layout",
+      "notes.snapshot",
+      "notes.read",
+      "notes.rescan",
+      "discussion.read",
+      "discussion.clear",
+      "discussion.run",
+      "review.activity",
+      "review.read",
+      "review.saved",
+      "review.run",
+      "review.cancel",
+      "review.close",
+      "reading.mark",
+      "reading.undo",
+      "repair.prepare",
+      "repair.run",
+      "repair.diff",
+      "repair.retry",
+      "repair.undo",
+      "settings.read",
+      "settings.snapshot",
+      "settings.update",
+      "settings.check",
+      "settings.credential-status",
+      "settings.credential-set",
+      "models.catalog",
+      "mcp.status",
+      "mcp.change",
+      "mcp.probe",
+      "mcp.guide",
+      "jobs.read",
+      "jobs.cancel",
+      "maintenance.list",
+      "maintenance.start",
+      "maintenance.propose",
+      "maintenance.dispatch",
+      "maintenance.preview",
+      "maintenance.apply",
+      "maintenance.cancel",
+      "maintenance.complete",
+      "maintenance.dismiss",
+      "maintenance.audits",
+      "maintenance.undo-prepare",
+      "maintenance.undo-apply",
+      "blueprint.graph-open",
+      "blueprint.graph-part",
+      "blueprint.graph-close"
+    ],
+    "mcp": {
+      "entry": "dist/note-mcp.cjs",
+      "command": "note"
+    }
+  },
+  "contributes": {
+    "views": [
+      {
+        "id": "blueprint",
+        "title": "蓝图",
+        "location": "workbench",
+        "frame": "plugin",
+        "scope": "project",
+        "entry": "dist/ui/index.html",
+        "instancePolicy": "single",
+        "icon": "chart"
+      },
+      {
+        "id": "settings",
+        "title": "蓝图设置",
+        "location": "settings",
+        "scope": "application",
+        "entry": "dist/ui/index.html",
+        "instancePolicy": "single",
+        "icon": "book"
+      }
+    ],
+    "commands": [
+      {
+        "id": "open-blueprint",
+        "title": "打开蓝图",
+        "action": {
+          "type": "openView",
+          "view": "blueprint"
+        }
+      },
+      {
+        "id": "open-settings",
+        "title": "蓝图设置",
+        "action": {
+          "type": "openView",
+          "view": "settings"
+        }
+      }
+    ],
+    "menus": [
+      {
+        "location": "toolbox",
+        "command": "open-blueprint",
+        "when": "projectOpen"
+      }
+    ],
+    "credentials": [
+      {
+        "id": "jev",
+        "title": "JEV verification",
+        "origin": "https://api.typesafe.ai"
+      }
+    ]
+  }
+}

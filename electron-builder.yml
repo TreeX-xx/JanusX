@@ -39,14 +39,21 @@ files:
   - "!.janusX{,/**/*}"
   - "!.agents{,/**/*}"
   - "!artifacts{,/**/*}"
+  - "!apps{,/**/*}"
+  - "!scripts/android-lab{,/**/*}"
+  - "!scripts/remote-lab{,/**/*}"
   - "!design{,/**/*}"
   - "!release{,/**/*}"
   - "!src{,/**/*}"
+  # Downloadable features have their own signed packages, including build caches
+  # and vendor archives. Host compatibility code is still bundled under out/.
+  - "!plugins{,/**/*}"
   - "!test-results{,/**/*}"
   - "!tests{,/**/*}"
   - "!resources/laya{,/**/*}"
   - "!wiki{,/**/*}"
   - "!playwright.config.ts"
+  - "!playwright.blueprint.config.ts"
   - "!packaging-issues.md"
   - "!.tmp-*"
   - "!*.log"
@@ -55,6 +62,7 @@ files:
   - "!node_modules/.package-lock.json"
   - "!node_modules/.vite{,/**/*}"
   - "!node_modules/.vite-cache{,/**/*}"
+  - "!node_modules/.vite-*{,/**/*}"
   - "!node_modules/monaco-editor{,/**/*}"
 
   # Everything the production dependency closure never reaches. node_modules is

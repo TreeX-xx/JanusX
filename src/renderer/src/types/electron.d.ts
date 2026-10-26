@@ -1,5 +1,5 @@
 import type { FileAPI, FileTreeAPI, WorkspaceAPI } from '../../../shared/ipc/workspace'
-import type { LanguageServiceAPI } from '../../../shared/ipc/language-service'
+import type { WorkspaceRuntimeAPI } from '../../../shared/workspace-runtime'
 import type { TerminalAPI } from '../../../shared/ipc/terminal'
 import type { ProjectAPI } from '../../../shared/ipc/project'
 import type { BrowserAPI } from '../../../shared/ipc/browser'
@@ -8,7 +8,7 @@ import type { PluginHostAPI } from '../../../shared/ipc/plugins'
 import type { KnowledgeAPI } from '../../../shared/ipc/knowledge'
 import type { JanusAPI } from '../../../shared/ipc/janus'
 import type { HarnessAPI } from '../../../shared/ipc/harness'
-import type { BlueprintReviewAPI } from '../../../shared/ipc/blueprint-review'
+import type { BlueprintReviewAPI } from '../../../../plugins/blueprint/src/shared/ipc/blueprint-review'
 import type { OfficeAPI } from '../../../shared/office'
 import type { AgentAPI, SubAgentRunAPI } from '../../../shared/ipc/janus-runner'
 import type { AgentRuntimeAPI } from '../../../shared/ipc/agent-runtime'
@@ -37,9 +37,9 @@ interface ElectronAPI {
   platform: NodeJS.Platform
   windowsBuild?: number
   workspace: WorkspaceAPI
+  workspaceRuntime?: WorkspaceRuntimeAPI
   fileTree: FileTreeAPI
   file: FileAPI
-  languageService: LanguageServiceAPI
   terminal: TerminalAPI
   project: ProjectAPI
   browser: BrowserAPI

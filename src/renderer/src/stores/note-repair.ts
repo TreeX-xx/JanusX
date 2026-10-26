@@ -6,7 +6,7 @@ import { useWorkspaceStore } from './workspace'
 import { useBlueprintReviewStore } from './blueprint-review'
 import { noteSourceKey, useNoteSourceStore } from './note-source'
 import { sameCheckoutPath } from '@/features/blueprint/resolveNodeWorkspace'
-import { repairIsActive, type NoteRepairInput, type NoteRepairPlan, type NoteRepairUpdate } from '../../../shared/note-repair'
+import { repairIsActive, type NoteRepairInput, type NoteRepairPlan, type NoteRepairUpdate } from '../../../../plugins/blueprint/src/shared/note-repair'
 
 export const noteRepairKey = (root: string) => root.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../src/shared/blueprint-review-settings'
+import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../plugins/blueprint/src/shared/blueprint-review-settings'
 
 const mocks = vi.hoisted(() => ({ provider: vi.fn(), model: vi.fn(), generate: vi.fn(), turn: vi.fn(), stream: vi.fn() }))
 vi.mock('@janus-agent/janus-agent', () => ({ runChatTurn: mocks.turn }))
@@ -7,7 +7,7 @@ vi.mock('../../src/main/llm/LlmService', () => ({ llmService: { getProviderSetti
 vi.mock('../../src/main/llm/ai-runtime', () => ({ generateText: mocks.generate, streamText: mocks.stream }))
 vi.mock('../../src/main/llm/jev-credentials', () => ({ getJevKey: async () => null }))
 import { checkReviewConfiguration, parseReviewAgentResult, reviewModelFailure, validatedReviewTurn, reviewStreamText } from '../../src/main/blueprint/review/models'
-import type { ReviewEvidenceSession } from '../../src/main/blueprint/review/evidence'
+import type { ReviewEvidenceSession } from '../../plugins/blueprint/src/main/blueprint/review/evidence'
 
 const settings = () => ({ ...structuredClone(DEFAULT_BLUEPRINT_REVIEW_SETTINGS), generation: { providerId: 'vertex', modelId: 'reasoning-model' } })
 beforeEach(() => {

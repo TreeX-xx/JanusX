@@ -27,7 +27,7 @@ async function fixture() {
   const events: Array<{ id: string; packet: any }> = []
   const deps = { directory: join(directory, 'profile'),
     resolveProject: async (id: string) => ({ root: id === 'a' ? root : rootB, name: id }),
-    changed: vi.fn(), event: (id: string, packet: unknown) => events.push({ id, packet }), openView: vi.fn(), toast: vi.fn() }
+    changed: vi.fn(), event: (id: string, packet: unknown) => events.push({ id, packet }), openView: vi.fn(), workbenchAction: vi.fn(), toast: vi.fn() }
   const service = new PluginService(deps)
   cleanups.push(() => service.dispose())
   await service.initialize()
@@ -40,6 +40,44 @@ async function fixture() {
     { protocol: 1, type: 'request', requestId: String(++request), method, params, contextRevision: mount.context.revision }) as Promise<any>
   return { directory, source, manifest, root, rootB, deps, service, events, prepare, call }
 }
+
+describe('plugin-owned workbench frame', () => {
+  async function framed() {
+    const f = await fixture()
+    f.manifest.capabilities.required.push('views.workbench.frame')
+    f.manifest.contributes.views.find((view: any) => view.id === 'desk').frame = 'plugin'
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest))
+    await f.prepare()
+    const mount = await f.service.mount(f.manifest.id, 'desk', 'a', f.root)
+    f.service.bind(mount.instanceId, mount.binding)
+    return { ...f, mount }
+  }
+  it('lists only granted project identities and routes close/switch through the host', async () => {
+    const f = await framed()
+    expect(f.mount.context.workbenchFrame).toBe(true)
+    expect(await f.call(f.mount, 'views.getFrame')).toMatchObject({ ok: true, result: { projectId: 'a', projects: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }] } })
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'ungranted' })).toMatchObject({ ok: false, error: { code: 'PERMISSION_DENIED' } })
+    expect(f.deps.workbenchAction).not.toHaveBeenCalled()
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'b' })).toMatchObject({ ok: true, result: { requested: true } })
+    expect(f.deps.workbenchAction).toHaveBeenLastCalledWith(expect.objectContaining({ pluginId: f.manifest.id, viewId: 'desk', currentProjectId: 'a', root: f.root, projectId: 'b' }))
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'close' })).toMatchObject({ ok: true })
+    const page = await f.service.mount(f.manifest.id, 'details', 'a', f.root)
+    f.service.bind(page.instanceId, page.binding)
+    expect(await f.call(page, 'views.getFrame')).toMatchObject({ ok: false, error: { code: 'PERMISSION_DENIED' } })
+    expect(await f.call(page, 'views.requestFrame', { action: 'close' })).toMatchObject({ ok: false, error: { code: 'PERMISSION_DENIED' } })
+  })
+  it('does not dispatch a project switch that finishes resolving after revocation', async () => {
+    const f = await framed()
+    let release!: () => void
+    f.deps.resolveProject = async () => { await new Promise<void>(resolve => { release = resolve }); return { root: f.rootB, name: 'b' } }
+    const switching = f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'b' })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    await f.service.disable(f.manifest.id)
+    release()
+    expect(await switching).toMatchObject({ ok: false })
+    expect(f.deps.workbenchAction).not.toHaveBeenCalled()
+  })
+})
 
 describe('P3 Island broker and lifecycle', () => {
   const status = { title: 'Reading reference', state: 'running', progress: 25, badge: 'README', preview: { text: '<script>untrusted text</script>', rows: [{ label: 'Files', value: '1' }] } }
@@ -257,8 +295,12 @@ describe('P2 authorization, lifecycle and persistent data', () => {
     const invoke = (mount: typeof retained) => restored.call(mount.instanceId, mount.binding, { protocol: 1, type: 'request', requestId: 'get', method: 'storage.get', params: { key: 'memo' }, contextRevision: mount.context.revision }) as Promise<any>
     expect((await invoke(retained)).result).toMatchObject({ value: 'one' })
     await restored.deleteData(f.manifest.id)
+    expect(restored.snapshot().plugins[0]).toMatchObject({ enabled: false, state: 'disabled' })
+    await restored.enable(f.manifest.id, ['a'])
+    await restored.setContext('a', f.root, 'en', { id: 'dark', tokens: {} })
     const deleted = await restored.mount(f.manifest.id, 'details', 'a', f.root); restored.bind(deleted.instanceId, deleted.binding)
-    expect((await invoke(deleted)).result).toEqual({ found: false, revision: 0 })
+    const readDeleted = (mount: typeof deleted) => restored.call(mount.instanceId, mount.binding, { protocol: 1, type: 'request', requestId: 'deleted', method: 'storage.get', params: { key: 'memo' }, contextRevision: mount.context.revision }) as Promise<any>
+    expect((await readDeleted(deleted)).result).toEqual({ found: false, revision: 0 })
     expect(await readFile(join(f.source, 'manifest.json'), 'utf8')).toContain(f.manifest.id)
   })
   it('blocks permission increases and invalid sources, revokes resource URLs, and development off persists disabled intent', async () => {

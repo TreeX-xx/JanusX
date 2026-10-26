@@ -16,7 +16,7 @@ function editorWindows(application: ElectronApplication): Page[] {
   return application.windows().filter((page) => new URL(page.url()).searchParams.get('editorWindow') === '1')
 }
 
-test('F12 opens an unopened TypeScript definition in the workspace editor', async () => {
+test('file preview keeps find without definition or reference navigation', async () => {
   const entry = resolve('out/main/index.js')
   let root = ''
   let application: ElectronApplication | undefined
@@ -53,15 +53,22 @@ test('F12 opens an unopened TypeScript definition in the workspace editor', asyn
 
     await editorPage.locator('.monaco-editor').click()
     await editorPage.keyboard.press('Control+f')
-    await editorPage.keyboard.type('targetValue')
+    await expect(editorPage.locator('.find-widget')).toBeVisible()
+    await editorPage.locator('.find-widget .find-part .monaco-inputbox input, .find-widget .find-part textarea').first().fill('targetValue')
+    await expect(editorPage.locator('.find-widget .matchesCount')).toContainText('2')
     await editorPage.keyboard.press('Enter')
     await editorPage.keyboard.press('Escape')
     await editorPage.keyboard.press('ArrowLeft')
     await editorPage.keyboard.press('F12')
 
-    await expect(tabs).toHaveCount(2, { timeout: 30_000 })
-    await expect(tabs.filter({ hasText: 'definition.ts' })).toHaveAttribute('data-active', 'true')
-    await expect(editorPage.locator('.view-lines')).toContainText('export const targetValue = 42')
+    await editorPage.locator('.monaco-editor .view-lines').click({ button: 'right' })
+    const menu = editorPage.getByRole('menu')
+    await expect(menu).toBeVisible()
+    await expect(menu).not.toContainText(/Go to Definition|Go to References|Find All References|Go to Symbol|转到定义|转到引用|查找所有引用|转到符号/i)
+    await editorPage.keyboard.press('Escape')
+    await expect(tabs).toHaveCount(1)
+    await expect(tabs.filter({ hasText: 'usage.ts' })).toHaveAttribute('data-active', 'true')
+    await expect(editorPage.locator('.view-lines')).toContainText('console.log(targetValue)')
   } finally {
     if (application) await application.close().catch(() => undefined)
     if (root) await rm(root, { recursive: true, force: true })

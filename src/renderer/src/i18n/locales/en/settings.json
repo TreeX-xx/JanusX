@@ -476,6 +476,9 @@
     "action": {
       "install": "Install",
       "upgrade": "Upgrade",
+      "updateLine": "Update {{channel}}",
+      "installV2": "Install v2",
+      "upgradeV2": "Upgrade to v2 · {{version}}",
       "refresh": "Re-detect",
       "refreshing": "Detecting...",
       "working": "Working..."
@@ -542,33 +545,6 @@
     "output": "out",
     "context": "ctx",
     "terminals": "sessions"
-  },
-  "languageService": {
-    "title": "Language Services",
-    "subtitle": "Managed language servers for code navigation",
-    "loading": "Loading...",
-    "state": {
-      "notInstalled": "Not Installed",
-      "ready": "Ready",
-      "busy": "Working...",
-      "failed": "Failed"
-    },
-    "label": {
-      "version": "Version",
-      "source": "Source"
-    },
-    "action": {
-      "install": "Install",
-      "repair": "Repair",
-      "remove": "Remove",
-      "working": "Working..."
-    },
-    "service": {
-      "clangd": {
-        "name": "clangd",
-        "desc": "C/C++ code navigation (Go to Definition). Managed binary; installs on demand."
-      }
-    }
   },
   "mcpAccess": {
     "description": "Export read-only project knowledge. Personal memories stay private. Configuration registration and service connectivity are checked separately; actual client approval may still be required.",

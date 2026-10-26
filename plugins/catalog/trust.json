@@ -1,0 +1,11 @@
+{
+  "catalogUrl": "https://treex-x.github.io/JanusX/plugins/index.json",
+  "keys": {
+    "janusx-blueprint-20261026": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA21Clr5WATReQUDR4BDBtQNbvZiUmEWZIRL9ujltX3ZM=\n-----END PUBLIC KEY-----\n"
+  },
+  "nativePlugins": {
+    "official.blueprint": [
+      "janusx-blueprint-20261026"
+    ]
+  }
+}

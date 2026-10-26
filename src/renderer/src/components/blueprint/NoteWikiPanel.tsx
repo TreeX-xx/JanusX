@@ -14,7 +14,7 @@ import { onBlueprintSourcesChanged } from '@/services/blueprint-sync'
 import { sameCheckoutPath } from '@/features/blueprint/resolveNodeWorkspace'
 import { useBlueprintReviewStore } from '@/stores/blueprint-review'
 import type { NoteVisit } from '@/features/blueprint/useNoteNavigationMotion'
-import type { NoteVersion } from '../../../../shared/blueprint-attention'
+import type { NoteVersion } from '../../../../../plugins/blueprint/src/shared/blueprint-attention'
 
 const statusLabel: Record<string, string> = { resolved: '已解析', missing: '缺失', unavailable: '未接入 / 不可读', ambiguous: '不明确', invalid: '无效' }
 const errorText = (error: unknown): string => error instanceof Error ? error.message : typeof error === 'object' && error && 'message' in error ? String(error.message) : String(error)

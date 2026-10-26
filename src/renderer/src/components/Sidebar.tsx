@@ -248,6 +248,7 @@ function isCwdWithinWorktree(cwd: string, base: string): boolean {
   const right = norm(base)
   if (!left || !right) return false
   if (left === right || left.startsWith(`${right}/`)) return true
+  if (left.startsWith('janusx-workspace://') || right.startsWith('janusx-workspace://')) return false
   const lowerLeft = left.toLowerCase()
   const lowerRight = right.toLowerCase()
   return lowerLeft === lowerRight || lowerLeft.startsWith(`${lowerRight}/`)
@@ -1371,6 +1372,12 @@ export function Sidebar() {
                       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
                         {ws.name}
                       </span>
+                      {ws.runtime && ws.runtime.kind !== 'windows' && <span
+                        data-runtime-kind={ws.runtime.kind}
+                        title={ws.runtime.kind === 'wsl' ? ws.runtime.distro : ws.runtime.host}
+                        className="shrink-0 text-[9px] font-mono"
+                        style={{ color: 'var(--shell-muted)' }}
+                      >{ws.runtime.kind.toUpperCase()}</span>}
                       <ThemedTooltip label={t('common:workspace.moreActions')}>
                       <button
                         type="button"

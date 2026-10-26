@@ -20,7 +20,7 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useBlueprintReviewStore } from './blueprint-review'
 import { readBlueprintWhenReady } from '@/services/blueprint-loading'
-import { isBlueprintBusy } from '../../../shared/blueprint-loading'
+import { isBlueprintBusy } from '../../../../plugins/blueprint/src/shared/blueprint-loading'
 import type { HarnessInitPreview, HarnessWorkspaceStatus } from '../../../shared/ipc/harness'
 
 export type BlueprintWorkspaceState = HarnessWorkspaceStatus & { workspacePath: string }

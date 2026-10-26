@@ -90,6 +90,27 @@ jobs:
         working-directory: JanusX
         run: npm run theme:check
 
+      - name: Plugin SDK and platform
+        working-directory: JanusX
+        run: npm run plugins:check
+
+      - name: Official plugin distribution
+        working-directory: JanusX
+        run: npm run plugins:distribution:check
+
+      - name: Independent Blueprint package and Electron carrier
+        working-directory: JanusX
+        run: npm run plugins:blueprint:check
+
+      - name: Upload Blueprint validation receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blueprint-validation
+          path: JanusX/artifacts/plugins
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Typecheck
         working-directory: JanusX
         run: npm run typecheck

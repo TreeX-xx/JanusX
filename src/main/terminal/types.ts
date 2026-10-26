@@ -17,7 +17,9 @@ export interface TerminalConfig {
 
 export interface TerminalInstance {
   id: string
-  pty: IPty
+  pty: Pick<IPty, 'pid' | 'write' | 'resize' | 'kill' | 'onData' | 'onExit'>
+  /** Remote processes outlive the desktop. Detach never signals the process. */
+  remote?: { detach(): void; end(): Promise<void> }
   config: TerminalConfig
   status: 'idle' | 'running' | 'exited'
   createdAt: number

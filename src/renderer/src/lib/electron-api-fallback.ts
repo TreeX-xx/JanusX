@@ -77,20 +77,6 @@ export function installElectronApiFallback(): void {
       save: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
       readBinary: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
       stat: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
-      sourceFiles: () => Promise.resolve({ files: [], truncated: false, error: 'Electron file API is unavailable' }),
-    },
-    languageService: {
-      definition: () => Promise.resolve({
-        target: null,
-        error: { code: 'server-error', message: 'Electron language service API is unavailable' },
-      }),
-      installer: {
-        status: () => Promise.resolve({ serviceId: 'clangd', state: 'not-installed', location: '' }),
-        start: () => Promise.resolve({ serviceId: 'clangd', state: 'failed', location: '', error: 'Electron API unavailable' }),
-        cancel: () => Promise.resolve({ serviceId: 'clangd', state: 'not-installed', location: '' }),
-        remove: () => Promise.resolve({ serviceId: 'clangd', state: 'not-installed', location: '' }),
-        onInstallerProgress: () => () => {},
-      },
     },
     terminal: {
       warmup: () => Promise.resolve({ ok: true }),

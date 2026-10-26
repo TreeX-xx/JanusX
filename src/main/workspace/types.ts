@@ -1,4 +1,5 @@
 import type { AgentNotificationSettings } from '../../shared/notifications'
+import type { WorkspaceRuntime } from '../../shared/workspace-runtime'
 import type { KnowledgeSettings } from '../../shared/knowledge-settings'
 import type { UpdaterSettings } from '../../shared/ipc/updater'
 import type { AgentApprovalMode } from '../../shared/ipc/agent-runtime'
@@ -10,6 +11,7 @@ export interface Workspace {
   id: string
   name: string
   path: string
+  runtime?: WorkspaceRuntime
   clis: CLIConfig[]
   layout: LayoutConfig
   lastTerminalType?: string

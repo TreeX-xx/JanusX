@@ -1,0 +1,272 @@
+/* Note: follow the shared settings cards and controls — see .agents/notes/blueprint/maintenance/note-content-review.md */
+.panel {
+  container-type: inline-size;
+}
+
+.intro {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.intro > [role='status'] {
+  min-height: 16px;
+  margin: 0;
+  margin-left: auto;
+}
+
+.intro > [role='status']:empty {
+  display: none;
+}
+
+.section {
+  margin: 0;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  min-height: 30px;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: var(--so-control-h, 30px);
+  padding: 0 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--so-radius, 6px);
+  background: var(--so-field, var(--shell-canvas));
+  color: var(--shell-text);
+  font: inherit;
+}
+
+.input::placeholder {
+  color: var(--shell-dim);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--shell-accent);
+  outline-offset: 2px;
+}
+
+.input:disabled {
+  opacity: .45;
+}
+
+.credentialInput { position: relative; min-width: 0; }
+.credentialInput > input { padding-right: 38px; }
+.eyeButton {
+  position: absolute;
+  inset: 1px 1px 1px auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--so-radius, 6px);
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: pointer;
+}
+.eyeButton:hover { color: var(--shell-text); background: var(--shell-hover); }
+.eyeButton:disabled { opacity: .45; cursor: default; }
+.eyeButton:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+
+:global([data-theme='planche']) .input,
+:global([data-theme='planche']) .numberControl {
+  border-color: var(--line, var(--control-border));
+}
+
+.numberControl {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: var(--so-control-h, 30px);
+  border: 1px solid var(--control-border);
+  border-radius: var(--so-radius, 6px);
+  background: var(--so-field, var(--shell-canvas));
+}
+
+.numberInput {
+  width: 62px;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+
+.numberInput::-webkit-inner-spin-button,
+.numberInput::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.numberInput:focus-visible { outline-offset: -2px; }
+
+.stepButton {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--so-radius, 6px);
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: pointer;
+}
+
+.stepButton:first-child { border-right: 1px solid var(--shell-border-soft); border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.stepButton:last-child { border-left: 1px solid var(--shell-border-soft); border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.stepButton:hover:not(:disabled) { background: var(--shell-hover); color: var(--shell-text); }
+.stepButton:disabled { opacity: .35; cursor: default; }
+.stepButton:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: -2px; }
+
+.jev {
+  display: grid;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--shell-border-soft);
+}
+
+.feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--shell-border-soft);
+}
+
+.feedbackText {
+  flex: 1 1 240px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.feedbackText:empty { display: none; }
+.feedback > button { margin-left: auto; flex: 0 0 auto; }
+
+.clientList {
+  display: grid;
+  min-width: 0;
+}
+
+.client {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 14px 0;
+}
+
+.client:first-child { padding-top: 0; }
+.client:last-child { padding-bottom: 0; }
+.client + .client { border-top: 1px solid var(--shell-border-soft); }
+
+.clientInfo {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.clientHeading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.clientHeading strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.clientPath {
+  color: var(--shell-dim);
+  font-family: var(--font-mono, 'Cascadia Mono', Consolas, monospace);
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.clientActions {
+  justify-content: flex-end;
+}
+
+.mcpTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font: inherit;
+}
+
+.helpButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -3px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: help;
+}
+
+.helpButton:hover { background: var(--shell-hover); }
+.helpButton:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+
+.helpTip {
+  position: fixed;
+  z-index: 13000;
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 16px;
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  background: var(--shell-chrome);
+  color: var(--shell-muted);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shell-canvas) 80%, transparent);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.helpTitle { display: block; color: var(--shell-text); font-size: 12px; font-weight: 600; }
+.helpTip p { margin: 6px 0 0; }
+.helpFeatures { display: grid; gap: 10px; margin: 12px 0; }
+.helpFeatures dt { color: var(--shell-text); font-weight: 500; }
+.helpFeatures dd { margin: 2px 0 0; }
+.helpBoundary { padding-top: 10px; border-top: 1px solid var(--shell-border-soft); }
+
+:global([data-theme='planche']) .helpTip {
+  background: var(--paper, var(--shell-canvas));
+  border-color: var(--line, var(--shell-border));
+  box-shadow: 3px 3px 0 var(--line, var(--shell-border));
+}
+
+@container (max-width: 520px) {
+  .fieldRow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .client { grid-template-columns: minmax(0, 1fr); }
+}

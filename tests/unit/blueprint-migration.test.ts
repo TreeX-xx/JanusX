@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
-import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprint, reconcileBlueprintTree } from '../../src/main/janus/blueprint-migration'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
+import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprint, reconcileBlueprintTree } from '../../plugins/blueprint/src/main/janus/blueprint-migration'
 
 function blueprintFixture(): Blueprint {
   const node = (id: string, parentId: string | null, children: string[] = []) => ({

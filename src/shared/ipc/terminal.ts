@@ -40,6 +40,8 @@ export interface TerminalWarmupRequest {
 }
 
 export interface TerminalCreateRequest {
+  /** Reattach only; never spawn if the remote process no longer exists. */
+  attachOnly?: boolean
   id: string
   workspaceId?: string
   cwd: string
@@ -103,7 +105,7 @@ export interface TerminalCreatedEvent {
   id: string
   workspaceId: string
   cwd: string
-  preset: TerminalAgentEngine | 'janus' | 'pi' | 'dsh'
+  preset: TerminalAgentEngine | 'shell' | 'janus' | 'pi' | 'dsh'
   shell: string
   pid: number
 }

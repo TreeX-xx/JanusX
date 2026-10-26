@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { getRawHeader, listPackage } from '@electron/asar'
+import { validatePackagedPluginEntries } from './check-package-boundary.mjs'
 
 const root = process.cwd()
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -71,6 +72,13 @@ for (const requiredPath of [appAsar, unpackedExecutable]) {
 }
 
 const asarEntries = new Set(listPackage(appAsar).map((entry) => entry.split(sep).join('/').replace(/^\/+/, '')))
+validatePackagedPluginEntries(asarEntries)
+// Neither sidecar resources nor smart-unpacked files may carry plugin payloads.
+for (const base of [join(releaseDirectory, 'win-unpacked'), join(dirname(appAsar)), join(dirname(appAsar), 'app.asar.unpacked')]) {
+  for (const path of ['plugins', 'node_modules/@janusx/blueprint']) {
+    if (existsSync(join(base, path))) throw new Error(`Downloadable plugin files must not ship in the application: ${join(base, path)}`)
+  }
+}
 const archiveHeader = getRawHeader(appAsar).header
 for (const link of archiveSymlinks(archiveHeader)) {
   const target = resolveArchiveLink(link, link.at)

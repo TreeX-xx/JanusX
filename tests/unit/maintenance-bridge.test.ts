@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { sha256HexBytes } from '@janus-agent/harness-node'
-import { translateMaintenanceOpsToHarness } from '../../src/main/harness/maintenance-bridge'
-import type { BlueprintOperation } from '../../src/shared/janus/maintenance-types'
+import { translateMaintenanceOpsToHarness } from '../../plugins/blueprint/src/main/notes/maintenance-bridge'
+import type { BlueprintOperation } from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 const REPO = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 const REQ = '11111111-1111-1111-1111-111111111111'

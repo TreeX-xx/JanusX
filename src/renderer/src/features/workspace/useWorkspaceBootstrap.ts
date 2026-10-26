@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '@/stores/app'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useBlueprintStore } from '@/stores/blueprint'
 import { useWorktreeStore } from '@/stores/worktree'
 import { useGitStore } from '@/stores/git'
 import { warmupIndex } from '@/services/harness'
@@ -12,8 +11,7 @@ import { createWorkspaceRefreshQueue } from './refresh-queue'
 
 /**
  * Idle-time note-index warmup: fills the main-process index cache for every
- * known workspace checkout while the user is still orienting, so the first
- * blueprint entry reads hot cache instead of paying a full 200-file parse.
+ * known workspace checkout for shared Note consumers, including chat and MCP.
  * Sequential and best-effort; failures stay silent by design.
  */
 function scheduleIndexWarmup(paths: string[]): () => void {
@@ -70,9 +68,8 @@ export function useWorkspaceBootstrap(): boolean {
       }
       useAppStore.setState({ loadState: 'no-terminal' })
       const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)
-      // Start the active projection before file-tree I/O; the view joins this request.
-      void useBlueprintStore.getState().loadWorkspace(activeWorkspace?.id ?? null)
-      stopWarmup = scheduleIndexWarmup(state.workspaces.filter(workspace => workspace.id !== activeWorkspace?.id).map(workspace => workspace.path))
+      // Note: plugin activation owns projections — see .agents/notes/planning/blueprint-official-plugin.md
+      stopWarmup = scheduleIndexWarmup(state.workspaces.map(workspace => workspace.path))
       if (activeWorkspace) await loadWorkspaceFileTree(activeWorkspace.path).catch(() => {})
       if (disposed) return
       // One-shot cold restore of pre-quit shells; agents never auto-run.

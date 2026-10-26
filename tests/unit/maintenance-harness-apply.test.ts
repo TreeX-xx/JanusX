@@ -3,16 +3,16 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { HarnessNoteService } from '../../src/main/harness/service'
+import { BlueprintNoteService as HarnessNoteService } from '../../plugins/blueprint/src/main/notes/service'
 import {
   applyMaintenanceSelection,
   applyPreparedMaintenanceSelection,
   prepareMaintenanceSelection,
   assertHarnessScope,
   resolveProjectCheckout,
-} from '../../src/main/harness/maintenance-apply'
-import { translateMaintenanceOpsToHarness } from '../../src/main/harness/maintenance-bridge'
-import type { BlueprintOperation } from '../../src/shared/janus/maintenance-types'
+} from '../../plugins/blueprint/src/main/notes/maintenance-apply'
+import { translateMaintenanceOpsToHarness } from '../../plugins/blueprint/src/main/notes/maintenance-bridge'
+import type { BlueprintOperation } from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'
 const REQ = '11111111-1111-4111-8111-111111111111'

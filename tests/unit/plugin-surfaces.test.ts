@@ -19,6 +19,27 @@ const manifest = () => parsePluginManifest(readFileSync('packages/plugin-sdk/tem
 afterEach(() => { useAppStore.setState({ activeWorkbench: null, returnWorkbench: null }); useIslandStore.setState({ stage: 'collapsed', pluginViewRequest: null }); vi.restoreAllMocks() })
 
 describe('P3 contribution policy and rendering', () => {
+  it('requires an explicit capability for a plugin frame and rejects it outside workbench views', () => {
+    const value = manifest()
+    value.contributes.views.find(view => view.id === 'desk')!.frame = 'plugin'
+    expect(() => parsePluginManifest(JSON.stringify(value))).toThrow()
+    value.capabilities.required.push('views.workbench.frame')
+    expect(parsePluginManifest(JSON.stringify(value)).contributes.views.find(view => view.id === 'desk')?.frame).toBe('plugin')
+    value.contributes.views.find(view => view.id === 'details')!.frame = 'plugin'
+    expect(() => parsePluginManifest(JSON.stringify(value))).toThrow()
+    expect(() => validatePluginCall(manifest(), 'views.requestFrame', { action: 'close' })).toThrow()
+    expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'close', script: 'x' })).toThrow()
+  })
+  it('routes a declared settings command to application settings without changing workbench or pane state', () => {
+    const dispatch = vi.fn(); vi.stubGlobal('window', { dispatchEvent: dispatch })
+    const unregister = extensionRegistry.register({ id: 'test.settings', views: [{ id: 'settings', title: 'Settings', location: 'settings', scope: 'application', component: () => null }] })
+    try {
+      const tree = useWorkspaceStore.getState().paneTree; const active = useAppStore.getState().activeWorkbench
+      expect(openExtensionView('extension:test.settings/settings')).toBe(true)
+      expect(dispatch.mock.calls[0][0]).toMatchObject({ type: 'janusx:open-plugin-settings', detail: 'extension:test.settings/settings' })
+      expect(useWorkspaceStore.getState().paneTree).toBe(tree); expect(useAppStore.getState().activeWorkbench).toBe(active)
+    } finally { unregister(); vi.unstubAllGlobals() }
+  })
   it('routes window commands to the native host without opening a pane or Island', () => {
     const dispatch = vi.fn(); vi.stubGlobal('window', { dispatchEvent: dispatch })
     const unregister = extensionRegistry.register({ id: 'test.window', views: [{ id: 'utility', title: 'Utility', location: 'window', scope: 'project', component: () => null }] })

@@ -9,7 +9,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useRightToolStore } from '@/stores/right-tools'
 import { canonicalRightToolId } from '@/right-tools/registry'
-import { useExtensionCommands, useExtensionViews } from '@/extensions/react'
+import { useExtensionCommands, useToolbarWorkbenches } from '@/extensions/react'
 import { extensionCommands } from '@/extensions/commands'
 import { installExtensionShortcuts } from '@/extensions/command-shortcuts'
 import { openExtensionView } from '@/extensions/workbench'
@@ -17,6 +17,7 @@ import { getLeafPanes } from '@/lib/workspace-pane'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
 import { openGlobalTool, resolveGlobalToolOpenState } from '@/lib/global-tool-entry'
 import { useI18n } from '@/i18n/useI18n'
+import { useAppStore } from '@/stores/app'
 import styles from './TitlebarToolGroup.module.css'
 
 /**
@@ -27,8 +28,9 @@ import styles from './TitlebarToolGroup.module.css'
  * 触发器外形不再随工具数量变化。
  *
  * 每个工具的目标都是"打开中央内容"，与终端流程解耦——没有终端、没有项目时
- * 同样可达。主操作一律走 {@link openGlobalTool}：先翻回工作区正面并收起遮挡的
- * 工作台，再打开目标 pane。本组与蓝图/知识库工作台分组同排但由竖分隔线隔开
+ * 同样可达。pane 工具走 {@link openGlobalTool}：先翻回工作区正面并收起遮挡的
+ * 工作台，再打开目标 pane；工作台插件直接打开或定位自身，保留当前实例。
+ * 本组与其余工作台入口同排，由竖分隔线隔开
  * （见 markdown-pane-entry.md 的顶栏分组）。
  *
  * 全局工具只有一个实例；重复点击定位原工具，并展开已收起的工具区。
@@ -42,6 +44,7 @@ export function TitlebarToolGroup() {
   const browserSurfaceId = useGlobalToolsStore((s) => s.browserSurfaceId)
   const workspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
   const openRightTools = useRightToolStore((s) => s.openToolIds)
+  const activeWorkbench = useAppStore(s => s.activeWorkbench)
   useExtensionCommands()
   useEffect(() => installExtensionShortcuts(window), [])
   const [menuOpen, setMenuOpen] = useState(false)
@@ -75,6 +78,7 @@ export function TitlebarToolGroup() {
     actionLabel: string
     opened: boolean
     disabled?: boolean
+    workbench?: boolean
     open: () => void | Promise<void>
   }> = [
     {
@@ -97,13 +101,17 @@ export function TitlebarToolGroup() {
       const view = entry.view
       const Icon = view.icon ?? Puzzle
       const title = extensionCommands.getSnapshot().commands.find((command) => command.id === entry.commandId)?.title ?? view.title
+      const workbench = view.location === 'workbench'
+      const workbenchOpen = workbench && activeWorkbench === view.id
+      const label = workbenchOpen ? t('common:toolGroup.returnToTool', { name: view.title }) : title
       return {
         id: entry.id,
         icon: <Icon className={styles.menuIcon} size={14} strokeWidth={1.5} aria-hidden="true" />,
-        label: title,
-        actionLabel: title,
+        label,
+        actionLabel: label,
+        workbench,
         disabled: !extensionCommands.canExecute(entry.commandId, Boolean(workspaceId)),
-        opened: view.location === 'right'
+        opened: workbench ? workbenchOpen : view.location === 'right'
           ? openRightTools.some((id) => id === canonicalRightToolId(view.id))
           : getLeafPanes(view.scope === 'application' ? paneTree : projectTree).some((leaf) => leaf.tabs.some((tab) => tab.type === 'extension' && tab.viewId === view.id)),
         open: () => { extensionCommands.execute(entry.commandId, Boolean(workspaceId), openExtensionView) },
@@ -111,9 +119,11 @@ export function TitlebarToolGroup() {
     }),
   ]
 
-  const pick = (open: () => void | Promise<void>) => {
+  const pick = (tool: typeof tools[number]) => {
     setMenuOpen(false)
-    openGlobalTool(open)
+    // Reopening the active workbench must preserve its page and return target.
+    if (tool.workbench) void tool.open()
+    else openGlobalTool(tool.open)
   }
 
   return (
@@ -146,7 +156,7 @@ export function TitlebarToolGroup() {
                 disabled={tool.disabled}
                 title={tool.actionLabel}
                 aria-label={tool.actionLabel}
-                onClick={() => pick(tool.open)}
+                onClick={() => pick(tool)}
               >
                 {tool.icon}
                 <span className={styles.menuLabel}>{tool.label}</span>
@@ -162,17 +172,16 @@ export function TitlebarToolGroup() {
 
 /** 工具组与工作台分组之间的竖分隔线；没有可见工作台按钮时收起。 */
 export function TitlebarToolSeparator() {
-  const blueprint = useExperimentalStore((s) => s.blueprint)
   const knowledge = useExperimentalStore((s) => s.persona)
   const loadExperimental = useExperimentalStore((s) => s.load)
   const projectOpen = useWorkspaceStore(s => Boolean(s.activeWorkspaceId))
-  const pluginWorkbench = useExtensionViews().some(view => view.location === 'workbench' && (view.scope === 'application' || projectOpen))
+  const pluginWorkbench = useToolbarWorkbenches(projectOpen).length > 0
 
   useEffect(() => {
     void loadExperimental()
   }, [loadExperimental])
 
-  // 两个工作台开关都关掉时，右侧只剩工具组，分隔线没有可分的东西，收起。
-  if (!blueprint && !knowledge && !pluginWorkbench) return null
+  // 没有剩余工作台按钮时，分隔线也收起。
+  if (!knowledge && !pluginWorkbench) return null
   return <span className={styles.separator} aria-hidden="true" />
 }

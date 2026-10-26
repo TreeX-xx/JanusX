@@ -804,6 +804,35 @@ test.describe('run-orb budding', () => {
     expect(await stopCalls(page)).toEqual([])
   })
 
+  test('expanded Island covers the run launcher and feedback at overlapping coordinates', async ({ page }) => {
+    await page.setViewportSize({ width: 720, height: 720 })
+    await page.goto('/?runOrbs=1&titlebar=1')
+    const run = page.locator('[data-id="run-project"]')
+    await run.click()
+    await expect(page.getByRole('status')).toContainText('already running')
+    await page.locator('.janus-island').dblclick()
+    const shell = page.locator('.janus-island-shell')
+    await expect(shell).toHaveAttribute('data-stage', 'expanded')
+    for (const theme of ['dark', 'planche']) {
+      await page.evaluate(theme => (window as any).__applyRunTheme(theme), theme)
+      for (const target of [run, page.getByRole('status'), page.locator('[data-id="tool-menu"]')]) {
+        await expect.poll(() => target.evaluate(element => {
+          const rect = element.getBoundingClientRect()
+          const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+          return Boolean(hit?.closest('.janus-island-shell[data-stage="expanded"]'))
+        })).toBe(true)
+      }
+      await page.screenshot({ path: `artifacts/island-expanded-run-layer-${theme}.png`, animations: 'disabled' })
+    }
+    await page.keyboard.press('Escape')
+    await expect(shell).not.toHaveAttribute('data-stage', 'expanded')
+    await expect(run).toBeVisible()
+    await run.click()
+    expect(await page.evaluate(() => (window as any).__runOrbFixture.startCalls)).toEqual([])
+    await page.locator('[data-id="tool-menu"]').click()
+    await expect(page.getByRole('menu')).toBeVisible()
+  })
+
   test('actual titlebar keeps the run button and indicators apart in both themes', async ({ page }) => {
     await page.goto('/?runOrbs=1&titlebar=1')
     const run = page.locator('[data-id="run-project"]')

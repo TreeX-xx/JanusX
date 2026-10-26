@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-19",
-  "updated": "2026-10-20T06:43:58Z",
+  "updated": "2026-10-24T10:10:36Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -19,6 +19,8 @@
 双击文件自动进入 Git 差异视图，Markdown 编辑区受红绿变更块干扰；关闭采用系统弹窗，且保存 IPC 返回错误仍可能被当作成功；双栏 Markdown 未联动。HTML 的窄 iframe 视口裁切固定画布，srcDoc 缺少本地资源基址；Markdown 内嵌的 picture/source 等 HTML 图片结构无法正常预览。
 
 ## Decision
+
+文件窗口定位为 ADE 中的当前文件阅读与轻量编辑界面。代码定位保留 Ctrl/Cmd+F 文件内搜索，移除定义／引用／符号导航、F12 跳转及设置中的语言服务区。clangd 安装、探测、IPC 和进程管理，以及 TS/JS 工作区源码预加载均已移除；Monaco 内置定义、引用和符号提供器关闭，语法高亮、编辑保存、差异对比与文件视图状态继续保留。
 
 文件树双击打开独立编辑窗口。代码、Markdown 和 HTML 源码默认使用普通 Monaco 编辑器；独立窗口的“与 HEAD 比较”按钮才读取 Git 基线并切换 DiffEditor。没有可用基线时提示原因并继续普通编辑，不阻塞文件打开。退出比较保留草稿、光标和滚动状态；基线按需读取，不沿用长期缓存。
 
@@ -35,6 +37,8 @@ HTML 共用 HtmlPreviewFrame，默认 1280×800 虚拟视口与适合窗口缩�
 主进程提供 127.0.0.1 随机端口的只读资源服务，以随机 capability 和 renderer 所属租约限定工作区。HTML 草稿内存更新，CSS、模块脚本、CSS 内图片及 fetch 等保留浏览器原生相对路径解析；根相对路径通过同源 Referer 归入租约。只读 GET/HEAD，限制文件类型和 32MB 大小，真实路径检查拒绝工作区外资源；关闭预览或销毁窗口释放租约。HTTP iframe 与应用来源隔离，不提供 preload。建立租约期间显示加载提示，避免先运行 srcDoc 再运行 HTTP 页面；服务不可用时回退有限媒体解析，并移除 allow-same-origin 保持脚本隔离。
 
 ## Alternatives considered
+
+仅隐藏导航按钮仍需维护语言服务安装、协议、进程与工程索引，不符合轻量预览定位，因此连同底层链路移除。代价是文件窗口不再提供代码语义导航，需要完整工程导航时交由外部 IDE；只有出现明确且持续的使用需求时才重新评估。升级不删除用户系统中的 clangd，也不主动清理旧版托管下载目录。
 
 保留自动 Diff 并减淡颜色无法恢复普通编辑的空间与行文连续性；隐藏 Diff 高亮还会掩盖实际模式。系统保存弹窗可减少组件代码，但不能满足应用主题一致和失败留窗的交互。仅靠 beforeunload 会进入浏览器卸载确认流程，因此使用主进程关闭请求与 renderer 确认的握手。
 
@@ -53,6 +57,12 @@ HTML 共用 HtmlPreviewFrame，默认 1280×800 虚拟视口与适合窗口缩�
 原 srcDoc 中相对 theme.css 和 page.js 因基址不同未加载，现由资源服务修复，详见 [本地资源解析](./markdown-preview-local-assets.md)。适合窗口只保证所选视口完整显示；超过视口的长页面或比 1920×1080 更大的固定画布仍受原页面布局规则约束，可按页面选择视口和缩放。需要 Node／开发服务器、服务端路由或构建的项目不由静态预览执行。
 
 ## 验证
+
+语言服务移除验证（2026-10-24）：`editor-find`、`editor-tabs`、`editor-cache`、`workspace-ipc-contract`、`app-shutdown` 和 `workspace-runtime-files` 共 47 项单测通过。真实 Electron 的定义导航移除、文件内搜索控件、标签复用、保存关闭和 HTML 草稿预览共 5 项通过；导航用例修正搜索输入的填充方式后单独复测通过。WSL 中的 Office 扫描专项通过，源码扫描模式被拒绝。严格 unused 类型检查、应用构建、中英文文案检查和触及源码 ESLint 通过。全库 Note 校验仍有本次未修改文件中的 3 项错误：`entrance-choreography.md` 缺少 AC 且 updated 早于 created，`island-behavior-system.md` 缺少 Evidence；外部链接诊断保持未解析。未运行全库 verify。
+
+通用设置浏览器回归 `theme-settings.spec.ts` 6/6 通过，覆盖 1100／480／320px 布局、主题切换与保存失败恢复，并确认语言服务和 clangd 入口均已移除。
+
+### 原有预览功能验证（历史记录）
 
 `npx vitest run tests/unit/html-preview-server.test.ts tests/unit/markdown-preview-html.test.ts tests/unit/local-asset-resolver.test.ts tests/unit/markdown-scroll.test.ts tests/unit/editor-tabs.test.ts tests/unit/editor-window-manager.test.ts tests/unit/editor-viewed-ipc.test.ts tests/unit/editor-find.test.ts`：42/42 通过，包含真实 HTTP 服务的租约、草稿、相对资源和路径边界。
 

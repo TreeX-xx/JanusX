@@ -32,6 +32,7 @@ export interface Terminal {
   telemetryStartedAt?: number
   exitCode?: number
   errorMessage?: string
+  agentSetup?: { environment: string; busy: boolean; error?: string; log?: string }
   detectedModel?: string
   inputTokens?: number
   outputTokens?: number

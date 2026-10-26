@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { setImmediate as nextTurn } from 'node:timers/promises'
-import { ReviewWorkspaceTracker } from '../../src/main/blueprint/review/workspace-tracker'
+import { ReviewWorkspaceTracker } from '../../plugins/blueprint/src/main/blueprint/review/workspace-tracker'
 
 describe('review workspace activation', () => {
   it('coalesces a thousand registrations, then rechecks branch context on the next root load', async () => {

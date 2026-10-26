@@ -22,7 +22,7 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
       reject(new PluginError(code, code))
     }
     const abort = () => cancel('CANCELLED')
-    const timer = setTimeout(() => cancel('TIMEOUT'), method === 'workspace.readText' || method === 'documents.readText' || method === 'context.read' ? 10_000 : 5_000)
+    const timer = setTimeout(() => cancel('TIMEOUT'), method === 'native.call' ? 30_000 : method === 'workspace.readText' || method === 'documents.readText' || method === 'context.read' ? 10_000 : 5_000)
     const cleanup = () => { clearTimeout(timer); options?.signal?.removeEventListener('abort', abort) }
     pending.set(requestId, { resolve: value => resolve(value as T), reject, cleanup })
     options?.signal?.addEventListener('abort', abort, { once: true })
@@ -75,6 +75,13 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     return unsubscribe
   }
   const api: PluginApi = {
+    native: {
+      call: (params, options) => call('native.call', params, options),
+      watch: async (listener, options) => {
+        const result = await call<{ subscriptionId: string }>('native.watch', {}, options)
+        return subscribe(result.subscriptionId, listener, options)
+      },
+    },
     tasks: { start: (params, options) => call('tasks.start', params, options), list: options => call('tasks.list', {}, options), cancel: (params, options) => call('tasks.cancel', params, options) },
     network: { fetch: (params, options) => call('network.fetch', params, options) },
     services: { discover: options => call('services.discover', {}, options), call: (params, options) => call('services.call', params, options) },
@@ -99,8 +106,11 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     },
     documents: { readDraft: options => call('documents.readDraft', {}, options), updateDraft: (params, options) => call('documents.updateDraft', params, options), readText: options => call('documents.readText', {}, options), applyEdit: (params, options) => call('documents.applyEdit', params, options) },
     app: { getInfo: options => call('app.getInfo', {}, options) },
-    workspace: { listDirectory: (params, options) => call('workspace.listDirectory', params, options), getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
-    views: { open: (params, options) => call('views.open', params, options) },
+    workspace: { openDocument: (params, options) => call('workspace.openDocument', params, options), proposeTerminal: (params, options) => call('workspace.proposeTerminal', params, options),
+      listDirectory: (params, options) => call('workspace.listDirectory', params, options), getContext: options => call('workspace.getContext', {}, options), readText: (params, options) => call('workspace.readText', params, options) },
+    views: { open: (params, options) => call('views.open', params, options),
+      getFrame: options => call('views.getFrame', {}, options),
+      requestFrame: (params, options) => call('views.requestFrame', params, options) },
     island: { update: (params, options) => call('island.update', params, options) },
     ui: { showToast: (params, options) => call('ui.showToast', params, options) },
     storage: {

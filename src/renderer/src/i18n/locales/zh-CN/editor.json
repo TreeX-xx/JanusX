@@ -181,13 +181,7 @@
     "unpinWindow": "取消窗口置顶",
     "maximizeWindow": "Maximize editor window",
     "embedToMain": "嵌入主窗口工作区",
-    "missingFileInfo": "Missing file information",
-    "goToDefinition": "转到定义",
-    "cppDefinitionUnavailable": "C/C++ 导航不可用，请确认 clangd 已安装且工程配置可解析。",
-    "cppDefinitionInstallPrompt": "C/C++ 导航需要 clangd。点击安装。",
-    "cppDefinitionInstalling": "正在安装 clangd...",
-    "cppDefinitionInstallFailed": "安装 clangd 失败。{{error}}",
-    "cppDefinitionInstallComplete": "clangd 已安装。C/C++ 导航已就绪。"
+    "missingFileInfo": "Missing file information"
   },
   "htmlViewer": {
     "options": "预览选项",

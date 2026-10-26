@@ -15,16 +15,16 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseNote, serializeNote, validateNote } from '@janus-agent/harness-core'
-import { noteAuthoringContext, maintainedNotePath, type NoteAuthoringContext } from '../harness/note-authoring'
+import { noteAuthoringContext, maintainedNotePath, type NoteAuthoringContext } from '../../../plugins/blueprint/src/main/notes/note-authoring'
 import type {
   Blueprint,
   BlueprintIssue,
   BlueprintNode,
-} from '../../shared/janus/types'
-import type { BlueprintMaintenanceAuditRecord } from '../../shared/janus/maintenance-types'
+} from '../../../plugins/blueprint/src/shared/janus/types'
+import type { BlueprintMaintenanceAuditRecord } from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import { harnessNoteService } from '../harness/service'
 import { blueprintsDir, blueprintFile, indexFile } from './blueprint-paths'
-import { readJson, writeJson } from './blueprint-persistence'
+import { readJson, writeJson } from '../../../plugins/blueprint/src/main/janus/blueprint-persistence'
 
 export type MigratedKind = 'note' | 'requirement' | 'task' | 'decision' | 'idea' | 'initiative'
 

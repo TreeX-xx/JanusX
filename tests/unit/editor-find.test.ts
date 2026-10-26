@@ -1,30 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  isEditorDefinitionShortcut,
   isEditorFindShortcut,
   isMonacoKeyboardEvent,
   labelFindWidgetControls,
-  openEditorDefinition,
   openEditorFind,
   watchFindWidgetControls,
   type FindableEditor,
 } from '../../src/renderer/src/lib/editor-find'
 
 describe('editor find', () => {
-  it('routes F12 through the JanusX definition action', async () => {
-    const run = vi.fn()
-    const editor: FindableEditor = {
-      focus: vi.fn(),
-      getAction: vi.fn(() => ({ run })),
-    }
-
-    expect(isEditorDefinitionShortcut({ key: 'F12' })).toBe(true)
-    expect(isEditorDefinitionShortcut({ key: 'F11' })).toBe(false)
-    await expect(openEditorDefinition(editor)).resolves.toBe(true)
-    expect(editor.getAction).toHaveBeenCalledWith('janusx.editor.goToDefinition')
-    expect(run).toHaveBeenCalledOnce()
-  })
-
   it('recognizes Ctrl+F and Cmd+F regardless of key casing', () => {
     expect(isEditorFindShortcut({ ctrlKey: true, metaKey: false, key: 'f' })).toBe(true)
     expect(isEditorFindShortcut({ ctrlKey: false, metaKey: true, key: 'F' })).toBe(true)

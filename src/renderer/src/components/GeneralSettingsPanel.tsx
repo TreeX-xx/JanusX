@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n/config'
 import { Select } from './ui/Select'
-import { LanguageServiceManager } from './LanguageServiceManager'
 import { WorkflowXStatus } from './janus/WorkflowXMonitor'
 import { useThemeStore } from '@/stores/theme'
 import { ThemePreviewPicker } from './ThemePreviewPicker'
@@ -77,16 +76,6 @@ export function GeneralSettingsPanel() {
 
       <section className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.section.environment')}</h3>
-        <div className={`${styles.generalRow} ${styles.generalRowWide}`}>
-          <div className={styles.generalLabelCol}>
-            <div className={styles.generalLabel}>{t('settings:languageService.title')}</div>
-            <div className={styles.generalHelp}>{t('settings:languageService.subtitle')}</div>
-          </div>
-          <div className={styles.generalControlCol}>
-            <LanguageServiceManager />
-          </div>
-        </div>
-
         <div className={`${styles.generalRow} ${styles.generalRowWide}`}>
           <WorkflowXStatus surface="settings" />
         </div>

@@ -2,15 +2,15 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm, realpath, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../src/shared/blueprint-review-settings'
+import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../plugins/blueprint/src/shared/blueprint-review-settings'
 import { BlueprintReviewRuntime } from '../../src/main/blueprint/review/runtime'
-import { WorkspaceSuggestionSources } from '../../src/main/blueprint/suggestions/sources'
+import { WorkspaceSuggestionSources } from '../../plugins/blueprint/src/main/blueprint/suggestions/sources'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
 
 vi.mock('electron', () => ({ app: { getPath: () => 'unused' } }))
 vi.mock('../../src/main/blueprint/review/models', () => ({ blueprintReviewModels: {} }))
 let directory: string, runtime: BlueprintReviewRuntime
-beforeEach(async () => { directory = await realpath(await mkdtemp(join(tmpdir(), 'janus-status-'))); runtime = new BlueprintReviewRuntime(directory) })
+beforeEach(async () => { directory = await realpath(await mkdtemp(join(tmpdir(), 'janus-status-'))); runtime = new BlueprintReviewRuntime(directory, { generate: async () => { throw new Error('Not configured') }, verify: async () => { throw new Error('Not configured') } }) })
 afterEach(async () => { await runtime.shutdown(); await rm(directory, { recursive: true, force: true }) })
 
 it('returns persisted enablement while a Note read is blocked, without starting a review', async () => {

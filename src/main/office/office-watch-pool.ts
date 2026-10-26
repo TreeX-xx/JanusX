@@ -252,6 +252,7 @@ export class OfficeWatchPool {
     let root: string | undefined
     try {
       root = (await resolveTrustedOfficeWorkspace(workspaceId, this.resolveWorkspaceRoot)).rootPath
+      if (root.startsWith('janusx-workspace://')) root = undefined
     } catch {}
     if (root) this.stoppingRoots.add(root)
     try {

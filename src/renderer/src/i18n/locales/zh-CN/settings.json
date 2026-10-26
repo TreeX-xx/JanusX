@@ -476,6 +476,9 @@
     "action": {
       "install": "安装",
       "upgrade": "升级",
+      "updateLine": "更新 {{channel}}",
+      "installV2": "安装 v2",
+      "upgradeV2": "升级到 v2 · {{version}}",
       "refresh": "重新检测",
       "refreshing": "检测中...",
       "working": "处理中..."
@@ -542,33 +545,6 @@
     "output": "输出",
     "context": "上下文",
     "terminals": "个会话"
-  },
-  "languageService": {
-    "title": "语言服务",
-    "subtitle": "托管安装的代码导航语言服务器",
-    "loading": "加载中...",
-    "state": {
-      "notInstalled": "未安装",
-      "ready": "就绪",
-      "busy": "处理中...",
-      "failed": "失败"
-    },
-    "label": {
-      "version": "版本",
-      "source": "来源"
-    },
-    "action": {
-      "install": "安装",
-      "repair": "修复",
-      "remove": "移除",
-      "working": "处理中..."
-    },
-    "service": {
-      "clangd": {
-        "name": "clangd",
-        "desc": "C/C++ 代码导航（转到定义）。托管二进制，按需安装。"
-      }
-    }
   },
   "mcpAccess": {
     "description": "导出只读工程知识，个人记忆保持私有。配置注册与服务连通分别检查，实际客户端可能仍需批准连接。",

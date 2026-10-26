@@ -10,8 +10,6 @@ import { registerCommandTools } from '../agent/runtime/tools/command-tools'
 import { registerUserMemoryTools } from '../agent/runtime/tools/user-memory-tools'
 import { registerPluginTools, type PluginAgentPort } from '../agent/runtime/tools/plugin-tools'
 import { harnessNoteService } from '../harness/service'
-import { registerSuggestionTools } from '../blueprint/suggestions/tools'
-import { blueprintReviewRuntime } from '../blueprint/review/runtime'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
 
 let registered = false
@@ -27,7 +25,7 @@ export function registerAgentRuntimeHandlers(windowGetter: () => BrowserWindow |
   if (registered) return
   registerWorkspaceTools(workspaceAgentRuntime.registry)
   registerNoteTools(workspaceAgentRuntime.registry, harnessNoteService)
-  registerSuggestionTools(workspaceAgentRuntime.registry, blueprintReviewRuntime)
+  // Note: optional domain tools arrive through configured MCP or plugin capabilities — see .agents/notes/planning/blueprint-official-plugin.md
   registerProjectTools(workspaceAgentRuntime.registry)
   registerGitTools(workspaceAgentRuntime.registry)
   registerCommandTools(workspaceAgentRuntime.registry)

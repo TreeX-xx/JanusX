@@ -57,6 +57,28 @@ export interface ExternalCliLatestResult {
   toolId: ExternalCliToolId
   /** 查不到（离线/超时/注册表异常）时为 undefined，调用方展示 unknown 且不阻塞卡片。 */
   latestVersion?: string
+  /** OpenCode uses separate npm packages for its two maintained release lines. */
+  versions?: Partial<Record<OpenCodeChannel, string>>
+}
+
+export type OpenCodeChannel = 'v1' | 'v2'
+
+export interface ExternalCliInstallOptions {
+  channel: OpenCodeChannel
+  /** Exact version shown in Settings; the host validates the release line. */
+  version: string
+}
+
+export function openCodeChannel(version: string | undefined): OpenCodeChannel | undefined {
+  const major = version?.match(/^([12])\.\d+\.\d+(?:-[\da-zA-Z.-]+)?(?:\+[\da-zA-Z.-]+)?$/)?.[1]
+  return major === '1' ? 'v1' : major === '2' ? 'v2' : undefined
+}
+
+export function isExternalCliInstallOptions(value: unknown): value is ExternalCliInstallOptions {
+  if (!value || typeof value !== 'object') return false
+  const { channel, version } = value as Record<string, unknown>
+  return (channel === 'v1' || channel === 'v2') && typeof version === 'string' &&
+    /^\d+\.\d+\.\d+$/.test(version) && openCodeChannel(version) === channel
 }
 
 export interface ExternalCliInstallResult {
@@ -72,7 +94,7 @@ export interface ExternalCliInstallResult {
 export interface ExternalCliAPI {
   detect(toolId: ExternalCliToolId): Promise<ExternalCliDetectResult>
   latest(toolId: ExternalCliToolId): Promise<ExternalCliLatestResult>
-  install(toolId: ExternalCliToolId): Promise<ExternalCliInstallResult>
+  install(toolId: ExternalCliToolId, options?: ExternalCliInstallOptions): Promise<ExternalCliInstallResult>
   applyProvider(request: ExternalCliApplyProviderRequest): Promise<ExternalCliApplyResult>
   syncState(): Promise<ExternalCliSyncState>
   rollbackProfile(): Promise<ExternalCliRollbackResult>

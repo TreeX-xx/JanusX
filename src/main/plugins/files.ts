@@ -138,7 +138,7 @@ export async function readPluginPackage(directory: string, expectedRoot?: string
       return
     }
     const image = /\.(png|jpe?g|webp|gif|ico)$/.test(path)
-    if (!image && !/\.(html|js|mjs|css|json)$/.test(path)) fail('INVALID_PACKAGE_PATH', 'Unsupported resource type.')
+    if (!image && !/\.(html|js|mjs|css|json)$/.test(path) && !(manifest!.native && path.endsWith('.cjs'))) fail('INVALID_PACKAGE_PATH', 'Unsupported resource type.')
     let bytes: Buffer
     try { bytes = await readPluginFile(root, path, (image ? 10 : 5) * 1024 * 1024) } catch (error) {
       if (error instanceof PluginError && error.code === 'FILE_TOO_LARGE') fail('PACKAGE_LIMIT_EXCEEDED', 'Resource exceeds its limit.')
@@ -149,7 +149,8 @@ export async function readPluginPackage(directory: string, expectedRoot?: string
     files.set(path, bytes)
   }
   // A declarative-only package contains just its manifest and never loads executable resources.
-  if (manifest!.contributes.views.length) await walk('dist', 0)
+  if (manifest!.contributes.views.length || manifest!.native) await walk('dist', 0)
+  for (const entry of [manifest!.native?.entry, manifest!.native?.mcp?.entry]) if (entry && !files.has(entry)) fail('ENTRY_NOT_FOUND', 'A native entry is missing.')
   for (const view of manifest!.contributes.views) if (!files.has(view.entry)) fail('ENTRY_NOT_FOUND', 'A declared HTML entry is missing.')
   const hash = createHash('sha256')
   for (const [path, bytes] of [...files].sort(([a], [b]) => a.localeCompare(b))) hash.update(path).update('\0').update(String(bytes.length)).update('\0').update(bytes)

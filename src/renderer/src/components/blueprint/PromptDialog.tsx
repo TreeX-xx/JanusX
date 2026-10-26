@@ -3,10 +3,11 @@
  * @description
  *  用于替代 Electron BrowserWindow 中不可用的 window.prompt。
  *  自带遮罩层 + 居中对话框，支持回车提交 / Esc 取消 / 点击遮罩取消。
- *  样式见 ./blueprint.css（.prompt-dialog 前缀）。
+ *  样式见 ./PromptDialog.css（.prompt-dialog 前缀）。
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import './PromptDialog.css'
 import { useI18n } from '@/i18n/useI18n'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
 

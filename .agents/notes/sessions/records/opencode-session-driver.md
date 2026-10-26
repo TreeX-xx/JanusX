@@ -48,7 +48,7 @@
       }
     }
   },
-  "updated": "2026-10-17T01:51:20.000Z",
+  "updated": "2026-10-24T16:26:51.774Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/0cb931e1-e33c-4e38-a9d9-9d652796d935"
 }
 ---
@@ -62,6 +62,14 @@
 ## Decision
 
 `src/main/sessions/transcript-reader.ts` shares its turn and character caps through an exported truncate helper. `src/main/sessions/opencode-sessions.ts` owns the sqlite driver behind `node:sqlite` read-only handles, following the runtime-telemetry precedent: newest-first session rows with the first user text, the tail assistant text, and the user-message count resolved per session through indexed message queries plus bounded part reads, and full ordered question-plus-answer pairs per session for detail reads. Every query layer tolerates missing files, locked databases, corrupt rows, and schema drift by resolving empty or null, and one bad session never fails a list. The capability table gains the `opencode-sqlite` store kind with the database resolved under the home profile; the scanner lists the newest rows instead of walking files for this engine and imports them through the existing engine-plus-provider deduplication, so hook-owned opencode rows keep authority. The transcript detail channel routes opencode sessions into the same pair reader by session id. Resume reuses the shared provider command builder with `opencode --session <id>`, verified against the installed CLI help, and the existing preset-plus-argv spawn path wires hooks without new terminal plumbing.
+
+## Background discovery responsiveness
+
+`listOpencodeSessions` returns a Promise and yields with `setImmediate` between sessions. It keeps the existing 500-message window, first user text and user-turn count, then searches assistant messages backwards until it finds the latest nonempty text. Reading every historical assistant body on every poll previously issued thousands of synchronous SQLite queries; the scanner now awaits the incremental list. Detail reads retain their existing behavior.
+
+Real Electron profiling against the JanusX workspace found recurring 3-5 second main-thread stalls inside `lastTextOfParts` and `messagesOf` during external discovery. The 600-switch baseline reached 5315ms event-loop delay. After reverse lookup and yielding, recurring multi-second OpenCode stalls disappeared in the measured runs; startup Markdown validation and native usage accounting remain separate synchronous work. Full comparison and reproduction are recorded in [right dock](../../workbench/right-dock.md).
+
+The database remains read-only and each individual session query is synchronous; yielding between sessions is not a hard latency bound for a pathological single session or locked store. The existing empty/malformed database behavior and output limits are unchanged. The long-history regression verifies first prompt, latest nonempty answer, count and event-loop progress across three sessions; related scanner/transcript and dock unit suites pass 65 cases.
 
 ## Alternatives considered
 

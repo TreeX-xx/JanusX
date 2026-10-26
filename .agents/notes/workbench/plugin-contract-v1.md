@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-23T16:13:20Z",
+  "updated": "2026-10-26T08:50:26.725Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -26,6 +26,12 @@
 目标架构归[插件平台设计](plugin-platform-design.md)，验收归[架构需求](requirements/plugin-architecture-forms.md)和[导入需求](requirements/plugin-import-debug.md)，顺序及实施证据归[阶段计划](../planning/plugin-platform-roadmap.md)。全部未来能力不塞进首版 schema；示例只验证契约关系，不指定要交付哪项示范产品。
 
 首版支持中部／右侧／工作台／Island 隔离页面、声明式打开视图命令、工具箱／中部添加菜单／应用内快捷键、项目上下文、指定文件只读、插件 KV、提示和私有存储变更订阅。P3 增加工作台根视图、返回原界面和宿主绘制的 Island 状态／进度／徽标／动作及文本预览。P4 首片增加嵌入文件编辑器的只读 viewer 匹配、默认选择、失败回退及按文档绑定的隔离实例，具体契约见下节；普通 pane 仍为每作用域单实例。文件写入、目录遍历、任意后台 JS、页面直连网络、自定义模型后端、任意宿主命令、全局快捷键和通用多实例 pane 暂不支持，传入这些贡献或权限明确拒绝。P4 后续已支持版本化草稿交接、宿主审阅保存和写前冲突检查；持续编辑会话、原子事务与完整冲突验收仍待续。P6 已增加受限文本模型代发、按需读取的插件技能资源、顺序服务工作流及固定文件文档上下文，具体授权和预算见末节。
+
+## 单文件签名包导入
+
+主窗口管理接口增加无路径参数的 importPackage；仅由已验证主窗口顶层发起。宿主打开单选 .jxp 文件对话框并限量读取，取消返回 imported:false；成功返回 imported:true。选择的路径不从页面或插件传入。已安装页提供常驻导入按钮、忙碌反馈及本地化失败提示，导入后保持停用，再显式审阅权限及项目范围。开发目录的 linked／copied 入口及限制不变。
+
+新 jxp/2 包由固定头、32 KiB 内的签名发布描述和原压缩归档组成。发布描述中的 bytes／sha256 绑定内层归档，packageFormat 绑定新封装；目录展示及下载上限另计固定头和描述的实际 UTF-8 字节。在线安装核对包内描述与已签名目录条目一致；离线导入从包内取出描述，复用同一安装器、预置公钥、平台／API／宿主版本检查及 native signer allowlist，不访问目录或接受包内自授信公钥。原单文件／文件数／解压预算继续生效。旧 raw JXP 与签名目录仍可在线安装，新本地入口不接受缺描述的旧包或普通 ZIP。构建仍输出 release.json 供目录生成使用，用户只交付一个 .jxp；新包需要支持此封装的宿主。10-26 本地交付已在正常宿主预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist；私钥不进入 Git 或安装包。Release／目录尚未上线。实施及验证归[官方蓝图插件](../planning/blueprint-official-plugin.md#单文件包与本地导入)。
 
 ## 现有消费者与兼容改造
 
@@ -105,6 +111,10 @@ P3 是 API 1 的增量，旧清单保持合法。使用新位置的插件将相�
 
 工作台在主窗口内容区承载一个隔离根页面，插件自行组织内部导航。打开时保留中部和右侧 pane，记录此前工作台；返回按钮恢复此前有效界面和原入口焦点。项目／worktree 改变、停用或贡献撤销时关闭失效工作台；摘要重载可恢复同一有效视图，私有 KV 保留，页面局部状态不保证保留。不创建新原生窗口，不拼装他插件视图。
 
+工作台容器采用覆盖主窗口顶栏的全屏悬浮卡片框，宿主提供可拖动的关闭／项目选择标题卡，控件区域不触发拖动；插件内部维持自身已有布局。蓝图继续使用一条紧凑操作栏和左右卡片，不额外增加来源诊断行；内部弹层不进入宿主专用协议。主 Island 入口被工作台覆盖，若 Island 经宿主操作进入非折叠状态，则暂隐工作台外框和 native 内容，不销毁工作台实例；折叠后恢复。native 服务返回不属于公开错误集合的服务错误时，宿主映射 SOURCE_UNAVAILABLE 并保留脱敏错误码，不暴露任意异常正文。大图分片属于蓝图自身已声明 native 方法，不放宽通用协议 4 MiB 响应限制。
+
+同一工作台已有当前可见的工具箱入口时，不再自动生成顶栏图标；没有可见工具箱入口的工作台仍保留顶栏入口，遵循项目条件与菜单隐藏偏好。工作台切换器和分隔线共用这一筛选，避免只剩空分隔线。已打开的工具箱工作台条目显示“返回名称”和“已打开”，直接定位同一实例，不先清空 activeWorkbench，保留页面和返回目标；关闭仍走工作台自身按钮。相关 17 项既有定向回归、严格未用类型检查、修改文件 ESLint 与双语键检查通过。
+
 `contributes.island` 最多四项，每项包含 id、title、scope、可选 order 和至多三个本插件命令 ID 的 actions；重复 ID、悬空引用或不同作用域动作拒绝。声明需 `ui.island` 权限；动作还要求 `ui.views.open`，目标只能是本插件同 scope 的已声明视图。Island 不接受任意回调、HTML、图片 URL、样式、脚本或宿主命令。点击后主进程再次校验贡献、当前发布实例及 grants，不信任 renderer 自报目标。
 
 `island.update({id,status})` 需要 `ui.island`，返回 `{updated:boolean}`。status 为 null 时清除当前发布者状态，否则包含 title（1–80）、state（idle/running/success/warning/error），可选 description（1–240）、progress（0–100）、badge（1–12）和 preview。preview 仅包含 text（1–500）与最多四条 label（1–40）/value（1–120）文本行。文本拒绝控制符和双向覆盖符，以 React 文本绘制；更新不执行后台任务，也不获得额外文件权限。
@@ -173,7 +183,15 @@ scope=application 的字段仅能设置应用值；scope=project 允许在应用
 
 宿主展开对应表单、显示建议来源及待审阅字段，用户可修改后保存或重新读取以放弃。父层／本层在交接后被竞争修改时，保存继续使用交接修订，报 CONFIGURATION_CONFLICT 并保留编辑，不能用较新的读取结果自动覆盖修订。切项目／根或模式变化清除旧表单目标，重新读取不会重复灌入同一建议。待提交修改阻止再次进入自定义页；已交接草稿属于当前设置表单，关窗丢弃，不保证重启恢复，尚未交接的页面局部编辑仍随页面销毁而丢失。提交后的取消、确认丢失不撤回已交接内容，普通页面仍没有直接 setter。SDK 外部模板提供可独立构建的 JSON patch 编辑／重读与交接示例，作者可替换成业务表单。
 
-配置不存密钥。P5 已接通独立凭证槽与宿主代用，原始密钥不通过普通配置、日志或插件 UI 返回。复杂类型转换和历史恢复尚未实现，P4 仍不关闭。自定义页复用离线工作台和宿主审阅保存，保留一次交接的编辑边界；需要页面内连续保存或设置内嵌原生页时应另定确认与遮挡契约。
+配置不存密钥。P5 已接通独立凭证槽与宿主代用，原始密钥不通过普通配置、日志或插件 UI 返回。复杂类型转换和历史恢复尚未实现，P4 仍不关闭。configurationViews 自定义页复用离线工作台和宿主审阅保存，保留一次交接的编辑边界；设置内嵌页面使用下面的独立视图契约，不扩大此配置写入接口。
+
+### 应用设置内的插件页面
+
+`contributes.views` 新增 location=settings，需必需能力 views.settings 和 ui.views.open 权限，只接受 application／single。旧宿主缺少能力时拒绝加载。宿主从安装快照生成设置导航，官方来源无需开发模式，本地来源只在开发模式显示；只有授权启用后才显示，未安装或已安装未启用都不显示（只显示提示的空入口对用户无用，2026-10 由用户决定改为启用门控）。已启用但被阻断或出错时保留入口，只显示宿主提示和管理入口。安装不执行插件页面，停用或卸载立即撤下导航，当前选中页回到插件管理。启用后使用原有离线 WebContentsView、专用端口和失败重试外壳，不导入插件 React 到宿主。
+
+设置视图通过自有 open-view 命令、api.views.open 或管理页按钮定位应用设置，不改变工作台、项目或 Island 状态。重复请求也能切回目标页。页面上下文没有项目，不授予项目文件访问；它可消费自身已有授权接口，不强制声明普通配置字段，也不自动取得 configuration.propose 或 setter。视图声明参与授权指纹，新增或变更后需重新授权。
+
+设置弹窗提供一层遮挡租约，自己的原生设置页在入场结束后显示、离场开始即隐藏；其它对话或通知叠加遮挡时仍分离页面。切页、关闭、停用、重载及卸载释放端口与页面，重新打开从插件数据恢复；页面局部未保存状态仍随销毁丢失。此契约的代价是原生层需要显式同步边界和动画，不能仅靠 DOM z-index；真实 Electron 回归必须覆盖布局、叠加遮挡和资源清理。蓝图迁移与发布状态见[官方插件专项](../planning/blueprint-official-plugin.md)。
 
 ## P5 后台任务、网络与公开协作
 
@@ -186,6 +204,8 @@ P5 采用宿主声明式任务，不加载后台插件 JS。`scripts/probe-plugi
 `network.fetch` 必需能力及同名权限声明最多 16 个精确 HTTPS origin，不支持通配符、IP 字面量、非 443 端口或用户名密码。SDK network.fetch 和任务 request 均走主进程同一代理，页面 Session 保持离线／原 CSP，不开放 fetch、WebSocket 或 Node 直通。仅 GET／POST，POST 正文最多 32 KiB，不接受任意头、Cookie、客户端证书或传输选项。每跳重新检查 origin、DNS 和生命周期；仅支持公开 IPv4，混合私网／保留地址也拒绝，连接固定到已验证地址并保持原域名的 TLS／证书检查。最多 3 次同源 GET 重定向，跨 origin、POST 重定向、私网和未授权目标拒绝。请求 4 秒超时、每插件同时最多 2／每分钟 20 次、全局同时 16；正文最多 64 KiB，无自动重试。传输使用宿主独立 HTTPS 连接，不继承浏览器 Cookie、系统登录态或环境代理；显式代理、IPv6-only 服务、流式传输和其他认证方案另定增量。
 
 `contributes.credentials` 最多 16 个 `{id,title,origin}`，需 credentials.use 必需能力和权限，origin 必须在网络授权内。宿主输入 Bearer Token，按插件／application 或 project-root／slot／origin 独立加密落盘，不做项目层向应用层的隐式继承。safeStorage 不可用或 Linux 使用 basic_text 时拒绝保存／解密；读取只交付 configured 布尔值，没有 SDK 凭证 getter。替换／撤销前取消相关网络和任务；停用／卸载保留凭证，删除插件数据清除凭证及运行记录。普通配置、KV 和日志不承载凭证。调用只能指定自身已声明槽，同源注入 Authorization；凭证请求仅返回 HTTP status，body 与 contentType 为空，防止服务回显密钥。当前适用于认证动作与连接探测；需要认证响应正文、OAuth 刷新或响应投影时另定防泄漏契约，不将其宣称已支持。
+
+已授权的官方 native 服务可通过 `models.credential-status` 与 `models.credential-set` 宿主回调维护自身 application 槽，以支持插件内的行内设置。要求 models.generate 与 credentials.use 权限、manifest 已声明的槽，origin 由宿主查询，不接受调用方覆盖；值限 4096 个可打印非空白 ASCII 字符，空串表示清除。返回值仅含 configured，不提供凭据 getter，写入前复核启用状态并取消相关宿主网络及声明式任务。该回调不向普通隔离页面增加通用凭据 SDK；蓝图页面经自身已声明 native 方法提交输入，密钥不写普通草稿。
 
 公开事件 `contributes.events` 声明 id、整数 version、scope、data schema 和 consumers 插件白名单。公开服务 `contributes.services` 声明 id、version、task 和 consumers；服务输入为目标任务 input schema，输出固定为宿主 v1 PluginTaskRun 的状态／日志／受限结果，services.call 返回由消费者持有的 run id，可查询／取消。服务运行使用提供者自己的已授权能力；消费者无权读取提供者私有任务或存储。两者分别需要 events.public／services.public 必需能力和权限，消费者还需 consumes.events/services 的 plugin、id、version、schema 和可选 optional。双方版本、schema、范围与白名单须一致；缺少必需提供者阻止启用／调用，optional 不可用时发现降级，不能绕过调用检查。公开服务发现只列出当前实例可消费的匹配服务；不会注册 CLI、终端或任意 IPC。
 
@@ -497,3 +517,9 @@ P6 与 AC-15 按 Windows 开发构建中的声明式范围闭合：已有工具�
 显式重开仅恢复正常几何位置，按插件／视图／项目根或应用隔离，以哈希键保存到宿主 `plugins/window-layout.json`。保存校验坐标／尺寸，最多 128 条、64 KiB，串行原子写入；显示器变化时限制到当前可见工作区，损坏数据诊断后回退默认位置。业务数据继续使用私有 KV／配置；未保存页面内容、最小化／最大化状态和启动自动重开不恢复，布局不保存权限或内容。选择专用窗口位置而非任意 pane 脱离，是为复用既有页面授权与撤销边界；代价是既有文档／工作台不能直接拖成窗口。真实跨容器编辑需求出现时再增加迁移契约。
 
 作者接入见 [SDK 窗口指南](../../../packages/plugin-sdk/examples/window-views.md)，验证归 [P7 首片](../planning/plugin-platform-roadmap.md#p7-独立窗口首片交付)。主题／配置整合、角色／皮肤资源和对话局部贡献仍待后续，P7／AC-16 保持未完成；当前证据只覆盖 Windows 开发构建。
+
+## 插件绘制完整工作台框架
+
+workbench 视图可声明 frame=plugin，必须同时声明 views.workbench.frame 能力及 ui.views.open 权限；其它位置拒绝该字段。宿主省略自己的标题栏和内边距，原生离线页面绘制完整工作台，context.workbenchFrame 标识已授权声明。此契约解决 WebContentsView 无法与宿主标题控件正常重叠、导致旧蓝图两栏被拆开的实际问题；宿主默认框架仍适用于其它工作台。
+
+views.getFrame 另需 workspace.context.read，只返回最多 128 个已授权项目名称／ID 及当前 projectId，不提供路径。views.requestFrame 仅接受 close 或 selectProject（项目作用域且目标已授权）。服务在异步读取后复核授权，宿主处理事件时核对当前工作台、项目及根，迟到／撤销事件不导航；requested=true 只表示请求已转交。切项目沿用工作台作用域改变后关闭的现有生命周期。声明进入授权指纹，旧宿主不识别必需能力时拒绝加载；没有增加任意窗口控制或插件 ID 特判。验证入口为 plugin-runtime、plugin-surfaces 单元测试及 blueprint-plugin／blueprint-local Electron 回归。

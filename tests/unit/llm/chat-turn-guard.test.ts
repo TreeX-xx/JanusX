@@ -14,13 +14,9 @@ const { search, searchWithUser, recordAccess, recordProjectAccess, capture, stre
   capturePersonTurn: vi.fn(),
   capturePersonEpisode: vi.fn(),
 }))
-const { proposeForConversation, invalidateConversationProposal } = vi.hoisted(() => ({ proposeForConversation: vi.fn(), invalidateConversationProposal: vi.fn() }))
 const { readMemo, createMemo } = vi.hoisted(() => ({ readMemo: vi.fn(), createMemo: vi.fn() }))
 vi.mock('../../../src/main/memo/service', () => ({ memoStore: () => ({ get: readMemo, create: createMemo }) }))
-vi.mock('../../../src/main/janus/maintenance/service', () => ({ blueprintMaintenanceService: { proposeForConversation, invalidateConversationProposal } }))
 
-const repairs = vi.hoisted(() => ({ claim: vi.fn(), prompt: vi.fn(() => 'Fix selected Note only.'), continuation: vi.fn(), recordExecution: vi.fn(), finish: vi.fn(), fail: vi.fn((id, error, cancelled) => ({ id, phase: cancelled ? 'cancelled' : 'failed', error: String(error) })) }))
-vi.mock('../../../src/main/blueprint/review/runtime', () => ({ blueprintReviewRuntime: () => ({ repairs }) }))
 vi.mock('electron', () => ({ app: { getPath: () => '/tmp/janusx-test' } }))
 vi.mock('../../../src/main/knowledge/context-service', () => ({
   knowledgeContextService: { search, searchWithUser },
@@ -184,48 +180,21 @@ describe('chat turn guard (S6-a)', () => {
     expect(reply).toHaveBeenCalledWith('llm:chat:delta', expect.objectContaining({ delta: 'WorkflowX: xflow' }))
     expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: 'mode-switch' })
   })
-  it('shares proposal turn ownership, consumes steering once and streams the result through chat events', async () => {
-    let release!: () => void
-    proposeForConversation.mockReset().mockImplementationOnce(async () => {
-      await new Promise<void>((resolve) => { release = resolve })
-      return { id: 'task', phase: 'first proposal' }
-    }).mockResolvedValue({ id: 'task', phase: 'revised proposal' })
+  it.each(['maintenanceTaskId', 'noteRepairId'] as const)('rejects retired %s before model access and releases the conversation', async field => {
+    vi.mocked(llmService.getLanguageModel).mockClear()
     const reply = vi.fn()
-    const request = { requestId: 'proposal-1', conversationId: 'project-proposal', providerId: 'p', domain: 'project' as const, messages: userMessages, maintenanceTaskId: 'task' }
-    const turn = handleChatStream({ reply } as never, request)
-    await vi.waitFor(() => expect(proposeForConversation).toHaveBeenCalledTimes(1))
-    const competing = vi.fn()
-    await handleChatStream({ reply: competing } as never, { ...request, requestId: 'proposal-2' })
-    expect(competing).toHaveBeenCalledWith('llm:chat:error', expect.objectContaining({ error: expect.stringContaining('BUSY') }))
-    for (let index = 0; index < 9; index++) {
-      expect(steerChatStream({ conversationId: request.conversationId, entryId: `queued-${index}`, text: `Constraint ${index}` }).accepted).toBe(true)
-    }
-    expect(steerChatStream({ conversationId: request.conversationId, entryId: 'followup', text: 'Use the revised scope' }).accepted).toBe(true)
-    expect(steerChatStream({ conversationId: request.conversationId, entryId: 'followup', text: 'Use the revised scope' }).accepted).toBe(true)
-    expect(steerChatStream({ conversationId: request.conversationId, entryId: 'followup', text: 'Different content' }).accepted).toBe(false)
-    expect(steerChatStream({ conversationId: request.conversationId, entryId: 'overflow', text: 'Extra entry' }).error).toContain('full')
-    release()
-    await turn
-    expect(proposeForConversation).toHaveBeenCalledTimes(2)
-    expect(proposeForConversation.mock.calls[1][0].messages.at(-1).content).toBe('Use the revised scope')
-    expect(reply).toHaveBeenCalledWith('llm:chat:agent-event', expect.objectContaining({ type: 'maintenance_result', task: { id: 'task', phase: 'revised proposal' } }))
-    const types = reply.mock.calls.filter(call => call[0] === 'llm:chat:agent-event').map(call => call[1].type)
-    expect(types.indexOf('maintenance_result')).toBeLessThan(types.indexOf('stream_end'))
+    const request = { requestId: 'retired-' + field, conversationId: 'retired-' + field, providerId: 'p', domain: 'project' as const, sourceTag: 'janus-chat' as const, messages: userMessages, [field]: 'legacy-operation' }
+    await handleChatStream({ reply } as never, request)
+    expect(reply).toHaveBeenCalledWith('llm:chat:error', expect.objectContaining({ error: expect.stringContaining('BLUEPRINT_PLUGIN_REQUIRED') }))
+    expect(streamText).not.toHaveBeenCalled()
+    expect(llmService.getLanguageModel).not.toHaveBeenCalled()
+    expect(steerChatStream({ conversationId: request.conversationId, entryId: 'late', text: 'late' }).accepted).toBe(false)
+    immediateStream('Normal project conversation still works.')
+    await handleChatStream({ reply } as never, { ...request, requestId: request.requestId + '-normal', [field]: undefined })
+    expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: request.requestId + '-normal' })
+    expect(streamText).toHaveBeenCalledTimes(1)
   })
 
-  it('cancels a proposal through the ordinary chat stop route and releases its turn', async () => {
-    proposeForConversation.mockReset().mockImplementation(async ({ signal }: { signal: AbortSignal }) => {
-      await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
-      return 'cancelled'
-    })
-    const reply = vi.fn()
-    const turn = handleChatStream({ reply } as never, { requestId: 'proposal-cancel', conversationId: 'project-cancel', providerId: 'p', domain: 'project', messages: userMessages, maintenanceTaskId: 'task' })
-    await vi.waitFor(() => expect(proposeForConversation).toHaveBeenCalledTimes(1))
-    abortChatStream('proposal-cancel')
-    await turn
-    expect(reply).toHaveBeenCalledWith('llm:chat:agent-event', expect.objectContaining({ type: 'stream_end', cancelled: true }))
-    expect(steerChatStream({ conversationId: 'project-cancel', entryId: 'late', text: 'late' }).accepted).toBe(false)
-  })
   beforeEach(() => {
     vi.spyOn(configService, 'getExperimentalFeatures').mockResolvedValue({ ...DEFAULT_EXPERIMENTAL_FEATURES, memo: true })
     readMemo.mockReset()
@@ -517,65 +486,4 @@ describe('dual-gate tool surface (launch assistant)', () => {
     const policy = vi.fn(async () => undefined)
     expect(gateFromToolAllowlist(undefined, policy)).toBe(policy)
   })
-})
-
-// Twin: a repair stays subscribed beyond facade stream_end until host review completes.
-it('runs the dedicated continuation before closing the repair stream', async () => {
-  const id = 'repair-continuation', root = '/tmp/repair'
-  repairs.claim.mockResolvedValue({ id, context: { workspacePath: root, repoId: 'repo', branch: 'main' }, intent: 'repair', kind: 'suggestions', noteId: 'note', uri: 'note://repo/note', path: '.agents/notes/topic.md', title: 'Target', summaries: ['Issue'] })
-  repairs.continuation.mockReset().mockResolvedValueOnce('Continue the authorized correction using note.repair_write.').mockResolvedValue(undefined)
-  repairs.recordExecution.mockClear(); streamText.mockClear()
-  getSession.mockReturnValue({ sessionId: 'repair-session', workspace: { workspaceId: 'repair-ws', workspaceRoot: root }, status: 'running' })
-  immediateStream('Analysis only.')
-  repairs.finish.mockResolvedValue({ id, phase: 'unchanged', changed: false, error: 'No write submitted' })
-  const reply = vi.fn()
-  await handleChatStream({ reply } as never, { requestId: id, conversationId: id, providerId: 'p', domain: 'project', sourceTag: 'janus-chat', noteRepairId: id, messages: userMessages, workspaceResources: [{ agentSessionId: 'repair-session', workspaceId: 'repair-ws', workspacePath: root, workspaceName: 'Fixture' }] })
-  expect(streamText).toHaveBeenCalledTimes(2)
-  expect(JSON.stringify(streamText.mock.calls[1])).toContain('using note.repair_write')
-  expect(repairs.recordExecution).toHaveBeenLastCalledWith(id, 2, expect.stringContaining('Analysis only.'), [])
-  const events = reply.mock.calls.filter(([channel]) => channel === 'llm:chat:agent-event').map(([, event]) => event)
-  expect(events.filter(event => event.type === 'stream_end')).toHaveLength(1)
-  expect(events.findIndex(event => event.type === 'note_repair' && event.update.phase === 'unchanged')).toBeLessThan(events.findIndex(event => event.type === 'stream_end'))
-})
-
-it('keeps repair streaming through host verification, then publishes the outcome before stream_end', async () => {
-  repairs.finish.mockReset(); repairs.continuation.mockReset().mockResolvedValue(undefined)
-  const plan = { id: 'repair-plan', context: { workspacePath: '/tmp/repair', repoId: 'repo', branch: 'main' }, intent: 'repair', kind: 'suggestions', noteId: 'note', uri: 'note://repo/note', path: '.agents/notes/topic.md', title: 'Target', summaries: ['Issue'] }
-  repairs.claim.mockResolvedValue(plan)
-  getSession.mockReturnValue({ sessionId: 'repair-session', workspace: { workspaceId: 'repair-ws', workspaceRoot: '/tmp/repair' }, status: 'running' })
-  immediateStream('Adjusted the Note.')
-  let finish!: () => void
-  const gate = new Promise<void>(resolve => { finish = resolve })
-  repairs.finish.mockImplementation(async () => { await gate; return { id: plan.id, phase: 'resolved', changed: true, resolved: 1, remaining: 0 } })
-  const reply = vi.fn()
-  const turn = handleChatStream({ reply } as never, { requestId: 'repair-host-verify', conversationId: 'repair-conv', providerId: 'p', domain: 'project', sourceTag: 'janus-chat', noteRepairId: plan.id, messages: userMessages, workspaceResources: [{ agentSessionId: 'repair-session', workspaceId: 'repair-ws', workspacePath: '/tmp/repair', workspaceName: 'Fixture' }] })
-  await vi.waitFor(() => expect(repairs.finish).toHaveBeenCalled())
-  expect(reply.mock.calls.some(([, event]) => event?.type === 'stream_end')).toBe(false)
-  expect(reply.mock.calls.some(([, event]) => event?.type === 'note_repair' && event.update.phase === 'reviewing')).toBe(true)
-  finish(); await turn
-  const events = reply.mock.calls.filter(([channel]) => channel === 'llm:chat:agent-event').map(([, event]) => event)
-  expect(events.findIndex(event => event.type === 'note_repair' && event.update.phase === 'resolved')).toBeLessThan(events.findIndex(event => event.type === 'stream_end'))
-  expect(events.filter(event => event.type === 'stream_end')).toHaveLength(1)
-})
-
-it.each(['failure', 'cancel'] as const)('publishes repair %s with write evidence before ending the host stream', async mode => {
-  const id = 'repair-' + mode, root = '/tmp/repair'
-  repairs.claim.mockResolvedValue({ id, context: { workspacePath: root, repoId: 'repo', branch: 'main' }, intent: 'repair', kind: 'suggestions', noteId: 'note', uri: 'note://repo/note', path: '.agents/notes/topic.md', title: 'Target', summaries: ['Issue'] })
-  repairs.finish.mockReset()
-  repairs.finish.mockImplementation(async (_id, signal: AbortSignal) => {
-    if (mode === 'failure') throw new Error('Review unavailable')
-    await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('Cancelled')), { once: true }))
-  })
-  repairs.fail.mockImplementation((id, error, cancelled) => ({ id, phase: cancelled ? 'cancelled' : 'failed', changed: true, error: String(error) }))
-  getSession.mockReturnValue({ sessionId: 'repair-session', workspace: { workspaceId: 'repair-ws', workspaceRoot: root }, status: 'running' })
-  immediateStream('Note changed.')
-  const reply = vi.fn()
-  const turn = handleChatStream({ reply } as never, { requestId: id, conversationId: id, providerId: 'p', domain: 'project', sourceTag: 'janus-chat', noteRepairId: id, messages: userMessages, workspaceResources: [{ agentSessionId: 'repair-session', workspaceId: 'repair-ws', workspacePath: root, workspaceName: 'Fixture' }] })
-  if (mode === 'cancel') { await vi.waitFor(() => expect(repairs.finish).toHaveBeenCalled()); abortChatStream(id) }
-  await turn
-  const events = reply.mock.calls.filter(([channel]) => channel === 'llm:chat:agent-event').map(([, event]) => event)
-  const terminal = events.findIndex(event => event.type === 'note_repair' && event.update.phase === (mode === 'cancel' ? 'cancelled' : 'failed'))
-  expect(terminal).toBeGreaterThanOrEqual(0); expect(events[terminal].update.changed).toBe(true)
-  expect(terminal).toBeLessThan(events.findIndex(event => event.type === 'stream_end'))
-  expect(events.filter(event => event.type === 'stream_end')).toHaveLength(1)
 })

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 const graph = vi.hoisted(() => vi.fn())
 vi.mock('../../src/renderer/src/services/harness', () => ({ projectGraph: graph }))
 import { resolveMaintenanceContext } from '../../src/renderer/src/components/blueprint/maintenanceContext'

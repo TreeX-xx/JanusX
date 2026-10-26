@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-21T16:28:56Z",
+  "updated": "2026-10-24T17:01:29.510Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -60,6 +60,26 @@ The dock maps its local shell canvas, chrome, card and hover roles to tool-canva
 While expanded, right-rail icon hints prefer the left side and align with their own button, keeping the vertical control column clear. ThemedTooltip measures its rendered size before choosing a flipped position and clamping to an 8px viewport margin. Pointer input passes through all hints; pointerdown/click cancels visible and pending hints, while keyboard focus still explains controls. Scroll, resize and Escape also cancel pending timers. Git commit previews now follow the same non-blocking policy: leaving the row dismisses immediately, the preview does not capture pointer input or scroll, and clicking a commit expands its file details in the panel. Changing the active tool or workspace dismisses Git previews. The trade-off is that hover previews are bounded summaries; longer content is read in the expanded row. These behaviors are covered in tests/e2e/right-tool-tooltips.spec.ts with actual rail controls, long edge hints, keyboard focus and a clickable control underneath the Git preview in planche/dark. Verification: 4 browser cases pass across the tooltip and palette files, along with typecheck, scoped ESLint, theme:check, 47 planche/right-tool-state/theme-audit unit cases and check:notes (0 errors; 17 existing external-link diagnostics). Browser IPC uses fallbacks; live Electron behavior was not tested.
 
 ThemedTooltip subscribes to global scroll, resize, pointerdown and Escape only while a hint is pending or visible, then removes those listeners on dismissal. This preserves cancellation during the delay without installing four global listeners for every idle instance. Both theme cases in `tests/e2e/right-tool-tooltips.spec.ts` pass after this lifecycle change; packaged long-session latency remains unmeasured.
+
+## Click-switch layout and persistence verification, 2026-10-24
+
+The panel shell still animates its width, but its content host now takes the destination width immediately, minus the shell's two border pixels. The host stays right-aligned and clipped by the shell, including viewport-bounded transient previews. This restores the intended one-width content layout: the former `width: 100%` made lists and text reflow on every width-animation frame. The workspace grid still interpolates, so center terminal/editor resize work is outside this fix.
+
+Right-tool persistence skips identical serialized synchronous writes after the first successful write and invalidates that cache on storage removal. Width changes remain immediately durable; asynchronous storage retains its original behavior. Expand/collapse commands also skip an already-matching app state. The existing 100ms activation window and local-state retention remain unchanged.
+
+Both regressions failed before the fix: content deviated up to 260px during animated switches, and eight Git/files round trips caused 16 duplicate preference writes. Afterward content stays within 1px of its destination and unchanged preferences cause no extra writes.
+
+## Real workspace switch profiling, 2026-10-25
+
+Retained hidden RoundtableStage previously polled geometry on every frame; the baseline CPU profile attributed 39.8 seconds to its getBoundingClientRect calls. IntersectionObserver and document visibility now stop hidden polling, and visible polling reads all geometry before writing labels. Git file rows use memoized complete file-field/action comparison, so both tool activation and unchanged background status snapshots reuse rows. Files render in groups of 16 with content-visibility:auto, while commit history skips offscreen row layout and shares its date formatter. This retains DOM/accessibility and native scrolling; estimated group heights are remembered after layout. Revisit batching if variable-height file rows are introduced. A 500-file browser regression reaches and stages the last row after switching and verifies a genuine status change still renders.
+
+External OpenCode discovery was a second, independent cause: synchronous historical answer queries blocked the Electron main thread for up to 5315ms. Reverse latest-answer lookup and per-session event-loop yielding are owned by [OpenCode discovery](../sessions/records/opencode-session-driver.md). Hidden animation suspension alone did not resolve large Git transitions; repeated real profiles drove the row-layout and rendering fixes.
+
+Six complete runs each perform 600 seeded random switches in real Electron against the actual JanusX workspace, with normal file/Git/provider IPC and background services. The final run loads 459 changed files, 100 commits and 171 workspace sessions (200 registered, 20 list cards), with 9770 DOM nodes. Baseline versus final: renderer long tasks 165 -> 0, frame intervals over 50ms 172 -> 1, over 100ms 34 -> 0, maximum frame interval 159.6 -> 55.2ms, click-to-next-frame P95 213.3 -> 135.9ms and maximum 266.7 -> 152.5ms. Git alone improves P95 232.4 -> 140.2ms. The final 339-second sample includes 24 Git status reads and 15 external scans. All 600 switches complete.
+
+The next-frame metric observes aria-pressed commit followed by rAF, includes the existing 100ms activation window, and does not measure physical compositor presentation. A 55ms frame remains. Main-thread startup Note indexing still blocks up to 1000ms; after the first 30 seconds its measured maximum is 277ms. This does not claim zero jank with live terminal output, populated knowledge stores, larger pathological sessions, or other machine load. The test uses an isolated app profile and copied session registry with real provider stores; no active terminal process or personal knowledge corpus is loaded. Unrelated workspace edits continue during runs, so dataset sizes vary. The installed application is not replaced.
+
+Reproduce with `npx electron-vite build --outDir artifacts/right-switch-build-verified`, set `NO_PROXY=127.0.0.1,localhost` and `RIGHT_SWITCH_BUILD=artifacts/right-switch-build-verified`, then `node scripts/probe-right-tool-switch.mjs artifacts/right-switch-recheck 600`. Evidence is local at `artifacts/right-switch-performance-report.md` and `artifacts/right-switch-live-{before,after,final,grouped,memo,verified}` (summaries, measurements, both CPU profiles and screenshots). Unit suites pass 65 cases; final Git/layout/tooltip browser suites pass 6 cases, with the preceding hover/motion/rail/roundtable suite passing 19. Build and scoped lint pass; the final typecheck reports unrelated unknown result destructuring in `plugins/blueprint/src/main/janus/maintenance/service.ts`.
 
 ## Alternatives considered
 

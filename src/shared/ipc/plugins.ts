@@ -9,13 +9,14 @@ export interface PluginConfigurationState extends PluginConfiguration {
 export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
 export interface InstalledPlugin {
   manifest: PluginManifest
-  source: { kind: 'linked' | 'copied'; directory: string }
+  source: { kind: 'linked' | 'copied' | 'official'; directory: string; publisher?: string }
   digest: string
   enabled: boolean
   projects: string[]
   state: 'disabled' | 'blocked' | 'ready' | 'loading' | 'active' | 'error'
   error?: string
   failures: number
+  previousVersion?: string
   runtime?: { pages: number; connected: number; ready: number }
 }
 export interface PluginLog { time: string; pluginId?: string; instanceId?: string; method?: string; code: string; duration?: number }
@@ -23,7 +24,12 @@ export interface PluginIslandEntry {
   pluginId: string; id: string; instanceId: string; projectId: string | null; rootId: string | null
   status: PluginIslandStatus; createdAt: number
 }
-export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[]; island?: PluginIslandEntry[]; tasks?: PluginTaskRun[] }
+export interface PluginCatalogEntry { id: string; name: string; description: string; version: string; publisher: string; bytes: number; compatible: boolean }
+export interface PluginDistributionSnapshot {
+  configured: boolean; entries: PluginCatalogEntry[]; expiresAt?: string; expired?: boolean; error?: string
+  operation?: { id: string; percent: number; phase: 'downloading' | 'installing' }
+}
+export interface PluginHostSnapshot { developmentMode: boolean; plugins: InstalledPlugin[]; logs: PluginLog[]; island?: PluginIslandEntry[]; tasks?: PluginTaskRun[]; distribution?: PluginDistributionSnapshot }
 export interface PluginMount { instanceId: string; binding: string; url: string; context: PluginContext }
 export interface PluginBounds { x: number; y: number; width: number; height: number }
 export type PluginManageRequest =
@@ -34,10 +40,12 @@ export type PluginManageRequest =
   | { type: 'windowOpen'; id: string; view: string; projectId: string | null; scopePath: string | null }
   | { type: 'windowCover'; covered: boolean }
   | { type: 'list' }
+  | { type: 'catalogRefresh' | 'installCancel' | 'importPackage' }
+  | { type: 'installOfficial'; id: string }
   | { type: 'development'; enabled: boolean }
   | { type: 'import'; kind: 'linked' | 'copied' }
   | { type: 'enable'; id: string; projects: string[] }
-  | { type: 'disable' | 'reload' | 'uninstall' | 'deleteData'; id: string }
+  | { type: 'disable' | 'reload' | 'uninstall' | 'deleteData' | 'rollback'; id: string }
   | { type: 'context'; projectId: string | null; scopePath: string | null; locale: string; theme: { id: string; tokens: Record<string, string> } }
   | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null; document?: PluginDocument; instanceKey?: string }
   | { type: 'close' | 'devtools'; instanceId: string; binding: string }

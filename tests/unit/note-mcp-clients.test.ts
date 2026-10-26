@@ -2,8 +2,8 @@ import { afterEach, beforeEach, expect, it } from 'vitest'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
-import { NoteMcpClients } from '../../src/main/blueprint/mcp/clients'
-import { clientEntry, updateClientConfig } from '../../src/main/blueprint/mcp/client-config'
+import { NoteMcpClients } from '../../plugins/blueprint/src/main/blueprint/mcp/clients'
+import { clientEntry, updateClientConfig } from '../../plugins/blueprint/src/main/blueprint/mcp/client-config'
 
 let root: string, service: NoteMcpClients
 beforeEach(async () => {

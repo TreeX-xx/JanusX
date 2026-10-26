@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
 import { createSocket } from 'node:dgram'
+import { build } from 'esbuild'
 import { createServer as createTcpServer } from 'node:net'
 import { createDesktopTestEnv, seedIntroducedLearning } from './desktop-test-env'
 
@@ -38,6 +39,7 @@ async function settings(page: Page) {
 }
 async function importDirectory(app: ElectronApplication, page: Page, source: string, copied = false) {
   await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, source)
+  await page.getByRole('tab', { name: 'Developer', exact: true }).click()
   await page.getByRole('button', { name: copied ? 'Install directory copy' : 'Link development directory', exact: true }).click()
 }
 async function rawCall(frame: Frame | Page, method: string, params: unknown) {
@@ -82,6 +84,112 @@ async function openDetails(page: Page) {
   await page.locator('button[data-id="tool-menu"]').click()
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
+
+test('installed settings pages follow activation, modal bounds, nested covers and uninstall', async ({}, testInfo) => {
+  const root = await mkdtemp(join(tmpdir(), 'janusx-plugin-settings-'))
+  let app: ElectronApplication | undefined
+  try {
+    const id = 'example.settings-page'
+    const source = join(root, 'plugin'); await mkdir(join(source, 'dist'), { recursive: true })
+    const manifest = {
+      schemaVersion: 1, id, name: 'Settings lifecycle fixture', version: '1.0.0', engines: { pluginApi: '^1.0.0' },
+      capabilities: { required: ['views.settings', 'commands.openView', 'storage.kv', 'ui.toast', 'context.project'], optional: [] },
+      permissions: [{ name: 'ui.views.open' }, { name: 'plugin.storage' }, { name: 'ui.toast' }, { name: 'workspace.context.read' }],
+      contributes: {
+        views: [{ id: 'settings', title: 'Fixture settings', entry: 'dist/settings.html', location: 'settings', scope: 'application', instancePolicy: 'single' }],
+        commands: [{ id: 'open-settings', title: 'Open fixture settings', action: { type: 'openView', view: 'settings' } }],
+        menus: [{ location: 'toolbox', command: 'open-settings', when: 'always' }],
+      },
+    }
+    await writeFile(join(source, 'manifest.json'), JSON.stringify(manifest))
+    await writeFile(join(source, 'dist/settings.html'), '<!doctype html><html><body><h1 id="status">Loading</h1><label>Label<input id="label"></label><button id="save">Save fixture</button><script type="module" src="./settings.js"></script></body></html>')
+    await build({ stdin: { contents: `import { connectPlugin } from './packages/plugin-sdk/src/client.ts';
+      const api = await connectPlugin(); window.settingsApi = api;
+      const input = document.querySelector('#label');
+      input.value = (await api.storage.get({ key: 'label' })).value ?? '';
+      document.querySelector('#save').onclick = async () => {
+        await api.storage.set({ key: 'label', value: input.value }); document.querySelector('#status').textContent = 'Saved';
+      };
+      document.querySelector('#status').textContent = 'Settings ready';`, resolveDir: process.cwd() },
+      bundle: true, format: 'esm', platform: 'browser', outfile: join(source, 'dist/settings.js') })
+    const booted = await boot(root); app = booted.app; const page = booted.page
+    await settings(page)
+    const navigation = page.locator(`[data-tab="extension:${id}/settings"]`)
+    await expect(navigation).toHaveCount(0)
+    await importDirectory(app, page, source)
+    expect(await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))).toMatchObject({ ok: true })
+    // Installed but not enabled: no settings entry and no plugin page.
+    await expect(navigation).toHaveCount(0)
+    await expect(page.locator('[data-plugin-native]')).toHaveCount(0)
+    await page.locator('[data-tab="plugins"]').click()
+    await page.locator(`[data-plugin-id="${id}"]`).getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    await page.getByRole('region', { name: 'Review permissions and scope' }).getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await navigation.click()
+    let frame = await guest(app, '/dist/settings.html')
+    await expect(frame.locator('#status')).toHaveText('Settings ready')
+    expect(await frame.evaluate(() => (window as any).settingsApi.workspace.getContext())).toMatchObject({ project: null })
+    const attached = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children
+      .filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:'))
+      .map(child => ({ url: (child as any).webContents.getURL(), bounds: child.getBounds() })))
+    await expect.poll(async () => (await attached()).length).toBe(1)
+    const rect = await page.locator('[data-plugin-native]').boundingBox()
+    const bounds = (await attached())[0].bounds
+    expect(rect).not.toBeNull()
+    for (const key of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(bounds[key] - rect![key])).toBeLessThanOrEqual(2)
+    expect(bounds.width).toBeGreaterThan(200); expect(bounds.height).toBeGreaterThan(100)
+    await frame.locator('#label').fill('Retained settings')
+    await frame.locator('#save').click(); await expect(frame.locator('#status')).toHaveText('Saved')
+    await frame.evaluate(() => (window as any).settingsApi.ui.showToast({ message: 'Settings cover fixture' }))
+    await expect(page.getByRole('status').filter({ hasText: 'Settings cover fixture' })).toBeVisible()
+    await expect.poll(async () => (await attached()).length).toBe(0)
+    await expect.poll(async () => (await attached()).length, { timeout: 10_000 }).toBe(1)
+    await page.screenshot({ path: testInfo.outputPath('plugin-settings.png') })
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect.poll(() => frame.isClosed()).toBe(true)
+    await expect.poll(async () => (await attached()).length).toBe(0)
+    await page.locator('button[data-id="tool-menu"]').click()
+    await page.getByRole('menuitem', { name: 'Open fixture settings', exact: true }).click()
+    await expect(navigation).toHaveAttribute('aria-current', 'page')
+    frame = await guest(app, '/dist/settings.html')
+    await expect(frame.locator('#label')).toHaveValue('Retained settings')
+    await expect.poll(async () => (await attached()).length).toBe(1)
+    // The same settings command must navigate again even when its initial tab is unchanged.
+    await page.locator('[data-tab="general"]').click()
+    await expect.poll(() => frame.isClosed()).toBe(true)
+    await page.locator('[data-tab="plugins"]').click()
+    await page.locator(`[data-plugin-id="${id}"]`).getByRole('button', { name: 'Fixture settings', exact: true }).click()
+    await expect(navigation).toHaveAttribute('aria-current', 'page')
+    frame = await guest(app, '/dist/settings.html')
+    await expect(frame.locator('#label')).toHaveValue('Retained settings')
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect.poll(() => frame.isClosed()).toBe(true)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.locator('button[data-id="tool-menu"]').click()
+    await page.getByRole('menuitem', { name: 'Open fixture settings', exact: true }).click()
+    frame = await guest(app, '/dist/settings.html')
+    await expect(frame.locator('#label')).toHaveValue('Retained settings')
+    await expect.poll(async () => (await attached()).length).toBe(1)
+    expect(await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), id)).toMatchObject({ ok: true })
+    // Disabling withdraws the entry; the selected page falls back to plugin management.
+    await expect(navigation).toHaveCount(0)
+    await expect(page.locator('[data-plugin-settings-page]')).toHaveCount(0)
+    await expect(page.locator('[data-tab="plugins"]')).toHaveAttribute('aria-current', 'page')
+    await expect.poll(() => frame.isClosed()).toBe(true)
+    expect(await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), id)).toMatchObject({ ok: true })
+    await expect(navigation).toBeVisible()
+    await navigation.click()
+    frame = await guest(app, '/dist/settings.html')
+    await expect(frame.locator('#label')).toHaveValue('Retained settings')
+    expect(await page.evaluate(id => (window as any).electron.plugins.request({ type: 'uninstall', id }), id)).toMatchObject({ ok: true })
+    await expect(navigation).toHaveCount(0)
+    await expect(page.locator('[data-plugin-settings-page]')).toHaveCount(0)
+    await expect(page.locator('[data-tab="plugins"]')).toHaveAttribute('aria-current', 'page')
+    await expect.poll(() => frame.isClosed()).toBe(true)
+    await expect.poll(async () => (await attached()).length).toBe(0)
+  } finally { await close(app); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
 
 test('P7 palette-only plugins require review, persist selection, shield settings and fall back on revocation', async () => {
   const root = await mkdtemp(join(tmpdir(), 'janusx-palette-desktop-')); let app: ElectronApplication | undefined
@@ -650,6 +758,27 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('application')
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Reference')
     await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Global label')
+    // Scope switches and closing Settings must preserve each unsaved draft independently.
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Reference')
+    await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Project draft')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('application')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Global label')
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-plugin-settings]')).toBeHidden()
+    await settings(page)
+    await card.getByText('Configuration', { exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Global label')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Project draft')
+    await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Project draft')
+    await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Reference')
+    await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('application')
+    await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Global label')
     await form.getByRole('checkbox', { name: 'Show details', exact: true }).uncheck()
     await form.getByRole('spinbutton', { name: 'Item limit', exact: true }).fill('101')
     await expect(form.getByRole('button', { name: 'Save configuration', exact: true })).toBeDisabled()
@@ -682,6 +811,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await expect(form.getByRole('alert')).toContainText('Configuration changed elsewhere')
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('My pending change')
     await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Other editor')
     await close(app); app = undefined
     booted = await boot(f.root); app = booted.app; page = booted.page
@@ -692,6 +822,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
     await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
     await form.getByRole('button', { name: 'Reset this scope', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect(details.locator('#configuration')).toContainText('Global label')
     await page.keyboard.press('Escape')
     await page.getByText('P4a Settings B', { exact: true }).filter({ visible: true }).first().click()
@@ -700,6 +831,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await settings(page); card = page.locator(`[data-plugin-id="${pluginId}"]`)
     await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
     await form.getByRole('button', { name: 'Reset this scope', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect((await guest(app, '/dist/index.html')).locator('#configuration')).toContainText('Reference')
   } finally { await close(app); await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
 })
@@ -763,6 +895,7 @@ test('P4a isolated custom settings propose edits for host review and keep applic
     await expect(form.getByRole('alert')).toContainText('Configuration changed elsewhere')
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Custom app')
     await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Concurrent app')
     await expect(form.getByText('This plugin proposed these changes.', { exact: false })).toHaveCount(0)
     expect((await read(workspace.id, f.project)).values.label).toBe('Custom project')
@@ -802,6 +935,7 @@ test('P4a users review and explicitly migrate renamed configuration independentl
     manifest.contributes.settings[0].title = 'Reference name'
     manifest.contributes.settingMigrations = [{ from: 'label', to: 'name' }]
     await writeFile(manifestPath, JSON.stringify(manifest))
+    await card.getByText('Advanced actions and diagnostics', { exact: true }).click()
     await card.getByRole('button', { name: 'Reload', exact: true }).click()
     const input = form.getByRole('textbox', { name: 'Reference name', exact: true })
     await expect(input).toHaveValue('Reference')
@@ -810,6 +944,7 @@ test('P4a users review and explicitly migrate renamed configuration independentl
     await input.fill('Pending edit')
     await expect(form.getByRole('button', { name: 'Apply compatible migrations', exact: true })).toBeDisabled()
     await form.getByRole('button', { name: 'Reload configuration', exact: true }).click()
+    await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
     await form.getByRole('button', { name: 'Apply compatible migrations', exact: true }).click()
     await expect(input).toHaveValue('Project old')
     await expect(form.getByRole('button', { name: 'Apply compatible migrations', exact: true })).toHaveCount(0)
@@ -1274,8 +1409,10 @@ test('external packed SDK plugin completes import, grant, both views, scoped sto
     await expect(card).toContainText('Disabled')
     const blocked = await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), pluginId)
     expect(blocked).toMatchObject({ ok: false, code: 'DEVELOPMENT_MODE_REQUIRED' })
+    await page.getByRole('tab', { name: 'Developer', exact: true }).click()
     await page.getByRole('checkbox', { name: 'Enable local development mode', exact: true }).click()
     await expect(page.getByRole('checkbox', { name: 'Enable local development mode', exact: true })).toBeChecked()
+    await page.getByRole('tab', { name: /^Installed/ }).click()
     await card.getByRole('button', { name: 'Review permissions and scope' }).click()
     await page.getByRole('region', { name: 'Review permissions and scope' }).getByRole('checkbox', { name: 'P2 Project A' }).check()
     await page.getByRole('region', { name: 'Review permissions and scope' }).getByRole('checkbox', { name: 'P2 Project B' }).check()
@@ -1343,6 +1480,7 @@ test('external packed SDK plugin completes import, grant, both views, scoped sto
     await settings(page)
     await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(0)
     const beforeManualReload = (await guest(app, '/dist/index.html')).url()
+    await card.getByText('Advanced actions and diagnostics', { exact: true }).click()
     await card.getByRole('button', { name: 'Reload', exact: true }).click()
     await expect.poll(() => app!.context().pages().some(candidate => candidate.url().startsWith('janusx-plugin:') && candidate.url().endsWith('/dist/index.html') && candidate.url() !== beforeManualReload)).toBe(true)
     await card.getByText('Entries and shortcuts', { exact: true }).click()

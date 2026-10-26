@@ -1,3 +1,5 @@
+import type { WorkspaceRuntime } from '../workspace-runtime'
+
 export const WORKSPACE_CHANNELS = {
   initialize: 'app:init',
   list: 'workspace:list',
@@ -24,7 +26,6 @@ export const FILE_CHANNELS = {
   save: 'file:save',
   readBinary: 'file:readBinary',
   stat: 'file:stat',
-  sourceFiles: 'file:sourceFiles',
   openHtmlPreview: 'file:html-preview:open', updateHtmlPreview: 'file:html-preview:update', closeHtmlPreview: 'file:html-preview:close',
   openPreviewLink: 'file:preview:open-link',
 } as const
@@ -61,6 +62,7 @@ export interface Workspace {
   id: string
   name: string
   path: string
+  runtime?: WorkspaceRuntime
   clis: CLIConfig[]
   layout: LayoutConfig
   lastTerminalType?: TerminalPreset
@@ -86,6 +88,7 @@ export interface FileNode {
 export interface WorkspaceCreateInput {
   name: string
   path: string
+  runtime?: WorkspaceRuntime
 }
 
 export type WorkspaceUpdates = Record<string, unknown>
@@ -103,6 +106,7 @@ export interface OperationResult {
 }
 
 export interface FileReadResult {
+  version?: string
   content?: string
   encoding?: 'utf-8'
   size?: number
@@ -131,18 +135,6 @@ export interface FileSaveResult {
   error?: string
   conflict?: boolean
   version?: string
-}
-
-export interface WorkspaceSourceFile {
-  path: string
-  content: string
-  language: 'typescript' | 'javascript'
-}
-
-export interface WorkspaceSourceFilesResult {
-  files: WorkspaceSourceFile[]
-  truncated: boolean
-  error?: string
 }
 
 export interface WorkspaceAPI {
@@ -178,5 +170,4 @@ export interface FileAPI {
   save(filePath: string, content: string, expectedVersion?: string): Promise<FileSaveResult>
   readBinary(filePath: string): Promise<FileBinaryResult>
   stat(filePath: string): Promise<FileStatResult>
-  sourceFiles(workspacePath: string): Promise<WorkspaceSourceFilesResult>
 }

@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { isEnvironmentInjectionText } from './transcript-kernel'
+import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import type {
   AgentSessionDetail,
   AgentSessionStatus,
@@ -31,6 +32,7 @@ export interface AgentSessionRecord extends AgentSessionDetail {
 }
 
 export interface ImportExternalSessionInput {
+  workspaceId?: string
   engine: string
   cwd: string
   providerSessionId: string
@@ -242,6 +244,8 @@ export class AgentSessionRegistry {
             .filter((terminal) => typeof terminal.cwd === 'string' && terminal.cwd)
             .slice(0, MAX_RESTORE_TERMINALS)
             .map((terminal) => ({
+              ...(typeof terminal.id === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(terminal.id) ? { id: terminal.id } : {}),
+              ...(typeof terminal.shell === 'string' ? { shell: terminal.shell.slice(0, 4096) } : {}),
               cwd: terminal.cwd,
               preset: typeof terminal.preset === 'string' ? terminal.preset : 'shell',
               name: typeof terminal.name === 'string' ? terminal.name.slice(0, 80) : 'shell',
@@ -498,11 +502,12 @@ export class AgentSessionRegistry {
    */
   private sameConversation(
     hookRow: AgentSessionRecord,
-    scanRow: Pick<AgentSessionRecord, 'external' | 'engine' | 'providerSessionId' | 'transcriptPath'>,
+    scanRow: Pick<AgentSessionRecord, 'external' | 'engine' | 'providerSessionId' | 'transcriptPath' | 'cwd'>,
   ): boolean {
     if (hookRow.external === true) return false
     if (scanRow.external !== true) return false
     if (hookRow.engine !== scanRow.engine) return false
+    if (parseRuntimeResource(hookRow.cwd)?.workspaceId !== parseRuntimeResource(scanRow.cwd)?.workspaceId) return false
     if (hookRow.providerSessionId && hookRow.providerSessionId === scanRow.providerSessionId) {
       return true
     }
@@ -582,6 +587,16 @@ export class AgentSessionRegistry {
     this.notify(record.id)
   }
 
+  /** Process exit is lifecycle evidence, not an invented provider conversation turn. */
+  noteProcessExit(terminalId: string, exitCode: number): void {
+    const record = this.recordForTerminal(terminalId)
+    if (!record) return
+    record.status = exitCode === 0 ? 'done' : 'failed'
+    record.updatedAt = new Date().toISOString()
+    this.persist()
+    this.notify(record.id)
+  }
+
   detachTerminal(terminalId: string): void {
     this.terminalToSession.delete(terminalId)
     this.persist()
@@ -630,13 +645,15 @@ export class AgentSessionRegistry {
 
     const scanIdentity = {
       external: true as const,
+      cwd,
       engine,
       providerSessionId,
       transcriptPath,
     }
     const existing =
       Array.from(this.sessions.values()).find(
-        (record) => record.engine === engine && record.providerSessionId === providerSessionId,
+        (record) => record.engine === engine && record.providerSessionId === providerSessionId
+          && parseRuntimeResource(record.cwd)?.workspaceId === parseRuntimeResource(cwd)?.workspaceId,
       ) ??
       // A hook-owned row may know the transcript before it learns the provider
       // id, or never learn it at all. Match on either shared key so the same
@@ -729,7 +746,7 @@ export class AgentSessionRegistry {
 
     const record: AgentSessionRecord = {
       id: randomUUID(),
-      workspaceId: '',
+      workspaceId: input.workspaceId ?? '',
       engine,
       cwd,
       branch: undefined,
@@ -906,6 +923,7 @@ function toSummary(record: AgentSessionRecord): AgentSessionSummary {
 }
 
 function normalizeCwd(value: string): string {
+  if (parseRuntimeResource(value)) return value.replace(/\/+$/g, '')
   return value.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
 }
 

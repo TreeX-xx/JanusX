@@ -5,28 +5,28 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-15T10:09:28.858Z",
+  "updated": "2026-10-26T05:30:18Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
   "moduleState": "partial",
   "codeRefs": [
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/main/notes/note-to-blueprint.ts",
+      "path": "plugins/blueprint/src/main/notes/note-to-blueprint.ts",
       "role": "entry"
     },
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/renderer/src/features/blueprint/architecture-view.ts",
+      "path": "plugins/blueprint/src/ui/graph/architecture-view.ts",
       "role": "implementation"
     },
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/renderer/src/features/blueprint/module-browsing.ts",
+      "path": "plugins/blueprint/src/ui/graph/module-browsing.ts",
       "role": "implementation"
     },
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/renderer/src/components/blueprint/BlueprintCanvas.tsx",
+      "path": "plugins/blueprint/src/ui/Graph.tsx",
       "role": "implementation"
     }
   ]
@@ -42,6 +42,10 @@
 ## Design
 
 工作台首次打开时默认收起 Janus 对话栏，优先呈现正文与画布；点击 Janus 入口、起草或建议修复交接时再展开第三列。顶部工具栏常驻搜索、状态与类型筛选、适应画布、节点详情和数据来源；未关联根节点切换、恢复布局、撤销恢复及保存状态收进“更多”。浮层支持键盘、Escape 和外部关闭；保存失败仍在工具栏直接提示。工具栏和 Janus 入口使用主题中性底色、细边框及统一紧凑控件，减少重复身份与装饰强调。
+
+插件迁移沿用原全屏卡片布局，覆盖主界面顶栏；插件通过通用 views.workbench.frame 契约绘制原第一栏的项目选择、更新／建议、审核活动、Janus 和关闭按钮，宿主执行经过授权的关闭／切项目请求，不再叠加标题卡。第二栏保留搜索、状态／类型筛选及画布控件，设置、刷新和历史导航收进“更多”。左侧标题固定、正文独立滚动，右侧固定 Janus 标题和底部输入区，中间滚动显示讨论与修改预览。来源诊断在第二栏弹层，更新／建议／自动审核在第一栏弹层，展开不改变画布位置；初始化或来源异常且无图时仍保留可见诊断。图数据更新保留同 ID 节点已测量的尺寸，避免设置遮挡及返回后节点持续隐藏。首次读取保留骨架屏与画布加载动画；卡片使用原 180ms 间隔／260ms 时长，节点按原 CSS 索引依次显现，关闭按 60ms 反向错峰并遵循减少动画设置。右侧采用原最简输入框，模型与维护范围折叠，讨论业务继续运行于插件。左侧已恢复原目录、章节折叠、关联预览及正文前折叠审核卡；更新／建议恢复原搜索、模块筛选和上下篇列表。加载态的来源诊断同样收进工具栏。原文操作与宿主聊天渲染仍有迁移差异，实际范围及验证由[官方插件专项](../../planning/blueprint-official-plugin.md#已确认的迁移回退与首次加载故障)维护。
+
+中部画布沿用原模块卡片、文件分组、连线和浏览条，恢复 24px 点阵、主题对应背景、0.05–4 倍缩放、底部图例、空模块提示和右键节点详情；模块页不显示 React Flow 默认缩放按钮及缩略图，非模块图在不超过 250 节点时保留原缩略图。模块适配最高 1 倍、padding 0.2，左右卡片改变可用空间后等待尺寸稳定再适配，避免节点裁切；同范围选择不重复重放旧视口，以免覆盖随后的缩放。单击重新打开左侧正文阅读，双击以第一次点击的节点为准，避免阅读卡展开引发布局移动后进入错误模块。模块返回仍恢复历史选择和视口。
 
 蓝图保留现有模块页、原文预览与关系详情。用户已取消独立“关系图谱”展示：视图切换、全局关系投影、关系筛选与 1–2 跳邻域控件及其专用测试已移除，不作为待交付功能。原始 Note 的显式关系、现有画布连线和关系详情继续使用共同来源。此选择减少第二套浏览入口和交互状态；若未来有模块浏览无法解决的明确检索需求，再单独评估。
 

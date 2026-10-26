@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Pin, PinOff, X } from 'lucide-react'
-import type { BlueprintMaintenanceTask } from '../../../../shared/janus/maintenance-types'
 import type { SubAgentRun } from '../../../../shared/subAgentRun'
 import type { AgentResultCard } from '../../../../shared/roundtable/events'
 import type { RoundtableState } from '../../../../shared/roundtable/events'
@@ -56,16 +55,11 @@ interface JanusIslandExpandedShellProps extends Pick<JanusIslandProps,
   onRequestAuxiliaryClose?: () => void
   mode: 'sleep' | 'order' | 'analytics' | 'running'
   janusRunning: boolean
-  activeNode: boolean
-  activeNodeTitle: string
   workspaceLabel: string
   modeLabel: string
   modeColor: string
   statusText: string
-  maintenanceTask: BlueprintMaintenanceTask | null
-  onOpenMaintenance: () => void
-  onCancelMaintenance: (taskId: string) => void
-  onOpenBlueprintWorkbench: () => void
+  onOpenPlugins: () => void
   /** Expanded-stage notification surface (Note: island-hifi-optimized-alignment.md). */
   notifications: IslandNotification[]
   bannerNotification: IslandNotification | null
@@ -81,10 +75,9 @@ interface JanusIslandExpandedShellProps extends Pick<JanusIslandProps,
 }
 
 export function JanusIslandExpandedShell({
-  stage, view, setView, mode, janusRunning, activeNode, activeNodeTitle,
+  stage, view, setView, mode, janusRunning,
   parchmentOpen, parchmentDetailOpen, onToggleParchment, onOpenParchmentDetail,
-  workspaceLabel, modeLabel, modeColor, statusText, maintenanceTask,
-  onOpenMaintenance, onCancelMaintenance, onOpenBlueprintWorkbench,
+  workspaceLabel, modeLabel, modeColor, statusText, onOpenPlugins,
   onOpenAgentResult,
   onOpenQuestionsDetail,
   onRoundtableStateChange,
@@ -170,7 +163,7 @@ export function JanusIslandExpandedShell({
   const previewIdentity = previewRun ? roleIdentity(previewRun.role) : 'main'
   const previewState = previewIdentityState(previewRun)
   const previewIdentitySpec = getJanusAgentIdentity(previewIdentity)
-  const monitorTitle = previewRun?.title ?? activeTerminal?.name ?? activeNodeTitle
+  const monitorTitle = previewRun?.title ?? activeTerminal?.name ?? workspaceLabel
   const monitorStatusText = previewRun
     ? `${runEngineLabel(previewRun, t)} // ${t(SUBAGENT_STATUS_KEY[previewRun.status])}`
     : activeTerminal
@@ -207,7 +200,7 @@ export function JanusIslandExpandedShell({
       setParticles([])
       return
     }
-    const active = activeNode || mode === 'analytics' || janusRunning
+    const active = mode === 'analytics' || janusRunning
     const speed = active ? 200 : 800
     const spawn = () => {
       const id = ++particleIdRef.current
@@ -219,7 +212,7 @@ export function JanusIslandExpandedShell({
     }
     const interval = window.setInterval(spawn, speed)
     return () => window.clearInterval(interval)
-  }, [activeNode, janusRunning, mode, stage])
+  }, [janusRunning, mode, stage])
 
   return (
             <div className="janus-expanded-shell">
@@ -365,7 +358,7 @@ export function JanusIslandExpandedShell({
                   </button>
                 </div>
               ) : null}
- 
+
               <div className="janus-expanded-body">
                 {pluginActionFailure && <p role="alert">{pluginActionFailure}</p>}
                 {stage === 'expanded' && selectedPlugin && <section className="plugin-island-tool" data-plugin-island-tool={selectedPlugin.id}>
@@ -405,7 +398,7 @@ export function JanusIslandExpandedShell({
                           <div className="janus-status-text">{monitorTitle}</div>
                         </div>
                       </div>
-    
+
                       <div className="janus-monitor-stats">
                         <div className="janus-monitor-stat">
                           <span>{t('janus:island.expanded.identityLabel')}</span>
@@ -501,13 +494,13 @@ export function JanusIslandExpandedShell({
                               </button>
                             ))
                           )}
-    
+
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-    
+
                 <div className={view === 'roundtable' ? 'janus-roundtable-view' : 'janus-roundtable-view janus-roundtable-view--hidden'}>
                   <JanusRoundtablePane
                     embedded
@@ -563,7 +556,7 @@ export function JanusIslandExpandedShell({
                   toolTraces={toolTraces}
                 /></div>
               </div>
-    
+
               <div className="janus-expanded-bottombar">
                 <div className="janus-expanded-caption">
                   <span>{t('janus:island.expanded.captionJanus')}</span>
@@ -571,20 +564,8 @@ export function JanusIslandExpandedShell({
                   <span>{statusText}</span>
                 </div>
                 <div className="janus-expanded-actions">
-                  {maintenanceTask ? (
-                    <>
-                  <button type="button" className="janus-expanded-action-button" onClick={onOpenMaintenance}>
-                        {t('janus:island.expanded.openMaintenance')}
-                      </button>
-                      {(maintenanceTask.status === 'analyzing' || maintenanceTask.status === 'draft') ? (
-                    <button type="button" className="janus-expanded-action-button" onClick={() => onCancelMaintenance(maintenanceTask.id)}>
-                          {t('janus:island.expanded.cancelAnalysis')}
-                        </button>
-                      ) : null}
-                    </>
-                  ) : null}
-              <button type="button" className="janus-expanded-action-button" onClick={onOpenBlueprintWorkbench}>
-                    {t('janus:island.expanded.openBlueprint')}
+              <button type="button" className="janus-expanded-action-button" onClick={onOpenPlugins}>
+                    {t('janus:island.expanded.openPlugins')}
                   </button>
                 </div>
               </div>

@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronUp } from 'lucide-react'
+import { useCallback, useEffect } from 'react'
+import { ChevronUp, Puzzle } from 'lucide-react'
 import { useAppStore, BLACKBOARD_MIN_HEIGHT, saveBlackboardHeight } from '@/stores/app'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { useI18n } from '@/i18n/useI18n'
-import { BlueprintView } from '../blueprint/BlueprintView'
-import { BlueprintDetailPortalContext } from '../blueprint/blueprintDetailPortal'
+import { useExtensionViews } from '@/extensions/react'
+import { BUILTIN_RIGHT_EXTENSIONS } from '@/extensions/builtins'
+import { openExtensionView } from '@/extensions/workbench'
+import { openPluginManager } from '@/extensions/plugin-configuration-navigation'
 import './island-blackboard.css'
 
 /* ════════════════════════════════════════════════════════════
@@ -12,17 +15,18 @@ import './island-blackboard.css'
 
    形态：中部工作区列内的上带。下拉手势把主工作区下滑让位，
    板在空出的上带里长出——不是从顶部盖下的卷帘，也不碰左右栏架。
-   板面复用蓝图界面（BlueprintView）：画布节点可交互点击查看，
-   左侧详情槽显示内容；不带右侧对话，不设文件钉。
+   板面只列出已启用插件的入口；页面由各自宿主槽位打开，
+   避免复制插件实例或在未安装时加载旧蓝图。
    ════════════════════════════════════════════════════════════ */
 
 export function IslandBlackboard() {
-  const { t } = useI18n('janus')
+  const { t } = useI18n(['janus', 'plugins'])
   const blackboardHeight = useAppStore((s) => s.blackboardHeight)
   const blackboardDrag = useAppStore((s) => s.blackboardDrag)
   const setBlackboardHeight = useAppStore((s) => s.setBlackboardHeight)
-  const [detailPortalNode, setDetailPortalNode] = useState<HTMLDivElement | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
+  const activeWorkspaceId = useWorkspaceStore(s => s.activeWorkspaceId)
+  const views = useExtensionViews().filter(view => view.location !== 'settings'
+    && !BUILTIN_RIGHT_EXTENSIONS.some(builtin => builtin.definition.id === view.extensionId))
 
   /*-- 拖拽预览跟手；落点/收起用 settled 高度 --*/
   const dragging = blackboardDrag !== null
@@ -85,6 +89,9 @@ export function IslandBlackboard() {
         <>
           <header className="bb-bar">
             <span className="bb-title">{t('janus:blackboard.title')}</span>
+            <button type="button" className="bb-manage" onClick={() => { close(); openPluginManager() }}>
+              {t('janus:blackboard.managePlugins')}
+            </button>
             <button
               type="button"
               className="bb-collapse"
@@ -97,18 +104,26 @@ export function IslandBlackboard() {
           </header>
 
           <div className="bb-slot">
-            <div className="bb-blueprint-row">
-              <BlueprintDetailPortalContext.Provider value={detailPortalNode}>
-                <div
-                  ref={setDetailPortalNode}
-                  className="bb-detail-slot"
-                  data-open={detailOpen ? 'true' : 'false'}
-                />
-                <div className="bb-canvas-slot">
-                  <BlueprintView density="workbench" onDetailOpenChange={setDetailOpen} />
-                </div>
-              </BlueprintDetailPortalContext.Provider>
-            </div>
+            <p className="bb-hint">{t(views.length ? 'janus:blackboard.pluginHint' : 'janus:blackboard.pluginsEmpty')}</p>
+            {views.length > 0 && <div className="bb-plugins">
+              {views.map(view => {
+                const Icon = view.icon ?? Puzzle
+                const needsProject = view.scope === 'project' && !activeWorkspaceId
+                return <button
+                  key={view.id}
+                  type="button"
+                  className="bb-plugin"
+                  disabled={needsProject}
+                  aria-label={t('janus:blackboard.openView', { title: view.title })}
+                  title={needsProject ? t('janus:blackboard.needsProject') : view.title}
+                  onClick={() => { if (openExtensionView(view.id)) close() }}
+                >
+                  <Icon size={16} aria-hidden="true" />
+                  <span>{view.title}</span>
+                  <span className="bb-plugin-action">{t(needsProject ? 'janus:blackboard.needsProject' : 'plugins:open')}</span>
+                </button>
+              })}
+            </div>}
           </div>
 
           <div

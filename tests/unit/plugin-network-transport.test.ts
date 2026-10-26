@@ -32,7 +32,10 @@ it('P5 production TLS transport pins the address, validates certificates, bounds
     const bundle = join(directory, 'network.cjs')
     const sdk = join(directory, 'sdk.ts')
     await writeFile(sdk, `export {PluginError} from ${JSON.stringify(absolute('packages/plugin-sdk/src/errors.ts'))}; export {networkRequestSchema} from ${JSON.stringify(absolute('packages/plugin-sdk/src/background.ts'))};`)
-    await build({ entryPoints: ['src/main/plugins/network.ts'], alias: { '@janusx/plugin-sdk': sdk }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, logLevel: 'silent' })
+    await build({ entryPoints: ['src/main/plugins/network.ts'], alias: {
+      '@janusx/plugin-sdk/native': absolute('packages/plugin-sdk/src/native.ts'),
+      '@janusx/plugin-sdk': sdk,
+    }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, logLevel: 'silent' })
     const source = `const {pluginNetworkTransport: io}=require(process.argv[1]); const origin=process.argv[2];
       (async()=>{let denied;try {await io.send(new URL(origin+'/ok'),'127.0.0.1',{},undefined,new AbortController().signal)}catch(error){denied=error.code}
       if(process.env.P5_UNTRUSTED){console.log(JSON.stringify({denied}));return}

@@ -155,6 +155,17 @@ describe('Janus IPC contract', () => {
     expect(exposed).not.toHaveProperty('on')
   })
 
+  it('rejects retired maintenance commands before invoking a host service', async () => {
+    for (const [name, channel] of Object.entries(JANUS_COMMAND_CHANNELS)) {
+      if (!name.startsWith('maintenance') && name !== 'dispatchComposeBrief') continue
+      await expect(handler(channel)({}, {})).rejects.toThrow('BLUEPRINT_PLUGIN_REQUIRED')
+    }
+    expect(mocks.maintenanceStart).not.toHaveBeenCalled()
+    expect(mocks.maintenanceApply).not.toHaveBeenCalled()
+    expect(mocks.maintenanceList).not.toHaveBeenCalled()
+    expect(mocks.maintenanceAuditList).not.toHaveBeenCalled()
+  })
+
   it('routes every command through the fixed API with exact argument order', async () => {
     const createInput = { name: 'demo', rootType: 'epic' as const }
     const updatePatch = { name: 'renamed' }
@@ -247,7 +258,7 @@ describe('Janus IPC contract', () => {
     ])
   })
 
-  it('preserves focus and bind forwarding, results, and analyzer side effects', async () => {
+  it('preserves focus and bind results without scheduling host analysis', async () => {
     const focused = { id: 'focused-node' }
     const bound = { id: 'bound-node' }
     mocks.focusNode.mockResolvedValueOnce(focused).mockResolvedValueOnce(null)
@@ -257,11 +268,8 @@ describe('Janus IPC contract', () => {
       handler(JANUS_COMMAND_CHANNELS.focusNode)(undefined, 'C:\\repo', 'node-1')
     ).resolves.toBe(focused)
     expect(mocks.focusNode).toHaveBeenNthCalledWith(1, 'C:\\repo', 'node-1')
-    expect(mocks.registerNodeWorkspace).toHaveBeenCalledWith('focused-node', 'C:\\repo')
-    expect(mocks.scheduleAnalyze).toHaveBeenCalledWith('focused-node', {
-      workspacePath: 'C:\\repo',
-      trigger: 'reconcile',
-    })
+    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
+    expect(mocks.scheduleAnalyze).not.toHaveBeenCalled()
 
     mocks.registerNodeWorkspace.mockClear()
     mocks.scheduleAnalyze.mockClear()
@@ -285,7 +293,7 @@ describe('Janus IPC contract', () => {
       'node-1',
       'terminal-1'
     )
-    expect(mocks.registerNodeWorkspace).toHaveBeenCalledWith('bound-node', 'C:\\repo')
+    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
 
     mocks.registerNodeWorkspace.mockClear()
     await expectNoRegister(() =>
@@ -298,7 +306,7 @@ describe('Janus IPC contract', () => {
     )
   })
 
-  it('registers nodes created directly, from candidates, and from discoveries', async () => {
+  it('keeps compatibility writes without registering nodes in a host analyzer', async () => {
     const created = { id: 'created-node' }
     const accepted = { id: 'accepted-node' }
     const discovered = { id: 'discovered-node' }
@@ -376,11 +384,7 @@ describe('Janus IPC contract', () => {
       },
       'root-node'
     )
-    expect(mocks.registerNodeWorkspace.mock.calls).toEqual([
-      ['created-node', 'C:\\repo'],
-      ['accepted-node', 'C:\\repo'],
-      ['discovered-node', 'C:\\repo'],
-    ])
+    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
 
     mocks.registerNodeWorkspace.mockClear()
     mocks.createNode.mockResolvedValue(null)
@@ -405,37 +409,13 @@ describe('Janus IPC contract', () => {
     )
   })
 
-  it('returns manual analysis results without capturing engineering observations', async () => {
-    const result = {
-      id: 'analysis-1',
-      applied: true,
-      error: undefined,
-      result: {
-        summary: 'Completed work',
-        confidence: 0.9,
-        progress: 80,
-        status: 'testing',
-      },
-    }
-    mocks.analyzeNode.mockResolvedValueOnce(result).mockResolvedValueOnce(null)
+  it('redirects retired analysis before starting a host model or observation', async () => {
     const payload = { nodeId: 'node-1', workspacePath: 'C:\\repo', commitLimit: 3 }
 
     await expect(
       handler(JANUS_COMMAND_CHANNELS.analyze)(undefined, payload)
-    ).resolves.toBe(result)
-    expect(mocks.analyzeNode).toHaveBeenNthCalledWith(1, 'node-1', {
-      workspacePath: 'C:\\repo',
-      trigger: 'manual',
-      commitLimit: 3,
-    })
-    // The analyzer is engineering activity: the memory reorientation retired its capture
-    // path, so a successful analysis records nothing and a null result records nothing.
-    expect(mocks.capture).not.toHaveBeenCalled()
-
-    mocks.capture.mockClear()
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.analyze)(undefined, payload)
-    ).resolves.toBeNull()
+    ).rejects.toThrow('BLUEPRINT_PLUGIN_REQUIRED')
+    expect(mocks.analyzeNode).not.toHaveBeenCalled()
     expect(mocks.capture).not.toHaveBeenCalled()
   })
 

@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 
 const mocks = vi.hoisted(() => ({ load: vi.fn() }))
 vi.mock('@/services/blueprint', () => ({ loadBlueprint: mocks.load, listBlueprintSummaries: vi.fn(), focusNode: vi.fn() }))

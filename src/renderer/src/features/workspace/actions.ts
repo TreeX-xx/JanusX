@@ -154,6 +154,12 @@ export async function reloadWorkspaceDirectory(workspacePath: string, path: stri
 }
 
 export async function chooseAndCreateWorkspace(): Promise<Workspace | null> {
+  if (window.electron.workspaceRuntime) {
+    const { openWorkspaceImport } = await import('@/components/WorkspaceImport')
+    const workspace = await openWorkspaceImport()
+    if (workspace) invalidateEditorFileCache(workspace.path)
+    return workspace
+  }
   const result = await window.electron.dialog.openDirectory()
   const folderPath = result.filePaths[0]
   if (result.canceled || !folderPath) return null

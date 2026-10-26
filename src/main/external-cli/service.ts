@@ -6,6 +6,7 @@ import type {
   ExternalCliApplyResult,
   ExternalCliDetectResult,
   ExternalCliInstallResult,
+  ExternalCliInstallOptions,
   ExternalCliLatestResult,
   ExternalCliSyncState,
   ExternalCliToolId,
@@ -17,11 +18,13 @@ import type {
 import type { ExternalCliRollbackResult } from '../../shared/ipc/external-cli'
 import { AuthType } from '@janusx/llm-core'
 import { llmConfigStore } from '../llm/ConfigStore'
-import { getExternalCliTool } from './tool-registry'
+import { getExternalCliTool, OPENCODE_PACKAGES } from './tool-registry'
 import type { ExternalCliToolDescriptor } from './tool-registry'
 import { CliDetector } from './cli-detector'
 import { CliInstaller } from './installer'
 import { fetchLatestVersion } from './latest'
+import { compareCliVersions, isExternalCliInstallOptions, openCodeChannel } from '../../shared/ipc/external-cli'
+import { fetchOpenCodeVersions } from './opencode-releases'
 import { ClaudeSettingsApplier, claudeSettingsApplier } from './settings-applier'
 import { isModelTerminal, terminalModelUnsupported, terminalProjectors, type TerminalProjectors } from './terminal-projectors'
 import { ExternalCliSyncStateStore, externalCliSyncStateStore } from './sync-state'
@@ -31,7 +34,7 @@ import { ExternalCliSyncStateStore, externalCliSyncStateStore } from './sync-sta
 export interface ExternalCliService {
   detect(toolId: ExternalCliToolId): Promise<ExternalCliDetectResult>
   latest(toolId: ExternalCliToolId): Promise<ExternalCliLatestResult>
-  install(toolId: ExternalCliToolId): Promise<ExternalCliInstallResult>
+  install(toolId: ExternalCliToolId, options?: ExternalCliInstallOptions): Promise<ExternalCliInstallResult>
   applyProvider(toolId: ExternalCliToolId, providerId: string | null): Promise<ExternalCliApplyResult>
   syncState(): Promise<ExternalCliSyncState>
   rollbackProfile(): Promise<ExternalCliRollbackResult>
@@ -93,6 +96,7 @@ export class DefaultExternalCliService implements ExternalCliService {
       }
     },
   })
+  private installing = false
 
   constructor(
     private readonly detectors: Partial<Record<ExternalCliToolId, CliDetector>> = {},
@@ -101,6 +105,7 @@ export class DefaultExternalCliService implements ExternalCliService {
     private readonly resolveLlmCredentials: (providerId: string | null) => Promise<ExternalCliLlmCredentials | null> = defaultResolveLlmCredentials,
     installer?: CliInstaller,
     private readonly projectors: TerminalProjectors = terminalProjectors,
+    private readonly openCodeVersions: typeof fetchOpenCodeVersions = fetchOpenCodeVersions,
   ) {
     if (installer) this.installer = installer
   }
@@ -121,6 +126,10 @@ export class DefaultExternalCliService implements ExternalCliService {
   async latest(toolId: ExternalCliToolId): Promise<ExternalCliLatestResult> {
     const tool = getExternalCliTool(toolId)
     if (!tool) return { toolId }
+    if (toolId === 'opencode') {
+      const versions = await this.openCodeVersions()
+      return { toolId, versions }
+    }
     // 自有工具的“最新”即 sibling 源码版本号；取不到（打包后）则未知，不阻塞卡片。
     if (tool.latestStrategy === 'local-source') {
       const source = await this.installer.locateLocalSource(tool)
@@ -145,20 +154,53 @@ export class DefaultExternalCliService implements ExternalCliService {
     }
   }
 
-  async install(toolId: ExternalCliToolId): Promise<ExternalCliInstallResult> {
-    const tool = getExternalCliTool(toolId)
+  async install(toolId: ExternalCliToolId, options?: ExternalCliInstallOptions): Promise<ExternalCliInstallResult> {
+    let tool = getExternalCliTool(toolId)
     if (!tool) return { toolId, success: false, error: 'Unsupported tool.' }
-    // 全局忙守卫：npm -g 并发写会互相破坏，串行是硬性要求。
-    if (this.installer.isBusy()) return { toolId, success: false, error: 'Another install is already running.' }
-    if (toolId === 'codex') await this.healBrokenCodex(tool)
-    const outcome = await this.installer.install(tool)
-    if (!outcome.success) return { toolId, success: false, command: outcome.command, error: outcome.error }
-    // 安装后重探：展示=实际运行，绝不凭 exit 0 断言成功。
-    const probe = await this.detectorFor(toolId).detect()
-    if (!probe.runnable || !probe.version) {
-      return { toolId, success: false, command: outcome.command, error: probe.hint ?? `Install finished but ${tool.displayName} is not runnable.` }
+    if (options !== undefined && (toolId !== 'opencode' || !isExternalCliInstallOptions(options))) {
+      return { toolId, success: false, error: 'Invalid install options.' }
     }
-    return { toolId, success: true, command: outcome.command, version: probe.version }
+    // 全局忙守卫：npm -g 并发写会互相破坏，串行是硬性要求。
+    if (this.installing || this.installer.isBusy()) return { toolId, success: false, error: 'Another install is already running.' }
+    this.installing = true
+    try {
+      let version: string | undefined
+      let replace: ExternalCliToolDescriptor | undefined
+      if (toolId === 'opencode') {
+        const current = await this.detectorFor(toolId).detect()
+        const currentChannel = openCodeChannel(current.version)
+        // An unversioned existing binary must not silently cross release lines.
+        const channel = options?.channel ?? (current.installed ? currentChannel : 'v2')
+        if (!channel) return { toolId, success: false, error: 'OpenCode version is unknown. Choose a release line explicitly.' }
+        if (currentChannel === 'v2' && channel === 'v1') {
+          return { toolId, success: false, error: 'Switching back to OpenCode v1 is not supported by this update action.' }
+        }
+        version = options?.version ?? (await this.openCodeVersions())[channel]
+        if (!version || !isExternalCliInstallOptions({ channel, version })) {
+          return { toolId, success: false, error: 'The selected OpenCode release is unavailable. Refresh and retry.' }
+        }
+        if (currentChannel === channel && current.version && compareCliVersions(version, current.version) < 0) {
+          return { toolId, success: false, error: 'Refusing to downgrade OpenCode. Refresh and retry.' }
+        }
+        tool = { ...tool, npmPackage: OPENCODE_PACKAGES[channel], manualInstallCommand: `npm i -g ${OPENCODE_PACKAGES[channel]}@${version}` }
+        // npm packages share the same opencode shim; inspect/remove the v1 package on v2 installs.
+        if (channel === 'v2' && currentChannel !== 'v2') replace = { ...tool, npmPackage: OPENCODE_PACKAGES.v1 }
+      }
+      if (toolId === 'codex') await this.healBrokenCodex(tool)
+      const outcome = version ? await this.installer.install(tool, version, replace) : await this.installer.install(tool)
+      if (!outcome.success) return { toolId, success: false, command: outcome.command, error: outcome.error }
+      // 安装后重探：展示=实际运行，绝不凭 exit 0 断言成功。
+      const probe = await this.detectorFor(toolId).detect()
+      if (!probe.runnable || !probe.version) {
+        return { toolId, success: false, command: outcome.command, error: probe.hint ?? `Install finished but ${tool.displayName} is not runnable.` }
+      }
+      if (version && probe.version !== version) {
+        return { toolId, success: false, command: outcome.command, error: `Installed OpenCode ${version}, but the active command reports ${probe.version} (${probe.path ?? 'unknown path'}). Check PATH and restart the terminal.` }
+      }
+      return { toolId, success: true, command: outcome.command, version: probe.version }
+    } finally {
+      this.installing = false
+    }
   }
 
   async applyProvider(toolId: ExternalCliToolId, providerId: string | null): Promise<ExternalCliApplyResult> {

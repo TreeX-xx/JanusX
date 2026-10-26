@@ -30,7 +30,7 @@
       "target": "note://62b44166-82f0-41ff-838d-e2b02388ed06/ac75da81-9c0e-4ad2-964b-4919d924fe0e"
     }
   ],
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-10-25T03:58:12.226Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
   "repositories": {
     "primary": "972afef3-2fc7-49de-a3ee-7e041225d28c",
@@ -49,7 +49,9 @@
 
 ## Decision
 
-agentX 拥有通用工程开发能力，Janus 通过共享包复用。Note 创建与结构化编辑由 harness-core 提供，读取缓存、事务、监听、共享导入和撤销由 harness-node 提供。Janus 的 HarnessNoteService 继承 NoteService，只叠加蓝图组合、画布布局和视图状态。artifact-producer、Note provider、索引增量更新和撤销模块直接导出共享实现，notes-cli 也消费同一 Note 创建逻辑。
+agentX 拥有通用工程开发能力，Janus 通过共享包复用。Note 创建与结构化编辑由 harness-core 提供，读取缓存、事务、监听、共享导入和撤销由 harness-node 提供。Janus 的 HarnessNoteService 直接继承 NoteService，保留并发读取合并和空闲预热，不再导入蓝图插件。Note provider、索引增量更新和撤销模块直接导出共享实现；artifact-producer 仍兼容蓝图字段翻译，notes-cli 消费同一 Note 创建逻辑。
+
+蓝图投影、组合、画布布局与折叠状态由 plugins/blueprint/src/main/notes/projection.ts 持有。插件的 BlueprintNoteService 将自身共享引擎接入这一投影；桌面旧入口通过 src/main/blueprint/note-service.ts 将同一 harnessNoteService 的索引、版本和证据覆盖接入投影。旧维护流程通过窄接口委托回这一实例，不建立第二份桌面 Note 缓存、监听或事务服务。该适配仍将蓝图代码编入旧宿主消费者；只有共享服务入口已脱离插件，主包拆分继续由[官方插件计划](../planning/blueprint-official-plugin.md)跟踪。
 
 HarnessNoteService 的兼容函数导出通过共享模块命名空间上的本地常量绑定提供。`assertNoLocalLeak`、`claimsHarnessSchema` 和 `stripRemoteCreds` 与 agentX 导出的函数保持对象身份一致。当前主进程打包链路在动态导入命名空间时，会为直接转导出的外部函数生成缺少导入的引用，造成模块求值阶段的 ReferenceError；本地常量绑定使生成的命名空间具有真实运行时值。类型检查与构建成功不能替代产物加载验证。
 
@@ -78,5 +80,7 @@ xdo 采用回执提示，不把提示消失等同于完整验收。委派模式�
 验证包括 Janus 的 harness-service、harness-note-index-patch、harness-share-import、harness-undo、note-chat、command-tools、git-tools、janus-agent-ports、managed-chat-session 和 janus-runtime-state，共 101 项通过。追加的蓝图维护与 harness 分组有 221 项通过、1 项按环境跳过，裸模式切换与记忆召回回归也通过。千 Note 场景的 projectView 实测约 3.3 秒，位于原测试预算内。严格未使用检查与生产构建验证宿主接线；共享层测试证据见 agentX 决策。
 
 `tests/unit/harness-bundle-load.test.ts` 使用仓库的开发与生产主进程配置，实际打包含静态和动态服务导入的入口，再用原生 Node ESM 加载产物并校验共享函数身份。开发产物还通过 Electron 的 `scripts/dev-entry.mjs --smoke-test=module-graph` 检查，成功标记为 `[module-graph-smoke] ok`；此检查使用隔离用户目录且不打开应用窗口。SQLite 的 ExperimentalWarning 不影响模块加载检查的成功退出。
+
+当前服务拆分的产物加载测试还检查两种构建的模块图都不包含 plugins/blueprint；这只证明共享服务入口的边界，不代表整个应用已排除蓝图。shared-note-service 的三项真实文件测试覆盖冷读合并、预热版本稳定、外部更新与写入冲突、投影复用及失败后重试；与维护、共享导入、撤销、Note 对话和读取分组共 15 文件 172 项通过，命令与后续完整应用验证归官方插件计划。
 
 `npx vitest run tests/unit/harness-bundle-load.test.ts tests/unit/harness-service.test.ts tests/unit/harness-share-import.test.ts tests/unit/harness-s9-acceptance.test.ts --maxWorkers=1 --minWorkers=1`：25 项通过，包含开发与生产配置下的两项产物加载测试。

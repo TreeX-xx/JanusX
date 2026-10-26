@@ -1,4 +1,6 @@
 import type { Terminal, TerminalPreset } from '@/types'
+import { ensureRemoteAgent } from './remote-agent-setup'
+import { parseRuntimeResource } from '../../../shared/workspace-runtime'
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
@@ -132,6 +134,9 @@ export function terminalBootLabel(preset: TerminalPreset): string {
 }
 
 export interface LaunchTerminalPresetOptions {
+  /** Existing remote identity, paired with attachOnly to prevent task reruns. */
+  terminalId?: string
+  attachOnly?: boolean
   preset: TerminalPreset
   workspaceId: string
   workspacePath: string
@@ -194,17 +199,18 @@ export async function launchTerminalPreset(
   if (!workspaceId || !workspacePath) return null
 
   const cwd = cwdOverride ?? workspacePath
+  const remote = Boolean(parseRuntimeResource(cwd))
 
   // Enter UI immediately with a warm cache or instant platform fallback.
   // Resolve the real default shell in parallel so create still gets the correct value.
-  const shellPromise = ensureDefaultShell()
-  const shell = cachedDefaultShell ?? fallbackShell()
+  const shellPromise = remote ? Promise.resolve('/bin/sh') : ensureDefaultShell()
+  const shell = remote ? '/bin/sh' : cachedDefaultShell ?? fallbackShell()
   // 普通终端才需要条目：默认项或本次临时选择；CLI 预留给 null 避免多余 IPC。
-  const profilesPromise = preset === 'shell' && !shellCommand ? loadShellProfiles() : null
+  const profilesPromise = !remote && preset === 'shell' && !shellCommand ? loadShellProfiles() : null
 
-  const terminalId = crypto.randomUUID()
+  const terminalId = options.terminalId ?? crypto.randomUUID()
   // Subscribe before spawn: the created event may arrive before create resolves.
-  const createdPromise = initialInput ? waitForTerminalCreated(terminalId) : null
+  let createdPromise = initialInput && (!remote || preset === 'shell' || options.attachOnly) ? waitForTerminalCreated(terminalId) : null
   const presetMeta = getTerminalPresetMeta(preset)
   const autoCommand = resolveTerminalLaunchCommand(preset)
   const telemetryStartedAt = Date.now()
@@ -246,8 +252,11 @@ export async function launchTerminalPreset(
   const geometry = await waitForTerminalGeometry(terminalId)
 
   try {
+    if (remote && preset !== 'shell' && !options.attachOnly && !await ensureRemoteAgent(terminal)) return null
+    if (initialInput && !createdPromise) createdPromise = waitForTerminalCreated(terminalId)
     const launchProgram = resolveTerminalLaunchProgram(preset)
     const result = await window.electron.terminal.create({
+      attachOnly: options.attachOnly,
       id: terminalId,
       workspaceId,
       cwd,
@@ -314,11 +323,12 @@ async function runRetryTerminalCreate(terminalId: string): Promise<boolean> {
   })
 
   const [shell, geometry] = await Promise.all([
-    ensureDefaultShell(),
+    parseRuntimeResource(terminal.cwd) ? Promise.resolve('/bin/sh') : ensureDefaultShell(),
     waitForTerminalGeometry(terminalId),
   ])
 
   try {
+    if (parseRuntimeResource(terminal.cwd) && terminal.preset !== 'shell' && !await ensureRemoteAgent(terminal)) return false
     const launchProgram = resolveTerminalLaunchProgram(terminal.preset)
     const result = await window.electron.terminal.create({
       id: terminalId,

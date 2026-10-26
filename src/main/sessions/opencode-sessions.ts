@@ -1,6 +1,7 @@
 // Note: opencode sqlite backfill plus detail reads — see
 // .agents/notes/sessions/records/opencode-session-driver.md
 import { DatabaseSync } from 'node:sqlite'
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import type { TranscriptTurn } from '../../shared/ipc/session'
 import { TRANSCRIPT_TURN_CAP, truncateTranscriptText } from './transcript-reader'
 
@@ -137,7 +138,7 @@ function messagesOf(database: DatabaseSync, sessionId: string, limit: number): M
  * count resolved per session. One bad session never fails the list; a missing
  * or unreadable database resolves empty so callers skip the engine.
  */
-export function listOpencodeSessions(dbPath: string, limit: number): OpencodeSessionRow[] {
+export async function listOpencodeSessions(dbPath: string, limit: number): Promise<OpencodeSessionRow[]> {
   let database: DatabaseSync | undefined
   try {
     database = new DatabaseSync(dbPath, { readOnly: true })
@@ -148,6 +149,8 @@ export function listOpencodeSessions(dbPath: string, limit: number): OpencodeSes
       .all(limit) as Array<Record<string, unknown>>
     const rows: OpencodeSessionRow[] = []
     for (const session of sessions) {
+      // Background discovery must leave time for window/input IPC between sessions.
+      await yieldToEventLoop()
       try {
         const providerSessionId = readString(session.id)
         const cwd = readString(session.directory)
@@ -156,15 +159,20 @@ export function listOpencodeSessions(dbPath: string, limit: number): OpencodeSes
         let firstPrompt: string | undefined
         let lastExcerpt: string | undefined
         let turnCount = 0
+        const assistantIds: string[] = []
         for (const message of messages) {
           const role = roleOf(message.data)
           if (role === 'user') {
             turnCount += 1
             firstPrompt ??= firstTextOfParts(database, message.id)
           } else if (role === 'assistant') {
-            // Newest answer wins: messages arrive oldest-first.
-            lastExcerpt = lastTextOfParts(database, message.id) ?? lastExcerpt
+            assistantIds.push(message.id)
           }
+        }
+        // Only the newest nonempty answer is displayed. Reading every historical
+        // answer repeated thousands of synchronous SQLite queries on every poll.
+        for (let index = assistantIds.length - 1; index >= 0 && !lastExcerpt; index--) {
+          lastExcerpt = lastTextOfParts(database, assistantIds[index])
         }
         if (!firstPrompt && !lastExcerpt) continue
         rows.push({

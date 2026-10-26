@@ -1,4 +1,5 @@
-.anchor { position: relative; z-index: 2100; }
+/* Keep the launcher and its feedback below the expanded Island (layer 2000). */
+.anchor { position: relative; }
 .trigger {
   display: grid;
   place-items: center;

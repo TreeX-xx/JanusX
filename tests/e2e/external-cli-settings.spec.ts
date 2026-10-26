@@ -22,7 +22,7 @@ for (const theme of ['planche', 'dark']) {
   for (const width of [1100, 640, 390]) {
     test(`CLI identity, status and actions fit ${theme} at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1100 })
-      await page.goto(`/shell-settings.html?cliStates&theme=${theme}`)
+      await page.goto(`/shell-settings.html?cliStates&opencode=v1&theme=${theme}`)
       const cli = page.getByRole('region', { name: '外部 CLI', exact: true })
       await expect(cli.getByRole('group', { name: 'DeepSeek Harness', exact: true })).toBeVisible()
       for (const row of await cli.locator('[data-cli-tool]').all()) {
@@ -33,4 +33,59 @@ for (const theme of ['planche', 'dark']) {
       await cli.screenshot({ path: test.info().outputPath(`external-cli-${theme}-${width}.png`) })
     })
   }
+}
+
+test('OpenCode v1 updates independently, then explicitly upgrades to v2', async ({ page }) => {
+  await page.goto('/shell-settings.html?opencode=v1')
+  const row = page.getByRole('group', { name: 'OpenCode', exact: true })
+  await expect(row.getByText('1.18.0 · → 1.19.4 · path', { exact: true })).toBeVisible()
+  await expect(row.getByRole('button', { name: '升级到 v2 · 2.1.4', exact: true })).toBeVisible()
+  await row.getByRole('button', { name: '更新 v1', exact: true }).click()
+  await expect(row.getByText('就绪', { exact: true })).toBeVisible()
+  await expect(row.getByRole('button', { name: '更新 v1', exact: true })).toHaveCount(0)
+  await row.getByRole('button', { name: '升级到 v2 · 2.1.4', exact: true }).click()
+  await expect(row.getByText('2.1.4 · path', { exact: true })).toBeVisible()
+  await expect(row.getByRole('button', { name: /升级到 v2/ })).toHaveCount(0)
+  expect(await page.evaluate(() => (window as unknown as { cliInstallRequests: unknown }).cliInstallRequests)).toEqual([
+    { toolId: 'opencode', options: { channel: 'v1', version: '1.19.4' } },
+    { toolId: 'opencode', options: { channel: 'v2', version: '2.1.4' } },
+  ])
+})
+
+test('OpenCode v2 updates within v2', async ({ page }) => {
+  await page.goto('/shell-settings.html?opencode=v2&en')
+  const row = page.getByRole('group', { name: 'OpenCode', exact: true })
+  await row.getByRole('button', { name: 'Update v2', exact: true }).click()
+  await expect(row.getByText('2.1.4 · path', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => (window as unknown as { cliInstallRequests: unknown }).cliInstallRequests)).toEqual([
+    { toolId: 'opencode', options: { channel: 'v2', version: '2.1.4' } },
+  ])
+})
+
+test('a new OpenCode installation defaults to v2', async ({ page }) => {
+  await page.goto('/shell-settings.html?opencode=missing')
+  const row = page.getByRole('group', { name: 'OpenCode', exact: true })
+  await row.getByRole('button', { name: '安装 v2', exact: true }).click()
+  await expect(row.getByText('2.1.4 · path', { exact: true })).toBeVisible()
+})
+
+for (const scenario of ['offline', 'v1-offline', 'unknown', 'v1-ready']) {
+  test(`OpenCode ${scenario} does not invent a v1 update`, async ({ page }) => {
+    await page.goto(`/shell-settings.html?opencode=${scenario}`)
+    const row = page.getByRole('group', { name: 'OpenCode', exact: true })
+    await expect(row.getByRole('button', { name: '重新检测', exact: true })).toBeVisible()
+    await expect(row.getByRole('button', { name: '更新 v1', exact: true })).toHaveCount(0)
+    await expect(row.getByRole('button', { name: '升级到 v2 · 2.1.4', exact: true })).toHaveCount(scenario === 'offline' ? 0 : 1)
+  })
+}
+
+for (const scenario of ['fail', 'shadow']) {
+  test(`OpenCode ${scenario} preserves the upgrade error`, async ({ page }) => {
+    await page.goto(`/shell-settings.html?opencode=${scenario}`)
+    const row = page.getByRole('group', { name: 'OpenCode', exact: true })
+    await row.getByRole('button', { name: '升级到 v2 · 2.1.4', exact: true }).click()
+    await expect(row.getByRole('alert')).toContainText(scenario === 'fail' ? 'Fixture download failed' : 'Check PATH')
+    await expect(row.getByText('1.18.0 · → 1.19.4 · path', { exact: true })).toBeVisible()
+    await expect(row.getByText('安装完成，重启终端后生效。')).toHaveCount(0)
+  })
 }

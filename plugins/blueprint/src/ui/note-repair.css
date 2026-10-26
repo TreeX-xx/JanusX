@@ -1,0 +1,46 @@
+.bp-note-repair { flex: none; margin: 10px 12px 4px; box-sizing: border-box; padding: 12px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-card); color: var(--shell-text); font-size: 12px; min-width: 0; max-height: 32vh; overflow: auto; }
+.bp-note-repair header { display: flex; justify-content: space-between; align-items: center; color: var(--shell-accent); gap: 8px; }
+.bp-note-repair__label { font-size: 11px; font-weight: 600; }
+.bp-note-repair__title { display: block; margin-top: 7px; overflow-wrap: anywhere; }
+.bp-note-repair ul { margin: 8px 0; padding-left: 16px; max-height: 90px; overflow: auto; }
+.bp-note-repair li { margin: 3px 0; overflow-wrap: anywhere; }
+.bp-note-repair__status { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.bp-note-repair__status button { padding: 3px; }
+.bp-note-repair button { border: 1px solid var(--shell-border); border-radius: 6px; color: inherit; background: transparent; cursor: pointer; font-size: 11px; padding: 4px 7px; }
+.bp-note-repair button:disabled { opacity: .5; cursor: default; }
+.bp-note-repair__steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 9px 0 0; color: var(--shell-muted); }
+.bp-note-repair__steps li { flex: 1; border-top: 2px solid var(--shell-border); padding-top: 4px; font-size: 10px; }
+.bp-note-repair__steps li[data-active='true'], .bp-note-repair__steps li[data-done='true'] { border-color: var(--shell-accent); color: var(--shell-text); }
+.bp-note-repair__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bp-note-repair p { margin: 8px 0 0; overflow-wrap: anywhere; }
+.bp-note-repair p[role='alert'] { color: var(--shell-accent); }
+.bp-note-repair__spinner { animation: bp-repair-spin .85s linear infinite; }
+.bp-note-repair[data-transferring='true'] .bp-note-repair__content { opacity: 0; }
+.bp-note-repair--flying { position: fixed; z-index: 11000; pointer-events: none; margin: 0; transform-origin: top left; box-shadow: 0 12px 40px #0003; overflow: hidden; max-height: none; }
+.bp-note-repair__diff { margin-top: 10px; }
+.bp-note-repair__diff summary { overflow-wrap: anywhere; cursor: pointer; }
+.bp-note-repair__diff pre { font: 10px/1.5 monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+.bp-note-repair__diff [data-change='add'] { display: block; background: #3aa56820; }
+.bp-note-repair__diff [data-change='remove'] { display: block; background: #d96b6b20; text-decoration: line-through; }
+.bp-repair-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0; }
+.bp-repair-actions button { font-size: 11px; padding: 4px 7px; border: 1px solid var(--shell-border); background: transparent; color: var(--shell-muted); border-radius: 6px; cursor: pointer; }
+.bp-repair-actions button:first-child { color: var(--shell-accent); }
+.bp-repair-actions button:disabled { opacity: .45; cursor: default; }
+@keyframes bp-repair-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bp-note-repair__spinner { animation: none; } }
+
+/* Note: initialized embedded blueprints hand off to a right column, matching the workbench. */
+.blueprint-view__canvas-row { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; overflow: hidden; }
+.blueprint-view__canvas-row > .blueprint-canvas-wrapper { flex: 1 1 0; min-width: 0; }
+.blueprint-view__repair-chat { display: flex; flex: 0 0 clamp(300px, 26vw, 360px); max-width: 45%; min-width: 0; min-height: 0; border-left: 1px solid var(--shell-border); overflow: hidden; }
+
+.bp-note-repair__summary { display: flex; align-items: center; gap: 8px; }
+.bp-note-repair .bp-note-repair__toggle { flex: 1; min-width: 0; border: 0; padding: 0; text-align: left; }
+.bp-note-repair__toggle .bp-note-repair__title { margin: 0 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-note-repair__toggle > span { color: var(--shell-muted); }
+.bp-note-repair__status { margin-top: 5px; font-size: 10px; color: var(--shell-muted); }
+.bp-note-repair__status .bp-note-repair__details-toggle { border: 0; padding: 0; font-size: inherit; text-align: left; }
+.bp-note-repair__details[hidden] { display: none; }
+.bp-note-repair__details { border-top: 1px solid var(--shell-border); margin-top: 8px; }
+.bp-note-repair__execution { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bp-note-repair__execution summary { cursor: pointer; }

@@ -5,8 +5,7 @@ import { chmod, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { gunzipSync, inflateRawSync } from 'node:zlib'
 import { writeFileAtomic } from '../lib/atomic-file'
-import { ProxyAgent } from 'undici'
-import { CpaProxy } from './proxy'
+import { downloadHostAsset, type HostDownload } from '../lib/download'
 
 const BACKEND = 'CLIProxyAPI'
 const FRONTEND = 'Cli-Proxy-API-Management-Center'
@@ -21,44 +20,14 @@ export interface CpaInstallation {
   binaryHash: string
   pageHash: string
 }
-export type Download = (url: string, limit: number, signal: AbortSignal, progress?: (value: number) => void) => Promise<Buffer>
-
-export const downloadCpaAsset: Download = async (url, limit, signal, progress) => {
-  // First-enable downloads can run before the LLM service initializes global proxy hooks.
-  const relay = new CpaProxy()
-  let dispatcher: ProxyAgent | undefined
-  try {
-    signal.throwIfAborted()
-    dispatcher = new ProxyAgent(await relay.start())
-    return await readDownload(url, limit, signal, dispatcher, progress)
-  } finally {
-    await dispatcher?.destroy()
-    await relay.close()
+export type Download = HostDownload
+export const downloadCpaAsset: Download = async (...args) => {
+  try { return await downloadHostAsset(...args) }
+  catch (cause) {
+    if (cause instanceof Error && cause.message === 'DOWNLOAD_OVERSIZED') throw new Error('cpa-download-oversized')
+    if (cause instanceof Error && cause.message === 'DOWNLOAD_FAILED') throw new Error('cpa-download-failed')
+    throw cause
   }
-}
-
-async function readDownload(url: string, limit: number, signal: AbortSignal, dispatcher: ProxyAgent, progress?: (value: number) => void): Promise<Buffer> {
-  const options: RequestInit & { dispatcher: ProxyAgent } = {
-    dispatcher, signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]), headers: { 'User-Agent': 'JanusX-CPA' },
-  }
-  const response = await fetch(url, options)
-  if (!response.ok || !response.body) throw new Error('cpa-download-failed')
-  const declared = Number(response.headers.get('content-length'))
-  if (declared > limit) { await response.body.cancel(); throw new Error('cpa-download-oversized') }
-  const chunks: Buffer[] = []
-  let total = 0
-  const reader = response.body.getReader()
-  try {
-    while (true) {
-      const item = await reader.read()
-      if (item.done) break
-      total += item.value.byteLength
-      if (total > limit) throw new Error('cpa-download-oversized')
-      chunks.push(Buffer.from(item.value))
-      if (declared > 0) progress?.(Math.min(99, Math.floor(total / declared * 100)))
-    }
-  } finally { await reader.cancel().catch(() => {}) }
-  return Buffer.concat(chunks)
 }
 
 const hash = (data: Buffer) => createHash('sha256').update(data).digest('hex')

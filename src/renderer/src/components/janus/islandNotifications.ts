@@ -2,7 +2,7 @@
 // see .agents/notes/workbench/island-hifi-optimized-alignment.md
 import type { KnowledgeRecallTrace } from '../../../../shared/knowledge'
 import type { ProductFileEntry } from '../../../../shared/product'
-import type { BlueprintMaintenanceTask } from '../../../../shared/janus/maintenance-types'
+import type { BlueprintMaintenanceTask } from '../../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import type { PluginIslandEntry } from '../../../../shared/ipc/plugins'
 
 export type IslandNotificationKind = 'knowledge' | 'memory' | 'product' | 'maintenance' | 'agent' | 'plugin'

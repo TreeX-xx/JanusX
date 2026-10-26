@@ -161,6 +161,36 @@ describe('CliDetector', () => {
     expect(run.mock.calls[0]?.[1]?.[3]).toContain(`& '${codexBinary}' --version`)
   })
 
+  it.each([
+    ['1.19.4', '1.19.4'],
+    ['opencode v2.1.4', '2.1.4'],
+    ['opencode v2.1.5-beta.1', '2.1.5-beta.1'],
+  ])('recognizes OpenCode version output %s', async (output, version) => {
+    const pathBinary = resolve('C:\\tools\\opencode.cmd')
+    const { detector } = createHarness({
+      toolId: 'opencode',
+      files: [pathBinary],
+      path: 'C:\\tools',
+      run: async () => ({ exitCode: 0, stdout: output, stderr: '' }),
+    })
+
+    await expect(detector.detect()).resolves.toMatchObject({
+      toolId: 'opencode', installed: true, runnable: true, version, path: pathBinary,
+    })
+  })
+
+  it('does not treat a reported OpenCode version as runnable after a failed probe', async () => {
+    const pathBinary = resolve('C:\\tools\\opencode.cmd')
+    const { detector } = createHarness({
+      toolId: 'opencode',
+      files: [pathBinary],
+      path: 'C:\\tools',
+      run: async () => ({ exitCode: 1, stdout: 'opencode v2.1.4', stderr: 'startup failed' }),
+    })
+
+    await expect(detector.detect()).resolves.toMatchObject({ installed: true, runnable: false })
+  })
+
   it('reports the tool-specific manual command when missing', async () => {
     const { detector } = createHarness({ toolId: 'opencode' })
 
@@ -168,7 +198,7 @@ describe('CliDetector', () => {
       toolId: 'opencode',
       installed: false,
       runnable: false,
-      hint: 'npm i -g opencode-ai@latest',
+      hint: 'npm i -g @opencode/cli@latest',
     })
   })
 

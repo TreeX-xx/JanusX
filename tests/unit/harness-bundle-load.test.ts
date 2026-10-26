@@ -31,7 +31,11 @@ it.each(['serve', 'build'] as const)('loads the %s harness bundle and preserves 
     const { root, input, command } = JSON.parse(process.argv[1])
     const resolved = await resolveConfig({}, command, command === 'serve' ? 'development' : 'production')
     const main = resolved.config.main
-    await build({ ...main, configFile: false, logLevel: 'silent', build: { ...main.build,
+    const boundary = { name: 'shared-note-boundary', generateBundle() {
+      const leaked = [...this.getModuleIds()].filter(id => id.replaceAll('\\\\', '/').includes('/plugins/blueprint/'))
+      assert.deepEqual(leaked, [], 'shared Note bundle must not contain blueprint modules')
+    } }
+    await build({ ...main, configFile: false, logLevel: 'silent', plugins: [...(main.plugins ?? []), boundary], build: { ...main.build,
       outDir: join(root, 'out'), minify: false, rollupOptions: { ...main.build.rollupOptions,
         input, output: { format: 'es', entryFileNames: 'probe.mjs' } } } })
     const entry = await import(pathToFileURL(join(root, 'out/probe.mjs')).href)
@@ -42,6 +46,7 @@ it.each(['serve', 'build'] as const)('loads the %s harness bundle and preserves 
     }
     assert.equal(service.harnessNoteService, entry.harnessNoteService)
     assert.ok(service.harnessNoteService instanceof shared.NoteService)
+    assert.equal(service.harnessNoteService.projectView, undefined)
     console.log('Bundled harness namespace loaded')
   `
   const { stdout } = await promisify(execFile)(process.execPath,

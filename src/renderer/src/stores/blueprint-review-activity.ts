@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { sameCheckoutPath } from '@/features/blueprint/resolveNodeWorkspace'
-import type { BlueprintReviewActivityUpdate } from '../../../shared/ipc/blueprint-review'
+import type { BlueprintReviewActivityUpdate } from '../../../../plugins/blueprint/src/shared/ipc/blueprint-review'
 import { readReviewWithDeadline } from '@/services/blueprint-review-read'
 
 interface State {

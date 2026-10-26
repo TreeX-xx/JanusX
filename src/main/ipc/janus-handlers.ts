@@ -1,31 +1,26 @@
 /**
  * @file Janus / Blueprint IPC Handlers
  * @description
- *  - 蓝图 CRUD（§6.1）与节点操作（§6.2）。
- *  - janus:node:focus（§6.4，节点"开始工作"→设焦点 + 调度后台分析）。
- *  - janus:terminal:bind（§6.4，显式进入终端时设焦点 + 绑 terminalId）。
- *  - janus:analyzer:analyze（手动触发，入口③）。
- *  - janus:analyzer:accept-discovered（接受新需求提议 → 在 suggestedParent 下建子节点，§5.5 闭环）。
- *  - 分析完成后主进程发 janus:island:analysis / janus:island:discovered（渲染侧接线为 follow-up）。
+ *  - 保留历史蓝图 CRUD、节点、焦点和终端绑定的兼容调用。
+ *  - 保留已有分析记录的读取与采纳，不调度新的后台分析。
+ *  - 旧审核、维护及手动分析入口返回 BLUEPRINT_PLUGIN_REQUIRED。
  */
 
 import { ipcMain } from 'electron'
 import { resolve } from 'node:path'
 import { harnessNoteService } from '../harness/service'
 import { blueprintStore } from '../janus/blueprint-store'
-import { analyzer } from '../janus/analyzer'
-import { blueprintMaintenanceService } from '../janus/maintenance/service'
+import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 
 import type {
   BlueprintFeatureItem,
   BlueprintNode,
-} from '../../shared/janus/types'
+} from '../../../plugins/blueprint/src/shared/janus/types'
 import {
   JANUS_COMMAND_CHANNELS,
   type AcceptCandidatePayload,
   type AcceptDiscoveredPayload,
   type AnalysisHistoryPayload,
-  type AnalyzerAnalyzePayload,
   type ApplyAnalysisPatchPayload,
   type ApplyAnalysisPayload,
   type BlueprintCreateInput,
@@ -35,18 +30,9 @@ import {
   type NodeCreateInput,
   type RejectCandidatePayload,
 } from '../../shared/ipc/janus'
-import type {
-  BlueprintMaintenanceApplyInput,
-  BlueprintMaintenancePreviewInput,
-  BlueprintMaintenanceAuditListInput,
-  BlueprintMaintenanceDismissInput,
-  BlueprintMaintenanceStartInput,
-  BlueprintMaintenanceUndoApplyInput,
-  BlueprintMaintenanceUndoPrepareInput,
-} from '../../shared/janus/maintenance-types'
 
 export function registerJanusHandlers(): void {
-  // analyzer.setMainWindow 由 register.ts 在每次窗口重建时重绑（audit M1）
+  // Note: compatibility CRUD never schedules analysis; review belongs to the installed plugin.
 
   // ───────────── 蓝图 CRUD（§6.1） ─────────────
   ipcMain.handle(JANUS_COMMAND_CHANNELS.listBlueprints, async (_e, cwd: string) => {
@@ -67,7 +53,6 @@ export function registerJanusHandlers(): void {
     JANUS_COMMAND_CHANNELS.createBlueprint,
     async (_e, cwd: string, input: BlueprintCreateInput) => {
       const bp = await blueprintStore.createBlueprint(cwd, input)
-      analyzer.registerNodeWorkspace(bp.rootNodeId, cwd)
       return bp
     }
   )
@@ -83,54 +68,15 @@ export function registerJanusHandlers(): void {
     return blueprintStore.deleteBlueprint(cwd, id)
   })
 
-  ipcMain.handle(JANUS_COMMAND_CHANNELS.maintenanceList, async () => blueprintMaintenanceService.list())
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceAuditList,
-    async (_event, input: BlueprintMaintenanceAuditListInput) => blueprintMaintenanceService.listAudits(input)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceStart,
-    async (_event, input: BlueprintMaintenanceStartInput) => blueprintMaintenanceService.start(input)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceApply,
-    async (_event, input: BlueprintMaintenanceApplyInput) => blueprintMaintenanceService.apply(input)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenancePreview,
-    async (_event, input: BlueprintMaintenancePreviewInput) => blueprintMaintenanceService.preview(input)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceCancel,
-    async (_event, taskId: string) => blueprintMaintenanceService.cancel(taskId)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceComplete,
-    async (_event, taskId: string) => blueprintMaintenanceService.complete(taskId)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceDismiss,
-    async (_event, input: BlueprintMaintenanceDismissInput) => blueprintMaintenanceService.dismissProposal(input.taskId)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceUndoPrepare,
-    async (_event, input: BlueprintMaintenanceUndoPrepareInput) => blueprintMaintenanceService.prepareUndo(input)
-  )
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.maintenanceUndoApply,
-    async (_event, input: BlueprintMaintenanceUndoApplyInput) => blueprintMaintenanceService.applyUndo(input)
-  )
-  // 派发简报：一次性生成，不写 Note、不产生 changeSet，宿主负责启动终端。
-  ipcMain.handle(
+  // Note: legacy calls point to the installed plugin without starting host jobs — see .agents/notes/planning/blueprint-official-plugin.md
+  for (const channel of [
+    JANUS_COMMAND_CHANNELS.maintenanceList, JANUS_COMMAND_CHANNELS.maintenanceAuditList,
+    JANUS_COMMAND_CHANNELS.maintenanceStart, JANUS_COMMAND_CHANNELS.maintenanceApply,
+    JANUS_COMMAND_CHANNELS.maintenancePreview, JANUS_COMMAND_CHANNELS.maintenanceCancel,
+    JANUS_COMMAND_CHANNELS.maintenanceComplete, JANUS_COMMAND_CHANNELS.maintenanceDismiss,
+    JANUS_COMMAND_CHANNELS.maintenanceUndoPrepare, JANUS_COMMAND_CHANNELS.maintenanceUndoApply,
     JANUS_COMMAND_CHANNELS.dispatchComposeBrief,
-    async (_event, input: {
-      taskId: string; conversationId: string; messages: Array<{ role: string; content: string }>
-      providerId: string; modelId?: string; workspaceIds: string[]; workspaceRoots: Record<string, string>
-    }) => blueprintMaintenanceService.composeDispatchBrief({
-      ...input,
-      signal: new AbortController().signal,
-    })
-  )
+  ]) ipcMain.handle(channel, async () => requireBlueprintPlugin())
 
   // ───────────── 节点操作（§6.2） ─────────────
   ipcMain.handle(
@@ -143,7 +89,6 @@ export function registerJanusHandlers(): void {
       parentId: string | null
     ) => {
       const node = await blueprintStore.createNode(cwd, blueprintId, input, parentId)
-      if (node) analyzer.registerNodeWorkspace(node.id, cwd)
       return node
     }
   )
@@ -214,10 +159,6 @@ export function registerJanusHandlers(): void {
     JANUS_COMMAND_CHANNELS.focusNode,
     async (_e, cwd: string, nodeId: string) => {
       const node = await blueprintStore.focusNode(cwd, nodeId)
-      if (node) {
-        analyzer.registerNodeWorkspace(node.id, cwd)
-        analyzer.scheduleAnalyze(node.id, { workspacePath: cwd, trigger: 'reconcile' })
-      }
       return node
     }
   )
@@ -226,29 +167,12 @@ export function registerJanusHandlers(): void {
     JANUS_COMMAND_CHANNELS.bindTerminal,
     async (_e, cwd: string, nodeId: string, terminalId: string) => {
       const node = await blueprintStore.bindTerminal(cwd, nodeId, terminalId)
-      if (node) analyzer.registerNodeWorkspace(node.id, cwd)
       return node
     }
   )
 
   // ───────────── 分析器：手动触发（入口③） ─────────────
-  ipcMain.handle(
-    JANUS_COMMAND_CHANNELS.analyze,
-    async (
-      _e,
-      payload: AnalyzerAnalyzePayload
-    ) => {
-      const trigger = payload.trigger ?? 'manual'
-      // 手动入口直接 await，IPC 返回分析结果
-      const result = await analyzer.analyzeNode(payload.nodeId, {
-        workspacePath: payload.workspacePath,
-        trigger,
-        commitLimit: payload.commitLimit
-      })
-
-      return result
-    }
-  )
+  ipcMain.handle(JANUS_COMMAND_CHANNELS.analyze, async () => requireBlueprintPlugin())
 
   ipcMain.handle(
     JANUS_COMMAND_CHANNELS.applyAnalysisPatch,
@@ -307,7 +231,6 @@ export function registerJanusHandlers(): void {
           decisionNote: payload.decisionNote
         }
       )
-      if (node) analyzer.registerNodeWorkspace(node.id, payload.workspacePath)
       return node
     }
   )
@@ -364,7 +287,6 @@ export function registerJanusHandlers(): void {
         },
         resolvedParentId
       )
-      if (node) analyzer.registerNodeWorkspace(node.id, workspacePath)
       return node
     }
   )

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { memo, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useGitStore } from '@/stores/git'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -14,6 +14,7 @@ import { useEditorStore } from '@/stores/editor'
 
 type GitRemoteAction = 'push' | 'pull'
 const GIT_HISTORY_LIMIT = 100
+const commitDateFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' })
 
 export function GitPanel({ active = true }: { active?: boolean }) {
   const { status, commits, loading, error, fetchLog, stageFiles, unstageFiles, discardChange, commitChangesByHash, commitChanges, pushChanges, pullChanges } = useGitStore()
@@ -273,8 +274,10 @@ export function GitPanel({ active = true }: { active?: boolean }) {
                 {t('git:staged.unstageAll')}
               </button>
             </div>
-            {stagedChanges.map((file) => (
-              <GitFileItem key={`staged-${file.path}`} file={file} onToggle={handleToggleStage} onOpen={handleOpenFile} onDiscard={setDiscardTarget} />
+            {groupFiles(stagedChanges).map((files) => (
+              <div key={files[0].path} className={styles.fileGroup} style={{ containIntrinsicSize: `auto ${files.length * 32}px` }}>
+                {files.map((file) => <GitFileItem key={file.path} file={file} onToggle={handleToggleStage} onOpen={handleOpenFile} onDiscard={setDiscardTarget} />)}
+              </div>
             ))}
           </div>
         )}
@@ -295,8 +298,10 @@ export function GitPanel({ active = true }: { active?: boolean }) {
                 {t('git:changes.stageAll')}
               </button>
             </div>
-            {unstagedChanges.map((file) => (
-              <GitFileItem key={`unstaged-${file.path}`} file={file} onToggle={handleToggleStage} onOpen={handleOpenFile} onDiscard={setDiscardTarget} />
+            {groupFiles(unstagedChanges).map((files) => (
+              <div key={files[0].path} className={styles.fileGroup} style={{ containIntrinsicSize: `auto ${files.length * 32}px` }}>
+                {files.map((file) => <GitFileItem key={file.path} file={file} onToggle={handleToggleStage} onOpen={handleOpenFile} onDiscard={setDiscardTarget} />)}
+              </div>
             ))}
           </div>
         )}
@@ -575,7 +580,11 @@ export function GitPanel({ active = true }: { active?: boolean }) {
   )
 }
 
-function GitFileItem({ file, onToggle, onOpen, onDiscard }: { file: GitFileChange; onToggle: (file: GitFileChange) => void; onOpen: (file: GitFileChange) => void; onDiscard: (file: GitFileChange) => void }) {
+function groupFiles(files: GitFileChange[]): GitFileChange[][] {
+  return Array.from({ length: Math.ceil(files.length / 16) }, (_, index) => files.slice(index * 16, (index + 1) * 16))
+}
+
+const GitFileItem = memo(function GitFileItem({ file, onToggle, onOpen, onDiscard }: { file: GitFileChange; onToggle: (file: GitFileChange) => void; onOpen: (file: GitFileChange) => void; onDiscard: (file: GitFileChange) => void }) {
   const { t } = useI18n('git')
   const statusColors: Record<string, { bg: string; fg: string }> = {
     M: { bg: 'rgba(229, 192, 123, 0.15)', fg: '#e5c07b' },
@@ -608,7 +617,10 @@ function GitFileItem({ file, onToggle, onOpen, onDiscard }: { file: GitFileChang
       )}
     </div>
   )
-}
+}, (previous, next) => previous.onToggle === next.onToggle && previous.onOpen === next.onOpen &&
+  previous.onDiscard === next.onDiscard && previous.file.path === next.file.path &&
+  previous.file.status === next.file.status && previous.file.staged === next.file.staged &&
+  previous.file.additions === next.file.additions && previous.file.deletions === next.file.deletions)
 
 function FileActionButton({ label, icon, onClick, danger = false }: { label: string; icon: ReactNode; onClick: () => void; danger?: boolean }) {
   return <button type="button" aria-label={label} title={label} onClick={onClick} className={`flex h-5 w-5 items-center justify-center rounded text-[var(--shell-dim)] hover:bg-[color-mix(in_srgb,var(--shell-text)_8%,transparent)] hover:text-[var(--shell-text)] ${danger ? 'hover:text-[var(--shell-diff-del)]' : ''}`}>{icon}</button>
@@ -627,7 +639,7 @@ function formatDate(dateStr: string, t: TFunction): string {
     if (diffMins < 60) return t('git:time.minutesAgo', { count: diffMins })
     if (diffHours < 24) return t('git:time.hoursAgo', { count: diffHours })
     if (diffDays < 7) return t('git:time.daysAgo', { count: diffDays })
-    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+    return commitDateFormatter.format(d)
   } catch {
     return dateStr
   }

@@ -2,6 +2,8 @@
 // Testable under node; the IPC-backed loader lives in components/viewers/local-asset.tsx.
 // Note: leading `/` means workspace-root while a workspace is known — see .agents/notes/workbench/markdown-preview-local-assets.md
 
+import { parseRuntimeResource, runtimeResource } from '../../../shared/workspace-runtime'
+
 export const LOCAL_ASSET_MAX_BYTES = 8 * 1024 * 1024
 
 export const LOCAL_ASSET_DOC_LIMIT = 30
@@ -125,6 +127,18 @@ export function resolveLocalAssetAbsolutePath(
   if (cleaned === '') return null
   const decoded = safeDecode(cleaned)
   const posix = toPosix(decoded)
+  const remoteRoot = parseRuntimeResource(options.workspacePath)
+  const remoteDirectory = parseRuntimeResource(options.documentDir)
+  if (remoteRoot || remoteDirectory) {
+    // file:// and Windows paths cannot escape from a target environment to
+    // files on the desktop. Relative assets retain the workspace identity.
+    if (fromFileScheme !== null || /^[\w+.-]+:/.test(posix) || posix.startsWith('//')) return null
+    const base = posix.startsWith('/') ? remoteRoot : remoteDirectory ?? remoteRoot
+    if (!base || (remoteRoot && base.workspaceId !== remoteRoot.workspaceId)) return null
+    const path = joinPosix(base.path, posix.startsWith('/') ? posix.slice(1) : posix)
+    if (remoteRoot && path !== remoteRoot.path && !path.startsWith(remoteRoot.path.replace(/\/+$/, '') + '/')) return null
+    return runtimeResource(base.workspaceId, path)
+  }
   const useBackslash =
     (options.workspacePath ?? options.documentDir ?? '').includes('\\') || /\\/.test(decoded)
 

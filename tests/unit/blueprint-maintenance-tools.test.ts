@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
-import { createJanusBlueprintTools } from '../../src/main/janus/maintenance/blueprint-tools'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
+import { createJanusBlueprintTools } from '../../plugins/blueprint/src/main/janus/maintenance/blueprint-tools'
 
 function fixture(): Blueprint {
   const node = (id: string, parentId: string | null) => ({

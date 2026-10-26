@@ -9,6 +9,8 @@ import { agentSessionRegistry } from '../sessions/session-registry'
 import { scanExternalSessions, type ExternalScanSummary } from '../sessions/external-session-scanner'
 import { readTranscriptDetail } from '../sessions/transcript-reader'
 import { continueAgentSession, resendSessionHandoff } from './terminal-handlers'
+import { scanRemoteSessions, readRemoteTranscript } from '../workspace/remote-sessions'
+import { parseRuntimeResource } from '../../shared/workspace-runtime'
 
 // Panel mounts, scope tabs, and boot each trigger a scan; one pass walks
 // hundreds of transcript files for ~60s. Overlapping passes redo the same
@@ -21,7 +23,9 @@ function runScanSerialized(): Promise<ExternalScanSummary> {
   if (!scanInFlight) {
     scanInFlight = (async () => {
       await agentSessionRegistry.load().catch(() => undefined)
-      return scanExternalSessions(agentSessionRegistry)
+      const local = await scanExternalSessions(agentSessionRegistry)
+      const remote = await scanRemoteSessions()
+      return { ...local, remote }
     })().finally(() => {
       scanInFlight = null
     })
@@ -76,6 +80,7 @@ export function registerSessionHandlers(getMainWindow: () => BrowserWindow | nul
     await agentSessionRegistry.load().catch(() => undefined)
     const record = agentSessionRegistry.getSession(sessionId)
     if (!record) return null
+    if (parseRuntimeResource(record.cwd)) return readRemoteTranscript(record)
     // Janus history resolves from the provider session id when the record
     // carries no transcript path; other engines need the recorded path.
     if (!record.transcriptPath && record.engine !== 'janus') return null

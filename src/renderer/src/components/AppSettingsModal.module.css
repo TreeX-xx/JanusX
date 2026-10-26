@@ -428,20 +428,7 @@
   outline-offset: -1px;
 }
 
-/* Language Service Manager cards */
-.lsSection {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-}
-
-.lsLoading {
-  color: var(--shell-dim);
-  font-size: 12px;
-  padding: 8px 0;
-}
-
+/* Terminal settings cards and controls */
 .lsCard {
   display: flex;
   flex-direction: column;
@@ -549,18 +536,6 @@
   border-radius: 4px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.lsStateReady {
-  background: rgba(111, 184, 138, 0.12);
-  border: 1px solid rgba(111, 184, 138, 0.3);
-  color: #6fb88a;
-}
-
-.lsStateFailed {
-  background: rgba(215, 139, 146, 0.12);
-  border: 1px solid rgba(215, 139, 146, 0.3);
-  color: #d78b92;
 }
 
 .lsStateIdle {
@@ -800,7 +775,7 @@
   outline-offset: -1px;
 }
 
-/* 可执行名缺失：与 lsStateFailed 同一组红，避免另造一套错误色 */
+/* 可执行名缺失：复用错误状态配色。 */
 .lsInputMissing {
   border-color: rgba(215, 139, 146, 0.7);
   color: #d78b92;
@@ -1016,4 +991,10 @@
 
 :global([data-theme='planche']) .lsAddRow:hover {
   background: var(--paper-deep, #DCCFA8);
+}
+.body.pluginBody {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
 }

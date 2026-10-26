@@ -5,7 +5,7 @@ import { installElectronApiFallback } from '../../../src/renderer/src/lib/electr
 import { initI18n } from '../../../src/renderer/src/i18n'
 import { useBlueprintStore } from '../../../src/renderer/src/stores/blueprint'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
-import type { Blueprint, BlueprintNode } from '../../../src/shared/janus/types'
+import type { Blueprint, BlueprintNode } from '../../../plugins/blueprint/src/shared/janus/types'
 import type { NoteReadSnapshot } from '../../../src/shared/notes'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/components/blueprint/blueprint.css'

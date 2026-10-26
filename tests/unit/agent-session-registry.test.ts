@@ -42,6 +42,27 @@ function createInput(terminalId: string, workspaceId = 'ws-1') {
 }
 
 describe('agent session registry', () => {
+  it('keeps identical provider IDs separate across local, WSL and SSH sources', async () => {
+    const registry = track(new AgentSessionRegistry(await userDataDir()))
+    const input = { engine: 'claude', providerSessionId: 'same-provider', transcriptPath: '/history.jsonl', firstPrompt: 'question', turnCount: 1 }
+    const local = registry.importExternalSession({ ...input, cwd: '/repo' })
+    const wsl = registry.importExternalSession({ ...input, cwd: 'janusx-workspace://wsl/repo/Case', workspaceId: 'wsl' })
+    const ssh = registry.importExternalSession({ ...input, cwd: 'janusx-workspace://ssh/repo/Case', workspaceId: 'ssh' })
+    expect(new Set([local.id, wsl.id, ssh.id]).size).toBe(3)
+    expect(registry.listSessions({ cwd: 'janusx-workspace://wsl/repo/case' })).toHaveLength(0)
+    expect(registry.listSessions({ cwd: 'janusx-workspace://wsl/repo/Case' }).map(row => row.id)).toEqual([wsl.id])
+    const rescanned = registry.importExternalSession({ ...input, cwd: wsl.cwd, workspaceId: 'wsl', turnCount: 2 })
+    expect(rescanned.id).toBe(wsl.id)
+    expect(registry.getSession(local.id)?.turnCount).toBe(1)
+  })
+
+  it('records remote process exit without inventing a conversation turn', async () => {
+    const registry = track(new AgentSessionRegistry(await userDataDir()))
+    const record = registry.createSession({ ...createInput('remote-process'), cwd: 'janusx-workspace://wsl/repo' })
+    registry.noteProcessExit('remote-process', 0)
+    expect(registry.getSession(record.id)).toMatchObject({ status: 'done', turnCount: 0, turns: [] })
+  })
+
   it('refreshes provider counts and previews without rewriting hook turns or status', async () => {
     const registry = track(new AgentSessionRegistry(await userDataDir()))
     const owned = registry.createSession(createInput('live'))

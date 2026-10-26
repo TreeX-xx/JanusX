@@ -10,11 +10,13 @@ import type { AgentNotificationSettingsView } from '../../../src/shared/notifica
 import type { UpdaterEvent, UpdaterState } from '../../../src/shared/ipc/updater'
 import { LLM_CONSUMERS, authTypeForProtocol, type AgentModelBinding, type LlmConfiguration, type LlmConsumer } from '../../../src/shared/llm-configuration'
 import type { NativeLoginState } from '../../../src/shared/native-login'
+import { installPluginSettingsFixture } from './plugin-settings-fixture'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
 const params = new URLSearchParams(location.search)
+if (params.has('plugin-market')) installPluginSettingsFixture()
 const language = params.has('en') ? 'en' : 'zh-CN'
 if (params.get('tab') === 'llm') {
   const config: LlmConfiguration = {

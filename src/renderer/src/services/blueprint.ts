@@ -4,7 +4,7 @@ import type {
   BlueprintFeatureItem,
   BlueprintNode,
   BlueprintRequirementCandidate,
-} from '../../../shared/janus/types'
+} from '../../../../plugins/blueprint/src/shared/janus/types'
 import type {
   AcceptCandidatePayload,
   AcceptDiscoveredPayload,
@@ -39,7 +39,7 @@ import type {
   BlueprintMaintenanceUndoApplyResult,
   BlueprintMaintenanceUndoPrepareInput,
   BlueprintMaintenanceUndoPrepareResult,
-} from '../../../shared/janus/maintenance-types'
+} from '../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 export type {
   AnalysisInputSummary,
@@ -61,7 +61,7 @@ export type {
   BlueprintStatusSource,
   BlueprintTodo,
   DiscoveredRequirement,
-} from '../../../shared/janus/types'
+} from '../../../../plugins/blueprint/src/shared/janus/types'
 
 export type {
   AcceptCandidatePayload,
@@ -101,9 +101,9 @@ export type {
   BlueprintMaintenanceUndoPrepareInput,
   BlueprintMaintenanceUndoPrepareResult,
   BlueprintOperation,
-} from '../../../shared/janus/maintenance-types'
+} from '../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 
-export type { BlueprintDispatchBriefResult } from '../../../shared/janus/maintenance-types'
+export type { BlueprintDispatchBriefResult } from '../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 export function listBlueprints(cwd: string): Promise<Blueprint[] | null> {
   return window.electron.janus.listBlueprints(cwd)

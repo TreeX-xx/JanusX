@@ -20,6 +20,7 @@ import {
   worktreeListSignature,
 } from '../git/worktrees'
 import { agentSessionRegistry } from '../sessions/session-registry'
+import { parseRuntimeResource } from '../../shared/workspace-runtime'
 
 const WORKTREE_WATCH_DEBOUNCE_MS = 250
 const WORKTREE_POLL_MS = 4000
@@ -98,6 +99,7 @@ function scheduleResync(entry: WatchedWorktrees): void {
 
 /** Watch the admin dir when present; otherwise watch the common dir for its arrival. */
 async function attachAdminWatcher(entry: WatchedWorktrees): Promise<void> {
+  if (parseRuntimeResource(entry.workspacePath)) return
   let adminExists = false
   try {
     await access(entry.worktreesDir)

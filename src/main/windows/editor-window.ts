@@ -17,6 +17,7 @@ interface EditorWindowEntry {
 }
 
 function identityPath(value: string): string {
+  if (value.startsWith('janusx-workspace://')) return value.replace(/\/+$/, '')
   const normalized = normalize(value).replace(/[\\/]+$/, '')
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized
 }

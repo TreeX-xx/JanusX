@@ -5,13 +5,11 @@
 
 import { createContext, memo, useContext } from 'react'
 import { Handle, Position, useStore, type Node, type NodeProps } from '@xyflow/react'
-import type { BlueprintNodeStatus, BlueprintNodeType } from '@/services/blueprint'
 import { NOTE_KIND_LABEL_KEY, noteKindOf, getBlueprintStatusVisual } from './blueprintStatus'
 import { useI18n } from '@/i18n/useI18n'
 import { Folder, FileText, ChevronRight } from 'lucide-react'
 import './blueprint-disclosure.css'
 import { useBlueprintReviewStore } from '@/stores/blueprint-review'
-import type { NoteStatusPart } from '../../../../shared/blueprint-note-status'
 
 /** 低于该缩放阈值时卡片进入极简渲染（只保留状态点 + 标题 + 折叠入口） */
 const SEMANTIC_ZOOM_THRESHOLD = 0.5
@@ -28,29 +26,8 @@ export const BlueprintCardActionsContext = createContext<{
 } | null>(null)
 
 /** ?????????? */
-export interface BlueprintNodeData extends Record<string, unknown> {
-  title: string
-  status: BlueprintNodeStatus
-  nodeType: BlueprintNodeType
-  /** note 原始 kind（harness 透传；缺省时 kindtag 按 type 回退） */
-  kind?: string | null
-  moduleState?: string
-  noteStatus?: NoteStatusPart[]
-  reviewRoot?: string
-  noteId?: string
-  progress: number
-  workspaceName: string | null
-  boundTerminalId: string | null
-  childCount?: number
-  collapsed?: boolean
-  childSummary?: string
-  issueSummary?: string
-  blockedReason?: string
-  analysisSummary?: string
-  collapsedSummary?: string
-  searchMatched?: boolean
-  searchDimmed?: boolean
-}
+export type { BlueprintNodeData } from '../../../../../plugins/blueprint/src/shared/card'
+import type { BlueprintNodeData } from '../../../../../plugins/blueprint/src/shared/card'
 
 /** Blueprint ????? React Flow Node ?? */
 export type BlueprintRFNodeType = Node<BlueprintNodeData, 'blueprint'>

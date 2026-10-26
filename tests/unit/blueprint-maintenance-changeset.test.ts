@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { Blueprint, BlueprintRelation } from '../../src/shared/janus/types'
+import type { Blueprint, BlueprintRelation } from '../../plugins/blueprint/src/shared/janus/types'
 import type {
   BlueprintChangeSet,
   BlueprintMaintenanceAuditRecord,
   BlueprintOperation,
-} from '../../src/shared/janus/maintenance-types'
+} from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 import {
   applyOperations,
   buildGroupDigest,
@@ -14,7 +14,7 @@ import {
   normalizeProposedOperations,
   resolveOperationRisk,
   selectOperations,
-} from '../../src/main/janus/maintenance/changeset'
+} from '../../plugins/blueprint/src/main/janus/maintenance/changeset'
 
 function fixture(): Blueprint {
   const node = (id: string, parentId: string | null, children: string[] = []) => ({

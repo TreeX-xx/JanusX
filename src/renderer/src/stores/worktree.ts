@@ -26,6 +26,7 @@ export function sameScopePath(left: string, right: string): boolean {
   const b = norm(right)
   if (!a || !b) return false
   if (a === b) return true
+  if (a.startsWith('janusx-workspace://') || b.startsWith('janusx-workspace://')) return false
   return a.toLowerCase() === b.toLowerCase()
 }
 

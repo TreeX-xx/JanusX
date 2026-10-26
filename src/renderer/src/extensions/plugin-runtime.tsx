@@ -40,17 +40,18 @@ export async function refreshPlugins(): Promise<void> {
   const next = await pluginRequest<PluginHostSnapshot>({ type: 'list' })
   if (sequence !== refreshSequence) return
   snapshot = next
-  syncPluginThemes(next.developmentMode ? next.plugins.filter(record => record.enabled
-    && (['ready', 'loading', 'active'].includes(record.state) || record.state === 'error' && record.error === 'VIEW_LOAD_FAILED')).map(record => record.manifest) : [])
+  const sourceAllowed = (record: PluginHostSnapshot['plugins'][number]) => record.source.kind === 'official' || next.developmentMode
+  syncPluginThemes(next.plugins.filter(record => record.enabled && sourceAllowed(record)
+    && (['ready', 'loading', 'active'].includes(record.state) || record.state === 'error' && record.error === 'VIEW_LOAD_FAILED')).map(record => record.manifest))
   useThemeStore.getState().applyExternal(useThemeStore.getState().theme)
   for (const [id, entry] of mounted) {
     const record = next.plugins.find(record => record.manifest.id === id)
-    if (!record || !record.enabled || !next.developmentMode || !['ready', 'loading', 'active', 'error'].includes(record.state)
+    if (!record || !record.enabled || !sourceAllowed(record) || !['ready', 'loading', 'active', 'error'].includes(record.state)
       || (record.state === 'error' && record.error !== 'VIEW_LOAD_FAILED') || record.digest !== entry.digest) {
       entry.unregister(); mounted.delete(id)
     }
   }
-  for (const record of next.plugins) if (record.enabled && next.developmentMode && ['ready', 'loading', 'active', 'error'].includes(record.state)
+  for (const record of next.plugins) if (record.enabled && sourceAllowed(record) && ['ready', 'loading', 'active', 'error'].includes(record.state)
     && (record.state !== 'error' || record.error === 'VIEW_LOAD_FAILED') && !mounted.has(record.manifest.id)) {
     const id = record.manifest.id
     const definition = manifestContribution(record.manifest, view => props => <PluginViewShell {...props} pluginId={id} localViewId={view.id} />)
@@ -62,7 +63,13 @@ export async function refreshPlugins(): Promise<void> {
 function publicTheme() {
   const tokens: Record<string, string> = {}
   const style = getComputedStyle(document.documentElement)
-  for (const token of ['shell-canvas', 'shell-text', 'shell-muted', 'shell-card', 'shell-border', 'shell-accent']) tokens[`--${token}`] = style.getPropertyValue(`--${token}`).trim()
+  for (const token of ['shell-canvas', 'shell-text', 'shell-muted', 'shell-card', 'shell-border', 'shell-accent',
+    'shell-border-soft', 'shell-chrome', 'shell-chrome-raised', 'shell-dim', 'shell-hover', 'shell-accent-border',
+    'shell-accent-soft', 'shell-diff-del', 'shell-diff-add', 'shell-pane', 'control-border', 'control-h',
+    'popover-background', 'popover-shadow', 'popover-hover', 'so-field', 'so-radius', 'so-control-h']) {
+    const value = style.getPropertyValue(`--${token}`).trim()
+    if (value) tokens[`--${token}`] = value
+  }
   return { id: document.documentElement.dataset.pluginTheme || document.documentElement.dataset.theme || '', tokens }
 }
 export function syncPluginContext(): Promise<void> {
@@ -109,6 +116,16 @@ export function initializePluginRuntime(): void {
   })
   window.electron.plugins.onEvent(({ packet }: PluginHostEvent) => {
     if (!packet || typeof packet !== 'object' || Array.isArray(packet)) return
+    if (packet.type === 'workbenchAction' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') {
+      const id = `extension:${packet.pluginId}/${packet.viewId}`
+      const workspace = useWorkspaceStore.getState().workspaces.find(workspace => workspace.id === packet.currentProjectId)
+      const activePath = workspace ? useWorktreeStore.getState().activePaths[workspace.id] ?? workspace.path : null
+      if (useAppStore.getState().activeWorkbench !== id || packet.currentProjectId !== null
+        && (useWorkspaceStore.getState().activeWorkspaceId !== packet.currentProjectId || activePath !== packet.root)) return
+      if (packet.action === 'close') useAppStore.getState().closePluginWorkbench()
+      if (packet.action === 'selectProject' && typeof packet.projectId === 'string'
+        && useWorkspaceStore.getState().workspaces.some(workspace => workspace.id === packet.projectId)) useWorkspaceStore.getState().setActiveWorkspace(packet.projectId)
+    }
     if (packet.type === 'openView' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') openExtensionView(`extension:${packet.pluginId}/${packet.viewId}`, typeof packet.instanceKey === 'string' ? packet.instanceKey : undefined)
     if (packet.type === 'openConfiguration' && typeof packet.pluginId === 'string'
       && (packet.scope === 'application' || packet.scope === 'project')) openPluginConfiguration({ pluginId: packet.pluginId, scope: packet.scope })
@@ -141,7 +158,8 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
 }) {
   const { t } = useI18n('plugins')
   const body = useRef<HTMLDivElement>(null)
-  const covered = useBrowserOcclusionStore(state => state.count > 0)
+  // The settings dialog owns one cover lease; additional dialogs still cover its native page.
+  const covered = useBrowserOcclusionStore(state => state.count > (location === 'settings' ? 1 : 0))
   const dragging = useWorkspaceStore(state => state.tabDragInFlight)
   const workbench = useAppStore(state => state.activeWorkbench)
   const islandStage = useIslandStore(state => state.stage)
@@ -153,7 +171,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
   const documentViewer = boundDocument?.viewer
   const documentPath = boundDocument?.path
   const visible = active && !covered && !dragging && !failure
-    && (location === 'workbench' ? workbench === `extension:${pluginId}/${localViewId}` && islandStage === 'collapsed'
+    && (location === 'settings' ? true : location === 'workbench' ? workbench === `extension:${pluginId}/${localViewId}` && islandStage === 'collapsed'
       : location === 'island' ? (!workbench || workbench.startsWith('extension:')) && islandStage === 'expanded' : !workbench && islandStage === 'collapsed')
   useEffect(() => {
     let cancelled = false
@@ -217,11 +235,11 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     }
     if (!visible) void hide()
     const observer = new ResizeObserver(update); observer.observe(element)
-    window.addEventListener('resize', update); window.addEventListener('scroll', update, true); document.addEventListener('transitionend', update)
+    window.addEventListener('resize', update); window.addEventListener('scroll', update, true); document.addEventListener('transitionend', update); document.addEventListener('animationend', update)
     update()
     return () => {
       observer.disconnect(); cancelAnimationFrame(animation)
-      window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); document.removeEventListener('transitionend', update)
+      window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); document.removeEventListener('transitionend', update); document.removeEventListener('animationend', update)
       void hide()
     }
   }, [mount, visible])

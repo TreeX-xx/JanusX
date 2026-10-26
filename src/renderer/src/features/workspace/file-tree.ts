@@ -6,6 +6,7 @@
  */
 
 import type { FileNode } from '@/types'
+import { parseRuntimeResource, runtimeResource } from '../../../../shared/workspace-runtime'
 
 export interface FileTreeOperationResult {
   success?: boolean
@@ -21,6 +22,8 @@ export function getParentPath(path: string): string {
 
 export function getAbsolutePath(workspacePath: string, relativePath: string): string {
   if (!relativePath) return workspacePath
+  const resource = parseRuntimeResource(workspacePath)
+  if (resource) return runtimeResource(resource.workspaceId, `${resource.path.replace(/\/+$/, '')}/${relativePath}`)
   const separator = workspacePath.includes('\\') ? '\\' : '/'
   return `${workspacePath.replace(/[\\/]+$/, '')}${separator}${relativePath.split('/').join(separator)}`
 }

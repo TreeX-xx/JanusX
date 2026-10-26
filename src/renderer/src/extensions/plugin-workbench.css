@@ -1,0 +1,10 @@
+/* The isolated workbench shares the existing floating card frame vocabulary. */
+.plugin-workbench { padding: 16px; gap: 12px; background: rgba(8,8,10,.62); backdrop-filter: blur(10px); }
+.plugin-workbench[data-frame='plugin'] { padding: 0; gap: 0; }
+.plugin-workbench-topbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; min-height: 44px; padding: 7px 14px; border: 1px solid var(--shell-border); border-radius: 8px; background: var(--shell-chrome); color: var(--shell-text); box-shadow: 0 18px 42px rgba(0,0,0,.28); }
+.plugin-workbench-topbar { -webkit-app-region: drag; }
+.plugin-workbench-topbar button, .plugin-workbench-topbar select { -webkit-app-region: no-drag; }
+.plugin-workbench-topbar > span { margin-left: auto; font-size: 12px; color: var(--shell-muted); }
+.plugin-workbench-close { width: 28px; height: 28px; font-size: 22px; line-height: 1; border-radius: 6px; color: var(--shell-muted); }
+.plugin-workbench-close:hover { background: var(--shell-hover); color: var(--shell-text); }
+.plugin-workbench-topbar select { max-width: min(40vw,360px); background: transparent; color: inherit; border: 0; font-size: 13px; }

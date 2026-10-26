@@ -1,0 +1,40 @@
+/* Note: memory settings group compact controls in bordered cards — see .agents/notes/knowledge/assistant-persona-layout.md */
+.panel { display: flex; flex-direction: column; gap: 20px; min-height: 100%; min-width: 0; color: var(--shell-text); font-size: 12px; line-height: 1.5; }
+.section { display: grid; gap: 16px; min-width: 0; padding: 18px; border: 1px solid var(--shell-border-soft); border-radius: 6px; background: color-mix(in srgb, var(--shell-chrome-raised) 12%, var(--shell-canvas)); color: var(--shell-text); font-size: 12px; line-height: 1.5; }
+/* Note: 设置内卡采用柔和层级 — see .agents/notes/workbench/run-config-island-cards.md */
+.sectionTitle { display: flex; align-items: center; gap: 7px; margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--shell-border-soft); color: var(--shell-text); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.sectionTitle svg { color: var(--shell-muted); flex-shrink: 0; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 30px; }
+.row > button[aria-haspopup] { width: 180px; }
+.label { display: grid; gap: 3px; min-width: 0; }
+.labelText { font-weight: 500; }
+.clientCard { padding: 12px; border: 1px solid var(--shell-border); border-radius: 8px; background: var(--shell-pane); }
+.clientIdentity { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.clientIcon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid var(--shell-border-soft); border-radius: 8px; background: var(--shell-card); color: var(--shell-text); }
+.clientIcon img, .clientIcon svg { width: 22px; height: 22px; object-fit: contain; }
+.clientIcon[data-client='codex'] { background: #f4f4f4; }
+.clientIcon[data-client='opencode'], .clientIcon[data-client='janus'] { background: #202024; }
+.hint { margin: 0; color: var(--shell-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.button { display: inline-flex; justify-content: center; align-items: center; gap: 5px; min-height: 28px; padding: 4px 10px; border: 1px solid var(--control-border); border-radius: 5px; color: var(--shell-text); background: transparent; font: inherit; font-size: 11px; line-height: 1.5; cursor: pointer; }
+.button:hover:not(:disabled) { background: var(--shell-hover); }
+.primaryButton { color: var(--shell-accent); border-color: var(--shell-accent-border); }
+.ghostButton { color: var(--shell-muted); }
+.button:disabled { opacity: .45; cursor: default; }
+.button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+.status { min-width: 0; color: var(--shell-muted); font-size: 11px; overflow-wrap: anywhere; }
+.statusError { color: var(--shell-diff-del); }
+.statusSuccess { color: var(--shell-diff-add); }
+.footer { position: sticky; bottom: calc(-1 * var(--so-body-pad-y, 22px)); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: auto calc(-1 * var(--so-body-pad-x, 22px)) calc(-1 * var(--so-body-pad-y, 22px)); padding: 12px var(--so-body-pad-x, 22px); border-top: 1px solid var(--shell-border); background: var(--shell-canvas); }
+.switch { position: relative; display: inline-flex; width: 32px; height: 28px; flex: 0 0 auto; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; z-index: 1; cursor: pointer; }
+.switchTrack { position: absolute; inset: 5px 0; border: 1px solid var(--control-border); border-radius: 999px; background: var(--shell-hover); pointer-events: none; }
+.switchTrack::after { content: ''; position: absolute; top: 3px; left: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--shell-muted); transition: transform 140ms ease, background 140ms ease; }
+.switch input:checked + .switchTrack { border-color: var(--shell-accent-border); }
+.switch input:checked + .switchTrack::after { transform: translateX(14px); background: var(--shell-accent); }
+.switch input:focus-visible + .switchTrack { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+.switch input:disabled { cursor: default; }
+.switch input:disabled + .switchTrack { opacity: .4; }
+@media (max-width: 700px) { .row { gap: 8px; } .row > button[aria-haspopup] { width: 145px; } }
+@media (max-width: 480px) { .section { padding: 12px; gap: 12px; } .clientCard { grid-template-columns: minmax(0, 1fr); } .clientCard > button { justify-self: end; } }
+@media (prefers-reduced-motion: reduce) { .switchTrack::after { transition: none; } }

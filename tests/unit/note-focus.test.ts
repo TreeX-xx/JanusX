@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useNoteFocusStore } from '../../src/renderer/src/stores/note-focus'
 import { resolveFocusNodes } from '../../src/renderer/src/features/blueprint/note-focus'
 import type { NoteFocusEvent } from '../../src/shared/note-chat'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 
 const event = (id: string, uris = ['note://repo/a', 'note://repo/b']): NoteFocusEvent => ({ id, conversationId: 'chat', workspacePath: 'C:/project', mode: 'scope', focus: 'auto', reason: 'Related work', notes: uris.map((uri, i) => ({ uri, title: uri, role: i ? 'reference' : 'target', reason: 'Relevant' })) })
 beforeEach(() => useNoteFocusStore.setState({ scopes: {}, history: [], display: null, displays: {}, activeConversationId: 'chat', browser: null }))

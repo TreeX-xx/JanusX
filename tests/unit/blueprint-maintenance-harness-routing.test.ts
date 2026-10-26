@@ -2,13 +2,13 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 import type {
   BlueprintChangeSet,
   BlueprintMaintenanceApplyInput,
   BlueprintMaintenanceTask,
   BlueprintOperation,
-} from '../../src/shared/janus/maintenance-types'
+} from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 const mocks = vi.hoisted(() => ({
   generateObject: vi.fn(),
@@ -56,8 +56,8 @@ vi.mock('../../src/main/janus/blueprint-store', () => ({
   isProjectGraphId: (id: string) => id.startsWith('harness:project:'),
 }))
 vi.mock('../../src/main/janus/blueprint-paths', () => ({ workspacesDir: mocks.workspacesDir }))
-vi.mock('../../src/main/harness/service', () => ({
-  harnessNoteService: {
+vi.mock('../../src/main/blueprint/note-service', () => ({
+  legacyBlueprintNotes: {
     resolveRoot: mocks.resolveRoot,
     projectView: mocks.projectView,
     readNote: mocks.readNote,
@@ -86,7 +86,7 @@ import { projectChatContext } from '../../src/main/harness/chat-context'
 import { ChatSessionRuntime } from '@janus-agent/chat-core'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
 
-const { HarnessNoteService } = await vi.importActual<typeof import('../../src/main/harness/service')>('../../src/main/harness/service')
+const { BlueprintNoteService: HarnessNoteService } = await vi.importActual<typeof import('../../plugins/blueprint/src/main/notes/service')>('../../plugins/blueprint/src/main/notes/service')
 
 let PROJECT_ID = 'harness:project:8fa19f17'
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'
@@ -612,6 +612,34 @@ describe('maintenance harness routing (S6-c slice 2b)', () => {
       expect(await fs.readFile(notePath(), 'utf8')).toBe(REQUIREMENT_MD)
       await blueprintMaintenanceService.apply({ ...input, previewId: preview.id })
       expect(await fs.readFile(notePath(), 'utf8')).toBe(preview.files[0].after)
+    })
+
+    it.each([['first', 'second'], ['second']])('undoes actual section baselines for selected operations %j', async (...selection) => {
+      const first = updateOp('first', REQ, 'unused'), second = updateOp('second', REQ, 'unused')
+      if (first.type !== 'update-node' || second.type !== 'update-node') throw new Error('fixture')
+      first.after = { sections: { 'Expected behavior': 'First proposal.' } }
+      second.after = { sections: { 'Expected behavior': 'Second proposal.', 'Implementation detail': 'Keep this new heading only while applied.' } }
+      const task = await propose([first, second])
+      await applyReviewed({ taskId: task.id, changeSetId: task.changeSet!.id, operationIds: selection })
+      const changed = (await harness.readNote(checkoutDir, REQ)).raw
+      expect(changed).toContain('Second proposal.')
+      expect(changed).toContain('## Implementation detail')
+      blueprintMaintenanceService.complete(task.id)
+      const [audit] = await blueprintMaintenanceService.listAudits({ blueprintId: PROJECT_ID })
+      const undo = await blueprintMaintenanceService.prepareUndo({ blueprintId: PROJECT_ID, auditId: audit.id })
+      expect(undo.conflicts).toEqual([])
+      const reversed = await blueprintMaintenanceService.applyUndo({ blueprintId: PROJECT_ID, undoChangeSetId: undo.changeSet.id,
+        operationIds: undo.changeSet.operations.map(op => op.operationId) })
+      const restored = (await harness.readNote(checkoutDir, REQ)).raw
+      expect(restored).toContain('It works.')
+      expect(restored).not.toContain('proposal.')
+      expect(restored).not.toContain('## Implementation detail')
+      expect(restored).toContain('The widget fails.')
+      // An undo is itself a transaction with a truthful baseline and can be reversed.
+      const redo = await blueprintMaintenanceService.prepareUndo({ blueprintId: PROJECT_ID, auditId: reversed.auditId })
+      await blueprintMaintenanceService.applyUndo({ blueprintId: PROJECT_ID, undoChangeSetId: redo.changeSet.id,
+        operationIds: redo.changeSet.operations.map(op => op.operationId) })
+      expect((await harness.readNote(checkoutDir, REQ)).raw).toContain('Second proposal.')
     })
 
     it('revises after discussion then applies two reviewed rounds against fresh Note bytes', async () => {

@@ -50,7 +50,7 @@
 /* The grid owns geometry; lay content out once at the destination width.
    Right alignment keeps controls anchored while the shell reveals the left edge. */
 .host {
-  width: 100%;
+  width: calc(min(var(--right-tool-content-width), calc(100vw - 48px)) - 2px);
   align-self: flex-end;
 }
 
@@ -223,5 +223,7 @@
   background: var(--shell-canvas);
   box-shadow: var(--popover-shadow);
 }
-.panel[data-preview='true'] .host { width: 100%; }
+.panel[data-preview='true'] .host {
+  width: calc(min(var(--right-tool-content-width), calc(100vw - 70px)) - 2px);
+}
 .panel[data-transient='true'] .resizeHandle { display: none; }

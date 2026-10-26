@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { checkPackageBoundary, parseFilesList, validateFilePatterns } from '../../scripts/check-package-boundary.mjs'
+import { checkPackageBoundary, parseFilesList, validateFilePatterns, validatePackagedPluginEntries } from '../../scripts/check-package-boundary.mjs'
 
 const inclusions = ['**/*', 'package.json']
 
@@ -15,9 +15,13 @@ const treeExclusions = [
   '  - !.janusX{,/**/*}',
   '  - !resources/laya{,/**/*}',
   '  - !artifacts{,/**/*}',
+  '  - !apps{,/**/*}',
+  '  - !scripts/android-lab{,/**/*}',
+  '  - !scripts/remote-lab{,/**/*}',
   '  - !design{,/**/*}',
   '  - !docs{,/**/*}',
   '  - !packages{,/**/*}',
+  '  - !plugins{,/**/*}',
   '  - !release{,/**/*}',
   '  - !src{,/**/*}',
   '  - !test-results{,/**/*}',
@@ -83,6 +87,13 @@ describe('package boundary parser', () => {
 
     expect(() => validateFilePatterns(parseFilesList(yaml))).toThrow(/must exclude.*src/)
   })
+
+  it('requires downloadable plugin trees to be excluded and rejects explicit payload reinclusion', () => {
+    const yaml = filesYaml(['  - **/*', '  - package.json', ...treeExclusions.filter((p) => !p.includes('!plugins'))])
+    expect(() => validateFilePatterns(parseFilesList(yaml))).toThrow(/must exclude.*plugins/)
+    const reinclude = filesYaml(['  - **/*', '  - package.json', ...treeExclusions, '  - plugins/blueprint/dist/**/*'])
+    expect(() => validateFilePatterns(parseFilesList(reinclude))).toThrow(/must not include/)
+  })
   it('rejects duplicate entries', () => {
     const yaml = filesYaml(['  - **/*', '  - **/*', '  - package.json', ...treeExclusions])
 
@@ -99,6 +110,17 @@ describe('package boundary parser', () => {
     const yaml = filesYaml(['  - path: out/main/**'])
 
     expect(() => parseFilesList(yaml)).toThrow(/Unsupported files sequence content/)
+  })
+})
+
+describe('downloadable plugin package boundary', () => {
+  it('rejects source, vendor and runtime payloads in the assembled archive', () => {
+    for (const path of ['plugins/blueprint/src/main/service.ts', '/plugins/blueprint/vendor/dependency.tgz',
+      '\\plugins\\blueprint\\dist\\service.cjs', 'node_modules/@janusx/blueprint/dist/ui/main.js']) {
+      expect(() => validatePackagedPluginEntries(['out/main/index.js', path])).toThrow(/Downloadable plugin files/)
+    }
+    expect(() => validatePackagedPluginEntries(['out/main/plugin-mcp.js', 'out/main/chunks/plugin-runtime.js',
+      'node_modules/@janusx/plugin-sdk/package.json', 'node_modules/@janus-agent/harness-node/dist/index.js'])).not.toThrow()
   })
 })
 

@@ -2,6 +2,7 @@ import { memo, useRef, useEffect, useLayoutEffect, useCallback, useState, type D
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { LoaderCircle } from 'lucide-react'
+import { RemoteAgentSetup } from './RemoteAgentSetup'
 import { useTranslation } from 'react-i18next'
 import '@xterm/xterm/css/xterm.css'
 import {
@@ -72,6 +73,7 @@ export const CLITerminal = memo(function CLITerminal({
   const [hasRenderedOutput, setHasRenderedOutput] = useState(false)
   const { t } = useTranslation('terminal')
   const pid = useWorkspaceStore((s) => s.terminals.find((terminal) => terminal.id === terminalId)?.pid)
+  const agentSetup = useWorkspaceStore(s => Boolean(s.terminals.find(item => item.id === terminalId)?.agentSetup))
   const exited = useWorkspaceStore((s) => {
     const terminal = s.terminals.find((item) => item.id === terminalId)
     return Boolean(terminal?.errorMessage) || terminal?.exitCode !== undefined
@@ -189,7 +191,7 @@ export const CLITerminal = memo(function CLITerminal({
     /*-- Windows 下传 windowsPty，让 xterm 按 ConPTY 模式处理行重排/光标语义，修正 IME 定位，对齐 VS Code --*/
     /*-- platform/windowsBuild 由 preload 同步暴露；非 Windows 传 undefined，零回归 --*/
     const windowsPty =
-      window.electron.platform === 'win32'
+      window.electron.platform === 'win32' && !useWorkspaceStore.getState().terminals.find(item => item.id === terminalId)?.cwd.startsWith('janusx-workspace://')
         ? { backend: 'conpty' as const, buildNumber: window.electron.windowsBuild }
         : undefined
 
@@ -640,7 +642,8 @@ export const CLITerminal = memo(function CLITerminal({
           background: fileDragOver ? 'rgba(255, 120, 48, 0.035)' : 'transparent',
         }}
       />
-      {!hasRenderedOutput && !exited && (
+      {agentSetup && <RemoteAgentSetup terminalId={terminalId} />}
+      {!hasRenderedOutput && !exited && !agentSetup && (
         <div
           role="status"
           className="pointer-events-none absolute left-5 top-4 flex items-center gap-2 text-[12px] text-[var(--shell-muted)]"

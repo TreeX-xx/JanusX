@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
-import { ReviewStore } from '../../src/main/blueprint/suggestions/store'
-import { SuggestionService } from '../../src/main/blueprint/suggestions/service'
-import { WorkspaceSuggestions } from '../../src/main/blueprint/suggestions/workspace-service'
-import { WorkspaceSuggestionSources } from '../../src/main/blueprint/suggestions/sources'
+import { ReviewStore } from '../../plugins/blueprint/src/main/blueprint/suggestions/store'
+import { SuggestionService } from '../../plugins/blueprint/src/main/blueprint/suggestions/service'
+import { WorkspaceSuggestions } from '../../plugins/blueprint/src/main/blueprint/suggestions/workspace-service'
+import { WorkspaceSuggestionSources } from '../../plugins/blueprint/src/main/blueprint/suggestions/sources'
 import { createDesktopTestEnv } from './desktop-test-env'
-import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../src/shared/blueprint-review-settings'
+import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../plugins/blueprint/src/shared/blueprint-review-settings'
 
 test('enabled review stays visible through native status IPC while the Note read is blocked', async ({}, testInfo) => {
   const root = await mkdtemp(join(tmpdir(), 'janusx-review-status-desktop-'))

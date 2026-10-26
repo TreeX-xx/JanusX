@@ -1,0 +1,331 @@
+import { afterEach, beforeAll, expect, it } from 'vitest'
+import { fork, execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { acquireLock, releaseLock, SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
+import { NativePluginService } from '../../src/main/plugins/native-service'
+import { NativeServiceError, type JsonValue } from '../../packages/plugin-sdk/src'
+
+beforeAll(() => { execFileSync(process.execPath, ['plugins/blueprint/build.mjs'], { windowsHide: true, stdio: 'pipe' }) }, 30_000)
+const cleanup: Array<() => Promise<unknown>> = []
+afterEach(async () => { for (const clean of cleanup.splice(0).reverse()) await clean() })
+async function fixture() {
+  const directory = await mkdtemp(join(tmpdir(), 'blueprint-native-'))
+  cleanup.push(() => rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
+  const root = join(directory, 'workspace'), state = join(directory, 'data')
+  await mkdir(join(root, '.agents/notes'), { recursive: true })
+  await mkdir(state)
+  const repoId = randomUUID(), noteId = randomUUID()
+  await writeFile(join(root, '.agents/harness.json'), JSON.stringify({ schemaVersion: 1, repoId, name: 'Native fixture', profile: SUPPORTED_HARNESS_PROFILE }))
+  const notePath = join(root, '.agents/notes/module.md')
+  const body = '---\n' + JSON.stringify({ schema: 'harness-note/2', id: noteId, kind: 'module', lifecycle: 'accepted', created: '2026-10-10', updated: '2026-10-10T00:00:00Z',
+    moduleState: 'partial', role: 'project' }, null, 2) + '\n---\n\n# Native fixture\n\n## Responsibility\n\nStore notes.\n\n## Design\n\nA queue is planned.\n'
+  await writeFile(notePath, body)
+  const project = { id: 'granted-project', root, name: 'Native fixture' }
+  const events: Array<{ name: string; value: any }> = [], failures: string[] = []
+  let requestCount = 0, slow = false, service: NativePluginService, child: ReturnType<typeof fork>
+  let agentReply: ((value: any, tool: (name: string, input: JsonValue) => Promise<any>, signal: AbortSignal) => Promise<JsonValue>) | undefined
+  const open = async () => {
+    service = new NativePluginService({
+      spawn(generation) {
+        child = fork(resolve('plugins/blueprint/dist/service.cjs'), [`--janusx-native-generation=${generation}`], {
+          windowsHide: true, execArgv: [], stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+        })
+        child.stderr?.on('data', () => {})
+        return { send: packet => { child.send(packet) }, listen: listener => { child.on('message', listener); return () => { child.off('message', listener) } },
+          exited: listener => { child.on('exit', listener); return () => { child.off('exit', listener) } }, terminate: () => { child.kill() } }
+      }, stopped: code => failures.push(code),
+      async host(method, value, signal) {
+        if (method === 'models.select') return { providerId: 'fixture', modelId: 'fixture', contextWindow: 262144, maxOutputTokens: 8192 }
+        if (method === 'models.generate') return { text: JSON.stringify({ summary: 'Clarify design', operations: [{ operationId: 'clarify', type: 'update-node',
+          nodeId: noteId, reason: 'User approved clarification', evidenceRefs: [], dependsOn: [], risk: 'low', after: { sections: { Design: 'A persistent queue is planned.' } } }] }) }
+        if (method !== 'agent.run') throw new NativeServiceError('UNKNOWN_METHOD')
+        requestCount++
+        if (slow) await new Promise<void>(resolve => { signal.addEventListener('abort', () => resolve(), { once: true }); if (signal.aborted) resolve() })
+        signal.throwIfAborted()
+        const request = value as { runId: string }
+        if (agentReply) return agentReply(value, (tool, input) => service.call('agent.tool', { runId: request.runId, tool, input }, signal), signal)
+        await service.call('agent.tool', { runId: request.runId, tool: 'review.read', input: { path: '.agents/notes/module.md' } }, signal)
+        return { text: JSON.stringify({ findings: [], coverage: 'complete', limitations: [] }), cancelled: false, toolTraces: [] }
+      },
+    })
+    await service.start({ apiVersion: 1, pluginId: 'official.blueprint', dataVersion: 1, directory: state, applicationDataDirectory: directory, projects: [project] })
+    service.onEvent((name, value) => events.push({ name, value }))
+  }
+  const stop = async () => {
+    const exited = child.exitCode !== null || child.signalCode ? Promise.resolve() : new Promise<void>(resolve => child.once('exit', () => resolve()))
+    await service.shutdown(); await exited
+  }
+  cleanup.push(stop)
+  await open()
+  const call = (method: string, input: JsonValue = null, scope: typeof project | null = project) => service.call(method, { project: scope, input }).catch(cause => {
+    throw new Error(`${method}: ${cause instanceof Error ? cause.message : cause}`)
+  }) as Promise<any>
+  return { root, state, directory, project, repoId, noteId, notePath, body, events, failures, call, open, stop,
+    slow: () => { slow = true }, requests: () => requestCount, raw: () => service,
+    agent: (reply: NonNullable<typeof agentReply>) => { agentReply = reply } }
+}
+
+it('streams only the active discussion, rejects stale progress and bounds original-file reads', async () => {
+  const f = await fixture()
+  await writeFile(join(f.root, 'large.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 'x'))
+  let runId = '', finish: () => void = () => {}
+  const waiting = new Promise<void>(resolve => { finish = resolve })
+  f.agent(async (request, tool, signal) => {
+    runId = request.runId
+    expect(request.progress).toBe(true)
+    await expect(tool('project.read', { path: 'large.txt' })).rejects.toThrow()
+    await f.raw().call('agent.progress', { runId, sequence: 2, text: 'Current answer', phase: 'answer' }, signal)
+    await f.raw().call('agent.progress', { runId, sequence: 1, text: 'Old answer', phase: 'answer' }, signal)
+    await waiting
+    return { text: 'Final answer', cancelled: false, toolTraces: [] }
+  })
+  const history = await f.call('discussion.read')
+  const job = await f.call('discussion.run', { providerId: 'fixture', modelId: 'fixture', message: 'Explain the project', expectedRevision: history.revision, noteRefs: [] })
+  await expect.poll(async () => (await f.call('jobs.read', job.id)).progress?.text).toBe('Current answer')
+  finish()
+  await expect.poll(async () => (await f.call('jobs.read', job.id)).status).toBe('completed')
+  await expect(f.raw().call('agent.progress', { runId, sequence: 3, text: 'Late answer', phase: 'answer' })).rejects.toThrow('CANCELLED')
+  expect((await f.call('discussion.read')).messages.at(-1).content).toBe('Final answer')
+})
+
+it('waits for another process index lock during a cold graph read without replaying writes', async () => {
+  const f = await fixture()
+  const lock = await acquireLock(f.root)
+  const graph = f.call('blueprint.graph-open')
+  try {
+    await new Promise(resolve => setTimeout(resolve, 250))
+  } finally { await releaseLock(f.root, lock) }
+  const snapshot = await graph
+  const part = await f.call('blueprint.graph-part', { id: snapshot.id, index: 0 })
+  expect(JSON.parse(part.text).blueprint.nodes[f.noteId].title).toBe('Native fixture')
+  await f.call('blueprint.graph-close', snapshot.id)
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  expect(f.requests()).toBe(0)
+})
+
+it('runs the real downloaded backend: graph, persisted layout, read acknowledgement and independent review', async () => {
+  const f = await fixture()
+  const graph = await f.call('blueprint.graph')
+  expect(graph.blueprint.nodes[f.noteId].title).toBe('Native fixture')
+  const source = await f.call('notes.read', `note://${f.repoId}/${f.noteId}`)
+  expect(source.raw).toBe(f.body)
+  expect(source.view.headings.map((heading: any) => heading.text)).toEqual(['Native fixture', 'Responsibility', 'Design'])
+  expect(source.view.headings.find((heading: any) => heading.text === 'Design').anchor).toBe('design')
+  await f.call('blueprint.layout', { canvasLayout: { [f.noteId]: { x: 42, y: 68 } }, collapsedNodeIds: [f.noteId] })
+  expect((await f.call('blueprint.graph')).blueprint.canvasLayout[f.noteId]).toEqual({ x: 42, y: 68 })
+  const settings = await f.call('settings.snapshot', null, null)
+  await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'test', modelId: 'test' } }, expectedRevision: settings.revision }, null)
+  const { id } = await f.call('review.run', f.noteId)
+  await expect.poll(async () => (await f.call('jobs.read', id)).status, { timeout: 15_000 }).toBe('completed')
+  expect((await f.call('jobs.read', id)).result.report).toMatchObject({ coverage: 'complete', findings: [] })
+  expect(f.requests()).toBe(1)
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  const view = await f.call('review.read')
+  const marked = await f.call('reading.mark', { context: view.context, versions: [{ noteId: f.noteId, hash: graph.blueprint.nodes[f.noteId].sourceHash, path: '.agents/notes/module.md' }], bulk: true })
+  expect(marked.updates.entries.find((item: any) => item.noteId === f.noteId).unread).toBe(false)
+  expect(f.events.some(event => event.name === 'job.changed' && event.value.scope.projectId === f.project.id)).toBe(true)
+  await f.stop(); await f.open()
+  expect((await f.call('review.saved')).items.find((item: any) => item.noteId === f.noteId).report.coverage).toBe('complete')
+  expect((await f.call('blueprint.graph')).blueprint.collapsedNodeIds).toContain(f.noteId)
+})
+
+it('loads the repository Notes corpus through bounded native graph parts without model calls', async () => {
+  const f = await fixture()
+  await cp(resolve('.agents/notes'), join(f.root, '.agents/notes'), { recursive: true })
+  await cp(resolve('.agents/harness.json'), join(f.root, '.agents/harness.json'))
+  const transfer = await f.call('blueprint.graph-open')
+  expect(transfer.parts).toBeGreaterThan(1)
+  const parts: string[] = []
+  for (let index = 0; index < transfer.parts; index++) {
+    const part = await f.call('blueprint.graph-part', { id: transfer.id, index })
+    expect(Buffer.byteLength(JSON.stringify(part))).toBeLessThan(1024 * 1024)
+    parts.push(part.text)
+  }
+  const text = parts.join(''), graph = JSON.parse(text)
+  expect(Buffer.byteLength(text)).toBeGreaterThan(4 * 1024 * 1024)
+  expect(graph.blueprint.nodeIds.length).toBeGreaterThan(300)
+  expect(graph.blueprint.nodeIds.some((id: string) => graph.blueprint.nodes[id].title === 'JanusX')).toBe(true)
+  await f.call('blueprint.graph-close', transfer.id)
+  await expect(f.call('blueprint.graph-part', { id: transfer.id, index: 0 })).rejects.toThrow('RESOURCE_CHANGED')
+  expect(f.requests()).toBe(0)
+})
+
+it('rejects cross-project requests and cancels an in-flight review without terminating another service', async () => {
+  const f = await fixture()
+  await expect(f.call('notes.snapshot', null, { ...f.project, id: 'ungranted' })).rejects.toThrow('PATH_NOT_GRANTED')
+  await expect(f.call('notes.snapshot', null, null)).rejects.toThrow('PATH_NOT_GRANTED')
+  const settings = await f.call('settings.snapshot')
+  await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'test', modelId: 'test' } }, expectedRevision: settings.revision })
+  f.slow()
+  const first = await f.call('review.run', f.noteId)
+  await expect.poll(f.requests).toBe(1)
+  await f.call('jobs.cancel', first.id)
+  await expect.poll(async () => (await f.call('jobs.read', first.id)).status).toBe('cancelled')
+  expect((await f.call('blueprint.graph')).blueprint.nodes[f.noteId].title).toBe('Native fixture')
+  expect(f.failures).toEqual([])
+  const next = await f.call('review.run', f.noteId)
+  expect(next.id).not.toBe(first.id)
+  await expect.poll(f.requests).toBe(2)
+  await f.stop()
+  expect(f.failures).toEqual(['SERVICE_STOPPED'])
+  await f.open()
+  expect((await f.call('review.saved')).items.find((item: any) => item.noteId === f.noteId)?.pending).toBeNull()
+})
+
+it('generates a maintenance proposal in the native package and writes only the previewed selection with recoverable undo', async () => {
+  const f = await fixture(), conversationId = randomUUID()
+  const task = await f.call('maintenance.start', { conversationId, goal: 'Clarify the planned queue', nodeScope: { type: 'blueprint' } })
+  const job = await f.call('maintenance.propose', { taskId: task.id, conversationId, providerId: 'fixture', modelId: 'fixture',
+    messages: [{ role: 'user', content: 'Clarify the design to say a persistent queue is planned.' }] })
+  await expect.poll(async () => (await f.call('jobs.read', job.id)).status, { timeout: 15_000 }).not.toBe('running')
+  expect((await f.call('maintenance.list'))[0].error).toBeUndefined()
+  expect((await f.call('jobs.read', job.id)).status).toBe('completed')
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  const proposal = (await f.call('jobs.read', job.id)).result
+  expect(proposal.status).toBe('proposal-ready')
+  const selected = { taskId: task.id, changeSetId: proposal.changeSet.id, operationIds: ['clarify'] }
+  const preview = await f.call('maintenance.preview', { ...selected, conversationId })
+  expect(preview.files[0].after).toContain('A persistent queue is planned.')
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  await f.call('maintenance.apply', { ...selected, previewId: preview.id })
+  const withoutUpdate = (source: string) => source.replace(/"updated": "[^"]+"/, '"updated": "transaction-time"')
+  expect(withoutUpdate(await readFile(f.notePath, 'utf8'))).toBe(withoutUpdate(preview.files[0].after))
+  await f.call('maintenance.complete', task.id)
+  const audit = (await f.call('maintenance.audits'))[0]
+  const undo = await f.call('maintenance.undo-prepare', audit.id)
+  await f.call('maintenance.undo-apply', { undoChangeSetId: undo.changeSet.id, operationIds: undo.changeSet.operations.map((operation: any) => operation.operationId) })
+  const restored = await readFile(f.notePath, 'utf8')
+  expect(restored).toContain('A queue is planned.')
+  expect(restored).not.toContain('A persistent queue is planned.')
+})
+
+it.each(['repair', 'discuss', 'drift'] as const)('runs a scoped native Note %s with source validation and no Agent write tool', async mode => {
+  const f = await fixture()
+  const malformed = f.body.replace(/  "updated": "[^"]+",\n/, '')
+  await writeFile(f.notePath, malformed)
+  const view = await f.call('review.read')
+  expect(view.structure.issues.length).toBeGreaterThan(0)
+  const { createHash } = await import('node:crypto')
+  const plan = await f.call('repair.prepare', { context: view.context, intent: mode === 'discuss' ? 'discuss' : 'repair', kind: 'structure',
+    path: '.agents/notes/module.md', hash: createHash('sha256').update(malformed).digest('hex') })
+  f.agent(async (request, tool) => {
+    expect(request.tools.every((item: any) => item.actionRisk === 'read')).toBe(true)
+    const read = await tool('note.repair_read', {})
+    expect(read.markdown).toBe(malformed)
+    if (mode === 'drift') await writeFile(f.notePath, malformed + '\nExternal edit.\n')
+    return { text: JSON.stringify({ message: 'The required update timestamp is missing.', edit: mode === 'discuss' ? null : {
+      markdown: f.body, expectedHash: read.expectedHash, reason: 'Restore required metadata without changing identity or content.',
+    } }), cancelled: false, toolTraces: [] }
+  })
+  const job = await f.call('repair.run', { id: plan.id, conversationId: randomUUID(), providerId: 'fixture', modelId: 'fixture',
+    messages: [{ role: 'user', content: mode === 'discuss' ? 'Explain this issue.' : 'Fix the selected structural issue.' }] })
+  await expect.poll(async () => (await f.call('jobs.read', job.id)).status, { timeout: 15_000 }).toBe('completed')
+  const result = (await f.call('jobs.read', job.id)).result
+  expect(result.update.phase).toBe(mode === 'repair' ? 'resolved' : mode === 'discuss' ? 'discussed' : 'failed')
+  if (mode === 'repair') {
+    expect((await f.call('review.read')).structure.issues).toEqual([])
+    expect((await f.call('repair.diff', plan.id)).before).toBe(malformed)
+    expect(await readFile(f.notePath, 'utf8')).toContain('A queue is planned.')
+  } else expect(await readFile(f.notePath, 'utf8')).toBe(malformed + (mode === 'drift' ? '\nExternal edit.\n' : ''))
+})
+
+it('releases closed page jobs while retaining another page watching the same checkout', async () => {
+  const f = await fixture(), first = randomUUID(), second = randomUUID()
+  const call = (owner: string, method: string, input: JsonValue = null) => f.raw().call(method, { project: f.project, input, instanceId: owner }) as Promise<any>
+  await call(first, 'workspace.activate'); await call(second, 'workspace.activate')
+  const settings = await f.call('settings.snapshot')
+  await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'fixture', modelId: 'fixture' } }, expectedRevision: settings.revision })
+  f.slow()
+  const job = await call(first, 'review.run', f.noteId)
+  await expect.poll(f.requests).toBe(1)
+  await f.raw().call('lifecycle.release', { instanceId: first })
+  await expect.poll(async () => (await call(second, 'jobs.read', job.id)).status).toBe('cancelled')
+  const count = f.events.filter(event => event.name === 'notes.changed').length
+  await writeFile(f.notePath, f.body.replace('A queue is planned.', 'A queue is planned with recovery.'))
+  await expect.poll(() => f.events.filter(event => event.name === 'notes.changed').length, { timeout: 10_000 }).toBeGreaterThan(count)
+  expect((await call(second, 'blueprint.graph')).blueprint.nodes[f.noteId].title).toBe('Native fixture')
+  await f.raw().call('lifecycle.release', { instanceId: second })
+})
+
+it('previews initialization without writes and binds confirmation and undo to the requesting page', async () => {
+  const f = await fixture(), first = randomUUID(), second = randomUUID()
+  await rm(join(f.root, '.agents'), { recursive: true, force: true })
+  const call = (owner: string, method: string, input: JsonValue = null) => f.raw().call(method, { project: f.project, input, instanceId: owner }) as Promise<any>
+  expect((await call(first, 'workspace.status')).state).toBe('not-found')
+  const preview = await call(first, 'workspace.init-preview', 'Initialized project')
+  expect(preview.files.some((file: any) => file.path === '.agents/harness.json')).toBe(true)
+  await expect(readFile(join(f.root, '.agents/harness.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+  await expect(call(second, 'workspace.init-apply', { id: preview.id, confirmForeign: false })).rejects.toThrow()
+  await call(first, 'workspace.init-apply', { id: preview.id, confirmForeign: false })
+  expect((await call(first, 'workspace.status')).state).toBe('ok')
+  await call(first, 'workspace.init-undo', preview.id)
+  expect((await call(first, 'workspace.status')).state).toBe('not-found')
+})
+
+it('persists read-only discussion, rejects stale revisions and validates selected Note versions', async () => {
+  const f = await fixture()
+  const initial = await f.call('discussion.read'), graph = await f.call('blueprint.graph')
+  f.agent(async (request, tool) => {
+    expect(request.tools.every((item: any) => item.actionRisk === 'read')).toBe(true)
+    const list = await tool('note.list', {})
+    expect(list.entries[0].uri).toBe(`note://${f.repoId}/${f.noteId}`)
+    expect((await tool('project.read', { path: '.agents/notes/module.md' })).text).toContain('A queue is planned.')
+    await expect(tool('project.read', { path: '.env' })).rejects.toThrow()
+    await expect(tool('project.read', { path: '../private.txt' })).rejects.toThrow()
+    await expect(tool('project.write', { path: '.agents/notes/module.md', text: 'lost' })).rejects.toThrow()
+    return { text: 'The queue is planned; no file was changed.', cancelled: false, toolTraces: [] }
+  })
+  const input = { providerId: 'fixture', modelId: 'fixture', message: 'Discuss the planned queue.', expectedRevision: initial.revision,
+    noteRefs: [{ uri: `note://${f.repoId}/${f.noteId}`, expectedHash: graph.blueprint.nodes[f.noteId].sourceHash }] }
+  const run = async (input: JsonValue) => {
+    const { id } = await f.call('discussion.run', input)
+    await expect.poll(async () => (await f.call('jobs.read', id)).status, { timeout: 15_000 }).not.toBe('running')
+    return f.call('jobs.read', id)
+  }
+  const completed = await run(input)
+  expect(completed.status).toBe('completed')
+  expect(completed.result.messages.map((item: any) => item.role)).toEqual(['user', 'assistant'])
+  expect((await run(input)).error).toBe('RESOURCE_CHANGED')
+  await expect(f.call('discussion.clear', 0)).rejects.toThrow('RESOURCE_CHANGED')
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  await f.stop(); await f.open()
+  expect(await f.call('discussion.read')).toEqual(completed.result)
+  await writeFile(f.notePath, f.body + '\nSource drift.\n')
+  expect((await run({ ...input, expectedRevision: completed.result.revision })).error).toBe('RESOURCE_CHANGED')
+  const cleared = await f.call('discussion.clear', completed.result.revision)
+  expect(cleared.messages).toEqual([])
+  expect(cleared.id).not.toBe(completed.result.id)
+})
+
+it('cancels discussion without publishing an answer or leaving the workspace locked', async () => {
+  const f = await fixture(), initial = await f.call('discussion.read')
+  f.slow()
+  const input = { providerId: 'fixture', modelId: 'fixture', message: 'Discuss without editing.', expectedRevision: initial.revision, noteRefs: [] }
+  const { id } = await f.call('discussion.run', input)
+  await expect.poll(f.requests).toBe(1)
+  await expect(f.call('discussion.clear', initial.revision)).rejects.toThrow('RATE_LIMITED')
+  await f.call('jobs.cancel', id)
+  await expect.poll(async () => (await f.call('jobs.read', id)).status).toBe('cancelled')
+  expect((await f.call('discussion.read')).messages).toEqual([])
+  expect((await f.call('discussion.clear', initial.revision)).revision).toBe(1)
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+})
+
+it('rejects conflicting settings writes and preserves the accepted configuration across restart', async () => {
+  const f = await fixture(), first = await f.call('settings.snapshot', null, null)
+  const value = { ...first.value, automatic: { enabled: false, commits: 9 } }
+  const writes = await Promise.allSettled([
+    f.call('settings.update', { value, expectedRevision: first.revision }, null),
+    f.call('settings.update', { value: { ...first.value, automatic: { enabled: false, commits: 11 } }, expectedRevision: first.revision }, null),
+  ])
+  expect(writes.map(result => result.status)).toEqual(['fulfilled', 'rejected'])
+  expect((writes[1] as PromiseRejectedResult).reason.message).toContain('RESOURCE_CHANGED')
+  const current = await f.call('settings.snapshot', null, null)
+  expect(current.revision).not.toBe(first.revision)
+  expect(current.value).toEqual(value)
+  await f.stop(); await f.open()
+  expect(await f.call('settings.snapshot', null, null)).toEqual(current)
+})

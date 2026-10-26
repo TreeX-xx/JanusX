@@ -26,7 +26,7 @@ import {
 } from '@janus-agent/harness-core'
 import { setSection } from '../harness/artifact-producer'
 import type { RoundtableFact } from '../../shared/roundtable/events'
-import { maintainedNotePath, type NoteAuthoringContext } from '../harness/note-authoring'
+import { maintainedNotePath, type NoteAuthoringContext } from '../../../plugins/blueprint/src/main/notes/note-authoring'
 
 export interface BundleBuildItem {
   fact: RoundtableFact

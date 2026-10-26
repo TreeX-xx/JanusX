@@ -11,6 +11,19 @@ import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
+const remote = new URLSearchParams(location.search).get('remote')
+const cliFixture = { installed: false, installs: 0, detectCalls: 0, state: 'running', fail: false, statusFail: false }
+if (remote) {
+  useWorkspaceStore.setState({ workspaces: [{ id: 'ws', name: 'Remote project', path: 'janusx-workspace://ws/project',
+    runtime: remote === 'wsl' ? { kind: 'wsl', distro: 'Ubuntu', root: '/project' } : { kind: 'ssh', host: 'dev-server', root: '/project' },
+    clis: [], layout: { mode: 'tabs', positions: [] }, createdAt: '', updatedAt: '' }] })
+  Object.assign(window.electron, { workspaceRuntime: {
+    detectCli: async () => { cliFixture.detectCalls++; return { installed: cliFixture.installed, environment: 'dev@linux', platform: 'linux', architecture: 'x86_64' } },
+    installCli: async () => { cliFixture.installs++; if (cliFixture.fail) throw new Error('Target download failed'); return { state: cliFixture.state } },
+    cliInstallStatus: async () => { if (cliFixture.statusFail) throw new Error('Empty status response'); if (cliFixture.state === 'complete') cliFixture.installed = true; return { state: cliFixture.state, log: 'Installing Agent package…' } },
+  } })
+}
+Object.assign(window, { remoteCliFixture: cliFixture })
 Object.assign(window.electron.system, { getLanguage: async () => 'en', getDefaultShell: async () => 'powershell.exe' })
 useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'planche')
 useWorkspaceStore.setState({ activeWorkspaceId: 'ws', terminals: [], activeTerminalId: null, paneTree: null })
@@ -51,7 +64,7 @@ function Harness() {
     ready = undefined
     replay = ''
     sequence = 0
-    void launchTerminalPreset({ preset, workspaceId: 'ws', workspacePath: 'C:/fixture' })
+    void launchTerminalPreset({ preset, workspaceId: 'ws', workspacePath: remote ? 'janusx-workspace://ws/project' : 'C:/fixture' })
   }
   return <>
     <button onClick={() => start('shell')}>New Shell</button>

@@ -1,0 +1,1042 @@
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+   JanusX Island 鈥?鐙珛鍔ㄧ敾涓庢牱寮忔ā鍧?
+   閲嶆瀯鐗堬細data-mode 灞炴€ч┍鍔紝鏃?!important锛孏PU 鍔犻€熷睍寮€鍔ㄧ敾
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲 */
+
+/* 鈹€鈹€ CSS 鍙橀噺 鈹€鈹€ */
+:root {
+  --janus-sleep: #ff7830;
+  --janus-sleep-glow: rgba(255,120,48,0.6);
+  --janus-order: #ff7830;
+  --janus-order-glow: rgba(255,120,48,0.6);
+  --janus-analytics: #ff7830;
+  --janus-analytics-glow: rgba(255,120,48,0.6);
+  --janus-running: #00ff88;
+  --janus-running-glow: rgba(0,255,136,0.6);
+  --janus-failed: #ff4a4a;
+  --janus-failed-glow: rgba(255,74,74,0.6);
+  --janus-done: #ff7830;
+  --janus-done-glow: rgba(255,120,48,0.6);
+  --janus-role-main: #ff7830;
+  --janus-role-main-glow: rgba(255,120,48,0.6);
+  --janus-role-coder: #38bdf8;
+  --janus-role-coder-glow: rgba(56,189,248,0.6);
+  --janus-role-evaluator: #a78bfa;
+  --janus-role-evaluator-glow: rgba(167,139,250,0.6);
+  --janus-role-abstracter: #fbbf24;
+  --janus-role-abstracter-glow: rgba(251,191,36,0.6);
+  --janus-role-prompter: #f472b6;
+  --janus-role-prompter-glow: rgba(244,114,182,0.6);
+  --janus-role-teammate: #94a3b8;
+  --janus-role-teammate-glow: rgba(148,163,184,0.5);
+  --janus-role-subagent: #a9805a;
+  --janus-role-subagent-glow: rgba(169,128,90,0.55);
+  --janus-hover-glow-soft: rgba(255,120,48,0.12);
+  /* 鈹€鈹€ 宀涗綋澶栧３锛氫互杩戦粦涓轰富浣擄紝鍙繚鐣欒冻澶熻鲸璁よ疆寤撶殑琛ㄩ潰灞傛銆?*/
+  --janus-skin-top: #161619;
+  --janus-skin-bottom: #08080a;
+  --janus-panel-bg: rgba(12, 12, 15, 0.97);
+  --janus-panel-bg-expanded: rgba(9, 9, 12, 0.985);
+  --janus-panel-inset: #101012;
+  /* 鍏ㄥ眬褰撳墠鑹诧紙灞曞紑闈㈡澘 portal 缁ф壙鑷?body.is-running 瑕嗙洊锛?*/
+  --janus-current: var(--janus-order);
+  --janus-current-glow: var(--janus-order-glow);
+}
+
+body.is-running {
+  --janus-current: var(--janus-running);
+  --janus-current-glow: var(--janus-running-glow);
+  --janus-hover-glow-soft: rgba(0,255,136,0.12);
+}
+
+/* Janus identity library: shared SubAgent visual primitives */
+.janus-identity-core {
+  --c: var(--janus-identity-role-color, var(--janus-role-subagent));
+  --cg: var(--janus-identity-role-glow, var(--janus-role-subagent-glow));
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, #111 0%, #000 100%);
+  box-shadow:
+    inset 0 0 24px rgba(0,0,0,0.94),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  overflow: visible;
+}
+
+.janus-identity-core[data-size="pod"] {
+  width: 44px;
+  height: 44px;
+}
+
+.janus-identity-core[data-size="lg"] {
+  width: 220px;
+  height: 220px;
+}
+
+.janus-identity-core[data-state="scanning"] {
+  --c: var(--janus-identity-state-color, var(--janus-analytics));
+  --cg: var(--janus-identity-state-glow, var(--janus-analytics-glow));
+}
+
+.janus-identity-core[data-state="running"] {
+  --c: var(--janus-running);
+  --cg: var(--janus-running-glow);
+}
+
+.janus-identity-core[data-state="done"] {
+  --c: var(--janus-done);
+  --cg: var(--janus-done-glow);
+}
+
+.janus-identity-core[data-state="failed"] {
+  --c: var(--janus-failed);
+  --cg: var(--janus-failed-glow);
+}
+
+.janus-identity-scanline {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.38) 51%);
+  background-size: 100% 3px;
+  opacity: 0.22;
+  animation: scan-crt 8s linear infinite;
+}
+
+.janus-identity-halo {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.janus-identity-ring-outer,
+.janus-identity-ring-inner {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.janus-identity-ring-outer {
+  inset: -5px;
+  border: 1px dashed var(--c);
+  opacity: 0.5;
+  box-shadow: 0 0 14px var(--cg);
+  animation: janus-identity-spin 30s linear infinite;
+}
+
+.janus-identity-ring-inner {
+  inset: 0;
+  border: 1px solid var(--c);
+  opacity: 0.34;
+  transform: rotate(45deg);
+  box-shadow: 0 0 10px var(--cg);
+  animation: janus-identity-spin-reverse 20s linear infinite;
+}
+
+.janus-identity-face {
+  position: relative;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14%;
+}
+
+.janus-identity-eye {
+  display: block;
+  width: 11px;
+  height: 16px;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: 0 0 6px #fff, 0 0 16px var(--c), 0 0 30px var(--cg);
+}
+
+.janus-identity-core[data-size="lg"] .janus-identity-eye {
+  width: 34px;
+  height: 48px;
+  box-shadow: 0 0 10px #fff, 0 0 30px var(--c), 0 0 60px var(--cg);
+}
+
+.janus-identity-core[data-role="coder"] .janus-identity-eye {
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  background:
+    #06060a 0/100% 2px no-repeat,
+    #06060a 0/100% 100% no-repeat,
+    #06060a 50% 100%/2px 100% no-repeat,
+    linear-gradient(color-mix(in srgb, var(--c) 40%, #fff), color-mix(in srgb, var(--c) 40%, #fff));
+  box-shadow: 0 0 12px var(--c), inset 0 0 0 1px rgba(0,0,0,0.35);
+  filter: drop-shadow(0 0 4px var(--c));
+}
+
+.janus-identity-core[data-size="lg"][data-role="coder"] .janus-identity-eye {
+  width: 30px;
+  height: 30px;
+}
+
+.janus-identity-core[data-role="evaluator"] .janus-identity-eye:first-child {
+  width: 15px;
+  height: 2.5px;
+  background: var(--c);
+  box-shadow: 0 0 6px var(--c);
+  animation: janus-identity-data-scan 1s cubic-bezier(0.4,0,0.2,1) infinite alternate;
+}
+
+.janus-identity-core[data-role="evaluator"] .janus-identity-eye:last-child {
+  width: 12px;
+  height: 14px;
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--c) 40%, #fff) 0,
+    color-mix(in srgb, var(--c) 40%, #fff) 3px,
+    transparent 3px,
+    transparent 5px
+  );
+  background-size: 100% 200%;
+  box-shadow: 0 0 12px var(--c);
+  animation: janus-identity-data-crunch 0.3s linear infinite;
+}
+
+.janus-identity-core[data-size="lg"][data-role="evaluator"] .janus-identity-eye:first-child {
+  width: 28px;
+  height: 3px;
+}
+
+.janus-identity-core[data-size="lg"][data-role="evaluator"] .janus-identity-eye:last-child {
+  width: 22px;
+  height: 26px;
+}
+
+.janus-identity-core[data-role="abstracter"] .janus-identity-eye {
+  width: 17px;
+  height: 17px;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c) 30%, #fff) 0 32%, var(--c) 36%, color-mix(in srgb, var(--c) 25%, #000) 64%, #08070a 100%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  box-shadow: 0 0 14px var(--c), 0 0 30px var(--cg);
+  animation: janus-identity-breathe 3.2s ease-in-out infinite;
+}
+
+.janus-identity-core[data-size="lg"][data-role="abstracter"] .janus-identity-eye {
+  width: 26px;
+  height: 26px;
+}
+
+.janus-identity-core[data-role="abstracter"] .janus-identity-eye:last-child,
+.janus-identity-core[data-role="subagent"] .janus-identity-eye:last-child {
+  animation-delay: -1.6s;
+}
+
+.janus-identity-core[data-role="prompter"] .janus-identity-eye {
+  width: 2.5px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c), 0 0 16px var(--cg);
+  animation: janus-identity-breathe 3.5s ease-in-out infinite;
+}
+
+.janus-identity-core[data-size="lg"][data-role="prompter"] .janus-identity-eye {
+  width: 3px;
+  height: 24px;
+}
+
+.janus-identity-core[data-role="teammate"] .janus-identity-face::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  width: 46%;
+  height: 1.5px;
+  background: var(--c);
+  opacity: 0.6;
+  box-shadow: 0 0 4px var(--c);
+  transform: translate(-50%, -50%);
+}
+
+.janus-identity-core[data-role="teammate"] .janus-identity-eye {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c), 0 0 16px var(--cg);
+  animation: janus-identity-breathe 3s ease-in-out infinite;
+}
+
+.janus-identity-core[data-size="lg"][data-role="teammate"] .janus-identity-eye {
+  width: 10px;
+  height: 10px;
+}
+
+.janus-identity-core[data-role="subagent"] .janus-identity-eye {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--c);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 10px var(--c), 0 0 22px var(--cg), inset 0 0 6px rgba(0,0,0,0.6);
+  animation: janus-identity-breathe 3.2s ease-in-out infinite;
+}
+
+.janus-identity-core[data-size="lg"][data-role="subagent"] .janus-identity-eye {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.janus-identity-core[data-state="running"] .janus-identity-face::before {
+  display: none;
+}
+
+.janus-identity-core[data-state="running"] .janus-identity-eye {
+  width: 6px;
+  height: 4px;
+  border: 0;
+  border-radius: 3px;
+  background: #fff;
+  clip-path: none;
+  box-shadow: 0 0 10px #fff, 0 0 20px var(--janus-running);
+  filter: none;
+  animation: janus-identity-eq-bounce 0.25s ease-in-out infinite alternate;
+}
+
+.janus-identity-core[data-state="running"] .janus-identity-eye:last-child {
+  animation: janus-identity-eq-bounce 0.35s ease-in-out infinite alternate-reverse;
+}
+
+.janus-identity-core[data-size="lg"][data-state="running"] .janus-identity-eye {
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  box-shadow: 0 0 30px #fff, 0 0 60px var(--janus-running);
+  animation: janus-identity-eq-bounce-lg 0.2s ease-in-out infinite alternate;
+}
+
+.janus-identity-core[data-size="lg"][data-state="running"] .janus-identity-eye:last-child {
+  animation: janus-identity-eq-bounce-lg 0.3s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes janus-identity-spin {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes janus-identity-spin-reverse {
+  100% { transform: rotate(-315deg); }
+}
+
+@keyframes janus-identity-data-scan {
+  0% { transform: translateY(-8px); }
+  100% { transform: translateY(8px); }
+}
+
+@keyframes janus-identity-data-crunch {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 -200%; }
+}
+
+@keyframes janus-identity-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes janus-identity-eq-bounce {
+  0% { height: 4px; }
+  100% { height: 14px; }
+}
+
+@keyframes janus-identity-eq-bounce-lg {
+  0% { height: 16px; }
+  100% { height: 80px; }
+}
+
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+   鐏靛姩宀?鈥?鎶樺彔鎬佽兌鍥?
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲 */
+
+.janus-island {
+  width: 52px;
+  height: 26px;
+  border-radius: 13px;
+  background: linear-gradient(180deg, var(--janus-skin-top) 0%, var(--janus-skin-bottom) 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 4px 14px rgba(0,0,0,0.42),
+    0 0 12px rgba(255,255,255,0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  user-select: none;
+  position: relative;
+  outline: none;
+  overflow: hidden; /* 宽高动画的搭档：通知面/传话在形变中被裁进胶囊，文字不外泄（lab 同款） */
+  transition:
+    border-color 0.4s,
+    box-shadow 0.4s,
+    transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+  margin-top: 5px;
+  will-change: transform;
+}
+
+.janus-island.expanded-anchor {
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
+}
+
+.janus-island[data-stage="peek"],
+.janus-island[data-stage="expanded"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 鎷栨嫿鎬佸厜鏍囷紙榛樿涓嶅啀鏄剧ず grab hand锛?*/
+.janus-island.is-dragging {
+  cursor: grabbing;
+}
+
+/* 绌洪棽鎮仠鍛煎惛锛氱缉鏀?+ 杈规鎻愪寒 + 鏌斿厜 */
+@keyframes island-hover-breathe {
+  0%, 100% {
+    transform: translateY(-0.5px) scale(1.018);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.045),
+      0 7px 16px rgba(0, 0, 0, 0.52),
+      0 0 6px rgba(255,255,255,0.028),
+      0 0 7px var(--janus-hover-glow-soft, transparent);
+  }
+  50% {
+    transform: translateY(-0.5px) scale(1.032);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.055),
+      0 8px 18px rgba(0, 0, 0, 0.54),
+      0 0 8px rgba(255,255,255,0.035),
+      0 0 10px var(--janus-hover-glow-soft, transparent);
+  }
+}
+
+.janus-island[data-stage="collapsed"]:hover:not(.is-dragging):not(.switching),
+.janus-island[data-stage="collapsed"]:focus-visible:not(.is-dragging):not(.switching) {
+  animation: island-hover-breathe 1.6s ease-in-out infinite;
+}
+
+/* hifi: running-state hover - centripetal lift + brighter border */
+.janus-island[data-mode="running"][data-stage="collapsed"]:hover:not(.is-dragging):not(.switching) {
+  animation: none;
+  transform: translateY(-1px) scale(1.03);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.janus-island[data-stage="collapsed"]:focus-visible {
+  outline: 1px solid rgba(255,255,255,0.28);
+  outline-offset: 3px;
+}
+
+.janus-island[data-stage="collapsed"]:hover .janus-face-mini,
+.janus-island[data-stage="collapsed"]:focus-visible .janus-face-mini {
+  transform: scale(1.06);
+  filter: drop-shadow(0 0 4px var(--janus-hover-glow-soft, rgba(255,255,255,0.16)));
+}
+
+/* 杩愯浆鎬?鈥?缁胯壊杈规 */
+.janus-island[data-mode="running"] {
+  border-color: rgba(255,255,255,0.09);
+  /*-- 缁垮厜鍙犲湪宀涗綋鐨偆涔嬩笂锛岃€屼笉鏄妸鐨偆鏁村眰鏇挎崲鎺夛紙background 绠€鍐欎細娓呮帀搴曡壊锛夈€?--*/
+  background:
+    radial-gradient(ellipse at center, rgba(0,255,136,0.12) 0%, transparent 60%),
+    linear-gradient(180deg, var(--janus-skin-top) 0%, var(--janus-skin-bottom) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 4px 14px rgba(0,0,0,0.42),
+    0 0 14px rgba(0,255,136,0.08);
+}
+
+/* 钃勫姏鏃舵殏鍋?CSS 寰呮満鍔ㄧ敾 */
+/* hifi S1: emerald conic-gradient glow ring, collapsed pill only */
+.janus-island::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from 0deg, transparent, transparent, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.janus-island[data-mode="running"][data-stage="collapsed"] {
+  border-color: rgba(0,255,136,0.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 0 12px rgba(0,255,136,0.15),
+    0 4px 16px rgba(0,0,0,0.5);
+}
+
+.janus-island[data-mode="running"][data-stage="collapsed"]::before {
+  opacity: 1;
+  background: conic-gradient(from 0deg, transparent, #00ff88, transparent 40%, transparent);
+  animation: janus-run-glow 2.8s linear infinite;
+}
+
+@keyframes janus-run-glow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 宸ヤ綔鍖哄垏鎹㈤棯鐑?*/
+.janus-island.switching {
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 0 10px rgba(255,255,255,0.12), 0 0 20px rgba(255,255,255,0.06);
+  transform: scale(1.05);
+  transition: box-shadow 0.3s ease-out, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Pull hint */
+.pull-hint {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #888;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 1000;
+  background: rgba(0,0,0,0.6);
+  padding: 4px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+   Janus 绁炴€х溂 鈥?寰瀷锛堟姌鍙犳€侊級
+   閫夋嫨鍣? .janus-island[data-mode="X"] 鈥?鏃犻渶 body class
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲 */
+
+.janus-face-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  position: relative;
+  transition: transform 0.22s ease, filter 0.22s ease;
+}
+
+/* 鐪肩潧绌洪棽鎮仠娉ㄦ剰锛氳交寰鎵╋紝涓嶅共鎵板悇妯″紡鍔ㄧ敾/闀挎寜鑱氭嫝 */
+.janus-eye-mini {
+  transition: opacity 0.22s ease, filter 0.22s ease;
+}
+
+/* Janus behavior system output channel (useJanusGaze, P1):
+   CSS vars are written onto .janus-face-mini (custom props inherit);
+   transform lives on the eye group so face-mini's inline scale (workspace
+   switch flash) and hover scale(1.06) stay outer multipliers. Gaze shift
+   (eye tracking) + face shift (head micro-move) + head rotation (idle
+   acts) compose before the squash/lid scale so reaction offsets stay
+   unscaled and gaze rotates with the head. Lid folds into scaleY so mode
+   keyframe transforms never conflict. */
+.janus-eye-group {
+  transform:
+    translate(var(--face-x, 0px), var(--face-y, 0px))
+    rotate(var(--rot, 0deg))
+    translate(var(--gaze-x, 0px), var(--gaze-y, 0px))
+    scale(var(--sx, 1), calc(var(--sy, 1) * var(--lid, 1)));
+}
+
+/* Idle breath (act system baseline): a barely-there swell on the face core
+   while collapsed in order mode. Kept off .janus-island so the hover breathe
+   keyframes and switching flash stay untouched. Reduced-motion kills it. */
+@keyframes janus-idle-breath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.012); }
+}
+.janus-island[data-mode="order"][data-stage="collapsed"] .janus-collapsed-core {
+  animation: janus-idle-breath 3.8s ease-in-out infinite;
+}
+
+/* Capsule speech (P3): the island widens to speak, face inset glides left. */
+.janus-island-shell[data-speaking="true"] {
+  width: 272px;
+  transition: width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-island-shell[data-speaking="true"] .janus-island {
+  width: 272px;
+}
+.janus-island-shell[data-speaking="true"] .janus-collapsed-core {
+  right: 216px;
+  transition: inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-speak-strip {
+  position: absolute;
+  left: 50px;
+  right: 14px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.janus-island-shell[data-speaking="true"] .janus-speak-strip {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.15s;
+}
+.janus-speak-kicker {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.42);
+  flex-shrink: 0;
+}
+.janus-speak-body {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* History count: small gray text at the window top-left, never on the island.
+   Clicking it opens the notification center (P4 entry). */
+.janus-history-count {
+  position: fixed;
+  left: 16px;
+  top: 44px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--shell-muted, #9aa1aa);
+  z-index: 2001;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+.janus-history-count:hover {
+  color: var(--shell-text, #6b727c);
+}
+
+/* Notification center (P4): the island grows into the sheet (eyes stay top-left).
+   Seen-and-burn: closing staggers rows out then clears history. */
+.janus-island-shell[data-notif="true"] {
+  width: 302px;
+  border-radius: 20px;
+}
+.janus-island-shell[data-notif="true"] .janus-island {
+  /* 尺寸 100% 跟随壳的形变（lab「同一个物体生长」观感）；圆角随行 */
+  border-radius: 20px;
+}
+.janus-island-shell[data-notif="true"] .janus-collapsed-core {
+  /* 眼睛落到左上（lab：face left 15 / top 18 的同位） */
+  inset: 10px auto auto 2px;
+  width: 46px;
+  height: 26px;
+}
+/* 形变过渡：lab 定稿 420ms cubic-bezier(0.32, 0.72, 0.24, 1)，开/合同一条节奏、
+   同一物体生长（宽/高/圆角/眼位同一拍）。CSS 过渡取「后态」时序——收起的后态是
+   基础壳/岛规则（另一套节奏），故 JS 在开合两向都打 data-notif-anim 供给同款过渡；
+   限定 collapsed，阶段形变（peek/expanded）仍走各自节奏。 */
+.janus-island-shell[data-notif="true"],
+.janus-island-shell[data-notif-anim][data-stage="collapsed"] {
+  transition:
+    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+.janus-island-shell[data-notif="true"] .janus-island,
+.janus-island-shell[data-notif-anim][data-stage="collapsed"] .janus-island {
+  transition:
+    border-radius 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    box-shadow 0.26s ease,
+    border-color 0.26s ease,
+    background 0.26s ease,
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.janus-island-shell[data-notif="true"] .janus-collapsed-core,
+.janus-island-shell[data-notif-anim][data-stage="collapsed"] .janus-collapsed-core {
+  transition:
+    opacity 0.12s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
+    visibility 0s linear 0.38s;
+}
+.janus-notif-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: none;
+  flex-direction: column;
+  padding: 8px 12px 6px;
+}
+.janus-island-shell[data-notif="true"] .janus-notif-sheet {
+  display: flex;
+}
+.janus-notif-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  height: 22px;
+  padding-left: 34px; /* 给左上角的眼睛让位（lab 同宽） */
+  margin-bottom: 4px;
+}
+.janus-notif-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+.janus-notif-hint {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.38);
+}
+.janus-notif-list {
+  min-height: 0;
+  overflow: hidden;
+}
+.janus-notif-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+.janus-notif-row.gone {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+.janus-notif-time {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+.janus-notif-body {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  min-width: 0;
+  /* lab 同款：正文折行不截断（高度按最终内容宽测量，防折行量高） */
+  overflow-wrap: anywhere;
+}
+.janus-notif-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  padding: 12px 0 8px;
+}
+.janus-island-shell[data-speaking="true"] .janus-speak-strip {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* 浼戠湢锛氬崟鐐瑰懠鍚?*/
+.janus-island[data-mode="sleep"] .janus-eye-mini {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--janus-sleep);
+  box-shadow: 0 0 3px var(--janus-sleep-glow);
+  animation: janus-breathe 3s ease-in-out infinite;
+}
+
+/* 绉╁簭锛氱煩褰㈢溂 + 鐪ㄧ溂寰呮満 */
+.janus-island[data-mode="order"] .janus-eye-mini {
+  width: 8px;
+  height: 10px;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: 0 0 4px #fff, 0 0 8px var(--janus-order), 0 0 16px var(--janus-order-glow);
+}
+
+/* 瑙ｆ瀽锛氭壂鎻忕嚎 + 鏁版嵁鏍兼爡 */
+.janus-island[data-mode="analytics"] .left-eye-mini {
+  width: 10px;
+  height: 2px;
+  background: var(--janus-analytics);
+  box-shadow: 0 0 4px var(--janus-analytics), 0 0 8px var(--janus-analytics-glow);
+  animation: data-scan-mini 1s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.janus-island[data-mode="analytics"] .right-eye-mini {
+  width: 8px;
+  height: 10px;
+  background: repeating-linear-gradient(to bottom, #fff 0, #fff 2px, transparent 2px, transparent 4px);
+  background-size: 100% 200%;
+  box-shadow: 0 0 10px var(--janus-analytics);
+  animation: data-crunching 0.3s linear infinite;
+}
+
+/* 杩愯浆锛欵Q 寮硅烦 */
+.janus-island[data-mode="running"] .janus-eye-mini {
+  width: 4.5px;
+  border-radius: 2px;
+  background: #00ff88;
+  box-shadow: 0 0 4px rgba(0,255,136,0.9), 0 0 8px rgba(0,255,136,0.35);
+}
+
+.janus-island[data-mode="running"] .left-eye-mini {
+  animation: janus-eq-a 0.35s ease-in-out infinite alternate;
+}
+
+.janus-island[data-mode="running"] .right-eye-mini {
+  animation: janus-eq-b 0.28s ease-in-out infinite alternate-reverse;
+}
+
+/* 鈹€鈹€ 鐪肩潧鍏抽敭甯?鈹€鈹€ */
+@keyframes janus-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* mini-idle keyframes retired (2026-10-24): order-mode idle now runs on the
+   behavior scheduler (janusBehavior.ts). See AC-6 in island-behavior-system. */
+
+@keyframes data-scan-mini {
+  0%   { transform: translateY(-4px); }
+  100% { transform: translateY(4px); }
+}
+
+@keyframes data-crunching {
+  100% { background-position: 0 100%; }
+}
+
+@keyframes eq-bounce {
+  0%   { height: 4px; }
+  100% { height: 14px; }
+}
+
+/* hifi S1: asymmetric physical EQ - left 4-13px @0.35s, right 3-14px @0.28s */
+@keyframes janus-eq-a {
+  from { height: 4px; }
+  to   { height: 13px; }
+}
+
+@keyframes janus-eq-b {
+  from { height: 3px; }
+  to   { height: 14px; }
+}
+
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+   灞曞紑闈㈡澘 鈥?transform-scale 鍔ㄧ敾锛孏PU 鍔犻€燂紝鏃?reflow
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲 */
+
+.janus-expanded {
+  position: fixed;
+  left: 50%;
+  top: 6px;
+  width: 300px;
+  height: 74px;
+  border-radius: 28px;
+  background: var(--janus-panel-bg);
+  border: 1px solid rgba(255,255,255,0.11);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.5), 0 0 18px rgba(255,255,255,0.03);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  --island-w: 52px;
+  --island-h: 26px;
+  --peek-w: 300px;
+  --peek-h: 74px;
+  --panel-w: 860px;
+  --panel-h: 460px;
+  transform: translateX(-50%);
+  transform-origin: center top;
+  will-change: width, height, top, border-radius, padding, box-shadow, background;
+  transition:
+    width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s ease,
+    border-color 0.28s ease,
+    background 0.28s ease,
+    opacity 0.18s ease;
+  overflow: hidden;
+  z-index: 2001;
+  -webkit-app-region: no-drag;
+}
+
+.janus-expanded.from-collapsed {
+  animation: island-expand-from-pill 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.janus-expanded.mode-running {
+  border-color: var(--janus-running);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.62), 0 0 20px rgba(0,255,136,0.24);
+}
+
+.janus-expanded.mode-analytics {
+  border-color: var(--janus-analytics);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.62), 0 0 18px rgba(255,120,48,0.18);
+}
+
+.janus-expanded.mode-order {
+  border-color: var(--janus-order);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.62), 0 0 18px rgba(255,120,48,0.18);
+}
+
+.janus-expanded[data-stage="expanded"] {
+  top: 12px;
+  width: min(860px, calc(100vw - 72px));
+  height: min(460px, calc(100vh - 90px));
+  padding: 16px;
+  border-radius: 26px;
+  background: var(--janus-panel-bg-expanded);
+  justify-content: space-between;
+}
+
+.janus-expanded.collapsing {
+  animation: island-collapse 0.18s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+.janus-expanded > * {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.janus-expanded.collapsing > * {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@keyframes island-expand-from-pill {
+  from {
+    transform: translateX(-50%) scaleX(calc(var(--island-w) / var(--peek-w))) scaleY(calc(var(--island-h) / var(--peek-h)));
+    opacity: 1;
+    border-radius: 13px;
+  }
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+    border-radius: 28px;
+  }
+}
+
+@keyframes island-collapse {
+  from {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+    border-radius: 28px;
+  }
+  to {
+    transform: translateX(-50%) scaleX(calc(var(--island-w) / var(--peek-w))) scaleY(calc(var(--island-h) / var(--peek-h)));
+    opacity: 1;
+    border-radius: 13px;
+  }
+}
+
+/* 灞曞紑闈㈡澘鍐?鈥?浣跨敤 --janus-current 绾ц仈 */
+.janus-expanded .island-title {
+  color: var(--janus-current);
+  transition: color 0.4s;
+}
+
+.janus-expanded .island-footer-right {
+  color: var(--janus-current);
+  transition: color 0.4s;
+}
+
+/* Viewport dim for the expanded stage. Must be mounted at body level
+   (see JanusIsland veil portal): any transformed ancestor (shell translateX,
+   cluster centering, drag offset) traps position:fixed into a shell-sized
+   square that paints above the panel instead of a full-viewport dim below it.
+   Inline z-index 1999 keeps it below the panel cluster (2000) and above page. */
+.janus-veil {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at top center, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12) 28%, rgba(0, 0, 0, 0.02) 55%, transparent 70%);
+  pointer-events: none;
+  z-index: 2000;
+}
+
+.janus-peek-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  transform: translateY(0);
+  transform-origin: center center;
+}
+
+.janus-peek-core {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-width: 180px;
+  position: relative;
+  z-index: 1;
+}
+
+.janus-expanded.from-collapsed[data-stage="peek"] .janus-peek-shell {
+  opacity: 0;
+  transform: scale(0.82);
+  filter: blur(8px);
+  animation: janus-peek-content-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) 0.14s forwards;
+}
+
+@keyframes janus-peek-content-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+/* janus-peek-orbit-in removed with the legacy peek sigil (08-janus-peek-capsule.css) */
+
+.janus-status-text {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  font-size: 10px;
+  color: var(--janus-current);
+  text-shadow: 0 0 8px var(--janus-current);
+  z-index: 25;
+  font-family: 'SF Mono', monospace;
+  font-weight: bold;
+  letter-spacing: 3px;
+  opacity: 0.9;
+  transition: color 0.4s, text-shadow 0.4s;
+}

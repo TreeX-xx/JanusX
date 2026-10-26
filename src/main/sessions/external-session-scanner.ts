@@ -8,7 +8,7 @@ import {
   resolveSessionStorePath,
 } from '../notifications/agent-engine-capabilities'
 import type { AgentHookSource } from '../notifications/agent-hook-types'
-import type { AgentSessionRegistry, ImportExternalSessionInput } from './session-registry'
+import type { ImportExternalSessionInput } from './session-registry'
 import { listOpencodeSessions } from './opencode-sessions'
 import { readTranscriptSnapshot } from './transcript-snapshot'
 import type { TranscriptTurn } from '../../shared/ipc/session'
@@ -40,6 +40,14 @@ export interface ExternalScanOptions {
   env?: NodeJS.ProcessEnv
   home?: string
   maxFilesPerEngine?: number
+}
+
+/** Desktop persistence and a remote scan collector share the same parser. */
+export interface ExternalSessionSink {
+  listSessions(filter: { includeArchived: boolean }): Array<{ engine: string; providerSessionId?: string }>
+  beginBatch(): void
+  endBatch(): void
+  importExternalSession(input: ImportExternalSessionInput): unknown
 }
 
 export interface ExternalScanSummary {
@@ -136,7 +144,7 @@ function piSessionIdFromFilename(path: string): string | undefined {
 }
 
 // Per-registry cache: unchanged polling passes avoid re-reading tool-heavy files.
-const parsedFiles = new WeakMap<AgentSessionRegistry, Map<string, { mtimeMs: number; size: number; parsed: ParsedTranscript | null }>>()
+const parsedFiles = new WeakMap<ExternalSessionSink, Map<string, { mtimeMs: number; size: number; parsed: ParsedTranscript | null }>>()
 
 async function parseFile(candidate: FileCandidate, engine: 'claude' | 'codex' | 'pi'): Promise<ParsedTranscript | null> {
   const snapshot = await readTranscriptSnapshot(candidate.path, engine, 2)
@@ -163,16 +171,16 @@ async function parseFile(candidate: FileCandidate, engine: 'claude' | 'codex' | 
  * row never fails the scan; an unreadable database skips the engine silently
  * like a missing transcript store.
  */
-function scanOpencodeStore(
-  registry: AgentSessionRegistry,
+async function scanOpencodeStore(
+  registry: ExternalSessionSink,
   dbPath: string,
   maxFiles: number,
   summary: ExternalScanSummary,
   known: Set<string>,
-): void {
-  let rows: ReturnType<typeof listOpencodeSessions>
+): Promise<void> {
+  let rows: Awaited<ReturnType<typeof listOpencodeSessions>>
   try {
-    rows = listOpencodeSessions(dbPath, maxFiles)
+    rows = await listOpencodeSessions(dbPath, maxFiles)
   } catch {
     return
   }
@@ -209,7 +217,7 @@ function scanOpencodeStore(
  * registry, so boot passes and panel-open passes converge without duplicates.
  */
 export async function scanExternalSessions(
-  registry: AgentSessionRegistry,
+  registry: ExternalSessionSink,
   options: ExternalScanOptions = {},
 ): Promise<ExternalScanSummary> {
   const env = options.env ?? process.env
@@ -233,7 +241,7 @@ export async function scanExternalSessions(
       // Opencode persists sessions in sqlite, not transcript files: list the
       // newest rows directly instead of walking for jsonl.
       if (engine === 'opencode') {
-        scanOpencodeStore(registry, store, maxFiles, summary, known)
+        await scanOpencodeStore(registry, store, maxFiles, summary, known)
         continue
       }
       const candidates = await collectCandidates(store, maxFiles)

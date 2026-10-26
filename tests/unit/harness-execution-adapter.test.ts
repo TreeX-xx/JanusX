@@ -23,7 +23,7 @@ import {
 } from '../../src/main/harness/execution-adapter'
 import { codeManifestHash, type Receipt } from '@janus-agent/harness-core'
 import { collectLiveSnapshot } from '@janus-agent/harness-node'
-import { HarnessNoteService } from '../../src/main/harness/service'
+import { BlueprintNoteService as HarnessNoteService } from '../../plugins/blueprint/src/main/notes/service'
 
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'
 const TASK_ID = '11111111-1111-4111-8111-111111111111'

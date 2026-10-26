@@ -80,7 +80,7 @@ describe('opencode sessions', async () => {
     insertMessage(path, 'nocwd', 'user', [''], 3100)
     insertSession(path, { id: 'empty', updated: 4000 })
 
-    const rows = listOpencodeSessions(path, 10)
+    const rows = await listOpencodeSessions(path, 10)
     expect(rows.map((row) => row.providerSessionId)).toEqual(['new', 'old'])
     expect(rows[0]).toMatchObject({
       cwd: 'C:/repo',
@@ -107,6 +107,31 @@ describe('opencode sessions', async () => {
     ])
   })
 
+  it('yields during discovery and finds the last nonempty answer after a long history', async () => {
+    const path = await fixtureDb()
+    const database = new DatabaseSync(path)
+    database.exec('BEGIN')
+    for (let session = 0; session < 3; session++) {
+      const id = `history-${session}`
+      database.prepare('INSERT INTO session VALUES (?, ?, ?, ?, ?)').run(id, 'C:/repo', '', 1000, 2000)
+      insertMessage(database, id, 'user', ['first question'], 1000)
+      for (let index = 0; index < 200; index++) insertMessage(database, id, 'assistant', [`answer ${index}`], 1100 + index)
+      insertMessage(database, id, 'assistant', [''], 2000)
+    }
+    database.exec('COMMIT')
+    database.close()
+    let turns = 0
+    let running = true
+    const heartbeat = () => { if (running) { turns++; setImmediate(heartbeat) } }
+    setImmediate(heartbeat)
+    try {
+      const rows = await listOpencodeSessions(path, 10)
+      expect(rows).toHaveLength(3)
+      expect(rows.every(row => row.firstPrompt === 'first question' && row.lastExcerpt === 'answer 199' && row.turnCount === 1)).toBe(true)
+      expect(turns).toBeGreaterThanOrEqual(3)
+    } finally { running = false }
+  })
+
   it('caps turns to the most recent window and truncates long text', async () => {
     const path = await fixtureDb()
     insertSession(path, { id: 's' })
@@ -131,7 +156,7 @@ describe('opencode sessions', async () => {
   })
 
   it('resolves empty on missing databases and unknown sessions', async () => {
-    expect(listOpencodeSessions(join(tmpdir(), 'opencode-absent.db'), 10)).toEqual([])
+    expect(await listOpencodeSessions(join(tmpdir(), 'opencode-absent.db'), 10)).toEqual([])
     const path = await fixtureDb()
     expect(readOpencodeTurns(path, 'missing')).toBeNull()
     expect(readOpencodeTurns(join(tmpdir(), 'opencode-absent.db'), 's')).toBeNull()

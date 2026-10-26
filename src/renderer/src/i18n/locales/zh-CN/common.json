@@ -300,7 +300,8 @@
     "markdown": "Markdown",
     "markdownAction": "打开 Markdown 文稿",
     "markdownOpened": "Markdown 文稿已打开",
-    "openedBadge": "已打开"
+    "openedBadge": "已打开",
+    "returnToTool": "返回{{name}}"
   },
   "trafficLight": {
     "close": "关闭",

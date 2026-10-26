@@ -1,0 +1,43 @@
+/* Note: container cards and scoped browsing — see .agents/notes/blueprint/navigation/requirements/module-browsing.md */
+.bp-browser-bar { padding: 8px 12px; border-bottom: 1px solid var(--shell-border); color: var(--shell-text); }
+.bp-browser-navigation, .bp-browser-crumb { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bp-browser-navigation [aria-current='page'] { font-weight: 650; background: var(--shell-hover); }
+.bp-browser-navigation button { display: inline-flex; align-items: center; gap: 5px; }
+.bp-browser-hint { margin: 6px 0 0; font-size: 12px; color: var(--shell-muted); }
+.bp-browser-results, .bp-browser-unassigned { margin-top: 8px; font-size: 12px; }
+.bp-browser-results__title, .bp-browser-unassigned summary { color: var(--shell-muted); padding: 4px 0; }
+.bp-browser-unassigned summary { cursor: pointer; }
+.bp-browser-document-list { list-style: none; margin: 0; padding: 0; max-height: 160px; overflow: auto; }
+.bp-browser-document-list button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; padding: 6px 8px; background: transparent; color: inherit; border: 0; border-radius: 4px; cursor: pointer; }
+.bp-browser-document-list button:hover, .bp-browser-document-list button:focus-visible { background: var(--shell-hover); }
+.bp-browser-document-list small { color: var(--shell-muted); white-space: nowrap; }
+.bp-browser-empty { position: absolute; inset: 16px 16px auto; text-align: center; pointer-events: none; color: var(--shell-muted); font-size: 13px; }
+.bp-browser-related > summary { cursor: pointer; padding: 10px 14px; font-size: 12px; color: var(--shell-muted); border-bottom: 1px solid var(--shell-border); }
+/* Note: neutral cards distinguish containers through icon, counts and enter action. */
+.blueprint-canvas-wrapper .bp-node-card.bp-node-card--module,
+.blueprint-canvas-wrapper .bp-node-card.bp-node-card--document {
+  position: relative;
+  background: var(--shell-card);
+  color: var(--shell-text);
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  box-shadow: none;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.blueprint-canvas-wrapper .bp-node-card.bp-node-card--selected {
+  border-color: var(--shell-muted);
+  background: color-mix(in srgb, var(--shell-text) 6%, var(--shell-card));
+  box-shadow: 0 0 0 1px var(--shell-muted);
+}
+.blueprint-canvas-wrapper .bp-node-card.bp-node-card--matched { border-color: var(--shell-accent); }
+.blueprint-canvas-wrapper .bp-node-card .bp-node-card__kindtag { padding: 0; border: 0; color: var(--shell-muted); font-size: 10px; }
+.blueprint-canvas-wrapper .bp-node-card .bp-node-card__title { color: var(--shell-text); font-size: 14px; line-height: 1.5; }
+.blueprint-canvas-wrapper .bp-node-card .bp-node-card__footer { color: var(--shell-muted); }
+.bp-node-card--module .bp-node-card__header { gap: 7px; }
+.bp-node-card__symbol { flex-shrink: 0; color: var(--shell-muted); }
+.bp-node-card__enter { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; color: var(--shell-muted); background: transparent; cursor: pointer; }
+.bp-node-card__enter:hover { background: var(--shell-hover); }
+.bp-node-card__contents { margin-top: 7px; font-size: 11px; color: var(--shell-muted); }
+.blueprint-canvas-wrapper .bp-node-card.bp-node-card--document { border-radius: 4px; }
+.bp-node-card--document .bp-node-card__symbol { margin-right: 3px; }
+.blueprint-canvas-wrapper--browsing > .bp-node-detail { order: -1; }

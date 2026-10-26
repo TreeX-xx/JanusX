@@ -2,13 +2,13 @@ import { promises as fs } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 import type {
   BlueprintChangeSet,
   BlueprintEvidenceManifest,
   BlueprintMaintenanceTask,
   BlueprintOperation,
-} from '../../src/shared/janus/maintenance-types'
+} from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 // Under full-suite CPU contention the async task pipeline can exceed the
 // defaults; generous timeouts keep this file deterministic, and the afterEach

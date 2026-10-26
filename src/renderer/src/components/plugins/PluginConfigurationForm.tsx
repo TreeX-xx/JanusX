@@ -9,6 +9,7 @@ import { useI18n } from '@/i18n/useI18n'
 import styles from './PluginSettingsPanel.module.css'
 import { openExtensionView } from '@/extensions/workbench'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import { pluginConfigurationDrafts } from '@/extensions/plugin-configuration-drafts'
 
 export function PluginConfigurationForm({ record, initialScope = 'application', proposal, onOpened }: {
   record: InstalledPlugin; initialScope?: 'application' | 'project'; proposal?: PluginConfigurationTarget['proposal']; onOpened?: () => void
@@ -25,29 +26,38 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [saved, setSaved] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState<'reload' | 'reset' | null>(null)
   const requests = useRef({ sequence: 0 }).current
   const target = { id: record.manifest.id, projectId: projectScope ? projectId : null, scopePath: projectScope ? root ?? null : null }
+  const draftTarget = { ...target, digest: record.digest }
   const initialTarget = useRef(JSON.stringify(target))
   const proposalConsumed = useRef(false)
   const [reviewing, setReviewing] = useState(false)
-  const load = async () => {
+  const load = async (discard = false) => {
     const current = ++requests.sequence
     setBusy(true); setFailure(''); setSaved(false)
     try {
       const result = await pluginRequest<PluginConfigurationState>({ type: 'configurationGet', ...target })
       if (current === requests.sequence) {
-        setConfiguration(result); setPatch({}); setReviewing(false)
+        const draft = discard ? undefined : pluginConfigurationDrafts.read(draftTarget)
+        if (discard) pluginConfigurationDrafts.clear(draftTarget)
+        setConfiguration(draft?.configuration ?? result); setPatch(draft?.patch ?? {}); setReviewing(draft?.reviewing ?? false)
+        if (draft && draft.configuration.revision !== result.revision) setFailure('CONFIGURATION_CONFLICT')
         if (proposal && !proposalConsumed.current && initialTarget.current === JSON.stringify(target)) {
           proposalConsumed.current = true
-          setConfiguration({ ...result, revision: proposal.expectedRevision }); setPatch(proposal.patch); setReviewing(true)
-          if (proposal.expectedRevision !== result.revision) setFailure('CONFIGURATION_CONFLICT')
+          if (!draft && !discard) {
+            const proposed = { ...result, revision: proposal.expectedRevision }
+            setConfiguration(proposed); setPatch(proposal.patch); setReviewing(true)
+            pluginConfigurationDrafts.write(draftTarget, { configuration: proposed, patch: proposal.patch, reviewing: true })
+            if (proposal.expectedRevision !== result.revision) setFailure('CONFIGURATION_CONFLICT')
+          }
         }
       }
     } catch (cause) { if (current === requests.sequence) { setConfiguration(null); setFailure((cause as Error).message) } }
     finally { if (current === requests.sequence) setBusy(false) }
   }
   useEffect(() => {
-    setConfiguration(null); setPatch({}); void load()
+    setConfiguration(null); setPatch({}); setConfirmDiscard(null); void load()
     return () => { requests.sequence++ }
     // A schema/root change invalidates the old form and any in-flight response.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,7 +69,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
     try {
       const result = await pluginRequest<PluginConfigurationState>({ type: 'configurationUpdate', ...target,
         expectedRevision: configuration.revision, patch: reset || migrate ? {} : patch, reset, migrate })
-      if (current === requests.sequence) { setConfiguration(result); setPatch({}); setSaved(true); setReviewing(false) }
+      if (current === requests.sequence) { pluginConfigurationDrafts.clear(draftTarget); setConfiguration(result); setPatch({}); setSaved(true); setReviewing(false) }
     } catch (cause) { if (current === requests.sequence) setFailure((cause as Error).message) }
     finally { if (current === requests.sequence) setBusy(false) }
   }
@@ -68,8 +78,15 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
   const valueFor = (key: string) => Object.hasOwn(patch, key)
     ? patch[key] ?? configuration?.inherited[key] : configuration?.values[key]
   const invalid = settings.some(setting => Object.hasOwn(patch, setting.key) && patch[setting.key] !== null && !isPluginSettingValue(setting, patch[setting.key]))
+  const edit = (key: string, value: PluginSettingValue | null) => {
+    if (!configuration) return
+    const next = { ...patch, [key]: value }
+    pluginConfigurationDrafts.write(draftTarget, { configuration, patch: next, reviewing })
+    setPatch(next); setSaved(false)
+  }
   return <div data-plugin-configuration>
     <p className={styles.hint}>{t('plugins:configurationHint')}</p>
+    {Object.keys(patch).length > 0 && <p role="status">{t('plugins:configurationDraftHint')}</p>}
     {reviewing && <p role="status">{t('plugins:configurationReview')}</p>}
     {customView && <button type="button" disabled={busy || !record.enabled || Boolean(Object.keys(patch).length)} onClick={() => {
       if (openExtensionView(`extension:${record.manifest.id}/${customView}`)) onOpened?.()
@@ -85,7 +102,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
       const value = valueFor(setting.key)
       const disabled = busy || projectScope && setting.scope !== 'project'
       const overridden = Object.hasOwn(patch, setting.key) ? patch[setting.key] !== null : Object.hasOwn(configuration.overrides, setting.key)
-      const change = (next: PluginSettingValue) => { setPatch(current => ({ ...current, [setting.key]: next })); setSaved(false) }
+      const change = (next: PluginSettingValue) => edit(setting.key, next)
       return <div key={setting.key} className={styles.configurationField}>
         <label>{setting.title}
           {setting.type === 'boolean' ? <input type="checkbox" aria-label={setting.title} disabled={disabled} checked={Boolean(value)} onChange={event => change(event.target.checked)} />
@@ -98,7 +115,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
         </label>
         <span className={styles.hint}>{disabled && !busy ? t('plugins:configurationApplicationOnly') : overridden ? t('plugins:configurationOverride') : t('plugins:configurationInherited')}</span>
         <button type="button" aria-label={`${t('plugins:configurationResetField')} ${setting.title}`} disabled={disabled || !overridden}
-          onClick={() => { setPatch(current => ({ ...current, [setting.key]: null })); setSaved(false) }}>{t('plugins:configurationResetField')}</button>
+          onClick={() => edit(setting.key, null)}>{t('plugins:configurationResetField')}</button>
         {setting.description && <p className={styles.hint}>{setting.description}</p>}
       </div>
     })}
@@ -114,8 +131,15 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
     {saved && <p role="status">{t('plugins:configurationSaved')}</p>}
     <div className={styles.actions}>
       <button type="button" disabled={busy || !configuration || !Object.keys(patch).length || invalid} onClick={() => { void submit(false) }}>{t('plugins:configurationSave')}</button>
-      <button type="button" disabled={busy || !configuration} onClick={() => { void submit(true) }}>{t('plugins:configurationReset')}</button>
-      <button type="button" disabled={busy} onClick={() => { void load() }}>{t('plugins:configurationReload')}</button>
+      <button type="button" disabled={busy || !configuration} onClick={() => setConfirmDiscard('reset')}>{t('plugins:configurationReset')}</button>
+      <button type="button" disabled={busy} onClick={() => { if (Object.keys(patch).length) setConfirmDiscard('reload'); else void load() }}>{t('plugins:configurationReload')}</button>
     </div>
+    {confirmDiscard && <section role="alertdialog" aria-label={t('plugins:configurationDiscardTitle')} className={styles.card}>
+      <p>{t(confirmDiscard === 'reset' ? 'plugins:configurationResetHint' : 'plugins:configurationDiscardHint')}</p>
+      <div className={styles.actions}>
+        <button type="button" disabled={busy} onClick={() => { const action = confirmDiscard; setConfirmDiscard(null); if (action === 'reset') void submit(true); else void load(true) }}>{t('plugins:confirm')}</button>
+        <button type="button" onClick={() => setConfirmDiscard(null)}>{t('plugins:cancel')}</button>
+      </div>
+    </section>}
   </div>
 }

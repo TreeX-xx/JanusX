@@ -17,7 +17,7 @@ function deferred<T>() {
 describe('bounded editor disk snapshot cache', () => {
   beforeEach(() => {
     invalidateEditorFileCache()
-    useEditorStore.setState({ openFiles: [], activeFileId: null, isVisible: false, navigationTarget: null })
+    useEditorStore.setState({ openFiles: [], activeFileId: null, isVisible: false })
     vi.stubGlobal('window', { electron: { file: {
       read: vi.fn(async (path: string) => ({ content: `disk:${path}`, mtime: 1 })),
       readBinary: vi.fn(async () => ({ base64: 'image', mimeType: 'image/png', mtime: 1 })),
@@ -25,6 +25,19 @@ describe('bounded editor disk snapshot cache', () => {
     } } })
   })
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
+
+  it('keeps a remote read version through close/reopen and sends it on save', async () => {
+    const root = 'janusx-workspace://remote/project'
+    const remote = root + '/%E4%BD%A0%E5%A5%BD.ts'
+    vi.mocked(window.electron.file.read).mockResolvedValue({ content: 'before', version: 'a'.repeat(64) })
+    await editor().openFile(remote, root)
+    expect(file().name).toBe('你好.ts')
+    editor().closeFile(file().id)
+    await editor().openFile(remote, root)
+    editor().updateContent(file().id, 'after')
+    await editor().saveFile(file().id)
+    expect(window.electron.file.save).toHaveBeenCalledWith(remote, 'after', 'a'.repeat(64))
+  })
 
   it('reuses a small clean closed file and the newly saved content', async () => {
     await editor().openFile(path('small'), workspace)

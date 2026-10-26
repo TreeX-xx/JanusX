@@ -9,7 +9,7 @@ import type {
   BlueprintRequirementCandidate,
   BlueprintRequirementCandidateStatus,
   DiscoveredRequirement,
-} from '../janus/types'
+} from '../../../plugins/blueprint/src/shared/janus/types'
 import type {
   BlueprintDispatchBriefResult,
   BlueprintMaintenanceApplyInput,
@@ -26,7 +26,7 @@ import type {
   BlueprintMaintenanceUndoApplyResult,
   BlueprintMaintenanceUndoPrepareInput,
   BlueprintMaintenanceUndoPrepareResult,
-} from '../janus/maintenance-types'
+} from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 export const JANUS_COMMAND_CHANNELS = {
   listBlueprints: 'blueprint:list',

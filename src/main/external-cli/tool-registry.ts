@@ -1,4 +1,7 @@
-import type { ExternalCliToolId } from '../../shared/ipc/external-cli'
+import type { ExternalCliToolId, OpenCodeChannel } from '../../shared/ipc/external-cli'
+
+// Official v2 installation: https://github.com/anomalyco/opencode/blob/dev/README.md
+export const OPENCODE_PACKAGES: Record<OpenCodeChannel, string> = { v1: 'opencode-ai', v2: '@opencode/cli' }
 
 export interface ExternalCliToolDescriptor {
   id: ExternalCliToolId
@@ -62,8 +65,9 @@ export const EXTERNAL_CLI_TOOLS: Record<ExternalCliToolId, ExternalCliToolDescri
     id: 'opencode',
     displayName: 'OpenCode',
     binaryNames: ['opencode'],
-    npmPackage: 'opencode-ai',
-    manualInstallCommand: npmInstallCommand('opencode-ai'),
+    // New installs use v2; the service keeps existing v1 installs on opencode-ai.
+    npmPackage: OPENCODE_PACKAGES.v2,
+    manualInstallCommand: npmInstallCommand(OPENCODE_PACKAGES.v2),
     latestStrategy: 'npm-dist-tags',
   },
   pi: {

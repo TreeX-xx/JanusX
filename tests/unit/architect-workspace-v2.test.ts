@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { createArchitectWorkspace } from '../helpers/architect-workspace'
 import { projectArchitecture, resolveArchitectureNote } from '../../src/renderer/src/features/blueprint/architecture-view'
 import { moduleOwners, projectModuleBrowse } from '../../src/renderer/src/features/blueprint/module-browsing'
-import { composeBlueprint, compositionNodeId } from '../../src/main/blueprint/blueprint-composition'
+import { composeBlueprint, compositionNodeId } from '../../plugins/blueprint/src/main/blueprint/blueprint-composition'
 
 const roots: string[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })

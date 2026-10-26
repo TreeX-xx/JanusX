@@ -6,7 +6,7 @@
  *              版本语义：Blueprint 用 contentRevision，Knowledge 真相实体用各自 version。
  */
 
-import type { Blueprint } from '../janus/types'
+import type { Blueprint } from '../../../plugins/blueprint/src/shared/janus/types'
 import type { OwnerScope } from './types'
 
 /** 乐观并发冲突：远端已被他人改写，本次写入必须放弃，不得覆盖。 */

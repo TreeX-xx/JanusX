@@ -1,0 +1,50 @@
+{
+  "name": "@janusx/blueprint",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Official downloadable Blueprint workbench, Note review and standalone MCP",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@janusx/plugin-sdk": "file:vendor/janusx-plugin-sdk-0.1.0.tgz",
+    "@janus-agent/agent-core": "file:vendor/janus-agent-agent-core-0.1.0.tgz",
+    "@janus-agent/chat-core": "file:vendor/janus-agent-chat-core-0.1.0.tgz",
+    "@janus-agent/janus-agent": "file:vendor/janus-agent-janus-agent-0.1.0.tgz",
+    "@janusx/llm-core": "file:vendor/janusx-llm-core-0.1.0.tgz",
+    "@janus-agent/harness-core": "file:vendor/janus-agent-harness-core-0.2.0.tgz",
+    "@janus-agent/harness-node": "file:vendor/janus-agent-harness-node-0.2.0.tgz",
+    "@janus-agent/node-hosts": "file:vendor/janus-agent-node-hosts-0.1.0.tgz",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@xyflow/react": "^12.11.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "diff": "^8.0.4",
+    "jsonc-parser": "^3.3.1",
+    "smol-toml": "^1.9.0",
+    "yaml": "^2.9.1",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  },
+  "overrides": {
+    "@janusx/plugin-sdk": "$@janusx/plugin-sdk",
+    "@janus-agent/agent-core": "$@janus-agent/agent-core",
+    "@janus-agent/chat-core": "$@janus-agent/chat-core",
+    "@janus-agent/janus-agent": "$@janus-agent/janus-agent",
+    "@janusx/llm-core": "$@janusx/llm-core",
+    "@janus-agent/harness-core": "$@janus-agent/harness-core",
+    "@janus-agent/harness-node": "$@janus-agent/harness-node",
+    "@janus-agent/node-hosts": "$@janus-agent/node-hosts"
+  }
+}

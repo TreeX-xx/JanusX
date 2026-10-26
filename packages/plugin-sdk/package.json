@@ -6,7 +6,7 @@
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./native": { "types": "./dist/native.d.ts", "import": "./dist/native.js" } },
   "bin": { "janusx-plugin": "./tools/cli.mjs" },
   "files": ["dist", "tools", "template", "examples", "README.md"],
   "scripts": {

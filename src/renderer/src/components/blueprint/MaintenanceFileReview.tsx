@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { previewMaintenanceChangeSet } from '@/services/blueprint'
 import { useI18n } from '@/i18n/useI18n'
-import type { BlueprintMaintenancePreview, BlueprintMaintenancePreviewInput } from '../../../../shared/janus/maintenance-types'
+import type { BlueprintMaintenancePreview, BlueprintMaintenancePreviewInput } from '../../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import styles from './BlueprintActionBar.module.css'
 
 export type MaintenanceReviewContext = Omit<BlueprintMaintenancePreviewInput, 'operationIds' | 'groupIds'>

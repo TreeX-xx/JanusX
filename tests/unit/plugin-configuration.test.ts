@@ -51,6 +51,13 @@ async function fixture() {
 }
 
 describe('declarative plugin configuration', () => {
+  it('opens credential-only configuration through the same manifest and request contract', async () => {
+    const value = JSON.parse(await readFile('plugins/blueprint/manifest.json', 'utf8'))
+    expect(value.contributes.settings).toBeUndefined()
+    expect(() => validatePluginCall(parsePluginManifest(JSON.stringify(value)), 'configuration.open', {})).not.toThrow()
+    delete value.contributes.credentials
+    expect(() => parsePluginManifest(JSON.stringify(value))).toThrow()
+  })
   it('rechecks activity and navigation budgets after asynchronous proposal validation', async () => {
     const f = await fixture(); const value = structuredClone(f.value)
     value.capabilities.required.push('configuration.customViews', 'configuration.open'); value.permissions.push({ name: 'configuration.propose' })

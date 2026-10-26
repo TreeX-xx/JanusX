@@ -1,6 +1,6 @@
 import { WindowControls } from './WindowControls'
 import type { IslandControllerAction } from '@/components/janus/islandController'
-import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useAppStore } from '@/stores/app'
@@ -11,6 +11,7 @@ import { UpdaterBadge } from '@/components/UpdaterBadge'
 import { PromptDialog } from '@/components/blueprint/PromptDialog'
 import { WorkbenchSwitcher } from '@/components/WorkbenchSwitcher'
 import { PluginWorkbenchHost } from '@/extensions/PluginWorkbenchHost'
+import { PluginWorkspaceHandoffHost } from '@/extensions/PluginWorkspaceHandoffHost'
 import { TitlebarToolGroup, TitlebarToolSeparator } from '@/components/TitlebarToolGroup'
 import { useJanusChatController } from '@/components/janus/JanusChatProvider'
 import { useGlobalRunning } from '@/components/janus/useGlobalRunning'
@@ -20,15 +21,10 @@ import { KNOWLEDGE_PEEK_TIMEOUT_MS } from '@/components/janus/islandKnowledgePee
 import { useIslandStore } from '@/stores/island'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useTeamStore } from '@/stores/team'
-import { useBlueprintMaintenanceStore } from '@/stores/blueprint-maintenance'
 import { useWorkflowXDetection } from './janus/useWorkflowXDetection'
 import { useI18n } from '@/i18n/useI18n'
-import { PLUGIN_CONFIGURATION_EVENT, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
-
-/*-- P4: 蓝图工作台（@xyflow 画布链）按需分包，未打开蓝图工作台时不加载 --*/
-const BlueprintWorkbench = lazy(() =>
-  import('@/components/blueprint/BlueprintWorkbench').then((m) => ({ default: m.BlueprintWorkbench }))
-)
+import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import { extensionRegistry, isExtensionViewId } from '@/extensions/registry'
 
 /* ════════════════════════════════════════════════════════════
    Titlebar �?标题栏（简化版�?
@@ -63,13 +59,27 @@ export function Titlebar() {
     return () => window.removeEventListener(PLUGIN_CONFIGURATION_EVENT, open)
   }, [])
   useEffect(() => {
-    const openKnowledgeSettings = () => {
-      if (!useExperimentalStore.getState().blueprint) return
-      setSettingsInitialTab('knowledge')
+    const open = (event: Event) => {
+      const id: unknown = (event as CustomEvent).detail
+      if (typeof id !== 'string' || !isExtensionViewId(id) || extensionRegistry.getView(id)?.location !== 'settings') return
+      setSettingsInitialTab(id)
       setSettingsModalOpen(true)
     }
-    window.addEventListener('janusx:open-knowledge-settings', openKnowledgeSettings)
-    return () => window.removeEventListener('janusx:open-knowledge-settings', openKnowledgeSettings)
+    window.addEventListener(PLUGIN_SETTINGS_EVENT, open)
+    return () => window.removeEventListener(PLUGIN_SETTINGS_EVENT, open)
+  }, [])
+  useEffect(() => {
+    const openPlugins = () => {
+      setPluginConfiguration(null)
+      setSettingsInitialTab('plugins')
+      setSettingsModalOpen(true)
+    }
+    window.addEventListener(PLUGIN_MANAGEMENT_EVENT, openPlugins)
+    window.addEventListener('janusx:open-knowledge-settings', openPlugins)
+    return () => {
+      window.removeEventListener(PLUGIN_MANAGEMENT_EVENT, openPlugins)
+      window.removeEventListener('janusx:open-knowledge-settings', openPlugins)
+    }
   }, [])
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   // 侧栏团队区请求打开设置 team 页（计数器变化即打开）。
@@ -109,7 +119,6 @@ export function Titlebar() {
   const activeWorkbench = useAppStore((s) => s.activeWorkbench)
   const setActiveWorkbench = useAppStore((s) => s.setActiveWorkbench)
   const knowledgeEnabled = useExperimentalStore((s) => s.persona)
-  const blueprintEnabled = useExperimentalStore((s) => s.blueprint)
   const loadExperimental = useExperimentalStore((s) => s.load)
 
   useEffect(() => {
@@ -118,9 +127,13 @@ export function Titlebar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
   const activeTerminalId = useWorkspaceStore((s) => s.activeTerminalId)
   const previousActiveWorkspaceId = useRef(activeWorkspaceId)
-  const initializeBlueprintMaintenance = useBlueprintMaintenanceStore((state) => state.initialize)
-
-  useEffect(() => { void initializeBlueprintMaintenance() }, [initializeBlueprintMaintenance])
+  // Note: old blueprint shortcuts lead to installation; downloaded plugins own their UI.
+  useEffect(() => {
+    if (activeWorkbench !== 'blueprint') return
+    setActiveWorkbench(null)
+    setSettingsInitialTab('plugins')
+    setSettingsModalOpen(true)
+  }, [activeWorkbench, setActiveWorkbench])
 
   useEffect(() => {
     dispatchIsland({ type: 'trace', trace: latestRecallTrace })
@@ -274,17 +287,12 @@ export function Titlebar() {
         <WorkbenchSwitcher />
       </div>
 
-      <Suspense fallback={null}>
-        <BlueprintWorkbench
-          isOpen={blueprintEnabled && activeWorkbench === 'blueprint'}
-          onClose={() => setActiveWorkbench(null)}
-        />
-      </Suspense>
       <PersonalMemoryWorkbench
         isOpen={knowledgeEnabled && activeWorkbench === 'knowledge'}
         onClose={() => setActiveWorkbench(null)}
       />
       <PluginWorkbenchHost />
+      <PluginWorkspaceHandoffHost />
 
       {/* 灵动岛 + 运行球簇 */}
       <div

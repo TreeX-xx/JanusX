@@ -1,6 +1,6 @@
 import { parse } from 'jsonc-parser'
 import { describe, expect, it } from 'vitest'
-import { clientEntry, updateClientConfig, type McpLaunch } from '../../../src/main/blueprint/mcp/client-config'
+import { clientEntry, updateClientConfig, type McpLaunch } from '../../../plugins/blueprint/src/main/blueprint/mcp/client-config'
 const launch: McpLaunch = { command: 'C:\\Program Files\\JanusX\\JanusX.exe', args: ['C:\\app.asar\\out\\main\\note-mcp.js'], env: { ELECTRON_RUN_AS_NODE: '1', JANUSX_NOTE_STATE_ROOT: 'C:\\User Data\\config.json' } }
 describe('client configuration interoperability', () => {
   it('preserves JSONC comments and unrelated client settings', () => {

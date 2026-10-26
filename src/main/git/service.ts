@@ -1,8 +1,11 @@
 import { execFile, spawn } from 'node:child_process'
 import { lstat, readFile, rm } from 'node:fs/promises'
-import { isAbsolute, relative, resolve, sep } from 'node:path'
+import { isAbsolute, relative, resolve, sep, posix } from 'node:path'
 import { promisify } from 'node:util'
 import type { GitFileChange, GitStatus } from '../../shared/ipc/git'
+import { parseRuntimeResource } from '../../shared/workspace-runtime'
+import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
+import { runWorkspaceProcess } from '../workspace/runtime-process'
 
 const execFileAsync = promisify(execFile)
 const LOCAL_GIT_TIMEOUT_MS = 10000
@@ -31,6 +34,11 @@ async function runGit(
   signal?: AbortSignal,
 ): Promise<string> {
   try {
+    if (parseRuntimeResource(cwd)) {
+      const result = await runWorkspaceProcess(cwd, ['git', ...args], { timeout, maxBytes: maxBuffer, signal })
+      if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git exited with code ${result.exitCode}`)
+      return result.stdout
+    }
     const { stdout } = await execFileAsync('git', args, { cwd, timeout, maxBuffer, signal, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
     return stdout
   } catch (err: any) {
@@ -201,11 +209,17 @@ function parseLineCount(value: string): number | null {
 
 async function getUntrackedLineStats(cwd: string, path: string): Promise<LineStats | null> {
   try {
-    const absolutePath = resolve(cwd, path)
-    const fileStats = await lstat(absolutePath)
-    if (!fileStats.isFile() || fileStats.isSymbolicLink()) return null
-
-    const content = await readFile(absolutePath)
+    const resource = await resolveRuntimeResource(cwd)
+    let content: Buffer
+    if (resource) {
+      const file = await runtimeRequest<{ base64: string }>(resource.runtime, 'fs.binary', { root: resource.root, path: posix.join(resource.relative, path) })
+      content = Buffer.from(file.base64, 'base64')
+    } else {
+      const absolutePath = resolve(cwd, path)
+      const fileStats = await lstat(absolutePath)
+      if (!fileStats.isFile() || fileStats.isSymbolicLink()) return null
+      content = await readFile(absolutePath)
+    }
     const sample = content.subarray(0, 8000)
     if (sample.includes(0)) return { additions: null, deletions: null }
     if (content.length === 0) return { additions: 0, deletions: 0 }
@@ -244,9 +258,10 @@ export async function unstage(cwd: string, paths: string[]) {
 }
 
 export async function discard(cwd: string, relativePath: string) {
-  const absolutePath = resolve(cwd, relativePath)
-  const safePath = relative(resolve(cwd), absolutePath)
-  if (!safePath || safePath === '..' || safePath.startsWith(`..${sep}`) || isAbsolute(safePath)) {
+  const resource = await resolveRuntimeResource(cwd)
+  const absolutePath = resource ? posix.resolve(resource.path, relativePath) : resolve(cwd, relativePath)
+  const safePath = resource ? posix.relative(resource.path, absolutePath) : relative(resolve(cwd), absolutePath)
+  if (!safePath || safePath === '..' || safePath.startsWith('../') || safePath.startsWith(`..${sep}`) || isAbsolute(safePath)) {
     throw new Error('Git file path is outside the workspace')
   }
   const status = await getStatus(cwd)
@@ -254,7 +269,8 @@ export async function discard(cwd: string, relativePath: string) {
   const change = status.changes.find((item) => item.path === relativePath)
   if (!change) throw new Error('File is no longer changed')
   if (change.status === '??') {
-    await rm(absolutePath, { recursive: true, force: true })
+    if (resource) await runtimeRequest(resource.runtime, 'fs.mutate', { root: resource.root, path: posix.join(resource.relative, safePath), operation: 'delete' })
+    else await rm(absolutePath, { recursive: true, force: true })
   } else if (change.staged) {
     await git(cwd, 'restore', '--staged', '--worktree', '--', relativePath)
   } else {
@@ -297,6 +313,10 @@ export async function getWorkingDiff(
 }
 
 function runBoundedGit(cwd: string, args: string[], maxBytes: number, signal?: AbortSignal): Promise<{ content: string; truncated: boolean }> {
+  if (parseRuntimeResource(cwd)) return runWorkspaceProcess(cwd, ['git', ...args], { timeout: LOCAL_GIT_TIMEOUT_MS, maxBytes, truncate: true, signal }).then(result => {
+    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git exited with code ${result.exitCode}`)
+    return { content: result.stdout, truncated: result.truncated }
+  })
   return new Promise((resolveResult, reject) => {
     const child = spawn('git', args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     const chunks: Buffer[] = []
@@ -349,9 +369,10 @@ export async function getFileBaseline(cwd: string, relativePath: string): Promis
   if (!relativePath || relativePath.includes('\0') || isAbsolute(relativePath)) {
     throw new Error('Invalid Git file path')
   }
-  const absolutePath = resolve(cwd, relativePath)
-  const safePath = relative(resolve(cwd), absolutePath)
-  if (!safePath || safePath === '..' || safePath.startsWith(`..${sep}`)) {
+  const resource = parseRuntimeResource(cwd)
+  const absolutePath = resource ? posix.resolve(resource.path, relativePath) : resolve(cwd, relativePath)
+  const safePath = resource ? posix.relative(resource.path, absolutePath) : relative(resolve(cwd), absolutePath)
+  if (!safePath || safePath === '..' || safePath.startsWith('../') || safePath.startsWith(`..${sep}`)) {
     throw new Error('Git file path is outside the workspace')
   }
   const available = await git(cwd, 'rev-parse', '--is-inside-work-tree').then(

@@ -3,8 +3,8 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join, sep } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { HarnessNoteService, assertNoLocalLeak } from '../../src/main/harness/service'
-import { resolveProjectCheckout } from '../../src/main/harness/maintenance-apply'
+import { BlueprintNoteService as HarnessNoteService, assertNoLocalLeak } from '../../plugins/blueprint/src/main/notes/service'
+import { resolveProjectCheckout } from '../../plugins/blueprint/src/main/notes/maintenance-apply'
 import {
   cancelTaskRun,
   closeoutTaskRun,

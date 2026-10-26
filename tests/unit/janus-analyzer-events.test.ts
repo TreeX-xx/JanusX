@@ -3,7 +3,7 @@ import { JANUS_EVENT_CHANNELS } from '../../src/shared/ipc/janus'
 import type {
   BlueprintNode,
   BlueprintRequirementCandidate,
-} from '../../src/shared/janus/types'
+} from '../../plugins/blueprint/src/shared/janus/types'
 
 const mocks = vi.hoisted(() => ({
   appendAnalysis: vi.fn(),

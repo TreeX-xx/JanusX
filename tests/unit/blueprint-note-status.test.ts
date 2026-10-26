@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
-import { blueprintNoteStatus } from '../../src/shared/blueprint-note-status'
-import type { BlueprintNode } from '../../src/shared/janus/types'
+import { blueprintNoteStatus } from '../../plugins/blueprint/src/shared/blueprint-note-status'
+import type { BlueprintNode } from '../../plugins/blueprint/src/shared/janus/types'
 
 const node = (kind: string, lifecycle = 'accepted', fields = {}): BlueprintNode => ({ kind, lifecycle, note: { kind, lifecycle, ...fields } }) as BlueprintNode
 it('does not translate accepted documents or tasks without execution into running work', () => {

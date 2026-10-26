@@ -12,8 +12,8 @@ import {
   dispatchBriefSchema,
   renderDispatchBrief,
   type DispatchBrief,
-} from '../../src/main/janus/maintenance/dispatch-brief'
-import type { BlueprintMaintenanceScope } from '../../src/shared/janus/maintenance-types'
+} from '../../plugins/blueprint/src/main/janus/maintenance/dispatch-brief'
+import type { BlueprintMaintenanceScope } from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 const brief = (over: Partial<DispatchBrief> = {}): DispatchBrief => ({
   goal: 'Ship the retry path',

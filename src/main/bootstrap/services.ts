@@ -3,12 +3,8 @@ import { join } from 'node:path'
 import { subscribeWorkspaceWatcher } from '../ipc/handlers'
 import { OfficeArtifactIndex } from '../office/office-artifact-index'
 import { OfficeWatchPool } from '../office/office-watch-pool'
+import { releaseRemoteOfficePreviews } from '../office/remote-office-cache'
 import { createRegisteredWorkspaceRootResolver } from '../office/office-workspace-guard'
-import { resolveLanguageServiceManagedRoot, resolveServiceManagedRoot } from '../language-service/managed-root'
-import { ManagedBinaryInstaller } from '../language-service/installer'
-import { clangdManager } from '../language-service/clangd-manager'
-import { getAllDescriptors } from '../language-service/registry'
-import { LANGUAGE_SERVICE_EVENT_CHANNELS, type LanguageServiceId } from '../../shared/ipc/language-service'
 
 export function createApplicationServices(getOfficeWindows: () => BrowserWindow[]) {
   const resolveOfficeWorkspaceRoot = createRegisteredWorkspaceRootResolver(
@@ -20,31 +16,12 @@ export function createApplicationServices(getOfficeWindows: () => BrowserWindow[
     }
   }
   const officeWatchPool = new OfficeWatchPool(resolveOfficeWorkspaceRoot, {
-    onEvicted: (event) => broadcast('office:watch-evicted', event),
+    onEvicted: (event) => { releaseRemoteOfficePreviews(event.previewLeaseIds); broadcast('office:watch-evicted', event) },
   })
   const officeArtifactIndex = new OfficeArtifactIndex(resolveOfficeWorkspaceRoot, {
     subscribe: subscribeWorkspaceWatcher,
     onChanged: (event) => broadcast('office:files:changed', event),
   })
 
-  const languageServiceBaseRoot = resolveLanguageServiceManagedRoot({ userDataDir: app.getPath('userData') })
-  const languageServiceInstallers = new Map<LanguageServiceId, ManagedBinaryInstaller>()
-  for (const descriptor of getAllDescriptors()) {
-    const installer = new ManagedBinaryInstaller(
-      resolveServiceManagedRoot(languageServiceBaseRoot, descriptor.id),
-      descriptor,
-      (event) => broadcast(LANGUAGE_SERVICE_EVENT_CHANNELS.installerProgress, event),
-    )
-    languageServiceInstallers.set(descriptor.id, installer)
-  }
-
-  void (async () => {
-    const clangdInstaller = languageServiceInstallers.get('clangd')
-    if (clangdInstaller) {
-      const managedBinary = await clangdInstaller.getManagedBinary()
-      clangdManager.configureManagedBinaryPath(managedBinary)
-    }
-  })()
-
-  return { resolveOfficeWorkspaceRoot, officeWatchPool, officeArtifactIndex, languageServiceInstallers }
+  return { resolveOfficeWorkspaceRoot, officeWatchPool, officeArtifactIndex }
 }

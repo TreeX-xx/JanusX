@@ -69,6 +69,13 @@ useRightToolStore.subscribe((state, previous) => {
   if (state.activeToolId !== previous.activeToolId) toolActivations.push(state.activeToolId)
 })
 Object.assign(window, { builtinExtensionFixture: {
+  largeGit: () => useGitStore.setState({ status: { branch: { name: 'main', ahead: 0, behind: 0 }, clean: false,
+    changes: Array.from({ length: 500 }, (_, index) => ({ path: `src/large/file-${index}.tsx`, status: 'M', staged: false, additions: null, deletions: null })) } }),
+  refreshGit: (changed: boolean) => {
+    const status = useGitStore.getState().status!
+    useGitStore.setState({ status: { ...status, changes: status.changes.map((file, index) => ({ ...file,
+      ...(changed && index === 499 ? { status: 'A' as const } : {}) })) } })
+  },
   close: (id: string) => useRightToolStore.getState().closeTool(id),
   collapse: () => useAppStore.getState().setPanelCollapsed(true),
   disable: (id: string) => extensionRegistry.disable(`janusx.${id}`),

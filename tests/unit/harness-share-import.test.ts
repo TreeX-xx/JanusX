@@ -3,7 +3,7 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HarnessNoteService } from '../../src/main/harness/service'
+import { BlueprintNoteService as HarnessNoteService } from '../../plugins/blueprint/src/main/notes/service'
 import type { ShareSnapshot } from '../../src/main/harness/service'
 
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'

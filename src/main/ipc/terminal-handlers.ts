@@ -1,6 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
+import { createRemoteTerminal } from '../terminal/remote-pty'
+import { parseRuntimeResource } from '../../shared/workspace-runtime'
+import { remoteBackendRequest } from '../workspace/remote-harness'
+import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { TerminalTurnChangeTracker } from '../terminal/turn-change-tracker'
 import { checkpointManager } from '@janus-agent/agent-core'
 import type { CheckpointEngine } from '@janus-agent/agent-core'
@@ -8,7 +12,6 @@ import { agentSessionRegistry, type AgentSessionRecord } from '../sessions/sessi
 import { buildContinueHandoff } from '../sessions/continue-handoff'
 import { deliverHandoff, type HandoffTransport } from '../sessions/handoff-delivery'
 import { prepareSessionRecovery, type SessionRecoveryEnvironment } from '../sessions/session-recovery'
-import { analyzer } from '../janus/analyzer'
 import { isTerminalPreset, resolveTerminalLaunchProgram } from '../../shared/terminalLaunch'
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
 import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
@@ -718,7 +721,53 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     return { ok: true as const }
   })
 
+  const remoteCreations = new Map<string, Promise<{ pid: number }>>()
+  const createRemoteLifecycle = async (config: TerminalCreateRequest): Promise<{ pid: number }> => {
+    const resource = parseRuntimeResource(config.cwd)
+    if (!resource || resource.workspaceId !== config.workspaceId) throw new Error('Terminal workspace does not match its directory')
+    const existing = terminalManager.getInstance(config.id)
+    if (existing) {
+      if (!existing.remote || existing.config.workspaceId !== config.workspaceId || existing.config.cwd !== config.cwd) throw new Error('Terminal identity is already in use')
+      return { pid: existing.pty.pid }
+    }
+    if (remoteCreations.has(config.id)) throw new Error('Terminal is already connecting')
+    const pending = (async () => {
+      const remote = await createRemoteTerminal(config, error => {
+        sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.status, { id: config.id, status: error ? 'degraded' : 'wait' })
+        if (error) logTerminalDiagnostic('remote terminal connection', { id: config.id, error })
+      })
+      const { instance } = remote
+      if (appShutdown.isQuitting) { instance.remote!.detach(); throw new Error('Application is closing; the remote terminal remains available') }
+      terminalManager.adopt(instance)
+      if (config.preset && config.preset !== 'shell') {
+        agentSessionRegistry.createSession({ terminalId: config.id, workspaceId: config.workspaceId!,
+          engine: config.preset, cwd: config.cwd, shell: instance.config.shell, preset: config.preset })
+      }
+      instance.pty.onData(data => {
+        if (terminalManager.getInstance(config.id) !== instance) return
+        const seq = terminalManager.appendOutput(config.id, data)
+        if (seq !== null) queueTerminalData(config.id, data, seq)
+      })
+      instance.pty.onExit(({ exitCode }) => {
+        if (terminalManager.getInstance(config.id) !== instance) return
+        flushTerminalData(config.id)
+        instance.status = 'exited'
+        agentSessionRegistry.noteProcessExit(config.id, exitCode)
+        sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.exit, { id: config.id, exitCode })
+      })
+      sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.created, {
+        id: config.id, workspaceId: config.workspaceId!, cwd: config.cwd,
+        preset: isTerminalPreset(config.preset) ? config.preset : 'shell', shell: instance.config.shell, pid: instance.pty.pid,
+      })
+      remote.start()
+      return { pid: instance.pty.pid }
+    })()
+    remoteCreations.set(config.id, pending)
+    try { return await pending } finally { remoteCreations.delete(config.id) }
+  }
+
   const createTerminalLifecycle = async (config: TerminalCreateRequest, recoveryEnv?: SessionRecoveryEnvironment) => {
+    if (parseRuntimeResource(config.cwd)) return createRemoteLifecycle(config)
     const launchStartedAt = performance.now()
     const { id, cwd, shell, preset, command, args, cols, rows, extraArgs, shellProfileId, shellCommand } = config
 
@@ -1152,10 +1201,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             })
           }).catch(err => console.error('Checkpoint finalize failed:', err))
         }
-        // Janus Analyzer runs only for AI CLI terminals.
-        if (state && state.engine !== 'shell') {
-          analyzer.analyzeTerminal(state.cwd, id).catch(err => console.error('[janus] terminal-close analyze failed:', err))
-        }
         terminalStates.delete(id)
         turnChangeTracker.unregister(id)
         serviceErrorDetectors.delete(id)
@@ -1275,6 +1320,27 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   continueSessionImpl = async (sessionId, opts) => {
     const source = agentSessionRegistry.getSession(sessionId)
     if (!source) throw new Error(`Session not found: ${sessionId}`)
+    if (parseRuntimeResource(source.cwd)) {
+      if (opts?.engine && opts.engine !== source.engine) throw new Error('Remote session resume must use its original provider')
+      const resource = (await resolveRuntimeResource(source.cwd))!
+      const terminals = await runtimeRequest<Array<{ id: string; exitCode: number | null }>>(resource.runtime, 'terminal.list', { workspaceId: resource.workspaceId })
+      const live = terminals.find(terminal => source.terminalIds.includes(terminal.id) && terminal.exitCode === null)
+      if (live) {
+        await createRemoteLifecycle({ id: live.id, workspaceId: resource.workspaceId, cwd: source.cwd, shell: '/bin/sh', preset: isTerminalPreset(source.engine) ? source.engine : 'shell', attachOnly: true })
+        return { sessionId: source.id, terminalId: live.id }
+      }
+      const resume = await remoteBackendRequest<{ args: string[]; cwd: string; engine: string; command: string }>(source.cwd, 'session.resume', [`${source.engine}:${source.providerSessionId}`])
+      const terminalId = randomUUID()
+      const preset = isTerminalPreset(source.engine) ? source.engine : undefined
+      const record = agentSessionRegistry.createSession({ terminalId, workspaceId: resource.workspaceId,
+        cwd: source.cwd, engine: source.engine, preset, shell: '/bin/sh', providerSessionId: source.providerSessionId,
+        transcriptPath: source.transcriptPath, continuedFrom: source.id, historyFrom: source.id })
+      try {
+        await createRemoteLifecycle({ id: terminalId, workspaceId: resource.workspaceId, cwd: source.cwd, shell: '/bin/sh',
+          preset, command: resume.command, args: resume.args })
+      } catch (error) { agentSessionRegistry.discardTerminal(terminalId); throw error }
+      return { sessionId: record.id, terminalId }
+    }
     const explicitResume = opts?.mode === 'resume' || (source.external === true && opts?.mode !== 'continue')
     if (explicitResume) {
       if (opts?.engine && opts.engine !== source.engine) throw new Error('Resume cannot change the session engine')
@@ -1390,6 +1456,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   })
 
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.kill, async (_event, { id }: { id: string }) => {
+    if (await terminalManager.endRemote(id)) {
+      dropPendingTerminalData(id)
+      return { success: true }
+    }
     const st = terminalStates.get(id)
     if (st) {
       st.userKillRequested = true

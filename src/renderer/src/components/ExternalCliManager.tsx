@@ -3,7 +3,10 @@ import { useI18n } from '@/i18n/useI18n'
 import {
   EXTERNAL_CLI_TOOL_META,
   isCliUpdateAvailable,
+  openCodeChannel,
   type ExternalCliDetectResult,
+  type ExternalCliInstallOptions,
+  type ExternalCliLatestResult,
   type ExternalCliToolId,
 } from '../../../shared/ipc/external-cli'
 import { externalCliService } from '@/services/external-cli'
@@ -40,7 +43,7 @@ export function ExternalCliManager({
   const { t } = useI18n('settings')
   const meta = EXTERNAL_CLI_TOOL_META[toolId]
   const [detect, setDetect] = useState<ExternalCliDetectResult>()
-  const [latestVersion, setLatestVersion] = useState<string>()
+  const [latest, setLatest] = useState<ExternalCliLatestResult>()
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -60,7 +63,7 @@ export function ExternalCliManager({
 
   const refreshLatest = useCallback(async () => {
     const latestResult = await externalCliService.latest(toolId)
-    setLatestVersion(latestResult.latestVersion)
+    setLatest(latestResult)
   }, [toolId])
 
   const refresh = useCallback(async () => {
@@ -95,12 +98,12 @@ export function ExternalCliManager({
     refreshQuiet()
   }, [refreshQuiet])
 
-  const handleInstall = useCallback(async () => {
+  const handleInstall = useCallback(async (options?: ExternalCliInstallOptions) => {
     setBusy(true)
     setError('')
     setNotice('')
     try {
-      const result = await externalCliService.install(toolId)
+      const result = await externalCliService.install(toolId, options)
       if (!result.success) {
         setError(result.error ?? '')
       } else {
@@ -115,6 +118,15 @@ export function ExternalCliManager({
     }
   }, [refresh, t, toolId])
 
+  const channel = toolId === 'opencode' ? openCodeChannel(detect?.version) : undefined
+  const installChannel = channel ?? (!detect?.installed ? 'v2' : undefined)
+  const latestVersion = toolId === 'opencode'
+    ? installChannel && latest?.versions?.[installChannel]
+    : latest?.latestVersion
+  const installOptions = toolId === 'opencode' && installChannel && latestVersion
+    ? { channel: installChannel, version: latestVersion }
+    : undefined
+  const v2Version = toolId === 'opencode' && channel !== 'v2' ? latest?.versions?.v2 : undefined
   const state = toRowState(detect, latestVersion)
   const hint = (state === 'not-installed' || state === 'broken') ? detect?.hint : undefined
   const versionLine = [detect?.version, latestVersion && latestVersion !== detect?.version ? `→ ${latestVersion}` : '', detect?.source]
@@ -175,25 +187,34 @@ export function ExternalCliManager({
           </div>
         </div>
         <span className={`${styles.lsToolRowActions} ${cliStyles.actions}`}>
-          {!loading && state === 'not-installed' && !busy && (
+          {!loading && state === 'not-installed' && !busy && (toolId !== 'opencode' || installOptions) && (
             <button
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
-              onClick={() => void handleInstall()}
+              onClick={() => void handleInstall(installOptions)}
             >
-              {t('settings:cliTools.action.install')}
+              {toolId === 'opencode' ? t('settings:cliTools.action.installV2') : t('settings:cliTools.action.install')}
             </button>
           )}
           {!loading && state === 'update-available' && !busy && (
             <button
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
-              onClick={() => void handleInstall()}
+              onClick={() => void handleInstall(installOptions)}
             >
-              {t('settings:cliTools.action.upgrade')}
+              {channel ? t('settings:cliTools.action.updateLine', { channel }) : t('settings:cliTools.action.upgrade')}
             </button>
           )}
-          {!loading && (state === 'ready' || state === 'broken') && !busy && !refreshing && (
+          {!loading && detect?.installed && v2Version && !busy && (
+            <button
+              type="button"
+              className={`${styles.lsButton} ${styles.lsButtonGhost}`}
+              onClick={() => void handleInstall({ channel: 'v2', version: v2Version })}
+            >
+              {t('settings:cliTools.action.upgradeV2', { version: v2Version })}
+            </button>
+          )}
+          {!loading && (state === 'ready' || state === 'broken' || toolId === 'opencode') && !busy && !refreshing && (
             <button
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonGhost}`}

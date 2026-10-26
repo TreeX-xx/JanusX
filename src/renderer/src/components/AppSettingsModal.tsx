@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Bell, BookOpen, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Plug, Puzzle, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Bell, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Plug, Puzzle, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
 import { ModalFrame } from '@/components/shared/ModalFrame'
 import { GeneralSettingsPanel } from './GeneralSettingsPanel'
 import { AboutSettingsPanel } from './AboutSettingsPanel'
@@ -7,7 +7,6 @@ import { TerminalManagerPanel } from './TerminalManagerPanel'
 import { ExperimentalSettingsPanel } from './ExperimentalSettingsPanel'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import { PersonalMemorySettingsPanel } from './PersonalMemorySettingsPanel'
-import { BlueprintSettingsPanel } from './blueprint/BlueprintSettingsPanel'
 import { LlmConfigModal } from './LlmConfigModal'
 import { ModelCatalogPanel } from './ModelCatalogPanel'
 import { AgentSettingsPanel } from './AgentSettingsPanel'
@@ -16,13 +15,19 @@ import { HostedSettingsPanel } from './HostedSettingsPanel'
 import { TeamSettingsPanel } from './team/TeamSettingsPanel'
 import { CpaSettingsPanel } from './cpa/CpaSettingsPanel'
 import { PluginSettingsPanel } from './plugins/PluginSettingsPanel'
+import { PluginSettingsView } from './plugins/PluginSettingsView'
+import { installedPluginSettings } from '@/extensions/plugin-settings'
+import { refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
+import type { ExtensionViewId } from '@/extensions/types'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import { PLUGIN_SETTINGS_EVENT } from '@/extensions/plugin-configuration-navigation'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './AppSettingsModal.module.css'
 import { LearningButton } from './onboarding/LearningButton'
 
-export type SettingsTab = 'general' | 'terminal' | 'integrations' | 'plugins' | 'experimental' | 'notifications' | 'personal' | 'knowledge' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
+type BuiltinSettingsTab = 'general' | 'terminal' | 'integrations' | 'plugins' | 'experimental' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
+export type SettingsTab = BuiltinSettingsTab | ExtensionViewId
 
 interface AppSettingsModalProps {
   isOpen: boolean
@@ -34,14 +39,14 @@ interface AppSettingsModalProps {
 // Note: grouped navigation preserves independent feature gates — see .agents/notes/knowledge/assistant-persona-layout.md
 const TAB_GROUPS: { id: string; tabs: SettingsTab[] }[] = [
   { id: 'application', tabs: ['general', 'terminal', 'integrations', 'plugins', 'notifications', 'experimental'] },
-  { id: 'memory', tabs: ['knowledge', 'personal'] },
+  { id: 'memory', tabs: ['personal'] },
   { id: 'models', tabs: ['llm', 'models', 'usage'] },
   { id: 'collaboration', tabs: ['agent', 'team', 'hosted'] },
   { id: 'about', tabs: ['about'] },
 ]
-const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
+const TAB_ICONS: Record<BuiltinSettingsTab, LucideIcon> = {
   general: Settings, terminal: SquareTerminal, notifications: Bell, experimental: Sparkles,
-  knowledge: BookOpen, personal: Brain, llm: SlidersHorizontal,
+  personal: Brain, llm: SlidersHorizontal,
   models: ListFilter, usage: ChartNoAxesCombined, agent: ShieldCheck,
   team: Users, hosted: Cloud, about: Info,
   integrations: Plug,
@@ -54,7 +59,6 @@ const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
 export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', pluginConfiguration }: AppSettingsModalProps) {
   const { t } = useI18n('settings')
   const { t: tTeam } = useI18n('team')
-  const { t: tBlueprint } = useI18n('blueprint')
   const { t: tKnowledge } = useI18n('knowledge')
   const { t: tCommon } = useI18n('common')
   const { t: tPlugins } = useI18n('plugins')
@@ -64,44 +68,65 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
   // 创新开关门控团队页：关闭时 tab 隐藏；正停在 team 页则退回 general，避免悬空态。
   const teamCollabEnabled = useExperimentalStore((s) => s.teamCollab)
   const personaEnabled = useExperimentalStore((s) => s.persona)
-  const blueprintEnabled = useExperimentalStore((s) => s.blueprint)
+  const pluginSnapshot = usePluginSnapshot()
+  const pluginPages = useMemo(() => installedPluginSettings(pluginSnapshot), [pluginSnapshot])
+  const previousPluginPages = useRef(pluginPages)
   const loadExperimental = useExperimentalStore((s) => s.load)
-  const groups = TAB_GROUPS.map((group) => ({
+  const groups = [...TAB_GROUPS, { id: 'extensions', tabs: pluginPages.map(page => page.id) }].map((group) => ({
     ...group,
     tabs: group.tabs.filter((tab) =>
       (tab !== 'team' || teamCollabEnabled) &&
-      (tab !== 'knowledge' || blueprintEnabled) &&
       (tab !== 'personal' || personaEnabled)),
   })).filter((group) => group.tabs.length > 0)
   const tabOrder = groups.flatMap((group) => group.tabs)
-  // Note: blueprint settings are independent of the retiring knowledge gate — see .agents/notes/blueprint/product-direction.md
-  const activeTab = tabOrder.includes(selectedTab) ? selectedTab : 'general'
+  // Note: installation owns plugin settings navigation; see .agents/notes/planning/blueprint-official-plugin.md
+  const activeTab = tabOrder.includes(selectedTab) ? selectedTab : selectedTab.startsWith('extension:') ? 'plugins' : 'general'
+  const pluginPage = pluginPages.find(page => page.id === activeTab)
 
   useEffect(() => {
     void loadExperimental()
   }, [loadExperimental])
 
   useEffect(() => {
-    setActiveTab((prev) => (prev === 'team' && !teamCollabEnabled || prev === 'knowledge' && !blueprintEnabled || prev === 'personal' && !personaEnabled) ? 'general' : prev)
-  }, [teamCollabEnabled, blueprintEnabled, personaEnabled])
+    if (isOpen && window.electron?.plugins) void refreshPlugins().catch(() => {})
+  }, [isOpen])
+
+  useEffect(() => {
+    setActiveTab((prev) => (prev === 'team' && !teamCollabEnabled || prev === 'personal' && !personaEnabled) ? 'general' : prev)
+  }, [teamCollabEnabled, personaEnabled])
+
+  useEffect(() => {
+    if (previousPluginPages.current.some(page => page.id === selectedTab) && !pluginPages.some(page => page.id === selectedTab)) setActiveTab('plugins')
+    previousPluginPages.current = pluginPages
+  }, [selectedTab, pluginPages])
 
   useEffect(() => {
     if (isOpen) setActiveTab(initialTab)
   }, [isOpen, initialTab, pluginConfiguration])
 
+  useEffect(() => {
+    const open = (event: Event) => {
+      const id: unknown = (event as CustomEvent).detail
+      if (isOpen && pluginPages.some(page => page.id === id && page.enabled)) setActiveTab(id as ExtensionViewId)
+    }
+    window.addEventListener(PLUGIN_SETTINGS_EVENT, open)
+    return () => window.removeEventListener(PLUGIN_SETTINGS_EVENT, open)
+  }, [isOpen, pluginPages])
+
   if (!isOpen) return null
 
   // team 页文案走 team 命名空间（settings.json 存在历史编码损坏，不再追加 key）。
   // hosted 页同理走 common 命名空间。
-  const tabNav = (tab: SettingsTab) =>
-    tab === 'plugins' ? tPlugins('plugins:nav') : tab === 'integrations' ? tCommon('common:cpa.settingsNav') : tab === 'knowledge' ? tBlueprint('blueprint:review.settingsTitle') : tab === 'personal' ? tKnowledge('knowledge:memorySettings.title') : tab === 'team'
+  const builtinTabNav = (tab: BuiltinSettingsTab) =>
+    tab === 'plugins' ? tPlugins('plugins:nav') : tab === 'integrations' ? tCommon('common:cpa.settingsNav') : tab === 'personal' ? tKnowledge('knowledge:memorySettings.title') : tab === 'team'
       ? tTeam('team:settingsTab.nav')
       : tab === 'terminal'
         ? tTerminal('terminal:shellSettings.nav')
         : tab === 'hosted'
         ? tCommon('common:hosted.nav')
         : t(`settings:tab.${tab}.nav`)
-  const meta = activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'integrations' ? { title: tCommon('common:cpa.settingsNav'), subtitle: tCommon('common:cpa.settingsSubtitle') } : activeTab === 'knowledge' ? { title: tBlueprint('blueprint:review.settingsTitle'), subtitle: tBlueprint('blueprint:review.settingsSubtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
+  const tabNav = (tab: SettingsTab) => pluginPages.find(page => page.id === tab)?.title ?? builtinTabNav(tab as BuiltinSettingsTab)
+  const meta = pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'integrations' ? { title: tCommon('common:cpa.settingsNav'), subtitle: tCommon('common:cpa.settingsSubtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
     ? { title: tTeam('team:settingsTab.title'), subtitle: tTeam('team:settingsTab.subtitle') }
     : activeTab === 'terminal'
       ? { title: tTerminal('terminal:shellSettings.title'), subtitle: tTerminal('terminal:shellSettings.subtitle') }
@@ -121,7 +146,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
       focusPanelOnReveal
       zIndex={9999}
     >
-      {({ requestClose }) => (
+      {({ requestClose, contentVisible }) => (
         <>
           <aside className={styles.sidebar}>
             <div className={styles.brand}>
@@ -130,11 +155,11 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
             </div>
             <nav className={styles.navigation} aria-label={t('settings:brand')}>
               {groups.map((group) => (
-                <section key={group.id} className={styles.navGroup} aria-label={group.id === 'about' ? tabNav('about') : t(`settings:groups.${group.id}`)}>
-                  {group.id !== 'about' && <h3 className={styles.groupTitle}>{t(`settings:groups.${group.id}`)}</h3>}
+                <section key={group.id} className={styles.navGroup} aria-label={group.id === 'about' ? tabNav('about') : group.id === 'extensions' ? tPlugins('plugins:settingsPages') : t(`settings:groups.${group.id}`)}>
+                  {group.id !== 'about' && <h3 className={styles.groupTitle}>{group.id === 'extensions' ? tPlugins('plugins:settingsPages') : t(`settings:groups.${group.id}`)}</h3>}
                   <div className={styles.groupItems}>
                     {group.tabs.map((tab) => {
-                      const Icon = TAB_ICONS[tab]
+                      const Icon = TAB_ICONS[tab as BuiltinSettingsTab] ?? Puzzle
                       return (
                         <button
                           key={tab}
@@ -167,7 +192,8 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               </button>
             </header>
 
-            <main className={styles.body}>
+            <main className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
+              {pluginPage && <PluginSettingsView page={pluginPage} active={contentVisible} onManage={() => setActiveTab('plugins')} />}
               {activeTab === 'general' && <GeneralSettingsPanel />}
               {activeTab === 'about' && <AboutSettingsPanel />}
               {activeTab === 'terminal' && <TerminalManagerPanel />}
@@ -176,7 +202,6 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'experimental' && <ExperimentalSettingsPanel />}
               {activeTab === 'notifications' && <NotificationSettingsPanel />}
               {activeTab === 'personal' && <PersonalMemorySettingsPanel />}
-              {activeTab === 'knowledge' && <BlueprintSettingsPanel />}
               {activeTab === 'agent' && <AgentSettingsPanel />}
               {activeTab === 'llm' && <LlmConfigModal embedded />}
               {activeTab === 'usage' && <UsageStatsPanel />}

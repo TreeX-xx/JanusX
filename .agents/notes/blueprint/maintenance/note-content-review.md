@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "proposed",
   "created": "2026-10-09",
-  "updated": "2026-10-16T02:03:39Z",
+  "updated": "2026-10-25T15:35:32.953Z",
   "class": "architecture",
   "tags": ["blueprint", "note", "review", "automation", "jev"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b",
@@ -14,8 +14,9 @@
     {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3efc89cf-3aa2-4e1e-829f-a0abc4319691"}
   ],
   "codeRefs": [
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/blueprint/review/structure.ts", "role": "implementation" },
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/blueprint/review/runtime.ts", "role": "entry" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/blueprint/review/structure.ts", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/blueprint/review/runtime.ts", "role": "entry" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/ui/settings-autosave.ts", "role": "implementation" },
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/blueprint-review-engine.test.ts", "role": "test" }
   ]
 }
@@ -105,7 +106,7 @@ JEV 只返回数字评分。生成式模型按 note-review/6 读取当前来源�
 
 建议点击灯只选择该 Note、打开左侧预览并展开当前意见，不触发审核。原文与折叠建议同屏，运行/失败、报告版本、过时信息和 JEV 核验状态留在左侧。审核生成仍只有左侧手动与 Git 自动化；右侧通过原生 MCP 读取后维护。未关闭意见过时后保留提示，详情说明需重新核对，不把旧判断当作当前已验证事实。审核覆盖不受画布可见性影响。
 
-灯位表示待处理意见、同一 MCP 显式回写处理结果、处理后清理当前条目且不保留历史的规则已确认。具体颜色、点击/缩略交互与当前问题匹配由实施细化；不保留已处理建议历史，未实施。
+灯位表示待处理意见、同一 MCP 显式回写处理结果、处理后清理当前条目且不保留历史的规则已确认。可下载插件已用静态琥珀灯表示当前未关闭意见，无数量或递归汇总；点击只选中并定位当前意见，不启动审核。Graph 的 Chromium 回归覆盖灯位及选中。旧宿主卡片的这项视觉迁移未另行实施，完整缩略交互、来源与报告呈现继续对照验收，不将局部灯位接线等同完整交付。
 
 ### 建议处理后的显示与记录
 
@@ -262,7 +263,9 @@ B2 完成左侧展示与原生 MCP 读取、处理闭环，共用建议管理模
 
 蓝图设置已确认同页分为审核模型、自动审核和 MCP 接入三个区域，具体归属见[产品方向](../product-direction.md#设置工作台与右侧审核的归属)。设置修改后自动持久化并生效，不设计保存或应用按钮；校验或持久化失败就地提示，自动检测结果随配置更新。有效配置保存与连接检测分别表达，不能把填写完成当作检测通过。
 
-JEV 凭据输入默认隐藏，失焦保留本次输入；每次进入蓝图设置通过 credentialGet 恢复已保存值，以密码圆点显示，不再使用“已配置，输入可替换”占位。eye 直接切换当前值的显示与隐藏，空值时禁用，清空后恢复隐藏；切换页签再返回也恢复隐藏。已保存凭据仍经 Electron safeStorage 加密保存，解密值仅在组件生命周期内持有，不另存明文缓存；恢复与查看均不触发写入。读取失败就地提示并允许替换，已清理的加载请求不回写组件。
+可下载插件按旧设置页恢复审核模型、自动审核与 MCP 同页布局，复用原卡片、下拉、开关、数值步进、终端图标及帮助浮层的包内副本。文本输入合并 350ms、开关即时排入串行提交；有效修改带 revision 写入，冲突后保留草稿并暂停，显式重新载入后恢复。首次读取、有效修改保存及窗口焦点刷新提供方后，等待 800ms 自动检测连接，修改或关闭取消旧检测；手动重新检测保留。自动审核从关闭转为开启仍要求生成连接 ready。工作台未打开设置时不挂载设置页或自动探测。对话模型与审核配置的完整功能对齐继续独立验收，命令及剩余边界见[官方插件专项](../../planning/blueprint-official-plugin.md)。
+
+旧宿主设置页曾通过 credentialGet 恢复已保存的 JEV 明文值。当前插件恢复行内凭据输入、eye 和清除操作，但沿用插件凭据边界：已存值只返回 configured 布尔状态，重新打开显示“已配置，输入可替换”，不将已保存密钥解密回传插件页面。eye 仅切换本次输入的显示与隐藏；空值时禁用，清空与重开恢复隐藏。替换和清除由已授权 native 服务转交宿主，仅限自身 manifest 已声明的槽和 origin，保存前复核启用状态；修改撤销相关宿主网络与声明式任务。safeStorage 加密落盘，密钥不进入普通配置、KV、草稿和日志。本次输入在页面生命周期内持有，页面关闭前尚未到达提交时刻的输入不会缓存；保存失败就地提示。这保留了旧页的编辑布局，但未恢复旧凭据明文回读行为。
 
 建议生成连接检测使用固定测试句、30 秒超时和 1024 token 输出额度，给包含推理的模型留出完成回复的空间。提供方初始化、生成请求和 JEV 探测均在宿主侧等待取消信号，避免 SDK 在认证或初始化阶段忽略取消而一直占住检测；初始化超时后不再发出迟到的生成探测，迟到结果不改变已返回状态。2026-10-10 使用 dev 当前 Vertex AI / gemini-3.8-flash 配置复现原 32 token 检测：返回 length，首次正文为空；同一模型提高到 1024 后正常 stop 并返回 OK，说明原失败是检测回复被截断。设置页按安全分类区分截断、空正文、超时、网络、鉴权、权限、接口/模型及提供方错误，不展示 SDK 请求体、凭据或原始响应；有 HTTP 状态时保留状态码。此检测只证明固定句可以完成，不替代完整 Note 审核质量验证。
 

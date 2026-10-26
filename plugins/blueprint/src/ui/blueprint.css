@@ -1,0 +1,4682 @@
+/* ════════════════════════════════════════════════════════════
+   蓝图画布样式 — 暗色主题，复用 Janus 视觉变量口径
+   ════════════════════════════════════════════════════════════ */
+
+.blueprint-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  container-type: inline-size;
+  background: radial-gradient(circle at center, #1d1d21 0%, var(--bg-deep, #151517) 100%);
+  color: var(--text, #e0e0e0);
+  overflow: hidden;
+}
+
+/* 工作台中列卡的圆角轮廓由 .blueprint-canvas-main 的 8px 圆角边框承担，
+   但底色由 view 自己刷（workbench 纸面 / 空态 / 加载态），是方角的。
+   view 本就 overflow: hidden，这里把裁切角对齐到 8px：圆角切口处的方角
+   纸面被裁掉，轮廓跟随圆角边框，否则视觉成为“方框内置圆角边框”。
+   embedded 视图是整页铺底，保持方角不动。 */
+.blueprint-view--workbench {
+  border-radius: 8px;
+}
+
+/* —— 顶部工具栏 —— */
+.blueprint-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 14px;
+  min-height: 44px;
+  background: var(--chrome-bg, rgba(12, 12, 12, 0.85));
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.04));
+  backdrop-filter: blur(20px);
+  z-index: 5;
+}
+
+.blueprint-toolbar--canvas {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  min-height: 44px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.blueprint-toolbar__group--manager {
+  gap: 8px;
+}
+
+.blueprint-toolbar__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.blueprint-toolbar__identity {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+
+.blueprint-toolbar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: #888;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-toolbar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.blueprint-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.blueprint-toolbar__group--node {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: opacity 0.15s;
+}
+
+.blueprint-toolbar__group--node[data-active='false'] {
+  opacity: 0.75;
+}
+
+.blueprint-toolbar__group--utility {
+  flex: 0 0 auto;
+}
+
+.blueprint-toolbar__group--focus {
+  flex: 1 1 360px;
+  justify-content: flex-end;
+}
+
+.blueprint-toolbar__spacer {
+  flex: 1;
+}
+
+.blueprint-toolbar select,
+.blueprint-toolbar input {
+  height: 26px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #d4d4d4;
+  font-size: 12px;
+  padding: 0 6px;
+  outline: none;
+}
+
+.blueprint-toolbar select:focus,
+.blueprint-toolbar input:focus {
+  border-color: var(--janus-order, #ff7830);
+}
+
+.blueprint-select {
+  height: 28px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.blueprint-select--toolbar {
+  width: 200px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+.blueprint-select--status-filter {
+  width: 116px;
+  height: 28px;
+  flex: 0 0 116px;
+}
+
+.blueprint-toolbar__search-wrap {
+  position: relative;
+  flex: 0 1 180px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.blueprint-toolbar__search {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.blueprint-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #d4d4d4;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.blueprint-btn:hover:not(:disabled) {
+  background: rgba(255, 120, 48, 0.12);
+  border-color: rgba(255, 120, 48, 0.5);
+}
+
+.blueprint-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.blueprint-btn--primary {
+  background: rgba(255, 120, 48, 0.18);
+  border-color: rgba(255, 120, 48, 0.5);
+}
+
+.blueprint-btn--danger {
+  color: #ff8a85;
+}
+
+.blueprint-btn--danger:hover {
+  background: rgba(255, 95, 87, 0.16);
+  border-color: rgba(255, 95, 87, 0.45);
+}
+
+.blueprint-toolbar__hint {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #aaa;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.blueprint-toolbar__toggle {
+  min-width: 64px;
+}
+
+.blueprint-toolbar__toggle--active {
+  border-color: rgba(255, 120, 48, 0.35);
+  color: #ffb27d;
+}
+
+.blueprint-toolbar__panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.blueprint-toolbar__panel-wrap {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: max-height 180ms ease, opacity 160ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+
+.blueprint-toolbar__panel-wrap--expanded {
+  max-height: 220px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.blueprint-toolbar__zone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.blueprint-toolbar__zone-title {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.blueprint-toolbar__zone-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.blueprint-toolbar__zone--danger {
+  margin-left: auto;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 90, 60, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 90, 60, 0.04);
+}
+
+.blueprint-toolbar__commit-limit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #aaa;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.blueprint-toolbar__commit-limit input {
+  width: 46px;
+  height: 20px;
+  padding: 0 4px;
+  text-align: center;
+}
+
+.blueprint-toolbar__error {
+  min-width: 0;
+  max-width: min(420px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #ff5f57;
+}
+
+.blueprint-toolbar__loading {
+  font-size: 11px;
+  color: #888;
+}
+
+.blueprint-toolbar__match-count {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.92);
+  font-size: 10px;
+  color: #a7a7a7;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.bp-janus-notices {
+  position: absolute;
+  top: 58px;
+  left: 16px;
+  z-index: 850;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(460px, calc(100% - 32px));
+  pointer-events: none;
+}
+
+.bp-janus-notice {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 120, 48, 0.22);
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.96);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.bp-janus-notice--discovered {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.bp-janus-notice__title {
+  color: #ffd3b7;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.bp-janus-notice__body {
+  color: #bdbdbd;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.bp-janus-notice__close,
+.bp-janus-requirement__actions button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d4d4d4;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.bp-janus-notice__close:hover,
+.bp-janus-requirement__actions button:hover {
+  border-color: rgba(255, 120, 48, 0.35);
+  color: #fff1e7;
+}
+
+.bp-janus-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bp-janus-requirement {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.bp-janus-requirement strong,
+.bp-janus-requirement span {
+  display: block;
+}
+
+.bp-janus-requirement strong {
+  color: #f0f0f0;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.bp-janus-requirement span {
+  color: #9f9f9f;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.bp-janus-requirement__actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.bp-janus-notice__error {
+  margin-top: 8px;
+  color: #ff8a65;
+  font-size: 11px;
+}
+
+.bp-candidate-inbox {
+  flex: 0 0 auto;
+  max-height: 280px;
+  padding: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(8, 8, 9, 0.72);
+  overflow: auto;
+  z-index: 4;
+  transition: padding 0.2s ease;
+}
+
+.bp-candidate-inbox[data-expanded='false'] {
+  max-height: 44px;
+  overflow: hidden;
+}
+
+.bp-candidate-inbox__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: 0;
+}
+
+.bp-candidate-inbox__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  border-radius: 4px;
+}
+
+.bp-candidate-inbox__toggle:focus-visible {
+  outline: 1px solid rgba(255, 120, 48, 0.55);
+  outline-offset: 2px;
+}
+
+.bp-candidate-inbox__chevron {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #6b6b73;
+  transition: transform 0.2s ease;
+  flex: 0 0 auto;
+}
+
+.bp-candidate-inbox__chevron--open {
+  transform: rotate(180deg);
+}
+
+.bp-candidate-inbox__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff7830;
+  box-shadow: 0 0 6px rgba(255, 120, 48, 0.5);
+  flex: 0 0 auto;
+}
+
+.bp-candidate-inbox__toggle[data-attention='true'] .bp-candidate-inbox__chevron {
+  border-top-color: #ff7830;
+}
+
+.bp-candidate-inbox__head strong,
+.bp-candidate-inbox__head span {
+  display: inline-block;
+}
+
+.bp-candidate-inbox__toggle strong {
+  color: #e0e0e2;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bp-candidate-inbox__count {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.bp-candidate-inbox__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.bp-candidate-inbox__select {
+  width: 116px;
+}
+
+.bp-candidate-inbox__empty {
+  color: #777;
+  font-size: 12px;
+  padding: 8px 14px 4px;
+}
+
+.bp-candidate-inbox__error {
+  color: #ff8a65;
+  font-size: 11px;
+  margin: 0 14px 8px;
+}
+
+.bp-candidate-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 8px;
+  padding: 10px 14px 12px;
+}
+
+.bp-candidate-card {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.bp-candidate-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.bp-candidate-card__meta span {
+  color: #9f9f9f;
+  font-size: 10px;
+}
+
+.bp-candidate-card__input,
+.bp-candidate-card__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #dcdcdc;
+  outline: none;
+}
+
+.bp-candidate-card__input {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bp-candidate-card__textarea {
+  min-height: 54px;
+  margin-top: 6px;
+  padding: 7px 8px;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.bp-candidate-card__input:focus,
+.bp-candidate-card__textarea:focus {
+  border-color: rgba(255, 120, 48, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 120, 48, 0.08);
+}
+
+.bp-candidate-card__title {
+  display: block;
+  color: #e8e8e8;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.bp-candidate-card p {
+  margin: 0;
+  color: #aaa;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.bp-candidate-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bp-candidate-card__parent {
+  flex: 1;
+  min-width: 120px;
+}
+
+.bp-candidate-card__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.bp-candidate-card__decision {
+  color: #9f9f9f;
+  font-size: 11px;
+}
+
+/* —— 画布容器 —— */
+.blueprint-canvas-wrapper {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.blueprint-toolbar__save-status { font-size: 11px; opacity: .75; }
+.blueprint-toolbar__save-status--saving,
+.blueprint-toolbar__save-status--pending { color: #fbbf24; }
+.blueprint-toolbar__save-status--failed { color: #f87171; }
+/* 高保真：保存态为中性灰（全画布唯一的语义色只给在途状态灯） */
+.blueprint-toolbar__save-status--saved { color: #777; }
+
+.blueprint-canvas-wrapper--detail-open {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+.blueprint-canvas-main {
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  container-name: blueprint-canvas;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(10, 10, 13, 0.76);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.blueprint-canvas-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)) 12% 18% / 40% 8px no-repeat,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)) 12% 30% / 58% 7px no-repeat,
+    rgba(255, 255, 255, 0.012);
+  animation: blueprint-canvas-loading-pulse 900ms ease-in-out infinite alternate;
+}
+
+.bp-flow-node--enter .bp-node-card {
+  /* Release the composited text layer after entry so selection/zoom stays sharp.
+     Note: .agents/notes/blueprint/navigation/requirements/module-browsing.md */
+  animation: blueprint-node-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* A branch edge is revealed with its child node, never ahead of it. */
+.bp-flow-edge--enter {
+  animation: blueprint-edge-enter 140ms ease-out both;
+  /* Note: --bp-edge-entry-index is capped at 8 in JS so large graphs stay readable. */
+  animation-delay: calc(320ms + var(--bp-edge-entry-index, 0) * 70ms + 170ms);
+}
+
+/* Hierarchy parent links render as vertical S-curves; relation links stay faint. */
+.bp-flow-edge--hierarchy path.react-flow__edge-path {
+  stroke-linecap: round;
+}
+.bp-flow-edge--relation path.react-flow__edge-path {
+  stroke-opacity: 0.55;
+}
+
+.bp-flow-node--enter-1 .bp-node-card { animation-delay: 16ms; }
+.bp-flow-node--enter-2 .bp-node-card { animation-delay: 32ms; }
+.bp-flow-node--enter-3 .bp-node-card { animation-delay: 48ms; }
+.bp-flow-node--enter-4 .bp-node-card { animation-delay: 64ms; }
+.bp-flow-node--enter-5 .bp-node-card { animation-delay: 80ms; }
+.bp-flow-node--enter-6 .bp-node-card { animation-delay: 96ms; }
+.bp-flow-node--enter-7 .bp-node-card { animation-delay: 112ms; }
+.bp-flow-node--enter-8 .bp-node-card { animation-delay: 128ms; }
+
+/* The workbench canvas is itself revealed by a 260ms rise animation (plus
+   its 60ms card stagger).  Delay node entry until that reveal has completed;
+   otherwise the nodes animate behind an invisible parent on the first lazy
+   open and appear to pop in all at once. */
+.blueprint-view--workbench .bp-flow-node--enter-0 .bp-node-card { animation-delay: 320ms; }
+.blueprint-view--workbench .bp-flow-node--enter-1 .bp-node-card { animation-delay: 336ms; }
+.blueprint-view--workbench .bp-flow-node--enter-2 .bp-node-card { animation-delay: 352ms; }
+.blueprint-view--workbench .bp-flow-node--enter-3 .bp-node-card { animation-delay: 368ms; }
+.blueprint-view--workbench .bp-flow-node--enter-4 .bp-node-card { animation-delay: 384ms; }
+.blueprint-view--workbench .bp-flow-node--enter-5 .bp-node-card { animation-delay: 400ms; }
+.blueprint-view--workbench .bp-flow-node--enter-6 .bp-node-card { animation-delay: 416ms; }
+.blueprint-view--workbench .bp-flow-node--enter-7 .bp-node-card { animation-delay: 432ms; }
+.blueprint-view--workbench .bp-flow-node--enter-8 .bp-node-card { animation-delay: 448ms; }
+.blueprint-view--workbench .bp-flow-node--enter .bp-node-card {
+  animation-delay: calc(320ms + var(--bp-entry-index, 0) * 70ms);
+}
+
+@keyframes blueprint-node-enter {
+  from { opacity: 0; transform: translateZ(-32px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes blueprint-edge-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes blueprint-canvas-loading-pulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+.bp-canvas-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 60%;
+  pointer-events: none;
+}
+
+.bp-canvas-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #9a9a9a;
+  background: rgba(10, 10, 13, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.bp-canvas-legend .ld {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.blueprint-canvas-wrapper--detail-open .blueprint-canvas-main {
+  grid-column: 2;
+}
+
+/* —— 自定义节点卡片 —— */
+.bp-node-card {
+  width: 240px;
+  padding: 10px 12px;
+  background: rgba(18, 18, 20, 0.85);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.04));
+  border-radius: 10px;
+  color: #d4d4d4;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.bp-node-card--selected {
+  border-color: var(--janus-order, #ff7830);
+  box-shadow: 0 0 0 1px rgba(255, 120, 48, 0.6), 0 2px 12px rgba(255, 120, 48, 0.25);
+}
+
+.bp-node-card--matched {
+  border-color: rgba(255, 120, 48, 0.82);
+  box-shadow: 0 0 0 1px rgba(255, 120, 48, 0.5), 0 4px 18px rgba(255, 120, 48, 0.18);
+}
+
+.bp-node-card--dimmed {
+  opacity: 0.34;
+  filter: saturate(0.55);
+}
+
+/* —— 节点类型分级：高保真黑灰+橙 —— 类型不再用彩色左边框，
+   状态只用一颗状态灯 + kindtag 文字表达（见 design/blueprint-note-graph.html） */
+.bp-node-card--type-epic,
+.bp-node-card--type-feature,
+.bp-node-card--type-task,
+.bp-node-card--type-issue {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.bp-node-card--type-epic .bp-node-card__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.bp-node-card__kindtag {
+  font-size: 9px;
+  color: #8a8a8a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* —— 卡片折叠入口（chevron + 子项数徽章） —— */
+.bp-node-card__collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  line-height: 16px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bp-node-card__collapse:hover {
+  color: #fff;
+  background: rgba(255, 120, 48, 0.18);
+  border-color: rgba(255, 120, 48, 0.45);
+}
+
+/* —— 语义缩放：低缩放只保留状态点 + 标题 + 折叠入口 —— */
+.bp-node-card--minimal {
+  padding: 12px 14px;
+}
+
+.bp-node-card--minimal .bp-node-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  max-height: 44px;
+}
+
+.bp-node-card--minimal .bp-node-card__collapse {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 2px 9px;
+}
+
+.bp-node-card--minimal .bp-node-card__dot {
+  width: 12px;
+  height: 12px;
+}
+
+.bp-node-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.bp-node-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.bp-node-card__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.bp-node-card__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e4e4e4;
+  line-height: 1.3;
+  word-break: break-word;
+  max-height: 34px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.bp-node-card__progress {
+  margin-top: 8px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bp-node-card__progress-bar {
+  height: 100%;
+  /* 高保真：进度条为中性灰，在途语义只由状态灯的橙表达 */
+  background: #8f8f96;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.bp-node-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #666;
+}
+
+.bp-node-card__terminal {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  background: rgba(0, 255, 136, 0.1);
+  color: #00ff88;
+  border-radius: 8px;
+}
+
+/* —— 节点详情面板 —— */
+/* Node detail card: slides in from the left and back out. Enter/exit run on
+   data-visible (see useAnimatedOpen) in both workbench and embedded modes. */
+.bp-node-detail {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(13, 13, 15, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 0;
+  opacity: 0;
+  transform: translateX(-18px);
+  visibility: hidden;
+  will-change: transform, opacity;
+}
+
+.bp-node-detail[data-visible='true'] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s;
+}
+
+.bp-node-detail[data-visible='false'] {
+  opacity: 0;
+  transform: translateX(-14px);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.5, 0, 0.75, 0),
+    visibility 0s linear 220ms;
+}
+
+.bp-node-detail__header {
+  position: relative;
+  flex: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(13, 13, 15, 0.98);
+}
+
+.bp-node-detail__eyebrow {
+  font-size: 9px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  margin-bottom: 4px;
+}
+
+.bp-node-detail__title {
+  color: #eee;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.bp-node-detail__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.bp-node-detail__summary span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #a9a9a9;
+  font-size: 10px;
+  line-height: 1.35;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+/* —— 面板共用关闭按钮 —— */
+.bp-panel-close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #777;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.bp-panel-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ddd;
+}
+
+/* 详情卡（左侧卡片）的关闭键钉在卡片右上角。header 左侧信息块是 eyebrow + 标题 +
+   标签三行，align-items: center 会把 28px 的关闭键顶到标题行正中，看起来像标题的
+   附属物而不是"关掉整张卡"；绝对定位后它与右侧 Janus 面板的关闭键落在同一基线。
+   .bp-node-detail__heading 的右内边距为这个角留位，长标题不会压到按钮下面。 */
+.bp-node-detail__header .bp-panel-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.bp-node-detail__heading {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding-right: 34px;
+}
+
+/* Note: only content scrolls; the close control stays on the panel edge — see .agents/notes/blueprint/documents/module.md */
+.bp-node-detail__scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.bp-node-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.bp-node-detail__section--identity {
+  padding-top: 14px;
+}
+
+.bp-node-detail__section--content {
+  position: relative;
+  padding-left: 12px;
+}
+
+.bp-node-detail__section--content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 1px;
+  border-radius: 999px;
+  background: rgba(255, 120, 48, 0.34);
+}
+
+.bp-node-detail__section--system {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.bp-node-detail__section--analysis {
+  padding-bottom: 14px;
+}
+
+.bp-node-detail__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 14px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.bp-node-detail__grid .bp-node-detail__section {
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.bp-node-detail__hint,
+.bp-node-detail__empty {
+  color: #777;
+  font-size: 11px;
+}
+
+.bp-node-detail__count {
+  color: #888;
+  font-size: 11px;
+}
+
+.bp-node-detail__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.bp-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.bp-feature-hint {
+  font-size: 11px;
+  color: #8b8b8b;
+}
+
+.bp-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bp-item-card {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.bp-feature-card {
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.bp-feature-card:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.bp-feature-card__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* 只读详情静态文本（V2：内容变更走对话，本文件无直写输入） */
+.bp-node-detail__text {
+  margin: 0;
+  color: #c9c9c9;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bp-item-card__text {
+  flex: 1;
+  min-width: 0;
+  color: #c9c9c9;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.bp-feature-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e4e4e4;
+  overflow-wrap: anywhere;
+}
+
+.bp-feature-card__desc {
+  margin: 4px 0 0;
+  color: #c9c9c9;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.bp-feature-card__readonly {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  color: #999;
+  font-size: 11px;
+}
+
+.bp-feature-card__readonly span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.bp-feature-card__readonly strong {
+  color: #ffd3b7;
+  font-weight: 600;
+}
+
+.bp-feature-card__notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  color: #8f8f8f;
+  font-size: 11px;
+}
+
+.bp-feature-card__notes span {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.bp-feature-empty {
+  color: #666;
+  font-size: 11px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.bp-node-card__title--empty {
+  color: var(--text-muted, #888);
+  font-style: italic;
+}
+
+.bp-node-detail__title--empty {
+  color: var(--text-muted, #888);
+  font-style: italic;
+}
+
+.bp-node-detail__label {
+  font-size: 11px;
+  color: #8a8a8a;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.bp-node-detail__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 0 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.bp-history-card {
+  padding: 8px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.bp-history-card__title {
+  color: #e4e4e4;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 6px;
+}
+
+.bp-history-card__meta {
+  color: #777;
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+
+.bp-history-card__list {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.bp-history-card__list--warn {
+  color: #ffb86c;
+}
+
+.bp-history-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bp-analysis-history {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.bp-analysis-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bp-analysis-history__item {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  color: #aaa;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.bp-analysis-history__item:hover,
+.bp-analysis-history__item--active {
+  border-color: rgba(255, 120, 48, 0.45);
+  background: rgba(255, 120, 48, 0.1);
+}
+
+.bp-analysis-history__item span,
+.bp-analysis-history__item strong,
+.bp-analysis-history__item em {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-analysis-history__item span {
+  color: #777;
+  font-size: 9px;
+}
+
+.bp-analysis-history__item strong {
+  margin-top: 3px;
+  color: #d4d4d4;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.bp-analysis-history__item em {
+  margin-top: 3px;
+  color: #888;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.bp-analysis-detail {
+  min-width: 0;
+}
+
+.bp-analysis-detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.bp-analysis-detail__head strong,
+.bp-analysis-detail__head span {
+  display: block;
+}
+
+.bp-analysis-detail__head strong {
+  color: #e4e4e4;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.bp-analysis-detail__head span {
+  margin-top: 3px;
+  color: #777;
+  font-size: 10px;
+}
+
+.bp-analysis-detail__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.bp-analysis-detail__grid div {
+  min-width: 0;
+  padding: 6px 7px;
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 6px;
+}
+
+.bp-analysis-detail__grid span,
+.bp-analysis-detail__grid strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-analysis-detail__grid span {
+  color: #777;
+  font-size: 9px;
+}
+
+.bp-analysis-detail__grid strong {
+  margin-top: 3px;
+  color: #d4d4d4;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.bp-analysis-detail__error {
+  margin-bottom: 8px;
+  color: #ff8a85;
+  font-size: 11px;
+}
+
+.bp-analysis-detail__section {
+  margin-top: 8px;
+}
+
+.bp-analysis-detail__section label {
+  display: block;
+  margin-bottom: 5px;
+  color: #8a8a8a;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.bp-analysis-detail__section pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #aaa;
+  font-size: 10px;
+  line-height: 1.45;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+}
+
+.bp-analysis-detail__section ul {
+  margin: 0;
+  padding-left: 16px;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.bp-analysis-detail__section--warn ul {
+  color: #ffb86c;
+}
+
+.bp-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.bp-activity-item {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 6px 8px;
+  padding: 7px 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+  border-radius: 0;
+  background: transparent;
+}
+
+.bp-activity-item:first-child {
+  border-top: 0;
+}
+
+.bp-activity-item span {
+  color: #ff9f66;
+  font-size: 10px;
+}
+
+.bp-activity-item strong {
+  min-width: 0;
+  color: #d4d4d4;
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-activity-item em {
+  grid-column: 2;
+  color: #666;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.bp-node-detail__meta div {
+  min-width: 0;
+  padding: 7px 8px;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.045);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.bp-node-detail__meta div:nth-child(2n) {
+  border-right: 0;
+}
+
+.bp-node-detail__meta div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.bp-node-detail__meta span,
+.bp-node-detail__meta strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-node-detail__meta span {
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.bp-node-detail__meta strong {
+  font-size: 12px;
+  color: #d4d4d4;
+  font-weight: 500;
+}
+
+.bp-node-detail__actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin: 10px 0 0;
+}
+
+.bp-node-detail__actions .blueprint-btn {
+  flex: 1;
+  height: 30px;
+}
+
+.bp-node-detail__warning {
+  margin-top: 10px;
+  color: #ffb86c;
+  font-size: 11px;
+}
+
+/* -- Full-screen Blueprint Workbench (iOS 风格亚光触感面板) -- */
+.blueprint-workbench-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 8, 10, 0.62);
+  backdrop-filter: blur(10px);
+  animation: none;
+}
+
+.blueprint-workbench-backdrop[data-closing="true"] {
+  animation: workbench-backdrop-out var(--workbench-exit-duration, 320ms) ease-in forwards;
+  pointer-events: none;
+}
+
+/* 工作台专属下拉承载层：z-index 12001 恰好高于遮罩 12000，
+   让 Select 浮层进入比遮罩更高的层叠上下文。
+   零尺寸 + overflow visible：不拦截点击、不裁切下拉。
+   容器不接收指针事件，下拉浮层需显式恢复 pointer-events。 */
+.blueprint-select-portal-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 12001;
+  pointer-events: none;
+}
+
+.blueprint-select-portal-layer > [data-select-dropdown] {
+  pointer-events: auto;
+}
+
+.blueprint-workbench-shell {
+  width: calc(100vw - 32px);
+  height: calc(100vh - 32px);
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  /* 顶栏 + 统一操作栏 + 三列机身（复刻 design topbar/toolbar/body） */
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  overflow: visible;
+  color: #e7e7e8;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  perspective: 1200px;
+  perspective-origin: center;
+}
+
+.blueprint-workbench-shell[data-closing="true"] {
+  animation: none;
+  pointer-events: none;
+}
+
+/* Hold the cards invisible for one frame so lazy-loaded workbenches always
+   start their entrance animation from the defined keyframe, rather than
+   painting the final state on the first open. */
+.blueprint-workbench-shell:not([data-reveal-ready='true']) .blueprint-workbench-topbar,
+.blueprint-workbench-shell:not([data-reveal-ready='true']) .blueprint-workbench-card,
+.blueprint-workbench-shell:not([data-reveal-ready='true']) .blueprint-workbench-detail-slot[data-open='true'] {
+  opacity: 0;
+  animation: none;
+}
+
+.blueprint-workbench-topbar {
+  min-height: 44px;
+  flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  container-type: inline-size;
+  gap: 12px;
+  padding: 7px 12px 7px 14px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 10, 13, 0.76);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: blueprint-workbench-card-rise var(--card-enter-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--card-index, 0) * var(--card-enter-stagger, 180ms));
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.blueprint-workbench-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #f0f0f1;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 高保真 bp-switch：顶栏蓝图切换（文字型触发 + 当前徽，下拉走 Select 直线左光条） */
+.blueprint-workbench-switch {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.blueprint-workbench-topbar .blueprint-workbench-switch .blueprint-workbench-switch__select {
+  width: auto;
+  max-width: 100%;
+  min-height: 26px;
+  background: var(--shell-chrome);
+  border-color: var(--shell-border);
+  color: var(--shell-text);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.blueprint-workbench-topbar .blueprint-workbench-switch .blueprint-workbench-switch__select:hover:not(:disabled),
+.blueprint-workbench-topbar .blueprint-workbench-switch .blueprint-workbench-switch__select[aria-expanded='true'] {
+  background: var(--shell-hover);
+  border-color: var(--shell-muted);
+  box-shadow: none;
+}
+
+.blueprint-workbench-topbar .blueprint-workbench-switch .blueprint-workbench-switch__select:focus-visible {
+  border-color: var(--shell-muted);
+  outline: 2px solid var(--shell-muted);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Note: .agents/notes/workbench/workbench-close-hit-slop.md */
+.blueprint-workbench-close {
+  position: relative;
+  order: 100;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.blueprint-workbench-close::before { content: ''; position: absolute; inset: -1px; }
+.blueprint-workbench-close::after,
+.blueprint-workbench-close:hover::after { content: '\2715'; font-size: 16px; line-height: 1; color: currentColor; }
+.blueprint-workbench-close:hover { background: var(--shell-hover); color: var(--shell-text); }
+.blueprint-workbench-close:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 1px; }
+
+.blueprint-workbench-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 7px 14px; min-width: 0; max-width: 100%; }
+
+.blueprint-janus-capsule,
+.blueprint-review-activity {
+  box-sizing: border-box;
+  height: 28px;
+  border: 1px solid var(--shell-border);
+  border-radius: 4px;
+  background: var(--shell-chrome);
+  box-shadow: none;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.blueprint-janus-capsule {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px 2px 6px;
+  color: #e1e4e8;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Mono', monospace;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.blueprint-janus-capsule:hover,
+.blueprint-review-activity:hover,
+.blueprint-janus-capsule[aria-expanded='true'],
+.blueprint-janus-capsule:focus-visible,
+.blueprint-review-activity:focus-visible {
+  border-color: var(--shell-muted);
+  background: var(--shell-hover);
+  box-shadow: none;
+}
+
+.blueprint-janus-capsule:active { transform: translateY(1px); }
+.blueprint-janus-capsule:focus-visible,
+.blueprint-review-activity:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: 2px; }
+.blueprint-janus-capsule:disabled { opacity: 0.42; cursor: default; }
+
+.blueprint-janus-capsule .blueprint-janus-capsule__identity {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.blueprint-janus-capsule .blueprint-janus-capsule__identity .janus-identity-face {
+  gap: 3px;
+}
+
+.blueprint-janus-capsule .blueprint-janus-capsule__identity .janus-identity-eye {
+  width: 4px;
+  height: 7px;
+  box-shadow: 0 0 4px #fff, 0 0 8px var(--c), 0 0 12px var(--cg);
+}
+
+.blueprint-janus-capsule[data-state='working'] .blueprint-janus-capsule__identity {
+  animation: blueprint-janus-pulse 1.4s ease-in-out infinite;
+}
+
+.blueprint-janus-capsule__name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+}
+.blueprint-janus-capsule__status {
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #00f0ff;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.blueprint-janus-capsule[data-state='working'] .blueprint-janus-capsule__status { color: #00f0ff; background: rgba(0, 240, 255, 0.12); }
+.blueprint-janus-capsule[data-state='attention'] .blueprint-janus-capsule__status { color: #ff9d00; background: rgba(255, 157, 0, 0.12); }
+.blueprint-janus-capsule[data-state='error'] .blueprint-janus-capsule__status { color: #ff3366; background: rgba(255, 51, 102, 0.12); }
+.blueprint-janus-capsule__chevron { color: rgba(255, 255, 255, 0.4); transition: transform 160ms ease; }
+.blueprint-janus-capsule[aria-expanded='true'] .blueprint-janus-capsule__chevron { transform: rotate(180deg); }
+
+@container (max-width: 560px) {
+  .blueprint-workbench-topbar {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+}
+
+.blueprint-canvas-error { position: absolute; top: 8px; left: 12px; right: 12px; z-index: 6; padding: 8px; color: #ffb39e; background: #241c19; font-size: 12px; }
+
+/* 高保真统一操作栏：scope 徽 + 只读锁 + 搜索 + 双过滤 + 三按钮 + 保存态，
+   横跨三列之上（复刻 design/blueprint-note-graph.html .toolbar） */
+.blueprint-workbench-toolbar {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  /* 单行（复刻 design .toolbar 一行）：不换行，靠省略收敛，窄屏藏保存态 */
+  flex-wrap: nowrap;
+  overflow: hidden;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 46px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  border-radius: 8px;
+  background: var(--chrome-bg, rgba(12, 12, 12, 0.85));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: blueprint-workbench-card-rise var(--card-enter-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 120ms;
+}
+
+.blueprint-workbench-shell[data-closing='true'] .blueprint-workbench-toolbar {
+  animation-name: blueprint-workbench-card-descend;
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
+  animation-fill-mode: both;
+  animation-delay: calc((var(--card-count, 1) - 0 - 1) * var(--card-exit-stagger, 180ms));
+}
+
+.blueprint-toolbar__scope {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.blueprint-toolbar__lock {
+  flex: none;
+  font-size: 11px;
+  color: #ffb27d;
+  border: 1px solid rgba(255, 120, 48, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.blueprint-workbench-toolbar .blueprint-toolbar__spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.blueprint-workbench-toolbar .blueprint-toolbar__search-wrap {
+  flex: 1 1 160px;
+  min-width: 100px;
+  max-width: 260px;
+}
+
+.blueprint-workbench-toolbar .blueprint-select,
+.blueprint-workbench-toolbar .blueprint-btn,
+.blueprint-workbench-toolbar .blueprint-toolbar__loading,
+.blueprint-workbench-toolbar .blueprint-toolbar__error {
+  flex: none;
+}
+
+.blueprint-workbench-toolbar .blueprint-toolbar__save-status {
+  flex: none;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .blueprint-workbench-toolbar .blueprint-toolbar__save-status {
+    display: none;
+  }
+}
+
+/* Scope remains in the topbar; compact toolbar metadata at laptop widths. */
+@media (max-width: 1440px) {
+  .blueprint-workbench-toolbar .blueprint-toolbar__scope,
+  .blueprint-workbench-toolbar .blueprint-toolbar__lock {
+    display: none;
+  }
+
+  .blueprint-workbench-toolbar .blueprint-toolbar__search-wrap {
+    flex: 1 1 160px;
+    min-width: 120px;
+  }
+}
+
+.blueprint-select--kind-filter {
+  width: 140px;
+  height: 28px;
+  flex: 0 0 140px;
+}
+
+/* 高保真主按钮：透明底 + 橙边（复刻 design .btn--primary） */
+.blueprint-btn--primary-ghost {
+  background: transparent;
+  border-color: rgba(255, 120, 48, 0.4);
+  color: #ffb27d;
+}
+
+.blueprint-btn--primary-ghost:hover:not(:disabled) {
+  background: rgba(255, 120, 48, 0.1);
+  border-color: rgba(255, 120, 48, 0.6);
+}
+
+.blueprint-workbench-shell:not([data-reveal-ready='true']) .blueprint-workbench-toolbar {
+  opacity: 0;
+  animation: none;
+}
+
+@container (max-width: 560px) {
+  .blueprint-workbench-tab {
+    flex-basis: 0;
+  }
+
+  .blueprint-workbench-actions {
+    gap: 10px;
+  }
+
+  .blueprint-janus-capsule {
+    gap: 6px;
+    padding-right: 8px;
+  }
+
+  .blueprint-janus-capsule__name {
+    display: none;
+  }
+}
+
+@container (max-width: 400px) {
+  .blueprint-janus-capsule__status,
+  .blueprint-janus-capsule__chevron {
+    display: none;
+  }
+}
+
+@keyframes blueprint-janus-pulse {
+  50% { box-shadow: 0 0 0 4px rgba(255, 138, 72, 0.12); }
+}
+
+.blueprint-workbench-close:active {
+  filter: brightness(0.9);
+}
+
+/* Side tracks stay in the grid at 0px when closed so the track collapse and
+   the panel slide animate together instead of popping the layout. Spacing is
+   owned by per-side margins (not gap): a uniform gap would leave a dead dark
+   strip beside every collapsed 0px track. */
+.blueprint-workbench-body {
+  position: relative;
+  display: grid;
+  /* Note: wider reading, equal side-track budget — see .agents/notes/blueprint/navigation/note-updates-and-suggestion-navigation.md */
+  grid-template-columns: minmax(0, 0px) minmax(0, 1fr) minmax(300px, 360px);
+  column-gap: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+  perspective: 1200px;
+  perspective-origin: center;
+  transition: grid-template-columns 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.blueprint-workbench-body[data-janus-open='false'] {
+  grid-template-columns: minmax(0, 0px) minmax(0, 1fr) minmax(0, 0px);
+}
+
+.blueprint-workbench-body[data-detail-open='true'][data-janus-open='false'] {
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) minmax(0, 0px);
+}
+
+.blueprint-workbench-body[data-detail-open='true'][data-janus-open='true'] {
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) minmax(300px, 360px);
+}
+
+.blueprint-workbench-detail-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin-right: 0;
+  transition: margin-right 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.blueprint-workbench-detail-slot[data-open='true'] {
+  margin-right: 16px;
+}
+
+.blueprint-workbench-detail-slot .bp-node-detail {
+  flex: 1 0 auto;
+  width: 100%;
+  min-width: 240px;
+  min-height: 0;
+  max-height: none;
+}
+
+.blueprint-workbench-card {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(10, 10, 13, 0.76);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: blueprint-workbench-card-rise var(--card-enter-duration, 380ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--card-index, 1) * var(--card-enter-stagger, 180ms));
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.blueprint-workbench-shell[data-closing='true'] .blueprint-workbench-topbar,
+.blueprint-workbench-shell[data-closing='true'] .blueprint-workbench-detail-slot[data-open='true'],
+.blueprint-workbench-shell[data-closing='true'] .blueprint-workbench-card {
+  animation-name: blueprint-workbench-card-descend;
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
+  animation-fill-mode: both;
+  animation-delay: calc((var(--card-count, 1) - var(--card-index, 0) - 1) * var(--card-exit-stagger, 180ms));
+}
+
+.blueprint-workbench-card--canvas {
+  display: flex;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Janus slot is a transparent clipping track cell; the card inside keeps a
+   fixed width so the opening track reveals it (drawer) instead of squashing
+   it. Enter runs in the same 280ms beat as the grid track so the middle
+   canvas yields while the panel slides in — no black placeholder first.
+   The workbench-level descend animation below still owns the full-shell
+   close. */
+.blueprint-workbench-janus-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin-left: 0;
+  transition: margin-left 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.blueprint-workbench-janus-slot[data-visible='true'] {
+  margin-left: 16px;
+}
+
+.blueprint-workbench-card--janus {
+  display: flex;
+  flex: 1 0 auto;
+  width: 100%;
+  min-width: 320px;
+  overflow: hidden;
+  animation: none;
+  opacity: 0;
+  transform: translateX(28px);
+  visibility: hidden;
+  will-change: transform, opacity;
+}
+
+.blueprint-workbench-janus-slot[data-visible='true'] .blueprint-workbench-card--janus {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity 120ms ease-out,
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s;
+}
+
+.blueprint-workbench-janus-slot[data-visible='false'] .blueprint-workbench-card--janus {
+  opacity: 0;
+  transform: translateX(48px);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 200ms cubic-bezier(0.5, 0, 0.75, 0),
+    visibility 0s linear 220ms;
+}
+
+@keyframes blueprint-workbench-card-rise {
+  from {
+    opacity: 0;
+    transform: translateZ(-56px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+  }
+}
+
+@keyframes blueprint-workbench-card-descend {
+  from {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateZ(-56px) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blueprint-workbench-body,
+  .blueprint-workbench-janus-slot,
+  .blueprint-workbench-detail-slot,
+  .blueprint-workbench-card--janus,
+  .bp-node-detail,
+  .blueprint-workbench-topbar,
+  .blueprint-workbench-card { transition: none; animation: none; }
+}
+
+@media (max-width: 1180px) {
+  .blueprint-workbench-body {
+    grid-template-columns: minmax(0, 0px) minmax(0, 1fr) minmax(320px, 360px);
+  }
+
+  .blueprint-workbench-body[data-janus-open='false'] {
+    grid-template-columns: minmax(0, 0px) minmax(0, 1fr) minmax(0, 0px);
+  }
+
+  .blueprint-workbench-body[data-detail-open='true'][data-janus-open='false'] {
+    grid-template-columns: minmax(240px, 270px) minmax(0, 1fr) minmax(0, 0px);
+  }
+
+  .blueprint-workbench-body[data-detail-open='true'][data-janus-open='true'] {
+    grid-template-columns: minmax(240px, 270px) minmax(0, 1fr) minmax(320px, 360px);
+  }
+
+  .blueprint-workbench-detail-slot[data-open='true'] {
+    margin-right: 12px;
+  }
+
+  .blueprint-workbench-janus-slot[data-visible='true'] {
+    margin-left: 12px;
+  }
+}
+
+@media (max-width: 1020px) {
+  .blueprint-workbench-body[data-detail-open='true'][data-janus-open='true'] {
+    grid-template-columns: minmax(220px, 26%) minmax(0, 1fr) minmax(250px, 30%);
+  }
+
+  .blueprint-workbench-detail-slot[data-open='true'] {
+    margin-right: 10px;
+  }
+
+  .blueprint-workbench-janus-slot[data-visible='true'] {
+    margin-left: 10px;
+  }
+}
+
+@container (max-width: 620px) {
+  .blueprint-view > .blueprint-toolbar {
+    align-items: flex-start;
+    padding-inline: 10px;
+  }
+
+  .blueprint-view > .blueprint-toolbar .blueprint-toolbar__group--manager {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .blueprint-view > .blueprint-toolbar .blueprint-select--toolbar {
+    width: auto;
+    flex: 1 1 220px;
+  }
+
+  .blueprint-view > .blueprint-toolbar .blueprint-toolbar__spacer {
+    display: none;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__main,
+  .blueprint-toolbar--canvas .blueprint-toolbar__actions {
+    align-items: flex-start;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__identity,
+  .blueprint-toolbar--canvas .blueprint-toolbar__group,
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--focus {
+    width: 100%;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__hint {
+    display: none;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--focus {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__search-wrap {
+    flex: 1 1 180px;
+    min-width: 150px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--node {
+    justify-content: flex-start;
+  }
+}
+
+@container (max-width: 430px) {
+  .blueprint-view > .blueprint-toolbar .blueprint-toolbar__group--manager .blueprint-btn {
+    flex: 1 1 auto;
+    padding-inline: 8px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--utility,
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--node {
+    flex-wrap: wrap;
+  }
+}
+
+/*
+ * The canvas is also a named query container. These breakpoints follow the
+ * width left after the detail/Janus cards claim their grid tracks, so the
+ * controls reflow when cards are opened without relying on viewport width.
+ */
+@container blueprint-canvas (max-width: 760px) {
+  .blueprint-toolbar--canvas .blueprint-toolbar__main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__identity,
+  .blueprint-toolbar--canvas .blueprint-toolbar__actions {
+    width: 100%;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__identity {
+    flex: 0 0 auto;
+    min-height: 18px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group {
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--focus {
+    flex: 0 1 auto;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--utility {
+    flex-wrap: wrap;
+  }
+}
+
+@container blueprint-canvas (max-width: 520px) {
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--focus {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__search-wrap {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-select--status-filter {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 140px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--node .blueprint-btn,
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--utility .blueprint-btn {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--utility .blueprint-btn {
+    flex: 1 1 120px;
+  }
+}
+
+.bp-maintenance-controls {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 38%;
+  overflow-y: auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  color: #c4c4ca;
+  overflow-wrap: anywhere;
+}
+.bp-maintenance-controls small { display: block; color: #8b8b94; font-size: 10px; line-height: 1.5; }
+.bp-maintenance-context { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.bp-maintenance-context strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-maintenance-context > span { flex-shrink: 0; color: #8b8b94; font-size: 10px; }
+.bp-maintenance-context strong { color: #eee; font-size: 12px; }
+.bp-maintenance-controls summary { cursor: pointer; padding: 7px 0; color: #dedee2; }
+.bp-maintenance-controls fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.bp-maintenance-settings label { display: grid; gap: 4px; margin-bottom: 8px; }
+.bp-maintenance-settings select, .bp-maintenance-settings textarea {
+  width: 100%; min-width: 0; box-sizing: border-box; font: inherit;
+  color: #e4e4e8; background: #16161a; border: 1px solid #35353c; border-radius: 4px; padding: 6px;
+}
+.bp-maintenance-settings textarea { resize: vertical; min-height: 52px; max-height: 130px; }
+.bp-maintenance-workspace-picker > label { display: block; margin: 7px 0; }
+.bp-maintenance-controls input[type='checkbox'] { accent-color: #ff7830; margin-right: 6px; }
+.bp-maintenance-controls button {
+  font: inherit; color: #dedee4; background: #222228; border: 1px solid #42424a;
+  border-radius: 4px; padding: 6px 8px; margin: 4px 5px 4px 0; cursor: pointer;
+}
+.bp-maintenance-controls button:hover:not(:disabled) { border-color: #ff7830; color: #ffb085; }
+.bp-maintenance-controls button:disabled { opacity: .45; cursor: default; }
+.bp-maintenance-controls [role='alert'] { color: #ff9a88; white-space: pre-wrap; }
+.bp-maintenance-approval { padding: 10px 0; border-top: 1px solid #35353c; }
+.bp-maintenance-approval-group, .bp-maintenance-audits article { padding: 8px 0; border-bottom: 1px solid #303036; }
+.bp-maintenance-approval-operation { margin: 6px 0 6px 8px; }
+.bp-maintenance-delete-confirm { display: block; margin: 8px 0; color: #ffb39e; }
+.bp-maintenance-operation-details pre { overflow: auto; max-height: 180px; font-size: 10px; white-space: pre-wrap; }
+.bp-maintenance-controls progress { width: 100%; height: 5px; accent-color: #ff7830; }
+.bp-maintenance-panel > .bp-maintenance-task { flex: 1 1 0; padding: 8px; min-height: 0; overflow: hidden; }
+.bp-maintenance-panel > .bp-maintenance-task > .janus-chat--docked {
+  display: flex; flex: 1 1 0; width: 100%; height: 100%; min-width: 0; min-height: 0; max-height: none;
+}
+.bp-maintenance-panel .janus-chat-main { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.bp-maintenance-panel .janus-chat-messages { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.bp-maintenance-panel .janus-chat-input-area { flex: 0 0 auto; }
+.bp-maintenance-connecting { padding: 16px; color: #8b8b94; font-size: 12px; }
+.bp-maintenance-switch-notice {
+  margin: 0 0 6px; padding: 7px 10px; border: 1px solid rgba(255, 120, 48, .35); border-radius: 6px;
+  background: rgba(255, 120, 48, .08); color: #ffb085; font-size: 11px; line-height: 1.5;
+}
+/* 纯对话框不展示空态 JANUSX 像素 banner 与会话侧边栏（后者由 compactNavigation 关闭）。 */
+.bp-maintenance-panel .janus-chat-empty { display: none; }
+
+/* 入场开场引导语：借运行配置助手的开场消息样式（左强调发丝线 + 安静墨字）。
+   纯展示空态，不写入会话历史；消息流出现内容后由 emptyState 槽位自然退场。 */
+.bp-maintenance-greeting {
+  margin: 2px 0 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--shell-accent-border);
+  color: var(--shell-muted);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.bp-maintenance-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.blueprint-view__loading-state {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  color: #8b8b90;
+  font-size: 12px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.035) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.035) 75%) 12% 28% / 62% 10px no-repeat,
+    linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%) 12% 40% / 46% 8px no-repeat,
+    linear-gradient(90deg, rgba(255,255,255,0.025) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.025) 75%) 12% 52% / 54% 8px no-repeat;
+  background-color: rgba(255,255,255,0.015);
+}
+
+.bp-maintenance-panel__header {
+  height: 58px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.bp-maintenance-panel__identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* 对话优先（V2 右列）：Janus 头 + 机器折叠，能力不断 */
+.bp-maintenance-janus-head { display: flex; align-items: center; gap: 8px; color: #e4e4e4; font-size: 12px; letter-spacing: 0.02em; }
+.bp-maintenance-janus-head strong { font-weight: 600; }
+.bp-maintenance-janus-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #ff7830; box-shadow: 0 0 6px rgba(255, 120, 48, 0.9); }
+.bp-maintenance-clear {
+  margin-left: auto; margin-right: 8px; padding: 3px 8px; border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 4px; background: transparent; color: #8a8a8a; font-size: 11px; cursor: pointer;
+}
+.bp-maintenance-clear:hover { color: #e4e4e4; border-color: rgba(255, 255, 255, .25); }
+.bp-maintenance-machine { border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px; }
+.bp-maintenance-machine > summary { cursor: pointer; color: #8a8a8a; font-size: 11px; padding: 4px 0; }
+.bp-maintenance-machine > summary:hover { color: #e4e4e4; }
+.bp-maintenance-panel__identity > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bp-maintenance-panel__identity span { color: #666; font-size: 9px; }
+.bp-maintenance-panel__identity strong { color: #eee; font-size: 14px; }
+
+.bp-maintenance-panel__tabs {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.bp-maintenance-panel__tabs button {
+  min-width: 0;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #747479;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.bp-maintenance-panel__tabs button:hover { color: #bbb; background: rgba(255, 255, 255, 0.035); }
+.bp-maintenance-panel__tabs button.is-active { color: #e4e4e6; background: rgba(255, 255, 255, 0.065); }
+.bp-maintenance-panel__tabs button span { min-width: 17px; padding: 1px 4px; border-radius: 8px; background: rgba(255, 120, 48, 0.12); color: #ff9f69; font-size: 8px; }
+
+.bp-maintenance-start,
+.bp-maintenance-task { min-height: 0; display: flex; flex: 1; flex-direction: column; gap: 12px; padding: 14px; overflow-y: auto; }
+.bp-maintenance-history-view { min-height: 0; display: flex; flex: 1; flex-direction: column; gap: 12px; padding: 14px; overflow-y: auto; }
+.bp-maintenance-start label { display: flex; flex-direction: column; gap: 6px; color: #888; font-size: 11px; }
+.bp-maintenance-start label > button { height: 34px; }
+.bp-maintenance-start select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: #111114;
+  color: #ddd;
+  padding: 0 9px;
+  font: inherit;
+  outline: none;
+}
+.bp-maintenance-start select:focus { border-color: rgba(255, 120, 48, 0.62); }
+.bp-maintenance-workspace-picker { position: relative; }
+.bp-maintenance-workspace-picker > summary {
+  box-sizing: border-box;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: #111114;
+  color: #ddd;
+  cursor: pointer;
+  list-style: none;
+}
+.bp-maintenance-workspace-picker > summary::-webkit-details-marker { display: none; }
+.bp-maintenance-workspace-picker[open] > summary { border-color: rgba(255, 120, 48, 0.62); }
+.bp-maintenance-workspace-picker[open] > summary svg { transform: rotate(180deg); }
+.bp-maintenance-workspace-picker > summary svg { flex: 0 0 auto; transition: transform 150ms ease; }
+.bp-maintenance-workspace-picker > div {
+  margin-top: 5px;
+  max-height: 184px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: #111114;
+}
+.bp-maintenance-workspace-picker > div > button {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #aaa;
+  text-align: left;
+  cursor: pointer;
+}
+.bp-maintenance-workspace-picker > div > button:hover { background: rgba(255, 255, 255, 0.045); color: #ddd; }
+.bp-maintenance-workspace-picker > div > button.is-selected { background: rgba(255, 120, 48, 0.09); color: #f0b08d; }
+.bp-maintenance-workspace-picker button span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bp-maintenance-workspace-picker button strong { overflow: hidden; color: inherit; font-size: 11px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.bp-maintenance-workspace-picker button small { overflow: hidden; color: #666; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.bp-maintenance-workspace-picker > div > p { padding: 8px; text-align: center; }
+.bp-maintenance-start textarea,
+.bp-maintenance-compose textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: #09090b;
+  color: #ddd;
+  padding: 9px;
+  font: inherit;
+  outline: none;
+}
+.bp-maintenance-start p { margin: 0; color: #6f6f75; font-size: 10px; line-height: 1.55; }
+
+.bp-maintenance-task-overview {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0 0 2px;
+  padding: 9px 10px 8px;
+  border: 1px solid rgba(255, 120, 48, 0.13);
+  border-radius: 6px;
+  background: rgba(255, 120, 48, 0.045);
+}
+.bp-maintenance-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bp-maintenance-status div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.bp-maintenance-status strong { color: #e6e6e8; font-size: 13px; }
+.bp-maintenance-status span { overflow: hidden; color: #717177; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.bp-maintenance-status em { color: #ff8f50; font-size: 12px; font-style: normal; }
+.bp-maintenance-progress { height: 2px; overflow: hidden; background: rgba(255, 255, 255, 0.06); }
+.bp-maintenance-progress span { display: block; height: 100%; background: #ff7830; transition: width 180ms ease; }
+
+.bp-maintenance-scroll-bottom {
+  position: sticky;
+  z-index: 4;
+  bottom: 10px;
+  align-self: flex-end;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-top: -44px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  background: rgba(24, 24, 27, 0.94);
+  color: #c7c7ca;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.bp-maintenance-scroll-bottom:hover {
+  border-color: rgba(255, 120, 48, 0.36);
+  background: rgba(255, 120, 48, 0.12);
+  color: #ffb184;
+}
+
+.bp-maintenance-conversation-bottom {
+  height: 1px;
+  flex: 0 0 auto;
+}
+
+.bp-maintenance-messages { display: flex; flex-direction: column; gap: 14px; }
+.bp-maintenance-messages > div { max-width: 88%; display: flex; flex-direction: column; gap: 5px; }
+.bp-maintenance-messages > div[data-role='user'] { align-self: flex-end; align-items: flex-end; }
+.bp-maintenance-messages > div[data-role='assistant'],
+.bp-maintenance-messages > .bp-maintenance-thinking { align-self: flex-start; }
+.bp-maintenance-messages span { color: #6f6f75; font: 9px/1.2 var(--font-mono, monospace); letter-spacing: 0.06em; text-transform: uppercase; }
+.bp-maintenance-messages > div[data-role='assistant'] > span,
+.bp-maintenance-thinking > span { color: rgba(255, 120, 48, 0.8); }
+.bp-maintenance-messages p { margin: 0; padding: 9px 11px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 7px; background: rgba(255, 255, 255, 0.055); color: #d4d4d6; font-size: 11px; line-height: 1.58; white-space: pre-wrap; }
+.bp-maintenance-messages > div[data-role='assistant'] > p { padding: 4px 0 4px 12px; border: 0; border-left: 2px solid #ff7830; border-radius: 0; background: transparent; color: #c8c8cb; }
+
+.bp-maintenance-message-details { width: 100%; padding-left: 12px; }
+.bp-maintenance-message-details summary { width: fit-content; color: #85858a; font-size: 10px; cursor: pointer; user-select: none; }
+.bp-maintenance-message-details summary:hover { color: #ff9f69; }
+.bp-maintenance-message-details > div { margin-top: 7px; padding: 8px 10px; border-left: 1px solid rgba(255, 255, 255, 0.1); color: #a8a8ac; font-size: 10.5px; line-height: 1.58; white-space: pre-wrap; }
+
+.bp-maintenance-thinking > div { display: flex; align-items: center; gap: 4px; padding: 5px 0 5px 12px; border-left: 2px solid rgba(255, 120, 48, 0.55); }
+.bp-maintenance-thinking i { width: 5px; height: 5px; border-radius: 50%; background: #ff7830; opacity: 0.25; animation: bp-maintenance-thinking 1.1s ease-in-out infinite; }
+.bp-maintenance-thinking i:nth-child(2) { animation-delay: 140ms; }
+.bp-maintenance-thinking i:nth-child(3) { animation-delay: 280ms; }
+.bp-maintenance-thinking em { margin-left: 5px; color: #777; font-size: 9px; font-style: normal; }
+
+@keyframes bp-maintenance-thinking {
+  0%, 70%, 100% { opacity: 0.22; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
+
+.bp-maintenance-proposal { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 12px; }
+.bp-maintenance-proposal > header { display: flex; align-items: center; justify-content: space-between; font-size: 11px; }
+.bp-maintenance-proposal > header span { color: #777; }
+.bp-maintenance-operation { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 9px; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; background: rgba(255, 255, 255, 0.02); cursor: pointer; }
+.bp-maintenance-operation input { margin: 2px 0 0; accent-color: #ff7830; }
+.bp-maintenance-operation div { min-width: 0; }
+.bp-maintenance-operation strong { display: block; overflow: hidden; color: #ddd; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.bp-maintenance-operation p { margin: 4px 0; color: #888; font-size: 10px; line-height: 1.4; }
+.bp-maintenance-operation span { color: #666; font-size: 9px; }
+
+.bp-maintenance-group { display: flex; flex-direction: column; gap: 6px; }
+.bp-maintenance-group__title { color: #999; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+.bp-maintenance-group__hint { margin: 0; color: #b0713a; font-size: 9px; line-height: 1.4; }
+.bp-maintenance-group--delete { border: 1px solid rgba(255, 90, 60, 0.25); border-radius: 6px; padding: 8px; background: rgba(255, 90, 60, 0.04); }
+.bp-maintenance-operation--delete { grid-template-columns: minmax(0, 1fr); border-color: rgba(255, 90, 60, 0.3); cursor: default; }
+.bp-maintenance-operation__confirm { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #e08060; font-size: 10px; cursor: pointer; }
+.bp-maintenance-operation__confirm input { margin: 0; accent-color: #ff5a3c; }
+.bp-maintenance-proposal--undo { border: 1px solid rgba(255, 120, 48, 0.35); border-radius: 6px; padding: 10px; background: rgba(255, 120, 48, 0.05); }
+.bp-maintenance-undo__conflicts { display: flex; flex-direction: column; gap: 4px; color: #d3a083; font-size: 10px; }
+.bp-maintenance-undo__conflicts ul { margin: 0; padding-left: 16px; }
+.bp-maintenance-undo__conflicts li { line-height: 1.4; }
+.bp-maintenance-history__badge { display: inline-block; padding: 1px 5px; border: 1px solid rgba(255, 120, 48, 0.4); border-radius: 4px; color: #ff9b66; font-size: 8px; }
+.bp-maintenance-history__actions { display: flex; justify-content: flex-end; }
+
+.bp-maintenance-history { display: flex; flex-direction: column; gap: 7px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 12px; }
+.bp-maintenance-history > header { display: flex; align-items: center; justify-content: space-between; color: #ddd; font-size: 11px; }
+.bp-maintenance-history > header span { color: #777; }
+.bp-maintenance-history > p { margin: 0; color: #666; font-size: 10px; }
+.bp-maintenance-history__item { padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+.bp-maintenance-history__item > summary { cursor: pointer; }
+.bp-maintenance-history__item > summary > div { width: calc(100% - 18px); display: inline-grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; vertical-align: top; }
+.bp-maintenance-history__item > summary time { grid-column: 1 / -1; color: #666; font-size: 9px; }
+.bp-maintenance-history__item > summary strong { overflow: hidden; color: #bbb; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.bp-maintenance-history__item > summary span { color: #777; font-size: 9px; }
+.bp-maintenance-history__details { display: flex; flex-direction: column; gap: 12px; padding: 10px 0 2px 12px; }
+.bp-maintenance-history__operation { display: flex; flex-direction: column; gap: 7px; }
+.bp-maintenance-history__operation > header { display: flex; flex-direction: column; gap: 2px; }
+.bp-maintenance-history__operation > header strong { color: #ccc; font-size: 10px; }
+.bp-maintenance-history__operation > header span { color: #777; font-size: 9px; line-height: 1.4; }
+.bp-maintenance-history__diff { display: grid; grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; align-items: start; }
+.bp-maintenance-history__diff > span { color: #666; font-size: 8px; }
+.bp-maintenance-history__change { display: contents; }
+.bp-maintenance-history__change strong { color: #888; font-size: 9px; font-weight: 500; }
+.bp-maintenance-history__change code { min-width: 0; overflow-wrap: anywhere; color: #aaa; font: 9px/1.4 var(--font-mono, monospace); white-space: pre-wrap; }
+.bp-maintenance-history__change code:last-child { color: #d3a083; }
+.bp-maintenance-history__evidence { display: flex; flex-direction: column; gap: 3px; color: #777; font-size: 9px; }
+.bp-maintenance-history__evidence strong { color: #888; font-weight: 500; }
+.bp-maintenance-history__evidence ul { margin: 0; padding-left: 16px; }
+.bp-maintenance-history__evidence li { overflow-wrap: anywhere; line-height: 1.45; }
+
+.bp-maintenance-compose { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.bp-maintenance-compose textarea { min-height: 58px; padding: 8px 9px; font-size: 11px; line-height: 1.45; }
+.bp-maintenance-compose__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.bp-maintenance-compose button { min-height: 27px; border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 5px; padding: 0 9px; background: rgba(255, 255, 255, 0.035); color: #999; font-size: 10px; cursor: pointer; }
+.bp-maintenance-compose button:disabled { cursor: default; opacity: 0.4; }
+.bp-maintenance-compose .bp-maintenance-compose__proposal { border-color: rgba(255, 120, 48, 0.25); background: rgba(255, 120, 48, 0.08); color: #ffad7c; }
+.bp-maintenance-task footer { display: flex; gap: 8px; margin-top: auto; }
+.bp-maintenance-error { padding: 8px 12px; color: #ff8f88; font-size: 10px; line-height: 1.45; }
+
+.blueprint-view--workbench {
+  background:
+    radial-gradient(circle at 55% 28%, rgba(255, 120, 48, 0.09), transparent 32%),
+    var(--workbench-canvas, #080809);
+}
+
+.bp-node-card__signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+  color: #8e8e8e;
+  font-size: 10px;
+}
+.bp-node-card__signals span { padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,.05); }
+.bp-node-card__signal--risk { color: #f0b35b; }
+.bp-node-card__signal--blocked { color: #ff756d; }
+.bp-node-card__signal--analysis { color: #8eb8ff; }
+.bp-node-card__signal--collapsed { color: #c3a5ff; }
+
+.blueprint-view--workbench.blueprint-view--empty {
+  /* Empty and populated canvases share the same base; only populated views add the glow. */
+  background: var(--workbench-canvas, #080809);
+}
+
+.blueprint-view--workbench .bp-candidate-inbox {
+  max-height: 260px;
+  background: rgba(8, 8, 9, 0.72);
+}
+
+.blueprint-view--workbench .bp-candidate-inbox[data-expanded='false'] {
+  max-height: 44px;
+}
+
+@keyframes blueprint-workbench-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes blueprint-workbench-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(16px);
+  }
+}
+
+@keyframes workbench-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes workbench-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* -- Central Blueprint Focus Mode -- */
+.blueprint-focus-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at 50% 34%, rgba(255, 120, 48, 0.12), transparent 34%),
+    #050505;
+  background-size: 46px 46px, 46px 46px, auto, auto;
+  color: #e7e7e8;
+}
+
+.blueprint-focus-grid {
+  width: min(1120px, calc(100% - 48px));
+  height: min(620px, calc(100% - 48px));
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 16px;
+}
+
+.blueprint-focus-hero,
+.blueprint-focus-panel,
+.blueprint-focus-empty-panel {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 8px;
+  background: rgba(14, 14, 16, 0.76);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(20px);
+}
+
+.blueprint-focus-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 42px;
+}
+
+.blueprint-focus-topline,
+.blueprint-focus-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.blueprint-focus-kicker {
+  color: #ff995f;
+  font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.blueprint-focus-state {
+  font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.blueprint-focus-hero h2,
+.blueprint-focus-empty-panel h2 {
+  max-width: 720px;
+  margin: 18px 0 0;
+  color: #fff;
+  font-size: clamp(28px, 4.2vw, 56px);
+  font-weight: 680;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.blueprint-focus-hero p,
+.blueprint-focus-empty-panel p {
+  max-width: 680px;
+  margin: 16px 0 0;
+  color: #9b9ba2;
+  font-size: 13px;
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+.blueprint-focus-progress {
+  --focus-color: #ff7830;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.blueprint-focus-progress-ring {
+  width: 74px;
+  height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #0b0b0c 0 55%, transparent 56%),
+    conic-gradient(var(--focus-color) calc(var(--focus-progress, 0) * 1%), rgba(255, 255, 255, 0.08) 0);
+  border: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.blueprint-focus-progress-ring span {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.blueprint-focus-progress-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.blueprint-focus-progress-copy span {
+  color: #74747b;
+  font-size: 11px;
+}
+
+.blueprint-focus-progress-copy strong {
+  color: #e8e8ea;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.blueprint-focus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 30px;
+}
+
+.blueprint-focus-actions .blueprint-btn {
+  height: 30px;
+  padding: 0 12px;
+}
+
+.blueprint-focus-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  overflow: auto;
+}
+
+.blueprint-focus-panel-head span,
+.blueprint-focus-section label,
+.blueprint-focus-stat-row span {
+  color: #74747b;
+  font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.blueprint-focus-panel-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #e8e8ea;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-focus-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.blueprint-focus-stat-row div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.026);
+}
+
+.blueprint-focus-stat-row strong {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-focus-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blueprint-focus-list-item,
+.blueprint-focus-analysis,
+.blueprint-focus-empty-line {
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.blueprint-focus-list-item strong,
+.blueprint-focus-analysis strong {
+  display: block;
+  overflow: hidden;
+  color: #e8e8ea;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-focus-list-item span,
+.blueprint-focus-analysis span,
+.blueprint-focus-empty-line {
+  display: block;
+  margin-top: 4px;
+  color: #828288;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.blueprint-focus-view--empty {
+  padding: 24px;
+  background: #1a1b1f;
+}
+
+.blueprint-focus-view--empty .blueprint-focus-kicker {
+  color: #8f9098;
+}
+
+.blueprint-focus-empty-panel {
+  width: min(640px, calc(100% - 48px));
+  padding: 42px;
+  background: rgba(32, 33, 37, 0.94);
+}
+
+@media (max-width: 1100px) {
+  .blueprint-workbench-shell {
+    min-width: 0;
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+  }
+
+  .blueprint-focus-grid {
+    height: calc(100% - 32px);
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .blueprint-focus-panel {
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 960px) {
+  .blueprint-toolbar--canvas .blueprint-toolbar__main,
+  .blueprint-toolbar__panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__actions,
+  .blueprint-toolbar--canvas .blueprint-toolbar__group {
+    width: 100%;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__group--node {
+    justify-content: flex-start;
+  }
+
+  .blueprint-toolbar__group--focus {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .blueprint-toolbar__search-wrap {
+    flex: 1 1 180px;
+    min-width: 160px;
+  }
+
+  .blueprint-toolbar--canvas .blueprint-toolbar__hint {
+    max-width: 100%;
+  }
+
+  .blueprint-toolbar__panel-wrap--expanded {
+    max-height: 320px;
+  }
+
+  .bp-analysis-history {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* —— 右键菜单 —— */
+.bp-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 160px;
+  padding: 4px;
+  background: rgba(20, 20, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+}
+
+.bp-context-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #d4d4d4;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.bp-context-menu__item:hover {
+  background: rgba(255, 120, 48, 0.18);
+}
+
+.bp-context-menu__item--danger:hover {
+  background: rgba(255, 95, 87, 0.18);
+  color: #ff8a85;
+}
+
+.bp-context-menu__sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bp-context-menu__label {
+  padding: 4px 10px;
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bp-context-menu__status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 0 4px 4px;
+}
+
+.bp-context-menu__status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: #aaa;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.bp-context-menu__status:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e4e4e4;
+}
+
+.bp-context-menu__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════════════════════════
+   PromptDialog — 命名输入对话框（新建蓝图 / 节点命名等）
+   暗色主题，与 blueprint 视觉变量口径一致
+   ════════════════════════════════════════════════════════════ */
+
+.prompt-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  /* Modal tier: the dialog is portaled to body and must beat every surface,
+   * including the titlebar stacking context (9999) and the island companion
+   * memo panel (10052). */
+  z-index: 13500;
+  animation: prompt-overlay-in 0.16s ease-out;
+}
+
+.prompt-dialog {
+  width: 360px;
+  max-width: 90vw;
+  padding: 18px 20px 16px;
+  background: rgba(20, 20, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  box-sizing: border-box;
+  animation: prompt-in 0.16s ease-out;
+}
+
+/* 容器承接初始焦点（tabIndex=-1），不显示焦点环 */
+.prompt-dialog:focus {
+  outline: none;
+}
+
+.prompt-dialog__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e4e4e4;
+  margin: 0 0 14px;
+}
+
+.prompt-dialog__label {
+  display: block;
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.prompt-dialog__description {
+  margin: -2px 0 0;
+  color: #a3a3aa;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.prompt-dialog__emphasis {
+  color: #f2f2f3;
+  font-weight: 600;
+}
+
+.prompt-dialog__input {
+  width: 100%;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #d4d4d4;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.prompt-dialog__input:focus {
+  border-color: var(--janus-order, #ff7830);
+  box-shadow: 0 0 0 3px rgba(255, 120, 48, 0.12);
+}
+
+.prompt-dialog__error {
+  font-size: 11px;
+  color: #ff5f57;
+  margin-top: 6px;
+}
+
+.prompt-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* 对话框内的按钮略大于工具栏按钮，主操作更醒目 */
+.prompt-dialog .blueprint-btn {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.prompt-dialog .blueprint-btn--primary:hover {
+  background: rgba(255, 120, 48, 0.28);
+  border-color: rgba(255, 120, 48, 0.5);
+}
+
+@keyframes prompt-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes prompt-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.harness-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.task-contract { border-top: 1px solid var(--border-color, #d3d8dc); padding: 10px 0; }
+.task-contract summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.task-contract p { font-size: 12px; overflow-wrap: anywhere; }
+.task-contract fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 10px; }
+.task-contract label { display: grid; gap: 4px; font-size: 12px; min-width: 0; }
+.task-contract input, .task-contract textarea { box-sizing: border-box; width: 100%; min-width: 0; font: inherit; color: #e4e7eb; background: #202225; border: 1px solid #42464b; border-radius: 4px; padding: 6px 8px; }
+.task-contract textarea { min-height: 64px; resize: vertical; }
+.task-contract__rows, .task-contract__step { display: grid; gap: 6px; min-width: 0; }
+.task-contract__step { padding: 8px 0; border-bottom: 1px solid var(--border-color, #d3d8dc); }
+.task-contract__row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.task-contract button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 28px; min-height: 28px; justify-self: start; }
+.task-contract__row > span, .task-contract__row > button { flex-shrink: 0; }
+.bp-maintenance-task > label { display: grid; gap: 5px; font-size: 12px; }
+.bp-maintenance-task > label select { min-width: 0; width: 100%; padding: 6px; color: #e4e7eb; background: #202225; border: 1px solid #42464b; border-radius: 4px; }
+.harness-run-panel { display: grid; gap: 10px; min-width: 0; font-size: 12px; }
+.harness-run-panel__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.harness-run-panel__row label { display: grid; gap: 4px; min-width: 0; }
+.harness-run-panel__row input, .harness-run-panel__row select { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; color: #e4e7eb; background: #202225; border: 1px solid #42464b; border-radius: 4px; }
+.harness-run-panel__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.harness-scope-bar__repo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.harness-scope-bar__action {
+  color: rgba(255, 255, 255, 0.85);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.harness-scope-bar__conflict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffb020;
+}
+.harness-scope-bar__conflict button {
+  color: #ffd88a;
+  background: transparent;
+  border: 1px solid rgba(255, 176, 32, 0.4);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Planche 纸面覆盖（加法层，dark 原样不动）
+   画布底 + 节点卡 + 选中态 + 工具栏标题收敛到语义令牌；
+   边 geometry 与布局不动。纸面语言： flat 纸底 + 墨线 + 朱红点睛，
+   无渐变、无毛玻璃、无黑 blur 影。色值优先吃 var(--paper/ink/…)，
+   回落 hex 与 definition.ts 纸墨朱红同源。
+   ════════════════════════════════════════════════════════════ */
+
+[data-theme='planche'] .blueprint-view {
+  background: #EFE4C5;
+  color: var(--shell-text);
+}
+
+[data-theme='planche'] .blueprint-view--workbench,
+[data-theme='planche'] .blueprint-view--workbench.blueprint-view--empty {
+  background: var(--shell-canvas);
+}
+
+[data-theme='planche'] .blueprint-toolbar {
+  background: var(--shell-chrome);
+  border-bottom: 1px solid var(--shell-border);
+  color: var(--shell-text);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme='planche'] .blueprint-toolbar__title {
+  color: var(--shell-muted);
+}
+
+[data-theme='planche'] .bp-node-card {
+  background: #EFE4C5;
+  border: 1px solid #1C343B;
+  border-radius: 6px;
+  color: #1C343B;
+  box-shadow: none;
+}
+
+[data-theme='planche'] .bp-node-card--selected {
+  border-color: #D43D2A;
+  box-shadow: 0 0 0 1px rgba(212, 61, 42, 0.6);
+}
+
+[data-theme='planche'] .bp-node-card--matched {
+  border-color: rgba(212, 61, 42, 0.82);
+  box-shadow: 0 0 0 1px rgba(212, 61, 42, 0.5);
+}
+
+[data-theme='planche'] .bp-node-card__kindtag {
+  color: rgba(28, 52, 59, 0.62);
+  border-color: rgba(28, 52, 59, 0.35);
+}
+
+[data-theme='planche'] .bp-node-card__title {
+  color: #1C343B;
+}
+
+[data-theme='planche'] .bp-node-card__collapse {
+  color: rgba(28, 52, 59, 0.62);
+  background: transparent;
+  border-color: rgba(28, 52, 59, 0.35);
+}
+
+[data-theme='planche'] .bp-node-card__collapse:hover {
+  color: #1C343B;
+  background: #DCCFA8;
+  border-color: #D43D2A;
+}
+
+[data-theme='planche'] .bp-node-card__progress {
+  background: rgba(28, 52, 59, 0.14);
+}
+
+[data-theme='planche'] .bp-node-card__progress-bar {
+  background: rgba(28, 52, 59, 0.62);
+}
+
+[data-theme='planche'] .bp-node-card__dot {
+  box-shadow: none;
+}
+
+/* ── 工具栏控件：纸底墨字，hover 纸深 + 朱红边 ── */
+[data-theme='planche'] .blueprint-toolbar select,
+[data-theme='planche'] .blueprint-toolbar input {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-toolbar select:focus,
+[data-theme='planche'] .blueprint-toolbar input:focus {
+  border-color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-btn {
+  background: transparent;
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-btn:hover:not(:disabled) {
+  background: var(--paper-deep, #DCCFA8);
+  border-color: var(--planche-red, #D43D2A);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-btn--primary {
+  background: var(--shell-accent-soft);
+  border-color: var(--shell-accent-border);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-btn--primary-ghost {
+  background: transparent;
+  border-color: var(--shell-accent-border);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-btn--primary-ghost:hover:not(:disabled) {
+  background: var(--shell-accent-soft);
+  border-color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-btn--danger {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-btn--danger:hover {
+  background: var(--shell-accent-soft);
+  border-color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-toolbar__group--node {
+  background: transparent;
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .blueprint-toolbar__panel {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .blueprint-toolbar__zone-title {
+  color: var(--shell-muted);
+}
+
+[data-theme='planche'] .blueprint-toolbar__hint {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--shell-muted);
+}
+
+[data-theme='planche'] .blueprint-toolbar__match-count {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-toolbar__commit-limit {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--shell-muted);
+}
+
+[data-theme='planche'] .blueprint-toolbar__toggle--active {
+  border-color: var(--shell-accent-border);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-toolbar__error {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-toolbar__loading,
+[data-theme='planche'] .blueprint-toolbar__save-status--saved {
+  color: var(--shell-muted);
+}
+
+[data-theme='planche'] .blueprint-toolbar__save-status--saving,
+[data-theme='planche'] .blueprint-toolbar__save-status--pending {
+  color: #A86F0B;
+}
+
+[data-theme='planche'] .blueprint-toolbar__save-status--failed {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-toolbar__zone--danger {
+  background: var(--shell-accent-soft);
+  border: 1px solid var(--shell-accent-border);
+}
+
+/* ── 候选箱 / 候选卡：纸深底 + 纸卡 ── */
+[data-theme='planche'] .bp-candidate-inbox,
+[data-theme='planche'] .blueprint-view--workbench .bp-candidate-inbox {
+  background: var(--paper-deep, #DCCFA8);
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-candidate-inbox__toggle strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-candidate-inbox__count {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-candidate-inbox__chevron {
+  border-top-color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-candidate-inbox__toggle[data-attention='true'] .bp-candidate-inbox__chevron {
+  border-top-color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-candidate-inbox__dot {
+  background: var(--planche-red, #D43D2A);
+  box-shadow: none;
+}
+
+[data-theme='planche'] .bp-candidate-inbox__empty {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-candidate-inbox__error {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-candidate-card {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  box-shadow: none;
+}
+
+[data-theme='planche'] .bp-candidate-card__meta span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-candidate-card__input,
+[data-theme='planche'] .bp-candidate-card__textarea {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-candidate-card__input:focus,
+[data-theme='planche'] .bp-candidate-card__textarea:focus {
+  border-color: var(--planche-red, #D43D2A);
+  box-shadow: 0 0 0 2px var(--shell-accent-soft);
+}
+
+[data-theme='planche'] .bp-candidate-card__title {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-candidate-card p {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-candidate-card__decision {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+/* ── 节点卡补充：脚注 / 终端 / 信号（已有底座不动，只收文字色） ── */
+[data-theme='planche'] .bp-node-card__footer {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-node-card__terminal {
+  background: rgba(46, 107, 94, 0.12);
+  color: var(--planche-green-deep, #2E6B5E);
+}
+
+[data-theme='planche'] .bp-node-card__signals {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-node-card__signals span {
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .bp-node-card__signal--risk { color: #A86F0B; }
+[data-theme='planche'] .bp-node-card__signal--blocked { color: var(--planche-red, #D43D2A); }
+[data-theme='planche'] .bp-node-card__signal--analysis { color: #2F5D8A; }
+[data-theme='planche'] .bp-node-card__signal--collapsed { color: #6E5A9E; }
+
+[data-theme='planche'] .bp-node-card__title--empty,
+[data-theme='planche'] .bp-node-detail__title--empty {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+/* ── 画布容器 / 加载态 / 图例：去黑底黑影 ── */
+[data-theme='planche'] .blueprint-canvas-main {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  box-shadow: none;
+}
+
+[data-theme='planche'] .blueprint-canvas-loading {
+  background: var(--paper-deep, #DCCFA8);
+  animation: none;
+}
+
+[data-theme='planche'] .blueprint-view__loading-state {
+  background: var(--paper, #EFE4C5);
+  background-color: var(--paper, #EFE4C5);
+  color: var(--shell-muted);
+}
+
+[data-theme='planche'] .bp-canvas-legend span {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-canvas-error {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--planche-red, #D43D2A);
+  color: var(--planche-red, #D43D2A);
+}
+
+/* React Flow 浮层控件：纸面化（画布本身 transparent 不动） */
+[data-theme='planche'] .react-flow__controls,
+[data-theme='planche'] .react-flow__minimap {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: none;
+}
+
+[data-theme='planche'] .react-flow__controls-button {
+  background: var(--paper, #EFE4C5);
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  fill: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .react-flow__controls-button:hover {
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .react-flow__attribution {
+  background: transparent;
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+/* 边线主路由在 canvas-layout.ts 吃 var(--shell-muted)，此处无需覆盖 */
+
+/* ── 节点详情面板：纸面全收敛 ── */
+[data-theme='planche'] .bp-node-detail {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: none;
+}
+
+[data-theme='planche'] .bp-node-detail__header {
+  background: var(--paper, #EFE4C5);
+  border-color: var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-node-detail__eyebrow {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-node-detail__title {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-node-detail__summary span {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-panel-close {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-panel-close:hover {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-node-detail__section {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-node-detail__section--content::before {
+  background: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-node-detail__label {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-node-detail__text,
+[data-theme='planche'] .bp-item-card__text,
+[data-theme='planche'] .bp-feature-card__desc {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-feature-card {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-feature-card__title,
+[data-theme='planche'] .bp-history-card__title {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-feature-card__readonly {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-feature-card__readonly span {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-feature-card__readonly strong {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-feature-card__notes {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-feature-card__notes span {
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .bp-feature-empty,
+[data-theme='planche'] .bp-node-detail__hint,
+[data-theme='planche'] .bp-node-detail__empty,
+[data-theme='planche'] .bp-node-detail__count {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-node-detail__meta {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-node-detail__meta div {
+  border-right: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-node-detail__meta span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-node-detail__meta strong {
+  color: var(--ink, #1C343B);
+}
+
+
+
+
+
+[data-theme='planche'] .bp-node-detail__warning {
+  color: #A86F0B;
+}
+
+[data-theme='planche'] .bp-history-card__meta,
+[data-theme='planche'] .bp-history-card__list {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-history-card__list--warn {
+  color: #A86F0B;
+}
+
+[data-theme='planche'] .bp-analysis-history {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-analysis-history__item {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-analysis-history__item:hover,
+[data-theme='planche'] .bp-analysis-history__item--active {
+  border-color: var(--planche-red, #D43D2A);
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .bp-analysis-history__item span {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-analysis-history__item strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-analysis-history__item em {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-analysis-detail__head strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-analysis-detail__head span,
+[data-theme='planche'] .bp-analysis-detail__grid span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-analysis-detail__grid div {
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .bp-analysis-detail__grid strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-analysis-detail__error {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-analysis-detail__section label {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-analysis-detail__section pre {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-analysis-detail__section ul {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-analysis-detail__section--warn ul {
+  color: #A86F0B;
+}
+
+[data-theme='planche'] .bp-activity-item {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-activity-item span {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-activity-item strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-activity-item em {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-feature-hint {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-feature-card__readonly span,
+[data-theme='planche'] .bp-analysis-detail__grid div {
+  border-radius: 5px;
+}
+
+/* ── Janus 通知浮层：纸面化 ── */
+[data-theme='planche'] .bp-janus-notice {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: 3px 3px 0 var(--line, #1C343B);
+}
+
+[data-theme='planche'] .bp-janus-notice__title {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-janus-notice__body {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-janus-notice__close,
+[data-theme='planche'] .bp-janus-requirement__actions button {
+  background: transparent;
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-janus-notice__close:hover,
+[data-theme='planche'] .bp-janus-requirement__actions button:hover {
+  border-color: var(--planche-red, #D43D2A);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-janus-requirement {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-janus-requirement strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-janus-requirement span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-janus-notice__error {
+  color: var(--planche-red, #D43D2A);
+}
+
+/* ── 工作台：纸面三件套（顶栏 / 统一栏 / 卡片），去毛玻璃黑影 ──
+   遮罩不做主题覆写：与设置中心 / 共享 ModalFrame 同为 rgba(8,8,10,0.62)+blur(10px)。
+   纸面主题下曾换成 0.18 淡墨罩并去模糊，工作台背后等于没盖。卡片式逐步唤出
+   （--card-index 错峰）留在 .blueprint-workbench-shell 那一层，不受遮罩影响。 */
+[data-theme='planche'] .blueprint-workbench-topbar,
+[data-theme='planche'] .blueprint-workbench-toolbar,
+[data-theme='planche'] .blueprint-workbench-card {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--ink, #1C343B);
+}
+
+/* 中列的 .blueprint-workbench-card--canvas 只是透明布局壳（见基础规则
+   border:0/background:transparent/border-radius:0）。上面的纸面统一覆写若把壳
+   也刷上纸底墨框，直角壳就会在圆角的 .blueprint-canvas-main 外再套一圈框，
+   视觉成为“方框中有圆角”。壳保持透明，卡片观感由内层画布独自承担。 */
+[data-theme='planche'] .blueprint-workbench-card--canvas {
+  background: transparent;
+  border: 0;
+}
+
+[data-theme='planche'] .blueprint-workbench-tab {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-toolbar__scope {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-toolbar__lock {
+  color: var(--planche-red, #D43D2A);
+  border: 1px solid var(--shell-accent-border);
+}
+
+/* Topbar shells use shared neutral theme tokens; status colors stay inside. */
+[data-theme='planche'] .blueprint-janus-capsule,
+[data-theme='planche'] .blueprint-review-activity {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-janus-capsule__name {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-janus-capsule__status {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-janus-capsule[data-state='working'] .blueprint-janus-capsule__status {
+  color: var(--planche-green-deep, #2E6B5E);
+  background: rgba(46, 107, 94, 0.12);
+}
+
+[data-theme='planche'] .blueprint-janus-capsule[data-state='attention'] .blueprint-janus-capsule__status {
+  color: var(--planche-red, #D43D2A);
+  background: var(--shell-accent-soft);
+}
+
+[data-theme='planche'] .blueprint-janus-capsule[data-state='error'] .blueprint-janus-capsule__status {
+  color: var(--planche-red, #D43D2A);
+  background: var(--shell-accent-soft);
+}
+
+[data-theme='planche'] .blueprint-janus-capsule__chevron {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .blueprint-janus-capsule .blueprint-janus-capsule__identity .janus-identity-eye {
+  box-shadow: none;
+}
+
+/* ── 右键菜单 / 对话框：纸面弹窗 + 硬偏移影 ── */
+[data-theme='planche'] .bp-context-menu {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: 3px 3px 0 var(--line, #1C343B);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme='planche'] .bp-context-menu__item {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-context-menu__item:hover {
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .bp-context-menu__item--danger:hover {
+  background: var(--shell-accent-soft);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-context-menu__sep {
+  background: var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-context-menu__label {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-context-menu__status {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-context-menu__status:hover {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .prompt-dialog__overlay {
+  background: rgba(28, 52, 59, 0.18);
+}
+
+[data-theme='planche'] .prompt-dialog {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: 3px 3px 0 var(--line, #1C343B);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme='planche'] .prompt-dialog__title {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .prompt-dialog__label,
+[data-theme='planche'] .prompt-dialog__description {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .prompt-dialog__emphasis {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .prompt-dialog__input {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .prompt-dialog__input:focus {
+  border-color: var(--planche-red, #D43D2A);
+  box-shadow: 0 0 0 2px var(--shell-accent-soft);
+}
+
+[data-theme='planche'] .prompt-dialog__error {
+  color: var(--planche-red, #D43D2A);
+}
+
+/* ── 范围条 / 任务契约 / 运行面板：纸面表单 ── */
+[data-theme='planche'] .harness-scope-bar {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .harness-scope-bar__action {
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink, #1C343B);
+  background: transparent;
+}
+
+[data-theme='planche'] .harness-scope-bar__conflict {
+  color: #A86F0B;
+}
+
+[data-theme='planche'] .harness-scope-bar__conflict button {
+  border: 1px solid #A86F0B;
+  color: #A86F0B;
+  background: transparent;
+}
+
+[data-theme='planche'] .task-contract input,
+[data-theme='planche'] .task-contract textarea,
+[data-theme='planche'] .bp-maintenance-task > label select,
+[data-theme='planche'] .harness-run-panel__row input,
+[data-theme='planche'] .harness-run-panel__row select {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink, #1C343B);
+}
+
+/* ── 维护面板（右列对话 + 控件）：纸面全收敛 ── */
+[data-theme='planche'] .bp-maintenance-controls {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-controls small,
+[data-theme='planche'] .bp-maintenance-context > span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-context strong,
+[data-theme='planche'] .bp-maintenance-controls summary {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-settings select,
+[data-theme='planche'] .bp-maintenance-settings textarea,
+[data-theme='planche'] .bp-maintenance-start select,
+[data-theme='planche'] .bp-maintenance-start textarea,
+[data-theme='planche'] .bp-maintenance-compose textarea {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-workspace-picker > summary,
+[data-theme='planche'] .bp-maintenance-workspace-picker > div {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-workspace-picker > div > button {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-workspace-picker > div > button:hover {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-workspace-picker > div > button.is-selected {
+  background: var(--shell-accent-soft);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-workspace-picker button small {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-maintenance-controls button,
+[data-theme='planche'] .bp-maintenance-compose button {
+  background: transparent;
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-controls button:hover:not(:disabled) {
+  border-color: var(--planche-red, #D43D2A);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-compose .bp-maintenance-compose__proposal {
+  border-color: var(--shell-accent-border);
+  background: var(--shell-accent-soft);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-controls [role='alert'],
+[data-theme='planche'] .bp-maintenance-error {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-approval {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-approval-group,
+[data-theme='planche'] .bp-maintenance-audits article {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-delete-confirm {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-panel__header {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-greeting {
+  border-left-color: var(--planche-red, #D43D2A);
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-janus-head {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-janus-dot {
+  background: var(--planche-red, #D43D2A);
+  box-shadow: none;
+}
+
+[data-theme='planche'] .bp-maintenance-clear {
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  background: transparent;
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-clear:hover {
+  border-color: var(--planche-red, #D43D2A);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-machine {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-machine > summary {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-machine > summary:hover {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-panel__identity span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-panel__identity strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-panel__tabs {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  background: transparent;
+}
+
+[data-theme='planche'] .bp-maintenance-panel__tabs button {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-maintenance-panel__tabs button:hover {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-panel__tabs button.is-active {
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-panel__tabs button span {
+  background: var(--shell-accent-soft);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-start label {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-start select:focus {
+  border-color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-start p {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-task-overview {
+  background: var(--shell-accent-soft);
+  border: 1px solid var(--shell-accent-border);
+}
+
+[data-theme='planche'] .bp-maintenance-status strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-status span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-status em {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-progress {
+  background: var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-progress span {
+  background: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-scroll-bottom {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+[data-theme='planche'] .bp-maintenance-scroll-bottom:hover {
+  border-color: var(--planche-red, #D43D2A);
+  background: var(--paper-deep, #DCCFA8);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-messages span {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-maintenance-messages > div[data-role='assistant'] > span,
+[data-theme='planche'] .bp-maintenance-thinking > span {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-messages p {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-messages > div[data-role='assistant'] > p {
+  background: transparent;
+  border: 0;
+  border-left: 2px solid var(--planche-red, #D43D2A);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-message-details summary {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-message-details summary:hover {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-message-details > div {
+  border-left: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-thinking > div {
+  border-left: 2px solid var(--shell-accent-border);
+}
+
+[data-theme='planche'] .bp-maintenance-thinking i {
+  background: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-thinking em {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-proposal {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-proposal > header span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-operation {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-operation strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-operation p,
+[data-theme='planche'] .bp-maintenance-operation span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-group__title {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-group__hint {
+  color: #A86F0B;
+}
+
+[data-theme='planche'] .bp-maintenance-group--delete {
+  background: var(--shell-accent-soft);
+  border: 1px solid var(--shell-accent-border);
+}
+
+[data-theme='planche'] .bp-maintenance-operation--delete {
+  border-color: var(--shell-accent-border);
+}
+
+[data-theme='planche'] .bp-maintenance-operation__confirm {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-proposal--undo {
+  background: var(--shell-accent-soft);
+  border: 1px solid var(--shell-accent-border);
+}
+
+[data-theme='planche'] .bp-maintenance-undo__conflicts {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-history__badge {
+  border: 1px solid var(--shell-accent-border);
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-history {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-history > header {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-history > header span,
+[data-theme='planche'] .bp-maintenance-history > p {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-history__item {
+  border-bottom: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .bp-maintenance-history__item > summary time {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-maintenance-history__item > summary strong {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-history__item > summary span {
+  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+}
+
+[data-theme='planche'] .bp-maintenance-history__operation > header strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .bp-maintenance-history__operation > header span,
+[data-theme='planche'] .bp-maintenance-history__diff > span,
+[data-theme='planche'] .bp-maintenance-history__change strong,
+[data-theme='planche'] .bp-maintenance-history__evidence,
+[data-theme='planche'] .bp-maintenance-history__evidence strong {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-history__change code {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-history__change code:last-child {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .bp-maintenance-connecting {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .bp-maintenance-switch-notice {
+  background: var(--shell-accent-soft);
+  border: 1px solid var(--shell-accent-border);
+  color: var(--planche-red, #D43D2A);
+}
+
+/* ── 聚焦视图（空态 /  hero / 面板）：纸面化 ── */
+[data-theme='planche'] .blueprint-focus-view {
+  background: var(--paper, #EFE4C5);
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-focus-hero,
+[data-theme='planche'] .blueprint-focus-panel,
+[data-theme='planche'] .blueprint-focus-empty-panel {
+  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, #1C343B);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme='planche'] .blueprint-focus-view--empty {
+  background: var(--paper-deep, #DCCFA8);
+}
+
+[data-theme='planche'] .blueprint-focus-kicker {
+  color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-focus-view--empty .blueprint-focus-kicker {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-focus-hero h2,
+[data-theme='planche'] .blueprint-focus-empty-panel h2,
+[data-theme='planche'] .blueprint-focus-progress-ring span,
+[data-theme='planche'] .blueprint-focus-stat-row strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-focus-hero p,
+[data-theme='planche'] .blueprint-focus-empty-panel p {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-focus-panel-head span,
+[data-theme='planche'] .blueprint-focus-section label,
+[data-theme='planche'] .blueprint-focus-stat-row span,
+[data-theme='planche'] .blueprint-focus-progress-copy span {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-focus-panel-head strong,
+[data-theme='planche'] .blueprint-focus-progress-copy strong,
+[data-theme='planche'] .blueprint-focus-list-item strong,
+[data-theme='planche'] .blueprint-focus-analysis strong {
+  color: var(--ink, #1C343B);
+}
+
+[data-theme='planche'] .blueprint-focus-stat-row div {
+  background: var(--paper-deep, #DCCFA8);
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .blueprint-focus-list-item,
+[data-theme='planche'] .blueprint-focus-analysis,
+[data-theme='planche'] .blueprint-focus-empty-line {
+  border-top: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+[data-theme='planche'] .blueprint-focus-list-item span,
+[data-theme='planche'] .blueprint-focus-analysis span,
+[data-theme='planche'] .blueprint-focus-empty-line {
+  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+}
+
+[data-theme='planche'] .blueprint-focus-progress {
+  --focus-color: var(--planche-red, #D43D2A);
+}
+
+[data-theme='planche'] .blueprint-focus-progress-ring {
+  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
+}
+
+.bp-view-selector { display: flex; gap: 4px; flex-shrink: 0; }
+.bp-view-selector [aria-pressed="true"] { background: var(--shell-hover); outline: 1px solid var(--shell-muted); }
+.bp-architecture-panel { max-height: 45vh; overflow: auto; }

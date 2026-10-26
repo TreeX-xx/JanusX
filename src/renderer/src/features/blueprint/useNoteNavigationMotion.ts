@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { ReactFlowInstance, Node, Edge } from '@xyflow/react'
 import type { BlueprintNodeData } from '@/components/blueprint/BlueprintNodeCard'
-import type { BlueprintNoteDestination } from '../../../../shared/blueprint-attention'
+import type { BlueprintNoteDestination } from '../../../../../plugins/blueprint/src/shared/blueprint-attention'
 
 export interface NoteVisit extends BlueprintNoteDestination {
   sequence: number

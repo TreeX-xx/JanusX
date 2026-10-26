@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { maintenanceSelection } from '../../src/renderer/src/components/blueprint/maintenanceSelection'
-import type { BlueprintChangeSet, BlueprintOperation } from '../../src/shared/janus/maintenance-types'
+import type { BlueprintChangeSet, BlueprintOperation } from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 const operation = (operationId: string, dependsOn: string[] = []): BlueprintOperation => ({ operationId, dependsOn, type: 'update-node', nodeId: 'node', before: {}, after: { title: operationId }, reason: operationId, risk: 'low', evidenceRefs: [] })
 const proposal = (...operations: BlueprintOperation[]) => ({ operations } as BlueprintChangeSet)

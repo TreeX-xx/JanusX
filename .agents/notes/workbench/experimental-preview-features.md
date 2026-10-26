@@ -11,7 +11,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/b3704d91-c17d-4492-ae71-a44cfec8bbd7"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/908d675a-aec9-4791-8c8b-05f1e4c923ca"}
   ],
-  "updated": "2026-10-21T03:25:21Z",
+  "updated": "2026-10-25T05:40:28.892Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -26,9 +26,9 @@
 
 机制契约：`ExperimentalFeatures` 逐路布尔开关，`experimental:get/update` IPC 持久化到工作区配置，`normalizeExperimentalFeatures` 对缺席/非法一律回落默认值（默认全关 = 打包默认隐藏，仅设置中心开启后可用），无 IPC 环境以 `EXPERIMENTAL_ENABLED_ALL` 全开降级避免浏览器预览误杀。设置中心实验页分「预览」与「开发」两区（`PREVIEW_FEATURES`/`DEV_FEATURES`），每个开/关走逐项确认弹窗；知识库开关有键与文案但暂不在面板两区列表中。右坞入口统一经 `isRightToolEnabled(toolId, features)` 门控，`RightDock` 对被禁工具隐藏并关闭（重开启用后从关闭态开始），`RightToolRail` 不渲染被禁工具。
 
-「预览」分区包含蓝图、会话管理和备忘录；个人画像、圆桌、远程协作与团队协作仍归「开发」分区。`sessions` 与 `memo` 均默认关闭，旧配置缺席键或非法值回落 false。会话管理关闭仅隐藏右坞入口，会话账本和转录扫描保留；当前界面提供对话详情与续接，已移除还原点、文件变更、diff 和文件恢复操作，底层检查点仍由[检查点模块](../sessions/checkpoints/module.md)独立维护。`isRightToolEnabled`、`RightDock` 和 `RightToolRail` 共用入口门控。
+「预览」分区包含会话管理和备忘录；个人画像、圆桌、远程协作与团队协作仍归「开发」分区。蓝图已退出创新功能列表，由[官方插件安装与设置入口](../planning/blueprint-official-plugin.md)管理；旧 blueprint 持久字段暂留给兼容消费者，不再控制插件安装或设置入口。`sessions` 与 `memo` 均默认关闭，旧配置缺席键或非法值回落 false。会话管理关闭仅隐藏右坞入口，会话账本和转录扫描保留；当前界面提供对话详情与续接，已移除还原点、文件变更、diff 和文件恢复操作，底层检查点仍由[检查点模块](../sessions/checkpoints/module.md)独立维护。`isRightToolEnabled`、`RightDock` 和 `RightToolRail` 共用入口门控。
 
-设置页红色说明表达当前使用条件或能力边界，随实现维护，中英文同步：蓝图文档需符合 Note 格式，可用 WorkflowX 或 Note MCP；会话转录解析和原生续接因终端不同而有差异；备忘录人工编辑可直接使用，Chat 联动需支持工具调用的模型；圆桌需可用的全局默认模型；Android 远控需要电脑批准设备，使用 UDP 直连且不提供业务中继，部分网络可能无法连接；团队已有账号与组织管理基础，跨设备项目和文档同步尚未完成。个人画像的采集、工程习惯、对话使用与保留期说明仍适用。隐藏的旧 knowledge 文案明确工程入口已退出，不再宣传旧工程采集和本地模型部署。来源分别见[独立 Note MCP](../blueprint/note-mcp.md)、[会话记录模块](../sessions/records/module.md)、[备忘录专题](../knowledge/user-todo-janus.md)与[远程协作模块](../remote/module.md)，圆桌默认模型条件由 src/main/roundtable/service.ts 校验。
+设置页红色说明表达当前使用条件或能力边界，随实现维护，中英文同步：会话转录解析和原生续接因终端不同而有差异；备忘录人工编辑可直接使用，Chat 联动需支持工具调用的模型；圆桌需可用的全局默认模型；Android 远控需要电脑批准设备，使用 UDP 直连且不提供业务中继，部分网络可能无法连接；团队已有账号与组织管理基础，跨设备项目和文档同步尚未完成。个人画像的采集、工程习惯、对话使用与保留期说明仍适用。隐藏的旧 knowledge 文案明确工程入口已退出，不再宣传旧工程采集和本地模型部署。来源分别见[会话记录模块](../sessions/records/module.md)、[备忘录专题](../knowledge/user-todo-janus.md)与[远程协作模块](../remote/module.md)，圆桌默认模型条件由 src/main/roundtable/service.ts 校验。
 
 `remoteControl` 同时控制 Android 手机远程入口和主进程服务：默认关闭，加载配置前及读取失败时保持隐藏；即使直接调用 start IPC 也必须通过持久开关检查。关闭时停止隐藏 WebRTC 主机和信令、断开配对设备，保留电脑已创建终端，不允许迟到的异步开启恢复服务。终端屏幕、授权工作区和本机验证由[Android 配对握手](../remote/android-pairing-handshake.md)维护。
 

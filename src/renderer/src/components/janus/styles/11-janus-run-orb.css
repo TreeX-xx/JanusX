@@ -104,16 +104,35 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
-  width: 280px;
-  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  width: 344px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 64px);
+  overflow: hidden;
+  padding: 0;
   border: 1px solid var(--shell-border);
-  border-radius: 6px;
-  background: var(--shell-drawer);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--shell-text) 12%, transparent);
+  border-radius: 12px;
+  background: var(--shell-chrome);
+  box-shadow: var(--popover-shadow);
   color: var(--shell-text);
   font-size: 12px;
   animation: orb-popover-in 0.18s ease-out both;
 }
+
+.janus-run-orb-popover-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 16px;
+}
+
+.janus-run-orb-popover button:focus-visible {
+  outline: 2px solid var(--shell-accent);
+  outline-offset: 2px;
+}
+
+.janus-run-orb-popover svg { flex-shrink: 0; }
 
 @keyframes orb-popover-in {
   from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
@@ -122,30 +141,42 @@
 
 .janus-run-orb-popover-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  margin-bottom: 8px;
+  flex-shrink: 0;
+  padding: 16px;
 }
 
-/* 标题可缩：min-width:0 才触发 ellipsis，长工作区名不会把关闭钮挤出 280px 面板 */
+/* The title can shrink without pushing the close control out of the panel. */
+.janus-run-orb-popover-heading {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
 .janus-run-orb-popover-header strong {
-  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
 }
+
+.janus-run-orb-popover-summary { display: flex; align-items: center; gap: 6px; color: var(--shell-muted); font-size: 11px; }
+.janus-run-orb-popover-summary i { width: 5px; height: 5px; border-radius: 50%; background: var(--status-success); }
+.janus-run-orb-popover-summary[data-stopping] i { background: var(--shell-muted); }
 
 .janus-run-orb-popover-close {
   position: relative;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   padding: 0;
-  border: 1px solid var(--shell-border);
+  border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--shell-muted);
@@ -154,11 +185,11 @@
   cursor: pointer;
 }
 
-/* 命中区：22px 视觉 + ::before 外扩 8px ≈ 38px 热区（同 workbench-close-hit-slop） */
+/* Extend the close hit area without overlapping the project heading. */
 .janus-run-orb-popover-close::before {
   content: '';
   position: absolute;
-  inset: -8px;
+  inset: -3px;
   background: transparent;
 }
 
@@ -167,40 +198,41 @@
   filter: brightness(0.9);
 }
 
-/* 交互约定（与红灯关闭统一）：× 常显即关闭 affordance，悬浮不变色不变形，直接点即可。 */
 .janus-run-orb-popover-close:hover {
-  color: var(--shell-muted);
-  border-color: var(--shell-border);
+  color: var(--shell-text);
+  background: var(--shell-hover);
 }
 
 .janus-run-orb-popover-error {
-  margin-bottom: 8px;
-  padding: 6px 8px;
-  border-left: 2px solid var(--shell-diff-del);
+  flex-shrink: 0;
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--shell-diff-del) 10%, transparent);
   color: var(--shell-diff-del);
   font-size: 11px;
   word-break: break-word;
 }
 
-/* worktree 作用域分组：scope 头 = 文字 + 细节元信息；选中用 2px 强调条，不用填充 */
+/* Worktrees group quiet process rows; only the selected scope gains an accent. */
 .janus-run-orb-scope {
   display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding-left: 8px;
-  border-left: 2px solid transparent;
+  gap: 8px;
 }
 
+.janus-run-orb-scope + .janus-run-orb-scope { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--shell-border); }
 .janus-run-orb-scope.is-focus {
-  border-left-color: color-mix(in srgb, var(--shell-accent, var(--run-scope-accent)) 80%, transparent);
+  border-left: 2px solid var(--shell-accent);
+  padding-left: 10px;
 }
 
 .janus-run-orb-scope-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  color: var(--shell-muted);
 }
 
 .janus-run-orb-scope-head:hover .janus-run-orb-stop-one {
@@ -208,7 +240,10 @@
 }
 
 .janus-run-orb-scope-label {
-  font-weight: 600;
+  min-width: 0;
+  flex: 1;
+  font-weight: 500;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -216,29 +251,29 @@
 
 .janus-run-orb-scope-meta {
   color: var(--shell-dim);
-  font: 10px ui-monospace, monospace;
-  flex: 1;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .janus-run-orb-process-list {
   display: grid;
-  gap: 6px;
-  margin: 0 0 10px;
+  gap: 0;
+  margin: 0;
   padding: 0;
   list-style: none;
-  max-height: 220px;
-  overflow: auto;
+  border-radius: 8px;
+  background: var(--shell-canvas);
 }
 
 .janus-run-orb-process {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 8px;
-  padding: 7px 8px;
-  border: 1px solid var(--shell-border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--shell-text) 3%, transparent);
+  padding: 12px;
 }
+
+.janus-run-orb-process + .janus-run-orb-process { border-top: 1px solid var(--shell-border-soft); }
 
 .janus-run-orb-process:hover .janus-run-orb-stop-one {
   opacity: 1;
@@ -246,84 +281,103 @@
 
 .janus-run-orb-process-main {
   display: grid;
-  gap: 2px;
+  gap: 5px;
   min-width: 0;
   flex: 1;
 }
 
 .janus-run-orb-process-name {
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .janus-run-orb-process-meta {
-  color: var(--shell-dim);
-  font: 10px ui-monospace, monospace;
+  color: var(--shell-muted);
+  font: 11px var(--font-mono);
+  overflow-wrap: anywhere;
 }
 
 .janus-run-orb-process-output {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--shell-muted);
-  font: 10px ui-monospace, monospace;
+  color: var(--shell-dim);
+  font: 11px var(--font-mono);
 }
 
+.janus-run-orb-port-warning { color: var(--status-warning); font-size: 11px; }
+
 .janus-run-orb-stop-one {
+  display: grid;
+  place-items: center;
   flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--shell-diff-del);
+  color: var(--shell-muted);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  opacity: 0.55;
 }
 
 .janus-run-orb-stop-one:hover,
 .janus-run-orb-stop-one:focus-visible {
   opacity: 1;
-  border-color: color-mix(in srgb, var(--shell-diff-del) 45%, transparent);
+  color: var(--shell-diff-del);
   background: color-mix(in srgb, var(--shell-diff-del) 12%, transparent);
 }
 
 .janus-run-orb-arm {
-  display: grid;
-  gap: 4px;
-  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 0 100%;
+  padding-top: 8px;
+  border-top: 1px solid var(--shell-border);
 }
 
 .janus-run-orb-arm small {
   color: var(--shell-diff-del);
-  font-size: 10px;
-  white-space: nowrap;
+  flex-basis: 100%;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .janus-run-orb-popover-footer {
   display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--shell-border);
 }
 
 .janus-run-orb-btn {
-  flex: 1;
-  min-height: 28px;
-  padding: 5px 10px;
-  border: 1px solid var(--shell-border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--shell-text) 5%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--shell-chrome-raised);
   color: var(--shell-text);
   font-size: 12px;
   cursor: pointer;
 }
 
 .janus-run-orb-btn:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--shell-text) 30%, transparent);
+  background: var(--shell-hover);
 }
 
 .janus-run-orb-btn:disabled {
@@ -332,26 +386,34 @@
 }
 
 .janus-run-orb-btn--danger {
-  border-color: color-mix(in srgb, var(--shell-diff-del) 45%, transparent);
+  background: transparent;
   color: var(--shell-diff-del);
 }
 
 .janus-run-orb-btn--danger:hover:not(:disabled) {
-  border-color: var(--shell-diff-del);
   background: color-mix(in srgb, var(--shell-diff-del) 12%, transparent);
 }
 
 .janus-run-orb-btn--ghost {
   background: transparent;
+  color: var(--shell-muted);
 }
+
+.janus-run-orb-btn--danger[data-armed='true'] { background: color-mix(in srgb, var(--shell-diff-del) 12%, transparent); }
+.janus-run-orb-btn--primary { background: var(--shell-text); color: var(--shell-canvas); }
+.janus-run-orb-btn--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--shell-text) 85%, var(--shell-canvas)); }
+.janus-run-orb-spinner { animation: orb-spin 1s linear infinite; }
+@keyframes orb-spin { to { transform: rotate(360deg); } }
 
 .janus-run-orb-popover-empty {
   display: grid;
-  gap: 2px;
+  gap: 8px;
   justify-items: center;
-  padding: 14px 0 12px;
+  padding: 24px 16px;
   color: var(--shell-text);
 }
+
+.janus-run-orb-empty-icon { display: grid; place-items: center; width: 40px; height: 40px; background: var(--shell-canvas); border-radius: 10px; color: var(--shell-muted); }
 
 .janus-run-orb-popover-empty small {
   color: var(--shell-dim);
@@ -360,11 +422,11 @@
 
 .janus-run-orb-overflow-list {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   margin: 0;
-  padding: 2px;
+  padding: 6px;
   list-style: none;
-  min-width: 200px;
+  overflow: auto;
 }
 
 .janus-run-orb-overflow-row {
@@ -375,20 +437,20 @@
 
 .janus-run-orb-overflow-main {
   display: grid;
-  gap: 1px;
+  gap: 5px;
   flex: 1;
   min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--shell-border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--shell-text) 3%, transparent);
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--shell-text);
   text-align: left;
   cursor: pointer;
 }
 
 .janus-run-orb-overflow-main:hover {
-  border-color: rgba(0, 255, 136, 0.4);
+  background: var(--shell-hover);
 }
 
 .janus-run-orb-overflow-main strong {
@@ -409,5 +471,5 @@
  .janus-run-orbs { gap: 2px; }
 }
 @media (prefers-reduced-motion: reduce) {
- .janus-run-orb, .janus-run-orb-dot, .janus-run-orb-popover { animation: none !important; transition: none; }
+ .janus-run-orb, .janus-run-orb-dot, .janus-run-orb-popover, .janus-run-orb-spinner { animation: none !important; transition: none; }
 }

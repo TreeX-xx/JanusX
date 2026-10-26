@@ -13,11 +13,11 @@ export {
   projectGraphId,
   projectNode,
   projectRelations,
-} from '../notes/note-to-blueprint'
-export type { NoteDoc, NoteGraph, NoteGraphEntry, NoteKind } from '../notes/note-to-blueprint'
+} from '../../../plugins/blueprint/src/main/notes/note-to-blueprint'
+export type { NoteDoc, NoteGraph, NoteGraphEntry, NoteKind } from '../../../plugins/blueprint/src/main/notes/note-to-blueprint'
 
 /** @deprecated Use `NoteGraphEntry` from NoteAdapter v1. */
-export type { NoteGraphEntry as ProjectedEntry } from '../notes/note-to-blueprint'
+export type { NoteGraphEntry as ProjectedEntry } from '../../../plugins/blueprint/src/main/notes/note-to-blueprint'
 
 /** @deprecated Use `NoteGraph` from NoteAdapter v1. */
-export type { NoteGraph as ProjectGraphInput } from '../notes/note-to-blueprint'
+export type { NoteGraph as ProjectGraphInput } from '../../../plugins/blueprint/src/main/notes/note-to-blueprint'

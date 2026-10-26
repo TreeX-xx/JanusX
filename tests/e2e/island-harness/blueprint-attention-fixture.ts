@@ -1,10 +1,10 @@
-import type { Blueprint } from '../../../src/shared/janus/types'
+import type { Blueprint } from '../../../plugins/blueprint/src/shared/janus/types'
 import { useNoteSourceStore } from '../../../src/renderer/src/stores/note-source'
 import { useBlueprintReviewStore } from '../../../src/renderer/src/stores/blueprint-review'
 import { useBlueprintActivityStore } from '../../../src/renderer/src/stores/blueprint-review-activity'
 import { useBlueprintStore } from '../../../src/renderer/src/stores/blueprint'
-import type { BlueprintReviewResults } from '../../../src/shared/ipc/blueprint-review'
-import type { NoteReadResult } from '../../../src/shared/blueprint-attention'
+import type { BlueprintReviewResults } from '../../../plugins/blueprint/src/shared/ipc/blueprint-review'
+import type { NoteReadResult } from '../../../plugins/blueprint/src/shared/blueprint-attention'
 
 export function installAttentionFixture(graph: Blueprint, root: string) {
   const deep = '00000005-aaaa-4aaa-8aaa-aaaaaaaaaaaa', other = '00000003-aaaa-4aaa-8aaa-aaaaaaaaaaaa', child = '00000000-aaaa-4aaa-8aaa-aaaaaaaaaaaa'

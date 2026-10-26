@@ -1,4 +1,4 @@
-import { isBlueprintBusy } from '../../../shared/blueprint-loading'
+import { isBlueprintBusy } from '../../../../plugins/blueprint/src/shared/blueprint-loading'
 import { readReviewWithDeadline, REVIEW_READ_TIMEOUT_MS } from './blueprint-review-read'
 
 /** A busy checkout is still loading. Switching workspaces cancels its wait. */

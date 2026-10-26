@@ -1,0 +1,6 @@
+{
+  "publisher": "JanusX",
+  "host": ">=0.9.4 <1.0.0",
+  "platforms": ["win32-x64"],
+  "url": "https://github.com/treex-x/JanusX-plugins/releases/download/blueprint-v1.0.0/official.blueprint-1.0.0.jxp"
+}

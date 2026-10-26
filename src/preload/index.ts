@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { BLUEPRINT_REVIEW_CHANNELS, type BlueprintReviewAPI } from '../shared/ipc/blueprint-review'
+import { WORKSPACE_RUNTIME_CHANNELS, type WorkspaceRuntimeAPI } from '../shared/workspace-runtime'
+import { BLUEPRINT_REVIEW_CHANNELS, type BlueprintReviewAPI } from '../../plugins/blueprint/src/shared/ipc/blueprint-review'
 import os from 'node:os'
 import { JANUS_PERSONA } from '../shared/janus/persona'
 import { OFFICE_EVENT_CHANNELS, OFFICE_INVOKE_CHANNELS, type OfficeAPI } from '../shared/office'
@@ -11,7 +12,6 @@ import {
   type FileTreeAPI,
   type WorkspaceAPI,
 } from '../shared/ipc/workspace'
-import { LANGUAGE_SERVICE_CHANNELS, LANGUAGE_SERVICE_EVENT_CHANNELS, type LanguageServiceAPI } from '../shared/ipc/language-service'
 import {
   TERMINAL_EVENT_CHANNELS,
   TERMINAL_INVOKE_CHANNELS,
@@ -78,6 +78,17 @@ const blueprintReviewAPI: BlueprintReviewAPI = {
   mcpProbe: () => ipcRenderer.invoke(BLUEPRINT_REVIEW_CHANNELS.mcpProbe),
 }
 
+const workspaceRuntimeAPI: WorkspaceRuntimeAPI = {
+  detectCli: (id, tool) => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.detectCli, id, tool),
+  installCli: (id, tool) => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.installCli, id, tool),
+  cliInstallStatus: (id, tool) => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.cliInstallStatus, id, tool),
+  distributions: () => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.distributions),
+  hosts: () => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.hosts),
+  connect: runtime => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.connect, runtime),
+  browse: (runtime, path) => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.browse, runtime, path),
+  terminals: id => ipcRenderer.invoke(WORKSPACE_RUNTIME_CHANNELS.terminals, id),
+}
+
 const workspaceAPI: WorkspaceAPI = {
   initialize: () => ipcRenderer.invoke(WORKSPACE_CHANNELS.initialize),
   list: () => ipcRenderer.invoke(WORKSPACE_CHANNELS.list),
@@ -117,18 +128,6 @@ const fileAPI: FileAPI = {
   closeHtmlPreview: (id) => ipcRenderer.invoke(FILE_CHANNELS.closeHtmlPreview, id),
   readBinary: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.readBinary, filePath),
   stat: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.stat, filePath),
-  sourceFiles: (workspacePath) => ipcRenderer.invoke(FILE_CHANNELS.sourceFiles, workspacePath),
-}
-
-const languageServiceAPI: LanguageServiceAPI = {
-  definition: (request) => ipcRenderer.invoke(LANGUAGE_SERVICE_CHANNELS.definition, request),
-  installer: {
-    status: (request) => ipcRenderer.invoke(LANGUAGE_SERVICE_CHANNELS.installerStatus, request),
-    start: (request) => ipcRenderer.invoke(LANGUAGE_SERVICE_CHANNELS.installerStart, request),
-    cancel: (request) => ipcRenderer.invoke(LANGUAGE_SERVICE_CHANNELS.installerCancel, request),
-    remove: (request) => ipcRenderer.invoke(LANGUAGE_SERVICE_CHANNELS.installerRemove, request),
-    onInstallerProgress: (listener) => subscribeIpcEvent(LANGUAGE_SERVICE_EVENT_CHANNELS.installerProgress, listener),
-  },
 }
 
 function subscribeIpcEvent<T>(channel: string, callback: (event: T) => void): () => void {
@@ -404,7 +403,7 @@ const workflowxAPI: WorkflowXAPI = {
 const externalCliAPI: ExternalCliAPI = {
   detect: (toolId) => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.detect, toolId),
   latest: (toolId) => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.latest, toolId),
-  install: (toolId) => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.install, toolId),
+  install: (toolId, options) => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.install, options ? { toolId, ...options } : toolId),
   applyProvider: (request) => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.applyProvider, request),
   syncState: () => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.syncState),
   rollbackProfile: () => ipcRenderer.invoke(EXTERNAL_CLI_CHANNELS.rollbackProfile),
@@ -681,9 +680,9 @@ contextBridge.exposeInMainWorld('electron', {
   /*-- Janus 人格 prompt 单一来源：主进程 Analyzer 与渲染层 JanusChat 共用 --*/
   janusPersona: JANUS_PERSONA,
   workspace: workspaceAPI,
+  workspaceRuntime: workspaceRuntimeAPI,
   fileTree: fileTreeAPI,
   file: fileAPI,
-  languageService: languageServiceAPI,
   terminal: terminalAPI,
   project: projectAPI,
   browser: browserAPI,

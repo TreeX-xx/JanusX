@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
 import { normalizeShellProfiles } from '../../../src/shared/shellProfiles'
-import type { ExternalCliToolId } from '../../../src/shared/ipc/external-cli'
+import type { ExternalCliToolId, ExternalCliInstallOptions } from '../../../src/shared/ipc/external-cli'
 import styles from '../../../src/renderer/src/components/AppSettingsModal.module.css'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
@@ -29,6 +29,32 @@ if (params.has('cliStates')) {
     install: async (toolId: ExternalCliToolId) => {
       installed.add(toolId); upgraded.add(toolId)
       return { toolId, success: true, version: '2.0.0' }
+    },
+  })
+}
+if (params.has('opencode')) {
+  const scenario = params.get('opencode')
+  let version = scenario === 'v2' ? '2.0.0' : scenario === 'v1-ready' ? '1.19.4' : '1.18.0'
+  let installed = scenario !== 'missing'
+  const requests: Array<{ toolId: ExternalCliToolId; options?: ExternalCliInstallOptions }> = []
+  Object.assign(window, { cliInstallRequests: requests })
+  const original = { ...window.electron.externalCli }
+  Object.assign(window.electron.externalCli, {
+    detect: async (toolId: ExternalCliToolId) => toolId !== 'opencode' ? original.detect(toolId) : ({
+      toolId, installed, runnable: installed && scenario !== 'unknown',
+      version: installed && scenario !== 'unknown' ? version : undefined, source: installed ? 'path' : undefined,
+    }),
+    latest: async (toolId: ExternalCliToolId) => toolId !== 'opencode' ? original.latest(toolId) : ({
+      toolId, versions: scenario === 'offline' ? {} : scenario === 'v1-offline' ? { v2: '2.1.4' } : { v1: '1.19.4', v2: '2.1.4' },
+    }),
+    install: async (toolId: ExternalCliToolId, options?: ExternalCliInstallOptions) => {
+      requests.push({ toolId, options })
+      if (toolId !== 'opencode') return original.install(toolId, options)
+      if (scenario === 'fail') return { toolId, success: false, error: 'Fixture download failed' }
+      if (scenario === 'shadow') return { toolId, success: false, error: 'Check PATH: active command is still v1' }
+      installed = true
+      version = options!.version
+      return { toolId, success: true, version }
     },
   })
 }

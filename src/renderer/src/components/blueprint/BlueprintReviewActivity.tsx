@@ -1,7 +1,7 @@
 import { CircleCheck, LoaderCircle, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import { attentionRoots } from '@/features/blueprint/attention-model'
-import type { Blueprint } from '../../../../shared/janus/types'
+import type { Blueprint } from '../../../../../plugins/blueprint/src/shared/janus/types'
 import { useBlueprintReview, useBlueprintReviewStore } from '@/stores/blueprint-review'
 import { useBlueprintActivity, useBlueprintActivityStore } from '@/stores/blueprint-review-activity'
 import { ThemedTooltip } from '../ui/ThemedTooltip'

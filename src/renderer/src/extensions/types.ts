@@ -3,7 +3,7 @@ import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import type { PluginCommand, PluginMenu, PluginKeybinding } from '@janusx/plugin-sdk'
 
-export type ExtensionViewLocation = 'workspace' | 'right' | 'workbench' | 'island' | 'window'
+export type ExtensionViewLocation = 'workspace' | 'right' | 'workbench' | 'settings' | 'island' | 'window'
 export type ExtensionViewScope = 'application' | 'project'
 export type ExtensionViewId = `extension:${string}/${string}`
 
@@ -17,6 +17,7 @@ export interface ExtensionViewProps {
 }
 
 export interface ExtensionView {
+  frame?: 'plugin'
   instancePolicy?: 'single' | 'multiple'
   id: string
   title: string

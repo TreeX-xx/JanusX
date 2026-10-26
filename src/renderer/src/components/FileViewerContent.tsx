@@ -6,8 +6,6 @@ import { MonacoViewer, MarkdownViewer, HtmlViewer, ImageViewer, BinaryInfo } fro
 import { getMonacoLanguage } from '@/lib/file-utils'
 import type { FindableEditor } from '@/lib/editor-find'
 import type { OpenFile } from '@/types'
-import type { DefinitionTarget } from '@/lib/monaco-definition'
-import type { EditorNavigationTarget } from '@/stores/editor'
 import { DocumentViewerHost } from '@/extensions/DocumentViewerHost'
 
 interface FileViewerContentProps {
@@ -18,11 +16,6 @@ interface FileViewerContentProps {
   onEditorMount?: (editor: FindableEditor | null) => void
   diffOriginalContent?: string
   workspacePath?: string
-  navigationTarget?: EditorNavigationTarget | null
-  onDefinitionNavigate?: (target: DefinitionTarget) => void
-  onNavigationComplete?: (requestId: number) => void
-  definitionActionLabel?: string
-  definitionErrorMessage?: string
 }
 
 export function FileViewerContent(props: FileViewerContentProps) {
@@ -31,10 +24,10 @@ export function FileViewerContent(props: FileViewerContentProps) {
     || productKindForPath(props.file.absolutePath) === 'office') return builtin
   return <DocumentViewerHost file={props.file} workspacePath={props.workspacePath}
     onReadOnlyChange={props.onReadOnlyChange}
-    forceBuiltin={props.diffOriginalContent !== undefined || Boolean(props.navigationTarget)}>{builtin}</DocumentViewerHost>
+    forceBuiltin={props.diffOriginalContent !== undefined}>{builtin}</DocumentViewerHost>
 }
 
-function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOriginalContent, workspacePath, navigationTarget, onDefinitionNavigate, onNavigationComplete, definitionActionLabel, definitionErrorMessage }: FileViewerContentProps) {
+function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOriginalContent, workspacePath }: FileViewerContentProps) {
   if (file.isLoading) {
     return (
       <div
@@ -71,7 +64,7 @@ function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOr
   if (productKindForPath(file.absolutePath) === 'office') return <OfficeFileViewer absolutePath={file.absolutePath} onClose={() => useEditorStore.getState().closeFile(file.id)} />
 
   if (file.saveConflict && file.conflictDisk) return <MonacoViewer content={file.content} originalContent={file.conflictDisk.text}
-    language={getMonacoLanguage(file.path)} modelPath={file.absolutePath} workspacePath={workspacePath} onChange={onContentChange} onEditorMount={onEditorMount} />
+    language={getMonacoLanguage(file.path)} modelPath={file.absolutePath} onChange={onContentChange} onEditorMount={onEditorMount} />
 
   switch (file.viewType) {
     case 'code':
@@ -81,12 +74,6 @@ function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOr
           language={getMonacoLanguage(file.path)}
           originalContent={diffOriginalContent}
           modelPath={file.absolutePath}
-          workspacePath={workspacePath}
-          navigationTarget={navigationTarget?.fileId === file.id ? navigationTarget : null}
-          onDefinitionNavigate={onDefinitionNavigate}
-          onNavigationComplete={onNavigationComplete}
-          definitionActionLabel={definitionActionLabel}
-          definitionErrorMessage={definitionErrorMessage}
           onChange={onContentChange}
           onEditorMount={onEditorMount}
         />

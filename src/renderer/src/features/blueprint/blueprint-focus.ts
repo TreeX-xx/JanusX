@@ -14,10 +14,10 @@
  *  Pure: no stores, no IPC. Callers supply the active checkout path.
  */
 import type { Blueprint, BlueprintNode } from '@/services/blueprint'
-import { blueprintStatusFilter } from '../../../../shared/blueprint-note-status'
+import { blueprintStatusFilter } from '../../../../../plugins/blueprint/src/shared/blueprint-note-status'
 import type { BlueprintStatusFilter } from '@/components/blueprint/blueprintStatus'
 import { noteKindOf, type NoteKindFilter } from '@/components/blueprint/blueprintStatus'
-import type { BlueprintMaintenanceScope } from '../../../../shared/janus/maintenance-types'
+import type { BlueprintMaintenanceScope } from '../../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import { buildEffectiveHierarchy } from './canvas-navigation'
 import { sameCheckoutPath } from './resolveNodeWorkspace'
 import { projectArchitecture } from './architecture-view'

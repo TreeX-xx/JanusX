@@ -1,5 +1,5 @@
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
-import { EXTERNAL_CLI_CHANNELS, type ExternalCliApplyProviderRequest, type ExternalCliToolId, type TerminalApplyModelRequest } from '../../shared/ipc/external-cli'
+import { EXTERNAL_CLI_CHANNELS, isExternalCliInstallOptions, type ExternalCliApplyProviderRequest, type ExternalCliToolId, type TerminalApplyModelRequest } from '../../shared/ipc/external-cli'
 import { getExternalCliTool } from '../external-cli/tool-registry'
 import { externalCliService, type ExternalCliService } from '../external-cli/service'
 
@@ -67,6 +67,13 @@ export function registerExternalCliHandlers(options: RegisterExternalCliHandlers
         if (channel === EXTERNAL_CLI_CHANNELS.latest) {
           if (!isSupportedToolId(payload)) return { toolId: fallbackTool }
           return service.latest(payload)
+        }
+        if (channel === EXTERNAL_CLI_CHANNELS.install && typeof payload === 'object' && payload !== null) {
+          const request = payload as Record<string, unknown>
+          if (request.toolId !== 'opencode' || !isExternalCliInstallOptions(request)) {
+            return { toolId: fallbackTool, success: false, error: 'Invalid install request.' }
+          }
+          return await service.install('opencode', { channel: request.channel, version: request.version })
         }
         if (channel === EXTERNAL_CLI_CHANNELS.syncState) return service.syncState()
         if (channel === EXTERNAL_CLI_CHANNELS.rollbackProfile) return service.rollbackProfile()

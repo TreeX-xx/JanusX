@@ -142,8 +142,6 @@ function importBootstrapModules() {
     import('./bootstrap/services'),
     import('./terminal/manager'),
     import('./janus-runner/stream-manager'),
-    import('./janus/analyzer'),
-    import('./janus/maintenance/service'),
     import('./notifications/desktop-toast-window'),
     import('./shutdown/AppShutdown'),
     import('./windows/editor-window'),
@@ -151,7 +149,6 @@ function importBootstrapModules() {
     import('./windows/register-window-ipc'),
     import('./remote-notifications/feishu-inbound/runtime'),
     import('./browser/surface-manager'),
-    import('./language-service/clangd-manager'),
   ])
 }
 
@@ -196,8 +193,6 @@ async function bootstrapApp(): Promise<void> {
     { createApplicationServices },
     { terminalManager },
     { agentStreamManager },
-    { analyzer },
-    { blueprintMaintenanceService },
     { desktopToastWindow },
     { appShutdown },
     { EditorWindowManager },
@@ -205,7 +200,6 @@ async function bootstrapApp(): Promise<void> {
     { registerWindowIpc },
     { feishuInboundRuntime },
     { BrowserSurfaceManager },
-    { clangdManager },
   ] = await importBootstrapModules()
 
   // Resolve persisted theme before any startup/second-instance window can be created.
@@ -222,19 +216,16 @@ async function bootstrapApp(): Promise<void> {
     ...(mainWindow && !mainWindow.isDestroyed() ? [mainWindow] : []),
     ...editorWindows.list(),
   ]
-  const { resolveOfficeWorkspaceRoot, officeWatchPool, officeArtifactIndex, languageServiceInstallers } =
+  const { resolveOfficeWorkspaceRoot, officeWatchPool, officeArtifactIndex } =
     createApplicationServices(getOfficeWindows)
 
   appShutdown.configure({
     abortChatStreams: () => abortAllChatStreams(),
-    cancelAnalyzer: () => analyzer.cancelAll(),
-    cancelBlueprintMaintenance: () => blueprintMaintenanceService.cancelAll(),
     killTerminals: () => terminalManager.killAll(),
     killAgents: () => agentStreamManager.killAll(),
     stopProjects: async () => {
       await Promise.all([stopAllProjects(), import('./ipc/agent-runtime-handlers').then(module => module.closeAgentMcp())])
     },
-    stopLanguageServices: () => clangdManager.disposeAll(),
     stopOfficeWatches: () => officeWatchPool.stopAll(),
     disposeOfficeArtifactIndexes: () => officeArtifactIndex.disposeAll(),
     disposeWatchers: () => disposeWorkspaceWatchers(),
@@ -260,7 +251,6 @@ async function bootstrapApp(): Promise<void> {
       officeWatchPool,
       officeArtifactIndex,
       browserSurfaces,
-      languageServiceInstallers,
     })
     registerWindowIpc(editorWindows, () => mainWindow)
     feishuInboundRuntime.configure(mainWindow)

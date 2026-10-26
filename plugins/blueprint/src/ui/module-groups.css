@@ -1,0 +1,15 @@
+.bp-module-document-group {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed #888;
+  border-radius: 0;
+  background: transparent;
+  pointer-events: none;
+  color: var(--shell-muted, #888);
+}
+.bp-module-document-group > span {
+  display: block;
+  padding: 10px 18px;
+  font-size: 12px;
+  font-weight: 500;
+}

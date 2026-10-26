@@ -12,7 +12,7 @@ import {
   bulkApproval,
   maintenanceSelection,
 } from '../../src/renderer/src/components/blueprint/maintenanceSelection'
-import type { BlueprintChangeSet, BlueprintOperation } from '../../src/shared/janus/maintenance-types'
+import type { BlueprintChangeSet, BlueprintOperation } from '../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 const update = (id: string, dependsOn: string[] = []): BlueprintOperation =>
   ({ operationId: id, type: 'update-node', nodeId: id, before: {}, after: { title: id }, reason: 'r', evidenceRefs: [], dependsOn, risk: 'low' })

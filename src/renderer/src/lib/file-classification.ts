@@ -143,7 +143,11 @@ export function getExtension(filePath: string): string {
 
 export function getFileName(filePath: string): string {
   const parts = filePath.replace(/\\/g, '/').split('/')
-  return parts[parts.length - 1] || filePath
+  const name = parts[parts.length - 1] || filePath
+  if (filePath.startsWith('janusx-workspace://')) {
+    try { return decodeURIComponent(name) } catch { return name }
+  }
+  return name
 }
 
 function classifySpecialName(fileName: string): FileRule | null {

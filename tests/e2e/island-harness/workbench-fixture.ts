@@ -1,4 +1,4 @@
-import type { Blueprint, BlueprintNode } from '../../../src/shared/janus/types'
+import type { Blueprint, BlueprintNode } from '../../../plugins/blueprint/src/shared/janus/types'
 
 // IPC data only: Workbench, Canvas, NoteWiki and the conversation controller
 // execute current production code, including the application's Janus CSS.

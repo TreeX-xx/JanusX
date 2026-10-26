@@ -11,6 +11,8 @@ import { PluginConfigurationForm } from './PluginConfigurationForm'
 import { PluginBackgroundPanel } from './PluginBackgroundPanel'
 import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { openExtensionView } from '@/extensions/workbench'
+import { pluginConfigurationDrafts } from '@/extensions/plugin-configuration-drafts'
+import { PluginCatalog } from './PluginCatalog'
 
 function PluginThemes({ manifest }: { manifest: InstalledPlugin['manifest'] }) {
   const { t } = useI18n('plugins')
@@ -77,6 +79,8 @@ function PluginSkills({ manifest, review = false }: { manifest: InstalledPlugin[
 export function PluginSettingsPanel({ configurationTarget, onOpened }: { configurationTarget?: PluginConfigurationTarget | null; onOpened?: () => void }) {
   const { t } = useI18n('plugins')
   const snapshot = usePluginSnapshot()
+  const [tab, setTab] = useState<'installed' | 'discover' | 'developer'>('installed')
+  useEffect(() => { if (configurationTarget) setTab('installed') }, [configurationTarget])
   const configurationSection = useRef<HTMLDetailsElement>(null)
   const locatedConfiguration = useRef<PluginConfigurationTarget | null>(null)
   useEffect(() => {
@@ -86,22 +90,45 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
     section.open = true
     section.scrollIntoView({ block: 'nearest' })
     section.querySelector('summary')?.focus({ preventScroll: true })
-  }, [configurationTarget, snapshot.plugins])
+  }, [configurationTarget, snapshot.plugins, tab])
   const commands = useExtensionCommands()
   const workspaces = useWorkspaceStore(state => state.workspaces)
   const projectOpen = useWorkspaceStore(state => Boolean(state.activeWorkspaceId))
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
+  const [imported, setImported] = useState(false)
   const [authorize, setAuthorize] = useState<InstalledPlugin | null>(null)
   const [projects, setProjects] = useState<string[]>([])
-  const [confirmation, setConfirmation] = useState<{ id: string; type: 'uninstall' | 'deleteData' } | null>(null)
+  const [confirmation, setConfirmation] = useState<{ id: string; type: 'uninstall' | 'deleteData' | 'rollback' } | null>(null)
   const [logsOpen, setLogsOpen] = useState(false)
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({})
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  const actionSection = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const section = actionSection.current
+    if (!section) return
+    section.scrollIntoView({ block: 'nearest' })
+    section.focus({ preventScroll: true })
+  }, [authorize, confirmation])
   const run = async (request: PluginManageRequest) => {
-    setBusy(true); setFailure('')
-    try { await pluginRequest(request); await refreshPlugins(); setAuthorize(null); setConfirmation(null) }
-    catch (cause) { setFailure(cause instanceof Error ? cause.message : 'INTERNAL_ERROR') }
+    setBusy(true); setFailure(''); setImported(false)
+    try {
+      const result = await pluginRequest<{ imported?: boolean }>(request)
+      if (request.type === 'deleteData' || request.type === 'uninstall') pluginConfigurationDrafts.clearPlugin(request.id)
+      await refreshPlugins(); setAuthorize(null); setConfirmation(null)
+      if (request.type === 'import' || request.type === 'importPackage') setTab('installed')
+      if (request.type === 'importPackage') setImported(Boolean(result?.imported))
+    }
+    catch (cause) {
+      const code = cause instanceof Error ? cause.message : 'INTERNAL_ERROR'
+      setFailure(request.type !== 'importPackage' ? code : t(
+        code === 'INVALID_SIGNATURE' || code === 'PERMISSION_DENIED' ? 'plugins:importUntrusted'
+          : code === 'INVALID_PACKAGE' ? 'plugins:importInvalid'
+          : code === 'INCOMPATIBLE_PLUGIN' ? 'plugins:incompatible'
+          : code === 'INVALID_REQUEST' || code === 'DUPLICATE_PLUGIN' ? 'plugins:importBlocked'
+          : code === 'PACKAGE_READ_FAILED' ? 'plugins:importReadFailed' : 'plugins:importFailed',
+      ))
+    }
     finally { setBusy(false) }
   }
   useEffect(() => { void refreshPlugins().catch(cause => setFailure(cause.message)) }, [])
@@ -109,37 +136,68 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
   const conflicts = extensionCommands.resolveKeybindings(/Mac/.test(navigator.platform), projectOpen).diagnostics
   const preferences = extensionCommands.getPreferences()
   return <div className={styles.root} data-plugin-settings>
-    <label className={styles.row}><input type="checkbox" checked={snapshot.developmentMode} disabled={busy}
-      onChange={event => { void run({ type: 'development', enabled: event.target.checked }) }} />{t('plugins:development')}</label>
-    <p className={styles.hint}>{t('plugins:developmentHint')}</p>
+    <div className={styles.tabs} role="tablist" aria-label={t('plugins:title')}>
+      {(['installed', 'discover', 'developer'] as const).map((id, index, tabs) => <button key={id} role="tab" id={`plugin-tab-${id}`} aria-controls={`plugin-panel-${id}`}
+        aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onClick={() => { setTab(id); setAuthorize(null); setConfirmation(null) }}
+        onKeyDown={event => {
+          const next = event.key === 'ArrowRight' ? tabs[(index + 1) % tabs.length] : event.key === 'ArrowLeft' ? tabs[(index + tabs.length - 1) % tabs.length] : event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : null
+          if (next) { event.preventDefault(); setTab(next); document.getElementById(`plugin-tab-${next}`)?.focus() }
+        }}>{t(`plugins:${id}`)}{id === 'installed' ? ` (${snapshot.plugins.length})` : ''}</button>)}
+    </div>
+    {failure && <p role="alert" className={styles.error}>{failure}</p>}
+    {tab === 'discover' && <div role="tabpanel" id="plugin-panel-discover" aria-labelledby="plugin-tab-discover"><PluginCatalog onUninstall={id => { setTab('installed'); setAuthorize(null); setConfirmation({ type: 'uninstall', id }) }} /></div>}
+    {tab === 'developer' && <div className={styles.root} role="tabpanel" id="plugin-panel-developer" aria-labelledby="plugin-tab-developer">
+    <label className={styles.settingRow}>
+      <span className={styles.settingText}><span className={styles.label}>{t('plugins:development')}</span>
+        <span className={styles.hint}>{t('plugins:developmentHint')}</span></span>
+      <input type="checkbox" className={styles.switch} aria-label={t('plugins:development')} checked={snapshot.developmentMode} disabled={busy}
+        onChange={event => { void run({ type: 'development', enabled: event.target.checked }) }} />
+    </label>
     <p className={styles.hint}>{t('plugins:hostBoundary')}</p>
     <div className={styles.actions}>
       <button disabled={busy} onClick={() => { void run({ type: 'import', kind: 'linked' }) }}>{t('plugins:link')}</button>
       <button disabled={busy} onClick={() => { void run({ type: 'import', kind: 'copied' }) }}>{t('plugins:copy')}</button>
-      <button disabled={busy} onClick={() => { setLogsOpen(value => !value); void refreshPlugins() }}>{t('plugins:logs')}</button>
+      <button disabled={busy} aria-pressed={logsOpen} onClick={() => { setLogsOpen(value => !value); void refreshPlugins() }}>{t('plugins:logs')}</button>
     </div>
-    {failure && <p role="alert" className={styles.error}>{failure}</p>}
+    {logsOpen && <section className={styles.card}><div className={styles.toolbar}><span className={styles.label}>{t('plugins:logs')}</span><button onClick={() => { void refreshPlugins() }}>{t('plugins:refresh')}</button></div>
+      <pre className={styles.logs}>{snapshot.logs.map(log => `${log.time} ${log.pluginId ?? ''} ${log.instanceId ?? ''} ${log.method ?? ''} ${log.code} ${log.duration === undefined ? '' : `${log.duration}ms`}`).join('\n')}</pre></section>}
+    </div>}
+    {tab === 'installed' && <div className={styles.root} role="tabpanel" id="plugin-panel-installed" aria-labelledby="plugin-tab-installed">
+    <div className={styles.toolbar}>
+      <p className={styles.hint}>{t('plugins:importPackageHint')}</p>
+      <button disabled={busy || Boolean(snapshot.distribution?.operation)} onClick={() => { void run({ type: 'importPackage' }) }}>{t('plugins:importPackage')}</button>
+    </div>
+    {imported && <p role="status">{t('plugins:importSucceeded')}</p>}
     {!snapshot.plugins.length && <p className={styles.hint}>{t('plugins:empty')}</p>}
+    <div className={styles.list}>
     {snapshot.plugins.map(record => {
       const ownCommands = commands.commands.filter(command => command.id.startsWith(`command:${record.manifest.id}/`))
+      const source = record.source.kind === 'official' ? t('plugins:official') : record.source.kind === 'linked' ? t('plugins:linked') : t('plugins:copied')
       return <section key={record.manifest.id} className={styles.card} data-plugin-id={record.manifest.id}>
-        <div className={styles.row}><strong>{record.manifest.name}</strong><span>{record.manifest.version}</span><span>{t(`plugins:state.${record.state}`)}</span></div>
-        <div className={styles.hint}>{record.manifest.id} · {record.source.kind === 'linked' ? t('plugins:linked') : t('plugins:copied')}</div>
-        <div className={styles.path}>{record.source.directory}</div>
-        <p className={styles.hint} data-plugin-runtime>{t('plugins:runtime', { pages: record.runtime?.pages ?? 0, connected: record.runtime?.connected ?? 0, ready: record.runtime?.ready ?? 0 })}</p>
+        <div className={styles.cardHeader}>
+          <span className={styles.avatar} aria-hidden="true">{record.manifest.name.trim().charAt(0).toUpperCase() || '?'}</span>
+          <div className={styles.cardTitle}>
+            <strong>{record.manifest.name}</strong>
+            <span className={styles.meta}>v{record.manifest.version} · {source} · <code>{record.manifest.id}</code></span>
+          </div>
+          <span className={styles.chip} data-state={record.state}>{t(`plugins:state.${record.state}`)}</span>
+        </div>
         {record.error && <p role="status" className={styles.error}>{record.error}</p>}
         <div className={styles.actions}>
-          <button disabled={busy || !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(record.projects) }}>{t('plugins:authorize')}</button>
-          <button disabled={busy || !record.enabled} onClick={() => { void run({ type: 'disable', id: record.manifest.id }) }}>{t('plugins:disable')}</button>
-          <button disabled={busy} onClick={() => { void run({ type: 'reload', id: record.manifest.id }) }}>{t('plugins:reload')}</button>
-          <button disabled={busy} onClick={() => setConfirmation({ type: 'uninstall', id: record.manifest.id })}>{t('plugins:uninstall')}</button>
-          <button disabled={busy} onClick={() => setConfirmation({ type: 'deleteData', id: record.manifest.id })}>{t('plugins:deleteData')}</button>
+          {!record.enabled && <button className={styles.primary} disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(record.projects) }}>{t('plugins:authorize')}</button>}
+          {record.manifest.contributes.views.filter(view => view.location === 'settings').map(view => <button key={view.id} disabled={busy || !record.enabled}
+            onClick={() => openExtensionView(`extension:${record.manifest.id}/${view.id}`)}>{view.title}</button>)}
+          {record.enabled && <button disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(record.projects) }}>{t('plugins:authorize')}</button>}
+          {record.enabled && <button disabled={busy} onClick={() => { void run({ type: 'disable', id: record.manifest.id }) }}>{t('plugins:disable')}</button>}
+          {record.previousVersion && <button disabled={busy || record.enabled} onClick={() => setConfirmation({ type: 'rollback', id: record.manifest.id })}>{t('plugins:rollback')} · {record.previousVersion}</button>}
+          <button className={styles.danger} disabled={busy} onClick={() => setConfirmation({ type: 'uninstall', id: record.manifest.id })}>{t('plugins:uninstall')}</button>
         </div>
+        <div className={styles.sections}>
         <details><summary>{t('plugins:permissions')}</summary><pre className={styles.path}>{JSON.stringify(record.manifest.permissions, null, 2)}</pre></details>
         <PluginSkills manifest={record.manifest} />
         <PluginContexts manifest={record.manifest} />
         <PluginWorkflows manifest={record.manifest} />
-        <PluginWindows manifest={record.manifest} enabled={record.enabled && snapshot.developmentMode} />
+        <PluginWindows manifest={record.manifest} enabled={record.enabled && (record.source.kind === 'official' || snapshot.developmentMode)} />
         <PluginThemes manifest={record.manifest} />
         <PluginBackgroundPanel record={record} runs={snapshot.tasks ?? []} />
         {Boolean(record.manifest.contributes.settings?.length) && <details ref={configurationTarget?.pluginId === record.manifest.id ? configurationSection : undefined}><summary>{t('plugins:configuration')}</summary>
@@ -167,33 +225,45 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
             </div>
           })}
         </details>}
+        <details><summary>{t('plugins:advanced')}</summary>
+          <div className={styles.path}>{record.source.directory}</div>
+          <p className={styles.hint} data-plugin-runtime>{t('plugins:runtime', { pages: record.runtime?.pages ?? 0, connected: record.runtime?.connected ?? 0, ready: record.runtime?.ready ?? 0 })}</p>
+          <div className={styles.actions}>
+            <button disabled={busy} onClick={() => { void run({ type: 'reload', id: record.manifest.id }) }}>{t('plugins:reload')}</button>
+            <button className={styles.danger} disabled={busy} onClick={() => setConfirmation({ type: 'deleteData', id: record.manifest.id })}>{t('plugins:deleteData')}</button>
+          </div>
+        </details>
+        </div>
       </section>
     })}
-    {authorize && <section className={styles.card} role="region" aria-label={t('plugins:authorize')}>
-      <strong>{authorize.manifest.name} — {t('plugins:permissions')}</strong>
+    </div>
+    {authorize && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="region" aria-label={t('plugins:authorize')}>
+      <span className={styles.label}>{authorize.manifest.name} — {t('plugins:permissions')}</span>
       <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
+      {authorize.manifest.native && <p role="note">{t('plugins:nativePermissionHint')}</p>}
       <PluginSkills manifest={authorize.manifest} review />
       <PluginContexts manifest={authorize.manifest} review />
       <PluginWorkflows manifest={authorize.manifest} review />
       <PluginWindows manifest={authorize.manifest} review />
       <PluginThemes manifest={authorize.manifest} />
-      {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p>{t('plugins:modelHint')}</p>}
-      <p>{t('plugins:projectScope')}</p>
+      {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p className={styles.hint}>{t('plugins:modelHint')}</p>}
+      {authorize.manifest.permissions.some(permission => permission.name === 'ui.workspace') && <p className={styles.hint}>{t('plugins:workspaceHandoffHint')}</p>}
+      <p className={styles.label}>{t('plugins:projectScope')}</p>
       {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {
         setProjects(values => event.target.checked ? [...values, workspace.id] : values.filter(id => id !== workspace.id))
       }} />{workspace.name}</label>)}
       <p className={styles.hint}>{t('plugins:grantHint')}</p>
-      <div className={styles.actions}><button disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id, projects }) }}>{t('plugins:confirmEnable')}</button>
+      <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id, projects }) }}>{t('plugins:confirmEnable')}</button>
         <button onClick={() => setAuthorize(null)}>{t('plugins:cancel')}</button></div>
     </section>}
-    {confirmation && <section className={styles.card} role="alertdialog" aria-label={t(`plugins:${confirmation.type}`)}>
-      <p>{confirmation.type === 'uninstall' ? t('plugins:uninstallHint') : t('plugins:deleteHint')}</p>
-      <div className={styles.actions}><button disabled={busy} onClick={() => { void run({ ...confirmation }) }}>{t('plugins:confirm')}</button>
+    {confirmation && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="alertdialog" aria-label={t(`plugins:${confirmation.type}`)}>
+      <span className={styles.label}>{snapshot.plugins.find(record => record.manifest.id === confirmation.id)?.manifest.name ?? confirmation.id}</span>
+      <p className={styles.description}>{confirmation.type === 'uninstall' ? t('plugins:uninstallHint') : confirmation.type === 'rollback' ? t('plugins:rollbackHint') : t('plugins:deleteHint')}</p>
+      <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => { void run({ ...confirmation }) }}>{t('plugins:confirm')}</button>
         <button onClick={() => setConfirmation(null)}>{t('plugins:cancel')}</button></div>
     </section>}
     {conflicts.map(conflict => <p key={conflict.key} role="status" className={styles.error}>KEYBINDING_CONFLICT · {conflict.key} · {conflict.commandIds.join(', ')}</p>)}
-    {logsOpen && <section className={styles.card}><strong>{t('plugins:logs')}</strong><button onClick={() => { void refreshPlugins() }}>{t('plugins:refresh')}</button>
-      <pre className={styles.logs}>{snapshot.logs.map(log => `${log.time} ${log.pluginId ?? ''} ${log.instanceId ?? ''} ${log.method ?? ''} ${log.code} ${log.duration === undefined ? '' : `${log.duration}ms`}`).join('\n')}</pre></section>}
+    </div>}
   </div>
 }
 

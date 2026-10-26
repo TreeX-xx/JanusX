@@ -76,27 +76,43 @@ export function RoundtableStage({
   const visibleParticipants = participants.length >= 4 ? participants : participants.slice(0, 4)
 
   useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
     let frame = 0
+    let visible = false
+    const pods = [...stage.querySelectorAll<HTMLElement>('.janus-roundtable-seat-pod')]
+    const labels = [...stage.querySelectorAll<HTMLElement>('.janus-roundtable-seat-label')]
 
     const syncLabels = () => {
-      const stage = stageRef.current
-      if (stage) {
-        const stageRect = stage.getBoundingClientRect()
-        const pods = stage.querySelectorAll<HTMLElement>('.janus-roundtable-seat-pod')
-        const labels = stage.querySelectorAll<HTMLElement>('.janus-roundtable-seat-label')
-        pods.forEach((pod, index) => {
-          const label = labels[index]
-          if (!label) return
-          const podRect = pod.getBoundingClientRect()
-          label.style.left = `${podRect.left - stageRect.left + podRect.width / 2}px`
-          label.style.top = `${podRect.top - stageRect.top - 40}px`
-        })
-      }
+      // Read all geometry before writing: interleaving these forces layout per pod.
+      const stageRect = stage.getBoundingClientRect()
+      const rects = pods.map((pod) => pod.getBoundingClientRect())
+      labels.forEach((label, index) => {
+        const rect = rects[index]
+        if (!rect) return
+        label.style.left = `${rect.left - stageRect.left + rect.width / 2}px`
+        label.style.top = `${rect.top - stageRect.top - 40}px`
+      })
       frame = requestAnimationFrame(syncLabels)
     }
 
-    frame = requestAnimationFrame(syncLabels)
-    return () => cancelAnimationFrame(frame)
+    // The retained, display:none roundtable must not flush the entire workbench's
+    // layout every frame while another tool is switching.
+    const updatePolling = () => {
+      cancelAnimationFrame(frame)
+      if (visible && !document.hidden) frame = requestAnimationFrame(syncLabels)
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting
+      updatePolling()
+    })
+    observer.observe(stage)
+    document.addEventListener('visibilitychange', updatePolling)
+    return () => {
+      observer.disconnect()
+      document.removeEventListener('visibilitychange', updatePolling)
+      cancelAnimationFrame(frame)
+    }
   }, [cameraMode, visibleParticipants.length])
 
   useEffect(() => () => {

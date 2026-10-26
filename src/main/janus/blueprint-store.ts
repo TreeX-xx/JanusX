@@ -29,9 +29,9 @@ import {
   legacyIndexFile,
   workspacesDir
 } from './blueprint-paths'
-import { makeFeatureItem, makeNode, normalizeFeatureStatus, nowIso } from './blueprint-factory'
-import { readJson, writeJson } from './blueprint-persistence'
-import { candidateKey, resolveSuggestedParentId } from './requirement-candidates'
+import { makeFeatureItem, makeNode, normalizeFeatureStatus, nowIso } from '../../../plugins/blueprint/src/main/janus/blueprint-factory'
+import { readJson, writeJson } from '../../../plugins/blueprint/src/main/janus/blueprint-persistence'
+import { candidateKey, resolveSuggestedParentId } from '../../../plugins/blueprint/src/main/janus/requirement-candidates'
 import type {
   Blueprint,
   BlueprintFeatureItem,
@@ -45,8 +45,18 @@ import type {
   DiscoveredRequirement,
   WorkspaceSnapshot
 } from './types'
-import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprint } from './blueprint-migration'
+import { BLUEPRINT_SCHEMA_VERSION, migrateBlueprint } from '../../../plugins/blueprint/src/main/janus/blueprint-migration'
 import { harnessNoteService } from '../harness/service'
+import { blueprintNoteView, type ProjectView } from '../blueprint/note-service'
+import { remoteBackendRequest, projectRemoteHarnessResult } from '../workspace/remote-harness'
+import { parseRuntimeResource, runtimeResource, type WorkspaceRuntime } from '../../shared/workspace-runtime'
+import { HARNESS_COMMAND_CHANNELS, type HarnessApplyResult } from '../../shared/ipc/harness'
+
+async function projectView(root: string): Promise<ProjectView> {
+  const remote = parseRuntimeResource(root)
+  if (!remote) return blueprintNoteView.projectView(root)
+  return projectRemoteHarnessResult(await remoteBackendRequest(root, HARNESS_COMMAND_CHANNELS.projectGraph), remote.workspaceId) as ProjectView
+}
 import {
   applyNodePatch,
   checkWritablePatch,
@@ -54,8 +64,8 @@ import {
   nodeTypeToKind,
 } from '../harness/artifact-producer'
 import { toNoteDoc } from '../notes/note-provider'
-import type { BlueprintOperation } from '../../shared/janus/maintenance-types'
-import { applyOperations } from './maintenance/changeset'
+import type { BlueprintOperation } from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
+import { applyOperations } from '../../../plugins/blueprint/src/main/janus/maintenance/changeset'
 import type { OwnerScope } from '../../shared/team/types'
 import { checkBaseVersion } from '../../shared/team/repository'
 
@@ -69,6 +79,7 @@ interface WorkspaceRecord {
   id: string
   name: string
   path: string
+  runtime?: WorkspaceRuntime
 }
 
 /**
@@ -88,6 +99,7 @@ function harnessThrow(code: 'HARNESS_CONFLICT' | 'HARNESS_MANAGED' | 'HARNESS_RE
 }
 
 function normalizePathKey(path: string): string {
+  if (parseRuntimeResource(path)) return path.replace(/\/+$/, '')
   try {
     const out = resolve(path)
     return process.platform === 'win32' ? out.toLowerCase() : out
@@ -147,7 +159,8 @@ export class BlueprintStore {
       for (const file of files) {
         if (!file.endsWith('.json')) continue
         const record = await readJson<WorkspaceRecord>(join(workspacesDir(), file))
-        if (record?.id && record.name && record.path) records.push(record)
+        if (record?.id && record.name && record.path) records.push(record.runtime && record.runtime.kind !== 'windows'
+          ? { ...record, path: runtimeResource(record.id, record.runtime.root) } : record)
       }
       this.workspaceRecordsCache = records
       return records
@@ -331,17 +344,25 @@ export class BlueprintStore {
 
   /** Fresh projection per call; the service owns revision caching. Never stored in the JSON cache. */
   private async loadProjectGraph(workspace: string, onlyId?: string): Promise<Blueprint | null> {
+    if (parseRuntimeResource(workspace)) {
+      const view = await projectView(workspace)
+      return onlyId && view.blueprint.id !== onlyId ? null : view.blueprint
+    }
     const resolved = await harnessNoteService.resolveRoot(workspace)
     if (!resolved.ok || !resolved.root) return null
-    const view = await harnessNoteService.projectView(resolved.root)
+    const view = await blueprintNoteView.projectView(resolved.root)
     if (onlyId && view.blueprint.id !== onlyId) return null
     return view.blueprint
   }
 
   private async projectRoot(workspace: string, blueprintId: string): Promise<string> {
+    if (parseRuntimeResource(workspace)) {
+      if ((await projectView(workspace)).blueprint.id !== blueprintId) harnessThrow('NOT_FOUND', `unknown project graph: ${blueprintId}`)
+      return workspace
+    }
     const resolved = await harnessNoteService.resolveRoot(workspace)
     if (!resolved.ok || !resolved.root) harnessThrow('NOT_FOUND', `no project notes under ${workspace}`)
-    const view = await harnessNoteService.projectView(resolved.root as string)
+    const view = await blueprintNoteView.projectView(resolved.root as string)
     if (view.blueprint.id !== blueprintId) harnessThrow('NOT_FOUND', `unknown project graph: ${blueprintId}`)
     return resolved.root as string
   }
@@ -459,10 +480,12 @@ export class BlueprintStore {
       harnessThrow('HARNESS_READONLY', `project graph metadata is read-only: ${sharedKeys.join(', ')}`)
     }
     if (patch.canvasLayout !== undefined || patch.collapsedNodeIds !== undefined) {
-      await harnessNoteService.saveUiState(root, {
+      const ui = {
         canvasLayout: patch.canvasLayout,
         collapsedNodeIds: patch.collapsedNodeIds ?? undefined,
-      })
+      }
+      if (parseRuntimeResource(root)) await remoteBackendRequest(root, 'blueprint.ui.save', [ui])
+      else await blueprintNoteView.saveUiState(root, ui)
     }
     return this.loadProjectGraph(workspace, id)
   }
@@ -536,7 +559,7 @@ export class BlueprintStore {
     parentId: string | null,
   ): Promise<BlueprintNode | null> {
     const root = await this.projectRoot(workspace, blueprintId)
-    const view = await harnessNoteService.projectView(root)
+    const view = await projectView(root)
     if (!view.repoId) harnessThrow('NOT_FOUND', 'init .agents/harness.json with a repoId first')
     if (!input.title.trim()) return null
     let parentUri: string | null = null
@@ -546,9 +569,15 @@ export class BlueprintStore {
       parentUri = parent.sourceUri
     }
     const kind = nodeTypeToKind(input.type)
+    if (parseRuntimeResource(root)) {
+      const result = await remoteBackendRequest<HarnessApplyResult>(root, HARNESS_COMMAND_CHANNELS.apply,
+        [[{ kind: 'create', nodeType: input.type, title: input.title.trim(), parentUri }], 'canvas create'])
+      const fresh = await projectView(root)
+      return fresh.blueprint.nodes[result.applied[0]?.uri.split('/').pop() ?? ''] ?? null
+    }
     const created = createNoteOp(view.repoId as string, kind, input.title.trim(), parentUri, 'canvas create')
     await harnessNoteService.applyOperations(root, [{ ...created }], 'canvas create')
-    const fresh = await harnessNoteService.projectView(root)
+    const fresh = await projectView(root)
     const id = created.uri.split('/').pop() as string
     return fresh.blueprint.nodes[id] ?? null
   }
@@ -633,7 +662,7 @@ export class BlueprintStore {
     patch: Partial<BlueprintNode>,
   ): Promise<BlueprintNode | null> {
     const root = await this.projectRoot(workspace, blueprintId)
-    const view = await harnessNoteService.projectView(root)
+    const view = await projectView(root)
     const node = view.blueprint.nodes[nodeId]
     if (!node?.sourceUri || !node.sourceHash) return null
     // Optimistic concurrency: the caller's last-seen hash wins over a fresh
@@ -642,6 +671,17 @@ export class BlueprintStore {
     const expectedHash = _seen ?? node.sourceHash
     const managed = checkWritablePatch(fields as Record<string, unknown>)
     if (managed) harnessThrow('HARNESS_MANAGED', managed.message, nodeId)
+    if (parseRuntimeResource(root)) {
+      let parentUri: string | null | undefined
+      if (fields.parentId !== undefined) {
+        if (fields.parentId === nodeId) return null
+        parentUri = fields.parentId === null ? null : view.blueprint.nodes[fields.parentId]?.sourceUri
+        if (fields.parentId && !parentUri) return null
+      }
+      await remoteBackendRequest(root, HARNESS_COMMAND_CHANNELS.apply,
+        [[{ kind: 'update', uri: node.sourceUri, expectedHash, patch: { ...fields, ...(parentUri !== undefined ? { parentUri } : {}) } }], 'canvas edit'])
+      return (await projectView(root)).blueprint.nodes[nodeId] ?? null
+    }
     const current = await harnessNoteService.readNote(root, nodeId)
     let parentUri: string | null | undefined
     if (fields.parentId !== undefined) {
@@ -680,16 +720,21 @@ export class BlueprintStore {
       }],
       'canvas edit',
     )
-    const fresh = await harnessNoteService.projectView(root)
+    const fresh = await projectView(root)
     return fresh.blueprint.nodes[nodeId] ?? null
   }
 
   /** Project lane: canvas deletes archive the note; true removal stays destructive-scope. */
   private async archiveProjectNode(workspace: string, blueprintId: string, nodeId: string): Promise<boolean> {
     const root = await this.projectRoot(workspace, blueprintId)
-    const view = await harnessNoteService.projectView(root)
+    const view = await projectView(root)
     const node = view.blueprint.nodes[nodeId]
     if (!node?.sourceUri || !node.sourceHash) return false
+    if (parseRuntimeResource(root)) {
+      await remoteBackendRequest(root, HARNESS_COMMAND_CHANNELS.apply,
+        [[{ kind: 'archive', uri: node.sourceUri, expectedHash: node.sourceHash, reason: 'archived from canvas' }], 'archived from canvas'])
+      return true
+    }
     const current = await harnessNoteService.readNote(root, nodeId)
     const markdown = harnessNoteService.mergeNoteEdit(
       current.note,

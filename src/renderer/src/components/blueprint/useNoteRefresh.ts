@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { getIndexRev } from '@/services/harness'
 import { onBlueprintSourcesChanged } from '@/services/blueprint-sync'
 import { useBlueprintStore } from '@/stores/blueprint'
-import { isBlueprintBusy } from '../../../../shared/blueprint-loading'
+import { isBlueprintBusy } from '../../../../../plugins/blueprint/src/shared/blueprint-loading'
 
 // Note: refresh is owned by the mounted view — see .agents/notes/blueprint/documents/tasks/note-blueprint-r2-read.md
 export function useNoteRefresh(blueprintId: string | undefined, root: string | undefined): void {

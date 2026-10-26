@@ -1,5 +1,5 @@
-import { ReviewStore } from '../../src/main/blueprint/suggestions/store'
-import { SuggestionService } from '../../src/main/blueprint/suggestions/service'
+import { ReviewStore } from '../../plugins/blueprint/src/main/blueprint/suggestions/store'
+import { SuggestionService } from '../../plugins/blueprint/src/main/blueprint/suggestions/service'
 const store = new ReviewStore(process.argv[2])
 const service = new SuggestionService(store, Date.now, 0)
 process.on('message', (request: { id: number; method: string; args: unknown[] }) => {

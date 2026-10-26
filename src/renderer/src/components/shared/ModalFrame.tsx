@@ -21,6 +21,8 @@ const MODAL_EXIT_BUFFER_MS = 60
 const MODAL_EXIT_MS = MODAL_CARD_ENTER_DURATION_MS + MODAL_EXIT_BUFFER_MS
 
 export interface ModalFrameControls {
+  /** Native child surfaces may paint only after entry has settled and before exit starts. */
+  contentVisible: boolean
   /**
    * The one close route. Goes through the descend animation and then calls the
    * frame's `onClose`. Surfaces use this instead of `onClose` directly whenever
@@ -95,6 +97,7 @@ export function ModalFrame({
   zIndex = 1000,
 }: ModalFrameProps) {
   const [revealReady, setRevealReady] = useState(false)
+  const [entranceFinished, setEntranceFinished] = useState(false)
   const reducedMotion = useReducedMotion()
   const panelRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<Element | null>(null)
@@ -171,8 +174,9 @@ export function ModalFrame({
         tabIndex={-1}
         ref={panelRef}
         style={panelStyle}
+        onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === 'modal-frame-card-rise') setEntranceFinished(true) }}
       >
-        {typeof children === 'function' ? children({ requestClose }) : children}
+        {typeof children === 'function' ? children({ requestClose, contentVisible: revealReady && (reducedMotion || entranceFinished) && !isClosing }) : children}
       </div>
     </div>,
     document.body,

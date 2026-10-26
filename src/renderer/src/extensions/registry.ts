@@ -36,8 +36,9 @@ export class ExtensionRegistry {
     const ids = new Set<string>()
     const views = definition.views.map((view): RegisteredExtensionView => {
       if (!ID_PATTERN.test(view.id) || ids.has(view.id)) throw new Error(`Invalid or duplicate view: ${view.id}`)
-      if (!view.title.trim() || !['workspace', 'right', 'workbench', 'island', 'window'].includes(view.location)
+      if (!view.title.trim() || !['workspace', 'right', 'workbench', 'settings', 'island', 'window'].includes(view.location)
         || !['application', 'project'].includes(view.scope)
+        || view.location === 'settings' && (view.scope !== 'application' || view.instancePolicy === 'multiple')
         || (view.launcher !== undefined && (view.location !== 'workspace' || !['workspace-menu', 'tool-menu'].includes(view.launcher)))
         || (view.order !== undefined && !Number.isFinite(view.order))) throw new Error(`Invalid view: ${view.id}`)
       ids.add(view.id)

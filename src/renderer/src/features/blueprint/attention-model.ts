@@ -1,7 +1,7 @@
-import type { NoteStructureIssue } from '../../../../shared/blueprint-review'
-import type { Blueprint } from '../../../../shared/janus/types'
-import type { AutomaticReviewTarget, BlueprintReviewView, ReviewActivity } from '../../../../shared/ipc/blueprint-review'
-import type { BlueprintNoteDestination, NoteUpdate } from '../../../../shared/blueprint-attention'
+import type { NoteStructureIssue } from '../../../../../plugins/blueprint/src/shared/blueprint-review'
+import type { Blueprint } from '../../../../../plugins/blueprint/src/shared/janus/types'
+import type { AutomaticReviewTarget, BlueprintReviewView, ReviewActivity } from '../../../../../plugins/blueprint/src/shared/ipc/blueprint-review'
+import type { BlueprintNoteDestination, NoteUpdate } from '../../../../../plugins/blueprint/src/shared/blueprint-attention'
 import { sameCheckoutPath } from './resolveNodeWorkspace'
 import { nodeNoteSnapshot } from './composition-view'
 

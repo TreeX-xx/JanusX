@@ -4,6 +4,8 @@ for (const width of [1100, 480, 320]) {
   test(`theme cards preview both palettes and fit at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/theme-settings.html')
+    await expect(page.getByText('Language Services', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('clangd', { exact: true })).toHaveCount(0)
     const picker = page.getByRole('group', { name: 'Appearance theme', exact: true })
     await expect(picker.getByRole('radio')).toHaveCount(2)
     await expect(picker.locator('input[value="planche"]')).toBeChecked()

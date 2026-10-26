@@ -15,12 +15,9 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { memoBinding, useMemoStore } from '@/stores/memo'
 import { useExperimentalStore } from '@/stores/experimental'
 import type { MemoBinding } from '../../../../shared/memo'
-import { useBlueprintMaintenanceStore } from '@/stores/blueprint-maintenance'
-import { useNoteRepairStore } from '@/stores/note-repair'
 import { useNoteChatStore } from '@/stores/note-chat'
 import { useNoteFocusStore } from '@/stores/note-focus'
-import { useBlueprintStore } from '@/stores/blueprint'
-import { noteBrowserContext } from '@/features/blueprint/note-focus'
+import { openPluginManager } from '@/extensions/plugin-configuration-navigation'
 import type { Workspace } from '@/types'
 import type { KnowledgeRecallTrace } from '../../../../shared/knowledge'
 import { normalizeAgentApprovalMode, type AgentApprovalMode, type AgentSession, type ApprovalRequest } from '../../../../shared/ipc/agent-runtime'
@@ -113,7 +110,9 @@ export interface UseJanusChatReturn {
   setModelLimits?: (limits: ChatModelLimits | null) => Promise<void>
   engineeringContext?: EngineeringContext
   setEngineeringContext: (context: EngineeringContext) => void
+  /** @deprecated Downloaded Blueprint owns repair and maintenance conversations. */
   repairNote: (planId: string, text: string) => boolean
+  /** @deprecated Opens plugin management for legacy callers. */
   proposeMaintenance: (taskId: string, text: string) => void
   conversationId: string
   conversationTitle: string
@@ -204,7 +203,6 @@ interface ConversationRuntime {
 interface RuntimeHandles {
   timeline: ChatTimelineSnapshot
   usingAgentEvents: boolean
-  proposalRetry?: { message: Message; taskId: string }
   generation: number
   active: boolean
   abort: (() => void) | null
@@ -406,9 +404,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   const invalidateRuntime = useCallback((id: string, cancelAgentSessions = false) => {
     const handles = getHandles(id)
-    for (const [root, card] of Object.entries(useNoteRepairStore.getState().cards)) {
-      if (card.conversationId === id && card.started) useNoteRepairStore.getState().cancel(root)
-    }
     handles.generation += 1
     handles.active = false
     handles.abort?.()
@@ -609,14 +604,13 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   }, [getHandles, updateConversation])
 
   // Note: bounded recovery preserves evidence and avoids replaying writes — see .agents/notes/blueprint/tasks/blueprint-dialog-separation.md
-  const startRequest = useCallback((id: string, history: Message[], userMessage: Message, maintenanceTaskId?: string, recovery?: { startedAt: number; error: string }, compact?: { keepRecentUnits: number }, noteRepairId?: string, boundMemo?: { binding?: MemoBinding }) => {
+  const startRequest = useCallback((id: string, history: Message[], userMessage: Message, recovery?: { startedAt: number; error: string }, compact?: { keepRecentUnits: number }, boundMemo?: { binding?: MemoBinding }) => {
     const runtime = runtimesRef.current[id]
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
     if (!conversation || (!recovery && runtime?.isStreaming) || handles.active) return
     const memoEnabled = useExperimentalStore.getState().memo
-    const requestMemoBinding = !memoEnabled || !window.electron.memo || compact || maintenanceTaskId || noteRepairId ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
-    handles.proposalRetry = maintenanceTaskId ? { message: userMessage, taskId: maintenanceTaskId } : undefined
+    const requestMemoBinding = !memoEnabled || !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
     const generation = handles.generation + 1
     handles.generation = generation
     handles.active = true
@@ -630,8 +624,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     handles.timeline = emptyChatTimeline()
     handles.usingAgentEvents = false
 
-    // Note: organization produces a review document, not a synthetic chat turn — see .agents/notes/blueprint/maintenance/requirements/blueprint-review-conversation-loop.md
-    const nextMessages = maintenanceTaskId || compact ? history : [...history, userMessage]
+    // Note: plugin-specific turns run in the plugin — see .agents/notes/planning/blueprint-official-plugin.md
+    const nextMessages = compact ? history : [...history, userMessage]
     if (!recovery) updateConversation(id, (current) => ({
       ...current,
       title: current.title === NEW_CONVERSATION_TITLE ? titleFromMessages(nextMessages) : current.title,
@@ -651,7 +645,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       agent: recovery ? { ...EMPTY_JANUS_RUNTIME_STATE, activities: current.agent.activities } : EMPTY_JANUS_RUNTIME_STATE,
     }))
 
-    let proposalReceived = false
     // Only these host tools are known to be safe to replay. Unknown tools fail closed.
     let replaySafe = true
     const chatMessages: ChatMessage[] = [
@@ -677,13 +670,11 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       const stream = chatStream(
         chatMessages,
         (delta) => {
-          if (handles.generation === generation && !maintenanceTaskId) appendPending(id, delta)
+          if (handles.generation === generation) appendPending(id, delta)
         },
         () => {
           if (handles.generation !== generation) return
-          if (noteRepairId) useNoteRepairStore.getState().receive({ id: noteRepairId, phase: 'failed', error: '未收到修复复核结果，请重新核对建议' })
           handles.active = false
-          handles.proposalRetry = undefined
           handles.abort = null
           const final = flushPending(id)
           handles.pendingBuffer = ''
@@ -691,23 +682,18 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
             ? Math.max(0, Date.now() - (runtimesRef.current[id]?.turnStartedAt ?? Date.now()))
             : undefined
           // R6-full：在途 steering badge 清除；文本早已在历史中保留。
-          setRuntime(id, (current) => ({ ...current, pendingContent: '', pendingTimeline: emptyChatTimeline(), isStreaming: false, turnStartedAt: null, turnStatus: INITIAL_JANUS_CHAT_STATUS, pendingSteerIds: [], error: null,
-            ...(maintenanceTaskId && !proposalReceived ? { error: '整理请求已结束，但未收到可审核文件。请重新整理；若持续出现，请重启应用后重试。' } : {}),
-          }))
-          if (maintenanceTaskId && !proposalReceived) handles.proposalRetry = { message: userMessage, taskId: maintenanceTaskId }
+          setRuntime(id, (current) => ({ ...current, pendingContent: '', pendingTimeline: emptyChatTimeline(), isStreaming: false, turnStartedAt: null, turnStatus: INITIAL_JANUS_CHAT_STATUS, pendingSteerIds: [], error: null }))
           commitAssistant(id, final, handles.assistantMessageId ?? undefined)
           snapshotReasoning(id, handles.assistantMessageId ?? undefined, final.trim().length > 0, durationMs)
           handles.assistantMessageId = null
         },
         (error) => {
           if (handles.generation !== generation) return
-          if (noteRepairId) handles.abort?.()
           handles.active = false
           handles.abort = null
           const startedAt = runtimesRef.current[id]?.turnStartedAt ?? Date.now()
           const latestUser = conversationsRef.current.find(item => item.id === id)?.messages.filter(message => message.role === 'user').at(-1)
-          if (noteRepairId) useNoteRepairStore.getState().receive({ id: noteRepairId, phase: 'failed', error })
-          const canRecover = !requestMemoBinding && !noteRepairId && !maintenanceTaskId && !recovery && replaySafe
+          const canRecover = !requestMemoBinding && !recovery && replaySafe
             && latestUser?.id === userMessage.id
             && /function response parts|function call parts/i.test(error)
           const final = flushPending(id)
@@ -729,7 +715,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           snapshotReasoning(id, handles.assistantMessageId ?? undefined, final.trim().length > 0, durationMs)
           handles.assistantMessageId = null
           if (canRecover) {
-            startRequest(id, history, userMessage, undefined, { startedAt, error })
+            startRequest(id, history, userMessage, { startedAt, error })
           }
         },
         {
@@ -737,17 +723,13 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           sourceTag: 'janus-chat',
           conversationId: id,
           memoBinding: requestMemoBinding,
-          memoMessageId: memoEnabled && window.electron.memo && !compact && !maintenanceTaskId && !noteRepairId ? userMessage.id : undefined,
+          memoMessageId: memoEnabled && window.electron.memo && !compact ? userMessage.id : undefined,
           contextCheckpoint: latest.contextCheckpoint,
           contextEpoch: latest.contextEpoch,
           compact,
-          ...(noteRepairId ? { noteRepairId } : {}),
-          ...(maintenanceTaskId ? { maintenanceTaskId } : {}),
           workspaceResources: agentResources,
           toolTraces: latest.toolTraces,
-          noteWorkingSet: JSON.stringify({ workingSet: useNoteFocusStore.getState().scopes[id] ?? null,
-            browsing: latest.engineeringContext?.viewRef?.viewId === 'workspace-dialog'
-              ? noteBrowserContext(useBlueprintStore.getState().currentBlueprint, useNoteFocusStore.getState().browser, agentResources.map(resource => resource.workspacePath)) : null }),
+          noteWorkingSet: JSON.stringify({ workingSet: useNoteFocusStore.getState().scopes[id] ?? null, browsing: null }),
           // S6: explicit domain; missing = legacy personal. Project never falls back to personal memory.
           ...(latest.engineeringContext?.domain ? { domain: latest.engineeringContext.domain } : {}),
           ...(latest.engineeringContext?.noteRefs?.length
@@ -787,10 +769,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
               void useMemoStore.getState().refresh().catch(() => undefined)
               return
             }
-            if (agentEvent.type === 'note_repair') {
-              if (agentEvent.update.id === noteRepairId) useNoteRepairStore.getState().receive(agentEvent.update)
-              return
-            }
             if (agentEvent.type === 'context_state') {
               if (handles.generation !== generation) return
               setRuntime(id, current => ({ ...current, contextStatus: agentEvent.state }))
@@ -811,12 +789,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
             if (handles.generation === generation) {
               if ((agentEvent.type === 'tool_execution_start' || agentEvent.type === 'tool_execution_end')
                 && !['note.list', 'note.read', 'note.focus', 'note.scope', 'note_list', 'note_read', 'note_focus', 'note_scope'].includes(agentEvent.toolName)) replaySafe = false
-              if (agentEvent.type === 'maintenance_result' && agentEvent.task.id === maintenanceTaskId
-                && agentEvent.task.conversationId === id && agentEvent.task.status === 'proposal-ready'
-                && agentEvent.task.changeSet?.operations.length) {
-                proposalReceived = true
-                useBlueprintMaintenanceStore.getState().receiveTask(agentEvent.task)
-              }
               if (agentEvent.type === 'reasoning_delta') {
                 appendReasoning(id, agentEvent.delta)
               }
@@ -841,7 +813,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       handles.abort = stream.abort
     })().catch((reason: unknown) => {
       if (handles.generation !== generation) return
-      if (noteRepairId) useNoteRepairStore.getState().receive({ id: noteRepairId, phase: 'failed', error: reason instanceof Error ? reason.message : String(reason) })
       handles.active = false
       handles.assistantMessageId = null
       setRuntime(id, (current) => ({
@@ -860,9 +831,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const handles = handlesRef.current.get(id)
     if (!runtime?.isStreaming && !handles?.abort && !handles?.active) return
     if (!handles) return
-    for (const [root, card] of Object.entries(useNoteRepairStore.getState().cards)) {
-      if (card.conversationId === id && card.started) useNoteRepairStore.getState().cancel(root)
-    }
     handles.generation += 1
     handles.active = false
     handles.abort?.()
@@ -903,7 +871,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         flashNotice('Conversation is already compact — nothing to collapse')
         return
       }
-      startRequest(id, conversation.messages, { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: Date.now() }, undefined, undefined, { keepRecentUnits: compact.keepLast })
+      startRequest(id, conversation.messages, { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: Date.now() }, undefined, { keepRecentUnits: compact.keepLast })
       return
     }
     if (runtimesRef.current[id]?.isStreaming || handlesRef.current.get(id)?.active) {
@@ -947,7 +915,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
             updateConversation(id, (current) => ({ ...current, messages: [...current.messages, entry], updatedAt: Date.now() }))
             return
           }
-          startRequest(id, latest.messages, entry, undefined, undefined, undefined, undefined, { binding: entryMemoBinding })
+          startRequest(id, latest.messages, entry, undefined, undefined, { binding: entryMemoBinding })
         }, 0)
       }
       void steerChat({ conversationId: id, entryId: entry.id, text: trimmed, memoBinding: entryMemoBinding }).then(
@@ -993,11 +961,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   const retry = useCallback((id: string) => {
     const conversation = conversationsRef.current.find((item) => item.id === id)
     if (!conversation || runtimesRef.current[id]?.isStreaming || handlesRef.current.get(id)?.active) return
-    const proposal = handlesRef.current.get(id)?.proposalRetry
-    if (proposal) {
-      startRequest(id, conversation.messages, proposal.message, proposal.taskId)
-      return
-    }
     const turn = getRetryTurn(conversation.messages)
     if (!turn) return
     updateConversation(id, (current) => ({ ...current, toolTraces: [] }))
@@ -1008,13 +971,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     useNoteFocusStore.getState().clear(id, true)
     const panel = ephemeralIdsRef.current.has(id)
     invalidateRuntime(id, panel)
-    if (panel) {
-      const maintenance = useBlueprintMaintenanceStore.getState()
-      for (const task of maintenance.tasks) {
-        if (task.conversationId === id && !['completed', 'cancelled'].includes(task.status)) void maintenance.cancel(task.id)
-      }
-      maintenance.clearPendingUndo()
-    }
     updateConversation(id, (conversation) => ({
       ...conversation,
       messages: [],
@@ -1271,16 +1227,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       },
       engineeringContext: conversation?.engineeringContext,
       setEngineeringContext: (context) => updateConversation(id, (current) => ({ ...current, engineeringContext: context, updatedAt: Date.now() })),
-      repairNote: (planId, text) => {
-        const latest = conversationsRef.current.find(item => item.id === id)
-        if (!latest || runtimesRef.current[id]?.isStreaming || getHandles(id).active) return false
-        startRequest(id, latest.messages, { id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() }, undefined, undefined, undefined, planId)
-        return true
-      },
-      proposeMaintenance: (taskId, text) => {
-        const latest = conversationsRef.current.find((item) => item.id === id)
-        if (latest) startRequest(id, latest.messages, { id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() }, taskId)
-      },
+      repairNote: () => { openPluginManager(); return false },
+      proposeMaintenance: openPluginManager,
       conversationId: conversation?.id ?? id,
       conversationTitle: conversation?.title ?? NEW_CONVERSATION_TITLE,
       conversations: summaries,
@@ -1333,7 +1281,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     attachWorkspace,
     availableWorkspaces,
     bindMemo,
-    getHandles,
     cancelSteeredMessage,
     clear,
     conversations,
@@ -1356,7 +1303,6 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     setApprovalMode,
     stop,
     summaries,
-    startRequest,
     updateConversation,
   ])
 

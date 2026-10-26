@@ -5,9 +5,9 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { build } from 'esbuild'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { ReviewStore } from '../../src/main/blueprint/suggestions/store'
-import { SuggestionService } from '../../src/main/blueprint/suggestions/service'
-import { reviewResultSchema, type ReviewContext } from '../../src/shared/blueprint-review'
+import { ReviewStore } from '../../plugins/blueprint/src/main/blueprint/suggestions/store'
+import { SuggestionService } from '../../plugins/blueprint/src/main/blueprint/suggestions/service'
+import { reviewResultSchema, type ReviewContext } from '../../plugins/blueprint/src/shared/blueprint-review'
 
 let root: string
 let worker: string

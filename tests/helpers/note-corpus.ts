@@ -1,7 +1,7 @@
 // Note: read-only corpus validation — see .agents/notes/blueprint/module-responsibilities.md
 import { parseNote, readMarkdownView } from '@janus-agent/harness-core'
 import { buildNoteIndex, indexEntries, readIndexedNote, toNoteDoc, toReadSnapshot, toSlimSnapshot } from '@janus-agent/harness-node'
-import { projectGraph } from '../../src/main/notes/note-to-blueprint'
+import { projectGraph } from '../../plugins/blueprint/src/main/notes/note-to-blueprint'
 
 /** Use the real parser/projection without mutating the live checkout's cache or leases. */
 export async function readCorpus(root = process.cwd()) {

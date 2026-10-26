@@ -7,7 +7,7 @@
   "created": "2026-09-29",
   "class": "bug-fix",
   "tags": ["blueprint","maintenance","approval","janus-chat"],
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-10-24T18:05:11.031Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b"
 }
 ---
@@ -47,6 +47,8 @@ proposal-context 为单次提案建立独立预算，避免重复装载共享聊
 
 Note 的 delete-node 沿用归档映射，预览明确显示文件保留及 lifecycle 修改。成功应用刷新蓝图，审计保存实际选择、身份映射与前后快照；已有撤销链继续使用源哈希和工程证据校验。
 
+章节修改的 before 值从本次选中操作翻译时读取的真实 Markdown 保存，不能取自去除了正文的画布投影。同文件多操作按实际执行次序记录；只批准后一项时重新读取其真实基线。章节解析复用共享 Markdown 视图，忽略 fenced code 内的假 H2；重复 H2 明确拒绝，保留缩进和嵌套标题。内部撤销以 null 表示移除本轮新建章节，模型 proposal 仍只接受字符串；撤销事务也保存真实基线，因此再次撤销可以恢复正确内容。源哈希检查继续阻止覆盖外部修改。
+
 ## Alternatives considered
 
 - 复用现有节点审批、不增加文件预览：界面与后端改动少，但用户无法核对真实文件及合并后的内容，新增身份在批准时才确定。
@@ -66,6 +68,8 @@ Note 的 delete-node 沿用归档映射，预览明确显示文件保留及 life
 辅助证据以工作区为完整单元取舍，可能留下未用满的窗口，换取不截断文件上下文。必要 Note 与讨论本身超过真实窗口仍需要缩小范围或更大模型。未知模型的应用上限限制单次发送成本，但仍可能超过供应商容量；服务端最终拒绝时不写入 Note。若必要内容超过应用上限，应补齐可靠模型元数据或另行设计分阶段整理。schema 预留是保守估算，操作结构扩展时应重新核对。预算复现与真实 Note 应用验证见[实施任务](./tasks/blueprint-review-implementation.md#verification)。
 
 ## Verification
+
+蓝图插件迁移期间新增 blueprint-maintenance-sections 2 项，以及 harness-routing 中的多操作／部分选择／新增章节／再次撤销回归；相关两文件共 35 项通过。blueprint-native 的真实独立后台同样完成“生成章节提案 → 预览 → 应用 → 撤销”并核对原文。模型响应为确定性测试数据，不代表真实模型质量验收。
 
 2026-10-02：单元测试按文件或分组运行，累计 70 个不同用例通过。maintenance-harness-apply 与 blueprint-maintenance-harness-routing 共 37 项，使用真实临时 Note 验证预览零写入、确认后的字节与新增身份一致、外部文件修改拒绝、取消时不恢复旧任务、部分批准及审计撤销。chat-turn-guard、janus-chat-conversations、blueprint-bulk-approval 另 27 项通过；blueprint-maintenance-service 的 6 项覆盖旧维护链回归。以下命令用于复验这些文件。
 

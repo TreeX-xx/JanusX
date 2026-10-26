@@ -195,6 +195,7 @@ export interface SessionAPI {
 }
 
 export interface ExternalScanSummary {
+  remote?: { imported: number; errors: string[] }
   scanned: number
   imported: number
   updated: number
@@ -202,6 +203,7 @@ export interface ExternalScanSummary {
 }
 
 export interface ShellRestoreTerminal {
+  id?: string
   cwd: string
   preset: string
   name: string

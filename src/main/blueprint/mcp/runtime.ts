@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { NoteMcpClients } from './clients'
-import type { NoteMcpProbe } from '../../../shared/note-mcp'
+import { NoteMcpClients } from '../../../../plugins/blueprint/src/main/blueprint/mcp/clients'
+import type { NoteMcpProbe } from '../../../../plugins/blueprint/src/shared/note-mcp'
 
 export function noteMcpClients(): NoteMcpClients {
   return new NoteMcpClients({ home: homedir(), codexHome: process.env.CODEX_HOME, configHome: process.env.XDG_CONFIG_HOME, dshHome: process.env.DSH_HOME,
     launch: { command: app.isPackaged ? process.execPath : 'node',
       args: [join(app.isPackaged ? app.getAppPath() : process.env.JANUSX_DEV_BUILD_ROOT ?? join(app.getAppPath(), 'out'), ...(app.isPackaged ? ['out', 'main'] : ['main']), 'note-mcp.js')],
-      env: { ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}), JANUSX_NOTE_STATE_ROOT: join(app.getPath('userData'), 'janusx', 'blueprint') } },
+      env: { ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}), JANUSX_PLUGIN_HOME: join(app.getPath('userData'), 'janusx', 'plugins') } },
   })
 }
 
@@ -31,7 +31,7 @@ export async function probeNoteMcp(): Promise<NoteMcpProbe> {
     const response = await client.callTool({ name: 'note.list', arguments: { workspacePath: root } }, undefined, { timeout: 10000 })
     if (response.isError) throw new Error('Note read probe failed')
     result.ok = true
-  } catch { result.error = 'Note MCP could not complete the handshake and read probe; rebuild or repair the installed application' }
+  } catch { result.error = 'Note MCP could not start; install and enable the compatible official Blueprint plugin, then register Note MCP again' }
   finally { await client.close().catch(() => {}); await transport.close().catch(() => {}); await rm(root, { recursive: true, force: true }) }
   return result
 }

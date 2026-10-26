@@ -345,7 +345,8 @@
       "captionJanus": "Janus",
       "openMaintenance": "打开维护",
       "cancelAnalysis": "取消分析",
-      "openBlueprint": "打开蓝图"
+      "openBlueprint": "打开蓝图",
+      "openPlugins": "管理插件"
     },
     "activeNodeFallback": "无活动蓝图节点",
     "workspaceFallback": "工作区",
@@ -766,6 +767,11 @@
   },
   "blackboard": {
     "title": "副黑板",
+    "managePlugins": "管理插件",
+    "pluginHint": "打开插件，继续在对应工作区中使用。",
+    "pluginsEmpty": "安装并启用插件后，可从这里打开。",
+    "needsProject": "请先选择项目",
+    "openView": "打开{{title}}",
     "pullHint": {
       "keep": "继续下拉放下副板",
       "release": "松手放下副板",

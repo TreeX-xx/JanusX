@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { ToolRegistry } from '@janus-agent/agent-core'
-import { registerSuggestionTools, type SuggestionToolHost } from '../../src/main/blueprint/suggestions/tools'
+import { registerSuggestionTools, type SuggestionToolHost } from '../../plugins/blueprint/src/main/blueprint/suggestions/tools'
 const repoId = '11111111-1111-4111-8111-111111111111'
 const id = (n: number) => `${String(n).padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`
 it('filters direct module ownership, returns bounded summaries and refuses unstable continuation', async () => {

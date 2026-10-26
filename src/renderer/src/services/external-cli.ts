@@ -3,6 +3,7 @@ import type {
   ExternalCliApplyResult,
   ExternalCliDetectResult,
   ExternalCliInstallResult,
+  ExternalCliInstallOptions,
   ExternalCliLatestResult,
   ExternalCliRollbackResult,
   ExternalCliSyncState,
@@ -16,7 +17,7 @@ import type {
 export interface ExternalCliService {
   detect(toolId: ExternalCliToolId): Promise<ExternalCliDetectResult>
   latest(toolId: ExternalCliToolId): Promise<ExternalCliLatestResult>
-  install(toolId: ExternalCliToolId): Promise<ExternalCliInstallResult>
+  install(toolId: ExternalCliToolId, options?: ExternalCliInstallOptions): Promise<ExternalCliInstallResult>
   applyProvider(request: ExternalCliApplyProviderRequest): Promise<ExternalCliApplyResult>
   syncState(): Promise<ExternalCliSyncState>
   rollbackProfile(): Promise<ExternalCliRollbackResult>
@@ -28,7 +29,7 @@ export interface ExternalCliService {
 export const externalCliService: ExternalCliService = {
   detect: (toolId) => window.electron.externalCli.detect(toolId),
   latest: (toolId) => window.electron.externalCli.latest(toolId),
-  install: (toolId) => window.electron.externalCli.install(toolId),
+  install: (toolId, options) => window.electron.externalCli.install(toolId, options),
   applyProvider: (request) => window.electron.externalCli.applyProvider(request),
   syncState: () => window.electron.externalCli.syncState(),
   rollbackProfile: () => window.electron.externalCli.rollbackProfile(),

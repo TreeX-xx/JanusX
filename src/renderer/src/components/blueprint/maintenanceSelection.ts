@@ -1,4 +1,4 @@
-import type { BlueprintChangeSet, BlueprintOperation } from '../../../../shared/janus/maintenance-types'
+import type { BlueprintChangeSet, BlueprintOperation } from '../../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 /** Approval includes prerequisites, but never grants deletion confirmation. */
 export function maintenanceSelection(changeSet: BlueprintChangeSet, requested: string[]): BlueprintOperation[] {

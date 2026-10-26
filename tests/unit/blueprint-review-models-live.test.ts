@@ -14,7 +14,7 @@ vi.mock('electron', () => ({ app: { getPath: () => host.root, setProxy: async ()
 import { llmService } from '../../src/main/llm/LlmService'
 import { generateText } from '../../src/main/llm/ai-runtime'
 import { checkReviewConfiguration } from '../../src/main/blueprint/review/models'
-import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../src/shared/blueprint-review-settings'
+import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../plugins/blueprint/src/shared/blueprint-review-settings'
 
 beforeAll(async () => {
   if (!live) return

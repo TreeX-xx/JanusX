@@ -1,6 +1,6 @@
-import type { Blueprint } from '../../../src/shared/janus/types'
-import type { BlueprintMaintenancePreviewInput, BlueprintMaintenancePreview } from '../../../src/shared/janus/maintenance-types'
-import type { BlueprintChangeSet, BlueprintMaintenanceTask, BlueprintMaintenanceStartInput, BlueprintMaintenanceApplyInput, BlueprintMaintenanceAuditRecord, BlueprintMaintenanceUndoApplyInput, BlueprintMaintenanceEvent } from '../../../src/shared/janus/maintenance-types'
+import type { Blueprint } from '../../../plugins/blueprint/src/shared/janus/types'
+import type { BlueprintMaintenancePreviewInput, BlueprintMaintenancePreview } from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
+import type { BlueprintChangeSet, BlueprintMaintenanceTask, BlueprintMaintenanceStartInput, BlueprintMaintenanceApplyInput, BlueprintMaintenanceAuditRecord, BlueprintMaintenanceUndoApplyInput, BlueprintMaintenanceEvent } from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
 
 /** IPC boundary double only. Selection, approval, chat and refresh use production code. */
 export function installMaintenanceFixture(initial: Blueprint, workspace: { id: string; path: string; name: string }) {

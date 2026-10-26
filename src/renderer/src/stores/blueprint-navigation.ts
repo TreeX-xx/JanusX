@@ -1,6 +1,6 @@
 // Note: one-shot, explicit user navigation — see .agents/notes/blueprint/navigation/note-updates-and-suggestion-navigation.md
 import { create } from 'zustand'
-import type { BlueprintNoteDestination } from '../../../shared/blueprint-attention'
+import type { BlueprintNoteDestination } from '../../../../plugins/blueprint/src/shared/blueprint-attention'
 
 export interface BlueprintNavigationRequest extends BlueprintNoteDestination { sequence: number; blueprintId: string }
 interface State {

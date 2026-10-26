@@ -58,7 +58,7 @@ import { markNoteRead, useBlueprintReviewStore } from '@/stores/blueprint-review
 import { useBlueprintActivityStore } from '@/stores/blueprint-review-activity'
 import { attentionNode } from '@/features/blueprint/attention-model'
 import { useNoteNavigationMotion, type NoteVisit } from '@/features/blueprint/useNoteNavigationMotion'
-import type { BlueprintNoteDestination, NoteVersion } from '../../../../shared/blueprint-attention'
+import type { BlueprintNoteDestination, NoteVersion } from '../../../../../plugins/blueprint/src/shared/blueprint-attention'
 import { BlueprintCompositionPanel } from './BlueprintCompositionPanel'
 import { projectArchitecture } from '@/features/blueprint/architecture-view'
 import { projectModuleBrowse, moduleTrail } from '@/features/blueprint/module-browsing'

@@ -124,6 +124,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
   const [scope, setScope] = useState<Scope>('workspace')
   const [continueTarget, setContinueTarget] = useState<AgentSessionSummary | null>(null)
   const [continuing, setContinuing] = useState(false)
+  const [sourceError, setSourceError] = useState('')
   // Hooks can bind identity after the dialog opens. Explain the live record,
   // rather than keeping a stale no-id snapshot while main will resume it.
   const continueSource = continueTarget
@@ -158,7 +159,12 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
   const activeRef = useRef(active)
   useEffect(() => { activeRef.current = active }, [active])
   useEffect(() => startExternalSessionSync(
-    () => window.electron.session.scanExternal(), window, () => activeRef.current,
+    async () => {
+      try {
+        const scan = await window.electron.session.scanExternal()
+        setSourceError(scan.remote?.errors.join('\n') ?? '')
+      } catch (error) { setSourceError(String(error)) }
+    }, window, () => activeRef.current,
   ), [])
 
   const handleToggle = useCallback((sessionId: string) => {
@@ -280,6 +286,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
         {error && (
           <div className="text-xs" style={{ color: 'var(--shell-diff-del)' }}>{error}</div>
         )}
+        {sourceError && <div role="alert" className="text-xs" style={{ color: 'var(--shell-diff-del)' }}>{sourceError}</div>}
         {!loading && visible.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-xs" style={{ color: 'var(--shell-dim)', gap: 6 }}>
             <span>{t('terminal:agentSession.empty')}</span>

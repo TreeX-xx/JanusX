@@ -7,17 +7,17 @@ import { randomUUID } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
-import { WorkspaceSuggestionSources } from '../../src/main/blueprint/suggestions/sources'
-import { WorkspaceSuggestions } from '../../src/main/blueprint/suggestions/workspace-service'
-import { ReviewStore } from '../../src/main/blueprint/suggestions/store'
-import { SuggestionService } from '../../src/main/blueprint/suggestions/service'
+import { WorkspaceSuggestionSources } from '../../plugins/blueprint/src/main/blueprint/suggestions/sources'
+import { WorkspaceSuggestions } from '../../plugins/blueprint/src/main/blueprint/suggestions/workspace-service'
+import { ReviewStore } from '../../plugins/blueprint/src/main/blueprint/suggestions/store'
+import { SuggestionService } from '../../plugins/blueprint/src/main/blueprint/suggestions/service'
 
 let root: string, client: Client, transport: StdioClientTransport, store: ReviewStore, sources: WorkspaceSuggestionSources
 let a: string, b: string, uri: string, noteId: string, findingId: string
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'note-mcp-')); a = join(root, 'a'); b = join(root, 'b')
   await mkdir('.cache/note-mcp', { recursive: true })
-  await build({ entryPoints: ['src/main/blueprint/note-mcp.ts'], outfile: '.cache/note-mcp/server.mjs', bundle: true, platform: 'node', format: 'esm', packages: 'external' })
+  await build({ entryPoints: ['plugins/blueprint/src/main/blueprint/note-mcp.ts'], outfile: '.cache/note-mcp/server.mjs', bundle: true, platform: 'node', format: 'esm', packages: 'external' })
   noteId = randomUUID(); const repoId = randomUUID(); uri = `note://${repoId}/${noteId}`
   for (const [path, title] of [[a, 'Alpha'], [b, 'Beta']]) {
     await mkdir(join(path, '.agents/notes'), { recursive: true })

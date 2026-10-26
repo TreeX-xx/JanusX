@@ -2,15 +2,12 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, typ
 import { createPortal } from 'react-dom'
 import { Download } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
-import { useBlueprintStore } from '@/stores/blueprint'
-import { useBlueprintMaintenanceStore } from '@/stores/blueprint-maintenance'
 import { useI18n } from '@/i18n/useI18n'
 import { JanusEye } from './JanusEye'
 import { useIslandGesture } from './useIslandGesture'
 import { useJanusGaze, type JanusGazeControls } from './useJanusGaze'
 import { useIslandSpeak, type IslandSpeakControls } from './useIslandSpeak'
 import { useJanusState } from './useJanusState'
-import { getBlueprintStatusVisual } from '../blueprint/blueprintStatus'
 import { formatKnowledgeMatch } from './islandKnowledgePeek'
 import {
   assembleNotifications,
@@ -18,7 +15,6 @@ import {
   EMPTY_CAPSULE_NOTIFICATION_ID,
   isEmptyCapsuleRequested,
   knowledgeNotification,
-  maintenanceNotification,
   mayAutoBanner,
   memoryNotification,
   notificationKickerKey,
@@ -31,6 +27,7 @@ import { pluginRequest, usePluginSnapshot } from '@/extensions/plugin-runtime'
 import { pluginIslandNotifications, PluginIslandPreview } from '@/extensions/plugin-island'
 import '@/extensions/plugin-surfaces.css'
 import { useExtensionViews } from '@/extensions/react'
+import { openPluginManager } from '@/extensions/plugin-configuration-navigation'
 import { useIslandStore } from '@/stores/island'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import {
@@ -235,11 +232,6 @@ export function JanusIsland({
     setAuxiliaryModule((module) => (module === 'agent-result' || module === 'roundtable-parchment' || module === 'roundtable-questions' ? null : module))
     setParchmentOpen(false)
   }, [roundtableState])
-  const maintenanceTasks = useBlueprintMaintenanceStore((state) => state.tasks)
-  const requestMaintenanceOpen = useBlueprintMaintenanceStore((state) => state.requestOpen)
-  const cancelMaintenance = useBlueprintMaintenanceStore((state) => state.cancel)
-  const loadBlueprint = useBlueprintStore((state) => state.loadBlueprint)
-
   const setActiveWorkbench = useAppStore((s) => s.setActiveWorkbench)
   /** 副黑板开合态：下拉语义随状态翻转（放下 ↔ 收起） */
   const blackboardOpen = useAppStore((s) => s.blackboardHeight > 0)
@@ -359,9 +351,10 @@ export function JanusIsland({
     app.toggleBlackboard()
   }, [])
 
-  const handleOpenBlueprintWorkbench = useCallback(() => {
-    setActiveWorkbench('blueprint')
-  }, [setActiveWorkbench])
+  const handleOpenPlugins = useCallback(() => {
+    onDismiss()
+    openPluginManager()
+  }, [onDismiss])
 
   const handleDragProgress = useCallback((deltaY: number) => {
     // 预览高度跟手（工作区随之下滑）；板已开时下缘拖高拥有尺寸权。
@@ -504,29 +497,6 @@ export function JanusIsland({
     janusGazeRef.current?.react('greet')
   }, [activeWorkspace])
 
-  const activeSession = useBlueprintStore((s) => s.activeSession)
-  const currentBlueprint = useBlueprintStore((s) => s.currentBlueprint)
-  const activeNode =
-    activeSession && currentBlueprint?.id === activeSession.blueprintId
-      ? currentBlueprint.nodes[activeSession.nodeId] ?? activeSession.nodeSnapshot
-      : activeSession?.nodeSnapshot ?? null
-  const activeVisual = activeNode ? getBlueprintStatusVisual(activeNode.status)  : null
-  const maintenanceTask = useMemo(() => {
-    const live = maintenanceTasks.filter((task) => !['completed', 'cancelled'].includes(task.status))
-    return live.find((task) => task.status === 'failed' || task.status === 'stale')
-      ?? live.find((task) => task.status === 'proposal-ready')
-      ?? live.find((task) => task.status === 'analyzing' || task.status === 'applying')
-      ?? live[0]
-      ?? null
-  }, [maintenanceTasks])
-
-  const handleOpenMaintenance = useCallback(() => {
-    if (!maintenanceTask) return
-    void loadBlueprint(maintenanceTask.blueprintId)
-    requestMaintenanceOpen({ blueprintId: maintenanceTask.blueprintId, nodeId: maintenanceTask.nodeScope.type === 'blueprint' ? undefined : maintenanceTask.nodeScope.nodeId })
-    setActiveWorkbench('blueprint')
-  }, [loadBlueprint, maintenanceTask, requestMaintenanceOpen, setActiveWorkbench])
-
   /** Executes a notification action then gets the island out of the way; the
    * product path owns its own dismiss/consume flow in Titlebar. */
   const runNotificationAction = useCallback((notificationId: string, actionId: IslandNotificationActionId, commandId?: string) => {
@@ -547,18 +517,15 @@ export function JanusIsland({
     } else if (actionId === 'open-memory') {
       if (useExperimentalStore.getState().persona) useRightToolStore.getState().openTool('persona')
       onDismiss()
-    } else if (actionId === 'open-blueprint') {
-      handleOpenBlueprintWorkbench()
-      onDismiss()
-    } else if (actionId === 'open-maintenance') {
-      handleOpenMaintenance()
-      onDismiss()
+    } else if (actionId === 'open-blueprint' || actionId === 'open-maintenance') {
+      // Note: legacy actions lead to installation — see .agents/notes/planning/blueprint-official-plugin.md
+      handleOpenPlugins()
     } else if (actionId === 'open-product' && productNotice) {
       onOpenProductFile?.(productNotice.relPath)
     }
     setClearedIds((ids) => (ids.includes(notificationId) ? ids : [...ids, notificationId]))
     setBannerId(null)
-  }, [handleOpenBlueprintWorkbench, handleOpenMaintenance, onDismiss, onOpenProductFile, productNotice, setActiveWorkbench, pluginSnapshot])
+  }, [handleOpenPlugins, onDismiss, onOpenProductFile, productNotice, setActiveWorkbench, pluginSnapshot])
 
   // Minimal stage-B tool trace for the agent-result detail: the pane owns the
   // full work projection, the Island only mirrors tool calls so the detail can
@@ -592,8 +559,6 @@ export function JanusIsland({
     }
   }) ?? (() => undefined), [])
 
-  const maintenanceNeedsAttention = maintenanceTask?.status === 'failed' || maintenanceTask?.status === 'stale' || maintenanceTask?.status === 'proposal-ready'
-
   // Notification projection (Note: island-hifi-optimized-alignment.md):
   // peek/expanded surfaces render from IslandNotification only; the former
   // per-kind title/subtitle/status chains live in islandNotifications.ts.
@@ -606,9 +571,8 @@ export function JanusIsland({
       matchLabel: knowledgeTrace?.topHit ? formatKnowledgeMatch(knowledgeTrace.topHit.score, t) : undefined,
     }),
     personaEnabled ? memoryNotification({ pendingHabitCount: memoryPending }) : null,
-    maintenanceNotification(maintenanceTask, maintenanceNeedsAttention),
     ...pluginIslandNotifications(pluginSnapshot),
-  ]), [knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, maintenanceNeedsAttention, maintenanceTask, productNotice, personaEnabled, t, pluginSnapshot])
+  ]), [knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, productNotice, personaEnabled, t, pluginSnapshot])
   const [clearedIds, setClearedIds] = useState<string[]>([])
   const visibleNotifications = useMemo(
     () => notifications.filter((notification) => !clearedIds.includes(notification.id)),
@@ -633,9 +597,7 @@ export function JanusIsland({
   // ownership when it presents (product yields, tray keeps everything).
   const splitCapsule = !knowledgePeekActive && capsuleNotifications.length >= 2
 
-  const modeStatusFallback = activeNode
-    ? t('janus:island.status.blueprintFocused')
-    : janusRunning
+  const modeStatusFallback = janusRunning
     ? t('janus:island.status.runningActive')
     : mode === 'analytics'
       ? t('janus:island.status.analyticsProcessing')
@@ -713,10 +675,9 @@ export function JanusIsland({
   }, [islandSpeak.snapshot.speaking])
 
   const bannerNotification = bannerId && topNotificationItem?.id === bannerId ? topNotificationItem : null
-  const modeLabel = activeNode ? t('janus:island.modeLabel.blueprint') : mode === 'analytics' ? t('janus:island.modeLabel.analytics') : mode === 'running' ? t('janus:island.modeLabel.running') : t('janus:island.modeLabel.order')
-  const modeColor = activeVisual?.color ?? (mode === 'running' ? '#00ff88' : '#ff7830')
-  const activeNodeTitle = activeNode?.title || t('janus:island.activeNodeFallback')
-  const workspaceLabel = activeSession?.workspaceName ?? activeWorkspace?.name ?? t('janus:island.workspaceFallback')
+  const modeLabel = mode === 'analytics' ? t('janus:island.modeLabel.analytics') : mode === 'running' ? t('janus:island.modeLabel.running') : t('janus:island.modeLabel.order')
+  const modeColor = mode === 'running' ? '#00ff88' : '#ff7830'
+  const workspaceLabel = activeWorkspace?.name ?? t('janus:island.workspaceFallback')
   const messageCount = messages.length
   const prevMessageCountRef = useRef(messageCount)
 
@@ -1017,16 +978,11 @@ export function JanusIsland({
           onRoundtableStateChange={setRoundtableState}
           mode={mode}
           janusRunning={janusRunning}
-          activeNode={!!activeNode}
-          activeNodeTitle={activeNodeTitle}
           workspaceLabel={workspaceLabel}
           modeLabel={modeLabel}
           modeColor={modeColor}
           statusText={statusText}
-          maintenanceTask={maintenanceTask}
-          onOpenMaintenance={handleOpenMaintenance}
-          onCancelMaintenance={(taskId) => void cancelMaintenance(taskId)}
-          onOpenBlueprintWorkbench={handleOpenBlueprintWorkbench}
+          onOpenPlugins={handleOpenPlugins}
           notifications={visibleNotifications}
           bannerNotification={bannerNotification}
           trayOpen={trayOpen}

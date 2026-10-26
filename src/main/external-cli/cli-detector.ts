@@ -127,7 +127,8 @@ function lastLines(text: string, count: number): string {
 }
 
 function parseVersion(output: string): string | undefined {
-  return output.match(/\b(\d+\.\d+\.\d+(?:-[\w.]+)?)\b/)?.[1]
+  // OpenCode v2 prints "opencode v2.x.y"; normalize the optional v prefix.
+  return output.match(/\bv?(\d+\.\d+\.\d+(?:-[\w.]+)?)\b/)?.[1]
 }
 
 async function defaultRun(file: string, args: readonly string[]): Promise<CommandResult> {

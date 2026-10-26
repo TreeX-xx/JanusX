@@ -12,6 +12,15 @@ import { listWorktrees } from '../git/worktrees'
 import { promises as originalFiles } from 'original-fs'
 import { configurePluginFileSystem } from '../plugins/files'
 import { PluginWindowLayout } from '../plugins/window-layout'
+import { PluginDistributionService } from '../plugins/distribution/service'
+import { downloadHostAsset } from '../lib/download'
+import officialTrust from '../../../plugins/catalog/trust.json'
+import { createOfficialNativeService } from '../plugins/native-process'
+import { appShutdown } from '../shutdown/AppShutdown'
+import { installLocalDevelopmentPlugin, type LocalPluginBuild } from '../plugins/local-development'
+import { readPluginImport } from '../plugins/distribution/import'
+
+declare const __JANUSX_LOCAL_PLUGIN__: LocalPluginBuild | null
 
 const text = z.string().min(1).max(256)
 const nullableText = z.string().max(4096).nullable()
@@ -24,10 +33,14 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('credentialStatus'), id: text, slot: text, projectId: text.nullable(), scopePath: nullableText }).strict(),
   z.object({ type: z.literal('credentialSet'), id: text, slot: text, projectId: text.nullable(), scopePath: nullableText, value: z.string().min(1).max(4096).nullable() }).strict(),
   z.object({ type: z.literal('list') }).strict(),
+  z.object({ type: z.literal('catalogRefresh') }).strict(),
+  z.object({ type: z.literal('installCancel') }).strict(),
+  z.object({ type: z.literal('installOfficial'), id: text }).strict(),
+  z.object({ type: z.literal('importPackage') }).strict(),
   z.object({ type: z.literal('development'), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('import'), kind: z.enum(['linked', 'copied']) }).strict(),
   z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256) }).strict(),
-  ...(['disable', 'reload', 'uninstall', 'deleteData'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
+  ...(['disable', 'reload', 'uninstall', 'deleteData', 'rollback'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
   z.object({ type: z.literal('context'), projectId: text.nullable(), scopePath: nullableText, locale: z.string().max(32),
     theme: z.object({ id: z.string().max(256), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
   z.object({ type: z.literal('mount'), id: text, view: text, projectId: text.nullable(), scopePath: nullableText,
@@ -52,9 +65,25 @@ const inputSchema = z.discriminatedUnion('type', [
 export function registerPluginHandlers(getWindow: () => BrowserWindow | null, resolveRoot: ResolveWorkspaceRoot): PluginService {
   configurePluginFileSystem(originalFiles)
   const send = (channel: string, payload?: unknown) => { const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload) }
+  const resolvePluginProject = async (id: string, scopePath: string | null) => {
+    const registered = await resolveRoot(id)
+    if (!registered) throw new PluginError('CONTEXT_UNAVAILABLE', 'Project is not registered.')
+    let root = await realpath(registered)
+    if (scopePath) {
+      const requested = await realpath(scopePath)
+      if (requested !== root) {
+        const known = await Promise.all((await listWorktrees(id, root)).map(item => realpath(item.path).catch(() => '')))
+        if (!known.includes(requested)) throw new PluginError('CONTEXT_UNAVAILABLE', 'Worktree is not registered.')
+        root = requested
+      }
+    }
+    return { root, name: basename(root) }
+  }
   const service = new PluginService({
     modelBackend: hostPluginModelBackend,
     directory: join(app.getPath('userData'), 'janusx', 'plugins'),
+    official: { keys: officialTrust.keys, nativePlugins: officialTrust.nativePlugins, hostVersion: app.getVersion(), platform: `${process.platform}-${process.arch}` },
+    createNativeService: (record, directory, stopped, credentials) => createOfficialNativeService(record, directory, stopped, resolvePluginProject, credentials),
     encryption: {
       encrypt: value => {
         if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') throw new Error('Encryption unavailable')
@@ -66,22 +95,12 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
       },
     },
     protectedDirectories: [app.getPath('userData'), app.getPath('sessionData')],
-    resolveProject: async (id, scopePath) => {
-      const registered = await resolveRoot(id)
-      if (!registered) throw new PluginError('CONTEXT_UNAVAILABLE', 'Project is not registered.')
-      let root = await realpath(registered)
-      if (scopePath) {
-        const requested = await realpath(scopePath)
-        if (requested !== root) {
-          const known = await Promise.all((await listWorktrees(id, root)).map(item => realpath(item.path).catch(() => '')))
-          if (!known.includes(requested)) throw new PluginError('CONTEXT_UNAVAILABLE', 'Worktree is not registered.')
-          root = requested
-        }
-      }
-      return { root, name: basename(root) }
-    },
+    legacyCredentials: { 'official.blueprint': [{ slot: 'jev', origin: 'https://api.typesafe.ai', path: join(app.getPath('userData'), 'janusx', 'knowledge-jev.credential') }] },
+    resolveProject: resolvePluginProject,
     changed: () => send(PLUGIN_CHANNELS.changed),
     event: (instanceId, packet) => { runtime?.send(instanceId, packet); send(PLUGIN_CHANNELS.event, { instanceId, packet }) },
+    workspaceHandoff: packet => send(PLUGIN_CHANNELS.event, { instanceId: '', packet }),
+    workbenchAction: packet => send(PLUGIN_CHANNELS.event, { instanceId: '', packet }),
     closed: instanceId => runtime?.close(instanceId),
     openView: (pluginId, viewId, instanceKey) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'openView', pluginId, viewId, ...(instanceKey ? { instanceKey } : {}) } }),
     toast: (pluginId, message, level) => send(PLUGIN_CHANNELS.event, { instanceId: '', packet: { type: 'toast', pluginId, message, level } }),
@@ -91,10 +110,20 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
   host.webContents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) service.closeAll() })
   host.webContents.on('render-process-gone', () => service.closeAll())
   host.on('closed', () => service.closeAll())
-  const ready = service.initialize()
+  const distribution = new PluginDistributionService({
+    directory: join(app.getPath('userData'), 'janusx', 'plugins'), catalogUrl: officialTrust.catalogUrl, keys: officialTrust.keys,
+    hostVersion: app.getVersion(), platform: `${process.platform}-${process.arch}`,
+    download: downloadHostAsset, install: (bytes, release) => service.installOfficial(bytes, release), changed: () => send(PLUGIN_CHANNELS.changed),
+  })
+  const ready = Promise.all([service.initialize(), distribution.initialize()]).then(async () => {
+    if (typeof __JANUSX_LOCAL_PLUGIN__ !== 'undefined' && __JANUSX_LOCAL_PLUGIN__) {
+      await installLocalDevelopmentPlugin(service, __JANUSX_LOCAL_PLUGIN__, { packaged: app.isPackaged, profile: app.getPath('userData') })
+    }
+  })
+  appShutdown.configure({ stopPlugins: async () => { distribution.dispose(); await service.dispose(); runtime.dispose() } })
   // Observe rejection immediately; management requests still report the original error.
   void ready.catch(() => service.log('STORAGE_UNAVAILABLE'))
-  app.on('will-quit', () => { service.dispose(); runtime.dispose() })
+  app.on('will-quit', () => { distribution.dispose(); service.dispose(); runtime.dispose() })
   ipcMain.handle(PLUGIN_CHANNELS.manage, async (event, input: unknown): Promise<PluginHostResult> => {
     try {
       const window = getWindow()
@@ -110,7 +139,17 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'windowOpen': await runtime.openWindow(request.id, request.view, request.projectId, request.scopePath); break
         case 'windowCover': runtime.setCovered(request.covered); break
         case 'taskStart': case 'taskCancel': case 'credentialStatus': case 'credentialSet': data = await service.backgroundManage(request); break
-        case 'list': data = service.snapshot(); break
+        case 'list': data = { ...service.snapshot(), distribution: distribution.snapshot() }; break
+        case 'catalogRefresh': await distribution.refresh(); break
+        case 'installCancel': distribution.cancel(); break
+        case 'installOfficial': await distribution.install(request.id); break
+        case 'importPackage': {
+          const selection = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'JanusX plugin', extensions: ['jxp'] }] })
+          if (selection.canceled || !selection.filePaths[0]) { data = { imported: false }; break }
+          await service.installPackage(await readPluginImport(selection.filePaths[0]))
+          data = { imported: true }
+          break
+        }
         case 'development': await service.setDevelopment(request.enabled); break
         case 'import': {
           const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
@@ -120,6 +159,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
         case 'enable': await service.enable(request.id, request.projects); break
         case 'disable': await service.disable(request.id); break
         case 'reload': await service.reload(request.id, true); break
+        case 'rollback': await service.rollback(request.id); break
         case 'uninstall': await service.uninstall(request.id); break
         case 'deleteData': await service.deleteData(request.id); break
         case 'context': await service.setContext(request.projectId, request.scopePath, request.locale, request.theme); break
@@ -146,7 +186,9 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
       }
       return { ok: true, data }
     } catch (cause) {
-      const code = cause instanceof PluginError ? cause.code : 'INTERNAL_ERROR'
+      const distributionRequest = typeof input === 'object' && input !== null && 'type' in input
+        && ['catalogRefresh', 'installOfficial', 'importPackage', 'installCancel', 'rollback'].includes(String(input.type))
+      const code = cause instanceof PluginError ? cause.code : distributionRequest && cause instanceof Error && /^[A-Z_]+$/.test(cause.message) ? cause.message : 'INTERNAL_ERROR'
       service.log(code)
       return { ok: false, code, message: code }
     }

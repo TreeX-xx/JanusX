@@ -1,41 +1,27 @@
-// Note: Janus extends the shared agentX runtime — see .agents/notes/blueprint/agentx-harness-inheritance.md
-import { BlueprintReadTasks } from '../blueprint/read-task'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
-import type { Diagnostic } from '@janus-agent/harness-core'
-import { NoteService, indexEntries, toSlimSnapshot, type NoteIndex } from '@janus-agent/harness-node'
+// Note: .agents/notes/planning/blueprint-official-plugin.md — shared Note consumers do not load the blueprint plugin.
+import { resolve } from 'node:path'
+import { NoteService, type LoadedNoteEntry, type NoteIndex } from '@janus-agent/harness-node'
 import * as sharedHarness from '@janus-agent/harness-node'
-import { projectGraph, projectGraphId } from '../notes/note-to-blueprint'
-import { composeBlueprint } from '../blueprint/blueprint-composition'
-import { ADAPTER_VERSION } from '../notes/note-types'
-import type { Blueprint } from '../../shared/janus/types'
-// Keep value exports bound locally: the main bundle materializes this module's namespace during dynamic import.
+
+// Local bindings preserve runtime values in the main bundle's dynamic namespace.
 export const assertNoLocalLeak = sharedHarness.assertNoLocalLeak
 export const claimsHarnessSchema = sharedHarness.claimsHarnessSchema
 export const stripRemoteCreds = sharedHarness.stripRemoteCreds
 export type { ResolveResult, ShareSelection, ShareSnapshot, BindingRecord, ChangeListener } from '@janus-agent/harness-node'
 
-export interface ProjectView {
-  blueprint: Blueprint
-  rev: number
-  repoId: string | null
-  repoName: string
-  invalid: Array<{ relPath: string; diagnostics: Diagnostic[] }>
-  adapterVersion: string
-}
-
 export class HarnessNoteService extends NoteService {
-  // Note: startup and foreground reads share the cold scan — see .agents/notes/blueprint/requirements/blueprint-performance.md
-  private indexReads = new BlueprintReadTasks<{ rev: number; index: NoteIndex }>()
+  private indexReads = new Map<string, Promise<{ rev: number; index: NoteIndex }>>()
 
   protected override refreshIndex(root: string): Promise<{ rev: number; index: NoteIndex }> {
     const path = resolve(root)
     const key = process.platform === 'win32' ? path.toLowerCase() : path
-    return this.indexReads.run(key, async signal => {
-      const result = await super.refreshIndex(path)
-      signal.throwIfAborted()
-      return result
+    const pending = this.indexReads.get(key)
+    if (pending) return pending
+    const read = super.refreshIndex(path).finally(() => {
+      if (this.indexReads.get(key) === read) this.indexReads.delete(key)
     })
+    this.indexReads.set(key, read)
+    return read
   }
 
   override async warmup(root: string): Promise<{ rev: number; ms: number }> {
@@ -46,104 +32,14 @@ export class HarnessNoteService extends NoteService {
     return { rev, ms: Date.now() - started }
   }
 
-  // Note: display only this workspace; cross-workspace references stay in the source; see .agents/notes/blueprint/workspaces/module.md
-  async projectView(root: string): Promise<ProjectView> {
-    const view = await this.singleProjectView(root)
-    return { ...view, blueprint: composeBlueprint({ skeleton: view.blueprint, checkouts: [], localOnly: true }) }
+  /** Read-only inputs for desktop adapters; the shared service owns the index and revision. */
+  readIndex(root: string): Promise<{ rev: number; index: NoteIndex }> {
+    return this.refreshIndex(root)
   }
 
-  private async singleProjectView(root: string): Promise<ProjectView> {
-    const started = Date.now()
-    // Note: reads refresh through the hash-only probe; unchanged bytes ride
-    // the cached index allocation-only, changed files patch incrementally.
-    // Only the watcher path and explicit rescan skip the probe.
-    const { index } = await this.refreshIndex(root)
-    const afterCache = Date.now()
-    const { entries, invalid } = indexEntries(index)
-    const rev = this.acceptIndex(root, index)
-    const repoName = await this.repoName(root)
-    const ui = await this.loadUiState(root)
-    const blueprint = projectGraph(
-      {
-        repoId: index.repoId,
-        repoName,
-        entries: entries.map((e) => ({ doc: e.doc, relPath: e.relPath, sha256: e.sha256 })),
-        revision: rev,
-        snapshot: toSlimSnapshot(index),
-      },
-      root,
-    )
-    // Transport slimming: cards and composition overlays read metadata only;
-    // bodies/sections travel on demand via readNote, never on every load.
-    for (const node of Object.values(blueprint.nodes)) {
-      if (node.note && (node.note.body || (node.note.sections?.length ?? 0) > 0)) {
-        node.note = { ...node.note, body: undefined, sections: [] }
-      }
-    }
-    const afterProject = Date.now()
-    blueprint.canvasLayout = ui.canvasLayout
-    blueprint.collapsedNodeIds = ui.collapsedNodeIds
-    // Invalid notes stay out of the graph but travel on the projection for
-    // the invalid-lane UI; the canvas must never throw on them.
-    blueprint.invalidNotes = invalid.map((item) => ({
-      relPath: item.relPath,
-      classification: item.classification,
-      diagnostics: item.diagnostics.map((d) => ({ code: d.code, message: d.message })),
-    }))
-    // Note: coverage comes from portable receipts - see .agents/notes/agent/harness-execution-adapter-s8.md
-    if (index.repoId) {
-      const overlay = await this.coverageOverlay(root, rev, entries, index.repoId)
-      for (const node of Object.values(blueprint.nodes)) {
-        const state = overlay.get(node.id)
-        if (!state) continue
-        node.noteEvidence = { taskDone: Boolean(state.taskDone), ...(state.requirement ? { coveredACs: state.acCount - state.requirement.uncovered.length, totalACs: state.acCount } : {}) }
-        if (state.taskDone) { node.status = 'done'; node.progress = 100 }
-        if (state.requirement) {
-          for (const feature of node.features) {
-            const covered = !state.requirement.uncovered.includes(feature.id)
-            feature.progress = covered ? 100 : 0
-            feature.status = covered ? 'done' : 'planned'
-          }
-          node.progress = state.acCount ? Math.round(100 * (state.acCount - state.requirement.uncovered.length) / state.acCount) : 0
-          if (state.requirement.covered) node.status = 'done'
-        }
-      }
-    }
-    console.debug(`[blueprint-r7] projectView rev=${rev} cache=${afterCache - started}ms project=${afterProject - afterCache}ms overlay=${Date.now() - afterProject}ms total=${Date.now() - started}ms root=${root}`)
-    return { blueprint, rev, repoId: index.repoId, repoName, invalid, adapterVersion: ADAPTER_VERSION }
+  readCoverage(root: string, rev: number, entries: LoadedNoteEntry[], repoId: string) {
+    return this.coverageOverlay(root, rev, entries, repoId)
   }
-
-  projectIdForRoot(root: string, repoId: string | null): string {
-    return projectGraphId(repoId, root)
-  }
-
-  /** Canvas-only overlay state. Local, never shared, best effort. */
-  async loadUiState(root: string): Promise<{ canvasLayout: Record<string, { x: number; y: number }>; collapsedNodeIds: string[] | null }> {
-    try {
-      const raw = await readFile(join(root, '.agents', '.local', 'ui', 'project.json'), 'utf8')
-      const data = JSON.parse(raw) as { canvasLayout?: unknown; collapsedNodeIds?: unknown }
-      return {
-        canvasLayout: (data.canvasLayout ?? {}) as Record<string, { x: number; y: number }>,
-        collapsedNodeIds: Array.isArray(data.collapsedNodeIds) ? (data.collapsedNodeIds as string[]) : null,
-      }
-    } catch {
-      return { canvasLayout: {}, collapsedNodeIds: null }
-    }
-  }
-
-  async saveUiState(
-    root: string,
-    patch: { canvasLayout?: Record<string, { x: number; y: number }>; collapsedNodeIds?: string[] | null },
-  ): Promise<void> {
-    const current = await this.loadUiState(root)
-    const next = {
-      canvasLayout: patch.canvasLayout ?? current.canvasLayout,
-      collapsedNodeIds: patch.collapsedNodeIds !== undefined ? patch.collapsedNodeIds : current.collapsedNodeIds,
-    }
-    const file = join(root, '.agents', '.local', 'ui', 'project.json')
-    await mkdir(dirname(file), { recursive: true })
-    await writeFile(file, JSON.stringify(next, null, 2), 'utf8')
-  }
-
 }
+
 export const harnessNoteService = new HarnessNoteService()

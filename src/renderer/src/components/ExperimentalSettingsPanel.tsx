@@ -11,7 +11,8 @@ type FeatureKey = keyof ExperimentalFeatures
 
 // Note: persona stays in development while project knowledge matures — see .agents/notes/knowledge/memory-domain-controls.md
 // Note: memo joins preview management — see .agents/notes/workbench/experimental-preview-features.md
-const PREVIEW_FEATURES: FeatureKey[] = ['blueprint', 'sessions', 'memo']
+// Note: blueprint is installed and managed as an official plugin; see .agents/notes/planning/blueprint-official-plugin.md
+const PREVIEW_FEATURES: FeatureKey[] = ['sessions', 'memo']
 const DEV_FEATURES: FeatureKey[] = ['persona', 'roundtable', 'remoteControl', 'teamCollab']
 
 // Note: every feature transition requires explicit confirmation — see .agents/notes/knowledge/assistant-persona-layout.md

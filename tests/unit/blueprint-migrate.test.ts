@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseNote, validateNote } from '@janus-agent/harness-core'
 import { buildNoteIndex } from '@janus-agent/harness-node'
-import type { Blueprint } from '../../src/shared/janus/types'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 import { applyMigration, previewMigration } from '../../src/main/janus/blueprint-migrate'
 
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'

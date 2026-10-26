@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { NoteReadingService } from '../../src/main/blueprint/note-reading'
-import { WorkspaceSuggestionSources } from '../../src/main/blueprint/suggestions/sources'
+import { NoteReadingService } from '../../plugins/blueprint/src/main/blueprint/note-reading'
+import { WorkspaceSuggestionSources } from '../../plugins/blueprint/src/main/blueprint/suggestions/sources'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-core'
-import type { ReviewContext, ReviewSourceSnapshot } from '../../src/shared/blueprint-review'
+import type { ReviewContext, ReviewSourceSnapshot } from '../../plugins/blueprint/src/shared/blueprint-review'
 
 const roots: string[] = []
 const context: ReviewContext = { repoId: '11111111-1111-4111-8111-111111111111', workspacePath: 'C:/fixture', branch: 'refs/heads/main' }

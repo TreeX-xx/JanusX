@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatSessionRuntime, estimateContextTokens } from '@janus-agent/chat-core'
-import { buildProposalContext, proposalModelBudget } from '../../src/main/janus/maintenance/proposal-context'
-import { blueprintNodeContext } from '../../src/main/janus/maintenance/blueprint-tools'
-import type { Blueprint } from '../../src/shared/janus/types'
+import { buildProposalContext, proposalModelBudget } from '../../plugins/blueprint/src/main/janus/maintenance/proposal-context'
+import { blueprintNodeContext } from '../../plugins/blueprint/src/main/janus/maintenance/blueprint-tools'
+import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
 
 afterEach(() => vi.restoreAllMocks())
 

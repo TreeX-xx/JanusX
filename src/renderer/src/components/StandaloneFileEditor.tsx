@@ -7,12 +7,11 @@ import { DiffCounts } from '@/components/shared/DiffCounts'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
 import { GitCompareArrows, Dock, ExternalLink, PanelRightClose, X, Pin, PinOff, RefreshCw, Save, Search } from 'lucide-react'
-import { isEditorDefinitionShortcut, isEditorFindShortcut, isMonacoKeyboardEvent, openEditorDefinition, openEditorFind, watchFindWidgetControls, type FindableEditor } from '@/lib/editor-find'
+import { isEditorFindShortcut, isMonacoKeyboardEvent, openEditorFind, watchFindWidgetControls, type FindableEditor } from '@/lib/editor-find'
 import { attachWheelScrollX, revealStripItem } from '@/lib/wheel-scroll-x'
 import { useI18n } from '@/i18n/useI18n'
 import { ViewerActive, ViewerToolbarTarget } from './viewers/ViewerToolbar'
 import { ToolbarMenu } from './viewers/ToolbarMenu'
-import type { DefinitionTarget } from '@/lib/monaco-definition'
 import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
 
 interface EditorWindowParams {
@@ -58,9 +57,6 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
   const updateContent = useEditorStore((state) => state.updateContent)
   const saveFile = useEditorStore((state) => state.saveFile)
   const reloadOpenFile = useEditorStore((state) => state.reloadOpenFile)
-  const openFileAt = useEditorStore((state) => state.openFileAt)
-  const navigationTarget = useEditorStore((state) => state.navigationTarget)
-  const consumeNavigationTarget = useEditorStore((state) => state.consumeNavigationTarget)
   const activeFile = openFiles.find((file) => file.id === activeFileId) ?? null
   const { confirmClose, closeDialog } = useEditorCloseDialog()
   const [diffFileId, setDiffFileId] = useState<string | null>(null)
@@ -98,17 +94,6 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
     const strip = tabStripRef.current
     if (strip) revealStripItem(strip, 'data-tab-id', activeFileId)
   }, [activeFileId, openFiles])
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (!active || !isEditorDefinitionShortcut(event) || !findEditorRef.current || !isMonacoKeyboardEvent(event)) return
-      event.preventDefault()
-      event.stopPropagation()
-      void openEditorDefinition(findEditorRef.current)
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [active])
 
   useEffect(() => {
     if (embedded || !editorParams) return
@@ -207,10 +192,6 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
     if (embedded) return
     document.title = activeFile ? t('editor:fileEditor.documentTitle', { prefix: activeFile.isDirty ? '* ' : '', name: activeFile.name }) : t('editor:fileEditor.windowTitle')
   }, [activeFile, t, embedded])
-
-  const handleDefinitionNavigate = useCallback((target: DefinitionTarget) => {
-    if (editorParams) void openFileAt(target.absolutePath, editorParams.workspacePath, target.selection)
-  }, [editorParams, openFileAt])
 
   const togglePinned = useCallback(async () => {
     const result = await window.electron.window.setAlwaysOnTop(!isPinned)
@@ -369,11 +350,6 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
             key={`${activeFile.id}:${activeFile.absolutePath}`}
             file={activeFile}
             workspacePath={editorParams?.workspacePath}
-            navigationTarget={navigationTarget}
-            onDefinitionNavigate={handleDefinitionNavigate}
-            onNavigationComplete={consumeNavigationTarget}
-            definitionActionLabel={t('editor:fileEditor.goToDefinition')}
-            definitionErrorMessage={t('editor:fileEditor.cppDefinitionUnavailable')}
             diffOriginalContent={activeFile.saveConflict ? activeFile.conflictDisk?.text : activeBaselineContent}
             onContentChange={(content) => updateContent(activeFile.id, content)}
             onEditorMount={handleEditorMount}

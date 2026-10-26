@@ -8,18 +8,6 @@ export function isEditorFindShortcut(event: Pick<KeyboardEvent, 'ctrlKey' | 'met
   return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f'
 }
 
-export function isEditorDefinitionShortcut(event: Pick<KeyboardEvent, 'key'>): boolean {
-  return event.key === 'F12'
-}
-
-export async function openEditorDefinition(editor: FindableEditor | null): Promise<boolean> {
-  const action = editor?.getAction('janusx.editor.goToDefinition')
-  if (!editor || !action) return false
-  editor.focus()
-  await action.run()
-  return true
-}
-
 export function isMonacoKeyboardEvent(event: Pick<KeyboardEvent, 'target'>): boolean {
   const target = event.target as (EventTarget & { closest?: (selector: string) => Element | null }) | null
   return Boolean(target?.closest?.('.monaco-editor'))

@@ -1,0 +1,76 @@
+/* Quiet workbench chrome; navigation and content retain their existing layout. */
+.blueprint-workbench-shell .blueprint-workbench-topbar,
+.blueprint-workbench-shell .blueprint-workbench-toolbar {
+  background: var(--shell-canvas);
+  border-color: var(--shell-border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.blueprint-workbench-shell .blueprint-workbench-toolbar {
+  height: 44px;
+  min-height: 44px;
+  gap: 8px;
+  overflow: visible;
+}
+
+.blueprint-workbench-toolbar .blueprint-toolbar__search-wrap { max-width: 320px; }
+.blueprint-workbench-shell .blueprint-workbench-toolbar .blueprint-btn,
+.blueprint-workbench-shell .blueprint-workbench-toolbar .blueprint-select,
+.blueprint-workbench-shell .blueprint-workbench-toolbar .blueprint-toolbar__search {
+  min-height: 28px;
+  border-radius: 6px;
+  border-color: var(--shell-border);
+  background: transparent;
+  color: var(--shell-muted);
+  font-family: inherit;
+  font-size: 12px;
+}
+.blueprint-workbench-shell .blueprint-workbench-toolbar .blueprint-toolbar__search { color: var(--shell-text); background: var(--shell-card); }
+.blueprint-workbench-toolbar .blueprint-btn[aria-pressed='true'] { background: var(--shell-hover); color: var(--shell-text); }
+.blueprint-workbench-shell .blueprint-workbench-toolbar .blueprint-btn:hover:not(:disabled) { background: var(--shell-hover); color: var(--shell-text); }
+.blueprint-workbench-toolbar .blueprint-toolbar__more { width: 30px; display: inline-grid; place-items: center; padding: 0; border-color: transparent; }
+
+.blueprint-toolbar-menu {
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  width: 240px;
+  max-width: calc(100vw - 16px);
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  background: var(--popover-background);
+  color: var(--shell-text);
+  box-shadow: var(--popover-shadow);
+}
+.blueprint-toolbar-menu:popover-open { display: flex; flex-direction: column; gap: 2px; }
+.blueprint-toolbar-menu .blueprint-btn { width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--shell-text); text-align: left; font: inherit; font-size: 12px; }
+.blueprint-toolbar-menu .blueprint-btn:hover:not(:disabled) { background: var(--shell-hover); }
+.blueprint-toolbar-menu .blueprint-toolbar__save-status { display: block; max-width: none; padding: 6px 8px; border-top: 1px solid var(--shell-border-soft); color: var(--shell-dim); font-size: 11px; }
+.blueprint-toolbar-menu .blueprint-toolbar__save-status--failed { color: var(--shell-diff-del); }
+
+.blueprint-workbench-shell .blueprint-janus-capsule {
+  border-color: var(--shell-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--shell-text);
+  box-shadow: none;
+  backdrop-filter: none;
+  font-family: inherit;
+}
+.blueprint-workbench-shell .blueprint-janus-capsule:is(:hover, :focus-visible, [aria-expanded='true']) { background: var(--shell-hover); box-shadow: none; border-color: var(--shell-muted); }
+.blueprint-workbench-shell .blueprint-janus-capsule__name { color: var(--shell-text); letter-spacing: normal; }
+.blueprint-workbench-shell .blueprint-janus-capsule .blueprint-janus-capsule__identity { width: 20px; height: 20px; min-width: 20px; min-height: 20px; }
+.blueprint-workbench-shell .blueprint-janus-capsule__status { background: transparent; color: var(--shell-muted); font-family: inherit; letter-spacing: normal; }
+.blueprint-workbench-shell .blueprint-janus-capsule__chevron { color: var(--shell-muted); }
+.blueprint-workbench-shell .blueprint-janus-capsule[data-state='error'] .blueprint-janus-capsule__status { color: var(--shell-diff-del); }
+.blueprint-workbench-shell .blueprint-janus-capsule[data-state='working'] .blueprint-janus-capsule__status { color: var(--shell-accent); }
+
+@media (max-width: 760px) {
+  .blueprint-workbench-shell .blueprint-workbench-toolbar { height: auto; min-height: 44px; flex-wrap: wrap; }
+  .blueprint-workbench-toolbar .blueprint-toolbar__search-wrap { flex: 1 1 100%; max-width: none; }
+  .blueprint-workbench-toolbar .blueprint-select--status-filter,
+  .blueprint-workbench-toolbar .blueprint-select--kind-filter { width: 110px; }
+}

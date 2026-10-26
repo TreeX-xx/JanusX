@@ -20,11 +20,18 @@ export interface PluginContext {
   configurationNavigation?: true
   /** Only a declared custom settings workbench may hand proposed edits to the host. */
   configurationEditor?: true
+  /** This workbench declares its own close/project header. */
+  workbenchFrame?: true
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
+  native: {
+    /** Calls this plugin's separately authorized native service. Native services have OS permissions. */
+    call(params: { method: string; input: JsonValue }, options?: PluginCallOptions): Promise<JsonValue>
+    watch(listener: (event: { name: string; value: JsonValue }) => void, options?: PluginCallOptions): Promise<PluginUnsubscribe>
+  }
   tasks: {
     start(params: { task: string; input: PluginMessage }, options?: PluginCallOptions): Promise<{ id: string }>
     list(options?: PluginCallOptions): Promise<PluginTaskRun[]>
@@ -57,12 +64,21 @@ export interface PluginApi {
   }
   app: { getInfo(options?: PluginCallOptions): Promise<{ pluginApiVersion: string; capabilities: string[]; locale: string; theme: { id: string; tokens: Record<string, string> } }> }
   workspace: {
+    /** Requests the host editor for a version-checked text file in this project; returns no file contents. */
+    openDocument(params: { path: string; expectedVersion: string }, options?: PluginCallOptions): Promise<{ requested: true }>
+    /** Presents a host-owned editable draft. Only a subsequent user action can create a terminal. */
+    proposeTerminal(params: { text: string }, options?: PluginCallOptions): Promise<{ proposed: true }>
     /** Lists one explicitly granted directory, without granting file contents or recursive traversal. */
     listDirectory(params: { path: string; limit?: number }, options?: PluginCallOptions): Promise<{ entries: Array<{ name: string; type: 'file' | 'directory' }>; truncated: boolean }>
     getContext(options?: PluginCallOptions): Promise<PluginContext>
     readText(params: { path: string }, options?: PluginCallOptions): Promise<{ text: string; bytes: number }>
   }
-  views: { open(params: { view: string; instanceKey?: string }, options?: PluginCallOptions): Promise<{ instanceId: string }> }
+  views: {
+    open(params: { view: string; instanceKey?: string }, options?: PluginCallOptions): Promise<{ instanceId: string }>
+    /** Only available to the current workbench with frame: 'plugin'; lists granted identities, never paths. */
+    getFrame(options?: PluginCallOptions): Promise<{ projects: Array<{ id: string; name: string }>; projectId: string | null }>
+    requestFrame(params: { action: 'close' } | { action: 'selectProject'; projectId: string }, options?: PluginCallOptions): Promise<{ requested: true }>
+  }
   island: { update(params: { id: string; status: PluginIslandStatus | null }, options?: PluginCallOptions): Promise<{ updated: boolean }> }
   ui: { showToast(params: { message: string; level?: 'info' | 'warning' | 'error' }, options?: PluginCallOptions): Promise<{ shown: boolean }> }
   storage: {

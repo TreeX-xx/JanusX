@@ -14,9 +14,12 @@
   gap: 6px;
 }
 
-/* 展开的菜单要盖到内容区和灵动岛簇之上（岛簇 z-index 2000） */
+/* Only an open menu rises above the Island; the idle trigger belongs to the titlebar. */
 .combo {
   position: relative;
+}
+
+.combo:has([aria-expanded='true']) {
   z-index: 2100;
 }
 

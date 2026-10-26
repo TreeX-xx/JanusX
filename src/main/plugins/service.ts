@@ -4,6 +4,7 @@ import { readFile, mkdir, writeFile, rm, realpath } from 'node:fs/promises'
 import { watch, type FSWatcher } from 'node:fs'
 import { join, resolve, relative, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
+import semver from 'semver'
 import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManifest, validatePluginCall,
   isSensitivePluginPath, matchesPluginViewer, type PluginDocument, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus, type PluginSettingValue } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, PluginIslandEntry } from '../../shared/ipc/plugins'
@@ -19,13 +20,23 @@ import { serviceCallSchema, type PluginMessage, type PluginNetworkRequest, type 
 import { pluginContextReadSchema, type PluginDocumentContext, type PluginDocumentContextCatalog, type PluginDocumentContextResource } from '@janusx/plugin-sdk'
 import { pluginSkillReadSchema, pluginWorkflowRunSchema, type PluginAgentSkill, type PluginAgentSkillCatalog, type PluginAgentSkillResource, type PluginAgentWorkflow, type PluginAgentWorkflowCatalog } from '@janusx/plugin-sdk'
 import type { PluginDraft } from '@janusx/plugin-sdk'
+import { assertPluginCompatibility, decodePluginArchive, decodeSignedPluginPackage, verifyPluginRelease, type SignedPluginPayload, type PluginTrustKeys } from './distribution/package'
+import { NativePluginService } from './native-service'
+import { NativeServiceError, nativeValueSchema, PLUGIN_ERROR_CODES, type PluginErrorCode } from '@janusx/plugin-sdk'
+import type { NativeModelCredentials } from './native-models'
+import { permissionFingerprint } from './permission-fingerprint'
+import { allowLegacyImport, markPluginDataReset } from './data-reset'
+import { collectPluginPackages, pluginDataInUse, PLUGIN_PACKAGE_STORAGE_LIMIT, withPluginPackageLock } from './package-leases'
 
-interface RecordData extends InstalledPlugin { packageDirectory: string; grant: string }
+interface RecordData extends InstalledPlugin {
+  packageDirectory: string; grant: string; release?: SignedPluginPayload
+  previous?: Omit<RecordData, 'previous'>
+}
 interface Instance {
   id: string; plugin: string; view: string; binding: string; token: string; generation: string; url: string
   root: string | null; scope: string; context: PluginContext; bound: boolean; ready: boolean
-  requests: Map<string, { cancelled: boolean }>; used: Set<string>; times: number[]; timer: ReturnType<typeof setTimeout>
-  subscriptions: Map<string, { kind: 'storage'; keys: string[] } | { kind: 'context' | 'configuration' }>
+  requests: Map<string, { cancelled: boolean; controller: AbortController }>; used: Set<string>; times: number[]; timer: ReturnType<typeof setTimeout>
+  subscriptions: Map<string, { kind: 'storage'; keys: string[] } | { kind: 'context' | 'configuration' | 'native' }>
 }
 export interface PluginServiceDeps {
   directory: string
@@ -33,27 +44,32 @@ export interface PluginServiceDeps {
   networkTransport?: PluginNetworkTransport
   modelBackend?: PluginModelBackend
   protectedDirectories?: string[]
+  legacyCredentials?: Readonly<Record<string, ReadonlyArray<{ slot: string; origin: string; path: string }>>>
+  official?: { keys: PluginTrustKeys; hostVersion: string; platform: string; nativePlugins?: Readonly<Record<string, readonly string[]>> }
+  createNativeService?(record: InstalledPlugin, directory: string, stopped: (code: string) => void, credentials: NativeModelCredentials): NativePluginService
   resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
   changed(): void
   closed?(instanceId: string): void
   event(instanceId: string, packet: JsonValue): void
+  /** Host renderer only: these packets contain canonical paths and must never enter the plugin port. */
+  workspaceHandoff?(packet: JsonValue): void
   openView(pluginId: string, viewId: string, instanceKey?: string): void
+  workbenchAction?(packet: JsonValue): void
   toast(pluginId: string, message: string, level: string): void
 }
 const requestSchema = z.object({ protocol: z.literal(1), type: z.literal('request'), requestId: z.string().min(1).max(128),
   method: z.string().max(128), params: z.unknown(), contextRevision: z.number().int().nonnegative() }).strict()
 const cancelSchema = z.object({ protocol: z.literal(1), type: z.literal('cancel'), requestId: z.string().min(1).max(128) }).strict()
-const permissionFingerprint = (manifest: InstalledPlugin['manifest']) => createHash('sha256').update(JSON.stringify(manifest.contributes.themes || manifest.contributes.views.some(view => view.location === 'window' || view.instancePolicy === 'multiple') || manifest.contributes.contextProviders || manifest.contributes.skills || manifest.contributes.tasks || manifest.contributes.credentials || manifest.contributes.events || manifest.contributes.services || manifest.contributes.consumes
-  ? { permissions: manifest.permissions, contributes: manifest.contributes }
-  : manifest.contributes.configurationViews
-  ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers ?? [], configurationViews: manifest.contributes.configurationViews }
-  : manifest.contributes.viewers?.length ? { permissions: manifest.permissions, viewers: manifest.contributes.viewers } : manifest.permissions)).digest('hex')
+const nativeEventSchema = z.object({ scope: z.object({ projectId: z.string().min(1), root: z.string().min(1) }).strict().nullable(), data: nativeValueSchema }).strict()
 const error = (code: ConstructorParameters<typeof PluginError>[0], message: string): never => { throw new PluginError(code, message) }
 
 export class PluginService {
+  private workspaceHandoffs = new Map<string, number>()
   private records = new Map<string, RecordData>()
   private activations = new WeakMap<RecordData, number>()
   private packages = new Map<string, PluginPackage>()
+  private nativeServices = new Map<string, NativePluginService>()
+  private nativeStops = new Map<string, Promise<void>>()
   private instances = new Map<string, Instance>()
   private recoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private logs: PluginLog[] = []
@@ -103,31 +119,36 @@ export class PluginService {
       // Never turn corrupt persisted data into executable contributions.
       try {
         const manifest = parsePluginManifest(JSON.stringify(raw.manifest))
-        if (!raw.source || !['linked', 'copied'].includes(raw.source.kind) || typeof raw.source.directory !== 'string'
+        if (!raw.source || !['linked', 'copied', 'official'].includes(raw.source.kind) || typeof raw.source.directory !== 'string'
           || typeof raw.packageDirectory !== 'string' || !Array.isArray(raw.projects) || raw.projects.some(id => typeof id !== 'string')
           || typeof raw.enabled !== 'boolean' || typeof raw.grant !== 'string' || this.records.has(manifest.id)) throw new Error('Invalid record')
         const record: RecordData = { ...raw, manifest, failures: 0, state: 'disabled' }
         this.records.set(manifest.id, record)
         try {
-          const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+          const pkg = await this.readPackage(record)
           if (pkg.manifest.id !== manifest.id) error('MANIFEST_INVALID', 'Plugin identity changed.')
           record.manifest = pkg.manifest
           record.digest = pkg.digest
           this.packages.set(manifest.id, pkg)
-          if (record.enabled && this.developmentMode && record.grant === permissionFingerprint(pkg.manifest)) record.state = 'ready'
-          else if (record.enabled) { record.state = 'blocked'; record.error = this.developmentMode ? 'PERMISSION_RECONFIRM_REQUIRED' : 'DEVELOPMENT_MODE_REQUIRED' }
+          if (record.enabled && this.sourceAllowed(record) && record.grant === permissionFingerprint(pkg.manifest)) record.state = 'ready'
+          else if (record.enabled) { record.state = 'blocked'; record.error = this.sourceAllowed(record) ? 'PERMISSION_RECONFIRM_REQUIRED' : 'DEVELOPMENT_MODE_REQUIRED' }
           this.watchSource(record)
         } catch { record.state = 'error'; record.error = 'SOURCE_UNAVAILABLE' }
       } catch { this.log('MANIFEST_INVALID') }
     }
+    for (const record of this.records.values()) if (record.enabled && record.state === 'ready' && record.manifest.native) {
+      try { await this.startNative(record) }
+      catch { record.enabled = false; record.state = 'error'; record.error = 'SOURCE_UNAVAILABLE'; await this.persist() }
+    }
   }
   snapshot(): PluginHostSnapshot {
-    return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, ...record }) => {
+    return { developmentMode: this.developmentMode, plugins: [...this.records.values()].map(({ packageDirectory: _directory, grant: _grant, release: _release, previous: _previous, ...record }) => {
       const pages = [...this.instances.values()].filter(instance => instance.plugin === record.manifest.id)
       if (record.enabled && !['blocked', 'error'].includes(record.state)) {
         try { this.requiredDependencies(record.manifest) } catch { record.state = 'blocked'; record.error = 'DEPENDENCY_UNAVAILABLE' }
       }
-      return { ...structuredClone(record), runtime: { pages: pages.length, connected: pages.filter(page => page.bound).length, ready: pages.filter(page => page.ready).length } }
+      return { ...structuredClone(record), previousVersion: _previous?.source?.kind === 'official' ? _previous.manifest?.version : undefined,
+        runtime: { pages: pages.length, connected: pages.filter(page => page.bound).length, ready: pages.filter(page => page.ready).length } }
     }), logs: [...this.logs], island: structuredClone([...this.island.values()]), tasks: this.background.list() }
   }
   private async persist(): Promise<void> {
@@ -143,7 +164,7 @@ export class PluginService {
     return this.queue.run(async () => {
       // Fail closed immediately, even if persistence is unavailable.
       this.developmentMode = enabled
-      if (!enabled) for (const record of this.records.values()) this.disableRecord(record, 'DEVELOPMENT_MODE_REQUIRED')
+      if (!enabled) for (const record of this.records.values()) if (record.source.kind !== 'official') this.disableRecord(record, 'DEVELOPMENT_MODE_REQUIRED')
       try { await this.persist() } finally { this.publish() }
     })
   }
@@ -174,11 +195,172 @@ export class PluginService {
       this.publish()
     })
   }
+  private sourceAllowed(record: InstalledPlugin): boolean { return record.source.kind === 'official' || this.developmentMode }
+  private async readPackage(record: RecordData): Promise<PluginPackage> {
+    const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+    if (record.source.kind === 'official') {
+      const official = this.deps.official
+      if (!official || !record.release) error('SOURCE_UNAVAILABLE', 'Official release verification is unavailable.')
+      const release = verifyPluginRelease(record.release, official!.keys)
+      assertPluginCompatibility(release, official!.hostVersion, PLUGIN_API_VERSION, official!.platform)
+      const owned = relative(resolve(this.deps.directory, 'packages'), resolve(record.packageDirectory))
+      if (!/^[a-f0-9-]{36}$/.test(owned) || release.id !== pkg.manifest.id || release.version !== pkg.manifest.version
+        || release.pluginApi !== pkg.manifest.engines.pluginApi || release.contentDigest !== pkg.digest) error('RESOURCE_CHANGED', 'Official package no longer matches its signed release.')
+      record.source.publisher = release.publisher
+    }
+    if (pkg.manifest.native && (record.source.kind !== 'official' || !record.release
+      || !Object.hasOwn(this.deps.official?.nativePlugins ?? {}, pkg.manifest.id)
+      || !this.deps.official?.nativePlugins?.[pkg.manifest.id]?.includes(record.release.keyId))) {
+      error('PERMISSION_DENIED', 'Native services require an explicitly trusted plugin and signing key.')
+    }
+    return pkg
+  }
+  /** The caller supplies downloaded bytes, never a directory or an asserted official flag. */
+  private retainedPackages(): string[] {
+    return [...this.records.values()].flatMap(record => [record.packageDirectory, record.previous?.packageDirectory].filter((path): path is string => Boolean(path)))
+  }
+  private async collectPackages(): Promise<void> {
+    try { await collectPluginPackages(this.deps.directory, this.retainedPackages()) }
+    catch { this.log('PACKAGE_CLEANUP_DEFERRED') }
+  }
+  async installPackage(bytes: Buffer): Promise<void> {
+    const { envelope } = decodeSignedPluginPackage(bytes)
+    const release = verifyPluginRelease(envelope, this.deps.official?.keys ?? {})
+    if (release.packageFormat !== 'jxp/2') error('INVALID_REQUEST', 'Select a self-contained signed plugin package.')
+    await this.installOfficial(bytes, envelope)
+  }
+  installOfficial(archive: Buffer, envelope: SignedPluginPayload): Promise<void> {
+    return this.queue.run(() => withPluginPackageLock(this.deps.directory, async () => {
+      const official = this.deps.official
+      if (!official) error('SOURCE_UNAVAILABLE', 'Official distribution is not configured.')
+      const release = verifyPluginRelease(envelope, official!.keys)
+      assertPluginCompatibility(release, official!.hostVersion, PLUGIN_API_VERSION, official!.platform)
+      if (release.packageFormat === 'jxp/2') {
+        const wrapped = decodeSignedPluginPackage(archive)
+        if (wrapped.envelope.keyId !== envelope.keyId || wrapped.envelope.payload !== envelope.payload || wrapped.envelope.signature !== envelope.signature) {
+          error('INVALID_REQUEST', 'Package metadata differs from the selected release.')
+        }
+        archive = wrapped.archive
+      }
+      const pkg = await decodePluginArchive(archive, release)
+      const old = this.records.get(release.id)
+      if (old && old.source.kind !== 'official') error('DUPLICATE_PLUGIN', 'Remove the development source before installing its official release.')
+      if (old?.enabled) error('INVALID_REQUEST', 'Disable the plugin before updating to preserve active work.')
+      if (old && semver.lte(release.version, old.manifest.version)) error('INVALID_REQUEST', 'Use rollback to restore an earlier version; releases are immutable.')
+      if (old?.manifest.native?.dataVersion !== pkg.manifest.native?.dataVersion && old) error('INVALID_REQUEST', 'This update requires a supported data migration.')
+      const used = await collectPluginPackages(this.deps.directory, this.retainedPackages())
+      if (used + [...pkg.files.values()].reduce((sum, bytes) => sum + bytes.length, 0) > PLUGIN_PACKAGE_STORAGE_LIMIT) {
+        error('PACKAGE_LIMIT_EXCEEDED', 'Plugin storage is full. Close unused MCP clients or uninstall unused plugins, then retry.')
+      }
+      const packageDirectory = join(this.deps.directory, 'packages', randomUUID())
+      try {
+        for (const [path, bytes] of pkg.files) {
+          const target = join(packageDirectory, path)
+          await mkdir(join(target, '..'), { recursive: true })
+          await writeFile(target, bytes, { flag: 'wx' })
+        }
+        const { previous: _previous, ...previous } = old ?? {} as RecordData
+        const record: RecordData = { manifest: pkg.manifest, digest: release.contentDigest, packageDirectory,
+          source: { kind: 'official', directory: packageDirectory, publisher: release.publisher }, release: structuredClone(envelope),
+          enabled: false, projects: old?.projects ?? [], grant: old?.grant ?? '', state: 'disabled', failures: 0,
+          ...(old ? { previous } : {}) }
+        await this.readPackage(record)
+        this.records.set(release.id, record)
+        try { await this.persist() } catch (cause) { if (old) this.records.set(release.id, old); else this.records.delete(release.id); throw cause }
+        this.packages.set(release.id, { ...pkg, digest: release.contentDigest, directory: packageDirectory })
+      } catch (cause) { await rm(packageDirectory, { recursive: true, force: true }).catch(() => {}); throw cause }
+      await this.collectPackages()
+      this.log('INSTALLED_OFFICIAL', { pluginId: release.id }); this.publish()
+    }))
+  }
+  rollback(id: string): Promise<void> {
+    return this.queue.run(() => withPluginPackageLock(this.deps.directory, async () => {
+      const record = this.record(id)
+      if (record.enabled || record.source.kind !== 'official' || !record.previous) error('INVALID_REQUEST', 'Rollback requires a disabled plugin and an earlier official package.')
+      const previous = record.previous!
+      if (previous.source?.kind !== 'official' || !previous.release || !Array.isArray(previous.projects) || typeof previous.grant !== 'string') error('SOURCE_UNAVAILABLE', 'Invalid previous official release.')
+      if (previous.manifest?.native?.dataVersion !== record.manifest.native?.dataVersion) error('INVALID_REQUEST', 'Previous code is incompatible with current data.')
+      const restored = { ...previous, enabled: false, state: 'disabled' as const, failures: 0, error: undefined }
+      const pkg = await this.readPackage(restored)
+      if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Rollback identity mismatch.')
+      this.records.set(id, restored)
+      try { await this.persist() } catch (cause) { this.records.set(id, record); throw cause }
+      this.packages.set(id, pkg); await this.collectPackages(); this.log('ROLLED_BACK', { pluginId: id }); this.publish()
+    }))
+  }
+  private async startNative(record: RecordData): Promise<void> {
+    if (!record.manifest.native) return
+    if (!this.deps.createNativeService) error('SOURCE_UNAVAILABLE', 'Native service runtime is unavailable.')
+    const id = record.manifest.id
+    await this.nativeStops.get(id)
+    const directory = join(this.deps.directory, 'data', id, 'native')
+    await mkdir(directory, { recursive: true })
+    const importLegacy = await allowLegacyImport(this.deps.directory, id)
+    if (importLegacy) for (const source of this.deps.legacyCredentials?.[id] ?? []) {
+      if (!record.manifest.permissions.some(permission => permission.name === 'credentials.use')
+        || !record.manifest.contributes.credentials?.some(slot => slot.id === source.slot && slot.origin === source.origin)) continue
+      await this.credentials.importLegacy(id, source.slot, source.origin, source.path, () => this.allowed(record))
+    }
+    const projects = await Promise.all(record.projects.map(async projectId => ({ id: projectId, ...await this.deps.resolveProject(projectId, null) })))
+    const native = this.deps.createNativeService!(structuredClone(record), record.packageDirectory, code => {
+      if (this.nativeServices.get(id) !== native) return
+      this.nativeServices.delete(id)
+      this.disableRecord(record, code)
+      record.state = 'error'
+      this.log(code, { pluginId: id }); this.publish()
+      void this.queue.run(() => this.persist()).catch(() => this.log('STORAGE_UNAVAILABLE'))
+    }, {
+      read: async (slot, origin) => { this.allowed(record); return this.credentials.get(id, 'application', slot, origin) },
+      status: async (slot, origin) => { this.allowed(record); return this.credentials.status(id, 'application', slot, origin) },
+      set: async (slot, origin, value) => {
+        this.allowed(record)
+        this.network.revoke(id); this.background.revoke(id)
+        await this.credentials.set(id, 'application', slot, origin, value || null, () => this.allowed(record))
+        this.allowed(record); this.publish()
+      },
+    })
+    this.nativeServices.set(id, native)
+    try {
+      await native.start({ apiVersion: 1, pluginId: id, dataVersion: record.manifest.native.dataVersion, directory,
+        applicationDataDirectory: resolve(this.deps.directory, '../..'), allowLegacyImport: importLegacy, projects })
+      native.onEvent((name, value) => {
+        if (this.nativeServices.get(id) !== native || !record.enabled) return
+        const event = nativeEventSchema.safeParse(value)
+        if (!event.success) { native.stop('INVALID_NATIVE_PACKET'); return }
+        for (const instance of this.instances.values()) if (instance.plugin === id) {
+          if (event.data.scope && (event.data.scope.projectId !== instance.context.project?.projectId || event.data.scope.root !== instance.root)) continue
+          for (const [subscriptionId, subscription] of instance.subscriptions) if (subscription.kind === 'native') {
+            this.send(instance, { type: 'event', subscriptionId, event: 'native', payload: { name, value: event.data.data } })
+          }
+        }
+      })
+    } catch (cause) {
+      this.nativeServices.delete(id); native.stop(); throw cause
+    }
+  }
+  /** Shared services may call an installed feature through the same declared contract as its isolated UI. */
+  async nativeCall(id: string, method: string, input: JsonValue, projectId: string | null = null, scopePath: string | null = null, signal?: AbortSignal, instanceId?: string): Promise<JsonValue> {
+    const record = this.record(id)
+    this.allowed(record)
+    if (!record.manifest.native?.methods.includes(method)) error('UNKNOWN_METHOD', 'Native method is not declared.')
+    if (projectId && !record.projects.includes(projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
+    const project = projectId ? { id: projectId, ...await this.deps.resolveProject(projectId, scopePath) } : null
+    this.allowed(record)
+    const native = this.nativeServices.get(id)
+    if (!native) error('SOURCE_UNAVAILABLE', 'Native service is unavailable.')
+    signal?.throwIfAborted()
+    try { return await native!.call(method, { input, project, ...(instanceId ? { instanceId } : {}) }, signal) }
+    catch (cause) {
+      if (cause instanceof NativeServiceError && (PLUGIN_ERROR_CODES as readonly string[]).includes(cause.code)) error(cause.code as PluginErrorCode, cause.code)
+      if (cause instanceof NativeServiceError) error('SOURCE_UNAVAILABLE', `Native service request failed (${cause.code}).`)
+      throw cause
+    }
+  }
   enable(id: string, projects: string[]): Promise<void> {
     return this.queue.run(async () => {
       const record = this.record(id)
-      if (!this.developmentMode) error('DEVELOPMENT_MODE_REQUIRED', 'Enable local development mode first.')
-      const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+      if (!this.sourceAllowed(record)) error('DEVELOPMENT_MODE_REQUIRED', 'Enable local development mode first.')
+      const pkg = await this.readPackage(record)
       if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Plugin identity changed.')
       for (const project of projects) await this.deps.resolveProject(project, null)
       this.requiredDependencies(pkg.manifest)
@@ -188,11 +370,14 @@ export class PluginService {
       this.revokePlugin(id)
       try { await this.persist() } catch (cause) { Object.assign(record, old); record.enabled = false; record.state = 'disabled'; this.publish(); throw cause }
       this.packages.set(id, pkg)
+      try { await this.startNative(record) } catch (cause) {
+        this.disableRecord(record, 'SOURCE_UNAVAILABLE'); await this.persist(); this.publish(); throw cause
+      }
       this.log('ENABLED', { pluginId: id }); this.publish()
     })
   }
   disable(id: string): Promise<void> {
-    return this.queue.run(async () => { this.disableRecord(this.record(id)); try { await this.persist() } finally { this.publish() } })
+    return this.queue.run(async () => { this.disableRecord(this.record(id)); await this.nativeStops.get(id); try { await this.persist() } finally { this.publish() } })
   }
   private disableRecord(record: RecordData, reason?: string): void {
     this.revokePlugin(record.manifest.id)
@@ -202,7 +387,7 @@ export class PluginService {
     return this.queue.run(async () => {
       const record = this.record(id)
       try {
-        const pkg = await readPluginPackage(record.packageDirectory, record.source.kind === 'linked' ? record.source.directory : undefined)
+        const pkg = await this.readPackage(record)
         if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Plugin identity changed.')
         const unchanged = pkg.digest === record.digest
         if (unchanged && record.state !== 'error' && !force) { this.watchSource(record); return }
@@ -210,8 +395,9 @@ export class PluginService {
         record.manifest = pkg.manifest; record.digest = pkg.digest
         this.packages.set(id, pkg)
         if (record.grant !== permissionFingerprint(pkg.manifest)) { record.state = 'blocked'; record.error = 'PERMISSION_RECONFIRM_REQUIRED' }
-        else { record.state = record.enabled && this.developmentMode ? 'ready' : 'disabled'; delete record.error }
+        else { record.state = record.enabled && this.sourceAllowed(record) ? 'ready' : 'disabled'; delete record.error }
         await this.persist()
+        if (record.enabled && record.state === 'ready') await this.startNative(record)
         this.watchSource(record)
         this.log('RELOADED', { pluginId: id })
       } catch (cause) {
@@ -221,19 +407,18 @@ export class PluginService {
     })
   }
   uninstall(id: string): Promise<void> {
-    return this.queue.run(async () => {
+    return this.queue.run(() => withPluginPackageLock(this.deps.directory, async () => {
       const record = this.record(id)
+      if (await pluginDataInUse(this.deps.directory, id)) error('INVALID_REQUEST', 'Close the independent MCP clients using this plugin before uninstalling.')
       this.disableRecord(record)
+      await this.nativeStops.get(id)
       this.stopWatch(id)
       this.records.delete(id)
       try { await this.persist() } catch (cause) { this.records.set(id, record); this.publish(); throw cause }
       this.packages.delete(id)
-      // Only delete an owned, UUID-named copied package; linked sources never get removed.
-      if (record.source.kind === 'copied' && /^[a-f0-9-]{36}$/.test(relative(resolve(this.deps.directory, 'packages'), resolve(record.packageDirectory)))) {
-        await rm(record.packageDirectory, { recursive: true, force: true })
-      }
+      await this.collectPackages()
       this.log('UNINSTALLED', { pluginId: id }); this.publish()
-    })
+    }))
   }
   async setContext(projectId: string | null, scopePath: string | null, locale: string, theme: { id: string; tokens: Record<string, string> }): Promise<void> {
     const sequence = ++this.contextSequence
@@ -300,6 +485,7 @@ export class PluginService {
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
+      ...(view!.frame === 'plugin' ? { workbenchFrame: true as const } : {}),
       revision: this.current.revision, active: true, ...(instanceKey ? { instanceKey } : {}), ...(record.manifest.contributes.settings?.length ? { configuration: true as const } : {}),
       ...(record.manifest.capabilities.required.includes('configuration.open') ? { configurationNavigation: true as const } : {}),
       ...(Object.values(record.manifest.contributes.configurationViews ?? {}).includes(viewId) ? { configurationEditor: true as const } : {}),
@@ -371,7 +557,9 @@ export class PluginService {
     for (const [key, entry] of this.island) if (entry.instanceId === id) this.island.delete(key)
     if (![...this.instances.values()].some(item => item.plugin === instance.plugin && item.ready)) this.clearRecovery(instance.plugin)
     this.deps.closed?.(id)
-    for (const request of instance.requests.values()) request.cancelled = true
+    for (const request of instance.requests.values()) { request.cancelled = true; request.controller.abort() }
+    void this.nativeServices.get(instance.plugin)?.call('lifecycle.release', { instanceId: id }, AbortSignal.timeout(3000))
+      .catch(() => this.log('NATIVE_CONTEXT_RELEASE_FAILED', { pluginId: instance.plugin }))
     for (const edit of this.documentEdits.values()) if (edit.instance === instance) edit.finish(false)
     for (const edit of this.documentDrafts.values()) if (edit.instance === instance) edit.finish(null)
     instance.subscriptions.clear()
@@ -384,6 +572,14 @@ export class PluginService {
   }
   private clearRecovery(id: string): void { clearTimeout(this.recoveryTimers.get(id)); this.recoveryTimers.delete(id) }
   private revokePlugin(id: string, reason?: string): void {
+    const native = this.nativeServices.get(id)
+    this.nativeServices.delete(id)
+    if (native) {
+      const finished = native.shutdown().catch(() => this.log('SERVICE_STOP_FAILED', { pluginId: id })).finally(() => {
+        if (this.nativeStops.get(id) === finished) this.nativeStops.delete(id)
+      })
+      this.nativeStops.set(id, finished)
+    }
     this.background.revoke(id); this.network.revoke(id)
     const record = this.records.get(id)
     if (record) this.activations.set(record, (this.activations.get(record) ?? 0) + 1)
@@ -414,7 +610,7 @@ export class PluginService {
   }
   private record(id: string): RecordData { const record = this.records.get(id); if (!record) error('INVALID_REQUEST', 'Plugin is unavailable.'); return record! }
   private allowed(record: RecordData): void {
-    if (!this.developmentMode) error('DEVELOPMENT_MODE_REQUIRED', 'Local development mode is off.')
+    if (!this.sourceAllowed(record)) error('DEVELOPMENT_MODE_REQUIRED', 'Local development mode is off.')
     if (!record.enabled) error('PLUGIN_DISABLED', 'Plugin is disabled.')
     if (record.state === 'error' && record.error !== 'VIEW_LOAD_FAILED') error('SOURCE_UNAVAILABLE', 'Plugin source must be revalidated.')
     if (record.state === 'blocked' || record.grant !== permissionFingerprint(record.manifest)) error('PERMISSION_RECONFIRM_REQUIRED', 'Plugin permissions require confirmation.')
@@ -426,7 +622,7 @@ export class PluginService {
       const provider = this.records.get(consumer.plugin)
       const declaration = provider?.manifest.contributes[kind]?.find(item => item.id === consumer.id && item.version === consumer.version && item.consumers.includes(manifest.id))
       const shape = declaration && ('data' in declaration ? declaration.data : provider?.manifest.contributes.tasks?.find(task => task.id === declaration.task)?.input)
-      if (!provider?.enabled || !this.developmentMode || ['blocked', 'disabled'].includes(provider.state) || provider.state === 'error' && provider.error !== 'VIEW_LOAD_FAILED'
+      if (!provider?.enabled || !this.sourceAllowed(provider) || ['blocked', 'disabled'].includes(provider.state) || provider.state === 'error' && provider.error !== 'VIEW_LOAD_FAILED'
         || provider.grant !== permissionFingerprint(provider.manifest) || !shape || Object.keys(shape).length !== Object.keys(consumer.schema).length
         || Object.keys(shape).some(key => shape[key] !== consumer.schema[key])) error('DEPENDENCY_UNAVAILABLE', 'Required public contract is unavailable.')
     }
@@ -438,14 +634,14 @@ export class PluginService {
     try { serialized = JSON.stringify(packet) } catch { error('INVALID_REQUEST', 'Packet is not JSON.') }
     if (serialized === undefined || Buffer.byteLength(serialized) > 2 * 1024 * 1024) error('INVALID_REQUEST', 'Packet exceeds its limit.')
     const cancellation = cancelSchema.safeParse(packet)
-    if (cancellation.success) { const request = instance.requests.get(cancellation.data.requestId); if (request) request.cancelled = true; return null }
+    if (cancellation.success) { const request = instance.requests.get(cancellation.data.requestId); if (request) { request.cancelled = true; request.controller.abort() }; return null }
     const unsubscription = z.object({ protocol: z.literal(1), type: z.literal('unsubscribe'), subscriptionId: z.string().min(1).max(128) }).strict().safeParse(packet)
     if (unsubscription.success) { instance.subscriptions.delete(unsubscription.data.subscriptionId); this.background.unsubscribe(instance.id, unsubscription.data.subscriptionId); return null }
     const request = requestSchema.safeParse(packet)
     if (!request.success) error('INVALID_REQUEST', 'Invalid plugin packet.')
     const { requestId, method, params, contextRevision } = request.data!
     const start = Date.now()
-    let pending: { cancelled: boolean } | undefined
+    let pending: { cancelled: boolean; controller: AbortController } | undefined
     try {
       if (contextRevision !== instance.context.revision) error('STALE_CONTEXT', 'Context revision changed.')
       if (instance.used.has(requestId)) error('INVALID_REQUEST', 'Duplicate request ID.')
@@ -455,13 +651,13 @@ export class PluginService {
       if (instance.times.length >= 30 || instance.requests.size >= 16) error('RATE_LIMITED', 'Plugin request limit reached.')
       instance.times.push(start)
       validatePluginCall(this.record(instance.plugin).manifest, method, params)
-      pending = { cancelled: false }; instance.requests.set(requestId, pending)
+      pending = { cancelled: false, controller: new AbortController() }; instance.requests.set(requestId, pending)
       const valid = () => {
         this.instance(id, binding)
         if (pending!.cancelled) error('CANCELLED', 'Request was cancelled.')
-        if (Date.now() - start > (method === 'workspace.readText' || method === 'documents.readText' || method === 'context.read' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
+        if (Date.now() - start > (method === 'native.call' ? 30_000 : method === 'workspace.readText' || method === 'documents.readText' || method === 'context.read' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
       }
-      const result = await this.dispatch(instance, method, params as Record<string, unknown>, valid)
+      const result = await this.dispatch(instance, method, params as Record<string, unknown>, valid, pending.controller.signal)
       valid()
       if (method === 'app.getInfo' && !instance.ready) {
         instance.ready = true; clearTimeout(instance.timer)
@@ -494,8 +690,16 @@ export class PluginService {
       return { text, bytes: bytes.length, version: createHash('sha256').update(bytes).digest('hex') }
     } catch { return error('NOT_TEXT', 'File must be UTF-8 text.') }
   }
-  private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void): Promise<unknown> {
+  private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void, signal: AbortSignal): Promise<unknown> {
     const record = this.record(instance.plugin)
+    if (method === 'native.call') return this.nativeCall(instance.plugin, params.method as string, params.input as JsonValue, instance.context.project?.projectId ?? null, instance.root, signal, instance.id)
+    if (method === 'native.watch') {
+      if (!this.nativeServices.has(instance.plugin)) error('SOURCE_UNAVAILABLE', 'Native service is unavailable.')
+      if (instance.subscriptions.size >= 64) error('RATE_LIMITED', 'Subscription limit reached.')
+      const subscriptionId = randomUUID()
+      instance.subscriptions.set(subscriptionId, { kind: 'native' })
+      return { subscriptionId }
+    }
     if (['tasks.start', 'tasks.list', 'tasks.cancel', 'network.fetch', 'events.publish', 'events.subscribe', 'services.discover', 'services.call'].includes(method)) {
       valid()
       const identity = this.backgroundIdentity(instance.plugin, instance.context.project?.projectId ?? null, instance.scope)
@@ -545,6 +749,29 @@ export class PluginService {
       return { configuration, subscriptionId }
     })
     if (method === 'app.getInfo') return { pluginApiVersion: PLUGIN_API_VERSION, capabilities: [...PLUGIN_CAPABILITIES], locale: this.current.locale, theme: this.current.theme }
+    if (method === 'workspace.openDocument' || method === 'workspace.proposeTerminal') {
+      if (!this.deps.workspaceHandoff) error('SOURCE_UNAVAILABLE', 'Workspace handoff host is unavailable.')
+      const projectId = instance.context.project?.projectId, root = instance.root
+      const active = () => {
+        valid()
+        if (!projectId || !root || !instance.context.active || this.current.projectId !== projectId || this.current.root !== root) {
+          error('CONTEXT_UNAVAILABLE', 'Workspace handoffs require the active project page.')
+        }
+      }
+      active()
+      const key = `${instance.plugin}/${method}`, previous = this.workspaceHandoffs.get(key)
+      if (previous !== undefined && Date.now() - previous < (method === 'workspace.openDocument' ? 1000 : 10_000)) error('RATE_LIMITED', 'Workspace handoff limit reached.')
+      this.workspaceHandoffs.set(key, Date.now())
+      if (method === 'workspace.openDocument') {
+        const path = params.path as string, source = await this.readText(root!, path)
+        active()
+        if (source.version !== params.expectedVersion) error('RESOURCE_CHANGED', 'The source file changed.')
+        this.deps.workspaceHandoff!({ type: 'openDocument', pluginId: instance.plugin, projectId: projectId!, root: root!, path })
+        return { requested: true }
+      }
+      this.deps.workspaceHandoff!({ type: 'terminalDraft', pluginId: instance.plugin, name: record.manifest.name, projectId: projectId!, root: root!, text: params.text as string })
+      return { proposed: true }
+    }
     if (method === 'workspace.getContext') return instance.context
     if (method === 'context.providers' || method === 'context.read') {
       if (!instance.root || !instance.context.project) error('CONTEXT_UNAVAILABLE', 'Document context requires a project page.')
@@ -605,6 +832,30 @@ export class PluginService {
       const result = await this.readText(instance.root!, path)
       valid()
       return method === 'documents.readText' ? { ...result, path } : { text: result.text, bytes: result.bytes }
+    }
+    if (method === 'views.getFrame' || method === 'views.requestFrame') {
+      const view = record.manifest.contributes.views.find(view => view.id === instance.view)
+      if (view?.location !== 'workbench' || view.frame !== 'plugin') error('PERMISSION_DENIED', 'This view does not own a workbench frame.')
+      valid()
+      if (method === 'views.getFrame') {
+        const projects = []
+        for (const id of record.projects.slice(0, 128)) {
+          const project = await this.deps.resolveProject(id, null).catch(() => null)
+          valid()
+          if (project) projects.push({ id, name: project.name })
+        }
+        return { projects, projectId: instance.context.project?.projectId ?? null }
+      }
+      if (!this.deps.workbenchAction) error('SOURCE_UNAVAILABLE', 'Workbench frame is unavailable.')
+      if (params.action === 'selectProject') {
+        if (view!.scope !== 'project' || !record.projects.includes(params.projectId as string)) error('PERMISSION_DENIED', 'Project is not granted.')
+        await this.deps.resolveProject(params.projectId as string, null)
+        valid()
+      }
+      this.deps.workbenchAction!({ type: 'workbenchAction', pluginId: instance.plugin, viewId: instance.view,
+        currentProjectId: instance.context.project?.projectId ?? null, root: instance.root, action: params.action as string,
+        ...(params.action === 'selectProject' ? { projectId: params.projectId as string } : {}) })
+      return { requested: true }
     }
     if (method === 'views.open') {
       const target = record.manifest.contributes.views.find(view => view.id === params.view)!
@@ -778,11 +1029,20 @@ export class PluginService {
       return this.configuration.management(target.record.manifest, target.scope)
     })
   }
-  async deleteData(id: string): Promise<void> {
-    this.record(id); this.revokePlugin(id)
-    await this.storage.deletePlugin(id)
-    await this.configuration.deletePlugin(id)
-    this.background.deleteData(id); await this.credentials.deletePlugin(id)
+  deleteData(id: string): Promise<void> {
+    return this.queue.run(() => withPluginPackageLock(this.deps.directory, async () => {
+      const record = this.record(id)
+      if (await pluginDataInUse(this.deps.directory, id)) error('INVALID_REQUEST', 'Close the independent MCP clients using this plugin before deleting its data.')
+      this.disableRecord(record); await this.nativeStops.get(id); await this.persist(); this.publish()
+      await markPluginDataReset(this.deps.directory, id)
+      await this.storage.deletePlugin(id)
+      const dataRoot = resolve(this.deps.directory, 'data'), nativeData = resolve(dataRoot, record.manifest.id)
+      if (relative(dataRoot, nativeData) !== record.manifest.id) error('INVALID_REQUEST', 'Invalid plugin data directory.')
+      await rm(nativeData, { recursive: true, force: true })
+      await this.configuration.deletePlugin(id)
+      this.background.deleteData(id); await this.credentials.deletePlugin(id)
+      await this.collectPackages()
+    }))
   }
   private backgroundIdentity(plugin: string, projectId: string | null, scope?: string): BackgroundIdentity {
     const record = this.record(plugin); this.allowed(record)
@@ -993,5 +1253,15 @@ export class PluginService {
     await this.credentials.set(request.id, identity.scope, slot!.id, slot!.origin, request.value, identity.valid)
     identity.valid(); this.publish(); return { configured: request.value !== null }
   }
-  dispose(): void { this.background.revoke(); this.network.close(); if (this.eventTimer) clearTimeout(this.eventTimer); if (this.islandTimer) clearTimeout(this.islandTimer); this.pendingEvents.clear(); for (const id of this.watchers.keys()) this.stopWatch(id); for (const id of [...this.instances.keys()]) this.close(id); for (const id of this.recoveryTimers.keys()) this.clearRecovery(id) }
+  async dispose(): Promise<void> {
+    for (const id of [...this.nativeServices.keys()]) this.revokePlugin(id)
+    this.background.revoke(); this.network.close()
+    if (this.eventTimer) clearTimeout(this.eventTimer)
+    if (this.islandTimer) clearTimeout(this.islandTimer)
+    this.pendingEvents.clear()
+    for (const id of this.watchers.keys()) this.stopWatch(id)
+    for (const id of [...this.instances.keys()]) this.close(id)
+    for (const id of this.recoveryTimers.keys()) this.clearRecovery(id)
+    await Promise.all(this.nativeStops.values())
+  }
 }

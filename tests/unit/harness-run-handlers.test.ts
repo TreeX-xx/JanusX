@@ -55,7 +55,7 @@ vi.mock('@janus-agent/harness-node', async importOriginal => ({
   ...await importOriginal<typeof import('@janus-agent/harness-node')>(),
   collectTaskSnapshot: vi.fn(async () => ({ ok: true, work: { review: 'self' } })),
 }))
-vi.mock('../../src/main/harness/note-authoring', () => ({ noteAuthoringContext: vi.fn(async () => ({ schema: 'harness-note/1' })) }))
+vi.mock('../../plugins/blueprint/src/main/notes/note-authoring', () => ({ noteAuthoringContext: vi.fn(async () => ({ schema: 'harness-note/1' })) }))
 
 // Note: tests own config discovery — see .agents/notes/2026-09-20-reproducible-verification.md
 vi.mock('node:fs', async (importOriginal) => {
@@ -83,11 +83,12 @@ vi.mock('../../src/main/harness/service', () => ({
   harnessNoteService: {
     resolveRoot: mocks.resolveRoot,
     onChange: vi.fn(),
-    projectView: mocks.projectView,
     previewShareImport: mocks.previewShareImport,
     applyShareImport: mocks.applyShareImport,
   },
 }))
+
+vi.mock('../../src/main/blueprint/note-service', () => ({ blueprintNoteView: { projectView: mocks.projectView } }))
 
 vi.mock('../../src/main/harness/execution-adapter', () => ({
   prepareTaskRun: mocks.prepareTaskRun,

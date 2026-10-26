@@ -53,7 +53,25 @@ npm run dev
 
 `npm run dev` 使用 `%APPDATA%/JanusX-Dev`，与安装版和便携版的应用数据隔离。开发输出在 `.cache`，生产构建在 `out`；运行中的生产预览若仍使用 `out`，请用 `npm run build:check` 输出到 `artifacts/build-check`，避免覆盖它正在读取的文件。
 
+开发页面默认绑定 `127.0.0.1`，启动时由系统分配可用端口，实际地址见终端输出；Electron 自动使用该地址。这样可以避开 Windows Hyper-V/WSL 的保留端口范围。需要固定端口时可设置 `ELECTRON_VITE_PORT`，但该端口必须未被系统保留；`strictPort: false` 只能处理端口占用，不能解决保留端口的 `EACCES`。
+
 更新或重新构建 sibling 后，在 JanusX 运行 `npm run prepackage` 刷新已安装副本；它核对 npm 发布文件清单，不会替你编译 sibling 源码。依赖声明变化时提交相应锁文件，并同步 CI 固定 revision。
+
+## 本地测试蓝图插件
+
+完成首次依赖准备后，在仓库根目录执行：
+
+```bash
+npm run dev:blueprint
+```
+
+命令构建并签署本地插件包，启动完整桌面并安装为停用状态，不需要上传 Release。在这个测试桌面中添加项目，进入“设置 → 插件 → 已安装”，查看 Blueprint 的权限、勾选项目并授权启用，再从工具箱打开蓝图。已有 Note 的浏览不需要模型；测试审核和讨论时，在此测试配置中添加自己的真实模型。
+
+应用数据保存在 `.cache/blueprint-local/profile`，知识库位于其下的 `knowledge`，与日常应用数据分开。设置修改后自动保存，发生并发冲突时保留输入并等待显式重新载入。修改插件代码后，先退出该桌面及启动命令，再重跑；新包使用递增的 `1.0.0-local.N` 版本，数据保留，但需要重新授权启用。本地签名身份和版本产物保存在忽略目录中，正常构建的生产信任配置不变。
+
+只构建不启动时执行 `npm run dev:blueprint -- --prepare-only`。`npm run test:blueprint:local` 在临时配置中验证完整桌面的安装、启用、阅读和桌面退出后的 MCP；`npm run plugins:blueprint:check` 验证仓库外独立构建及同产物的签名载体验证。后者使用确定性模型 fixture，不代表真实供应商审核效果。完整迁移和发布缺口见[官方插件实施记录](../.agents/notes/planning/blueprint-official-plugin.md)。
+
+蓝图包现在为单个自包含 `.jxp`，用户在“设置 → 插件 → 已安装 → 导入插件包”中选择文件，再审阅权限、选择项目并启用。描述与签名已嵌入包内，不需要另外选择 JSON 或上传 Release。发布工具仍生成 `.release.json` 供目录工具使用，用户只需 `.jxp`。本地导入不访问目录服务，普通 ZIP 不受支持；主程序仍需预置信任对应签名公钥，并允许蓝图的本机服务。专用测试构建使用独立本地签名；10-26 交付的正常主程序已预置 janusx-blueprint-20261026 公钥及蓝图 native allowlist，可直接导入同批 .jxp，不会因导入包而自动信任新发布者。目录与 Release 尚未上线。
 
 ## 工作区文件归属
 

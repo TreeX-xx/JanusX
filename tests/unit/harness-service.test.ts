@@ -3,8 +3,8 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HarnessNoteService, claimsHarnessSchema } from '../../src/main/harness/service'
-import { kindToNodeType, lifecycleToStatus } from '../../src/main/notes/note-to-blueprint'
+import { BlueprintNoteService as HarnessNoteService, claimsHarnessSchema } from '../../plugins/blueprint/src/main/notes/service'
+import { kindToNodeType, lifecycleToStatus } from '../../plugins/blueprint/src/main/notes/note-to-blueprint'
 import { toNoteDoc } from '../../src/main/notes/note-provider'
 
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'
@@ -87,7 +87,7 @@ describe('harness service roundtrip', () => {
     // UI side: hashed replace through the single transaction.
     const hash = view.blueprint.nodes[id]?.sourceHash as string
     const current = await svc.readNote(root, id)
-    const { applyNodePatch } = await import('../../src/main/notes/note-to-blueprint')
+    const { applyNodePatch } = await import('../../plugins/blueprint/src/main/notes/note-to-blueprint')
     const produced = applyNodePatch(toNoteDoc(current.note), { title: 'T2' })
     if (!('edit' in produced)) throw new Error('patch rejected')
     const markdown = svc.mergeNoteEdit(current.note, current.raw, produced.edit, 'test')
@@ -118,7 +118,7 @@ describe('harness service roundtrip', () => {
       NOTE(id, 'requirement', 'proposed', 'Terminal'),
     )
     const current = await svc.readNote(root, id)
-    const { applyNodePatch } = await import('../../src/main/notes/note-to-blueprint')
+    const { applyNodePatch } = await import('../../plugins/blueprint/src/main/notes/note-to-blueprint')
     const produced = applyNodePatch(toNoteDoc(current.note), { title: 'UI' })
     if (!('edit' in produced)) throw new Error('patch rejected')
     // Merge against the stale read: the transaction must refuse.

@@ -14,7 +14,7 @@
     "maintenance",
     "ux"
   ],
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-10-24T18:12:24.138Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b"
 }
 ---
@@ -49,7 +49,7 @@
 
 **不**新增 `BlueprintOperation` 变体。`changeset.ts` 有六处对 10 个操作字面量的穷举 switch，`service.ts` 的 `isAuditRecord` 用 `default: return false` 校验，`changeSetSnapshot` 已作为 JSON 落盘——加一个副作用操作会同时炸掉审计记录校验和旧记录的向前兼容，而且「撤销一次终端启动」本身没有意义。
 
-派发因此是面板上的独立动作，走 [dispatch-brief.ts](../../../../src/main/janus/maintenance/dispatch-brief.ts)：
+派发因此是面板上的独立动作，走 [dispatch-brief.ts](../../../../plugins/blueprint/src/main/janus/maintenance/dispatch-brief.ts)：
 
 - `composeDispatchBrief` 复用提案的同一套授权闸门（抽出 `authorizeTurn`：会话归属 + 授权工作区根路径必须与已挂载的 agent session 一致）
 - 模型只产出散文：目标 / 步骤 / 验收 / 约束 / Note 引用

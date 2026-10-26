@@ -292,6 +292,24 @@ describe('right tool persistence contract', () => {
     )
   })
 
+  it('persists width changes but skips identical preferences during tool switches', async () => {
+    const { storage, storeModule } = await loadStores()
+    const writes = vi.spyOn(storage, 'setItem')
+    const store = storeModule.useRightToolStore
+    store.getState().setPanelWidth(310, 'files')
+    writes.mockClear()
+    for (let i = 0; i < 8; i++) {
+      store.getState().openTool('git')
+      store.getState().openTool('files')
+    }
+    expect(writes.mock.calls.filter(([key]) => key === RIGHT_TOOL_STORAGE_KEY)).toHaveLength(0)
+    store.getState().setPanelWidth(330, 'files')
+    expect(JSON.parse(storage.getItem(RIGHT_TOOL_STORAGE_KEY)!).state.panelWidths.files).toBe(330)
+    store.persist.clearStorage()
+    store.getState().setPanelWidth(330, 'files')
+    expect(JSON.parse(storage.getItem(RIGHT_TOOL_STORAGE_KEY)!).state.panelWidths.files).toBe(330)
+  })
+
   it('delegates expand, toggle and collapse commands to the existing App Store', async () => {
     const { appModule, storeModule } = await loadStores()
     const { useAppStore } = appModule

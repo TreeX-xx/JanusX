@@ -3,10 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { GitReviewScheduler } from '../../src/main/blueprint/review/git-scheduler'
-import { reviewContextKey } from '../../src/main/blueprint/suggestions/store'
-import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../src/shared/blueprint-review-settings'
-import type { ReviewContext, ReviewItem } from '../../src/shared/blueprint-review'
+import { GitReviewScheduler } from '../../plugins/blueprint/src/main/blueprint/review/git-scheduler'
+import { reviewContextKey } from '../../plugins/blueprint/src/main/blueprint/suggestions/store'
+import { DEFAULT_BLUEPRINT_REVIEW_SETTINGS } from '../../plugins/blueprint/src/shared/blueprint-review-settings'
+import type { ReviewContext, ReviewItem } from '../../plugins/blueprint/src/shared/blueprint-review'
 
 let root: string, path: string, context: ReviewContext, scheduler: GitReviewScheduler
 let saved: ReviewItem[], settings = structuredClone(DEFAULT_BLUEPRINT_REVIEW_SETTINGS)

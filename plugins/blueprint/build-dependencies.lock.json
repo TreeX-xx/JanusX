@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "dependencies": [
+    {
+      "name": "@janus-agent/agent-core",
+      "version": "0.1.0",
+      "file": "janus-agent-agent-core-0.1.0.tgz",
+      "sha256": "342349a6f17c14c0ac1bbfb80453b41a03ff3f5450c1decfd74f5deded82c090",
+      "integrity": "sha512-a7AAWt/ARplDaa9GWQHHmNbZgnnWgTIBdd2edww+FaLF78ZiEeA0lJgdyVxcWfSCMmiz1C/trFOhDc+O74wB1Q=="
+    },
+    {
+      "name": "@janus-agent/chat-core",
+      "version": "0.1.0",
+      "file": "janus-agent-chat-core-0.1.0.tgz",
+      "sha256": "0414432a024f5834d357f53a947d123e564cf26a3bc7cdbc4e05e05ea6e73652",
+      "integrity": "sha512-qkaKza99yxuZ8Qh3Tv8vK0cK9dyK8evYUR4gji/HhosxGp8XFld5CXUNDw8sZ9yB5G30YLbyV4xhMd+oAprtCA=="
+    },
+    {
+      "name": "@janus-agent/harness-core",
+      "version": "0.2.0",
+      "file": "janus-agent-harness-core-0.2.0.tgz",
+      "sha256": "771f678014fcbb971abdd6d4dd4604c017ae04932c051a63fbeaac72a2a5c3f8",
+      "integrity": "sha512-oaCj+hBiYBgDA7EV7dq+KE9/M13DF7HOU7HLbHw1uUwB8E7IrtCqKfYZQ8wEV2C66bcXJ290O5nPcBJ/pxGA+w=="
+    },
+    {
+      "name": "@janus-agent/harness-node",
+      "version": "0.2.0",
+      "file": "janus-agent-harness-node-0.2.0.tgz",
+      "sha256": "5679343c00ce3d3dd4000df66437e491072e3986050c2e1cc2777ffbbf3606c2",
+      "integrity": "sha512-MpEjcVS2LwpO1LJkj6oYDHeJ1fCk4Otle/ssiJ25Fszpbkuf3zoSr5JJ3cmsuax7EyEJrqu9LvwgdKwixPYHMw=="
+    },
+    {
+      "name": "@janus-agent/janus-agent",
+      "version": "0.1.0",
+      "file": "janus-agent-janus-agent-0.1.0.tgz",
+      "sha256": "cc583a765569b227b4688cb66e49c95e339fa96cb491c169a3d923749954f4ff",
+      "integrity": "sha512-lR8RflRR7ltVMYbvrxdiT2iodmWXiIwBhOjZ0vQ/tuxK+IrEfr0XgqJ/HKp1CqL7lsBJXb98VFa56psueVs+yg=="
+    },
+    {
+      "name": "@janus-agent/node-hosts",
+      "version": "0.1.0",
+      "file": "janus-agent-node-hosts-0.1.0.tgz",
+      "sha256": "8a3ea91f830d2edde912df621590f56e3cdd5874874097a60f76ec825d9d1ee9",
+      "integrity": "sha512-bUPwl1Q4ENZ0WDGDy7v8UjPJMMP7ctpfg7al8QSq9XrwED6WQPhvYNur3c4NZRYq72X2Fe4rnHYHfXheZl0l7g=="
+    },
+    {
+      "name": "@janusx/llm-core",
+      "version": "0.1.0",
+      "file": "janusx-llm-core-0.1.0.tgz",
+      "sha256": "67c62dc0f5f61532e888871e8d79ebfe5787d3dd5c02102b5f0872a6202bba9d",
+      "integrity": "sha512-fRUsmzO7vG4IDTWCc+3bW2SIUmlMkTTaJOAcJ+JyJv58qAAX1PX6tsevDorg26Wwn/dY110CrGwhsv1DK9z5OQ=="
+    },
+    {
+      "name": "@janusx/plugin-sdk",
+      "version": "0.1.0",
+      "file": "janusx-plugin-sdk-0.1.0.tgz",
+      "sha256": "a6a4049d950b3c2366cb136acea172ce93f4fb301b7de2b9785e63e2351f2e76",
+      "integrity": "sha512-gWOgHRLJm+eh6FA0ruOYTtOjF4YpePXNTLWAFsi0oYGca6fKzYZVnlp5FnWpsnMD7txR3kimZPszTQ2vLVc4+Q=="
+    }
+  ]
+}

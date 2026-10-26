@@ -6,7 +6,7 @@
 import type { BlueprintNodeStatus } from '@/services/blueprint'
 import { useThemeStore } from '@/stores/theme'
 import { getThemeBase } from '../../../../shared/theme/registry'
-import { blueprintStatusFilter } from '../../../../shared/blueprint-note-status'
+import { blueprintStatusFilter } from '../../../../../plugins/blueprint/src/shared/blueprint-note-status'
 import type { BlueprintNode } from '@/services/blueprint'
 
 export type BlueprintStatusFilter = BlueprintNodeStatus | `note:${string}` | 'all'
