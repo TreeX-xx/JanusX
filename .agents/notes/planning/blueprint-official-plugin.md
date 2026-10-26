@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-26T15:45:23.290Z",
+  "updated": "2026-10-26T15:54:55Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -24,7 +24,7 @@
 
 本文维护实施范围、现有代码和剩余出口。用户已授权完整实施，主 Agent 按普通 xdo 顺序执行，不创建 Task。主包源码拆分和 Windows 安装器／便携包代表验证已完成，正式分发与完整迁移验收继续推进。验收集中维护在[插件架构需求](../workbench/requirements/plugin-architecture-forms.md) AC-20–27，原 AC-17／18 继续有效，以上条目保持未勾选。
 
-当前已增加 official 签名来源、目录验证、下载、原子安装、更新和回退，以及“已安装／发现插件／开发者”管理页。正式来源不要求开发模式；10-26 本地交付已在生产 trust.json 中预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist，目录未上线。蓝图后台与独立 UI 由 plugins/blueprint 拥有。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码：旧 CRUD、画布编辑、投影与迁移 IPC 返回 BLUEPRINT_PLUGIN_REQUIRED；通用 Note 与圆桌继续使用共享服务，公共作者工具和初始化适配归 packages/note-tools。BP-5 已有主包实物、无插件启动及三态资源证据；BP-6 仍缺完整故障、历史数据和功能矩阵。原功能基线见[蓝图验收记录](../blueprint/implementation-baseline.md)，已有未验收项继续保留。
+当前已增加 official 签名来源、目录验证、下载、原子安装、更新和回退，以及“已安装／发现插件／开发者”管理页。正式来源不要求开发模式；10-26 本地交付已在生产 trust.json 中预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist，目录未上线。蓝图后台与独立 UI 由 plugins/blueprint 拥有。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码：旧 CRUD、画布编辑、投影与迁移 IPC 返回 BLUEPRINT_PLUGIN_REQUIRED；通用 Note 与圆桌继续使用共享服务，公共作者工具和初始化适配归 packages/note-tools。BP-5 已有主包实物、无插件启动及三态资源证据；BP-6 已补损坏导入与两个旧状态导入中断边界，仍缺完整故障、历史数据和功能矩阵。原功能基线见[蓝图验收记录](../blueprint/implementation-baseline.md)，已有未验收项继续保留。
 
 ## 已确认的迁移回退与首次加载故障
 
@@ -235,7 +235,7 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 | 设置与数据 | 配置并发、页面草稿、旧状态和凭据导入已有定向证据；历史版本矩阵、真实旧用户副本、升级与回退冲突待验收。 |
 | 包边界 | 三个宿主入口均无插件业务输入，主包已排除蓝图树及 React Flow；Windows 安装器／便携启动已验证并保存体积及三态资源数据。仍需稳定 CI 的可消费共享修订、完整升级用户矩阵和持续启停资源测量。 |
 | 发布 | 配置真实密钥／allowlist、目录服务、独立分发仓库及 workflow；目前无真实下载源或发布资产。 |
-| 验收 | Windows 实物有代表验证；安装向导、完整升级迁移、故障演练、长时间资源与宿主／插件版本矩阵仍待完成。原蓝图真实 JEV 与客户端兼容缺口继续保留。 |
+| 验收 | Windows 实物已覆盖损坏包拒绝、数据保留与重启，旧状态导入已有杀进程恢复证据；安装向导、完整升级迁移、磁盘满／断电、长时间资源与宿主／插件版本矩阵仍待完成。原蓝图真实 JEV 与客户端兼容缺口继续保留。 |
 
 未创建远端仓库／Release，未修改用户真实模型、自动审核开关或客户端全局配置。定向测试使用临时项目、临时签名密钥及确定性供应商响应，不代表生产供应商质量或完整功能已发布。
 
@@ -342,9 +342,17 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 同一候选宿主另通过真实 1.0.0 包重装、升级到 1.0.1／1.0.2、回退到 1.0.0：设置提交阈值从 9 改为 11，升级与回退均保留 11，更新后等待显式启用，根 Note 未改。1.0.1 收据保留在 verification/compatibility-1.0.1，当前 verification/compatibility/blueprint-packaged.json 记录 1.0.2 的 versionChecks；未安装及重启停用的原资源采样仍明确来自 1.0.1。这只验证同为宿主 0.9.4 的候选打包版与这些插件的设置／安装生命周期，不覆盖所有数据 schema、旧宿主或外部 MCP 在用版本。
 
-`node scripts/check-packaged-runtime.mjs --portable --release-dir release/2026-10-26-migration-r2` 通过：实际归档闭包与体积预算、仓库外完整模块图、LLM adapters、正常 GPU 的可见 GUI、便携载荷与启动器均有证据。安装向导尚未操作。补充的严格未用类型检查、包边界／exclusions、三份单元 26 项及本地版本递增 1 项通过；未重跑完整测试套件。完整历史副本、磁盘满／杀进程恢复、全部宿主／插件组合和生产下载仍未验收。
+`node scripts/check-packaged-runtime.mjs --portable --release-dir release/2026-10-26-migration-r2` 通过：实际归档闭包与体积预算、仓库外完整模块图、LLM adapters、正常 GPU 的可见 GUI、便携载荷与启动器均有证据。安装向导尚未操作。补充的严格未用类型检查、包边界／exclusions、三份单元 26 项及本地版本递增 1 项通过；未重跑完整测试套件。下述两个旧状态中断边界已补，完整历史副本、磁盘满／断电、全部宿主／插件组合和生产下载仍未验收。
 
 覆盖证明读取与索引一样使用共享 Notes 锁；原等待只覆盖索引，导致事务已提交后，projectView 的 listTaskResults／验收证明读取仍可直接报 BUSY，审计停在 pending。插件 1.0.2 将这个只读分支纳入相同的 100ms 间隔、最多 10 秒等待。没有捕获写事务并重放、放宽权限或跳过证明。新增真实锁回归在修改前准确复现 BUSY，修复后验证只提交一次、正文及事务目录保持提交后的结果；非 BUSY 的 IO_ERROR 原样返回。新回归 2 项通过，相关 maintenance-harness-apply 11 项及真实 native 15 项通过，日志为 artifacts/plugins/migration-coverage-before.log、migration-coverage-final.log 和 migration-coverage-after.log。1.0.2 另通过九依赖独立构建、同包签名 Electron 载体及正常生产包导入／设置升级回退，门禁日志为 migration-proof-independent-check.log、migration-proof-packaged-compatibility.log。持续锁与持久化后读取的其它失败仍不属于已完成的恢复保证。
+
+### 损坏导入与旧状态导入中断
+
+`node scripts/plugins/check-blueprint-packaged.mjs release/2026-10-26-migration-r2 release/2026-10-26-migration-r2/official.blueprint-1.0.2.jxp --faults` 通过。测试从仓库外副本启动同一 Windows 候选宿主，正常导入生产签名 1.0.2、授权、打开真实图并保存设置，再停用并依次注入截断文件、载荷篡改、签名篡改、未知 signer、同版本覆盖。各次错误码和设置页可读提示均符合预期，registry、安装包全部文件和已有私有数据逐文件 SHA-256 不变，未启动插件进程。取消文件选择同样不写入。随后重启保持停用，重新启用可读保存的提交阈值 9，最后停用释放进程；项目全部 Notes 的逐文件哈希与初始副本一致。七项检查记录于 verification/faults/blueprint-packaged.json，命令日志为 artifacts/plugins/migration-packaged-faults.log。
+
+[旧状态导入测试](../../../tests/unit/blueprint-legacy-data.test.ts)将真实迁移器打包到独立子进程，只在真实文件写入完成后暂停：分别在暂存收据写完和 review 目录 rename 完成后执行 SIGKILL。恢复时原始设置字节不变、自动审核关闭、剩余蓝图继续导入、暂存目录清理且重试结果一致。目录已提交场景先模拟用户将提交阈值改为 17，恢复保留 17；SQLite 中尚未提交的总收据不能覆盖已提交目录的数据。`npx vitest run tests/unit/blueprint-legacy-data.test.ts` 的 8 项通过，含新增两个杀进程边界，日志为 artifacts/plugins/migration-interruption.log。
+
+本轮仅增加验证脚本和回归，交付的宿主与插件字节未改。两个边界使用合成旧状态，杀进程不等于断电；损坏包经本地文件选择导入，不覆盖下载中断、磁盘满、安装中断、全部历史 schema、维护写后审计恢复或长时间启停。BP-6 及 AC-20–27 继续未签收。
 
 ## 10-26 本地交付签名
 

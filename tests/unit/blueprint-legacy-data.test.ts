@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest'
 import { fork } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
@@ -93,6 +93,72 @@ it('serializes desktop and MCP importers in separate processes', async () => {
   await Promise.all([first.ready, second.ready]); first.run(); second.run()
   const [a, b] = await Promise.all([first.result, second.result])
   expect(a).toEqual(b); expect(a).toMatchObject({ steps: { review: { state: 'imported' } } })
+})
+
+// Note: .agents/notes/planning/blueprint-official-plugin.md — kill a real importer at both filesystem commit boundaries.
+it.each(['staged', 'renamed'] as const)('recovers after killing an importer with its review directory %s', async phase => {
+  const f = await fixture(), worker = join(f.root, 'interrupted.cjs')
+  const original = await readFile(join(f.source, 'review-settings.json'))
+  const id = 'cc7050c0-21f5-4b49-b3fd-0933a714a200'
+  await mkdir(join(f.home, 'blueprints'))
+  await writeFile(join(f.home, 'blueprints', id + '.json'), JSON.stringify({ id, name: 'Old board' }))
+  await build({ stdin: { contents: `
+    import { migrateLegacyData } from './plugins/blueprint/src/main/legacy-data';
+    process.once('message', async options => {
+      try { await migrateLegacyData(options); process.exit(2) }
+      catch (error) { console.error(error); process.exit(1) }
+    });`, resolveDir: process.cwd(), loader: 'ts' },
+    outfile: worker, bundle: true, platform: 'node', format: 'cjs', logLevel: 'silent',
+    plugins: [{ name: 'pause-at-durable-boundary', setup(builder) {
+      builder.onResolve({ filter: /^node:fs\/promises$/ }, args => ({ path: args.path, namespace: 'interruption' }))
+      builder.onLoad({ filter: /.*/, namespace: 'interruption' }, () => ({ contents: `
+        export * from 'fs/promises';
+        import { writeFile as actualWrite, rename as actualRename } from 'fs/promises';
+        import { basename } from 'node:path';
+        async function pause(boundary) {
+          if (boundary !== ${JSON.stringify(phase)}) return;
+          process.channel.ref();
+          process.send({ boundary });
+          await new Promise(() => {});
+        }
+        export async function writeFile(path, ...rest) {
+          await actualWrite(path, ...rest);
+          if (basename(path) === '.legacy-import.json') await pause('staged');
+        }
+        export async function rename(source, target) {
+          await actualRename(source, target);
+          if (basename(target) === 'review') await pause('renamed');
+        }`, loader: 'js' }))
+    } }],
+  })
+  const child = fork(worker, [], { execArgv: [], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true })
+  cleanup.push(() => { child.kill() })
+  const exited = new Promise<{ code: number | null; signal: string | null }>((resolve, reject) => {
+    child.once('error', reject)
+    child.once('exit', (code, signal) => resolve({ code, signal }))
+  })
+  const reached = new Promise<unknown>(resolve => child.once('message', resolve))
+  child.send(f.options)
+  expect(await Promise.race([reached, exited.then(result => { throw new Error('Importer exited before boundary: ' + JSON.stringify(result)) })])).toEqual({ boundary: phase })
+  expect(child.kill('SIGKILL')).toBe(true)
+  const exit = await exited
+  expect(exit.code !== 0 || exit.signal !== null).toBe(true)
+  const committed = join(f.directory, 'review/review-settings.json')
+  if (phase === 'staged') await expect(readFile(committed)).rejects.toMatchObject({ code: 'ENOENT' })
+  else {
+    // User edits made after the directory commit must win over the old source during recovery.
+    const settings = JSON.parse(await readFile(committed, 'utf8'))
+    settings.automatic.commits = 17
+    await writeFile(committed, JSON.stringify(settings))
+  }
+  const recovered = await migrateLegacyData(f.options)
+  expect(recovered.steps.review).toMatchObject({ state: 'imported', automaticReviewWasEnabled: true })
+  expect(recovered.steps.legacy).toMatchObject({ state: 'imported', files: 1 })
+  expect(JSON.parse(await readFile(committed, 'utf8')).automatic).toEqual({ enabled: false, commits: phase === 'renamed' ? 17 : 11 })
+  expect(await readFile(join(f.source, 'review-settings.json'))).toEqual(original)
+  expect(JSON.parse(await readFile(join(f.directory, 'legacy', id + '.json'), 'utf8'))).toEqual({ id, name: 'Old board' })
+  expect((await readdir(f.directory)).filter(name => name.startsWith('.legacy-stage-'))).toEqual([])
+  expect(await migrateLegacyData(f.options)).toEqual(recovered)
 })
 
 it('rejects linked source directories and respects an explicit private-data reset across reinstall', async () => {

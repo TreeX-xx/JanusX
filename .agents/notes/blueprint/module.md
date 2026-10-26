@@ -84,7 +84,7 @@
       "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/47c7be36-5a48-4a27-aa86-d4f9dffb641c"
     }
   ],
-  "updated": "2026-10-26T15:35:58.162Z",
+  "updated": "2026-10-26T15:54:55Z",
   "moduleState": "partial"
 }
 ---
@@ -113,7 +113,7 @@ Janus 负责产品投影和交互；agentX 的共享 harness 包拥有解析、�
 
 [产品方向](product-direction.md)是蓝图融合讨论的入口，[交付计划](evolution-roadmap.md)集中维护阶段、依赖与待讨论清单。Note 与建议的变化联动由[建议管理模块](maintenance/suggestions/module.md)集中维护，目标删除后自动清理建议。专题分别由[内容审核](maintenance/note-content-review.md)、[独立 Note MCP](note-mcp.md)和[个人工作台](../knowledge/personal-memory-workspace.md)承载。用户已确认概念融合、设置由蓝图承接、个人画像保留，以及 MCP 模块化与一键导入；原文审核、当前建议、独立 MCP 与 Git 调度已实现，共享实现继续遵循 agentX 归属。实际测试、终端兼容性和未验收项见[实施基线](implementation-baseline.md)，不将实现接线等同完整版本发布。
 
-[官方可下载插件专项](../planning/blueprint-official-plugin.md)把蓝图专属界面与业务按需分发，保留共享引擎、原始 Notes 及独立 Note MCP 的既有契约。隔离 UI、签名分发、受信 native 服务、稳定 MCP 启动器、旧状态导入和显式 JSON 转换已有实现。仓库外锁定构建现在使用九个公开归档，原八个哈希保持不变；同产物真实页面回归接入本地与 CI，完整桌面验证使用隔离项目和 profile。宿主只保留拒绝旧调用的兼容通道，三个入口的实际业务输入由门禁约束为零。完整功能、历史数据矩阵、资源与真实发布继续按 BP-0–BP-6 推进，AC-20–27 未签收。共享重命名撤销和维护应用锁竞争的具体缺口归专项记录。
+[官方可下载插件专项](../planning/blueprint-official-plugin.md)把蓝图专属界面与业务按需分发，保留共享引擎、原始 Notes 及独立 Note MCP 的既有契约。隔离 UI、签名分发、受信 native 服务、稳定 MCP 启动器、旧状态导入和显式 JSON 转换已有实现。仓库外锁定构建现在使用九个公开归档，原八个哈希保持不变；同产物真实页面回归接入本地与 CI，完整桌面验证使用隔离项目和 profile。宿主只保留拒绝旧调用的兼容通道，三个入口的实际业务输入由门禁约束为零。Windows 实物损坏导入、数据保留及重启已通过，旧状态导入两个杀进程边界可恢复；完整功能、历史数据矩阵、资源与真实发布继续按 BP-0–BP-6 推进，AC-20–27 未签收。共享重命名撤销和维护应用锁竞争的具体缺口归专项记录。
 
 ## Acceptance criteria
 

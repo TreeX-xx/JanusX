@@ -1,21 +1,25 @@
 // Note: .agents/notes/planning/blueprint-official-plugin.md — real production package and resource evidence.
-// Run after packaging: node scripts/plugins/check-blueprint-packaged.mjs RELEASE_DIR PACKAGE [BASELINE_DIR] [--compatibility]
+// Run after packaging: node scripts/plugins/check-blueprint-packaged.mjs RELEASE_DIR PACKAGE [BASELINE_DIR] [--compatibility | --faults]
 import { _electron, expect } from '@playwright/test'
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { distributionLibrary } from './distribution-library.mjs'
 
-const [release, archive, baseline] = process.argv.slice(2)
+const arguments_ = process.argv.slice(2)
+const [release, archive, baseline] = arguments_.filter(value => !value.startsWith('--'))
 if (!release || !archive) throw new Error('Usage: check-blueprint-packaged.mjs RELEASE_DIR PACKAGE [BASELINE_DIR]')
-const compatibility = process.argv.includes('--compatibility')
+const compatibility = arguments_.includes('--compatibility'), faults = arguments_.includes('--faults')
+if (arguments_.some(value => value.startsWith('--') && !['--compatibility', '--faults'].includes(value)) || compatibility && faults) {
+  throw new Error('Choose one supported verification mode')
+}
 if (compatibility && !baseline) throw new Error('Compatibility mode requires the original delivery directory')
-const output = resolve(release, 'verification', ...(compatibility ? ['compatibility'] : []))
+const output = resolve(release, 'verification', ...(compatibility ? ['compatibility'] : faults ? ['faults'] : []))
 await mkdir(output, { recursive: true })
 const stage = await mkdtemp(join(tmpdir(), 'janusx-blueprint-packaged-'))
 const manifest = JSON.parse(await readFile('plugins/blueprint/manifest.json', 'utf8'))
-const samples = [], states = []
+const samples = [], states = [], faultChecks = []
 const environment = { ...process.env, ELECTRON_RENDERER_URL: '' }
 delete environment.ELECTRON_RUN_AS_NODE
 delete environment.NODE_OPTIONS
@@ -61,11 +65,30 @@ async function guest() {
   return application.context().pages().find(page => page.url().startsWith('janusx-plugin:'))
 }
 
+async function fileHashes(root, names) {
+  const files = {}
+  const visit = async relative => {
+    let entries
+    try { entries = await readdir(join(root, relative), { withFileTypes: true }) }
+    catch (error) { if (error.code === 'ENOENT') return; throw error }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(relative, entry.name)
+      if (entry.isDirectory()) await visit(path)
+      else {
+        expect(entry.isFile()).toBe(true)
+        files[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex')
+      }
+    }
+  }
+  for (const name of names) await visit(name)
+  return files
+}
+
 try {
   await cp(resolve(release, 'win-unpacked'), join(stage, 'candidate'), { recursive: true })
-  if (baseline && !compatibility) await cp(resolve(baseline, 'win-unpacked'), join(stage, 'baseline'), { recursive: true })
+  if (baseline && !compatibility && !faults) await cp(resolve(baseline, 'win-unpacked'), join(stage, 'baseline'), { recursive: true })
   // Alternate real frozen artifacts. Each run has a fresh profile; OS file caches are not flushed.
-  for (let run = 0; run < (compatibility ? 0 : 3); run++) {
+  for (let run = 0; run < (compatibility || faults ? 0 : 3); run++) {
     for (const label of baseline ? ['baseline', 'candidate'] : ['candidate']) {
       const { page, firstContentMs } = await launch(label, join(stage, `${label}-profile-${run}`))
       const record = await sample(page, `${label}-absent-${run}`)
@@ -81,6 +104,7 @@ try {
   await cp('.agents/harness.json', join(project, '.agents/harness.json'))
   const notePath = join(project, '.agents/notes/module.md')
   const noteHash = createHash('sha256').update(await readFile(notePath)).digest('hex')
+  const projectFiles = faults ? await fileHashes(project, ['.agents/notes']) : null
   let { page } = await launch('candidate', profile)
   await page.evaluate(() => window.electron.system.setLanguage('en'))
   await page.addInitScript(() => localStorage.setItem('janusx:learning:v1', JSON.stringify({ version: 1, introduced: true })))
@@ -125,12 +149,71 @@ try {
   await expect.poll(() => application.context().pages().filter(page => page.url().startsWith('janusx-plugin:')).length).toBe(0)
   await expect.poll(nativeProcesses).toEqual([])
   await sample(page, 'disabled-after-use')
+  if (faults) {
+    const api = await distributionLibrary()
+    const bytes = await readFile(archive), decoded = api.decodeSignedPluginPackage(bytes)
+    const corrupt = Buffer.from(bytes); corrupt[corrupt.length - 1] ^= 1
+    const signature = decoded.envelope.signature
+    const alteredSignature = (signature[0] === 'A' ? 'B' : 'A') + signature.slice(1)
+    const translations = JSON.parse(await readFile('src/renderer/src/i18n/locales/en/plugins.json', 'utf8'))
+    const cases = [
+      { name: 'truncated', bytes: bytes.subarray(0, 10), code: 'INVALID_PACKAGE', message: translations.importInvalid },
+      { name: 'payload-changed', bytes: corrupt, code: 'INVALID_PACKAGE', message: translations.importInvalid },
+      { name: 'signature-changed', bytes: api.encodeSignedPluginPackage(decoded.archive, { ...decoded.envelope, signature: alteredSignature }), code: 'INVALID_SIGNATURE', message: translations.importUntrusted },
+      { name: 'unknown-signer', bytes: api.encodeSignedPluginPackage(decoded.archive, { ...decoded.envelope, keyId: 'untrusted-fault-test' }), code: 'INVALID_SIGNATURE', message: translations.importUntrusted },
+      { name: 'immutable-version', bytes, code: 'INVALID_REQUEST', message: translations.importBlocked },
+    ]
+    await page.getByTitle('Settings', { exact: true }).click()
+    await page.locator('[data-tab="plugins"]').click()
+    const home = join(profile, 'janusx/plugins')
+    const persistent = async () => ({
+      registry: createHash('sha256').update(await readFile(join(home, 'registry.json'))).digest('hex'),
+      files: await fileHashes(home, ['packages', 'data', 'configuration', 'credentials']),
+    })
+    const before = await persistent()
+    expect(Object.keys(before.files).some(path => path.startsWith('packages'))).toBe(true)
+    expect(Object.keys(before.files).some(path => path.startsWith('data'))).toBe(true)
+    for (const item of cases) {
+      const path = join(stage, `${item.name}.jxp`)
+      await writeFile(path, item.bytes)
+      await application.evaluate(({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+      }, path)
+      await page.getByRole('button', { name: 'Import plugin package', exact: true }).click()
+      await expect(page.getByRole('alert')).toHaveText(item.message)
+      const result = await registry(page)
+      expect(result.ok).toBe(true)
+      expect(result.data.logs.at(-1).code).toBe(item.code)
+      expect(result.data.plugins).toMatchObject([{ enabled: false, manifest: { version: manifest.version } }])
+      expect(await persistent()).toEqual(before)
+      expect(await nativeProcesses()).toEqual([])
+      faultChecks.push({ name: item.name, code: item.code, sha256: createHash('sha256').update(item.bytes).digest('hex'), persistentFilesUnchanged: true })
+    }
+    await application.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }) })
+    await page.getByRole('button', { name: 'Import plugin package', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Import plugin package', exact: true })).toBeEnabled()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    expect(await persistent()).toEqual(before)
+    faultChecks.push({ name: 'picker-cancelled', persistentFilesUnchanged: true })
+  }
   if (!compatibility) {
     await application.close(); application = undefined
     ;({ page } = await launch('candidate', profile))
     const restarted = await sample(page, 'disabled-after-restart')
     expect(restarted.plugins).toMatchObject([{ enabled: false, state: 'disabled', runtime: { pages: 0, connected: 0, ready: 0 } }])
     expect(await nativeProcesses()).toEqual([])
+  }
+  if (faults) {
+    expect(await page.evaluate(projects => window.electron.plugins.request({ type: 'enable', id: 'official.blueprint', projects }), authorizedProjects)).toMatchObject({ ok: true })
+    await page.getByTitle('Settings', { exact: true }).click()
+    await page.locator('[data-tab="extension:official.blueprint/settings"]').click()
+    plugin = await guest()
+    await expect(plugin.getByLabel('Commits per check', { exact: true })).toHaveValue('9')
+    expect(await nativeProcesses()).toHaveLength(1)
+    expect(await page.evaluate(() => window.electron.plugins.request({ type: 'disable', id: 'official.blueprint' }))).toMatchObject({ ok: true })
+    await expect.poll(nativeProcesses).toEqual([])
+    expect(await fileHashes(project, ['.agents/notes'])).toEqual(projectFiles)
+    faultChecks.push({ name: 'restart-and-reenable', pluginVersion: manifest.version, retained: '9', projectFilesUnchanged: true })
   }
   expect(createHash('sha256').update(await readFile(notePath)).digest('hex')).toBe(noteHash)
   const versionChecks = []
@@ -198,17 +281,17 @@ try {
   }))
   const receipt = { checkedAt: new Date().toISOString(), status: 'passed', release: resolve(release), archive: resolve(archive),
     archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'), baseline: baseline ? resolve(baseline) : null,
-    stage, pluginVersion: manifest.version, summary, samples, states, versionChecks,
+    stage, pluginVersion: manifest.version, summary, samples, states, versionChecks, faultChecks,
     limits: ['Windows x64 only; fresh profile startup, first root content may still be loading',
-      compatibility ? 'Compatibility mode checks installed versions; startup comparison and restart checks run separately' : 'Three alternating runs; OS file caches not flushed; background user processes may affect timing',
+      compatibility ? 'Compatibility mode checks installed versions; startup comparison and restart checks run separately' : faults ? 'Fault mode checks local import rejection, unchanged persisted files and restart; no startup comparison' : 'Three alternating runs; OS file caches not flushed; background user processes may affect timing',
       'Memory sums include all Electron processes and are not exclusive physical memory',
       'Enabled sample includes real repository graph and open workbench; other states have different workloads',
       'No model action requested; real provider quality, full historic version matrix and installer wizard not tested'] }
   await writeFile(join(output, 'blueprint-packaged.json'), JSON.stringify(receipt, null, 2) + '\n')
-  console.log(JSON.stringify({ status: receipt.status, summary, states: states.map(item => ({ state: item.state, workingSetKiB: item.workingSetKiB })) }, null, 2))
+  console.log(JSON.stringify({ status: receipt.status, summary, faultChecks, states: states.map(item => ({ state: item.state, workingSetKiB: item.workingSetKiB })) }, null, 2))
 } catch (error) {
   await writeFile(join(output, 'blueprint-packaged-failure.json'), JSON.stringify({ checkedAt: new Date().toISOString(),
-    status: 'failed', stage, error: String(error), samples, states }, null, 2) + '\n')
+    status: 'failed', stage, error: String(error), samples, states, faultChecks }, null, 2) + '\n')
   if (application) {
     await application.firstWindow().then(page => page.screenshot({ path: join(output, 'blueprint-failure.png') })).catch(() => {})
     console.error(await application.context().pages()[0]?.evaluate(() => window.electron.plugins.request({ type: 'list' })).catch(() => null))
