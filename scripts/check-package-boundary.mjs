@@ -127,7 +127,7 @@ export function validateFilePatterns(patterns) {
 // not prove the host bundles are free of legacy Blueprint business imports.
 export function validatePackagedPluginEntries(entries) {
   const leaked = [...entries].map((entry) => entry.replaceAll('\\', '/').replace(/^\/+/, '')).filter((entry) =>
-    /^(?:plugins|node_modules\/@janusx\/blueprint)(?:\/|$)/.test(entry))
+    /^(?:plugins|node_modules\/(?:@janusx\/blueprint|@xyflow))(?:\/|$)/.test(entry))
   if (leaked.length) throw new Error(`Downloadable plugin files must not ship in the application: ${leaked.slice(0, 5).join(', ')}`)
 }
 

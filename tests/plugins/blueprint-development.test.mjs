@@ -23,8 +23,9 @@ test('local rebuilds create increasing signed versions and retain the profile, s
     const first = await prepareBlueprintDevelopment(root)
     await writeFile(join(first.profile, 'keep.txt'), 'User settings')
     const second = await prepareBlueprintDevelopment(root)
-    assert.equal(first.version, '1.0.0-local.1')
-    assert.equal(second.version, '1.0.0-local.2')
+    const version = JSON.parse(manifest).version
+    assert.equal(first.version, `${version}-local.1`)
+    assert.equal(second.version, `${version}-local.2`)
     assert.equal(second.profile, first.profile)
     assert.equal(await readFile(join(second.profile, 'keep.txt'), 'utf8'), 'User settings')
     assert.equal(await readFile(join(plugin, 'manifest.json'), 'utf8'), manifest)

@@ -18,7 +18,7 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     if (!process.env.JANUS_BLUEPRINT_PACKAGE) execFileSync(process.execPath, ['plugins/blueprint/build.mjs'], { windowsHide: true, stdio: 'pipe' })
     const pair = generateKeyPairSync('ed25519'), key = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
     const keys = { fixture: pair.publicKey.export({ type: 'spki', format: 'pem' }).toString() }
-    const { signed } = await packagePlugin({ directory: packageDirectory, output: join(directory, 'release'),
+    const { signed, basename } = await packagePlugin({ directory: packageDirectory, output: join(directory, 'release'),
       keyId: 'fixture', keys, privateKey: key, publisher: 'Test fixture', host: '>=0.9.4', platforms: [`${process.platform}-${process.arch}`], url: 'https://example.test/blueprint.jxp' })
     const noteId = randomUUID(), repoId = randomUUID(), project = join(directory, 'project')
     await mkdir(join(project, '.agents/notes'), { recursive: true })
@@ -26,7 +26,7 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     let note = '---\n' + JSON.stringify({ schema: 'harness-note/2', id: noteId, kind: 'module', lifecycle: 'accepted', created: '2026-10-10', updated: '2026-10-10T00:00:00Z', role: 'project', moduleState: 'partial' }, null, 2)
       + '\n---\n\n# Plugin fixture\n\n## Responsibility\n\nStore Notes.\n\n## Design\n\nA queue is planned.\n'
     await writeFile(join(project, '.agents/notes/module.md'), note)
-    await writeFile(join(directory, 'fixture.json'), JSON.stringify({ keys, signed, noteId, findingId: randomUUID() }))
+    await writeFile(join(directory, 'fixture.json'), JSON.stringify({ keys, signed, basename, noteId, findingId: randomUUID() }))
     const legacy = join(directory, 'profile/janusx/blueprint')
     await mkdir(legacy, { recursive: true })
     await writeFile(join(legacy, 'review-settings.json'), JSON.stringify({ generation: { providerId: '', modelId: '' },

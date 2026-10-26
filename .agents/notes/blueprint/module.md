@@ -84,7 +84,7 @@
       "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/47c7be36-5a48-4a27-aa86-d4f9dffb641c"
     }
   ],
-  "updated": "2026-10-26T14:16:34Z",
+  "updated": "2026-10-26T15:35:58.162Z",
   "moduleState": "partial"
 }
 ---
@@ -103,7 +103,7 @@
 
 Janus 负责产品投影和交互；agentX 的共享 harness 包拥有解析、身份、读取缓存、创建编辑、事务、监听、共享与撤销。任务执行和回执由 Agent 对话与执行模块承接，旧工程 Wiki 生成已退出，Note 内容审核与当前建议归本模块维护职责；个人记忆保留独立能力。[共享边界](agentx-harness-inheritance.md)记录取舍。
 
-宿主 HarnessNoteService 直接消费共享 NoteService。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码；旧 CRUD、画布编辑、图投影和转换 IPC 返回插件必需提示。黑板使用通用插件入口，聊天证据和圆桌结果通过共享 Note API 读写。公共作者工具与工作区初始化归 @janusx/note-tools，公共聊天／提示组件移出蓝图目录；图身份、布局、旧 JSON 转换与审计归插件。原始旧数据保留，转换必须先预览再确认。当前提交的安装器、资源测量和完整历史／功能矩阵仍未验收。
+宿主 HarnessNoteService 直接消费共享 NoteService。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码；旧 CRUD、画布编辑、图投影和转换 IPC 返回插件必需提示。黑板使用通用插件入口，聊天证据和圆桌结果通过共享 Note API 读写。公共作者工具与工作区初始化归 @janusx/note-tools，公共聊天／提示组件移出蓝图目录；图身份、布局、旧 JSON 转换与审计归插件。原始旧数据保留，转换必须先预览再确认。清理后的 Windows 安装器和便携包已验证仓库外启动，主包排除 React Flow；三态资源与两版插件升级／回退已有代表证据，完整历史／功能矩阵仍未验收。
 
 应用设置不再内置蓝图页或“创新功能”蓝图开关。安装官方插件后，由包内 settings 贡献加入设置导航，授权启用后加载隔离页面；卸载撤下入口和页面，保留数据。旧设置快捷入口转到插件管理，生产目录仍未发布。`npm run dev:blueprint` 可用独立 profile 本地签名安装和测试，不需要 Release；设置自动保存及模块导航补齐的边界、命令与证据归[官方插件专项](../planning/blueprint-official-plugin.md)。
 

@@ -116,7 +116,8 @@ describe('package boundary parser', () => {
 describe('downloadable plugin package boundary', () => {
   it('rejects source, vendor and runtime payloads in the assembled archive', () => {
     for (const path of ['plugins/blueprint/src/main/service.ts', '/plugins/blueprint/vendor/dependency.tgz',
-      '\\plugins\\blueprint\\dist\\service.cjs', 'node_modules/@janusx/blueprint/dist/ui/main.js']) {
+      '\\plugins\\blueprint\\dist\\service.cjs', 'node_modules/@janusx/blueprint/dist/ui/main.js',
+      'node_modules/@xyflow/react/package.json', 'node_modules/@xyflow/system/dist/esm/index.js']) {
       expect(() => validatePackagedPluginEntries(['out/main/index.js', path])).toThrow(/Downloadable plugin files/)
     }
     expect(() => validatePackagedPluginEntries(['out/main/plugin-mcp.js', 'out/main/chunks/plugin-runtime.js',

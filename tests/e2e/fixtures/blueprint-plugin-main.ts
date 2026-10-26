@@ -92,7 +92,7 @@ void app.whenReady().then(async () => {
   }
   runtime = new PluginRuntime(service, () => window)
   await service.initialize()
-  const archive = await originalFiles.readFile(join(directory, 'release/official.blueprint-1.0.0.jxp'))
+  const archive = await originalFiles.readFile(join(directory, 'release', `${config.basename}.jxp`))
   const startsBeforeInstall = nativeStarts
   await service.installOfficial(archive, config.signed)
   const startsAfterInstall = nativeStarts

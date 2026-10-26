@@ -92,6 +92,7 @@
     "@janus-agent/janus-agent": "file:../janus-agentX/packages/janus-agent",
     "@janus-agent/node-hosts": "file:../janus-agentX/packages/node-hosts",
     "@janusx/llm-core": "file:packages/llm-core",
+    "@janusx/note-tools": "file:packages/note-tools",
     "@janusx/plugin-sdk": "file:packages/plugin-sdk",
     "@langchain/core": "1.2.9",
     "@langchain/langgraph": "^1.4.13",
@@ -100,7 +101,6 @@
     "@monaco-editor/react": "^4.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "@xyflow/react": "^12.11.1",
     "ai": "3.4.33",
     "ai-chat": "npm:ai@4.3.19",
     "bonjour-service": "^1.4.4",
@@ -130,8 +130,7 @@
     "ws": "^8.22.0",
     "yaml": "^2.9.1",
     "zod": "^3.25.76",
-    "zustand": "^5.0.0",
-    "@janusx/note-tools": "file:packages/note-tools"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@electron/asar": "^3.4.1",
@@ -143,6 +142,7 @@
     "@types/react-dom": "^18.3.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^4.3.0",
+    "@xyflow/react": "^12.11.1",
     "acorn": "8.17.0",
     "autoprefixer": "^10.4.16",
     "electron": "^35.0.0",
