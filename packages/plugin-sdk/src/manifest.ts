@@ -16,7 +16,7 @@ export const PLUGIN_API_VERSION = '1.0.0'
 export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.multiple', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'files.listDirectory', 'storage.kv', 'storage.watch', 'ui.toast',
-  'views.workbench', 'views.workbench.frame', 'views.settings', 'views.island', 'views.window', 'themes.palette', 'island.status',
+  'views.workbench', 'views.workbench.frame', 'views.workbench.worktrees', 'views.settings', 'views.island', 'views.window', 'themes.palette', 'island.status',
   'runtime.native', 'models.agent.progress', 'workspace.handoff',
   'documents.viewers', 'documents.readText', 'documents.applyEdit', 'documents.draft',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
@@ -94,6 +94,7 @@ export const pluginManifestSchema = z.object({
   }
   needs(Boolean(manifest.native), 'runtime.native', 'runtime.native')
   needs(views.some(view => view.frame === 'plugin'), 'views.workbench.frame', 'ui.views.open')
+  if (manifest.capabilities.required.includes('views.workbench.worktrees') && !views.some(view => view.frame === 'plugin' && view.scope === 'project')) fail('Worktree switching requires a project workbench frame')
   if (views.some(view => view.frame && view.location !== 'workbench')) fail('Plugin frames require workbench views')
   needs(manifest.permissions.some(item => item.name === 'ui.workspace'), 'workspace.handoff', 'ui.workspace')
   needs(manifest.capabilities.required.includes('models.agent.progress'), 'models.agent.progress', 'models.generate')

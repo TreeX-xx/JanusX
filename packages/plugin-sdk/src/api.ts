@@ -76,8 +76,10 @@ export interface PluginApi {
   views: {
     open(params: { view: string; instanceKey?: string }, options?: PluginCallOptions): Promise<{ instanceId: string }>
     /** Only available to the current workbench with frame: 'plugin'; lists granted identities, never paths. */
-    getFrame(options?: PluginCallOptions): Promise<{ projects: Array<{ id: string; name: string }>; projectId: string | null }>
-    requestFrame(params: { action: 'close' } | { action: 'selectProject'; projectId: string }, options?: PluginCallOptions): Promise<{ requested: true }>
+    getFrame(options?: PluginCallOptions): Promise<{ projects: Array<{ id: string; name: string }>; projectId: string | null;
+      worktrees?: Array<{ id: string; name: string; branch: string | null; isMain: boolean }>; worktreeId?: string | null }>
+    requestFrame(params: { action: 'close' } | { action: 'selectProject'; projectId: string }
+      | { action: 'selectWorktree'; worktreeId: string }, options?: PluginCallOptions): Promise<{ requested: true }>
   }
   island: { update(params: { id: string; status: PluginIslandStatus | null }, options?: PluginCallOptions): Promise<{ updated: boolean }> }
   ui: { showToast(params: { message: string; level?: 'info' | 'warning' | 'error' }, options?: PluginCallOptions): Promise<{ shown: boolean }> }

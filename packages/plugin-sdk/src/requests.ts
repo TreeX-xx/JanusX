@@ -62,6 +62,7 @@ const methods = {
   'views.requestFrame': { permission: 'ui.views.open', params: z.union([
     z.object({ action: z.literal('close') }).strict(),
     z.object({ action: z.literal('selectProject'), projectId: z.string().min(1).max(128) }).strict(),
+    z.object({ action: z.literal('selectWorktree'), worktreeId: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   ]) },
   'island.update': { permission: 'ui.island', params: z.object({ id: z.string(), status: pluginIslandStatusSchema.nullable() }).strict() },
   'ui.showToast': { permission: 'ui.toast', params: z.object({ message: z.string().max(500), level: z.enum(['info', 'warning', 'error']).optional() }).strict() },
@@ -84,6 +85,10 @@ export function validatePluginCall(manifest: PluginManifest, method: string, par
   if (!definition.params.safeParse(params).success) throw new PluginError('INVALID_REQUEST', 'Invalid method parameters.')
   if ((method === 'views.getFrame' || method === 'views.requestFrame') && !manifest.capabilities.required.includes('views.workbench.frame')) {
     throw new PluginError('PERMISSION_DENIED', 'Workbench frame capability was not declared.')
+  }
+  if (method === 'views.requestFrame' && (params as { action: string }).action === 'selectWorktree'
+    && !manifest.capabilities.required.includes('views.workbench.worktrees')) {
+    throw new PluginError('PERMISSION_DENIED', 'Workbench worktree switching was not declared.')
   }
   if (method === 'workspace.openDocument' || method === 'workspace.proposeTerminal') {
     if (!manifest.capabilities.required.includes('workspace.handoff')) throw new PluginError('PERMISSION_DENIED', 'Workspace handoffs were not declared.')

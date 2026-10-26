@@ -1,6 +1,6 @@
 {
   "name": "@janusx/blueprint",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "type": "module",
   "description": "Official downloadable Blueprint workbench, Note review and standalone MCP",

@@ -454,7 +454,7 @@
     "engineLabel": "JANUS // BLUEPRINT ENGINE",
     "controlLabel": "COPILOT CONTROL",
     "closeConsole": "Close console",
-    "greeting": "Tell me how this blueprint should be maintained. I can bring in the Note context of the canvas focus, analyze nodes, update Notes per your instructions, and undo applied changes.",
+    "greeting": "Tell me how this blueprint should be maintained. I can bring in the Note context of the canvas focus, analyze nodes, prepare a change preview, and update Notes after confirmation.",
     "viewAria": "Blueprint JanusX views",
     "viewConversation": "Conversation",
     "viewHistory": "History",

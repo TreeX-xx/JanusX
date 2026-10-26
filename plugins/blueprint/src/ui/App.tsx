@@ -1,6 +1,6 @@
 import { t } from './i18n'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { PluginContext } from '@janusx/plugin-sdk'
+import type { PluginApi, PluginContext } from '@janusx/plugin-sdk'
 import type { Blueprint } from '../shared/janus/types'
 import type { BlueprintReviewView, BlueprintReviewActivityUpdate } from '../shared/ipc/blueprint-review'
 import type { BlueprintReviewSettings } from '../shared/blueprint-review-settings'
@@ -50,10 +50,10 @@ const phase: Record<string, string> = {
 
 export function App({ context }: { context: PluginContext }) {
   const [revealReady, setRevealReady] = useState(false)
-  const [frameProjects, setFrameProjects] = useState<Array<{ id: string; name: string }>>([])
+  const [frameContext, setFrameContext] = useState<Awaited<ReturnType<PluginApi['views']['getFrame']>>>()
   useEffect(() => {
     const frame = requestAnimationFrame(() => setRevealReady(true))
-    if (context.workbenchFrame) void plugin().views.getFrame().then(value => setFrameProjects(value.projects)).catch(error => setError(String(error)))
+    if (context.workbenchFrame) void plugin().views.getFrame().then(setFrameContext).catch(error => setError(String(error)))
     return () => cancelAnimationFrame(frame)
   }, [context.workbenchFrame])
   const [detailOpen, setDetailOpen] = useState(true)
@@ -339,11 +339,18 @@ export function App({ context }: { context: PluginContext }) {
       data-closing={isClosing ? 'true' : undefined} data-card-count={cardCount}
       style={{ '--card-count': cardCount, '--card-enter-stagger': '180ms', '--card-enter-duration': '260ms', '--card-exit-stagger': '60ms' } as CSSProperties}>
       <header className="blueprint-workbench-topbar" style={cardIndexStyle(0)}>
-        <div className="blueprint-workbench-switch">
+        <div className="blueprint-workbench-switch" onFocusCapture={() => {
+          if (context.workbenchFrame) void plugin().views.getFrame().then(setFrameContext).catch(error => setError(String(error)))
+        }}>
           <Select className="blueprint-select blueprint-workbench-switch__select" ariaLabel={bt('workbench.breadcrumb')}
-            value={context.project.projectId} options={frameProjects.length ? frameProjects.map(project => ({ value: project.id, label: project.name })) : [{ value: context.project.projectId, label: context.project.name }]}
+            value={context.project.projectId} options={frameContext?.projects.length ? frameContext.projects.map(project => ({ value: project.id, label: project.name })) : [{ value: context.project.projectId, label: context.project.name }]}
             disabled={!context.workbenchFrame || isClosing}
             onChange={projectId => { void plugin().views.requestFrame({ action: 'selectProject', projectId }).catch(error => setError(String(error))) }} />
+          {frameContext?.worktrees?.length ? <Select className="blueprint-select blueprint-workbench-switch__select" ariaLabel={t('切换工作树')}
+            value={frameContext.worktreeId ?? ''} options={frameContext.worktrees.map(worktree => ({ value: worktree.id,
+              label: `${worktree.branch ?? t('分离 HEAD')} · ${worktree.name}${worktree.isMain ? ` · ${t('主工作树')}` : ''}` }))}
+            disabled={isClosing || frameContext.worktrees.length < 2}
+            onChange={worktreeId => { void plugin().views.requestFrame({ action: 'selectWorktree', worktreeId }).catch(error => setError(String(error))) }} /> : null}
         </div>
         {headerActions}
         {context.workbenchFrame && <button type="button" className="blueprint-workbench-close" onClick={requestClose}

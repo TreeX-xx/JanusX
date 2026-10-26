@@ -29,6 +29,10 @@ describe('P3 contribution policy and rendering', () => {
     expect(() => parsePluginManifest(JSON.stringify(value))).toThrow()
     expect(() => validatePluginCall(manifest(), 'views.requestFrame', { action: 'close' })).toThrow()
     expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'close', script: 'x' })).toThrow()
+    expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'selectWorktree', worktreeId: 'a'.repeat(64) })).toThrow()
+    value.capabilities.required.push('views.workbench.worktrees')
+    expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'selectWorktree', worktreeId: 'a'.repeat(64) })).not.toThrow()
+    expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'selectWorktree', worktreeId: '/arbitrary/root' })).toThrow()
   })
   it('routes a declared settings command to application settings without changing workbench or pane state', () => {
     const dispatch = vi.fn(); vi.stubGlobal('window', { dispatchEvent: dispatch })

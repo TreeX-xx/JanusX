@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-26T16:34:12Z",
+  "updated": "2026-10-26T16:58:16Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -239,11 +239,19 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 本地生产签名包为 [official.blueprint-1.0.3.jxp](../../../release/2026-10-27-blueprint-1.0.3/official.blueprint-1.0.3.jxp)，1,797,830 字节，SHA-256 为 cf48fed468fabdd55b2401a850315215e1de59cd01f9a3e1592d703d8f159706。四个构建输出逐项匹配最终独立构建，交付收据在同目录 delivery.json；可配合原 10-26-migration-r2 宿主使用。该生产包未另跑正常宿主导入，签名 Electron 载体使用相同内容及测试 signer；目录与 Release 均未发布。
 
+## Worktree 显示切换
+
+用户确认 worktree 支持属于必须交付的功能：左上角选择对应工作树后，画布、正文、建议和维护操作应绑定该实际根。此前插件只列项目，且根变化会关闭整个工作台；1.0.4 增加左上角工作树选择，显示分支、目录名及主工作树标记。宿主仅公开当前项目的工作树身份，重新验证后切换；同项目保留外框并重新挂载页面，旧根的请求与订阅失效。此切换使用已经存在的工作树，不执行 Git checkout 或创建新工作树。共享 SDK 的新增必需能力 views.workbench.worktrees 保证旧宿主明确拒绝，更新插件需重审声明。
+
+`tests/unit/plugin-runtime.test.ts` 与 plugin-surfaces 共 48 项通过，覆盖不透明身份、未知／已移除目标拒绝、撤权后迟到列表不派发，以及切换根后旧页面失效、新页面读取新正文；日志为 artifacts/plugins/worktree-host-tests-final.log。宿主严格未用类型检查、修改宿主文件 ESLint 及 i18n 检查通过。`npm run test:blueprint:local -- --output artifacts/blueprint-worktree-results` 的完整桌面一项通过：创建两个真实 Git worktree，同一 Note 身份在 feature 修改正文，使用左上角切换后读到 feature 文本，切回主工作树恢复原文，外框持续打开；原设置、卡片和退出后 MCP 回归也通过，日志为 artifacts/plugins/worktree-desktop.log。已查看三卡截图。该用例不替代维护写入、建议和长时切换的全部 worktree 矩阵。
+
+最终 `npm run plugins:blueprint:check` 通过，以九个锁定公开归档进行仓库外 npm ci、类型检查和构建，同包签名 Electron 回归一项通过；收据 artifacts/plugins/blueprint-build.json 的 runtime.status 为 passed，日志为 artifacts/plugins/worktree-final-gate.log。共享归档仅 SDK 因公开契约和说明更新而变化，其余八个保持原哈希，核对收据为 artifacts/plugins/worktree-dependency-review.json。同步清理已退役的审计方法声明和仍承诺撤销的问候文字。全仓 Note 校验仍只有 entrance-choreography.md 两项既有错误，未重跑完整测试套件；1.0.4 及配套宿主未发布，原 1.0.3 本地产物不含本功能。
+
 ## 剩余交付出口
 
 | 范围 | 未完成或未验收内容 |
 | --- | --- |
-| 功能一致性 | 模块范围／选择／视口历史、跨模块定位、未归属入口和意见提示已有定向证据；关系与来源操作、完整维护范围、错误恢复、对话模型独立选择及新版本全部正常使用流程仍需矩阵核对。自动保存及自动连接检测已有实现，不再列为未实现。 |
+| 功能一致性 | 模块范围／选择／视口历史、跨模块定位、未归属入口和意见提示已有定向证据；必需的 worktree 显示切换已实现并通过真实双工作树往返。关系与来源操作、完整维护范围、错误恢复、对话模型独立选择及新版本全部正常使用流程仍需矩阵核对；worktree 的维护写入／建议和长时切换继续纳入其中。自动保存及自动连接检测已有实现，不再列为未实现。 |
 | 设置与数据 | 配置并发和页面草稿已有定向证据；仍需验证新版本文件事务、确认时冲突与故障恢复。旧版升级兼容、撤销及蓝图修改审计已移出范围。 |
 | 包边界 | 三个宿主入口均无插件业务输入，主包已排除蓝图树及 React Flow；Windows 安装器／便携启动已验证并保存体积及三态资源数据。仍需稳定 CI 的可消费共享修订和持续启停资源测量。 |
 | 发布 | 本地生产签名身份与 allowlist 已配置；仍需目录服务、独立分发仓库及 workflow、远端发布资产和正常下载闭环。 |

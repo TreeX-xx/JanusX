@@ -23,17 +23,18 @@ export function PluginWorkbenchHost() {
   const path = useWorktreeStore(s => projectId ? s.activePaths[projectId] ?? workspace?.path ?? null : null)
   const view = views.find(v => v.id === active && v.location === 'workbench')
   const scope = view?.scope === 'project' ? JSON.stringify([projectId, path]) : 'application'
-  const entered = useRef<{ id: string; scope: string; opener: Element | null } | null>(null)
+  const entered = useRef<{ id: string; scope: string; projectId: string | null; opener: Element | null } | null>(null)
   const returnButton = useRef<HTMLButtonElement>(null)
   const viewId = view?.id
   useLayoutEffect(() => {
     if (!active?.startsWith('extension:')) { entered.current = null; return }
     const previous = entered.current
-    if (!view || (view.scope === 'project' && !projectId) || (previous?.id === active && previous.scope !== scope)) {
+    if (!view || (view.scope === 'project' && !projectId) || (previous?.id === active && previous.scope !== scope
+      && (view.frame !== 'plugin' || previous.projectId !== projectId))) {
       useAppStore.getState().closePluginWorkbench()
       return
     }
-    if (previous?.id !== active) entered.current = { id: active, scope, opener: document.activeElement }
+    entered.current = { id: active, scope, projectId, opener: previous?.id === active ? previous.opener : document.activeElement }
   }, [active, view, projectId, scope])
   useLayoutEffect(() => {
     if (!viewId) return
@@ -51,6 +52,6 @@ export function PluginWorkbenchHost() {
       </select>}
       <span>{view.title}</span>
     </header>}
-    <div className="flex-1 min-h-0"><ExtensionViewHost viewId={view.id} location="workbench" active workspaceId={projectId} workspacePath={path} /></div>
+    <div className="flex-1 min-h-0"><ExtensionViewHost key={scope} viewId={view.id} location="workbench" active workspaceId={projectId} workspacePath={path} /></div>
   </section>, document.body)
 }

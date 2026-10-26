@@ -9,6 +9,8 @@ html, body, #app { height: 100%; }
 body:has(.blueprint-workbench-shell) { background: transparent; }
 .blueprint-plugin.blueprint-workbench-shell { width: 100%; height: 100vh; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .blueprint-workbench-shell > .blueprint-workbench-topbar { flex: 0 0 auto; }
+.blueprint-workbench-switch { gap: 8px; }
+.blueprint-workbench-switch > .blueprint-workbench-switch__select { flex: 0 1 auto; min-width: 0; }
 .blueprint-workbench-topbar .blueprint-review-activity { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 2px 8px; }
 .blueprint-workbench-shell > .workspace-page { gap: 12px; min-width: 0; width: 100%; overflow: hidden; }
 .blueprint-workbench-toolbar > input { flex: 1 1 160px; width: 180px; max-width: 260px; min-width: 100px; }

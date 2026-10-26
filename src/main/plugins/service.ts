@@ -48,6 +48,7 @@ export interface PluginServiceDeps {
   official?: { keys: PluginTrustKeys; hostVersion: string; platform: string; nativePlugins?: Readonly<Record<string, readonly string[]>> }
   createNativeService?(record: InstalledPlugin, directory: string, stopped: (code: string) => void, credentials: NativeModelCredentials): NativePluginService
   resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
+  worktrees?(projectId: string): Promise<Array<{ root: string; name: string; branch: string | null; isMain: boolean }>>
   changed(): void
   closed?(instanceId: string): void
   event(instanceId: string, packet: JsonValue): void
@@ -690,6 +691,12 @@ export class PluginService {
       return { text, bytes: bytes.length, version: createHash('sha256').update(bytes).digest('hex') }
     } catch { return error('NOT_TEXT', 'File must be UTF-8 text.') }
   }
+  private async frameWorktrees(projectId: string) {
+    if (this.deps.worktrees) return (await this.deps.worktrees(projectId)).slice(0, 128)
+    const project = await this.deps.resolveProject(projectId, null)
+    return [{ root: project.root, name: project.name, branch: null, isMain: true }]
+  }
+
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void, signal: AbortSignal): Promise<unknown> {
     const record = this.record(instance.plugin)
     if (method === 'native.call') return this.nativeCall(instance.plugin, params.method as string, params.input as JsonValue, instance.context.project?.projectId ?? null, instance.root, signal, instance.id)
@@ -844,7 +851,14 @@ export class PluginService {
           valid()
           if (project) projects.push({ id, name: project.name })
         }
-        return { projects, projectId: instance.context.project?.projectId ?? null }
+        const projectId = instance.context.project?.projectId ?? null
+        if (projectId && record.manifest.capabilities.required.includes('views.workbench.worktrees')) {
+          const entries = await this.frameWorktrees(projectId)
+          valid()
+          return { projects, projectId, worktreeId: createHash('sha256').update(instance.root!).digest('hex'),
+            worktrees: entries.map(({ root, ...entry }) => ({ ...entry, id: createHash('sha256').update(root).digest('hex') })) }
+        }
+        return { projects, projectId }
       }
       if (!this.deps.workbenchAction) error('SOURCE_UNAVAILABLE', 'Workbench frame is unavailable.')
       if (params.action === 'selectProject') {
@@ -852,9 +866,22 @@ export class PluginService {
         await this.deps.resolveProject(params.projectId as string, null)
         valid()
       }
+      let scopePath: string | undefined
+      if (params.action === 'selectWorktree') {
+        const projectId = instance.context.project?.projectId
+        if (view!.scope !== 'project' || !projectId || !record.projects.includes(projectId)) error('PERMISSION_DENIED', 'Project is not granted.')
+        const entries = await this.frameWorktrees(projectId!)
+        valid()
+        const entry = entries.find(item => createHash('sha256').update(item.root).digest('hex') === params.worktreeId)
+        if (!entry) error('CONTEXT_UNAVAILABLE', 'Worktree is no longer available.')
+        scopePath = (await this.deps.resolveProject(projectId!, entry!.root)).root
+        valid()
+        if (scopePath !== entry!.root) error('STALE_CONTEXT', 'Worktree identity changed.')
+      }
       this.deps.workbenchAction!({ type: 'workbenchAction', pluginId: instance.plugin, viewId: instance.view,
         currentProjectId: instance.context.project?.projectId ?? null, root: instance.root, action: params.action as string,
-        ...(params.action === 'selectProject' ? { projectId: params.projectId as string } : {}) })
+        ...(params.action === 'selectProject' ? { projectId: params.projectId as string } : {}),
+        ...(scopePath ? { scopePath } : {}) })
       return { requested: true }
     }
     if (method === 'views.open') {

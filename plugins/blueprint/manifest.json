@@ -3,7 +3,7 @@
   "id": "official.blueprint",
   "name": "Blueprint",
   "description": "Engineering Notes, architecture navigation, review and independent Note MCP.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "engines": {
     "pluginApi": ">=1.0.0 <2.0.0"
   },
@@ -17,6 +17,7 @@
       "credentials.use",
       "views.workbench",
       "views.workbench.frame",
+      "views.workbench.worktrees",
       "views.settings",
       "commands.openView",
       "menus.toolbox",
@@ -112,9 +113,6 @@
       "maintenance.cancel",
       "maintenance.complete",
       "maintenance.dismiss",
-      "maintenance.audits",
-      "maintenance.undo-prepare",
-      "maintenance.undo-apply",
       "blueprint.graph-open",
       "blueprint.graph-part",
       "blueprint.graph-close"

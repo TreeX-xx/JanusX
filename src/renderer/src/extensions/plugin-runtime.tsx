@@ -6,7 +6,7 @@ import { extensionRegistry } from './registry'
 import { manifestContribution } from './manifest'
 import { openExtensionView } from './workbench'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useWorktreeStore } from '@/stores/worktree'
+import { sameScopePath, useWorktreeStore } from '@/stores/worktree'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { useRightToolStore } from '@/stores/right-tools'
 import { getLeafPanes } from '@/lib/workspace-pane'
@@ -121,10 +121,13 @@ export function initializePluginRuntime(): void {
       const workspace = useWorkspaceStore.getState().workspaces.find(workspace => workspace.id === packet.currentProjectId)
       const activePath = workspace ? useWorktreeStore.getState().activePaths[workspace.id] ?? workspace.path : null
       if (useAppStore.getState().activeWorkbench !== id || packet.currentProjectId !== null
-        && (useWorkspaceStore.getState().activeWorkspaceId !== packet.currentProjectId || activePath !== packet.root)) return
+        && (useWorkspaceStore.getState().activeWorkspaceId !== packet.currentProjectId || typeof packet.root !== 'string' || !activePath || !sameScopePath(activePath, packet.root))) return
       if (packet.action === 'close') useAppStore.getState().closePluginWorkbench()
       if (packet.action === 'selectProject' && typeof packet.projectId === 'string'
         && useWorkspaceStore.getState().workspaces.some(workspace => workspace.id === packet.projectId)) useWorkspaceStore.getState().setActiveWorkspace(packet.projectId)
+      if (packet.action === 'selectWorktree' && workspace && typeof packet.scopePath === 'string') {
+        useWorktreeStore.getState().setActivePath(workspace.id, packet.scopePath)
+      }
     }
     if (packet.type === 'openView' && typeof packet.pluginId === 'string' && typeof packet.viewId === 'string') openExtensionView(`extension:${packet.pluginId}/${packet.viewId}`, typeof packet.instanceKey === 'string' ? packet.instanceKey : undefined)
     if (packet.type === 'openConfiguration' && typeof packet.pluginId === 'string'

@@ -97,6 +97,14 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     protectedDirectories: [app.getPath('userData'), app.getPath('sessionData')],
     legacyCredentials: { 'official.blueprint': [{ slot: 'jev', origin: 'https://api.typesafe.ai', path: join(app.getPath('userData'), 'janusx', 'knowledge-jev.credential') }] },
     resolveProject: resolvePluginProject,
+    worktrees: async id => {
+      const project = await resolvePluginProject(id, null)
+      const entries = await listWorktrees(id, project.root)
+      const roots = (await Promise.all(entries.filter(entry => !entry.prunable).slice(0, 128).map(async entry => ({
+        root: await realpath(entry.path), name: basename(entry.path), branch: entry.branch, isMain: entry.isMain,
+      })).map(result => result.catch(() => null)))).filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+      return roots.length ? roots : [{ root: project.root, name: project.name, branch: null, isMain: true }]
+    },
     changed: () => send(PLUGIN_CHANNELS.changed),
     event: (instanceId, packet) => { runtime?.send(instanceId, packet); send(PLUGIN_CHANNELS.event, { instanceId, packet }) },
     workspaceHandoff: packet => send(PLUGIN_CHANNELS.event, { instanceId: '', packet }),

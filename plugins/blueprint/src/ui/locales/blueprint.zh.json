@@ -454,7 +454,7 @@
     "engineLabel": "JANUS // 蓝图引擎",
     "controlLabel": "COPILOT 控制台",
     "closeConsole": "关闭控制台",
-    "greeting": "告诉我这张蓝图要怎么维护。我可以按画布焦点带上 Note 上下文、分析节点、按你的说明更新 Note，并撤销已写入的修改。",
+    "greeting": "告诉我这张蓝图要怎么维护。我可以按画布焦点带上 Note 上下文、分析节点，整理修改预览，确认后更新 Note。",
     "viewAria": "蓝图 JanusX 视图",
     "viewConversation": "对话",
     "viewHistory": "历史",

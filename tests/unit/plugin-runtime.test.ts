@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, link, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 import * as nodeFiles from 'node:fs/promises'
 import { PluginService } from '../../src/main/plugins/service'
 import { configurePluginFileSystem, readPluginFile, readPluginPackage } from '../../src/main/plugins/files'
@@ -26,7 +27,8 @@ async function fixture() {
   await writeFile(join(rootB, 'README.md'), 'project B')
   const events: Array<{ id: string; packet: any }> = []
   const deps = { directory: join(directory, 'profile'),
-    resolveProject: async (id: string) => ({ root: id === 'a' ? root : rootB, name: id }),
+    resolveProject: async (id: string, scopePath: string | null = null) => ({ root: scopePath ?? (id === 'a' ? root : rootB), name: id }),
+    worktrees: async (_id: string) => [{ root, name: 'Main', branch: 'main' as string | null, isMain: true }],
     changed: vi.fn(), event: (id: string, packet: unknown) => events.push({ id, packet }), openView: vi.fn(), workbenchAction: vi.fn(), toast: vi.fn() }
   const service = new PluginService(deps)
   cleanups.push(() => service.dispose())
@@ -42,9 +44,10 @@ async function fixture() {
 }
 
 describe('plugin-owned workbench frame', () => {
-  async function framed() {
+  async function framed(worktrees = false) {
     const f = await fixture()
     f.manifest.capabilities.required.push('views.workbench.frame')
+    if (worktrees) f.manifest.capabilities.required.push('views.workbench.worktrees')
     f.manifest.contributes.views.find((view: any) => view.id === 'desk').frame = 'plugin'
     await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest))
     await f.prepare()
@@ -71,6 +74,44 @@ describe('plugin-owned workbench frame', () => {
     let release!: () => void
     f.deps.resolveProject = async () => { await new Promise<void>(resolve => { release = resolve }); return { root: f.rootB, name: 'b' } }
     const switching = f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'b' })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    await f.service.disable(f.manifest.id)
+    release()
+    expect(await switching).toMatchObject({ ok: false })
+    expect(f.deps.workbenchAction).not.toHaveBeenCalled()
+  })
+  it('switches only to a current worktree identity and invalidates the previous checkout page', async () => {
+    const f = await framed(true)
+    f.deps.worktrees = async () => [{ root: f.root, name: 'Main', branch: 'main', isMain: true },
+      { root: f.rootB, name: 'Feature checkout', branch: 'feature', isMain: false }]
+    const id = (root: string) => createHash('sha256').update(root).digest('hex')
+    const frame = await f.call(f.mount, 'views.getFrame')
+    expect(frame).toMatchObject({ ok: true, result: { worktreeId: id(f.root), worktrees: [
+      { id: id(f.root), branch: 'main', isMain: true }, { id: id(f.rootB), branch: 'feature', isMain: false },
+    ] } })
+    expect(JSON.stringify(frame)).not.toContain(f.root)
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectWorktree', worktreeId: '0'.repeat(64) }))
+      .toMatchObject({ ok: false, error: { code: 'CONTEXT_UNAVAILABLE' } })
+    expect(f.deps.workbenchAction).not.toHaveBeenCalled()
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectWorktree', worktreeId: id(f.rootB) })).toMatchObject({ ok: true })
+    expect(f.deps.workbenchAction).toHaveBeenLastCalledWith(expect.objectContaining({ currentProjectId: 'a', root: f.root, scopePath: f.rootB }))
+    await f.service.setContext('a', f.rootB, 'en', { id: 'dark', tokens: {} })
+    await expect(f.call(f.mount, 'views.getFrame')).rejects.toThrow('Plugin instance is unavailable')
+    const switched = await f.service.mount(f.manifest.id, 'desk', 'a', f.rootB)
+    f.service.bind(switched.instanceId, switched.binding)
+    expect(switched.context.project?.rootId).not.toBe(f.mount.context.project?.rootId)
+    expect(await f.call(switched, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project B' } })
+  })
+  it('rejects a removed worktree and a list that completes after revocation', async () => {
+    const f = await framed(true)
+    const id = createHash('sha256').update(f.rootB).digest('hex')
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectWorktree', worktreeId: id })).toMatchObject({ ok: false })
+    let release!: () => void
+    f.deps.worktrees = async () => {
+      await new Promise<void>(resolve => { release = resolve })
+      return [{ root: f.rootB, name: 'Feature', branch: 'feature', isMain: false }]
+    }
+    const switching = f.call(f.mount, 'views.requestFrame', { action: 'selectWorktree', worktreeId: id })
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
     await f.service.disable(f.manifest.id)
     release()
