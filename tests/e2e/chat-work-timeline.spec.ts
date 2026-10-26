@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 // Note: exercise production controllers and renderers for each entry — see .agents/notes/agent/requirements/chat-work-timeline.md
 const entries = [
   { name: 'Chat', query: '', selector: '[data-testid="main-chat"]' },
-  { name: 'Blueprint', query: '&workbench', selector: '.blueprint-workbench-janus-slot' },
+  { name: 'Project panel', query: '&workbench', selector: '.fixture-project-chat' },
   { name: 'Launch', query: '&launch-assistant', selector: '[data-testid="launch-chat"]' },
 ]
 async function emit(page: Page, event: Record<string, unknown>) {
@@ -14,7 +14,6 @@ async function emit(page: Page, event: Record<string, unknown>) {
 }
 async function openEntry(page: Page, query: string) {
   await page.goto(`/project.html?manual-stream${query}`)
-  if (query.includes('workbench')) await page.locator('.blueprint-janus-capsule').click()
   await page.addStyleTag({ content: '.fixture-layout { display:flex; gap:12px; height:620px } .fixture-layout > section { width:420px; height:620px; min-height:0; } [data-testid="task"] {display:none} .fixture-layout .janus-chat {height:100%}' })
 }
 const order = (host: Locator) => host.locator('.janus-chat-timeline-block').evaluateAll(elements => elements.map(element => element.getAttribute('data-kind')))
@@ -133,12 +132,12 @@ for (const entry of entries) {
     await expect(host.getByText('I will read the entry.', { exact: true })).toHaveCount(1)
     await expect(host.locator('strong').filter({ hasText: 'Final answer.' })).toHaveCount(1)
     await page.waitForTimeout(500) // Let the production persistence debounce settle.
-    if (entry.name === 'Blueprint') {
-      await page.locator('.blueprint-janus-capsule').click()
-      await page.locator('.blueprint-janus-capsule').click()
+    if (entry.name === 'Project panel') {
+      await page.locator('.fixture-project-toggle').click()
+      await page.locator('.fixture-project-toggle').click()
     } else await page.reload()
     await expect.poll(() => order(host)).toEqual(expected)
-    await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(entry.name === 'Blueprint' ? 1 : 0)
+    await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(entry.name === 'Project panel' ? 1 : 0)
     await expect(host.locator('.janus-chat-thinking-toggle').first()).toHaveAttribute('aria-expanded', 'true')
     await expect(host.locator('.janus-chat-thinking-body').first()).toContainText('First reasoning summary.')
     expect(errors).toEqual([])
@@ -182,9 +181,9 @@ test('Launch: early business result stays on its call and is not applied on relo
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('never-archive-this')
 })
 
-test('Blueprint: Note business evidence stays inline, and undo checks current state', async ({ page }) => {
+test('Project panel: Note business evidence stays inline, and undo checks current state', async ({ page }) => {
   await openEntry(page, '&workbench')
-  const host = page.locator('.blueprint-workbench-janus-slot')
+  const host = page.locator('.fixture-project-chat')
   await host.locator('textarea').fill('Update the selected Note')
   await host.locator('textarea').press('Enter')
   await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(1)
@@ -211,8 +210,8 @@ test('Blueprint: Note business evidence stays inline, and undo checks current st
   await emit(page, { type: 'stream_end', cancelled: false })
   await expect(host.getByText('Updated the target Note', { exact: true })).toHaveCount(1)
   await expect(call.locator('.janus-tool-card')).toHaveCount(1)
-  await page.locator('.blueprint-janus-capsule').click()
-  await page.locator('.blueprint-janus-capsule').click()
+  await page.locator('.fixture-project-toggle').click()
+  await page.locator('.fixture-project-toggle').click()
   expect(await page.evaluate(() => (window as any).projectFixture.undoApplies)).toBe(0)
   await page.evaluate(() => { (window as any).projectFixture.undoConflict = true })
   await call.getByRole('button', { name: /Undo|撤销/ }).click()

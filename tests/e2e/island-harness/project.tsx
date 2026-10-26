@@ -1,17 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { JanusChatProvider, useJanusChatController, useOptionalJanusChatController } from '../../../src/renderer/src/components/janus/JanusChatProvider'
+import { JanusChatProvider, useJanusChatController, useOptionalJanusChatController, useJanusChatRegistry } from '../../../src/renderer/src/components/janus/JanusChatProvider'
 import { JanusChat } from '../../../src/renderer/src/components/janus/JanusChat'
 import { ProjectLaunchAssistant } from '../../../src/renderer/src/components/ProjectLaunchAssistant'
 import { ProjectType } from '../../../src/shared/ipc/project'
-import { BlueprintMaintenancePanel, BLUEPRINT_PANEL_VIEW_REF } from '../../../src/renderer/src/components/blueprint/BlueprintMaintenancePanel'
-import { BlueprintWorkbench } from '../../../src/renderer/src/components/blueprint/BlueprintWorkbench'
-import { createWorkbenchGraph, installWorkbenchBoundary } from './workbench-fixture'
-import { installBootstrapFixture } from './bootstrap-fixture'
 import { HarnessRunPanel } from '../../../src/renderer/src/components/janus/HarnessRunPanel'
-import { useBlueprintStore } from '../../../src/renderer/src/stores/blueprint'
-import { useBlueprintMaintenanceStore } from '../../../src/renderer/src/stores/blueprint-maintenance'
-import { installMaintenanceFixture } from './maintenance-fixture'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { changeLanguage, initI18n } from '../../../src/renderer/src/i18n'
@@ -22,7 +15,6 @@ import type { CreateAgentSessionInput } from '../../../src/shared/ipc/agent-runt
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
 import '../../../src/renderer/src/components/janus/janus-island.css'
-import '../../../src/renderer/src/components/blueprint/blueprint.css'
 
 installElectronApiFallback()
 document.documentElement.dataset.theme = DEFAULT_APP_THEME
@@ -32,46 +24,10 @@ const repoId = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'
 const id = '44444444-4444-4333-8333-444444444444'
 const uri = `note://${repoId}/${id}`
 const workspace = { id: 'ws', path: 'C:/fixture', name: 'Project', clis: [], layout: { mode: 'tabs', positions: [] } }
-const rootNode = { id, title: 'Task', sourceUri: uri, sourceHash: 'a'.repeat(64), children: [] }
-const blueprint = { id: `harness:project:${repoId}`, source: 'harness', name: 'Project', rootNodeId: id, nodeIds: [id], nodes: { [id]: rootNode } as Record<string, typeof rootNode> }
-for (const key of ['delete-a', 'delete-b']) {
-  blueprint.nodeIds.push(key)
-  blueprint.nodes[key] = { ...blueprint.nodes[id], id: key, title: key, sourceUri: `note://${repoId}/${key}` }
-}
-if (workbench) Object.assign(blueprint, createWorkbenchGraph(repoId, id, workspace))
-// Matrix governance coverage: 30 edgeless roots force the isolated-fold path;
-// existing specs never pass this flag so their 5-node geometry is untouched.
-if (workbench && new URLSearchParams(location.search).has('isolated')) {
-  const template = blueprint.nodes['66666666-6666-4666-8666-666666666666']
-  for (let index = 0; index < 30; index++) {
-    const nid = `isolated-${index}`
-    blueprint.nodeIds.push(nid)
-    blueprint.nodes[nid] = { ...structuredClone(template), id: nid, title: `Isolated note ${index}`,
-      sourceUri: `note://${repoId}/${nid}`, sourceRelPath: `.agents/notes/${nid}.md`,
-      note: { ...template.note, id: nid, title: `Isolated note ${index}`, body: `# Isolated note ${index}` } }
-  }
-}
 const secondWorkspace = { ...workspace, id: 'ws-b', path: 'C:/fixture-b', name: 'Checkout B' }
-const twoCheckouts = new URLSearchParams(location.search).has('two-checkouts')
-const switchWorkspaceMode = new URLSearchParams(location.search).has('switch-workspace')
-const bootstrapMode = new URLSearchParams(location.search).has('bootstrap')
-const workspaces = twoCheckouts || switchWorkspaceMode || bootstrapMode ? [workspace, secondWorkspace] : [workspace]
-if (bootstrapMode) workspaces.push(
-  { ...workspace, id: 'ws-empty', path: 'C:/fixture-empty', name: 'Empty project' },
-  { ...workspace, id: 'ws-invalid', path: 'C:/fixture-invalid', name: 'Invalid project' },
-  { ...workspace, id: 'ws-error', path: 'C:/fixture-error', name: 'Unreadable project' },
-)
-if (twoCheckouts) {
-  const alternateId = 'checkout-b:' + id
-  blueprint.nodeIds.push(alternateId)
-  blueprint.nodes[alternateId] = { ...blueprint.nodes[id], id: alternateId, title: 'Task checkout B', sourceHash: 'd'.repeat(64) }
-  Object.assign(blueprint, { composition: { version: 'r4', checkouts: [], interfaces: [], evidence: [], diagnostics: [], nodes: {
-    [id]: { layer: 'evidence', status: 'bound', repoId, path: workspace.path },
-    [alternateId]: { layer: 'evidence', status: 'bound', repoId, path: secondWorkspace.path },
-  } } })
-}
+const workspaces = new URLSearchParams(location.search).has('switch-workspace') ? [workspace, secondWorkspace] : [workspace]
 useWorkspaceStore.setState({ workspaces: workspaces as never, activeWorkspaceId: 'ws' })
-useBlueprintStore.setState({ currentBlueprint: blueprint as never, blueprintWorkspace: { [blueprint.id]: workspace.path }, activeSession: { blueprintId: blueprint.id, nodeId: id, workspacePath: workspace.path, nodeSnapshot: blueprint.nodes[id] } as never })
+const PANEL_REF = { ownerRepoId: repoId, viewId: 'shared-chat-fixture' }
 const events = new Set<(event: ChatAgentEvent) => void>()
 const runtimeEvents = new Set<(event: any) => void>()
 const fixture = {
@@ -126,34 +82,12 @@ Object.assign(window.electron.llm, {
   onAgentEvent: (listener: (event: ChatAgentEvent) => void) => { events.add(listener); return () => events.delete(listener) },
   startChatStream: (request: ChatStreamRequest) => {
     fixture.streams.push(request)
-    if (request.maintenanceTaskId) maintenance.beginProposal(request.maintenanceTaskId)
-    if (!request.maintenanceTaskId) {
-      const task = maintenance.tasks.find(item => item.conversationId === request.conversationId && item.status === 'proposal-ready')
-      if (task) void window.electron.janus.dismissMaintenanceProposal({ taskId: task.id })
-    }
     queueMicrotask(() => {
-      if (new URLSearchParams(location.search).has('manual-stream') && !request.maintenanceTaskId) return
+      if (new URLSearchParams(location.search).has('manual-stream')) return
       emit({ type: 'text_delta', requestId: request.requestId, delta: 'Project reply in progress' })
-      if (request.maintenanceTaskId) {
-        const finish = () => {
-          maintenance.completeProposal(request.maintenanceTaskId!)
-          const task = maintenance.tasks.find(item => item.id === request.maintenanceTaskId)!
-          if (task.error) emit({ type: 'stream_error', requestId: request.requestId, error: task.error })
-          else {
-            if (!maintenance.dropResult) emit({ type: 'maintenance_result', requestId: request.requestId, task: structuredClone(task) })
-            emit({ type: 'stream_end', requestId: request.requestId, cancelled: false })
-          }
-        }
-        if (maintenance.gateProposal) maintenance.finishProposal = finish
-        else finish()
-      }
     })
   },
-  abortChat: async () => {
-    fixture.aborts++
-    const request = fixture.streams.at(-1)
-    if (request?.maintenanceTaskId) maintenance.stopProposal(request.maintenanceTaskId)
-  },
+  abortChat: async () => { fixture.aborts++ },
   steerChat: async () => { fixture.steers++; return { accepted: true } },
   answerQuestion: async ({ requestId, callId }: { requestId: string; callId: string }) => { fixture.answers++; emit({ type: 'question_resolved', requestId, callId, status: 'answered' }); return { accepted: true } },
 })
@@ -285,29 +219,46 @@ Object.assign(window.electron.harness, {
   },
 })
 
-const maintenance = installMaintenanceFixture(blueprint as never, workspace)
-if (workbench) installWorkbenchBoundary(maintenance.graph, workspace.path)
-if (bootstrapMode) installBootstrapFixture(blueprint as never)
-if (twoCheckouts) maintenance.checkoutViews[secondWorkspace.path] = {
-  ...blueprint, id: blueprint.id + ':checkout-b', nodeIds: [id], nodes: { [id]: { ...blueprint.nodes[id], title: 'Task checkout B', sourceHash: 'd'.repeat(64) } }, composition: undefined,
-} as never
-Object.assign(fixture, { maintenance,
-  emitAgentEvent: emit,
+Object.assign(fixture, { emitAgentEvent: emit,
   switchWorkspace: (id: string) => useWorkspaceStore.getState().setActiveWorkspace(id),
-  selectMaintenanceNode: (nodeId?: string) => useBlueprintMaintenanceStore.getState().requestOpen({ blueprintId: blueprint.id, nodeId }),
   finishStream: () => emit({ type: 'stream_end', requestId: fixture.streams.at(-1)!.requestId, cancelled: false }),
   failStream: () => emit({ type: 'stream_error', requestId: fixture.streams.at(-1)!.requestId, error: 'Fixture provider unavailable' }),
-  snapshot: () => { const state = useBlueprintStore.getState(); return { graph: state.currentBlueprint, node: state.activeSession?.nodeSnapshot } },
+  snapshot: () => ({ graph: { nodeIds: ['target'], nodes: { target: { sourceUri: uri, title: 'Task' } } } }),
 })
+
+// Generic second host tests shared chat behavior; it does not represent the downloaded Blueprint UI.
+function ProjectPanel({ visible = true }: { visible?: boolean }) {
+  const registry = useJanusChatRegistry()
+  const [expanded, setExpanded] = useState(true)
+  const current = useWorkspaceStore(state => state.workspaces.find(item => item.id === state.activeWorkspaceId))
+  const [conversation, setConversation] = useState<string>()
+  useEffect(() => {
+    if (!registry.persistenceReady || !current) return
+    setConversation(registry.bindPanelProject({ domain: 'project', intent: 'discuss', scope: 'view', repoIds: [repoId],
+      viewRef: PANEL_REF, noteRefs: [{ uri }] }, [current.id], current.name))
+  }, [registry, current])
+  const chat = conversation ? registry.getController(conversation) : null
+  return <>
+    <button className="fixture-project-toggle" onClick={() => setExpanded(value => !value)}>Toggle project discussion</button>
+    <section className="fixture-project-chat" hidden={!visible || !expanded} style={{ display: visible && expanded ? "flex" : "none", flexDirection: "column", height: 620, minHeight: 0 }}>
+    {chat && <>
+      <button className="fixture-project-clear" onClick={chat.clear}>Clear discussion</button>
+      <JanusChat visible={visible && expanded} docked compactNavigation minimalComposer focused modeColor="#ff7830" messages={chat.messages}
+        pendingContent={chat.pendingContent} isStreaming={chat.isStreaming} error={chat.error} modelOptions={chat.modelOptions}
+        activeModel={chat.activeModel} resourceController={chat.resourceController} conversationController={chat}
+        onSelectModel={chat.selectModel} onSend={chat.send} onRewrite={chat.rewrite} onStop={chat.stop} onRetry={chat.retry} onClear={chat.clear} />
+    </>}
+  </section></>
+}
 
 function App() {
   const chat = useJanusChatController()
-  const projectChat = useOptionalJanusChatController({ ...BLUEPRINT_PANEL_VIEW_REF })
+  const projectChat = useOptionalJanusChatController(PANEL_REF)
   const [open, setOpen] = useState(true)
   const [taskOpen, setTaskOpen] = useState(true)
   const [homeId, setHomeId] = useState<string | null>(null)
   return <main>
-    <button onClick={() => setOpen((value) => !value)}>Toggle blueprint</button>
+    <button onClick={() => setOpen((value) => !value)}>Toggle project panel</button>
     <button onClick={() => setTaskOpen((value) => !value)}>Toggle task</button>
     <button onClick={() => chat.selectModel('p', 'model-b')}>Choose model B</button>
     <button onClick={() => { setHomeId((current) => current ?? chat.conversationId); chat.createConversation() }}>New personal chat</button>
@@ -325,7 +276,7 @@ function App() {
     <output data-testid="project-controller" data-id={projectChat?.conversationId} data-streaming={projectChat?.isStreaming} />
     <div className="fixture-layout">
       <section data-testid="main-chat"><JanusChat visible docked compactNavigation focused={!open} modeColor="#318b78" messages={chat.messages} pendingContent={chat.pendingContent} isStreaming={chat.isStreaming} error={chat.error} modelOptions={chat.modelOptions} activeModel={chat.activeModel} resourceController={chat.resourceController} conversationController={chat} onSelectModel={chat.selectModel} onSend={chat.send} onRewrite={chat.rewrite} onStop={chat.stop} onRetry={chat.retry} onClear={chat.clear} /></section>
-      {open ? <section data-testid="blueprint-chat"><BlueprintMaintenancePanel onClose={() => setOpen(false)} /></section> : null}
+      {open ? <section data-testid="project-panel"><ProjectPanel /></section> : null}
       {taskOpen ? <section data-testid="task"><HarnessRunPanel cwd={workspace.path} taskUri={uri} /></section> : null}
     </div>
   </main>
@@ -346,15 +297,7 @@ function LaunchFixture() {
   </div>
 }
 async function boot() {
-  await initI18n(); await changeLanguage(workbench ? 'zh-CN' : 'en')
-  ReactDOM.createRoot(document.getElementById('root')!).render(<JanusChatProvider>{new URLSearchParams(location.search).has('launch-assistant') ? <LaunchFixture /> : workbench ? <>
-    {switchWorkspaceMode && <button
-      style={{ position: 'fixed', bottom: 8, left: 8, zIndex: 13000 }}
-      onClick={() => {
-        const store = useWorkspaceStore.getState()
-        store.setActiveWorkspace(store.activeWorkspaceId === 'ws-b' ? 'ws' : 'ws-b')
-      }}>Switch workspace</button>}
-    <BlueprintWorkbench isOpen onClose={() => {}} />
-  </> : <App />}</JanusChatProvider>)
+  await initI18n(); await changeLanguage('en')
+  ReactDOM.createRoot(document.getElementById('root')!).render(<JanusChatProvider>{new URLSearchParams(location.search).has('launch-assistant') ? <LaunchFixture /> : workbench ? <ProjectPanel /> : <App />}</JanusChatProvider>)
 }
 void boot()

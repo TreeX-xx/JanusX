@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { WORKSPACE_RUNTIME_CHANNELS, type WorkspaceRuntimeAPI } from '../shared/workspace-runtime'
-import { BLUEPRINT_REVIEW_CHANNELS, type BlueprintReviewAPI } from '../../plugins/blueprint/src/shared/ipc/blueprint-review'
+import { BLUEPRINT_REVIEW_CHANNELS } from '../shared/ipc/legacy-review-channels'
+import type { BlueprintReviewAPI } from '../../plugins/blueprint/src/shared/ipc/blueprint-review'
 import os from 'node:os'
 import { JANUS_PERSONA } from '../shared/janus/persona'
 import { OFFICE_EVENT_CHANNELS, OFFICE_INVOKE_CHANNELS, type OfficeAPI } from '../shared/office'

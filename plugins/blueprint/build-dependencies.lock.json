@@ -51,6 +51,13 @@
       "integrity": "sha512-fRUsmzO7vG4IDTWCc+3bW2SIUmlMkTTaJOAcJ+JyJv58qAAX1PX6tsevDorg26Wwn/dY110CrGwhsv1DK9z5OQ=="
     },
     {
+      "name": "@janusx/note-tools",
+      "version": "0.1.0",
+      "file": "janusx-note-tools-0.1.0.tgz",
+      "sha256": "6100df1bafa8ee9c3b129a93ef084354057fa38499cb1297438c58f6daf339c6",
+      "integrity": "sha512-PFm2oIg7w2t9LnsxFt4ijYOWgFS2pzk20ojK/Xkd9PgoSZDnXs8XHmmI1h0dKhBC6I8aRwekaZNCdSdRKfGmBw=="
+    },
+    {
       "name": "@janusx/plugin-sdk",
       "version": "0.1.0",
       "file": "janusx-plugin-sdk-0.1.0.tgz",

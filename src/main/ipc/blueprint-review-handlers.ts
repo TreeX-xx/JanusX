@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { BLUEPRINT_REVIEW_CHANNELS } from '../../../plugins/blueprint/src/shared/ipc/blueprint-review'
+import { BLUEPRINT_REVIEW_CHANNELS } from '../../shared/ipc/legacy-review-channels'
 import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 
 // Note: old IPC stays actionable without opening stores or listeners — see .agents/notes/planning/blueprint-official-plugin.md

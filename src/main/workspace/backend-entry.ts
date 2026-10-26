@@ -5,7 +5,7 @@ import { realpath, stat } from 'node:fs/promises'
 import { relative, isAbsolute } from 'node:path'
 import { registerHarnessDocumentHandlers, type DocumentHandler } from '../harness/document-handlers'
 import { harnessNoteService } from '../harness/service'
-import { blueprintNoteView } from '../blueprint/note-service'
+import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 import { scanExternalSessions, type ExternalSessionSink } from '../sessions/external-session-scanner'
 import type { ImportExternalSessionInput } from '../sessions/session-registry'
 import { readTranscriptDetail } from '../sessions/transcript-reader'
@@ -13,7 +13,7 @@ import { buildProviderResumeArgs } from '../../shared/ipc/session'
 
 console.log = console.debug = console.info = (...args) => console.error(...args)
 const handlers = new Map<string, DocumentHandler>()
-registerHarnessDocumentHandlers((channel, handler) => handlers.set(channel, handler), false)
+registerHarnessDocumentHandlers((channel, handler) => handlers.set(channel, handler))
 const sessions = new Map<string, ImportExternalSessionInput>()
 const collector: ExternalSessionSink = {
   listSessions: () => [...sessions.values()], beginBatch() {}, endBatch() {},
@@ -53,7 +53,7 @@ async function dispatch(data: { method: string; root: string; owner: number; arg
     // same Linux environment as installation, including JanusX's user prefix.
     return { args, cwd: record.cwd, engine: record.engine, command: record.engine }
   }
-  if (data.method === 'blueprint.ui.save') return blueprintNoteView.saveUiState(data.root, data.args[0])
+  if (data.method === 'blueprint.ui.save') return requireBlueprintPlugin()
   const handler = handlers.get(data.method)
   if (!handler) throw new Error('CAPABILITY_UNAVAILABLE: This operation is not available on remote workspaces yet')
   if (data.method === 'harness:index:rev') await harnessNoteService.rescan(data.root)

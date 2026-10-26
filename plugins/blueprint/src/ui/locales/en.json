@@ -213,6 +213,14 @@
   "请求超时，请检查连接后重试。": "The request timed out. Check the connection and retry.",
   "蓝图后台已停止，请重新打开插件。": "The Blueprint service stopped. Reopen the plugin.",
   "操作未完成，请刷新当前文档和任务状态后重试。": "The operation did not complete. Refresh the document and task status before retrying.",
+  "导入旧蓝图": "Import legacy Blueprint",
+  "读取旧蓝图": "Read legacy Blueprints",
+  "预览后确认转换为当前项目的 Notes。原始旧数据保留，不自动执行历史任务。": "Preview and confirm conversion to Notes in this project. Original data is preserved; historical tasks will not run automatically.",
+  "没有待导入的旧蓝图。": "No legacy Blueprints to import.",
+  "确认导入": "Confirm import",
+  "正在处理…": "Processing…",
+  "导入预览已失效或项目尚未就绪，请重新读取。": "The import preview expired or the project is not ready. Read it again.",
+  "文档已写入或存在导入记录，请先检查项目 Notes 和旧蓝图归档，再决定如何恢复。": "Documents were written or an import record already exists. Check project Notes and the legacy archive before recovering.",
   "蓝图未连接": "Blueprint disconnected",
   "请在设置 → 插件中启用蓝图并授权当前项目，然后重新打开。": "Enable Blueprint and authorize this project in Settings → Plugins, then reopen it."
 }

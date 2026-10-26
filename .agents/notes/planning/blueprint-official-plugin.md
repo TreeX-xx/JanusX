@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-26T09:22:10.926Z",
+  "updated": "2026-10-26T14:16:34Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -24,7 +24,7 @@
 
 本文维护实施范围、现有代码和剩余出口。用户已授权完整实施，主 Agent 按普通 xdo 顺序执行，不创建 Task。正式分发、native 服务和蓝图独立包已有局部实现，主安装包拆分与发布尚未完成。验收集中维护在[插件架构需求](../workbench/requirements/plugin-architecture-forms.md) AC-20–26，原 AC-17／18 继续有效，以上条目保持未勾选。
 
-当前已增加 official 签名来源、目录验证、下载、原子安装、更新和回退，以及“已安装／发现插件／开发者”管理页。正式来源不要求开发模式；10-26 本地交付已在生产 trust.json 中预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist，目录未上线。蓝图后台已迁入 plugins/blueprint/src/main，独立 UI 已接入 dist/ui 和 manifest。宿主启动与普通聊天已退出旧分析器、审阅、建议、维护和修复运行时，渲染入口已移除旧蓝图 store 及工作台；兼容 CRUD、投影和纯数据模块仍被主进程引用，主包瘦身未完成。原功能基线见[蓝图验收记录](../blueprint/implementation-baseline.md)，已有未验收项继续保留。
+当前已增加 official 签名来源、目录验证、下载、原子安装、更新和回退，以及“已安装／发现插件／开发者”管理页。正式来源不要求开发模式；10-26 本地交付已在生产 trust.json 中预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist，目录未上线。蓝图后台与独立 UI 由 plugins/blueprint 拥有。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码：旧 CRUD、画布编辑、投影与迁移 IPC 返回 BLUEPRINT_PLUGIN_REQUIRED；通用 Note 与圆桌继续使用共享服务，公共作者工具和初始化适配归 packages/note-tools。BP-5 的源码边界已清理，最终安装器、资源对比、历史数据与完整功能矩阵尚未验收。原功能基线见[蓝图验收记录](../blueprint/implementation-baseline.md)，已有未验收项继续保留。
 
 ## 已确认的迁移回退与首次加载故障
 
@@ -91,11 +91,12 @@
 | 插件 SDK、类型、schema 与消费测试 | `packages/plugin-sdk/` | 保留；只公开已实现接口，不导出宿主 React、store 或通用 IPC 通道。 |
 | 安装、授权、隔离、任务与更新生命周期 | `src/main/plugins/`、`src/main/ipc/plugin-handlers.ts` | 保留宿主所有；新增分发子模块，不能包含蓝图专属审阅或画布算法。 |
 | 通用插件入口和管理 UI | `src/renderer/src/extensions/`、`src/renderer/src/components/plugins/` | 保留；蓝图通过贡献注册进入，不添加按插件 ID 分支的业务容器。 |
-| 蓝图 UI、投影、建议与审阅策略 | `plugins/blueprint/src/{main,ui,shared}/`，宿主仍有兼容消费者 | main 持有后台、共享引擎适配及 MCP，ui 持有隔离 React 页面，shared 持有插件内部 DTO。继续移除宿主旧入口与业务导入；完整功能矩阵未验收。 |
+| 蓝图 UI、投影、建议与审阅策略 | `plugins/blueprint/src/{main,ui,shared}/` | main 持有后台、旧 JSON 转换、共享引擎适配及 MCP，ui 持有隔离 React 页面，shared 持有插件内部 DTO。宿主只保留拒绝旧调用的兼容通道；完整功能矩阵未验收。 |
+| 通用文档作者与工作区初始化 | `packages/note-tools/` | 宿主圆桌与插件共同消费公开包；只适配共享 NoteService，不持有蓝图图身份、布局、存储或业务。图身份映射由插件薄适配保留。 |
 | 共享 Note／Agent 引擎 | 外部 `janus-agentX` 共享包及宿主适配 | 保留[既有归属](../blueprint/agentx-harness-inheritance.md)。解析、身份、事务、缓存、监听和撤销不在插件复制第二份；若其它功能仍依赖，不为减包而移除。共享实现修改应回到其所属仓库，并固定消费修订。 |
 | 官方目录及发布脚本 | `plugins/catalog/`、`scripts/plugins/` 已有本地签名／目录工具 | 10-26 交付签名公钥已预置；生产目录及独立发布 workflow 待配置，插件产物独立于应用 Release。 |
 
-`plugins/blueprint/` 已有独立 manifest、package.json、tsconfig 和 build.mjs，分别输出 service.cjs、note-mcp.cjs 和 ui/index.html；构建元数据拒绝宿主 src 输入，并检查单文件 5 MiB 限额。package-lock.json 固定安装树，build-dependencies.lock.json 固定八个公开包归档的版本、哈希及完整性。`plugins:blueprint:verify` 按 npm 发布文件规则打包公开依赖，在仓库外临时项目执行 `npm ci --ignore-scripts`、类型检查和构建，并检查依赖锁可迁移且构建输入未越出临时项目。本地插件构建仍可解析根 node_modules，只作为快速迭代。依赖不通过宿主私有别名、源码相对导入或修改 node_modules 获得。
+`plugins/blueprint/` 已有独立 manifest、package.json、tsconfig 和 build.mjs，分别输出 service.cjs、note-mcp.cjs 和 ui/index.html；构建元数据拒绝宿主 src 输入，并检查单文件 5 MiB 限额。package-lock.json 固定安装树，build-dependencies.lock.json 现在固定九个公开包归档；本次只新增 @janusx/note-tools，原八个归档的哈希未变，复核见 artifacts/plugins/migration-dependency-lock-review.json。`plugins:blueprint:verify` 按 npm 发布文件规则打包公开依赖，在仓库外临时项目执行 `npm ci --ignore-scripts`、类型检查和构建，并检查依赖锁可迁移且构建输入未越出临时项目。本地插件构建仍可解析根 node_modules，只作为快速迭代。依赖不通过宿主私有别名、源码相对导入或修改 node_modules 获得。
 
 同仓库不代表同安装包。electron-builder 已显式排除整个 plugins/，覆盖源码、dist、vendor 及构建缓存；配置门禁拒绝漏排除和显式重新包含。实际打包运行检查还拒绝 asar、smart-unpacked 和外置目录中的插件包。该保护不移除已经编入宿主 JavaScript 的蓝图业务，不能代替 main／renderer 依赖图清理或最终安装器的体积实测。共享依赖保留真实消费者，不承诺整个 Electron 或 Agent 基础体积都能减少。
 
@@ -166,7 +167,7 @@ SDK 采用版本范围与能力探测；必需能力缺失拒绝激活，可选�
 
 ## 顺序工作包
 
-各项由主 Agent 顺序推进；编号是工作包，不是 Task。BP-0 已有依赖清单，资源基线待补；BP-1 已有 native／MCP 真实进程验证，完整场景待补；BP-2 已迁移后台、接入独立 UI 并通过仓库外构建，宿主清理与完整功能验收待续；BP-3／BP-4 已实现本地分发及管理流程，生产发布待续；BP-5 已增加插件树排除和旧数据导入，宿主旧业务与最终包迁移仍未验收；BP-6 未验收。P8 分发与蓝图迁移保持独立验收，Mermaid 案例不构成蓝图通过的证据。
+各项由主 Agent 顺序推进；编号是工作包，不是 Task。BP-0 已有依赖清单，资源基线待补；BP-1 已有 native／MCP 真实进程验证，完整场景待补；BP-2 已迁移后台、接入独立 UI 并通过仓库外构建，完整功能验收待续；BP-3／BP-4 已实现本地分发及管理流程，生产发布待续；BP-5 已清理三个宿主入口的业务依赖、提取公共组件与作者工具，并提供插件内旧 JSON 显式转换，最终包和历史用户矩阵仍未验收；BP-6 未验收。P8 分发与蓝图迁移保持独立验收，Mermaid 案例不构成蓝图通过的证据。
 
 | 工作包 | 依赖 | 主要交付与代码责任 | 交付出口 |
 | --- | --- | --- | --- |
@@ -232,13 +233,13 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 | --- | --- |
 | 功能一致性 | 已补模块范围／选择／视口历史、跨模块定位、未归属入口和意见提示；关系与来源呈现、完整维护范围、错误恢复及全部旧 UI 仍需矩阵核对。设置自动保存已补，自动连接检测、对话模型独立选择及其余设置交互仍未对齐。 |
 | 设置与数据 | 配置并发、页面草稿、旧状态和凭据导入已有定向证据；历史版本矩阵、真实旧用户副本、升级与回退冲突待验收。 |
-| 包边界 | 主进程兼容 CRUD、投影、迁移／圆桌共用的作者工具仍待剥离；未安装冷启动和真实安装器需做完整资源测量。旧分析器及 review／suggestions／maintenance 运行时已退出宿主启动，渲染入口旧 store／画布已脱离。 |
+| 包边界 | 三个宿主入口均无插件业务输入，旧存储／投影适配已移除，共用作者工具与公共 UI 已提取；仍需以当前提交构建安装器／便携包，并测量未安装冷启动、包体积和资源。 |
 | 发布 | 配置真实密钥／allowlist、目录服务、独立分发仓库及 workflow；目前无真实下载源或发布资产。 |
 | 验收 | 安装器／便携包、升级迁移、故障演练、主包大小与资源测量、宿主／插件版本矩阵；原蓝图真实 JEV 与客户端兼容缺口继续保留。 |
 
 未创建远端仓库／Release，未修改用户真实模型、自动审核开关或客户端全局配置。定向测试使用临时项目、临时签名密钥及确定性供应商响应，不代表生产供应商质量或完整功能已发布。
 
-src/main/harness/service.ts 已直接继承共享 NoteService，不再转导出插件服务。共享服务只保留冷读合并、稳定预热，以及供桌面适配使用的索引和证据覆盖读取。图投影、组合与布局状态集中在插件 projection.ts；旧桌面入口通过 src/main/blueprint/note-service.ts 的显式适配复用原 harnessNoteService，维护写入仍委托同一事务实例。插件自身服务接入同一投影实现，不复制图映射或共享引擎。兼容消费者仍会打包蓝图代码，完整应用尚未完成拆分。
+src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并、稳定预热及索引／证据覆盖读取。图投影、组合与布局状态集中在插件 projection.ts，旧 src/main/blueprint/note-service.ts 适配已删除。宿主 document-handlers 通过共享索引解析项目，继续提供读取、重命名、归档、共享、初始化和撤销；旧 canvas create／update 与 projectGraph 明确要求插件。远程后端同样处理，不加载插件投影。以下服务拆分与消费回归是清理前已保存的阶段证据，其中已退役测试路径不再作为当前执行命令。
 
 服务拆分验证命令：`npx vitest run tests/unit/shared-note-service.test.ts tests/unit/harness-bundle-load.test.ts tests/unit/harness-service.test.ts tests/unit/harness-share-import.test.ts tests/unit/harness-undo.test.ts tests/unit/harness-run-handlers.test.ts tests/unit/harness-ipc-contract.test.ts tests/unit/blueprint-maintenance-harness-routing.test.ts tests/unit/blueprint-composition.test.ts tests/unit/blueprint-workspace-init.test.ts tests/unit/note-read-snapshot.test.ts tests/unit/note-watch-startup.test.ts tests/unit/note-chat.test.ts tests/unit/note-repair.test.ts tests/unit/maintenance-harness-apply.test.ts --maxWorkers=1 --minWorkers=1`，15 文件 172 项通过。新增真实文件用例验证同一索引、稳定版本、并发冲突与失败重试；开发／生产服务产物加载同时拒绝模块图中的蓝图输入。
 
@@ -283,23 +284,37 @@ src/main/harness/service.ts 已直接继承共享 NoteService，不再转导出�
 
 宿主 `typecheck:strict-unused`、插件独立 typecheck、`build:check` 及本轮修改宿主文件 ESLint 通过。全仓 Note 检查为 312 篇、2 错误，仍只来自未修改的 entrance-choreography.md；本轮五份 Note 无新增错误。没有提交混合工作区或执行远端发布。
 
-剩余主包清理优先处理 janus-handlers 的兼容 CRUD、harness projectGraph 的兼容投影，以及迁移和圆桌仍使用的作者工具。随后补真实安装器／便携包、无插件冷启动、资源基线、完整旧功能与版本矩阵。正式签名与目录发布继续单列；AC-20–27 不因本轮定向通过而签收。
+源码清理已覆盖 janus-handlers 兼容 CRUD、harness projectGraph 投影、历史迁移及圆桌作者工具。剩余为当前提交的真实安装器／便携包、无插件冷启动和资源基线、完整旧功能与版本矩阵；正式目录发布继续单列。AC-20–27 不因定向通过而签收。
 
 ## 宿主残留依赖与主包瘦身缺口
 
-2026-10-26 对当前源码执行 esbuild 内存构建，检查 `src/main/index.ts`、`src/renderer/src/main.tsx` 和 `src/main/workspace/backend-entry.ts` 的 metafile.inputs。确认插件独立安装与宿主完全移除蓝图代码是两个出口：排除 plugins/ 目录不会阻止构建工具把宿主直接引用的插件源码编入 JavaScript。以下事项尚未完成，后续清理需分别验证依赖断开及原有功能。
+2026-10-26 对 `src/main/index.ts`、`src/renderer/src/main.tsx` 和 `src/main/workspace/backend-entry.ts` 执行 esbuild 内存构建，逐项核对 metafile.inputs。插件目录排除与业务依赖断开现在都有源码门禁；前者阻止插件树随应用分发，后者阻止业务源码内联进宿主 JavaScript。当前责任如下。
 
-| 待处理项 | 实际调用链与残留内容 | 后续处理范围 |
+| 范围 | 已实施边界 | 保留与限制 |
 | --- | --- | --- |
-| 旧蓝图存储与操作接口 | [janus-handlers](../../../src/main/ipc/janus-handlers.ts) → [blueprint-store](../../../src/main/janus/blueprint-store.ts)，继续引入 blueprint-paths、factory、persistence、migration、requirement-candidates、relations 及 maintenance/changeset。 | 梳理旧蓝图／节点／功能项 CRUD 和历史分析采纳的调用方，将专属业务归入插件；旧数据保留与兼容策略必须明确，不能直接删除用户数据。 |
-| Note 图投影与组合关系 | [宿主适配器](../../../src/main/blueprint/note-service.ts) 实例化插件的 BlueprintNoteProjection，引入 note-to-blueprint、projection 和 blueprint-composition。 | 移除宿主对蓝图专属投影的直接引用；通用 Note 索引、身份和事务留在共享能力中，不为瘦身删除其他功能仍需的引擎。 |
-| 文档与项目初始化适配 | [document-handlers](../../../src/main/harness/document-handlers.ts) 的 resolve、projectGraph、apply 仍使用上述投影，workspace-blueprint 直接继承插件的 WorkspaceBlueprintService；[远程后端入口](../../../src/main/workspace/backend-entry.ts) 仍调用投影保存蓝图 UI 状态。 | 通用文档解析／写入和项目初始化摆脱蓝图图结构；蓝图图读取与视口状态回归插件。桌面和远程后端同时检查，保留无插件场景下的文档能力。 |
-| 旧数据迁移与文档作者工具 | [harness-handlers](../../../src/main/ipc/harness-handlers.ts) 保留旧 JSON → Notes 迁移及维护审计读取；圆桌 service／artifact-bundle 直接引用插件的 note-authoring。 | 将通用文档作者工具归回共享模块，明确历史迁移的所有者及调用入口；验证迁移与圆桌生成文档，不把旧数据读取误删成运行时清理。 |
-| 蓝图目录内的公共 UI | 实际 renderer 依赖包含 PromptDialog、NoteTimelineDetails、NoteChatActivity 及相关样式，主界面、Git／文件操作、备忘录及普通聊天仍有消费者。 | 提取为公共组件并修正目录和导入；保留退出确认、文件操作及聊天中的文档变更展示，不能整目录删除。 |
+| 旧蓝图存储与操作接口 | [janus-handlers](../../../src/main/ipc/janus-handlers.ts) 的全部旧通道只返回 BLUEPRINT_PLUGIN_REQUIRED，旧 blueprint-store、blueprint-paths 与宿主转换器已删除。 | 保留通道名及类型兼容；不加载旧数据，不自动安装、启用或调用模型。原 userData 数据未删除。 |
+| Note 图投影与组合关系 | 宿主投影适配已删除，图算法、组合与布局归插件。 | 通用索引、身份、文件事务、共享与撤销仍消费共享引擎；旧画布焦点／分组协议退役，不代表插件已逐项恢复这些能力。 |
+| 文档与项目初始化适配 | [document-handlers](../../../src/main/harness/document-handlers.ts) 直接读共享索引；宿主和[远程后端](../../../src/main/workspace/backend-entry.ts) 的图读取／视口保存要求插件。 | @janusx/note-tools 提供 WorkspaceNotesService；宿主状态使用 repoId，插件薄适配映射原图身份。保留显式初始化、页面归属和撤销句柄。 |
+| 旧数据转换与文档作者工具 | 插件 [legacy-blueprints](../../../plugins/blueprint/src/main/notes/legacy-blueprints.ts) 拥有预览／确认；圆桌及插件共同消费 [note-tools](../../../packages/note-tools/src/index.ts)。 | 只转换已复制到插件 legacy/ 的 JSON，原始用户目录保留。作者工具不依赖蓝图图结构，不复制共享事务引擎。 |
+| 公共 UI | PromptDialog 归 components/common，NoteChatActivity／NoteTimelineDetails／样式归 components/note，review-diff 归 lib。 | 文件、Git、备忘录和普通聊天保留原组件；共享浏览器 fixture 改用通用第二聊天面板，插件功能由独立载体和完整桌面验证。 |
 
 旧审核 IPC 当前只返回 BLUEPRINT_PLUGIN_REQUIRED，旧审核、建议、维护后台和 analyzer 已退出宿主运行链；旧蓝图工作台及 store 已退出 renderer 入口。源码文件仍在仓库、类型导入存在或路径包含 blueprint，都不足以判断它是否进入安装包，后续以实际构建输入和输出复核。
 
-清理顺序为旧业务 IPC／存储、通用文档与图投影解耦、作者工具归属、公共 UI 提取。完成后需检查 main／renderer／远程 workspace 三个入口、无插件启动和通用文档／圆桌回归，再验证同批宿主与 .jxp 的安装、授权和蓝图功能。[边界测试](../../../tests/unit/blueprint-host-boundary.test.ts)除禁止已列旧运行时外，已对三个入口加棘轮：metafile.inputs 中 plugins/blueprint 源码与宿主路径含 blueprint 的源码必须与 RESIDUAL 清单完全一致。10-26 基线为 main 14 个插件源码／7 个宿主文件，远程后端 5／2，renderer 0 个插件源码、8 个仍在 blueprint 目录下的公共 UI 文件。新增残留直接失败；断开依赖后清单不缩小也会失败，清理步骤须在同一变更中删除对应条目。棘轮只约束源码输入，不代表体积、无插件冷启动或功能已验收；以上清理本次未实施或签收。
+[边界测试](../../../tests/unit/blueprint-host-boundary.test.ts)要求三个入口的 Blueprint 输入与 RESIDUAL 完全一致，并单独检查公共 note-tools 源码图。清理前 main 为 14 个插件源码／7 个宿主文件，后端 5／2，renderer 为 0／8；当前三者插件源码均为 0。宿主仅 main 保留两个拒绝旧调用的文件（blueprint-review-handlers、legacy-blueprint），后端保留 legacy-blueprint，renderer 为 0；固定旧审核通道是共享字符串常量。类型导入与路径审计不等于运行时依赖；棘轮也不代表安装包体积、冷启动性能或全部功能已验收。
+
+旧 JSON 导入入口位于插件工具栏“导入旧蓝图”。先列出来源并预览目标路径及完整 Markdown，再用一次性 token 确认；token 绑定项目根、repoId、页面所有者和源文件哈希，过期、换页、来源变更或越权时拒绝写入。确认使用预览时生成的同一批身份和文档，通过共享事务写入 draft Notes 与迁移报告，再归档插件副本。转换标记与 Notes 同事务落盘：写后归档失败返回 RECOVERY_REQUIRED，重新打开也拒绝生成第二套文档。harness-note/2 中的历史任务转普通 Note，不伪造执行合同、验收或回执。维护审计沿用历史读取规则；完整历史版本及真实旧用户矩阵仍待验收。
+
+无插件文档回归覆盖初始化、项目解析、原文、重命名、共享、归档、冲突和归档撤销。重命名的 undoPreview 可读，但共享引擎 applyUndo 对重命名日志返回 duplicate operationId；这是本轮新增集成测试发现的共享引擎缺口，未在宿主复制一套撤销实现。独立签名载体还复现过维护写入后审计停留 pending／BUSY 的锁竞争，存在同包通过记录；UI 现等本轮写入完成后刷新已展开的审计列表，门禁状态按最新收据报告，不把复测通过当成所有锁竞争已修复。
+
+| 本轮验证 | 实测结果与证据 |
+| --- | --- |
+| 定向单元／集成 | artifacts/plugins/migration-final-unit.log：14 文件 97 项通过，包含六项依赖边界、无插件文档、圆桌、旧 JSON、真实 native、初始化、共享引擎、IPC 与文件删除。完整 Markdown 预览补齐后另复跑 UI／转换／native 三文件 19 项通过，清理旧 mock 后三个 IPC 文件 25 项通过。 |
+| 共享宿主浏览器 | artifacts/plugins/migration-final-browser.log：11 文件 46 项通过，覆盖聊天 timeline、上下文、工具、会话隔离、任务三模式、审批、撤销、主题和插件黑板。测试使用通用聊天面板及模拟 IPC，不替代插件功能验收。 |
+| 独立插件门禁 | npm run plugins:blueprint:check 通过：九个公开归档在仓库外 npm ci／typecheck／build，同包签名安装、设置、讨论、预览写入／撤销及重装的 Electron 载体 1 项通过。最新收据 artifacts/plugins/blueprint-build.json 的 runtime.status 为 passed。 |
+| 完整宿主与独立 MCP | npm run test:blueprint:local 1 项通过，日志 migration-local-desktop.log；隔离 profile／真实仓库 Notes 副本、插件授权及页面、设置返回可见节点、桌面退出后 MCP 读取。首轮 firstWindow 超时，单独运行通过，未据此认定所有启动时序问题已修复。 |
+| 工程门禁与 Notes | 严格未使用项类型检查、插件 typecheck、build:check、package-boundary、exclusions 与 i18n 通过；修改宿主源码 ESLint 为 0 错误、6 条既有警告。修复 11 条退役代码链接后，全仓 312 篇 Notes 只剩 entrance-choreography.md 的两项既有错误；四篇受影响设计保留历史代码的固定 Git 提交链接和当前迁移说明。主题测试已改读插件实际文件，13 项通过，Sidebar 原有 title 断言仍失败，未修改侧栏来掩盖。 |
+
+以上均为本地证据，未运行全量测试或发布生产目录。10-26 原安装器／.jxp 对应清理前修订，不能用最新可变构建收据替代原交付证据。
 
 10-26 安装器为 132.5 MiB，蓝图 .jxp 为 1.71 MiB。按实际解包文件统计，Electron／Chromium 约 284 MiB、归档中公共 npm 文件约 142 MiB、主程序编译产物约 35 MiB、OfficeCLI 约 32 MiB；这些是未压缩内容分类，不能与安装器体积直接比较或推导可节省量。公共依赖仍有其他消费者，蓝图清理不能承诺安装包大幅缩小；实际收益须用相同平台与构建条件做前后对比。性能、跨包重复和通用依赖资源裁剪另行度量，不把插件包大小当作可直接扣除的体积。
 
@@ -307,6 +322,6 @@ src/main/harness/service.ts 已直接继承共享 NoteService，不再转导出�
 
 用户授权提交当前版本并交付 Windows x64 安装器与独立蓝图包。主程序版本保持 0.9.4，交付目录为 release/2026-10-26；蓝图版本为 1.0.0。正常宿主预置 janusx-blueprint-20261026 的 Ed25519 公钥，native allowlist 只授权 official.blueprint。公钥 PEM 的 SHA-256 为 c2f30435d698a9f067a45b26f2b227fad3ba49c522f0a966ca7ac6d8fdcc141f；私钥保存在忽略的 .cache/delivery-signing，后续同发布身份签名需保留该文件，不进入 Git、安装器或插件。
 
-插件来自 artifacts/plugins/blueprint-build.json 所指仓库外独立构建，沿用八个锁定公开依赖及已通过的同产物载体验证。实际正常打包桌面已验证无预装蓝图、单个 .jxp 原生入口导入、默认停用、授权启用、设置页面、真实仓库 Notes 与节点渲染；仅文件选择器在测试中返回指定路径。收据与截图在 artifacts/delivery-2026-10-26，未修改运行中的开发 profile，未上传 Release 或部署目录。
+本节记录清理前交付：插件当时来自仓库外独立构建，沿用八个锁定公开依赖及同产物载体验证；确切产物和修订由 release/2026-10-26/delivery.json 固定，最新 artifacts/plugins/blueprint-build.json 已被后续九依赖构建刷新。实际正常打包桌面已验证无预装蓝图、单个 .jxp 原生入口导入、默认停用、授权启用、设置页面、真实仓库 Notes 与节点渲染；仅文件选择器在测试中返回指定路径。原收据与截图在 artifacts/delivery-2026-10-26，未修改运行中的开发 profile，未上传 Release 或部署目录。
 
 最终安装器的仓库外模块图、LLM runtime 及可见 GUI 检查通过，包体积预算通过。单元测试全量仍有失败，明细归[可复现验证](../desktop/reproducible-verification.md#october-26-delivery-checks)，不据本地交付将完整功能或远端分发验收标记完成。

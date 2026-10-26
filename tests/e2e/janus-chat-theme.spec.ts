@@ -43,7 +43,7 @@ async function openHosts(page: Page, theme: string) {
     element.dataset.stage = 'expanded'
     element.dataset.view = 'chat'
   })
-  const hosts = [page.getByTestId('main-chat'), page.getByTestId('blueprint-chat')]
+  const hosts = [page.getByTestId('main-chat'), page.getByTestId('project-panel')]
   for (const host of hosts) {
     await host.locator('.janus-chat-input').fill('Read the selected Note')
     await host.locator('.janus-chat-input').press('Enter')
@@ -66,7 +66,7 @@ for (const theme of ['planche', 'dark']) {
     await expectToken(chat.locator('.janus-chat-input'), 'color', 'shell-text')
   })
 
-  test(`${theme}: Island and Blueprint share streaming feedback and live theme changes`, async ({ page }) => {
+  test(`${theme}: two shared chat hosts share streaming feedback and live theme changes`, async ({ page }) => {
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     const hosts = await openHosts(page, theme)
@@ -115,11 +115,10 @@ for (const theme of ['planche', 'dark']) {
     expect(errors).toEqual([])
   })
 
-  test(`${theme}: compact composer uses theme tokens without Blueprint stylesheet rules`, async ({ page }) => {
+  test(`${theme}: compact composer uses theme tokens without host stylesheet rules`, async ({ page }) => {
     await page.goto('/project.html?workbench&manual-stream')
-    await page.locator('.blueprint-janus-capsule').click()
     await setTheme(page, theme)
-    const blueprint = page.locator('.blueprint-workbench-janus-slot')
+    const blueprint = page.locator('.fixture-project-chat')
     const input = blueprint.locator('.janus-chat-input')
     await input.fill('Continue reading')
     await expectToken(input, 'color', 'shell-text')

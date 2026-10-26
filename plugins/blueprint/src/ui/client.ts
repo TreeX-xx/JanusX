@@ -13,6 +13,8 @@ const messages: Record<string, string> = {
   SOURCE_UNAVAILABLE: '蓝图后台未运行，请在插件设置中重新启用。',
   TIMEOUT: '请求超时，请检查连接后重试。',
   SERVICE_STOPPED: '蓝图后台已停止，请重新打开插件。',
+  NOT_READY: '导入预览已失效或项目尚未就绪，请重新读取。',
+  RECOVERY_REQUIRED: '文档已写入或存在导入记录，请先检查项目 Notes 和旧蓝图归档，再决定如何恢复。',
   BLUEPRINT_OPERATION_FAILED: '操作未完成，请刷新当前文档和任务状态后重试。',
 }
 function failure(code: string) { return new Error(messages[code] ? `${t(messages[code])} (${code})` : code) }

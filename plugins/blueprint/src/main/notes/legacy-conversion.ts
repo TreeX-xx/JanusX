@@ -1,4 +1,4 @@
-﻿// Note: on-demand JSON migration — see .agents/notes/blueprint/documents/history/blueprint-migration.md
+// Note: explicit legacy conversion; see .agents/notes/planning/blueprint-official-plugin.md
 /**
  * @file On-demand legacy JSON blueprint migration (S8-JanusX).
  * @description Converts one legacy JSON blueprint into harness Note drafts in
@@ -12,19 +12,15 @@
  *  No Electron import, so unit tests drive real temp checkouts.
  */
 import { randomUUID } from 'node:crypto'
-import { mkdir, rename } from 'node:fs/promises'
-import { join } from 'node:path'
 import { parseNote, serializeNote, validateNote } from '@janus-agent/harness-core'
-import { noteAuthoringContext, maintainedNotePath, type NoteAuthoringContext } from '../../../plugins/blueprint/src/main/notes/note-authoring'
+import { noteAuthoringContext, maintainedNotePath, type NoteAuthoringContext } from '@janusx/note-tools'
 import type {
   Blueprint,
   BlueprintIssue,
   BlueprintNode,
-} from '../../../plugins/blueprint/src/shared/janus/types'
-import type { BlueprintMaintenanceAuditRecord } from '../../../plugins/blueprint/src/shared/janus/maintenance-types'
-import { harnessNoteService } from '../harness/service'
-import { blueprintsDir, blueprintFile, indexFile } from './blueprint-paths'
-import { readJson, writeJson } from '../../../plugins/blueprint/src/main/janus/blueprint-persistence'
+} from '../../shared/janus/types'
+import type { BlueprintMaintenanceAuditRecord } from '../../shared/janus/maintenance-types'
+import { NoteService } from '@janus-agent/harness-node'
 
 export type MigratedKind = 'note' | 'requirement' | 'task' | 'decision' | 'idea' | 'initiative'
 
@@ -363,17 +359,10 @@ export function previewMigration(blueprint: Blueprint, repoId: string, audits: B
 }
 
 /**
- * Applies one migration transacted: validates every note first, writes once,
- * then archives the JSON source. The archived source is the idempotence
- * marker: a second run refuses with NOT_FOUND instead of duplicating notes.
+ * Prepares exact identities and validated documents for explicit confirmation.
+ * The native adapter persists a recovery marker alongside those documents.
  */
-export async function applyMigration(
-  root: string,
-  repoId: string,
-  blueprint: Blueprint,
-  audits: BlueprintMaintenanceAuditRecord[],
-  archive: (blueprintId: string) => Promise<string>,
-): Promise<MigrationResult> {
+export async function prepareMigration(root: string, repoId: string, blueprint: Blueprint, audits: BlueprintMaintenanceAuditRecord[], harnessNoteService: NoteService, conversionKey?: string) {
   if (blueprint.source === 'harness') throw { code: 'SCHEMA_INVALID', message: 'harness blueprints need no migration' }
   const { built, warnings } = buildMigrationDocuments(blueprint, repoId)
   const authoring = await noteAuthoringContext(harnessNoteService, root, undefined, repoId)
@@ -388,6 +377,15 @@ export async function applyMigration(
     for (let suffix = 2; built.some(item => item.fileName.toLowerCase() === report.fileName.toLowerCase()); suffix++) report.fileName = base.replace(/\.md$/, `-${suffix}.md`)
   }
   const documents = [...built.map((item) => ({ markdown: item.markdown, fileName: item.fileName })), { markdown: report.markdown, fileName: report.fileName }]
+  if (conversionKey) {
+    // Persist the recovery marker in the same transaction as the converted Notes.
+    // A crash after commit and before archive must never create a second set.
+    for (const document of documents) {
+      const parsed = parseNote(document.markdown)
+      parsed.meta.extensions = { ...parsed.meta.extensions, legacyConversion: { key: conversionKey } }
+      document.markdown = serializeNote(parsed)
+    }
+  }
   for (const document of documents) {
     let parsed: ReturnType<typeof parseNote>
     try {
@@ -398,40 +396,22 @@ export async function applyMigration(
     const problems = validateNote(parsed)
     if (problems.length > 0) throw { code: problems[0]?.code ?? 'SCHEMA_INVALID', message: `migrated note invalid (${document.fileName}): ${problems[0]?.message ?? 'unknown'}`, path: problems[0]?.path }
   }
-  const applied = await harnessNoteService.applyOperations(root, documents.map((document) => ({
-    operationId: randomUUID(),
-    type: 'create' as const,
-    uri: `note://${repoId}/${(parseNote(document.markdown).meta as { id: string }).id}`,
-    expectedHash: null,
-    relativePath: document.fileName,
-    afterMarkdown: document.markdown,
-  })), `Migrate legacy blueprint ${blueprint.name}`)
-  const archivedPath = await archive(blueprint.id)
-  return { txId: applied.txId, uris: [...built.map((item) => item.plan.uri), report.uri], reportUri: report.uri, archivedPath }
+  return { documents, preview: { blueprintId: blueprint.id, name: blueprint.name, nodeCount: blueprint.nodeIds.length, auditCount: audits.length,
+    appliedAuditCount: audits.filter(item => item.status === 'applied').length, notes: built.map(item => item.plan),
+    relationCount: built.reduce((count, item) => count + (parseNote(item.markdown).meta.relations?.length ?? 0), 0), warnings, targetRepoId: repoId },
+    uris: [...built.map(item => item.plan.uri), report.uri], reportUri: report.uri }
 }
 
-/**
- * Archives the JSON source after a successful write: detaches it from the
- * index tolerantly, then moves the file under archived/. The move is the
- * idempotence marker and never deletes content. Callers refresh blueprint
- * lists afterwards; the in-memory store cache drops the id on next list.
- */
-export async function archiveBlueprintSource(blueprintId: string): Promise<string> {
-  try {
-    const index = await readJson<{ blueprints?: string[] }>(indexFile())
-    if (index && Array.isArray(index.blueprints)) {
-      await writeJson(indexFile(), { ...index, blueprints: index.blueprints.filter((id) => id !== blueprintId) })
-    }
-  } catch {
-    // Index loss never blocks the archive; the moved file is the truth.
-  }
-  const archivedDir = join(blueprintsDir(), 'archived')
-  await mkdir(archivedDir, { recursive: true })
-  const archivedPath = join(archivedDir, `${blueprintId}.json`)
-  try {
-    await rename(blueprintFile(blueprintId), archivedPath)
-  } catch (error) {
-    throw { code: 'IO_ERROR', message: `cannot archive blueprint ${blueprintId}: ${(error as Error).message}` }
-  }
-  return archivedPath
+export async function applyPreparedMigration(root: string, blueprint: Pick<Blueprint, 'id' | 'name'>, prepared: Awaited<ReturnType<typeof prepareMigration>>, archive: (blueprintId: string) => Promise<string>, harnessNoteService: NoteService, signal?: AbortSignal): Promise<MigrationResult> {
+  signal?.throwIfAborted()
+  const applied = await harnessNoteService.applyOperations(root, prepared.documents.map(document => ({
+    operationId: randomUUID(), type: 'create' as const, uri: 'note://' + prepared.preview.targetRepoId + '/' + parseNote(document.markdown).meta.id,
+    expectedHash: null, relativePath: document.fileName, afterMarkdown: document.markdown,
+  })), 'Migrate legacy blueprint ' + blueprint.name)
+  const archivedPath = await archive(blueprint.id)
+  return { txId: applied.txId, uris: prepared.uris, reportUri: prepared.reportUri, archivedPath }
+}
+
+export async function applyMigration(root: string, repoId: string, blueprint: Blueprint, audits: BlueprintMaintenanceAuditRecord[], archive: (blueprintId: string) => Promise<string>, harnessNoteService: NoteService = new NoteService()): Promise<MigrationResult> {
+  return applyPreparedMigration(root, blueprint, await prepareMigration(root, repoId, blueprint, audits, harnessNoteService), archive, harnessNoteService)
 }

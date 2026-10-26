@@ -88,7 +88,6 @@ vi.mock('../../src/main/harness/service', () => ({
   },
 }))
 
-vi.mock('../../src/main/blueprint/note-service', () => ({ blueprintNoteView: { projectView: mocks.projectView } }))
 
 vi.mock('../../src/main/harness/execution-adapter', () => ({
   prepareTaskRun: mocks.prepareTaskRun,
@@ -119,20 +118,6 @@ vi.mock('../../src/main/harness/desktop-executor', () => ({
 vi.mock('../../src/main/harness/independent-review', () => ({
   requestIndependentReview: mocks.requestIndependentReview,
   finishWithLatestReceipt: mocks.finishWithLatestReceipt,
-}))
-
-vi.mock('../../src/main/janus/blueprint-migrate', () => ({
-  previewMigration: mocks.previewMigration,
-  applyMigration: mocks.applyMigration,
-  archiveBlueprintSource: mocks.archiveBlueprintSource,
-}))
-
-vi.mock('../../src/main/janus/blueprint-store', () => ({
-  blueprintStore: { loadBlueprint: mocks.loadBlueprint, evictBlueprint: mocks.evictBlueprint },
-}))
-
-vi.mock('../../src/main/janus/maintenance/service', () => ({
-  blueprintMaintenanceService: { listAudits: mocks.listAudits },
 }))
 
 vi.mock('../../src/main/harness/undo', () => ({
@@ -477,33 +462,13 @@ describe('harness run IPC mapping (S8-JanusX surface)', () => {
     await expect(close({}, ROOT, 'run-1')).rejects.toMatchObject({ code: 'BUSY' })
   })
 
-  it('previews legacy migrations and applies them with an archived source', async () => {
-    mocks.resolveRoot.mockResolvedValue({ ok: true, root: ROOT, diagnostics: [] })
-    const preview = await handler(HARNESS_COMMAND_CHANNELS.migratePreview)
-    mocks.projectView.mockResolvedValueOnce({ repoId: 'repo-1' })
-    mocks.loadBlueprint.mockResolvedValueOnce({ id: 'bp-1', source: 'json' })
-    mocks.listAudits.mockResolvedValueOnce([])
-    mocks.previewMigration.mockReturnValueOnce({ blueprintId: 'bp-1', notes: [], warnings: [] })
-    await expect(preview({}, ROOT, 'bp-1')).resolves.toEqual({ blueprintId: 'bp-1', notes: [], warnings: [] })
-    expect(mocks.previewMigration).toHaveBeenCalledWith({ id: 'bp-1', source: 'json' }, 'repo-1', [], { schema: 'harness-note/1' })
-    await expect(preview({}, ROOT, '')).rejects.toMatchObject({ code: 'SCHEMA_INVALID', path: 'blueprintId' })
-
-    const apply = await handler(HARNESS_COMMAND_CHANNELS.migrateApply)
-    mocks.projectView.mockResolvedValueOnce({ repoId: 'repo-1' })
-    mocks.loadBlueprint.mockResolvedValueOnce({ id: 'bp-1', source: 'json' })
-    mocks.listAudits.mockResolvedValueOnce([])
-    mocks.applyMigration.mockResolvedValueOnce({ txId: 'tx-1', uris: ['note://repo-1/a'], reportUri: 'note://repo-1/r', archivedPath: '/archived/bp-1.json' })
-    let applied: unknown
-    try {
-      applied = await apply({}, ROOT, 'bp-1')
-    } catch (error) {
-      console.log('APPLY REJECTION:', JSON.stringify(error))
-      throw error
+  it('redirects legacy conversion to the installed plugin before reading data', async () => {
+    for (const channel of [HARNESS_COMMAND_CHANNELS.migratePreview, HARNESS_COMMAND_CHANNELS.migrateApply]) {
+      const call = await handler(channel)
+      await expect(call({}, ROOT, 'bp-1')).rejects.toThrow('BLUEPRINT_PLUGIN_REQUIRED')
     }
-    expect(applied).toEqual({ txId: 'tx-1', uris: ['note://repo-1/a'], reportUri: 'note://repo-1/r', archivedPath: '/archived/bp-1.json' })
-    expect(mocks.evictBlueprint).toHaveBeenCalledWith('bp-1')
-    mocks.projectView.mockResolvedValueOnce({ repoId: null })
-    await expect(apply({}, ROOT, 'bp-1')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(mocks.loadBlueprint).not.toHaveBeenCalled()
+    expect(mocks.applyMigration).not.toHaveBeenCalled()
   })
 
   it('reviews independently, finishes on the latest receipt, and repairs explicitly', async () => {

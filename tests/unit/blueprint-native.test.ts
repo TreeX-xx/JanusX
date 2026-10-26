@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { acquireLock, releaseLock, SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
 import { NativePluginService } from '../../src/main/plugins/native-service'
 import { NativeServiceError, type JsonValue } from '../../packages/plugin-sdk/src'
+import { makeNode } from '../../plugins/blueprint/src/main/janus/blueprint-factory'
 
 beforeAll(() => { execFileSync(process.execPath, ['plugins/blueprint/build.mjs'], { windowsHide: true, stdio: 'pipe' }) }, 30_000)
 const cleanup: Array<() => Promise<unknown>> = []
@@ -67,6 +68,32 @@ async function fixture() {
     slow: () => { slow = true }, requests: () => requestCount, raw: () => service,
     agent: (reply: NonNullable<typeof agentReply>) => { agentReply = reply } }
 }
+
+it('imports legacy data only after project-scoped preview and explicit confirmation', async () => {
+  const f = await fixture(), first = randomUUID(), second = randomUUID()
+  const node = makeNode({ title: 'Old requirement', type: 'feature', description: 'Keep the original intent.' })
+  const raw = JSON.stringify({ schemaVersion: 4, id: 'legacy-board', name: 'Legacy board', source: 'json',
+    nodeIds: [node.id], nodes: { [node.id]: node }, rootNodeId: node.id, relations: [], requirementCandidates: [],
+    canvasLayout: {}, collapsedNodeIds: null, contentRevision: 1 })
+  await mkdir(join(f.state, 'legacy'), { recursive: true })
+  const source = join(f.state, 'legacy/legacy-board.json')
+  await writeFile(source, raw)
+  const call = (owner: string, method: string, input: JsonValue = null) => f.raw().call(method, { project: f.project, input, instanceId: owner }) as Promise<any>
+  await expect(f.call('legacy.list', null, null)).rejects.toThrow('PATH_NOT_GRANTED')
+  expect(await call(first, 'legacy.list')).toMatchObject([{ id: 'legacy-board', nodes: 1 }])
+  const abandoned = await call(first, 'legacy.preview', 'legacy-board')
+  expect(await readFile(source, 'utf8')).toBe(raw)
+  await expect(call(second, 'legacy.apply', abandoned.token)).rejects.toThrow('NOT_READY')
+  await f.raw().call('lifecycle.release', { instanceId: first })
+  await expect(call(first, 'legacy.apply', abandoned.token)).rejects.toThrow('NOT_READY')
+  const preview = await call(second, 'legacy.preview', 'legacy-board')
+  const applied = await call(second, 'legacy.apply', preview.token)
+  expect(applied.uris.slice(0, -1)).toEqual(preview.notes.map((note: any) => note.uri))
+  expect(await readFile(applied.archivedPath, 'utf8')).toBe(raw)
+  expect((await call(second, 'blueprint.graph')).blueprint.nodeIds).toHaveLength(3)
+  expect(await call(second, 'legacy.list')).toEqual([])
+  expect(f.requests()).toBe(0)
+})
 
 it('streams only the active discussion, rejects stale progress and bounds original-file reads', async () => {
   const f = await fixture()

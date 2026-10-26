@@ -15,6 +15,7 @@
     "paths": {
       "@/*": ["src/renderer/src/*"],
       "@janusx/llm-core": ["packages/llm-core/src/index.ts"],
+      "@janusx/note-tools": ["packages/note-tools/src/index.ts"],
       "@janusx/plugin-sdk": ["packages/plugin-sdk/src/index.ts"],
       "@janusx/plugin-sdk/native": ["packages/plugin-sdk/src/native.ts"],
       "@janusx/llm-core/model-registry": ["packages/llm-core/src/registry/model-registry.ts"]

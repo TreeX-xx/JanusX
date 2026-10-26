@@ -7,7 +7,7 @@ test.afterEach(() => expect(pageErrors).toEqual([]))
 for (const mode of ['xdo', 'xdel', 'xflow']) test(`desktop ${mode} run executes with evidence, aborts mid-flight, and recovers`, async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/project.html')
-  await page.addStyleTag({ content: '.fixture-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; padding:8px; } [data-testid="main-chat"], [data-testid="blueprint-chat"] { display:none; }' })
+  await page.addStyleTag({ content: '.fixture-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; padding:8px; } [data-testid="main-chat"], [data-testid="project-panel"] { display:none; }' })
   const task = page.getByTestId('task')
 
   await task.getByLabel('Allowed paths', { exact: true }).fill('src/')

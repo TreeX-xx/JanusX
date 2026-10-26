@@ -1,15 +1,14 @@
 // Note: .agents/notes/sessions/workspace-runtime-import.md
 // Shared desktop/Linux document operations; transactions run beside the source.
-import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ParsedNote } from '@janus-agent/harness-core'
 import { readMarkdownView } from '@janus-agent/harness-core'
-import { applyNodePatch, archiveNoteOp, checkWritablePatch, createNoteOp, nodeTypeToKind } from './artifact-producer'
+import { archiveNoteOp } from '@janus-agent/harness-core'
+import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 import { toNoteDoc } from '../notes/note-provider'
 import { harnessNoteService } from './service'
-import { blueprintNoteView } from '../blueprint/note-service'
-import { workspaceBlueprintService } from './workspace-blueprint'
+import { workspaceNotesService } from './workspace-notes'
 import type { IncomingSnapshot } from './share-import'
 import { adoptTask, readTaskDraft } from './task-adoption'
 import { applyUndo, previewUndo } from './undo'
@@ -37,19 +36,19 @@ async function currentNote(root: string, uri: string): Promise<CurrentNote> {
   return harnessNoteService.readNote(root, uri)
 }
 
-export function registerHarnessDocumentHandlers(handle: RegisterDocumentHandler, watch = true): void {
+export function registerHarnessDocumentHandlers(handle: RegisterDocumentHandler): void {
   const previewOwners = new Set<number>()
-  handle(HARNESS_COMMAND_CHANNELS.workspaceStatus, (_e, cwd: string) => workspaceBlueprintService.status(cwd))
+  handle(HARNESS_COMMAND_CHANNELS.workspaceStatus, (_e, cwd: string) => workspaceNotesService.status(cwd))
   handle(HARNESS_COMMAND_CHANNELS.initPreview, (event, cwd: string, name: string) => {
     const owner = event.sender.id
     if (!previewOwners.has(owner)) {
       previewOwners.add(owner)
-      event.sender.once('destroyed', () => { previewOwners.delete(owner); workspaceBlueprintService.release(owner) })
+      event.sender.once('destroyed', () => { previewOwners.delete(owner); workspaceNotesService.release(owner) })
     }
-    return workspaceBlueprintService.preview(cwd, name, owner)
+    return workspaceNotesService.preview(cwd, name, owner)
   })
-  handle(HARNESS_COMMAND_CHANNELS.initApply, (event, cwd: string, id: string, foreign: boolean) => workspaceBlueprintService.apply(cwd, id, event.sender.id, foreign))
-  handle(HARNESS_COMMAND_CHANNELS.initUndo, (event, cwd: string, id: string) => workspaceBlueprintService.undo(cwd, id, event.sender.id))
+  handle(HARNESS_COMMAND_CHANNELS.initApply, (event, cwd: string, id: string, foreign: boolean) => workspaceNotesService.apply(cwd, id, event.sender.id, foreign))
+  handle(HARNESS_COMMAND_CHANNELS.initUndo, (event, cwd: string, id: string) => workspaceNotesService.undo(cwd, id, event.sender.id))
   // Note: wiki and blueprint resolve the same source — see .agents/notes/blueprint/documents/tasks/note-wiki-r3.md
   handle(HARNESS_COMMAND_CHANNELS.noteRead, async (_e, cwd: string, uri: string) => {
     if (typeof uri !== 'string' || !uri.startsWith('note://')) throw new Error('A complete Note URI is required')
@@ -64,28 +63,11 @@ export function registerHarnessDocumentHandlers(handle: RegisterDocumentHandler,
   handle(HARNESS_COMMAND_CHANNELS.resolve, async (_e, cwd: string): Promise<HarnessResolveResult> => {
     const resolved = await harnessNoteService.resolveRoot(cwd)
     if (!resolved.ok || !resolved.root) return { ok: false, diagnostics: resolved.diagnostics }
-    const view = await blueprintNoteView.projectView(resolved.root)
-    return {
-      ok: true,
-      root: resolved.root,
-      repoId: view.repoId,
-      repoName: view.repoName,
-      projectId: view.blueprint.id,
-      diagnostics: [],
-    }
+    const { index } = await harnessNoteService.readIndex(resolved.root)
+    return { ok: true, root: resolved.root, repoId: index.repoId, repoName: await harnessNoteService.repoName(resolved.root), diagnostics: [] }
   })
 
-  handle(HARNESS_COMMAND_CHANNELS.projectGraph, async (_e, cwd: string) => {
-    const root = await withRoot(cwd)
-    if (watch) await harnessNoteService.watch(root)
-    const view = await blueprintNoteView.projectView(root)
-    for (const checkout of view.blueprint.composition?.checkouts ?? []) {
-      if (checkout.status === 'unbound') continue
-      try { if (watch) await harnessNoteService.watch(checkout.path) }
-      catch (error) { view.blueprint.composition!.diagnostics.push({ code: 'WATCH_FAILED', checkoutId: checkout.checkoutId, message: String(error) }) }
-    }
-    return view
-  })
+  handle(HARNESS_COMMAND_CHANNELS.projectGraph, async () => requireBlueprintPlugin())
 
   handle(HARNESS_COMMAND_CHANNELS.rescan, async (_e, cwd: string) => {
     const root = await withRoot(cwd)
@@ -111,9 +93,8 @@ export function registerHarnessDocumentHandlers(handle: RegisterDocumentHandler,
     HARNESS_COMMAND_CHANNELS.apply,
     async (_e, cwd: string, operations: HarnessEditOp[], reason: string): Promise<HarnessApplyResult> => {
       const root = await withRoot(cwd)
-      const view = await blueprintNoteView.projectView(root)
+      const { index: view } = await harnessNoteService.readIndex(root)
       if (!view.repoId) throwFailure('NOT_FOUND', 'init .agents/harness.json with a repoId first')
-      const repoId = view.repoId as string
       const ops: Array<{
         operationId: string
         type: 'create' | 'replace' | 'delete'
@@ -124,29 +105,9 @@ export function registerHarnessDocumentHandlers(handle: RegisterDocumentHandler,
       }> = []
       const uris: string[] = []
       for (const op of operations) {
-        if (op.kind === 'create') {
-          const created = createNoteOp(repoId, nodeTypeToKind(op.nodeType), op.title, op.parentUri ?? null, reason)
-          ops.push({ ...created })
-          uris.push(created.uri)
-        } else if (op.kind === 'update') {
-          const current = await currentNote(root, op.uri)
-          const managed = checkWritablePatch(op.patch)
-          if (managed) throwFailure('HARNESS_MANAGED', managed.message, { path: op.uri })
-          const produced = applyNodePatch(toNoteDoc(current.note), op.patch)
-          if ('edit' in produced) {
-            const raw = await readFile(join(root, current.relPath), 'utf8')
-            const markdown = harnessNoteService.mergeNoteEdit(current.note, raw, produced.edit, reason)
-            ops.push({
-              operationId: `replace-${current.note.meta.id.slice(0, 8)}-${randomUUID().slice(0, 4)}`,
-              type: 'replace',
-              uri: op.uri,
-              expectedHash: op.expectedHash,
-              afterMarkdown: markdown,
-            })
-            uris.push(op.uri)
-          } else {
-            throw { code: produced.code ?? 'SCHEMA_INVALID', message: produced.message, path: op.uri } as HarnessFailure
-          }
+        if (op.kind === 'create' || op.kind === 'update') {
+          // Legacy canvas fields belong to native plugin transactions.
+          requireBlueprintPlugin()
         } else if (op.kind === 'rename') {
           const current = await currentNote(root, op.uri)
           const raw = await readFile(join(root, current.relPath), 'utf8')

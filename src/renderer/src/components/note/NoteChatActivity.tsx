@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNoteChatStore } from '@/stores/note-chat'
 import { useI18n } from '@/i18n/useI18n'
 import type { NoteChatChange } from '../../../../shared/note-chat'
-import { reviewDiff } from '@/features/blueprint/review-diff'
+import { reviewDiff } from '@/lib/review-diff'
 import { sameCheckoutPath } from '@/lib/checkout-path'
 import styles from './NoteChatActivity.module.css'
 

@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test'
 
-for (const surface of ['main-chat', 'blueprint-chat']) {
+for (const surface of ['main-chat', 'project-panel']) {
   test(`${surface} keeps live tool arguments folded and available on demand`, async ({ page }) => {
-    await page.goto(surface === 'blueprint-chat' ? '/project.html?workbench' : '/project.html')
-    const chat = surface === 'blueprint-chat' ? page.locator('.blueprint-workbench-janus-slot') : page.getByTestId(surface)
+    await page.goto(surface === 'project-panel' ? '/project.html?workbench' : '/project.html')
+    const chat = surface === 'project-panel' ? page.locator('.fixture-project-chat') : page.getByTestId(surface)
     await chat.locator('textarea').fill('Read the project')
     await chat.locator('textarea').press('Enter')
     await expect(chat).toContainText('Project reply in progress')

@@ -7,11 +7,8 @@ import { SUPPORTED_HARNESS_PROFILE, NoteChatEditor } from '@janus-agent/harness-
 import type { ChatTurnPorts } from '@janus-agent/janus-agent'
 import { BlueprintNoteService as HarnessNoteService } from '../../plugins/blueprint/src/main/notes/service'
 import { attachNoteChatTools } from '../../src/main/harness/note-chat'
-import { projectArchitecture } from '../../src/renderer/src/features/blueprint/architecture-view'
-import { moduleTrail, projectModuleBrowse } from '../../src/renderer/src/features/blueprint/module-browsing'
-import { groupFocusNotes, noteBrowserContext } from '../../src/renderer/src/features/blueprint/note-focus'
-import { EMPTY_FOCUS, resolveBlueprintContextScope } from '../../src/renderer/src/features/blueprint/blueprint-focus'
-import type { NoteBrowserState, NoteFocusEvent } from '../../src/shared/note-chat'
+import { projectArchitecture } from '../../plugins/blueprint/src/ui/graph/architecture-view'
+import { moduleTrail, projectModuleBrowse } from '../../plugins/blueprint/src/ui/graph/module-browsing'
 import { noteDirectory, noteWikiView } from '../../src/shared/note-wiki'
 import { noteAuthoringContext } from '../../plugins/blueprint/src/main/notes/note-authoring'
 import { buildArtifactBundle } from '../../src/main/roundtable/artifact-bundle'
@@ -97,33 +94,6 @@ it('keeps an aggregate home for multiple roots and resolves a stale scope to the
   expect(home.groups).toEqual([])
   expect(projectModuleBrowse(source, multipleRoots, id(1)).graph.nodeIds).toEqual([id(1), id(3)])
   expect(projectModuleBrowse(source, multipleRoots, id(999))).toEqual(home)
-})
-
-it('groups working Notes by direct owner and keeps the current module separate from selection and authority', async () => {
-  const { root, service } = await fixture()
-  const source = (await service.projectView(root)).blueprint
-  const browser: NoteBrowserState = { blueprintId: source.id, workspacePath: root, moduleBrowsing: true, moduleId: id(2), selectedId: id(4), visibleIds: [id(2), id(6), id(4), id(5)] }
-  const event: NoteFocusEvent = { id: 'scope', conversationId: 'chat', workspacePath: root, mode: 'scope', focus: 'none', reason: 'Work',
-    notes: [4, 7, 999].map(n => ({ uri: uri(n), title: `Subject ${n}`, role: 'target', reason: 'Related' })) }
-  const groups = groupFocusNotes(source, root, event, browser)
-  expect(groups.map(group => group.key)).toEqual([id(2), id(6), 'unavailable'])
-  expect(groups.map(group => group.items[0].location)).toEqual(['current', 'otherModule', 'unavailable'])
-  expect(groups[1].title).toBe('Subject 1 / Subject 2 / Subject 6')
-  const context = noteBrowserContext(source, browser, [root])!
-  expect(context.currentModule?.uri).toBe(uri(2))
-  expect(context.modulePath.map(item => item?.uri)).toEqual([uri(1), uri(2)])
-  expect(context.selected?.uri).toBe(uri(4))
-  expect(noteBrowserContext(source, browser, [root + '-other'])).toBeNull()
-  expect(noteBrowserContext(source, { ...browser, blueprintId: 'stale' }, [root])).toBeNull()
-  const scope = resolveBlueprintContextScope(source, { ...EMPTY_FOCUS, selectedId: id(4), moduleScopeId: id(2) }, { owner: root, active: root })
-  expect(scope.noteRefs.map(ref => ref.uri)).toEqual([uri(4), uri(2), uri(6), uri(5)])
-  expect(scope.scope).toBe('view')
-  expect(scope.maintenanceScope).toEqual({ type: 'node', nodeId: id(4) })
-  source.nodes[id(4)].note!.module = uri(999)
-  const unassigned = groupFocusNotes(source, root, event, browser)[0]
-  expect(unassigned.key).toBe('unassigned')
-  expect(unassigned.items[0].location).toBe('unassigned')
-  expect(unassigned.items[0].nodeId).toBe(id(4))
 })
 
 it('retains unassigned and retired documents, while cross-module references do not change ownership', async () => {

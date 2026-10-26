@@ -9,7 +9,7 @@ import {
   type PendingFileTreeDelete,
 } from '../../src/renderer/src/components/FileExplorerTool'
 import { loadWorkspaceFileTree } from '../../src/renderer/src/features/workspace/actions'
-import { PromptDialog, type PromptDialogProps } from '../../src/renderer/src/components/blueprint/PromptDialog'
+import { PromptDialog, type PromptDialogProps } from '../../src/renderer/src/components/common/PromptDialog'
 import { useWorkspaceStore } from '../../src/renderer/src/stores/workspace'
 import type { FileNode, Workspace } from '../../src/renderer/src/types'
 import { withSynchronousHooks, findElement, type TestElement } from './helpers/tree-render'

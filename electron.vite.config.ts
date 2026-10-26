@@ -39,7 +39,7 @@ export default defineConfig(async ({ command }) => {
         this.emitFile({ type: 'asset', fileName: 'workspace-host.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/host.py')) })
         this.emitFile({ type: 'asset', fileName: 'workspace-cli.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/cli.py')) })
       } }, externalizeDepsPlugin({
-        exclude: ['@janusx/llm-core', '@janusx/llm-core/model-registry', '@janusx/plugin-sdk', 'proxy-chain']
+        exclude: ['@janusx/llm-core', '@janusx/llm-core/model-registry', '@janusx/plugin-sdk', '@janusx/note-tools', 'proxy-chain']
       })],
       resolve: { alias: { '@janusx/plugin-sdk/native': resolve(__dirname, 'packages/plugin-sdk/src/native.ts'), '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts') } },
       build: {

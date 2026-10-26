@@ -56,34 +56,6 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../../src/main/janus/blueprint-store', () => ({
-  blueprintStore: {
-    acceptRequirementCandidate: mocks.acceptRequirementCandidate,
-    bindTerminal: mocks.bindTerminal,
-    createNode: mocks.createNode,
-    focusNode: mocks.focusNode,
-    loadBlueprint: mocks.loadBlueprint,
-  },
-}))
-vi.mock('../../src/main/janus/analyzer', () => ({
-  analyzer: {
-    analyzeNode: mocks.analyzeNode,
-    registerNodeWorkspace: mocks.registerNodeWorkspace,
-    scheduleAnalyze: mocks.scheduleAnalyze,
-    setMainWindow: mocks.setMainWindow,
-  },
-}))
-vi.mock('../../src/main/janus/maintenance/service', () => ({
-  blueprintMaintenanceService: {
-    list: mocks.maintenanceList,
-    listAudits: mocks.maintenanceAuditList,
-    start: mocks.maintenanceStart,
-    apply: mocks.maintenanceApply,
-    cancel: mocks.maintenanceCancel,
-    complete: mocks.maintenanceComplete,
-    dismissProposal: mocks.maintenanceDismiss,
-  },
-}))
 vi.mock('../../src/main/knowledge/observation-service', () => ({
   knowledgeObservationService: { capture: mocks.capture },
 }))
@@ -132,11 +104,6 @@ describe('Janus IPC contract', () => {
     return registered
   }
 
-  async function expectNoRegister(fn: () => Promise<unknown>) {
-    mocks.registerNodeWorkspace.mockClear()
-    await expect(fn()).resolves.toBeNull()
-    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
-  }
 
   it('defines unique channels and registers all main commands', () => {
     const commands = Object.values(JANUS_COMMAND_CHANNELS)
@@ -258,155 +225,11 @@ describe('Janus IPC contract', () => {
     ])
   })
 
-  it('preserves focus and bind results without scheduling host analysis', async () => {
-    const focused = { id: 'focused-node' }
-    const bound = { id: 'bound-node' }
-    mocks.focusNode.mockResolvedValueOnce(focused).mockResolvedValueOnce(null)
-    mocks.bindTerminal.mockResolvedValueOnce(bound).mockResolvedValueOnce(null)
-
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.focusNode)(undefined, 'C:\\repo', 'node-1')
-    ).resolves.toBe(focused)
-    expect(mocks.focusNode).toHaveBeenNthCalledWith(1, 'C:\\repo', 'node-1')
-    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
-    expect(mocks.scheduleAnalyze).not.toHaveBeenCalled()
-
-    mocks.registerNodeWorkspace.mockClear()
-    mocks.scheduleAnalyze.mockClear()
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.focusNode)(undefined, 'C:\\repo', 'missing')
-    ).resolves.toBeNull()
-    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
-    expect(mocks.scheduleAnalyze).not.toHaveBeenCalled()
-
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.bindTerminal)(
-        undefined,
-        'C:\\repo',
-        'node-1',
-        'terminal-1'
-      )
-    ).resolves.toBe(bound)
-    expect(mocks.bindTerminal).toHaveBeenNthCalledWith(
-      1,
-      'C:\\repo',
-      'node-1',
-      'terminal-1'
-    )
-    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
-
-    mocks.registerNodeWorkspace.mockClear()
-    await expectNoRegister(() =>
-      handler(JANUS_COMMAND_CHANNELS.bindTerminal)(
-        undefined,
-        'C:\\repo',
-        'missing',
-        'terminal-1'
-      )
-    )
-  })
-
-  it('keeps compatibility writes without registering nodes in a host analyzer', async () => {
-    const created = { id: 'created-node' }
-    const accepted = { id: 'accepted-node' }
-    const discovered = { id: 'discovered-node' }
-    mocks.createNode.mockResolvedValueOnce(created).mockResolvedValueOnce(discovered)
-    mocks.acceptRequirementCandidate.mockResolvedValue(accepted)
-    mocks.loadBlueprint.mockResolvedValue({ rootNodeId: 'root-node', nodes: {} })
-
-    const nodeInput = { title: 'Created', type: 'task' }
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.createNode)(
-        undefined,
-        'C:\\repo',
-        'bp-1',
-        nodeInput,
-        'root-node'
-      )
-    ).resolves.toBe(created)
-    expect(mocks.createNode).toHaveBeenNthCalledWith(
-      1,
-      'C:\\repo',
-      'bp-1',
-      nodeInput,
-      'root-node'
-    )
-
-    const candidatePayload = {
-      workspacePath: 'C:\\repo',
-      blueprintId: 'bp-1',
-      candidateId: 'candidate-1',
-      title: 'Accepted',
-      decisionNote: 'approved',
+  it('rejects every legacy Blueprint command without reading or mutating old data', async () => {
+    for (const channel of Object.values(JANUS_COMMAND_CHANNELS)) {
+      await expect(handler(channel)(undefined, 'C:/repo', 'legacy')).rejects.toThrow('BLUEPRINT_PLUGIN_REQUIRED')
     }
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.acceptRequirementCandidate)(
-        undefined,
-        candidatePayload
-      )
-    ).resolves.toBe(accepted)
-    expect(mocks.acceptRequirementCandidate).toHaveBeenCalledWith(
-      'C:\\repo',
-      'bp-1',
-      'candidate-1',
-      {
-        title: 'Accepted',
-        description: undefined,
-        parentId: undefined,
-        decisionNote: 'approved',
-      }
-    )
-
-    const discoveredPayload = {
-      workspacePath: 'C:\\repo',
-      blueprintId: 'bp-1',
-      discovered: {
-        title: 'Discovered',
-        description: 'New work',
-        suggestedParent: '',
-        confidence: 0.8,
-      },
-    }
-    await expect(
-      handler(JANUS_COMMAND_CHANNELS.acceptDiscovered)(undefined, discoveredPayload)
-    ).resolves.toBe(discovered)
-    expect(mocks.createNode).toHaveBeenNthCalledWith(
-      2,
-      'C:\\repo',
-      'bp-1',
-      {
-        title: 'Discovered',
-        type: 'task',
-        description: 'New work',
-        status: 'not-started',
-        progress: 0,
-        tags: ['discovered-by-janus'],
-      },
-      'root-node'
-    )
-    expect(mocks.registerNodeWorkspace).not.toHaveBeenCalled()
-
-    mocks.registerNodeWorkspace.mockClear()
-    mocks.createNode.mockResolvedValue(null)
-    mocks.acceptRequirementCandidate.mockResolvedValue(null)
-    await expectNoRegister(() =>
-      handler(JANUS_COMMAND_CHANNELS.createNode)(
-        undefined,
-        'C:\\repo',
-        'bp-1',
-        nodeInput,
-        'root-node'
-      )
-    )
-    await expectNoRegister(() =>
-      handler(JANUS_COMMAND_CHANNELS.acceptRequirementCandidate)(
-        undefined,
-        candidatePayload
-      )
-    )
-    await expectNoRegister(() =>
-      handler(JANUS_COMMAND_CHANNELS.acceptDiscovered)(undefined, discoveredPayload)
-    )
+    for (const fn of [mocks.loadBlueprint, mocks.createNode, mocks.focusNode, mocks.bindTerminal, mocks.acceptRequirementCandidate]) expect(fn).not.toHaveBeenCalled()
   })
 
   it('redirects retired analysis before starting a host model or observation', async () => {

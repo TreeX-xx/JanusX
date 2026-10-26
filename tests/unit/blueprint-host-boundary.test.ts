@@ -40,61 +40,15 @@ const hostBlueprintSources = (inputs: string[]) =>
  * change; the exact match also fails until the list is shrunk, so progress cannot silently regress.
  */
 const RESIDUAL = {
-  main: {
-    plugin: [
-      'plugins/blueprint/src/main/blueprint/blueprint-composition.ts',
-      'plugins/blueprint/src/main/janus/blueprint-factory.ts',
-      'plugins/blueprint/src/main/janus/blueprint-migration.ts',
-      'plugins/blueprint/src/main/janus/blueprint-persistence.ts',
-      'plugins/blueprint/src/main/janus/maintenance/audit-records.ts',
-      'plugins/blueprint/src/main/janus/maintenance/changeset.ts',
-      'plugins/blueprint/src/main/janus/requirement-candidates.ts',
-      'plugins/blueprint/src/main/notes/note-authoring.ts',
-      'plugins/blueprint/src/main/notes/note-to-blueprint.ts',
-      'plugins/blueprint/src/main/notes/note-types.ts',
-      'plugins/blueprint/src/main/notes/projection.ts',
-      'plugins/blueprint/src/main/notes/workspace-blueprint.ts',
-      'plugins/blueprint/src/shared/ipc/blueprint-review.ts',
-      'plugins/blueprint/src/shared/janus/relations.ts',
-    ],
-    host: [
-      'src/main/blueprint/note-service.ts',
-      'src/main/harness/workspace-blueprint.ts',
-      'src/main/ipc/blueprint-review-handlers.ts',
-      'src/main/janus/blueprint-migrate.ts',
-      'src/main/janus/blueprint-paths.ts',
-      'src/main/janus/blueprint-store.ts',
-      'src/main/plugins/legacy-blueprint.ts',
-    ],
-  },
-  backend: {
-    plugin: [
-      'plugins/blueprint/src/main/blueprint/blueprint-composition.ts',
-      'plugins/blueprint/src/main/notes/note-to-blueprint.ts',
-      'plugins/blueprint/src/main/notes/note-types.ts',
-      'plugins/blueprint/src/main/notes/projection.ts',
-      'plugins/blueprint/src/main/notes/workspace-blueprint.ts',
-    ],
-    host: [
-      'src/main/blueprint/note-service.ts',
-      'src/main/harness/workspace-blueprint.ts',
-    ],
-  },
-  renderer: {
-    plugin: [] as string[],
-    // Shared UI still living under blueprint directories; to be extracted into common components.
-    host: [
-      'src/renderer/src/components/blueprint/NoteChatActivity.module.css',
-      'src/renderer/src/components/blueprint/NoteChatActivity.tsx',
-      'src/renderer/src/components/blueprint/NoteTimelineDetails.tsx',
-      'src/renderer/src/components/blueprint/PromptDialog.css',
-      'src/renderer/src/components/blueprint/PromptDialog.tsx',
-      'src/renderer/src/components/blueprint/note-focus.css',
-      'src/renderer/src/features/blueprint/resolveNodeWorkspace.ts',
-      'src/renderer/src/features/blueprint/review-diff.ts',
-    ],
-  },
+  main: { plugin: [], host: ['src/main/ipc/blueprint-review-handlers.ts', 'src/main/plugins/legacy-blueprint.ts'] },
+  backend: { plugin: [], host: ['src/main/plugins/legacy-blueprint.ts'] },
+  renderer: { plugin: [], host: [] },
 }
+
+it('keeps shared Note tools independent of host and Blueprint business code', async () => {
+  const inputs = await bundleInputs({ entryPoints: ['packages/note-tools/src/index.ts'], platform: 'node' })
+  expect(inputs.filter(input => !input.startsWith('packages/note-tools/'))).toEqual([])
+})
 
 it('builds the application without the legacy Blueprint review, suggestions or maintenance runtime', async () => {
   const inputs = await bundleInputs(MAIN)

@@ -12,7 +12,7 @@ import { roundtableStore } from './store'
 import { app } from 'electron'
 import { join } from 'node:path'
 import { resolveRegisteredWorkspace } from '../companion/workspace-registry'
-import { noteAuthoringContext } from '../../../plugins/blueprint/src/main/notes/note-authoring'
+import { noteAuthoringContext } from '@janusx/note-tools'
 import { z } from 'zod'
 
 export class RoundtableService {

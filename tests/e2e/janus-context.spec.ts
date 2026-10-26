@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('both chat entries send early decisions after more than 24 messages', async ({ page }) => {
   await page.goto('/project.html?manual-stream')
-  for (const id of ['main-chat', 'blueprint-chat']) {
+  for (const id of ['main-chat', 'project-panel']) {
     const chat = page.getByTestId(id)
     await expect(chat.locator('.janus-context-indicator summary')).toContainText('Usage')
     for (let index = 0; index < 14; index++) {
@@ -24,7 +24,7 @@ test('both chat entries send early decisions after more than 24 messages', async
 
 test('summary status and checkpoint travel on the next turn; clear removes them', async ({ page }) => {
   await page.goto('/project.html?workbench&manual-stream')
-  const chat = page.locator('.blueprint-workbench-janus-slot')
+  const chat = page.locator('.fixture-project-chat')
   await chat.locator('textarea').fill('Keep the first constraint')
   await chat.locator('textarea').press('Enter')
   await expect(chat.locator('.janus-chat-stop')).toBeVisible()
@@ -49,7 +49,7 @@ test('summary status and checkpoint travel on the next turn; clear removes them'
   await expect(chat.locator('.janus-chat-stop')).toBeVisible()
   const request = await page.evaluate(() => (window as any).projectFixture.streams.at(-1))
   expect(request.contextCheckpoint.summary).toBe('Preserve the first constraint')
-  await chat.locator('.bp-maintenance-clear').click()
+  await chat.locator('.fixture-project-clear').click()
   await expect(chat.locator('.janus-context-indicator')).not.toContainText(/original history retained|原始记录保留/)
   await chat.locator('textarea').fill('Fresh conversation')
   await chat.locator('textarea').press('Enter')
@@ -144,7 +144,7 @@ test('catalog update recognizes both limits and replaces saved manual fallback i
   for (const entry of ['main', 'blueprint']) {
     await page.goto(`/project.html?model-limits-manual${entry === 'blueprint' ? '&workbench' : ''}`)
     await page.evaluate(() => { (window as any).projectFixture.catalogUpdateMatches = true })
-    const chat = entry === 'blueprint' ? page.locator('.blueprint-workbench-janus-slot') : page.getByTestId('main-chat')
+    const chat = entry === 'blueprint' ? page.locator('.fixture-project-chat') : page.getByTestId('main-chat')
     const indicator = chat.locator('.janus-context-indicator')
     await expect(indicator).toContainText('1,000,000')
     await indicator.locator('summary').click()

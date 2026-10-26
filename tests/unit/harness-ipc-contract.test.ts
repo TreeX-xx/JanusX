@@ -90,19 +90,8 @@ vi.mock('../../src/main/harness/undo', () => ({
   applyUndo: vi.fn(),
 }))
 
-vi.mock('../../src/main/janus/blueprint-migrate', () => ({
-  previewMigration: vi.fn(),
-  applyMigration: vi.fn(),
-  archiveBlueprintSource: vi.fn(),
-}))
 
-vi.mock('../../src/main/janus/blueprint-store', () => ({
-  blueprintStore: { loadBlueprint: vi.fn(), evictBlueprint: vi.fn() },
-}))
 
-vi.mock('../../src/main/janus/maintenance/service', () => ({
-  blueprintMaintenanceService: { listAudits: vi.fn() },
-}))
 
 vi.mock('../../src/main/harness/desktop-executor', () => ({
   executeDesktopTask: vi.fn(),

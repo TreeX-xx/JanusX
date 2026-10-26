@@ -7,7 +7,6 @@
 import { create } from 'zustand'
 import {
   getBindings,
-  projectGraph,
   rescanProject,
   resolveProject,
   setBinding,
@@ -68,7 +67,6 @@ export const useHarnessStore = create<HarnessStore>((set) => ({
   refreshGraph: async (cwd) => {
     try {
       await rescanProject(cwd)
-      await projectGraph(cwd)
     } catch (err: unknown) {
       set({ error: err instanceof Error ? err.message : String(err) })
     }

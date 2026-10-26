@@ -53,12 +53,13 @@
       }
     }
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-10-26T14:16:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10"
 }
 ---
 # 圆桌原生产出、统一 Janus Chat 与 Harness 实施闭环
 
+10-26 插件拆分后，宿主共享聊天和圆桌保留，蓝图讨论／维护改由插件拥有。下文接点表保留原方案分析，已退役代码链接固定到历史提交；不表示插件当前仍复用宿主 controller。当前边界及未验收项见[官方插件计划](../planning/blueprint-official-plugin.md)。
 
 ## Problem
 
@@ -88,7 +89,7 @@ CLI、Ink 与桌面的单任务 xdel/xflow 委派闭环见 [桌面模式实现](
 | 圆桌持久化 | [store.ts](../../../src/main/roundtable/store.ts) 保存 `roundtable-events.jsonl` 和本机上下文 sidecar | 会议日志适合恢复和溯源，不适合成为共享需求正文或唯一方案存储 |
 | 普通 janus-chat | [chat-orchestrator.ts](../../../src/main/llm/chat-orchestrator.ts) 调用 janus-agentX 的 `runChatTurn`；[janus-agent-ports.ts](../../../src/main/llm/janus-agent-ports.ts) 装配宿主能力 | 共享引擎已存在，需要加资产与流程能力端口，而非再建立一套聊天引擎 |
 | Chat 状态 | [JanusChatProvider.tsx](../../../src/renderer/src/components/janus/JanusChatProvider.tsx) 提供按 conversationId 的 controller；[chat 契约](../../../src/shared/ipc/janus-chat.ts) 只有消息、模型、attachedWorkspaceIds、toolTraces；[chat-store.ts](../../../src/main/janus/chat-store.ts) 存会话快照日志 | 已有多会话基础，尚缺 Note 资源、工程意图、产物与实施关联；截断消息历史不能承担流程账本 |
-| 蓝图助手 | [维护 service](../../../src/main/janus/maintenance/service.ts) 自持 messages、session、abort、steering、trace，直接跑 agent loop；[BlueprintMaintenancePanel](../../../src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx) 自带输入与提案界面 | 统一要消除重复对话编排，保留有价值的变更集、证据重检、选择应用与撤销能力 |
+| 蓝图助手 | [维护 service](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/main/janus/maintenance/service.ts) 自持 messages、session、abort、steering、trace，直接跑 agent loop；[BlueprintMaintenancePanel](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx) 自带输入与提案界面 | 统一要消除重复对话编排，保留有价值的变更集、证据重检、选择应用与撤销能力 |
 | 共享引擎 | [chat-turn.ts](../../../../janus-agentX/packages/janus-agent/src/orchestrator/chat-turn.ts) 提供会话、工具、召回、提问与 todo；[ports.ts](../../../../janus-agentX/packages/janus-agent/src/ports.ts) 无资产及 Harness 专用端口 | 仅“底层调用同一个模型”不足以理解流程，需要可验证的上下文、工具和状态命令 |
 | 工程流程 | [WorkflowX 派发契约](../../../../WorkFlowX/.codex/skills/orchestrateX/modules/02-bus-payload.md) 依赖 Parent/Child 与验收来源 | 将其范围、依赖、派发与验收职责纳入 task Note，替换旧字段和强制文件规则 |
 

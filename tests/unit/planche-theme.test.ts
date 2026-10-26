@@ -145,7 +145,7 @@ describe('planche theme contract', () => {
     expect(hovers).toContain('.viewer-divider:hover')
     expect(hovers).toContain('.filetab-close:hover')
     // 展开态黑块 + 蓝图画布：纸底与卡片收敛
-    const bp = readFileSync(resolve(root, 'components/blueprint/blueprint.css'), 'utf8')
+    const bp = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/blueprint.css'), 'utf8')
     for (const selector of [
       "[data-theme='planche'] .blueprint-view",
       "[data-theme='planche'] .bp-node-card",
@@ -154,11 +154,11 @@ describe('planche theme contract', () => {
     ]) {
       expect(bp, selector).toContain(selector)
     }
-    const canvas = read('components/blueprint/BlueprintCanvas.tsx')
-    expect(canvas).toContain("colorMode={plancheCanvas ? 'light' : 'dark'}")
+    const canvas = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/Graph.tsx'), 'utf8')
+    expect(canvas).toContain("colorMode={planche ? 'light' : 'dark'}")
     expect(canvas).toContain('getBlueprintStatusVisual(')
     expect(canvas).not.toContain('STATUS_VISUALS[')
-    const edge = read('components/blueprint/BlueprintAdaptiveEdge.tsx')
+    const edge = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/BlueprintAdaptiveEdge.tsx'), 'utf8')
     expect(edge).toContain('var(--shell-accent-strong)')
     // 右缘 TurnChange 浮岛：收缩/展开同色走 chrome 底，文字走 shell 令牌，增减数走同源 DiffCounts 徽标
     const turn = read('components/TurnChangeIsland.tsx')
@@ -368,7 +368,7 @@ describe('planche theme contract', () => {
     expect(globals).toContain('.modal-close-light::after,')
     expect(globals).toContain('.modal-close-light:hover::after')
     expect(globals).not.toMatch(/\.modal-close-light:hover::after\s*\{\s*color:\s*rgba/)
-    const bp = readFileSync(resolve(root, 'components/blueprint/blueprint.css'), 'utf8')
+    const bp = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/blueprint.css'), 'utf8')
     expect(bp).toContain('.blueprint-workbench-close::after,')
     expect(bp).toContain('.blueprint-workbench-close:hover::after')
     expect(bp).not.toContain('filter: brightness(1.1);')
@@ -511,7 +511,7 @@ describe('planche theme contract', () => {
     // 但全屏遮罩必须与共享层逐字一致，且不得在加法层里被翻淡。
     // 注意：只管全屏遮罩——蓝图内的 prompt-dialog__overlay 是嵌在已压暗父遮罩之上的
     // 次级弹窗，浓度本就该比父层轻，不在此约束内。
-    const blueprint = read('components/blueprint/blueprint.css')
+    const blueprint = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/blueprint.css'), 'utf8')
     expect(blueprint).toMatch(
       /\.blueprint-workbench-backdrop \{[^}]*background: rgba\(8, 8, 10, 0\.62\);[^}]*backdrop-filter: blur\(10px\);/,
     )

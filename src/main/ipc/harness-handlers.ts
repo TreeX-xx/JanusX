@@ -8,16 +8,12 @@ import { registerHarnessDocumentHandlers } from '../harness/document-handlers'
 import { registerRemoteHarnessHandler } from '../workspace/remote-harness'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { collectTaskSnapshot } from '@janus-agent/harness-node'
 import { taskExecutionPolicy } from '@janus-agent/harness-core'
 import { harnessNoteService } from '../harness/service'
-import { blueprintNoteView } from '../blueprint/note-service'
 import { listNoteChatChanges } from '../harness/note-chat'
-import { applyMigration, archiveBlueprintSource, previewMigration } from '../janus/blueprint-migrate'
-import { blueprintStore } from '../janus/blueprint-store'
-import { GLOBAL_BLUEPRINT_SCOPE } from '../janus/blueprint-paths'
-import { readMaintenanceAudits } from '../../../plugins/blueprint/src/main/janus/maintenance/audit-records'
 import { buildEvaluatorPrompt, createModelReviewPort } from '../harness/desktop-review'
 import { executeDesktopTask, runDesktopCommand } from '../harness/desktop-executor'
 import { createDesktopImplementationPort, generateDesktopReviewText } from '../harness/desktop-task-turn'
@@ -60,8 +56,6 @@ import {
   type HarnessRunReviewInput,
   type HarnessRunReviewResult,
   type HarnessRunState,
-  type HarnessMigrationPreview,
-  type HarnessMigrationResult,
 } from '../../shared/ipc/harness'
 
 const throwFailure = (code: HarnessFailure['code'], message: string, extra?: Partial<HarnessFailure>): never => {
@@ -561,54 +555,8 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
     }
   })
 
-  // ── managed undo (S8-JanusX, legacy-loop equivalence): preview then apply ──
-  // Undo reverses one committed write as a new undoable changeset. Conflicts
-  // refuse the whole package; evidence and receipts never move.
-
-  // ── on-demand legacy migration (S8-JanusX): JSON blueprint becomes Notes ──
-  // Preview never writes. Apply validates every note, writes once through
-  // the managed transaction, then archives (never deletes) the JSON source.
-
-  async function migrationSource(cwd: string, blueprintId: string) {
-    const root = await withRoot(cwd)
-    if (typeof blueprintId !== 'string' || !blueprintId) throwFailure('SCHEMA_INVALID', 'migration needs a blueprint id', { path: 'blueprintId' })
-    const view = await blueprintNoteView.projectView(root)
-    if (!view.repoId) throwFailure('NOT_FOUND', 'init .agents/harness.json with a repoId first')
-    const blueprint = await blueprintStore.loadBlueprint(GLOBAL_BLUEPRINT_SCOPE, blueprintId)
-    if (!blueprint) throwFailure('NOT_FOUND', `unknown blueprint ${blueprintId}`, { path: 'blueprintId' })
-    const audits = await readMaintenanceAudits(join(app.getPath('userData'), 'janusx', 'blueprint-maintenance-audit'), { blueprintId }).catch(() => [])
-    return { root: root as string, repoId: view.repoId as string, blueprint: blueprint!, audits }
+  // Legacy conversion runs inside the installed plugin, preserving original data.
+  for (const channel of [HARNESS_COMMAND_CHANNELS.migratePreview, HARNESS_COMMAND_CHANNELS.migrateApply]) {
+    handle(channel, async () => requireBlueprintPlugin())
   }
-
-  function throwMigrationFailure(error: unknown): never {
-    const failure = error as { code?: string; message?: string; path?: string }
-    throwRunFailure([{ code: failure.code ?? 'SCHEMA_INVALID', message: failure.message ?? String(error), ...(failure.path ? { path: failure.path } : {}) }])
-  }
-
-  handle(
-    HARNESS_COMMAND_CHANNELS.migratePreview,
-    async (_e, cwd: string, blueprintId: string): Promise<HarnessMigrationPreview> => {
-      const { root, repoId, blueprint, audits } = await migrationSource(cwd, blueprintId)
-      try {
-        const { noteAuthoringContext } = await import('../../../plugins/blueprint/src/main/notes/note-authoring')
-        return previewMigration(blueprint, repoId, audits, await noteAuthoringContext(harnessNoteService, root))
-      } catch (error) {
-        throwMigrationFailure(error)
-      }
-    },
-  )
-
-  handle(
-    HARNESS_COMMAND_CHANNELS.migrateApply,
-    async (_e, cwd: string, blueprintId: string): Promise<HarnessMigrationResult> => {
-      const { root, repoId, blueprint, audits } = await migrationSource(cwd, blueprintId)
-      try {
-        const result = await applyMigration(root, repoId, blueprint, audits, archiveBlueprintSource)
-        blueprintStore.evictBlueprint(blueprintId)
-        return result
-      } catch (error) {
-        throwMigrationFailure(error)
-      }
-    },
-  )
 }

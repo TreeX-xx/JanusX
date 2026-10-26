@@ -55,12 +55,13 @@
       }
     }
   },
-  "updated": "2026-10-24T18:12:24.141Z",
+  "updated": "2026-10-26T14:16:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd"
 }
 ---
 # 统一 WorkflowX Note、JanusX 蓝图与 janus-agentX Harness
 
+10-26 官方插件拆分后，共享 Note 引擎仍属 agentX，图投影与蓝图维护归插件，宿主旧 JSON Store／画布入口已退役。本文原有仓库分析中的退役代码链接固定到历史提交；现状和迁移缺口见[官方插件计划](../planning/blueprint-official-plugin.md)。本文提案与原验收状态不因源码位置改变而自动签收。
 
 ## Problem
 
@@ -77,7 +78,7 @@
 | 仓库 | 已存在的机制与证据 | 对统一方案的约束 |
 |---|---|---|
 | WorkFlowX | [noteX](../../../../WorkFlowX/.codex/skills/noteX/SKILL.md) 定义 Note；[orchestrateX](../../../../WorkFlowX/.codex/skills/orchestrateX/SKILL.md) 定义 xdo/xdel/xflow；[标准 task 模板](../../../../WorkFlowX/standards/harness-note/1/templates/task.md) 定义实施资产 | 拥有新标准及工作流语义，供不同终端使用 |
-| JanusX | [Blueprint 类型](../../../plugins/blueprint/src/shared/janus/types.ts)、[Store](../../../src/main/janus/blueprint-store.ts)、[维护服务](../../../src/main/janus/maintenance/service.ts) 和 [界面 Store](../../../src/renderer/src/stores/blueprint.ts) 实现蓝图持久化、关系、维护及显示 | 应成为同一资产的图形编辑器，重用现有图形交互与维护能力 |
+| JanusX | [Blueprint 类型](../../../plugins/blueprint/src/shared/janus/types.ts)、[Store](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/main/janus/blueprint-store.ts)、[维护服务](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/main/janus/maintenance/service.ts) 和 [界面 Store](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/renderer/src/stores/blueprint.ts) 实现蓝图持久化、关系、维护及显示 | 应成为同一资产的图形编辑器，重用现有图形交互与维护能力 |
 | janus-agentX | [ChatTurnPorts](../../../../janus-agentX/packages/janus-agent/src/ports.ts)、[Node Host 工具](../../../../janus-agentX/packages/node-hosts/src/index.ts)、[CLI Session](../../../../janus-agentX/packages/cli/src/session.ts) 提供共享运行时与终端宿主 | 应提供无 Electron 依赖的解析、文件操作和 harness 执行能力 |
 
 JanusX 的 [package.json](../../../package.json) 已通过 `file:../janus-agentX/packages/...` 引用 `agent-core`、`chat-core`、`janus-agent`。WorkFlowX 本地采用 task Note 规则，JanusX 与 janus-agentX 的运行入口仍采用旧规则；工作流分发的三仓切换必须单独验收，不能从同名 skill 推断版本一致。
@@ -90,7 +91,7 @@ WorkFlowX 的 Note 已包含问题、方案或决策、替代选项、验收或�
 
 | 维度 | 当前 Note / WorkflowX | 当前 JanusX 蓝图 | 统一时必须解决的问题 |
 |---|---|---|---|
-| 真源 | 仓库 Markdown，Git 跟踪 | [路径解析](../../../src/main/janus/blueprint-paths.ts) 默认指向 `userData/janusx/blueprints/{id}.json`，另有 `index.json` | 终端与界面必须读写同一项目文件 |
+| 真源 | 仓库 Markdown，Git 跟踪 | [路径解析](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/main/janus/blueprint-paths.ts) 默认指向 `userData/janusx/blueprints/{id}.json`，另有 `index.json` | 终端与界面必须读写同一项目文件 |
 | 身份 | 路径即身份；状态改变会移动文件 | UUID 节点身份；父子与关系引用 ID | 状态、标题、路径变化后关系必须稳定 |
 | 类型 | feature 等六个 class，主要描述工程变更领域 | epic/feature/task/issue 描述节点粒度或执行性质 | 领域分类与文档角色必须分开 |
 | 状态 | proposed/implemented/rejected/archived | planning/in-progress/testing/blocked/done 等执行态 | 采纳一个决策不等于完成一个任务 |

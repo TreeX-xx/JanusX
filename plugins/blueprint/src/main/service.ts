@@ -22,6 +22,7 @@ import { WorkspaceBlueprintService } from './notes/workspace-blueprint'
 import { BlueprintDiscussion, discussionRequest } from './blueprint/discussion'
 import { migrateLegacyData } from './legacy-data'
 import { GraphTransfers } from './graph-transfer'
+import { LegacyBlueprints } from './notes/legacy-blueprints'
 
 const id = z.string().uuid(), hash = z.string().regex(/^[a-f0-9]{64}$/)
 const key = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
@@ -36,6 +37,7 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
   const notes = new BlueprintNoteService()
   const graphs = new GraphTransfers()
   const workspace = new WorkspaceBlueprintService(notes)
+  const legacy = new LegacyBlueprints(context.directory, notes)
   const requestOwner = new AsyncLocalStorage<string>()
   const owners = new Map<string, { controller: AbortController; watched: Set<string>; identity: number }>()
   let nextOwner = 0
@@ -144,6 +146,9 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
         return current
       }
       switch (method) {
+        case 'legacy.list': return json(await legacy.list())
+        case 'legacy.preview': return json(await legacy.preview(root, z.string().min(1).max(128).parse(input), owner().identity, scopeSignal))
+        case 'legacy.apply': return json(await legacy.apply(root, id.parse(input), owner().identity, scopeSignal))
         case 'workspace.activate': owner().watched.add(root); tracker.track(root, true); watched.add(root); await syncWatchers(); return null
         case 'workspace.release': owner().watched.delete(root); await releaseRoot(root); return null
         case 'workspace.status': return json(await workspace.status(root))
@@ -236,6 +241,7 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
       const scope = owners.get(id)
       if (!scope) return
       scope.controller.abort(); owners.delete(id); workspace.release(scope.identity)
+      legacy.release(scope.identity)
       graphs.release(scope.identity)
       for (const root of scope.watched) await releaseRoot(root)
     },
@@ -250,7 +256,7 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
       await review.shutdown(); notes.unwatchAll()
       jobs.clear(); readingUndoRoots.clear(); roots.clear()
       graphs.clear()
-      for (const scope of owners.values()) { scope.controller.abort(); workspace.release(scope.identity) }
+      for (const scope of owners.values()) { scope.controller.abort(); workspace.release(scope.identity); legacy.release(scope.identity) }
       owners.clear()
     },
   }

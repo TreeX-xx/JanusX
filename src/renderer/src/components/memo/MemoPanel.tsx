@@ -4,7 +4,7 @@ import { BookOpen, ChevronDown, ChevronUp, MoreHorizontal, PanelLeftClose, Panel
 import { selectedMemoNodeId, useMemoStore } from '@/stores/memo'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
-import { PromptDialog } from '../blueprint/PromptDialog'
+import { PromptDialog } from '../common/PromptDialog'
 import { Select } from '../ui/Select'
 import type { Memo, MemoOperation, MemoPoint } from '../../../../shared/memo'
 import { useMemoIslandLayout } from './useMemoIslandLayout'

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parseNote, validateNote } from '@janus-agent/harness-core'
 import { buildNoteIndex } from '@janus-agent/harness-node'
 import type { Blueprint } from '../../plugins/blueprint/src/shared/janus/types'
-import { applyMigration, previewMigration } from '../../src/main/janus/blueprint-migrate'
+import { applyMigration, previewMigration } from '../../plugins/blueprint/src/main/notes/legacy-conversion'
 
 const REPO = '8fa19f17-c717-43a8-93a7-810a5e0cbc91'
 const roots: string[] = []

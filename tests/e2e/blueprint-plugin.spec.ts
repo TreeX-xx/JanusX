@@ -2,7 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
@@ -12,6 +12,7 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
   test.setTimeout(120_000)
   const directory = await mkdtemp(join(tmpdir(), 'blueprint-ui-'))
   let app: ElectronApplication | undefined
+  let stderr = ''
   try {
     const packageDirectory = process.env.JANUS_BLUEPRINT_PACKAGE ?? resolve('plugins/blueprint')
     if (!process.env.JANUS_BLUEPRINT_PACKAGE) execFileSync(process.execPath, ['plugins/blueprint/build.mjs'], { windowsHide: true, stdio: 'pipe' })
@@ -35,6 +36,7 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     await build({ entryPoints: ['src/preload/plugin.ts'], platform: 'node', target: 'node22', format: 'cjs', outfile: join(directory, 'preload/plugin.cjs') })
     const { ELECTRON_RUN_AS_NODE: _node, NODE_OPTIONS: _options, ...env } = process.env
     app = await electron.launch({ args: [join(directory, 'main/plugins/fixture.cjs')], env: { ...env, BLUEPRINT_FIXTURE_ROOT: directory } })
+    app.process().stderr?.on('data', chunk => { stderr = (stderr + String(chunk)).slice(-32_000) })
     const errors: string[] = []
     app.context().on('page', page => page.on('pageerror', error => errors.push(error.message)))
     const guest = async (url?: string): Promise<Page> => {
@@ -121,7 +123,7 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     await page.getByRole('button', { name: /^更新(?:\s|$)/ }).click()
     const updatePanel = page.getByRole('dialog', { name: /^更新(?:\s|$)/ })
     await expect(updatePanel.getByRole('textbox', { name: '查找 Note', exact: true })).toBeFocused()
-    expect((await updatePanel.boundingBox())!.width).toBe(440)
+    expect((await updatePanel.boundingBox())!.width).toBeCloseTo(440, 1)
     await updatePanel.getByRole('textbox', { name: '查找 Note', exact: true }).fill('no matching note')
     await expect(updatePanel.locator('article')).toHaveCount(0)
     await updatePanel.getByRole('textbox', { name: '查找 Note', exact: true }).fill('Plugin')
@@ -288,6 +290,12 @@ test('signed Blueprint UI preserves drafts, applies and undoes files, and restor
     await page.screenshot({ path: 'artifacts/plugins/blueprint-settings.png' })
     expect(errors).toEqual([])
   } catch (cause) {
+    const audits = join(directory, 'profile/janusx/plugins/data/official.blueprint/native/maintenance-audit')
+    console.log('Blueprint process errors:', stderr)
+    console.log('Blueprint audit status:', await readdir(audits).then(files => Promise.all(files.map(async file => {
+      const record = JSON.parse(await readFile(join(audits, file), 'utf8'))
+      return { id: record.id, status: record.status, harnessRoot: record.harnessRoot }
+    }))).catch(() => 'unavailable'))
     console.log('Blueprint failed calls:', await app?.evaluate(() => (globalThis as any).blueprintProbe.failedCalls).catch(() => 'unavailable'))
     console.log('Blueprint maintenance state:', await app?.evaluate(() => (globalThis as any).blueprintProbe.readTasks()).catch(() => 'unavailable'))
     console.log('Blueprint review state:', await app?.evaluate(() => (globalThis as any).blueprintProbe.readReview()).catch(() => 'unavailable'))

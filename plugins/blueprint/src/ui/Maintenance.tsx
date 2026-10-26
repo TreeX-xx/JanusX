@@ -46,6 +46,7 @@ export function Maintenance({
     [deletes, setDeletes] = useState<string[]>([])
   const [preview, setPreview] = useState<BlueprintMaintenancePreview>(),
     [audits, setAudits] = useState<BlueprintMaintenanceAuditRecord[]>([])
+  const [auditOpen, setAuditOpen] = useState(false)
   const [undo, setUndo] = useState<BlueprintMaintenanceUndoPrepareResult>()
   const [undoDeletes, setUndoDeletes] = useState<string[]>([])
   const [scope, setScope] = useState<'node' | 'subtree' | 'blueprint'>('node')
@@ -92,6 +93,16 @@ export function Maintenance({
     setPreview(undefined)
   }, [task?.changeSet?.id])
   useEffect(() => setUndoDeletes([]), [undo?.changeSet.id])
+  // A Note file can become visible before the write and its audit finish.
+  // Read history after the action settles, including a history panel opened mid-write.
+  useEffect(() => {
+    if (!auditOpen || busy) return
+    const abort = new AbortController()
+    void call<BlueprintMaintenanceAuditRecord[]>('maintenance.audits', null, abort.signal)
+      .then(value => { if (!abort.signal.aborted) setAudits(value) })
+      .catch(error => { if (!abort.signal.aborted) setError(String(error)) })
+    return () => abort.abort()
+  }, [auditOpen, busy, task?.updatedAt])
   useEffect(() => {
     let stop: (() => void) | undefined,
       disposed = false
@@ -337,12 +348,7 @@ export function Maintenance({
         </button>
       )}
       <details hidden={!history?.messages.length && !task && !audits.length}
-        onToggle={(event) => {
-          if (event.currentTarget.open)
-            void call<BlueprintMaintenanceAuditRecord[]>('maintenance.audits')
-              .then(setAudits)
-              .catch((error) => setError(String(error)))
-        }}
+        onToggle={event => setAuditOpen(event.currentTarget.open)}
       >
         <summary>{t('已应用记录与撤销')}</summary>
         {activeTask && <p>{t('请先结束本轮维护，再撤销已应用记录。')}</p>}

@@ -7,13 +7,14 @@
   "created": "2026-09-30",
   "class": "feature",
   "tags": ["blueprint","janus-chat","note-context","maintenance"],
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-10-26T14:16:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b"
 }
 ---
 
 # 蓝图对话上下文跟随画布焦点成批注入
 
+10-26 插件拆分已移除下述宿主画布焦点与维护面板，代码链接固定到清理前版本，保留原设计依据。插件目前支持当前 Note／子树／工作区范围，未据此签收原批量焦点、筛选和跨 checkout 的全部交互；当前边界归[官方插件计划](../../planning/blueprint-official-plugin.md)。
 ## Problem
 
 蓝图右侧的 Janus 面板只能通过节点详情里的「维护此节点」进入。点一下，对话就被钉死在那一篇 Note 上——`BlueprintMaintenancePanel` 把 `noteRefs` 固定写成单元素数组（选中节点），用户想讨论一组相关节点，就必须逐个点、逐个重开。板面本身已经有筛选、搜索和选中这些「我在看哪一批」的表达，却没有任何一条通路把它们送到 Agent 手里。
@@ -30,17 +31,17 @@
 
 ## Decision
 
-新增纯函数 [blueprint-focus.ts](../../../../src/renderer/src/features/blueprint/blueprint-focus.ts)，按优先级把画布焦点解析成一次上下文范围：
+新增纯函数 [blueprint-focus.ts](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/renderer/src/features/blueprint/blueprint-focus.ts)，按优先级把画布焦点解析成一次上下文范围：
 
 1. 搜索词 / 状态 / kind 任一激活 → 命中的全部节点（`reason: 'filter'`）
 2. 否则有选中节点 → 该节点的整棵子树（`reason: 'selection'`）
 3. 否则 → 整张蓝图（`reason: 'view'`）
 
-[BlueprintMaintenancePanel](../../../../src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx) 直接消费这份结果：批量 `noteRefs`、以及面板顶部一行可见的范围声明。搜索词走 `useDeferredValue`，与画布自身一致，避免每敲一个字就重切一次 200 节点。`contextSelection` 退化为非工作台入口的回退来源，不再是进入对话的前提。
+[BlueprintMaintenancePanel](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx) 直接消费这份结果：批量 `noteRefs`、以及面板顶部一行可见的范围声明。搜索词走 `useDeferredValue`，与画布自身一致，避免每敲一个字就重切一次 200 节点。`contextSelection` 退化为非工作台入口的回退来源，不再是进入对话的前提。
 
 读写范围刻意分开：筛选命中整批时可写范围才放宽到 `{ type: 'blueprint' }`；仅仅选中一个节点时仍保持 `{ type: 'node', nodeId }`。用户没有表达批量意图时，写入权限不因为「看得见更多」而自动变宽。
 
-[BlueprintMaintenanceActions](../../../../src/renderer/src/components/blueprint/BlueprintActionBar.tsx) 改为接收显式的 `nodeScope` 而非 `nodeId`，不再自行推断目标。跨 checkout 的组合成员按节点判定归属：解析不到就计入 `foreignNodeIds`，当整批都读不到时给出唯一可切换的 `foreignCheckoutPath`；批次横跨多个 checkout 时不提供切换目标，因为没有唯一答案。
+[BlueprintMaintenanceActions](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/renderer/src/components/blueprint/BlueprintActionBar.tsx) 改为接收显式的 `nodeScope` 而非 `nodeId`，不再自行推断目标。跨 checkout 的组合成员按节点判定归属：解析不到就计入 `foreignNodeIds`，当整批都读不到时给出唯一可切换的 `foreignCheckoutPath`；批次横跨多个 checkout 时不提供切换目标，因为没有唯一答案。
 
 [chat-context.ts](../../../../src/main/harness/chat-context.ts) 的字节预算改为降级而非失败：按调用方顺序注入，超出部分按 Note 标识逐条披露，并明确要求 Agent 不要对这些未注入的 Note 做推断。第一篇始终放行，否则单篇超大 Note 会让对话完全没有仓库视图。身份类失败（checkout 不可解析、hash 过期）保持硬失败——读到错基线的残缺内容比拒绝更糟。
 

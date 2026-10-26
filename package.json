@@ -23,13 +23,13 @@
     "showcase": "node scripts/showcase/run.mjs",
     "test:showcase": "node --test tests/showcase/motion.test.mjs",
     "predev": "node scripts/check-dev-environment.mjs",
-    "dev": "npm run build:llm-core && electron-vite dev --outDir .cache --entry scripts/dev-entry.mjs",
+    "dev": "npm run build:note-tools && npm run build:llm-core && electron-vite dev --outDir .cache --entry scripts/dev-entry.mjs",
     "dev:blueprint": "node scripts/plugins/blueprint-dev.mjs",
-    "build": "npm run build:llm-core && electron-vite build",
-    "build:app": "electron-vite build",
-    "build:check": "npm run build:llm-core && electron-vite build --outDir artifacts/build-check",
+    "build": "npm run build:note-tools && npm run build:llm-core && electron-vite build",
+    "build:app": "npm run build:note-tools && electron-vite build",
+    "build:check": "npm run build:note-tools && npm run build:llm-core && electron-vite build --outDir artifacts/build-check",
     "build:llm-core": "npm run build --workspace=@janusx/llm-core",
-    "build:plugin-sdk": "npm run build --workspace=@janusx/plugin-sdk",
+    "build:plugin-sdk": "npm run build:note-tools && npm run build --workspace=@janusx/plugin-sdk",
     "plugins:create": "npm run build:plugin-sdk && node packages/plugin-sdk/tools/cli.mjs init",
     "plugins:verify-scaffold": "npm run build:plugin-sdk && node scripts/verify-plugin-scaffold.mjs",
     "plugins:distribution:check": "node --test tests/plugins/distribution-tools.test.mjs && vitest run tests/unit/plugin-distribution.test.ts tests/unit/plugin-catalog.test.ts tests/unit/plugin-configuration-drafts.test.ts",
@@ -80,7 +80,8 @@
     "plugins:blueprint:verify": "npm run build:plugin-sdk && npm run build:llm-core && node scripts/plugins/verify-blueprint-build.mjs",
     "plugins:blueprint:check": "npm run plugins:blueprint:verify -- --test-runtime",
     "test:blueprint:desktop": "playwright test --config playwright.blueprint.config.ts --workers=1",
-    "test:blueprint:local": "npm run build:plugin-sdk && npm run build:llm-core && playwright test --config playwright.blueprint-local.config.ts --workers=1"
+    "test:blueprint:local": "npm run build:plugin-sdk && npm run build:llm-core && playwright test --config playwright.blueprint-local.config.ts --workers=1",
+    "build:note-tools": "npm run build --workspace=@janusx/note-tools"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -129,7 +130,8 @@
     "ws": "^8.22.0",
     "yaml": "^2.9.1",
     "zod": "^3.25.76",
-    "zustand": "^5.0.0"
+    "zustand": "^5.0.0",
+    "@janusx/note-tools": "file:packages/note-tools"
   },
   "devDependencies": {
     "@electron/asar": "^3.4.1",

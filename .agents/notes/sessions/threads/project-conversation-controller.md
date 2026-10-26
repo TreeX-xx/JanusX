@@ -33,12 +33,13 @@
       }
     }
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-10-26T14:16:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/0fc34aee-911c-44f3-b873-a1272d93631a"
 }
 ---
 # One project conversation for Chat and Note blueprints
 
+The October 26 plugin split retired the host Blueprint panel and its maintenance route. The links below pin that historical implementation. The generic host conversation registry remains, while downloaded Blueprint discussion and maintenance now belong to the plugin. Shared-controller equivalence is not claimed for the plugin; current boundaries and gaps are recorded in the [official plugin plan](../../planning/blueprint-official-plugin.md).
 
 ## Problem
 
@@ -52,7 +53,7 @@ The main process resolves selected Note URIs and hashes from validated workspace
 
 New Note maintenance tasks link to the conversation and retain only proposal operations, evidence and audit state. Proposal generation runs within the ordinary chat turn's ownership, signal and session, using shared history. Steering revises the proposal before the final response. Duplicate steering identities are idempotent even when the queue is full; conflicting text is refused. Applying a proposal remains an explicit action through the existing evidence recheck, selected-operation transaction and undo path.
 
-Entry points are [conversation binding](../../../../src/renderer/src/components/janus/janusChatConversations.ts), [blueprint panel](../../../../src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx), [chat host](../../../../src/main/llm/chat-orchestrator.ts), [Note context](../../../../src/main/harness/chat-context.ts) and [proposal service](../../../../src/main/janus/maintenance/service.ts). The overall contract remains the [candidate discussion and execution design](../../agent/roundtable-chat-harness-loop.md).
+Entry points are [conversation binding](../../../../src/renderer/src/components/janus/janusChatConversations.ts), [blueprint panel](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/renderer/src/components/blueprint/BlueprintMaintenancePanel.tsx), [chat host](../../../../src/main/llm/chat-orchestrator.ts), [Note context](../../../../src/main/harness/chat-context.ts) and [proposal service](https://github.com/TreeX-X/JanusX/blob/26b3ad3bfda24070c5720b831ab5c85b54704a72/src/main/janus/maintenance/service.ts). The overall contract remains the [candidate discussion and execution design](../../agent/roundtable-chat-harness-loop.md).
 
 ## Alternatives considered
 

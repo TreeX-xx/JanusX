@@ -26,6 +26,7 @@ import './note-wiki.css'
 import './workbench-surface.css'
 import { JanusIdentityCore } from './JanusIdentityCore'
 import { ToolbarMore } from './ToolbarMore'
+import { LegacyImport } from './LegacyImport'
 import { WorkbenchPopover } from './WorkbenchPopover'
 import { ChevronRight, FileText, RefreshCw, SettingsIcon } from './WorkbenchIcons'
 import { blueprintStatusOptions } from './blueprintStatus'
@@ -444,6 +445,7 @@ export function App({ context }: { context: PluginContext }) {
                 <div className="blueprint-toolbar__spacer" />
                 {diagnosticsControl}
 
+                <LegacyImport changed={refresh} />
                 <ToolbarMore>
                   <button className="blueprint-btn" disabled={selection.index <= 0} onClick={() => setSelection(value => ({ ...value, index: value.index - 1 }))}>{t('← 返回')}</button>
                   <button className="blueprint-btn" disabled={selection.index >= selection.entries.length - 1} onClick={() => setSelection(value => ({ ...value, index: value.index + 1 }))}>{t('前进 →')}</button>

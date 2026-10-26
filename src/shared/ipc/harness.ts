@@ -1,4 +1,4 @@
-import type { HarnessWorkspaceStatus, HarnessInitPreview } from '../../../plugins/blueprint/src/shared/workspace'
+import type { HarnessWorkspaceStatus, HarnessInitPreview } from '@janusx/note-tools'
 import type { Blueprint } from '../../../plugins/blueprint/src/shared/janus/types'
 import type { WorkContract } from '@janus-agent/harness-core'
 import type { NoteReadSnapshot, NoteSourceRead } from '../notes'
@@ -391,4 +391,4 @@ export interface HarnessAPI {
   onChanged(callback: (event: HarnessChangedEvent) => void): () => void
 }
 
-export type { HarnessWorkspaceStatus, HarnessInitPreview } from '../../../plugins/blueprint/src/shared/workspace'
+export type { HarnessWorkspaceStatus, HarnessInitPreview } from '@janusx/note-tools'
