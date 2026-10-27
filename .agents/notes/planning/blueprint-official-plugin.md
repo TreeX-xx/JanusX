@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T07:23:57Z",
+  "updated": "2026-10-27T09:14:35Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -273,9 +273,15 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 生产身份 janusx-blueprint-20261026 签出的最终 [official.blueprint-1.0.5.jxp](../../../release/2026-10-27-blueprint-1.0.5-final/official.blueprint-1.0.5.jxp) 为 1,799,995 字节，SHA-256 为 a65d977ad733550d7d806b851c8fc3d0a651e77efe4bd0d475ea3253dbb88c62。最终包另含布局保存失败与焦点刷新列表的作用域回调检查，切换后不显示旧根迟到的错误。补充后重新通过完整桌面定向用例与独立签名载体门禁，重新解码验证生产签名、manifest 和四个输出哈希，均匹配最终独立产物；交付收据与 independent-build.json 同目录保存，未覆盖旧版本或首次预检候选。使用时先重启包含 rebind 能力的 dev 宿主，再停用旧包、导入 1.0.5 并审阅授权。未修改真实运行 profile，未交付配套生产宿主安装包，未另验配套打包宿主导入或发布远端目录。
 
+### 1.0.6 连线标签避让与更新包
+
+自适应关系线与接口线的标签避开当前卡片边界，使用不透明主题底色、边框和短虚线引线；真实 JanusX Notes 画布测试覆盖浅色／深色对比度、卡片遮挡、缩放、平移和窄视口。插件源码与 manifest/package 版本提升为 1.0.6；以仓库外九个公开归档独立构建、类型检查，并通过同产物签名 Electron 载体回归。既有 `npm run dev` 只重启宿主，不会重建或替换已导入的插件副本；本地插件专用 `npm run dev:blueprint` 会先重建签名包并启动隔离 profile，直接测试手动导入时则需停用旧插件、导入新版并重新启用。
+
+生产身份 janusx-blueprint-20261026 签名的 Windows x64 [official.blueprint-1.0.6.jxp](../../../release/2026-10-27-blueprint-1.0.6/official.blueprint-1.0.6.jxp) 为 1,800,887 字节，SHA-256 为 `011e7c6f5148ec7ebfafdae930037ad6be8ace2e3ac2a020a953cea198dfc735`。包内签名、manifest 与四个构建产物哈希均与独立构建相符。包未发布远端目录，也未在打包宿主导入验证。
+
 ## 后续接续入口
 
-Worktree 入口的既有实现基线为 d37a4aee，当前蓝图源码及本地签名包为 1.0.5，已补齐维护服务隔离、取消、保留页面切换与无 Note 空态。配套生产宿主安装包与远端发布尚未交付；原 1.0.3 不包含 worktree 切换，1.0.4 不包含保留顶栏的 rebind 契约。
+Worktree 入口的既有实现基线为 d37a4aee，当前蓝图源码及本地签名包为 1.0.6，已补齐维护服务隔离、取消、保留页面切换、无 Note 空态和连线标签避让。配套生产宿主安装包与远端发布尚未交付；原 1.0.3 不包含 worktree 切换，1.0.4 不包含保留顶栏的 rebind 契约。
 
 用户随后要求提供新插件包，已将 4aaf798c 对应、通过独立构建和签名 Electron 载体验证的同一份产物签为 [official.blueprint-1.0.4.jxp](../../../release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp)。文件为 1,798,448 字节，SHA-256 为 fb6ff235677efd84edfaa85e042c6bf837be7b700de06c334a6e4089bedae818；使用既有 janusx-blueprint-20261026 生产身份，重新读取包并用宿主分发库验证签名、载荷和 manifest。交付目录同时保留 independent-build.json 与 delivery.json，原版本未覆盖。包要求 views.workbench.worktrees，必须配合包含该能力的新宿主；10-26 migration-r2 安装包不包含此能力，不能仅以同为 0.9.4 推断兼容。新包尚未在配套打包宿主中另验正常导入，未上传 Release 或部署目录。
 

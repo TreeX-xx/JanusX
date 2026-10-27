@@ -3,7 +3,7 @@
   "id": "official.blueprint",
   "name": "Blueprint",
   "description": "Engineering Notes, architecture navigation, review and independent Note MCP.",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "engines": {
     "pluginApi": ">=1.0.0 <2.0.0"
   },
