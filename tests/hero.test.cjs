@@ -4,7 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const pageUrl = process.env.JANUSX_PREVIEW_URL || pathToFileURL(path.resolve(__dirname, '../index.html')).href;
-const history = 'https://github.com/TreeX-X/JanusX/releases';
+const history = 'https://github.com/TreeX-xx/JanusX/releases';
 const installer = `${history}/download/v1.2.3/JanusX-1.2.3-x64-setup.exe`;
 
 (async () => {

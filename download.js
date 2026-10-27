@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const releases = 'https://github.com/TreeX-X/JanusX/releases';
+  const releases = 'https://github.com/TreeX-xx/JanusX/releases';
   const status = document.getElementById('release-status');
   const note = document.getElementById('release-note');
   const controller = new AbortController();
@@ -13,7 +13,7 @@
       return false;
     }
     const url = new URL(asset.browser_download_url);
-    if (url.origin !== 'https://github.com' || !url.pathname.startsWith('/TreeX-X/JanusX/releases/download/')) throw new Error('Unexpected asset URL');
+    if (url.origin !== 'https://github.com' || !url.pathname.startsWith('/TreeX-xx/JanusX/releases/download/')) throw new Error('Unexpected asset URL');
     document.getElementById(`download-${kind}`).href = url.href;
     document.getElementById(`${kind}-label`).textContent = kind === 'setup' ? '下载 Windows 安装版' : '下载 Windows 便携版';
     const size = Number.isFinite(asset.size) && asset.size > 0 ? ` · ${(asset.size / 1048576).toFixed(1)} MB` : '';
@@ -23,7 +23,7 @@
 
   async function loadRelease() {
     try {
-      const response = await fetch('https://api.github.com/repos/TreeX-X/JanusX/releases/latest', { signal: controller.signal });
+      const response = await fetch('https://api.github.com/repos/TreeX-xx/JanusX/releases/latest', { signal: controller.signal });
       if (response.status === 404) {
         status.textContent = '暂无公开正式版';
         note.textContent = '尚未找到公开正式版。可前往 GitHub Releases 查看发布状态。';

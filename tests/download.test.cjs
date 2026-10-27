@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const { createHash } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const pageUrl = pathToFileURL(path.resolve(__dirname, '../index.html')).href;
-const history = 'https://github.com/TreeX-X/JanusX/releases';
+const history = 'https://github.com/TreeX-xx/JanusX/releases';
 const asset = (kind, arch = 'x64') => ({ name: `JanusX-1.2.3-${arch}-${kind}.exe`, size: 104857600, browser_download_url: `${history}/download/v1.2.3/JanusX-1.2.3-${arch}-${kind}.exe` });
 const release = { tag_name: 'v1.2.3', published_at: '2026-09-18T00:00:00Z', assets: [asset('setup'), asset('portable')] };
 
