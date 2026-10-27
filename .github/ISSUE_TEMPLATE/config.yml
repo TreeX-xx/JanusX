@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 贡献与开发指南
-    url: https://github.com/TreeX-X/JanusX/blob/develop/CONTRIBUTING.md
+    url: https://github.com/TreeX-xx/JanusX/blob/develop/CONTRIBUTING.md
     about: 开发环境、反馈方式与 PR 流程
   - name: 官方下载页
-    url: https://treex-x.github.io/JanusX/
+    url: https://treex-xx.github.io/JanusX/
     about: Windows 安装包与便携版下载入口

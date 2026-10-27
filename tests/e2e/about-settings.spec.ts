@@ -24,7 +24,7 @@ test('repository failures explain how to retry without a false starred state', a
   await page.goto('/settings.html?en&updater&tab=about&linkFail')
   const star = page.getByRole('button', { name: 'Star on GitHub', exact: true })
   await star.click()
-  await expect(page.getByRole('alert')).toContainText('github.com/TreeX-X/JanusX')
+  await expect(page.getByRole('alert')).toContainText('github.com/TreeX-xx/JanusX')
   await expect(star).toBeEnabled()
 })
 

@@ -510,7 +510,7 @@ asarUnpack:
 
 publish:
   provider: github
-  owner: TreeX-X
+  owner: TreeX-xx
   repo: JanusX
   channel: latest
   publishAutoUpdate: true

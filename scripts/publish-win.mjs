@@ -1,8 +1,9 @@
-// Publish the exact Windows artifacts only after the neutral-directory runtime gate.
+// Stage verified Windows artifacts; publication is a separate, build-free action.
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 
@@ -27,21 +28,117 @@ export function releaseFiles(root, outputDirectory) {
   return { tag: `v${pkg.version}`, repo: `${config.publish.owner}/${config.publish.repo}`, prerelease, files: names.map((name) => join(directory, name)) }
 }
 
-export function publishWin(root = process.cwd(), run = (command, args) => execFileSync(command, args, { cwd: root, stdio: 'inherit' }), { replaceExisting = false } = {}) {
-  run(process.execPath, [join(root, 'scripts/check-packaged-runtime.mjs'), '--portable'])
-  const release = releaseFiles(root)
-  const common = ['--repo', release.repo]
-  // Replacement is an explicit maintainer exception. Keep the original notes
-  // and unrelated attachments, and hide the feed until all Windows files agree.
-  if (replaceExisting) {
-    run('gh', ['release', 'edit', release.tag, '--draft=true', ...common])
-  } else {
-    run('gh', ['release', 'create', release.tag, '--draft', '--verify-tag', '--title', release.tag, '--notes', '', ...(release.prerelease ? ['--prerelease'] : []), ...common])
+function runner(root) {
+  return (command, args, { capture = false } = {}) => execFileSync(command, args, {
+    cwd: root, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+  })
+}
+
+function githubJson(run, endpoint) {
+  return JSON.parse(run('gh', ['api', endpoint], { capture: true }))
+}
+
+function assertSource(run, release) {
+  if (run('git', ['status', '--porcelain'], { capture: true }).trim()) {
+    throw new Error('Release staging/publication requires a clean checkout of the version tag')
   }
-  run('gh', ['release', 'upload', release.tag, ...release.files, ...(replaceExisting ? ['--clobber'] : []), ...common])
-  run('gh', ['release', 'edit', release.tag, '--draft=false', `--latest=${!release.prerelease}`, ...common])
+  const head = run('git', ['rev-parse', 'HEAD'], { capture: true }).trim()
+  const remote = githubJson(run, `repos/${release.repo}/commits/${encodeURIComponent(`refs/tags/${release.tag}`)}`)
+  if (remote.sha !== head) throw new Error('Remote version tag does not match the current checkout')
+}
+
+function draftRelease(run, release, { allowMissing = false } = {}) {
+  let remote
+  try {
+    remote = githubJson(run, `repos/${release.repo}/releases/tags/${release.tag}`)
+  } catch (error) {
+    // Authentication/network errors must never be mistaken for an absent draft.
+    if (allowMissing && /HTTP 404\b/.test(String(error.stderr ?? error.message))) return null
+    throw error
+  }
+  if (remote.tag_name !== release.tag || remote.draft !== true) throw new Error('Only an unpublished draft may be staged or published; use a new version')
+  if (remote.prerelease !== release.prerelease) throw new Error('Draft prerelease status does not match the version')
+  if (!Array.isArray(remote.assets)) throw new Error('Release assets are unavailable')
+  return remote
+}
+
+function sha256(file) {
+  return createHash('sha256').update(readFileSync(file)).digest('hex')
+}
+
+function assertRemoteFile(run, release, asset, file) {
+  const bytes = readFileSync(file)
+  if (asset.size !== bytes.length) throw new Error(`Remote artifact differs: ${basename(file)}`)
+  if (/^sha256:[a-f0-9]{64}$/.test(asset.digest ?? '')) {
+    if (asset.digest !== `sha256:${sha256(file)}`) throw new Error(`Remote artifact differs: ${basename(file)}`)
+    return
+  }
+  // GitHub may omit digests for older assets. Compare downloaded bytes instead.
+  const temporary = mkdtempSync(join(tmpdir(), 'janusx-release-compare-'))
+  try {
+    run('gh', ['release', 'download', release.tag, '--repo', release.repo, '--pattern', basename(file), '--dir', temporary])
+    if (sha256(join(temporary, basename(file))) !== sha256(file)) throw new Error(`Remote artifact differs: ${basename(file)}`)
+  } finally {
+    if (dirname(resolve(temporary)) !== resolve(tmpdir())) throw new Error('Unexpected temporary directory')
+    rmSync(temporary, { recursive: true, force: true })
+  }
+}
+
+export function stageWin(root = process.cwd(), run = runner(root), { outputDirectory } = {}) {
+  const release = releaseFiles(root, outputDirectory)
+  assertSource(run, release)
+  const hashes = release.files.map(sha256)
+  run(process.execPath, [join(root, 'scripts/check-packaged-runtime.mjs'), '--portable', '--release-dir', dirname(release.files[0])])
+  // The runtime check must not have changed the artifacts or source metadata.
+  releaseFiles(root, outputDirectory)
+  if (release.files.some((file, index) => sha256(file) !== hashes[index])) throw new Error('Artifacts changed during runtime verification')
+  assertSource(run, release)
+  const remote = draftRelease(run, release, { allowMissing: true })
+  const missing = []
+  for (const file of release.files) {
+    const asset = remote?.assets.find(({ name }) => name === basename(file))
+    if (asset) assertRemoteFile(run, release, asset, file)
+    else missing.push(file)
+  }
+  if (!remote) {
+    run('gh', ['release', 'create', release.tag, '--draft', '--verify-tag', '--title', release.tag, '--notes', '', ...(release.prerelease ? ['--prerelease'] : []), '--repo', release.repo])
+  }
+  if (missing.length) run('gh', ['release', 'upload', release.tag, ...missing, '--repo', release.repo])
+  console.log(`Draft ${release.tag} staged. Review notes, then run npm run publish:win. Nothing was published.`)
+}
+
+export function publishWin(root = process.cwd(), run = runner(root), { outputDirectory } = {}) {
+  const release = releaseFiles(root, outputDirectory)
+  assertSource(run, release)
+  const remote = draftRelease(run, release)
+  for (const file of release.files) {
+    const asset = remote.assets.find(({ name }) => name === basename(file))
+    if (!asset) throw new Error(`Remote artifact missing: ${basename(file)}`)
+    assertRemoteFile(run, release, asset, file)
+  }
+  // No build, install or runtime launch here. Publish exactly the compared files.
+  run('gh', ['release', 'edit', release.tag, '--draft=false', `--prerelease=${release.prerelease}`, `--latest=${!release.prerelease}`, '--repo', release.repo])
+}
+
+export function parsePublishArgs(args) {
+  const options = { stage: false, check: false, outputDirectory: undefined }
+  for (let index = 0; index < args.length; index++) {
+    if (args[index] === '--stage') options.stage = true
+    else if (args[index] === '--check') options.check = true
+    else if (args[index] === '--release-dir' && args[index + 1] && !args[index + 1].startsWith('--')) options.outputDirectory = resolve(args[++index])
+    else throw new Error(`Unknown or incomplete argument: ${args[index]}. Use [--stage | --check] [--release-dir directory].`)
+  }
+  if (options.stage && options.check) throw new Error('--stage and --check are mutually exclusive')
+  return options
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { publishWin(process.cwd(), undefined, { replaceExisting: process.argv.includes('--replace-existing') }) } catch (error) { console.error(error.message); process.exitCode = 1 }
+  try {
+    const options = parsePublishArgs(process.argv.slice(2))
+    if (options.check) releaseFiles(process.cwd(), options.outputDirectory)
+    else {
+      const action = options.stage ? stageWin : publishWin
+      action(process.cwd(), undefined, options)
+    }
+  } catch (error) { console.error(error.message); process.exitCode = 1 }
 }

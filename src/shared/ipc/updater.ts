@@ -12,8 +12,8 @@ export const UPDATER_CHANNELS = {
 
 // Note: unsupported runtimes open the designed download page, not raw Releases — see .agents/notes/desktop/app-auto-update-win.md
 /** 单一来源：便携版/开发版手动下载入口，main 与 fallback 共用。 */
-export const UPDATER_RELEASES_URL = 'https://treex-x.github.io/JanusX/#downloads'
-export const APP_REPOSITORY_URL = 'https://github.com/TreeX-X/JanusX'
+export const UPDATER_RELEASES_URL = 'https://treex-xx.github.io/JanusX/#downloads'
+export const APP_REPOSITORY_URL = 'https://github.com/TreeX-xx/JanusX'
 
 export const UPDATER_EVENT_CHANNELS = {
   event: 'updater:event',

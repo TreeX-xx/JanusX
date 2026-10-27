@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-10-18T05:57:21Z",
+  "updated": "2026-10-27T16:06:18Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -41,7 +41,7 @@ JanusX heads for a beta cycle and a v1.0 launch with no written GitHub disciplin
 
 Contributors create short-lived branches from `develop` and submit PRs to `develop`; maintainers promote bounded batches to `main` with merge commits. Both destinations receive Windows PR verification before merge. The policy requires a green check and a non-author approval; GitHub rulesets must be configured separately. Authors cannot approve their own PRs. A maintainer may explicitly authorize an exceptional merge for an emergency, infrastructure failure or unavailable reviewer, recording verification, remaining risk and follow-up in the PR; Agent execution does not imply bypass authority.
 
-Tags use lowercase `v`, exactly matching the package version; old uppercase tags remain unchanged. Every `v*` tag triggers public Windows release automation. Prerelease versions are marked automatically. Publication validates artifacts, uploads into a temporary draft, then exposes the complete Release; drafts do not enter the update feed. The normal path uses a version PR before tagging the merged main commit. The existing tag helper creates a version commit directly on main; its push mode requires a documented maintainer release exception and compatible repository rules.
+Tags use lowercase `v`, exactly matching the package version; old uppercase tags remain unchanged. Tag pushes do not trigger builds or publication. Windows releases use local validated artifacts: staging uploads into a resumable draft, and a separate command compares all four remote files before publication. Prerelease versions retain their channel, and drafts do not enter the update feed. The manual Windows workflow only uploads Actions build artifacts. The normal path uses a version PR before tagging the merged main commit. The existing tag helper creates a version commit directly on main; its push mode requires a documented maintainer release exception and compatible repository rules.
 
 Bug, feature and question/documentation forms cover both stable and beta versions; maintainers apply beta labels without asking users to choose an overlapping intake form. Small fixes need no preliminary Issue, and Notes are required only when the change affects lasting recorded facts. Feature proposals focus on scenarios and outcomes rather than requiring a technical design. Issue closure after development integration is distinguished from availability in a published version.
 
@@ -57,10 +57,10 @@ Workflow dependency sources use explicit upstream repositories so Fork verificat
 
 - Keep pushing `main` directly — strongest case is zero workflow friction for a solo maintainer, but every change then lands without a review trace or a guaranteed green gate, and agents inherit no enforceable handoff.
 - Use only feature branches into main — this reduces merge overhead, but loses the existing requested integration destination. Retain develop with explicit contribution and promotion paths; reconsider if batched acceptance no longer serves a purpose.
-- Manual Releases from the web UI — strongest case is full per-release control, but hand-built assets drift from CI builds and the updater feed depends on machine-made `latest.yml`.
+- Manual-only web uploads — strongest case is full release control, but manual attachment selection can omit or mix update files. Local staging now validates the same four Windows artifacts and their update manifest before uploading a resumable draft; publication remains separate.
 - Do nothing / reuse — staying put costs nothing today, but the uppercase-tag mismatch keeps silently producing tags that never release, which is the observed failure.
 
 ## Consequences
 
 - **Gains**: contributors can identify the target branch, prepare the same inputs as CI and report problems without understanding maintainer tooling. Review and release duties have separate entry points, and local/CI verification cover the same check chain.
-- **Costs and limits**: full Windows verification runs on feature PRs, branch pushes and promotion PRs, increasing CI use. Branch protection and availability of an independent reviewer remain external administrative concerns; this change does not configure or verify live GitHub settings. If develop no longer supports meaningful batched acceptance, simplify the branch model. New checks added to package.json still require updating the split workflow.
+- **Costs and limits**: full Windows verification runs on feature and promotion PRs, with a manual recovery entry; branch pushes no longer duplicate these runs. Branch protection and availability of an independent reviewer remain external administrative concerns; this change does not configure or verify live GitHub settings. If develop no longer supports meaningful batched acceptance, simplify the branch model. New checks added to package.json still require updating the split workflow.

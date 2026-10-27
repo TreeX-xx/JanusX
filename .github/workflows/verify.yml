@@ -1,13 +1,11 @@
 # PR 统一门禁：在 Windows runner 上跑仓库的 `verify` 全链。
-# release-win 只管发版，这条管合入质量；分支保护要求 `verify` 变绿。
+# release-win 只做手动构建；本流程保留 PR 门禁和手动入口，不重复响应分支 push。
 # Note: reproducible inputs and clean-checkout tests — see .agents/notes/desktop/reproducible-verification.md
 # Note: development promotion — see .agents/notes/desktop/development-branch.md
 name: verify
 
 on:
   pull_request:
-    branches: [main, develop]
-  push:
     branches: [main, develop]
   workflow_dispatch:
 
@@ -31,7 +29,7 @@ jobs:
       - name: Checkout sibling janus-agentX
         uses: actions/checkout@v4
         with:
-          repository: TreeX-X/janus-agentX
+          repository: TreeX-xx/janus-agentX
           ref: 8baa18e5db8ca641871c139a5b76904bedc88dda
           path: janus-agentX
 
@@ -41,7 +39,7 @@ jobs:
       - name: Checkout sibling WorkFlowX
         uses: actions/checkout@v4
         with:
-          repository: TreeX-X/WorkFlowX
+          repository: TreeX-xx/WorkFlowX
           ref: efaf5ae7aac24362286251dc931487d5cfd2e2a5
           path: WorkFlowX
 

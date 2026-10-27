@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-23T13:37:00.112Z",
+  "updated": "2026-10-27T16:57:58Z",
   "moduleState": "partial"
 }
 ---
@@ -64,3 +64,5 @@ Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边
 - [x] AC-1: 本域 21 篇直接子全部携带有效 parent。
 - [ ] AC-2: 两篇正名文件后缀与 id 一致，无 flat-layout 违规残留。
 - [ ] AC-3: github-maintenance 归属产品面，本域不重复收纳。
+
+[Public account migration](./account-migration.md) records the three repositories, Pages, release assets and old-client update limits. Isolated migration worktrees preserve unrelated uncommitted development changes.

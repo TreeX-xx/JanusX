@@ -1,7 +1,7 @@
-// 本地打版脚本：版本递增提交 + 打 tag，推送即触发 release-win 公开发布。
+// 本地版本脚本：版本递增提交 + 打 tag；推送不触发构建或公开发布。
 // 用法：npm run release:tag -- <版本> [--dry-run] [--push] [--yes] [--verify] [--notes-file <路径>]
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -59,10 +59,10 @@ function printHelp() {
 
   <版本>              如 0.8.8（稳定版）或 1.0.0-beta.1（内测版，维护者声明后使用）
   --dry-run           只打印计划，不改任何文件、不提交、不打 tag
-  --push              推送 main 分支与 tag（推送即公开发布，需二次确认）
+  --push              推送 main 分支与 tag（只推送版本标记，需二次确认）
   --yes               跳过二次确认（agent 或 CI 调用时使用）
   --verify            先跑 npm run verify（慢；日常合入已由 PR 门禁覆盖）
-  --notes-file <路径> Release 说明模板输出路径（默认 release-notes-v<版本>.md）
+  --notes-file <路径> Release 说明模板输出路径（默认 release/release-notes-v<版本>.md）
   --help              显示本帮助
 
 流程：干净工作树检查 → main 与远端同步检查 → 版本递增检查 → tag 不存在检查
@@ -140,7 +140,7 @@ function buildNotes(version, prevTag) {
   const lines = [
     `# v${version}`,
     '',
-    `> CI 建好 Release 后，把 Highlights 填好，用 gh release edit v${version} --notes-file <本文件>或网页编辑填入 Release 正文（禁止 draft，feed 只读正式 Release）。`,
+    `> 本地构建并通过 stage:win 上传草稿后填写 Highlights，用 gh release edit v${version} --notes-file <本文件>更新正文；审核后单独运行 publish:win 公开。`,
     '',
     '## Highlights',
     '',
@@ -195,14 +195,14 @@ async function main() {
   if (remoteTags) fail(`远端已存在 tag ${tag}，换一个版本号`)
 
   const prevTag = previousTag()
-  const notesPath = args.notesFile ?? `release-notes-v${target.text}.md`
+  const notesPath = args.notesFile ?? `release/release-notes-v${target.text}.md`
 
   console.log(`release-tag 计划：${current.text} → ${target.text}（${tag}）`)
   console.log(`- 基线 tag：${prevTag ?? '(无，取全量日志)'}`)
   console.log(`- 改版本文件：package.json + package-lock.json → chore 提交`)
   console.log(`- 打 annotated tag：${tag}`)
   console.log(`- 生成说明模板：${notesPath}`)
-  console.log(args.push ? '- 推送：origin main + ' + tag + '（即公开发布）' : '- 推送：跳过（加 --push 才推）')
+  console.log(args.push ? '- 推送：origin main + ' + tag + '（不构建、不公开）' : '- 推送：跳过（加 --push 才推）')
 
   if (args.dryRun) {
     console.log('dry-run：以上步骤均未执行。')
@@ -215,7 +215,7 @@ async function main() {
   }
 
   if (args.push && !args.yes) {
-    const ok = await confirm(`推送 ${tag} 将触发 release-win 并公开发布 v${target.text}，继续？[y/N] `)
+    const ok = await confirm(`将推送 main 和 ${tag}（不触发构建或公开发布），继续？[y/N] `)
     if (!ok) fail('已取消，未做任何改动')
   }
 
@@ -236,8 +236,9 @@ async function main() {
   // 7. 生成 Release 说明模板（不入库，填好后由人执行 gh release edit 或网页编辑）。
   const notesAbs = resolve(ROOT, notesPath)
   if (existsSync(notesAbs) && !args.notesFile) fail(`模板文件已存在：${notesPath}（用 --notes-file 指定别处或先删除）`)
+  mkdirSync(dirname(notesAbs), { recursive: true })
   writeFileSync(notesAbs, buildNotes(target.text, prevTag), 'utf8')
-  console.log(`已生成：${notesPath}（填好 Highlights，CI 建好 Release 后再附加上去）`)
+  console.log(`已生成：${notesPath}（填好 Highlights，上传草稿后附加，最后单独公开）`)
 
   if (!args.push) {
     console.log(`本地已就绪但未推送。确认后执行：git push origin main && git push origin ${tag}`)
@@ -245,8 +246,9 @@ async function main() {
   }
   run('git', ['push', 'origin', 'main'])
   run('git', ['push', 'origin', tag])
-  console.log(`已推送 ${tag}，release-win 开始构建。构建完成后执行：`)
+  console.log(`已推送 ${tag}，未触发构建或发布。本地构建并运行 stage:win 后执行：`)
   console.log(`  gh release edit ${tag} --notes-file ${notesPath}`)
+  console.log('  npm run publish:win')
   console.log('  再按 CONTRIBUTING 把 main 同步回 develop：git switch develop && git merge --ff-only origin/main && git push origin develop')
 }
 

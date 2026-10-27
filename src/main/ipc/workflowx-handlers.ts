@@ -30,7 +30,7 @@ export function registerWorkflowXHandlers(options: {
   ipcMain.handle(WORKFLOWX_CHANNELS.openRepository, async (event) => {
     if (!authorized(event)) return false
     try {
-      await shell.openExternal('https://github.com/TreeX-X/WorkFlowX')
+      await shell.openExternal('https://github.com/TreeX-xx/WorkFlowX')
       return true
     } catch { return false }
   })

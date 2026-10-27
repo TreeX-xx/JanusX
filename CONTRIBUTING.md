@@ -4,7 +4,7 @@
 
 ## 从哪里开始
 
-- 使用问题、Bug、功能建议：[创建 Issue](https://github.com/TreeX-X/JanusX/issues/new/choose)。先搜索已有 Issue；同一问题补充在原讨论中。
+- 使用问题、Bug、功能建议：[创建 Issue](https://github.com/TreeX-xx/JanusX/issues/new/choose)。先搜索已有 Issue；同一问题补充在原讨论中。
 - 小型修复、错字和文档修正：可以直接提交 PR，无需先建 Issue。
 - 新功能、接口变更或较大重构：先提交 Issue，说明场景、范围与预期结果，等待维护者确认方向后再投入实现。Issue 被接受不代表已有交付时间。
 - 首次开发：按[开发环境指南](./docs/development.md)准备依赖并启动应用；理解相关模块时再查阅 [Wiki](./wiki/README.md)。
@@ -16,14 +16,14 @@
 1. Fork 仓库；有写权限的协作者也使用独立功能分支。
 2. 从最新的上游 `develop` 创建分支，例如 `fix/terminal-startup` 或 `docs/contributing`。
 3. 保持一次 PR 只解决一个明确问题，避免混入无关格式化、生成文件或个人配置。
-4. 完成相关检查，向 **`TreeX-X/JanusX` 的 `develop`** 提交 PR；尚未完成时先开 Draft PR。
+4. 完成相关检查，向 **`TreeX-xx/JanusX` 的 `develop`** 提交 PR；尚未完成时先开 Draft PR。
 5. 在 PR 中说明问题、行为变化、验证结果和关联 Issue。UI 改动附截图或录像。
 6. 根据审核意见修改，重新运行受影响的检查；准备好后标记 Ready for review，由维护者审核并合并。
 
 Fork 的常用命令如下；`origin` 指向你的 Fork，`upstream` 指向原仓库：
 
 ```bash
-git remote add upstream https://github.com/TreeX-X/JanusX.git
+git remote add upstream https://github.com/TreeX-xx/JanusX.git
 git fetch upstream
 git switch -c fix/terminal-startup upstream/develop
 # 完成修改并提交后
@@ -41,7 +41,7 @@ git push -u origin fix/terminal-startup
 - 修复行为缺陷或新增行为时，补充能验证该行为的测试。涉及 UI 文案时同步国际化；涉及架构、对外行为或长期约定时更新对应文档及已有 Note。
 - Issue 和 Note 均按需关联。没有 Issue 可省略；普通小修不必为了填模板新建 Note。仓库的 Agent 执行规则见 [AGENTS.md](./AGENTS.md)。
 
-Windows CI 会对目标为 `develop`、`main` 的 PR，以及这两个分支的推送运行完整 `verify` 检查。CI 未通过不得按常规流程合并；维护者确认必要检查通过、审核意见得到处理后执行合并。新增实质性修改后需重新检查和审核。CI 因权限等待批准时，由维护者审阅后批准运行。
+Windows CI 会对目标为 `develop`、`main` 的 PR 运行完整 `verify` 检查，也可手动运行；普通分支 push 不重复触发。CI 未通过不得按常规流程合并；维护者确认必要检查通过、审核意见得到处理后执行合并。新增实质性修改后需重新检查和审核。CI 因权限等待批准时，由维护者审阅后批准运行。
 
 功能分支合入 `develop` 通常使用 squash merge；合并后删除已交付的短期分支。`develop → main` 的晋级 PR 使用 **merge commit** 保留长期分支的共同历史。`develop`、`main`、官网来源 `gh-pages` 长期保留，活跃 worktree 分支在对应工作结束后清理。
 

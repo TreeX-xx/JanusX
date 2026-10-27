@@ -1,5 +1,5 @@
-# Win P0 发版：tag 推送即打 nsis 安装包并发布到本仓库 GitHub Releases，
-# electron-builder 同步生成 latest.yml，桌面端 updater 拉该 feed。
+# 手动 Windows 构建：验证后上传 Actions 附件，不创建或公开 Release。
+# tag 仅标记版本；本地 stage:win 与 publish:win 分别上传草稿和公开。
 # 前提：package.json 用 file: 引用 ../janus-agentX，先把它检出到同级目录
 #（固定上游仓库，Fork 无需复制 sibling 仓库）。
 # Note: reproducible inputs and release naming — see .agents/notes/desktop/reproducible-verification.md
@@ -9,46 +9,44 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing version tag to build with the current runtime verifier
+        description: Existing version tag to build (artifacts only; no publication)
         required: true
         type: string
-      replace_existing:
-        description: Explicitly replace Windows assets of an existing release after validation
-        required: false
-        default: false
-        type: boolean
-  push:
-    tags:
-      - 'v*'
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-win-${{ inputs.release_tag }}
+  cancel-in-progress: false
 
 jobs:
   build-win:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout JanusX
         uses: actions/checkout@v4
         with:
           path: JanusX
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: refs/tags/${{ inputs.release_tag }}
 
       # Recovery retains the immutable application tag and updates only the
       # external runtime checker, after packaging has completed.
       - name: Checkout runtime verification tooling
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
         with:
           path: release-tooling
           ref: ${{ github.sha }}
-          sparse-checkout: scripts/check-packaged-runtime.mjs
+          sparse-checkout: |
+            scripts/check-packaged-runtime.mjs
+            scripts/publish-win.mjs
           sparse-checkout-cone-mode: false
 
       - name: Checkout sibling janus-agentX
         uses: actions/checkout@v4
         with:
-          repository: TreeX-X/janus-agentX
+          repository: TreeX-xx/janus-agentX
           ref: 8baa18e5db8ca641871c139a5b76904bedc88dda
           path: janus-agentX
 
@@ -85,10 +83,12 @@ jobs:
         shell: pwsh
         run: |
           $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ("${{ inputs.release_tag || github.ref_name }}" -ne "v$pkg") {
-            Write-Error "tag ${{ github.ref_name }} != package.json v$pkg"
+          if ($env:RELEASE_TAG -ne "v$pkg") {
+            Write-Error "tag $env:RELEASE_TAG != package.json v$pkg"
             exit 1
           }
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
 
       - name: Install
         working-directory: JanusX
@@ -126,19 +126,27 @@ jobs:
         working-directory: JanusX
         run: npx electron-builder --win --x64 --publish never
 
-      # Runtime verification and update-manifest hashes must pass before a
-      # release is created. Upload into a draft, then expose the same artifacts.
-      - name: Verify and publish Windows artifacts
+      - name: Verify Windows artifacts
         working-directory: JanusX
         shell: pwsh
         run: |
-          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            Copy-Item -LiteralPath ../release-tooling/scripts/check-packaged-runtime.mjs -Destination scripts/check-packaged-runtime.mjs
-          }
-          if ('${{ inputs.replace_existing }}' -eq 'true') {
-            npm run publish:win -- --replace-existing
-          } else {
-            npm run publish:win
-          }
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          Copy-Item -LiteralPath ../release-tooling/scripts/check-packaged-runtime.mjs -Destination scripts/check-packaged-runtime.mjs
+          Copy-Item -LiteralPath ../release-tooling/scripts/publish-win.mjs -Destination scripts/publish-win.mjs
+          npm run check:portable-runtime
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/publish-win.mjs --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload validated build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ inputs.release_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            JanusX/release/*/*-setup.exe
+            JanusX/release/*/*-setup.exe.blockmap
+            JanusX/release/*/*-portable.exe
+            JanusX/release/*/latest.yml
+            JanusX/release/*/beta.yml
+            JanusX/release/*/win-unpacked/**
+          if-no-files-found: error
+          retention-days: 14

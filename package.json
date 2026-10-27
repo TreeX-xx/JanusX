@@ -13,7 +13,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TreeX-X/JanusX.git"
+    "url": "https://github.com/TreeX-xx/JanusX.git"
   },
   "workspaces": [
     "packages/*"
@@ -71,7 +71,8 @@
     "package:win:build": "npm run package:prepare && electron-builder --win --x64 --publish never",
     "package:win": "npm run package:win:build && npm run check:portable-runtime",
     "package:win:portable": "npm run package:prepare && node scripts/package-win-portable.mjs",
-    "package:win:publish": "npm run package:win:build && npm run publish:win",
+    "package:win:stage": "npm run package:win:build && npm run stage:win",
+    "stage:win": "node scripts/publish-win.mjs --stage",
     "publish:win": "node scripts/publish-win.mjs",
     "package:mac": "npm run prepackage && npm run build && npm run check:package-boundary && electron-builder --mac",
     "package:linux": "npm run prepackage && npm run build && npm run check:package-boundary && electron-builder --linux",

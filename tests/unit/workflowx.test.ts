@@ -57,7 +57,7 @@ describe('WorkflowX IPC', () => {
     expect(await open({ sender: {} })).toBe(false)
     expect(mocks.open).not.toHaveBeenCalled()
     expect(await open({ sender }, 'https://untrusted.invalid')).toBe(true)
-    expect(mocks.open).toHaveBeenCalledWith('https://github.com/TreeX-X/WorkFlowX')
+    expect(mocks.open).toHaveBeenCalledWith('https://github.com/TreeX-xx/WorkFlowX')
     mocks.open.mockRejectedValueOnce(new Error('browser unavailable'))
     expect(await open({ sender })).toBe(false)
   })

@@ -14,10 +14,10 @@ workspace/
 ```
 
 ```bash
-git clone https://github.com/TreeX-X/JanusX.git
+git clone https://github.com/TreeX-xx/JanusX.git
 git -C JanusX switch develop
-git clone https://github.com/TreeX-X/janus-agentX.git
-git clone https://github.com/TreeX-X/WorkFlowX.git
+git clone https://github.com/TreeX-xx/janus-agentX.git
+git clone https://github.com/TreeX-xx/WorkFlowX.git
 ```
 
 外部贡献者将第一条克隆 URL 换成自己的 Fork，并按 [CONTRIBUTING](../CONTRIBUTING.md) 配置上游。新建 Fork 时需包含 `develop`；若 Fork 尚无该分支，可先 fetch 上游，再从 `upstream/develop` 创建本地功能分支，跳过上述切换命令。
