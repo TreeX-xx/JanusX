@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T05:31:55Z",
+  "updated": "2026-10-27T05:41:17Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -255,7 +255,9 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 ## 后续接续入口
 
-Worktree 入口的既有实现基线为 d37a4aee，蓝图源码版本 1.0.4；后续已补齐本节所述维护服务隔离、取消与定向验证。配套宿主和插件尚未正式交付，原 1.0.3 本地产物不包含 worktree 切换。
+Worktree 入口的既有实现基线为 d37a4aee，蓝图源码版本 1.0.4；后续已补齐本节所述维护服务隔离、取消与定向验证。本地 1.0.4 插件包已生成，配套新宿主安装包与远端发布尚未交付；原 1.0.3 本地产物不包含 worktree 切换。
+
+用户随后要求提供新插件包，已将 4aaf798c 对应、通过独立构建和签名 Electron 载体验证的同一份产物签为 [official.blueprint-1.0.4.jxp](../../../release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp)。文件为 1,798,448 字节，SHA-256 为 fb6ff235677efd84edfaa85e042c6bf837be7b700de06c334a6e4089bedae818；使用既有 janusx-blueprint-20261026 生产身份，重新读取包并用宿主分发库验证签名、载荷和 manifest。交付目录同时保留 independent-build.json 与 delivery.json，原版本未覆盖。包要求 views.workbench.worktrees，必须配合包含该能力的新宿主；10-26 migration-r2 安装包不包含此能力，不能仅以同为 0.9.4 推断兼容。新包尚未在配套打包宿主中另验正常导入，未上传 Release 或部署目录。
 
 | 事项 | 已确认事实与下一步 |
 | --- | --- |
