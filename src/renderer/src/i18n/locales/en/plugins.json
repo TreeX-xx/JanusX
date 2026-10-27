@@ -11,6 +11,8 @@
   "settingsPageSubtitle": "Settings provided by {{name}}",
   "settingsEnableRequired": "This plugin can't load its settings page right now. Check its status in the plugin manager.",
   "managePlugin": "Manage plugin",
+  "projectGrantRequired": "This plugin has not been authorized for the current project. Review permissions and select this project to open the view.",
+  "projectScopeEmpty": "No projects selected. Project views will be unavailable; application settings remain available.",
   "handoffTitle": "Review terminal task",
   "handoffHint": "Confirm to create a terminal and prefill the task. Review it in the terminal, then send it manually.",
   "handoffClient": "Terminal assistant", "handoffDraft": "Task draft",

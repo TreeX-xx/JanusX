@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T05:41:17Z",
+  "updated": "2026-10-27T06:12:00Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -55,6 +55,14 @@
 本次 UI 恢复验证：宿主及插件严格未用类型检查、修改宿主文件 ESLint 通过；plugin-runtime、plugin-surfaces、blueprint-plugin-navigation 共 3 文件 51 项通过，覆盖框架声明／权限、已授权项目名单、越权与撤销后的迟到切换拒绝，以及图刷新尺寸和模块导航。完整桌面 `npm run test:blueprint:local -- --output artifacts/blueprint-local-results` 一项通过，使用真实仓库 Notes 隔离副本，验证覆盖主顶栏、两栏布局、左右卡片、来源弹层、设置返回节点、Escape 关闭及退出后独立 MCP。最终截图等待有限入场动画结束并确认 Janus 问候已加载，另断言左右卡片均在机身边界内，无裁切。
 
 `npm run plugins:blueprint:check` 以八个锁定公开归档在仓库外重新构建，同包的一项签名 Electron 回归通过，验证首次等待时骨架／加载卡片、两栏、180ms 卡片／320ms 首节点延迟、减少动画、插件关闭、设置冲突、流式讨论收起恢复、实施交接、文件应用撤销和卸载重装。收据为 artifacts/plugins/blueprint-build.json，初始与加载截图在 artifacts/plugins/blueprint-restored-initial.png、blueprint-restored-loading.png。依赖复核仅 SDK 归档变化，七个共享归档不变，见 artifacts/plugins/frame-dependency-lock-review.json。全仓 Note 校验仍只有 entrance-choreography.md 的两项既有错误（缺 AC、更新时间早于创建），本次四份 Note 无新增错误。临时签名与确定性模型不代表生产发布或真实供应商验收。
+
+## 空项目授权导致打开失败
+
+10-27 dev 导入生产签名 1.0.4 后，打开蓝图仅显示 CONTEXT_UNAVAILABLE。读取 JanusX-Dev 的插件登记确认 official.blueprint 已启用且状态 ready，但 projects 为空；原宿主将未授权项目和不可用上下文合并返回同一错误，页面创建前即失败，反复重试不能恢复。应用级设置允许在空项目列表下使用，因此不禁止该启用状态。通用宿主现区分 PATH_NOT_GRANTED，失败页可定位当前插件／项目的权限审阅并在确认后自动重新挂载；取消不保存，未选项目有明确提示，工作台失败页可返回。契约归[项目授权缺失的恢复](../workbench/plugin-contract-v1.md#项目授权缺失的恢复)。修复只改宿主，原签名 1.0.4 包无需重建；未改动用户真实授权列表。
+
+验证命令 npx vitest run tests/unit/plugin-runtime.test.ts tests/unit/plugin-documents.test.ts tests/unit/plugin-settings-pages.test.ts，三文件 64 项通过。新增 desktop-plugins.spec.ts 的 project plugin views recover from empty grants through explicit permission review 完整 Electron 回归一项通过：空授权设置页可用、项目页面拒绝、定向选择、取消不保存、失败返回、确认后自动显示文件及另一未授权项目拒绝。宿主严格未用类型检查、修改宿主文件 ESLint、双语键检查及 electron-vite build --outDir artifacts/context-fix 通过。全仓 312 份 Notes 检查仍只有未修改的 entrance-choreography.md 缺 AC、更新时间早于创建两项既有错误，两份维护 Note 无新增错误。
+
+同一宿主在临时 profile／真实 Notes 隔离副本中另行导入原 release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp，保留正式应用版本身份和生产 trust，developmentMode=false。从 enabled=true／projects=[] 复现新的授权提示，经实际权限表单确认当前项目后，自动加载 JanusX 根 Note、正文“桌面工作区”和十张图卡。探针、收据及前后截图归 artifacts/context-fix/blueprint-grant-probe.mjs、blueprint-grant-receipt.json、blueprint-grant-required.png、blueprint-grant-recovered.png，均为忽略的本地证据。此项不替代配套打包宿主、完整功能与高频 worktree 验收。
 
 ## 阅读卡与注意列表恢复
 

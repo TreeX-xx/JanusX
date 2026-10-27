@@ -18,7 +18,7 @@ import { syncPluginThemes } from '../../../shared/theme/plugin-themes'
 import { useAppStore } from '@/stores/app'
 import { useIslandStore } from '@/stores/island'
 import type { PluginDocument, PluginDraft } from '@janusx/plugin-sdk'
-import { openPluginConfiguration } from './plugin-configuration-navigation'
+import { openPluginConfiguration, reviewPluginAuthorization } from './plugin-configuration-navigation'
 import type { PluginConfigurationTarget } from './plugin-configuration-navigation'
 
 let snapshot: PluginHostSnapshot = { developmentMode: false, plugins: [], logs: [] }
@@ -160,6 +160,9 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
   onDocumentDraft?: (baseText: string, version: string, update?: { text: string; expectedRevision: number }) => PluginDraft | null
 }) {
   const { t } = useI18n('plugins')
+  const pluginSnapshot = usePluginSnapshot()
+  const record = pluginSnapshot.plugins.find(record => record.manifest.id === pluginId)
+  const projectGranted = Boolean(workspaceId && record?.projects.includes(workspaceId))
   const body = useRef<HTMLDivElement>(null)
   // The settings dialog owns one cover lease; additional dialogs still cover its native page.
   const covered = useBrowserOcclusionStore(state => state.count > (location === 'settings' ? 1 : 0))
@@ -171,6 +174,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
   const [mount, setMount] = useState<PluginMount | null>(null)
   const [failure, setFailure] = useState('')
   const [retry, setRetry] = useState(0)
+  const needsProjectGrant = Boolean(workspaceId && !projectGranted && (failure === 'PATH_NOT_GRANTED' || failure === 'CONTEXT_UNAVAILABLE'))
   const documentViewer = boundDocument?.viewer
   const documentPath = boundDocument?.path
   const visible = active && !covered && !dragging && !failure
@@ -194,7 +198,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
       cancelled = true
       if (current) void pluginRequest({ type: 'close', instanceId: current.instanceId, binding: current.binding }).catch(() => {})
     }
-  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry, documentViewer, documentPath, instanceKey])
+  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry, documentViewer, documentPath, instanceKey, projectGranted])
   useEffect(() => { if (failure) onFailure?.(failure) }, [failure, onFailure])
   useEffect(() => {
     if (!mount) return
@@ -251,7 +255,13 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
       onClick={() => openPluginConfiguration({ pluginId, scope: mount?.context.project ? 'project' : 'application' })}>{t('plugins:configuration')}</button>}
     {mount && snapshot.developmentMode && !failure && <button type="button" className="self-end text-xs px-2 py-1" aria-label={t('plugins:devtools')}
       onClick={() => { void pluginRequest({ type: 'devtools', instanceId: mount.instanceId, binding: mount.binding }).catch(cause => setFailure(cause.message)) }}>{t('plugins:devtools')}</button>}
-    {failure ? <div role="alert" className="p-3 text-xs"><p>{failure}</p><button type="button" aria-label={t('plugins:retry')} onClick={() => setRetry(value => value + 1)}>↻</button></div>
+    {failure ? <div role="alert" className="m-3 rounded-lg border border-[var(--shell-border)] bg-[var(--shell-card)] p-4 text-sm text-[var(--shell-text)]">
+      <p className="mb-2">{needsProjectGrant ? t('plugins:projectGrantRequired') : failure}</p>
+      {needsProjectGrant && workspaceId && <button type="button" className="px-2 py-1"
+        onClick={() => reviewPluginAuthorization({ pluginId, projectId: workspaceId })}>{t('plugins:authorize')}</button>}
+      <button type="button" className="px-2 py-1" aria-label={t('plugins:retry')} onClick={() => setRetry(value => value + 1)}>↻</button>
+      {location === 'workbench' && <button type="button" className="px-2 py-1" onClick={() => useAppStore.getState().closePluginWorkbench()}>{t('plugins:returnToWorkspace')}</button>}
+    </div>
       : mount ? <div ref={body} className="flex-1 min-h-0" data-plugin-native={mount.instanceId} /> : <span role="status">…</span>}
   </div>
 }

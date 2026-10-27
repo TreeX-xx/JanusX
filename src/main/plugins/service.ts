@@ -467,6 +467,7 @@ export class PluginService {
       const viewer = record.manifest.contributes.viewers?.find(item => item.id === document.viewer && item.view === viewId)
       if (!viewer || !matchesPluginViewer(viewer, document.path)) error('PATH_NOT_GRANTED', 'File does not match the declared viewer.')
     }
+    if (view!.scope === 'project' && projectId && !record.projects.includes(projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
     const project = view!.scope === 'project' && projectId ? await this.deps.resolveProject(projectId, scopePath) : null
     if (document) {
       if (!project) error('CONTEXT_UNAVAILABLE', 'Document viewers require a project.')
@@ -475,7 +476,8 @@ export class PluginService {
     this.allowed(record)
     if (this.records.get(id) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== activation
       || this.current.revision !== revision) error('STALE_CONTEXT', 'Context changed while mounting.')
-    if (view!.scope === 'project' && (!project || !record.projects.includes(projectId!)
+    if (view!.scope === 'project' && projectId && !record.projects.includes(projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
+    if (view!.scope === 'project' && (!project
       || this.current.projectId !== projectId || this.current.root !== project.root)) error('CONTEXT_UNAVAILABLE', 'Project scope is unavailable.')
     if (this.instances.size >= 64 || [...this.instances.values()].filter(instance => instance.plugin === id).length >= 8) error('RATE_LIMITED', 'Too many plugin pages.')
     const scope = project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : 'application'

@@ -19,7 +19,7 @@ import { PluginSettingsView } from './plugins/PluginSettingsView'
 import { installedPluginSettings } from '@/extensions/plugin-settings'
 import { refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
 import type { ExtensionViewId } from '@/extensions/types'
-import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import type { PluginAuthorizationTarget, PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { PLUGIN_SETTINGS_EVENT } from '@/extensions/plugin-configuration-navigation'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
@@ -34,6 +34,7 @@ interface AppSettingsModalProps {
   onClose: () => void
   initialTab?: SettingsTab
   pluginConfiguration?: PluginConfigurationTarget | null
+  pluginAuthorization?: PluginAuthorizationTarget | null
 }
 
 // Note: grouped navigation preserves independent feature gates — see .agents/notes/knowledge/assistant-persona-layout.md
@@ -56,7 +57,7 @@ const TAB_ICONS: Record<BuiltinSettingsTab, LucideIcon> = {
 // Note: the modal mounts only while open, so ModalFrame owns the whole
 // open/closing/hidden lifecycle — see shared/ModalFrame.css and
 // .agents/notes/terminal/settings-workbench-transition.md
-export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', pluginConfiguration }: AppSettingsModalProps) {
+export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', pluginConfiguration, pluginAuthorization }: AppSettingsModalProps) {
   const { t } = useI18n('settings')
   const { t: tTeam } = useI18n('team')
   const { t: tKnowledge } = useI18n('knowledge')
@@ -102,7 +103,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
 
   useEffect(() => {
     if (isOpen) setActiveTab(initialTab)
-  }, [isOpen, initialTab, pluginConfiguration])
+  }, [isOpen, initialTab, pluginConfiguration, pluginAuthorization])
 
   useEffect(() => {
     const open = (event: Event) => {
@@ -198,7 +199,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'about' && <AboutSettingsPanel />}
               {activeTab === 'terminal' && <TerminalManagerPanel />}
               {activeTab === 'integrations' && <CpaSettingsPanel onOpened={requestClose} />}
-              {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} onOpened={requestClose} />}
+              {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} authorizationTarget={pluginAuthorization} onOpened={requestClose} />}
               {activeTab === 'experimental' && <ExperimentalSettingsPanel />}
               {activeTab === 'notifications' && <NotificationSettingsPanel />}
               {activeTab === 'personal' && <PersonalMemorySettingsPanel />}

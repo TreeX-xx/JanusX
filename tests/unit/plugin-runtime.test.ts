@@ -43,6 +43,28 @@ async function fixture() {
   return { directory, source, manifest, root, rootB, deps, service, events, prepare, call }
 }
 
+it('requires an explicit project grant before resolving roots or mounting, while keeping application views available', async () => {
+  const f = await fixture()
+  f.manifest.contributes.views.find((view: any) => view.id === 'summary').scope = 'application'
+  f.manifest.contributes.island[0].actions = ['open-desk', 'open-island']
+  await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest))
+  await f.prepare()
+  await f.service.enable(f.manifest.id, [])
+  const resolveProject = vi.spyOn(f.deps, 'resolveProject')
+  await expect(f.service.mount(f.manifest.id, 'desk', 'a', f.root)).rejects.toMatchObject({ code: 'PATH_NOT_GRANTED' })
+  expect(resolveProject).not.toHaveBeenCalled()
+  expect(f.service.snapshot().plugins[0].runtime?.pages ?? 0).toBe(0)
+  const app = await f.service.mount(f.manifest.id, 'summary', null, null)
+  f.service.bind(app.instanceId, app.binding)
+  expect(await f.call(app, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: false, error: { code: 'CONTEXT_UNAVAILABLE' } })
+  await f.service.enable(f.manifest.id, ['a'])
+  const mount = await f.service.mount(f.manifest.id, 'desk', 'a', f.root)
+  f.service.bind(mount.instanceId, mount.binding)
+  expect(await f.call(mount, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project A' } })
+  await f.service.setContext('b', f.rootB, 'en', { id: '', tokens: {} })
+  await expect(f.service.mount(f.manifest.id, 'desk', 'b', f.rootB)).rejects.toMatchObject({ code: 'PATH_NOT_GRANTED' })
+})
+
 describe('plugin-owned workbench frame', () => {
   async function framed(worktrees = false) {
     const f = await fixture()

@@ -85,6 +85,75 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
+test('project plugin views recover from empty grants through explicit permission review', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'janusx-plugin-grant-'))
+  let app: ElectronApplication | undefined
+  try {
+    const id = 'example.project-grant'
+    const source = join(root, 'plugin'); await mkdir(join(source, 'dist'), { recursive: true })
+    await writeFile(join(source, 'manifest.json'), JSON.stringify({
+      schemaVersion: 1, id, name: 'Project grant fixture', version: '1.0.0', engines: { pluginApi: '^1.0.0' },
+      capabilities: { required: ['views.workbench', 'views.workbench.frame', 'views.settings', 'commands.openView', 'context.project', 'files.readText'], optional: [] },
+      permissions: [{ name: 'ui.views.open' }, { name: 'workspace.context.read' }, { name: 'workspace.files.read', paths: ['README.md'] }],
+      contributes: {
+        views: [
+          { id: 'desk', title: 'Grant fixture', entry: 'dist/index.html', location: 'workbench', scope: 'project', frame: 'plugin', instancePolicy: 'single' },
+          { id: 'settings', title: 'Grant settings', entry: 'dist/settings.html', location: 'settings', scope: 'application', instancePolicy: 'single' },
+        ],
+        commands: [{ id: 'open', title: 'Open grant fixture', action: { type: 'openView', view: 'desk' } }],
+        menus: [{ location: 'toolbox', command: 'open', when: 'projectOpen' }],
+      },
+    }))
+    const html = '<!doctype html><h1 id="status">Loading</h1><script type="module" src="./main.js"></script>'
+    await writeFile(join(source, 'dist/index.html'), html); await writeFile(join(source, 'dist/settings.html'), html)
+    await build({ stdin: { resolveDir: process.cwd(), contents: `import { connectPlugin } from './packages/plugin-sdk/src/client.ts';
+      const api = await connectPlugin(); window.fixtureApi = api;
+      document.querySelector('#status').textContent = location.pathname.endsWith('settings.html') ? 'Settings available'
+        : (await api.workspace.readText({path:'README.md'})).text;` }, bundle: true, format: 'esm', platform: 'browser', outfile: join(source, 'dist/main.js') })
+    const project = join(root, 'project'); await mkdir(project); await writeFile(join(project, 'README.md'), 'Authorized project content')
+    const other = join(root, 'other'); await mkdir(other)
+    const booted = await boot(root); app = booted.app; const page = booted.page
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Grant project', path }), project)
+    const workspaceB = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Other grant project', path }), other)
+    await page.reload(); await page.getByText('Grant project', { exact: true }).filter({ visible: true }).first().click()
+    await settings(page); await importDirectory(app, page, source)
+    await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
+    const review = page.getByRole('region', { name: 'Review permissions and scope' })
+    await page.locator(`[data-plugin-id="${id}"]`).getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    await expect(review).toContainText('No projects selected')
+    await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    const listed = () => page.evaluate(async () => (await (window as any).electron.plugins.request({ type: 'list' })).data.plugins[0])
+    expect((await listed()).projects).toEqual([])
+    await page.locator(`[data-tab="extension:${id}/settings"]`).click()
+    await expect((await guest(app, '/dist/settings.html')).locator('#status')).toHaveText('Settings available')
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    const open = async () => {
+      await page.locator('button[data-id="tool-menu"]').click()
+      await page.getByRole('menuitem', { name: 'Open grant fixture', exact: true }).click()
+    }
+    await open()
+    const failure = page.getByRole('alert')
+    await expect(failure).toContainText('has not been authorized for the current project')
+    expect((await listed()).runtime.pages).toBe(0)
+    await failure.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    await expect(review.getByLabel('Grant project', { exact: true })).toBeChecked()
+    await expect(review.getByLabel('Other grant project', { exact: true })).not.toBeChecked()
+    expect((await listed()).projects).toEqual([])
+    await review.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await failure.getByRole('button', { name: 'Return to previous view', exact: true }).click()
+    await expect(page.locator('[data-plugin-workbench]')).toHaveCount(0)
+    await open()
+    await failure.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect((await guest(app, '/dist/index.html')).locator('#status')).toHaveText('Authorized project content')
+    expect((await listed()).projects).toEqual([workspace.id])
+    expect(await page.evaluate(({ id, projectId, scopePath }) => (window as any).electron.plugins.request({ type: 'mount', id, view: 'desk', projectId, scopePath }),
+      { id, projectId: workspaceB.id, scopePath: other })).toMatchObject({ ok: false, code: 'PATH_NOT_GRANTED' })
+  } finally { await close(app); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
+})
+
 test('installed settings pages follow activation, modal bounds, nested covers and uninstall', async ({}, testInfo) => {
   const root = await mkdtemp(join(tmpdir(), 'janusx-plugin-settings-'))
   let app: ElectronApplication | undefined

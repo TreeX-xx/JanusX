@@ -23,7 +23,7 @@ import { useExperimentalStore } from '@/stores/experimental'
 import { useTeamStore } from '@/stores/team'
 import { useWorkflowXDetection } from './janus/useWorkflowXDetection'
 import { useI18n } from '@/i18n/useI18n'
-import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginAuthorizationTarget, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { extensionRegistry, isExtensionViewId } from '@/extensions/registry'
 
 /* ════════════════════════════════════════════════════════════
@@ -49,9 +49,11 @@ export function Titlebar() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
   const [pluginConfiguration, setPluginConfiguration] = useState<PluginConfigurationTarget | null>(null)
+  const [pluginAuthorization, setPluginAuthorization] = useState<PluginAuthorizationTarget | null>(null)
   useEffect(() => {
     const open = (event: Event) => {
       setPluginConfiguration((event as CustomEvent<PluginConfigurationTarget>).detail)
+      setPluginAuthorization(null)
       setSettingsInitialTab('plugins')
       setSettingsModalOpen(true)
     }
@@ -69,8 +71,10 @@ export function Titlebar() {
     return () => window.removeEventListener(PLUGIN_SETTINGS_EVENT, open)
   }, [])
   useEffect(() => {
-    const openPlugins = () => {
+    const openPlugins = (event: Event) => {
       setPluginConfiguration(null)
+      const target = (event as CustomEvent<PluginAuthorizationTarget | undefined>).detail
+      setPluginAuthorization(target && typeof target.pluginId === 'string' && typeof target.projectId === 'string' ? target : null)
       setSettingsInitialTab('plugins')
       setSettingsModalOpen(true)
     }
@@ -256,9 +260,10 @@ export function Titlebar() {
 
       <AppSettingsModal
         isOpen={settingsModalOpen}
-        onClose={() => { setSettingsModalOpen(false); setPluginConfiguration(null) }}
+        onClose={() => { setSettingsModalOpen(false); setPluginConfiguration(null); setPluginAuthorization(null) }}
         initialTab={settingsInitialTab}
         pluginConfiguration={pluginConfiguration}
+        pluginAuthorization={pluginAuthorization}
       />
 
       {createPortal(

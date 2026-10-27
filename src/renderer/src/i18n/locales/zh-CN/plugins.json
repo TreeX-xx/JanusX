@@ -11,6 +11,8 @@
   "settingsPageSubtitle": "由 {{name}} 提供的设置",
   "settingsEnableRequired": "插件当前无法加载设置页面，请在插件管理中查看它的状态。",
   "managePlugin": "管理插件",
+  "projectGrantRequired": "此插件尚未获得当前项目的授权。请审阅权限并选择此项目，再打开页面。",
+  "projectScopeEmpty": "尚未选择项目，启用后项目页面将不可用；应用级设置仍可使用。",
   "handoffTitle": "审阅终端任务",
   "handoffHint": "确认后创建新终端并预填任务。请在终端中核对，再手动发送。",
   "handoffClient": "终端助手", "handoffDraft": "任务草稿",

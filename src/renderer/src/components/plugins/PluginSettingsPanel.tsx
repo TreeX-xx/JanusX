@@ -9,7 +9,7 @@ import type { InstalledPlugin, PluginManageRequest } from '../../../../shared/ip
 import styles from './PluginSettingsPanel.module.css'
 import { PluginConfigurationForm } from './PluginConfigurationForm'
 import { PluginBackgroundPanel } from './PluginBackgroundPanel'
-import type { PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
+import type { PluginAuthorizationTarget, PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { openExtensionView } from '@/extensions/workbench'
 import { pluginConfigurationDrafts } from '@/extensions/plugin-configuration-drafts'
 import { PluginCatalog } from './PluginCatalog'
@@ -76,7 +76,7 @@ function PluginSkills({ manifest, review = false }: { manifest: InstalledPlugin[
   </details>
 }
 
-export function PluginSettingsPanel({ configurationTarget, onOpened }: { configurationTarget?: PluginConfigurationTarget | null; onOpened?: () => void }) {
+export function PluginSettingsPanel({ configurationTarget, authorizationTarget, onOpened }: { configurationTarget?: PluginConfigurationTarget | null; authorizationTarget?: PluginAuthorizationTarget | null; onOpened?: () => void }) {
   const { t } = useI18n('plugins')
   const snapshot = usePluginSnapshot()
   const [tab, setTab] = useState<'installed' | 'discover' | 'developer'>('installed')
@@ -99,6 +99,15 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
   const [imported, setImported] = useState(false)
   const [authorize, setAuthorize] = useState<InstalledPlugin | null>(null)
   const [projects, setProjects] = useState<string[]>([])
+  const locatedAuthorization = useRef<PluginAuthorizationTarget | null>(null)
+  useEffect(() => {
+    if (!authorizationTarget || locatedAuthorization.current === authorizationTarget) return
+    const record = snapshot.plugins.find(record => record.manifest.id === authorizationTarget.pluginId)
+    if (!record || !workspaces.some(workspace => workspace.id === authorizationTarget.projectId)) return
+    locatedAuthorization.current = authorizationTarget
+    setTab('installed'); setAuthorize(record)
+    setProjects([...new Set([...record.projects, authorizationTarget.projectId])])
+  }, [authorizationTarget, snapshot.plugins, workspaces])
   const [confirmation, setConfirmation] = useState<{ id: string; type: 'uninstall' | 'deleteData' | 'rollback' } | null>(null)
   const [logsOpen, setLogsOpen] = useState(false)
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({})
@@ -116,6 +125,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
       const result = await pluginRequest<{ imported?: boolean }>(request)
       if (request.type === 'deleteData' || request.type === 'uninstall') pluginConfigurationDrafts.clearPlugin(request.id)
       await refreshPlugins(); setAuthorize(null); setConfirmation(null)
+      if (request.type === 'enable' && request.id === authorizationTarget?.pluginId) onOpened?.()
       if (request.type === 'import' || request.type === 'importPackage') setTab('installed')
       if (request.type === 'importPackage') setImported(Boolean(result?.imported))
     }
@@ -253,6 +263,7 @@ export function PluginSettingsPanel({ configurationTarget, onOpened }: { configu
         setProjects(values => event.target.checked ? [...values, workspace.id] : values.filter(id => id !== workspace.id))
       }} />{workspace.name}</label>)}
       <p className={styles.hint}>{t('plugins:grantHint')}</p>
+      {!projects.length && authorize.manifest.contributes.views.some(view => view.scope === 'project') && <p role="status" className={styles.hint}>{t('plugins:projectScopeEmpty')}</p>}
       <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id, projects }) }}>{t('plugins:confirmEnable')}</button>
         <button onClick={() => setAuthorize(null)}>{t('plugins:cancel')}</button></div>
     </section>}
