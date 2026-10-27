@@ -34,8 +34,7 @@ function fixture(version = '1.0.0') {
     if (args[0] === 'api') {
       if (state.authFailure) throw new Error('HTTP 403 forbidden')
       if (args[1].includes('/commits/')) return JSON.stringify({ sha: state.tagSha })
-      if (!state.remote) throw new Error('HTTP 404 Not Found')
-      return JSON.stringify(state.remote)
+      return JSON.stringify([state.remote ? [state.remote] : []])
     }
     if (args[1] === 'create') state.remote = { tag_name: release.tag, draft: true, prerelease: version.includes('-'), assets: [] }
     if (args[1] === 'upload') {

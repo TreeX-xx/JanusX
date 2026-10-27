@@ -48,13 +48,14 @@ function assertSource(run, release) {
 }
 
 function draftRelease(run, release, { allowMissing = false } = {}) {
-  let remote
-  try {
-    remote = githubJson(run, `repos/${release.repo}/releases/tags/${release.tag}`)
-  } catch (error) {
-    // Authentication/network errors must never be mistaken for an absent draft.
-    if (allowMissing && /HTTP 404\b/.test(String(error.stderr ?? error.message))) return null
-    throw error
+  // The tag endpoint may omit drafts. Enumerate the authenticated release list
+  // so a retry can find an unpublished release rather than try to recreate it.
+  const pages = JSON.parse(run('gh', ['api', `repos/${release.repo}/releases?per_page=100`, '--paginate', '--slurp'], { capture: true }))
+  if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page))) throw new Error('Release list is unavailable')
+  const remote = pages.flat().find(candidate => candidate.tag_name === release.tag)
+  if (!remote) {
+    if (allowMissing) return null
+    throw new Error(`Draft release not found: ${release.tag}`)
   }
   if (remote.tag_name !== release.tag || remote.draft !== true) throw new Error('Only an unpublished draft may be staged or published; use a new version')
   if (remote.prerelease !== release.prerelease) throw new Error('Draft prerelease status does not match the version')
