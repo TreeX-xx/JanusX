@@ -4,8 +4,8 @@
   "id": "67d156c7-7751-4fde-83af-4f0c64d34219",
   "kind": "idea",
   "lifecycle": "draft",
-  "created": "2026-10-28T00:57:58+08:00",
-  "updated": "2026-10-27T16:57:58Z",
+  "created": "2026-10-27",
+  "updated": "2026-10-27T17:15:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -21,6 +21,14 @@
 当前发布目标为 https://github.com/TreeX-xx/JanusX ，sibling checkout 指向同账号的 janus-agentX、WorkFlowX。依赖原提交 SHA 保留，需确保这些提交可以从新仓访问。下载页和插件目录入口准备迁至 https://treex-xx.github.io/JanusX/ ，必须在 Pages 真正可用后检查，不由源码修改推断已经上线。插件签名身份不随账号变化，已有签名清单不能只替换 URL 后继续声称签名有效。
 
 公开历史 Release 附件按旧仓 API 的大小和 SHA256 校验后复制，新仓最终公开前保持草稿。旧 Windows 安装包内仍写有旧更新源，复制文件不会改变其行为；旧账号不可写，无法发布过渡更新，后续需提供新版本供用户手动安装。历史二进制保留其原字节，不能当成已经切换更新源的新构建。
+
+## Migration progress
+
+三个新公开仓库已创建并上传主分支与现有 tags，JanusX 同时上传 develop 与 gh-pages。三个本地 origin 的 fetch/push 都已切换至新账号，旧地址保留为 legacy。官网新地址已实际返回 HTTP 200，页面链接指向新账号；Actions 在迁移阶段暂停，上传未触发编译。
+
+为保留 JanusX 固定输入，两个依赖仓均发布 compat/janusx-pinned 分支。agentX 在原固定提交上仅补充新账号插件识别与仓库元数据，JanusX 两条工作流改为该兼容补丁 SHA；不使用本地未提交 sibling 内容，也不以主分支最新版替代全部依赖。WorkFlowX 保留原 fixture SHA。所有原 tags 不移动。
+
+JanusX 相关本地回归通过 71 项，agentX 插件识别通过 24 项；WorkFlowX 同步测试、48 项技能资源检查及官网真实浏览器检查通过。旧仓 8 个 Release 的 35 个附件已按旧 API SHA256 与大小缓存，上传和公开结果仍以迁移报告为准。原账号插件 catalog 地址实际返回 404，账号迁移未重建或伪造签名目录；独立 JanusX-plugins 仓库不属于本次三个仓库迁移。
 
 ## Open questions
 
