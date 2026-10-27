@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-27",
-  "updated": "2026-10-27T17:15:00Z",
+  "updated": "2026-10-27T17:22:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -31,5 +31,9 @@
 JanusX 相关本地回归通过 71 项，agentX 插件识别通过 24 项；WorkFlowX 同步测试、48 项技能资源检查及官网真实浏览器检查通过。旧仓 8 个 Release 的 35 个附件已按旧 API SHA256 与大小缓存，上传和公开结果仍以迁移报告为准。原账号插件 catalog 地址实际返回 404，账号迁移未重建或伪造签名目录；独立 JanusX-plugins 仓库不属于本次三个仓库迁移。
 
 ## Open questions
+
+Final verification: the user stopped further uploads and chose to retain v0.9.4, v0.9.3 and the already published v0.9.2. All 15 remote assets match the original sizes and SHA256 digests; latest is v0.9.4. The empty v0.9.1 draft was removed. The migration script now only accepts these three versions; source tags remain preserved. Evidence is in `artifacts/account-migration-20261028/final-verification.json`.
+
+JanusX Actions is enabled for PR checks and manual builds, with zero workflow runs during migration. agentX and WorkFlowX Actions remain disabled. All three public repositories and the Pages configuration were verified. Historical installers retain the original update source; a new installer is still a separate delivery.
 
 迁移执行证据与失败恢复报告保存在本机忽略目录 `artifacts/account-migration-20261028`。仓库创建、代码与 tags 上传、Release 附件、Pages 和 Actions 设置分别核验；网络失败不能记为完成。完整候选构建及新的迁移安装包另行交付。
