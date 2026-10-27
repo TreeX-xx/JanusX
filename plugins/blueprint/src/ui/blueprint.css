@@ -719,6 +719,29 @@
   stroke-opacity: 0.55;
 }
 
+/* Labels occupy clear space above the edge layer and never intercept the canvas. */
+.bp-edge-label {
+  position: absolute;
+  z-index: 5;
+  padding: 4px 8px;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+  background: var(--shell-card);
+  color: var(--shell-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.bp-edge-label__leader {
+  fill: none;
+  stroke-width: 1;
+  stroke-opacity: 0.7;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
 .bp-flow-node--enter-1 .bp-node-card { animation-delay: 16ms; }
 .bp-flow-node--enter-2 .bp-node-card { animation-delay: 32ms; }
 .bp-flow-node--enter-3 .bp-node-card { animation-delay: 48ms; }

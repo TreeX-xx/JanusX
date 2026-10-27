@@ -158,8 +158,9 @@ describe('planche theme contract', () => {
     expect(canvas).toContain("colorMode={planche ? 'light' : 'dark'}")
     expect(canvas).toContain('getBlueprintStatusVisual(')
     expect(canvas).not.toContain('STATUS_VISUALS[')
-    const edge = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/BlueprintAdaptiveEdge.tsx'), 'utf8')
-    expect(edge).toContain('var(--shell-accent-strong)')
+    const edgeLabel = bp.slice(bp.indexOf('.bp-edge-label {'), bp.indexOf('.bp-edge-label__leader {'))
+    expect(edgeLabel).toContain('color: var(--shell-text)')
+    expect(edgeLabel).toContain('background: var(--shell-card)')
     // 右缘 TurnChange 浮岛：收缩/展开同色走 chrome 底，文字走 shell 令牌，增减数走同源 DiffCounts 徽标
     const turn = read('components/TurnChangeIsland.tsx')
     expect(turn).toContain('<DiffCounts')
