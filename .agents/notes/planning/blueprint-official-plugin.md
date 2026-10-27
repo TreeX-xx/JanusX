@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T09:14:35Z",
+  "updated": "2026-10-27T10:06:00Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -63,6 +63,10 @@
 验证命令 npx vitest run tests/unit/plugin-runtime.test.ts tests/unit/plugin-documents.test.ts tests/unit/plugin-settings-pages.test.ts，三文件 64 项通过。新增 desktop-plugins.spec.ts 的 project plugin views recover from empty grants through explicit permission review 完整 Electron 回归一项通过：空授权设置页可用、项目页面拒绝、定向选择、取消不保存、失败返回、确认后自动显示文件及另一未授权项目拒绝。宿主严格未用类型检查、修改宿主文件 ESLint、双语键检查及 electron-vite build --outDir artifacts/context-fix 通过。全仓 312 份 Notes 检查仍只有未修改的 entrance-choreography.md 缺 AC、更新时间早于创建两项既有错误，两份维护 Note 无新增错误。
 
 同一宿主在临时 profile／真实 Notes 隔离副本中另行导入原 release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp，保留正式应用版本身份和生产 trust，developmentMode=false。从 enabled=true／projects=[] 复现新的授权提示，经实际权限表单确认当前项目后，自动加载 JanusX 根 Note、正文“桌面工作区”和十张图卡。探针、收据及前后截图归 artifacts/context-fix/blueprint-grant-probe.mjs、blueprint-grant-receipt.json、blueprint-grant-required.png、blueprint-grant-recovered.png，均为忽略的本地证据。此项不替代配套打包宿主、完整功能与高频 worktree 验收。
+
+首次启用仍曾遗漏项目范围：普通管理入口直接复制新安装包的 projects=[]，用户确认后插件启用，但打开蓝图又要求授权。Electron 回归在修改前确认当前项目复选框未选中。宿主现对未启用、无既有项目授权且含项目级视图的插件默认勾选当前有效工作区；其它项目不勾选，确认前不写授权，用户可取消勾选。已启用插件重新审阅及既有授权列表保持原选择。修复只涉及通用宿主管理面板，插件 1.0.6 包无需更新；未自动修改真实运行 profile 的既有授权。
+
+验证使用 artifacts/plugin-initial-grant 下的宿主构建：npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-plugins.spec.ts --grep 'project plugins open after first enable|project plugin views recover from empty grants' --workers=1，两项通过，覆盖首次启用直接打开、其它项目未勾选、重新审阅保留范围、主动空授权及定向恢复。严格未用类型检查、面板 ESLint 与 electron-vite build 通过。另在临时 profile 和真实 Notes 副本中，通过实际导入／授权 UI 导入现有生产签名 1.0.6，developmentMode=false，一次确认后加载正文和十张图卡，无第二次授权提示；探针、收据及截图归 artifacts/plugin-initial-grant/blueprint-first-enable-probe.mjs、blueprint-first-grant-receipt.json、blueprint-first-grant-review.png、blueprint-first-grant-opened.png。未验证配套打包宿主。全仓 Notes 检查仍有四项既有错误：本文原有 1.0.3／1.0.4 交付链接对应本地包已缺失，entrance-choreography.md 缺 AC 且更新时间早于创建；两份维护 Note 无新增错误。
 
 ## 阅读卡与注意列表恢复
 

@@ -1,3 +1,4 @@
+// Note: .agents/notes/planning/blueprint-official-plugin.md - initial project authorization defaults to the current workspace.
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { pluginRequest, refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
@@ -93,7 +94,14 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
   }, [configurationTarget, snapshot.plugins, tab])
   const commands = useExtensionCommands()
   const workspaces = useWorkspaceStore(state => state.workspaces)
-  const projectOpen = useWorkspaceStore(state => Boolean(state.activeWorkspaceId))
+  const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
+  const projectOpen = Boolean(activeWorkspaceId)
+  const authorizationProjects = (record: InstalledPlugin) => {
+    const projects = new Set(record.projects)
+    if (!record.enabled && projects.size === 0 && record.manifest.contributes.views.some(view => view.scope === 'project')
+      && activeWorkspaceId && workspaces.some(workspace => workspace.id === activeWorkspaceId)) projects.add(activeWorkspaceId)
+    return [...projects]
+  }
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [imported, setImported] = useState(false)
@@ -194,10 +202,10 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
         </div>
         {record.error && <p role="status" className={styles.error}>{record.error}</p>}
         <div className={styles.actions}>
-          {!record.enabled && <button className={styles.primary} disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(record.projects) }}>{t('plugins:authorize')}</button>}
+          {!record.enabled && <button className={styles.primary} disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(authorizationProjects(record)) }}>{t('plugins:authorize')}</button>}
           {record.manifest.contributes.views.filter(view => view.location === 'settings').map(view => <button key={view.id} disabled={busy || !record.enabled}
             onClick={() => openExtensionView(`extension:${record.manifest.id}/${view.id}`)}>{view.title}</button>)}
-          {record.enabled && <button disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(record.projects) }}>{t('plugins:authorize')}</button>}
+          {record.enabled && <button disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(authorizationProjects(record)) }}>{t('plugins:authorize')}</button>}
           {record.enabled && <button disabled={busy} onClick={() => { void run({ type: 'disable', id: record.manifest.id }) }}>{t('plugins:disable')}</button>}
           {record.previousVersion && <button disabled={busy || record.enabled} onClick={() => setConfirmation({ type: 'rollback', id: record.manifest.id })}>{t('plugins:rollback')} · {record.previousVersion}</button>}
           <button className={styles.danger} disabled={busy} onClick={() => setConfirmation({ type: 'uninstall', id: record.manifest.id })}>{t('plugins:uninstall')}</button>

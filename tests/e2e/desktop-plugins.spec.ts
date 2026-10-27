@@ -85,7 +85,10 @@ async function openDetails(page: Page) {
   await page.getByRole('menuitem', { name: 'Open project reference', exact: true }).click()
 }
 
-test('project plugin views recover from empty grants through explicit permission review', async () => {
+for (const grantCurrentProject of [true, false]) {
+test(grantCurrentProject
+  ? 'project plugins open after first enable without a second authorization'
+  : 'project plugin views recover from empty grants through explicit permission review', async () => {
   const root = await mkdtemp(join(tmpdir(), 'janusx-plugin-grant-'))
   let app: ElectronApplication | undefined
   try {
@@ -120,10 +123,21 @@ test('project plugin views recover from empty grants through explicit permission
     await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: true }))
     const review = page.getByRole('region', { name: 'Review permissions and scope' })
     await page.locator(`[data-plugin-id="${id}"]`).getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
-    await expect(review).toContainText('No projects selected')
+    await expect(review.getByLabel('Grant project', { exact: true })).toBeChecked()
+    await expect(review.getByLabel('Other grant project', { exact: true })).not.toBeChecked()
+    if (!grantCurrentProject) {
+      await review.getByLabel('Grant project', { exact: true }).uncheck()
+      await expect(review).toContainText('No projects selected')
+    }
     await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
+    await expect(review).toHaveCount(0)
     const listed = () => page.evaluate(async () => (await (window as any).electron.plugins.request({ type: 'list' })).data.plugins[0])
-    expect((await listed()).projects).toEqual([])
+    expect((await listed()).projects).toEqual(grantCurrentProject ? [workspace.id] : [])
+    // Reviewing an enabled plugin preserves the saved scope, including an explicit empty selection.
+    await page.locator(`[data-plugin-id="${id}"]`).getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
+    await expect(review.getByLabel('Grant project', { exact: true })).toBeChecked({ checked: grantCurrentProject })
+    await expect(review.getByLabel('Other grant project', { exact: true })).not.toBeChecked()
+    await review.getByRole('button', { name: 'Cancel', exact: true }).click()
     await page.locator(`[data-tab="extension:${id}/settings"]`).click()
     await expect((await guest(app, '/dist/settings.html')).locator('#status')).toHaveText('Settings available')
     await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
@@ -132,6 +146,11 @@ test('project plugin views recover from empty grants through explicit permission
       await page.getByRole('menuitem', { name: 'Open grant fixture', exact: true }).click()
     }
     await open()
+    if (grantCurrentProject) {
+      await expect((await guest(app, '/dist/index.html')).locator('#status')).toHaveText('Authorized project content')
+      await expect(page.getByRole('alert')).toHaveCount(0)
+      return
+    }
     const failure = page.getByRole('alert')
     await expect(failure).toContainText('has not been authorized for the current project')
     expect((await listed()).runtime.pages).toBe(0)
@@ -153,6 +172,7 @@ test('project plugin views recover from empty grants through explicit permission
       { id, projectId: workspaceB.id, scopePath: other })).toMatchObject({ ok: false, code: 'PATH_NOT_GRANTED' })
   } finally { await close(app); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
 })
+}
 
 test('installed settings pages follow activation, modal bounds, nested covers and uninstall', async ({}, testInfo) => {
   const root = await mkdtemp(join(tmpdir(), 'janusx-plugin-settings-'))
