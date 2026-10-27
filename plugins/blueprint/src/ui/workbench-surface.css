@@ -13,6 +13,9 @@ body:has(.blueprint-workbench-shell) { background: transparent; }
 .blueprint-workbench-switch > .blueprint-workbench-switch__select { flex: 0 1 auto; min-width: 0; }
 .blueprint-workbench-topbar .blueprint-review-activity { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 2px 8px; }
 .blueprint-workbench-shell > .workspace-page { gap: 12px; min-width: 0; width: 100%; overflow: hidden; }
+.blueprint-workspace-empty { width: min(720px, 100%); padding: 32px; overflow: auto; color: var(--shell-text); border-color: var(--shell-border); background: var(--shell-card); }
+.blueprint-workspace-empty h1 { margin: 0 0 12px; font-size: 20px; }
+.blueprint-workspace-empty p { color: var(--shell-muted); }
 .blueprint-workbench-toolbar > input { flex: 1 1 160px; width: 180px; max-width: 260px; min-width: 100px; }
 .blueprint-workbench-toolbar .blueprint-select--kind-filter { width: 140px; }
 .blueprint-workbench-toolbar .blueprint-select--status-filter { width: 116px; }

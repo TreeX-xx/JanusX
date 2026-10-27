@@ -11,7 +11,7 @@ export function manifestContribution(manifest: PluginManifest, component: (view:
     id: checked.id,
     views: checked.contributes.views.map((view) => ({
       id: view.id, title: view.title, location: view.location, scope: view.scope, instancePolicy: view.instancePolicy,
-      order: view.order, frame: view.frame, icon: icons[view.icon ?? 'puzzle'], component: component(view),
+      order: view.order, frame: view.frame, rebindContext: view.frame === 'plugin' && checked.capabilities.required.includes('views.workbench.rebind'), icon: icons[view.icon ?? 'puzzle'], component: component(view),
     })),
     commands: checked.contributes.commands ?? [], menus: checked.contributes.menus ?? [], keybindings: checked.contributes.keybindings ?? [],
   }

@@ -30,7 +30,7 @@ export function PluginWorkbenchHost() {
     if (!active?.startsWith('extension:')) { entered.current = null; return }
     const previous = entered.current
     if (!view || (view.scope === 'project' && !projectId) || (previous?.id === active && previous.scope !== scope
-      && (view.frame !== 'plugin' || previous.projectId !== projectId))) {
+      && !view.rebindContext && (view.frame !== 'plugin' || previous.projectId !== projectId))) {
       useAppStore.getState().closePluginWorkbench()
       return
     }
@@ -52,6 +52,6 @@ export function PluginWorkbenchHost() {
       </select>}
       <span>{view.title}</span>
     </header>}
-    <div className="flex-1 min-h-0"><ExtensionViewHost key={scope} viewId={view.id} location="workbench" active workspaceId={projectId} workspacePath={path} /></div>
+    <div className="flex-1 min-h-0"><ExtensionViewHost key={view.rebindContext ? view.id : scope} viewId={view.id} location="workbench" active workspaceId={projectId} workspacePath={path} /></div>
   </section>, document.body)
 }

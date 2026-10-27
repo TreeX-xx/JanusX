@@ -1,4 +1,10 @@
 {
+  "切换项目": "Switch project",
+  "未检测到蓝图 Note": "No Blueprint Notes detected",
+  "暂时无法读取蓝图 Note": "Blueprint Notes could not be read",
+  "当前工作区或工作树中未检测到蓝图 Note。可以切换到其他工作区或工作树。": "No Blueprint Notes were detected in this workspace or worktree. You can switch to another workspace or worktree.",
+  "请查看来源诊断，修复文档或访问问题后重试。": "Check source diagnostics, resolve document or access issues, then retry.",
+  "暂时无法读取蓝图数据，请重试；持续失败时请检查插件状态。": "Blueprint data could not be read. Retry, or check the plugin status if the problem continues.",
   "清除凭据": "Clear credential",
   "暂无选项": "No options",
   "进入": "Enter",

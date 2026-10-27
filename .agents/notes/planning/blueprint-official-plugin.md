@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T06:12:00Z",
+  "updated": "2026-10-27T07:23:57Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -249,7 +249,7 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 ## Worktree 显示切换
 
-用户确认 worktree 支持属于必须交付的功能：左上角选择对应工作树后，画布、正文、建议和维护操作应绑定该实际根。此前插件只列项目，且根变化会关闭整个工作台；1.0.4 增加左上角工作树选择，显示分支、目录名及主工作树标记。宿主仅公开当前项目的工作树身份，重新验证后切换；同项目保留外框并重新挂载页面，旧根的请求与订阅失效。此切换使用已经存在的工作树，不执行 Git checkout 或创建新工作树。共享 SDK 的新增必需能力 views.workbench.worktrees 保证旧宿主明确拒绝，更新插件需重审声明。
+左上角选择项目与 worktree 后，画布、正文、建议和维护操作绑定该实际根，修改不联动其它工作树。1.0.4 增加工作树身份选择；1.0.5 进一步保留页面与顶栏，只重置目标根内容并让卡片重新入场。宿主只公开当前项目的工作树身份，重新验证后切换；不执行 Git checkout 或创建新工作树。公开必需能力 views.workbench.worktrees 与 views.workbench.rebind 保证旧宿主明确拒绝，更新插件需重审声明。生命周期细节归[插件契约](../workbench/plugin-contract-v1.md#p3-工作台与-island-契约)。下列原有证据对应 1.0.4，1.0.5 增量见本节末尾。
 
 `tests/unit/plugin-runtime.test.ts` 与 plugin-surfaces 共 48 项通过，覆盖不透明身份、未知／已移除目标拒绝、撤权后迟到列表不派发，以及切换根后旧页面失效、新页面读取新正文；日志为 artifacts/plugins/worktree-host-tests-final.log。宿主严格未用类型检查、修改宿主文件 ESLint 及 i18n 检查通过。`npm run test:blueprint:local -- --output artifacts/blueprint-worktree-results` 的完整桌面一项通过：创建两个真实 Git worktree，同一 Note 身份在 feature 修改正文，使用左上角切换后读到 feature 文本，切回主工作树恢复原文，外框持续打开；原设置、卡片和退出后 MCP 回归也通过，日志为 artifacts/plugins/worktree-desktop.log。已查看三卡截图。该用例不替代维护写入、建议和长时切换的全部 worktree 矩阵。
 
@@ -261,16 +261,28 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 本轮 `npm run plugins:blueprint:check` 通过：九个锁定公开归档在仓库外 npm ci、类型检查与构建，同产物签名 Electron 载体一项通过，验证预览确认、无审计写入及重装数据保留；收据 artifacts/plugins/blueprint-build.json 的 runtime.status 为 passed。修改插件源码 ESLint 为零错误，五份维护 Note 无新增校验错误，全仓仍有 entrance-choreography.md 的两项既有错误。完整桌面 `test:blueprint:local` 两次未通过：首轮 trace 已读到 feature 正文并切回主工作树，等待主正文时总计 180 秒耗尽；单独复跑在设置页仍显示 Loading settings 时，10 秒标题等待失败。输出目录分别为 artifacts/blueprint-worktree-isolation-results 与 artifacts/blueprint-worktree-isolation-retry-results，不把独立载体通过替代该完整桌面结果，也未认定超时根因已修复。未重跑全量测试、长时资源或打包发布。
 
+### 1.0.5 保留页面与无 Note 空态
+
+切换已授权工作区或 worktree 时不重建原生页面、端口与顶栏。宿主先撤销旧作用域请求、订阅、后台任务和 native owner，再按新根提交上下文；SDK 拒绝旧 revision 与切换期间调用，插件调度队列也拒绝尚未发出的旧根写入。前端清理旧选择、正文、画布、审核、初始化／修复及讨论状态，内容卡片按 rootId 重建，主题与顶栏常驻；根解析失败或目标未授权仍撤销页面。代价是新增显式保留页契约，旧插件继续默认重挂语义。后续若出现新的作用域资源，必须纳入撤销与重订阅检查。
+
+无 Note 分支原已返回 not-found，但 workspace.activate 仍启动监听并抛 SERVICE_FAILED，宿主映射 SOURCE_UNAVAILABLE，前端误称“后台未运行”。现在前端仅在状态 ok 时加载图和审核，后台对非 ok 激活安全返回；not-found／foreign／empty 显示“未检测到蓝图 Note”，无效来源与读取失败显示诊断。ok 状态的图尚未完成时继续骨架屏，避免状态检测结束后正文空白。空态使用主题文字／边框颜色，缺少接入仍可预览初始化，不自动写文件。
+
+机器验证：plugin-runtime、plugin-surfaces、blueprint-request-budget、blueprint-plugin-navigation、blueprint-settings-ui 五文件 65 项通过，补充根解析失败用例后 plugin-runtime 45 项通过；native、plugin-instances、plugin-documents、plugin-windows 四文件 61 项通过，共 127 个不同用例，含真实双 worktree 维护隔离和等待锁时取消。宿主严格未用项类型检查、插件类型检查及修改源码 ESLint 通过。完整桌面定向用例通过，验证 main→feature→无 Note→main→另一工作区→main，逐次比较原生 URL、performance.timeOrigin 与顶栏 DOM 身份，确认内容卡片已替换且无错误提示。空态与切回主根截图为 artifacts/plugins/blueprint-empty-worktree.png 和 blueprint-retained-header.png，已等待有限动画结束并查看。
+
+最终 npm run plugins:blueprint:check 通过，九个公开归档在仓库外安装、类型检查、构建，同产物签名 Electron 回归一项通过。首轮门禁发现状态 ok 后加载骨架提前消失，已修复条件并重新通过；最终日志 artifacts/plugins/rebind-final-check.log，独立收据 runtime.status=passed。仅 SDK 公开归档改变，其余八个共享归档哈希不变。全仓 312 份 Notes 检查仍只有未修改的 entrance-choreography.md 两项既有错误及外部链接诊断；本轮维护文件无新增错误。未重跑全仓套件、持续资源或高频切换／迟到模型输出矩阵。
+
+生产身份 janusx-blueprint-20261026 签出的最终 [official.blueprint-1.0.5.jxp](../../../release/2026-10-27-blueprint-1.0.5-final/official.blueprint-1.0.5.jxp) 为 1,799,995 字节，SHA-256 为 a65d977ad733550d7d806b851c8fc3d0a651e77efe4bd0d475ea3253dbb88c62。最终包另含布局保存失败与焦点刷新列表的作用域回调检查，切换后不显示旧根迟到的错误。补充后重新通过完整桌面定向用例与独立签名载体门禁，重新解码验证生产签名、manifest 和四个输出哈希，均匹配最终独立产物；交付收据与 independent-build.json 同目录保存，未覆盖旧版本或首次预检候选。使用时先重启包含 rebind 能力的 dev 宿主，再停用旧包、导入 1.0.5 并审阅授权。未修改真实运行 profile，未交付配套生产宿主安装包，未另验配套打包宿主导入或发布远端目录。
+
 ## 后续接续入口
 
-Worktree 入口的既有实现基线为 d37a4aee，蓝图源码版本 1.0.4；后续已补齐本节所述维护服务隔离、取消与定向验证。本地 1.0.4 插件包已生成，配套新宿主安装包与远端发布尚未交付；原 1.0.3 本地产物不包含 worktree 切换。
+Worktree 入口的既有实现基线为 d37a4aee，当前蓝图源码及本地签名包为 1.0.5，已补齐维护服务隔离、取消、保留页面切换与无 Note 空态。配套生产宿主安装包与远端发布尚未交付；原 1.0.3 不包含 worktree 切换，1.0.4 不包含保留顶栏的 rebind 契约。
 
 用户随后要求提供新插件包，已将 4aaf798c 对应、通过独立构建和签名 Electron 载体验证的同一份产物签为 [official.blueprint-1.0.4.jxp](../../../release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp)。文件为 1,798,448 字节，SHA-256 为 fb6ff235677efd84edfaa85e042c6bf837be7b700de06c334a6e4089bedae818；使用既有 janusx-blueprint-20261026 生产身份，重新读取包并用宿主分发库验证签名、载荷和 manifest。交付目录同时保留 independent-build.json 与 delivery.json，原版本未覆盖。包要求 views.workbench.worktrees，必须配合包含该能力的新宿主；10-26 migration-r2 安装包不包含此能力，不能仅以同为 0.9.4 推断兼容。新包尚未在配套打包宿主中另验正常导入，未上传 Release 或部署目录。
 
 | 事项 | 已确认事实与下一步 |
 | --- | --- |
 | 外部 MCP 客户端兼容 | 指 Claude Code、Codex、OpenCode 等外部终端实际发现／调用 Note 工具、读写及建议查询、按调用提供的项目／worktree 路径定位，以及桌面关闭后的独立运行；不等同于设置页连接探测。先补 Codex 在允许测试写入的隔离环境中的真实写入验证，再处理 Pi 所需的扩展接入；既有通过项、限制和具体出口归[Note MCP 后续验证](../blueprint/note-mcp.md#后续兼容验证)。 |
-| Worktree 切换 | 左上角入口、双工作树正文往返、独立维护确认写入／建议处理／布局及等待锁时旧页面取消已有定向证据。每个蓝图只作用于本 worktree，不联动其它根。继续补高频切换／迟到模型输出与长期资源验证，以及配套宿主与 1.0.4 插件实物。 |
+| Worktree 切换 | 左上角入口、双工作树正文往返、独立维护确认写入／建议处理／布局及等待锁时取消已有定向证据；1.0.5 完整桌面已验证跨工作树／工作区保留页面与顶栏、无 Note 空态。每个蓝图只作用于本 worktree。继续补高频切换／迟到模型输出、长期资源和配套生产宿主实物验证。 |
 
 继续遵循当前范围：面向新版本用户，撤销暂缓，蓝图修改审计已取消；对话修改保留预览、确认、权限与冲突检查，确认后直接提交文件事务。
 

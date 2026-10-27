@@ -35,6 +35,7 @@ interface RecordData extends InstalledPlugin {
 interface Instance {
   id: string; plugin: string; view: string; binding: string; token: string; generation: string; url: string
   root: string | null; scope: string; context: PluginContext; bound: boolean; ready: boolean
+  suspended?: boolean; nativeOwner?: string
   requests: Map<string, { cancelled: boolean; controller: AbortController }>; used: Set<string>; times: number[]; timer: ReturnType<typeof setTimeout>
   subscriptions: Map<string, { kind: 'storage'; keys: string[] } | { kind: 'context' | 'configuration' | 'native' }>
 }
@@ -429,7 +430,7 @@ export class PluginService {
       this.background.revoke(undefined, true)
       this.selectionKey = selectionKey
       this.current.revision++
-      for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
+      for (const instance of [...this.instances.values()]) if (instance.root) this.suspendContext(instance, projectId)
       this.current.root = null
     }
     const ready = this.contextReady = (async () => {
@@ -437,13 +438,27 @@ export class PluginService {
       if (sequence !== this.contextSequence) return
       if (this.current.projectId !== projectId || this.current.root !== (project?.root ?? null)) {
         this.current.revision++
-        for (const instance of [...this.instances.values()]) if (instance.root) this.close(instance.id)
+        for (const instance of [...this.instances.values()]) if (instance.root) this.suspendContext(instance, projectId)
       }
       this.current = { ...this.current, projectId, root: project?.root ?? null, locale, theme }
+      for (const instance of [...this.instances.values()]) if (instance.suspended) {
+        if (!project || !projectId || !this.record(instance.plugin).projects.includes(projectId)) { this.close(instance.id); continue }
+        instance.root = project.root
+        instance.scope = `${projectId}:${createHash('sha256').update(project.root).digest('hex')}`
+        instance.context = { ...instance.context, revision: this.current.revision,
+          project: { projectId, name: project.name, rootId: createHash('sha256').update(instance.scope).digest('hex') } }
+        instance.suspended = false
+        this.send(instance, { type: 'event', event: 'scope', payload: { transitioning: false, workspace: instance.context } })
+      }
       for (const instance of this.instances.values()) for (const [subscriptionId, sub] of instance.subscriptions) if (sub.kind === 'context') {
         this.send(instance, { type: 'event', subscriptionId, event: 'context', payload: { locale, theme } })
       }
-    })()
+    })().catch(cause => {
+      if (sequence === this.contextSequence) {
+        for (const instance of [...this.instances.values()]) if (instance.suspended) this.close(instance.id)
+      }
+      throw cause
+    })
     // A caller may mount immediately after this returns. Wait for any newer
     // resolution too, rather than exposing the temporarily revoked root.
     let pending = ready
@@ -511,6 +526,26 @@ export class PluginService {
     return instance.url
   }
   inspect(id: string, binding: string): string { return this.instance(id, binding).url }
+  private suspendContext(instance: Instance, projectId: string | null): void {
+    const record = this.record(instance.plugin)
+    const view = record.manifest.contributes.views.find(view => view.id === instance.view)
+    if (!projectId || !record.projects.includes(projectId) || !instance.ready || view?.frame !== 'plugin'
+      || !record.manifest.capabilities.required.includes('views.workbench.rebind')) { this.close(instance.id); return }
+    if (instance.suspended) return
+    instance.suspended = true
+    for (const request of instance.requests.values()) { request.cancelled = true; request.controller.abort() }
+    instance.requests.clear()
+    this.background.closePage(instance.id)
+    for (const [key, entry] of this.island) if (entry.instanceId === instance.id) this.island.delete(key)
+    for (const [id, sub] of instance.subscriptions) if (sub.kind !== 'context') instance.subscriptions.delete(id)
+    this.releaseNativeOwner(instance)
+    instance.nativeOwner = randomUUID()
+    this.deps.event(instance.id, { protocol: 1, type: 'event', event: 'scope', contextRevision: this.current.revision, payload: { transitioning: true } })
+  }
+  private releaseNativeOwner(instance: Instance): void {
+    void this.nativeServices.get(instance.plugin)?.call('lifecycle.release', { instanceId: instance.nativeOwner ?? instance.id }, AbortSignal.timeout(3000))
+      .catch(() => this.log('NATIVE_CONTEXT_RELEASE_FAILED', { pluginId: instance.plugin }))
+  }
   windowView(id: string, viewId: string): { title: string; scope: 'application' | 'project' } {
     const record = this.record(id); this.allowed(record)
     const view = record.manifest.contributes.views.find(item => item.id === viewId && item.location === 'window')
@@ -536,7 +571,7 @@ export class PluginService {
   resource(url: string): { bytes: Buffer; path: string } | null {
     const instance = [...this.instances.values()].find(instance => url.startsWith(`janusx-plugin://${instance.token}/g/${instance.generation}/`))
     if (!instance) return null
-    try { this.instance(instance.id, instance.binding) } catch { return null }
+    try { this.instance(instance.id, instance.binding, true) } catch { return null }
     const path = url.slice(`janusx-plugin://${instance.token}/g/${instance.generation}/`.length)
     const bytes = this.packages.get(instance.plugin)?.files.get(path)
     return bytes ? { bytes, path } : null
@@ -561,8 +596,7 @@ export class PluginService {
     if (![...this.instances.values()].some(item => item.plugin === instance.plugin && item.ready)) this.clearRecovery(instance.plugin)
     this.deps.closed?.(id)
     for (const request of instance.requests.values()) { request.cancelled = true; request.controller.abort() }
-    void this.nativeServices.get(instance.plugin)?.call('lifecycle.release', { instanceId: id }, AbortSignal.timeout(3000))
-      .catch(() => this.log('NATIVE_CONTEXT_RELEASE_FAILED', { pluginId: instance.plugin }))
+    this.releaseNativeOwner(instance)
     for (const edit of this.documentEdits.values()) if (edit.instance === instance) edit.finish(false)
     for (const edit of this.documentDrafts.values()) if (edit.instance === instance) edit.finish(null)
     instance.subscriptions.clear()
@@ -603,10 +637,14 @@ export class PluginService {
   private send(instance: Instance, packet: Record<string, unknown>): void {
     this.deps.event(instance.id, { protocol: 1, contextRevision: instance.context.revision, ...packet } as JsonValue)
   }
-  private instance(id: string, binding: string): Instance {
+  private instance(id: string, binding: string, resource = false): Instance {
     const instance = this.instances.get(id)
     if (!instance || instance.binding !== binding) error('INSTANCE_CLOSED', 'Plugin instance is unavailable.')
     this.allowed(this.record(instance!.plugin))
+    if (instance!.suspended) {
+      if (resource) return instance!
+      error('STALE_CONTEXT', 'Project context is changing.')
+    }
     if (instance!.root && (this.current.projectId !== instance!.context.project?.projectId || this.current.root !== instance!.root
       || this.current.revision !== instance!.context.revision)) error('STALE_CONTEXT', 'Project context changed.')
     return instance!
@@ -657,6 +695,7 @@ export class PluginService {
       pending = { cancelled: false, controller: new AbortController() }; instance.requests.set(requestId, pending)
       const valid = () => {
         this.instance(id, binding)
+        if (contextRevision !== instance.context.revision) error('STALE_CONTEXT', 'Context revision changed.')
         if (pending!.cancelled) error('CANCELLED', 'Request was cancelled.')
         if (Date.now() - start > (method === 'native.call' ? 30_000 : method === 'workspace.readText' || method === 'documents.readText' || method === 'context.read' ? 10_000 : 5_000)) error('TIMEOUT', 'Plugin request timed out.')
       }
@@ -701,7 +740,7 @@ export class PluginService {
 
   private async dispatch(instance: Instance, method: string, params: Record<string, unknown>, valid: () => void, signal: AbortSignal): Promise<unknown> {
     const record = this.record(instance.plugin)
-    if (method === 'native.call') return this.nativeCall(instance.plugin, params.method as string, params.input as JsonValue, instance.context.project?.projectId ?? null, instance.root, signal, instance.id)
+    if (method === 'native.call') return this.nativeCall(instance.plugin, params.method as string, params.input as JsonValue, instance.context.project?.projectId ?? null, instance.root, signal, instance.nativeOwner ?? instance.id)
     if (method === 'native.watch') {
       if (!this.nativeServices.has(instance.plugin)) error('SOURCE_UNAVAILABLE', 'Native service is unavailable.')
       if (instance.subscriptions.size >= 64) error('RATE_LIMITED', 'Subscription limit reached.')

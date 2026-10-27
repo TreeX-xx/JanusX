@@ -48,11 +48,21 @@ export class RequestBudget {
 /** Only the public SDK methods consumed by this feature are scheduled. */
 export function paceBlueprintApi(raw: PluginApi): PluginApi {
   const budget = new RequestBudget()
-  const run = <T>(work: () => Promise<T>, options?: PluginCallOptions) => budget.run(work, options?.signal)
+  let epoch = 0
+  const run = <T>(work: () => Promise<T>, options?: PluginCallOptions) => {
+    const scope = epoch
+    return budget.run(() => {
+      if (scope !== epoch) throw new PluginError('STALE_CONTEXT', 'Project context changed before dispatch.')
+      return work()
+    }, options?.signal)
+  }
   return {
     ...raw,
     app: { ...raw.app, getInfo: options => run(() => raw.app.getInfo(options), options) },
-    context: { ...raw.context, subscribe: (listener, options) => run(() => raw.context.subscribe(listener, options), options) },
+    context: { ...raw.context, subscribe: (listener, options) => run(() => raw.context.subscribe(event => {
+      if (event.transitioning) epoch++
+      listener(event)
+    }, options), options) },
     native: {
       call: (params, options) => run(() => raw.native.call(params, options), options),
       watch: (listener, options) => run(() => raw.native.watch(listener, options), options),

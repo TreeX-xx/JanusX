@@ -6,7 +6,7 @@ export function ExtensionViewHost(props: ExtensionViewProps) {
   const view = useExtensionViews().find((item) => item.id === props.viewId && item.location === props.location)
   if (!view || (view.scope === 'project' && !props.workspaceId)) return null
   return (
-    <WorkbenchErrorBoundary key={`${view.id}:${view.activationId}:${view.scope === 'project' ? props.workspaceId : 'application'}`}>
+    <WorkbenchErrorBoundary key={`${view.id}:${view.activationId}:${view.rebindContext ? 'retained' : view.scope === 'project' ? props.workspaceId : 'application'}`}>
       <ExtensionViewContent {...props} view={view} />
     </WorkbenchErrorBoundary>
   )

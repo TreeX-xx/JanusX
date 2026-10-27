@@ -1,5 +1,5 @@
 import { PluginError, type PluginErrorCode } from './errors.js'
-import type { PluginApi, PluginCallOptions, PluginStoredValue } from './api.js'
+import type { PluginApi, PluginCallOptions, PluginStoredValue, PluginContextEvent } from './api.js'
 import type { PluginConfiguration } from './configuration.js'
 
 /** The port contains only this instance's broker. It never carries a host IPC channel. */
@@ -10,9 +10,14 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
   const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void; cleanup(): void }>()
   const subscriptions = new Map<string, (payload: any) => void>()
   const early = new Map<string, unknown[]>()
+  const contextListeners = new Set<(event: PluginContextEvent) => void>()
+  const contextSubscriptions = new Set<string>()
+  let scopeEvent: PluginContextEvent | undefined
+  let transitioning = false
   const send = (packet: unknown) => { if (!closed) port.postMessage(packet) }
   const call = <T>(method: string, params: unknown, options?: PluginCallOptions): Promise<T> => new Promise((resolve, reject) => {
     if (closed) { reject(new PluginError('INSTANCE_CLOSED', 'Plugin instance is closed.')); return }
+    if (transitioning) { reject(new PluginError('STALE_CONTEXT', 'Project context is changing.')); return }
     if (options?.signal?.aborted) { reject(new PluginError('CANCELLED', 'Request was cancelled.')); return }
     if (pending.size >= 16) { reject(new PluginError('RATE_LIMITED', 'Too many pending requests.')); return }
     const requestId = `${prefix}:${++sequence}`
@@ -34,12 +39,22 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     if (closed) return
     closed = true
     for (const request of pending.values()) { request.cleanup(); request.reject(new PluginError('INSTANCE_CLOSED', 'Plugin instance is closed.')) }
-    pending.clear(); subscriptions.clear(); early.clear(); port.close()
+    pending.clear(); subscriptions.clear(); early.clear(); contextListeners.clear(); contextSubscriptions.clear(); port.close()
   }
   port.onmessage = event => {
     const packet = event.data
     if (!packet || packet.protocol !== 1) return
     if (packet.type === 'event' && packet.event === 'invalidated') { close(); return }
+    if (packet.type === 'event' && packet.event === 'scope' && Number.isSafeInteger(packet.contextRevision) && packet.contextRevision >= contextRevision) {
+      contextRevision = packet.contextRevision
+      scopeEvent = packet.payload
+      transitioning = packet.payload?.transitioning === true
+      for (const request of pending.values()) { request.cleanup(); request.reject(new PluginError('STALE_CONTEXT', 'Project context changed.')) }
+      pending.clear(); early.clear()
+      for (const id of subscriptions.keys()) if (!contextSubscriptions.has(id)) subscriptions.delete(id)
+      for (const listener of contextListeners) listener(packet.payload)
+      return
+    }
     if (packet.contextRevision !== undefined && packet.contextRevision !== contextRevision) return
     if (packet.type === 'response') {
       const request = pending.get(packet.requestId)
@@ -139,7 +154,13 @@ export function createPluginClient(port: MessagePort, contextRevision: number): 
     },
     context: { providers: options => call('context.providers', {}, options), read: (params, options) => call('context.read', params, options), subscribe: async (listener, options) => {
       const result = await call<{ subscriptionId: string }>('context.subscribe', {}, options)
-      return subscribe(result.subscriptionId, listener, options)
+      const id = result.subscriptionId
+      contextListeners.add(listener); contextSubscriptions.add(id)
+      const unsubscribe = subscribe(id, listener, options)
+      const stop = () => { contextListeners.delete(listener); contextSubscriptions.delete(id); unsubscribe(); options?.signal?.removeEventListener('abort', stop) }
+      if (options?.signal?.aborted) stop()
+      else { options?.signal?.addEventListener('abort', stop, { once: true }); if (scopeEvent) listener(scopeEvent) }
+      return stop
     } },
   }
   return { api, close }

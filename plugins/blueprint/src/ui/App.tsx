@@ -1,5 +1,5 @@
 import { t } from './i18n'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { PluginApi, PluginContext } from '@janusx/plugin-sdk'
 import type { Blueprint } from '../shared/janus/types'
 import type { BlueprintReviewView, BlueprintReviewActivityUpdate } from '../shared/ipc/blueprint-review'
@@ -48,14 +48,19 @@ const phase: Record<string, string> = {
   reviewing: '正在复审',
 }
 
-export function App({ context }: { context: PluginContext }) {
+export function App({ context, transitioning = false }: { context: PluginContext; transitioning?: boolean }) {
+  const scopeKey = context.project?.rootId ?? 'application'
   const [revealReady, setRevealReady] = useState(false)
   const [frameContext, setFrameContext] = useState<Awaited<ReturnType<PluginApi['views']['getFrame']>>>()
   useEffect(() => {
     const frame = requestAnimationFrame(() => setRevealReady(true))
-    if (context.workbenchFrame) void plugin().views.getFrame().then(setFrameContext).catch(error => setError(String(error)))
     return () => cancelAnimationFrame(frame)
-  }, [context.workbenchFrame])
+  }, [])
+  useEffect(() => {
+    let disposed = false
+    if (context.workbenchFrame && !transitioning) void plugin().views.getFrame().then(frame => { if (!disposed) setFrameContext(frame) }).catch(error => { if (!disposed) setError(String(error)) })
+    return () => { disposed = true }
+  }, [context.workbenchFrame, scopeKey, transitioning])
   const [detailOpen, setDetailOpen] = useState(true)
   const [readerVisit, setReaderVisit] = useState<{ nodeId: string; visit: ReaderVisit }>()
   const fitRef = useRef<(() => void) | null>(null)
@@ -90,6 +95,7 @@ export function App({ context }: { context: PluginContext }) {
   const generation = useRef(0),
     controller = useRef<AbortController>(),
     mounted = useRef(true)
+  const scopeGeneration = useRef(0)
   const readController = useRef<AbortController>()
   const reloadInFlight = useRef(false)
   const reloadAgain = useRef(false)
@@ -100,6 +106,18 @@ export function App({ context }: { context: PluginContext }) {
   const { isClosing, requestClose } = useWorkbenchPhase(true, { exitMs: reducedMotion ? 0 : 260 + (cardCount - 1) * 60 + 60, onClose: closeFrame })
   const discussionOpened = useRef(false)
   if (discussion) discussionOpened.current = true
+  useLayoutEffect(() => {
+    scopeGeneration.current++
+    generation.current++
+    controller.current?.abort(); controller.current = undefined
+    readController.current?.abort(); readController.current = undefined
+    reloadInFlight.current = false; reloadAgain.current = false
+    setStatus(undefined); setBlueprint(undefined); setReview(undefined); setSource(undefined)
+    setSelection({ entries: [], index: -1 }); setReaderVisit(undefined)
+    setRepair(undefined); setInit(undefined); setInitDone(false); setConfirmForeign(false); setReadUndo(undefined); setUndoLayout(undefined)
+    setQuery(''); setKind(''); setStatusFilter(''); setDiscussion(false); discussionOpened.current = false
+    setBusy(''); setError('')
+  }, [scopeKey, transitioning])
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('[popover]:popover-open, [data-select-dropdown]')) return
@@ -120,16 +138,18 @@ export function App({ context }: { context: PluginContext }) {
   )
   const refresh = useCallback(() => setRefreshVersion((value) => value + 1), [])
   const reload = useCallback(async (signal: AbortSignal) => {
-    if (!context.project) return
+    if (!context.project || transitioning) return
     const version = ++generation.current
     const nextStatus = await call<HarnessWorkspaceStatus>('workspace.status', null, signal)
     if (!mounted.current || version !== generation.current) return
     setStatus(nextStatus)
-    if (['not-found', 'foreign'].includes(nextStatus.state)) {
+    if (nextStatus.state !== 'ok') {
       setBlueprint(undefined)
       setReview(undefined)
+      setError('')
       return
     }
+    await call('workspace.activate', null, signal)
     const [graph, review] = await Promise.all([loadGraph(signal), call<BlueprintReviewView>('review.read', null, signal)])
     if (!mounted.current || version !== generation.current) return
     setBlueprint(graph.blueprint)
@@ -144,14 +164,16 @@ export function App({ context }: { context: PluginContext }) {
             index: graph.blueprint.nodeIds.length ? 0 : -1,
           },
     )
-  }, [context.project?.projectId])
+  }, [scopeKey, transitioning])
   useEffect(() => {
+    if (transitioning) return
     mounted.current = true
     let timer: ReturnType<typeof setTimeout>,
       stop: (() => void) | undefined,
       disposed = false
     void plugin()
       .native.watch((event) => {
+        if (disposed) return
         if (event.name === 'notes.changed' || event.name === 'review.results' || event.name === 'reading.changed') {
           clearTimeout(timer)
           timer = setTimeout(refresh, 180)
@@ -175,7 +197,7 @@ export function App({ context }: { context: PluginContext }) {
         if (disposed) unsubscribe()
         else stop = unsubscribe
       })
-      .catch((error) => setError(String(error)))
+      .catch((error) => { if (!disposed) setError(String(error)) })
     void Promise.all([call<Models>('models.catalog'), call<BlueprintReviewSettings>('settings.read')])
       .then(([models, settings]) => {
         if (!disposed) {
@@ -186,10 +208,6 @@ export function App({ context }: { context: PluginContext }) {
       .catch((error) => {
         if (!disposed) setError(String(error))
       })
-    if (context.project)
-      void call('workspace.activate').catch((error) => {
-        if (!disposed) setError(String(error))
-      })
     return () => {
       disposed = true
       mounted.current = false
@@ -198,9 +216,8 @@ export function App({ context }: { context: PluginContext }) {
       clearTimeout(timer)
       controller.current?.abort()
       readController.current?.abort()
-      if (context.project) void call('workspace.release').catch(() => {})
     }
-  }, [])
+  }, [scopeKey, transitioning])
   useEffect(() => {
     // Coalesce watcher and review notifications while a snapshot is being
     // transferred. Cancelling/restarting every notification can starve large
@@ -212,6 +229,7 @@ export function App({ context }: { context: PluginContext }) {
     void reload(abort.signal).catch((error) => {
       if (mounted.current && !abort.signal.aborted) setError(String(error))
     }).finally(() => {
+      if (readController.current !== abort) return
       reloadInFlight.current = false
       if (mounted.current && reloadAgain.current) { reloadAgain.current = false; refresh() }
     })
@@ -221,12 +239,12 @@ export function App({ context }: { context: PluginContext }) {
     setSource(current => current?.note.meta.id === node?.note?.id ? current : undefined)
     if (node?.sourceUri)
       void call<NoteSource>('notes.read', node.sourceUri, abort.signal)
-        .then(setSource)
+        .then(source => { if (!abort.signal.aborted) setSource(source) })
         .catch((error) => {
           if (!abort.signal.aborted) setError(String(error))
         })
     return () => abort.abort()
-  }, [node?.sourceUri, node?.sourceHash, refreshVersion])
+  }, [node?.sourceUri, node?.sourceHash, refreshVersion, scopeKey, transitioning])
   const action = async (label: string, work: (signal: AbortSignal) => Promise<void>) => {
     if (controller.current) return
     const abort = new AbortController()
@@ -283,8 +301,10 @@ export function App({ context }: { context: PluginContext }) {
     )
   const saveLayout = (patch: { canvasLayout?: Blueprint['canvasLayout']; collapsedNodeIds?: string[] | null }) => {
     if (!blueprint) return
+    const version = scopeGeneration.current
     setBlueprint({ ...blueprint, ...patch })
     void call('blueprint.layout', patch).catch((error) => {
+      if (!mounted.current || scopeGeneration.current !== version) return
       setError(String(error))
       refresh()
     })
@@ -319,7 +339,7 @@ export function App({ context }: { context: PluginContext }) {
   const automaticEnabled = review?.automatic && review.automatic.phase !== 'disabled'
   const reviewRunning = Boolean(reviewActivity || ['checking', 'reviewing'].includes(review?.automatic?.phase ?? ''))
   const headerActions = <div className="blueprint-workbench-actions">
-    <BlueprintAttention blueprint={blueprint} review={review} busy={Boolean(busy)} select={visitAttention} repair={startRepair}
+    <BlueprintAttention key={scopeKey} blueprint={blueprint} review={review} busy={Boolean(busy) || transitioning} select={visitAttention} repair={startRepair}
       refresh={async () => { await call('notes.rescan'); refresh() }} mark={versions => markVersions(versions, true)}
       undoRead={readUndo ? undoReading : undefined} openFile={openFile}
       activityTrigger={review?.automatic && (review.automatic.phase !== 'disabled' || review.activities.length > 0 || review.automatic.lastRun) ? <><FileText /><span className="bp-review-heading"><span className="bp-review-title">{bt(reviewActivity?.trigger !== 'automatic' && reviewActivity ? 'review.activity.manual' : reviewRunning ? 'review.activity.running' : automaticEnabled ? 'review.activity.enabled' : 'review.activity.results')}</span><span className="bp-review-meta">{automaticEnabled ? bt('review.activity.commits', { count: review.automatic.commits, threshold: review.automatic.threshold }) : ''}</span></span>{reviewRunning && <span className="bp-review-track" aria-hidden="true"><span /></span>}</> : undefined} />
@@ -340,16 +360,19 @@ export function App({ context }: { context: PluginContext }) {
       style={{ '--card-count': cardCount, '--card-enter-stagger': '180ms', '--card-enter-duration': '260ms', '--card-exit-stagger': '60ms' } as CSSProperties}>
       <header className="blueprint-workbench-topbar" style={cardIndexStyle(0)}>
         <div className="blueprint-workbench-switch" onFocusCapture={() => {
-          if (context.workbenchFrame) void plugin().views.getFrame().then(setFrameContext).catch(error => setError(String(error)))
+          const version = scopeGeneration.current
+          if (context.workbenchFrame && !transitioning) void plugin().views.getFrame()
+            .then(frame => { if (scopeGeneration.current === version) setFrameContext(frame) })
+            .catch(error => { if (scopeGeneration.current === version) setError(String(error)) })
         }}>
-          <Select className="blueprint-select blueprint-workbench-switch__select" ariaLabel={bt('workbench.breadcrumb')}
+          <Select className="blueprint-select blueprint-workbench-switch__select" ariaLabel={t('切换项目')}
             value={context.project.projectId} options={frameContext?.projects.length ? frameContext.projects.map(project => ({ value: project.id, label: project.name })) : [{ value: context.project.projectId, label: context.project.name }]}
-            disabled={!context.workbenchFrame || isClosing}
+            disabled={!context.workbenchFrame || isClosing || transitioning}
             onChange={projectId => { void plugin().views.requestFrame({ action: 'selectProject', projectId }).catch(error => setError(String(error))) }} />
           {frameContext?.worktrees?.length ? <Select className="blueprint-select blueprint-workbench-switch__select" ariaLabel={t('切换工作树')}
             value={frameContext.worktreeId ?? ''} options={frameContext.worktrees.map(worktree => ({ value: worktree.id,
               label: `${worktree.branch ?? t('分离 HEAD')} · ${worktree.name}${worktree.isMain ? ` · ${t('主工作树')}` : ''}` }))}
-            disabled={isClosing || frameContext.worktrees.length < 2}
+            disabled={isClosing || transitioning || frameContext.worktrees.length < 2}
             onChange={worktreeId => { void plugin().views.requestFrame({ action: 'selectWorktree', worktreeId }).catch(error => setError(String(error))) }} /> : null}
         </div>
         {headerActions}
@@ -377,12 +400,14 @@ export function App({ context }: { context: PluginContext }) {
         </div>
       )}
       {context.project && (
-        <div className="workspace-page">
-          {!blueprint && (!status || !['not-found', 'foreign'].includes(status.state)) && !error && <WorkbenchLoading detailOpen={detailOpen} diagnostics={diagnosticsControl} />}
-          {status && ['not-found', 'foreign'].includes(status.state) && (
-            <section className="empty">
-              <h1>{t('让工程文档成为蓝图')}</h1>
+        <div className="workspace-page" key={scopeKey} data-worktree-scope={scopeKey}>
+          {!blueprint && (!status || status.state === 'ok' || transitioning) && !error && <WorkbenchLoading detailOpen={detailOpen} diagnostics={diagnosticsControl} />}
+          {!transitioning && status && status.state !== 'ok' && (
+            <section className="empty blueprint-workbench-card blueprint-workspace-empty" style={cardIndexStyle(1)}>
+              <h1>{t(['not-found', 'foreign', 'empty'].includes(status.state) ? '未检测到蓝图 Note' : '暂时无法读取蓝图 Note')}</h1>
               {diagnosticsControl}
+              <p>{t(['not-found', 'foreign', 'empty'].includes(status.state) ? '当前工作区或工作树中未检测到蓝图 Note。可以切换到其他工作区或工作树。' : '请查看来源诊断，修复文档或访问问题后重试。')}</p>
+              {['not-found', 'foreign'].includes(status.state) && <>
               <p>{t('初始化会创建项目身份和根模块。已有文件保留，确认前可以查看完整内容。')}</p>
               <button
                 disabled={Boolean(busy)}
@@ -395,6 +420,7 @@ export function App({ context }: { context: PluginContext }) {
               >
                 {t('预览初始化')}
               </button>
+              </>}
             </section>
           )}
           {init && (

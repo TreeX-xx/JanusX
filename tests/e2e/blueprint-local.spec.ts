@@ -7,6 +7,95 @@ import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotoc
 import { parseNote } from '@janus-agent/harness-core'
 import { prepareBlueprintDevelopment } from '../../scripts/plugins/blueprint-dev.mjs'
 import { createDesktopTestEnv, seedIntroducedLearning } from './desktop-test-env'
+import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
+import { randomUUID } from 'node:crypto'
+
+test('keeps the Blueprint header and native page across worktrees and workspaces, and discovers missing Notes without a backend error', async () => {
+  test.setTimeout(180_000)
+  const directory = await mkdtemp(join(resolve('.cache'), 'blueprint-scope-'))
+  let app: ElectronApplication | undefined
+  try {
+    execFileSync(process.execPath, ['plugins/blueprint/build.mjs'], { windowsHide: true, stdio: 'pipe' })
+    const build = await prepareBlueprintDevelopment(process.cwd(), directory)
+    execFileSync(process.execPath, ['node_modules/electron-vite/bin/electron-vite.js', 'build', '--config',
+      'scripts/plugins/blueprint-dev.config.ts', '--outDir', build.appDirectory], { env: { ...process.env, JANUSX_BLUEPRINT_LOCAL_DIRECTORY: directory }, windowsHide: true, stdio: 'pipe', maxBuffer: 32 * 1024 * 1024 })
+    const project = join(directory, 'main-project'), feature = join(directory, 'feature-checkout'), empty = join(directory, 'empty-checkout'), other = join(directory, 'other-project')
+    const createNotes = async (root: string, title: string) => {
+      await mkdir(join(root, '.agents/notes'), { recursive: true })
+      await writeFile(join(root, '.agents/harness.json'), JSON.stringify({ schemaVersion: 1, repoId: randomUUID(), name: title, profile: SUPPORTED_HARNESS_PROFILE }))
+      await writeFile(join(root, '.agents/notes/module.md'), `---\n${JSON.stringify({ schema: 'harness-note/2', id: randomUUID(), kind: 'module', lifecycle: 'accepted', created: '2026-10-27',
+        updated: '2026-10-27T00:00:00Z', role: 'project', moduleState: 'partial' })}\n---\n# ${title}\n\n## Responsibility\n\n${title} saved content.\n\n## Design\n\nIndependent workspace.\n`)
+    }
+    await createNotes(project, 'Main scope'); await createNotes(other, 'Other workspace')
+    const git = (args: string[]) => execFileSync('git', args, { cwd: project, windowsHide: true, stdio: 'pipe' })
+    git(['init', '--initial-branch=blueprint-main']); git(['add', '.agents'])
+    git(['-c', 'user.name=Scope fixture', '-c', 'user.email=scope@fixture.invalid', 'commit', '-m', 'Fixture Notes'])
+    git(['worktree', 'add', '-b', 'blueprint-feature', feature])
+    await writeFile(join(feature, '.agents/notes/module.md'), (await readFile(join(feature, '.agents/notes/module.md'), 'utf8')).replaceAll('Main scope', 'Feature scope'))
+    git(['worktree', 'add', '-b', 'blueprint-empty', empty]); await rm(join(empty, '.agents'), { recursive: true })
+    const { ELECTRON_RUN_AS_NODE: _node, NODE_OPTIONS: _options, ...env } = createDesktopTestEnv(directory)
+    app = await electron.launch({ args: [resolve('scripts/plugins/blueprint-dev-entry.mjs'), `--user-data-dir=${build.profile}`], env: { ...env, JANUSX_BLUEPRINT_LOCAL_DIRECTORY: directory } })
+    const page = await app.firstWindow(); await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(() => (window as any).electron.system.setLanguage('en')); await seedIntroducedLearning(page)
+    const workspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Scope project', path }), project)
+    const otherWorkspace = await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Other scope project', path }), other)
+    await page.reload(); await page.getByText('Scope project', { exact: true }).filter({ visible: true }).first().click()
+    expect(await page.evaluate(({ id, projects }) => (window as any).electron.plugins.request({ type: 'enable', id, projects }),
+      { id: build.id, projects: [workspace.id, otherWorkspace.id] })).toMatchObject({ ok: true })
+    await page.locator('button[data-id="tool-menu"]').click(); await page.getByRole('menuitem', { name: '打开蓝图', exact: true }).click()
+    await expect.poll(() => app!.context().pages().some(candidate => candidate.url().startsWith('janusx-plugin:'))).toBe(true)
+    const plugin = app.context().pages().find(candidate => candidate.url().startsWith('janusx-plugin:'))!
+    const loaded = async (title: string) => {
+      await expect(plugin.getByRole('heading', { name: title, level: 2, exact: true })).toBeVisible({ timeout: 20_000 })
+      await expect(plugin.locator('.markdown-preview')).toContainText(`${title} saved content.`)
+      await expect(plugin.locator('.bp-node-card').first()).toBeVisible()
+    }
+    await loaded('Main scope')
+    const identity = await plugin.evaluate(() => {
+      ;(window as any).scopeHeader = document.querySelector('.blueprint-workbench-topbar')
+      ;(window as any).scopeCard = document.querySelector('.blueprint-workbench-card--canvas')
+      return { url: location.href, timeOrigin: performance.timeOrigin }
+    })
+    const retained = async () => {
+      expect(plugin.isClosed()).toBe(false)
+      expect(await plugin.evaluate(() => ({ url: location.href, timeOrigin: performance.timeOrigin }))).toEqual(identity)
+      expect(await plugin.evaluate(() => (window as any).scopeHeader === document.querySelector('.blueprint-workbench-topbar'))).toBe(true)
+      expect(await plugin.evaluate(() => (window as any).scopeCard === document.querySelector('.blueprint-workbench-card--canvas'))).toBe(false)
+      await expect(page.locator('[data-plugin-workbench]')).toBeVisible()
+    }
+    const worktree = async (branch: string) => {
+      await plugin.getByRole('button', { name: 'Switch worktree', exact: true }).click()
+      await plugin.getByRole('option', { name: new RegExp(branch) }).click()
+    }
+    const settled = async () => {
+      await expect.poll(() => plugin.locator('.blueprint-workbench-shell').evaluate(element =>
+        element.getAnimations({ subtree: true }).filter(animation => animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0)
+    }
+    await worktree('blueprint-feature'); await loaded('Feature scope'); await retained()
+    await worktree('blueprint-empty')
+    await expect(plugin.getByRole('heading', { name: 'No Blueprint Notes detected', exact: true })).toBeVisible()
+    await expect(plugin.getByRole('alert')).toHaveCount(0); await retained()
+    await expect(plugin.getByRole('button', { name: 'Preview initialization', exact: true })).toBeVisible()
+    await settled(); await expect(plugin.locator('.blueprint-workspace-empty')).toHaveCSS('opacity', '1')
+    await plugin.screenshot({ path: 'artifacts/plugins/blueprint-empty-worktree.png' })
+    await worktree('blueprint-main'); await loaded('Main scope'); await retained()
+    await plugin.getByRole('button', { name: 'Switch project', exact: true }).click()
+    await plugin.getByRole('option', { name: 'other-project', exact: true }).click()
+    await loaded('Other workspace'); await retained()
+    await plugin.getByRole('button', { name: 'Switch project', exact: true }).click()
+    await plugin.getByRole('option', { name: 'main-project', exact: true }).click()
+    await loaded('Main scope'); await retained()
+    await expect(plugin.getByRole('alert')).toHaveCount(0)
+    await settled()
+    await plugin.screenshot({ path: 'artifacts/plugins/blueprint-retained-header.png' })
+  } finally {
+    if (app) {
+      const child = app.process(), timer = setTimeout(() => child.kill('SIGKILL'), 5000)
+      try { await app.close() } finally { clearTimeout(timer) }
+    }
+    if (process.env.JANUS_BLUEPRINT_KEEP_ARTIFACTS !== '1') await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+  }
+})
 
 test('local signed build installs disabled, opens in the full desktop and serves MCP after the desktop exits', async ({}, testInfo) => {
   test.setTimeout(180_000)
@@ -102,16 +191,14 @@ test('local signed build installs disabled, opens in the full desktop and serves
     await expect(plugin.locator('.markdown-preview')).toContainText('桌面工作区', { timeout: 30_000 })
     await plugin.getByRole('button', { name: 'Switch worktree', exact: true }).click()
     await plugin.getByRole('option', { name: /blueprint-feature/ }).click()
-    await expect.poll(() => plugin.isClosed()).toBe(true)
-    plugin = await guest()
     await expect(plugin.getByRole('heading', { name: 'Worktree fixture', level: 2, exact: true })).toBeVisible({ timeout: 30_000 })
+    expect(plugin.isClosed()).toBe(false)
     await expect(plugin.locator('.markdown-preview')).toContainText('Worktree-specific saved content.')
     await expect(page.locator('[data-plugin-workbench="extension:official.blueprint/blueprint"]')).toBeVisible()
     await plugin.getByRole('button', { name: 'Switch worktree', exact: true }).click()
     await plugin.getByRole('option', { name: /blueprint-main/ }).click()
-    await expect.poll(() => plugin.isClosed()).toBe(true)
-    plugin = await guest()
     await expect(plugin.getByRole('heading', { name: 'JanusX', level: 2, exact: true })).toBeVisible({ timeout: 30_000 })
+    expect(plugin.isClosed()).toBe(false)
     await expect(plugin.locator('.markdown-preview')).not.toContainText('Worktree-specific saved content.')
     await expect(plugin.locator('.bp-note-review__content')).toBeHidden()
     await plugin.getByRole('tab', { name: 'Related Notes', exact: true }).click()

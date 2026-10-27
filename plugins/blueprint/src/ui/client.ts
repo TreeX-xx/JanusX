@@ -10,7 +10,7 @@ const messages: Record<string, string> = {
   PATH_NOT_GRANTED: '当前项目未授权，请到插件设置中检查项目范围。',
   RATE_LIMITED: '已有任务正在运行或请求过于频繁，请稍后重试。',
   CONTEXT_LIMIT: '讨论已达到容量限制，请保存需要的内容并开始新讨论。',
-  SOURCE_UNAVAILABLE: '蓝图后台未运行，请在插件设置中重新启用。',
+  SOURCE_UNAVAILABLE: '暂时无法读取蓝图数据，请重试；持续失败时请检查插件状态。',
   TIMEOUT: '请求超时，请检查连接后重试。',
   SERVICE_STOPPED: '蓝图后台已停止，请重新打开插件。',
   NOT_READY: '导入预览已失效或项目尚未就绪，请重新读取。',

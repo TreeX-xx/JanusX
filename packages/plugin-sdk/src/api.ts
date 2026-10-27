@@ -24,6 +24,11 @@ export interface PluginContext {
   workbenchFrame?: true
 }
 export interface PluginStoredValue { found: boolean; value?: JsonValue; revision: number }
+export interface PluginContextEvent {
+  active?: boolean; locale?: string; theme?: { id: string; tokens: Record<string, string> }; invalidated?: boolean
+  /** Opted-in workbench pages keep their frame while replacing scoped content. */
+  transitioning?: boolean; workspace?: PluginContext
+}
 export type PluginUnsubscribe = () => void
 /** Public broker methods; available only through an authorized instance port. */
 export interface PluginApi {
@@ -92,7 +97,7 @@ export interface PluginApi {
   context: {
     providers(options?: PluginCallOptions): Promise<PluginDocumentContextCatalog>
     read(params: PluginContextRead, options?: PluginCallOptions): Promise<PluginDocumentContextResource>
-    subscribe(listener: (event: { active?: boolean; locale?: string; theme?: { id: string; tokens: Record<string, string> }; invalidated?: boolean }) => void, options?: PluginCallOptions): Promise<PluginUnsubscribe> }
+    subscribe(listener: (event: PluginContextEvent) => void, options?: PluginCallOptions): Promise<PluginUnsubscribe> }
 }
 export interface PluginRequest { protocol: 1; requestId: string; type: 'request'; method: string; params: unknown; contextRevision: number }
 export type PluginResponse = { protocol: 1; requestId: string; type: 'response' } & (

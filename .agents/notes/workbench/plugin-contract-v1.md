@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-27T06:08:57Z",
+  "updated": "2026-10-27T07:15:00Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -115,9 +115,11 @@ P1 已新增 `packages/plugin-sdk/`（公开类型、清单／调用校验、模
 
 P3 是 API 1 的增量，旧清单保持合法。使用新位置的插件将相应能力加入 required，使旧宿主在兼容检查时明确拒绝。视图共用严格清单和原生隔离载体，不新增终端、CLI／会话适配器或 PTY 接口。工作台沿用通用视图 registry，以 location=workbench 筛选；蓝图／知识库 ID、入口和开关保留，不以全量迁移业务为前置。
 
-工作台在主窗口内容区承载一个隔离根页面，插件自行组织内部导航。打开时保留中部和右侧 pane，记录此前工作台；返回按钮恢复此前有效界面和原入口焦点。项目改变、停用或贡献撤销时关闭失效工作台；同项目 worktree 改变时，frame=plugin 的外框保持打开，旧根页面销毁并按新根重建，其它工作台沿用关闭行为。摘要重载可恢复同一有效视图，私有 KV 保留，页面局部状态不保证保留。不创建新原生窗口，不拼装他插件视图。
+工作台在主窗口内容区承载一个隔离根页面，插件自行组织内部导航。打开时保留中部和右侧 pane，记录此前工作台；返回按钮恢复此前有效界面和原入口焦点。默认项目改变关闭工作台，同项目 worktree 改变时 frame=plugin 保留外框并重建根页面；显式声明 views.workbench.rebind 的项目外框采用下述保留页面契约。停用、贡献撤销、授权失效或根解析失败仍撤销页面；摘要重载可恢复同一有效视图，私有 KV 保留。不创建新原生窗口，不拼装他插件视图。
 
-项目级插件外框可声明必需能力 views.workbench.worktrees。views.getFrame 除已授权项目外，返回当前项目最多 128 个实际 Git worktree 的不透明 ID、名称、分支和主工作树标志，以及当前 worktreeId，不返回路径。views.requestFrame 的 selectWorktree 仅接受该身份，宿主重新读取列表并检查项目授权、实际根及当前页面代次，已删除或未知目标拒绝；规范路径仅经宿主内部事件传给 worktree store。切换无需重新授权同一项目，但原请求、订阅和页面实例失效，新页面重新读取相应正文、图、建议及按根隔离的草稿。该能力进入授权指纹，旧宿主明确拒绝；接口不创建、删除工作树，也不 checkout 分支。
+项目级插件外框可声明必需能力 views.workbench.worktrees。views.getFrame 除已授权项目外，返回当前项目最多 128 个实际 Git worktree 的不透明 ID、名称、分支和主工作树标志，以及当前 worktreeId，不返回路径。views.requestFrame 的 selectWorktree 仅接受该身份，宿主重新读取列表并检查项目授权、实际根及当前页面代次，已删除或未知目标拒绝；规范路径仅经宿主内部事件传给 worktree store。切换无需重新授权同一项目，原根请求与订阅失效，正文、图、建议及按根隔离的草稿重新读取；是否重建页面取决于 rebind 声明。该能力进入授权指纹，旧宿主明确拒绝；接口不创建、删除工作树，也不 checkout 分支。
+
+views.workbench.rebind 仅适用于项目级 frame=plugin 工作台，必须显式加入 required；旧插件不改变生命周期，旧宿主明确拒绝新声明。已就绪页面切换到已授权项目／worktree 时保留原生页面、URL 与端口，先发送 context 的 transitioning=true，立即取消请求、清掉非 context 订阅与 Island 发布、撤销页面后台任务及原 native owner；解析新根后更新 scope／revision，发送 transitioning=false 及完整 workspace。原请求 ID 和限速预算不重置，新 native owner 使用新的不透明身份。SDK 在切换中拒绝调用，丢弃旧 revision 回包，context 监听跨作用域存活；插件负责清理页面业务状态，并重新注册其它订阅。保留页面代次不代表保留旧作用域权限。该规则是下文 P2 默认销毁重挂语义的显式例外；应用视图、文档和独立窗口不采用它。
 
 工作台容器采用覆盖主窗口顶栏的全屏悬浮卡片框，宿主提供可拖动的关闭／项目选择标题卡，控件区域不触发拖动；插件内部维持自身已有布局。蓝图继续使用一条紧凑操作栏和左右卡片，不额外增加来源诊断行；内部弹层不进入宿主专用协议。主 Island 入口被工作台覆盖，若 Island 经宿主操作进入非折叠状态，则暂隐工作台外框和 native 内容，不销毁工作台实例；折叠后恢复。native 服务返回不属于公开错误集合的服务错误时，宿主映射 SOURCE_UNAVAILABLE 并保留脱敏错误码，不暴露任意异常正文。大图分片属于蓝图自身已声明 native 方法，不放宽通用协议 4 MiB 响应限制。
 

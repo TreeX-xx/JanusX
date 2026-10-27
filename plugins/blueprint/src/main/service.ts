@@ -161,7 +161,12 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
         case 'legacy.list': return json(await legacy.list())
         case 'legacy.preview': return json(await legacy.preview(root, z.string().min(1).max(128).parse(input), owner().identity, scopeSignal))
         case 'legacy.apply': return json(await legacy.apply(root, id.parse(input), owner().identity, scopeSignal))
-        case 'workspace.activate': owner().watched.add(root); tracker.track(root, true); watched.add(root); await syncWatchers(); return null
+        case 'workspace.activate': {
+          if ((await workspace.status(root)).state !== 'ok') return null
+          scopeSignal.throwIfAborted()
+          if (owner().watched.has(root)) return null
+          owner().watched.add(root); tracker.track(root, true); watched.add(root); await syncWatchers(); return null
+        }
         case 'workspace.release': owner().watched.delete(root); await releaseRoot(root); return null
         case 'workspace.status': return json(await workspace.status(root))
         case 'workspace.init-preview': return json(await workspace.preview(root, z.string().min(1).max(200).parse(input), owner().identity))

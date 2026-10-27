@@ -71,6 +71,20 @@ async function fixture() {
     agent: (reply: NonNullable<typeof agentReply>) => { agentReply = reply } }
 }
 
+it('treats checkouts without Notes as empty discovery, including an unrelated .agents directory', async () => {
+  const f = await fixture()
+  await rm(join(f.root, '.agents'), { recursive: true })
+  expect(await f.call('workspace.status')).toMatchObject({ state: 'not-found', noteCount: 0 })
+  await f.call('workspace.activate')
+  await f.call('workspace.release')
+  await mkdir(join(f.root, '.agents'))
+  await writeFile(join(f.root, '.agents/unrelated.json'), '{}')
+  expect(await f.call('workspace.status')).toMatchObject({ state: 'foreign', noteCount: 0 })
+  await f.call('workspace.activate')
+  await f.call('workspace.release')
+  expect(f.failures).toEqual([])
+})
+
 it('imports legacy data only after project-scoped preview and explicit confirmation', async () => {
   const f = await fixture(), first = randomUUID(), second = randomUUID()
   const node = makeNode({ title: 'Old requirement', type: 'feature', description: 'Keep the original intent.' })

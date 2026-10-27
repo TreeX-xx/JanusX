@@ -33,6 +33,11 @@ describe('P3 contribution policy and rendering', () => {
     value.capabilities.required.push('views.workbench.worktrees')
     expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'selectWorktree', worktreeId: 'a'.repeat(64) })).not.toThrow()
     expect(() => validatePluginCall(value, 'views.requestFrame', { action: 'selectWorktree', worktreeId: '/arbitrary/root' })).toThrow()
+    const rebound = manifest(); rebound.capabilities.required.push('views.workbench.rebind')
+    expect(() => parsePluginManifest(JSON.stringify(rebound))).toThrow()
+    rebound.contributes.views.find(view => view.id === 'desk')!.frame = 'plugin'
+    rebound.capabilities.required.push('views.workbench.frame')
+    expect(() => parsePluginManifest(JSON.stringify(rebound))).not.toThrow()
   })
   it('routes a declared settings command to application settings without changing workbench or pane state', () => {
     const dispatch = vi.fn(); vi.stubGlobal('window', { dispatchEvent: dispatch })

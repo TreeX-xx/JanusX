@@ -4,6 +4,23 @@ import type { PluginApi } from '@janusx/plugin-sdk'
 
 afterEach(() => { vi.useRealTimers() })
 
+it('never submits a queued write from the old worktree after a scope change', async () => {
+  vi.useFakeTimers()
+  let change: Parameters<PluginApi['context']['subscribe']>[0] = () => {}
+  const native = vi.fn(async () => null)
+  const api = paceBlueprintApi({ context: { subscribe: async listener => { change = listener; return () => {} } }, native: { call: native } } as unknown as PluginApi)
+  await api.context.subscribe(() => {})
+  const queued = api.native.call({ method: 'blueprint.layout', input: { canvasLayout: {} } })
+  const rejected = expect(queued).rejects.toMatchObject({ code: 'STALE_CONTEXT' })
+  change({ transitioning: true })
+  change({ transitioning: false })
+  await vi.runAllTimersAsync(); await rejected
+  expect(native).not.toHaveBeenCalled()
+  const fresh = api.native.call({ method: 'workspace.status', input: null })
+  await vi.runAllTimersAsync(); await fresh
+  expect(native).toHaveBeenCalledTimes(1)
+})
+
 it('paces a burst of reads and writes and never replays a failed operation', async () => {
   vi.useFakeTimers()
   const budget = new RequestBudget(), starts: number[] = []

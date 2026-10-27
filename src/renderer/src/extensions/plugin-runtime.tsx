@@ -171,6 +171,10 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
   const islandStage = useIslandStore(state => state.stage)
   const activeScope = useWorktreeStore(state => workspaceId ? state.activePaths[workspaceId] ?? workspacePath : null)
   const selectedProject = useWorkspaceStore(state => workspaceId ? state.activeWorkspaceId : null)
+  const rebindContext = location === 'workbench' && record?.manifest.capabilities.required.includes('views.workbench.rebind')
+  const mountScope = rebindContext && projectGranted ? 'retained' : JSON.stringify([workspaceId, selectedProject, activeScope])
+  const selectedScope = useRef({ workspaceId, selectedProject, activeScope })
+  selectedScope.current = { workspaceId, selectedProject, activeScope }
   const [mount, setMount] = useState<PluginMount | null>(null)
   const [failure, setFailure] = useState('')
   const [retry, setRetry] = useState(0)
@@ -181,6 +185,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     && (location === 'settings' ? true : location === 'workbench' ? workbench === `extension:${pluginId}/${localViewId}` && islandStage === 'collapsed'
       : location === 'island' ? (!workbench || workbench.startsWith('extension:')) && islandStage === 'expanded' : !workbench && islandStage === 'collapsed')
   useEffect(() => {
+    const { workspaceId, selectedProject, activeScope } = selectedScope.current
     let cancelled = false
     let current: PluginMount | undefined
     setMount(null); setFailure('')
@@ -198,7 +203,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
       cancelled = true
       if (current) void pluginRequest({ type: 'close', instanceId: current.instanceId, binding: current.binding }).catch(() => {})
     }
-  }, [pluginId, localViewId, workspaceId, selectedProject, activeScope, retry, documentViewer, documentPath, instanceKey, projectGranted])
+  }, [pluginId, localViewId, mountScope, retry, documentViewer, documentPath, instanceKey, projectGranted])
   useEffect(() => { if (failure) onFailure?.(failure) }, [failure, onFailure])
   useEffect(() => {
     if (!mount) return
@@ -209,6 +214,11 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     return window.electron.plugins.onEvent(event => {
       if (event.instanceId !== mount.instanceId) return
       const packet = event.packet
+      if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.event === 'scope'
+        && packet.payload && typeof packet.payload === 'object' && !Array.isArray(packet.payload) && packet.payload.workspace) {
+        const context = packet.payload.workspace as unknown as PluginMount['context']
+        setMount(current => current ? { ...current, context } : current)
+      }
       if (packet && typeof packet === 'object' && !Array.isArray(packet) && packet.type === 'documentDraft'
         && packet.path === documentPath && typeof packet.editId === 'string' && typeof packet.baseText === 'string' && typeof packet.version === 'string') {
         const update = typeof packet.text === 'string' && typeof packet.expectedRevision === 'number' ? { text: packet.text, expectedRevision: packet.expectedRevision } : undefined

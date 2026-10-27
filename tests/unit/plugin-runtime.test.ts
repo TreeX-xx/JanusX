@@ -66,6 +66,51 @@ it('requires an explicit project grant before resolving roots or mounting, while
 })
 
 describe('plugin-owned workbench frame', () => {
+  it('retains only opted-in pages, revokes the old scope immediately and rejects late reads across worktree/project switches', async () => {
+    const f = await fixture()
+    f.manifest.capabilities.required.push('views.workbench.frame', 'views.workbench.rebind')
+    f.manifest.contributes.views.find((view: any) => view.id === 'desk').frame = 'plugin'
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest)); await f.prepare()
+    const mount = await f.service.mount(f.manifest.id, 'desk', 'a', f.root)
+    f.service.bind(mount.instanceId, mount.binding)
+    await f.call(mount, 'app.getInfo')
+    await f.call(mount, 'storage.set', { key: 'memo', value: 'original' })
+    let release!: () => void
+    const resolve = f.deps.resolveProject
+    f.deps.resolveProject = async (id, path) => { await new Promise<void>(done => { release = done }); return resolve(id, path) }
+    const switching = f.service.setContext('a', f.rootB, 'en', { id: '', tokens: {} })
+    await expect(f.call(mount, 'workspace.readText', { path: 'README.md' })).rejects.toMatchObject({ code: 'STALE_CONTEXT' })
+    expect(f.service.resource(mount.url)).not.toBeNull()
+    expect(f.events.filter(event => event.packet.event === 'invalidated')).toHaveLength(0)
+    expect(f.events.at(-1)?.packet).toMatchObject({ event: 'scope', payload: { transitioning: true } })
+    release(); await switching
+    const worktree = f.events.findLast(event => event.packet.event === 'scope' && event.packet.payload.workspace)!.packet.payload.workspace
+    expect(worktree.project.rootId).not.toBe(mount.context.project!.rootId)
+    expect(await f.call(mount, 'storage.set', { key: 'memo', value: 'late-write' })).toMatchObject({ ok: false, error: { code: 'STALE_CONTEXT' } })
+    const current = { ...mount, context: worktree }
+    expect(await f.call(current, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project B' } })
+    expect(await f.call(current, 'storage.get', { key: 'memo' })).toMatchObject({ result: { found: false } })
+    f.deps.resolveProject = resolve
+    await f.service.setContext('b', f.rootB, 'en', { id: '', tokens: {} })
+    const project = f.events.findLast(event => event.packet.event === 'scope' && event.packet.payload.workspace)!.packet.payload.workspace
+    expect(project.project.projectId).toBe('b')
+    expect(await f.call({ ...mount, context: project }, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project B' } })
+    expect(f.service.snapshot().plugins[0].runtime?.pages).toBe(1)
+    await f.service.setContext('ungranted', f.root, 'en', { id: '', tokens: {} })
+    expect(f.service.resource(mount.url)).toBeNull()
+  })
+  it('closes retained pages when the selected root cannot be resolved', async () => {
+    const f = await fixture()
+    f.manifest.capabilities.required.push('views.workbench.frame', 'views.workbench.rebind')
+    f.manifest.contributes.views.find((view: any) => view.id === 'desk').frame = 'plugin'
+    await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest)); await f.prepare()
+    const mount = await f.service.mount(f.manifest.id, 'desk', 'a', f.root)
+    f.service.bind(mount.instanceId, mount.binding); await f.call(mount, 'app.getInfo')
+    f.deps.resolveProject = async () => { throw new Error('Root unavailable') }
+    await expect(f.service.setContext('a', f.rootB, 'en', { id: '', tokens: {} })).rejects.toThrow('Root unavailable')
+    expect(f.service.resource(mount.url)).toBeNull()
+    expect(f.events.at(-1)?.packet.event).toBe('invalidated')
+  })
   async function framed(worktrees = false) {
     const f = await fixture()
     f.manifest.capabilities.required.push('views.workbench.frame')
@@ -499,6 +544,26 @@ describe('P2 authorization, lifecycle and persistent data', () => {
 })
 
 describe('public SDK port client', () => {
+  it('keeps its context listener while cancelling pending scope work and updating the request revision', async () => {
+    const channel = new MessageChannel(), client = createPluginClient(channel.port1, 1)
+    cleanups.push(() => { client.close(); channel.port2.close() })
+    const packets: any[] = []
+    channel.port2.onmessage = event => {
+      const packet = event.data; packets.push(packet)
+      if (packet.method === 'context.subscribe') channel.port2.postMessage({ protocol: 1, type: 'response', requestId: packet.requestId, ok: true, result: { subscriptionId: 'context' } })
+      if (packet.method === 'app.getInfo') channel.port2.postMessage({ protocol: 1, type: 'response', requestId: packet.requestId, ok: true, result: {} })
+    }
+    const listener = vi.fn(); await client.api.context.subscribe(listener)
+    const pending = client.api.workspace.readText({ path: 'README.md' })
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'STALE_CONTEXT' })
+    channel.port2.postMessage({ protocol: 1, type: 'event', event: 'scope', contextRevision: 2, payload: { transitioning: true } })
+    await rejected
+    await expect(client.api.app.getInfo()).rejects.toMatchObject({ code: 'STALE_CONTEXT' })
+    channel.port2.postMessage({ protocol: 1, type: 'event', event: 'scope', contextRevision: 3, payload: { transitioning: false, workspace: { revision: 3 } } })
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(2))
+    await client.api.app.getInfo()
+    expect(packets.at(-1)).toMatchObject({ contextRevision: 3 })
+  })
   it('folds early watch events into the snapshot and discards older revisions', async () => {
     const channel = new MessageChannel(); const client = createPluginClient(channel.port1, 1)
     cleanups.push(() => { client.close(); channel.port2.close() })

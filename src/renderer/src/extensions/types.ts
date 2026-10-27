@@ -18,6 +18,7 @@ export interface ExtensionViewProps {
 
 export interface ExtensionView {
   frame?: 'plugin'
+  rebindContext?: boolean
   instancePolicy?: 'single' | 'multiple'
   id: string
   title: string
