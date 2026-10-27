@@ -99,9 +99,19 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
     if (!job || key(job.view.root) !== key(root)) throw new NativeServiceError('PATH_NOT_GRANTED')
     return job
   }
-  const activeProjects = new Map(context.projects.map(project => [project.id, project]))
-  const maintenance = nativeMaintenance({ directory: context.directory, notes, host, projects: () => [...activeProjects.values()], job: startJob,
-    changed: task => emit('maintenance.changed', { task }, task.workspacePath) })
+  // Note: each actual worktree owns its maintenance state and immutable root binding;
+  // see .agents/notes/planning/blueprint-official-plugin.md#worktree-显示切换.
+  const maintenance = new Map<string, ReturnType<typeof nativeMaintenance>>()
+  const maintenanceFor = (project: z.infer<typeof nativeProjectSchema>) => {
+    const checkout = project.id + '\0' + key(project.root)
+    let service = maintenance.get(checkout)
+    if (!service) {
+      service = nativeMaintenance({ directory: context.directory, notes, host, projects: () => [project], job: startJob,
+        changed: task => emit('maintenance.changed', { task }, task.workspacePath) })
+      maintenance.set(checkout, service)
+    }
+    return service
+  }
   const releaseRoot = async (root: string) => {
     if (![...owners.values()].some(scope => scope.watched.has(root))) {
       tracker.track(root, false); watched.delete(root); await syncWatchers()
@@ -138,8 +148,10 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
       const root = await realpath(project.root)
       scopeSignal.throwIfAborted()
       roots.set(key(root), project.id)
-      activeProjects.set(project.id, { ...project, root })
-      if (method.startsWith('maintenance.')) return maintenance.call(method, json(input), { ...project, root })
+      if (method.startsWith('maintenance.')) {
+        const checkout = { ...project, root }
+        return maintenanceFor(checkout).call(method, json(input), checkout, scopeSignal)
+      }
       const checkedContext = (value: unknown) => {
         const current = reviewContextSchema.parse(value)
         if (key(current.workspacePath) !== key(root)) throw new NativeServiceError('PATH_NOT_GRANTED')
@@ -248,7 +260,8 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
     async stop() {
       if (stopping) return
       stopping = true; lifetime.abort(); tracker.stop()
-      maintenance.close()
+      for (const service of maintenance.values()) service.close()
+      maintenance.clear()
       for (const unsubscribe of unlisten) unsubscribe()
       for (const job of jobs.values()) job.controller.abort()
       await Promise.all([...jobs.values()].map(job => job.finished))

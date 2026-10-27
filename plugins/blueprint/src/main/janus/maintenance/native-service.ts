@@ -46,13 +46,26 @@ export function nativeMaintenance(options: { directory: string; notes: Blueprint
     if (!task || task.workspaceId !== project.id || task.workspacePath !== project.root) throw new NativeServiceError('PATH_NOT_GRANTED')
     return task
   }
+  // Closing/switching the page invalidates an in-flight preview or approval.
+  // A transaction already entered still follows the shared engine's commit semantics.
+  const withTask = async <T>(taskId: string, signal: AbortSignal, work: () => Promise<T>) => {
+    signal.throwIfAborted()
+    const cancel = () => { service.cancel(taskId) }
+    signal.addEventListener('abort', cancel, { once: true })
+    try { return await work() }
+    finally { signal.removeEventListener('abort', cancel) }
+  }
   return {
     close: () => service.cancelAll(),
-    async call(method: string, input: JsonValue, project: Project): Promise<JsonValue> {
+    async call(method: string, input: JsonValue, project: Project, signal: AbortSignal): Promise<JsonValue> {
+      signal.throwIfAborted()
       if (method === 'maintenance.list') return json(service.list().filter(task => task.workspaceId === project.id && task.workspacePath === project.root))
       if (method === 'maintenance.start') {
         const args = start.parse(input), { blueprint } = await options.notes.projectView(project.root)
-        return json(await service.start({ ...args, blueprintId: blueprint.id, workspaceId: project.id, workspacePath: project.root, workspaceName: project.name }))
+        signal.throwIfAborted()
+        const task = await service.start({ ...args, blueprintId: blueprint.id, workspaceId: project.id, workspacePath: project.root, workspaceName: project.name })
+        if (signal.aborted) { service.cancel(task.id); signal.throwIfAborted() }
+        return json(task)
       }
       if (method === 'maintenance.propose' || method === 'maintenance.dispatch') {
         const args = turn.parse(input); checkTask(args.taskId, project)
@@ -63,11 +76,11 @@ export function nativeMaintenance(options: { directory: string; notes: Blueprint
       }
       if (method === 'maintenance.preview') {
         const args = z.object({ ...selection, conversationId: text }).strict().parse(input); checkTask(args.taskId, project)
-        return json(await service.preview({ ...args, workspaceId: project.id, workspacePath: project.root }))
+        return json(await withTask(args.taskId, signal, () => service.preview({ ...args, workspaceId: project.id, workspacePath: project.root })))
       }
       if (method === 'maintenance.apply') {
         const args = z.object({ ...selection, previewId: id, confirmedDeleteOperationIds: ids.optional() }).strict().parse(input); checkTask(args.taskId, project)
-        return json(await service.apply(args))
+        return json(await withTask(args.taskId, signal, () => service.apply(args)))
       }
       if (['maintenance.cancel', 'maintenance.complete', 'maintenance.dismiss'].includes(method)) {
         const taskId = id.parse(input); checkTask(taskId, project)

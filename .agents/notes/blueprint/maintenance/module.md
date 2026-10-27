@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-26T16:23:44Z",
+  "updated": "2026-10-27T05:25:35Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
   "moduleState": "partial",
   "codeRefs": [
@@ -35,6 +35,8 @@
 承接蓝图连续讨论、获授权的 Note 修改预览、确认写入、建议定向修复与复核，以及实施简报。范围、展示意图和写入权限分别维护，普通访问和关注变化不授权写入。用户已暂缓撤销并取消蓝图修改审计，确认后的文件事务直接生效。
 
 ## Design
+
+插件按项目与规范化后的实际 worktree 根分别创建维护服务，任务与授权根在服务内保持固定。同项目不同 worktree 可独立生成、预览和确认修改，不通过当前界面选择重新解释旧任务的目标。确认时继续核对该根的 Note 版本；其它工作树的修改不使本根预览失效。页面释放会取消尚未进入事务的预览／确认请求，事务已进入后的提交遵循共享引擎语义；验证归[官方插件专项](../../planning/blueprint-official-plugin.md#worktree-显示切换)。
 
 右侧插件对话复用共享会话和流式能力；普通讨论只读，整理后展示文件预览，用户确认才经共享 Note 事务写入。继续讨论、提案替换或源变化使旧预览失效。1.0.3 移除蓝图维护审计写入、查询和撤销入口；图刷新独立于已完成的确认结果，详见[文件审批决策](blueprint-maintenance-approval-gap.md)。建议定向修复绑定来源、工作区、分支、所选问题及文件版本；[建议交接专题](../navigation/note-updates-and-suggestion-navigation.md#建议定向修复)保留原宿主行为和历史边界。对话线程生命周期见 [职责入口](../../sessions/threads/module.md)，画布关注与定位见 [职责入口](../navigation/module.md)。执行 Task 和独立评估仍由 Agent 对话与执行模块负责。
 

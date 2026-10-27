@@ -246,6 +246,124 @@ it('applies the confirmed preview directly without audit files or audit/undo met
   expect(await readFile(auditPath, 'utf8')).toBe('existing user data: preserve exactly')
 })
 
+it('keeps maintenance, suggestions and layouts independent in two worktrees of the same project', async () => {
+  const f = await fixture()
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: f.root, windowsHide: true, stdio: 'pipe' })
+  git('init', '--initial-branch=main')
+  git('add', '.agents')
+  git('-c', 'user.name=Blueprint fixture', '-c', 'user.email=blueprint@fixture.invalid', 'commit', '-m', 'Notes')
+  const feature = join(f.directory, 'feature')
+  git('worktree', 'add', '-b', 'feature', feature)
+  const featureProject = { ...f.project, root: feature }, featureNote = join(feature, '.agents/notes/module.md')
+  const mainOwner = randomUUID(), featureOwner = randomUUID()
+  const call = (project: typeof f.project, owner: string, method: string, input: JsonValue = null) =>
+    f.raw().call(method, { project, instanceId: owner, input }) as Promise<any>
+  const main = (method: string, input: JsonValue = null) => call(f.project, mainOwner, method, input)
+  const other = (method: string, input: JsonValue = null) => call(featureProject, featureOwner, method, input)
+  const prepare = async (run: typeof main, design: string, task: any, conversationId: string) => {
+    f.propose(design)
+    const job = await run('maintenance.propose', { taskId: task.id, conversationId, providerId: 'fixture', modelId: 'fixture',
+      messages: [{ role: 'user', content: design }] })
+    await expect.poll(async () => (await run('jobs.read', job.id)).status, { timeout: 15_000 }).not.toBe('running')
+    const result = await run('jobs.read', job.id)
+    expect(result.status).toBe('completed')
+    const selection = { taskId: task.id, changeSetId: result.result.changeSet.id, operationIds: ['clarify'] }
+    const preview = await run('maintenance.preview', { ...selection, conversationId })
+    return { task, selection, preview }
+  }
+  const mainGraph = await main('blueprint.graph'), featureGraph = await other('blueprint.graph')
+  expect(mainGraph.repoId).toBe(featureGraph.repoId)
+  expect(mainGraph.blueprint.id).not.toBe(featureGraph.blueprint.id)
+  expect(mainGraph.blueprint.nodeIds).toEqual(featureGraph.blueprint.nodeIds)
+  await main('blueprint.layout', { canvasLayout: { [f.noteId]: { x: 42, y: 68 } } })
+  expect((await other('blueprint.graph')).blueprint.canvasLayout[f.noteId]).toBeUndefined()
+  const mainConversation = randomUUID(), featureConversation = randomUUID()
+  const [mainTask, featureTask] = await Promise.all([
+    main('maintenance.start', { conversationId: mainConversation, goal: 'Clarify main only', nodeScope: { type: 'blueprint' } }),
+    other('maintenance.start', { conversationId: featureConversation, goal: 'Clarify feature only', nodeScope: { type: 'blueprint' } }),
+  ])
+  const first = await prepare(main, 'Main worktree design.', mainTask, mainConversation)
+  const second = await prepare(other, 'Feature worktree design.', featureTask, featureConversation)
+  expect((await main('maintenance.list')).map((task: any) => task.id)).toEqual([first.task.id])
+  expect((await other('maintenance.list')).map((task: any) => task.id)).toEqual([second.task.id])
+  await expect(other('maintenance.apply', { ...first.selection, previewId: first.preview.id })).rejects.toThrow('PATH_NOT_GRANTED')
+  await expect(main('maintenance.apply', { ...second.selection, previewId: second.preview.id })).rejects.toThrow('PATH_NOT_GRANTED')
+  await other('maintenance.apply', { ...second.selection, previewId: second.preview.id })
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  // The other worktree's committed edit must not invalidate this preview or its evidence.
+  await main('maintenance.apply', { ...first.selection, previewId: first.preview.id })
+  const mainBytes = await readFile(f.notePath, 'utf8'), featureBytes = await readFile(featureNote, 'utf8')
+  expect(mainBytes).toContain('Main worktree design.')
+  expect(mainBytes).not.toContain('Feature worktree design.')
+  expect(featureBytes).toContain('Feature worktree design.')
+  expect(featureBytes).not.toContain('Main worktree design.')
+  await expect(main('maintenance.apply', { ...first.selection, previewId: first.preview.id })).rejects.toThrow()
+  expect(await readFile(featureNote, 'utf8')).toBe(featureBytes)
+
+  const settings = await f.call('settings.snapshot')
+  await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'fixture', modelId: 'fixture' } }, expectedRevision: settings.revision })
+  const findingId = randomUUID()
+  f.agent(async (_request, tool) => {
+    const source = await tool('review.read', { path: '.agents/notes/module.md' })
+    const quote = JSON.stringify(source).includes('Feature worktree design.') ? 'Feature worktree design.' : 'Main worktree design.'
+    return { text: JSON.stringify({ findings: [{ id: findingId, category: 'omission', summary: 'Clarify this design', explanation: 'Explain persistence.',
+      suggestion: 'State its persistence boundary.', citations: [{ path: '.agents/notes/module.md', quote }], verification: 'not-configured' }], coverage: 'complete', limitations: [] }),
+      cancelled: false, toolTraces: [] }
+  })
+  for (const run of [main, other]) {
+    const job = await run('review.run', f.noteId)
+    await expect.poll(async () => (await run('jobs.read', job.id)).status, { timeout: 15_000 }).not.toBe('running')
+    expect((await run('jobs.read', job.id)).status).toBe('completed')
+  }
+  const mainReview = await main('review.read'), featureReview = await other('review.read')
+  const mainItem = mainReview.items.find((item: any) => item.noteId === f.noteId)
+  const featureItem = featureReview.items.find((item: any) => item.noteId === f.noteId)
+  expect(mainItem.report.findings).toHaveLength(1)
+  expect(featureItem.report.findings).toHaveLength(1)
+  await expect(other('review.close', { context: mainReview.context, noteId: f.noteId, revision: mainItem.reportRevision, findingIds: [findingId] })).rejects.toThrow('PATH_NOT_GRANTED')
+  await main('review.close', { context: mainReview.context, noteId: f.noteId, revision: mainItem.reportRevision, findingIds: [findingId] })
+  expect((await other('review.read')).items.find((item: any) => item.noteId === f.noteId).report.findings).toHaveLength(1)
+  const conflicting = await prepare(main, 'A later main design.', mainTask, mainConversation)
+  const externallyEdited = mainBytes + '\nExternal edit in main only.\n'
+  await writeFile(f.notePath, externallyEdited)
+  await expect(main('maintenance.apply', { ...conflicting.selection, previewId: conflicting.preview.id })).rejects.toThrow()
+  expect(await readFile(f.notePath, 'utf8')).toBe(externallyEdited)
+  expect(await readFile(featureNote, 'utf8')).toBe(featureBytes)
+  await f.stop(); await f.open()
+  expect((await main('blueprint.graph')).blueprint.canvasLayout[f.noteId]).toEqual({ x: 42, y: 68 })
+  expect((await other('blueprint.graph')).blueprint.canvasLayout[f.noteId]).toBeUndefined()
+  expect(await readFile(f.notePath, 'utf8')).toBe(externallyEdited)
+  expect(await readFile(featureNote, 'utf8')).toBe(featureBytes)
+})
+
+it('invalidates a page confirmation waiting on the old worktree before any Note transaction starts', async () => {
+  const f = await fixture(), owner = randomUUID(), conversationId = randomUUID()
+  const call = (method: string, input: JsonValue = null) => f.raw().call(method, { project: f.project, instanceId: owner, input }) as Promise<any>
+  const task = await call('maintenance.start', { conversationId, goal: 'Clarify design', nodeScope: { type: 'blueprint' } })
+  const job = await call('maintenance.propose', { taskId: task.id, conversationId, providerId: 'fixture', modelId: 'fixture',
+    messages: [{ role: 'user', content: 'Clarify the design.' }] })
+  await expect.poll(async () => (await call('jobs.read', job.id)).status, { timeout: 15_000 }).not.toBe('running')
+  const proposal = (await call('jobs.read', job.id)).result
+  const selected = { taskId: task.id, changeSetId: proposal.changeSet.id, operationIds: ['clarify'] }
+  const preview = await call('maintenance.preview', { ...selected, conversationId })
+  const lock = await acquireLock(f.root)
+  const applying = call('maintenance.apply', { ...selected, previewId: preview.id }).then(
+    value => ({ value, error: undefined }), error => ({ value: undefined, error }))
+  try {
+    await expect.poll(() => f.events.some(event => event.name === 'maintenance.changed' && event.value.data.task.status === 'applying')).toBe(true)
+    await f.raw().call('lifecycle.release', { instanceId: owner })
+    await expect.poll(async () => (await f.call('maintenance.list'))[0].status).toBe('cancelled')
+  } finally { await releaseLock(f.root, lock) }
+  expect((await applying).error).toBeDefined()
+  // Wait for the blocked read to drain; its late continuation must still refuse the commit.
+  await f.call('blueprint.graph')
+  await expect(f.call('maintenance.apply', { ...selected, previewId: preview.id })).rejects.toThrow()
+  expect(await readFile(f.notePath, 'utf8')).toBe(f.body)
+  expect(await readdir(join(f.root, '.agents/.local/transactions')).catch(() => [])).toEqual([])
+  const next = await f.call('maintenance.start', { conversationId: randomUUID(), goal: 'New page', nodeScope: { type: 'blueprint' } })
+  expect(next.id).not.toBe(task.id)
+})
+
 it.each(['repair', 'discuss', 'drift'] as const)('runs a scoped native Note %s with source validation and no Agent write tool', async mode => {
   const f = await fixture()
   const malformed = f.body.replace(/  "updated": "[^"]+",\n/, '')

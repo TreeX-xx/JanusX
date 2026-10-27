@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-15",
-  "updated": "2026-10-26T17:01:34Z",
+  "updated": "2026-10-27T05:25:35Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b2e7f160-2d77-4cc4-8828-b9cf3e5d931a",
   "moduleState": "partial"
 }
@@ -31,4 +31,4 @@
 
 项目 Notes 根目录仅保留项目入口，跨模块排期归本模块。新增专题使用稳定文件名并声明本模块 URI；以后明确退出当前排期的资料可移入本目录的 history/，同步生命周期、引用与维护时间。归档是另行确认的内容处置，不由目录整理自动推断。
 
-蓝图下次继续从专项的[后续接续入口](blueprint-official-plugin.md#后续接续入口)恢复：worktree 选择和正文往返已有实现及证据，接着补写入／建议隔离与配套实物；外部 MCP 先补 Codex 写入验证和 Pi 扩展接入，实际兼容矩阵由 Note MCP 专题维护。
+蓝图下次继续从专项的[后续接续入口](blueprint-official-plugin.md#后续接续入口)恢复：worktree 选择、正文往返、独立维护写入／建议处理和旧页面等待确认取消已有代表证据；每个蓝图只作用于本 worktree。接着补高频切换、迟到模型输出、长期资源与配套实物；外部 MCP 先补 Codex 写入验证和 Pi 扩展接入，实际兼容矩阵由 Note MCP 专题维护。
