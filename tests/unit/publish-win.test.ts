@@ -55,6 +55,16 @@ function fixture(version = '1.0.0') {
 }
 
 describe('Windows draft staging and explicit publication', () => {
+  it('reuses staging verification on upload retry but rechecks changed portable bytes', () => {
+    const f = fixture()
+    stageWin(f.root, f.run)
+    stageWin(f.root, f.run)
+    expect(f.calls.filter(call => call.command === process.execPath)).toHaveLength(1)
+    writeFileSync(f.release.files[2], 'new portable')
+    f.state.remote!.assets = []
+    stageWin(f.root, f.run)
+    expect(f.calls.filter(call => call.command === process.execPath)).toHaveLength(2)
+  })
   it.each(['1.0.0', '1.0.0-beta.1'])('stages %s without publishing', version => {
     const f = fixture(version); f.state.remote = null
     stageWin(f.root, f.run)
