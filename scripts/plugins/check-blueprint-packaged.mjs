@@ -40,8 +40,8 @@ async function readMetrics() {
     try { return await application.evaluate(({ app }) => ({ mainMemory: process.memoryUsage(), processes: app.getAppMetrics() })) }
     catch (error) {
       // Utility-process startup can replace a Playwright inspector context. Retry this read only.
-      if (attempt >= 2 || !String(error).includes('Execution context was destroyed')) throw error
-      await new Promise(resolve => setTimeout(resolve, 250))
+      if (attempt >= 19 || !String(error).includes('Execution context was destroyed')) throw error
+      await new Promise(resolve => setTimeout(resolve, 500))
     }
   }
 }

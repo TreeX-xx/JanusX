@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T12:01:13.611Z",
+  "updated": "2026-10-28T07:53:42.953Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -29,6 +29,8 @@
 用户随后明确撤销功能可以暂缓，并取消右侧对话修改的蓝图审计记录。1.0.3 在原有预览与确认后直接提交文件事务，移除审计写入、查询接口及“已应用记录与撤销”面板；完成不再等待独立审计或提交后的图快照，下一轮提案重新读取当前基线。写前权限、源哈希、预览身份与共享 Note 事务保留，已确认写入不自动重放。现存审计数据保留，撤销与蓝图审计恢复均不再是当前交付项。具体设计归[文件审批决策](../blueprint/maintenance/blueprint-maintenance-approval-gap.md)。
 
 当前已增加 official 签名来源、目录验证、下载、原子安装、更新和回退，以及“已安装／发现插件／开发者”管理页。正式来源不要求开发模式；10-26 本地交付已在生产 trust.json 中预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist，目录未上线。蓝图后台与独立 UI 由 plugins/blueprint 拥有。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码：旧 CRUD、画布编辑、投影与迁移 IPC 返回 BLUEPRINT_PLUGIN_REQUIRED；通用 Note 与圆桌继续使用共享服务，公共作者工具和初始化适配归 packages/note-tools。BP-5 已有主包实物、无插件启动及三态资源证据；BP-6 已补损坏导入等故障边界，仍缺新版本完整功能、故障与持续资源矩阵。原功能基线见[蓝图验收记录](../blueprint/implementation-baseline.md)，其中旧版升级和撤销的剩余要求依本次范围调整，不再阻塞当前交付。
+
+2026-10-28：生产签名的 1.0.6 包已附在 JanusX v0.9.4 Release 供手动下载，官方发现目录仍未发布。0.9.5 本地候选宿主以 `node scripts/plugins/check-blueprint-packaged.mjs release/0.9.5 release/2026-10-27-blueprint-1.0.6/official.blueprint-1.0.6.jxp --faults` 通过真实导入、授权、图谱读取、设置保存和重启恢复，以及七项损坏／签名／取消等故障检查；仅文件选择器使用测试替身。首次图谱读取报来源错误，重跑通过，未确定原因。该候选使用本地相邻依赖，不能作为最终可复现发布包，正式产物须使用固定依赖重新构建和验证。
 
 ## 已确认的迁移回退与首次加载故障
 
