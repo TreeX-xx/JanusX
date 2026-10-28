@@ -161,7 +161,7 @@ test('preview cancels on Escape, outside click, workspace switch and disabled co
   await page.mouse.move(400, 40)
   await sessions.hover()
   await expect(shell).toHaveAttribute('data-preview', 'true')
-  await page.evaluate(() => (window as any).builtinExtensionFixture.sessionsEnabled(false))
+  await page.evaluate(() => (window as any).builtinExtensionFixture.disable('sessions'))
   await expect(shell).toHaveAttribute('data-visible', 'false')
   await expect(sessions).toHaveCount(0)
 })

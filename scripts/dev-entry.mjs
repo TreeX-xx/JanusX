@@ -12,6 +12,7 @@ app.name = metadata.productName || metadata.name
 app.setVersion(metadata.version)
 app.setDesktopName(metadata.desktopName || `${app.name}.desktop`)
 app.setAppPath(resolve(fileURLToPath(root)))
+if (process.platform === 'win32') app.setAppUserModelId('com.janusx.app.dev')
 process.env.JANUSX_DEV_BUILD_ROOT = fileURLToPath(new URL('.cache/', root))
 
 await import(new URL('.cache/main/index.js', root).href)

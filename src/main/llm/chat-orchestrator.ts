@@ -571,17 +571,10 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
 
     if (ordinaryMemoTurn) projectContext = (projectContext ?? '') + '\n' + MEMO_TARGET_PROMPT
     if ((request.memoBinding || request.memoMessageId) && ordinaryMemoTurn) {
-      // Note: persisted preview gate controls new turns, retaining in-flight work — see .agents/notes/workbench/experimental-preview-features.md
-      const memoEnabled = (await configService.getExperimentalFeatures()).memo
-      if (!memoEnabled) {
-        const target = activeSteerTargets.get(steerKey)
-        if (target?.requestId === requestId) target.memoId = undefined
-      }
+      // Note: memos are default tools; model support still applies — see .agents/notes/workbench/experimental-preview-features.md
       const { memoStore } = await import('../memo/service')
-      let memoContext = memoEnabled
-        ? 'Memo editing unavailable: this model does not support tool calling. Do not claim memo updates.'
-        : 'Memo preview is disabled. Ask the user to enable Memo in Settings > Experimental > Preview before editing. Do not claim memo updates.'
-      if (memoEnabled && endpoint.supportsFunctionCalling !== false) {
+      let memoContext = 'Memo editing unavailable: this model does not support tool calling. Do not claim memo updates.'
+      if (endpoint.supportsFunctionCalling !== false) {
         try {
           memoContext = await attachMemoChatTools(ports, {
             store: memoStore(), binding: request.memoBinding, messageId: request.memoMessageId, conversationId: conversationId!, signal: controller.signal,

@@ -15,7 +15,7 @@ export interface RightToolDefinition {
   order: number
   instancePolicy: 'single'
   mountPolicy: 'while-open'
-  feature?: 'persona' | 'sessions'
+  feature?: 'persona'
   panelWidth?: { min: number; default: number; max: number }
 }
 

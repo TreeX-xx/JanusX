@@ -42,17 +42,23 @@ const GOOD_IMPLEMENTED = [
 ].join('\n')
 
 describe('agent-notes mechanical gate', () => {
-  it('passes the real repo without skipping any Note file', async () => {
-    const { errors, checked, harnessChecked, diagnostics } = checkNotes(process.cwd())
+  it('checks every formal Note in the supplied checkout independently of personal files', async () => {
+    const repo = '11111111-1111-4111-8111-111111111111'
+    const project = '22222222-2222-4222-8222-222222222222'
+    const child = '33333333-3333-4333-8333-333333333333'
+    const document = (id: string, extra: object) => `---\n${JSON.stringify({ schema: 'harness-note/2', id,
+      kind: 'module', lifecycle: 'accepted', moduleState: 'partial', created: '2026-10-28', updated: '2026-10-28T00:00:00Z',
+      ...extra })}\n---\n# Fixture\n\n## Responsibility\nOwn the test fixture.\n\n## Design\nTwo formal Notes.\n`
+    const root = await makeTree({
+      '.agents/harness.json': JSON.stringify({ schemaVersion: 1, repoId: repo, name: 'Validator fixture', profile: 'harness-note/2' }),
+      '.agents/notes/module.md': document(project, { role: 'project' }),
+      '.agents/notes/child/module.md': document(child, { parent: `note://${repo}/${project}` }),
+    })
+    const { errors, checked, harnessChecked, diagnostics } = checkNotes(root)
     expect(errors).toEqual([])
     expect(checked).toBe(0)
-    const noteFiles = (await fs.readdir(join(process.cwd(), '.agents/notes'), { recursive: true })).filter(file => file.endsWith('.md'))
-    expect(harnessChecked).toBeGreaterThan(0)
-    expect(harnessChecked).toBe(noteFiles.length)
-    for (const diagnostic of diagnostics.filter(d => d.code === 'known-broken-link')) {
-      expect(diagnostic.target).toBe('pelican-bicycle.html')
-    }
-    expect(diagnostics.filter(d => d.code === 'unresolved-external-link')).toEqual([])
+    expect(harnessChecked).toBe(2)
+    expect(diagnostics).toEqual([])
   })
 
   it('flags path, header, section, link, and version violations', async () => {

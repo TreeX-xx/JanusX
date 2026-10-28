@@ -91,6 +91,55 @@ test('single activation opens the notification center sheet on the capsule', asy
   await expect(shell).toHaveAttribute('data-notif', 'false', { timeout: 2_000 })
 })
 
+test('pulling down opens notifications and repeated pulls keep them open', async ({ page }) => {
+  const island = page.locator('.janus-island')
+  const shell = page.locator('.janus-island-shell')
+  const pull = async () => {
+    await pointer(island, 'pointerdown')
+    await pointer(island, 'pointermove', { y: 80 })
+    await expect(page.locator('.pull-hint')).toHaveText(/Release to/)
+    await pointer(island, 'pointerup', { y: 80 })
+  }
+  await pull()
+  await expect(shell).toHaveAttribute('data-notif', 'true')
+  await expect(page.getByText('No notice history')).toBeVisible()
+  await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
+  await pull()
+  await page.waitForTimeout(500)
+  await expect(shell).toHaveAttribute('data-notif', 'true')
+  await expect(harness(page)).toHaveAttribute('data-single-count', '0')
+  await expect(harness(page)).toHaveAttribute('data-double-count', '0')
+  await page.keyboard.press('Escape')
+  await expect(shell).toHaveAttribute('data-notif', 'false')
+})
+
+test('short, reversed and cancelled pulls do not open notifications', async ({ page }) => {
+  const island = page.locator('.janus-island')
+  const shell = page.locator('.janus-island-shell')
+  for (const ending of ['short', 'reversed', 'cancelled']) {
+    await pointer(island, 'pointerdown')
+    await pointer(island, 'pointermove', { y: ending === 'short' ? 79 : 110 })
+    if (ending === 'reversed') await pointer(island, 'pointermove', { y: 10 })
+    await pointer(island, ending === 'cancelled' ? 'pointercancel' : 'pointerup', { y: 10 })
+    await page.waitForTimeout(450)
+    await expect(shell).toHaveAttribute('data-notif', 'false')
+    await expect(island).not.toHaveClass(/is-dragging/)
+  }
+  await tap(island)
+  await expect(shell).toHaveAttribute('data-notif', 'true')
+})
+
+test('pulling from peek returns to the capsule and opens notifications', async ({ page }) => {
+  await page.getByTestId('open-peek').click()
+  await expect(harness(page)).toHaveAttribute('data-stage', 'peek')
+  const island = page.locator('.janus-island')
+  await pointer(island, 'pointerdown')
+  await pointer(island, 'pointermove', { y: 100 })
+  await pointer(island, 'pointerup', { y: 100 })
+  await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
+  await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-notif', 'true')
+})
+
 test('second pointerdown activates expanded exactly once and cancels single activation', async ({ page }) => {
   const island = page.locator('.janus-island')
   await tap(island, { x: 100, y: 20 })

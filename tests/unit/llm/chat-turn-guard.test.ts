@@ -91,19 +91,21 @@ function immediateStream(text: string) {
 }
 
 describe('chat turn guard (S6-a)', () => {
-  it('withholds memo tools when the persisted preview gate is disabled despite a stale binding', async () => {
-    vi.mocked(configService.getExperimentalFeatures).mockResolvedValueOnce({ ...DEFAULT_EXPERIMENTAL_FEATURES })
-    immediateStream('Enable Memo in preview settings')
+  it('offers memo tools despite retired disabled controls in persisted configuration', async () => {
+    vi.mocked(configService.getExperimentalFeatures).mockResolvedValue({ ...DEFAULT_EXPERIMENTAL_FEATURES, memo: false, sessions: false } as never)
+    const memoId = '00000000-0000-4000-8000-000000000400'
+    readMemo.mockResolvedValue({ id: memoId, title: 'Existing memo', revision: 1, nodes: [] })
+    immediateStream('Memo available')
     const reply = vi.fn()
     await handleChatStream({ reply } as never, {
-      requestId: 'memo-disabled', conversationId: 'memo-disabled-chat', providerId: 'p',
+      requestId: 'memo-default', conversationId: 'memo-default-chat', providerId: 'p',
       sourceTag: 'janus-chat', domain: 'project', messages: userMessages,
-      memoMessageId: 'disabled-origin', memoBinding: { memoId: 'stale-memo', messageId: 'disabled-origin', selectedNodeId: null },
+      memoMessageId: 'default-origin', memoBinding: { memoId, messageId: 'default-origin', selectedNodeId: null },
     })
     const options = streamText.mock.calls[0][0]
-    expect(Object.keys(options.tools ?? {}).filter(name => name.startsWith('memo_'))).toEqual([])
-    expect(JSON.stringify(options.messages)).toContain('Memo preview is disabled')
-    expect(readMemo).not.toHaveBeenCalled()
+    expect(Object.keys(options.tools ?? {})).toEqual(expect.arrayContaining(['memo_read', 'memo_edit']))
+    expect(JSON.stringify(options.messages)).not.toContain('Memo preview is disabled')
+    expect(readMemo).toHaveBeenCalledWith(memoId)
     expect(createMemo).not.toHaveBeenCalled()
     expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
   })
@@ -196,7 +198,7 @@ describe('chat turn guard (S6-a)', () => {
   })
 
   beforeEach(() => {
-    vi.spyOn(configService, 'getExperimentalFeatures').mockResolvedValue({ ...DEFAULT_EXPERIMENTAL_FEATURES, memo: true })
+    vi.spyOn(configService, 'getExperimentalFeatures').mockResolvedValue({ ...DEFAULT_EXPERIMENTAL_FEATURES })
     readMemo.mockReset()
     createMemo.mockReset()
     vi.mocked(llmService.getProviderSettings).mockReset().mockResolvedValue({ modelId: 'test-model' } as never)

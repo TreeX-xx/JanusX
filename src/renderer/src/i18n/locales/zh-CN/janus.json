@@ -234,6 +234,12 @@
     }
   },
   "island": {
+    "pullHint": {
+      "keep": "继续下拉展开通知",
+      "release": "松手展开通知",
+      "keepOpen": "继续下拉保持通知展开",
+      "releaseOpen": "松手保持通知展开"
+    },
     "historyCount": "通知 {{count}}",
     "notif": {
       "title": "通知",
@@ -764,21 +770,6 @@
       "attempt": "attempt {{count}}",
       "receipts": "{{count}} 条收据"
     }
-  },
-  "blackboard": {
-    "title": "副黑板",
-    "managePlugins": "管理插件",
-    "pluginHint": "打开插件，继续在对应工作区中使用。",
-    "pluginsEmpty": "安装并启用插件后，可从这里打开。",
-    "needsProject": "请先选择项目",
-    "openView": "打开{{title}}",
-    "pullHint": {
-      "keep": "继续下拉放下副板",
-      "release": "松手放下副板",
-      "keepClose": "继续下拉收起副板",
-      "releaseClose": "松手收起副板"
-    },
-    "close": "收起黑板"
   },
   "memo": {
     "loading": "正在读取备忘录…",

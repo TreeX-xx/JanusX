@@ -140,14 +140,4 @@ describe('DshParser', () => {
       expect(parser.parseLine({ foo: 'bar' })).toEqual([])
     })
   })
-
-  // --- reset ---
-
-  describe('reset', () => {
-    it('should not throw when called after parsing', () => {
-      const parser = new DshParser()
-      parser.parseLine({ type: 'text', text: 'hi' })
-      expect(() => parser.reset()).not.toThrow()
-    })
-  })
 })

@@ -90,11 +90,11 @@ jobs:
 
       - name: Plugin SDK and platform
         working-directory: JanusX
-        run: npm run plugins:check
+        run: npm run plugins:check:platform
 
       - name: Official plugin distribution
         working-directory: JanusX
-        run: npm run plugins:distribution:check
+        run: npm run plugins:distribution:test:tools
 
       - name: Independent Blueprint package and Electron carrier
         working-directory: JanusX
@@ -123,6 +123,7 @@ jobs:
 
       # Limit runner memory use; verbose output identifies the last completed
       # test if a native watcher assertion terminates the worker.
+      # Includes unit, integration and browser projects, and every plugin unit test once.
       - name: Unit tests
         working-directory: JanusX
         env:

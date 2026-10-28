@@ -234,6 +234,12 @@
     }
   },
   "island": {
+    "pullHint": {
+      "keep": "Keep pulling to open notifications",
+      "release": "Release to open notifications",
+      "keepOpen": "Keep pulling to keep notifications open",
+      "releaseOpen": "Release to keep notifications open"
+    },
     "historyCount": "Notices {{count}}",
     "notif": {
       "title": "Notices",
@@ -764,21 +770,6 @@
       "attempt": "attempt {{count}}",
       "receipts": "{{count}} receipts"
     }
-  },
-  "blackboard": {
-    "title": "Second board",
-    "managePlugins": "Manage plugins",
-    "pluginHint": "Open a plugin in its workspace.",
-    "pluginsEmpty": "Install and enable plugins to open them here.",
-    "needsProject": "Select a project first",
-    "openView": "Open {{title}}",
-    "pullHint": {
-      "keep": "Keep pulling to drop the board",
-      "release": "Release to drop the board",
-      "keepClose": "Keep pulling to retract the board",
-      "releaseClose": "Release to retract the board"
-    },
-    "close": "Close board"
   },
   "memo": {
     "loading": "Loading memos…",

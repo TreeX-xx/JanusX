@@ -96,18 +96,13 @@ export class ConfigService {
   }
 
   async load(): Promise<GlobalConfig> {
-    let migratedToSlate = false
     try {
       const data = await readFile(this.configPath, 'utf-8')
       const parsed = JSON.parse(data) as Partial<GlobalConfig>
-      // 石板色扶正一次性迁移：老配置里显式存的 'dark' 改写为默认；标记落盘后，
-      // 用户再手动选回经典黑不会被二次回迁。
-      migratedToSlate = parsed.theme === 'dark' && parsed.themeMigratedToSlate !== true
       this.config = {
         ...DEFAULT_CONFIG,
         ...parsed,
-        theme: migratedToSlate ? DEFAULT_APP_THEME : normalizeAppTheme(parsed.theme),
-        themeMigratedToSlate: migratedToSlate ? true : parsed.themeMigratedToSlate,
+        theme: normalizeAppTheme(parsed.theme),
         notificationSettings: normalizeAgentNotificationSettings(parsed.notificationSettings),
         knowledgeSettings: normalizeKnowledgeSettings(parsed.knowledgeSettings),
         updaterSettings: normalizeUpdaterSettings(parsed.updaterSettings),
@@ -127,14 +122,6 @@ export class ConfigService {
       }
       this.config = { ...DEFAULT_CONFIG }
       await this.persist()
-    }
-    if (migratedToSlate) {
-      // 迁移结果写回磁盘；失败不阻塞启动，下次启动会再迁一次（结果一致，幂等）。
-      try {
-        await this.persist()
-      } catch {
-        /* 迁移写回失败不阻塞启动 */
-      }
     }
     return this.config!
   }

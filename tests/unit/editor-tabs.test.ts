@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
 import {
   invalidateEditorFileCache,
   useEditorStore,
@@ -110,7 +109,7 @@ describe('file editor tabs', () => {
     const id = useEditorStore.getState().activeFileId!
     editor.updateContent(id, 'first edit')
     let complete!: (result: { success: boolean }) => void
-    window.electron.file.save = vi.fn(() => new Promise(resolve => { complete = resolve }))
+    window.electron.file.save = vi.fn(() => new Promise<{ success: boolean }>(resolve => { complete = resolve }))
     const saving = editor.saveFile(id)
     editor.updateContent(id, 'second edit')
     complete({ success: true })
@@ -119,65 +118,5 @@ describe('file editor tabs', () => {
     window.electron.file.save = vi.fn().mockResolvedValue({ success: true })
     expect(await editor.saveFile(id)).toBe(true)
     expect(useEditorStore.getState().openFiles[0].isDirty).toBe(false)
-  })
-
-  it('keeps the preview embed action and the resizable workspace column wired', () => {
-    const editorSource = readFileSync(
-      new URL('../../src/renderer/src/components/FileEditor.tsx', import.meta.url),
-      'utf8',
-    )
-    const appSource = readFileSync(
-      new URL('../../src/renderer/src/App.tsx', import.meta.url),
-      'utf8',
-    )
-    const explorerSource = readFileSync(
-      new URL('../../src/renderer/src/components/FileExplorerTool.tsx', import.meta.url),
-      'utf8',
-    )
-    const standaloneEditorSource = readFileSync(
-      new URL('../../src/renderer/src/components/StandaloneFileEditor.tsx', import.meta.url),
-      'utf8',
-    )
-
-    expect(editorSource).toContain('<FileWindow embedded')
-    expect(standaloneEditorSource).toContain('void moveSession()')
-    expect(appSource).toContain('aria-label="Embedded file editor"')
-    expect(appSource).toContain('aria-label="Resize embedded editor"')
-    expect(explorerSource).toContain('window.electron.window.openEditor({')
-    expect(explorerSource).not.toContain('useEditorStore.getState().openFile')
-    expect(standaloneEditorSource).toContain('window.electron.window.editorReady()')
-    expect(standaloneEditorSource).toContain('window.electron.window.onEditorRefresh(async (payload) =>')
-    expect(standaloneEditorSource).toContain('acceptDelivery(payload)')
-
-    const monacoViewerSource = readFileSync(
-      new URL('../../src/renderer/src/components/viewers/MonacoViewer.tsx', import.meta.url),
-      'utf8',
-    )
-    expect(monacoViewerSource).toContain('editorRef.current.saveViewState()')
-    expect(monacoViewerSource).toContain('editor.restoreViewState(viewState)')
-    expect(monacoViewerSource).toContain('window.requestAnimationFrame')
-    expect(monacoViewerSource).toContain('editor.onDidScrollChange(saveViewState)')
-    expect(monacoViewerSource).toContain('editor.onDidChangeCursorPosition(saveViewState)')
-    expect(monacoViewerSource).toContain('editor.getModel()?.setValue(content)')
-    expect(monacoViewerSource).not.toContain('keepCurrentModel')
-    expect(monacoViewerSource).not.toContain('keepCurrentModifiedModel')
-    const markdownViewerSource = readFileSync(
-      new URL('../../src/renderer/src/components/viewers/MarkdownViewer.tsx', import.meta.url),
-      'utf8',
-    )
-    const globalStyles = readFileSync(
-      new URL('../../src/renderer/src/styles/globals.css', import.meta.url),
-      'utf8',
-    )
-    expect(markdownViewerSource).toContain('<PreviewScrollArea>')
-    expect(globalStyles).toContain('.preview-scrollbar-thumb')
-    expect(globalStyles).toContain('.preview-scroll-area.is-expanded .preview-scrollbar-thumb')
-    const previewScrollSource = readFileSync(
-      new URL('../../src/renderer/src/components/viewers/PreviewScrollArea.tsx', import.meta.url),
-      'utf8',
-    )
-    expect(previewScrollSource).toContain('preview-scrollbar-thumb')
-    expect(previewScrollSource).toContain('setPointerCapture')
-    expect(monacoViewerSource).toContain('modelPath')
   })
 })

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-27T10:06:00Z",
+  "updated": "2026-10-27T12:01:13.611Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -249,7 +249,7 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 最终 `npm run plugins:blueprint:check` 以九个未变的锁定公开归档完成仓库外安装、类型检查和构建，同产物签名 Electron 回归一项通过，覆盖确认写入、无审计目录／历史控件、停用及卸载重装后正文保留。收据为 artifacts/plugins/blueprint-build.json，runtime.status 为 passed；日志为 artifacts/plugins/no-audit-independent-final.log。首次独立构建遇 Windows 文件占用失败，随后复跑及最终门禁通过，未修改产品逻辑绕过该环境问题。全仓 `npm run check:notes` 仍为 312 篇 Note、entrance-choreography.md 的两项既有错误，本轮维护文件无新增错误；未重跑完整测试套件。
 
-本地生产签名包为 [official.blueprint-1.0.3.jxp](../../../release/2026-10-27-blueprint-1.0.3/official.blueprint-1.0.3.jxp)，1,797,830 字节，SHA-256 为 cf48fed468fabdd55b2401a850315215e1de59cd01f9a3e1592d703d8f159706。四个构建输出逐项匹配最终独立构建，交付收据在同目录 delivery.json；可配合原 10-26-migration-r2 宿主使用。该生产包未另跑正常宿主导入，签名 Electron 载体使用相同内容及测试 signer；目录与 Release 均未发布。
+本地生产签名包曾为 `release/2026-10-27-blueprint-1.0.3/official.blueprint-1.0.3.jxp`，1,797,830 字节，SHA-256 为 cf48fed468fabdd55b2401a850315215e1de59cd01f9a3e1592d703d8f159706。四个构建输出逐项匹配最终独立构建，交付收据在同目录 delivery.json；可配合原 10-26-migration-r2 宿主使用。该生产包未另跑正常宿主导入，签名 Electron 载体使用相同内容及测试 signer；目录与 Release 均未发布。
 
 ## Worktree 显示切换
 
@@ -275,7 +275,7 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 最终 npm run plugins:blueprint:check 通过，九个公开归档在仓库外安装、类型检查、构建，同产物签名 Electron 回归一项通过。首轮门禁发现状态 ok 后加载骨架提前消失，已修复条件并重新通过；最终日志 artifacts/plugins/rebind-final-check.log，独立收据 runtime.status=passed。仅 SDK 公开归档改变，其余八个共享归档哈希不变。全仓 312 份 Notes 检查仍只有未修改的 entrance-choreography.md 两项既有错误及外部链接诊断；本轮维护文件无新增错误。未重跑全仓套件、持续资源或高频切换／迟到模型输出矩阵。
 
-生产身份 janusx-blueprint-20261026 签出的最终 [official.blueprint-1.0.5.jxp](../../../release/2026-10-27-blueprint-1.0.5-final/official.blueprint-1.0.5.jxp) 为 1,799,995 字节，SHA-256 为 a65d977ad733550d7d806b851c8fc3d0a651e77efe4bd0d475ea3253dbb88c62。最终包另含布局保存失败与焦点刷新列表的作用域回调检查，切换后不显示旧根迟到的错误。补充后重新通过完整桌面定向用例与独立签名载体门禁，重新解码验证生产签名、manifest 和四个输出哈希，均匹配最终独立产物；交付收据与 independent-build.json 同目录保存，未覆盖旧版本或首次预检候选。使用时先重启包含 rebind 能力的 dev 宿主，再停用旧包、导入 1.0.5 并审阅授权。未修改真实运行 profile，未交付配套生产宿主安装包，未另验配套打包宿主导入或发布远端目录。
+生产身份 janusx-blueprint-20261026 签出的最终 `release/2026-10-27-blueprint-1.0.5-final/official.blueprint-1.0.5.jxp` 为 1,799,995 字节，SHA-256 为 a65d977ad733550d7d806b851c8fc3d0a651e77efe4bd0d475ea3253dbb88c62。最终包另含布局保存失败与焦点刷新列表的作用域回调检查，切换后不显示旧根迟到的错误。补充后重新通过完整桌面定向用例与独立签名载体门禁，重新解码验证生产签名、manifest 和四个输出哈希，均匹配最终独立产物；交付收据与 independent-build.json 同目录保存，未覆盖旧版本或首次预检候选。使用时先重启包含 rebind 能力的 dev 宿主，再停用旧包、导入 1.0.5 并审阅授权。未修改真实运行 profile，未交付配套生产宿主安装包，未另验配套打包宿主导入或发布远端目录。
 
 ### 1.0.6 连线标签避让与更新包
 
@@ -287,7 +287,7 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 Worktree 入口的既有实现基线为 d37a4aee，当前蓝图源码及本地签名包为 1.0.6，已补齐维护服务隔离、取消、保留页面切换、无 Note 空态和连线标签避让。配套生产宿主安装包与远端发布尚未交付；原 1.0.3 不包含 worktree 切换，1.0.4 不包含保留顶栏的 rebind 契约。
 
-用户随后要求提供新插件包，已将 4aaf798c 对应、通过独立构建和签名 Electron 载体验证的同一份产物签为 [official.blueprint-1.0.4.jxp](../../../release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp)。文件为 1,798,448 字节，SHA-256 为 fb6ff235677efd84edfaa85e042c6bf837be7b700de06c334a6e4089bedae818；使用既有 janusx-blueprint-20261026 生产身份，重新读取包并用宿主分发库验证签名、载荷和 manifest。交付目录同时保留 independent-build.json 与 delivery.json，原版本未覆盖。包要求 views.workbench.worktrees，必须配合包含该能力的新宿主；10-26 migration-r2 安装包不包含此能力，不能仅以同为 0.9.4 推断兼容。新包尚未在配套打包宿主中另验正常导入，未上传 Release 或部署目录。
+用户随后要求提供新插件包，已将 4aaf798c 对应、通过独立构建和签名 Electron 载体验证的同一份产物签为 `release/2026-10-27-blueprint-1.0.4/official.blueprint-1.0.4.jxp`。文件为 1,798,448 字节，SHA-256 为 fb6ff235677efd84edfaa85e042c6bf837be7b700de06c334a6e4089bedae818；使用既有 janusx-blueprint-20261026 生产身份，重新读取包并用宿主分发库验证签名、载荷和 manifest。交付目录同时保留 independent-build.json 与 delivery.json，原版本未覆盖。包要求 views.workbench.worktrees，必须配合包含该能力的新宿主；10-26 migration-r2 安装包不包含此能力，不能仅以同为 0.9.4 推断兼容。新包尚未在配套打包宿主中另验正常导入，未上传 Release 或部署目录。
 
 | 事项 | 已确认事实与下一步 |
 | --- | --- |
@@ -320,7 +320,7 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 主进程不再装配旧 BlueprintReviewRuntime、建议 MCP 工具或 BlueprintMaintenanceService，普通聊天也不再加载修复／维护工具及其专属 turn。旧 review IPC、maintenance IPC 与聊天的 noteRepairId／maintenanceTaskId 在业务或模型启动前返回 BLUEPRINT_PLUGIN_REQUIRED。旧审计导入改用纯读取函数，保留历史数据迁移，不实例化维护服务；共享 Note 工具与索引预热仍属于宿主。
 
-工作区启动不再预载蓝图投影，Note 变更事件不主动刷新旧蓝图。Island 不订阅旧维护或蓝图 store，继续显示宿主运行状态和插件 Island 贡献；旧维护／蓝图动作和恢复的旧工作台状态打开插件管理。副黑板列出已启用插件并经通用导航打开其原有槽位，收板不创建第二份插件页面；项目视图必须先选项目。容器手势、拖高与 Esc 保留，取舍见[副黑板决策](../workbench/island-blackboard.md)。
+工作区启动不再预载蓝图投影，Note 变更事件不主动刷新旧蓝图。Island 不订阅旧维护或蓝图 store，继续显示宿主运行状态和插件 Island 贡献；旧维护／蓝图动作和恢复的旧工作台状态打开插件管理。2026-10-27 用户选择删除副黑板及其插件列表、板高与拖拽容器；Island 下滑改为展开既有通知，蓝图经插件声明的工作台入口打开，取舍见[退役决策](../workbench/island-blackboard.md)。
 
 普通聊天保留共享 Note working set、证据、变更卡与撤销。证据链接通过 noteRead 定位原文并打开宿主编辑器，不依赖蓝图画布；来源不可读时显示错误，可重试。旧宿主聊天中的修复与整理方法只打开插件管理，插件自己的 Agent 讨论和事务继续由下载包执行。圆桌父文档选择改用 noteSnapshot，应用后刷新共享索引，不再加载旧蓝图 store 或投影。
 
@@ -329,7 +329,7 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 | `tests/unit/blueprint-host-boundary.test.ts` | esbuild 遍历真实 main.ts 与 renderer main.tsx 的依赖图；2 项通过。主图拒绝 review／suggestions／maintenance 运行时，渲染图拒绝旧蓝图 store、服务及画布工作台，确认共享 Note 与工作区启动入口保留。它不拒绝全部插件目录输入，不代表主包已清空蓝图代码。 |
 | `artifacts/plugins/host-detach-unit.log` | 8 文件 90 项通过：上述边界、review／Janus／harness IPC、普通聊天 turn guard、插件 native 及维护事务路由。旧调用明确拒绝，并验证释放 turn 后同会话能继续普通聊天。 |
 | `artifacts/plugins/host-detach-chat-regression.log` | 10 文件 100 项通过，覆盖聊天持久化／上下文、timeline、共享 Note 读写与撤销、focus、圆桌产物、插件命令和 Island 通知。 |
-| `tests/e2e/blackboard-plugins.spec.ts` | 真实黑板、Titlebar 与启动 hook 的 5 项浏览器用例通过；合成扩展验证入口及单实例，不证明生产下载。共享 Note 原文失败与重试、未安装不调用旧投影、旧布局恢复、停用撤入口、下拉开合和下缘回收均有证据。 |
+| 历史 blackboard-plugins.spec.ts，现 host-boundary.spec.ts | 原黑板入口与拖高用例随功能删除；共享 Note 原文失败与重试、启动不调用旧投影、旧布局恢复、Titlebar 退出确认覆盖迁入 host-boundary。下滑通知另由 island-interaction.spec.ts 验证，旧黑板通过记录不作为现行手势证据。 |
 | `artifacts/plugins/host-detach-browser.log`、`host-detach-gesture.log` | 首轮新增 4 项入口、4 项 memo 选择与 steering、1 项圆桌辅助岛通过；手势用例补齐过渡落定等待后单独通过。初次完整 Island 回归另有三项既有失败，已通过保存的修改前源码复现；辅助岛几何断言初次失败，修改前与当前单独复跑均通过，不标记完整套件全绿。 |
 | `npm run plugins:blueprint:check` | 锁定公开依赖在仓库外构建，再用同包完成 1 项真实 Electron 签名安装、草稿、文件应用／撤销及重装；收据 artifacts/plugins/blueprint-build.json，日志 host-detach-blueprint-check.log。仍是临时签名及确定性供应商。 |
 

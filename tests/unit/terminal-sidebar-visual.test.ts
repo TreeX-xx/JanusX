@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Terminal } from '../../src/renderer/src/types'
 import { getTerminalStatusVisual, summarizeTerminalActivity, terminalStatusRingClass } from '../../src/renderer/src/lib/terminal-sidebar-visual'
+import { DEFAULT_APP_THEME } from '../../src/shared/ipc/theme'
+import { defineTheme, getThemeDefinition, removeTheme } from '../../src/shared/theme/registry'
 
 function terminal(id: string, status: Terminal['status']): Terminal {
   return {
@@ -9,8 +11,9 @@ function terminal(id: string, status: Terminal['status']): Terminal {
     name: id,
     preset: 'shell',
     cwd: 'C:/workspace',
+    shell: 'powershell.exe',
+    pid: null,
     status,
-    createdAt: 1,
   }
 }
 
@@ -64,19 +67,21 @@ describe('terminal sidebar visuals', () => {
   })
 
   it('reads status colors from the theme definition (M1 unified structure)', () => {
-    // 经典黑保持历史值
-    expect(getTerminalStatusVisual('running', 'dark').color).toBe('#6bd89b')
-    expect(getTerminalStatusVisual('error', 'dark').color).toBe('#ff7474')
-    // planche 走纸面映射，无霓虹
-    expect(getTerminalStatusVisual('running', 'planche').color).toBe('#2E6B5E')
-    expect(getTerminalStatusVisual('needs-input', 'planche').color).toBe('#D43D2A')
-    expect(getTerminalStatusVisual('error', 'planche').color).toBe('#D43D2A')
-    // 未知主题回落默认（石板色）
-    expect(getTerminalStatusVisual('running', 'nope').color).toBe('#2E6B5E')
-    // planche 五槽互异（attention/error 同为朱红是刻意：单点睛）
-    const planche = ['running', 'wait', 'needs-input', 'degraded', 'error'].map((status) =>
-      getTerminalStatusVisual(status as Terminal['status'], 'planche').color
-    )
-    expect(new Set(planche).size).toBe(4)
+    const base = getThemeDefinition('dark')
+    const theme = { ...base, id: 'test-status-slots', status: { ...base.status,
+      running: { color: '#123456', background: '#234567' },
+      attention: { color: '#345678', background: '#456789' },
+    } }
+    defineTheme(theme)
+    try {
+      for (const [status, slot] of [
+        ['running', 'running'], ['wait', 'wait'], ['needs-input', 'attention'],
+        ['needs-approval', 'attention'], ['degraded', 'degraded'], ['error', 'error'],
+      ] as const) {
+        const visual = getTerminalStatusVisual(status, theme.id)
+        expect({ color: visual.color, background: visual.background }).toEqual(theme.status[slot])
+      }
+      expect(getTerminalStatusVisual('running', 'nope').color).toBe(getThemeDefinition(DEFAULT_APP_THEME).status.running.color)
+    } finally { removeTheme(theme.id) }
   })
 })

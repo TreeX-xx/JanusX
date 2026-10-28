@@ -49,7 +49,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/8688b5ab-1f7f-5ff9-ba1b-ef75b7fd5917"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/844bc2f1-3be4-4b47-83ca-0ef792bc5c1d"}
   ],
-  "updated": "2026-10-15T10:49:34.965Z",
+  "updated": "2026-10-28T06:07:03.626Z",
   "moduleState": "partial"
 }
 ---
@@ -62,7 +62,7 @@
 
 ## Design
 
-备忘录入口与新 Chat 轮次工具由[创新功能预览管理](../workbench/experimental-preview-features.md)的 memo 开关统一控制，默认关闭。关闭隐藏编辑器，保留文件、会话绑定和在途回复；具体行为由[备忘录专题](user-todo-janus.md)维护。
+备忘录入口与新 Chat 轮次工具默认可用，不受旧实验开关控制；具体行为由[备忘录专题](user-todo-janus.md)维护。
 
 备忘录与展开主岛的外框共用集中主题令牌，纸面主题采用一致墨线与硬偏移影，深色采用一致暗底与弱边框；内部画布取消重复外框。实现与双主题验证见[Chat 联动备忘录](user-todo-janus.md)。
 

@@ -129,7 +129,6 @@ test('real Chat UI sends memo tools through HTTP, persists edits and refreshes t
     await expect.poll(async () => Math.abs(await page.evaluate(() => window.innerWidth) - 1400)).toBeLessThanOrEqual(1)
     await page.waitForFunction(() => Boolean(window.electron?.memo))
     await page.evaluate(() => window.electron.system.setLanguage('en'))
-    await page.evaluate(() => window.electron.experimental.update({ memo: true }))
     const saved = await page.evaluate(baseURL => window.electron.llm.saveTerminalProvider('janus', {
       id: 'openai-compatible', name: 'Local memo review', authType: 'api-key' as never, enabled: true,
       apiKey: 'fixture-key', baseURL, modelId: 'fixture-model', models: ['fixture-model'],

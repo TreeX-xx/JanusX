@@ -24,16 +24,14 @@ if (feature === 'split') {
   assert.ok(manifest.frames.every(f => !f.click), 'Drag release must not become a click');
 } else if (feature === 'workspace') {
   const points = manifest.evidence.checkpoints;
-  assert.deepEqual(points.map(c => c.stage), ['tools', 'board', 'note', 'switch', 'return', 'closed']);
-  // Collapsed content has height: 0; its 1px border remains in the DOM bounds.
-  assert.deepEqual(points.map(c => c.boardHeight), [1, 400, 320, 320, 320, 1]);
+  assert.deepEqual(points.map(c => c.stage), ['tools', 'switch', 'return']);
   assert.ok(points.every(c => c.projectPanes === 2 && c.toolPanes.length === 2 && c.native.length === 1));
   assert.ok(points.every(c => c.captures.length === 1 && c.captures[0].pagePixelRatio > .5),
     'Each checkpoint must include the attached browser page');
   assert.ok(points.every(c => c.browser.filter === 'search'
     && c.browser.cards.join('|') === 'Search tasks|Search empty state'),
     'Only matching browser cards must remain displayed');
-  const before = points[2], switched = points[3], returned = points[4];
+  const before = points[0], switched = points[1], returned = points[2];
   for (const key of ['toolPanes', 'toolTabs', 'outerRatio', 'toolRatio', 'scope', 'title', 'document', 'browser', 'native']) {
     assert.deepEqual(switched[key], before[key], `${key} changed on project switch`);
     assert.deepEqual(returned[key], before[key], `${key} changed on return`);

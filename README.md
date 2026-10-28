@@ -41,14 +41,9 @@
 </td>
 <td width="70%"><a href="https://raw.githubusercontent.com/TreeX-xx/JanusX/v0.9.3/wiki/assets/readme/features/feature-split.gif"><img src="https://raw.githubusercontent.com/TreeX-xx/JanusX/v0.9.3/wiki/assets/readme/features/feature-split.gif" alt="Claude、Codex、OpenCode 与 Pi：左右分屏、四格组合、调整比例与合并标签" width="100%" /></a></td>
 </tr>
-<tr>
-<td width="30%" valign="middle">
-<h3>副黑板与工具区</h3>
-<p>下拉胶囊，边看蓝图边工作。终端与全局工具区各自分屏，切项目仍保留工具布局。</p>
-</td>
-<td width="70%"><a href="https://raw.githubusercontent.com/TreeX-xx/JanusX/v0.9.3/wiki/assets/readme/features/feature-workspace-layout.gif"><img src="https://raw.githubusercontent.com/TreeX-xx/JanusX/v0.9.3/wiki/assets/readme/features/feature-workspace-layout.gif" alt="OpenCode 与 Pi 并行，浏览器与 Markdown 上下分屏，展开蓝图副黑板并切换项目" width="100%" /></a></td>
-</tr>
 </table>
+
+终端与全局工具区各自分屏，切项目保留工具布局。下滑 Island 胶囊展开通知，单击、Esc 或点击空白处收起。
 
 ## Island 对话
 

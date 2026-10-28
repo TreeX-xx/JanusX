@@ -14,8 +14,8 @@ export function createStandaloneBrowserWindow(surfaceId: string): BrowserWindow 
     minWidth: 720,
     minHeight: 480,
     title: 'JanusX Browser',
-    // 与编辑器独立窗口同理：默认 planche 纸面先用纸色打底，渲染侧再按主题接管。
-    backgroundColor: '#EFE4C5',
+    // 与编辑器独立窗口同理：默认经典黑先用深色打底，渲染侧再按主题接管。
+    backgroundColor: '#151517',
     frame: false,
     autoHideMenuBar: true,
     webPreferences: {

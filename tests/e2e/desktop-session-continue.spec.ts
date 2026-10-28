@@ -264,7 +264,6 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
 
     // Live UI drill: enable the gated sessions tool, then one click of 在新会话中继续
     // grows the card list by exactly one.
-    await page.evaluate(() => (window as DesktopWindow).electron.experimental.update({ sessions: true }))
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
     await page.waitForFunction(() => {
@@ -432,7 +431,6 @@ test('external Codex growth refreshes the open conversation without reopening or
     await page.waitForLoadState('domcontentloaded')
     await page.evaluate((path) => (window as DesktopWindow).electron.workspace.create({ name: 'Codex live drill', path }), cwd)
     await page.evaluate(() => (window as DesktopWindow).electron.system.setLanguage('zh-CN'))
-    await page.evaluate(() => (window as DesktopWindow).electron.experimental.update({ sessions: true }))
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
     await page.locator('.ws').filter({ hasText: 'Codex live drill' }).first().click()
@@ -522,7 +520,6 @@ test('Claude, Codex and Opencode restore native history and track follow-up turn
     // 中文必须在 reload 之前设好：reload 之后整套界面才是中文，后面一连串中文
     // locator（继续/恢复对话等）才不会因为语言切换的传播时序而间歇性失配。
     await page.evaluate(() => (window as DesktopWindow).electron.system.setLanguage('zh-CN'))
-    await page.evaluate(() => (window as DesktopWindow).electron.experimental.update({ sessions: true }))
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
     await page.locator('.ws').filter({ hasText: 'Recovery drill' }).first().click()

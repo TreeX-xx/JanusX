@@ -20,7 +20,7 @@ function fixture(version = '1.0.0') {
   const sha512 = createHash('sha512').update(bytes).digest('base64')
   writeFileSync(join(directory, version.includes('-') ? 'beta.yml' : 'latest.yml'), stringify({ version, path: setup, sha512, files: [{ url: setup, sha512, size: bytes.length }] }))
   const release = releaseFiles(root)
-  const assets = release.files.map(file => ({ name: basename(file), size: readFileSync(file).length, digest: `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}` }))
+  const assets: Array<{ name: string; size: number; digest: string }> = release.files.map((file: string) => ({ name: basename(file), size: readFileSync(file).length, digest: `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}` }))
   const state = {
     remote: { tag_name: release.tag, draft: true, prerelease: version.includes('-'), assets: [...assets] } as { tag_name: string; draft: boolean; prerelease: boolean; assets: typeof assets } | null,
     dirty: '', tagSha: 'commit', runtimeFailure: false, uploadFailure: false, authFailure: false,
@@ -177,7 +177,7 @@ describe('Release trigger boundaries', () => {
   })
   it('retains required PR checks without duplicate branch-push runs', () => {
     const verify = workflow('verify')
-    expect(verify.on.pull_request.branches).toEqual(['main', 'develop'])
+    expect(verify.on.pull_request.branches).toEqual(['main', 'dev'])
     expect(verify.on.push).toBeUndefined()
     expect(verify.jobs.verify).toBeDefined()
   })

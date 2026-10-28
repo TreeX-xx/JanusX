@@ -60,7 +60,7 @@ test('rail reversals cancel work while a fresh active-tool click still collapses
   // Disabling a contribution while it is pending cancels activation too.
   await sessions.dispatchEvent('click')
   await page.clock.runFor(32)
-  await page.evaluate(() => (window as any).builtinExtensionFixture.sessionsEnabled(false))
+  await page.evaluate(() => (window as any).builtinExtensionFixture.disable('sessions'))
   await page.clock.runFor(200)
   await expect(sessions).toHaveCount(0)
   expect(await page.evaluate(() => (window as any).builtinExtensionFixture.state().toolActivations)).toEqual([])

@@ -12,7 +12,7 @@ export function applyThemeToDocument(theme: AppTheme): void {
   selectedTheme = theme
   if (typeof document === 'undefined') return
   const root = document.documentElement
-  // data-theme 始终挂载：石板色（默认）与经典黑都显式声明，手写皮肤
+  // data-theme 始终挂载：经典黑（默认）与石板色都显式声明，手写皮肤
   //（[data-theme='planche'] / [data-theme='dark']）在两种模式下都命中；
   // 未知 id 经 getThemeDefinition 回落默认，永不白屏。
   const resolved = getThemeDefinition(theme)

@@ -1,12 +1,10 @@
-// S2: real project terminals, global tool splits and the Island blackboard.
+// S2: real project terminals, global tool splits and workspace switching.
 import { expect } from 'playwright/test';
 import { mkdir, mkdtemp, writeFile, readFile, copyFile, readdir } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { parseNote, validateNote } from '@janus-agent/harness-core';
-import { buildNoteIndex, SUPPORTED_HARNESS_PROFILE, validateModuleStructure } from '@janus-agent/harness-node';
 import {
   prepareRepo, launchApp, skipGate, ensureWorkspace, ensureSidebarExpanded,
   openWorkspace, snapper, saveManifest, runRecord, sleep, AW, AH, git,
@@ -17,11 +15,8 @@ import { style } from './showcase-config.mjs';
 const captions = {
   ready: { badge: '1', text: '项目终端，各自并行' },
   tools: { badge: '2', text: '工具区独立上下分屏' },
-  board: { badge: '3', text: '下拉胶囊，展开副黑板' },
-  note: { badge: '4', text: '对照蓝图约定，调整板高' },
-  switch: { badge: '5', text: '切换项目，工具与文稿留在原位' },
-  return: { badge: '6', text: '回到原项目，继续工作' },
-  closed: { badge: '6', text: '收起副黑板，继续工作' },
+  switch: { badge: '3', text: '切换项目，工具与文稿留在原位' },
+  return: { badge: '4', text: '回到原项目，继续工作' },
 };
 const drafts = {
   Atlas: { opencode: 'Add search to the task board.', pi: 'Review empty search results.' },
@@ -65,31 +60,6 @@ async function createFixture(ctx) {
   }));
   return { fixtureRoot, claudeConfig, env: { PI_CODING_AGENT_DIR: piHome, PI_OFFLINE: '1',
     OPENAI_API_KEY: 'demo-unused', NO_COLOR: '', OPENCODE_DISABLE_AUTOUPDATE: 'true' } };
-}
-
-async function authorNotes(repoPath, name) {
-  const repoId = randomUUID(), ids = { root: randomUUID(), search: randomUUID(), ui: randomUUID() };
-  const uri = key => `note://${repoId}/${ids[key]}`;
-  const rows = [
-    ['root', 'module.md', name, 'module', null, `## Responsibility\n\n维护 ${name} 任务看板和搜索体验。\n\n## Design\n\n终端负责实现，浏览器验证结果，文稿保留上线清单。`],
-    ['search', 'search.md', '搜索约定', 'note', 'root', '搜索在本地完成，不改变任务顺序。\n\n空结果保留筛选词，并显示清晰的空态。'],
-    ['ui', 'ui/module.md', '界面与验证', 'module', 'root', '## Responsibility\n\n维护任务看板的展示与验证。\n\n## Design\n\n在浏览器预览中检查筛选与空结果。'],
-  ];
-  await mkdir(join(repoPath, '.agents/notes'), { recursive: true });
-  await writeFile(join(repoPath, '.agents/harness.json'), JSON.stringify({ schemaVersion: 1, repoId,
-    name, profile: SUPPORTED_HARNESS_PROFILE }, null, 2));
-  for (const [key, path, title, kind, owner, body] of rows) {
-    const meta = { schema: 'harness-note/2', id: ids[key], kind, lifecycle: 'accepted',
-      created: '2026-10-18', updated: '2026-10-18T00:00:00Z',
-      ...(kind === 'module' ? { moduleState: 'partial', ...(owner ? { parent: uri(owner) } : { role: 'project' }) } : { module: uri(owner) }) };
-    const raw = `---\n${JSON.stringify(meta, null, 2)}\n---\n\n# ${title}\n\n${body}\n`;
-    expect(validateNote(parseNote(raw)), path).toEqual([]);
-    await mkdir(dirname(join(repoPath, '.agents/notes', path)), { recursive: true });
-    await writeFile(join(repoPath, '.agents/notes', path), raw);
-  }
-  const index = await buildNoteIndex(repoPath);
-  expect(index.readDiagnostics).toEqual([]);
-  expect(validateModuleStructure(index.entries, index.repoId)).toEqual([]);
 }
 
 async function buildEvidence() {
@@ -160,7 +130,6 @@ try { await runRecord(async ctx => {
   git(beaconPath, 'config', 'user.email', 'demo@example.invalid');
   git(beaconPath, 'config', 'user.name', 'Demo');
   for (const [name, path] of [['Atlas', repoPath], ['Beacon', beaconPath]]) {
-    await authorNotes(path, name);
     await writeFile(join(path, 'README.md'), `# ${name}\n\nLocal showcase project.\n`);
     git(path, 'add', '-A'); git(path, 'commit', '-m', 'Prepare workspace layout demo');
   }
@@ -172,7 +141,6 @@ try { await runRecord(async ctx => {
   await skipGate(page);
   const learning = page.getByRole('dialog').filter({ hasText: '首次入门' });
   if (await learning.count()) await learning.getByRole('button', { name: '关闭', exact: true }).click();
-  await page.evaluate(() => { localStorage.setItem('janus:blackboard-height', '400'); return window.electron.experimental.update({ blueprint: true }); });
   await ensureWorkspace(page, 'Atlas', repoPath);
   await ensureWorkspace(page, 'Beacon', beaconPath);
   await ensureSidebarExpanded(page);
@@ -211,7 +179,6 @@ try { await runRecord(async ctx => {
     await expect(project.locator('section[data-pane-id]:visible')).toHaveCount(2);
     console.log(`${name}: two real CLI terminals ready`);
   }
-  await page.evaluate(cwd => window.electron.harness.rescan(cwd), repoPath);
   await page.locator('[data-id="tool-menu"]').click();
   await page.locator('[role="menuitem"][data-id="browser"]').click();
   const address = page.getByRole('textbox', { name: '地址栏', exact: true });
@@ -255,7 +222,6 @@ try { await runRecord(async ctx => {
         scrollY, cards: [...document.querySelectorAll('article')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.dataset.title) })),
       native: await host.evaluate(win => win.contentView.children
         .filter(v => v.webContents).map(v => ({ id: v.webContents.id, url: v.webContents.getURL() }))),
-      boardHeight: Math.round((await page.locator('.island-blackboard').boundingBox()).height),
     };
   }
   async function checkpoint(stage, delay = 170) {
@@ -281,65 +247,18 @@ try { await runRecord(async ctx => {
   await motion.clickSnap(page.getByRole('button', { name: '折叠笔记列表', exact: true }), 'tools');
   await motion.clickSnap(page.getByRole('button', { name: '预览', exact: true }), 'tools');
   const before = await checkpoint('tools');
-  const island = motion.center(await motion.box(page.locator('.janus-island')));
-  // Fewer initial easing steps cross the gesture threshold before long-press recognition.
-  await motion.dragTo(island.x, island.y, island.x, island.y + 180, 12, 'board');
-  await expect(page.locator('.island-blackboard')).toHaveAttribute('aria-hidden', 'false');
-  await sleep(500);
-  const fit = page.locator('.island-blackboard').getByRole('button', { name: '适应画布', exact: true }).first();
-  await motion.clickSnap(fit, 'board');
-  await sleep(250); await checkpoint('board', 150);
-  const note = page.locator('.island-blackboard .react-flow__node').filter({
-    has: page.locator('.bp-node-card__title', { hasText: /^搜索约定$/ }),
-  });
-  await motion.clickSnap(note, 'note');
-  await expect(page.locator('.bb-detail-slot')).toContainText('空结果保留筛选词');
-  await sleep(500);
-  // Pan and zoom the real canvas so the selected card remains legible in the short board.
-  const canvas = await motion.box(page.locator('.island-blackboard .react-flow'));
-  const card = motion.center(await motion.box(note));
-  const pan = { x: canvas.x + 20, y: canvas.y + 24 };
-  await motion.dragTo(pan.x, pan.y,
-    pan.x + canvas.x + canvas.width * .55 - card.x,
-    pan.y + canvas.y + canvas.height * .35 - card.y, 12, 'note');
-  await motion.moveSnap(note, 'note', 15);
-  for (let i = 0; i < 10 && (await motion.box(note)).width < 185; i++) {
-    await page.mouse.wheel(0, -120); await sleep(60); await motion.rest('note', 4);
-  }
-  async function readNote() {
-    const content = page.locator('.bb-detail-slot .bp-node-detail__scroll');
-    const paragraph = content.getByText('空结果保留筛选词，并显示清晰的空态。', { exact: true });
-    await motion.moveSnap(content, 'note', 15);
-    for (let i = 0; i < 10; i++) {
-      const target = await motion.box(paragraph), viewport = await motion.box(content);
-      if (target.y >= viewport.y && target.y + target.height < viewport.y + viewport.height - 8) return;
-      await page.mouse.wheel(0, 60); await sleep(60); await motion.rest('note', 4);
-    }
-    throw new Error('The selected Note paragraph must be readable inside the board');
-  }
-  await readNote();
-  await motion.rest('note', 160);
-  const edge = motion.center(await motion.box(page.locator('.bb-edge')));
-  await motion.dragTo(edge.x, edge.y, edge.x, edge.y - 80, 20, 'note');
-  await sleep(250);
-  await readNote();
-  const resized = await checkpoint('note', 180);
-  expect(resized.boardHeight).toBe(320);
   const posterFrame = frames.length - 1;
   await motion.clickSnap(page.locator('.workspace-sidebar .ws').filter({ hasText: 'Beacon' }).first(), 'switch');
   await expect(project.locator(`[data-tab-id="${ids.Beacon.opencode}"]`)).toBeVisible();
   await sleep(500); const switched = await checkpoint('switch', 210);
   for (const key of ['toolPanes', 'toolTabs', 'outerRatio', 'toolRatio', 'scope', 'title', 'document', 'browser', 'native'])
-    expect(switched[key], `${key} survives workspace switch`).toEqual(resized[key]);
+    expect(switched[key], `${key} survives workspace switch`).toEqual(before[key]);
   expect(switched.projectTabs).toEqual(Object.values(ids.Beacon).sort());
   await motion.clickSnap(page.locator('.workspace-sidebar .ws').filter({ hasText: 'Atlas' }).first(), 'return');
   await expect(project.locator(`[data-tab-id="${ids.Atlas.opencode}"]`)).toBeVisible();
   await sleep(500); const returned = await checkpoint('return', 150);
   expect(returned.projectTabs).toEqual(before.projectTabs);
   expect(returned.browser).toEqual(before.browser);
-  await motion.clickSnap(page.locator('.bb-collapse'), 'return');
-  await expect(page.locator('.island-blackboard')).toHaveAttribute('aria-hidden', 'true');
-  await checkpoint('closed', 240);
   const last = frames.at(-1), first = frames[0];
   for (const opacity of [.8, .6, .4, .2, 0]) frames.push({ ...last, delay: 80, click: false, opacity, transition: 'loop-reset' });
   for (const opacity of [.2, .4, .6, .8, 1]) frames.push({ ...first, delay: 80, click: false, opacity, transition: 'loop-reset' });

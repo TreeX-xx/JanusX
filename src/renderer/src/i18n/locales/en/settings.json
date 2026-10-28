@@ -77,8 +77,8 @@
     "theme": {
       "label": "Appearance theme",
       "help": "Choose the interface appearance. Running terminal apps may need a redraw or restart.",
-      "dark": "Classic Black",
-      "planche": "Slate (default)",
+      "dark": "Classic Black (default)",
+      "planche": "Slate",
       "saveError": "Failed to save theme"
     }
   },
@@ -86,7 +86,6 @@
     "warning": "Experimental features may contain bugs or be partially unavailable. Turning a switch off hides its entry immediately.",
     "unavailable": "Unavailable in this environment (browser preview).",
     "section": {
-      "preview": "Preview · Preview Features",
       "dev": "In Development"
     },
     "toggle": {
@@ -119,16 +118,6 @@
         "label": "Team collaboration",
         "hint": "Show the sidebar team row, the first-run login gate, and the team page in Settings. Turning off hides the entries; login state and org data are kept and restored on re-enable.",
         "note": "Basic account and organization management is available. Cross-device project and document sync is not yet complete."
-      },
-      "memo": {
-        "label": "Memo",
-        "hint": "Show the Chat memo entry, constellation milestones, and linked editing tools. Turning off hides the entry and disables memo tools for new messages; files, conversation bindings, and ongoing replies are kept.",
-        "note": "Manual editing works directly. Chat integration requires a model that supports tool calling."
-      },
-      "sessions": {
-        "label": "Session management",
-        "hint": "Show the right-dock sessions entry (cards, timeline, conversation details, and continue). Turning off hides the entry only; existing session records and transcript scans are kept and become accessible on re-enable.",
-        "note": "Preview stage; transcript parsing and native resume support vary by terminal."
       }
     },
     "badge": "LAB",

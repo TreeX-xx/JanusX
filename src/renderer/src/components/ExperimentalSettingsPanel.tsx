@@ -10,9 +10,8 @@ import confirmationStyles from './ExperimentalSettingsPanel.module.css'
 type FeatureKey = keyof ExperimentalFeatures
 
 // Note: persona stays in development while project knowledge matures — see .agents/notes/knowledge/memory-domain-controls.md
-// Note: memo joins preview management — see .agents/notes/workbench/experimental-preview-features.md
+// Note: sessions and memos are default features — see .agents/notes/workbench/experimental-preview-features.md
 // Note: blueprint is installed and managed as an official plugin; see .agents/notes/planning/blueprint-official-plugin.md
-const PREVIEW_FEATURES: FeatureKey[] = ['sessions', 'memo']
 const DEV_FEATURES: FeatureKey[] = ['persona', 'roundtable', 'remoteControl', 'teamCollab']
 
 // Note: every feature transition requires explicit confirmation — see .agents/notes/knowledge/assistant-persona-layout.md
@@ -27,8 +26,6 @@ export function ExperimentalSettingsPanel() {
   const persona = useExperimentalStore((s) => s.persona)
   const remoteControl = useExperimentalStore((s) => s.remoteControl)
   const teamCollab = useExperimentalStore((s) => s.teamCollab)
-  const sessions = useExperimentalStore((s) => s.sessions)
-  const memo = useExperimentalStore((s) => s.memo)
   const [savingKey, setSavingKey] = useState<FeatureKey | null>(null)
   const [error, setError] = useState('')
   const [pending, setPending] = useState<{ key: FeatureKey; value: boolean } | null>(null)
@@ -38,7 +35,7 @@ export function ExperimentalSettingsPanel() {
     void load()
   }, [load])
 
-  const checked: Record<FeatureKey, boolean> = { blueprint, knowledge, roundtable, persona, remoteControl, teamCollab, sessions, memo }
+  const checked: Record<FeatureKey, boolean> = { blueprint, knowledge, roundtable, persona, remoteControl, teamCollab }
   const apiMissing = typeof window.electron?.experimental === 'undefined'
   const busy = !loaded || savingKey !== null || pending !== null
 
@@ -73,25 +70,10 @@ export function ExperimentalSettingsPanel() {
       </section>
 
       <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t('settings:experimental.section.preview')}</h3>
+        <h3 className={styles.sectionTitle}>{t('settings:experimental.section.dev')}</h3>
         {apiMissing && (
           <div className={styles.status}>{t('settings:experimental.unavailable')}</div>
         )}
-        {PREVIEW_FEATURES.map((key) => (
-          <SettingSwitch
-            key={key}
-            label={t(`settings:experimental.toggle.${key}.label`)}
-            hint={t(`settings:experimental.toggle.${key}.hint`)}
-            note={t(`settings:experimental.toggle.${key}.note`)}
-            checked={checked[key]}
-            disabled={busy || apiMissing}
-            onChange={(value) => void toggle(key, value)}
-          />
-        ))}
-      </section>
-
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t('settings:experimental.section.dev')}</h3>
         {DEV_FEATURES.map((key) => (
           <SettingSwitch
             key={key}

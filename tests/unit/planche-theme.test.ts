@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import ts from 'typescript'
 import {
   DEFAULT_APP_THEME,
   normalizeAppTheme,
@@ -23,17 +24,42 @@ import { getThemeDefinition } from '../../src/shared/theme/registry'
 // 声明扫描用：注释里允许引用旧色值做说明，声明里不许再出现。
 const stripCssComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '')
 
+// Interactive controls use themed hints. Component title props and passive
+// metadata badges (such as a WSL/SSH endpoint) are outside that contract.
+function nativeControlTitleElements(source: string): string[] {
+  const tree = ts.createSourceFile('component.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const elements: string[] = []
+  const controlTags = new Set(['button', 'a', 'input', 'select', 'textarea', 'summary'])
+  const controlRoles = new Set(['button', 'link', 'tab', 'menuitem', 'checkbox', 'radio', 'switch', 'combobox', 'slider', 'spinbutton', 'textbox'])
+  const visit = (node: ts.Node) => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tag = node.tagName.getText(tree)
+      const attributes = node.attributes.properties.filter(ts.isJsxAttribute)
+      const interactive = controlTags.has(tag) || attributes.some(attribute => {
+        const name = attribute.name.getText(tree)
+        if (name === 'onClick' || name === 'onKeyDown' || name === 'onKeyUp') return true
+        const value = attribute.initializer
+        return name === 'role' && value && ts.isStringLiteral(value) && controlRoles.has(value.text)
+      })
+      if (/^[a-z]/.test(tag) && interactive && attributes.some(attribute => attribute.name.getText(tree) === 'title')) elements.push(tag)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(tree)
+  return elements
+}
+
 describe('planche theme contract', () => {
-  it('keeps planche (slate) as default and passes open theme ids through (read-side fallback)', () => {
-    expect(DEFAULT_APP_THEME).toBe('planche')
+  it('keeps classic black as default and passes open theme ids through (read-side fallback)', () => {
+    expect(DEFAULT_APP_THEME).toBe('dark')
     expect(normalizeAppTheme('planche')).toBe('planche')
     expect(normalizeAppTheme('dark')).toBe('dark')
-    expect(normalizeAppTheme(undefined)).toBe('planche')
+    expect(normalizeAppTheme(undefined)).toBe('dark')
     // 未知 id 原样持久化，读取时由 registry 回落默认（历史 'light' 同理）
     expect(normalizeAppTheme('light')).toBe('light')
     expect(normalizeAppTheme('nope')).toBe('nope')
-    expect(getThemeDefinition('nope').id).toBe('planche')
-    expect(getThemeDefinition('light').id).toBe('planche')
+    expect(getThemeDefinition('nope').id).toBe('dark')
+    expect(getThemeDefinition('light').id).toBe('dark')
   })
 
   it('exposes get/update/changed channels', () => {
@@ -565,7 +591,7 @@ describe('planche theme contract', () => {
     ]) {
       const source = read(file)
       expect(source, file).toContain('ThemedTooltip')
-      expect(source, file).not.toMatch(/title=\{/)
+      expect(nativeControlTitleElements(source), file).toEqual([])
     }
     // 右侧同样：dock 栏/页签/会话面板提示走 ThemedTooltip
     for (const file of [
@@ -574,11 +600,11 @@ describe('planche theme contract', () => {
     ]) {
       const source = read(file)
       expect(source, file).toContain('ThemedTooltip')
-      expect(source, file).not.toMatch(/title=\{/)
+      expect(nativeControlTitleElements(source), file).toEqual([])
     }
     // 终端区同样：菜单/页签/遥测卡/底部抽屉栏提示走 ThemedTooltip
     const area = read('components/TerminalArea.tsx')
     expect(area).toContain('ThemedTooltip')
-    expect(area).not.toMatch(/title=\{/)
+    expect(nativeControlTitleElements(area)).toEqual([])
   })
 })

@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-25T05:40:28.892Z",
+  "updated": "2026-10-27T12:01:13.611Z",
   "moduleState": "partial"
 }
 ---
@@ -117,9 +117,9 @@ Chat 会话删除确认框虽通过 portal 挂到 body，仍属于 island 的交
 
 CLI 派发子智能体监控（已定案、未实现）：monitor 子代理运行时列表以被动观察各 CLI session 持久化（transcript/rollout/sqlite，零 hook）投影为既有 `SubAgentRun` 树，右列表按 `parentRunId` 组树做主次分层；三家实测样本归[子智能体会话结构实测](../sessions/records/session-subagent-structures.md)，分层纪律与排期归[监控投影方案](./cli-subagent-monitoring.md)。
 
-下拉副黑板（演示切片已落地）：岛胶囊下拉 ≥60px 让中部工作区下滑让位，副黑板在中央列上带长出，下拉手势 toggle（再下拉自动回收，另有图标收起控件）；中断代价判据与投影/借调分类见[下拉副黑板决策](./island-blackboard.md)。整窗宽覆盖与蓝图翻牌（`blueprintMode`）已否决并退役，后续官方插件化已移除内置工作台切换按钮，由插件声明入口；板面仍复用旧蓝图界面（画布交互 + 左详情槽，无右侧对话），属于待清理兼容消费者。文件钉已移除，下缘拖高收板保留；借调钉与多槽未做。
+Island 下滑展开通知（2026-10-27）：胶囊向下拖动 ≥60px 后松手打开既有通知面，已展开时再次下滑保持展开；未达阈值、反向拉回与取消不触发。单击、Esc 与点空白处收起，保留看过即焚。副黑板组件、中央列让位、板高状态与持久化、板缘拖拽、插件列表入口均已删除；蓝图继续使用插件声明的工作台入口。取舍与历史见[副黑板退役与通知手势](./island-blackboard.md)。
 
-眼睛行为与通知系统（P1–P5 与后续交互/待机动作已合入 main，2026-10-24）：折叠胶囊从 mini-idle 8s 循环升级为注意力行为（凝视调度、摸头闭眼、事件原语），通知改串行传话 + 左上角灰字计数 + 点击式通知中心（island 整体变大、看过即焚）；手势仲裁定案（2026-10-23 B 案）：下拉专属副黑板、flinch/惊醒为轻点伴随反应，通知中心走岛体单击（主入口，开/合通知面）/灰字计数/传话条点击三路入口（peek 历史入口 deferred）。设计定稿、参数与验收归[行为系统移植任务](./tasks/island-behavior-system.md)，可玩原型在 `_design/janus-eye-behavior-lab/`。
+眼睛行为与通知系统：折叠胶囊由注意力行为驱动凝视、摸头与事件原语；通知采用串行传话、左上角灰字计数和整体纵向展开的通知中心。通知可经下滑、岛体单击、灰字计数或传话条打开；peek 下滑先返回胶囊再展开通知，expanded 仍禁用复杂手势。单击开合、双击控制台及运行按钮维持现有语义。参数与历史验收归[行为系统移植任务](./tasks/island-behavior-system.md)，设计原型在 `_design/janus-eye-behavior-lab/`。
 
 产物语义：[workspace 重构](./product-workspace.md)、[notice-matrix](./product-workspace.md)、[peek-race](./product-workspace.md)、[preview-p0](./product-workspace.md)、[tour](./product-tour.md)、[landing](../desktop/landing-page.md)。
 
@@ -150,3 +150,5 @@ Note 工具链三件各司其职：[drawer-toolbar](./note-drawer-markdown-toolb
 - [x] AC-1: 本域 31 篇直接子全部携带有效 parent。
 - [ ] AC-2: own-namespace 生命周期对保留两篇，不判重复删除。
 - [ ] AC-3: 历史迁移样例已清理（2026-09-27 随鹈鹕骑行 Note 一并移除），不再保留隔离样例。
+
+默认外观为经典黑，石板色保留为可选主题；应用 Logo 使用黑底白橙 X。[主题与 Logo 决定](./slate-logo-redesign.md)记录当前配置及历史设计。

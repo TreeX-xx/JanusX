@@ -13,7 +13,6 @@ import {
 } from '@/services/llm'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { memoBinding, useMemoStore } from '@/stores/memo'
-import { useExperimentalStore } from '@/stores/experimental'
 import type { MemoBinding } from '../../../../shared/memo'
 import { useNoteChatStore } from '@/stores/note-chat'
 import { useNoteFocusStore } from '@/stores/note-focus'
@@ -609,8 +608,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
     if (!conversation || (!recovery && runtime?.isStreaming) || handles.active) return
-    const memoEnabled = useExperimentalStore.getState().memo
-    const requestMemoBinding = !memoEnabled || !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
+    const requestMemoBinding = !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
     const generation = handles.generation + 1
     handles.generation = generation
     handles.active = true
@@ -723,7 +721,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           sourceTag: 'janus-chat',
           conversationId: id,
           memoBinding: requestMemoBinding,
-          memoMessageId: memoEnabled && window.electron.memo && !compact ? userMessage.id : undefined,
+          memoMessageId: window.electron.memo && !compact ? userMessage.id : undefined,
           contextCheckpoint: latest.contextCheckpoint,
           contextEpoch: latest.contextEpoch,
           compact,
@@ -878,7 +876,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       // R6-full：流式中发送走 steering——乐观追加用户消息（随会话落盘即 durable），
       // 再向主侧投递抢占。主侧 accept 即入队；拒绝（流已结束/队满）按下述回退。
       const entry: Message = { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: Date.now() }
-      const entryMemoBinding = useExperimentalStore.getState().memo && window.electron.memo ? memoBinding(id, entry.id) : undefined
+      const entryMemoBinding = window.electron.memo ? memoBinding(id, entry.id) : undefined
       updateConversation(id, (current) => ({ ...current, messages: [...current.messages, entry], updatedAt: Date.now() }))
       setRuntime(id, (current) => current.pendingSteerIds.includes(entry.id)
         ? current

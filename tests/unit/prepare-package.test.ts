@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { preparePackage } from '../../scripts/prepare-package.mjs'
@@ -54,16 +54,35 @@ describe('local package materialization', () => {
 
   it('restores the prior local package and lockfile if installation fails', () => {
     const { root, source, installed } = fixture()
-    preparePackage(root, options)
-    const originalLock = readFileSync(join(root, 'package-lock.json'), 'utf8')
-    writeFileSync(join(source, 'dist/index.js'), 'after')
     const files = ['package.json', 'dist/index.js', 'dist/obsolete.js'].map((path) => ({ path }))
+    // Only the successful-path test needs real npm publication/install. Seed
+    // the prior generation directly so rollback does not depend on npm speed.
+    mkdirSync(join(installed, 'dist'), { recursive: true })
+    for (const { path } of files) copyFileSync(join(source, path), join(installed, path))
+    const lockPath = join(root, 'package-lock.json')
+    const hiddenLockPath = join(root, 'node_modules/.package-lock.json')
+    const originalLock = JSON.stringify({ lockfileVersion: 3, packages: {
+      'node_modules/@janus-agent/agent-core': { version: '1.0.0', resolved: 'file:../core' },
+    } }, null, 2) + '\n'
+    const originalHiddenLock = JSON.stringify({ lockfileVersion: 3, packages: {} }) + '\n'
+    writeFileSync(lockPath, originalLock)
+    writeFileSync(hiddenLockPath, originalHiddenLock)
+    writeFileSync(join(source, 'dist/index.js'), 'after')
     const npm = (args: string[]) => {
       if (args[0] === 'pack') return JSON.stringify([{ name: '@janus-agent/agent-core', files }])
+      // Simulate a failed install that already wrote a partial generation.
+      mkdirSync(join(installed, 'dist'), { recursive: true })
+      writeFileSync(join(installed, 'dist/index.js'), 'partial install')
+      writeFileSync(join(installed, 'partial.txt'), 'incomplete')
+      writeFileSync(lockPath, 'partial lock')
+      writeFileSync(hiddenLockPath, 'partial hidden lock')
       throw new Error('install failed')
     }
     expect(() => preparePackage(root, { npm })).toThrow('install failed')
     expect(readFileSync(join(installed, 'dist/index.js'), 'utf8')).toContain('before')
-    expect(readFileSync(join(root, 'package-lock.json'), 'utf8')).toBe(originalLock)
-  }, 15000)
+    expect(readFileSync(join(installed, 'dist/obsolete.js'), 'utf8')).toBe('old')
+    expect(existsSync(join(installed, 'partial.txt'))).toBe(false)
+    expect(readFileSync(lockPath, 'utf8')).toBe(originalLock)
+    expect(readFileSync(hiddenLockPath, 'utf8')).toBe(originalHiddenLock)
+  })
 })

@@ -233,7 +233,7 @@ export const DARK_THEME_DEFINITION: ThemeDefinition = {
   },
 }
 
-/* ── planche（石板色，默认主打）：值与历史 [data-theme='planche'] 逐字一致 ──
+/* ── planche（石板色，可选主题）：值与历史 [data-theme='planche'] 逐字一致 ──
    来源 design/pelican-lithograph-style.md：纸 #EFE4C5 / 墨 #1C343B / 朱红 #D43D2A。 */
 
 const PLANCHE_TOKENS = {
