@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-28T10:03:00Z",
+  "updated": "2026-10-28T10:07:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -26,7 +26,7 @@ On Windows, libuv's short-path directory watcher assertion terminates the worker
 
 插件独立构建按 npm 发布文件清单及其内容、权限和 Node 版本缓存归档，并在复用前验证归档摘要；npm 枚举和未命中打包分别批量执行。构建锁失配在安装前列出具体包及新旧摘要，不再只给笼统错误。Windows 草稿上传保存本地运行验证收据，以提交、工具环境、检查脚本、发布附件和解包文件全量摘要决定能否复用；源码或任一产物变化均重跑。签名、包校验、远端附件核对和受保护分支要求不变。
 
-Windows 完整和便携打包在应用构建前检查 OfficeCLI 1.0.135 x64 文件及固定 SHA256，避免独立 checkout 缺少忽略的二进制资源时直到产物校验才失败。页面释放回归测试先新增 evidence 目录的无扩展名时间戳文件，使证明缓存失效，再持有锁；这样明确覆盖等待可重试读取时关闭页面，避免暖缓存直接进入不重试的写锁后已失败的时序。索引按内容摘要探测，修改 mtime 不会使其失效，不能作为等待读取的测试前提。固定 sibling、Node 24.20.0 的独立 checkout 中，蓝图 native 18 项测试通过；资源校验通过。后续远端 CI 全量单测通过。桌面验证分批覆盖 60 个不同用例，3 项外部服务／平台用例按原配置跳过；不是单次全套通过记录。插件组 28 项通过后，等待页面 DOMContentLoaded 的草稿恢复和使用宿主管理事件／胶囊背景双击的四表面场景分别复测通过；核心 smoke 改用现有编辑器菜单后通过。主题撤销断言同步经典黑默认值。Windows 候选的完整运行和生产签名蓝图七项故障检查通过，最终标签产物仍须重建。
+Windows 完整和便携打包在应用构建前检查 OfficeCLI 1.0.135 x64 文件及固定 SHA256，避免独立 checkout 缺少忽略的二进制资源时直到产物校验才失败。页面释放回归测试先新增 evidence 目录的无扩展名时间戳文件，使证明缓存失效，再持有锁；这样明确覆盖等待可重试读取时关闭页面，避免暖缓存直接进入不重试的写锁后已失败的时序。索引按内容摘要探测，修改 mtime 不会使其失效，不能作为等待读取的测试前提。固定 sibling、Node 24.20.0 的独立 checkout 中，蓝图 native 18 项测试通过；资源校验通过。后续远端 CI 全量单测通过。桌面验证分批覆盖 60 个不同用例，3 项外部服务／平台用例按原配置跳过；不是单次全套通过记录。插件组 28 项通过后，等待页面 DOMContentLoaded 的草稿恢复和使用宿主管理事件／胶囊背景双击的四表面场景分别复测通过；核心 smoke 改用现有编辑器菜单后通过。主题撤销断言同步经典黑默认值。Windows 候选的完整运行和生产签名蓝图七项故障检查通过，最终标签产物仍须重建。完整 CI 现包含 63 项串行桌面场景，本地单轮耗时约 12 分钟；加上固定依赖安装、独立签名载体和全量单测后，job 上限从 30 调整为 45 分钟，避免检查已正常推进却被旧总预算终止，不增加实际等待步骤。
 
 Vitest retains all discovered tests in disjoint `unit`, `integration` and `browser` projects. New files enter `unit` unless explicitly assigned in `tests/helpers/test-suites.ts`; 15 observed slow integration files and 14 real Chromium files have separate commands. `test:related` uses Vitest's source dependency graph for local selection, while `test:unit` and the PR verification chain always run every project. Local workers are capped at four, CI remains serial, and every file retains isolation. The [testing guide](../../../docs/testing.md) defines preparation and the limits of quick feedback.
 
