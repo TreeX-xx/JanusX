@@ -15,12 +15,12 @@ workspace/
 
 ```bash
 git clone https://github.com/TreeX-xx/JanusX.git
-git -C JanusX switch develop
+git -C JanusX switch dev
 git clone https://github.com/TreeX-xx/janus-agentX.git
 git clone https://github.com/TreeX-xx/WorkFlowX.git
 ```
 
-外部贡献者将第一条克隆 URL 换成自己的 Fork，并按 [CONTRIBUTING](../CONTRIBUTING.md) 配置上游。新建 Fork 时需包含 `develop`；若 Fork 尚无该分支，可先 fetch 上游，再从 `upstream/develop` 创建本地功能分支，跳过上述切换命令。
+外部贡献者将第一条克隆 URL 换成自己的 Fork，并按 [CONTRIBUTING](../CONTRIBUTING.md) 配置上游。新建 Fork 时需包含 `dev`；若 Fork 尚无该分支，可先 fetch 上游，再从 `upstream/dev` 创建本地功能分支，跳过上述切换命令。
 
 构建前，在当前 JanusX checkout 的 [.github/workflows/verify.yml](../.github/workflows/verify.yml) 中找到两个 sibling checkout 的 `ref`，分别检出该 revision。固定值随依赖升级变化，不要直接使用 sibling 最新分支替代：
 

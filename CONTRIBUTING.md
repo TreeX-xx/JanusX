@@ -11,12 +11,12 @@
 
 ## 分支与提交 PR
 
-`develop` 是日常集成分支，`main` 是稳定分支。贡献者通过短期分支提交改动，维护者负责将已验证的开发批次晋级到 `main`。
+`dev` 是日常集成分支，`main` 是稳定分支。贡献者通过短期分支提交改动，维护者负责将已验证的开发批次晋级到 `main`。
 
 1. Fork 仓库；有写权限的协作者也使用独立功能分支。
-2. 从最新的上游 `develop` 创建分支，例如 `fix/terminal-startup` 或 `docs/contributing`。
+2. 从最新的上游 `dev` 创建分支，例如 `fix/terminal-startup` 或 `docs/contributing`。
 3. 保持一次 PR 只解决一个明确问题，避免混入无关格式化、生成文件或个人配置。
-4. 完成相关检查，向 **`TreeX-xx/JanusX` 的 `develop`** 提交 PR；尚未完成时先开 Draft PR。
+4. 完成相关检查，向 **`TreeX-xx/JanusX` 的 `dev`** 提交 PR；尚未完成时先开 Draft PR。
 5. 在 PR 中说明问题、行为变化、验证结果和关联 Issue。UI 改动附截图或录像。
 6. 根据审核意见修改，重新运行受影响的检查；准备好后标记 Ready for review，由维护者审核并合并。
 
@@ -25,12 +25,12 @@ Fork 的常用命令如下；`origin` 指向你的 Fork，`upstream` 指向原�
 ```bash
 git remote add upstream https://github.com/TreeX-xx/JanusX.git
 git fetch upstream
-git switch -c fix/terminal-startup upstream/develop
+git switch -c fix/terminal-startup upstream/dev
 # 完成修改并提交后
 git push -u origin fix/terminal-startup
 ```
 
-若已配置 `upstream`，跳过添加远端。PR 期间需要跟进开发分支时，合并最新的 `upstream/develop` 并解决冲突；不要强推共享分支。跨仓库依赖改动应同时链接相关 PR，并在依赖提交公开可用后更新固定 revision。
+若已配置 `upstream`，跳过添加远端。PR 期间需要跟进开发分支时，合并最新的 `upstream/dev` 并解决冲突；不要强推共享分支。跨仓库依赖改动应同时链接相关 PR，并在依赖提交公开可用后更新固定 revision。
 
 提交和 PR 标题描述具体改动，推荐 `fix(terminal): …`、`feat(run): …`、`docs: …`、`chore: …`。中文或英文均可，不要求使用特定 Agent 工作流前缀。
 
@@ -41,9 +41,9 @@ git push -u origin fix/terminal-startup
 - 修复行为缺陷或新增行为时，补充能验证该行为的测试。涉及 UI 文案时同步国际化；涉及架构、对外行为或长期约定时更新对应文档及已有 Note。
 - Issue 和 Note 均按需关联。没有 Issue 可省略；普通小修不必为了填模板新建 Note。仓库的 Agent 执行规则见 [AGENTS.md](./AGENTS.md)。
 
-Windows CI 会对目标为 `develop`、`main` 的 PR 运行完整 `verify` 检查，也可手动运行；普通分支 push 不重复触发。CI 未通过不得按常规流程合并；维护者确认必要检查通过、审核意见得到处理后执行合并。新增实质性修改后需重新检查和审核。CI 因权限等待批准时，由维护者审阅后批准运行。
+Windows CI 会对目标为 `dev`、`main` 的 PR 运行完整 `verify` 检查，也可手动运行；普通分支 push 不重复触发。CI 未通过不得按常规流程合并；维护者确认必要检查通过、审核意见得到处理后执行合并。新增实质性修改后需重新检查和审核。CI 因权限等待批准时，由维护者审阅后批准运行。
 
-功能分支合入 `develop` 通常使用 squash merge；合并后删除已交付的短期分支。`develop → main` 的晋级 PR 使用 **merge commit** 保留长期分支的共同历史。`develop`、`main`、官网来源 `gh-pages` 长期保留，活跃 worktree 分支在对应工作结束后清理。
+功能分支合入 `dev` 通常使用 squash merge；合并后删除已交付的短期分支。`dev → main` 的晋级 PR 使用 **merge commit** 保留长期分支的共同历史。`dev`、`main`、官网来源 `gh-pages` 长期保留，活跃 worktree 分支在对应工作结束后清理。
 
 ## Issue 填写与处理
 
@@ -55,8 +55,8 @@ Windows CI 会对目标为 `develop`、`main` 的 PR 运行完整 `verify` 检�
 
 内测版也按问题类型选择模板，并填写完整版本号；维护者按需加 `beta-feedback`，无需重复提交。每个 Issue 聚焦一个问题。日志、截图和示例文件请移除 API Key、Token、私人对话与敏感路径；不要上传整个用户数据目录。
 
-维护者先确认信息是否充分，再分类、请求补充或讨论方案；重复问题链接原 Issue 后关闭，不采纳的建议说明原因。Label、负责人和 milestone 由维护者管理；认领工作前先留言确认，避免重复投入。修复 PR 合入 `develop` 表示已集成，实际可用版本以 Release 为准。
+维护者先确认信息是否充分，再分类、请求补充或讨论方案；重复问题链接原 Issue 后关闭，不采纳的建议说明原因。Label、负责人和 milestone 由维护者管理；认领工作前先留言确认，避免重复投入。修复 PR 合入 `dev` 表示已集成，实际可用版本以 Release 为准。
 
 ## 维护者操作
 
-审核规则、`develop → main` 晋级与同步、紧急例外、版本及发布流程见[维护者指南](./docs/maintainers.md)。普通贡献者无需修改版本号、打 tag 或发布安装包。
+审核规则、`dev → main` 晋级与同步、紧急例外、版本及发布流程见[维护者指南](./docs/maintainers.md)。普通贡献者无需修改版本号、打 tag 或发布安装包。

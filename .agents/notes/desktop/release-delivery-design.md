@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-27",
-  "updated": "2026-10-27T16:15:09Z",
+  "updated": "2026-10-28T01:36:29.950Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -30,7 +30,7 @@
 
 ## 重构前的耦合与持续约束
 
-`verify.yml` 在 PR 和 main/develop push 上跑完整 Windows 检查。同一次功能集成可能先验证 PR、再验证集成分支、再验证晋级 PR。`release-win.yml` 在版本 tag 推送后重新准备 sibling、下载 OfficeCLI、打包并直接公开 Release；因此标签同时承担版本身份和发布触发器。
+`verify.yml` 在 PR 和 main/dev push 上跑完整 Windows 检查。同一次功能集成可能先验证 PR、再验证集成分支、再验证晋级 PR。`release-win.yml` 在版本 tag 推送后重新准备 sibling、下载 OfficeCLI、打包并直接公开 Release；因此标签同时承担版本身份和发布触发器。
 
 两个 workflow 分别维护相同 agentX 提交和分层构建命令；本地开发可使用另一个 sibling revision，甚至未提交内容。`prepackage` 检查 sibling 发布文件后执行 `npm install --install-links`，必要时调整 lock 条目；不能将其描述为锁文件完全只读的正式安装。它应继续服务开发刷新，正式构建另设严格入口，避免在任意开发状态上直接执行干净安装。
 
@@ -58,11 +58,11 @@ Orca 可作为发布架构参考。本次没有取得它使用 OfficeCLI 或自�
 
 ### 反馈与环境准备
 
-保留现有 develop/main 职责，本次先不把分支调整与发布重构混在一起。开发环境允许 agentX 联调，开发输出继续隔离在 `.cache`；正式发布只接受已提交、可取得的 JanusX 和 agentX revision。
+保留现有 dev/main 职责，本次先不把分支调整与发布重构混在一起。开发环境允许 agentX 联调，开发输出继续隔离在 `.cache`；正式发布只接受已提交、可取得的 JanusX 和 agentX revision。
 
 设置一个跨平台 Node 编排入口，让本地和 Actions 调用相同阶段。YAML 只声明触发方式、runner、权限与缓存，不再各写一份 sibling 构建、工具下载和包验证逻辑。先检查工具链版本、平台能力和输入，再执行昂贵构建；错误报告应指向具体准备步骤。
 
-自动 PR 检查以类型、静态规则和有明确映射的单测为快速入口，目标是数分钟反馈。初期不急于实现复杂的变更测试选择器；完整验证保留手动入口和正式候选门禁。桌面全量、安装包、Office 真实二进制与其他系统验证从普通 push 中移出。可取消 main/develop push 的重复全量运行，但 PR 合并结果的检查与本地候选严格验证仍保留。路径选择不能覆盖到公共核心或不明影响时，执行完整适用检查。
+自动 PR 检查以类型、静态规则和有明确映射的单测为快速入口，目标是数分钟反馈。初期不急于实现复杂的变更测试选择器；完整验证保留手动入口和正式候选门禁。桌面全量、安装包、Office 真实二进制与其他系统验证从普通 push 中移出。可取消 main/dev push 的重复全量运行，但 PR 合并结果的检查与本地候选严格验证仍保留。路径选择不能覆盖到公共核心或不明影响时，执行完整适用检查。
 
 调整 required check 时，先保证新工作流稳定产生同名汇总状态，再由维护者同步 ruleset；不能删除工作流后让所有 PR 永远等候不存在的检查，也不以本草案授权绕过现有审核规则。
 

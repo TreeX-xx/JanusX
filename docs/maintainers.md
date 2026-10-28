@@ -4,26 +4,26 @@
 
 ## 审核与分支保护
 
-`develop` 和 `main` 应通过 GitHub 分支保护或 ruleset 要求 PR、成功的 `verify` 检查和至少一名非作者审核者批准，并在新增实质性修改后重新审核；维护者负责在仓库设置中配置。仓库文件本身不会创建这些保护规则。
+`main` 已启用 GitHub 分支保护：所有变更必须通过 PR 合并，管理员也受约束，禁止强推和删除分支。当前未设置强制批准人数或 required status check；`dev` 保持可推送，供维护者同步已集成的 `main`。常规功能与晋级 PR 仍应通过 `verify` 并取得至少一名非作者审核者批准，新增实质性修改后重新审核。仓库文件本身不会创建这些保护规则。
 
 审核关注问题是否解决、范围是否清楚、回归测试是否覆盖，以及文档是否与最终行为一致。未运行的本地检查必须在 PR 中明确，CI 仍须通过。对外部贡献者首次运行工作流的批准应先检查其变更；验证使用 `pull_request` 与只读仓库权限。
 
-作者不能批准自己的 PR。确因紧急修复、CI 基础设施故障或无人可审核而需要管理员例外时，必须在 PR 中记录原因、实际完成的检查、未覆盖风险及后续补验安排；不能把自查写成独立审核。例外仅限维护者显式决定，不授予 Agent 默认绕过权限。常规贡献不直推 `main` 或 `develop`。
+作者不能批准自己的 PR。确因紧急修复、CI 基础设施故障或无人可审核而需要审核或检查例外时，必须在 PR 中记录原因、实际完成的检查、未覆盖风险及后续补验安排；不能把自查写成独立审核。例外仅限维护者显式决定，不授予 Agent 默认绕过权限。所有 `main` 变更仍须通过 PR，不能以例外为由直推；常规功能贡献也不直推 `dev`。
 
 ## 晋级与同步
 
-1. 维护者确认 `develop` 的当前批次范围清楚，创建 `develop → main` PR，汇总行为变化、关联 Issue 和验证结果。
+1. 维护者确认 `dev` 的当前批次范围清楚，创建 `dev → main` PR，汇总行为变化、关联 Issue 和验证结果。
 2. 审核并通过 PR 的 `verify` 后，使用 **merge commit** 合并；不要对长期分支使用 squash 或 rebase merge。
-3. 将 `main` 同步回 `develop`：
+3. 将 `main` 同步回 `dev`：
 
 ```bash
 git fetch origin
-git switch develop
+git switch dev
 git merge --ff-only origin/main
-git push origin develop
+git push origin dev
 ```
 
-这里 `origin` 指原仓库。快进同步是维护者的分支同步操作，不包含新的功能提交；若 ruleset 禁止该同步推送，走 `main → develop` 的同步 PR。若无法快进，创建同步 PR、解决冲突并重新验证，使用 merge commit 保留历史，禁止强推覆盖开发。功能分支合入 `develop` 通常使用 squash merge。
+这里 `origin` 指原仓库。快进同步是维护者的分支同步操作，不包含新的功能提交；若 ruleset 禁止该同步推送，走 `main → dev` 的同步 PR。若无法快进，创建同步 PR、解决冲突并重新验证，使用 merge commit 保留历史，禁止强推覆盖开发。功能分支合入 `dev` 通常使用 squash merge。
 
 Issue 合入开发分支后可关闭并注明“已集成，待发布”；Release 说明应链接相关修复。Label、milestone 由维护者按实际计划维护，不应把旧里程碑名称当成永久流程。
 
@@ -37,7 +37,7 @@ Issue 合入开发分支后可关闭并注明“已集成，待发布”；Relea
 
 1. 当前开发批次晋级 `main` 后，从最新 `main` 创建 `release/<版本>` 分支，只修改 `package.json` 和 `package-lock.json` 的版本，创建目标为 `main` 的版本 PR。
 2. 审核与 `verify` 通过后合并，检出并确认最新 `origin/main` 的版本，再创建指向该提交的 annotated tag 并推送。
-3. 在该版本的干净 checkout 中本地构建、上传草稿、补充说明，再单独公开；检查更新清单、Release 类型与下载入口，最后将 `main` 同步回 `develop`。
+3. 在该版本的干净 checkout 中本地构建、上传草稿、补充说明，再单独公开；检查更新清单、Release 类型与下载入口，最后将 `main` 同步回 `dev`。
 
 ```bash
 # 版本 PR 合并后，在干净且同步的 main 上执行；版本号仅为示例
@@ -54,7 +54,7 @@ git push origin v0.9.3
 
 2026-10-23 维护者在 Windows 10 启动候选包确认可打开后，明确要求将启动修复同步到本地 `main`，替换远程 `v0.9.4` 标签代码及 Windows 安装包，文件名不含 fix。此例外沿用 `0.9.4` 正式版本，从原 v0.9.4 加启动修复独立构建，保留 Android 附件及此前更新下载修复，不把本地 main 的其他开发改动带入发布，也不据此授权推送本地 main 的其他提交。
 
-现有 `npm run release:tag -- <版本>` 是维护者快捷工具：要求干净、同步的 `main`，检查版本递增与 tag 不存在，再生成版本提交、annotated tag 和未入库的发布说明模板；默认只在本地执行，`--dry-run` 可预览，`--verify` 可先跑检查。它**不会创建版本 PR**；`--push` 会直接推送 `main` 和 tag，只能在维护者已明确授权并记录发布例外、且仓库规则允许时使用。不要为了执行脚本临时关闭分支保护。
+现有 `npm run release:tag -- <版本>` 是维护者快捷工具：要求干净、同步的 `main`，检查版本递增与 tag 不存在，再生成版本提交、annotated tag 和未入库的发布说明模板；默认只在本地执行，`--dry-run` 可预览，`--verify` 可先跑检查。它**不会创建版本 PR**；`--push` 会直接推送 `main` 和 tag，与当前 `main` 的强制 PR 保护不兼容；应使用上面的版本 PR 流程，合并后单独打 tag。不要为了执行脚本临时关闭分支保护。
 
 发布说明写明用户可见变化、修复、已知限制与相关 Issue/PR。模板默认写入忽略目录 `release/release-notes-v<版本>.md`，避免生成未跟踪文件影响干净 checkout 校验；自定义路径也应在忽略目录中。上传草稿后通过 `gh release edit <tag> --notes-file <文件>` 或网页更新正文，再运行公开命令。
 
@@ -86,4 +86,4 @@ npm run publish:win
 
 `verify.yml` 和 `release-win.yml` 固定使用上游 `TreeX-xx/janus-agentX`，验证还固定使用 `TreeX-xx/WorkFlowX`，避免 Fork 在自己的账号下查找缺失的依赖仓库。升级 sibling 时检查提交在远端可读取，并同步两个工作流的 agentX pin、构建顺序和开发说明。修改 `package.json` 的 `verify` 检查链时，同步 `verify.yml` 的拆分步骤。
 
-`verify` 保留原 PR job 名与完整检查，取消 main/develop push 的重复运行，仍可手动触发。本轮不调整 required check 名或分支保护，不把完整 PR 门禁改成快速门禁。统一构建输入、正式构建收据和更多平台属于[后续设计](../.agents/notes/desktop/release-delivery-design.md)，当前 tag 对齐检查不等于已经证明开发机二进制的完整构建来源。
+`verify` 保留原 PR job 名与完整检查，取消 main/dev push 的重复运行，仍可手动触发。required check 名和完整 PR 验证链保持不变，GitHub 实际保护设置见本页的审核与分支保护约定。统一构建输入、正式构建收据和更多平台属于[后续设计](../.agents/notes/desktop/release-delivery-design.md)，当前 tag 对齐检查不等于已经证明开发机二进制的完整构建来源。

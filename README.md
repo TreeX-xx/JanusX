@@ -248,7 +248,7 @@
 
 首次开发请按 **[本地开发指南](./docs/development.md)** 准备环境：Node 版本以 `.node-version` 为准，`JanusX`、`janus-agentX` 和验证使用的 `WorkFlowX` 放在同级目录，并按 CI 固定 revision 和依赖顺序构建。仅克隆 JanusX 无法完成依赖准备。
 
-贡献者从上游 `develop` 创建功能分支，向 `develop` 提交 PR；完整步骤见 **[贡献指南](./CONTRIBUTING.md)**。
+贡献者从上游 `dev` 创建功能分支，向 `dev` 提交 PR；完整步骤见 **[贡献指南](./CONTRIBUTING.md)**。
 
 ### 验证
 

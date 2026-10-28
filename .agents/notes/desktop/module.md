@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-27T16:57:58Z",
+  "updated": "2026-10-28T01:36:29.950Z",
   "moduleState": "partial"
 }
 ---
@@ -45,7 +45,7 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 打包与发布：[hoisted-deps](./packaged-hoisted-deps.md)、[runtime-size](./packaged-hoisted-deps.md)、[cli-publish](./janus-cli-npm-publish.md)、[officecli](./officecli-bundled.md)、[runner-backflow](../agent/external-runner-backflow.md)、[ci-order](./ci-sibling-build-order.md)、[verify-repair](./release-verify-repair.md)（v0.8.8 双管线修复）。
 
-协作入口由 [CONTRIBUTING](../../../CONTRIBUTING.md)、[开发环境](../../../docs/development.md)和[维护者指南](../../../docs/maintainers.md)分别承担：功能 PR 进入 develop，晋级 PR 进入 main，两者均运行 Windows 验证；发布由维护者负责。分支、验证和反馈取舍分别见 [development-branch](./development-branch.md)、[reproducible-verification](./reproducible-verification.md)及 [github-maintenance](./github-maintenance.md)。
+协作入口由 [CONTRIBUTING](../../../CONTRIBUTING.md)、[开发环境](../../../docs/development.md)和[维护者指南](../../../docs/maintainers.md)分别承担：功能 PR 进入 dev，晋级 PR 进入 main，两者均运行 Windows 验证；发布由维护者负责。分支、验证和反馈取舍分别见 [development-branch](./development-branch.md)、[reproducible-verification](./reproducible-verification.md)及 [github-maintenance](./github-maintenance.md)。
 
 早期基石（均保留，无孤儿）：[toast](./desktop-toast.md)、[model-registry](../agent/model-registry.md)、[llm-runtime](../agent/llm-tool-runtime.md)、[browser-surface](./browser-surface.md)、[auto-update](./app-auto-update-win.md)、[cli-scope](./cli-manager-scope.md)、[i18n](./i18n-pipeline.md)、[statusbar](./runtime-statusbar.md)。
 

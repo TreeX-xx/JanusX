@@ -6,7 +6,7 @@ name: verify
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
