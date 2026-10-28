@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, expect, it } from 'vitest'
 import { fork, execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { acquireLock, releaseLock, SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
@@ -360,10 +360,10 @@ it('invalidates a page confirmation waiting on the old worktree before any Note 
   const proposal = (await call('jobs.read', job.id)).result
   const selected = { taskId: task.id, changeSetId: proposal.changeSet.id, operationIds: ['clarify'] }
   const preview = await call('maintenance.preview', { ...selected, conversationId })
-  // Invalidate the warm index without changing the approved bytes. A cached
-  // graph can otherwise reach the non-retried write lock before page release.
-  const stamp = await stat(f.notePath)
-  await utimes(f.notePath, stamp.atime, new Date(stamp.mtimeMs + 2000))
+  // Invalidate the proof cache without changing approved Note bytes. Index
+  // probes compare hashes, so touching mtime cannot force a locked read.
+  await mkdir(join(f.root, '.agents/evidence'), { recursive: true })
+  await writeFile(join(f.root, '.agents/evidence/cache-stamp'), 'force proof refresh')
   const lock = await acquireLock(f.root)
   const applying = call('maintenance.apply', { ...selected, previewId: preview.id }).then(
     value => ({ value, error: undefined }), error => ({ value: undefined, error }))

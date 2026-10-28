@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-28T09:08:00Z",
+  "updated": "2026-10-28T09:22:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -26,7 +26,7 @@ On Windows, libuv's short-path directory watcher assertion terminates the worker
 
 插件独立构建按 npm 发布文件清单及其内容、权限和 Node 版本缓存归档，并在复用前验证归档摘要；npm 枚举和未命中打包分别批量执行。构建锁失配在安装前列出具体包及新旧摘要，不再只给笼统错误。Windows 草稿上传保存本地运行验证收据，以提交、工具环境、检查脚本、发布附件和解包文件全量摘要决定能否复用；源码或任一产物变化均重跑。签名、包校验、远端附件核对和受保护分支要求不变。
 
-Windows 完整和便携打包在应用构建前检查 OfficeCLI 1.0.135 x64 文件及固定 SHA256，避免独立 checkout 缺少忽略的二进制资源时直到产物校验才失败。页面释放回归测试先仅修改 Note 的 mtime，使暖索引失效，再持有锁；这样明确覆盖等待可重试读取时关闭页面，避免暖缓存直接进入不重试的写锁后已失败的时序。固定 sibling、Node 24.20.0 的独立 checkout 中，蓝图 native 18 项测试通过；资源校验通过。
+Windows 完整和便携打包在应用构建前检查 OfficeCLI 1.0.135 x64 文件及固定 SHA256，避免独立 checkout 缺少忽略的二进制资源时直到产物校验才失败。页面释放回归测试先新增 evidence 目录的无扩展名时间戳文件，使证明缓存失效，再持有锁；这样明确覆盖等待可重试读取时关闭页面，避免暖缓存直接进入不重试的写锁后已失败的时序。索引按内容摘要探测，修改 mtime 不会使其失效，不能作为等待读取的测试前提。固定 sibling、Node 24.20.0 的独立 checkout 中，蓝图 native 18 项测试通过；资源校验通过。
 
 Vitest retains all discovered tests in disjoint `unit`, `integration` and `browser` projects. New files enter `unit` unless explicitly assigned in `tests/helpers/test-suites.ts`; 15 observed slow integration files and 14 real Chromium files have separate commands. `test:related` uses Vitest's source dependency graph for local selection, while `test:unit` and the PR verification chain always run every project. Local workers are capped at four, CI remains serial, and every file retains isolation. The [testing guide](../../../docs/testing.md) defines preparation and the limits of quick feedback.
 
