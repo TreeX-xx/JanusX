@@ -33,7 +33,11 @@ async function boot(root: string) {
   return { app, page }
 }
 async function settings(page: Page) {
-  await page.getByTitle('Settings', { exact: true }).click()
+  if (await page.locator('[data-plugin-workbench]').isVisible()) {
+    // Fullscreen workbenches cover the titlebar. Exercise the same host event
+    // used by plugin management navigation to verify modal occlusion.
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('janusx:open-plugin-manager')))
+  } else await page.getByTitle('Settings', { exact: true }).click()
   await page.locator('[data-tab="plugins"]').click()
   await expect(page.locator('[data-plugin-settings]')).toBeVisible()
 }
@@ -54,7 +58,9 @@ async function rawCall(frame: Frame | Page, method: string, params: unknown) {
 async function guest(app: ElectronApplication, entry: string, excludeUrl = ''): Promise<Page> {
   const matches = (page: Page) => page.url().startsWith('janusx-plugin:') && page.url().endsWith(entry) && page.url() !== excludeUrl
   await expect.poll(() => app.context().pages().some(matches)).toBe(true)
-  return app.context().pages().find(matches)!
+  const page = app.context().pages().find(matches)!
+  await page.waitForLoadState('domcontentloaded')
+  return page
 }
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'janusx-p2-desktop-'))
@@ -1316,7 +1322,7 @@ test('P3 four surfaces preserve panes, return focus, shield approvals and revoke
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'peek')
     await expect(page.locator('.janus-capsule-title')).toContainText('P3 ready')
     await expect.poll(async () => (await attached()).length).toBe(0)
-    await page.locator('.janus-island').dblclick()
+    await page.locator('.janus-island').dblclick({ position: { x: 8, y: 8 } })
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'expanded')
     await page.locator(`button[data-view="extension:${pluginId}/island"]`).click()
     const island = await guest(app, '/dist/summary.html', summary.url())
