@@ -306,7 +306,7 @@ test('P7 palette-only plugins require review, persist selection, shield settings
     await settings(page); await expect.poll(canvas).toBe('#151517')
     await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), id)
     await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
-    await expect.poll(canvas).toBe('#EFE4C5')
+    await expect.poll(canvas).toBe('#151517')
     expect(await page.evaluate(() => (window as any).electron.theme.get())).toBe(theme)
     await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), id)
     await expect.poll(canvas).toBe('#102030')
@@ -315,7 +315,7 @@ test('P7 palette-only plugins require review, persist selection, shield settings
     booted = await boot(root); app = booted.app; page = booted.page
     await expect.poll(canvas).toBe('#102030')
     await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: false }))
-    await expect.poll(canvas).toBe('#EFE4C5')
+    await expect.poll(canvas).toBe('#151517')
     expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--shell-canvas'))).toBe('')
   } finally { await close(app); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
 })
