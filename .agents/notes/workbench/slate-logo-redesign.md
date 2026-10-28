@@ -7,7 +7,7 @@
   "created": "2026-09-29",
   "class": "feature",
   "tags": ["branding","logo","planche","slate","icon"],
-  "updated": "2026-10-27T12:22:48.738Z",
+  "updated": "2026-10-28T09:29:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -21,6 +21,8 @@
 resources/icon.png 与 resources/icon.ico 恢复为历史提交 e97b9153 中的黑底、白橙 X 版本，README、应用窗口与打包入口继续引用这两个资源。未执行打包后的任务栏与安装器实机检查。
 
 设置页中英文名称同步标注经典黑为默认，石板色不再带默认标记。dev 主进程监听 PNG／ICO 资源，更新图标时触发重建以重新加载原生窗口图标。2026-10-27 直接读取运行中 dev 窗口的 WM_GETICON，确认当前原生图标为黑底白橙 X；Electron nativeImage 解码当前 ICO 也为黑色版本。窗口图标正确不等于任务栏图标正确。Windows dev 入口使用独立 AppUserModelID（com.janusx.app.dev）；主窗口通过 setAppDetails 显式指定相同标识、开发启动命令和图标路径。ICO 复制到 dev profile 的 shell-icons/janusx-<内容哈希>.ico，颜色变更生成新路径，避开 Windows 对同一路径旧图标的缓存。生产版不改变任务栏身份；已有固定快捷方式不自动改写。类型检查与 8 项 dev 环境／构建隔离测试通过。
+
+2026-10-28：非打包启动的任务栏 ICO 读取和重启入口按主窗口已有的 resources 路径解析，不再依赖 app.getAppPath()。直接执行 out/main/index.js 时 appPath 是 out/main，原实现会在创建窗口时读取不存在的 out/main/resources/icon.ico 并阻止启动。生产包不进入该任务栏分支。固定 Node／sibling 环境重建后，`npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-cpa.spec.ts --grep "CPA settings use" --workers=1` 通过（1 项，14.7 秒），覆盖直接启动、主题切换及窄宽度设置布局。
 
 以下为已被当前决定取代的石板版设计记录。
 

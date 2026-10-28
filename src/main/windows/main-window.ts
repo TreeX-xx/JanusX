@@ -12,7 +12,8 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
   // Note: .agents/notes/workbench/standalone-editor-initial-theme.md
   const theme = getThemeDefinition(configService.getCachedTheme())
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
-  const appIcon = nativeImage.createFromPath(join(__dirname, '../../../resources', iconFile))
+  const resources = join(__dirname, '../../../resources')
+  const appIcon = nativeImage.createFromPath(join(resources, iconFile))
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -33,7 +34,7 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
   })
   if (process.platform === 'win32' && !app.isPackaged) {
     // Windows caches taskbar icons by path separately from the native window icon.
-    const icon = readFileSync(join(app.getAppPath(), 'resources/icon.ico'))
+    const icon = readFileSync(join(resources, 'icon.ico'))
     const hash = createHash('sha256').update(icon).digest('hex').slice(0, 16)
     const directory = join(app.getPath('userData'), 'shell-icons')
     mkdirSync(directory, { recursive: true })
@@ -43,7 +44,7 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
       appId: 'com.janusx.app.dev',
       appIconPath: iconPath,
       appIconIndex: 0,
-      relaunchCommand: `"${process.execPath}" "${join(app.getAppPath(), 'scripts/dev-entry.mjs')}"`,
+      relaunchCommand: `"${process.execPath}" "${join(resources, '../scripts/dev-entry.mjs')}"`,
       relaunchDisplayName: 'JanusX (Dev)',
     })
   }
