@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-28T07:53:42.953Z",
+  "updated": "2026-10-28T10:06:00Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -283,7 +283,7 @@ Windows 本地验证覆盖安装后导航、授权启用、停用提示、卸载
 
 自适应关系线与接口线的标签避开当前卡片边界，使用不透明主题底色、边框和短虚线引线；真实 JanusX Notes 画布测试覆盖浅色／深色对比度、卡片遮挡、缩放、平移和窄视口。插件源码与 manifest/package 版本提升为 1.0.6；以仓库外九个公开归档独立构建、类型检查，并通过同产物签名 Electron 载体回归。既有 `npm run dev` 只重启宿主，不会重建或替换已导入的插件副本；本地插件专用 `npm run dev:blueprint` 会先重建签名包并启动隔离 profile，直接测试手动导入时则需停用旧插件、导入新版并重新启用。
 
-生产身份 janusx-blueprint-20261026 签名的 Windows x64 [official.blueprint-1.0.6.jxp](../../../release/2026-10-27-blueprint-1.0.6/official.blueprint-1.0.6.jxp) 为 1,800,887 字节，SHA-256 为 `011e7c6f5148ec7ebfafdae930037ad6be8ace2e3ac2a020a953cea198dfc735`。包内签名、manifest 与四个构建产物哈希均与独立构建相符。包未发布远端目录，也未在打包宿主导入验证。
+生产身份 janusx-blueprint-20261026 签名的 Windows x64 [official.blueprint-1.0.6.jxp](https://github.com/TreeX-xx/JanusX/releases/download/v0.9.4/official.blueprint-1.0.6.jxp) 为 1,800,887 字节，SHA-256 为 `011e7c6f5148ec7ebfafdae930037ad6be8ace2e3ac2a020a953cea198dfc735`。包内签名、manifest 与四个构建产物哈希均与独立构建相符。包未发布远端目录，也未在打包宿主导入验证。
 
 ## 后续接续入口
 
