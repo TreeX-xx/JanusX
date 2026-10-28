@@ -249,7 +249,7 @@ async function main() {
   console.log(`已推送 ${tag}，未触发构建或发布。本地构建并运行 stage:win 后执行：`)
   console.log(`  gh release edit ${tag} --notes-file ${notesPath}`)
   console.log('  npm run publish:win')
-  console.log('  再按 CONTRIBUTING 把 main 同步回 develop：git switch develop && git merge --ff-only origin/main && git push origin develop')
+  console.log('  再按 CONTRIBUTING 把 main 同步回 dev：git switch dev && git merge --ff-only origin/main && git push origin dev')
 }
 
 await main().catch((err) => fail(err.message ?? String(err)))

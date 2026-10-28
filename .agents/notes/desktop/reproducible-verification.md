@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-26T09:10:38.219Z",
+  "updated": "2026-10-28T01:36:29.950Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -40,7 +40,7 @@ Workspace outputs follow the [development guide](../../../docs/development.md#�
 
 On 2026-10-21 the workspace organization moved 101 old build/staging and isolated test-runtime targets (3.49 GiB) into `artifacts/archive/workspace-2026-10-21/`, with original paths and sizes in `artifacts/workspace-cleanup/report.json`. A further 240 loose logs/screenshots and root test items were organized with hashes and path mappings in `organization-report.json`; the root PPT is preserved at `artifacts/manual-fixtures/test-presentation.pptx`. Existing reports/screenshots and copied runtime logs remain at their evidence locations. Current Android 0.1.7, release packages, live outputs, credentials, user data and registered worktrees are retained. Bulk permanent deletion was rejected by automatic approval with only “blocked by policy”; this operation is reversible archiving and freed zero bytes. Historical build directories and isolated profiles now resolve through the archive map when reproducing old evidence.
 
-Contributor setup is documented in the [development guide](../../../docs/development.md): Node from `.node-version`, a per-checkout dependency install, both sibling revisions from the current verify workflow, ordered agentX builds, package refresh and Chromium installation. Workflow checkouts use the explicit upstream TreeX-X repositories so Forks do not need their own siblings. Verification covers PRs into both develop and main. The split Windows job includes theme and packaging-exclusion checks in the same order as package.json's verify chain; future check-chain changes must update both owners.
+Contributor setup is documented in the [development guide](../../../docs/development.md): Node from `.node-version`, a per-checkout dependency install, both sibling revisions from the current verify workflow, ordered agentX builds, package refresh and Chromium installation. Workflow checkouts use the explicit upstream TreeX-X repositories so Forks do not need their own siblings. Verification covers PRs into both dev and main. The split Windows job includes theme and packaging-exclusion checks in the same order as package.json's verify chain; future check-chain changes must update both owners.
 
 `vitest.config.ts` expands Windows temporary directories before worker creation, so real filesystem tests retain their watchers without passing short directory aliases to libuv. CI and release use the exact Node version in `.node-version` and the same sibling repository commit. Sibling build commands stop at the first failure instead of allowing a later successful command to hide it.
 
