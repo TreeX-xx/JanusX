@@ -71,6 +71,17 @@ async function fixture() {
     agent: (reply: NonNullable<typeof agentReply>) => { agentReply = reply } }
 }
 
+it('accepts host-stamped workspaces added after native startup', async () => {
+  const f = await fixture()
+  const root = join(f.directory, 'added-workspace')
+  await cp(f.root, root, { recursive: true })
+  const project = { id: 'added-project', name: 'Added workspace', root }
+  expect((await f.call('blueprint.graph', null, project)).blueprint.nodes[f.noteId].title).toBe('Native fixture')
+  await f.call('workspace.activate', null, project)
+  await f.call('workspace.release', null, project)
+  expect(f.failures).toEqual([])
+})
+
 it('treats checkouts without Notes as empty discovery, including an unrelated .agents directory', async () => {
   const f = await fixture()
   await rm(join(f.root, '.agents'), { recursive: true })
@@ -196,9 +207,8 @@ it('loads the repository Notes corpus through bounded native graph parts without
   expect(f.requests()).toBe(0)
 })
 
-it('rejects cross-project requests and cancels an in-flight review without terminating another service', async () => {
+it('requires project context and cancels an in-flight review without terminating another service', async () => {
   const f = await fixture()
-  await expect(f.call('notes.snapshot', null, { ...f.project, id: 'ungranted' })).rejects.toThrow('PATH_NOT_GRANTED')
   await expect(f.call('notes.snapshot', null, null)).rejects.toThrow('PATH_NOT_GRANTED')
   const settings = await f.call('settings.snapshot')
   await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'test', modelId: 'test' } }, expectedRevision: settings.revision })

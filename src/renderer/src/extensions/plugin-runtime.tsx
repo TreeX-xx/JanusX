@@ -1,3 +1,4 @@
+import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — trusted shells only; plugin code stays in isolated native pages.
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { PluginHostEvent, PluginHostSnapshot, PluginManageRequest, PluginMount } from '../../../shared/ipc/plugins'
@@ -162,7 +163,7 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
   const { t } = useI18n('plugins')
   const pluginSnapshot = usePluginSnapshot()
   const record = pluginSnapshot.plugins.find(record => record.manifest.id === pluginId)
-  const projectGranted = Boolean(workspaceId && record?.projects.includes(workspaceId))
+  const projectGranted = Boolean(workspaceId && hasPluginProjectAccess(record, workspaceId))
   const body = useRef<HTMLDivElement>(null)
   // The settings dialog owns one cover lease; additional dialogs still cover its native page.
   const covered = useBrowserOcclusionStore(state => state.count > (location === 'settings' ? 1 : 0))

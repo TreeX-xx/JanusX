@@ -138,3 +138,10 @@
 
 /* ── 浮动通知（弹出层，允许底色） ── */
 .toast { position: fixed; right: 30px; bottom: 40px; z-index: 9000; max-width: 360px; padding: 14px; background: var(--shell-card); border: 1px solid var(--shell-border); color: var(--shell-text); border-radius: 8px; font-size: 12px; pointer-events: none; }
+
+/* Commands group their shortcut and visible entry preferences. */
+.commandPreference { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--shell-border-soft); min-width: 0; }
+.commandPreference > strong { font-size: 12px; font-weight: 600; }
+.commandPreference .preference { border: 0; padding: 0; }
+.shortcutField { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--shell-muted); }
+.entryPreference { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--shell-muted); }

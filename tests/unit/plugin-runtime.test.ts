@@ -26,8 +26,13 @@ async function fixture() {
   await writeFile(join(root, 'README.md'), 'project A')
   await writeFile(join(rootB, 'README.md'), 'project B')
   const events: Array<{ id: string; packet: any }> = []
+  const registered = new Set(['a', 'b'])
   const deps = { directory: join(directory, 'profile'),
-    resolveProject: async (id: string, scopePath: string | null = null) => ({ root: scopePath ?? (id === 'a' ? root : rootB), name: id }),
+    listProjects: async () => [...registered],
+    resolveProject: async (id: string, scopePath: string | null = null) => {
+      if (!registered.has(id)) throw new Error('Unregistered project')
+      return { root: scopePath ?? (id === 'a' ? root : rootB), name: id }
+    },
     worktrees: async (_id: string) => [{ root, name: 'Main', branch: 'main' as string | null, isMain: true }],
     changed: vi.fn(), event: (id: string, packet: unknown) => events.push({ id, packet }), openView: vi.fn(), workbenchAction: vi.fn(), toast: vi.fn() }
   const service = new PluginService(deps)
@@ -40,29 +45,49 @@ async function fixture() {
   let request = 0
   const call = (mount: Awaited<ReturnType<PluginService['mount']>>, method: string, params: unknown = {}) => service.call(mount.instanceId, mount.binding,
     { protocol: 1, type: 'request', requestId: String(++request), method, params, contextRevision: mount.context.revision }) as Promise<any>
-  return { directory, source, manifest, root, rootB, deps, service, events, prepare, call }
+  return { directory, source, manifest, root, rootB, deps, service, events, prepare, call, registered }
 }
 
-it('requires an explicit project grant before resolving roots or mounting, while keeping application views available', async () => {
+it('enables current and future registered projects without a grant list and keeps application views isolated', async () => {
   const f = await fixture()
   f.manifest.contributes.views.find((view: any) => view.id === 'summary').scope = 'application'
   f.manifest.contributes.island[0].actions = ['open-desk', 'open-island']
   await writeFile(join(f.source, 'manifest.json'), JSON.stringify(f.manifest))
   await f.prepare()
-  await f.service.enable(f.manifest.id, [])
-  const resolveProject = vi.spyOn(f.deps, 'resolveProject')
-  await expect(f.service.mount(f.manifest.id, 'desk', 'a', f.root)).rejects.toMatchObject({ code: 'PATH_NOT_GRANTED' })
-  expect(resolveProject).not.toHaveBeenCalled()
-  expect(f.service.snapshot().plugins[0].runtime?.pages ?? 0).toBe(0)
+  await f.service.enable(f.manifest.id)
+  expect(f.service.snapshot().plugins[0]).toMatchObject({ projectScope: 'all', projects: [] })
   const app = await f.service.mount(f.manifest.id, 'summary', null, null)
   f.service.bind(app.instanceId, app.binding)
   expect(await f.call(app, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: false, error: { code: 'CONTEXT_UNAVAILABLE' } })
-  await f.service.enable(f.manifest.id, ['a'])
   const mount = await f.service.mount(f.manifest.id, 'desk', 'a', f.root)
   f.service.bind(mount.instanceId, mount.binding)
   expect(await f.call(mount, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project A' } })
-  await f.service.setContext('b', f.rootB, 'en', { id: '', tokens: {} })
-  await expect(f.service.mount(f.manifest.id, 'desk', 'b', f.rootB)).rejects.toMatchObject({ code: 'PATH_NOT_GRANTED' })
+  f.registered.add('new-project')
+  await f.service.setContext('new-project', f.rootB, 'en', { id: '', tokens: {} })
+  const added = await f.service.mount(f.manifest.id, 'desk', 'new-project', f.rootB)
+  f.service.bind(added.instanceId, added.binding)
+  expect(await f.call(added, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project B' } })
+  await expect(f.service.mount(f.manifest.id, 'details', 'unregistered', f.root)).rejects.toThrow('Unregistered project')
+  await f.service.disable(f.manifest.id)
+  await expect(f.service.mount(f.manifest.id, 'desk', 'new-project', f.rootB)).rejects.toMatchObject({ code: 'PLUGIN_DISABLED' })
+})
+
+it('restores older enabled records into all-workspace access', async () => {
+  const f = await fixture()
+  await f.prepare()
+  const path = join(f.deps.directory, 'registry.json')
+  const saved = JSON.parse(await readFile(path, 'utf8'))
+  delete saved.plugins[0].projectScope
+  saved.plugins[0].projects = []
+  await writeFile(path, JSON.stringify(saved))
+  await f.service.dispose()
+  const restored = new PluginService(f.deps)
+  cleanups.push(() => restored.dispose())
+  await restored.initialize()
+  f.registered.add('after-restart')
+  await restored.setContext('after-restart', f.rootB, 'en', { id: '', tokens: {} })
+  expect(restored.snapshot().plugins[0]).toMatchObject({ enabled: true, projectScope: 'all' })
+  expect(await restored.mount(f.manifest.id, 'desk', 'after-restart', f.rootB)).toHaveProperty('instanceId')
 })
 
 describe('plugin-owned workbench frame', () => {
@@ -96,7 +121,7 @@ describe('plugin-owned workbench frame', () => {
     expect(project.project.projectId).toBe('b')
     expect(await f.call({ ...mount, context: project }, 'workspace.readText', { path: 'README.md' })).toMatchObject({ ok: true, result: { text: 'project B' } })
     expect(f.service.snapshot().plugins[0].runtime?.pages).toBe(1)
-    await f.service.setContext('ungranted', f.root, 'en', { id: '', tokens: {} })
+    await f.service.setContext(null, null, 'en', { id: '', tokens: {} })
     expect(f.service.resource(mount.url)).toBeNull()
   })
   it('closes retained pages when the selected root cannot be resolved', async () => {
@@ -122,11 +147,11 @@ describe('plugin-owned workbench frame', () => {
     f.service.bind(mount.instanceId, mount.binding)
     return { ...f, mount }
   }
-  it('lists only granted project identities and routes close/switch through the host', async () => {
+  it('lists current and newly registered project identities and routes close/switch through the host', async () => {
     const f = await framed()
     expect(f.mount.context.workbenchFrame).toBe(true)
     expect(await f.call(f.mount, 'views.getFrame')).toMatchObject({ ok: true, result: { projectId: 'a', projects: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }] } })
-    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'ungranted' })).toMatchObject({ ok: false, error: { code: 'PERMISSION_DENIED' } })
+    expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'ungranted' })).toMatchObject({ ok: false })
     expect(f.deps.workbenchAction).not.toHaveBeenCalled()
     expect(await f.call(f.mount, 'views.requestFrame', { action: 'selectProject', projectId: 'b' })).toMatchObject({ ok: true, result: { requested: true } })
     expect(f.deps.workbenchAction).toHaveBeenLastCalledWith(expect.objectContaining({ pluginId: f.manifest.id, viewId: 'desk', currentProjectId: 'a', root: f.root, projectId: 'b' }))

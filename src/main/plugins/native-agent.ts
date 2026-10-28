@@ -1,3 +1,4 @@
+import { hasPluginProjectAccess } from '../../shared/plugin-project-access'
 import { randomUUID } from 'node:crypto'
 import { createAgentRuntime, type ToolDefinition } from '@janus-agent/agent-core'
 import { ManagedChatSession } from '@janus-agent/chat-core'
@@ -23,7 +24,7 @@ export function nativeAgentHost(record: InstalledPlugin, service: () => NativePl
     if (!parsed.success) throw new NativeServiceError('INVALID_REQUEST')
     const input = parsed.data
     if (input.progress && !record.manifest.capabilities.required.includes('models.agent.progress')) throw new NativeServiceError('PERMISSION_DENIED')
-    if (!record.projects.includes(input.projectId)) throw new NativeServiceError('PATH_NOT_GRANTED')
+    if (!hasPluginProjectAccess(record, input.projectId)) throw new NativeServiceError('PATH_NOT_GRANTED')
     const project = await resolveProject(input.projectId, input.root)
     signal.throwIfAborted()
     const now = Date.now()
