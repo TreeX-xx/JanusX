@@ -5,6 +5,7 @@ import { cp, mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { dependencyDifferences, publicArchives } from './public-archives.mjs'
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const source = join(repository, 'plugins/blueprint')
@@ -21,22 +22,21 @@ await mkdir(vendor, { recursive: true })
 for (const file of ['src', 'manifest.json', 'package.json', 'tsconfig.json', 'build.mjs']) await cp(join(source, file), join(project, file), { recursive: true })
 const pkg = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
 const host = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8'))
-const dependencies = []
-for (const name of Object.keys(pkg.dependencies).filter(name => name.startsWith('@janus'))) {
-  console.log(`Packing ${name}`)
+const names = Object.keys(pkg.dependencies).filter(name => name.startsWith('@janus'))
+const sources = names.map(name => {
   const reference = host.dependencies[name]
   if (!reference?.startsWith('file:')) throw new Error(`Missing public package source: ${name}`)
-  const packageSource = resolve(repository, reference.slice(5))
-  const packed = JSON.parse(run(['pack', packageSource, '--ignore-scripts', '--json', '--pack-destination', vendor], repository))[0]
-  if (packed.name !== name || pkg.dependencies[name] !== `file:vendor/${packed.filename}`) throw new Error(`Dependency archive name or version changed: ${name}`)
-  const bytes = await readFile(join(vendor, packed.filename))
-  dependencies.push({ name, version: packed.version, file: packed.filename, sha256: createHash('sha256').update(bytes).digest('hex'), integrity: packed.integrity })
+  return resolve(repository, reference.slice(5))
+})
+const dependencies = await publicArchives({ sources, vendor, cache: join(repository, '.cache/plugin-archives'), npm: args => run(args, repository) })
+for (const dependency of dependencies) {
+  if (pkg.dependencies[dependency.name] !== `file:vendor/${dependency.file}`) throw new Error(`Dependency archive name or version changed: ${dependency.name}`)
 }
-dependencies.sort((a, b) => a.name.localeCompare(b.name))
 const dependencyLock = { schemaVersion: 1, dependencies }
 if (!update) {
   const previous = JSON.parse(await readFile(join(source, 'build-dependencies.lock.json'), 'utf8'))
-  if (JSON.stringify(previous) !== JSON.stringify(dependencyLock)) throw new Error('Public dependency bytes changed. Review the package changes and explicitly regenerate the build locks.')
+  const differences = dependencyDifferences(previous, dependencyLock)
+  if (differences.length) throw new Error(`Public dependency bytes changed:\n${differences.join('\n')}\nReview the source/build changes, then run npm run plugins:blueprint:verify -- --update-lock. No installation was attempted.`)
   await cp(join(source, 'package-lock.json'), join(project, 'package-lock.json'))
 }
 console.log(`Packed ${dependencies.length} public dependencies. Installing in ${project}`)

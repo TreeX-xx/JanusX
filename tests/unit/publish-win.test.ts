@@ -20,7 +20,7 @@ function fixture(version = '1.0.0') {
   const sha512 = createHash('sha512').update(bytes).digest('base64')
   writeFileSync(join(directory, version.includes('-') ? 'beta.yml' : 'latest.yml'), stringify({ version, path: setup, sha512, files: [{ url: setup, sha512, size: bytes.length }] }))
   const release = releaseFiles(root)
-  const assets = release.files.map(file => ({ name: basename(file), size: readFileSync(file).length, digest: `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}` }))
+  const assets: Array<{ name: string; size: number; digest: string }> = release.files.map((file: string) => ({ name: basename(file), size: readFileSync(file).length, digest: `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}` }))
   const state = {
     remote: { tag_name: release.tag, draft: true, prerelease: version.includes('-'), assets: [...assets] } as { tag_name: string; draft: boolean; prerelease: boolean; assets: typeof assets } | null,
     dirty: '', tagSha: 'commit', runtimeFailure: false, uploadFailure: false, authFailure: false,
@@ -55,6 +55,16 @@ function fixture(version = '1.0.0') {
 }
 
 describe('Windows draft staging and explicit publication', () => {
+  it('reuses staging verification on upload retry but rechecks changed portable bytes', () => {
+    const f = fixture()
+    stageWin(f.root, f.run)
+    stageWin(f.root, f.run)
+    expect(f.calls.filter(call => call.command === process.execPath)).toHaveLength(1)
+    writeFileSync(f.release.files[2], 'new portable')
+    f.state.remote!.assets = []
+    stageWin(f.root, f.run)
+    expect(f.calls.filter(call => call.command === process.execPath)).toHaveLength(2)
+  })
   it.each(['1.0.0', '1.0.0-beta.1'])('stages %s without publishing', version => {
     const f = fixture(version); f.state.remote = null
     stageWin(f.root, f.run)
@@ -177,7 +187,7 @@ describe('Release trigger boundaries', () => {
   })
   it('retains required PR checks without duplicate branch-push runs', () => {
     const verify = workflow('verify')
-    expect(verify.on.pull_request.branches).toEqual(['main', 'develop'])
+    expect(verify.on.pull_request.branches).toEqual(['main', 'dev'])
     expect(verify.on.push).toBeUndefined()
     expect(verify.jobs.verify).toBeDefined()
   })

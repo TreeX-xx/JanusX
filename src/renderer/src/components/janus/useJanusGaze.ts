@@ -18,7 +18,7 @@ export interface UseJanusGazeOptions {
   enabled: boolean
   /** 通知中心展开中（P4 接线） */
   panelOpen?: boolean
-  /** 拖拽进行中（下拉副黑板）：悬停判定挂起，不触发摸头 */
+  /** 下滑手势进行中：悬停判定挂起，不触发摸头 */
   suspendRef?: RefObject<boolean>
   /** 外部忙（传话中等）：待机动作让位 */
   busyRef?: RefObject<boolean>

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BookOpen, ChevronDown, ChevronUp, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { selectedMemoNodeId, useMemoStore } from '@/stores/memo'
-import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
 import { PromptDialog } from '../common/PromptDialog'
 import { Select } from '../ui/Select'
@@ -17,15 +16,8 @@ import './memoIsland.css'
 
 type MemoPanelProps = { onBindMemo: (memoId: string | null) => void; compactTrigger?: boolean }
 
-// Note: disabled previews unmount the editor without deleting or unbinding — see .agents/notes/workbench/experimental-preview-features.md
-export function MemoPanel(props: MemoPanelProps) {
-  const enabled = useExperimentalStore(state => state.memo)
-  const load = useExperimentalStore(state => state.load)
-  useEffect(() => { void load() }, [load])
-  return enabled ? <EnabledMemoPanel {...props} /> : null
-}
-
-function EnabledMemoPanel({ onBindMemo, compactTrigger = false }: MemoPanelProps) {
+// Note: memos are available by default — see .agents/notes/workbench/experimental-preview-features.md
+export function MemoPanel({ onBindMemo, compactTrigger = false }: MemoPanelProps) {
   const { t } = useI18n('janus')
   const state = useMemoStore()
   const [open, setOpen] = useState(false)

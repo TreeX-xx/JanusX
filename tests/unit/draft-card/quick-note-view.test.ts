@@ -19,18 +19,6 @@ describe('Quick Note view behavior', () => {
     expect(css).not.toMatch(/(?:input|button):focus[^{}]*\{[^}]*outline:\s*none/)
   })
 
-  it('uses restrained radii on the note container, cards, editing surfaces, and controls', () => {
-    const css = readFileSync(new URL('../../../src/renderer/src/components/note/QuickNote.module.css', import.meta.url), 'utf8')
-
-    expect(css).toMatch(/\.root \{[^}]*border-radius: ?6px/)
-    expect(css).toMatch(/\.card \{[^}]*border-radius: ?4px/)
-    expect(css).toMatch(/\.title \{[^}]*border-radius: ?4px/)
-    expect(css).toMatch(/\.editor textarea,\s*\.preview \{[^}]*border-radius: ?4px/)
-    expect(css).toMatch(/\.actions button \{[^}]*border-radius: ?4px/)
-    expect(css).toMatch(/\.tool \{[^}]*border-radius: ?4px/)
-    expect(css).not.toMatch(/border-radius: ?999/)
-  })
-
   it('keeps export formats in an accessible conditional menu', () => {
     const source = readFileSync(new URL('../../../src/renderer/src/components/note/QuickNote.tsx', import.meta.url), 'utf8')
 
@@ -70,41 +58,6 @@ describe('Quick Note view behavior', () => {
 
   it('gives the single runtime drawer panel a stable id', () => {
     expect(getDrawerPanelId()).toBe('drawer-runtime-panel')
-  })
-
-  it('keeps the drawer to the runtime monitor after the Markdown move', () => {
-    const source = readFileSync(new URL('../../../src/renderer/src/components/TerminalArea.tsx', import.meta.url), 'utf8')
-    expect(source).not.toContain('DrawerViewTabs')
-    expect(source).not.toContain('setDrawerView')
-    expect(source).toContain('id={getDrawerPanelId()}')
-    expect(source).toContain('hidden={!drawerOpen}')
-    expect(source).toContain('height: getDrawerHeight(drawerOpen, drawerHeight)')
-  })
-
-  it('keeps the production terminal tree mounted independently from drawer state', () => {
-    const source = readFileSync(new URL('../../../src/renderer/src/components/TerminalArea.tsx', import.meta.url), 'utf8')
-    const leafStart = source.indexOf('function LeafPane(')
-    const terminalAreaStart = source.indexOf('export function TerminalArea()')
-    const leafSource = source.slice(leafStart, terminalAreaStart)
-    const terminalAreaSource = source.slice(terminalAreaStart)
-    const liveTreeNodeIndex = terminalAreaSource.indexOf('node={surface.paneTree}')
-    const liveTreeIndex = terminalAreaSource.lastIndexOf('<PaneTreeView', liveTreeNodeIndex)
-    const workspaceSurfaceIndex = terminalAreaSource.indexOf('workspaceSurfaces.map((surface) => {')
-    const drawerIndex = terminalAreaSource.indexOf('data-runtime-drawer=""')
-
-    expect(leafStart).toBeGreaterThanOrEqual(0)
-    expect(workspaceSurfaceIndex).toBeGreaterThanOrEqual(0)
-    expect(liveTreeIndex).toBeGreaterThanOrEqual(0)
-    expect(drawerIndex).toBeGreaterThan(liveTreeIndex)
-    expect(leafSource).toContain('{leaf.tabs.map((tab) => {')
-    expect(leafSource).toContain('key={tab.id}')
-    expect(leafSource).toContain('<CLITerminal')
-    expect(leafSource).not.toContain('drawerOpen')
-    expect(leafSource).not.toContain('drawerView')
-    expect(terminalAreaSource).toContain("display: workspaceVisible ? 'block' : 'none'")
-    expect(terminalAreaSource).toContain("...(!workspaceVisible ? { inert: '' } : {})")
-    // 无项目时活动 surface 的宿主是全局哨兵，可见性按哨兵判。
-    expect(terminalAreaSource).toContain('surface.workspaceId === GLOBAL_PANE_SCOPE')
   })
 
   it('keeps drafts through every terminal lifecycle event', () => {

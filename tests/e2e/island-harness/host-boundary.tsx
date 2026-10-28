@@ -1,18 +1,14 @@
 // Note: host entry migration — see .agents/notes/planning/blueprint-official-plugin.md
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { IslandBlackboard } from '../../../src/renderer/src/components/blackboard/IslandBlackboard'
 import { Titlebar } from '../../../src/renderer/src/components/Titlebar'
 import { JanusChatProvider } from '../../../src/renderer/src/components/janus/JanusChatProvider'
 import { NoteTimelineDetails } from '../../../src/renderer/src/components/note/NoteTimelineDetails'
 import type { ChatToolBlock } from '../../../src/shared/chat-timeline'
 import { useWorkspaceBootstrap } from '../../../src/renderer/src/features/workspace/useWorkspaceBootstrap'
-import { extensionRegistry } from '../../../src/renderer/src/extensions/registry'
 import { useAppStore } from '../../../src/renderer/src/stores/app'
-import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useNoteChatStore } from '../../../src/renderer/src/stores/note-chat'
 import { useEditorStore } from '../../../src/renderer/src/stores/editor'
-import { getLeafPanes } from '../../../src/renderer/src/lib/workspace-pane'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
 import { useThemeStore } from '../../../src/renderer/src/stores/theme'
@@ -43,23 +39,12 @@ const fixtures = {
   sourceFailure: false,
   setTheme: (theme: 'planche' | 'dark') => useThemeStore.getState().applyExternal(theme),
   openedFiles: () => useEditorStore.getState().openFiles.map(file => file.absolutePath),
-  install: () => extensionRegistry.register({
-    id: 'board.tools',
-    views: [
-      { id: 'notes', title: 'Project Notes', location: 'workspace', scope: 'project', instancePolicy: 'single', component: () => <p>Notes ready</p> },
-      { id: 'app', title: 'Application Tool', location: 'workbench', scope: 'application', component: () => <p>Application ready</p> },
-    ],
-  }),
-  disable: () => extensionRegistry.disable('board.tools'),
-  clearProject: () => useWorkspaceStore.getState().setActiveWorkspace(null),
   noteChanged: () => useNoteChatStore.getState().receive({ id: 'fixture-change', conversationId: 'chat', workspacePath: workspace.path, files: [] } as never),
-  tabs: () => getLeafPanes(useWorkspaceStore.getState().paneTree).flatMap(leaf => leaf.tabs).map(tab => ({ id: tab.id, type: tab.type })),
   restoreLegacyLayout: () => useAppStore.getState().setActiveWorkbench('blueprint'),
 }
-Object.assign(window, { boardFixture: fixtures })
+Object.assign(window, { hostFixture: fixtures })
 await initI18n()
 await changeLanguage('en')
-if (new URLSearchParams(location.search).has('installed')) fixtures.install()
 const noteBlock: ChatToolBlock = {
   id: 'read', kind: 'tool', startedAt: 1, callId: 'read',
   entry: { toolName: 'note.read', workspaceId: workspace.id, status: 'completed', summary: 'Read source' },
@@ -69,12 +54,8 @@ const noteBlock: ChatToolBlock = {
 
 function Harness() {
   useWorkspaceBootstrap()
-  const height = useAppStore(s => s.blackboardHeight)
   return <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
     <Titlebar />
-    <button onClick={() => useAppStore.getState().toggleBlackboard()}>Toggle board</button>
-    <output data-testid="board-height">{height}</output>
-    <IslandBlackboard />
     {new URLSearchParams(location.search).has('timeline') && <NoteTimelineDetails block={noteBlock} />}
     <div style={{ flex: 1 }}>Workspace remains available</div>
   </div>

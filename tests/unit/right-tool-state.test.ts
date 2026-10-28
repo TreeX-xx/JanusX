@@ -37,12 +37,13 @@ describe('right tool registry', () => {
     expect(RIGHT_TOOL_REGISTRY.some(({ id }) => (id as string) === 'office')).toBe(false)
   })
 
-  it('gates the sessions tool on the experimental preview flag only', () => {
-    expect(isRightToolEnabled('sessions', { knowledge: true, persona: true, sessions: true })).toBe(true)
-    expect(isRightToolEnabled('sessions', { knowledge: true, persona: true, sessions: false })).toBe(false)
-    expect(isRightToolEnabled('files', { knowledge: false, persona: false, sessions: false })).toBe(true)
-    expect(isRightToolEnabled('git', { knowledge: false, persona: false, sessions: false })).toBe(true)
-    expect(isRightToolEnabled('assist', { knowledge: true, persona: true, sessions: false })).toBe(true)
+  it('keeps session management available while persona remains controlled', () => {
+    expect(isRightToolEnabled('sessions', { knowledge: true, persona: true })).toBe(true)
+    expect(isRightToolEnabled('sessions', { knowledge: false, persona: false })).toBe(true)
+    expect(isRightToolEnabled('files', { knowledge: false, persona: false })).toBe(true)
+    expect(isRightToolEnabled('git', { knowledge: false, persona: false })).toBe(true)
+    expect(isRightToolEnabled('assist', { knowledge: true, persona: true })).toBe(true)
+    expect(isRightToolEnabled('assist', { knowledge: false, persona: false })).toBe(false)
   })
 })
 

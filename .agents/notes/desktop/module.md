@@ -45,15 +45,19 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 打包与发布：[hoisted-deps](./packaged-hoisted-deps.md)、[runtime-size](./packaged-hoisted-deps.md)、[cli-publish](./janus-cli-npm-publish.md)、[officecli](./officecli-bundled.md)、[runner-backflow](../agent/external-runner-backflow.md)、[ci-order](./ci-sibling-build-order.md)、[verify-repair](./release-verify-repair.md)（v0.8.8 双管线修复）。
 
+[开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。统一输入与新增平台仍在设计阶段，具体取舍与实施验收由该草案维护。
+
 协作入口由 [CONTRIBUTING](../../../CONTRIBUTING.md)、[开发环境](../../../docs/development.md)和[维护者指南](../../../docs/maintainers.md)分别承担：功能 PR 进入 dev，晋级 PR 进入 main，两者均运行 Windows 验证；发布由维护者负责。分支、验证和反馈取舍分别见 [development-branch](./development-branch.md)、[reproducible-verification](./reproducible-verification.md)及 [github-maintenance](./github-maintenance.md)。
 
 早期基石（均保留，无孤儿）：[toast](./desktop-toast.md)、[model-registry](../agent/model-registry.md)、[llm-runtime](../agent/llm-tool-runtime.md)、[browser-surface](./browser-surface.md)、[auto-update](./app-auto-update-win.md)、[cli-scope](./cli-manager-scope.md)、[i18n](./i18n-pipeline.md)、[statusbar](./runtime-statusbar.md)。
 
 内嵌浏览器按实际可见性挂载原生网页视图：隐藏、加载失败和对话框遮挡时摘除，恢复后按布局重新挂载。错误提示保留失败地址与重试入口；退出确认和设置等共享弹窗通过窗口内计数协调遮挡，不能依靠 CSS 层级覆盖原生网页。具体行为及 Docker 入口回归证据见 [browser-surface](./browser-surface.md)。
 
+[浏览器与桌面应用控制](./browser-computer-use.md)记录 codeg、Orca 的调研及开箱即用候选方案：先复用现有浏览器打通 Agent 操作，再评估 Windows 原生驱动；内置工具、CLI 与 MCP 共享宿主服务。该方向处于探索阶段，尚未选型或实施，不改变既有浏览器和元素点选需求的边界。
+
 预览选元素→AI 按元素改（已敲定、未实现）：内置浏览器与 HTML 预览（`HtmlPreviewFrame`）共用一份元素引用协议（selector／outerHTML／计算后 CSS／bbox／截图），取元素前端各面自建；用户点选后元素引用进会话输入，AI 按引用定位源码修改并刷新验证。注入只服务用户主动选取手势，不开放 agent 页面脚本；映射目标态为 sourcemap／组件树 `file:line`，本期文本检索、二期映射。范围、边界与验收归[选元素→AI 按元素改](./requirements/element-picker-ai-edit.md)。
 
-Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边界和同步排除清单。双目标打包与单目标 portable 迭代均禁用自动发布；迭代子进程使用压缩级别 1 并保留体积预算，正式发行保持默认压缩配置。独立发布脚本先检查运行时和更新清单，上传同一批产物到草稿后再公开。llm-core 的增量信息保存在 dist 内，清理 dist 同时清理缓存；verify 先构建 core 供测试使用，后续 build:app 仅构建 Electron 应用。
+Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边界和同步排除清单。双目标打包与单目标 portable 迭代均禁用自动发布；迭代子进程使用压缩级别 1 并保留体积预算，正式发行保持默认压缩配置。独立上传入口检查运行时和更新清单，向草稿续传同一批产物；单独公开时核对远端附件，不重新构建。llm-core 的增量信息保存在 dist 内，清理 dist 同时清理缓存；verify 先构建 core 供测试使用，后续 build:app 仅构建 Electron 应用。
 
 本地 checkout/worktree 独立安装开发依赖，`.npmrc` 固定本地 sibling 包物化方式；`npm run dev` 先检查本地工具链、Electron 二进制和 sibling 发布入口，再编译 llm-core 并启动隔离的 `.cache` 开发输出。缺依赖给出明确修复命令，不自动安装或改动同级仓。环境契约和验证由 [reproducible-verification](./reproducible-verification.md) 维护，操作入口见 `CONTRIBUTING.md`。
 

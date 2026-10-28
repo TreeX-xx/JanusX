@@ -2,7 +2,9 @@ import { beforeAll, afterAll, expect, it } from 'vitest'
 import { chromium, type Browser } from 'playwright'
 import { build } from 'esbuild'
 import { mkdir } from 'node:fs/promises'
-import { BlueprintNoteService } from '../../plugins/blueprint/src/main/notes/service'
+import { parseNote } from '@janus-agent/harness-core'
+import { toNoteDoc } from '../../src/main/notes/note-provider'
+import { projectGraph } from '../../plugins/blueprint/src/main/notes/note-to-blueprint'
 import { getEdgeLabelPosition } from '../../plugins/blueprint/src/ui/graph/edge-label-position'
 
 it('moves badges to the nearest clear area around every card', () => {
@@ -21,7 +23,23 @@ it('moves badges to the nearest clear area around every card', () => {
 
 let browser: Browser, script: string, css: string
 beforeAll(async () => {
-  const blueprint = (await new BlueprintNoteService().projectView(process.cwd())).blueprint
+  // A small, fixed graph exercises the real interface layout without depending
+  // on the developer's current Notes, their titles or the growing repository size.
+  const repo = '11111111-1111-4111-8111-111111111111'
+  const id = (n: number) => `${String(n).padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`
+  const uri = (n: number) => `note://${repo}/${id(n)}`
+  const records = [
+    { n: 1, title: 'Interface fixture', role: 'project' },
+    { n: 2, title: 'Session provider', parent: uri(1), interfaces: [{ name: 'AgentSessionRegistry', direction: 'provides' }] },
+    { n: 3, title: 'Terminal consumer', parent: uri(1), interfaces: [{ name: 'AgentSessionRegistry', direction: 'needs', provider: uri(2) }] },
+    { n: 4, title: 'Other module', parent: uri(1) },
+  ]
+  const blueprint = projectGraph({ repoId: repo, repoName: 'Interface fixture', revision: 1,
+    entries: records.map(({ n, title, ...meta }) => ({
+      doc: toNoteDoc(parseNote(`---\n${JSON.stringify({ schema: 'harness-note/2', id: id(n), kind: 'module', lifecycle: 'accepted',
+        moduleState: 'partial', created: '2026-10-28', updated: '2026-10-28T00:00:00Z', ...meta })}\n---\n# ${title}\n\n## Responsibility\nInterface fixture.\n`)),
+      relPath: `.agents/notes/${n}.md`, sha256: 'a'.repeat(64),
+    })) }, 'C:/interface-fixture')
   const result = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
     import React, {useState} from 'react'; import {createRoot} from 'react-dom/client';
     import {Graph} from './plugins/blueprint/src/ui/Graph';
@@ -44,7 +62,7 @@ beforeAll(async () => {
 })
 afterAll(async () => { await browser?.close() })
 
-it.each(['planche', 'dark'])('keeps the real session/terminal interface label clear and readable in %s', async theme => {
+it.each(['planche', 'dark'])('keeps interface badges clear, readable and navigable in %s', async theme => {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } })
   page.setDefaultTimeout(5000)
   try {
@@ -55,7 +73,7 @@ it.each(['planche', 'dark'])('keeps the real session/terminal interface label cl
     await label.waitFor()
     await expect.poll(() => page.locator('.react-flow').evaluate(element =>
       element.getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length)).toBe(0)
-    await page.screenshot({ path: `artifacts/edge-label/real-notes-${theme}.png` })
+    await page.screenshot({ path: `artifacts/edge-label/interface-fixture-${theme}.png` })
     const overlapping = () => label.evaluate(element => {
       const box = element.getBoundingClientRect()
       return [...document.querySelectorAll('.bp-node-card')].filter(card => {

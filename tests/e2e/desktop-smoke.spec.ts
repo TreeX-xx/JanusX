@@ -391,12 +391,15 @@ test('built desktop exposes typed Workspace, Terminal, and Project critical path
     const embeddedEditor = page.getByRole('region', { name: 'Embedded file editor' })
     await expect(embeddedEditor).toBeVisible()
     const initialEditorWindowPromise = application.waitForEvent('window')
-    await embeddedEditor.getByRole('button', { name: '返回独立浮窗' }).click()
+    await embeddedEditor.getByRole('button', { name: '更多文件操作' }).click()
+    await page.getByRole('dialog', { name: '更多文件操作' }).getByRole('button', { name: '返回独立浮窗' }).click()
     const initialEditorWindow = await initialEditorWindowPromise
     await initialEditorWindow.waitForLoadState('domcontentloaded')
-    const initialPinButton = initialEditorWindow.getByRole('button', { name: '锁定窗口置顶' })
+    await initialEditorWindow.getByRole('button', { name: '更多文件操作' }).click()
+    const initialPinButton = initialEditorWindow.getByRole('dialog', { name: '更多文件操作' }).getByRole('button', { name: '锁定窗口置顶' })
     await expect(initialPinButton).toBeVisible()
     await initialPinButton.click()
+    await initialEditorWindow.getByRole('button', { name: '更多文件操作' }).click()
     await expect(initialEditorWindow.getByRole('button', { name: '取消窗口置顶' })).toHaveAttribute('aria-pressed', 'true')
     await initialEditorWindow.getByRole('button', { name: '嵌入主窗口工作区' }).click()
 
@@ -410,9 +413,11 @@ test('built desktop exposes typed Workspace, Terminal, and Project critical path
     await page.screenshot({ path: test.info().outputPath('embedded-file-editor.png') })
 
     const restoredEditorWindowPromise = application.waitForEvent('window')
-    await embeddedEditor.getByRole('button', { name: '返回独立浮窗' }).click()
+    await embeddedEditor.getByRole('button', { name: '更多文件操作' }).click()
+    await page.getByRole('dialog', { name: '更多文件操作' }).getByRole('button', { name: '返回独立浮窗' }).click()
     const restoredEditorWindow = await restoredEditorWindowPromise
     await restoredEditorWindow.waitForLoadState('domcontentloaded')
+    await restoredEditorWindow.getByRole('button', { name: '更多文件操作' }).click()
     await expect(restoredEditorWindow.getByRole('button', { name: '锁定窗口置顶' })).toBeVisible()
     await restoredEditorWindow.getByRole('button', { name: '嵌入主窗口工作区' }).click()
 

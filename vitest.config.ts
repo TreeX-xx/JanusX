@@ -1,9 +1,10 @@
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 import { realpathSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { availableParallelism, tmpdir } from 'node:os'
+import { browserTestFiles, integrationTestFiles } from './tests/helpers/test-suites'
 
-// Note: canonical temp paths avoid libuv's Windows short-path assertion — see .agents/notes/2026-09-20-reproducible-verification.md
+// Note: canonical temp paths and test groups — see .agents/notes/desktop/reproducible-verification.md
 // https://github.com/libuv/libuv/issues/5010: watcher events expand 8.3 names,
 // but affected libuv versions compare them against the unexpanded directory.
 // Set these before workers start so real filesystem tests use long paths too.
@@ -26,11 +27,23 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['tests/unit/**/*.test.ts'],
+          exclude: [...browserTestFiles, ...integrationTestFiles],
+        },
+      },
+      { extends: true, test: { name: 'integration', include: integrationTestFiles } },
+      { extends: true, test: { name: 'browser', include: browserTestFiles } },
+    ],
+    allowOnly: !isCI,
     watch: false,
     pool: 'forks',
-    maxWorkers: isCI ? 1 : undefined,
-    minWorkers: isCI ? 1 : undefined,
+    maxWorkers: isCI ? 1 : Math.min(4, availableParallelism()),
+    minWorkers: 1,
     fileParallelism: !isCI,
     // Do not shuffle CI test files; duration caching can still affect ordering.
     sequence: {

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, writeFile, readFile, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import * as fileSystem from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { saveEditorText } from '../../src/main/lib/editor-save'
+import { configurePluginFileSystem } from '../../src/main/plugins/files'
 import { invalidateEditorFileCache, useEditorStore } from '../../src/renderer/src/stores/editor'
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
@@ -25,15 +27,30 @@ describe('host-reviewed document draft saves', () => {
     expect(await readFile(f.path, 'utf8')).toBe('first')
     expect(await f.save('third', first.version)).toMatchObject({ success: true, version: hash('third') })
   })
-  it('rejects externally changed, missing and linked files without invoking the writer', async () => {
+  it('rejects externally changed and missing files without invoking the writer', async () => {
     const f = await disk(); const writer = vi.fn(async () => {})
     await writeFile(f.path, 'external')
     expect(await saveEditorText(f.path, 'draft', hash('disk'), writer)).toMatchObject({ conflict: true, current: { text: 'external', version: hash('external') } })
     await rm(f.path)
     expect(await saveEditorText(f.path, 'draft', hash('disk'), writer)).toMatchObject({ conflict: true })
-    const target = `${f.path}.target`; await writeFile(target, 'disk'); await symlink(target, f.path)
-    expect(await saveEditorText(f.path, 'draft', hash('disk'), writer)).toMatchObject({ conflict: true })
-    expect(writer).not.toHaveBeenCalled(); expect(await readFile(target, 'utf8')).toBe('disk')
+    expect(writer).not.toHaveBeenCalled()
+  })
+  it('rejects symbolic-link metadata before writing, without requiring native link privileges', async () => {
+    const f = await disk(), writer = vi.fn(async () => {})
+    const lstat = vi.fn(fileSystem.lstat).mockImplementation(async (...args) => {
+      const stat = await fileSystem.lstat(...args)
+      if (args[0] === f.path) Object.defineProperty(stat, 'isSymbolicLink', { value: () => true })
+      return stat
+    })
+    // Vitest collapses overloads; forwarding the options retains Node's
+    // number/bigint return contract before changing only the link predicate.
+    configurePluginFileSystem({ ...fileSystem, lstat: lstat as typeof fileSystem.lstat })
+    try {
+      expect(await saveEditorText(f.path, 'draft', hash('disk'), writer)).toMatchObject({ conflict: true })
+      expect(lstat.mock.calls.some(([target]) => target === f.path)).toBe(true)
+      expect(writer).not.toHaveBeenCalled()
+      expect(await readFile(f.path, 'utf8')).toBe('disk')
+    } finally { configurePluginFileSystem(fileSystem) }
   })
 })
 

@@ -33,7 +33,11 @@ async function boot(root: string) {
   return { app, page }
 }
 async function settings(page: Page) {
-  await page.getByTitle('Settings', { exact: true }).click()
+  if (await page.locator('[data-plugin-workbench]').isVisible()) {
+    // Fullscreen workbenches cover the titlebar. Exercise the same host event
+    // used by plugin management navigation to verify modal occlusion.
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('janusx:open-plugin-manager')))
+  } else await page.getByTitle('Settings', { exact: true }).click()
   await page.locator('[data-tab="plugins"]').click()
   await expect(page.locator('[data-plugin-settings]')).toBeVisible()
 }
@@ -54,7 +58,9 @@ async function rawCall(frame: Frame | Page, method: string, params: unknown) {
 async function guest(app: ElectronApplication, entry: string, excludeUrl = ''): Promise<Page> {
   const matches = (page: Page) => page.url().startsWith('janusx-plugin:') && page.url().endsWith(entry) && page.url() !== excludeUrl
   await expect.poll(() => app.context().pages().some(matches)).toBe(true)
-  return app.context().pages().find(matches)!
+  const page = app.context().pages().find(matches)!
+  await page.waitForLoadState('domcontentloaded')
+  return page
 }
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'janusx-p2-desktop-'))
@@ -306,7 +312,7 @@ test('P7 palette-only plugins require review, persist selection, shield settings
     await settings(page); await expect.poll(canvas).toBe('#151517')
     await page.evaluate(id => (window as any).electron.plugins.request({ type: 'disable', id }), id)
     await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
-    await expect.poll(canvas).toBe('#EFE4C5')
+    await expect.poll(canvas).toBe('#151517')
     expect(await page.evaluate(() => (window as any).electron.theme.get())).toBe(theme)
     await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), id)
     await expect.poll(canvas).toBe('#102030')
@@ -315,7 +321,7 @@ test('P7 palette-only plugins require review, persist selection, shield settings
     booted = await boot(root); app = booted.app; page = booted.page
     await expect.poll(canvas).toBe('#102030')
     await page.evaluate(() => (window as any).electron.plugins.request({ type: 'development', enabled: false }))
-    await expect.poll(canvas).toBe('#EFE4C5')
+    await expect.poll(canvas).toBe('#151517')
     expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--shell-canvas'))).toBe('')
   } finally { await close(app); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }) }
 })
@@ -1316,7 +1322,7 @@ test('P3 four surfaces preserve panes, return focus, shield approvals and revoke
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'peek')
     await expect(page.locator('.janus-capsule-title')).toContainText('P3 ready')
     await expect.poll(async () => (await attached()).length).toBe(0)
-    await page.locator('.janus-island').dblclick()
+    await page.locator('.janus-island').dblclick({ position: { x: 8, y: 8 } })
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'expanded')
     await page.locator(`button[data-view="extension:${pluginId}/island"]`).click()
     const island = await guest(app, '/dist/summary.html', summary.url())

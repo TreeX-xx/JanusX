@@ -41,9 +41,8 @@ export function RightToolRail({
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const personaEnabled = useExperimentalStore((s) => s.persona)
   const knowledgeEnabled = useExperimentalStore((s) => s.knowledge)
-  const sessionsEnabled = useExperimentalStore((s) => s.sessions)
   const pending = useAssistantPendingCount()
-  const visibleTools = getRightToolDefinitions().filter((tool) => isRightToolEnabled(tool.id, { persona: personaEnabled, knowledge: knowledgeEnabled, sessions: sessionsEnabled })
+  const visibleTools = getRightToolDefinitions().filter((tool) => isRightToolEnabled(tool.id, { persona: personaEnabled, knowledge: knowledgeEnabled })
     && (extensionRegistry.getView(tool.id)?.scope !== 'project' || workspaceId))
   const toolsRef = useRef<HTMLDivElement>(null)
   const { pendingToolId, visualToolId, requestActivate } = usePendingToolActivation({

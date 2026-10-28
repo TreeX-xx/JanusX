@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-18T04:26:17Z",
+  "updated": "2026-10-27T15:52:43.428Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -47,6 +47,8 @@ The workspace embeds a real browsing panel on isolated per-tab views with a pers
 
 - **Gains**: Dev servers, local previews, and documentation resolve inside the workspace beside the code that serves them.
 - **Costs and limits**: Each tab carries a full view process, so tab count needs bounding; agent-driven operation awaits its own protocol, switch, and audit pass.
+
+Agent-driven operation is explored separately in [browser and computer use](./browser-computer-use.md), including codeg/Orca references, shared CLI/MCP access and runtime delivery. That draft does not change the implemented scope or the separate [user-driven element picker](./requirements/element-picker-ai-edit.md) requirements.
 
 ## Global tool ownership
 

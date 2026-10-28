@@ -55,7 +55,7 @@
     ],
     "review": "self"
   },
-  "updated": "2026-10-24T15:30:11Z",
+  "updated": "2026-10-27T12:18:31.589Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/2a85ca64-bc0b-48b1-91b5-a89c44e13321" },
@@ -85,12 +85,14 @@
 
 - **串行传话**：胶囊横向展开 52→272px（眼在左、话在右，皮肤一体），清嗓眨眼 → 眼神扫向文字"念"→ 念完移开 → 收起；排队时 hold 缩短 1.9s。收起当前条**队列必须续播**（曾有连坐清定时器的 bug，修复为 keepQueue）。
 - **未读计数**：舞台左上角灰色小字（mono 10px，如「通知 3」），**不做胶囊角标**；可点击打开通知中心。
-- **通知中心**：点击入口 → island **整体纵向展开**（52×26 → 302×136，眼在左上与标题并排），不悬浮面板，**不占用下拉手势**；内容含 mono 时间戳+正文。**看过即焚**：收起时逐条 stagger 溶解清空历史与计数。展开高度按最终内容宽（276px）测量——宽度过渡中途量高会因长文案折行量出虚高（实测 283px 坑）。入口（2026-10-24 修订）：**岛体单击为主入口**（折叠态单击开/合通知面，取代 knowledge 空态舱重放；peek 单击维持收起语义），另有灰字计数、传话胶囊可点；peek 历史入口 deferred。
+- **通知中心**：点击入口 → island **整体纵向展开**（52×26 → 302×136，眼在左上与标题并排），不悬浮面板，支持下滑和点击入口；内容含 mono 时间戳+正文。**看过即焚**：收起时逐条 stagger 溶解清空历史与计数。展开高度按最终内容宽（276px）测量——宽度过渡中途量高会因长文案折行量出虚高（实测 283px 坑）。入口（2026-10-24 修订）：**岛体单击为主入口**（折叠态单击开/合通知面，取代 knowledge 空态舱重放；peek 单击维持收起语义），另有灰字计数、传话胶囊可点；peek 下滑返回胶囊后打开通知。
 - 打开通知中心=已读：清空传话队列；传话中打开先中断当前条。
 
 降级与红线：`prefers-reduced-motion` 全行为静止化（仅透明度）；旧 `mini-idle` keyframe 从 order 态退役（保留 A/B 对照期后删除）；rAF 只写 CSS 变量，指针静止后停帧；调度器纯逻辑、时间/随机可注入以便单测。
 
 ## Scope
+
+2026-10-27 用户修订：副黑板删除，下滑改为展开通知；原 10-23 B 案只保留为历史决策。下述早期验证仅代表当时版本，现行手势以 P5 与 AC-5 为准。
 
 **P1 行为内核**：新建 `janusBehavior.ts`（GazeScheduler/Blink/Reaction 纯逻辑，含吸引·驻留·移开·疲劳·游荡·摸头循环状态机）+ `useJanusGaze()`（rAF 桥、CSS 变量输出、闲置停帧、reduced-motion 降级）；`01-janus-foundation.css` 的 `mini-idle` 由 var() 驱动 transform 替代，EQ/scan 模式 keyframe 保留。参数默认值=定稿值。实现修订（2026-10-24 用户实测）：`.janus-eye-group` 曾漏接 `--gaze-x/--gaze-y`（调度器在跑但眼球不动，表现为「鼠标靠近无吸引」），已补进 transform 链（face 位移 → gaze 位移 → squash/lid 缩放）。**待机动作移植（2026-10-24）**：内核新增 `JanusActKind` 六动作包络（stretch/tilt/lookaround/hop/doze/breathe，含歪头编排与伴随急眨眼偏移表）+ 加权调度（`actIntervalMs: 7500`，×0.67–1.4 ≈ 5–10.5s，order 态且非忙开演，不连重；hover/panel/事件注视/点击/传话/拖拽即时打断或让位）；帧输出增 `rot/act`，CSS 链改 `translate(face) rotate(rot) translate(gaze) scale(...)`（视线随头转）；动作中 settled=false 不停帧，`nextActAt`/动作终点进唤醒表；呼吸基线 CSS 化（collapsed-core 3.8s ±1.2%，reduced-motion 关闭）。
 
@@ -100,7 +102,7 @@
 
 **P4 通知中心**：点击入口展开 island 通知面（岛体单击、灰字计数、传话胶囊可点；高度测宽陷阱见上）、看过即焚（stagger 溶解）、历史数据源接入、空态；与 `island-hifi` 通知面样式令牌对齐。实现备注（2026-10-24）：历史数据源=传话队列历史（到达即入史）；**peek 历史入口 deferred**（需 peek↔collapsed 跨 stage 编排，另行设计）；打开=已读（清队、面板期到达只补行不打断）。同日修订（用户实测）：① 折叠态岛体单击改开/合通知面（island-local `notifOpen`，取代 single-activate 的 knowledge 空态舱重放）；传话中轻点仍=收起续播（quickTap 消费 `dismiss()` 后抑制 420ms 单击开面，keepQueue 语义保留）。② 「到达即入史」补漏：知识召回一到即进 peek，旧 collapsed-only 入史门控会把这类通知永久漏记，改为 peek 到达也入史（enqueue 后 `markSeen` 只进史不播，防传话条叠画 peek 胶囊）；expanded 到达仍归托盘不进传话链。③ 通知面形态对齐 lab（2026-10-24 用户实测）：`.janus-island` 补 `overflow:hidden` + height 过渡（展开中文字被裁进胶囊不外泄、高度不再瞬跳）、正文折行不 ellipsis（高度按 300px border-box=276 内容宽测量，防折行量高）、眼位对齐 lab 左上（core inset 10/2）、head 让位 34px、sheet 底 padding 6px；点空白处=看过即焚收起（document pointerdown 壳外判定，lab「点舞台空白」语义）。④ 展开手感对齐 lab（2026-10-24 用户实测：生产展开方式/节奏与 lab 不一致）：形变收敛为**壳单一驱动**（宽/高/圆角/眼位同一物体同一拍，内岛 100% 随行，删双层各写 height 的错位），时序统一 lab 定稿 `420ms cubic-bezier(0.32, 0.72, 0.24, 1)`——开/合两向都由 `data-notif-anim` 属性供给同款过渡（CSS 过渡取后态时序，收起后态原本落回基础壳 0.34s/0.24s 两套节奏导致开合手感分裂）；起跳用 lab openPanel 同款 reflow 手法（先钉 26px 强制回流再落目标高，高度过渡从胶囊高起跑）且改 layout effect 与 `data-notif` 同帧生效；开中补行只重落目标高不回跳 26px。收起时 JS 在看过即焚定时器内打 morph 属性再翻状态，保证收起同节奏。
 
-**P5 手势仲裁与收尾**：**仲裁已定案（2026-10-23 采纳 B 案）**：下拉 ≥60px 保持副黑板专属语义（toggle + 0–60px 全程跟手预览 + <60px cancel，见[下拉副黑板](../island-blackboard.md)），`useIslandGesture` 下拉路径**零改动**（落地后 diff 复核：仅 onQuickTap/isDraggingRef 增量）；通知中心不占用下拉，只走点击入口；flinch/惊醒为轻点伴随反应。单击语义 2026-10-24 修订：折叠态=开/合通知中心（原「单击 replay knowledge 空态舱」退役），peek 单击维持收起；双击控制台语义零改动。收尾：reduced-motion 内核静止化、aria-label/计数钮可访问名（单击主入口后折叠态 aria 改 `openNotif`/`closeNotif`）、i18n 文案（historyCount/notif 三键 + aria.openNotif/closeNotif）、`mini-idle` keyframes 退役删除（AC-6 完成）。
+**P5 手势仲裁与收尾**：2026-10-27 用户选择删除副黑板，替代原 10-23 B 案。下滑 ≥60px 松手展开通知，已开时保持展开，短拖、反向拉回及取消不触发；peek 下滑返回胶囊再展开通知，expanded 禁用复杂手势。单击开/合通知面、Esc/点空白收起、双击控制台不变，flinch/惊醒仍为轻点伴随反应。副黑板挂载、组件、样式、板高状态/持久化和旧文案删除，详见[退役决策](../island-blackboard.md)。
 
 ## Acceptance criteria
 
@@ -108,10 +110,12 @@
 - AC-2 order 折叠胶囊支持鼠标跟随与摸头闭眼循环；reduced-motion 下静止降级无报错。
 - AC-3 通知串行传话不丢队（中途收起续播、面板打开清队语义固定）；左上角计数与历史条数一致。
 - AC-4 点击入口展开通知中心：眼在左上、内容完整不裁切；收起看过即焚清空历史与计数。
-- AC-5 下拉手势保持副黑板专属语义不被通知中心占用（≥60px toggle、0–60px 跟手预览、<60px cancel 不变）；通知中心经岛体单击/灰字计数/传话胶囊可达（peek 历史入口 deferred）；flinch/惊醒为 peek 展开伴随反应，双击语义零改动（单击语义见 P5 修订）。
+- AC-5 下滑 ≥60px 松手展开通知，重复下滑保持展开；未达阈值、反向拉回及取消不触发。peek 下滑返回胶囊后打开通知，expanded 禁用复杂手势。副黑板及布局/板高状态删除；岛体单击、灰字计数、传话胶囊入口及双击语义保留。
 - AC-6 order 态不再使用 `mini-idle` 8s 循环；A/B 对照期后从 CSS 移除。
 
 ## Verification
+
+2026-10-27 Main 自检：typecheck、改动 renderer 文件 ESLint、i18n:types/i18n:check、两份 showcase 脚本语法、showcase 9 项及按仓库 CRLF 检查的 diff 空白均通过。以 JANUS_E2E_PORT=51987、NO_PROXY=127.0.0.1,localhost 运行通知手势/取消/peek/几何与 host-boundary 的定向回归，13 项全部通过。两文件完整回归为 38/43；启动 warmup 首次超时、定向复跑通过，聊天附加入口/会话选择/旧拖动三项在 HEAD 原始 JanusIsland/useIslandGesture/app store 的只读 Vite 覆盖层复现。模型菜单测试断言 Chat 根保持焦点，但既有 JanusChat 会在 100ms 后把焦点交给输入框，原始版本通过、当前单跑仍失败，保留为未解决的时序断言，未修改聊天实现。原始源码覆盖证据在 .cache/island-notification-baseline/，proof.json 确认服务返回原始 handleSwipeBoard；未改写工作区实现做基线测试。全仓 check:notes 仍报 4 项既存问题：两处历史 1.0.3/1.0.4 插件包断链与 entrance-choreography 的缺 AC/时间顺序；本轮六份维护 Note 无新增格式错误。未构建/打包宿主、未跑真实 Electron 手势冒烟、未重录 S2 素材。
 
 V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior.test.ts tests/unit/island-speak-queue.test.ts`（35 用例：调度器状态机 29 含待机动作 8 + 传话队列语义 6）。原型层证据：`_design/janus-eye-behavior-lab/verify-lab2.mjs`–`verify-lab5.mjs`（摸头/惊醒/传话/队列续播/展开/看过即焚断言全绿，0 pageerror）。harness 层 e2e（2026-10-24 跑过，`island-interaction.spec.ts`）：29 过，含单击开/合通知面、通知面/expanded 视口几何、延迟单击回调身份（改 peek→收起路径验证）；3 失败为**基线既有**（docks / switches conversations / chat topbar drag，stash 基线复核确认）；2 用例并发负载 flake（approval panel / roundtable parchment，单跑全过）。未跑（显式缺口）：真机 App e2e 回归（下拉只落副黑板、传话/摸头视觉冒烟）——需真实 App 运行环境，留待合并前补。eslint 对改动文件 0 错误。
 

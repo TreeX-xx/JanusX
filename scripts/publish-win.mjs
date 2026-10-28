@@ -1,7 +1,7 @@
 // Stage verified Windows artifacts; publication is a separate, build-free action.
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -45,6 +45,7 @@ function assertSource(run, release) {
   const head = run('git', ['rev-parse', 'HEAD'], { capture: true }).trim()
   const remote = githubJson(run, `repos/${release.repo}/commits/${encodeURIComponent(`refs/tags/${release.tag}`)}`)
   if (remote.sha !== head) throw new Error('Remote version tag does not match the current checkout')
+  return head
 }
 
 function draftRelease(run, release, { allowMissing = false } = {}) {
@@ -67,6 +68,24 @@ function sha256(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex')
 }
 
+function runtimeIdentity(root, release, head) {
+  const checker = join(root, 'scripts/check-packaged-runtime.mjs')
+  const unpacked = join(dirname(release.files[0]), 'win-unpacked')
+  const files = []
+  const visit = directory => {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) visit(path)
+      else if (entry.isFile()) files.push([path, sha256(path)])
+      else throw new Error(`Unsupported runtime entry: ${path}`)
+    }
+  }
+  if (existsSync(unpacked)) visit(unpacked)
+  return { head, node: process.version, platform: process.platform, arch: process.arch,
+    checker: existsSync(checker) ? sha256(checker) : null,
+    artifacts: release.files.map(file => [file, sha256(file)]), unpacked: files }
+}
+
 function assertRemoteFile(run, release, asset, file) {
   const bytes = readFileSync(file)
   if (asset.size !== bytes.length) throw new Error(`Remote artifact differs: ${basename(file)}`)
@@ -87,13 +106,20 @@ function assertRemoteFile(run, release, asset, file) {
 
 export function stageWin(root = process.cwd(), run = runner(root), { outputDirectory } = {}) {
   const release = releaseFiles(root, outputDirectory)
-  assertSource(run, release)
+  const head = assertSource(run, release)
   const hashes = release.files.map(sha256)
-  run(process.execPath, [join(root, 'scripts/check-packaged-runtime.mjs'), '--portable', '--release-dir', dirname(release.files[0])])
+  const identity = runtimeIdentity(root, release, head)
+  const receiptPath = join(dirname(release.files[0]), 'staging-runtime.json')
+  let verified = false
+  try { verified = JSON.stringify(JSON.parse(readFileSync(receiptPath, 'utf8'))) === JSON.stringify(identity) } catch { /* No matching verification yet. */ }
+  if (verified) console.log('Reusing runtime verification: source, checker and all packaged bytes match.')
+  else run(process.execPath, [join(root, 'scripts/check-packaged-runtime.mjs'), '--portable', '--release-dir', dirname(release.files[0])])
   // The runtime check must not have changed the artifacts or source metadata.
   releaseFiles(root, outputDirectory)
   if (release.files.some((file, index) => sha256(file) !== hashes[index])) throw new Error('Artifacts changed during runtime verification')
+  if (JSON.stringify(runtimeIdentity(root, release, head)) !== JSON.stringify(identity)) throw new Error('Runtime inputs changed during verification')
   assertSource(run, release)
+  if (!verified) writeFileSync(receiptPath, JSON.stringify(identity))
   const remote = draftRelease(run, release, { allowMissing: true })
   const missing = []
   for (const file of release.files) {

@@ -233,8 +233,6 @@ export function JanusIsland({
     setParchmentOpen(false)
   }, [roundtableState])
   const setActiveWorkbench = useAppStore((s) => s.setActiveWorkbench)
-  /** 副黑板开合态：下拉语义随状态翻转（放下 ↔ 收起） */
-  const blackboardOpen = useAppStore((s) => s.blackboardHeight > 0)
   const roundtableEnabled = useExperimentalStore((s) => s.roundtable)
   const personaEnabled = useExperimentalStore((s) => s.persona)
   const loadExperimental = useExperimentalStore((s) => s.load)
@@ -273,7 +271,7 @@ export function JanusIsland({
   // 随后的单击仲裁不再连带开/合通知中心。
   const speakTapConsumedRef = useRef(false)
 
-  // P4 通知中心：入口=岛体单击/灰字计数/传话条点击；看过即焚=收起时 stagger 溶解后清史。
+  // P4 通知中心：入口=下滑/岛体单击/灰字计数/传话条点击；看过即焚=收起时 stagger 溶解后清史。
   const notifSheetRef = useRef<HTMLDivElement | null>(null)
   const notifBurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const notifMorphTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -342,30 +340,16 @@ export function JanusIsland({
     handleSingleTap()
   }, [handleSingleTap])
 
-  const handleSwipeBoard = useCallback(() => {
-    // 下拉 ≥60px 副黑板开合（toggle）：Note island-blackboard.md
-    // 板未开则放下；板已开时同一手势再次下拉即自动回收。
-    // 收板另有图标收起控件 / 板下缘上推 / Esc。
-    const app = useAppStore.getState()
-    app.setBlackboardDrag(null)
-    app.toggleBlackboard()
-  }, [])
+  const handleSwipeDown = useCallback(() => {
+    // 下拉达到阈值后松手展开通知面板；面板已展开时保持展开。
+    if (stage === 'peek') onDismiss()
+    if (!notifOpen) openNotifCenter()
+  }, [stage, onDismiss, notifOpen, openNotifCenter])
 
   const handleOpenPlugins = useCallback(() => {
     onDismiss()
     openPluginManager()
   }, [onDismiss])
-
-  const handleDragProgress = useCallback((deltaY: number) => {
-    // 预览高度跟手（工作区随之下滑）；板已开时下缘拖高拥有尺寸权。
-    const app = useAppStore.getState()
-    if (app.blackboardHeight > 0) return
-    app.setBlackboardDrag(deltaY > 0 ? Math.min(deltaY, window.innerHeight * 0.7) : null)
-  }, [])
-
-  const handleSwipeCancel = useCallback(() => {
-    useAppStore.getState().setBlackboardDrag(null)
-  }, [])
 
   // P2 事件原语：flinch/惊醒=轻点伴随（420ms 单击仲裁期内播放，胶囊仍可见）。
   // P3：传话中轻点 = 收起当前条（队列续播），叠加 flinch；此消费同时抑制
@@ -384,22 +368,20 @@ export function JanusIsland({
     handlePointerUp,
     handlePointerCancel,
   } = useIslandGesture({
-    onSwipeFlip: handleSwipeBoard,
-    onSwipeCancel: handleSwipeCancel,
+    onSwipeDown: handleSwipeDown,
     onDoubleTap: handleDoubleTap,
     onSingleTap: handleSingleTap,
     onQuickTap: handleQuickTap,
-    onDragProgress: handleDragProgress,
     isRunning: janusRunning,
     enableComplexGestures: stage !== 'expanded',
-    pullHint: blackboardOpen
+    pullHint: notifOpen
       ? {
-          keep: t('janus:blackboard.pullHint.keepClose'),
-          release: t('janus:blackboard.pullHint.releaseClose'),
+          keep: t('janus:island.pullHint.keepOpen'),
+          release: t('janus:island.pullHint.releaseOpen'),
         }
       : {
-          keep: t('janus:blackboard.pullHint.keep'),
-          release: t('janus:blackboard.pullHint.release'),
+          keep: t('janus:island.pullHint.keep'),
+          release: t('janus:island.pullHint.release'),
         },
   })
 

@@ -1,4 +1,6 @@
-import { BrowserWindow, nativeImage } from 'electron'
+import { app, BrowserWindow, nativeImage } from 'electron'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { installProductionCsp } from '../bootstrap/session'
 import { loadRendererWindow } from './renderer-loader'
@@ -10,7 +12,8 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
   // Note: .agents/notes/workbench/standalone-editor-initial-theme.md
   const theme = getThemeDefinition(configService.getCachedTheme())
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
-  const appIcon = nativeImage.createFromPath(join(__dirname, '../../../resources', iconFile))
+  const resources = join(__dirname, '../../../resources')
+  const appIcon = nativeImage.createFromPath(join(resources, iconFile))
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -29,6 +32,22 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
       webviewTag: false,
     },
   })
+  if (process.platform === 'win32' && !app.isPackaged) {
+    // Windows caches taskbar icons by path separately from the native window icon.
+    const icon = readFileSync(join(resources, 'icon.ico'))
+    const hash = createHash('sha256').update(icon).digest('hex').slice(0, 16)
+    const directory = join(app.getPath('userData'), 'shell-icons')
+    mkdirSync(directory, { recursive: true })
+    const iconPath = join(directory, `janusx-${hash}.ico`)
+    writeFileSync(iconPath, icon)
+    window.setAppDetails({
+      appId: 'com.janusx.app.dev',
+      appIconPath: iconPath,
+      appIconIndex: 0,
+      relaunchCommand: `"${process.execPath}" "${join(resources, '../scripts/dev-entry.mjs')}"`,
+      relaunchDisplayName: 'JanusX (Dev)',
+    })
+  }
   installProductionCsp(window.webContents.session)
   window.once('ready-to-show', () => {
     if (!window.isDestroyed()) window.show()

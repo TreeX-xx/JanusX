@@ -63,7 +63,7 @@ export const BUILTIN_RIGHT_EXTENSIONS: readonly BuiltinRightExtension[] = [
     shortTitleKey: 'common:rightTool.tool.sessions.shortTitle',
     ariaLabelKey: 'common:rightTool.tool.sessions.ariaLabel',
     iconComponent: MessagesSquare, order: 5, instancePolicy: 'single', mountPolicy: 'while-open',
-    feature: 'sessions', panelWidth: { min: 340, default: 360, max: 520 },
+    panelWidth: { min: 340, default: 360, max: 520 },
   }, () => import('@/components/SessionPanel').then(({ SessionPanel }) => ({ default: SessionPanel }))),
 ]
 

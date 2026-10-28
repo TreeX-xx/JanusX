@@ -360,6 +360,10 @@ it('invalidates a page confirmation waiting on the old worktree before any Note 
   const proposal = (await call('jobs.read', job.id)).result
   const selected = { taskId: task.id, changeSetId: proposal.changeSet.id, operationIds: ['clarify'] }
   const preview = await call('maintenance.preview', { ...selected, conversationId })
+  // Invalidate the proof cache without changing approved Note bytes. Index
+  // probes compare hashes, so touching mtime cannot force a locked read.
+  await mkdir(join(f.root, '.agents/evidence'), { recursive: true })
+  await writeFile(join(f.root, '.agents/evidence/cache-stamp'), 'force proof refresh')
   const lock = await acquireLock(f.root)
   const applying = call('maintenance.apply', { ...selected, previewId: preview.id }).then(
     value => ({ value, error: undefined }), error => ({ value: undefined, error }))

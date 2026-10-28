@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-10-09",
-  "updated": "2026-10-15T10:49:34.964Z",
+  "updated": "2026-10-28T06:07:03.626Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf",
   "tags": ["memo","todo","milestone","assistant","workspace"],
   "codeRefs": [
@@ -54,7 +54,7 @@ MemoStore 在 userData/janusx/memos 保存独立 JSON 文件，使用串行读�
 
 ## 会话与共享工具轮次
 
-备忘录纳入设置中心「创新功能管理」的「预览功能」，默认关闭；旧配置缺少 memo 开关时也保持关闭。开启后显示 Chat 的备忘录入口并为新轮次装配工具；关闭后卸载编辑器、恢复附岛布局，后续发送与追加消息不再携带备忘录上下文。已保存文件、会话 memoId 绑定与正在执行的回复保留；重新开启可继续原文件与会话。功能关闭不同于普通面板隐藏，组件内尚未保存草稿不持久化。开关持久化、确认和主进程复核由[预览管理](../workbench/experimental-preview-features.md)维护。
+备忘录入口与 Chat 工具默认可用，不受旧配置中的 memo 开关控制。Chat 工具仍要求模型支持工具调用，配置兼容见[创新功能管理](../workbench/experimental-preview-features.md)。
 
 会话记录的 memoId 是绑定唯一真相。未绑定的会话首次选中文件直接绑定，也可按明确的新建请求通过 memo_create 创建并绑定；已有绑定后切换文件、主动退出或删除绑定文件，新开会话并继承 Chat 资源，旧会话仍在列表中。流式回复在原会话后台完成，可以回到原会话查看和继续。同文件切换节点不调用 bindMemo，不新开会话。
 

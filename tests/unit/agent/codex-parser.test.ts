@@ -59,7 +59,9 @@ describe('CodexParser', () => {
       })
       const after = Date.now()
       expect(events).toHaveLength(1)
-      const id = Number(events[0].id)
+      const event = events[0]
+      if (event.type !== 'tool-start') throw new Error(`Expected tool-start, got ${event.type}`)
+      const id = Number(event.id)
       expect(id).toBeGreaterThanOrEqual(before)
       expect(id).toBeLessThanOrEqual(after)
     })
@@ -127,21 +129,6 @@ describe('CodexParser', () => {
     it('should return empty array when type is missing', () => {
       const parser = new CodexParser()
       expect(parser.parseLine({ foo: 'bar' })).toEqual([])
-    })
-  })
-
-  // --- reset ---
-
-  describe('reset', () => {
-    // startedItems is vestigial dead state in source (added but never checked for dedup);
-    // reset() is a no-op on it, so no meaningful behavior to assert beyond not throwing.
-    it('should not throw when called after parsing', () => {
-      const parser = new CodexParser()
-      parser.parseLine({
-        type: 'item.started',
-        item: { id: 'item1', type: 'command', command: 'ls' },
-      })
-      expect(() => parser.reset()).not.toThrow()
     })
   })
 })

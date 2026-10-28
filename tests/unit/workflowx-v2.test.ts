@@ -113,7 +113,11 @@ it('retains unassigned and retired documents, while cross-module references do n
 })
 
 it('keeps every document in the maintained JanusX corpus reachable through its owner or the unassigned list', async () => {
-  const source = (await new HarnessNoteService().projectView(process.cwd())).blueprint
+  const service = new HarnessNoteService(), root = process.cwd()
+  // This checks corpus ownership, not the foreground cold-read deadline.
+  // Prepare the full real index explicitly before projecting the browse view.
+  await service.rescan(root)
+  const source = (await service.projectView(root)).blueprint
   const before = JSON.stringify(source), projection = projectArchitecture(source)
   const overview = projectModuleBrowse(source, projection, null)
   const accessible = new Set([...projection.graph.nodeIds, ...overview.unassigned])
@@ -172,7 +176,7 @@ it('executes shared workspace read/edit and a real script through the Chat host 
   const runtime = createAgentRuntime({ resolveWorkspaceRoot: async () => root })
   registerWorkspaceTools(runtime.registry); registerCommandTools(runtime.registry)
   const session = await runtime.createSession({ workspaceId: 'ws', workspaceRoot: root, approvalMode: 'auto-run' }, 'chat')
-  const ports = { sessions: { getSession: () => ({ workspaceId: 'ws', workspaceRoot: root, status: 'running' }) }, tools: { registry: runtime.registry, executeFunctionCall: (input, caller) => runtime.executeFunctionCall(input, caller) } } as ChatTurnPorts
+  const ports = { sessions: { getSession: () => ({ workspaceId: 'ws', workspaceRoot: root, status: 'running' }) }, tools: { registry: runtime.registry, executeFunctionCall: runtime.executeFunctionCall.bind(runtime) } } as unknown as ChatTurnPorts
   attachNoteChatTools(ports, { conversationId: 'chat', userText: 'Implement the change', signal: new AbortController().signal, resources: [{ agentSessionId: session.id, workspaceId: 'ws', workspacePath: root }], onChange: () => {} })
   const call = (toolName: string, input: object) => ports.tools.executeFunctionCall({ sessionId: session.id, call: { toolName, input: { workspaceId: 'ws', ...input } } } as never, 'chat')
   try {

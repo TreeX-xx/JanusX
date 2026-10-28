@@ -3,13 +3,14 @@ import ReactDOM from 'react-dom/client'
 import { GeneralSettingsPanel } from '../../../src/renderer/src/components/GeneralSettingsPanel'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
+import { DEFAULT_APP_THEME } from '../../../src/shared/ipc/theme'
 import { defineTheme, getThemeDefinition } from '../../../src/shared/theme/registry'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
 const params = new URLSearchParams(location.search)
-let saved = params.get('theme') ?? 'planche'
+let saved = params.get('theme') ?? DEFAULT_APP_THEME
 Object.assign(window.electron.system, { getLanguage: async () => 'en', setLanguage: async () => undefined })
 Object.assign(window.electron.theme, {
   get: async () => saved,

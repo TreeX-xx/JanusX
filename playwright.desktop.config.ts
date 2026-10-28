@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 import base from './playwright.config'
 
-// Note: isolated desktop acceptance does not start the island server — see .agents/notes/knowledge/tasks/knowledge-review-status-audit-plan.md
+// Note: isolated desktop acceptance does not start the island server — see .agents/notes/desktop/reproducible-verification.md
 export default defineConfig({
   ...base,
   webServer: undefined,

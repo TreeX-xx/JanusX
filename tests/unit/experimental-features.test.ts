@@ -6,12 +6,14 @@ import {
 } from '../../src/shared/ipc/experimental'
 
 describe('experimental feature flags', () => {
-  it('requires explicit opt-in for memo in older configurations and rejects non-booleans', () => {
-    expect(normalizeExperimentalFeatures({ sessions: true }).memo).toBe(false)
-    expect(normalizeExperimentalFeatures({ memo: true })).toEqual({ ...DEFAULT_EXPERIMENTAL_FEATURES, memo: true })
-    for (const memo of [false, 1, 'true', null]) expect(normalizeExperimentalFeatures({ memo }).memo).toBe(false)
+  it('ignores retired session and memo controls in older configurations', () => {
+    for (const value of [false, true, 1, 'true', null]) {
+      expect(normalizeExperimentalFeatures({ sessions: value, memo: value })).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
+      expect(normalizeExperimentalFeatures({ persona: true, sessions: value, memo: value })).toEqual({ ...DEFAULT_EXPERIMENTAL_FEATURES, persona: true })
+    }
   })
-  it('defaults all entries to off (hidden by default)', () => {
+
+  it('defaults remaining experimental entries to off', () => {
     expect(DEFAULT_EXPERIMENTAL_FEATURES).toEqual({
       blueprint: false,
       knowledge: false,
@@ -19,8 +21,6 @@ describe('experimental feature flags', () => {
       persona: false,
       remoteControl: false,
       teamCollab: false,
-      sessions: false,
-      memo: false,
     })
   })
 
@@ -30,105 +30,15 @@ describe('experimental feature flags', () => {
   })
 
   it('falls back to defaults for missing or malformed input', () => {
-    expect(normalizeExperimentalFeatures(undefined)).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
-    expect(normalizeExperimentalFeatures(null)).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
-    expect(normalizeExperimentalFeatures('yes')).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
-    expect(normalizeExperimentalFeatures({})).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
+    for (const value of [undefined, null, 'yes', {}]) {
+      expect(normalizeExperimentalFeatures(value)).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
+    }
   })
 
-  it('keeps each flag independent and coerces to strict boolean', () => {
-    expect(normalizeExperimentalFeatures({ blueprint: true })).toEqual({
-      blueprint: true,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ knowledge: true })).toEqual({
-      blueprint: false,
-      knowledge: true,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ roundtable: 1, persona: 'true' })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ remoteControl: true })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: true,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ remoteControl: 1 })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ teamCollab: true })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: true,
-      sessions: false,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ teamCollab: 1 })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
-  })
-
-  it('treats the sessions preview gate like every other flag', () => {
-    expect(normalizeExperimentalFeatures({ sessions: true })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: true,
-      memo: false,
-    })
-    expect(normalizeExperimentalFeatures({ sessions: 1 })).toEqual({
-      blueprint: false,
-      knowledge: false,
-      roundtable: false,
-      persona: false,
-      remoteControl: false,
-      teamCollab: false,
-      sessions: false,
-      memo: false,
-    })
+  it.each(Object.keys(DEFAULT_EXPERIMENTAL_FEATURES))('keeps %s independent and accepts only true', key => {
+    expect(normalizeExperimentalFeatures({ [key]: true })).toEqual({ ...DEFAULT_EXPERIMENTAL_FEATURES, [key]: true })
+    for (const value of [false, 1, 'true', null]) {
+      expect(normalizeExperimentalFeatures({ [key]: value })).toEqual(DEFAULT_EXPERIMENTAL_FEATURES)
+    }
   })
 })

@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-18",
-  "updated": "2026-10-21T17:13:38Z",
+  "updated": "2026-10-27T12:01:13.611Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -29,8 +29,8 @@ README 结构与 10 条功能 GIF 已按用户要求落版，S1/S2/I/L/B1/B2/U/C
 | 老总览 | 查看现有 `hero-planche.png`，主要是大面积空终端和长路径，装饰背景与字幕占据较多空间 | 总览应直接呈现完成工作的布局，而非 Shell 启动页 |
 | 公共录制 | 已有逐功能脚本、连续鼠标位置、点击/拖拽辅助方法、真实 Electron 截图、独立 compose | 保留框架，更新场景与采样，避免全量重写 |
 | 合成 | 同一片使用一次背景底板与全局调色板，差分透明帧 `dispose: 1`；主题仍是全局固定 planche | 背景跳色的具体根因尚未复现，不能宣称一定是逐帧调色板问题 |
-| 副黑板 | 当前是中央工作区上带，显示蓝图画布与详情；下拉让主工作区缩小让位；没有文件钉，也没有独立终端树 | 展示「蓝图与工作并存」，不宣传任意内容钉入或黑板内自由终端分屏 |
-| 全局工具区 | 工具拥有独立分屏树，切项目保留位置；工具与项目终端不可跨区域混排 | 特色片展示项目分屏、工具分屏、黑板并存，以及跨项目工具保留 |
+| Island 下滑 | 副黑板及板高/让位实现于 2026-10-27 删除，下滑展开通知 | README 撤下旧 S2 动图；历史素材保留，更新脚本后待重录 |
+| 全局工具区 | 工具拥有独立分屏树，切项目保留位置；工具与项目终端不可跨区域混排 | 特色片展示项目/工具分屏与跨项目工具保留，移除副黑板镜头 |
 | 用量 | 已有时间范围、引擎筛选、总量、输入输出、缓存、趋势、热力图、费用组件；Janus/DSH 的无数据边界存在 | 新增独立重点片；区分消费统计、上下文占用和估算费用，不承诺所有提供方均有数据 |
 | 底部终端展开栏 | `TerminalUsageDetails` 提供精确用量、输入输出、缓存读写与命中率，另有模型/上下文和本次终端运行时间信息 | 从当前终端的展开明细过渡到历史账本，不能把终端存活时间或上下文占用当累计消费 |
 | 运行配置对话 | 助手可读项目、编辑配置，经确认落盘；启动/测试/停止由用户工具栏操作 | 演示「一句话需求 → 生成并确认 → 手动启动成功」完整流程 |
@@ -38,9 +38,11 @@ README 结构与 10 条功能 GIF 已按用户要求落版，S1/S2/I/L/B1/B2/U/C
 | CPA | 集成既有管理页，支持托管本地与已有实例，仅覆盖接入 CPA 的账号与调用 | 用真实管理页静态图展示；不混同 JanusX 用量统计或所有 CLI 的账号额度 |
 | 旧文案 | 「下滑切蓝图」「浏览器与终端同一 pane」「底部 Quick Note」等需要按新入口逐项重审 | 不能只换 GIF；操作说明和能力边界也要同步更新 |
 
-事实入口：[录制现状](./readme-showcase.md)、[头图现状](./readme-janus-header.md)、[副黑板](../workbench/island-blackboard.md)、[全局工具布局](../workbench/global-tool-layout.md)、[运行配置助手](../agent/run-config-assistant-edit-tools.md)、[审核机制](../blueprint/maintenance/note-content-review.md)、[审核与修复界面](../blueprint/navigation/note-updates-and-suggestion-navigation.md)、[CPA 集成](../workbench/service-integrations.md)、`src/shared/theme/registry.ts`、`src/renderer/src/components/UsageStatsPanel.tsx`、`src/renderer/src/components/TerminalUsageDetails.tsx`。原始 Notes 通过仓库文件检索读取；未使用桌面 wiki。Orca 来源：<https://github.com/stablyai/orca>。
+事实入口：[录制现状](./readme-showcase.md)、[头图现状](./readme-janus-header.md)、[副黑板退役决策](../workbench/island-blackboard.md)、[全局工具布局](../workbench/global-tool-layout.md)、[运行配置助手](../agent/run-config-assistant-edit-tools.md)、[审核机制](../blueprint/maintenance/note-content-review.md)、[审核与修复界面](../blueprint/navigation/note-updates-and-suggestion-navigation.md)、[CPA 集成](../workbench/service-integrations.md)、`src/shared/theme/registry.ts`、`src/renderer/src/components/UsageStatsPanel.tsx`、`src/renderer/src/components/TerminalUsageDetails.tsx`。原始 Notes 通过仓库文件检索读取；未使用桌面 wiki。Orca 来源：<https://github.com/stablyai/orca>。
 
 ## README 信息架构
+
+2026-10-27：下文 S2 帧数、时长和历史验收描述保留为录制来源；副黑板退役后旧动图已从 README 撤下，当前脚本只保留工具布局和跨项目切换，尚未重录。
 
 建议定位文案：「让 AI 编程的并行工作，留在同一个工作台。」副句：「项目与终端、蓝图与文档、会话与用量，在一个桌面里组织和对照。」这是待审核文案，不作为已发布宣传语。
 
@@ -49,7 +51,7 @@ README 结构与 10 条功能 GIF 已按用户要求落版，S1/S2/I/L/B1/B2/U/C
 | 1 | 圆角胶囊与像素字标 + 应用图标 + JanusX 标题 | 应用图标恢复在头图旁，标题与简介延续早期 README 层级 |
 | 2 | 定位、下载、文档、反馈 | 一主句一副句；徽章收为一行，技术栈移至开发区；测试版状态保留简短准确说明 |
 | 3 | 新 UI 总览 | 下载入口后展示左右侧栏与 Claude、Codex、OpenCode、Pi 分屏，蓝图以右下角独立小窗叠放；图片内不添加口号或说明。蓝图章节另保留完整工作台图，点击可放大 |
-| 4 | 分屏两部曲 | 先「终端并行」，紧接「黑板、项目、工具协同」；顺序满足从熟悉到特色的理解路径 |
+| 4 | 分屏两部曲 | 先「终端并行」，紧接「项目与工具协同」；顺序满足从熟悉到特色的理解路径 |
 | 5 | Island 对话 | 「带着项目上下文，直接开聊」；从胶囊进入对话并展示结果，监控/通知作为辅助 |
 | 6 | 运行配置 | 「描述启动方式，生成项目运行配置」；对话、配置变化、确认落盘、启动结果同一故事 |
 | 7 | 蓝图 | 一组两段：对话维护 Note；Git 自动审核与建议修复。配静态概览供细读 |

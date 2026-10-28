@@ -12,7 +12,6 @@ import { useGitStore } from '../../../src/renderer/src/stores/git'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { useThemeStore } from '../../../src/renderer/src/stores/theme'
 import { extensionRegistry, openExtensionView } from '../../../src/renderer/src/extensions'
-import { useExperimentalStore } from '../../../src/renderer/src/stores/experimental'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
@@ -81,7 +80,6 @@ Object.assign(window, { builtinExtensionFixture: {
   disable: (id: string) => extensionRegistry.disable(`janusx.${id}`),
   enable: (id: string) => extensionRegistry.enable(`janusx.${id}`),
   open: (id: string) => openExtensionView(`extension:janusx.${id}/panel`),
-  sessionsEnabled: (sessions: boolean) => useExperimentalStore.setState({ sessions }),
   selectProject: (id: string) => useWorkspaceStore.setState({ activeWorkspaceId: id,
     workspaces: ['palette', 'other'].map((projectId) => ({ id: projectId, name: projectId, path: `C:/${projectId}`,
       clis: [], layout: { mode: 'tabs', positions: [] }, createdAt: '' })),

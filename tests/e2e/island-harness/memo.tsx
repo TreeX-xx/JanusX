@@ -28,7 +28,7 @@ const withSettings = params.has('settings')
 if (withSettings) {
   let features = { ...DEFAULT_EXPERIMENTAL_FEATURES }
   window.electron.experimental = {
-    get: async () => ({ ...features }),
+    get: async () => ({ ...features, memo: false, sessions: false }),
     update: async partial => { features = normalizeExperimentalFeatures({ ...features, ...partial }); return { ...features } },
   }
 }

@@ -33,7 +33,7 @@ export function getRightToolView(toolId: RightToolId) {
   return extensionRegistry.getView(builtin ? builtinRightViewId(builtin) : toolId)
 }
 
-export function isRightToolEnabled(toolId: RightToolId, features: Pick<ExperimentalFeatures, 'knowledge' | 'persona' | 'sessions'>): boolean {
+export function isRightToolEnabled(toolId: RightToolId, features: Pick<ExperimentalFeatures, 'knowledge' | 'persona'>): boolean {
   const id = canonicalRightToolId(toolId)
   const tool = getRightToolDefinitions().find((item) => item.id === id)
   return Boolean(tool && (!tool.feature || features[tool.feature]))

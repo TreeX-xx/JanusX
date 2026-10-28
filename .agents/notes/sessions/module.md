@@ -53,7 +53,7 @@
       "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/97a21dee-2b5e-4cf8-8298-28263eeb02bb"
     }
   ],
-  "updated": "2026-10-24T08:06:37Z",
+  "updated": "2026-10-28T06:07:03.626Z",
   "moduleState": "partial"
 }
 ---
@@ -74,7 +74,7 @@
 
 远端新建 Agent 支持终端内按需安装；原生续接复用目标 CLI 解析器，能找到用户安装及 JanusX 受管目录，不因文档后端旧 PATH 拒绝启动。安装流程不迁移本地凭据，也不等同于提供方登录或真实历史续接验收。
 
-终端以稳定 sessionId 关联会话和检查点，线程以项目/viewRef 或 Task run 维持连续性，工作树为这些入口提供有效目录。各子模块通过现有服务与 IPC 协作，不建立另一个会话或执行事实索引。右坞会话入口受[创新实验功能预览管理](../workbench/experimental-preview-features.md)的 `sessions` 开关门控：默认关闭，关闭仅隐藏入口，会话账本、转录扫描与检查点数据保留。
+终端以稳定 sessionId 关联会话和检查点，线程以项目/viewRef 或 Task run 维持连续性，工作树为这些入口提供有效目录。各子模块通过现有服务与 IPC 协作，不建立另一个会话或执行事实索引。右坞会话入口默认可用，不受旧实验开关控制。
 
 [工作区、会话与恢复总需求](requirements/workspace-session-checkpoint-continue.md)、[窗口化呈现与恢复需求](requirements/session-mgmt-orca-restore.md)、[会话内容真值](requirements/session-content-truth.md)、[还原点可靠性](requirements/restore-point-reliability.md)（排期滞后）和[初始实现决策](workspace-sessions-v1.md)横跨子模块，仍归本层。工作区行的[常驻菜单](workspace-row-actions-menu.md)与[悬停显示](workspace-row-hover-reveal.md)保留先后取舍。共享弹窗动效和关闭热区已归回工作台，具体搬迁记录见[职责目录整理](../blueprint/module-responsibilities.md)。
 

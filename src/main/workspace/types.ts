@@ -56,7 +56,7 @@ export interface UpdateWorkspaceDto {
 export interface GlobalConfig {
   cpaSettings?: import('../../shared/ipc/cpa').CpaSettings
   theme: AppTheme
-  /** 石板色扶正一次性迁移标记：老配置的 'dark' 已迁往默认后为 true；缺席视为未迁移，兼容旧配置。 */
+  /** 历史石板色迁移标记，仅兼容旧配置；不再用于改写用户主题。 */
   themeMigratedToSlate?: boolean
   language?: string
   defaultTerminalPreset: string

@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-12T06:16:26Z",
+  "updated": "2026-10-28T04:13:21Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -35,9 +35,11 @@ JanusX ships Windows installers through GitHub Releases, but the repository offe
 
 ## Decision
 
-The public site lives on the orphan `gh-pages` branch. The download landing page is at `index.html`, with `.nojekyll`, `icon.png` and its static assets. Download buttons never host binaries; they point at `releases/latest` and a script resolves the current `-setup.exe` / `-portable.exe` asset URLs through the Releases API. Without any published release the page degrades to a "首个正式版筹备中" state instead of dead links. Pages serves `https://treex-x.github.io/JanusX/` from `gh-pages` root.
+The public site lives on the orphan `gh-pages` branch. The download landing page is at `index.html`, with `.nojekyll`, `icon.png` and its static assets. Download buttons never host binaries; they point at the TreeX-xx Releases history and a script resolves the current `-setup.exe` / `-portable.exe` asset URLs through the latest-release API. Without any published release the page degrades to an empty-release state instead of dead links. Pages serves `https://treex-xx.github.io/JanusX/` from `gh-pages` root.
 
-The [remote connection validation controller](../remote/connection-lab.md) is published separately at `remote-lab/index.html`, served as `https://treex-x.github.io/JanusX/remote-lab/`. Deployment commit `3cde2a40505998d1b3a6617d2967d98b1526a409` only adds this self-contained test page; it does not change the download landing page or publish the desktop development branch. The hosted controller has been checked with public signaling and real same-machine WebRTC; actual cellular-to-home acceptance remains separate.
+The maintainer requested deploying the migrated installation page on 2026-10-28. Local download checks pass ten scenarios across five viewport sizes; hero checks cover workspace switching, scroll reversal, compact layouts, reduced motion and no-JavaScript fallbacks. A Pages rebuild publishes existing commit `5c2fa88b0af650ce14c1ef58f2e598f534f94c6e` in [deployment run 40627369285](https://github.com/TreeX-xx/JanusX/actions/runs/40627369285), without pushing application branches. The hosted page returns HTTP 200; seven core resources match their committed Git blob hashes, both download links resolve to the current v0.9.4 API asset URLs, every tour image decodes, and a fresh mobile viewport has no overflow with its download action visible. Evidence and screenshots are in `artifacts/install-page-deploy-20261028/live-verification.json`, `live-desktop.png` and `live-mobile.png`.
+
+The [remote connection validation controller](../remote/connection-lab.md) is published separately at `remote-lab/index.html`, originally served as `https://treex-x.github.io/JanusX/remote-lab/`. Deployment commit `3cde2a40505998d1b3a6617d2967d98b1526a409` only adds this self-contained test page; it does not change the download landing page or publish the desktop development branch. The hosted controller has been checked with public signaling and real same-machine WebRTC; actual cellular-to-home acceptance remains separate.
 
 ## Alternatives considered
 
@@ -48,6 +50,6 @@ The [remote connection validation controller](../remote/connection-lab.md) is pu
 
 ## Consequences
 
-- **Gains**: a live shareable URL (`https://treex-x.github.io/JanusX/`, verified HTTP 200 with title markers and byte-exact icon) whose download buttons track new releases without page edits.
+- **Gains**: a live shareable URL (`https://treex-xx.github.io/JanusX/`, verified HTTP 200 with title markers and byte-exact committed icon) whose download buttons track new releases without page edits.
 - **Visual language**: the page renders in the application shell language — neutral gray ramp surfaces with weak white borders, kicker eyebrows for hierarchy, and ghost buttons throughout — so the amber accent appears only in text, 1px borders, and the version status dot. No emoji icons ship in the markup. The `OfficeSetupGate` dialog follows the same language with identical installer copy and confirmation flow.
 - **Costs and limits**: `gh-pages` evolves outside `main` history, so copy updates need a deliberate checkout of that branch; `main` must never be pushed as a side effect of site work. The page advertises Windows only; macOS/Linux entries and a custom domain are the revisit signals.

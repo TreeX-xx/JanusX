@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+﻿import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -26,7 +26,7 @@ describe('P7 declarative palettes', () => {
     const name = getMonacoThemeName(id)
     expect(monaco.editor.defineTheme).toHaveBeenCalledWith(name, expect.objectContaining({ colors: expect.objectContaining({ 'editor.background': colors.canvas }) }))
     syncPluginThemes([])
-    expect(getMonacoThemeName(id)).toBe('janusx-planche')
+    expect(getMonacoThemeName(id)).toBe('janusx-dark')
   })
   it('accepts manifest-only themes and requires explicit capability and permission', () => {
     const data = manifest(); expect(data.contributes.views).toEqual([])
@@ -57,12 +57,12 @@ describe('P7 declarative palettes', () => {
     expect(theme.monaco.colors['editor.foreground']).toBe(colors.text); expect(theme.monacoName).toMatch(/^[a-z0-9-]+$/)
     expect(getThemeDefinition('plugin:another.palette/ocean').monacoName).not.toBe(theme.monacoName)
     expect(getThemeDefinition('dark')).toBe(base); expect(theme.tokens['dialog-backdrop']).toBe(base.tokens['dialog-backdrop'])
-    syncPluginThemes([]); expect(getThemeDefinition(id).id).toBe('planche'); expect(listThemeDefinitions().map(item => item.id)).toEqual(['planche', 'dark'])
+    syncPluginThemes([]); expect(getThemeDefinition(id).id).toBe('dark'); expect(listThemeDefinitions().map(item => item.id)).toEqual(['dark', 'planche'])
   })
   it('does not register an ungranted theme or accept invalid palette data at the renderer boundary', () => {
-    syncPluginThemes([{ ...manifest(), permissions: [] }]); expect(getThemeDefinition(id).id).toBe('planche')
+    syncPluginThemes([{ ...manifest(), permissions: [] }]); expect(getThemeDefinition(id).id).toBe('dark')
     const data = manifest(); data.contributes.themes![0].colors.canvas = 'url(evil)'
-    expect(() => syncPluginThemes([data])).toThrow(); expect(getThemeDefinition(id).id).toBe('planche')
+    expect(() => syncPluginThemes([data])).toThrow(); expect(getThemeDefinition(id).id).toBe('dark')
   })
   it('shields overlapping host dialogs and removes only owned inline variables on fallback', () => {
     const values = new Map([['--unrelated', 'keep']]); const root = { dataset: {} as Record<string, string>, style: { setProperty: (k: string, v: string) => values.set(k, v), removeProperty: (k: string) => values.delete(k), colorScheme: '' } }
@@ -71,7 +71,7 @@ describe('P7 declarative palettes', () => {
     useBrowserOcclusionStore.setState({ count: 2 }); expect(values.has('--shell-canvas')).toBe(false)
     useBrowserOcclusionStore.setState({ count: 1 }); expect(values.has('--shell-canvas')).toBe(false)
     useBrowserOcclusionStore.setState({ count: 0 }); expect(values.get('--shell-canvas')).toBe(colors.canvas)
-    syncPluginThemes([]); applyThemeToDocument(id); expect(root.dataset.theme).toBe('planche'); expect(root.dataset.pluginTheme).toBe('')
+    syncPluginThemes([]); applyThemeToDocument(id); expect(root.dataset.theme).toBe('dark'); expect(root.dataset.pluginTheme).toBe('')
     expect(values).toEqual(new Map([['--unrelated', 'keep']]))
   })
   it('requires renewed authorization when a palette changes and keeps configuration separate', async () => {

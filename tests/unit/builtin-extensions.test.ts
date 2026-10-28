@@ -30,7 +30,6 @@ describe('built-in right-hand extensions', () => {
     expect(view.id).toBe(viewId)
     expect(view.scope).toBe('application')
     expect(getRightToolDefinitions().filter((tool) => tool.id === id || tool.id === viewId)).toEqual([builtin.tool])
-    useExperimentalStore.setState({ sessions: true })
     useRightToolStore.getState().openTool(id)
     useRightToolStore.getState().setPanelWidth(390, viewId)
     expect(openExtensionView(viewId)).toBe(true)
@@ -56,18 +55,18 @@ describe('built-in right-hand extensions', () => {
     expect(getRightToolView(id)).toBeDefined()
   })
 
-  it('enforces the session preview gate for both legacy and extension entry points', () => {
+  it('opens session management through both entry points with experimental features off', () => {
     const viewId = 'extension:janusx.sessions/panel'
-    useExperimentalStore.setState({ sessions: false })
-    expect(isRightToolEnabled(viewId, { knowledge: true, persona: true, sessions: false })).toBe(false)
-    expect(openExtensionView(viewId)).toBe(false)
+    useExperimentalStore.getState().apply({ knowledge: false, persona: false })
+    expect(isRightToolEnabled(viewId, { knowledge: false, persona: false })).toBe(true)
+    expect(openExtensionView(viewId)).toBe(true)
+    useRightToolStore.getState().closeTool(viewId)
     useRightToolStore.getState().openTool('sessions')
-    expect(useRightToolStore.getState().openToolIds).toEqual([])
+    expect(useRightToolStore.getState().openToolIds).toEqual(['sessions'])
   })
 
   it('allows the existing empty-project shells and closes views without disabling their extensions', () => {
     useWorkspaceStore.setState({ activeWorkspaceId: null })
-    useExperimentalStore.setState({ sessions: true })
     for (const builtin of BUILTIN_RIGHT_EXTENSIONS) {
       expect(openExtensionView(builtinRightViewId(builtin))).toBe(true)
       useRightToolStore.getState().closeTool(builtin.tool.id)

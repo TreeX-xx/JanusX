@@ -25,6 +25,7 @@ test('default embedded opens, whole-session float and re-embed preserve drafts a
     const main = await app.firstWindow()
     main.on('pageerror', error => console.log('Main page:', error.message))
     await main.waitForFunction(() => typeof (window as any).electron?.window?.openEditor === 'function')
+    await main.evaluate(() => (window as any).electron.system.setLanguage('zh-CN'))
     await seedIntroducedLearning(main)
     await main.reload()
     await expect(main.locator('button[data-id="tool-menu"]')).toBeVisible({ timeout: 40_000 })

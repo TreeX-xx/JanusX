@@ -42,7 +42,6 @@ import { FolderOpen } from 'lucide-react'
 import { chooseAndCreateWorkspace, getActiveScopePath, loadWorkspaceFileTree } from '@/features/workspace/actions'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { shouldRenderWorkspacePane } from '@/lib/workspace-front-surface'
-import { IslandBlackboard } from '@/components/blackboard/IslandBlackboard'
 import { OnboardingHost } from '@/components/onboarding/OnboardingHost'
 import { LearningButton } from '@/components/onboarding/LearningButton'
 import styles from './App.module.css'
@@ -269,10 +268,8 @@ export default function App() {
       >
         <Sidebar />
 
-        {/*-- 中心区域：副黑板（上带）+ 工作区（下带）。下拉手势让工作区下滑让位；
-             perspective 保留给 pane 拖拽预览的 fixed 包含块语义。 --*/}
+        {/* perspective 保留给 pane 拖拽预览的 fixed 包含块语义。 */}
         <main ref={centerWorkspaceRef} className="min-w-0 min-h-0 overflow-hidden relative flex flex-col" style={{ perspective: 1500, background: 'var(--bg-deep)' }}>
-          <IslandBlackboard />
           <div className="flex-1 min-h-0 relative">
             {mountWorkspacePane && (
               <div

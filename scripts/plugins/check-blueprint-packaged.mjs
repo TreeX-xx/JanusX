@@ -40,8 +40,8 @@ async function readMetrics() {
     try { return await application.evaluate(({ app }) => ({ mainMemory: process.memoryUsage(), processes: app.getAppMetrics() })) }
     catch (error) {
       // Utility-process startup can replace a Playwright inspector context. Retry this read only.
-      if (attempt >= 2 || !String(error).includes('Execution context was destroyed')) throw error
-      await new Promise(resolve => setTimeout(resolve, 250))
+      if (attempt >= 19 || !String(error).includes('Execution context was destroyed')) throw error
+      await new Promise(resolve => setTimeout(resolve, 500))
     }
   }
 }
@@ -119,7 +119,7 @@ try {
   }, resolve(archive))
   await page.getByRole('button', { name: 'Import plugin package', exact: true }).click()
   let card = page.locator('[data-plugin-id="official.blueprint"]')
-  await expect(card).toContainText(manifest.version)
+  await expect(card).toContainText(manifest.version, { timeout: 60_000 })
   const disabled = await sample(page, 'installed-disabled')
   expect(disabled.plugins).toMatchObject([{ enabled: false, source: { kind: 'official' }, runtime: { pages: 0, ready: 0 } }])
   expect(await nativeProcesses()).toEqual([])
@@ -290,8 +290,14 @@ try {
   await writeFile(join(output, 'blueprint-packaged.json'), JSON.stringify(receipt, null, 2) + '\n')
   console.log(JSON.stringify({ status: receipt.status, summary, faultChecks, states: states.map(item => ({ state: item.state, workingSetKiB: item.workingSetKiB })) }, null, 2))
 } catch (error) {
+  const pluginPage = application?.context().pages().find(page => page.url().startsWith('janusx-plugin:'))
+  let diagnostics
+  if (pluginPage) {
+    await pluginPage.getByRole('button', { name: /Source diagnostics/ }).click({ timeout: 2000 }).catch(() => {})
+    diagnostics = await pluginPage.locator('body').innerText().catch(() => undefined)
+  }
   await writeFile(join(output, 'blueprint-packaged-failure.json'), JSON.stringify({ checkedAt: new Date().toISOString(),
-    status: 'failed', stage, error: String(error), samples, states, faultChecks }, null, 2) + '\n')
+    status: 'failed', stage, error: String(error), diagnostics, samples, states, faultChecks }, null, 2) + '\n')
   if (application) {
     await application.firstWindow().then(page => page.screenshot({ path: join(output, 'blueprint-failure.png') })).catch(() => {})
     console.error(await application.context().pages()[0]?.evaluate(() => window.electron.plugins.request({ type: 'list' })).catch(() => null))

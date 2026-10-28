@@ -35,6 +35,8 @@ export default defineConfig(async ({ command }) => {
         for (const path of Object.keys(result.metafile.inputs)) this.addWatchFile(resolve(__dirname, path))
         this.addWatchFile(resolve(__dirname, 'resources/workspace-runtime/host.py'))
         this.addWatchFile(resolve(__dirname, 'resources/workspace-runtime/cli.py'))
+        this.addWatchFile(resolve(__dirname, 'resources/icon.png'))
+        this.addWatchFile(resolve(__dirname, 'resources/icon.ico'))
         this.emitFile({ type: 'asset', fileName: 'workspace-backend.cjs', source: result.outputFiles[0].text })
         this.emitFile({ type: 'asset', fileName: 'workspace-host.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/host.py')) })
         this.emitFile({ type: 'asset', fileName: 'workspace-cli.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/cli.py')) })

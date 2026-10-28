@@ -88,6 +88,10 @@ Android 源码和 Gradle 配置由 `apps/android-lab/` 维护，构建及验证�
 | 命令 | 用途 |
 | --- | --- |
 | `npm run verify` | 完整检查：主题、类型、单测、构建、包边界、打包排除清单、国际化、Notes、lint 和桌面冒烟 |
+| `npm run verify:quick` | 已准备环境中的静态检查与快速单测，不构建桌面 |
+| `npm run test:unit:fast` | 日常单测；慢集成与真实 Chromium 分组运行 |
+| `npm run test:integration` / `npm run test:browser` | 分别运行慢集成和真实浏览器组件测试 |
+| `npm run test:related -- <源码路径>` | 按源码导入关系选择相关测试 |
 | `npm run test:unit -- --run <测试文件路径>` | 运行指定单元测试 |
 | `npm run typecheck` / `npm run lint` | 类型和静态检查 |
 | `npm run check:notes` | 检查仓库 Note 结构与引用 |
@@ -95,7 +99,7 @@ Android 源码和 Gradle 配置由 `apps/android-lab/` 维护，构建及验证�
 | `npm run test:e2e:desktop` | 已构建 Electron 的桌面检查，先运行 `npm run build` |
 | `npm run verify:local` | 完整检查再加维护者个人技能同步检查，外部贡献者无需运行 |
 
-CI 拆分执行 `verify` 的各步骤以便定位故障，单测会限制 worker 数量。CI 定义与本地命令应同步维护。PR 中记录实际执行的命令和结果，未运行的检查写明原因。
+完整单测入口运行所有测试组，CI 拆分执行 `verify` 的各步骤以便定位故障；插件单测统一执行一次。CI 限制单 worker，本地最多 4 个。测试选取、准备与精简约定见[测试指南](./testing.md)。CI 定义与本地命令应同步维护。PR 中记录实际执行的命令和结果，未运行的检查写明原因。
 
 ## 常见环境问题
 

@@ -32,7 +32,7 @@ test('built-ins use extension lifecycle while preserving file search, Git action
   expect(errors).toEqual([])
 })
 
-test('session view releases subscriptions on inactivity, close, gate and disable without stopping execution', async ({ page }) => {
+test('session view releases subscriptions on inactivity, close and disable without stopping execution', async ({ page }) => {
   await page.goto('/tool-palette.html')
   await page.locator('#right-tool-rail-sessions').click()
   const sessions = page.locator('#right-tool-panel-sessions')
@@ -56,12 +56,6 @@ test('session view releases subscriptions on inactivity, close, gate and disable
     await expect(sessions.locator('[data-session-id="session-review"]')).toBeVisible()
     await expect.poll(async () => (await state(page)).listeners).toBe(2)
   }
-  await page.evaluate(() => (window as any).builtinExtensionFixture.sessionsEnabled(false))
-  await expect(sessions).toHaveCount(0)
-  await expect.poll(async () => (await state(page)).listeners).toBe(0)
-  expect(await page.evaluate(() => (window as any).builtinExtensionFixture.open('sessions'))).toBe(false)
-  await page.evaluate(() => { (window as any).builtinExtensionFixture.sessionsEnabled(true); (window as any).builtinExtensionFixture.open('sessions') })
-  await expect.poll(async () => (await state(page)).listeners).toBe(2)
   await page.evaluate(() => (window as any).builtinExtensionFixture.disable('sessions'))
   await expect(sessions).toHaveCount(0)
   await expect.poll(async () => (await state(page)).listeners).toBe(0)
