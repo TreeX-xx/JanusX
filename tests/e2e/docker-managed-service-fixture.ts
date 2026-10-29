@@ -29,7 +29,7 @@ startNativePlugin(async (context, host) => {
       if (attempt === 1) throw new Error('fixture-download-failed')
       progress(100)
     },
-    async launch() { running = true }, async elevate() { throw new Error('Synthetic installer must never elevate') },
+    async launch() { running = true }, async proxy() { return undefined }, async elevate() { throw new Error('Synthetic installer must never elevate') },
   })
   const cli = new DockerCli(undefined, async () => { throw new Error('docker-cli-missing') })
   let emptyInstalled = false

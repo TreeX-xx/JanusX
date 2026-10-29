@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-10-11",
-  "updated": "2026-10-29T16:03:16Z",
+  "updated": "2026-10-29T16:29:15Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -82,9 +82,11 @@ CLI 使用固定可执行文件与参数数组，不拼接用户 shell 命令。
 
 缺少 WSL 时，点击安装通过系统 UAC 执行固定的 `wsl --install --no-distribution --no-launch`。Windows 可能要求管理员权限和重启；页面提示重启后继续，不自动重启电脑。导入时遇到已知缺少虚拟化／WSL 组件的错误也进入该准备步骤，其余错误原样反馈。BIOS 虚拟化、Windows 策略和内核异常仍需用户处理。
 
-Ubuntu Base 24.04.5 的 x64／ARM64 rootfs 使用官方 HTTPS 地址及代码内固定 SHA-256，经过应用代理流式写入，限制 256 MiB，不执行下载内容前的未校验文件；失败清除 `.part`，可复用校验通过的缓存。Docker Engine 从 Ubuntu 自带的签名 apt 仓库安装 `docker.io`、`ca-certificates`、`util-linux`，不执行网络下载的安装脚本、不关闭包签名验证。rootfs 下载走应用代理；WSL 内 apt 和引擎镜像下载依赖 Linux 自身网络／代理配置，本轮不替用户改写系统代理。
+Ubuntu Base 24.04.5 的 x64／ARM64 rootfs 使用官方 HTTPS 地址及代码内固定 SHA-256，经过应用代理流式写入，限制 256 MiB，不执行下载内容前的未校验文件；失败清除 `.part`，可复用校验通过的缓存。Docker Engine 从 Ubuntu 自带的签名 apt 仓库安装 `docker.io`、`ca-certificates`、`util-linux`，不执行网络下载的安装脚本、不关闭包签名验证。rootfs 下载走应用代理；专用环境 apt 和新启动的 dockerd 在配置应用／系统代理时，通过绑定 WSL NAT 网关对应 Windows 网卡的认证转接访问宿主代理；无代理时清除继承的代理环境变量后直连。只给本次进程传入代理，不修改全局 `.wslconfig`、防火墙、用户 apt 文件或 daemon 配置。已有 Ubuntu 沿用自己的代理配置。
 
-WSL 查询、操作、日志和宿主 PTY 均通过 `wsl.exe --distribution <所选发行版> --user root --exec /usr/bin/docker --host unix:///var/run/docker.sock` 访问；不开放 TCP Docker API。PTY 请求只允许宿主已验证的当前发行版、该 socket 和 Linux shell。专用环境启动使用固定 dockerd 参数和 Linux flock，启动成功以实际 `docker info` 返回为准；daemon 由独立 WSL 客户端承载，关闭页面、停用插件和退出 JanusX 不停止引擎／容器。没有新增运行时删除、引擎升级或镜像管理界面。
+转接端口与随机凭据保存在专用 runtime 的 `proxy.json`，插件重启可恢复同一端点；停用或退出关闭转接监听，容器／引擎仍运行，但经过该转接的镜像下载需要 JanusX 运行。Windows 防火墙需允许对应网卡，绑定失败显示可重试错误。网关变更或此前启动的 daemon 未携带代理时，需要重启专用引擎；首版不自动重启正在运行的引擎。WSL 手动终端仍可能显示 NAT 的 localhost 自动代理警告，转接不改变其全局自动代理行为。
+
+WSL 查询、操作、日志和宿主 PTY 均通过 `wsl.exe --distribution <所选发行版> --user root --exec /usr/bin/docker --host unix:///var/run/docker.sock` 访问；不开放 TCP Docker API。PTY 请求只允许宿主已验证的当前发行版、该 socket 和 Linux shell。专用环境启动使用固定 dockerd 参数和 Linux flock，启动成功以实际 `docker info` 返回为准；Windows 通过 PowerShell `Start-Process -WindowStyle Hidden` 启动独立 WSL 客户端，避免 Node `detached` 的新控制台。关闭页面、停用插件和退出 JanusX 不主动停止引擎／容器。没有新增运行时删除、引擎升级或镜像管理界面。
 
 宿主补独立的结构化容器终端请求和打开服务 URL 的接口。现有 `workspace.proposeTerminal` 是项目文本草稿交接，不用于此场景。容器终端在插件页面内展示，底层可复用宿主 PTY，但会话按插件激活代次、引擎和容器身份管理，不依赖项目、worktree 或页面实例。页面只持有可撤销的显示/输入连接，关闭页面不销毁后台会话，重开后在相同激活代次下重新绑定。新接口处理创建、重接、输入、输出、resize、关闭及撤销，不向页面开放通用命令执行。复用 PTY 不等于复用项目终端的归属和入口。
 
@@ -137,6 +139,14 @@ Compose 首版只管理现有容器，按 `com.docker.compose.project` 分组；
 
 ## Validation and open questions
 
+2026-10-30（本地时间）用户实测创建专用环境后出现 Windows Terminal 与“localhost 代理未镜像到 WSL，NAT 不支持 localhost 代理”提示。只读检查确认系统代理启用且使用回环地址，`JanusX-Docker` 为运行中的 WSL2，固定 socket 的 `docker info --format '{{.ServerVersion}}'` 返回 `29.1.3`，同时复现代理警告；因此警告未阻断本次引擎查询，不代表 apt 或镜像下载代理可用。未修改网络配置、启动／停止引擎或操作容器；该精简 rootfs 不含 `/usr/lib/wsl/wslinfo`，网络模式以 WSL 自身警告为证。
+
+引擎 WSL 进程与 OpenConsole／Windows Terminal 在同一秒内创建，前者由插件 Electron 后台启动并执行专用环境的 dockerd。结合当时 `runtime-process.ts` 的 `detached: true`、`stdio: 'ignore'` 与 `windowsHide: true`，最可能是独立控制台被默认终端托管。现已改为隐藏 Start-Process 并补专用 NAT 代理转接。Windows 原生控制台替身调用实际 `launchEngine` 的父进程退出后，子进程仍存活且未新增 WindowsTerminal 进程；直接去掉 detached 的对照失败，证明不能仅删标志。该替身验证不替代真实 WSL 重新安装、窗口与 daemon 退出存活验证。
+
+用户要求先移除刚创建的专用环境以便重测。已核对 Windows 注册 BasePath 精确为 `%LOCALAPPDATA%/JanusX/docker-runtime/distribution`，且 Linux owner 与 `owner.json` 一致，然后明确执行 `wsl --unregister JanusX-Docker`。发行版／虚拟磁盘已移除，`NewAPI-WSL` 保留；保留已校验 rootfs 缓存与 owner 文件，重测仍会重新导入和安装。未在修复验证中重建真实发行版。
+
+本次运行 9 个相关单测文件共 80 项通过，含真实 HTTP 代理转接认证／转发／端点恢复／关闭和安装／daemon 的代理注入；专用安装器的一项真实 Electron 替身桌面流程通过。隐藏后台原生替身验证命令为 `node .cache/verify-docker-background.mjs`，输出父进程已退出、子进程仍存活、零新增 WT；公开 SDK 仓库外构建与严格类型检查通过。NAT 内实际 apt 与拉镜像仍留给用户重新创建后验证。
+
 连接页与环境菜单优化已运行 `npx playwright test --config playwright.docker.config.ts --workers=1 --grep "managed runtime"`，一项扩展桌面流程通过，覆盖菜单键盘选择／Escape／外部关闭、深色与石板色窄窗浮层边界，以及原有安装确认、切换和终端重接；已检查两张菜单截图。此次另运行 25 项 Docker 环境与服务单测、根目录及插件严格类型检查、公开 SDK 仓库外构建、主题与 i18n 检查，均通过。
 
 2026-10-29 已运行 Docker、PTY、插件平台及 CPA 相关 18 个单测文件，共 263 项通过。覆盖本地 endpoint 拒绝远程、固定 CLI 参数、列表与端口解析、分组部分失败和并发拒绝、日志缓冲与回收、页面关闭后 session 重接、宿主 owner 与浏览器边界，以及检测无软件修改、专用 WSL2 安装／重试／锁／归属、已有 Ubuntu 安装确认／沿用服务配置／目标持久化、不支持系统拒绝安装、跨目标迟到响应拒绝、停用取消、下载篡改与大小限制、UTF-16 管理输出和 WSL 终端目标绑定。
@@ -145,7 +155,7 @@ Compose 首版只管理现有容器，按 `com.docker.compose.project` 分组；
 
 `npm run plugins:docker:check` 通过公开 SDK tarball 的仓库外安装、类型检查、构建、包校验及实际后台 bundle 启停；根目录和插件严格未使用检查、受影响宿主 lint、`npm run build:app`、主题／i18n／包边界／打包排除检查均通过。`npm run check:notes` 为 0 errors，保留 17 项既有跨仓引用诊断。检查记录不代表运行了完整仓库 verify 或真实 Docker 验收。
 
-本轮没有安装或修改本机 WSL／Docker。真实 WSL2 安装、UAC／重启、Ubuntu apt 安装、dockerd 独立客户端在退出后的存活、容器启停和 localhost 端口转发仍待实机验证；macOS/Linux 同样未实测。已从官方 HTTPS 获取并核对 rootfs SHA256SUMS 与资源目录；额外尝试下载完整 rootfs 作现场校验时网络在 180 秒超时，未取得完整包，不记为下载实测通过。应用中仍执行完整 SHA-256 校验后才导入。
+此前替身验证没有安装或修改本机 WSL／Docker；后续用户自行完成真实安装，本次仅按明确要求注销其刚创建的专用环境。真实 WSL2 安装、UAC／重启、Ubuntu apt 安装、dockerd 独立客户端在退出后的存活、容器启停和 localhost 端口转发仍缺完整自动验收；macOS/Linux 同样未实测。已从官方 HTTPS 获取并核对 rootfs SHA256SUMS 与资源目录；早期额外尝试下载完整 rootfs 作现场校验时网络在 180 秒超时，未取得完整包，不记为该次下载通过。应用中仍执行完整 SHA-256 校验后才导入。
 
 当前 Docker Desktop 打开入口只实现 Windows 和 macOS，Linux 返回不可用。后台 exit／SIGTERM 钩子回收 CLI 采集，宿主在 native 失效时回收 PTY；不可捕获的 OS 强杀之后，CLI 后代进程的立即回收没有保证和实测证据，仍需验证或补强。停用安装请求会结束 Windows 客户端，但 WSL 中已经提交的 apt／导入可能继续，重试通过安装锁及幂等检查收敛。需要在可用本机 Docker 上运行七项验收、安装与引擎重启及停用回收检查，再判断 D0/D5 出口；无法据此宣称发布就绪。
 

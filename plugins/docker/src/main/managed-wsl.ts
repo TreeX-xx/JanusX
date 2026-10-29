@@ -6,6 +6,7 @@ import type { NativePeer } from '@janusx/plugin-sdk/native'
 import type { RuntimeStatus, RuntimePhase } from '../shared/docker'
 import { execute, launchEngine, type Execute } from './runtime-process'
 import { rootfsDownloader, type DownloadRootfs } from './runtime-download'
+import { RuntimeProxy, proxyArgs } from './runtime-proxy'
 
 export const distribution = 'JanusX-Docker' as const
 export const endpoint = 'unix:///var/run/docker.sock'
@@ -21,7 +22,7 @@ test -x /usr/bin/docker && test -x /usr/bin/dockerd && test -x /usr/bin/flock
 mkdir -p /var/lib/janusx-docker
 touch /var/lib/janusx-docker/installed
 `
-interface Dependencies { run: Execute; download: DownloadRootfs; launch(wsl: string): Promise<void>; platform: string; architecture: string; wsl: string; elevate(): Promise<string> }
+interface Dependencies { run: Execute; download: DownloadRootfs; launch(wsl: string, proxy?: string): Promise<void>; proxy(): Promise<string | undefined>; platform: string; architecture: string; wsl: string; elevate(): Promise<string> }
 export class ManagedWsl {
   state: RuntimeStatus = { phase: 'checking', busy: false }
   private flight?: Promise<void>
@@ -29,9 +30,11 @@ export class ManagedWsl {
   private checked = false
   private id?: string
   private deps: Dependencies
+  private proxy: RuntimeProxy
   constructor(readonly root: string, host: NativePeer, dependencies: Partial<Dependencies> = {}) {
     const wsl = join(process.env.SystemRoot ?? 'C:/Windows', 'System32/wsl.exe')
-    this.deps = { run: execute, download: rootfsDownloader(host, process.arch), launch: launchEngine, platform: process.platform, architecture: process.arch, wsl,
+    this.proxy = new RuntimeProxy(root, host)
+    this.deps = { run: execute, download: rootfsDownloader(host, process.arch), launch: launchEngine, proxy: () => this.proxy.start(() => this.linux(['/bin/cat', '/proc/net/route'], 5000)), platform: process.platform, architecture: process.arch, wsl,
       elevate: () => {
         // Fixed Microsoft command; no plugin/page text is interpolated into an elevated shell.
         const script = "$ErrorActionPreference='Stop'; try { $p=Start-Process -FilePath \"$env:SystemRoot\\System32\\wsl.exe\" -ArgumentList '--install','--no-distribution','--no-launch' -Verb RunAs -WindowStyle Hidden -Wait -PassThru; if ($p.ExitCode -notin 0,3010) { exit 1 }; Write-Output 'restart-required' } catch { exit 2 }"
@@ -93,6 +96,7 @@ export class ManagedWsl {
         const installed = await this.linux(['/usr/bin/test', '-f', '/var/lib/janusx-docker/installed'], 5000).then(() => true, () => false)
         if (!installed) this.set('not-installed')
         else {
+          await this.deps.proxy()
           const ready = await this.linux(['/usr/bin/docker', '--host', endpoint, 'info', '--format', '{{.ServerVersion}}'], 5000).then(() => true, () => false)
           this.set(ready ? 'ready' : 'stopped')
         }
@@ -145,12 +149,13 @@ export class ManagedWsl {
         await this.linux(['/bin/sh', '-s'], 18_000, `set -eu\nprintf '%s' '${id}' > /etc/janusx-docker-owner\n`)
       }
       await this.owns(true)
+      const proxy = await this.deps.proxy()
       const installed = await this.linux(['/usr/bin/test', '-f', '/var/lib/janusx-docker/installed']).then(() => true, () => false)
-      if (!installed) { this.set('installing'); await this.linux(['/usr/bin/flock', '-w', '600', '/run/janusx-docker-install.lock', '/bin/sh', '-s'], 900_000, installScript) }
+      if (!installed) { this.set('installing'); await this.linux([...proxyArgs(proxy), '/usr/bin/flock', '-w', '600', '/run/janusx-docker-install.lock', '/bin/sh', '-s'], 900_000, installScript) }
       this.set('starting')
       const healthy = () => this.linux(['/usr/bin/docker', '--host', endpoint, 'info', '--format', '{{.ServerVersion}}'], 5000)
       if (!await healthy().then(() => true, () => false)) {
-        this.abort.signal.throwIfAborted(); await this.deps.launch(this.deps.wsl)
+        this.abort.signal.throwIfAborted(); await this.deps.launch(this.deps.wsl, proxy)
         let ready = false
         for (let attempt = 0; attempt < 30; attempt++) {
           this.abort.signal.throwIfAborted()
@@ -166,6 +171,6 @@ export class ManagedWsl {
       this.set('ready')
     } finally { await lock.close(); await rm(lockPath, { force: true }) }
   }
-  stop(): void { this.abort.abort() }
+  stop(): Promise<void> { this.abort.abort(); return this.proxy.stop() }
 }
 function failure(cause: unknown): string { return (cause instanceof Error ? cause.message : String(cause)).slice(-2000) }

@@ -182,7 +182,7 @@ export async function createDockerService(context: JsonValue, host: NativePeer, 
       } catch (cause) { return { ok: false, error: message(cause) } }
     },
     async releaseContext(owner) { for (const follow of follows.values()) if (follow.owner === owner) endFollow(follow.id) },
-    async stop() { stopped = true; abort.abort(); targetAbort.abort(); env.stop(); for (const id of follows.keys()) endFollow(id); for (const id of sessions.values()) await desktop('terminal.end', { id }).catch(() => {}); sessions.clear() },
+    async stop() { stopped = true; abort.abort(); targetAbort.abort(); await env.stop(); for (const id of follows.keys()) endFollow(id); for (const id of sessions.values()) await desktop('terminal.end', { id }).catch(() => {}); sessions.clear() },
   }
 }
 function message(cause: unknown): string { return (cause instanceof Error ? cause.message : String(cause)).slice(0, 1000) }

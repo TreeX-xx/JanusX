@@ -123,6 +123,6 @@ export class Environments {
     if (previous.phase === 'not-installed' && allowInstall) this.status = { phase: 'installing', busy: true }
     return this.status
   }
-  stop(): void { this.abort.abort(); this.managed.stop() }
+  stop(): Promise<void> { this.abort.abort(); return this.managed.stop() }
 }
 function message(cause: unknown): string { return (cause instanceof Error ? cause.message : String(cause)).slice(-2000) }

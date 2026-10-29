@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { dockerEnvironment } from './cli'
+import { proxyArgs } from './runtime-proxy'
 
 export interface ProcessOptions { signal?: AbortSignal; timeout?: number; input?: string }
 export type Execute = (file: string, args: string[], options?: ProcessOptions) => Promise<string>
@@ -29,11 +30,13 @@ export const execute: Execute = (file, args, options = {}) => new Promise((resol
 })
 
 /** The engine is a user runtime, not a page collector; plugin revocation must not stop it. */
-export async function launchEngine(wsl: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(wsl, ['--distribution', 'JanusX-Docker', '--user', 'root', '--exec', '/usr/bin/flock', '-n', '/run/janusx-dockerd.lock',
-      '/usr/bin/dockerd', '--host=unix:///var/run/docker.sock', '--log-level=error'],
-    { windowsHide: true, detached: true, stdio: 'ignore', shell: false, env: dockerEnvironment() })
-    child.once('error', reject); child.once('spawn', () => { child.unref(); resolve() })
-  })
+export async function launchEngine(wsl: string, proxy?: string): Promise<void> {
+  const args = ['--distribution', 'JanusX-Docker', '--user', 'root', '--exec', ...proxyArgs(proxy), '/usr/bin/flock', '-n', '/run/janusx-dockerd.lock',
+    '/usr/bin/dockerd', '--host=unix:///var/run/docker.sock', '--log-level=error']
+  // Start-Process preserves lifetime without Node's detached console / Terminal delegation.
+  // All arguments are fixed tokens or a generated local proxy URL, never page command text.
+  const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'"
+  const script = `$ErrorActionPreference='Stop'; Start-Process -FilePath ${quote(wsl)} -ArgumentList @(${args.map(quote).join(',')}) -WindowStyle Hidden | Out-Null`
+  await execute(`${process.env.SystemRoot ?? 'C:/Windows'}/System32/WindowsPowerShell/v1.0/powershell.exe`,
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { timeout: 15_000 })
 }

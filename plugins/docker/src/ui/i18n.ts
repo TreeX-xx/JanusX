@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 const en = {
+  runtimeProxyNetwork: 'The app proxy could not be connected to this WSL network. The dedicated environment currently requires a NAT gateway reachable from Windows.', runtimeProxyUnavailable: 'The Docker proxy relay could not start. Check whether its saved port is in use or blocked by Windows Firewall, then retry.',
   localEnvironmentSummary: 'Docker Desktop or a local engine', wslEnvironmentSummary: 'Use this Linux environment', managedEnvironmentSummary: 'An isolated environment for Docker',
   environment: 'Environment', changeEnvironment: 'Change environment', detectEnvironments: 'Detect environments', existingDocker: 'Existing local Docker', existingWsl: 'Existing WSL Ubuntu', dedicatedEnvironment: 'Dedicated Linux environment',
   existingDockerHelp: 'Connect using the local Docker CLI and its selected local context.', existingWslHelp: 'Use Docker in this Ubuntu. Code mounts use paths inside this environment.', detectingEnvironments: 'Detecting WSL environments…', wslDetectionFailed: 'WSL environments could not be detected. Refresh to retry, or choose a dedicated environment to prepare WSL.',
@@ -21,6 +22,7 @@ const en = {
   runtimeFailure: 'Runtime preparation failed. Check the connection, Windows virtualization and available disk space, then retry.',
 }
 const zh: typeof en = {
+  runtimeProxyNetwork: '无法将应用代理接入此 WSL 网络。专用环境目前需要 Windows 可访问的 NAT 网关。', runtimeProxyUnavailable: 'Docker 代理转接未能启动。请检查其保存的端口是否被占用或被 Windows 防火墙拦截，然后重试。',
   localEnvironmentSummary: 'Docker Desktop 或本机引擎', wslEnvironmentSummary: '使用此 Linux 环境', managedEnvironmentSummary: '为 Docker 创建独立环境',
   environment: '运行环境', changeEnvironment: '切换运行环境', detectEnvironments: '检测环境', existingDocker: '已有本机 Docker', existingWsl: '已有 WSL Ubuntu', dedicatedEnvironment: '独立 Linux 环境',
   existingDockerHelp: '通过本机 Docker CLI 连接其已选择的本地 context。', existingWslHelp: '使用此 Ubuntu 中的 Docker。代码挂载使用该环境内部的路径。', detectingEnvironments: '正在检测 WSL 环境…', wslDetectionFailed: '未能检测 WSL 环境。可刷新重试，或选择独立环境以准备 WSL。',
@@ -55,6 +57,8 @@ export function errorText(cause: unknown) {
   if (message === 'docker-runtime-wsl2-required') return t('runtimeWsl2')
   if (message === 'docker-runtime-checksum-failed') return t('runtimeChecksum')
   if (message === 'docker-runtime-busy') return t('runtimeBusy')
+  if (message === 'docker-runtime-proxy-network') return t('runtimeProxyNetwork')
+  if (message === 'docker-runtime-proxy-unavailable') return t('runtimeProxyUnavailable')
   if (message.startsWith('docker-runtime-')) return `${t('runtimeFailure')} (${message})`
   return message.startsWith('docker-') ? `${t('connectionFailed')} (${message})` : message
 }

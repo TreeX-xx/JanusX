@@ -32,9 +32,10 @@ async function fixture(options: { exists?: boolean; installed?: boolean; running
   })
   const download = vi.fn(async (_file: string, _signal: AbortSignal, progress: (value: number) => void) => { progress(80) })
   const launch = vi.fn(async () => { running = true }), elevate = vi.fn(async () => 'restart-required')
-  const manager = new ManagedWsl(root, {} as NativePeer, { run, download, launch, elevate, platform: 'win32', architecture: 'x64', wsl: 'C:/Windows/System32/wsl.exe' })
+  const proxy = vi.fn(async (): Promise<string | undefined> => undefined)
+  const manager = new ManagedWsl(root, {} as NativePeer, { run, download, launch, elevate, proxy, platform: 'win32', architecture: 'x64', wsl: 'C:/Windows/System32/wsl.exe' })
   const settle = () => vi.waitFor(() => expect(manager.state.busy).toBe(false))
-  return { manager, run, download, launch, elevate, settle, root }
+  return { manager, run, download, launch, elevate, proxy, settle, root }
 }
 describe('managed local Docker preparation', () => {
   it('detects absence without downloading or installing anything', async () => {
@@ -54,6 +55,17 @@ describe('managed local Docker preparation', () => {
     expect(await f.manager.inspect(true)).toMatchObject({ phase: 'ready' })
     f.manager.stop(); expect(f.launch).toHaveBeenCalledOnce()
     expect(f.run.mock.calls.some(([, args]) => args.some(arg => ['--unregister', '--terminate', '--shutdown'].includes(arg)))).toBe(false)
+  })
+  it('passes the managed relay to apt and daemon startup without changing user proxy files', async () => {
+    const f = await fixture()
+    f.proxy.mockResolvedValue('http://janusx:fixture@172.20.0.1:31415')
+    f.manager.start(); await f.settle()
+    expect(f.manager.state.phase).toBe('ready')
+    const installation = f.run.mock.calls.find(([, , settings]) => settings?.input === installScript)!
+    expect(installation[1]).toContain('HTTPS_PROXY=http://janusx:fixture@172.20.0.1:31415')
+    expect(installation[1]).toContain('-u')
+    expect(f.launch).toHaveBeenCalledWith('C:/Windows/System32/wsl.exe', 'http://janusx:fixture@172.20.0.1:31415')
+    expect(installScript).not.toContain('apt.conf'); expect(installScript).not.toContain('daemon.json')
   })
   it('requests Windows preparation only after a click and stops for a possible reboot', async () => {
     const f = await fixture({ available: false })
