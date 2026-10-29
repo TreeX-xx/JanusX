@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 const en = {
+  localEnvironmentSummary: 'Docker Desktop or a local engine', wslEnvironmentSummary: 'Use this Linux environment', managedEnvironmentSummary: 'An isolated environment for Docker',
   environment: 'Environment', changeEnvironment: 'Change environment', detectEnvironments: 'Detect environments', existingDocker: 'Existing local Docker', existingWsl: 'Existing WSL Ubuntu', dedicatedEnvironment: 'Dedicated Linux environment',
   existingDockerHelp: 'Connect using the local Docker CLI and its selected local context.', existingWslHelp: 'Use Docker in this Ubuntu. Code mounts use paths inside this environment.', detectingEnvironments: 'Detecting WSL environments…', wslDetectionFailed: 'WSL environments could not be detected. Refresh to retry, or choose a dedicated environment to prepare WSL.',
   installInUbuntu: 'Install Docker in this Ubuntu', installInUbuntuConfirm: 'Install Docker Engine packages in “{name}”? This changes the existing Ubuntu system. Existing Docker configurations will not be replaced.', confirmInstall: 'Confirm installation', cancel: 'Cancel', ubuntuOnly: 'This environment is unsupported. Existing environment installation requires Ubuntu on WSL2.',
@@ -20,6 +21,7 @@ const en = {
   runtimeFailure: 'Runtime preparation failed. Check the connection, Windows virtualization and available disk space, then retry.',
 }
 const zh: typeof en = {
+  localEnvironmentSummary: 'Docker Desktop 或本机引擎', wslEnvironmentSummary: '使用此 Linux 环境', managedEnvironmentSummary: '为 Docker 创建独立环境',
   environment: '运行环境', changeEnvironment: '切换运行环境', detectEnvironments: '检测环境', existingDocker: '已有本机 Docker', existingWsl: '已有 WSL Ubuntu', dedicatedEnvironment: '独立 Linux 环境',
   existingDockerHelp: '通过本机 Docker CLI 连接其已选择的本地 context。', existingWslHelp: '使用此 Ubuntu 中的 Docker。代码挂载使用该环境内部的路径。', detectingEnvironments: '正在检测 WSL 环境…', wslDetectionFailed: '未能检测 WSL 环境。可刷新重试，或选择独立环境以准备 WSL。',
   installInUbuntu: '在此 Ubuntu 安装 Docker', installInUbuntuConfirm: '在“{name}”中安装 Docker Engine 软件包？这会修改现有 Ubuntu 系统，不会替换已有 Docker 配置。', confirmInstall: '确认安装', cancel: '取消', ubuntuOnly: '暂不支持此环境。已有环境安装需要 WSL2 上的 Ubuntu。',

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { LoaderCircle, RefreshCw } from 'lucide-react'
 import { call } from './bridge'
 import { useLocale, errorText } from './i18n'
+import { EnvironmentSelect } from './EnvironmentSelect'
 import type { DockerTarget, EnvironmentState } from '../shared/docker'
 
 export function RuntimeSetup({ environment, onState, onSelect, onReady, locked }: {
@@ -37,13 +38,7 @@ export function RuntimeSetup({ environment, onState, onSelect, onReady, locked }
       void call('environment.discover').catch(cause => setError(errorText(cause)))
       void call('runtime.inspect', { refresh: true }).catch(cause => setError(errorText(cause)))
     }}><RefreshCw size={13}/></button></div>
-    <select aria-label={t('environment')} value={key} disabled={locked || status.busy || target.kind !== 'local' && status.phase === 'checking'} onChange={event => {
-      const value = event.target.value
-      void onSelect(value.startsWith('wsl:') ? { kind: 'wsl', distribution: value.slice(4) } : { kind: value as 'local' | 'managed' }).catch(cause => setError(errorText(cause)))
-    }}>
-      <option value="local">{t('existingDocker')}</option>
-      {environment.windows && <><optgroup label={t('existingWsl')}>{environment.distributions.map(item => <option key={item.name} value={`wsl:${item.name}`}>{item.name}</option>)}{target.kind === 'wsl' && !environment.distributions.some(item => item.name === target.distribution) && <option value={key}>{target.distribution}</option>}</optgroup><option value="managed">{t('dedicatedEnvironment')}</option></>}
-    </select>
+    <EnvironmentSelect environment={environment} disabled={locked || status.busy || target.kind !== 'local' && status.phase === 'checking'} onSelect={next => { void onSelect(next).catch(cause => setError(errorText(cause))) }}/>
     <p>{t(target.kind === 'local' ? 'existingDockerHelp' : target.kind === 'wsl' ? 'existingWslHelp' : 'runtimeHelp')}</p>
     {environment.discovering && <small>{t('detectingEnvironments')}</small>}
     {environment.discoveryError && <small>{t('wslDetectionFailed')}</small>}
