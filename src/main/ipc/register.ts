@@ -51,6 +51,7 @@ import { registerAgentRuntimeHandlers } from './agent-runtime-handlers'
 import { registerExternalCliHandlers } from './external-cli-handlers'
 import { registerWorkflowXHandlers } from './workflowx-handlers'
 import { registerWorkspaceRuntimeHandlers } from './workspace-runtime-handlers'
+import { registerWorkspaceStorageHandlers } from './workspace-storage-handlers'
 export interface RegisterApplicationIpcOptions {
   mainWindow: BrowserWindow
   getAllowedWindows: () => BrowserWindow[]
@@ -98,6 +99,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
     return
   }
   applicationIpcRegistered = true
+  registerWorkspaceStorageHandlers(options.getAllowedWindows)
 
   registerWorkspaceHandlers(getCurrentMainWindow, {
     getAllowedWindows: options.getAllowedWindows,

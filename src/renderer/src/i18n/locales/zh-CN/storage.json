@@ -1,0 +1,36 @@
+{
+  "dataManagement": "数据管理",
+  "title": "旧工作区数据迁移",
+  "scope": "将旧工作区 .janusX 中的启动配置、检查点历史和命令日志迁入下方 JanusX 应用数据目录。",
+  "cleanup": "校验成功后将自动删除对应旧文件。项目源码、未纳入迁移的文件和 Hook 资产保持原位；只有空的 .janusX 目录才会移除。",
+  "retention": "迁入数据的时间保留期从首次迁移成功时重新起算一次，原创建时间保留；重试和后续普通升级不会再次重置。",
+  "closeTasks": "迁移前请关闭所选工作区及其子目录中的终端和运行任务，并退出仍在使用这些目录的旧版 JanusX。",
+  "destinationRoot": "保存位置",
+  "source": "来源目录",
+  "destination": "目标目录",
+  "copy": "复制路径",
+  "check": "重新检查",
+  "selectAll": "选择可迁移项",
+  "checking": "正在检查已登记工作区…",
+  "noPending": "暂无待迁移工作区。离线或失败的项目请恢复连接或处理问题后重新检查。",
+  "migrating": "正在迁移和清理…",
+  "migrate": "迁移并清理旧文件",
+  "go": "前往迁移",
+  "later": "稍后处理",
+  "found": "已发现",
+  "absent": "未发现",
+  "category": {
+    "0": "启动配置：janusX.launch.json → launch.json",
+    "1": "检查点历史：checkpoints/ → checkpoints/",
+    "2": "命令日志：logs/ → logs/"
+  },
+  "status": {
+    "pending": "待迁移",
+    "new": "无需迁移",
+    "migrated": "迁移完成",
+    "cleanup-pending": "已切换新存储，旧文件清理未完成",
+    "offline": "离线或路径不存在",
+    "unsupported": "需在对应运行环境中迁移",
+    "failed": "检查或迁移失败"
+  }
+}

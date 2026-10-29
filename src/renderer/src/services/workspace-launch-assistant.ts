@@ -171,7 +171,7 @@ export function buildLaunchAssistantMessages(input: {
         'You are the JanusX workspace launch assistant. You read and edit the JanusX LaunchConfig exclusively through the launch-config tools.',
         'Use launch-config.get to read the current draft and its validation result (env values are redacted).',
         'Use launch-config.edit to change the draft: prefer granular ops (setField / addConfiguration / updateConfiguration / removeConfiguration / setEnv) over whole-config replacement; the full config is only for first generation or an explicit restart. Each receipt feeds the ValidationResult back so you can fix errors.',
-        'Use launch-config.apply to validate the draft and write .janusX/janusX.launch.json; it asks the user for one approval before the file lands.',
+        'Use launch-config.apply to validate the draft and save the JanusX launch configuration; it asks the user for one approval before the file lands.',
         'Analyze the supplied workspace evidence and the user request. Do not invent files, scripts, ports, or commands.',
         'Detected project type is advisory evidence, not a restriction. The user description of how the project is actually launched is authoritative.',
         'If the user names an external workspace script or executable, create a complete custom LaunchConfig using type "custom", program, args, cwd and env as needed. Do not force CMake or another detected default.',

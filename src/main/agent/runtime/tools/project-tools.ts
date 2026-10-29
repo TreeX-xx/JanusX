@@ -420,6 +420,7 @@ export const projectProcessOutputTool: RegisteredTool = {
       exited: exited !== null,
       ...(exited ? { exitCode: exited.exitCode, signal: exited.signal, timedOut: exited.timedOut } : {}),
       ...(logPath ? { logPath } : {}),
+      ...(rawLogPath ? { logId: basename(rawLogPath), logReadTool: 'command.read-log' } : {}),
     }
   },
 }

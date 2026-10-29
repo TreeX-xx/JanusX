@@ -184,6 +184,8 @@ async function bootstrapApp(): Promise<void> {
       throw new Error(`旧数据迁移未完成，请关闭旧版 JanusX 后重试。原数据已保留；如有冲突，请备份并处理后重启。\nLegacy profile migration failed; close older JanusX instances and resolve conflicts before retrying.\n${join(portableRoot, 'data')} → ${app.getPath('userData')}\n${String(error)}`)
     }
   }
+  const { initializeWorkspaceStorage } = await import('./storage/service')
+  initializeWorkspaceStorage()
   const [
     { disposeWorkspaceWatchers },
     { stopAllProjects },

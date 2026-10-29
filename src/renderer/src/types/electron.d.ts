@@ -33,6 +33,7 @@ import type { UpdaterAPI } from '../../../shared/ipc/updater'
 import type { RemoteAPI } from '../../../shared/ipc/remote'
 
 interface ElectronAPI {
+  workspaceStorage?: import('../../../shared/ipc/workspace-storage').WorkspaceStorageAPI
   /*-- 同步平台信息，构造 xterm windowsPty 用 --*/
   platform: NodeJS.Platform
   windowsBuild?: number

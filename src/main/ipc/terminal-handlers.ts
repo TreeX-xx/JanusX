@@ -6,7 +6,7 @@ import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { TerminalTurnChangeTracker } from '../terminal/turn-change-tracker'
-import { checkpointManager, workspaceIo } from '@janus-agent/agent-core'
+import { checkpointManager, workspaceIo, assertWorkspaceStorageAvailable } from '@janus-agent/agent-core'
 import type { CheckpointEngine } from '@janus-agent/agent-core'
 import { agentSessionRegistry, type AgentSessionRecord } from '../sessions/session-registry'
 import { buildContinueHandoff } from '../sessions/continue-handoff'
@@ -927,6 +927,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         logTerminalDiagnostic('Office automation policy-only mode', { engine, limitation: officeSession.limitation })
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
+      assertWorkspaceStorageAvailable(cwd)
       instance = terminalManager.create({
         id,
         workspaceId,
