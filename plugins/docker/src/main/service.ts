@@ -7,16 +7,21 @@ import { DockerCli } from './cli'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { ManagedWsl } from './managed-wsl'
+import { Environments } from './environments'
 import type { Container, ViewState, LogBatch } from '../shared/docker'
 
 const LIMIT = 256 * 1024
 interface Follow { id: string; owner: string; container: string; child: ChildProcessWithoutNullStreams; text: string; timer: ReturnType<typeof setInterval>; truncated: boolean }
-export async function createDockerService(_context: JsonValue, host: NativePeer, cli = new DockerCli(), managed = new ManagedWsl(join(process.env.LOCALAPPDATA ?? homedir(), 'JanusX', 'docker-runtime'), host)): Promise<NativePluginImplementation> {
-  let stopped = false, list: Container[] = [], connecting = false
+export async function createDockerService(context: JsonValue, host: NativePeer, cli = new DockerCli(), managed = new ManagedWsl(join(process.env.LOCALAPPDATA ?? homedir(), 'JanusX', 'docker-runtime'), host), environments?: Environments): Promise<NativePluginImplementation> {
+  const directory = context && typeof context === 'object' && 'directory' in context && typeof context.directory === 'string' ? context.directory : undefined
+  const env = environments ?? new Environments(directory, managed)
+  await env.load()
+  let stopped = false, list: Container[] = [], connecting = false, switching = false, targetAbort = new AbortController()
   let runtimeProbe: Promise<unknown> | undefined
   const probeRuntime = (refresh = false) => {
-    if (!runtimeProbe) runtimeProbe = managed.inspect(refresh).then(status => {
-      if (!stopped && status.phase === 'stopped' && (!cli.engine || cli.wsl)) managed.start()
+    const revision = env.revision
+    if (!runtimeProbe) runtimeProbe = env.inspect(refresh).then(status => {
+      if (!stopped && env.revision === revision && env.target.kind === 'managed' && status.phase === 'stopped') env.start()
     }).catch(() => {}).finally(() => { runtimeProbe = undefined })
   }
   let operation: { busy: boolean; results: { id: string; ok: boolean; error?: string }[]; pending: string[] } = { busy: false, results: [], pending: [] }
@@ -27,10 +32,15 @@ export async function createDockerService(_context: JsonValue, host: NativePeer,
   const container = (id: unknown) => { const item = list.find(item => item.id === id); if (!item) throw new Error('docker-container-gone'); return item }
   const desktop = (method: string, input: object) => host.call(`desktop.${method}`, input as JsonValue)
   const refresh = async (signal: AbortSignal) => {
+    const revision = env.revision
     const next = await cli.list(signal)
-    if (stopped) throw new Error('docker-stopped')
+    if (stopped || revision !== env.revision) throw new Error('docker-target-changed')
     list = next
-    for (const [id, session] of sessions) if (!list.some(item => item.id === id && item.state === 'running')) { await desktop('terminal.end', { id: session }); sessions.delete(id) }
+    for (const [id, session] of [...sessions]) if (!list.some(item => item.id === id && item.state === 'running')) {
+      await desktop('terminal.end', { id: session })
+      if (revision !== env.revision || stopped) throw new Error('docker-target-changed')
+      if (sessions.get(id) === session) sessions.delete(id)
+    }
     return { engine: cli.engine, containers: list, operation }
   }
   return {
@@ -38,33 +48,45 @@ export async function createDockerService(_context: JsonValue, host: NativePeer,
       try {
         if (stopped) throw new Error('docker-stopped')
         const { input: raw, instanceId } = value as { input: Record<string, unknown>; instanceId?: string }, input = raw ?? {}
+        if (switching) throw new Error('docker-busy')
+        const revision = env.revision
+        if (typeof input.revision === 'number' && input.revision !== revision) throw new Error('docker-target-changed')
         const owner = () => { if (!instanceId) throw new Error('docker-page-unavailable'); return instanceId }
         let data: unknown = null
-        const activeSignal = AbortSignal.any([signal, abort.signal])
+        const activeSignal = AbortSignal.any([signal, abort.signal, targetAbort.signal])
         switch (method) {
-          case 'runtime.inspect': probeRuntime(Boolean(input.refresh)); data = managed.state; break
-          case 'runtime.status': data = managed.state; break
+          case 'environment.read': data = env.snapshot(); break
+          case 'environment.discover': env.discover(); data = env.snapshot(); break
+          case 'environment.select': {
+            if (connecting || operation.busy || env.state.busy || runtimeProbe) throw new Error('docker-busy')
+            switching = true
+            try {
+              await env.select(input.target)
+              targetAbort.abort(); targetAbort = new AbortController()
+              for (const id of follows.keys()) endFollow(id)
+              await desktop('terminal.reset', {})
+              sessions.clear(); cli.reset(); list = []; ui = { selected: '', search: '', runningOnly: false, containers: {} }
+              operation = { busy: false, results: [], pending: [] }
+              data = env.snapshot()
+            } finally { switching = false }
+            return JSON.parse(JSON.stringify({ ok: true, data })) as JsonValue
+          }
+          case 'runtime.inspect': probeRuntime(Boolean(input.refresh)); data = env.state; break
+          case 'runtime.status': data = env.state; break
           case 'runtime.prepare':
             if (connecting || operation.busy || cli.engine && !cli.wsl) throw new Error('docker-busy')
-            data = managed.start(); break
+            data = env.start(input.install === true); break
           case 'engine.connect': {
             if (connecting || operation.busy) throw new Error('docker-busy')
-            if (managed.state.busy) throw new Error('docker-runtime-starting')
+            if (env.state.busy) throw new Error('docker-runtime-starting')
             connecting = true
             try {
               const connect = () => cli.connect(AbortSignal.any([activeSignal, AbortSignal.timeout(12_000)]))
-              let engine
-              try { engine = await connect() }
-              catch (cause) {
-                // A selected remote/broken external context must never silently switch engines.
-                if (!(cause instanceof Error) || cause.message !== 'docker-cli-missing' && !cli.wsl) throw cause
-                if (cli.wsl) { probeRuntime(true); throw new Error('docker-runtime-starting') }
-                const status = managed.state
-                if (status.phase === 'checking') { probeRuntime(); throw cause }
-                if (status.phase === 'stopped') { managed.start(); throw new Error('docker-runtime-starting') }
-                if (status.phase !== 'ready') throw cause
-                cli.useManaged(managed.executable); engine = await connect()
+              if (env.target.kind !== 'local') {
+                if (env.state.phase !== 'ready') { probeRuntime(true); throw new Error('docker-runtime-starting') }
+                if (!cli.wsl) cli.selectWsl(env.executable, env.target.kind === 'managed' ? 'JanusX-Docker' : env.target.distribution)
               }
+              const engine = await connect()
               data = { ...await refresh(activeSignal), engine }
             } finally { connecting = false }
             break
@@ -133,14 +155,17 @@ export async function createDockerService(_context: JsonValue, host: NativePeer,
             const item = container(input.id)
             if (item.state !== 'running') throw new Error('docker-container-not-running')
             const shell = input.shell ?? (cli.engine?.os === 'windows' ? 'cmd.exe' : '/bin/sh')
+            if (cli.wsl) await desktop('terminal.select', { owner: owner(), executable: cli.executable, distribution: cli.wsl })
+            if (revision !== env.revision || stopped) throw new Error('docker-target-changed')
             const output = await desktop('terminal.open', { owner: owner(), request: { executable: cli.executable, endpoint: cli.engine!.endpoint, container: item.id, shell, cols: 80, rows: 24, ...(cli.wsl ? { wsl: cli.wsl } : {}) } }) as unknown as ContainerTerminalOutput
-            if (stopped) { await desktop('terminal.end', { id: output.id }); throw new Error('docker-stopped') }
+            if (stopped || revision !== env.revision) { await desktop('terminal.end', { id: output.id }); throw new Error('docker-target-changed') }
             sessions.set(item.id, output.id); data = output; break
           }
           case 'terminal.read': case 'terminal.write': case 'terminal.resize': case 'terminal.close': {
             const session = sessions.get(String(input.container))
             if (!session || session !== input.id) throw new Error('docker-session-ended')
             data = await desktop(method, { ...input, owner: owner() })
+            if (revision !== env.revision || stopped) throw new Error('docker-target-changed')
             if (method === 'terminal.close') sessions.delete(String(input.container))
             break
           }
@@ -152,11 +177,12 @@ export async function createDockerService(_context: JsonValue, host: NativePeer,
           case 'desktop.open': await desktop('docker.open', {}); break
           default: throw new Error('docker-unknown-method')
         }
+        if (revision !== env.revision || stopped) throw new Error('docker-target-changed')
         return JSON.parse(JSON.stringify({ ok: true, data })) as JsonValue
       } catch (cause) { return { ok: false, error: message(cause) } }
     },
     async releaseContext(owner) { for (const follow of follows.values()) if (follow.owner === owner) endFollow(follow.id) },
-    async stop() { stopped = true; abort.abort(); managed.stop(); for (const id of follows.keys()) endFollow(id); for (const id of sessions.values()) await desktop('terminal.end', { id }).catch(() => {}); sessions.clear() },
+    async stop() { stopped = true; abort.abort(); targetAbort.abort(); env.stop(); for (const id of follows.keys()) endFollow(id); for (const id of sessions.values()) await desktop('terminal.end', { id }).catch(() => {}); sessions.clear() },
   }
 }
 function message(cause: unknown): string { return (cause instanceof Error ? cause.message : String(cause)).slice(0, 1000) }

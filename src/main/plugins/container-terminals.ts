@@ -4,11 +4,11 @@ import { basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { localDockerEndpoint, type ContainerTerminalOutput } from '@janusx/plugin-sdk'
+import { localDockerEndpoint, validDockerWsl, type ContainerTerminalOutput } from '@janusx/plugin-sdk'
 
 const request = z.object({ executable: z.string().max(4096).refine(value => isAbsolute(value)),
   endpoint: z.string().max(4096).transform(localDockerEndpoint), container: z.string().regex(/^[a-f0-9]{64}$/),
-  shell: z.enum(['/bin/sh', '/bin/bash', 'cmd.exe', 'powershell.exe']), cols: z.number().int().min(2).max(500), rows: z.number().int().min(1).max(200), wsl: z.literal('JanusX-Docker').optional() }).strict().refine(value => value.wsl
+  shell: z.enum(['/bin/sh', '/bin/bash', 'cmd.exe', 'powershell.exe']), cols: z.number().int().min(2).max(500), rows: z.number().int().min(1).max(200), wsl: z.string().refine(validDockerWsl).optional() }).strict().refine(value => value.wsl
     ? process.platform === 'win32' && /^wsl\.exe$/i.test(basename(value.executable)) && value.endpoint === 'unix:///var/run/docker.sock' && value.shell.startsWith('/bin/')
     : /^docker(?:\.exe)?$/i.test(basename(value.executable)))
 interface Session { id: string; target: string; pty: IPty; buffer: string; cursor: number; exited: boolean; exitCode: number | null }
@@ -16,9 +16,17 @@ const LIMIT = 256 * 1024
 export class ContainerTerminals {
   private sessions = new Map<string, Session>()
   private disposed = false
+  private selected?: { executable: string; distribution: string }
+  selectWsl(executable: string, distribution: string): void {
+    if (!validDockerWsl(distribution) || !isAbsolute(executable) || !/^wsl\.exe$/i.test(basename(executable))) throw new Error('terminal-target-invalid')
+    if (this.selected?.executable === executable && this.selected.distribution === distribution) return
+    for (const id of this.sessions.keys()) this.close(id)
+    this.sessions.clear(); this.selected = { executable, distribution }
+  }
   open(input: unknown): ContainerTerminalOutput {
     if (this.disposed) throw new Error('terminal-stopped')
     const value = request.parse(input), target = `${value.wsl ?? ''}:${value.endpoint}:${value.container}`
+    if (value.wsl && (this.selected?.distribution !== value.wsl || this.selected.executable !== value.executable)) throw new Error('terminal-target-unselected')
     let session = [...this.sessions.values()].find(item => item.target === target && !item.exited)
     if (!session) {
       // One live shell per container, at most eight for an activation; exited records are replaceable.

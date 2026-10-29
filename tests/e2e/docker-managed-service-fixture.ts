@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { DockerCli } from '../../plugins/docker/src/main/cli'
 import { ManagedWsl, installScript } from '../../plugins/docker/src/main/managed-wsl'
 import { createDockerService } from '../../plugins/docker/src/main/service'
+import { Environments } from '../../plugins/docker/src/main/environments'
+import type { Execute } from '../../plugins/docker/src/main/runtime-process'
 declare const FIXTURE_WSL_PATH: string
 startNativePlugin(async (context, host) => {
   const root = (context as { directory: string }).directory
@@ -30,6 +32,17 @@ startNativePlugin(async (context, host) => {
     async launch() { running = true }, async elevate() { throw new Error('Synthetic installer must never elevate') },
   })
   const cli = new DockerCli(undefined, async () => { throw new Error('docker-cli-missing') })
-  const service = await createDockerService(context, host, cli, managed)
+  let emptyInstalled = false
+  const run: Execute = async (_file, args, settings) => {
+    if (args[0] === '--list') return 'Ubuntu-24.04\nUbuntu-Empty\nDebian'
+    if (args.includes('/proc/sys/kernel/osrelease')) return '6.6-microsoft-standard-WSL2'
+    if (args.includes('/etc/os-release')) return args[1] === 'Debian' ? 'ID=debian' : 'ID=ubuntu'
+    if (settings?.input) { await new Promise(resolve => setTimeout(resolve, 1800)); emptyInstalled = true; return '' }
+    if (args.includes('/usr/bin/test')) { if (args[1] === 'Ubuntu-Empty' && !emptyInstalled) throw new Error('missing'); return '' }
+    if (args.includes('/usr/bin/docker')) return '28-fixture'
+    throw new Error('Unexpected existing distro invocation')
+  }
+  const environments = new Environments(root, managed, { run, platform: 'win32' })
+  const service = await createDockerService(context, host, cli, managed, environments)
   return { ...service, async stop() { await service.stop(); await rm(join(root, 'runtime/install.lock'), { force: true }) } }
 })

@@ -4,7 +4,7 @@
   "engines": { "pluginApi": ">=1.0.0 <2.0.0" },
   "capabilities": { "required": ["runtime.native", "desktop.native", "desktop.containers", "views.workspace", "commands.openView", "menus.toolbox"], "optional": [] },
   "permissions": [{ "name": "runtime.native" }, { "name": "ui.views.open" }],
-  "native": { "entry": "dist/service.cjs", "dataVersion": 1, "methods": ["runtime.inspect", "runtime.status", "runtime.prepare", "engine.connect", "containers.list", "containers.operate", "logs.subscribe", "logs.unsubscribe", "logs.copy", "ui.read", "ui.save", "terminal.open", "terminal.read", "terminal.write", "terminal.resize", "terminal.close", "service.open", "desktop.open"] },
+  "native": { "entry": "dist/service.cjs", "dataVersion": 1, "methods": ["environment.read", "environment.discover", "environment.select", "runtime.inspect", "runtime.status", "runtime.prepare", "engine.connect", "containers.list", "containers.operate", "logs.subscribe", "logs.unsubscribe", "logs.copy", "ui.read", "ui.save", "terminal.open", "terminal.read", "terminal.write", "terminal.resize", "terminal.close", "service.open", "desktop.open"] },
   "contributes": {
     "views": [{ "id": "management", "title": "Docker", "entry": "dist/ui/index.html", "location": "workspace", "scope": "application", "instancePolicy": "single", "icon": "list" }],
     "commands": [{ "id": "open", "title": "Docker", "action": { "type": "openView", "view": "management" } }],

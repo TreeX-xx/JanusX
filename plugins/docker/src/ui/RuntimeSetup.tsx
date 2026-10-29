@@ -1,41 +1,64 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, LoaderCircle } from 'lucide-react'
+import { LoaderCircle, RefreshCw } from 'lucide-react'
 import { call } from './bridge'
 import { useLocale, errorText } from './i18n'
-import type { RuntimeStatus } from '../shared/docker'
+import type { DockerTarget, EnvironmentState } from '../shared/docker'
 
-export function RuntimeSetup({ onReady }: { onReady(): void }) {
-  const t = useLocale(), [status, setStatus] = useState<RuntimeStatus>({ phase: 'checking', busy: false }), [error, setError] = useState('')
-  const ready = useRef(onReady); ready.current = onReady
-  const attached = useRef(false)
-  const apply = (next: RuntimeStatus) => {
-    setStatus(next)
-    if (next.phase === 'ready' && !next.busy && !attached.current) { attached.current = true; ready.current() }
+export function RuntimeSetup({ environment, onState, onSelect, onReady, locked }: {
+  environment: EnvironmentState; onState(state: EnvironmentState): void; onSelect(target: DockerTarget): Promise<void>; onReady(): void; locked: boolean
+}) {
+  const t = useLocale(), [error, setError] = useState(''), [confirm, setConfirm] = useState(false)
+  const latest = useRef({ onState, onReady, revision: environment.revision, locked }); latest.current = { onState, onReady, revision: environment.revision, locked }
+  const attached = useRef(false), status = environment.status, target = environment.target
+  const key = target.kind === 'wsl' ? `wsl:${target.distribution}` : target.kind
+  const apply = (next: EnvironmentState) => {
+    if (next.revision < latest.current.revision) return
+    latest.current.onState(next)
+    if (next.target.kind !== 'local' && next.status.phase === 'ready' && !next.status.busy && !latest.current.locked && !attached.current) { attached.current = true; latest.current.onReady() }
   }
   useEffect(() => {
+    attached.current = false; setConfirm(false); setError('')
     let disposed = false, pending = false
-    void call<RuntimeStatus>('runtime.inspect').then(next => { if (!disposed) apply(next) }).catch(cause => { if (!disposed) setError(errorText(cause)) })
+    void call('runtime.inspect', { refresh: true }).catch(cause => { if (!disposed) setError(errorText(cause)) })
+    void call('environment.discover').catch(() => {})
     const timer = setInterval(() => {
       if (pending) return; pending = true
-      void call<RuntimeStatus>('runtime.status').then(next => { if (!disposed) apply(next) }).catch(cause => { if (!disposed) setError(errorText(cause)) }).finally(() => { pending = false })
+      void call<EnvironmentState>('environment.read').then(next => { if (!disposed) apply(next) }).catch(cause => { if (!disposed) setError(errorText(cause)) }).finally(() => { pending = false })
     }, 1000)
     return () => { disposed = true; clearInterval(timer) }
-  }, [])
-  const prepare = async () => {
-    setError(''); attached.current = false
-    try { apply(await call<RuntimeStatus>('runtime.prepare')) } catch (cause) { setError(errorText(cause)) }
+  }, [key])
+  const prepare = async (install = false) => {
+    setError(''); attached.current = false; setConfirm(false)
+    try { await call('runtime.prepare', { install }); apply(await call<EnvironmentState>('environment.read')) } catch (cause) { setError(errorText(cause)) }
   }
-  if (status.phase === 'unsupported') return <p className="hint">{t('runtime_unsupported')}</p>
-  const phase = t(`runtime_${status.phase}`), canPrepare = !status.busy && !['checking', 'ready'].includes(status.phase)
-  return <section className="runtime-setup" aria-label={t('runtimeTitle')}>
-    <div className="runtime-heading">{status.busy ? <LoaderCircle size={15} className="spin"/> : <Download size={15}/>}<strong>{t('runtimeTitle')}</strong></div>
-    <p>{t('runtimeHelp')}</p>
-    <p role="status">{phase}{status.progress !== undefined && ` · ${status.progress}%`}</p>
-    {status.busy && <progress aria-label={phase} max={100} value={status.progress}/>}
-    {status.phase === 'restart-required' && <p>{t('runtimeRestartHelp')}</p>}
-    {status.phase === 'error' && <p className="error-text" role="alert">{errorText(status.error ?? '')}</p>}
+  const phase = t(`runtime_${status.phase}`), canPrepare = target.kind !== 'local' && !status.busy && !['checking', 'ready', 'unsupported'].includes(status.phase)
+  return <section className="runtime-setup" aria-label={t('environment')}>
+    <div className="runtime-heading"><strong>{t('environment')}</strong><button className="icon" aria-label={t('detectEnvironments')} disabled={locked || status.busy || environment.discovering} onClick={() => {
+      void call('environment.discover').catch(cause => setError(errorText(cause)))
+      void call('runtime.inspect', { refresh: true }).catch(cause => setError(errorText(cause)))
+    }}><RefreshCw size={13}/></button></div>
+    <select aria-label={t('environment')} value={key} disabled={locked || status.busy || target.kind !== 'local' && status.phase === 'checking'} onChange={event => {
+      const value = event.target.value
+      void onSelect(value.startsWith('wsl:') ? { kind: 'wsl', distribution: value.slice(4) } : { kind: value as 'local' | 'managed' }).catch(cause => setError(errorText(cause)))
+    }}>
+      <option value="local">{t('existingDocker')}</option>
+      {environment.windows && <><optgroup label={t('existingWsl')}>{environment.distributions.map(item => <option key={item.name} value={`wsl:${item.name}`}>{item.name}</option>)}{target.kind === 'wsl' && !environment.distributions.some(item => item.name === target.distribution) && <option value={key}>{target.distribution}</option>}</optgroup><option value="managed">{t('dedicatedEnvironment')}</option></>}
+    </select>
+    <p>{t(target.kind === 'local' ? 'existingDockerHelp' : target.kind === 'wsl' ? 'existingWslHelp' : 'runtimeHelp')}</p>
+    {environment.discovering && <small>{t('detectingEnvironments')}</small>}
+    {environment.discoveryError && <small>{t('wslDetectionFailed')}</small>}
+    {target.kind !== 'local' && <>
+      <p role="status">{status.busy && <LoaderCircle size={13} className="spin"/>}{phase}{status.progress !== undefined && ` · ${status.progress}%`}</p>
+      {status.busy && <progress aria-label={phase} max={100} value={status.progress}/>}
+      {status.phase === 'restart-required' && <p>{t('runtimeRestartHelp')}</p>}
+      {status.phase === 'error' && <p className="error-text" role="alert">{errorText(status.error ?? '')}</p>}
+      {status.phase === 'unsupported' && <p>{t('ubuntuOnly')}</p>}
+      {canPrepare && !confirm && <button className="primary" disabled={locked} onClick={() => {
+        if (target.kind === 'wsl' && status.phase !== 'stopped') setConfirm(true); else void prepare()
+      }}>{t(status.phase === 'stopped' ? 'runtimeStart' : status.phase === 'restart-required' ? 'runtimeContinue' : target.kind === 'wsl' ? 'installInUbuntu' : 'runtimeInstall')}</button>}
+      {confirm && <div className="install-confirm"><p>{t('installInUbuntuConfirm').replace('{name}', target.kind === 'wsl' ? target.distribution : '')}</p><div><button className="primary" onClick={() => { void prepare(true) }}>{t('confirmInstall')}</button><button onClick={() => setConfirm(false)}>{t('cancel')}</button></div></div>}
+      <small>{t(target.kind === 'wsl' ? 'existingWslDataHelp' : 'runtimeDataHelp')}</small>
+    </>}
     {error && <p className="error-text" role="alert">{error}</p>}
-    {canPrepare && <button className="primary" onClick={() => { void prepare() }}>{t(status.phase === 'stopped' ? 'runtimeStart' : status.phase === 'restart-required' ? 'runtimeContinue' : 'runtimeInstall')}</button>}
-    <small>{t('runtimeDataHelp')}</small>
   </section>
 }

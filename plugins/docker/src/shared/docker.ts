@@ -7,3 +7,6 @@ export interface ViewState { selected: string; search: string; runningOnly: bool
 export interface LogBatch { subscription: string; container: string; text: string; reset?: boolean; truncated?: boolean; ended?: boolean; error?: string }
 export type RuntimePhase = 'checking' | 'wsl-required' | 'not-installed' | 'stopped' | 'ready' | 'preparing-wsl' | 'restart-required' | 'downloading' | 'importing' | 'installing' | 'starting' | 'error' | 'unsupported'
 export interface RuntimeStatus { phase: RuntimePhase; busy: boolean; progress?: number; error?: string }
+export type DockerTarget = { kind: 'local' } | { kind: 'managed' } | { kind: 'wsl'; distribution: string }
+export interface WslDistribution { name: string }
+export interface EnvironmentState { target: DockerTarget; status: RuntimeStatus; distributions: WslDistribution[]; discovering: boolean; discoveryError?: string; revision: number; windows: boolean }

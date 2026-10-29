@@ -1,15 +1,16 @@
 // Note: .agents/notes/workbench/service-integrations.md — trusted native desktop services.
 import { app, clipboard, safeStorage, shell } from 'electron'
-import { join, relative, resolve, isAbsolute } from 'node:path'
+import { join, relative, resolve, isAbsolute, basename } from 'node:path'
 import type { JsonValue, NativeHandler } from '@janusx/plugin-sdk'
-import { NativeServiceError } from '@janusx/plugin-sdk'
+import { NativeServiceError, validDockerWsl } from '@janusx/plugin-sdk'
 import type { InstalledPlugin } from '../../shared/ipc/plugins'
 import { configService } from '../config/service'
 import { HostProxy, hostProxyEnvironment } from '../lib/host-proxy'
 import type { PluginRuntime } from './runtime'
 import type { NativePluginService } from './native-service'
 import { ContainerTerminals } from './container-terminals'
-import { spawn } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { existsSync } from 'node:fs'
 
 /** Only an already verified, explicitly authorized native process can call this adapter. */
@@ -32,10 +33,19 @@ export class NativeDesktop {
     if ((method.startsWith('desktop.terminal.') || ['desktop.service.open', 'desktop.docker.open'].includes(method))
       && !this.record.manifest.capabilities.required.includes('desktop.containers')) throw new NativeServiceError('PERMISSION_DENIED')
     if (method === 'desktop.terminal.end') { this.terminals?.close(String(input.id)); return null }
+    if (method === 'desktop.terminal.reset') { this.terminals?.dispose(); this.terminals = undefined; return null }
     if (method.startsWith('desktop.terminal.')) {
       if (typeof input.owner !== 'string') throw new NativeServiceError('INVALID_REQUEST')
       this.runtime().assertNativeOwner(this.record.manifest.id, input.owner)
       const terminals = this.terminals ??= new ContainerTerminals()
+      if (method === 'desktop.terminal.select') {
+        if (process.platform !== 'win32' || !validDockerWsl(input.distribution) || typeof input.executable !== 'string' || !isAbsolute(input.executable) || !/^wsl\.exe$/i.test(basename(input.executable))) throw new NativeServiceError('INVALID_REQUEST')
+        const { stdout } = await promisify(execFile)(input.executable, ['--list', '--quiet'], { windowsHide: true, encoding: 'buffer', timeout: 5000, maxBuffer: 128 * 1024 })
+        const names = (stdout.includes(0) ? stdout.toString('utf16le') : stdout.toString('utf8')).replace(/^\uFEFF/, '').split(/\r?\n/).map(name => name.trim())
+        this.runtime().assertNativeOwner(this.record.manifest.id, input.owner)
+        if (this.disposed || this.terminals !== terminals || !names.includes(input.distribution)) throw new NativeServiceError('INVALID_REQUEST')
+        terminals.selectWsl(input.executable, input.distribution); return null
+      }
       const id = String(input.id ?? '')
       if (method === 'desktop.terminal.open') return terminals.open(input.request) as unknown as JsonValue
       if (method === 'desktop.terminal.read') return terminals.read(id, Number(input.cursor) || 0) as unknown as JsonValue

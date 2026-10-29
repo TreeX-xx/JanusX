@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { access, realpath } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { delimiter, join, isAbsolute } from 'node:path'
-import { localDockerEndpoint } from '@janusx/plugin-sdk'
+import { localDockerEndpoint, validDockerWsl } from '@janusx/plugin-sdk'
 import type { Container, Engine } from '../shared/docker'
 
 export type Run = (executable: string, args: string[], signal?: AbortSignal) => Promise<string>
@@ -44,7 +44,7 @@ export function parseContainers(text: string): Container[] {
   })
 }
 export class DockerCli {
-  executable = ''; engine?: Engine; wsl?: 'JanusX-Docker'
+  executable = ''; engine?: Engine; wsl?: string
   constructor(private execute: Run = run, private locate = findDocker) {}
   async connect(signal?: AbortSignal): Promise<Engine> {
     if (this.wsl) {
@@ -66,6 +66,12 @@ export class DockerCli {
     this.executable = executable; this.wsl = 'JanusX-Docker'
     this.engine = { endpoint: 'unix:///var/run/docker.sock', name: this.wsl, version: '', os: 'linux' }
   }
+  selectWsl(executable: string, distribution: string): void {
+    if (!validDockerWsl(distribution)) throw new Error('docker-invalid-distribution')
+    this.executable = executable; this.wsl = distribution
+    this.engine = { endpoint: 'unix:///var/run/docker.sock', name: distribution, version: '', os: 'linux' }
+  }
+  reset(): void { this.executable = ''; this.wsl = undefined; this.engine = undefined }
   args(...args: string[]): string[] {
     if (!this.engine) throw new Error('docker-not-connected')
     return [...(this.wsl ? ['--distribution', this.wsl, '--user', 'root', '--exec', '/usr/bin/docker'] : []), '--host', this.engine.endpoint, ...args]

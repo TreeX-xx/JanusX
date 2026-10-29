@@ -1,35 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
 import { Box, Search, RefreshCw, Play, Square, RotateCw, ExternalLink, ChevronLeft, Layers, TerminalSquare, X } from 'lucide-react'
-import { call } from './bridge'
+import { call, setRevision } from './bridge'
 import { useLocale, errorText } from './i18n'
 import { LogsPane } from './LogsPane'
 import { TerminalPane } from './TerminalPane'
 import { RuntimeSetup } from './RuntimeSetup'
 import type { ContainerTerminalOutput } from '@janusx/plugin-sdk'
-import type { Container, Engine, ViewState, ContainerView, DetailTab } from '../shared/docker'
+import type { Container, Engine, ViewState, ContainerView, DetailTab, EnvironmentState, DockerTarget } from '../shared/docker'
 interface Snapshot { engine: Engine; containers: Container[]; operation: { busy: boolean; pending: string[]; results: { id: string; ok: boolean; error?: string }[] } }
 const initial: ViewState = { selected: '', search: '', runningOnly: false, containers: {} }
 const defaults: ContainerView = { tab: 'overview', logSearch: '', scroll: 0, paused: false }
 export function App({ active }: { active: boolean }) {
   const t = useLocale(), [snapshot, setSnapshot] = useState<Snapshot | null>(null), [state, setState] = useState(initial), [ready, setReady] = useState(false)
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [missingCli, setMissingCli] = useState(false), [showDetail, setShowDetail] = useState(false), [shell, setShell] = useState('/bin/sh')
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [showEnvironment, setShowEnvironment] = useState(false), [showDetail, setShowDetail] = useState(false), [shell, setShell] = useState('/bin/sh')
+  const [environment, setEnvironment] = useState<EnvironmentState | null>(null)
   const [sessions, setSessions] = useState<Record<string, string>>({}), [ended, setEnded] = useState<Record<string, boolean>>({})
   const polling = useRef(false), connected = useRef(false)
+  const epoch = useRef(0)
   const visible = useRef(active); visible.current = active
   const load = async (connect = false) => {
     if (polling.current) return; polling.current = true
+    const issued = epoch.current
     if (connect) setBusy(true)
-    try { const next = await call<Snapshot>(connect ? 'engine.connect' : 'containers.list'); setSnapshot(next); setError(''); connected.current = true }
+    try { const next = await call<Snapshot>(connect ? 'engine.connect' : 'containers.list'); if (issued !== epoch.current) return; setSnapshot(next); setError(''); connected.current = true }
     catch (cause) {
+      if (issued !== epoch.current) return
       const needsRuntime = cause instanceof Error && ['docker-cli-missing', 'docker-runtime-starting'].includes(cause.message)
       if (needsRuntime) setSnapshot(null)
-      setError(needsRuntime ? '' : errorText(cause)); setMissingCli(needsRuntime); connected.current = false
+      setError(needsRuntime ? '' : errorText(cause)); connected.current = false
     }
-    finally { polling.current = false; setBusy(false) }
+    finally { if (issued === epoch.current) { polling.current = false; setBusy(false) } }
   }
   useEffect(() => {
     let disposed = false
-    void call<ViewState>('ui.read').then(next => {
+    void call<EnvironmentState>('environment.read').then(next => {
+      if (disposed) return; setEnvironment(next); epoch.current = next.revision; setRevision(next.revision)
+      return call<ViewState>('ui.read')
+    }).then(next => {
+      if (!next) return
       if (disposed) return; setState(next); setReady(true)
       setSessions(Object.fromEntries(Object.entries(next.containers).filter(([, item]) => item.terminal).map(([id, item]) => [id, item.terminal!])))
       setShowDetail(Boolean(next.selected)); void load(true)
@@ -38,6 +46,16 @@ export function App({ active }: { active: boolean }) {
     return () => { disposed = true; clearInterval(timer) }
   }, [])
   useEffect(() => { if (ready) void call('ui.save', { state }).catch(() => {}) }, [state, ready])
+  const selectEnvironment = async (target: DockerTarget) => {
+    epoch.current++; polling.current = false
+    connected.current = false; setBusy(true); setReady(false); setSnapshot(null); setShowDetail(false); setSessions({}); setEnded({}); setError('')
+    try {
+      const next = await call<EnvironmentState>('environment.select', { target })
+      setRevision(next.revision); setEnvironment(next); setState(initial); setReady(true)
+      if (target.kind === 'local') void load(true)
+    } catch (cause) { setReady(true); setError(errorText(cause)); throw cause } finally { setBusy(false) }
+  }
+  const targetLabel = environment?.target.kind === 'wsl' ? environment.target.distribution : environment?.target.kind === 'managed' ? 'JanusX-Docker' : t('existingDocker')
   const selected = snapshot?.containers.find(item => item.id === state.selected), view = state.containers[state.selected] ?? defaults
   const updateView = (patch: Partial<ContainerView>) => setState(value => ({ ...value, containers: { ...value.containers, [value.selected]: { ...(value.containers[value.selected] ?? defaults), ...patch } } }))
   const choose = (item: Container) => { setState(value => ({ ...value, selected: item.id })); setShell(snapshot?.engine.os === 'windows' ? 'cmd.exe' : '/bin/sh'); setShowDetail(true) }
@@ -53,9 +71,10 @@ export function App({ active }: { active: boolean }) {
   for (const item of filtered) groups.set(item.project, [...(groups.get(item.project) ?? []), item])
   const disabled = busy || snapshot?.operation.busy || !connected.current
   return <main className={`docker-app ${showDetail ? 'detail-open' : ''}`}>
-    <header className="toolbar"><Box size={16}/><strong>Docker</strong><span className="engine-label"><i className={snapshot && connected.current ? 'dot running' : 'dot'}/>{snapshot?.engine.name ?? t('local')}</span><button className="icon" aria-label={t('refresh')} title={t('refresh')} disabled={busy} onClick={() => { void load(!connected.current) }}><RefreshCw size={14} className={busy ? 'spin' : ''}/></button><button className="icon" aria-label={t('desktop')} title={t('desktop')} onClick={() => { void call('desktop.open').catch(cause => setError(errorText(cause))) }}><ExternalLink size={14}/></button></header>
+    <header className="toolbar"><Box size={16}/><strong>Docker</strong><button className="engine-label" aria-label={t('changeEnvironment')} title={targetLabel} onClick={() => setShowEnvironment(value => !value)}><i className={snapshot && connected.current ? 'dot running' : 'dot'}/>{targetLabel}</button><button className="icon" aria-label={t('refresh')} title={t('refresh')} disabled={busy} onClick={() => { void load(!connected.current) }}><RefreshCw size={14} className={busy ? 'spin' : ''}/></button><button className="icon" aria-label={t('desktop')} title={t('desktop')} onClick={() => { void call('desktop.open').catch(cause => setError(errorText(cause))) }}><ExternalLink size={14}/></button></header>
+    {snapshot && showEnvironment && environment && <div className="environment-panel"><RuntimeSetup environment={environment} onState={setEnvironment} onSelect={selectEnvironment} onReady={() => { if (!connected.current) void load(true) }} locked={busy || Boolean(snapshot.operation.busy)}/><p className="hint">{t('switchEnvironmentHelp')}</p></div>}
     {error && <div className="notice error" role="alert"><span>{error}</span><button onClick={() => { void load(true) }}>{t('retry')}</button><button className="icon" aria-label={t('clear')} onClick={() => setError('')}><X size={13}/></button></div>}
-    {!snapshot ? <div className="connection-scroll"><div className="empty connection"><Box size={30} strokeWidth={1.2}/><h2>{t('disconnected')}</h2><p>{t('connectHelp')}</p><button disabled={busy} onClick={() => { void load(true) }}>{busy ? t('working') : t('connect')}</button>{missingCli ? <RuntimeSetup onReady={() => { void load(true) }}/> : <button onClick={() => { void call('desktop.open').catch(cause => setError(errorText(cause))) }}>{t('desktop')}</button>}</div></div>
+    {!snapshot ? <div className="connection-scroll"><div className="empty connection"><Box size={30} strokeWidth={1.2}/><h2>{t('disconnected')}</h2><p>{t('connectHelp')}</p><button disabled={busy || environment?.status.busy} onClick={() => { void load(true) }}>{busy ? t('working') : t('connect')}</button>{environment && <RuntimeSetup environment={environment} onState={setEnvironment} onSelect={selectEnvironment} onReady={() => { void load(true) }} locked={busy}/>}</div></div>
       : <div className="workspace">
         <aside className="container-list">
           <div className="list-heading"><strong>{t('containers')}</strong><span className="count">{snapshot.containers.length}</span></div>
@@ -67,7 +86,7 @@ export function App({ active }: { active: boolean }) {
               <i className={`dot ${item.state === 'running' ? 'running' : ''}`}/><span className="row-content"><strong>{item.name}</strong><small>{item.image}</small><span className="row-meta">{item.state === 'running' ? t('running') : t('stopped')}{item.ports.length ? ` · ${[...new Set(item.ports.map(port => port.port))].join(', ')}` : ''}</span></span>{sessions[item.id] && !ended[item.id] && <TerminalSquare size={13} className="muted"/>}
             </button>)}
           </section>)}{!filtered.length && <div className="empty small"><p>{snapshot.containers.length ? t('noMatch') : t('empty')}</p>{!snapshot.containers.length && <p className="hint">{t('emptyHelp')}</p>}</div>}</div>
-          <footer className="list-footer">{t('local')} · {snapshot.engine.version}</footer>
+          <footer className="list-footer">{targetLabel} · {snapshot.engine.version}</footer>
         </aside>
         <section className="detail">{!selected ? <div className="empty"><Box size={27} strokeWidth={1.2}/><h2>{t('select')}</h2><p>{t('selectHelp')}</p></div> : <>
           <header className="detail-heading"><button className="icon back" aria-label={t('back')} onClick={() => setShowDetail(false)}><ChevronLeft size={16}/></button><div className="detail-title"><h1 title={selected.name}>{selected.name}</h1><span><i className={`dot ${selected.state === 'running' ? 'running' : ''}`}/>{selected.status}</span></div><div className="actions">

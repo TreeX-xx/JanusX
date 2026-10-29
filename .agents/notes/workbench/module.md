@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-29T14:04:37Z",
+  "updated": "2026-10-29T15:14:39Z",
   "moduleState": "partial"
 }
 ---
@@ -129,9 +129,11 @@ Note 工具链三件各司其职：[drawer-toolbar](./note-drawer-markdown-toolb
 
 配套：[github-maintenance](../desktop/github-maintenance.md)、[markdown-assets](./markdown-preview-local-assets.md)、[experimental-preview](./experimental-preview-features.md)、[file-glyph](./note-drawer-markdown-toolbar.md)、[reveal-race](./file-tree-reveal-race.md)、[share-import](../blueprint/workspaces/share-import.md)、[plugin-forms](./requirements/plugin-architecture-forms.md)、[plugin-debug](./requirements/plugin-import-debug.md)、[entry-nav](./entry-switch-navigation.md)、[f12-nav](./f12-navigation.md)。
 
-外部工作流工具：[Grok Bot 衔接](./grok-bot-workflow-integration.md)仍在讨论；[Docker 官方插件与工具箱入口](./docker-management-entry.md)已实现 `plugins/docker/` 独立包、应用级工具箱单实例、七项本机容器管理能力和宿主 PTY／浏览器联动。页面采用容器列表加概览／日志／终端详情区，沿用 JanusX 主题和简约细分隔布局，无项目也可使用。Windows 缺少 CLI 时可点击安装并启动专用 WSL2 + Docker Engine，显示进度、失败重试和重启待续，无需 Docker Desktop；已有托管环境按需启动，数据保留在插件外部，不修改同名未知发行版。切容器、切项目和关闭面板保留后台及存活终端，隐藏时停止轮询与日志采集，停用回收自有终端与采集而不停止引擎／容器。255 项相关单测与两项合成安装器／真实 Electron 桌面流程通过，公开 SDK 仓库外构建及本地签名入口已接通；真实 WSL 安装、UAC／重启、apt、引擎退出存活及其它平台尚未验收，生产签名和目录未发布。配套的[HTTP 请求工具](./http-request-pane.md)独立规划，承载方式待定，不作为 Docker 首版依赖。
+外部工作流工具：[Grok Bot 衔接](./grok-bot-workflow-integration.md)仍在讨论；[Docker 官方插件与工具箱入口](./docker-management-entry.md)已实现 `plugins/docker/` 独立包、应用级工具箱单实例、七项本机容器管理能力和宿主 PTY／浏览器联动。页面采用容器列表加概览／日志／终端详情区，沿用 JanusX 主题和简约细分隔布局，无项目也可使用。Windows 可选择已有本机 Docker、已有 WSL2 Ubuntu 或专用 Linux 环境；已有 Ubuntu 缺少 Docker 时明确确认后安装，专用路径显示进度、失败重试和重启待续，无需 Docker Desktop。目标跨页面关闭和插件重启保存，每次管理一个引擎；跨环境切换回收旧显示、终端和快照，保留引擎／容器运行。同一目标下切容器、切项目和关闭面板保留后台及存活终端，隐藏时停止轮询与日志采集，停用回收自有终端与采集而不停止引擎／容器。263 项相关单测与两项合成安装器／真实 Electron 桌面流程通过，公开 SDK 仓库外构建及本地签名入口已接通；真实 WSL 安装、UAC／重启、apt、已有 Ubuntu 服务启动、引擎退出存活及其它平台尚未验收，生产签名和目录未发布。配套的[HTTP 请求工具](./http-request-pane.md)独立规划，承载方式待定，不作为 Docker 首版依赖。
 
 服务集成：[CPA 账号管理复用与 Figma 接入](./service-integrations.md)维护入口、托管和服务边界。CPA 已迁入可独立构建的 `official.cpa` 官方插件，安装并启用后提供跨项目工具箱入口和插件设置；未安装时不加载 CPA 业务。保留本地托管、已有实例、组件校验更新、密钥加密及复制、共享代理和 OAuth 手动回调。页面关闭保留后台；停用／卸载或退出停止自有进程，外部实例不受影响。迁移复制旧配置、组件、账号及密钥并保留原件，登录沿用原 origin 分区。公开 SDK 外部构建和定向单测通过，生产签名／目录发布及真实供应商额度仍未交付。文件树、Git、会话继续使用内置视图；Figma 仍待实施。
+
+Docker 环境选择不跟随代码工作区。独立发行版隔离文件、依赖和 Docker 数据，CPU／内存仍共享，不能据此解决主机资源耗尽；代码挂载路径由引擎所在环境决定。已有环境不套用专用环境配置，WSL1 和非 Ubuntu 不自动转换或安装，详见 Docker owning Note。
 
 插件交付按[分阶段计划](../planning/plugin-platform-roadmap.md)保留已交付的 S1–S3。P0 的[首版契约](./plugin-contract-v1.md)与 P1 SDK／严格校验、仓库外脚手架、命令／入口及旧 launcher 适配已落地；P2 已实现目录登记、授权、独立离线原生页面、只读桥、私有 KV、管理及调试。P3 增加工作台根页面、返回原界面、宿主绘制的 Island 状态／进度／徽标／动作／文本预览和隔离展开工具区，外部模板以同一 SDK 联动四区域。状态绑定发布页面，撤销清理；审批遮挡时外壳和原生页同时让位。P4 首片提供嵌入文件编辑器的只读 viewer、默认打开／恢复、失效回退和按文档绑定的隔离实例；未保存文件保留内置编辑；后续片已接通版本化草稿交接、宿主审阅保存、关闭保护及写前冲突检查。持续宿主草稿、人工差异审阅、精确目录查询和通用工作区多实例已补齐；跨进程强事务、自动文件订阅和代表内置查看器迁移仍待续。新增 P4a 已交付声明式参数配置、应用默认与项目／worktree 覆盖、恢复默认、读取订阅及升级诊断；已支持隔离自定义设置页及宿主审阅配置建议，P5 已采用宿主声明式任务接通后台监督、受限网络／凭证及事件／公开服务。阶段计划保留实际门禁证据和平台限制，未测平台不记为完成。P6 首片已接通内置 Agent／公开服务、显式授权、取消与结果归属，已补齐受限文本模型代发、按需读取的技能资源与受监督的顺序服务工作流，固定文件文档上下文已补齐，P6／M3 按 Windows 开发构建的声明式代表范围完成；P7 已接通独立窗口的授权、单实例／关闭清理、几何恢复和宿主遮挡；声明式调色板与既有配置隔离已接通，角色资源、对话局部贡献与 P8 分发待续；版本尚未指定。工作台需求维护验收，规划模块维护阶段及证据。
 

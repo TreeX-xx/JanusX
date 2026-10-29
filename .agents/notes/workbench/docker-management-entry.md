@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-10-11",
-  "updated": "2026-10-29T14:04:37Z",
+  "updated": "2026-10-29T15:14:39Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -24,7 +24,7 @@ JanusX 需要面向本机开发的 Docker 日常管理面板，能与代码、�
 
 | 能力 | 首版范围 |
 |---|---|
-| 连接状态 | 优先检测已有本机 Docker；Windows 缺少 CLI 时检测托管环境，提供安装／启动、进度、失败重试和重启待续；保留 Docker Desktop 入口 |
+| 连接状态 | 选择已有本机 Docker、已有 WSL2 Ubuntu 或专用 Linux 环境；提供检测、显式安装／启动、进度、失败重试和重启待续；保留 Docker Desktop 入口 |
 | 容器列表 | 名称、状态、镜像、端口；搜索；全部或仅运行中 |
 | 常用操作 | 启动、停止、重启；显示进行中、结果和失败原因 |
 | 容器日志 | 实时查看、暂停滚动、搜索、复制；有界历史与增量缓冲 |
@@ -32,7 +32,7 @@ JanusX 需要面向本机开发的 Docker 日常管理面板，能与代码、�
 | 访问服务 | 点击已发布的 HTTP 服务地址，在既有内置浏览器打开 |
 | Compose 分组 | 按项目标签分组，对现有容器整组启动、停止并显示逐项结果 |
 
-首版不做镜像仓库、镜像构建配置、卷与网络管理、磁盘清理、远程环境管理，以及 Compose 文件编辑或创建部署。2026-10-29 用户在首版代码完成后追加“像 CPA 一样检测、安装和启动”的需求，运行时安装不再排除：Windows 支持自愿安装专用 WSL2 + Docker Engine，无需 Docker Desktop。已有环境仍优先复用，无法连接不根据一次失败推断具体原因；macOS/Linux 暂不托管安装。
+首版不做镜像仓库、镜像构建配置、卷与网络管理、磁盘清理、远程环境管理，以及 Compose 文件编辑或创建部署。Windows 支持用户选择已有 WSL2 Ubuntu 或自愿安装专用 WSL2 + Docker Engine，无需 Docker Desktop。初始目标为已有本机 Docker，无法连接不根据一次失败推断具体原因或自动切换；macOS/Linux 暂不托管安装。
 
 用户再次明确首版只管理本机，远程环境以后考虑；列出全部容器指本机所选引擎下全部容器，不指自动聚合远程 Docker。远程不是首版待定项。
 
@@ -64,15 +64,25 @@ CLI 使用固定可执行文件与参数数组，不拼接用户 shell 命令。
 
 ### Windows 托管运行环境
 
-`plugins/docker/src/main/managed-wsl.ts` 管理安装状态，`runtime-process.ts` 封装固定的 WSL／提权命令，`runtime-download.ts` 下载并验证 Ubuntu rootfs。页面在缺少 Docker CLI 时显示一个简洁的运行环境区：检测、安装并启动、下载进度、创建环境、安装引擎、启动、失败重试与重启待续。长操作在插件激活代次中执行，普通请求立即返回状态；关闭页面继续准备，重开恢复进度。停用取消当前准备请求并保留数据，重试使用 Windows 安装锁和 Linux flock，避免并行安装冲突。
+用户进一步确认环境应可选择：既能使用已有 WSL Ubuntu，也能新建独立 Linux 环境，不能只提供固定专用环境。目标入口以简单的“运行环境”选择承载三条路径：连接已有本机 Docker、使用已有 WSL2 发行版、新建专用环境；不跟随代码工作区自动改绑。已有发行版展示名称和 Docker 检测结果，选中后连接已有引擎；缺少引擎时由用户明确点击在该发行版安装，不能因为检测就修改它。首批安装适配 Ubuntu，其它发行版先报告支持情况，不能复用 Ubuntu apt 脚本盲装。新建路径沿用专用 Ubuntu 与安装进度流程，适合与已有自动化工具或开发依赖隔离。
 
-运行环境固定为 `JanusX-Docker`，数据位于 `%LOCALAPPDATA%/JanusX/docker-runtime`，独立于插件私有数据目录，停用／卸载插件不删除发行版、镜像、卷或容器。Windows owner UUID 与 Linux `/etc/janusx-docker-owner` 一致才允许管理；未知同名发行版保持原样。导入后中断且未写入 Linux 标记时，只在 Windows 注册的 BasePath 精确匹配本托管目录后修复标记，检测阶段不写入。只接受 WSL2，不转换用户已有发行版，不更改默认发行版，不调用 `wsl --shutdown`／`--unregister`。
+选择保存在应用级 Docker 插件配置中，管理列表明确显示当前目标，每次只操作一个引擎，不合并不同引擎的容器。切换目标时释放旧显示订阅和插件拥有的 shell，清空旧快照再连接新目标；不停止旧引擎或容器。原“切容器保留 shell”限定同一目标，跨引擎切换不允许旧会话被重绑。已有发行版视为用户环境，停用／卸载不删除、不整体终止它，也不覆盖其中已有 Docker 的配置。
+
+代码与 Docker 位于同一 Ubuntu 时，容器可使用该环境中的 Linux 代码路径进行 bind mount；新建专用环境的同名 `/home/...` 不代表原 Ubuntu 的代码目录，不能暗示跨发行版路径天然互通。不同环境的 Docker 镜像／容器／卷分别归属各自引擎。独立环境提供文件、依赖和数据隔离，并不增加机器 CPU／内存；WSL2 的主机资源仍共享，已有任务占满物理资源时新建发行版不能自动解决。
+
+三条路径及在线切换已实现。`environments.ts` 在插件 native 数据目录的 `environment.json` 保存目标；注册清单只运行有界的 `wsl --list --quiet`，选中后才检测 Linux 内核、Ubuntu 标识与 Docker。已有 Ubuntu 缺少 Docker 时先显示带发行版名称的确认，取消不安装；确认后从其现有签名仓库安装 `docker.io` 与 `util-linux`，检测到已有客户端或 daemon 则拒绝替换，不套用专用环境的配置脚本。已有 Docker 通过原 systemd／service 配置启动；WSL1 和其它发行版报告不支持，不自动转换。
+
+后台切换时撤销旧目标请求并递增目标代次，迟到响应不能回填新列表或操作新会话；安装、探测、连接或容器启停期间拒绝重叠切换。宿主 `desktop.terminal.select` 独立验证注册清单及页面 owner，终端请求必须匹配所选可执行文件与发行版，仍固定 socket 与 Linux shell。切换通过 `desktop.terminal.reset` 回收旧 PTY，不向隔离页面开放任意命令。
+
+`plugins/docker/src/main/managed-wsl.ts` 管理专用环境安装状态，`runtime-process.ts` 封装固定的 WSL／提权命令，`runtime-download.ts` 下载并验证 Ubuntu rootfs。未连接时显示简洁的运行环境区，连接后点击顶栏当前环境可切换。专用路径提供检测、安装并启动、下载进度、创建环境、安装引擎、启动、失败重试与重启待续。长操作在插件激活代次中执行，普通请求立即返回状态；关闭页面继续准备，重开恢复进度。停用取消当前准备请求并保留数据，重试使用 Windows 安装锁和 Linux flock，避免并行安装冲突。
+
+专用运行环境固定为 `JanusX-Docker`，数据位于 `%LOCALAPPDATA%/JanusX/docker-runtime`，独立于插件私有数据目录，停用／卸载插件不删除发行版、镜像、卷或容器。Windows owner UUID 与 Linux `/etc/janusx-docker-owner` 一致才允许管理；未知同名发行版保持原样。导入后中断且未写入 Linux 标记时，只在 Windows 注册的 BasePath 精确匹配本托管目录后修复标记，检测阶段不写入。只接受 WSL2，不转换用户已有发行版，不更改默认发行版，不调用 `wsl --shutdown`／`--unregister`。
 
 缺少 WSL 时，点击安装通过系统 UAC 执行固定的 `wsl --install --no-distribution --no-launch`。Windows 可能要求管理员权限和重启；页面提示重启后继续，不自动重启电脑。导入时遇到已知缺少虚拟化／WSL 组件的错误也进入该准备步骤，其余错误原样反馈。BIOS 虚拟化、Windows 策略和内核异常仍需用户处理。
 
 Ubuntu Base 24.04.5 的 x64／ARM64 rootfs 使用官方 HTTPS 地址及代码内固定 SHA-256，经过应用代理流式写入，限制 256 MiB，不执行下载内容前的未校验文件；失败清除 `.part`，可复用校验通过的缓存。Docker Engine 从 Ubuntu 自带的签名 apt 仓库安装 `docker.io`、`ca-certificates`、`util-linux`，不执行网络下载的安装脚本、不关闭包签名验证。rootfs 下载走应用代理；WSL 内 apt 和引擎镜像下载依赖 Linux 自身网络／代理配置，本轮不替用户改写系统代理。
 
-托管查询、操作、日志和宿主 PTY 均通过固定的 `wsl.exe --distribution JanusX-Docker --user root --exec /usr/bin/docker --host unix:///var/run/docker.sock` 访问；不开放 TCP Docker API。PTY 请求只允许该发行版、该 socket 和 Linux shell。启动使用固定 dockerd 参数和 Linux flock，启动成功以实际 `docker info` 返回为准；daemon 由独立 WSL 客户端承载，关闭页面、停用插件和退出 JanusX 不停止引擎／容器。没有新增运行时删除、引擎升级或镜像管理界面。
+WSL 查询、操作、日志和宿主 PTY 均通过 `wsl.exe --distribution <所选发行版> --user root --exec /usr/bin/docker --host unix:///var/run/docker.sock` 访问；不开放 TCP Docker API。PTY 请求只允许宿主已验证的当前发行版、该 socket 和 Linux shell。专用环境启动使用固定 dockerd 参数和 Linux flock，启动成功以实际 `docker info` 返回为准；daemon 由独立 WSL 客户端承载，关闭页面、停用插件和退出 JanusX 不停止引擎／容器。没有新增运行时删除、引擎升级或镜像管理界面。
 
 宿主补独立的结构化容器终端请求和打开服务 URL 的接口。现有 `workspace.proposeTerminal` 是项目文本草稿交接，不用于此场景。容器终端在插件页面内展示，底层可复用宿主 PTY，但会话按插件激活代次、引擎和容器身份管理，不依赖项目、worktree 或页面实例。页面只持有可撤销的显示/输入连接，关闭页面不销毁后台会话，重开后在相同激活代次下重新绑定。新接口处理创建、重接、输入、输出、resize、关闭及撤销，不向页面开放通用命令执行。复用 PTY 不等于复用项目终端的归属和入口。
 
@@ -115,7 +125,7 @@ Compose 首版只管理现有容器，按 `com.docker.compose.project` 分组；
 
 独立插件位于 `plugins/docker/`，只依赖公开 SDK；`src/main/plugins/container-terminals.ts` 提供宿主 PTY，`packages/plugin-sdk/src/container-terminal.ts` 定义结构化请求与输出。新增 `desktop.containers` 能力依赖 `desktop.native`／`runtime.native`；旧宿主拒绝未知能力。普通页面无进程权限，native 请求创建／读写／调整大小／关闭终端时校验存活页面 owner，后台清理不依赖已关闭页面。
 
-现有插件宿主在页面关闭时调用 `lifecycle.release` 撤销页面 owner；终端已改由宿主的插件激活实例持有，native 服务保存容器到会话 ID 的映射，重开读取后重新附接。页面 owner 只控制当前输入和显示访问。native 服务启用时轻量启动，实际 Docker 查询和终端按需启动；每个命令以参数数组显式传递已检查的 `--host`，拒绝 TCP（含 loopback）及 SSH，当前激活代次更换 endpoint 要求重载。日志使用 native 批次事件，页面 release 和后台 stop 双重回收采集进程。
+现有插件宿主在页面关闭时调用 `lifecycle.release` 撤销页面 owner；终端已改由宿主的插件激活实例持有，native 服务保存容器到会话 ID 的映射，重开读取后重新附接。页面 owner 只控制当前输入和显示访问。native 服务启用时轻量启动，实际 Docker 查询和终端按需启动；每个命令以参数数组显式传递已检查的 `--host`，拒绝 TCP（含 loopback）及 SSH。已有本机 context 的 endpoint 变化仍须重新选择环境或重载，不能在原会话上隐式改绑。日志使用 native 批次事件，页面 release 和后台 stop 双重回收采集进程。
 
 先覆盖当前 Windows 的真实 Electron 和 Docker；macOS/Linux 未实测时保留为平台缺口。自动验证覆盖 CLI 参数与本地目标、数据解析、操作并发/失败、日志限额/回收、宿主授权/失效和菜单/布局生命周期；替身不能代替真实引擎验收。
 
@@ -125,9 +135,9 @@ Compose 首版只管理现有容器，按 `com.docker.compose.project` 分组；
 
 ## Validation and open questions
 
-2026-10-29 已运行 Docker、PTY、插件平台及 CPA 相关 17 个单测文件，共 255 项通过。覆盖本地 endpoint 拒绝远程、固定 CLI 参数、列表与端口解析、分组部分失败和并发拒绝、日志缓冲与回收、页面关闭后 session 重接、宿主 owner 与浏览器边界，以及检测无副作用、专用 WSL2 安装／重试／锁／归属、停用取消、下载篡改与大小限制、UTF-16 管理输出和固定 WSL 终端参数。
+2026-10-29 已运行 Docker、PTY、插件平台及 CPA 相关 18 个单测文件，共 263 项通过。覆盖本地 endpoint 拒绝远程、固定 CLI 参数、列表与端口解析、分组部分失败和并发拒绝、日志缓冲与回收、页面关闭后 session 重接、宿主 owner 与浏览器边界，以及检测无软件修改、专用 WSL2 安装／重试／锁／归属、已有 Ubuntu 安装确认／沿用服务配置／目标持久化、不支持系统拒绝安装、跨目标迟到响应拒绝、停用取消、下载篡改与大小限制、UTF-16 管理输出和 WSL 终端目标绑定。
 
-`npx playwright test --config playwright.docker.config.ts --workers=1` 两项完整桌面流程通过，使用合成 Docker CLI／安装器与真实 Electron／PTY 检查无项目打开、服务浏览器、日志复制、终端输入、关闭重开同一 shell、切项目、停止容器回收 shell、停用不停止容器及远程 context 拒绝；新增流程覆盖首次准备失败后重试、关闭页面后继续、就绪自动连接，以及 WSL 日志／终端。已复核深色宽／窄窗、纸面主题窄窗和安装页截图。替身证据不替代真实引擎验收，测试不会安装 WSL 或修改真实发行版。
+`npx playwright test --config playwright.docker.config.ts --workers=1` 两项完整桌面流程通过，使用合成 Docker CLI／安装器与真实 Electron／PTY 检查无项目打开、服务浏览器、日志复制、终端输入、关闭重开同一 shell、切项目、停止容器回收 shell、停用不停止容器及远程 context 拒绝；运行时流程覆盖首次准备失败后重试、关闭页面后继续、就绪自动连接、WSL 日志／终端、切到已有 Ubuntu 后结束旧 PTY 且保留旧容器运行、重开保留所选环境与 shell，以及 Ubuntu 安装确认／取消。已复核深色宽／窄窗、纸面主题窄窗和 Ubuntu 安装确认截图。替身证据不替代真实引擎验收，测试不会安装 WSL 或修改真实发行版。
 
 `npm run plugins:docker:check` 通过公开 SDK tarball 的仓库外安装、类型检查、构建、包校验及实际后台 bundle 启停；根目录和插件严格未使用检查、受影响宿主 lint、`npm run build:app`、主题／i18n／包边界／打包排除检查均通过。`npm run check:notes` 为 0 errors，保留 17 项既有跨仓引用诊断。检查记录不代表运行了完整仓库 verify 或真实 Docker 验收。
 
