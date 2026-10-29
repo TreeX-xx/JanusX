@@ -4,6 +4,7 @@ import { call } from './bridge'
 import { useLocale, errorText } from './i18n'
 import { LogsPane } from './LogsPane'
 import { TerminalPane } from './TerminalPane'
+import { RuntimeSetup } from './RuntimeSetup'
 import type { ContainerTerminalOutput } from '@janusx/plugin-sdk'
 import type { Container, Engine, ViewState, ContainerView, DetailTab } from '../shared/docker'
 interface Snapshot { engine: Engine; containers: Container[]; operation: { busy: boolean; pending: string[]; results: { id: string; ok: boolean; error?: string }[] } }
@@ -11,7 +12,7 @@ const initial: ViewState = { selected: '', search: '', runningOnly: false, conta
 const defaults: ContainerView = { tab: 'overview', logSearch: '', scroll: 0, paused: false }
 export function App({ active }: { active: boolean }) {
   const t = useLocale(), [snapshot, setSnapshot] = useState<Snapshot | null>(null), [state, setState] = useState(initial), [ready, setReady] = useState(false)
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [showDetail, setShowDetail] = useState(false), [shell, setShell] = useState('/bin/sh')
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [missingCli, setMissingCli] = useState(false), [showDetail, setShowDetail] = useState(false), [shell, setShell] = useState('/bin/sh')
   const [sessions, setSessions] = useState<Record<string, string>>({}), [ended, setEnded] = useState<Record<string, boolean>>({})
   const polling = useRef(false), connected = useRef(false)
   const visible = useRef(active); visible.current = active
@@ -19,7 +20,11 @@ export function App({ active }: { active: boolean }) {
     if (polling.current) return; polling.current = true
     if (connect) setBusy(true)
     try { const next = await call<Snapshot>(connect ? 'engine.connect' : 'containers.list'); setSnapshot(next); setError(''); connected.current = true }
-    catch (cause) { setError(errorText(cause)); connected.current = false }
+    catch (cause) {
+      const needsRuntime = cause instanceof Error && ['docker-cli-missing', 'docker-runtime-starting'].includes(cause.message)
+      if (needsRuntime) setSnapshot(null)
+      setError(needsRuntime ? '' : errorText(cause)); setMissingCli(needsRuntime); connected.current = false
+    }
     finally { polling.current = false; setBusy(false) }
   }
   useEffect(() => {
@@ -50,7 +55,7 @@ export function App({ active }: { active: boolean }) {
   return <main className={`docker-app ${showDetail ? 'detail-open' : ''}`}>
     <header className="toolbar"><Box size={16}/><strong>Docker</strong><span className="engine-label"><i className={snapshot && connected.current ? 'dot running' : 'dot'}/>{snapshot?.engine.name ?? t('local')}</span><button className="icon" aria-label={t('refresh')} title={t('refresh')} disabled={busy} onClick={() => { void load(!connected.current) }}><RefreshCw size={14} className={busy ? 'spin' : ''}/></button><button className="icon" aria-label={t('desktop')} title={t('desktop')} onClick={() => { void call('desktop.open').catch(cause => setError(errorText(cause))) }}><ExternalLink size={14}/></button></header>
     {error && <div className="notice error" role="alert"><span>{error}</span><button onClick={() => { void load(true) }}>{t('retry')}</button><button className="icon" aria-label={t('clear')} onClick={() => setError('')}><X size={13}/></button></div>}
-    {!snapshot ? <div className="empty connection"><Box size={30} strokeWidth={1.2}/><h2>{t('disconnected')}</h2><p>{t('connectHelp')}</p><button className="primary" disabled={busy} onClick={() => { void load(true) }}>{busy ? t('working') : t('connect')}</button><button onClick={() => { void call('desktop.open').catch(cause => setError(errorText(cause))) }}>{t('desktop')}</button></div>
+    {!snapshot ? <div className="connection-scroll"><div className="empty connection"><Box size={30} strokeWidth={1.2}/><h2>{t('disconnected')}</h2><p>{t('connectHelp')}</p><button disabled={busy} onClick={() => { void load(true) }}>{busy ? t('working') : t('connect')}</button>{missingCli ? <RuntimeSetup onReady={() => { void load(true) }}/> : <button onClick={() => { void call('desktop.open').catch(cause => setError(errorText(cause))) }}>{t('desktop')}</button>}</div></div>
       : <div className="workspace">
         <aside className="container-list">
           <div className="list-heading"><strong>{t('containers')}</strong><span className="count">{snapshot.containers.length}</span></div>

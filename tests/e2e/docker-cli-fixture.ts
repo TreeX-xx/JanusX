@@ -16,8 +16,13 @@ class DockerFixture {
   static string[] rows = new string[] {${rows.map(row => literal(JSON.stringify(row))).join(',')}};
   static int Main(string[] args) {
     if(args.Length == 0) return 1;
+    bool managed = args[0] == "--distribution";
+    if(managed) {
+      if(args.Length < 6 || args[1] != "JanusX-Docker" || args[2] != "--user" || args[3] != "root" || args[4] != "--exec" || args[5] != "/usr/bin/docker") return 5;
+      var next = new string[args.Length-6]; Array.Copy(args,6,next,0,next.Length); args=next;
+    }
     if(args[0] == "context") { Console.WriteLine(args[1] == "show" ? "desktop-linux" : "[{\\"Endpoints\\":{\\"docker\\":{\\"Host\\":\\"" + File.ReadAllText(${literal(context)}) + "\\"}}}]"); return 0; }
-    if(args.Length < 3 || args[0] != "--host" || args[1] != "npipe:////./pipe/dockerFixture") return 2;
+    if(args.Length < 3 || args[0] != "--host" || args[1] != (managed ? "unix:///var/run/docker.sock" : "npipe:////./pipe/dockerFixture")) return 2;
     string cmd = args[2];
     if(cmd == "info") { Console.WriteLine(${literal('{"Name":"Fixture engine","ServerVersion":"28.0.0-fixture","OSType":"linux"}')}); return 0; }
     var states = File.ReadAllLines(statePath);

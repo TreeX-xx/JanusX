@@ -6,6 +6,7 @@ import { DockerCli, parseContainers } from '../../plugins/docker/src/main/cli'
 import { createDockerService } from '../../plugins/docker/src/main/service'
 import type { NativePeer } from '@janusx/plugin-sdk/native'
 import type { Container } from '../../plugins/docker/src/shared/docker'
+import type { ManagedWsl } from '../../plugins/docker/src/main/managed-wsl'
 const id = 'a'.repeat(64), otherId = 'b'.repeat(64)
 const endpoint = 'npipe:////./pipe/dockerDesktopLinuxEngine'
 const containers: Container[] = [id, otherId].map((id, index) => ({ id, name: `app-${index}`, image: 'alpine:3', state: 'running', status: 'Up', project: 'atlas', service: `web-${index}`, ports: [{ host: '0.0.0.0', port: 8080, container: 80, protocol: 'tcp' }] }))
@@ -44,6 +45,29 @@ async function fixture() {
   return { cli, host, service, call, children }
 }
 describe('Docker plugin activation and page leases', () => {
+  it('returns environment checks immediately and does not start a stopped runtime after revocation', async () => {
+    let resolve!: (value: { phase: string }) => void
+    const runtime = { state: { phase: 'checking', busy: false }, inspect: vi.fn(() => new Promise<{ phase: string }>(done => { resolve = done })), start: vi.fn(), stop: vi.fn() }
+    const f = await fixture()
+    const service = await createDockerService(null, f.host as unknown as NativePeer, f.cli as unknown as DockerCli, runtime as unknown as ManagedWsl)
+    expect(await service.call('runtime.inspect', { input: {} }, new AbortController().signal)).toMatchObject({ data: { phase: 'checking' } })
+    expect(runtime.start).not.toHaveBeenCalled()
+    await service.stop(); resolve({ phase: 'stopped' }); await Promise.resolve()
+    expect(runtime.start).not.toHaveBeenCalled(); await f.service.stop()
+  })
+  it('keeps installation activation-owned, forwards its status, and never silently replaces a selected remote context', async () => {
+    const runtime = { state: { phase: 'installing', busy: true }, inspect: vi.fn(async () => ({ phase: 'ready' })), start: vi.fn(() => runtime.state), stop: vi.fn(), executable: 'C:/Windows/System32/wsl.exe' }
+    const cli = { engine: undefined, wsl: undefined, connect: vi.fn(async () => { throw new Error('docker-remote-endpoint') }), useManaged: vi.fn() }
+    const host = { call: vi.fn(), emit: vi.fn() }
+    const service = await createDockerService(null, host as unknown as NativePeer, cli as unknown as DockerCli, runtime as unknown as ManagedWsl)
+    const call = (method: string) => service.call(method, { input: {}, instanceId: 'page-one' }, new AbortController().signal) as Promise<any>
+    expect(await call('runtime.prepare')).toMatchObject({ data: { phase: 'installing', busy: true } })
+    await service.releaseContext!('page-one'); expect(runtime.stop).not.toHaveBeenCalled()
+    expect(await call('runtime.status')).toMatchObject({ data: { busy: true } })
+    runtime.state.busy = false
+    expect(await call('engine.connect')).toMatchObject({ error: 'docker-remote-endpoint' }); expect(cli.useManaged).not.toHaveBeenCalled(); expect(runtime.inspect).not.toHaveBeenCalled()
+    await service.stop(); expect(runtime.stop).toHaveBeenCalledOnce()
+  })
   it('owns shells across page release and exposes them to the next page without a project', async () => {
     const f = await fixture()
     expect(await f.call('terminal.open', { id })).toMatchObject({ ok: true, data: { id: 'session-1' } })

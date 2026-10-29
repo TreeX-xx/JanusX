@@ -6,6 +6,8 @@ export interface ContainerTerminalRequest {
   shell: '/bin/sh' | '/bin/bash' | 'cmd.exe' | 'powershell.exe'
   cols: number
   rows: number
+  /** Fixed local managed WSL transport; never an arbitrary distribution or command. */
+  wsl?: 'JanusX-Docker'
 }
 export interface ContainerTerminalOutput { id: string; data: string; cursor: number; truncated: boolean; exited: boolean; exitCode: number | null }
 /** Local sockets and Docker's Windows pipes only. TCP/SSH contexts are deliberately unsupported. */

@@ -5,3 +5,5 @@ export type DetailTab = 'overview' | 'logs' | 'terminal'
 export interface ContainerView { tab: DetailTab; logSearch: string; scroll: number; paused: boolean; terminal?: string }
 export interface ViewState { selected: string; search: string; runningOnly: boolean; containers: Record<string, ContainerView> }
 export interface LogBatch { subscription: string; container: string; text: string; reset?: boolean; truncated?: boolean; ended?: boolean; error?: string }
+export type RuntimePhase = 'checking' | 'wsl-required' | 'not-installed' | 'stopped' | 'ready' | 'preparing-wsl' | 'restart-required' | 'downloading' | 'importing' | 'installing' | 'starting' | 'error' | 'unsupported'
+export interface RuntimeStatus { phase: RuntimePhase; busy: boolean; progress?: number; error?: string }

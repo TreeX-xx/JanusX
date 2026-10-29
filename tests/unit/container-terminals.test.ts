@@ -46,4 +46,14 @@ describe('activation-owned container PTYs', () => {
     for (const child of h.children) expect(child.kill).toHaveBeenCalledOnce()
     expect(() => manager.open(input)).toThrow('terminal-stopped')
   })
+  it.runIf(process.platform === 'win32')('pins managed WSL PTYs and rejects arbitrary distributions, endpoints and executables', () => {
+    const manager = new ContainerTerminals(), managed = { ...input, executable: 'C:/Windows/System32/wsl.exe', endpoint: 'unix:///var/run/docker.sock', wsl: 'JanusX-Docker' }
+    manager.open(managed)
+    expect(h.children[0].args).toEqual(['--distribution', 'JanusX-Docker', '--user', 'root', '--exec', '/usr/bin/docker', '--host', managed.endpoint, 'exec', '-it', input.container, '/bin/sh'])
+    expect(() => manager.open({ ...managed, wsl: 'Ubuntu' })).toThrow()
+    expect(() => manager.open({ ...managed, endpoint: 'unix:///tmp/other.sock' })).toThrow()
+    expect(() => manager.open({ ...managed, executable: 'C:/Windows/System32/cmd.exe' })).toThrow()
+    expect(() => manager.open({ ...managed, shell: 'cmd.exe' })).toThrow()
+    manager.dispose()
+  })
 })

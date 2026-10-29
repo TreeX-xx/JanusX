@@ -44,9 +44,13 @@ export function parseContainers(text: string): Container[] {
   })
 }
 export class DockerCli {
-  executable = ''; engine?: Engine
+  executable = ''; engine?: Engine; wsl?: 'JanusX-Docker'
   constructor(private execute: Run = run, private locate = findDocker) {}
   async connect(signal?: AbortSignal): Promise<Engine> {
+    if (this.wsl) {
+      const info = JSON.parse(await this.execute(this.executable, this.args('info', '--format', '{{json .}}'), signal))
+      return this.engine = { endpoint: 'unix:///var/run/docker.sock', name: String(info.Name ?? this.wsl), version: String(info.ServerVersion ?? ''), os: 'linux' }
+    }
     const executable = await this.locate()
     const context = (await this.execute(executable, ['context', 'show'], signal)).trim()
     if (!context || context.startsWith('-')) throw new Error('docker-invalid-context')
@@ -57,7 +61,15 @@ export class DockerCli {
     this.executable = executable
     return this.engine = { endpoint, name: String(info.Name ?? context), version: String(info.ServerVersion ?? ''), os: String(info.OSType ?? '') }
   }
-  args(...args: string[]): string[] { if (!this.engine) throw new Error('docker-not-connected'); return ['--host', this.engine.endpoint, ...args] }
+  useManaged(executable: string): void {
+    if (this.engine && !this.wsl) throw new Error('docker-engine-changed')
+    this.executable = executable; this.wsl = 'JanusX-Docker'
+    this.engine = { endpoint: 'unix:///var/run/docker.sock', name: this.wsl, version: '', os: 'linux' }
+  }
+  args(...args: string[]): string[] {
+    if (!this.engine) throw new Error('docker-not-connected')
+    return [...(this.wsl ? ['--distribution', this.wsl, '--user', 'root', '--exec', '/usr/bin/docker'] : []), '--host', this.engine.endpoint, ...args]
+  }
   async list(signal?: AbortSignal): Promise<Container[]> { return parseContainers(await this.execute(this.executable, this.args('ps', '-a', '--no-trunc', '--format', '{{json .}}'), signal)) }
   async operate(id: string, action: 'start' | 'stop' | 'restart', signal?: AbortSignal): Promise<void> {
     // Short stop timeout keeps this ordinary request within the host's 30-second deadline.

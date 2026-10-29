@@ -6,9 +6,11 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { localDockerEndpoint, type ContainerTerminalOutput } from '@janusx/plugin-sdk'
 
-const request = z.object({ executable: z.string().max(4096).refine(value => isAbsolute(value) && /^docker(?:\.exe)?$/i.test(basename(value))),
+const request = z.object({ executable: z.string().max(4096).refine(value => isAbsolute(value)),
   endpoint: z.string().max(4096).transform(localDockerEndpoint), container: z.string().regex(/^[a-f0-9]{64}$/),
-  shell: z.enum(['/bin/sh', '/bin/bash', 'cmd.exe', 'powershell.exe']), cols: z.number().int().min(2).max(500), rows: z.number().int().min(1).max(200) }).strict()
+  shell: z.enum(['/bin/sh', '/bin/bash', 'cmd.exe', 'powershell.exe']), cols: z.number().int().min(2).max(500), rows: z.number().int().min(1).max(200), wsl: z.literal('JanusX-Docker').optional() }).strict().refine(value => value.wsl
+    ? process.platform === 'win32' && /^wsl\.exe$/i.test(basename(value.executable)) && value.endpoint === 'unix:///var/run/docker.sock' && value.shell.startsWith('/bin/')
+    : /^docker(?:\.exe)?$/i.test(basename(value.executable)))
 interface Session { id: string; target: string; pty: IPty; buffer: string; cursor: number; exited: boolean; exitCode: number | null }
 const LIMIT = 256 * 1024
 export class ContainerTerminals {
@@ -16,7 +18,7 @@ export class ContainerTerminals {
   private disposed = false
   open(input: unknown): ContainerTerminalOutput {
     if (this.disposed) throw new Error('terminal-stopped')
-    const value = request.parse(input), target = value.endpoint + ':' + value.container
+    const value = request.parse(input), target = `${value.wsl ?? ''}:${value.endpoint}:${value.container}`
     let session = [...this.sessions.values()].find(item => item.target === target && !item.exited)
     if (!session) {
       // One live shell per container, at most eight for an activation; exited records are replaceable.
@@ -24,7 +26,8 @@ export class ContainerTerminals {
       if (this.sessions.size >= 8) throw new Error('terminal-limit')
       const env = Object.fromEntries(['PATH', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'HOME', 'APPDATA', 'LOCALAPPDATA']
         .flatMap(key => process.env[key] === undefined ? [] : [[key, process.env[key]!]]))
-      const pty = spawn(value.executable, ['--host', value.endpoint, 'exec', '-it', value.container, value.shell], {
+      const args = ['--host', value.endpoint, 'exec', '-it', value.container, value.shell]
+      const pty = spawn(value.executable, value.wsl ? ['--distribution', value.wsl, '--user', 'root', '--exec', '/usr/bin/docker', ...args] : args, {
         name: 'xterm-256color', cols: value.cols, rows: value.rows, cwd: homedir(), env: { ...env, TERM: 'xterm-256color' }, useConpty: true, useConptyDll: false,
       })
       session = { id: randomUUID(), target, pty, buffer: '', cursor: 0, exited: false, exitCode: null }
