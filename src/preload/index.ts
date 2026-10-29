@@ -22,7 +22,6 @@ import {
 } from '../shared/ipc/terminal'
 import { PROJECT_CHANNELS, type ProjectAPI } from '../shared/ipc/project'
 import { BROWSER_EVENT_CHANNELS, BROWSER_INVOKE_CHANNELS, type BrowserAPI } from '../shared/ipc/browser'
-import { CPA_CHANNELS, type CpaAPI } from '../shared/ipc/cpa'
 import { PLUGIN_CHANNELS, type PluginHostAPI } from '../shared/ipc/plugins'
 import { KNOWLEDGE_CHANNELS, type KnowledgeAPI } from '../shared/ipc/knowledge'
 import {
@@ -651,22 +650,8 @@ const desktopToastAPI: DesktopToastAPI = {
   onHide: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.toastHide, callback),
 }
 
-const cpaAPI: CpaAPI = {
-  getSettings: () => ipcRenderer.invoke(CPA_CHANNELS.get),
-  saveSettings: (settings, managementKey) => ipcRenderer.invoke(CPA_CHANNELS.save, settings, managementKey),
-  open: () => ipcRenderer.invoke(CPA_CHANNELS.open),
-  close: () => ipcRenderer.invoke(CPA_CHANNELS.close),
-  openExternal: () => ipcRenderer.invoke(CPA_CHANNELS.openExternal),
-  status: () => ipcRenderer.invoke(CPA_CHANNELS.status),
-  start: () => ipcRenderer.invoke(CPA_CHANNELS.start),
-  stop: () => ipcRenderer.invoke(CPA_CHANNELS.stop),
-  restart: () => ipcRenderer.invoke(CPA_CHANNELS.restart),
-  update: () => ipcRenderer.invoke(CPA_CHANNELS.update),
-  openLogs: () => ipcRenderer.invoke(CPA_CHANNELS.logs),
-  copyManagementKey: () => ipcRenderer.invoke(CPA_CHANNELS.copyKey),
-}
-
 const pluginAPI: PluginHostAPI = {
+  onOpenBrowser: callback => subscribeIpcEvent(PLUGIN_CHANNELS.openBrowser, callback),
   request: input => ipcRenderer.invoke(PLUGIN_CHANNELS.manage, input),
   onChanged: callback => subscribeIpcEvent(PLUGIN_CHANNELS.changed, callback),
   onEvent: callback => subscribeIpcEvent(PLUGIN_CHANNELS.event, callback),
@@ -698,7 +683,6 @@ contextBridge.exposeInMainWorld('electron', {
   terminal: terminalAPI,
   project: projectAPI,
   browser: browserAPI,
-  cpa: cpaAPI,
   plugins: pluginAPI,
   knowledge: knowledgeAPI,
   janus: janusAPI,

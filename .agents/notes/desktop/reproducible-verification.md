@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-28T10:34:00Z",
+  "updated": "2026-10-29T11:43:07Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -23,6 +23,8 @@ A live Electron process retains hashed chunk paths from its startup build. If de
 On Windows, libuv's short-path directory watcher assertion terminates the worker before Vitest can report all failures. The native failure reproduces under Node 24.20.0/libuv 1.52.1 when a short directory alias and a short file alias are used together. The same probe completes under Node 24.15.0/libuv 1.51.0, or with the watched directory expanded by `realpathSync.native`. Upstream [libuv issue 5010](https://github.com/libuv/libuv/issues/5010) documents the same assertion and GitHub runner temporary paths.
 
 ## Decision
+
+本地依赖安装若使用 `--ignore-scripts`，Electron npm 包可能存在但缺少 `dist/` 与 `path.txt`，普通 `npm run dev` 会在前置检查失败，绕过检查的入口则构建完成后报 `Electron uninstall`。恢复运行时使用 `npm rebuild electron`；无法联网时仅可使用已核对相同版本、平台和架构的完整 Electron 运行目录，不改变依赖声明。2026-10-29 当前 checkout 恢复匹配的 Windows x64 Electron 35.7.5 后，普通 `npm run dev` 与 `npm run dev:cpa` 均实际打开响应正常的 JanusX 主窗口；运行日志位于 `.cache/dev-startup-fix.log` 和 `.cache/cpa-startup-fix.log`，开发环境检查四项单测通过。CPA 入口复用相同前置检查，签名包 prepare-only 保持无需启动 Electron。
 
 插件独立构建按 npm 发布文件清单及其内容、权限和 Node 版本缓存归档，并在复用前验证归档摘要；npm 枚举和未命中打包分别批量执行。构建锁失配在安装前列出具体包及新旧摘要，不再只给笼统错误。Windows 草稿上传保存本地运行验证收据，以提交、工具环境、检查脚本、发布附件和解包文件全量摘要决定能否复用；源码或任一产物变化均重跑。签名、包校验、远端附件核对和受保护分支要求不变。
 

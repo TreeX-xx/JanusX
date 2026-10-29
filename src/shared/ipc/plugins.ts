@@ -6,7 +6,7 @@ export interface PluginConfigurationState extends PluginConfiguration {
   migrations: Array<{ from: string; to: string; status: 'ready' | 'occupied' | 'incompatible' }>
 }
 
-export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
+export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event', openBrowser: 'plugins:openBrowser' } as const
 export interface InstalledPlugin {
   manifest: PluginManifest
   source: { kind: 'linked' | 'copied' | 'official'; directory: string; publisher?: string }
@@ -64,6 +64,7 @@ export type PluginHostResult = { ok: true; data: unknown } | { ok: false; code: 
 export interface PluginHostEvent { instanceId: string; packet: JsonValue }
 /** This management API belongs only to the trusted main-window top frame. */
 export interface PluginHostAPI {
+  onOpenBrowser(callback: (url: string) => void): () => void
   request(input: PluginManageRequest): Promise<PluginHostResult>
   onChanged(callback: () => void): () => void
   onEvent(callback: (event: PluginHostEvent) => void): () => void

@@ -17,7 +17,7 @@ export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.multiple', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'files.listDirectory', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.workbench.frame', 'views.workbench.worktrees', 'views.workbench.rebind', 'views.settings', 'views.island', 'views.window', 'themes.palette', 'island.status',
-  'runtime.native', 'models.agent.progress', 'workspace.handoff',
+  'runtime.native', 'desktop.native', 'desktop.containers', 'models.agent.progress', 'workspace.handoff',
   'documents.viewers', 'documents.readText', 'documents.applyEdit', 'documents.draft',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
   'tasks.declarative', 'tasks.inputBindings', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'agent.workflows', 'models.generate', 'agent.skills', 'agent.context',
@@ -93,6 +93,8 @@ export const pluginManifestSchema = z.object({
     if (used && (!manifest.capabilities.required.includes(capability) || !manifest.permissions.some(item => item.name === permission))) fail(`Requires ${capability} and ${permission}`)
   }
   needs(Boolean(manifest.native), 'runtime.native', 'runtime.native')
+  needs(manifest.capabilities.required.includes('desktop.native'), 'runtime.native', 'runtime.native')
+  if (manifest.capabilities.required.includes('desktop.containers') && !manifest.capabilities.required.includes('desktop.native')) fail('Container desktop services require desktop.native')
   needs(views.some(view => view.frame === 'plugin'), 'views.workbench.frame', 'ui.views.open')
   if (manifest.capabilities.required.includes('views.workbench.worktrees') && !views.some(view => view.frame === 'plugin' && view.scope === 'project')) fail('Worktree switching requires a project workbench frame')
   if (manifest.capabilities.required.includes('views.workbench.rebind') && !views.some(view => view.frame === 'plugin' && view.scope === 'project')) fail('Context rebinding requires a project workbench frame')

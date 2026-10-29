@@ -6,7 +6,6 @@ export interface AppShutdownDeps {
   stopPlugins?: ShutdownStep
   stopNoteReview?: ShutdownStep
   stopKnowledge?: ShutdownStep
-  stopCpa?: ShutdownStep
   abortChatStreams?: ShutdownStep
   cancelAnalyzer?: ShutdownStep
   cancelBlueprintMaintenance?: ShutdownStep
@@ -96,7 +95,6 @@ export class AppShutdown {
       ['stopPlugins', this.deps.stopPlugins],
       ['stopNoteReview', this.deps.stopNoteReview],
       ['stopKnowledge', this.deps.stopKnowledge],
-      ['stopCpa', this.deps.stopCpa],
       ['destroyToast', this.deps.destroyToast],
       ['closeEditors', this.deps.closeEditors],
       ['destroyBrowserSurfaces', this.deps.destroyBrowserSurfaces],

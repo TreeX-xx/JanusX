@@ -3,8 +3,8 @@ import React, { lazy, Suspense, type ErrorInfo, type ReactNode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { installElectronApiFallback } from './lib/electron-api-fallback'
 import { initBrowserEventSubscriptions } from './stores/browser'
-import { registerCpaExtension } from './extensions/cpa'
 import { initializePluginRuntime } from './extensions/plugin-runtime'
+import { useGlobalToolsStore } from './stores/global-tools'
 import { PluginNotifications } from './components/plugins/PluginSettingsPanel'
 import { initI18n } from './i18n'
 import { useThemeStore } from './stores/theme'
@@ -28,7 +28,6 @@ const StandaloneBrowser = lazy(() =>
 )
 
 installElectronApiFallback()
-registerCpaExtension()
 
 /*-- browser 事件订阅：主窗口与独立浏览器窗口共用此入口，各窗口各自订阅一份 --*/
 initBrowserEventSubscriptions()
@@ -40,7 +39,10 @@ const searchParams = new URLSearchParams(window.location.search)
 const isEditorWindow = searchParams.get('editorWindow') === '1'
 const isDesktopToast = searchParams.get('desktopToast') === '1'
 const isBrowserWindow = searchParams.get('browserWindow') === '1'
-if (!isEditorWindow && !isDesktopToast && !isBrowserWindow) void i18nReady.then(initializePluginRuntime)
+if (!isEditorWindow && !isDesktopToast && !isBrowserWindow) {
+  void i18nReady.then(initializePluginRuntime)
+  window.electron.plugins?.onOpenBrowser?.(url => { void useGlobalToolsStore.getState().openBrowser(url) })
+}
 
 /* Toast 窗口：解析出类型即同步挂透明类，不等 React effect，消灭首漆灰底 */
 if (isDesktopToast) {

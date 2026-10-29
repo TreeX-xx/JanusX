@@ -1,5 +1,6 @@
 import { app, dialog, ipcMain, safeStorage, type BrowserWindow } from 'electron'
 import { join, basename } from 'node:path'
+import { NativeDesktop } from '../plugins/native-desktop'
 import { realpath } from 'node:fs/promises'
 import { z } from 'zod'
 import { PluginError, messageSchema } from '@janusx/plugin-sdk'
@@ -84,7 +85,11 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     modelBackend: hostPluginModelBackend,
     directory: join(app.getPath('userData'), 'janusx', 'plugins'),
     official: { keys: officialTrust.keys, nativePlugins: officialTrust.nativePlugins, hostVersion: app.getVersion(), platform: `${process.platform}-${process.arch}` },
-    createNativeService: (record, directory, stopped, credentials) => createOfficialNativeService(record, directory, stopped, resolvePluginProject, credentials),
+    createNativeService: (record, directory, stopped, credentials) => {
+      const desktop = new NativeDesktop(record, () => runtime, () => native, url => send(PLUGIN_CHANNELS.openBrowser, url))
+      const native = createOfficialNativeService(record, directory, code => { desktop.dispose(); stopped(code) }, resolvePluginProject, credentials, desktop.call)
+      return native
+    },
     encryption: {
       encrypt: value => {
         if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') throw new Error('Encryption unavailable')

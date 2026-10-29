@@ -270,7 +270,7 @@ export function BrowserSurface({ surfaceId, carrier, visible, onRequestPopOut, o
           <Globe size={28} strokeWidth={1.2} className={styles.emptyIcon} aria-hidden="true" />
           <p>{t('common:browser.noTabs')}</p>
           <button type="button" className={styles.primaryAction} onClick={() => void openBrowserTab(surfaceId, serviceUrl)}>
-            {serviceUrl ? t('common:cpa.openManagement') : t('common:browser.openNewTab')}
+            {t('common:browser.openNewTab')}
           </button>
         </div>}
         {!isEmpty && activeTab?.loadError && <div className={styles.loadError} role="alert">

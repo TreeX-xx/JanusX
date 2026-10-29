@@ -84,9 +84,12 @@ export async function seedFixture() {
   return { fixtureRoot, claudeConfig };
 }
 
-export async function launchApp(fixtureRoot, claudeConfig, { env = {} } = {}) {
+export async function launchApp(fixtureRoot, claudeConfig, {
+  env = {}, entry = process.env.SHOWCASE_ENTRY ?? 'out/main/index.js', profile = join(fixtureRoot, 'user-data'),
+} = {}) {
   const application = await electron.launch({
-    args: [resolve(process.env.SHOWCASE_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`],
+    executablePath: process.env.JANUS_ELECTRON_PATH,
+    args: [resolve(entry), `--user-data-dir=${profile}`],
     env: {
       ...testEnv(fixtureRoot),
       TERM: 'xterm-256color',
