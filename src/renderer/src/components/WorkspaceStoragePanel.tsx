@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { WorkspaceMigrationView } from '../../../shared/ipc/workspace-storage'
 import styles from './WorkspaceStoragePanel.module.css'
+import { WorkspaceDataPanel } from './WorkspaceDataPanel'
 
 export const OPEN_STORAGE_SETTINGS = 'janusx:open-storage-settings'
 let focusPending = false
@@ -61,6 +62,7 @@ export function WorkspaceStoragePanel() {
   const candidates = view?.items.filter(item => ['pending', 'cleanup-pending', 'failed'].includes(item.status)) ?? []
   return <section className={styles.panel} id="workspace-data-migration" aria-label={t('storage:title')}>
     <h3>{t('storage:dataManagement')}</h3>
+    <WorkspaceDataPanel />
     <h4>{t('storage:title')}</h4>
     <p>{t('storage:scope')}</p>
     {view && <Location label={t('storage:destinationRoot')} path={view.root} />}

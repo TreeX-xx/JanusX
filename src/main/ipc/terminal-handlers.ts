@@ -6,7 +6,8 @@ import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { TerminalTurnChangeTracker } from '../terminal/turn-change-tracker'
-import { assertWorkspaceStorageAvailable } from '@janus-agent/agent-core'
+import { useWorkspaceStorage as acquireWorkspaceStorage } from '@janus-agent/agent-core'
+import { requestWorkspaceMaintenance } from '../storage/service'
 import type { CheckpointEngine } from '@janus-agent/agent-core'
 import { agentSessionRegistry, type AgentSessionRecord } from '../sessions/session-registry'
 import { buildContinueHandoff } from '../sessions/continue-handoff'
@@ -283,7 +284,13 @@ export function submitCompanionTerminalLine(id: string, text: string): void {
   recordSubmittedPrompt(id, text)
 }
 
-function forgetTerminalState(id: string): void { terminalStates.delete(id) }
+const terminalStorageReleases = new Map<string, () => void>()
+function forgetTerminalState(id: string): void {
+  terminalStates.delete(id)
+  terminalStorageReleases.get(id)?.()
+  terminalStorageReleases.delete(id)
+  requestWorkspaceMaintenance()
+}
 
 const AGENT_CLI_COMMANDS = ['claude', 'codex', 'opencode', 'janus', 'pi', 'dsh'] as const
 type WarmupEngine = (typeof AGENT_CLI_COMMANDS)[number]
@@ -781,7 +788,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         logTerminalDiagnostic('Office automation policy-only mode', { engine, limitation: officeSession.limitation })
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
-      assertWorkspaceStorageAvailable(cwd)
+      terminalStorageReleases.set(id, acquireWorkspaceStorage(cwd))
       instance = terminalManager.create({
         id,
         workspaceId,

@@ -1,14 +1,15 @@
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { randomUUID, createHash } from 'node:crypto'
 import { lstat, realpath, opendir, mkdir, open, readFile, rename, unlink, rmdir } from 'node:fs/promises'
-import { dirname, join, relative, resolve, isAbsolute, sep } from 'node:path'
-import { workspaceIo, workspaceStorageInUse, suspendWorkspaceStorage, type WorkspaceStorage } from '@janus-agent/agent-core'
-import type { WorkspaceMigrationItem } from '../../shared/ipc/workspace-storage'
+import { dirname, join, relative, resolve, isAbsolute, sep, basename } from 'node:path'
+import { workspaceIo, readIoFile, workspaceStorageInUse, suspendWorkspaceStorage, assertWorkspaceStorageAvailable, type WorkspaceStorage } from '@janus-agent/agent-core'
+import type { WorkspaceMigrationItem, WorkspaceDataItem, WorkspaceDataRecord, WorkspaceCleanupCategory } from '../../shared/ipc/workspace-storage'
 
-interface Entry { id: string; path: string; identity: string; legacy: boolean }
+interface Entry { id: string; path: string; identity: string; legacy: boolean; managed?: boolean; name?: string; relocatingTo?: string; purging?: boolean }
 interface Registry { schema: 1; promptDismissed: boolean; entries: Entry[] }
 interface CopiedFile { source: string; target: string; hash: string; size: number }
-interface Manifest { schema: 1; storageId: string; path: string; retentionStartedAt?: string; migration?: { completedAt: string; files: CopiedFile[]; cleanupComplete: boolean } }
+interface Manifest { schema: 1; storageId: string; path: string; retentionStartedAt?: string; detachedAt?: string; purging?: boolean; cleanupError?: string; migration?: { completedAt: string; files: CopiedFile[]; cleanupComplete: boolean } }
+export const WORKSPACE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const CATEGORIES = ['janusX.launch.json', 'checkpoints', 'logs'] as const
 const normalize = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
@@ -57,6 +58,10 @@ export class WorkspaceStateStore {
   private loading?: Promise<Registry>
   private manifests = new Map<string, Manifest>()
   private registryDirty = false
+  private maintenanceAt = new Map<string, number>()
+  hasDeferredMaintenance = false
+  onChange?: () => void
+  completeRelocation?: (oldPath: string, newPath: string) => Promise<void>
 
   constructor(userData: string, private readonly beforeMigration: (cwd: string) => Promise<void> = async () => {}) {
     this.root = join(resolve(userData), 'janusx', 'workspace-state')
@@ -67,7 +72,7 @@ export class WorkspaceStateStore {
     this.loading ??= (async () => {
       try {
         const data = JSON.parse(await readFile(join(this.root, 'registry.json'), 'utf8')) as Registry
-        if (data.schema !== 1 || !Array.isArray(data.entries) || data.entries.some(e => !/^[a-f0-9-]{36}$/.test(e.id) || typeof e.path !== 'string' || typeof e.identity !== 'string')) throw new Error('Unknown workspace storage registry')
+        if (data.schema !== 1 || !Array.isArray(data.entries) || data.entries.some(e => !/^[a-f0-9-]{36}$/.test(e.id) || typeof e.path !== 'string' || typeof e.identity !== 'string' || (e.purging !== undefined && typeof e.purging !== 'boolean') || (e.relocatingTo !== undefined && typeof e.relocatingTo !== 'string'))) throw new Error('Unknown workspace storage registry')
         return this.registry = data
       } catch (error) {
         if (!missing(error)) throw error
@@ -102,6 +107,7 @@ export class WorkspaceStateStore {
     if (!info.isDirectory()) throw new Error('Workspace is not a directory')
     const registry = await this.load()
     const identity = `${info.dev}:${info.ino}:${info.birthtimeNs}`
+    if (registry.entries.some(e => e.relocatingTo && normalize(e.relocatingTo) === normalize(canonical) && e.identity === identity)) throw new Error('Workspace relocation is pending; check workspace data before retrying')
     let entry = registry.entries.find(e => normalize(e.path) === normalize(canonical) && e.identity === identity)
     if (!entry) {
       // Path reuse gets a new id. Moves require explicit reassociation in the lifecycle stage.
@@ -121,8 +127,9 @@ export class WorkspaceStateStore {
     try {
       const path = join(this.root, entry.id)
       await plain(path)
+      await plain(join(path, 'manifest.json'))
       const data = JSON.parse(await readFile(join(path, 'manifest.json'), 'utf8')) as Manifest
-      if (data.schema !== 1 || data.storageId !== entry.id || (data.retentionStartedAt !== undefined && !Number.isFinite(Date.parse(data.retentionStartedAt))) || (data.migration && (!Array.isArray(data.migration.files) || typeof data.migration.cleanupComplete !== 'boolean' || !Number.isFinite(Date.parse(data.migration.completedAt))))) throw new Error('Unknown workspace storage manifest')
+      if (data.schema !== 1 || data.storageId !== entry.id || (data.detachedAt !== undefined && !Number.isFinite(Date.parse(data.detachedAt))) || (data.purging !== undefined && typeof data.purging !== 'boolean') || (data.retentionStartedAt !== undefined && !Number.isFinite(Date.parse(data.retentionStartedAt))) || (data.migration && (!Array.isArray(data.migration.files) || typeof data.migration.cleanupComplete !== 'boolean' || !Number.isFinite(Date.parse(data.migration.completedAt))))) throw new Error('Unknown workspace storage manifest')
       if (data.migration?.files.some(file => !supported(file.source) || file.target !== (file.source === 'janusX.launch.json' ? 'launch.json' : file.source) || !/^[a-f0-9]{64}$/.test(file.hash))) throw new Error('Invalid workspace migration receipt')
       this.manifests.set(entry.id, data)
       return data
@@ -131,11 +138,14 @@ export class WorkspaceStateStore {
 
   async resolve(cwd: string, write = false): Promise<WorkspaceStorage> {
     return workspaceIo.run(cwd, async () => {
+      assertWorkspaceStorageAvailable(cwd)
       const entry = await this.entry(cwd)
       const manifest = await this.manifest(entry)
+      if (manifest?.purging || entry.purging) throw new Error('Workspace data removal is in progress')
       const legacy = entry.legacy && !manifest?.migration
       const root = legacy ? join(entry.path, '.janusX') : join(this.root, entry.id)
       if (write) {
+        if (manifest?.detachedAt) await this.saveManifest(entry, { ...manifest, detachedAt: undefined, cleanupError: undefined })
         await this.saveRegistry()
         if (!legacy) {
           await this.safeDestination()
@@ -146,9 +156,354 @@ export class WorkspaceStateStore {
             this.manifests.set(entry.id, created)
           }
         }
+        const next = Math.min(this.maintenanceAt.get(entry.id) ?? 0, Date.now() + WORKSPACE_RETENTION_MS)
+        if (this.maintenanceAt.get(entry.id) !== next) {
+          this.maintenanceAt.set(entry.id, next)
+          this.onChange?.()
+        }
       }
       return { root, launchPath: join(root, legacy ? 'janusX.launch.json' : 'launch.json'), checkpointsPath: join(root, 'checkpoints'), logsPath: join(root, 'logs'), retentionStartedAt: manifest?.retentionStartedAt }
     })
+  }
+
+  private async saveManifest(entry: Entry, value: Manifest): Promise<void> {
+    await this.safeDestination()
+    const root = join(this.root, entry.id)
+    if (await exists(root)) await plain(root)
+    await atomicJson(join(root, 'manifest.json'), value)
+    this.manifests.set(entry.id, value)
+  }
+
+  private async associated(entry: Entry, record: WorkspaceDataRecord): Promise<boolean> {
+    if (normalize(record.path) !== normalize(entry.path)) return false
+    try {
+      const info = await lstat(await realpath(record.path), { bigint: true })
+      return `${info.dev}:${info.ino}:${info.birthtimeNs}` === entry.identity
+    } catch { return true /* Unavailable is not deleted. */ }
+  }
+
+  /** Derive persistent ownership from workspace records, never from an extra reference counter. */
+  async sync(records: WorkspaceDataRecord[], now = Date.now()): Promise<void> {
+    await workspaceIo.run(this.root, async batch => {
+      const registry = await this.load()
+      for (const entry of registry.entries) {
+        if (!entry.relocatingTo) continue
+        if (records.some(record => normalize(record.path) === normalize(entry.relocatingTo!))) {
+          const canonical = await realpath(entry.relocatingTo)
+          const info = await lstat(canonical, { bigint: true })
+          if (`${info.dev}:${info.ino}:${info.birthtimeNs}` !== entry.identity) throw new Error('Relocated directory identity changed')
+          await this.completeRelocation?.(entry.path, canonical)
+          for (const record of records) if (normalize(record.path) === normalize(entry.path)) record.path = canonical
+          entry.path = canonical
+          const manifest = await this.manifest(entry)
+          if (manifest) await this.saveManifest(entry, { ...manifest, path: canonical })
+        }
+        delete entry.relocatingTo; this.registryDirty = true
+      }
+      const updated = new Set<string>()
+      for (const record of records) {
+        try {
+          const entry = await this.entry(record.path)
+          if (updated.has(entry.id)) { await batch.step(); continue }
+          updated.add(entry.id)
+          if (!entry.managed || entry.name !== record.name) {
+            entry.managed = true; entry.name = record.name; this.registryDirty = true
+          }
+          const manifest = await this.manifest(entry)
+          if (manifest?.detachedAt && !manifest.purging && !entry.purging) {
+            await this.saveManifest(entry, { ...manifest, detachedAt: undefined, cleanupError: undefined })
+            this.maintenanceAt.delete(entry.id)
+          }
+        } catch {
+          // P2 entries predate managed/name fields; preserve ownership even while offline.
+          for (const entry of registry.entries) if (normalize(entry.path) === normalize(record.path) && !entry.managed) {
+            entry.managed = true; entry.name = record.name; this.registryDirty = true
+          }
+          // Unknown manifests are retained rather than rewritten.
+        }
+        await batch.step()
+      }
+      for (const entry of [...registry.entries]) {
+        let associated = false
+        for (const record of records) if (await this.associated(entry, record)) { associated = true; break }
+        if (!entry.managed || associated) continue
+        try {
+          const manifest = await this.manifest(entry)
+          if (manifest && !manifest.detachedAt && !manifest.purging) {
+            await this.saveManifest(entry, { ...manifest, detachedAt: new Date(now).toISOString() })
+            this.maintenanceAt.delete(entry.id)
+          }
+          if (!manifest && !entry.purging && !await exists(join(this.root, entry.id))) {
+            registry.entries = registry.entries.filter(item => item !== entry); this.registryDirty = true
+          }
+        } catch { /* Unknown or unreadable data is preserved and reported by data(). */ }
+        await batch.step()
+      }
+      await this.saveRegistry()
+    })
+  }
+
+  async data(records: WorkspaceDataRecord[]): Promise<WorkspaceDataItem[]> {
+    await this.sync(records)
+    return workspaceIo.run(this.root, async batch => {
+      const items: WorkspaceDataItem[] = []
+      for (const entry of (await this.load()).entries) {
+        const workspaceIds: string[] = []
+        for (const record of records) if (await this.associated(entry, record)) workspaceIds.push(record.id)
+        const item: WorkspaceDataItem = { id: entry.id, name: entry.name ?? basename(entry.path), path: entry.path, target: join(this.root, entry.id), workspaceIds, legacy: entry.legacy, status: 'associated' }
+        try {
+          const manifest = await this.manifest(entry)
+          item.legacy = entry.legacy && !manifest?.migration
+          if (manifest?.detachedAt) {
+            item.detachedAt = manifest.detachedAt
+            item.expiresAt = new Date(Date.parse(manifest.detachedAt) + WORKSPACE_RETENTION_MS).toISOString()
+            item.status = 'detached'
+          } else {
+            try {
+              const info = await lstat(await realpath(entry.path), { bigint: true })
+              if (`${info.dev}:${info.ino}:${info.birthtimeNs}` !== entry.identity) item.status = 'offline'
+            } catch { item.status = 'offline' }
+          }
+          if (manifest?.purging || entry.purging) item.status = 'purging'
+          if (manifest?.cleanupError) {
+            if (item.status !== 'purging') item.status = 'failed'
+            item.error = manifest.cleanupError
+          }
+        } catch (error) { item.status = 'failed'; item.error = String(error) }
+        items.push(item); await batch.step()
+      }
+      for (const record of records) if (!items.some(item => item.workspaceIds.includes(record.id))) {
+        items.push({ id: `unavailable:${record.id}`, name: record.name, path: record.path, target: '', workspaceIds: [record.id], legacy: false, status: 'offline' })
+      }
+      return items
+    }, { background: true })
+  }
+
+  async relocate(id: string, destination: string, commitRecords: (oldPath: string, newPath: string) => Promise<void>): Promise<void> {
+    await workspaceIo.run(this.root, async () => {
+      const entry = (await this.load()).entries.find(item => item.id === id)
+      if (!entry) throw new Error('Workspace storage is no longer registered')
+      const canonical = await realpath(destination), info = await lstat(canonical, { bigint: true })
+      if (!info.isDirectory() || `${info.dev}:${info.ino}:${info.birthtimeNs}` !== entry.identity) throw new Error('WORKSPACE_IDENTITY_MISMATCH')
+      if ((await this.load()).entries.some(item => item !== entry && normalize(item.path) === normalize(canonical))) throw new Error('Destination is already associated; remove the duplicate workspace first')
+      if ((await this.manifest(entry))?.purging || entry.purging) throw new Error('Workspace data removal is in progress')
+      await this.beforeMigration(entry.path)
+      if (workspaceStorageInUse(entry.path) || workspaceStorageInUse(canonical)) throw new Error('Close workspace commands before relocating')
+      const releaseOld = suspendWorkspaceStorage(entry.path), releaseNew = normalize(entry.path) === normalize(canonical) ? () => {} : suspendWorkspaceStorage(canonical)
+      try {
+        entry.relocatingTo = canonical; this.registryDirty = true; await this.saveRegistry()
+        await commitRecords(entry.path, canonical)
+        entry.path = canonical
+        const manifest = await this.manifest(entry)
+        if (manifest) await this.saveManifest(entry, { ...manifest, path: canonical })
+        delete entry.relocatingTo; this.registryDirty = true; await this.saveRegistry()
+      } finally { releaseNew(); releaseOld() }
+    })
+  }
+
+  private async *privateFiles(root: string, directory = root): AsyncGenerator<string> {
+    if (!await exists(directory)) return
+    await plain(directory)
+    for await (const item of await opendir(directory)) {
+      const path = join(directory, item.name)
+      await plain(path)
+      if (item.isDirectory()) {
+        const rel = relative(root, path).split(sep).join('/')
+        if (!['logs', 'checkpoints', 'checkpoints/blobs'].includes(rel)) throw new Error(`Unknown private directory retained: ${rel}`)
+        yield* this.privateFiles(root, path)
+      }
+      else if (item.isFile()) yield path
+      else throw new Error('Unsupported private data entry')
+      await workspaceIo.step()
+    }
+  }
+
+  async measure(id: string): Promise<number> {
+    return workspaceIo.run(this.root, async () => {
+      const entry = (await this.load()).entries.find(item => item.id === id)
+      if (!entry) throw new Error('Workspace storage is no longer registered')
+      await this.manifest(entry)
+      let bytes = 0
+      for await (const path of this.privateFiles(join(this.root, entry.id))) bytes += (await lstat(path)).size
+      return bytes
+    }, { background: true })
+  }
+
+  private async removeTree(path: string): Promise<void> {
+    if (!await exists(path)) return
+    await plain(path)
+    for await (const item of await opendir(path)) {
+      const child = join(path, item.name)
+      await plain(child)
+      if (item.isDirectory()) await this.removeTree(child)
+      else if (item.isFile()) await unlink(child)
+      else throw new Error('Unsupported private data entry')
+      await workspaceIo.step()
+    }
+    await rmdir(path)
+  }
+
+  async cleanup(id: string, category: WorkspaceCleanupCategory): Promise<void> {
+    await workspaceIo.run(this.root, async () => {
+      const registry = await this.load(), entry = registry.entries.find(item => item.id === id)
+      if (!entry) throw new Error('Workspace storage is no longer registered')
+      const manifest = await this.manifest(entry) ?? (entry.purging ? { schema: 1 as const, storageId: entry.id, path: entry.path, purging: true } : undefined)
+      if (!manifest) throw new Error('No verified private data manifest')
+      if (workspaceStorageInUse(entry.path)) throw new Error('Close workspace commands before clearing data')
+      await this.beforeMigration(entry.path)
+      const release = suspendWorkspaceStorage(entry.path)
+      try {
+        const root = join(this.root, entry.id)
+        if (category === 'all') {
+          if (!manifest.detachedAt && !manifest.purging) throw new Error('Remove the workspace before permanently clearing its data')
+          // Validate the complete tree before committing deletion; redirects are never followed.
+          for await (const path of this.privateFiles(root)) {
+            const rel = relative(root, path)
+            if (rel !== 'manifest.json' && rel !== 'launch.json' && !supported(rel)) throw new Error(`Unknown private file retained: ${rel}`)
+          }
+          entry.purging = true; this.registryDirty = true; await this.saveRegistry()
+          if (await exists(root)) await this.saveManifest(entry, { ...manifest, purging: true, cleanupError: undefined })
+          // Keep the manifest until last, so interrupted deletion remains discoverable.
+          if (await exists(root)) {
+            for await (const item of await opendir(root)) if (item.name !== 'manifest.json') {
+              const path = join(root, item.name)
+              if (item.isDirectory()) await this.removeTree(path); else { await plain(path); await unlink(path) }
+              await workspaceIo.step()
+            }
+            await unlink(join(root, 'manifest.json')); await rmdir(root)
+          }
+          registry.entries = registry.entries.filter(item => item !== entry)
+          this.manifests.delete(entry.id); this.registryDirty = true; await this.saveRegistry()
+        } else {
+          if (entry.purging || manifest.purging) throw new Error('Workspace data removal is in progress')
+          for await (const path of this.privateFiles(root, join(root, category))) {
+            const rel = relative(root, path)
+            if (rel.startsWith(category + sep) && !supported(rel)) throw new Error(`Unknown private file retained: ${rel}`)
+          }
+          await this.removeTree(join(root, category))
+          if (manifest.cleanupError) await this.saveManifest(entry, { ...manifest, cleanupError: undefined })
+        }
+      } catch (error) {
+        const current = this.manifests.get(entry.id)
+        if (current && await exists(join(this.root, entry.id))) await this.saveManifest(entry, { ...current, cleanupError: String(error) })
+        throw error
+      } finally { release() }
+    }, { background: true })
+  }
+
+  private async retainSnapshots(entry: Entry, manifest: Manifest, now: number): Promise<number | undefined> {
+    const directory = join(this.root, entry.id, 'checkpoints')
+    if (!await exists(directory)) return
+    await plain(directory)
+    const snapshots: { path: string; createdAt: number; hashes: string[] }[] = []
+    for await (const file of await opendir(directory)) {
+      await workspaceIo.step()
+      if (file.name === 'blobs' && file.isDirectory()) continue
+      if (!file.isFile() || !file.name.endsWith('.json')) throw new Error('Unknown snapshot data retained')
+      const path = join(directory, file.name)
+      await plain(path)
+      const data = JSON.parse((await readIoFile(path)).toString('utf8'))
+      if (file.name === 'index.json') {
+        if (data.version !== 2 || !Array.isArray(data.checkpointIds) || data.checkpointIds.some((id: unknown) => typeof id !== 'string')) throw new Error('Unknown snapshot index retained')
+        continue
+      }
+      if (!data.filesSnapshot || typeof data.filesSnapshot !== 'object' || Array.isArray(data.filesSnapshot) || !Number.isFinite(Date.parse(data.createdAt)) || data.schemaVersion > 2) throw new Error('Unknown snapshot data retained')
+      const hashes = Object.values(data.filesSnapshot).flatMap(value => {
+        const item = value as { hash?: string; beforeHash?: string }
+        const hash = item?.hash ?? item?.beforeHash
+        if (!item || typeof item !== 'object' || (hash !== undefined && typeof hash !== 'string') || (hash && !/^[a-f0-9]{40}$/.test(hash))) throw new Error('Unknown snapshot blob reference')
+        return hash ? [hash] : []
+      })
+      snapshots.push({ path, createdAt: Date.parse(data.createdAt), hashes })
+    }
+    snapshots.sort((a, b) => b.createdAt - a.createdAt)
+    const start = manifest.retentionStartedAt ? Date.parse(manifest.retentionStartedAt) : 0
+    const kept = snapshots.filter((item, index) => index < 40 && (index < 5 || Math.max(start, item.createdAt) + WORKSPACE_RETENTION_MS > now))
+    const removed = snapshots.filter(item => !kept.includes(item))
+    for (const item of removed) { await unlink(item.path); await workspaceIo.step() }
+    const indexPath = join(directory, 'index.json')
+    const index = { version: 2, checkpointIds: kept.map(item => basename(item.path, '.json')) }
+    if (!await exists(indexPath) || JSON.stringify(JSON.parse(await readFile(indexPath, 'utf8'))) !== JSON.stringify(index)) await atomicJson(indexPath, index)
+    {
+      const referenced = new Set(kept.flatMap(item => item.hashes))
+      const blobs = join(directory, 'blobs')
+      if (await exists(blobs)) {
+        await plain(blobs)
+        for await (const file of await opendir(blobs)) {
+          if (!file.isFile() || !/^[a-f0-9]{40}$/.test(file.name)) throw new Error('Unknown snapshot blob retained')
+          if (!referenced.has(file.name)) { await plain(join(blobs, file.name)); await unlink(join(blobs, file.name)) }
+          await workspaceIo.step()
+        }
+      }
+    }
+    return kept.slice(5).reduce<number | undefined>((next, item) => {
+      const expires = Math.max(start, item.createdAt) + WORKSPACE_RETENTION_MS
+      return expires > now ? Math.min(next ?? Infinity, expires) : next
+    }, undefined)
+  }
+
+  /** Metadata-only expiry; no source scans or log-body reads. Returns one next wake time. */
+  async maintain(records: WorkspaceDataRecord[], now = Date.now()): Promise<number | undefined> {
+    return workspaceIo.run(this.root, async () => {
+      await this.sync(records, now)
+      this.hasDeferredMaintenance = false
+      let next: number | undefined
+      const later = (date: number) => { if (Number.isFinite(date) && date > now) next = Math.min(next ?? Infinity, date) }
+      for (const entry of [...(await this.load()).entries]) {
+        await workspaceIo.step()
+        try {
+          const manifest = await this.manifest(entry)
+          if (entry.purging) {
+            if (workspaceStorageInUse(entry.path)) { this.hasDeferredMaintenance = true; continue }
+            try { await this.beforeMigration(entry.path) } catch { this.hasDeferredMaintenance = true; continue }
+            await this.cleanup(entry.id, 'all'); continue
+          }
+          if (!manifest) continue
+          // Keep receipt copies intact until the explicit P2 source cleanup finishes.
+          if (manifest.migration && !manifest.migration.cleanupComplete) continue
+          const expiry = manifest.detachedAt ? Date.parse(manifest.detachedAt) + WORKSPACE_RETENTION_MS : undefined
+          const scheduled = this.maintenanceAt.get(entry.id)
+          if (!manifest.purging && (expiry === undefined || expiry > now) && scheduled !== undefined && scheduled > now) {
+            if (expiry) later(expiry)
+            later(scheduled)
+            continue
+          }
+          if (workspaceStorageInUse(entry.path)) { this.hasDeferredMaintenance = true; continue }
+          try { await this.beforeMigration(entry.path) } catch { this.hasDeferredMaintenance = true; continue }
+          if (manifest.purging || expiry !== undefined && expiry <= now) { await this.cleanup(entry.id, 'all'); continue }
+          if (expiry) later(expiry)
+          const resume = suspendWorkspaceStorage(entry.path)
+          try {
+            let entryNext = Infinity
+            const snapshotExpiry = await this.retainSnapshots(entry, manifest, now)
+            if (snapshotExpiry) { later(snapshotExpiry); entryNext = snapshotExpiry }
+            const logs = join(this.root, entry.id, 'logs')
+            if (!await exists(logs)) { this.maintenanceAt.set(entry.id, entryNext); continue }
+            await plain(logs)
+            for await (const item of await opendir(logs)) {
+              await workspaceIo.step()
+              if (!item.isFile() || !item.name.endsWith('.log')) continue
+              const path = join(logs, item.name)
+              await plain(path)
+              const info = await lstat(path)
+              const expires = Math.max(info.mtimeMs, manifest.retentionStartedAt ? Date.parse(manifest.retentionStartedAt) : 0) + WORKSPACE_RETENTION_MS
+              if (expires <= now) {
+                if (workspaceStorageInUse(entry.path)) break
+                await this.beforeMigration(entry.path)
+                const current = await lstat(path)
+                if (current.mtimeMs === info.mtimeMs && current.size === info.size) await unlink(path)
+              } else { later(expires); entryNext = Math.min(entryNext, expires) }
+            }
+            this.maintenanceAt.set(entry.id, entryNext)
+            if (manifest.cleanupError) await this.saveManifest(entry, { ...manifest, cleanupError: undefined })
+          } finally { resume() }
+        } catch (error) {
+          const manifest = this.manifests.get(entry.id)
+          if (manifest && !manifest.cleanupError) await this.saveManifest(entry, { ...manifest, cleanupError: String(error) })
+        }
+      }
+      return next
+    }, { background: true })
   }
 
   async inspect(cwd: string, id: string, name: string): Promise<WorkspaceMigrationItem> {
@@ -304,6 +659,7 @@ export class WorkspaceStateStore {
           manifest = { schema: 1, storageId: entry.id, path: entry.path, retentionStartedAt: completedAt, migration: { completedAt, files, cleanupComplete: false } }
           await atomicJson(join(target, 'manifest.json'), manifest)
           this.manifests.set(entry.id, manifest)
+          this.maintenanceAt.delete(entry.id)
         }
         const migration = manifest.migration!
         if (migration.cleanupComplete) return

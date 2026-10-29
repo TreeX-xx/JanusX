@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rename, rm, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WorkspaceStateStore } from '../../src/main/storage/workspace-state'
@@ -7,7 +7,7 @@ import { WORKSPACE_STORAGE_CHANNELS as channels } from '../../src/shared/ipc/wor
 
 const host = vi.hoisted(() => ({ profile: '', store: undefined as WorkspaceStateStore | undefined, handlers: new Map<string, (...args: any[]) => Promise<any>>() }))
 vi.mock('electron', () => ({ app: { getPath: () => host.profile }, ipcMain: { handle: (key: string, fn: any) => host.handlers.set(key, fn) } }))
-vi.mock('../../src/main/storage/service', () => ({ workspaceStateStore: () => host.store! }))
+vi.mock('../../src/main/storage/service', () => ({ workspaceStateStore: () => host.store!, startWorkspaceMaintenance: vi.fn(), requestWorkspaceMaintenance: vi.fn() }))
 import { registerWorkspaceStorageHandlers } from '../../src/main/ipc/workspace-storage-handlers'
 
 let base: string, cwd: string
@@ -56,4 +56,42 @@ it('deduplicates selection and reports per-workspace failure without blocking ot
   expect(migrate).toHaveBeenCalledTimes(1)
   migrate.mockRestore()
   expect(await call(channels.migrate, ['w'])).toEqual([expect.objectContaining({ status: 'migrated' })])
+})
+
+it('exposes guarded maintenance operations and validates relocation selection', async () => {
+  const items = await call(channels.data)
+  expect(items).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Project', workspaceIds: ['w'] }), expect.objectContaining({ status: 'offline', workspaceIds: ['offline'] })]))
+  await expect(call(channels.cleanup, '../escape', 'everything')).rejects.toThrow('selection')
+  await expect(call(channels.relocate, items[0].id, null)).rejects.toThrow('relocation')
+  await expect(host.handlers.get(channels.data)!({ sender: { id: 99 } })).rejects.toThrow('application windows')
+  await expect(call(channels.measure, cwd)).rejects.toThrow('registered')
+  await expect(call(channels.cleanup, '../escape', 'logs')).rejects.toThrow('registered')
+})
+
+it('updates every local record sharing a relocated directory and retains its storage id', async () => {
+  await call(channels.migrate, ['w'])
+  const item = (await call(channels.data)).find((item: any) => item.workspaceIds.includes('w'))
+  const directory = join(host.profile, 'janusx', 'workspaces')
+  await writeFile(join(directory, 'duplicate.json'), JSON.stringify({ id: 'duplicate', name: 'Duplicate', path: cwd }))
+  const moved = join(base, 'renamed'); await rename(cwd, moved)
+  await call(channels.relocate, item.id, moved)
+  for (const id of ['w', 'duplicate']) expect(JSON.parse(await readFile(join(directory, `${id}.json`), 'utf8')).path).toBe(moved)
+  expect((await host.store!.resolve(moved)).root).toBe(item.target)
+})
+
+it('reattaches only intact detached data, then rejects clearing its associated launch settings', async () => {
+  await call(channels.migrate, ['w'])
+  const item = (await call(channels.data)).find((item: any) => item.workspaceIds.includes('w'))
+  const directory = join(host.profile, 'janusx', 'workspaces')
+  await rm(join(directory, 'w.json'))
+  expect((await call(channels.data)).find((row: any) => row.id === item.id).status).toBe('detached')
+  await writeFile(join(item.target, 'unknown.json'), 'keep')
+  await expect(call(channels.cleanup, item.id, 'all')).rejects.toThrow('Unknown private file')
+  expect((await call(channels.data)).find((row: any) => row.id === item.id).status).toBe('failed')
+  await call(channels.restore, item.id)
+  const restored = (await call(channels.data)).find((row: any) => row.id === item.id)
+  expect(restored.status).toBe('associated'); expect(restored.workspaceIds).toHaveLength(1)
+  expect(await readdir(directory)).toHaveLength(3)
+  await expect(call(channels.cleanup, item.id, 'all')).rejects.toThrow('Remove the workspace')
+  await expect(call(channels.restore, item.id)).rejects.toThrow('reattachment')
 })

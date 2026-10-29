@@ -4,7 +4,8 @@
  */
 
 import { readFile, mkdir } from 'node:fs/promises'
-import { workspaceIo, writeIoFile, resolveWorkspaceStorage } from '@janus-agent/agent-core'
+// Note: .agents/notes/desktop/workspace-state-storage.md
+import { workspaceIo, writeIoFile, resolveWorkspaceStorage, useWorkspaceStorage as acquireWorkspaceStorage } from '@janus-agent/agent-core'
 import { dirname } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { LaunchConfig, LaunchConfiguration, ValidationResult } from '../types'
@@ -20,20 +21,23 @@ export class ProjectConfig {
    */
   static async read(projectPath: string): Promise<LaunchConfig | null> {
     return workspaceIo.run(projectPath, async () => {
-      const { launchPath: configPath } = await resolveWorkspaceStorage(projectPath)
-
-      if (!existsSync(configPath)) {
-        return null
-      }
-
+      const release = acquireWorkspaceStorage(projectPath)
       try {
-        const content = await readFile(configPath, 'utf-8')
-        const config = JSON.parse(content) as LaunchConfig
+        const { launchPath: configPath } = await resolveWorkspaceStorage(projectPath)
 
-        return config
-      } catch (error) {
-        throw new Error(`Failed to read config from ${configPath}: ${error}`)
-      }
+        if (!existsSync(configPath)) {
+          return null
+        }
+
+        try {
+          const content = await readFile(configPath, 'utf-8')
+          const config = JSON.parse(content) as LaunchConfig
+
+          return config
+        } catch (error) {
+          throw new Error(`Failed to read config from ${configPath}: ${error}`)
+        }
+      } finally { release() }
     })
   }
 
@@ -44,24 +48,27 @@ export class ProjectConfig {
    */
   static async write(projectPath: string, config: LaunchConfig): Promise<void> {
     return workspaceIo.run(projectPath, async () => {
-      const { launchPath: configPath } = await resolveWorkspaceStorage(projectPath, true)
-
-      // Ensure the host-resolved configuration directory exists.
-      const configDir = dirname(configPath)
-      await mkdir(configDir, { recursive: true })
-
-      // 添加元数据
-      config.metadata = {
-        autoDetected: config.metadata?.autoDetected ?? false,
-        lastModified: new Date().toISOString(),
-      }
-
+      const release = acquireWorkspaceStorage(projectPath)
       try {
-        const content = JSON.stringify(config, null, 2)
-        await writeIoFile(projectPath, configPath, [content], true)
-      } catch (error) {
-        throw new Error(`Failed to write config to ${configPath}: ${error}`)
-      }
+        const { launchPath: configPath } = await resolveWorkspaceStorage(projectPath, true)
+
+        // Ensure the host-resolved configuration directory exists.
+        const configDir = dirname(configPath)
+        await mkdir(configDir, { recursive: true })
+
+        // 添加元数据
+        config.metadata = {
+          autoDetected: config.metadata?.autoDetected ?? false,
+          lastModified: new Date().toISOString(),
+        }
+
+        try {
+          const content = JSON.stringify(config, null, 2)
+          await writeIoFile(projectPath, configPath, [content], true)
+        } catch (error) {
+          throw new Error(`Failed to write config to ${configPath}: ${error}`)
+        }
+      } finally { release() }
     })
   }
 

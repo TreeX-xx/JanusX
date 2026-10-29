@@ -51,7 +51,7 @@ import { registerAgentRuntimeHandlers } from './agent-runtime-handlers'
 import { registerExternalCliHandlers } from './external-cli-handlers'
 import { registerWorkflowXHandlers } from './workflowx-handlers'
 import { registerWorkspaceRuntimeHandlers } from './workspace-runtime-handlers'
-import { registerWorkspaceStorageHandlers } from './workspace-storage-handlers'
+import { registerWorkspaceStorageHandlers, syncWorkspaceStorageRecords } from './workspace-storage-handlers'
 export interface RegisterApplicationIpcOptions {
   mainWindow: BrowserWindow
   getAllowedWindows: () => BrowserWindow[]
@@ -102,10 +102,14 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerWorkspaceStorageHandlers(options.getAllowedWindows)
 
   registerWorkspaceHandlers(getCurrentMainWindow, {
+    storageChanged: syncWorkspaceStorageRecords,
     getAllowedWindows: options.getAllowedWindows,
     beforeWorkspaceDelete: async (workspaceId) => {
       // 删除工作区前先回收其全部终端，避免 pty 子进程变孤儿；onExit 负责状态清理。
       terminalManager.killByWorkspace(workspaceId)
+      const { getProjectRunner } = await import('../project/runner/service')
+      const runner = getProjectRunner()
+      for (const [id, task] of runner.getAllRunning()) if (task.workspaceId === workspaceId) await runner.stop(id)
       await officeWatchPool.stopUnderRoot(workspaceId)
       officeArtifactIndex.dispose(workspaceId)
     },

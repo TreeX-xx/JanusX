@@ -48,7 +48,7 @@ vi.mock('../../src/main/janus/analyzer', () => ({ analyzer: {} }))
 vi.mock('../../src/main/janus-runner/cli-resolver', () => ({ resolveCLIPath: vi.fn(async () => null) }))
 vi.mock('../../src/main/janus-runner/subagent-run-registry', () => ({ subAgentRunRegistry: {} }))
 vi.mock('../../src/main/terminal/shell-profiles', () => ({ resolveShellProfileLaunch: vi.fn(async () => ({ program: { command: 'powershell.exe', args: [] } })) }))
-vi.mock('../../src/main/runtime-telemetry/coordinator', () => ({ terminalContextCoordinator: { startCorpusScan: vi.fn(), trackTerminal: mocks.trackTelemetry, bindSession: mocks.bindTelemetry, getSnapshot: mocks.snapshotTelemetry, runAttributionPass: vi.fn(async () => {}) } }))
+vi.mock('../../src/main/runtime-telemetry/coordinator', () => ({ terminalContextCoordinator: { startCorpusScan: vi.fn(), trackTerminal: mocks.trackTelemetry, bindSession: mocks.bindTelemetry, getSnapshot: mocks.snapshotTelemetry, runAttributionPass: vi.fn(async () => {}), releaseTerminal: vi.fn(async () => {}) } }))
 vi.mock('../../src/main/notifications/agent-hook-bridge', () => ({ AgentHookBridge: class { start = vi.fn(async () => {}); stop = vi.fn(); getEnv = vi.fn(() => ({})) } }))
 vi.mock('../../src/main/notifications/agent-hook-config', () => ({ AgentHookConfigManager: class {} }))
 vi.mock('../../src/main/notifications/agent-hook-coordinator', () => ({ getRawString: (raw: Record<string, unknown> | undefined, keys: string[]) => keys.map(key => raw?.[key]).find(value => typeof value === 'string'), AgentHookCoordinator: class { constructor(_window: unknown, options: unknown) { mocks.hookOptions = options }; dispose = vi.fn() } }))
@@ -66,6 +66,21 @@ beforeAll(async () => {
 })
 
 describe('Terminal IPC contract', () => {
+  it('holds workspace usage from terminal spawn until exit, even when exit cleanup partly fails', async () => {
+    const { workspaceStorageInUse } = await import('@janus-agent/agent-core')
+    const { terminalManager } = await import('../../src/main/terminal/manager')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    const cwd = 'C:/janus-terminal-storage-fixture'
+    await create({}, { id: 'usage-guard', cwd, shell: 'powershell.exe', preset: 'shell' })
+    expect(workspaceStorageInUse(cwd)).toBe(true)
+    const instance = vi.mocked(terminalManager.create).mock.results.at(-1)!.value
+    const exit = instance.pty.onExit.mock.calls[0][0]
+    const { agentSessionRegistry } = await import('../../src/main/sessions/session-registry')
+    const detach = vi.spyOn(agentSessionRegistry, 'detachTerminal').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try { await exit({ exitCode: 0 }) } finally { error.mockRestore(); detach.mockRestore() }
+    expect(workspaceStorageInUse(cwd)).toBe(false)
+  })
   it('starts repeated shells without invoking a blocked OfficeCLI probe', async () => {
     const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
     const warmup = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.warmup)![1]

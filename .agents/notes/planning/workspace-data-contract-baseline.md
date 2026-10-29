@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-29",
-  "updated": "2026-10-29T09:41:35.233Z",
+  "updated": "2026-10-29T16:26:02.567Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
     {
@@ -29,6 +29,8 @@
 ## 状态与原则
 
 用户要求保持简单，避免难维护的大量阈值。2026-10-29 将 P0/P1 收敛为统一排队、请求去重、分批处理和必要的数据保护；撤下双令牌桶、每秒速率、多级优先级、压力窗口、自适应降速及复杂配额参数，不再作为实施要求。用户已调度 xdo 实施 P1；统一门控已落地并完成主 Agent 测试。P2–P6 仍由用户分别调度。
+
+后续 P2–P4 已由用户分别调度并完成本地实施；阶段事实归[总计划](workspace-data-lifecycle-plan.md)。用户在 P4 前明确撤下文件还原点，终端和 Agent 文件工具已停止自动快照；本文下述快照写前要求及恢复验收是 P1 当时的设计和证据，不再是现行工具契约。队列、三个常量、路径和冲突保护仍有效，现行生命周期归[存储专题](../desktop/workspace-state-storage.md)。
 
 [总计划](workspace-data-lifecycle-plan.md)维护阶段安排；[存储专题](../desktop/workspace-state-storage.md)拥有身份、升级和清理规则；[Hook 专题](../terminal/terminal-hook-launch-isolation.md)拥有单次启动隔离。本轮不同时重写存储引擎、引入生命周期数据库或制作通用资源调度平台。
 

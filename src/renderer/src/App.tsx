@@ -80,6 +80,7 @@ export default function App() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const panelCollapsed = useAppStore((s) => s.panelCollapsed)
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
+  const activeWorkspacePath = useWorkspaceStore(s => s.workspaces.find(item => item.id === s.activeWorkspaceId)?.path)
   const worktreePath = useWorktreeStore(s => activeWorkspaceId ? s.activePaths[activeWorkspaceId] : undefined)
   const hasWorkspacePane = useWorkspaceStore((s) => s.paneTree !== null)
   const hasRetainedWorkspacePane = useWorkspaceStore((s) =>
@@ -221,9 +222,8 @@ export default function App() {
     void useEditorStore.getState().reloadOpenFiles(payload.workspacePath, payload.changedFilePath ?? null)
   }), [])
   useEffect(() => {
-    const workspace = useWorkspaceStore.getState().workspaces.find(item => item.id === activeWorkspaceId)
-    useEditorStore.getState().switchScope(worktreePath ?? workspace?.path ?? null)
-  }, [activeWorkspaceId, worktreePath])
+    useEditorStore.getState().switchScope(worktreePath ?? activeWorkspacePath ?? null)
+  }, [activeWorkspaceId, activeWorkspacePath, worktreePath])
 
   useEffect(() => {
     const idleWindow = window as IdleWindow

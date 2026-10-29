@@ -674,6 +674,11 @@ const pluginAPI: PluginHostAPI = {
 
 contextBridge.exposeInMainWorld('electron', {
   workspaceStorage: {
+    data: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.data),
+    measure: (id: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.measure, id),
+    cleanup: (id: string, category: import('../shared/ipc/workspace-storage').WorkspaceCleanupCategory) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.cleanup, id, category),
+    relocate: (id: string, destination: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.relocate, id, destination),
+    restore: (id: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.restore, id),
     list: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.list),
     migrate: ids => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.migrate, ids),
     dismiss: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.dismiss),

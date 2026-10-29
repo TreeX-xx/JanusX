@@ -6,11 +6,16 @@ vi.mock('electron', () => ({
   ipcRenderer: { invoke: host.invoke, send: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
 }))
 
-it('exposes only list, explicit migration and dismissal over typed storage channels', async () => {
+it('exposes typed migration and maintenance channels with exact payloads', async () => {
   await import('../../src/preload/index')
-  expect(Object.keys(host.api!.workspaceStorage).sort()).toEqual(['dismiss', 'list', 'migrate'])
+  expect(Object.keys(host.api!.workspaceStorage).sort()).toEqual(['cleanup', 'data', 'dismiss', 'list', 'measure', 'migrate', 'relocate', 'restore'])
   await host.api!.workspaceStorage.list()
   await host.api!.workspaceStorage.migrate(['w'])
   await host.api!.workspaceStorage.dismiss()
-  expect(host.invoke.mock.calls).toEqual([[channels.list], [channels.migrate, ['w']], [channels.dismiss]])
+  await host.api!.workspaceStorage.data()
+  await host.api!.workspaceStorage.measure('s')
+  await host.api!.workspaceStorage.cleanup('s', 'logs')
+  await host.api!.workspaceStorage.relocate('s', 'D:/moved')
+  await host.api!.workspaceStorage.restore('s')
+  expect(host.invoke.mock.calls).toEqual([[channels.list], [channels.migrate, ['w']], [channels.dismiss], [channels.data], [channels.measure, 's'], [channels.cleanup, 's', 'logs'], [channels.relocate, 's', 'D:/moved'], [channels.restore, 's']])
 })

@@ -1,5 +1,18 @@
 {
   "dataManagement": "Data management",
+  "maintenance": {
+    "addNew": "Add as new workspace",
+    "title": "Workspace data", "policy": "Command logs are kept for 30 days. Removed workspace data can be reattached within 30 days. Old snapshots keep the latest 5, with a 30-day window and a maximum of 40. App updates do not reset these dates.",
+    "empty": "No registered local workspace data.", "expires": "Scheduled removal: {{date}}", "details": "Storage and cleanup", "measure": "Calculate size",
+    "relocate": "Relocate", "choose": "Choose folder", "restore": "Reattach", "clearLogs": "Clear logs", "clearSnapshots": "Clear old snapshots", "clearAll": "Delete permanently",
+    "mismatch": "The selected folder could not be verified as the original. Use Add workspace to add it as a new workspace. The old association and data are retained.",
+    "unavailable": "The original folder is unavailable. It may have moved or be temporarily disconnected.",
+    "confirmTitle": "Confirm cleanup", "confirm": "Confirm deletion", "cancel": "Cancel",
+    "confirmLogs": "Permanently delete saved command logs for this workspace. Project files are unaffected.",
+    "confirmSnapshots": "Permanently delete old checkpoints and their recovery contents. Current project files, chats and Island changes are unaffected.",
+    "confirmAll": "Permanently delete this workspace's launch settings, logs and old checkpoints. This cannot be undone. Project files and chats are unaffected.",
+    "status": { "associated": "Associated", "offline": "Folder unavailable", "detached": "Pending removal", "purging": "Removing", "failed": "Cleanup failed" }
+  },
   "title": "Legacy workspace data migration",
   "scope": "Move launch configurations, checkpoint history and command logs from workspace .janusX folders to the JanusX application data location below.",
   "cleanup": "Verified legacy files are removed after migration succeeds. Project source, unrecognized files and Hook assets stay in place. The .janusX directory is removed only when empty.",
