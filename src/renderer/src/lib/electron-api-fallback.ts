@@ -1,7 +1,6 @@
 import { APP_REPOSITORY_URL, UPDATER_RELEASES_URL } from '../../../shared/ipc/updater'
 import { EXPERIMENTAL_ENABLED_ALL } from '../../../shared/ipc/experimental'
 import { DEFAULT_APP_THEME } from '../../../shared/ipc/theme'
-import { DEFAULT_CPA_MANAGEMENT_URL } from '../../../shared/ipc/cpa'
 import type { ExternalCliToolId } from '../../../shared/ipc/external-cli'
 
 export function installElectronApiFallback(): void {
@@ -35,20 +34,6 @@ export function installElectronApiFallback(): void {
       mcpProbe: () => Promise.reject(new Error('Electron Note MCP API is unavailable')),
     },
     platform: inferPlatform(),
-    cpa: {
-      getSettings: () => Promise.resolve({ managementUrl: DEFAULT_CPA_MANAGEMENT_URL }),
-      saveSettings: unavailable,
-      open: unavailable,
-      close: () => Promise.resolve(),
-      openExternal: unavailable,
-      status: () => Promise.resolve({ phase: 'not-installed' }),
-      start: unavailable,
-      stop: unavailable,
-      restart: unavailable,
-      update: unavailable,
-      openLogs: unavailable,
-      copyManagementKey: unavailable,
-    },
     workspace: {
       initialize: () => Promise.resolve({ loadState: 'no-workspace', workspaces: [], activeWorkspaceId: null }),
       list: () => Promise.resolve([]),

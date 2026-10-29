@@ -1,13 +1,13 @@
 // Note: CPA callback port fallback and external authorization — see .agents/notes/workbench/service-integrations.md
 import type { Session } from 'electron'
 import { createServer } from 'node:net'
-import type { CpaOAuthFallback } from '../../shared/ipc/cpa'
+export interface OAuthFallback { provider: string; port: number; reason: 'restricted' | 'occupied' | 'unavailable' }
+export interface BrowserOAuth { prefix: string; auth: string; status: string; session: string; providers: Record<string, {port: number; urls: string[]}> }
 
-const CALLBACK_PORTS = { codex: 1455, claude: 54545, antigravity: 51121 } as const
-type PortFailure = CpaOAuthFallback['reason']
+type PortFailure = OAuthFallback['reason']
 
 /** Match CPA's actual IPv4 listener, release the probe without accepting requests. */
-export function probeCpaOAuthPort(port: number): Promise<PortFailure | undefined> {
+export function probeOAuthPort(port: number): Promise<PortFailure | undefined> {
   return new Promise((resolve) => {
     const server = createServer()
     const timer = setTimeout(() => { server.close(); resolve('unavailable') }, 1000)
@@ -19,18 +19,8 @@ export function probeCpaOAuthPort(port: number): Promise<PortFailure | undefined
   })
 }
 
-export function isCpaOAuthAuthorizationUrl(input: string): boolean {
-  try {
-    const url = new URL(input)
-    if (url.protocol !== 'https:' || url.username || url.password || url.port) return false
-    return url.origin === 'https://auth.openai.com' && url.pathname === '/oauth/authorize'
-      || url.origin === 'https://claude.ai' && url.pathname === '/oauth/authorize'
-      || url.origin === 'https://accounts.google.com' && ['/o/oauth2/auth', '/o/oauth2/v2/auth'].includes(url.pathname)
-  } catch { return false }
-}
-
 /** The trusted local CPA partition only; no credential access or page injection. */
-export class CpaOAuthBridge {
+export class BrowserOAuthBridge {
   private disposed = false
   private revision = 0
   private active?: { revision: number; requestId: number; provider: string; ready: boolean; state?: string }
@@ -40,10 +30,11 @@ export class CpaOAuthBridge {
   private checking = new Set<string>()
 
   constructor(private readonly session: Session, private readonly origin: string,
-    private readonly report: (fallback: CpaOAuthFallback | undefined) => void,
-    private readonly probe = probeCpaOAuthPort,
+    private readonly report: (fallback: OAuthFallback | undefined) => void,
+    private readonly config: BrowserOAuth,
+    private readonly probe = probeOAuthPort,
     private readonly status?: (state: string, signal: AbortSignal) => Promise<string | undefined>) {
-    const filter = { urls: [`${origin}/v8/management/oauth/*`] }
+    const filter = { urls: [`${origin}${config.prefix}*`] }
     session.webRequest.onBeforeRequest(filter, (details, callback) => {
       void this.beforeRequest(details, callback).catch(() => callback({ cancel: true }))
     })
@@ -52,24 +43,24 @@ export class CpaOAuthBridge {
       const url = new URL(details.url)
       const flow = this.active
       if (!flow || url.origin !== origin) return
-      if (url.pathname === '/v8/management/oauth/auth-url' && details.id === flow.requestId) {
+      if (url.pathname === this.config.auth && details.id === flow.requestId) {
         if (details.statusCode >= 200 && details.statusCode < 300) flow.ready = true
         else this.clear()
-      } else if (url.pathname === '/v8/management/oauth/session' && details.method === 'DELETE'
+      } else if (url.pathname === this.config.session && details.method === 'DELETE'
         && details.statusCode >= 200 && details.statusCode < 300 && url.searchParams.get('state') === flow.state) this.clear()
     })
     session.webRequest.onErrorOccurred(filter, (details) => {
       if (!this.disposed && this.active?.requestId === details.id
-        && new URL(details.url).pathname === '/v8/management/oauth/auth-url') this.clear()
+        && new URL(details.url).pathname === this.config.auth) this.clear()
     })
   }
 
   /** State from the vetted authorization link is authoritative if the user opens it. */
   observeAuthorization(input: string): void {
-    if (this.disposed || !isCpaOAuthAuthorizationUrl(input)) return
+    if (this.disposed) return
     const url = new URL(input)
-    const provider = url.hostname === 'auth.openai.com' ? 'codex' : url.hostname === 'claude.ai' ? 'claude' : 'antigravity'
-    if (this.active?.provider === provider) this.observeState(url.searchParams.get('state'))
+    const provider = Object.entries(this.config.providers).find(([, value]) => value.urls.some(endpoint => endpoint === url.origin + url.pathname))?.[0]
+    if (this.active && this.active.provider === provider) this.observeState(url.searchParams.get('state'))
   }
 
   private observeState(state: string | null): void {
@@ -99,25 +90,25 @@ export class CpaOAuthBridge {
     callback: (response: Electron.CallbackResponse) => void): Promise<void> {
     if (this.disposed) { callback({ cancel: true }); return }
     const url = new URL(details.url)
-    if (url.origin === this.origin && (details.method === 'GET' && url.pathname === '/v8/management/oauth/status'
-      || details.method === 'DELETE' && url.pathname === '/v8/management/oauth/session')) {
+    if (url.origin === this.origin && (details.method === 'GET' && url.pathname === this.config.status
+      || details.method === 'DELETE' && url.pathname === this.config.session)) {
       this.observeState(url.searchParams.get('state'))
       callback({}); return
     }
     const provider = url.searchParams.get('provider')
-    if (details.method !== 'GET' || url.origin !== this.origin || url.pathname !== '/v8/management/oauth/auth-url'
-      || !provider || !Object.hasOwn(CALLBACK_PORTS, provider)
+    if (details.method !== 'GET' || url.origin !== this.origin || url.pathname !== this.config.auth
+      || !provider || !Object.hasOwn(this.config.providers, provider)
       || !['true', '1', 'yes', 'on'].includes(url.searchParams.get('is_webui')?.toLowerCase() ?? '')) {
       callback({}); return
     }
     const revision = ++this.revision
     this.clear()
-    const port = CALLBACK_PORTS[provider as keyof typeof CALLBACK_PORTS]
+    const port = this.config.providers[provider].port
     const reason = await this.probe(port)
     if (this.disposed) { callback({ cancel: true }); return }
     if (revision === this.revision && reason) {
       this.active = { revision, requestId: details.id, provider, ready: false }
-      this.report({ provider: provider as CpaOAuthFallback['provider'], port, reason })
+      this.report({ provider: provider as OAuthFallback['provider'], port, reason })
       this.timer = setTimeout(() => { if (this.active?.revision === revision) this.clear() }, 5 * 60_000)
       this.timer.unref()
     }

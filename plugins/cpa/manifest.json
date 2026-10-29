@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "official.cpa",
+  "name": "CPA",
+  "description": "Optional CLIProxyAPI account management and supervised local gateway.",
+  "version": "1.0.0",
+  "engines": {
+    "pluginApi": ">=1.0.0 <2.0.0"
+  },
+  "capabilities": {
+    "required": [
+      "runtime.native",
+      "desktop.native",
+      "views.workspace",
+      "views.settings",
+      "commands.openView",
+      "menus.toolbox"
+    ],
+    "optional": []
+  },
+  "permissions": [
+    {
+      "name": "runtime.native"
+    },
+    {
+      "name": "ui.views.open"
+    }
+  ],
+  "native": {
+    "entry": "dist/service.cjs",
+    "dataVersion": 1,
+    "methods": [
+      "settings.read",
+      "settings.save",
+      "runtime.status",
+      "runtime.start",
+      "runtime.stop",
+      "runtime.restart",
+      "runtime.update",
+      "runtime.copy-key",
+      "runtime.logs",
+      "browser.open",
+      "browser.close",
+      "browser.bounds",
+      "browser.status",
+      "browser.external"
+    ]
+  },
+  "contributes": {
+    "views": [
+      {
+        "id": "management",
+        "title": "CPA",
+        "entry": "dist/ui/index.html",
+        "location": "workspace",
+        "scope": "application",
+        "instancePolicy": "single",
+        "icon": "list"
+      },
+      {
+        "id": "settings",
+        "title": "CPA settings",
+        "entry": "dist/ui/settings.html",
+        "location": "settings",
+        "scope": "application",
+        "instancePolicy": "single",
+        "icon": "list"
+      }
+    ],
+    "commands": [
+      {
+        "id": "open",
+        "title": "CPA",
+        "action": {
+          "type": "openView",
+          "view": "management"
+        }
+      }
+    ],
+    "menus": [
+      {
+        "location": "toolbox",
+        "command": "open",
+        "when": "always"
+      }
+    ]
+  }
+}

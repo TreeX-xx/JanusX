@@ -61,63 +61,6 @@
       }
     }
   },
-  "cpa": {
-    "settingsNav": "Service integrations",
-    "settingsSubtitle": "Connect external management tools and reuse them across projects.",
-    "title": "CPA account management",
-    "description": "Run CPA locally or connect an existing instance to view account quotas and reset information. API routing remains optional.",
-    "managementUrl": "Management page address",
-    "addressHelp": "Connect an existing instance. A server address opens /management.html; you can also specify a custom management page. External instances are managed by you.",
-    "loginHelp": "Enter the management key in CPA's login page. Its remember-login option controls persistence in an isolated session shared across projects; it does not configure JanusX model credentials.",
-    "quotaHelp": "Available quota and reset fields depend on your CPA backend, provider and management frontend. Request totals are not remaining subscription quota.",
-    "invalidUrl": "Enter an HTTP or HTTPS management page address without embedded credentials or query parameters.",
-    "settingsFailed": "Could not load or save the CPA connection. Check the address and try again.",
-    "saveAndOpen": "Save and open CPA",
-    "saved": "Connection saved for all projects.",
-    "configure": "Connection settings",
-    "openExternal": "Open in browser",
-    "openManagement": "Open management page",
-    "openFailed": "Could not open CPA. Check the connection settings, retry, or use your system browser.",
-    "mode": "Connection mode",
-    "managed": "Local CPA managed by JanusX",
-    "external": "Connect an existing instance",
-    "enableManaged": "Enable local CPA",
-    "managedHelp": "Downloads the official component on first enable and runs it in the background. Closing this tab keeps CPA running; quitting JanusX stops it and keeps your accounts.",
-    "port": "Local port",
-    "portHelp": "Only accessible on this computer. Changing the port restarts CPA and interrupts current API connections. Occupied ports are not replaced automatically.",
-    "invalidPort": "Enter a whole-number port between 1024 and 65535.",
-    "autoUpdate": "Automatically check and download updates",
-    "updateHelp": "Updates apply on the next CPA start. Update now downloads and restarts immediately, interrupting API connections. Accounts are preserved.",
-    "runtimeStatus": "Status",
-    "phase": { "not-installed": "Not installed", "stopped": "Stopped", "downloading": "Downloading CPA", "starting": "Starting CPA", "running": "Running", "failed": "Failed" },
-    "start": "Start CPA",
-    "stop": "Stop CPA",
-    "restart": "Restart CPA",
-    "updateNow": "Update and restart CPA",
-    "updateReady": "Ready for next start",
-    "copyKey": "Copy management key",
-    "managementKey": "Management key",
-    "keyPlaceholder": "Leave blank to keep the current key",
-    "keyHelp": "Use 8–128 ASCII letters, numbers or symbols without spaces. Leave blank to keep the current key; first enable generates one if unset. Saving applies the key and restarts a running CPA, interrupting current connections. Accounts are preserved. This key is for management login and differs from a model API key.",
-    "showKey": "Show new key",
-    "hideKey": "Hide new key",
-    "generateKey": "Generate random key",
-    "invalidKey": "Use 8–128 ASCII letters, numbers or symbols without spaces or line breaks.",
-    "keySaveFailed": "Could not encrypt and save the management key. The previous key is unchanged; retry.",
-    "keySaved": "The new management key is saved encrypted. Log in to CPA with the new key; any remembered old key is no longer valid.",
-    "keyCopied": "Management key copied",
-    "oauthManual": "{{provider}} callback port {{port}} is unavailable; manual callback is active",
-    "oauthReason": { "restricted": "The system restricts this port.", "occupied": "Another listener occupies this port.", "unavailable": "The callback listener cannot start on this port." },
-    "oauthManualHelp": "Click Open link in the original page below and authorize in your system browser. When redirected to localhost, copy the complete address even if the browser says it cannot connect. Paste it into Callback URL in the original page and submit. Finish within five minutes; start again after expiry or cancellation.",
-    "oauthBrowserFailed": "Could not open the system browser. Copy the authorization link from the original page and open it manually in your system browser.",
-    "logs": "Open logs",
-    "saveRestart": "Save and restart CPA",
-    "managedLoginHelp": "Log in to CPA's original page with your management key, or use Copy management key and paste it. Log in again after changing the key. Its Remember password option keeps the login; JanusX stores the key encrypted.",
-    "portInUse": "The local port is unavailable or occupied. Choose another port; JanusX will not stop the other process.",
-    "encryptionUnavailable": "Protected system credential storage is unavailable. Local CPA cannot start.",
-    "checksumFailed": "Component verification failed. The download was not installed; retry the download.",
-    "operationFailed": "CPA operation failed. Check the network, local port and logs, then retry."
-  },
   "action": {
     "confirm": "Confirm",
     "cancel": "Cancel",
@@ -243,12 +186,36 @@
     "railButtonAria": "{{label}}, {{state}}",
     "toolLoadFailed": "Tool content failed to load",
     "tool": {
-      "files": { "title": "Files", "shortTitle": "Files", "ariaLabel": "Open Files tool" },
-      "git": { "title": "Git", "shortTitle": "Git", "ariaLabel": "Open Git tool" },
-      "assist": {"title":"Assistant","shortTitle":"Assistant","ariaLabel":"Assistant"},
-      "persona": { "title": "Persona", "shortTitle": "Persona", "ariaLabel": "Open persona tool" },
-      "review": { "title": "Review", "shortTitle": "Review", "ariaLabel": "Open memory review" },
-      "sessions": { "title": "Sessions", "shortTitle": "Sessions", "ariaLabel": "Open Sessions tool" }
+      "files": {
+        "title": "Files",
+        "shortTitle": "Files",
+        "ariaLabel": "Open Files tool"
+      },
+      "git": {
+        "title": "Git",
+        "shortTitle": "Git",
+        "ariaLabel": "Open Git tool"
+      },
+      "assist": {
+        "title": "Assistant",
+        "shortTitle": "Assistant",
+        "ariaLabel": "Assistant"
+      },
+      "persona": {
+        "title": "Persona",
+        "shortTitle": "Persona",
+        "ariaLabel": "Open persona tool"
+      },
+      "review": {
+        "title": "Review",
+        "shortTitle": "Review",
+        "ariaLabel": "Open memory review"
+      },
+      "sessions": {
+        "title": "Sessions",
+        "shortTitle": "Sessions",
+        "ariaLabel": "Open Sessions tool"
+      }
     }
   },
   "quantumTopology": {

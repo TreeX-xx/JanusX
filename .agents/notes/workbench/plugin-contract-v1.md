@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-28T16:51:34.003Z",
+  "updated": "2026-10-29T11:10:21Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -56,7 +56,7 @@
 | 消费者 | 当前事实 | P1／P2 改造与保留 |
 |---|---|---|
 | [定义](../../../src/renderer/src/extensions/types.ts)、[注册表](../../../src/renderer/src/extensions/registry.ts) | 组件、图标组件和同步 activate；注册即 enable，disable／unregister 发布视图变更 | 可信 API 保留；新增可序列化清单和主进程安装记录；先授权再由可信适配器注册壳组件，不能把异步激活放入同步函数 |
-| [启动](../../../src/renderer/src/main.tsx)、[内置定义](../../../src/renderer/src/extensions/builtins.tsx)、[右侧注册表](../../../src/renderer/src/right-tools/registry.ts)、[CPA](../../../src/renderer/src/extensions/cpa.tsx) | CPA 在 renderer 入口注册，内置面板通过右侧元数据模块先注册，包含懒加载和兼容 ID | 保持初始化先后与按需组件加载，不能引入 registry→store→组件循环；保留 `janusx.*`、旧 files／git／sessions ID 和 CPA 停用清理 |
+| [启动](../../../src/renderer/src/main.tsx)、[内置定义](../../../src/renderer/src/extensions/builtins.tsx)、[右侧注册表](../../../src/renderer/src/right-tools/registry.ts)、[CPA 插件](../../../plugins/cpa/manifest.json) | 内置面板先注册元数据，CPA 由官方签名包安装启用后注册 | 保持初始化先后与按需组件加载，不能引入 registry→store→组件循环；保留 `janusx.*`、旧 files／git／sessions ID，插件激活拥有 CPA 后台 |
 | [视图宿主](../../../src/renderer/src/extensions/ExtensionViewHost.tsx)、[右侧宿主](../../../src/renderer/src/components/right-tools/RightToolHost.tsx)、[终端区](../../../src/renderer/src/components/TerminalArea.tsx) | 可信组件按 active 和 scope 渲染，项目级重挂载，使用现有局部错误边界 | 隔离壳接收实例与上下文，只使用插件桥；普通组件错误与隔离页面超时分别处理，关闭页面不结束宿主 PTY |
 | [工具箱](../../../src/renderer/src/components/TitlebarToolGroup.tsx)、[打开路由](../../../src/renderer/src/extensions/workbench.ts) | 工具箱筛选 `launcher: tool-menu`，打开路由直接写两个 store | P1 增加命令与入口 registry；旧 launcher 转为内部命令适配，最终仍走现有打开与 reveal 语义，不出现重复入口 |
 | [pane 模型](../../../src/renderer/src/lib/workspace-pane.ts)、[工作区](../../../src/renderer/src/stores/workspace.ts)、[全局工具](../../../src/renderer/src/stores/global-tools.ts) | pane ID 含 view／project，两个 store 订阅 registry，停用时清理活动树与历史项目快照；布局目前为内存状态 | 保留旧 ID，外部实例另加不透明 root／代次映射；P2 只持久化插件设置和私有数据，不把全工作区布局磁盘化捆入首版 |

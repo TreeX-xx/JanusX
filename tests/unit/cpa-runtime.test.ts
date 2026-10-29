@@ -5,21 +5,27 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
-import { CpaRuntime, assertCpaPortFree, cpaProxyEnvironment, managedCpaConfig } from '../../src/main/cpa/runtime'
-import type { CpaInstallation, CpaInstaller } from '../../src/main/cpa/installer'
+import { CpaRuntime, assertCpaPortFree, managedCpaConfig } from '../../plugins/cpa/src/main/runtime'
+import type { CpaInstallation, CpaInstaller } from '../../plugins/cpa/src/main/installer'
 
 const h = vi.hoisted(() => ({ spawn: vi.fn(), encrypted: true, encrypt: vi.fn(), clipboard: vi.fn(), openPath: vi.fn(async () => ''),
   proxy: vi.fn<() => string | null>(), systemProxy: vi.fn<() => string | null>(),
 }))
+vi.mock('../../plugins/cpa/src/main/desktop', async () => {
+  const { HostProxy, hostProxyEnvironment } = await import('../../src/main/lib/host-proxy')
+  return { CpaProxy: HostProxy, cpaProxyEnvironment: hostProxyEnvironment, desktop: {
+    async call(method: string, value: any) {
+      if (method === 'desktop.encryption' && !h.encrypted) throw new Error('cpa-encryption-unavailable')
+      if (method === 'desktop.clipboard') h.clipboard(value.text)
+      if (method === 'desktop.openPath') await h.openPath(value.path)
+    },
+    async encrypt(value: string) { return h.encrypt(value) },
+    async decrypt(value: Buffer) { return Buffer.from(value.toString().slice(10), 'base64').toString() },
+  } }
+})
 vi.mock('@janusx/llm-core', () => ({ getProxyManager: () => ({ getProxyUrl: h.proxy }), getSystemProxy: h.systemProxy }))
-vi.mock('electron', () => ({
-  app: { getPath: () => '' }, clipboard: { writeText: h.clipboard }, shell: { openPath: h.openPath },
-  safeStorage: { isEncryptionAvailable: () => h.encrypted, getSelectedStorageBackend: () => 'keyring',
-    encryptString: (value: string) => h.encrypt(value),
-    decryptString: (value: Buffer) => Buffer.from(value.toString().slice(10), 'base64').toString() },
-}))
 vi.mock('node:child_process', () => ({ spawn: (...args: unknown[]) => h.spawn(...args) }))
-vi.mock('../../src/main/cpa/local-request', () => ({ cpaLocalRequest: vi.fn(async () => ({ ok: true })) }))
+vi.mock('../../plugins/cpa/src/main/local-request', () => ({ cpaLocalRequest: vi.fn(async () => ({ ok: true })) }))
 
 class Child extends EventEmitter {
   pid = 424242
@@ -87,15 +93,6 @@ describe('managed CPA runtime ownership', () => {
     h.proxy.mockReturnValue('http://127.0.0.1:7898')
     await runtime.start(settings)
     expect(calls()[1][2].env.HTTPS_PROXY).not.toBe(env.HTTPS_PROXY)
-  })
-
-  it('uses shared system detection before LLM initialization and leaves no stale proxy when absent', () => {
-    h.systemProxy.mockReturnValue('socks5://127.0.0.1:1080')
-    expect(cpaProxyEnvironment()).toMatchObject({ HTTP_PROXY: 'socks5://127.0.0.1:1080', HTTPS_PROXY: 'socks5://127.0.0.1:1080' })
-    expect(h.systemProxy).toHaveBeenCalledOnce()
-    h.systemProxy.mockReturnValue(null)
-    expect(cpaProxyEnvironment().HTTPS_PROXY).toBeUndefined()
-    expect(cpaProxyEnvironment().HTTP_PROXY).toBeUndefined()
   })
 
   it('persists custom keys encrypted, rotates only while stopped and reuses the new key across runtime recreation', async () => {
@@ -242,6 +239,15 @@ describe('managed CPA runtime ownership', () => {
     await result
     expect(h.spawn).not.toHaveBeenCalled()
     expect((await runtime.status()).phase).toBe('not-installed')
+  })
+
+  it('invalidates a queued start before it can replace the stopped abort signal', async () => {
+    const { runtime, installer } = await fixture(false)
+    const starting = runtime.start({ managementUrl: '', port: 18317, autoUpdate: false })
+    const rejected = expect(starting).rejects.toThrow('cpa-stopped')
+    await runtime.stop(); await rejected
+    expect(installer.install).not.toHaveBeenCalled()
+    expect(h.spawn).not.toHaveBeenCalled()
   })
 
   it('creates one encrypted key when startup and clipboard requests overlap', async () => {

@@ -1,18 +1,18 @@
 // Note: CPA process, encrypted management key and component updates — see .agents/notes/workbench/service-integrations.md
-import { app, clipboard, safeStorage, shell } from 'electron'
+import { desktop } from './desktop'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:net'
 import { appendFile, mkdir, readFile, rename, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
-import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
-import type { CpaSettings, CpaStatus } from '../../shared/ipc/cpa'
-import { validateCpaManagementKey } from '../../shared/ipc/cpa'
+import { SerialQueue, writeFileAtomic } from '@janusx/plugin-sdk/native'
+import type { CpaSettings, CpaStatus } from '../shared/cpa'
+import { validateCpaManagementKey } from '../shared/cpa'
 import { CpaInstaller, type CpaInstallation } from './installer'
-import { CpaProxy, cpaProxyEnvironment } from './proxy'
+import { CpaProxy, cpaProxyEnvironment } from './desktop'
 import { cpaLocalRequest } from './local-request'
-export { cpaProxyEnvironment } from './proxy'
+export { cpaProxyEnvironment } from './desktop'
 
 export interface CpaRuntimeControl {
   status(): Promise<CpaStatus>
@@ -64,6 +64,7 @@ export class CpaRuntime implements CpaRuntimeControl {
   private initialized = false
   private initialization?: Promise<void>
   private disposed = false
+  private generation = 0
   private managementKey: string | null = null
   private keyFlight?: Promise<string>
   private lastUpdateCheck = 0
@@ -73,7 +74,7 @@ export class CpaRuntime implements CpaRuntimeControl {
   private proxy?: CpaProxy
   private origin?: string
 
-  constructor(readonly root = join(app.getPath('userData'), 'janusx', 'components', 'cpa'),
+  constructor(readonly root: string,
     private readonly installer = new CpaInstaller(root)) {}
 
   async status(): Promise<CpaStatus> {
@@ -91,9 +92,11 @@ export class CpaRuntime implements CpaRuntimeControl {
   }
 
   start(settings: CpaSettings): Promise<void> {
+    const generation = this.generation
     return this.queue.run(async () => {
-      if (this.disposed) throw new Error('cpa-stopped')
+      if (this.disposed || generation !== this.generation) throw new Error('cpa-stopped')
       await this.status()
+      if (this.disposed || generation !== this.generation) throw new Error('cpa-stopped')
       if (this.child && this.state.phase === 'running') { this.configureUpdates(settings); return }
       this.abort = new AbortController()
       try {
@@ -138,6 +141,7 @@ export class CpaRuntime implements CpaRuntimeControl {
   }
 
   async stop(): Promise<void> {
+    this.generation++
     this.abort.abort()
     await this.queue.run(async () => {
       await this.terminate()
@@ -147,6 +151,7 @@ export class CpaRuntime implements CpaRuntimeControl {
 
   async dispose(): Promise<void> {
     this.disposed = true
+    this.generation++
     this.abort.abort()
     // Do not wait on a queued download during application shutdown.
     await this.terminate()
@@ -183,7 +188,7 @@ export class CpaRuntime implements CpaRuntimeControl {
     this.updateTimer.unref()
   }
 
-  copyKey(): Promise<void> { return this.queue.run(async () => { clipboard.writeText(await this.key()) }) }
+  copyKey(): Promise<void> { return this.queue.run(async () => { await desktop.call('desktop.clipboard', { text: await this.key() }) }) }
 
   setManagementKey(input: string): Promise<void> {
     const key = validateCpaManagementKey(input)
@@ -198,7 +203,7 @@ export class CpaRuntime implements CpaRuntimeControl {
   async openLogs(): Promise<void> {
     await mkdir(this.root, { recursive: true })
     await appendFile(join(this.root, 'cpa.log'), '')
-    if (await shell.openPath(join(this.root, 'cpa.log'))) throw new Error('cpa-logs-unavailable')
+    await desktop.call('desktop.openPath', { path: join(this.root, 'cpa.log') })
   }
 
   private key(): Promise<string> {
@@ -209,26 +214,24 @@ export class CpaRuntime implements CpaRuntimeControl {
 
   private async loadKey(): Promise<string> {
     if (this.managementKey) return this.managementKey
-    this.assertEncryption()
+    await this.assertEncryption()
     const path = join(this.root, 'management-key.enc')
-    try { this.managementKey = safeStorage.decryptString(await readFile(path)) } catch (error) {
+    try { this.managementKey = await desktop.decrypt(await readFile(path)) } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('cpa-key-unavailable')
       await this.saveKey(randomBytes(32).toString('hex'))
     }
     return this.managementKey!
   }
 
-  private assertEncryption(): void {
-    if (!safeStorage.isEncryptionAvailable() || (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')) {
-      throw new Error('cpa-encryption-unavailable')
-    }
+  private async assertEncryption(): Promise<void> {
+    try { await desktop.call('desktop.encryption', {}) } catch { throw new Error('cpa-encryption-unavailable') }
   }
 
   private async saveKey(key: string): Promise<void> {
-    this.assertEncryption()
+    await this.assertEncryption()
     try {
       await mkdir(this.root, { recursive: true, mode: 0o700 })
-      await writeFileAtomic(join(this.root, 'management-key.enc'), safeStorage.encryptString(key))
+      await writeFileAtomic(join(this.root, 'management-key.enc'), await desktop.encrypt(key))
     } catch { throw new Error('cpa-key-save-failed') }
     this.managementKey = key
   }
@@ -243,7 +246,7 @@ export class CpaRuntime implements CpaRuntimeControl {
   private async launch(value: CpaInstallation, settings: CpaSettings, original: string): Promise<void> {
     if (this.abort.signal.aborted || this.disposed) throw new Error('cpa-stopped')
     this.state.phase = 'starting'
-    const env: NodeJS.ProcessEnv = cpaProxyEnvironment()
+    const env: NodeJS.ProcessEnv = await cpaProxyEnvironment()
     this.proxy = new CpaProxy()
     const proxy = await this.proxy.start()
     await writeFileAtomic(join(this.root, 'config.yaml'), managedCpaConfig(original, settings, join(this.root, 'accounts'), proxy))

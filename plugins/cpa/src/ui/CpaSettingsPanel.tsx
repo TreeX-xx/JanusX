@@ -1,14 +1,12 @@
 // Note: .agents/notes/workbench/service-integrations.md — settings layout and managed CPA lifecycle.
 import { useEffect, useId, useState } from 'react'
 import { Copy, Eye, EyeOff, FileText, Play, RotateCw, Shuffle, Square } from 'lucide-react'
-import { Select } from '@/components/ui/Select'
-import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
-import { useCpaStore } from '@/stores/cpa'
-import { openExtensionView } from '@/extensions/workbench'
-import { CPA_VIEW_ID } from '@/extensions/cpa'
-import { useI18n } from '@/i18n/useI18n'
-import { normalizeCpaSettings, validateCpaManagementKey } from '../../../../shared/ipc/cpa'
-import formStyles from '../NotificationSettingsPanel.module.css'
+import { Select, ThemedTooltip } from './controls'
+import { useCpaStore } from './store'
+import { api, cpa } from './bridge'
+import { useI18n, cpaError } from './i18n'
+import { normalizeCpaSettings, validateCpaManagementKey } from '../shared/cpa'
+import formStyles from './forms.module.css'
 import styles from './CpaSettingsPanel.module.css'
 
 export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
@@ -65,27 +63,19 @@ export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
       setManagementKey(''); setShowKey(false); setKeySaved(key !== undefined)
       setSaved(true)
       if (open) {
-        if (!openExtensionView(CPA_VIEW_ID)) throw new Error('cpa-unavailable')
+        await api.views.open({ view: 'management' })
         onOpened?.()
       }
     } catch (failure) { setError(operationError(failure)) }
     finally { setBusy(false) }
   }
 
-  const operationError = (failure: unknown) => {
-    const message = failure instanceof Error ? failure.message : ''
-    if (message.includes('cpa-port-in-use')) return t('common:cpa.portInUse')
-    if (message.includes('cpa-encryption-unavailable')) return t('common:cpa.encryptionUnavailable')
-    if (message.includes('cpa-checksum-mismatch')) return t('common:cpa.checksumFailed')
-    if (message.includes('cpa-invalid-management-key')) return t('common:cpa.invalidKey')
-    if (message.includes('cpa-key-save-failed')) return t('common:cpa.keySaveFailed')
-    return t('common:cpa.operationFailed')
-  }
+  const operationError = cpaError
   const operate = async (action: 'start' | 'stop' | 'restart' | 'update' | 'copyManagementKey' | 'openLogs') => {
     setBusy(true); setError(null); setNotice(null)
     try {
       if (action === 'copyManagementKey' || action === 'openLogs') {
-        await window.electron.cpa[action]()
+        await cpa[action]()
         if (action === 'copyManagementKey') setNotice(t('common:cpa.keyCopied'))
       } else await useCpaStore.getState().operate(action)
     } catch (failure) { setError(operationError(failure)) }
@@ -95,7 +85,7 @@ export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
   const canOperate = settings?.mode === 'managed' && settings.enabled
   const running = status?.phase === 'running'
   const canStop = running || status?.phase === 'starting' || status?.phase === 'downloading'
-  const runtimeError = mode === 'managed' && (status?.error || status?.updateError)
+  const runtimeError = mode === 'managed' && (status?.error || status?.updateError || status?.operationError)
   const failure = error ?? (runtimeError ? operationError(new Error(runtimeError)) : null)
   const buttonClass = `${formStyles.button} ${formStyles.ghostButton}`
 

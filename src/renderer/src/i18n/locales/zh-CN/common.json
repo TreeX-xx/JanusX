@@ -61,63 +61,6 @@
       }
     }
   },
-  "cpa": {
-    "settingsNav": "服务集成",
-    "settingsSubtitle": "连接外部管理工具，在各项目间复用。",
-    "title": "CPA 账号管理",
-    "description": "在本机运行 CPA 或连接已有实例，查看账号额度与重置信息；转 API 按需使用。",
-    "managementUrl": "管理页地址",
-    "addressHelp": "连接已有实例。填写服务地址时默认打开 /management.html，也可填写自定义管理页地址；外部实例由你自行管理。",
-    "loginHelp": "请在 CPA 登录页填写管理密钥。勾选原页面的记住登录后，登录信息保存在跨项目共用的独立会话中，不会用于配置 JanusX 模型凭据。",
-    "quotaHelp": "额度与重置字段取决于 CPA 后端、供应商及管理前端版本。调用统计不等于剩余订阅额度。",
-    "invalidUrl": "请填写 HTTP 或 HTTPS 管理页地址，不要在地址中包含账号密码或查询参数。",
-    "settingsFailed": "无法读取或保存 CPA 连接，请检查地址后重试。",
-    "saveAndOpen": "保存并打开 CPA",
-    "saved": "已保存，所有项目共用此连接。",
-    "configure": "连接设置",
-    "openExternal": "在浏览器打开",
-    "openManagement": "打开管理页",
-    "openFailed": "无法打开 CPA，请检查连接设置后重试，或使用系统浏览器打开。",
-    "mode": "连接方式",
-    "managed": "由 JanusX 托管本地 CPA",
-    "external": "连接已有实例",
-    "enableManaged": "启用本地 CPA",
-    "managedHelp": "首次启用时下载官方组件并在后台启动。关闭此标签页后 CPA 继续运行；真正退出 JanusX 时停止，账号数据保留。",
-    "port": "本地端口",
-    "portHelp": "仅本机可访问。修改端口会重启 CPA 并中断当前 API 连接；端口被占用时不会自动换端口。",
-    "invalidPort": "请输入 1024 到 65535 之间的整数端口。",
-    "autoUpdate": "自动检查并下载更新",
-    "updateHelp": "更新在下次启动 CPA 时应用。“更新并重启”会立即下载及重启，中断当前 API 连接，账号数据保留。",
-    "runtimeStatus": "运行状态",
-    "phase": { "not-installed": "尚未安装", "stopped": "已停止", "downloading": "正在下载 CPA", "starting": "正在启动 CPA", "running": "运行中", "failed": "启动或运行失败" },
-    "start": "启动 CPA",
-    "stop": "停止 CPA",
-    "restart": "重启 CPA",
-    "updateNow": "更新并重启 CPA",
-    "updateReady": "下次启动应用",
-    "copyKey": "复制管理密钥",
-    "managementKey": "管理密钥",
-    "keyPlaceholder": "留空保留现有密钥",
-    "keyHelp": "可自定义 8–128 位英文字母、数字或符号，不含空格。留空保留现有密钥；首次启用未设置时自动生成。保存后生效，运行中会重启 CPA 并中断当前连接，账号数据保留。此密钥用于管理页登录，与模型 API Key 不同。",
-    "showKey": "显示新密钥",
-    "hideKey": "隐藏新密钥",
-    "generateKey": "随机生成密钥",
-    "invalidKey": "管理密钥须为 8–128 位英文字母、数字或符号，不含空格或换行。",
-    "keySaveFailed": "无法加密保存管理密钥，原密钥保持不变，请重试。",
-    "keySaved": "新管理密钥已加密保存。请使用新密钥登录 CPA；原页面记住的旧密钥已失效。",
-    "keyCopied": "管理密钥已复制",
-    "oauthManual": "{{provider}} 的回调端口 {{port}} 不可用，已切换为手动回调",
-    "oauthReason": { "restricted": "系统禁止使用此端口。", "occupied": "此端口已被其他监听占用。", "unavailable": "暂时无法启动此端口的回调服务。" },
-    "oauthManualHelp": "在下方原版页面点击“打开链接”，用系统浏览器完成授权。浏览器跳转到 localhost 后，即使显示无法访问，也请复制地址栏中的完整地址，粘贴到原页面的“回调 URL”并提交。请在五分钟内完成；超时或取消后重新开始登录。",
-    "oauthBrowserFailed": "无法打开系统浏览器，请在原页面复制授权链接，手动粘贴到系统浏览器打开。",
-    "logs": "查看日志",
-    "saveRestart": "保存并重启 CPA",
-    "managedLoginHelp": "在 CPA 原版登录页使用你设置的管理密钥，或点击“复制管理密钥”后粘贴。修改密钥后需重新登录。可勾选原页面的记住密码；JanusX 加密保存管理密钥。",
-    "portInUse": "本地端口不可用或已被占用，请修改端口；JanusX 不会结束占用端口的其他进程。",
-    "encryptionUnavailable": "系统保护凭据存储不可用，无法启动本地 CPA。",
-    "checksumFailed": "组件校验失败，下载内容未安装，请重试下载。",
-    "operationFailed": "CPA 操作失败，请检查网络、本地端口及日志后重试。"
-  },
   "action": {
     "confirm": "确认",
     "cancel": "取消",
@@ -157,7 +100,7 @@
       "empty": "暂无终端"
     },
     "runConfiguration": "运行配置…",
- "createWorktree": "新建任务盘…",
+    "createWorktree": "新建任务盘…",
     "renameGroup": "重命名分组…",
     "removeFromGroup": "移出分组",
     "deleteWorkspace": "删除工作区",
@@ -243,12 +186,36 @@
     "railButtonAria": "{{label}}，{{state}}",
     "toolLoadFailed": "工具内容加载失败",
     "tool": {
-      "files": { "title": "文件", "shortTitle": "文件", "ariaLabel": "打开文件工具" },
-      "git": { "title": "Git", "shortTitle": "Git", "ariaLabel": "打开 Git 工具" },
-      "assist": {"title":"助手","shortTitle":"助手","ariaLabel":"助手"},
-      "persona": { "title": "画像", "shortTitle": "画像", "ariaLabel": "打开个人画像工具" },
-      "review": { "title": "审核", "shortTitle": "审核", "ariaLabel": "打开记忆审核" },
-      "sessions": { "title": "会话", "shortTitle": "会话", "ariaLabel": "打开会话工具" }
+      "files": {
+        "title": "文件",
+        "shortTitle": "文件",
+        "ariaLabel": "打开文件工具"
+      },
+      "git": {
+        "title": "Git",
+        "shortTitle": "Git",
+        "ariaLabel": "打开 Git 工具"
+      },
+      "assist": {
+        "title": "助手",
+        "shortTitle": "助手",
+        "ariaLabel": "助手"
+      },
+      "persona": {
+        "title": "画像",
+        "shortTitle": "画像",
+        "ariaLabel": "打开个人画像工具"
+      },
+      "review": {
+        "title": "审核",
+        "shortTitle": "审核",
+        "ariaLabel": "打开记忆审核"
+      },
+      "sessions": {
+        "title": "会话",
+        "shortTitle": "会话",
+        "ariaLabel": "打开会话工具"
+      }
     }
   },
   "quantumTopology": {

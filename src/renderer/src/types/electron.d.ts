@@ -3,7 +3,6 @@ import type { WorkspaceRuntimeAPI } from '../../../shared/workspace-runtime'
 import type { TerminalAPI } from '../../../shared/ipc/terminal'
 import type { ProjectAPI } from '../../../shared/ipc/project'
 import type { BrowserAPI } from '../../../shared/ipc/browser'
-import type { CpaAPI } from '../../../shared/ipc/cpa'
 import type { PluginHostAPI } from '../../../shared/ipc/plugins'
 import type { KnowledgeAPI } from '../../../shared/ipc/knowledge'
 import type { JanusAPI } from '../../../shared/ipc/janus'
@@ -43,7 +42,6 @@ interface ElectronAPI {
   terminal: TerminalAPI
   project: ProjectAPI
   browser: BrowserAPI
-  cpa: CpaAPI
   plugins?: PluginHostAPI
   knowledge: KnowledgeAPI
   janus: JanusAPI

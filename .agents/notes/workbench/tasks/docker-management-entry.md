@@ -57,11 +57,13 @@
     ],
     "review": "self"
   },
-  "updated": "2026-10-14T07:20:37Z",
+  "updated": "2026-10-29T06:52:35Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
 # Docker 管理入口实现（Portainer CE）
+
+> 当前接续：2026-10-29 已确认改为可选安装的 Docker 官方插件，应用级单实例面板从工具箱打开，复用 extension pane，不再新增 Docker 专用 pane 类型。当前设计与 D0–D5 计划归[Docker 官方插件](../docker-management-entry.md)。本 Task 保留 Portainer 历史范围、验收状态与执行证据，不作为新插件的实施或验收任务；下文为历史记录。
 
 > 2026-10-14 转向：Portainer 接入方向已放弃，改为自研首版基本能力，见[Docker 面板入口](../docker-management-entry.md)的 Decisions。P2/P4/P5/P6 属 Portainer 承载、部署引导、证书信任与兼容性验证，随转向**取消**（AC-2/AC-4/AC-6 一并作废）；P1 顶栏全局工具入口与 pane 树放宽仍然有效，其中 Docker 图标与环境下拉已移除，顶栏现余浏览器与 Markdown。
 

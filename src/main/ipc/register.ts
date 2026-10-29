@@ -6,7 +6,6 @@ import { createProductionOfficeOperations } from '../office/office-handler-opera
 import type { BrowserSurfaceManager } from '../browser/surface-manager'
 import { registerAgentHandlers } from './janus-runner-handlers'
 import { registerBrowserHandlers } from './browser-handlers'
-import { registerCpaHandlers } from './cpa-handlers'
 import { registerPluginHandlers } from './plugin-handlers'
 import { registerCheckpointHandlers } from './checkpoint-handlers'
 import { registerSessionHandlers } from './session-handlers'
@@ -112,8 +111,6 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
   pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
-  const cpaService = registerCpaHandlers(getCurrentMainWindow, options.browserSurfaces)
-  appShutdown.configure({ stopCpa: () => cpaService.dispose() })
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
   registerCheckpointHandlers()

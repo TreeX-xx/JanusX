@@ -1,9 +1,11 @@
 // Note: .agents/notes/workbench/plugin-contract-v1.md — isolated, offline native carriers.
-import { session, WebContentsView, MessageChannelMain, BrowserWindow, screen, type Session, type MessagePortMain } from 'electron'
+import { session, shell, WebContentsView, MessageChannelMain, BrowserWindow, screen, type Session, type MessagePortMain } from 'electron'
+import { z } from 'zod'
+import { BrowserOAuthBridge, type BrowserOAuth, type OAuthFallback } from './browser-oauth'
 import { extname, join } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
 import { createServer, type Server } from 'node:net'
-import type { JsonValue } from '@janusx/plugin-sdk'
+import type { JsonValue, NativeHandler } from '@janusx/plugin-sdk'
 import { PluginError } from '@janusx/plugin-sdk'
 import type { PluginMount, PluginBounds } from '../../shared/ipc/plugins'
 import type { PluginService } from './service'
@@ -12,11 +14,13 @@ import { PluginWindowLayout, fitPluginWindow } from './window-layout'
 const mime: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ico': 'image/x-icon' }
 interface Carrier { mount: PluginMount; view: WebContentsView; port?: MessagePortMain; attached?: BrowserWindow; inspector?: BrowserWindow
+  plugin?: string; browserRevision?: number; browser?: { view: WebContentsView; rect?: PluginBounds; url: string; bridge?: BrowserOAuthBridge; fallback?: OAuthFallback; externalError?: boolean; loadError?: boolean }
   window?: BrowserWindow; windowKey?: string; layoutKey?: string; layoutTimer?: ReturnType<typeof setTimeout>; windowPending?: boolean }
 
 export class PluginRuntime {
   private carriers = new Map<string, Carrier>()
   private sessions = new Map<string, Promise<Session>>()
+  private browserSessions = new WeakSet<Session>()
   private partition = randomUUID()
   private proxy?: Promise<{ server: Server; port: number }>
   private windows = new Map<string, Carrier>()
@@ -149,7 +153,7 @@ export class PluginRuntime {
     this.service.inspect(mount.instanceId, mount.binding)
     const view = new WebContentsView({ webPreferences: { session: isolated, sandbox: true, contextIsolation: true, nodeIntegration: false,
       nodeIntegrationInSubFrames: false, webSecurity: true, webviewTag: false, spellcheck: false, preload: join(__dirname, '../../preload/plugin.cjs') } })
-    const carrier: Carrier = { mount, view }
+    const carrier: Carrier = { mount, view, plugin }
     this.carriers.set(mount.instanceId, carrier)
     view.setBackgroundColor('#00000000')
     const contents = view.webContents
@@ -188,6 +192,103 @@ export class PluginRuntime {
   send(id: string, packet: JsonValue): void {
     try { this.carriers.get(id)?.port?.postMessage(packet) } catch { /* A crashed document may close its port before the process event. */ }
   }
+  /** Trusted native service requests a separate online guest; that guest never receives the plugin port. */
+  async browserCall(plugin: string, method: string, input: Record<string, JsonValue>, native: NativeHandler): Promise<JsonValue> {
+    const owner = z.string().uuid().parse(input.owner)
+    const carrier = this.carriers.get(owner)
+    if (!carrier || carrier.plugin !== plugin || carrier.window) throw new PluginError('INSTANCE_CLOSED', 'Browser owner is unavailable.')
+    this.service.inspect(owner, carrier.mount.binding)
+    if (method === 'desktop.browser.close') { this.closeBrowser(carrier); return null }
+    if (method === 'desktop.browser.status') {
+      return { fallback: carrier.browser?.fallback as unknown as JsonValue ?? null,
+        externalError: carrier.browser?.externalError ?? false,
+        error: carrier.browser?.loadError || carrier.browser?.view.webContents.isDestroyed() || false }
+    }
+    if (method === 'desktop.browser.bounds') {
+      const rect = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative(), width: z.number().finite().nonnegative(), height: z.number().finite().nonnegative() }).strict().parse(input.rect)
+      if (carrier.browser) { carrier.browser.rect = rect; this.layoutBrowser(carrier) }
+      return null
+    }
+    if (method !== 'desktop.browser.open') throw new PluginError('UNKNOWN_METHOD', 'Unknown browser operation.')
+    const url = new URL(z.string().max(2048).parse(input.url))
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search) throw new PluginError('INVALID_REQUEST', 'Unsupported service URL.')
+    if (carrier.browser?.url === url.href && !carrier.browser.loadError && !carrier.browser.view.webContents.isDestroyed()) return null
+    this.closeBrowser(carrier)
+    const revision = carrier.browserRevision
+    const identity = createHash('sha256').update(url.origin).digest('hex').slice(0, 24)
+    // Keep the legacy CPA login partition for the same origin; all new providers get a private profile.
+    const partition = plugin === 'official.cpa' ? `persist:janusx-cpa-${identity}` : `persist:janusx-plugin-browser-${plugin}-${identity}`
+    const online = session.fromPartition(partition)
+    await online.setProxy({ mode: input.direct === true ? 'direct' : 'system' })
+    this.service.inspect(owner, carrier.mount.binding)
+    if (this.carriers.get(owner) !== carrier || carrier.browserRevision !== revision) throw new PluginError('INSTANCE_CLOSED', 'Browser owner closed or changed.')
+    const view = new WebContentsView({ webPreferences: { session: online, sandbox: true, contextIsolation: true, nodeIntegration: false, nodeIntegrationInSubFrames: false, webSecurity: true, webviewTag: false } })
+    const browser: NonNullable<Carrier['browser']> = { view, url: url.href }
+    carrier.browser = browser
+    online.setPermissionRequestHandler((_web, _permission, callback) => callback(false))
+    online.setPermissionCheckHandler(() => false)
+    online.setDevicePermissionHandler(() => false)
+    if (!this.browserSessions.has(online)) {
+      online.on('will-download', event => event.preventDefault())
+      this.browserSessions.add(online)
+    }
+    view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    const oauth = input.oauth ? z.object({ prefix: z.string().startsWith('/').max(200), auth: z.string().startsWith('/').max(200),
+      status: z.string().startsWith('/').max(200), session: z.string().startsWith('/').max(200),
+      providers: z.record(z.object({ port: z.number().int().min(1024).max(65535), urls: z.array(z.string().url()).max(4) }).strict()).refine(value => Object.keys(value).length <= 8),
+    }).strict().parse(input.oauth) as BrowserOAuth : undefined
+    const external = (target: string) => {
+      let address: URL
+      try { address = new URL(target) } catch { return }
+      if (!['http:', 'https:'].includes(address.protocol) || address.username || address.password) return
+      browser.bridge?.observeAuthorization(target)
+      browser.externalError = false
+      void shell.openExternal(target).catch(() => { browser.externalError = true })
+    }
+    if (oauth) browser.bridge = new BrowserOAuthBridge(online, url.origin, fallback => { browser.fallback = fallback }, oauth,
+      undefined, async (state, signal) => {
+        const result = await native('browser.oauth-status', { input: { state }, project: null }, signal)
+        return typeof result === 'string' ? result : undefined
+      })
+    view.webContents.setWindowOpenHandler(({ url: target }) => { external(target); return { action: 'deny' } })
+    const navigation = (event: Electron.Event, target: string) => {
+      let address: URL
+      try { address = new URL(target) } catch { event.preventDefault(); return }
+      const authorize = oauth && Object.values(oauth.providers).some(provider => provider.urls.includes(address.origin + address.pathname))
+      if (authorize) { event.preventDefault(); external(target) }
+      else if (address.origin !== url.origin || !['http:', 'https:'].includes(address.protocol) || address.username || address.password) event.preventDefault()
+    }
+    view.webContents.on('will-navigate', navigation)
+    view.webContents.on('will-redirect', navigation)
+    view.webContents.on('will-frame-navigate', event => navigation(event, event.url))
+    view.webContents.on('render-process-gone', () => { browser.loadError = true })
+    // Browser bounds remain empty until the plugin explicitly allocates its content rectangle.
+    void view.webContents.loadURL(url.href).catch(() => { browser.loadError = true })
+    return null
+  }
+  closeBrowsers(plugin: string): void {
+    for (const carrier of this.carriers.values()) if (carrier.plugin === plugin) this.closeBrowser(carrier)
+  }
+  private closeBrowser(carrier: Carrier): void {
+    carrier.browserRevision = (carrier.browserRevision ?? 0) + 1
+    const browser = carrier.browser
+    if (!browser) return
+    carrier.browser = undefined
+    try { carrier.attached?.contentView.removeChildView(browser.view) } catch { /* Window closed. */ }
+    browser.bridge?.dispose()
+    if (!browser.view.webContents.isDestroyed()) browser.view.webContents.close({ waitForBeforeUnload: false })
+  }
+  private layoutBrowser(carrier: Carrier): void {
+    const browser = carrier.browser
+    if (!browser || !carrier.attached) return
+    const parent = carrier.view.getBounds(), rect = browser.rect
+    const x = Math.min(parent.width, Math.round(rect?.x ?? 0)), y = Math.min(parent.height, Math.round(rect?.y ?? 0))
+    const width = Math.max(0, Math.min(parent.width - x, Math.round(rect?.width ?? 0)))
+    const height = Math.max(0, Math.min(parent.height - y, Math.round(rect?.height ?? 0)))
+    if (!width || !height) { try { carrier.attached.contentView.removeChildView(browser.view) } catch { /* Already hidden. */ }; return }
+    browser.view.setBounds({ x: parent.x + x, y: parent.y + y, width, height })
+    carrier.attached.contentView.addChildView(browser.view)
+  }
   setBounds(id: string, binding: string, bounds: PluginBounds): void {
     this.service.inspect(id, binding)
     const carrier = this.carriers.get(id); const window = this.getWindow()
@@ -198,6 +299,7 @@ export class PluginRuntime {
     if (!clipped.width || !clipped.height) { this.detach(carrier); return }
     if (carrier.attached !== window) { this.detach(carrier); window.contentView.addChildView(carrier.view); carrier.attached = window }
     carrier.view.setBounds(clipped)
+    this.layoutBrowser(carrier)
   }
   inspect(id: string, binding: string): void {
     this.service.inspect(id, binding)
@@ -214,12 +316,14 @@ export class PluginRuntime {
     carrier.view.webContents.openDevTools({ mode: 'detach' })
   }
   private detach(carrier: Carrier): void {
+    try { if (carrier.browser) carrier.attached?.contentView.removeChildView(carrier.browser.view) } catch { /* Already hidden. */ }
     try { carrier.attached?.contentView.removeChildView(carrier.view) } catch { /* Host may already be gone. */ }
     carrier.attached = undefined
   }
   close(id: string): void {
     const carrier = this.carriers.get(id)
     if (!carrier) return
+    this.closeBrowser(carrier)
     this.carriers.delete(id); this.saveWindow(carrier); carrier.port?.close(); this.detach(carrier)
     if (carrier.windowKey && this.windows.get(carrier.windowKey) === carrier) this.windows.delete(carrier.windowKey)
     if (carrier.window && !carrier.window.isDestroyed()) carrier.window.destroy()
