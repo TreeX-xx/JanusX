@@ -19,6 +19,7 @@ import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import type { SubAgentRunEngine } from '../../shared/subAgentRun'
 import { AgentHookBridge } from '../notifications/agent-hook-bridge'
 import { AgentHookConfigManager } from '../notifications/agent-hook-config'
+import { assertHookCleanupIdle } from '../notifications/retire-legacy-hooks'
 import { AgentHookCoordinator, getRawString } from '../notifications/agent-hook-coordinator'
 import { AGENT_ENGINE_CAPABILITIES } from '../notifications/agent-engine-capabilities'
 import { AgentTurnSentinel } from '../notifications/agent-turn-sentinel'
@@ -611,6 +612,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
   const createTerminalLifecycle = async (config: TerminalCreateRequest, recoveryEnv?: SessionRecoveryEnvironment) => {
     if (parseRuntimeResource(config.cwd)) return createRemoteLifecycle(config)
+    assertHookCleanupIdle()
     const launchStartedAt = performance.now()
     const { id, cwd, shell, preset, command, args, cols, rows, extraArgs, shellProfileId, shellCommand } = config
 
@@ -789,6 +791,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
       terminalStorageReleases.set(id, acquireWorkspaceStorage(cwd))
+      assertHookCleanupIdle()
       instance = terminalManager.create({
         id,
         workspaceId,

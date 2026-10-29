@@ -22,6 +22,7 @@ const REQUIRED_TREE_EXCLUSIONS = [
   '.github',
   '.cache',
   '.janusX',
+  '.janusx',
   // Optional models/environments must never enter asar; only the explicit sidecar resources ship.
   'resources/laya',
 ]

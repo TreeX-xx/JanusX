@@ -13,6 +13,7 @@ const treeExclusions = [
   '  - !.codex{,/**/*}',
   '  - !.github{,/**/*}',
   '  - !.janusX{,/**/*}',
+  '  - !.janusx{,/**/*}',
   '  - !resources/laya{,/**/*}',
   '  - !artifacts{,/**/*}',
   '  - !apps{,/**/*}',

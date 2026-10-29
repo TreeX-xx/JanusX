@@ -1,5 +1,16 @@
 {
   "dataManagement": "数据管理",
+  "hooks": {
+    "title": "旧 Hook 接入",
+    "scope": "清理用户 Claude、Codex 配置中可确认属于 JanusX 的旧 Hook 命令、旧 Windows 发送脚本和过时的 OpenCode 附加配置。保留用户 Hook、登录、原生会话及 Codex 信任记录。无法确认归属的文件会保留并列出原因。",
+    "action": "清理旧 Hook 接入",
+    "confirmTitle": "确认清理旧 Hook",
+    "closeTasks": "请先退出旧版 JanusX，关闭本应用终端、运行任务及外部 CLI。清理后使用当前版本重新打开终端，即可加载新的启动注入。此操作只处理旧接入，不删除当前版本使用的 Hook 资产。",
+    "busy": "正在清理…",
+    "result": "已清理 {{commands}} 条旧 Hook 命令、{{files}} 个文件。",
+    "removed": "已清理的文件",
+    "retained": "已保留的项目及原因"
+  },
   "maintenance": {
     "addNew": "作为新工作区添加",
     "title": "工作区数据", "policy": "命令日志保留 30 天。移除后的应用数据可在 30 天内恢复关联。普通升级不会重置时间。旧还原点已退场，可直接清除，不再迁移或按时间、数量保留。",

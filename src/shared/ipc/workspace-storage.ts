@@ -3,6 +3,7 @@ export const WORKSPACE_STORAGE_CHANNELS = {
   dismiss: 'workspace-storage:dismiss',
   data: 'workspace-storage:data', measure: 'workspace-storage:measure', cleanup: 'workspace-storage:cleanup',
   relocate: 'workspace-storage:relocate', restore: 'workspace-storage:restore',
+  retireHooks: 'workspace-storage:retire-hooks',
 } as const
 export interface WorkspaceMigrationItem {
   id: string
@@ -27,6 +28,13 @@ export interface WorkspaceStorageAPI {
   cleanup(id: string, category: WorkspaceCleanupCategory): Promise<void>
   relocate(id: string, destination: string): Promise<void>
   restore(id: string): Promise<void>
+  retireHooks(): Promise<LegacyHookCleanupResult>
+}
+
+export interface LegacyHookCleanupResult {
+  commands: number
+  files: string[]
+  retained: Array<{ path: string; reason: string }>
 }
 
 export interface WorkspaceDataRecord { id: string; name: string; path: string }

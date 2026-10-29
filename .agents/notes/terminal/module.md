@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-29T11:40:21.055Z",
+  "updated": "2026-10-29T17:22:01.375Z",
   "moduleState": "partial"
 }
 ---
@@ -66,7 +66,7 @@ WSL／SSH 新建 Agent 终端在目标 Linux 检测 CLI：已安装直接打开�
 
 状态显示链（路由与投影分层，互链不合并）：[model-lifecycle](./terminal-model-lifecycle.md)、[sidebar-states](./terminal-sidebar-states.md)、[status-display](./terminal-status-display.md)、[idle-prompt](./terminal-status-display.md)、[status-ring](./terminal-status-display.md)、[sidebar-hierarchy](./terminal-sidebar-states.md)、[context-telemetry](./claude-opencode-context-telemetry.md)。
 
-[Hook 单次启动隔离](./terminal-hook-launch-isolation.md)已接入新建、预热与历史恢复。自有资产位于当前 profile 的 userData，Claude 附加 settings、Pi extension、Codex 原生审阅及启动定义、OpenCode 按版本选择插件。JanusX 不写原生配置；用户允许 Codex 原生界面在主动审阅后保存信任。真实版本矩阵和兼容缺口由专题维护，旧全局条目与长期回收分别留 P5、P4。
+[Hook 单次启动隔离](./terminal-hook-launch-isolation.md)已接入新建、预热与历史恢复。自有资产位于当前 profile 的 userData，Claude 附加 settings、Pi extension、Codex 原生审阅及启动定义、OpenCode 按版本选择插件。普通启动不写原生配置；P5 在数据管理中提供主动清除可确认旧全局 Hook 的入口，保留用户配置、登录、会话和信任；无法确认的旧二进制列出并保留。用户允许 Codex 原生界面在主动审阅后保存信任。真实版本矩阵、清理边界和兼容缺口由专题维护。
 
 P3 已清除 Hook 对遥测的绑定、刷新和调度，保留[独立扫描与归属](./usage-telemetry-hook-decoupling.md#当前实现与纯后台边界的差距)，歧义保持未知。五类非统计生命周期统一确认边界，习惯采集只在双开关开启后接入，关闭使排队／在途旧结果失效；状态 Hook 继续服务终端。
 

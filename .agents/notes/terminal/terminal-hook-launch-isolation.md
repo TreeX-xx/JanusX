@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-29",
-  "updated": "2026-10-29T11:40:21.067Z",
+  "updated": "2026-10-29T17:22:01.375Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -16,7 +16,7 @@
 
 旧安装器会重写 Claude/Codex 原生用户级配置，Windows 发送器散落在 home；OpenCode 新旧插件接口和共享服务还会造成加载失败或多终端归属错误。Hook 同时驱动遥测刷新与未启用的习惯采集，扩大了读写触发面。需要收回接入位置与职责，同时保留原生用户 Hook、登录、历史及审批能力。
 
-P3 将 JanusX Hook 接入限定到本次启动链，保留原生身份、登录和历史；上下文／用量完全独立于 Hook。用户已调度实施，本篇记录实现、明确例外及验证边界。旧全局条目删除归 P5，私有资产长期回收归 P4，本次均未执行。
+P3 将 JanusX Hook 接入限定到本次启动链，保留原生身份、登录和历史；上下文／用量完全独立于 Hook。P5 已提供用户主动触发的旧接入清理，边界与增量验收见下节。普通启动、预热和恢复仍只准备 userData 资产，不自动修改原生配置。
 
 ## Decision
 
@@ -31,7 +31,27 @@ P3 将 JanusX Hook 接入限定到本次启动链，保留原生身份、登录�
 | OpenCode 1 | OPENCODE_CONFIG_CONTENT.plugin 添加自有 v1.js 文件 URL | 保留旧式事件插件，不传新版 --standalone；真实通过版本 1.2.27，1.19.5 初始化超时未通过 |
 | Janus / DSH | Janus 延续原生环境入口；DSH 无可安装 Hook | 本次不增加 DSH Hook 契约 |
 
-Codex 和 OpenCode 探测实际解析到的二进制版本；相同路径、mtime、大小共享探测，文件变化后重新识别。Codex 仅对 0.x 且 minor >=165 启用当前参数，其他版本降级，真实验收仅覆盖 0.165.0。OpenCode 保留原生 config dir 和对应 inline 配置字段，未知大版本或探测失败记录 setup 诊断后裸启动，不向旧 CLI 传新版参数。Hook 准备失败不阻止终端本身启动／历史恢复。已有全局 Hook 仍可能与新注入同时触发；生命周期层对重复开始和结束去重，但不能宣称 P5 已清除额外进程开销。
+Codex 和 OpenCode 探测实际解析到的二进制版本；相同路径、mtime、大小共享探测，文件变化后重新识别。Codex 仅对 0.x 且 minor >=165 启用当前参数，其他版本降级，真实验收仅覆盖 0.165.0。OpenCode 保留原生 config dir 和对应 inline 配置字段，未知大版本或探测失败记录 setup 诊断后裸启动，不向旧 CLI 传新版参数。Hook 准备失败不阻止终端本身启动／历史恢复。尚未主动清理的旧全局 Hook 仍可能与新注入同时触发；生命周期层对重复开始和结束去重，清理入口不保证未知接入也被移除。
+
+### P5 旧接入主动清理
+
+“设置 → 通用 → 数据管理 → 旧 Hook 接入”提供一个清理按钮，执行前说明范围，并要求先退出旧版 JanusX、关闭本应用终端／运行任务及外部 CLI。打开设置不扫描 home；没有启动自动清理、周期轮询、保留期或新增阈值。点击确认后，仅核对默认 `.claude/settings.json`、`.codex/hooks.json` 及当前 CLAUDE_CONFIG_DIR／CODEX_HOME 对应文件，不扫描整盘或未知自定义 home。位置由主进程决定，renderer 不能提交任意删除路径。IPC 仅允许应用窗口。
+
+只移除明确标记为 JanusX、匹配旧发送器调用且没有附加用户动作的 command 条目；名称提及、标记前缀相似、自定义复合命令、未知结构均保留。混合条目中的用户 Hook 和其他字段保留，JSONC 定点编辑保留 BOM、注释及未涉及的配置文本。因本次删除而变空、且仅含 hooks／matcher 的标准分组和事件会移除，用户原有空数组及带未知字段的分组保留，避免残留空分组影响原生 Hook 加载。损坏 JSON 和重复键保留并报告。原生配置采用临时文件、权限继承、落盘和原子替换；提交前重新核对原件，检测到用户并发保存则保留新内容并报告可重试失败。Codex config.toml、原生信任、凭据和会话不进入清理清单。这是 P5 显式清除旧注册的例外，不恢复 P3 的全局安装写入。
+
+home/.janusx/hooks 中的旧 PowerShell 发送脚本及 runner C# 源码只按已核实旧版本的 SHA-256 白名单清除，换行差异归一；修改过或未知内容保留。exe 的文件名不能证明二进制归属，因此旧 runner 可执行文件保留供明确核查，界面列出完整路径和原因；未知目录、其他文件和旧诊断日志不递归遍历。原生 Hook 清理失败或仍有疑似旧引用时，发送器保留。当前 userData 中的插件、扩展、发送器、server.js 与 v1.js 保持；旧 OpenCode opencode.json 仅在同目录所有权 marker 和 schema-only 内容均吻合时清除，已修改配置保留。没有删除真实用户 home 的操作。
+
+操作复用 workspaceIo 后台队列、分批让出与既有常量；同一进程的并发请求共享执行。活动终端或运行任务阻止执行；清理期间本地终端在进入创建和实际 spawn 前复核门控，覆盖已在途的创建。结果直接显示删除数量、文件路径、保留原因，失败重试重新核对原件，没有额外调度器或回执数据库。其他进程不受本进程门控，必须遵循执行前的退出提示。
+
+当前仓库 `.janusX/blueprints`、`design`、`shots` 三个残留目录均不存在，本轮未执行实际删除。electron-builder 及包边界检查同时排除 `.janusX` 和 `.janusx` 整棵目录，防止大小写不同的旧数据进入安装包。旧安装器不再用于新建、预热或历史恢复；清理后再准备资产的测试确认全局条目不会被重新写入。
+
+### P5 验收与限制
+
+定向执行 `npx vitest run` 加 `tests/unit/` 下的 `retire-legacy-hooks`、`terminal-ipc-contract`、`agent-hook-config`、`workspace-storage-ipc`、`workspace-storage-preload`、`workspace-storage-ui`、`package-boundary` 七个 `.test.ts` 文件，最终 94 项通过、2 项平台用例跳过。覆盖真实临时目录中的混合 Hook、BOM／注释、重复键、损坏配置、单引号／中文路径、默认及配置 home、并发用户保存、写入／删除故障与重试、旧发送器内容归属、用户配置和现用资产保留、运行任务阻止、创建门控、IPC 授权及不回写旧注册。Windows 目录 junction 拒绝已实测；普通文件软链接和 POSIX 0600 权限测试在 Windows 跳过，不能据此声称 Linux／macOS 已验收。读取与写入复用 P1 的分块 I/O，不新增速率或重试参数。
+
+`$env:JANUSX_TEST_REAL_CLIS='1'; npx vitest run tests/unit/agent-hook-cli.test.ts --maxWorkers=1 -t 'Claude|Codex'` 最终两项通过，Pi／OpenCode 因本次选择范围未运行。隔离临时 home 和 localhost 模型中先种入旧全局条目并清理，再执行真实 Claude／Codex；用户 Hook 继续执行，当前注入仍向 Bridge 投递，移除注入后不再投递。Codex 保留 config.toml 原内容，并经原生 TUI 主动审阅保存夹具信任。初次 Codex 验证在残留空分组时缺少文件来源用户 Hook，移除本次清理产生的空标准分组后，单独及联合复验均通过；此问题已增加定向回归。
+
+Chromium 覆盖取消、确认、失败重试、逐项保留原因、键盘交互、明暗主题和 480px 布局；主 Agent 已检查 `artifacts/workspace-storage/legacy-hooks-480.png`。源码定向 ESLint、严格 unused 类型检查、i18n、包边界、打包排除检查及 build:check 通过。主 Agent 自审完成，未委派独立审查。没有清理真实用户 home，也没有做真实安装包升级、跨进程并发编辑或长期慢盘验收；这些仍归 P6。无法确认的旧二进制、自定义复合命令与未枚举 home 不自动清除。
 
 ### Codex 原生信任例外
 

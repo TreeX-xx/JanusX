@@ -22,6 +22,7 @@ beforeAll(async () => {
     const storage={id:'s',name:'中文项目',path:'D:/projects/demo',target:root+'/12345678-1234-1234-1234-123456789012',workspaceIds:['w'],legacy:false,status:'associated'};
     state.storage=storage;state.canceled=false;state.mismatch=false;state.response=1;state.workspaces=[{id:'w',name:'中文项目',path:storage.path}];
     Object.assign(window.electron.workspaceStorage,{
+      retireHooks:async()=>{state.calls.push('retireHooks');if(state.hookError)throw Error(state.hookError);return{commands:2,files:['C:/Users/Test/.janusx/hooks/janusx-agent-hook.ps1'],retained:[{path:'C:/Users/Test/.janusx/hooks/janusx-hook-runner.exe',reason:'Unknown binary retained'}]};},
       data:async()=>{state.calls.push('data');return[{...storage}];},
       measure:async(id)=>{state.calls.push(['measure',id]);return 1024*1024;},
       cleanup:async(id,category)=>{state.calls.push(['cleanup',id,category]);},
@@ -174,4 +175,28 @@ it('renders maintenance in both themes at narrow width with full paths and keybo
       await page.getByRole('heading', { name: '工作区数据', exact: true }).locator('../..').screenshot({ path: `artifacts/workspace-storage/maintenance-${light ? 'light' : 'dark'}-480.png` })
     } finally { await page.close() }
   }
+})
+
+it('cleans legacy Hooks only after confirmation and reports retained files with retryable failures', async () => {
+  const page = await mount('panel', 480)
+  try {
+    expect(await page.evaluate(() => (window as any).fixture.calls.includes('retireHooks'))).toBe(false)
+    await page.getByRole('button', { name: '清理旧 Hook 接入', exact: true }).click()
+    const confirm = page.getByRole('group', { name: '确认清理旧 Hook' })
+    await expect(confirm).toContainText('外部 CLI')
+    await confirm.getByRole('button', { name: '取消', exact: true }).click()
+    expect(await page.evaluate(() => (window as any).fixture.calls.includes('retireHooks'))).toBe(false)
+    await page.getByRole('button', { name: '清理旧 Hook 接入', exact: true }).click()
+    await page.evaluate(() => { (window as any).fixture.hookError = 'Close terminals before cleanup' })
+    await confirm.getByRole('button', { name: '确认清除', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('Close terminals')
+    await expect(confirm).toBeVisible()
+    await page.evaluate(() => { (window as any).fixture.hookError = '' })
+    await confirm.getByRole('button', { name: '确认清除', exact: true }).click()
+    await expect(page.getByText('已清理 2 条旧 Hook 命令、1 个文件。', { exact: true })).toBeVisible()
+    await expect(page.getByText('Unknown binary retained', { exact: true })).toBeVisible()
+    await expect(page.getByText('C:/Users/Test/.janusx/hooks/janusx-hook-runner.exe', { exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: 'artifacts/workspace-storage/legacy-hooks-480.png', fullPage: true })
+  } finally { await page.close() }
 })

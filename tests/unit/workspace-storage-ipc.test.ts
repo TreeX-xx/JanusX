@@ -5,9 +5,12 @@ import { join } from 'node:path'
 import { WorkspaceStateStore } from '../../src/main/storage/workspace-state'
 import { WORKSPACE_STORAGE_CHANNELS as channels } from '../../src/shared/ipc/workspace-storage'
 
-const host = vi.hoisted(() => ({ profile: '', store: undefined as WorkspaceStateStore | undefined, handlers: new Map<string, (...args: any[]) => Promise<any>>() }))
+const host = vi.hoisted(() => ({ profile: '', terminals: [] as any[], tasks: new Map(), retire: vi.fn(), store: undefined as WorkspaceStateStore | undefined, handlers: new Map<string, (...args: any[]) => Promise<any>>() }))
 vi.mock('electron', () => ({ app: { getPath: () => host.profile }, ipcMain: { handle: (key: string, fn: any) => host.handlers.set(key, fn) } }))
 vi.mock('../../src/main/storage/service', () => ({ workspaceStateStore: () => host.store!, startWorkspaceMaintenance: vi.fn(), requestWorkspaceMaintenance: vi.fn() }))
+vi.mock('../../src/main/terminal/manager', () => ({ terminalManager: { listInstances: () => host.terminals } }))
+vi.mock('../../src/main/project/runner/service', () => ({ getProjectRunner: () => ({ getAllRunning: () => host.tasks }) }))
+vi.mock('../../src/main/notifications/retire-legacy-hooks', () => ({ retireLegacyHooks: (...args: unknown[]) => host.retire(...args) }))
 import { registerWorkspaceStorageHandlers } from '../../src/main/ipc/workspace-storage-handlers'
 
 let base: string, cwd: string
@@ -22,6 +25,7 @@ beforeEach(async () => {
     await writeFile(join(records, `${item.id}.json`), JSON.stringify(item))
   }
   host.store = new WorkspaceStateStore(host.profile)
+  host.terminals = []; host.tasks.clear(); host.retire.mockReset()
   host.handlers.clear()
   registerWorkspaceStorageHandlers(() => [{ isDestroyed: () => false, webContents: { id: 7 } }] as any)
 })
@@ -46,6 +50,20 @@ it('authorizes application windows and accepts only registered IDs', async () =>
   await expect(host.handlers.get(channels.list)!({ sender: { id: 99 } })).rejects.toThrow('application windows')
   await expect(call(channels.migrate, [cwd])).rejects.toThrow('registered')
   await expect(call(channels.migrate, [null])).rejects.toThrow('selection')
+  await expect(host.handlers.get(channels.retireHooks)!({ sender: { id: 99 } })).rejects.toThrow('application windows')
+  expect(host.retire).not.toHaveBeenCalled()
+})
+
+it('passes only host-resolved cleanup locations and rejects running terminals or tasks', async () => {
+  host.retire.mockImplementation(async (_locations, unused) => { unused(); return { commands: 0, files: [], retained: [] } })
+  host.terminals = [{ status: 'running' }]
+  await expect(call(channels.retireHooks, { homeDir: cwd })).rejects.toThrow('Close terminals')
+  host.terminals = [{ status: 'exited' }]; host.tasks.set('task', {})
+  await expect(call(channels.retireHooks)).rejects.toThrow('Close terminals')
+  host.tasks.clear()
+  expect(await call(channels.retireHooks)).toEqual({ commands: 0, files: [], retained: [] })
+  expect(host.retire.mock.calls[0][0]).toMatchObject({ userDataDir: host.profile })
+  expect(host.retire.mock.calls[0][0].homeDir).not.toBe(cwd)
 })
 
 it('deduplicates selection and reports per-workspace failure without blocking other items', async () => {

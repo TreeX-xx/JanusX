@@ -66,6 +66,14 @@ beforeAll(async () => {
 })
 
 describe('Terminal IPC contract', () => {
+  it('blocks local terminal creation while explicit legacy Hook cleanup owns the gate', async () => {
+    const { retireLegacyHooks } = await import('../../src/main/notifications/retire-legacy-hooks')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    const cleanup = retireLegacyHooks({ homeDir: 'C:/janus-unused-hook-home', userDataDir: 'C:/janus-unused-hook-profile' }, () => { throw new Error('active cleanup fixture') })
+    const result = expect(cleanup).rejects.toThrow('active cleanup fixture')
+    await expect(create({}, { id: 'blocked-by-cleanup', cwd: 'C:/janus-terminal-fixture', preset: 'shell' })).rejects.toThrow('cleanup is in progress')
+    await result
+  })
   it('holds workspace usage from terminal spawn until exit, even when exit cleanup partly fails', async () => {
     const { workspaceStorageInUse } = await import('@janus-agent/agent-core')
     const { terminalManager } = await import('../../src/main/terminal/manager')

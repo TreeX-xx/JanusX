@@ -8,6 +8,7 @@ import { AgentHookBridge } from '../../src/main/notifications/agent-hook-bridge'
 import { AgentHookCoordinator } from '../../src/main/notifications/agent-hook-coordinator'
 import type { AgentHookPayload, AgentHookSemantic } from '../../src/main/notifications/agent-hook-types'
 import { filesIn, hookCliFixture, runHookCli } from '../helpers/hook-cli-fixture'
+import { retireLegacyHooks } from '../../src/main/notifications/retire-legacy-hooks'
 
 vi.mock('../../src/main/notifications/desktop-toast-window', () => ({ desktopToastWindow: { show: vi.fn(() => true) } }))
 vi.mock('electron', () => ({ app: { isPackaged: true, getPath: () => '/unused' } }))
@@ -50,11 +51,16 @@ async function setup(engine: keyof typeof bins) {
 }
 
 describe.skipIf(!enabled)('real CLI launch isolation (local model fixtures)', () => {
-  it.skipIf(!existsSync(bins.claude))('Claude keeps user settings, adds hooks for one launch, then detaches', async () => {
+  it.skipIf(!existsSync(bins.claude))('Claude keeps user settings after legacy cleanup, adds hooks for one launch, then detaches', async () => {
     const f = await setup('claude')
     const settings = join(f.home, '.claude/settings.json')
-    const original = '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo user-hook"}]}]}}\n'
-    await writeFile(settings, original)
+    const legacy = JSON.parse(await readFile(f.manager.getClaudeSettingsPath(), 'utf8'))
+    legacy.hooks.Stop.push({ hooks: [{ type: 'command', command: 'echo user-hook' }] })
+    await writeFile(settings, JSON.stringify(legacy))
+    const cleaned = await retireLegacyHooks({ homeDir: f.home, userDataDir: join(f.root, 'cleanup-profile') }, () => {})
+    expect(cleaned.commands).toBe(7)
+    const original = await readFile(settings, 'utf8')
+    expect(original).toContain('echo user-hook'); expect(original).not.toContain('janusx-agent-hook-v2')
     const env = { ...f.envFor('claude'), ANTHROPIC_BASE_URL: f.url, ANTHROPIC_API_KEY: 'local-only' }
     const base = ['--print', '--model', 'probe', '--no-session-persistence', '--tools', '', '--output-format', 'json']
     const result = await f.run([...base, ...f.launch, 'Reply OK'], env)
@@ -138,7 +144,11 @@ describe.skipIf(!enabled)('real CLI launch isolation (local model fixtures)', ()
     const nativeCommand = (value: string) => `Add-Content -LiteralPath '${sentinel.replace(/'/g, "''")}' -Value '${value}'`
     const original = stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: nativeCommand('inline') }] }] } })
     await writeFile(configPath, original)
-    await writeFile(nativeHooks, JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: nativeCommand('file') }] }] } }))
+    const legacy = JSON.parse(await readFile(f.manager.getCodexHooksPath(), 'utf8'))
+    legacy.hooks.Stop.push({ hooks: [{ type: 'command', command: nativeCommand('file') }] })
+    await writeFile(nativeHooks, JSON.stringify(legacy))
+    const cleaned = await retireLegacyHooks({ homeDir: f.home, userDataDir: join(f.root, 'cleanup-profile') }, () => {})
+    expect(cleaned.commands).toBe(6)
     const originalHooks = await readFile(nativeHooks, 'utf8')
     const base = ['-c', 'model="probe"', '-c', 'model_provider="local"', '-c', `model_providers.local={name="Local probe",base_url="${f.url}/v1",wire_api="responses",requires_openai_auth=false}`, '-c', 'check_for_update_on_startup=false']
     const exec = ['exec', '--ephemeral', '--skip-git-repo-check', '--json', 'Reply OK']

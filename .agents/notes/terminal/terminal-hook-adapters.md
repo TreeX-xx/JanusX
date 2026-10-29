@@ -6,7 +6,7 @@
   "lifecycle": "implemented",
   "created": "2026-10-02",
   "class": "bug-fix",
-  "updated": "2026-10-29T11:24:13.901Z",
+  "updated": "2026-10-29T17:22:01.375Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -20,7 +20,7 @@ OpenCode emits `properties.status` as a tagged object. Matching only string valu
 
 ## Decision
 
-`AgentHookConfigManager` restricts JSON command generation to Claude and Codex. Windows Codex commands use PowerShell's call operator and single-quoted arguments; Claude commands use POSIX quoting. Both launch the same hidden executable. The fallback launches PowerShell with a script expression quoted for the outer engine shell and preserves the execution-policy bypass. Linux and macOS use the existing POSIX executable client. Commands retain the ownership marker. Preparation writes only JanusX userData assets; Claude additional settings and Codex session flags load them for one launch. Legacy global registration removal belongs to P5.
+`AgentHookConfigManager` restricts JSON command generation to Claude and Codex. Windows Codex commands use PowerShell's call operator and single-quoted arguments; Claude commands use POSIX quoting. Both launch the same hidden executable. The fallback launches PowerShell with a script expression quoted for the outer engine shell and preserves the execution-policy bypass. Linux and macOS use the existing POSIX executable client. Commands retain the ownership marker. Preparation writes only JanusX userData assets; Claude additional settings and Codex session flags load them for one launch. P5 provides explicit legacy registration cleanup in Data management; ownership checks, retained unknowns and validation belong to [launch isolation](terminal-hook-launch-isolation.md#p5-旧接入主动清理).
 
 OpenCode uses additional OPENCODE_CONFIG_CONTENT without replacing the native config directory. Version 2 uses a default id/setup definition, api.event.subscribe and --standalone; version 1 uses its legacy event plugin via a file URL and receives no v2 flag. The actual resolved binary version selects the adapter; probes are reused until the binary changes. Version 2.1.4 and 1.2.27 have real delivery evidence; 1.19.5 timed out during fresh-home initialization and remains unverified. Questions retain input semantics rather than approval. See [launch isolation](terminal-hook-launch-isolation.md) for the supported matrix, native trust exception and final verification.
 

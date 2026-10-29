@@ -3,11 +3,13 @@ import { app, ipcMain, type BrowserWindow } from 'electron'
 import { opendir, readFile, writeFile, rename, unlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
 import { workspaceIo } from '@janus-agent/agent-core'
 import { WORKSPACE_STORAGE_CHANNELS, type WorkspaceMigrationItem, type WorkspaceCleanupCategory } from '../../shared/ipc/workspace-storage'
 import type { Workspace } from '../../shared/ipc/workspace'
 import { workspaceStateStore, startWorkspaceMaintenance, requestWorkspaceMaintenance } from '../storage/service'
 import { disposeWorkspaceWatcher } from './handlers'
+import { retireLegacyHooks } from '../notifications/retire-legacy-hooks'
 
 export async function workspaceStorageRecords(): Promise<Workspace[]> {
   const directory = join(app.getPath('userData'), 'janusx', 'workspaces')
@@ -53,6 +55,19 @@ export function registerWorkspaceStorageHandlers(getAllowedWindows: () => readon
   const authorize = (sender: { id: number }) => {
     if (!getAllowedWindows().some(window => !window.isDestroyed() && window.webContents.id === sender.id)) throw new Error('Workspace storage is only available to application windows')
   }
+  ipcMain.handle(WORKSPACE_STORAGE_CHANNELS.retireHooks, async event => {
+    authorize(event.sender)
+    const [{ terminalManager }, { getProjectRunner }] = await Promise.all([
+      import('../terminal/manager'), import('../project/runner/service'),
+    ])
+    return retireLegacyHooks({ homeDir: homedir(), userDataDir: app.getPath('userData'),
+      claudeConfigDir: process.env.CLAUDE_CONFIG_DIR?.trim(), codexHome: process.env.CODEX_HOME?.trim(),
+    }, () => {
+      if (terminalManager.listInstances().some(terminal => terminal.status !== 'exited') || getProjectRunner().getAllRunning().size) {
+        throw new Error('请先关闭终端和运行任务，再清理旧 Hook。 Close terminals and running tasks before cleanup.')
+      }
+    })
+  })
   startWorkspaceMaintenance(localRecords)
   workspaceStateStore().completeRelocation = async (oldPath, newPath) => {
     for (const workspace of (await localRecords()).filter(item => pathKey(item.path) === pathKey(oldPath))) {

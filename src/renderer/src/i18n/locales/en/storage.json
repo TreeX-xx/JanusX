@@ -1,5 +1,16 @@
 {
   "dataManagement": "Data management",
+  "hooks": {
+    "title": "Legacy Hook integration",
+    "scope": "Remove verified JanusX Hook commands from your Claude and Codex settings, old Windows sender scripts and obsolete OpenCode additional configuration. User Hooks, sign-in, native sessions and Codex trust records are preserved. Unverified files are retained with a reason.",
+    "action": "Clean up legacy Hooks",
+    "confirmTitle": "Confirm legacy Hook cleanup",
+    "closeTasks": "Exit older JanusX versions and close application terminals, running tasks and external CLIs first. Reopen terminals in the current version to load the new launch integration. Cleanup only handles legacy integration and preserves current Hook assets.",
+    "busy": "Cleaning up…",
+    "result": "Removed {{commands}} legacy Hook commands and {{files}} files.",
+    "removed": "Removed files",
+    "retained": "Retained items and reasons"
+  },
   "maintenance": {
     "addNew": "Add as new workspace",
     "title": "Workspace data", "policy": "Command logs are kept for 30 days. Removed workspace data can be reattached within 30 days. App updates do not reset these dates. Restore points are retired and can be cleared directly; they are no longer migrated or retained by age or count.",

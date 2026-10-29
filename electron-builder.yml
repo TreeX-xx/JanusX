@@ -37,6 +37,7 @@ files:
   - "!.hybrid{,/**/*}"
   - "!.github{,/**/*}"
   - "!.janusX{,/**/*}"
+  - "!.janusx{,/**/*}"
   - "!.agents{,/**/*}"
   - "!artifacts{,/**/*}"
   - "!apps{,/**/*}"
