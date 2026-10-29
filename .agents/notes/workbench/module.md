@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-29T11:10:21Z",
+  "updated": "2026-10-29T12:38:46Z",
   "moduleState": "partial"
 }
 ---
@@ -129,7 +129,7 @@ Note 工具链三件各司其职：[drawer-toolbar](./note-drawer-markdown-toolb
 
 配套：[github-maintenance](../desktop/github-maintenance.md)、[markdown-assets](./markdown-preview-local-assets.md)、[experimental-preview](./experimental-preview-features.md)、[file-glyph](./note-drawer-markdown-toolbar.md)、[reveal-race](./file-tree-reveal-race.md)、[share-import](../blueprint/workspaces/share-import.md)、[plugin-forms](./requirements/plugin-architecture-forms.md)、[plugin-debug](./requirements/plugin-import-debug.md)、[entry-nav](./entry-switch-navigation.md)、[f12-nav](./f12-navigation.md)。
 
-外部工作流工具：[Grok Bot 衔接](./grok-bot-workflow-integration.md)仍在讨论；[Docker 官方插件与工具箱入口](./docker-management-entry.md)已于 2026-10-29 确认：自研七项本机管理能力，作为可选官方插件，使用应用级单实例 extension pane 与 native 后台，从工具箱打开并跨项目保留；面板像 Docker Desktop 一样管理本机全部容器，采用容器列表和概览/日志/终端详情区，无项目也可使用。切容器和关闭面板保留后台及存活终端，重开接回；终端按插件激活和容器管理，不加入项目终端列表，停用或退出回收自有进程而不停止引擎/容器。宿主复用底层 PTY 并提供浏览器联动。该文维护 D0–D5 实施计划，尚未开始实现。配套的[HTTP 请求工具](./http-request-pane.md)独立规划，承载方式待定，不作为 Docker 首版依赖。
+外部工作流工具：[Grok Bot 衔接](./grok-bot-workflow-integration.md)仍在讨论；[Docker 官方插件与工具箱入口](./docker-management-entry.md)已实现 `plugins/docker/` 独立包、应用级工具箱单实例、七项本机容器管理能力和宿主 PTY／浏览器联动。页面采用容器列表加概览／日志／终端详情区，沿用 JanusX 主题和简约细分隔布局，无项目也可使用。切容器、切项目和关闭面板保留后台及存活终端，重开接回；隐藏时停止列表轮询与日志采集，停用或退出回收自有进程而不停止引擎／容器。239 项相关单测通过，公开 SDK 仓库外构建及本地签名开发入口已接通；本机没有 Docker，真实引擎／Docker Desktop／WSL 与其它平台尚未验收，生产签名和目录未发布。配套的[HTTP 请求工具](./http-request-pane.md)独立规划，承载方式待定，不作为 Docker 首版依赖。
 
 服务集成：[CPA 账号管理复用与 Figma 接入](./service-integrations.md)维护入口、托管和服务边界。CPA 已迁入可独立构建的 `official.cpa` 官方插件，安装并启用后提供跨项目工具箱入口和插件设置；未安装时不加载 CPA 业务。保留本地托管、已有实例、组件校验更新、密钥加密及复制、共享代理和 OAuth 手动回调。页面关闭保留后台；停用／卸载或退出停止自有进程，外部实例不受影响。迁移复制旧配置、组件、账号及密钥并保留原件，登录沿用原 origin 分区。公开 SDK 外部构建和定向单测通过，生产签名／目录发布及真实供应商额度仍未交付。文件树、Git、会话继续使用内置视图；Figma 仍待实施。
 

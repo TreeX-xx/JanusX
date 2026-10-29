@@ -650,6 +650,7 @@ const desktopToastAPI: DesktopToastAPI = {
 }
 
 const pluginAPI: PluginHostAPI = {
+  onOpenBrowser: callback => subscribeIpcEvent(PLUGIN_CHANNELS.openBrowser, callback),
   request: input => ipcRenderer.invoke(PLUGIN_CHANNELS.manage, input),
   onChanged: callback => subscribeIpcEvent(PLUGIN_CHANNELS.changed, callback),
   onEvent: callback => subscribeIpcEvent(PLUGIN_CHANNELS.event, callback),

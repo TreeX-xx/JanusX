@@ -86,7 +86,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     directory: join(app.getPath('userData'), 'janusx', 'plugins'),
     official: { keys: officialTrust.keys, nativePlugins: officialTrust.nativePlugins, hostVersion: app.getVersion(), platform: `${process.platform}-${process.arch}` },
     createNativeService: (record, directory, stopped, credentials) => {
-      const desktop = new NativeDesktop(record, () => runtime, () => native)
+      const desktop = new NativeDesktop(record, () => runtime, () => native, url => send(PLUGIN_CHANNELS.openBrowser, url))
       const native = createOfficialNativeService(record, directory, code => { desktop.dispose(); stopped(code) }, resolvePluginProject, credentials, desktop.call)
       return native
     },

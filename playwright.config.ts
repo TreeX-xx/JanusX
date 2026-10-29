@@ -33,7 +33,7 @@ export default defineConfig({
   projects: [
     {
       name: 'island',
-      testIgnore: [...desktopTestFiles, 'blueprint-local.spec.ts', 'cpa-plugin.spec.ts'],
+      testIgnore: [...desktopTestFiles, 'blueprint-local.spec.ts', 'cpa-plugin.spec.ts', 'docker-plugin.spec.ts'],
       timeout: 20_000,
       expect: { timeout: 5_000 },
       use: {

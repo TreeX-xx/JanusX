@@ -44,6 +44,17 @@ function fixture() {
   return { runtime, carrier, children, owner, call, inspect, native }
 }
 describe('trusted native desktop and isolated browser', () => {
+  it('requires a live owning page for terminal access and restricts service links to local HTTP', async () => {
+    const f = fixture(), openBrowser = vi.fn()
+    const desktop = new NativeDesktop({ manifest: { id: 'official.docker', capabilities: { required: ['desktop.native', 'desktop.containers'] } } } as InstalledPlugin, () => f.runtime, () => null as never, openBrowser)
+    const call = (method: string, value: any) => desktop.call(method, value, new AbortController().signal)
+    await expect(call('desktop.terminal.read', { owner: f.owner, id: 'unknown' })).rejects.toMatchObject({ code: 'INSTANCE_CLOSED' })
+    await expect(call('desktop.service.open', { url: 'https://example.test/' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await expect(call('desktop.service.open', { url: 'file:///etc/passwd' })).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    await call('desktop.service.open', { url: 'http://127.0.0.1:8080/' })
+    expect(openBrowser).toHaveBeenCalledWith('http://127.0.0.1:8080/')
+    desktop.dispose()
+  })
   it('authorizes desktop callbacks explicitly and shares one proxy until activation disposal', async () => {
     const f = fixture(), record = { manifest: { id: 'official.cpa', capabilities: { required: ['runtime.native', 'desktop.native'] } } } as InstalledPlugin
     const desktop = new NativeDesktop(record, () => f.runtime, () => ({ call: f.native }) as never)

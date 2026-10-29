@@ -192,6 +192,12 @@ export class PluginRuntime {
   send(id: string, packet: JsonValue): void {
     try { this.carriers.get(id)?.port?.postMessage(packet) } catch { /* A crashed document may close its port before the process event. */ }
   }
+  /** A page can attach to activation-owned resources only while its carrier is live. */
+  assertNativeOwner(plugin: string, owner: string): void {
+    const carrier = this.carriers.get(owner)
+    if (!carrier || carrier.plugin !== plugin) throw new PluginError('INSTANCE_CLOSED', 'Page owner is unavailable.')
+    this.service.inspect(owner, carrier.mount.binding)
+  }
   /** Trusted native service requests a separate online guest; that guest never receives the plugin port. */
   async browserCall(plugin: string, method: string, input: Record<string, JsonValue>, native: NativeHandler): Promise<JsonValue> {
     const owner = z.string().uuid().parse(input.owner)
