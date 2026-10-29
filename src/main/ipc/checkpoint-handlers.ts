@@ -93,10 +93,6 @@ export function registerCheckpointHandlers(): void {
           agentSessionRegistry.retainCheckpoints(filter.sessionId, liveIds)
         }
       }
-      const changedCounts = await checkpointManager.getChangedFileCounts(
-        cps.map(cp => cp.id),
-        filter?.cwd,
-      )
       return cps.map((cp) => ({
           id: cp.id,
           terminalId: cp.terminalId,
@@ -106,7 +102,9 @@ export function registerCheckpointHandlers(): void {
           branch: cp.branch,
           prompt: cp.prompt,
           fileCount: Object.keys(cp.filesSnapshot).length,
-          changedFileCount: changedCounts[cp.id] ?? 0,
+          // Metadata listing must not scan project files. Explicit records/diff
+          // requests compute changes on demand.
+          changedFileCount: null,
           status: cp.status,
           sessionId: cp.sessionId,
         }))

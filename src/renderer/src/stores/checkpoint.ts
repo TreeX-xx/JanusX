@@ -4,6 +4,11 @@ import type { ChangedFileRecord, CheckpointConflict as ConflictInfo, CheckpointS
 
 export type { ChangedFileRecord, CheckpointSummary, ConflictInfo, RestoreScope }
 
+const listRequests = new Map<string, Promise<CheckpointSummary[]>>()
+let requestGeneration = 0
+let eventRefresh: Promise<void> | undefined
+let eventDirty = false
+
 interface CheckpointStore {
   workspaceCwd: string | null
   checkpoints: CheckpointSummary[]
@@ -36,6 +41,7 @@ export const useCheckpointStore = create<CheckpointStore>((set, get) => ({
   error: null,
 
   fetchCheckpoints: async (filter) => {
+    const generation = ++requestGeneration
     const cwd = filter?.cwd?.trim() || null
     if (!cwd) {
       set({
@@ -67,11 +73,17 @@ export const useCheckpointStore = create<CheckpointStore>((set, get) => ({
         : {}),
     })
     try {
-      const cps = await window.electron.checkpoint.list({ ...filter, cwd })
-      if (get().workspaceCwd !== cwd) return
+      const key = JSON.stringify([cwd, filter?.terminalId, filter?.engine, filter?.sessionId])
+      let request = listRequests.get(key)
+      if (!request) {
+        request = window.electron.checkpoint.list({ ...filter, cwd }).finally(() => listRequests.delete(key))
+        listRequests.set(key, request)
+      }
+      const cps = await request
+      if (generation !== requestGeneration || get().workspaceCwd !== cwd) return
       set({ checkpoints: cps, loading: false })
     } catch (err) {
-      if (get().workspaceCwd === cwd) {
+      if (generation === requestGeneration && get().workspaceCwd === cwd) {
         set({ error: (err as Error).message, loading: false })
       }
     }
@@ -153,7 +165,17 @@ export const useCheckpointStore = create<CheckpointStore>((set, get) => ({
         return
       }
 
-      get().fetchCheckpoints({ cwd: activeWorkspace.path })
+      eventDirty = true
+      if (!eventRefresh) {
+        eventRefresh = (async () => {
+          while (eventDirty) {
+            eventDirty = false
+            const state = useWorkspaceStore.getState()
+            const workspace = state.workspaces.find(item => item.id === state.activeWorkspaceId)
+            if (workspace) await get().fetchCheckpoints({ cwd: workspace.path })
+          }
+        })().finally(() => { eventRefresh = undefined })
+      }
     })
     return unsub
   },

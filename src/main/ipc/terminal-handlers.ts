@@ -6,7 +6,7 @@ import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { TerminalTurnChangeTracker } from '../terminal/turn-change-tracker'
-import { checkpointManager } from '@janus-agent/agent-core'
+import { checkpointManager, workspaceIo } from '@janus-agent/agent-core'
 import type { CheckpointEngine } from '@janus-agent/agent-core'
 import { agentSessionRegistry, type AgentSessionRecord } from '../sessions/session-registry'
 import { buildContinueHandoff } from '../sessions/continue-handoff'
@@ -70,12 +70,10 @@ interface TerminalCpState {
   cwd: string
   workspaceId: string
   engine: CheckpointEngine
-  initialized: boolean         // whether checkpointManager.initialize() succeeded
-  creating: boolean
   // AC6: per-id creation lock. True while a terminal:create for this id is
   // in flight; concurrent create requests with the same id are rejected.
   creationLocked: boolean
-  pendingSubmitTexts: string[]
+  checkpointAbort: AbortController
   // Retained for lifecycle cleanup compatibility. AI activity status is
   // sourced exclusively from agent hooks, never inferred from PTY output.
   flowStatus: 'wait' | 'running'
@@ -338,66 +336,39 @@ function enqueueCheckpointFromSubmit(id: string, text: string): void {
     return
   }
 
-  state.pendingSubmitTexts.push(prompt)
   agentSessionRegistry.notePrompt(id, prompt)
-  processCheckpointQueue(id)
-}
-
-/** Remote control uses the same checkpoint transaction as renderer submit-line. */
-export function submitCompanionTerminalLine(id: string, text: string): void {
-  terminalManager.write(id, `${text}\r`)
-  enqueueCheckpointFromSubmit(id, text)
-}
-
-function processCheckpointQueue(id: string): void {
-  const state = terminalStates.get(id)
-  if (!state || !state.initialized || state.creating) return
-
-  const prompt = state.pendingSubmitTexts.shift()
-  if (!prompt) return
-
-  state.creating = true
-
-  const previousCpId = state.checkpointId
-  state.checkpointId = null
-
-  // Note: session tag joins the card count with the session-scoped list — see .agents/notes/sessions/checkpoints/session-checkpoint-count-truth.md
-  const sessionId = agentSessionRegistry.sessionIdForTerminal(id)
-  checkpointManager.finalizeAndCreateCheckpoint(previousCpId, {
-    terminalId: id,
-    engine: state.engine,
-    prompt,
-    cwd: state.cwd,
-    ...(sessionId ? { sessionId } : {}),
-  }).then(({ finalized, checkpoint }) => {
-    if (finalized && previousCpId) {
-      sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-        type: 'finalized',
-        terminalId: id,
-        checkpointId: previousCpId,
-      })
-    }
+  // Submit directly to the bounded shared queue; no hidden per-terminal backlog.
+  void workspaceIo.run(state.cwd, async () => {
+    if (terminalStates.get(id) !== state) return
+    const previousCpId = state.checkpointId
+    const sessionId = agentSessionRegistry.sessionIdForTerminal(id)
+    const { finalized, checkpoint } = await checkpointManager.finalizeAndCreateCheckpoint(previousCpId, {
+      terminalId: id, engine: state.engine, prompt, cwd: state.cwd,
+      signal: state.checkpointAbort.signal, ...(sessionId ? { sessionId } : {}),
+    })
+    if (terminalStates.get(id) !== state) return
+    if (finalized && previousCpId) sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
+      type: 'finalized', terminalId: id, checkpointId: previousCpId,
+    })
     state.checkpointId = checkpoint.id
     agentSessionRegistry.noteCheckpoint(id, checkpoint.id)
     agentSessionRegistry.noteBranch(id, checkpoint.branch)
-    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-      type: 'created',
-      terminalId: id,
-      checkpointId: checkpoint.id,
-    })
-  }).catch((err) => {
-    state.checkpointId = previousCpId
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('Checkpoint lifecycle failed:', err)
-    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-      type: 'error',
-      terminalId: id,
-      error: message,
-    })
-  }).finally(() => {
-    state.creating = false
-    processCheckpointQueue(id)
+    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, { type: 'created', terminalId: id, checkpointId: checkpoint.id })
+  }, { signal: state.checkpointAbort.signal }).catch(error => {
+    if (terminalStates.get(id) !== state || state.checkpointAbort.signal.aborted) return
+    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, { type: 'error', terminalId: id, error: String(error) })
   })
+}
+
+/** Remote input uses the same bounded capture queue as renderer input. */
+export function submitCompanionTerminalLine(id: string, text: string): void {
+  terminalManager.write(id, text + '\r')
+  enqueueCheckpointFromSubmit(id, text)
+}
+
+function forgetTerminalCheckpoint(id: string): void {
+  terminalStates.get(id)?.checkpointAbort.abort()
+  terminalStates.delete(id)
 }
 
 const AGENT_CLI_COMMANDS = ['claude', 'codex', 'opencode', 'janus', 'pi', 'dsh'] as const
@@ -830,10 +801,8 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       cwd,
       workspaceId,
       engine,
-      initialized: false,
-      creating: false,
       creationLocked: true,
-      pendingSubmitTexts: [],
+      checkpointAbort: new AbortController(),
       flowStatus: 'wait',
       flowTimer: null,
       lastDataAt: 0,
@@ -994,7 +963,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       })
       // Release the creation lock stub so a later retry is not blocked.
       turnChangeTracker.unregister(id)
-      terminalStates.delete(id)
+      forgetTerminalCheckpoint(id)
       throw err
     }
 
@@ -1043,10 +1012,8 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       cwd,
       workspaceId,
       engine,
-      initialized: false,
-      creating: false,
       creationLocked: false,
-      pendingSubmitTexts: [],
+      checkpointAbort: new AbortController(),
       flowStatus: 'wait',
       flowTimer: null,
       lastDataAt: 0,
@@ -1201,7 +1168,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             })
           }).catch(err => console.error('Checkpoint finalize failed:', err))
         }
-        terminalStates.delete(id)
+        forgetTerminalCheckpoint(id)
         turnChangeTracker.unregister(id)
         serviceErrorDetectors.delete(id)
         clearHandoffDeliveryForTerminal(id)
@@ -1213,7 +1180,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       } catch (err) {
         console.error(`[terminal ${id}] onExit error:`, err)
         // Best-effort cleanup so a partial failure does not leak state.
-        try { terminalStates.delete(id) } catch {}
+        try { forgetTerminalCheckpoint(id) } catch {}
         turnChangeTracker.unregister(id)
         try { serviceErrorDetectors.delete(id) } catch {}
         try { clearHandoffDeliveryForTerminal(id) } catch {}
@@ -1226,11 +1193,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     })
 
     checkpointManager.initialize(cwd).then(() => {
-      const state = terminalStates.get(id)
-      if (state) {
-        state.initialized = true
-        processCheckpointQueue(id)
-      }
+      if (!terminalStates.has(id)) return
       sendToRenderer(getMainWindow(), CHECKPOINT_CHANNELS.ready, { terminalId: id, success: true })
     }).catch((err) => {
       console.error('Checkpoint init failed:', err)
@@ -1251,7 +1214,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       rollbackTerminalCreation({
         clearState: () => {
           turnChangeTracker.unregister(id)
-          terminalStates.delete(id)
+          forgetTerminalCheckpoint(id)
           serviceErrorDetectors.delete(id)
           clearHandoffDeliveryForTerminal(id)
           // Discard, not detach: a create that never came up must not leave a

@@ -12,7 +12,8 @@
 import { spawn, spawnSync, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
+import { workspaceIo, writeIoFile } from '@janus-agent/agent-core'
 import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { ProjectType, type LaunchConfiguration, type ProcessHandle, type ProjectRunOptions } from '../types'
 import ProjectConfig from '../config/project-config'
@@ -581,11 +582,13 @@ export class ProjectRunner extends EventEmitter {
         if (!oldest) break
         const evicted = this.exitedAdhoc.get(oldest)
         this.exitedAdhoc.delete(oldest)
-        if (evicted?.logPath) rm(evicted.logPath, { force: true }).catch(() => undefined)
+        if (evicted?.logPath) void workspaceIo.run(evicted.config.cwd || '.', () => rm(evicted.logPath!, { force: true })).catch(() => undefined)
       }
       const logPath = running.persistLogPath
       const header = `# adhoc ${running.config.name}\nexitCode: ${String(code)} signal: ${String(signal)} timedOut: ${String(running.timedOut === true)}${running.executionMode ? ` executionMode: ${running.executionMode}` : ''}\n${spawnReport.length > 0 ? `${spawnReport.join('\n')}\n` : ''}--- output (${lines.length} lines, tail 1000 kept) ---\n`
-      writeFile(logPath, `${header}${lines.slice(-1000).join('\n')}\n`, 'utf-8').catch(() => undefined)
+      // Bounded retained output is written in chunks through the shared lane.
+      const chunks = function* () { yield header; for (const line of lines.slice(-1000)) yield `${line}\n` }
+      void writeIoFile(running.config.cwd || '.', logPath, chunks()).catch(error => console.error('Background log write failed:', error))
     }
 
     this.emit('project:exit', {

@@ -3,7 +3,8 @@
  * 项目配置读写和管理的核心实现
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, mkdir } from 'node:fs/promises'
+import { workspaceIo, writeIoFile } from '@janus-agent/agent-core'
 import { join, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { LaunchConfig, LaunchConfiguration, ValidationResult } from '../types'
@@ -41,24 +42,26 @@ export class ProjectConfig {
    * @param config 启动配置
    */
   static async write(projectPath: string, config: LaunchConfig): Promise<void> {
-    const configPath = join(projectPath, CONFIG_FILENAME)
+    return workspaceIo.run(projectPath, async () => {
+      const configPath = join(projectPath, CONFIG_FILENAME)
 
-    // 确保 .janusX 目录存在
-    const configDir = join(projectPath, '.janusX')
-    await mkdir(configDir, { recursive: true })
+      // 确保 .janusX 目录存在
+      const configDir = join(projectPath, '.janusX')
+      await mkdir(configDir, { recursive: true })
 
-    // 添加元数据
-    config.metadata = {
-      autoDetected: config.metadata?.autoDetected ?? false,
-      lastModified: new Date().toISOString(),
-    }
+      // 添加元数据
+      config.metadata = {
+        autoDetected: config.metadata?.autoDetected ?? false,
+        lastModified: new Date().toISOString(),
+      }
 
-    try {
-      const content = JSON.stringify(config, null, 2)
-      await writeFile(configPath, content, 'utf-8')
-    } catch (error) {
-      throw new Error(`Failed to write config to ${configPath}: ${error}`)
-    }
+      try {
+        const content = JSON.stringify(config, null, 2)
+        await writeIoFile(projectPath, configPath, [content], true)
+      } catch (error) {
+        throw new Error(`Failed to write config to ${configPath}: ${error}`)
+      }
+    })
   }
 
   /**

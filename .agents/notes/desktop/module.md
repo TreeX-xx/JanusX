@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-28T01:36:29.950Z",
+  "updated": "2026-10-29T07:25:36.163Z",
   "moduleState": "partial"
 }
 ---
@@ -40,6 +40,8 @@ Window chrome follows the host platform: Windows uses right-side minimize/maximi
 README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展示与录制计划](./readme-presentation-plan.md)；10 条功能 GIF 已全部重录并接入，覆盖分屏两部曲、Island、运行配置、蓝图维护/自动审核、用量、会话、Worktree 与产物。八组静态素材齐备，工具四格、用量明细和外部会话补图已接入；录制机制、构建来源、数据边界及验证由 [readme-showcase](./readme-showcase.md) 维护。
 
 免安装版配置使用用户目录下独立的 `JanusX-Portable`，不提供随身模式；旧同级 `data` 在应用数据服务打开前完成校验迁移，并清理已迁移文件及明确可重建的缓存。路径隔离、失败保护和重试语义见 [application-profile](./application-profile.md)。
+
+[工作区私有状态迁出项目目录](./workspace-state-storage.md)为已确认、待实施方向：启动配置、检查点和命令日志统一保存到有效 userData，通过稳定身份管理改名、重新定位、移除与恢复，补充容量／过期清理及跨版本保护。读写首版收敛为统一排队、查询去重、分批执行与写前保护，撤下多阈值和自适应限速，用代表场景确认效果。P1 门控已实施并完成自动化验证，证据归最小读写方案。当前代码仍写入 `.janusX`；迁移不包括源文件、工程 Notes 和构建产物。
 
 桌面执行史：[scoped implementation 与实施史](../agent/desktop-task-implementation.md)、[delegated-modes 与 xdo 宿主](../agent/desktop-delegated-modes.md)、[ade-survey](./desktop-ade-mit-survey.md)。
 

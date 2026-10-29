@@ -1,15 +1,15 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstat, open, readdir } from 'node:fs/promises'
+import { lstat, opendir } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { diffLines } from 'diff'
 import type { TurnChangedFile } from '../../shared/ipc/terminal'
+import { workspaceIo, readIoFile } from '@janus-agent/agent-core'
 
 const execFileAsync = promisify(execFile)
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_TEXT_BYTES = 16 * 1024 * 1024
-const CAPTURE_CONCURRENCY = 8
 const SKIP = new Set(['.git', '.janusX', 'node_modules', 'out', 'dist', 'build', '.cache', '.next', '.vite', '.turbo', 'coverage'])
 
 interface FileSnapshot {
@@ -23,7 +23,8 @@ export type TurnFileSnapshot = Map<string, FileSnapshot>
 
 async function walk(cwd: string, dir = cwd): Promise<string[]> {
   const paths: string[] = []
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
+  for await (const entry of await opendir(dir)) {
+    await workspaceIo.step()
     if (SKIP.has(entry.name)) continue
     const path = join(dir, entry.name)
     if (entry.isDirectory()) paths.push(...await walk(cwd, path))
@@ -35,7 +36,7 @@ async function walk(cwd: string, dir = cwd): Promise<string[]> {
 async function filePaths(cwd: string): Promise<string[]> {
   try {
     const { stdout } = await execFileAsync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
-      cwd, timeout: 15_000, maxBuffer: 16 * 1024 * 1024,
+      cwd, timeout: 15_000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
     })
     return [...new Set(stdout.split('\0').filter(Boolean))].sort()
   } catch (error) {
@@ -58,15 +59,10 @@ async function captureFile(root: string, path: string): Promise<[string, FileSna
     if (stats.size >= MAX_FILE_BYTES) {
       return [normalized, { hash: `${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`, size: stats.size, binary: false, oversized: true }]
     }
-    const handle = await open(absolute, 'r')
-    let content: Buffer
-    try {
-      const buffer = Buffer.allocUnsafe(Math.min(stats.size + 1, MAX_FILE_BYTES))
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
-      if (bytesRead !== stats.size) throw new Error(`File changed during turn snapshot: ${normalized}`)
-      content = buffer.subarray(0, bytesRead)
-    } finally {
-      await handle.close()
+    const content = await readIoFile(absolute, MAX_FILE_BYTES)
+    const after = await lstat(absolute)
+    if (content.length !== stats.size || after.mtimeMs !== stats.mtimeMs || after.ctimeMs !== stats.ctimeMs) {
+      throw new Error(`File changed during turn snapshot: ${normalized}`)
     }
     const binary = content.subarray(0, 8192).includes(0)
     const oversized = content.length >= MAX_FILE_BYTES
@@ -79,26 +75,26 @@ async function captureFile(root: string, path: string): Promise<[string, FileSna
   }
 }
 
-export async function captureTurnFiles(cwd: string): Promise<TurnFileSnapshot> {
-  const root = resolve(cwd)
-  const snapshot: TurnFileSnapshot = new Map()
-  const paths = (await filePaths(root)).sort()
-  let textBytes = 0
-  // Bound both open handles and transient file contents. Commit in path order
-  // so I/O completion order cannot change which texts fit the retention budget.
-  for (let offset = 0; offset < paths.length; offset += CAPTURE_CONCURRENCY) {
-    const entries = await Promise.all(paths.slice(offset, offset + CAPTURE_CONCURRENCY).map(path => captureFile(root, path)))
-    for (const entry of entries) {
-      if (!entry) continue
+export async function captureTurnFiles(cwd: string, signal?: AbortSignal): Promise<TurnFileSnapshot> {
+  return workspaceIo.run(cwd, async batch => {
+    const root = resolve(cwd)
+    const snapshot: TurnFileSnapshot = new Map()
+    const paths = (await filePaths(root)).sort()
+    let textBytes = 0
+    // Note: one shared lane across terminals and checkpoints; see
+    // .agents/notes/planning/workspace-data-contract-baseline.md.
+    await batch.each(paths, async candidate => {
+      const entry = await captureFile(root, candidate)
+      if (!entry) return
       const [path, file] = entry
       if (file.text !== undefined) {
         if (textBytes + file.size <= MAX_TEXT_BYTES) textBytes += file.size
         else delete file.text
       }
       snapshot.set(path, file)
-    }
-  }
-  return snapshot
+    })
+    return snapshot
+  }, { signal, background: true })
 }
 
 export function compareTurnFiles(before: TurnFileSnapshot, after: TurnFileSnapshot): TurnChangedFile[] {
