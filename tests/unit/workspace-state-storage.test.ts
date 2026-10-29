@@ -154,7 +154,7 @@ describe('profile workspace storage and explicit legacy migration', () => {
     await access(join(old, 'janusX.launch.json'))
   })
 
-  it('retains malformed launch data and incomplete checkpoint references', async () => {
+  it('retains malformed launch data but discards retired snapshots without validating blob references', async () => {
     const old = await legacy(), store = new WorkspaceStateStore(profile)
     await writeFile(join(old, 'janusX.launch.json'), '{bad')
     await expect(store.migrate(cwd)).rejects.toThrow()
@@ -165,8 +165,9 @@ describe('profile workspace storage and explicit legacy migration', () => {
     await rm(join(target, 'launch.json'))
     await mkdir(join(old, 'checkpoints'))
     await writeFile(join(old, 'checkpoints', 'cp.json'), JSON.stringify({ id: 'cp', terminalId: 't', conversationIndex: 1, createdAt: '2020-01-01', engine: 'manual', branch: 'main', prompt: '', schemaVersion: 2, filesSnapshot: { a: { hash: 'a'.repeat(40) } } }))
-    await expect(store.migrate(cwd)).rejects.toThrow('missing blob')
-    await access(join(old, 'checkpoints', 'cp.json'))
+    await store.migrate(cwd)
+    await noFile(join(old, 'checkpoints'))
+    await noFile(join(target, 'checkpoints'))
   })
 
   it('keeps an offline directory distinct from a new project replacing the same path', async () => {
@@ -260,30 +261,107 @@ describe('profile workspace storage and explicit legacy migration', () => {
     await noFile(join(cwd, '.janusX'))
   })
 
-  it('preserves historical creation dates but restarts age retention exactly once for migrated checkpoints', async () => {
-    await legacy()
-    const before = new CheckpointManager()
-    await writeFile(join(cwd, 'source.txt'), 'restorable')
-    const cp = await before.createCheckpoint({ cwd, terminalId: 't', engine: 'manual', prompt: 'old' })
-    await vi.waitFor(() => expect((workspaceIo as unknown as { outstanding: number }).outstanding).toBe(0))
-    const old = join(cwd, '.janusX/checkpoints')
-    for (let i = 0; i < 7; i++) {
-      const record = { ...cp, id: `old-${i}`, conversationIndex: i + 1, createdAt: `2020-01-0${i + 1}T00:00:00Z` }
-      await writeFile(join(old, `${record.id}.json`), JSON.stringify(record))
-    }
-    await rm(join(old, `${cp.id}.json`))
-    const manager = new CheckpointManager(), store = new WorkspaceStateStore(profile, async path => { before.releaseWorkspace(path); manager.releaseWorkspace(path) })
+  it('discards legacy snapshots after committing launch and logs without copying their bytes', async () => {
+    const old = await legacy(), store = new WorkspaceStateStore(profile)
+    await mkdir(join(old, 'checkpoints', 'blobs'), { recursive: true })
+    await writeFile(join(old, 'checkpoints', 'cp.json'), '{retired malformed JSON')
+    await writeFile(join(old, 'checkpoints', 'blobs', 'a'.repeat(40)), Buffer.alloc(256 * 1024, 1))
+    await writeFile(join(cwd, 'source.txt'), 'current source')
+    const digest = vi.spyOn(store as any, 'digest')
     await store.migrate(cwd)
-    configureWorkspaceStorage((path, write) => store.resolve(path, write))
-    expect((await manager.listCheckpoints({ cwd })).every(item => item.createdAt.startsWith('2020'))).toBe(true)
-    await manager.createCheckpoint({ cwd, terminalId: 't', engine: 'manual', prompt: 'new' })
-    expect(await manager.listCheckpoints({ cwd })).toHaveLength(8)
-    const started = (await store.resolve(cwd)).retentionStartedAt
-    expect((await new WorkspaceStateStore(profile).resolve(cwd)).retentionStartedAt).toBe(started)
-    await writeFile(join(cwd, 'source.txt'), 'changed after migration')
-    const restarted = new CheckpointManager()
-    await restarted.restoreCheckpoint('old-0', cwd)
-    expect(await readFile(join(cwd, 'source.txt'), 'utf8')).toBe('restorable')
+    const storage = await store.resolve(cwd)
+    expect(digest.mock.calls.every(([path]) => !String(path).includes('checkpoints'))).toBe(true)
+    await noFile(join(old, 'checkpoints')); await noFile(storage.checkpointsPath)
+    expect(await readFile(join(cwd, 'source.txt'), 'utf8')).toBe('current source')
+    const receipt = JSON.parse(await readFile(join(storage.root, 'manifest.json'), 'utf8'))
+    expect(receipt.migration.files.every((file: any) => !file.source.startsWith('checkpoints'))).toBe(true)
+    expect((await new WorkspaceStateStore(profile).resolve(cwd)).retentionStartedAt).toBe(storage.retentionStartedAt)
+  })
+
+  it('supports snapshot-only workspaces and retries deletion after restart without resetting retention', async () => {
+    const directory = join(cwd, '.janusX', 'checkpoints')
+    await mkdir(directory, { recursive: true }); await writeFile(join(directory, 'cp.json'), '{bad')
+    const store = new WorkspaceStateStore(profile)
+    expect((await store.inspect(cwd, 'w', 'p')).categories).toEqual(['checkpoints'])
+    faults.unlink = 'cp.json'
+    await expect(store.migrate(cwd)).rejects.toThrow('cleanup failure')
+    const storage = await store.resolve(cwd)
+    expect((await store.inspect(cwd, 'w', 'p')).status).toBe('cleanup-pending')
+    await noFile(storage.checkpointsPath)
+    faults.unlink = ''; const restarted = new WorkspaceStateStore(profile)
+    await restarted.migrate(cwd); await noFile(join(cwd, '.janusX'))
+    expect((await restarted.resolve(cwd)).retentionStartedAt).toBe(storage.retentionStartedAt)
+  })
+
+  it('finishes old snapshot migration receipts even if the copied blobs are missing or changed', async () => {
+    const old = await legacy(), store = new WorkspaceStateStore(profile)
+    await store.migrate(cwd)
+    const storage = await store.resolve(cwd), manifestPath = join(storage.root, 'manifest.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    const source = join('checkpoints', 'cp.json')
+    manifest.migration.files.push({ source, target: source, size: 4, hash: 'a'.repeat(64) })
+    manifest.migration.cleanupComplete = false
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    for (const root of [old, storage.root]) {
+      await mkdir(join(root, 'checkpoints', 'blobs'), { recursive: true })
+      await writeFile(join(root, 'checkpoints', 'cp.json'), 'changed retired data')
+    }
+    await writeFile(join(storage.root, 'checkpoints', 'cp.json.migration-tmp'), 'interrupted copy')
+    const restarted = new WorkspaceStateStore(profile)
+    await restarted.migrate(cwd)
+    await noFile(join(old, 'checkpoints')); await noFile(storage.checkpointsPath)
+    expect((await restarted.resolve(cwd)).retentionStartedAt).toBe(storage.retentionStartedAt)
+    expect((await restarted.inspect(cwd, 'w', 'p')).status).toBe('migrated')
+  })
+
+  it('offers cleanup for already migrated snapshots without a legacy directory', async () => {
+    await legacy(); const store = new WorkspaceStateStore(profile); await store.migrate(cwd)
+    const storage = await store.resolve(cwd)
+    await mkdir(storage.checkpointsPath); await writeFile(join(storage.checkpointsPath, 'cp.json'), 'obsolete')
+    expect((await store.inspect(cwd, 'w', 'p')).status).toBe('cleanup-pending')
+    await store.migrate(cwd); await noFile(storage.checkpointsPath)
+    expect((await store.resolve(cwd)).retentionStartedAt).toBe(storage.retentionStartedAt)
+  })
+
+  it.each(['source', 'target'])('retains linked retired snapshot trees in the %s without following them', async location => {
+    const old = await legacy(), store = new WorkspaceStateStore(profile)
+    const item = await store.inspect(cwd, 'w', 'p'), outside = join(base, 'outside-snapshots')
+    await mkdir(outside); await writeFile(join(outside, 'cp.json'), 'keep outside')
+    const root = location === 'source' ? old : item.target
+    await mkdir(root, { recursive: true })
+    await symlink(outside, join(root, 'checkpoints'), process.platform === 'win32' ? 'junction' : 'dir')
+    await expect(store.migrate(cwd)).rejects.toThrow('Linked')
+    expect(await readFile(join(outside, 'cp.json'), 'utf8')).toBe('keep outside')
+    expect((await store.inspect(cwd, 'w', 'p')).status).toBe('cleanup-pending')
+  })
+
+  it('keeps retired snapshots untouched if launch validation fails before commit', async () => {
+    const old = await legacy(), store = new WorkspaceStateStore(profile)
+    await mkdir(join(old, 'checkpoints')); await writeFile(join(old, 'checkpoints', 'cp.json'), 'obsolete but intact')
+    await writeFile(join(old, 'janusX.launch.json'), '{bad')
+    await expect(store.migrate(cwd)).rejects.toThrow()
+    expect(await readFile(join(old, 'checkpoints', 'cp.json'), 'utf8')).toBe('obsolete but intact')
+    expect((await store.resolve(cwd)).root).toBe(old)
+  })
+
+  it('retains unknown snapshot files and directory trees instead of sweeping them', async () => {
+    const old = await legacy(), store = new WorkspaceStateStore(profile)
+    const directory = join(old, 'checkpoints')
+    await mkdir(join(directory, 'unknown'), { recursive: true })
+    await writeFile(join(directory, 'cp.json'), 'known retired record')
+    await writeFile(join(directory, 'unknown', 'source.txt'), 'keep')
+    await expect(store.migrate(cwd)).rejects.toThrow('Unknown private directory')
+    expect(await readFile(join(directory, 'unknown', 'source.txt'), 'utf8')).toBe('keep')
+    expect(await readFile(join(directory, 'cp.json'), 'utf8')).toBe('known retired record')
+    expect((await store.inspect(cwd, 'w', 'p')).status).toBe('cleanup-pending')
+  })
+
+  it('clears an interrupted target-only snapshot copy with no migration receipt', async () => {
+    const store = new WorkspaceStateStore(profile), storage = await store.resolve(cwd, true)
+    await mkdir(storage.checkpointsPath); await writeFile(join(storage.checkpointsPath, 'cp.json'), '{bad')
+    expect((await store.inspect(cwd, 'w', 'p')).status).toBe('pending')
+    await store.migrate(cwd); await noFile(storage.checkpointsPath)
+    expect((await store.inspect(cwd, 'w', 'p')).status).toBe('migrated')
   })
 
   it('rejects linked destination children before writing outside the storage root', async () => {

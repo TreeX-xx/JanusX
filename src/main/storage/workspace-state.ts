@@ -2,7 +2,7 @@
 import { randomUUID, createHash } from 'node:crypto'
 import { lstat, realpath, opendir, mkdir, open, readFile, rename, unlink, rmdir } from 'node:fs/promises'
 import { dirname, join, relative, resolve, isAbsolute, sep, basename } from 'node:path'
-import { workspaceIo, readIoFile, workspaceStorageInUse, suspendWorkspaceStorage, assertWorkspaceStorageAvailable, type WorkspaceStorage } from '@janus-agent/agent-core'
+import { workspaceIo, workspaceStorageInUse, suspendWorkspaceStorage, assertWorkspaceStorageAvailable, type WorkspaceStorage } from '@janus-agent/agent-core'
 import type { WorkspaceMigrationItem, WorkspaceDataItem, WorkspaceDataRecord, WorkspaceCleanupCategory } from '../../shared/ipc/workspace-storage'
 
 interface Entry { id: string; path: string; identity: string; legacy: boolean; managed?: boolean; name?: string; relocatingTo?: string; purging?: boolean }
@@ -11,6 +11,7 @@ interface CopiedFile { source: string; target: string; hash: string; size: numbe
 interface Manifest { schema: 1; storageId: string; path: string; retentionStartedAt?: string; detachedAt?: string; purging?: boolean; cleanupError?: string; migration?: { completedAt: string; files: CopiedFile[]; cleanupComplete: boolean } }
 export const WORKSPACE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const CATEGORIES = ['janusX.launch.json', 'checkpoints', 'logs'] as const
+const COPY_CATEGORIES = ['janusX.launch.json', 'logs'] as const
 const normalize = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
 
@@ -376,11 +377,14 @@ export class WorkspaceStateStore {
           this.manifests.delete(entry.id); this.registryDirty = true; await this.saveRegistry()
         } else {
           if (entry.purging || manifest.purging) throw new Error('Workspace data removal is in progress')
-          for await (const path of this.privateFiles(root, join(root, category))) {
-            const rel = relative(root, path)
-            if (rel.startsWith(category + sep) && !supported(rel)) throw new Error(`Unknown private file retained: ${rel}`)
+          if (category === 'checkpoints') await this.removeSnapshots(root)
+          else {
+            for await (const path of this.privateFiles(root, join(root, category))) {
+              const rel = relative(root, path)
+              if (rel.startsWith(category + sep) && !supported(rel)) throw new Error(`Unknown private file retained: ${rel}`)
+            }
+            await this.removeTree(join(root, category))
           }
-          await this.removeTree(join(root, category))
           if (manifest.cleanupError) await this.saveManifest(entry, { ...manifest, cleanupError: undefined })
         }
       } catch (error) {
@@ -391,55 +395,17 @@ export class WorkspaceStateStore {
     }, { background: true })
   }
 
-  private async retainSnapshots(entry: Entry, manifest: Manifest, now: number): Promise<number | undefined> {
-    const directory = join(this.root, entry.id, 'checkpoints')
+  /** Retired snapshots are discarded by explicit migration/cleanup, never copied or aged. */
+  private async removeSnapshots(root: string): Promise<void> {
+    const directory = join(root, 'checkpoints')
     if (!await exists(directory)) return
-    await plain(directory)
-    const snapshots: { path: string; createdAt: number; hashes: string[] }[] = []
-    for await (const file of await opendir(directory)) {
-      await workspaceIo.step()
-      if (file.name === 'blobs' && file.isDirectory()) continue
-      if (!file.isFile() || !file.name.endsWith('.json')) throw new Error('Unknown snapshot data retained')
-      const path = join(directory, file.name)
-      await plain(path)
-      const data = JSON.parse((await readIoFile(path)).toString('utf8'))
-      if (file.name === 'index.json') {
-        if (data.version !== 2 || !Array.isArray(data.checkpointIds) || data.checkpointIds.some((id: unknown) => typeof id !== 'string')) throw new Error('Unknown snapshot index retained')
-        continue
-      }
-      if (!data.filesSnapshot || typeof data.filesSnapshot !== 'object' || Array.isArray(data.filesSnapshot) || !Number.isFinite(Date.parse(data.createdAt)) || data.schemaVersion > 2) throw new Error('Unknown snapshot data retained')
-      const hashes = Object.values(data.filesSnapshot).flatMap(value => {
-        const item = value as { hash?: string; beforeHash?: string }
-        const hash = item?.hash ?? item?.beforeHash
-        if (!item || typeof item !== 'object' || (hash !== undefined && typeof hash !== 'string') || (hash && !/^[a-f0-9]{40}$/.test(hash))) throw new Error('Unknown snapshot blob reference')
-        return hash ? [hash] : []
-      })
-      snapshots.push({ path, createdAt: Date.parse(data.createdAt), hashes })
+    await plain(root)
+    for await (const path of this.privateFiles(root, directory)) {
+      const rel = relative(root, path)
+      const original = rel.endsWith('.migration-tmp') ? rel.slice(0, -'.migration-tmp'.length) : rel
+      if (!supported(original)) throw new Error('Unknown snapshot file retained: ' + rel)
     }
-    snapshots.sort((a, b) => b.createdAt - a.createdAt)
-    const start = manifest.retentionStartedAt ? Date.parse(manifest.retentionStartedAt) : 0
-    const kept = snapshots.filter((item, index) => index < 40 && (index < 5 || Math.max(start, item.createdAt) + WORKSPACE_RETENTION_MS > now))
-    const removed = snapshots.filter(item => !kept.includes(item))
-    for (const item of removed) { await unlink(item.path); await workspaceIo.step() }
-    const indexPath = join(directory, 'index.json')
-    const index = { version: 2, checkpointIds: kept.map(item => basename(item.path, '.json')) }
-    if (!await exists(indexPath) || JSON.stringify(JSON.parse(await readFile(indexPath, 'utf8'))) !== JSON.stringify(index)) await atomicJson(indexPath, index)
-    {
-      const referenced = new Set(kept.flatMap(item => item.hashes))
-      const blobs = join(directory, 'blobs')
-      if (await exists(blobs)) {
-        await plain(blobs)
-        for await (const file of await opendir(blobs)) {
-          if (!file.isFile() || !/^[a-f0-9]{40}$/.test(file.name)) throw new Error('Unknown snapshot blob retained')
-          if (!referenced.has(file.name)) { await plain(join(blobs, file.name)); await unlink(join(blobs, file.name)) }
-          await workspaceIo.step()
-        }
-      }
-    }
-    return kept.slice(5).reduce<number | undefined>((next, item) => {
-      const expires = Math.max(start, item.createdAt) + WORKSPACE_RETENTION_MS
-      return expires > now ? Math.min(next ?? Infinity, expires) : next
-    }, undefined)
+    await this.removeTree(directory)
   }
 
   /** Metadata-only expiry; no source scans or log-body reads. Returns one next wake time. */
@@ -475,8 +441,6 @@ export class WorkspaceStateStore {
           const resume = suspendWorkspaceStorage(entry.path)
           try {
             let entryNext = Infinity
-            const snapshotExpiry = await this.retainSnapshots(entry, manifest, now)
-            if (snapshotExpiry) { later(snapshotExpiry); entryNext = snapshotExpiry }
             const logs = join(this.root, entry.id, 'logs')
             if (!await exists(logs)) { this.maintenanceAt.set(entry.id, entryNext); continue }
             await plain(logs)
@@ -514,8 +478,10 @@ export class WorkspaceStateStore {
         const manifest = await this.manifest(entry)
         const categories: string[] = []
         for (const category of CATEGORIES) if (await exists(join(source, category))) categories.push(category)
+        const retired = await exists(join(this.root, entry.id, 'checkpoints'))
+        if (retired && !categories.includes('checkpoints')) categories.push('checkpoints')
         return { id, name, source, target: join(this.root, entry.id), categories,
-          status: manifest?.migration ? manifest.migration.cleanupComplete ? 'migrated' : 'cleanup-pending' : categories.length ? 'pending' : 'new' }
+          status: manifest?.migration ? manifest.migration.cleanupComplete && !categories.includes('checkpoints') ? 'migrated' : 'cleanup-pending' : categories.length ? 'pending' : 'new' }
       } catch (error) {
         return { id, name, source, target: this.root, categories: [], status: missing(error) ? 'offline' : 'failed', error: String(error) }
       }
@@ -527,17 +493,13 @@ export class WorkspaceStateStore {
     await workspaceIo.run(this.root, async () => { (await this.load()).promptDismissed = true; this.registryDirty = true; await this.saveRegistry() })
   }
 
-  private async *inventory(root: string, dir = root): AsyncGenerator<string> {
-    await plain(dir)
-    for await (const item of await opendir(dir)) {
-      const path = join(dir, item.name)
+  private async *inventory(root: string): AsyncGenerator<string> {
+    await plain(root)
+    for await (const item of await opendir(root)) {
       await workspaceIo.step()
-      if (item.isSymbolicLink()) throw new Error(`Linked migration source is unavailable: ${path}`)
-      if (item.isDirectory()) {
-        if (dir === root && item.name === 'blobs' && root.endsWith(`${sep}checkpoints`)) yield* this.inventory(root, path)
-      }
-      else if (item.isFile()) yield relative(root, path)
-      else throw new Error(`Unsupported migration file: ${path}`)
+      if (item.isSymbolicLink()) throw new Error('Linked migration source is unavailable: ' + join(root, item.name))
+      if (item.isFile()) yield item.name
+      else if (!item.isDirectory()) throw new Error('Unsupported migration file: ' + join(root, item.name))
     }
   }
 
@@ -588,9 +550,10 @@ export class WorkspaceStateStore {
         await this.beforeMigration(entry.path)
         const source = join(entry.path, '.janusX'), target = join(this.root, entry.id)
         let manifest = await this.manifest(entry)
+        if (entry.purging || manifest?.purging) throw new Error('Workspace data removal is in progress')
         if (!manifest?.migration) {
-          if (!await exists(source)) throw new Error('No legacy workspace data was found')
-          await plain(source)
+          if (!await exists(source) && !await exists(join(target, 'checkpoints'))) throw new Error('No legacy workspace data was found')
+          if (await exists(source)) await plain(source)
           if (within(source, target) || within(target, source) || normalize(source) === normalize(target)) throw new Error('Migration paths overlap')
           await this.safeDestination()
           if (await exists(target)) await plain(target)
@@ -598,7 +561,7 @@ export class WorkspaceStateStore {
           // Persist identity before copying, so interruption always returns to this target.
           await this.saveRegistry()
           const files: CopiedFile[] = []
-          for (const category of CATEGORIES) {
+          for (const category of COPY_CATEGORIES) {
             const from = join(source, category)
             if (!await exists(from)) continue
             await plain(from)
@@ -626,29 +589,20 @@ export class WorkspaceStateStore {
               await workspaceIo.step()
             }
           }
-          if (!files.length) throw new Error('No supported legacy files were found')
-          // Check parseability and blob references before allowing snapshot source cleanup.
+          if (!files.length && !await exists(join(source, 'checkpoints')) && !await exists(join(target, 'checkpoints'))) throw new Error('No supported legacy files were found')
+          // Validate only data that is being migrated; retired snapshot bodies are never read.
           const copiedSources = new Set(files.map(file => file.source))
           for (const file of files) {
-            if (file.source === 'janusX.launch.json' || (file.source.startsWith(`checkpoints${sep}`) && file.source.endsWith('.json'))) {
+            if (file.source === 'janusX.launch.json') {
               const data = JSON.parse(await readFile(this.checked(target, file.target), 'utf8'))
-              if (file.source === 'janusX.launch.json') {
-                if (!Array.isArray(data.configurations)) throw new Error('Invalid legacy launch configuration')
-              } else if (!file.source.endsWith(`${sep}index.json`)) {
-                if ((data.schemaVersion !== undefined && data.schemaVersion > 2) || typeof data.id !== 'string' || /[\\/\0]/.test(data.id) || !data.terminalId || typeof data.conversationIndex !== 'number' || !data.createdAt || !data.engine || !data.branch || typeof data.prompt !== 'string' || !data.filesSnapshot || typeof data.filesSnapshot !== 'object' || Array.isArray(data.filesSnapshot)) throw new Error('Unknown legacy checkpoint format')
-                for (const item of Object.values(data.filesSnapshot) as { hash?: string; beforeHash?: string }[]) {
-                  if (!item || typeof item !== 'object') throw new Error('Invalid legacy checkpoint entry')
-                  const hash = item.hash ?? item.beforeHash
-                  if (hash && (!/^[a-f0-9]{40}$/.test(hash) || !await exists(join(target, 'checkpoints', 'blobs', hash)))) throw new Error('Legacy checkpoint references missing blob data')
-                }
-              }
+              if (!Array.isArray(data.configurations)) throw new Error('Invalid legacy launch configuration')
             }
             const current = await this.digest(this.checked(source, file.source))
             if (current.hash !== file.hash) throw new Error('Migration source changed before commit')
           }
           // Re-enumeration catches files added while copying, before committing a partial migration.
           const currentFiles: string[] = []
-          for (const category of CATEGORIES) {
+          for (const category of COPY_CATEGORIES) {
             const path = join(source, category)
             if (!await exists(path)) continue
             if ((await lstat(path)).isDirectory()) for await (const rel of this.inventory(path)) { const entry = join(category, rel); if (supported(entry)) currentFiles.push(entry) }
@@ -661,10 +615,15 @@ export class WorkspaceStateStore {
           this.manifests.set(entry.id, manifest)
           this.maintenanceAt.delete(entry.id)
         }
+        if (manifest.migration!.cleanupComplete) {
+          if (!await exists(join(source, 'checkpoints')) && !await exists(join(target, 'checkpoints'))) return
+          manifest = { ...manifest, migration: { ...manifest.migration!, cleanupComplete: false } }
+          await this.saveManifest(entry, manifest)
+        }
         const migration = manifest.migration!
-        if (migration.cleanupComplete) return
         // Only receipt files are eligible. Never sweep new/unknown source files or reimport them.
         for (const file of migration.files) {
+          if (file.source.startsWith(`checkpoints${sep}`)) continue
           const path = this.checked(source, file.source)
           if (!await exists(path)) continue
           await plain(source)
@@ -674,6 +633,8 @@ export class WorkspaceStateStore {
           await unlink(path)
           await workspaceIo.step()
         }
+        await this.removeSnapshots(source)
+        await this.removeSnapshots(target)
         // Only known directories; never traverse or remove unknown directory trees.
         const removeEmpty = async (dir: string): Promise<void> => {
           if (!await exists(dir)) return
@@ -681,7 +642,7 @@ export class WorkspaceStateStore {
           await rmdir(dir).catch(error => { if (!['ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error })
         }
         for (const category of ['checkpoints/blobs', 'checkpoints', 'logs']) await removeEmpty(join(source, category))
-        if (await exists(source)) await rmdir(source).catch(error => { if (!['ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error })
+        if (await exists(source)) { await plain(source); await rmdir(source).catch(error => { if (!['ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error }) }
         const complete = { ...manifest, migration: { ...migration, cleanupComplete: true } }
         await atomicJson(join(target, 'manifest.json'), complete)
         this.manifests.set(entry.id, complete)

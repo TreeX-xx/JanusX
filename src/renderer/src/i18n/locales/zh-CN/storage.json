@@ -2,7 +2,7 @@
   "dataManagement": "数据管理",
   "maintenance": {
     "addNew": "作为新工作区添加",
-    "title": "工作区数据", "policy": "命令日志保留 30 天。移除后的应用数据可在 30 天内恢复关联。旧快照保留最近 5 个，采用 30 天窗口且最多 40 个。普通升级不会重置时间。",
+    "title": "工作区数据", "policy": "命令日志保留 30 天。移除后的应用数据可在 30 天内恢复关联。普通升级不会重置时间。旧还原点已退场，可直接清除，不再迁移或按时间、数量保留。",
     "empty": "暂无已登记的本地工作区数据。", "expires": "计划清理：{{date}}", "details": "存储与清理", "measure": "计算占用",
     "relocate": "重新定位", "choose": "选择文件夹", "restore": "恢复关联", "clearLogs": "清理日志", "clearSnapshots": "清理旧快照", "clearAll": "永久清除",
     "mismatch": "无法确认所选文件夹是原目录。请通过“添加工作区”将它作为新工作区添加，原关联和数据会保留。",
@@ -14,8 +14,8 @@
     "status": { "associated": "已关联", "offline": "文件夹不可用", "detached": "待清理", "purging": "清理中", "failed": "清理失败" }
   },
   "title": "旧工作区数据迁移",
-  "scope": "将旧工作区 .janusX 中的启动配置、检查点历史和命令日志迁入下方 JanusX 应用数据目录。",
-  "cleanup": "校验成功后将自动删除对应旧文件。项目源码、未纳入迁移的文件和 Hook 资产保持原位；只有空的 .janusX 目录才会移除。",
+  "scope": "仅将旧工作区 .janusX 中的启动配置和命令日志迁入下方 JanusX 应用数据目录。",
+  "cleanup": "校验成功后将自动删除对应旧文件。旧还原点记录、索引和内容块将直接清除，不迁移、不保留，包括 .janusX/checkpoints/ 和已迁入应用数据目录的 checkpoints/。项目源码、聊天记录、Island 差异、未知文件和 Hook 资产不受影响；只有空的 .janusX 目录才会移除。",
   "retention": "迁入数据的时间保留期从首次迁移成功时重新起算一次，原创建时间保留；重试和后续普通升级不会再次重置。",
   "closeTasks": "迁移前请关闭所选工作区及其子目录中的终端和运行任务，并退出仍在使用这些目录的旧版 JanusX。",
   "destinationRoot": "保存位置",
@@ -34,7 +34,7 @@
   "absent": "未发现",
   "category": {
     "0": "启动配置：janusX.launch.json → launch.json",
-    "1": "检查点历史：checkpoints/ → checkpoints/",
+    "1": "旧还原点：checkpoints/ → 直接清除（不迁移）",
     "2": "命令日志：logs/ → logs/"
   },
   "status": {

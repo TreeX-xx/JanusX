@@ -106,7 +106,7 @@ it('expires logs by metadata, keeps launch config and skips repeated scans befor
   const file = await log(root, now - AGE - 1000); await writeFile(launchPath, 'config')
   expect(await store.maintain(records(), now)).toBeUndefined()
   await gone(file); expect(await readFile(launchPath, 'utf8')).toBe('config')
-  const scan = vi.spyOn(store as any, 'retainSnapshots')
+  const scan = vi.spyOn(store as any, 'beforeMigration')
   await store.maintain(records(), now + 10); expect(scan).not.toHaveBeenCalled()
   await log(root, now); await store.resolve(cwd, true)
   const next = await store.maintain(records(), now + AGE - 1000)
@@ -189,40 +189,36 @@ it('expires detached private data without touching project or legacy files', asy
   expect(await readFile(join(cwd, '.janusX', 'unknown'), 'utf8')).toBe('keep')
 })
 
-it('retains five old snapshots and resumes interrupted orphan blob collection', async () => {
-  const { root } = await registered(), now = Date.now(), directory = join(root, 'checkpoints')
+it('does not scan or age retired snapshots and explicitly clears all known files regardless of their bodies', async () => {
+  const { id, root } = await registered(), now = Date.now(), directory = join(root, 'checkpoints')
   await mkdir(join(directory, 'blobs'), { recursive: true })
   for (let i = 0; i < 42; i++) {
-    const hash = i.toString(16).padStart(40, '0')
-    await writeFile(join(directory, `cp${i}.json`), JSON.stringify({ schemaVersion: 2, createdAt: new Date(now - AGE * 2 + i).toISOString(), filesSnapshot: { a: { hash } } }))
-    await writeFile(join(directory, 'blobs', hash), 'content')
+    await writeFile(join(directory, 'cp' + i + '.json'), '{malformed retired snapshot')
+    await writeFile(join(directory, 'blobs', i.toString(16).padStart(40, '0')), 'content')
   }
-  faults.unlink = '0'.repeat(40); await store.maintain(records(), now)
-  expect((await readdir(directory)).filter(file => file.startsWith('cp'))).toHaveLength(5)
-  faults.unlink = ''; store = new WorkspaceStateStore(profile); await store.maintain(records(), now)
-  expect(await readdir(join(directory, 'blobs'))).toHaveLength(5)
-  expect(JSON.parse(await readFile(join(directory, 'index.json'), 'utf8')).checkpointIds).toHaveLength(5)
+  await store.maintain(records(), now + AGE * 2)
+  expect((await readdir(directory)).filter(file => file.startsWith('cp'))).toHaveLength(42)
+  await store.cleanup(id, 'checkpoints')
+  await gone(directory)
 })
 
-it('caps fresh snapshots at forty and leaves malformed metadata and blobs untouched', async () => {
-  const { root } = await registered(), now = Date.now(), directory = join(root, 'checkpoints')
-  await mkdir(join(directory, 'blobs'), { recursive: true })
-  for (let i = 0; i < 42; i++) await writeFile(join(directory, `cp${i}.json`), JSON.stringify({ schemaVersion: 2, createdAt: new Date(now + i).toISOString(), filesSnapshot: {} }))
-  await store.maintain(records(), now)
-  expect((await readdir(directory)).filter(file => file.startsWith('cp'))).toHaveLength(40)
-  await writeFile(join(directory, 'unknown.json'), JSON.stringify({ schemaVersion: 3 }))
-  const blob = join(directory, 'blobs', 'f'.repeat(40)); await writeFile(blob, 'keep')
-  store = new WorkspaceStateStore(profile); await store.maintain(records(), now + AGE * 2)
-  await access(blob)
-  expect((await readdir(directory)).filter(file => file.startsWith('cp'))).toHaveLength(40)
-  expect((await store.data(records()))[0]).toMatchObject({ status: 'failed', error: expect.stringContaining('Unknown snapshot') })
+it('retries explicit snapshot deletion after failure and keeps unknown files intact', async () => {
+  const { id, root } = await registered(), directory = join(root, 'checkpoints')
+  await mkdir(directory); await writeFile(join(directory, 'cp.json'), '{bad')
+  faults.unlink = 'cp.json'
+  await expect(store.cleanup(id, 'checkpoints')).rejects.toThrow('unlink failure')
+  faults.unlink = ''; store = new WorkspaceStateStore(profile)
+  await store.cleanup(id, 'checkpoints'); await gone(directory)
+  await mkdir(directory); await writeFile(join(directory, 'unknown.txt'), 'keep')
+  await expect(store.cleanup(id, 'checkpoints')).rejects.toThrow('Unknown snapshot file')
+  expect(await readFile(join(directory, 'unknown.txt'), 'utf8')).toBe('keep')
 })
 
-it('yields large cleanup batches to foreground work in another workspace', async () => {
-  const { root, id } = await registered(); await mkdir(join(root, 'logs'))
-  for (let i = 0; i < 96; i++) await writeFile(join(root, 'logs', `${i}.log`), 'x')
+it.each(['logs', 'checkpoints'] as const)('yields large %s cleanup batches to foreground work in another workspace', async category => {
+  const { root, id } = await registered(); await mkdir(join(root, category))
+  for (let i = 0; i < 96; i++) await writeFile(join(root, category, `${i}.${category === 'logs' ? 'log' : 'json'}`), 'x')
   const events: string[] = []
-  const cleanup = store.cleanup(id, 'logs').then(() => { events.push('cleanup') })
+  const cleanup = store.cleanup(id, category).then(() => { events.push('cleanup') })
   const foreground = workspaceIo.run(join(base, 'another'), async () => { events.push('foreground') })
   await Promise.all([cleanup, foreground]); expect(events).toEqual(['foreground', 'cleanup'])
 })

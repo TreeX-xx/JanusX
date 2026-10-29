@@ -59,8 +59,9 @@ it('shows exact scope and source/destination before an explicit migration and up
   try {
     await expect(page.getByText('待迁移', { exact: true })).toBeVisible()
     await expect(page.getByText('D:/projects/中文项目/.janusX', { exact: true })).toBeVisible()
-    await expect(page.getByText(/启动配置、检查点历史和命令日志/)).toBeVisible()
-    await expect(page.getByText(/校验成功后将自动删除对应旧文件/)).toBeVisible()
+    await expect(page.getByText(/仅将旧工作区.*启动配置和命令日志迁入/)).toBeVisible()
+    await expect(page.getByText(/旧还原点.*直接清除，不迁移、不保留/)).toBeVisible()
+    await expect(page.locator('li').getByText(/旧还原点.*不迁移/)).toBeVisible()
     const execute = page.getByRole('button', { name: '迁移并清理旧文件', exact: true })
     await expect(execute).toBeDisabled()
     expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])

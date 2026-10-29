@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-29T16:29:34.955Z",
+  "updated": "2026-10-29T16:50:52.329Z",
   "moduleState": "partial"
 }
 ---
@@ -41,7 +41,7 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 免安装版配置使用用户目录下独立的 `JanusX-Portable`，不提供随身模式；旧同级 `data` 在应用数据服务打开前完成校验迁移，并清理已迁移文件及明确可重建的缓存。路径隔离、失败保护和重试语义见 [application-profile](./application-profile.md)。
 
-[工作区私有状态迁出项目目录](./workspace-state-storage.md)已完成本地 P2 和 P4：新数据接入 userData，旧数据主动迁移；稳定身份重新定位、最后关联移除后的 30 天恢复期、过期维护和按需统计从通用设置管理。终端与 Agent 的自动快照已退场，Island 差异独立保留，已有快照仍可迁移清理。P1 队列和三个常量继续复用；P3 Hook 资产采用 userData 单次启动注入。迁移不含源码、工程 Notes 和构建产物，远程迁移不支持；残留核对与长期升级验收归待调度的 P5／P6。
+[工作区私有状态迁出项目目录](./workspace-state-storage.md)已完成本地 P2 和 P4：新数据接入 userData，旧数据主动迁移；稳定身份重新定位、最后关联移除后的 30 天恢复期、过期维护和按需统计从通用设置管理。终端与 Agent 的自动快照已退场，Island 差异独立保留；迁移只复制启动配置和日志，旧还原点连同已迁入 userData 的副本直接清除，不再按年龄或数量保留。P1 队列和三个常量继续复用；P3 Hook 资产采用 userData 单次启动注入。迁移不含源码、工程 Notes 和构建产物，远程迁移不支持；残留核对与长期升级验收归待调度的 P5／P6。
 
 桌面执行史：[scoped implementation 与实施史](../agent/desktop-task-implementation.md)、[delegated-modes 与 xdo 宿主](../agent/desktop-delegated-modes.md)、[ade-survey](./desktop-ade-mit-survey.md)。
 

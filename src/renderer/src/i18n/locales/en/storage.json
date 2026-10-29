@@ -2,7 +2,7 @@
   "dataManagement": "Data management",
   "maintenance": {
     "addNew": "Add as new workspace",
-    "title": "Workspace data", "policy": "Command logs are kept for 30 days. Removed workspace data can be reattached within 30 days. Old snapshots keep the latest 5, with a 30-day window and a maximum of 40. App updates do not reset these dates.",
+    "title": "Workspace data", "policy": "Command logs are kept for 30 days. Removed workspace data can be reattached within 30 days. App updates do not reset these dates. Restore points are retired and can be cleared directly; they are no longer migrated or retained by age or count.",
     "empty": "No registered local workspace data.", "expires": "Scheduled removal: {{date}}", "details": "Storage and cleanup", "measure": "Calculate size",
     "relocate": "Relocate", "choose": "Choose folder", "restore": "Reattach", "clearLogs": "Clear logs", "clearSnapshots": "Clear old snapshots", "clearAll": "Delete permanently",
     "mismatch": "The selected folder could not be verified as the original. Use Add workspace to add it as a new workspace. The old association and data are retained.",
@@ -14,8 +14,8 @@
     "status": { "associated": "Associated", "offline": "Folder unavailable", "detached": "Pending removal", "purging": "Removing", "failed": "Cleanup failed" }
   },
   "title": "Legacy workspace data migration",
-  "scope": "Move launch configurations, checkpoint history and command logs from workspace .janusX folders to the JanusX application data location below.",
-  "cleanup": "Verified legacy files are removed after migration succeeds. Project source, unrecognized files and Hook assets stay in place. The .janusX directory is removed only when empty.",
+  "scope": "Move only launch configurations and command logs from workspace .janusX folders to the JanusX application data location below.",
+  "cleanup": "Verified legacy files are removed after migration succeeds. Retired restore-point records, indices and content blobs are deleted directly, without copying or retention, from both .janusX/checkpoints/ and any checkpoints/ already in the application data directory. Project source, chats, Island changes, unknown files and Hook assets are unaffected. The .janusX directory is removed only when empty.",
   "retention": "Time-based retention restarts once at the first successful migration. Original creation dates are preserved. Retries and later ordinary upgrades do not restart it again.",
   "closeTasks": "Close terminals and running tasks in the selected workspaces and their subdirectories, and exit older JanusX versions still using these folders before migrating.",
   "destinationRoot": "Save location",
@@ -34,7 +34,7 @@
   "absent": "Not found",
   "category": {
     "0": "Launch configuration: janusX.launch.json → launch.json",
-    "1": "Checkpoint history: checkpoints/ → checkpoints/",
+    "1": "Retired restore points: checkpoints/ → delete directly (do not migrate)",
     "2": "Command logs: logs/ → logs/"
   },
   "status": {
