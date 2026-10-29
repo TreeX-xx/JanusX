@@ -1,4 +1,4 @@
-// Note: .agents/notes/workbench/plugin-contract-v1.md — enabled plugins apply to all workspaces.
+// Note: .agents/notes/workbench/plugin-contract-v1.md - all-workspace access and entry preferences.
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { pluginRequest, refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
@@ -96,6 +96,7 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
   const workspaces = useWorkspaceStore(state => state.workspaces)
   const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
   const projectOpen = Boolean(activeWorkspaceId)
+
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [imported, setImported] = useState(false)
@@ -230,7 +231,7 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
               const location = menu.location === 'toolbox' ? t('plugins:showInToolbox') : t('plugins:showInWorkspaceAdd')
               return <label key={id} className={styles.entryPreference}>
                 <span>{location}</span>
-                <input type="checkbox" role="switch" className={styles.switch} aria-label={command.title + ' ? ' + location} checked={!preferences.menus[id]?.hidden}
+                <input type="checkbox" role="switch" className={styles.switch} aria-label={command.title + ' - ' + location} checked={!preferences.menus[id]?.hidden}
                   onChange={event => preference(() => extensionCommands.setMenuPreference(id, { hidden: !event.target.checked }))} />
               </label>
             })}

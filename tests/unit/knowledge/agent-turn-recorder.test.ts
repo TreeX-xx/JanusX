@@ -3,6 +3,7 @@ import type { AgentHookPayload } from '../../../src/main/notifications/agent-hoo
 import { taskNotification } from './memory-observation.fixture'
 
 const mocks = vi.hoisted(() => ({
+  persona: true,
   capture: vi.fn(),
   getKnowledgeSettings: vi.fn(),
   scheduleImmediate: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('../../../src/main/knowledge/processing-queue', () => ({
 vi.mock('../../../src/main/config/service', () => ({
   configService: {
     getKnowledgeSettings: mocks.getKnowledgeSettings,
-    getExperimentalFeatures: async () => ({ persona: true }),
+    getExperimentalFeatures: async () => ({ persona: mocks.persona }),
     getPersonalMemorySettings: async () => ({ inferEngineeringHabits: (await mocks.getKnowledgeSettings()).enabled }),
   },
 }))
@@ -42,6 +43,23 @@ async function loadRecorder() {
 }
 
 describe('AgentTurnRecorder', () => {
+  it('keeps the original prompt and correlation when a waiting turn resumes and is interrupted', async () => {
+    const { AgentTurnRecorder } = await loadRecorder()
+    const recorder = new AgentTurnRecorder()
+    recorder.registerTerminal({ terminalId: 'resume', engine: 'codex', workspaceId: 'w', cwd: 'C:/work' })
+    mocks.capture.mockResolvedValueOnce({ id: 'original-observation' }).mockResolvedValue({ id: 'later-observation' })
+    try {
+      const payload = { source: 'codex' as const, event: 'UserPromptSubmit', terminalId: 'resume', sessionId: 's' }
+      await recorder.handleHookPayload({ ...payload, message: 'Original question' }, { type: 'turn-start' })
+      await recorder.handleHookPayload({ ...payload, message: 'My approval response' }, { type: 'turn-start', resume: true })
+      await recorder.handleHookPayload({ ...payload, event: 'Interrupt' }, { type: 'turn-end', kind: 'interrupted' })
+      const [first, continuation, end] = mocks.capture.mock.calls
+      expect(continuation[0]).toMatchObject({ correlationId: first[0].correlationId, tags: expect.arrayContaining(['turn-input']) })
+      expect(end[0]).toMatchObject({ correlationId: first[0].correlationId, tags: expect.arrayContaining(['turn-interrupted']), metadata: { prompt: 'Original question', completionKind: 'interrupted' } })
+      expect(end[1].relatedObservationIds).toEqual(['original-observation'])
+    } finally { recorder.dispose() }
+  })
+
   it('connects an OpenCode completion to its exact session database recovery', async () => {
     const { agentTurnRecorder } = await loadRecorder()
     const { knowledgeTranscriptRecovery } = await import('../../../src/main/knowledge/transcript-recovery')
@@ -54,6 +72,7 @@ describe('AgentTurnRecorder', () => {
     }), expect.any(Function))
   })
   beforeEach(() => {
+    mocks.persona = true
     mocks.capture.mockReset()
     mocks.capture.mockResolvedValue({ workspaceId: 'workspace-1' })
     mocks.getKnowledgeSettings.mockReset()
@@ -239,5 +258,51 @@ describe('AgentTurnRecorder', () => {
     const [start, end] = mocks.capture.mock.calls.map(call => call[0])
     expect(start.content).not.toContain(secret)
     expect(end.metadata.prompt).toBe(start.content)
+  })
+})
+
+
+describe('P3 habit capture admission', () => {
+  beforeEach(() => { mocks.capture.mockReset().mockResolvedValue({ id: 'start', workspaceId: 'w' }); mocks.scheduleImmediate.mockReset(); mocks.listAll.mockReset().mockResolvedValue([]) })
+  it.each([[false, false], [false, true], [true, false], [true, true]])('persona=%s habits=%s controls dispatch and recovery timer', async (persona, habits) => {
+    vi.useFakeTimers()
+    const { AgentTurnRecorder } = await loadRecorder()
+    mocks.persona = persona
+    mocks.getKnowledgeSettings.mockResolvedValue({ enabled: habits })
+    const { knowledgeCaptureInbox } = await import('../../../src/main/knowledge/capture-inbox')
+    vi.mocked(knowledgeCaptureInbox.drain).mockClear()
+    const recorder = new AgentTurnRecorder()
+    try {
+      recorder.registerTerminal({ terminalId: 't', engine: 'codex', workspaceId: 'w', cwd: 'C:/work' })
+      await recorder.refreshPolicy()
+      await recorder.handleHookPayload({ source: 'codex', terminalId: 't', event: 'UserPromptSubmit', message: 'real user words' })
+      await recorder.settle()
+      expect(mocks.capture.mock.calls.length > 0).toBe(persona && habits)
+      expect(vi.getTimerCount()).toBe(persona && habits ? 1 : 0)
+      if (!persona || !habits) expect(knowledgeCaptureInbox.drain).not.toHaveBeenCalled()
+    } finally { recorder.dispose(); vi.useRealTimers() }
+  })
+
+  it('drops queued payloads and results when disabled during an admitted capture', async () => {
+    const { AgentTurnRecorder } = await loadRecorder()
+    mocks.persona = true
+    mocks.getKnowledgeSettings.mockResolvedValue({ enabled: true })
+    let finish!: (value: unknown) => void
+    mocks.capture.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const recorder = new AgentTurnRecorder()
+    const events = vi.fn()
+    recorder.setEventSink(events)
+    recorder.registerTerminal({ terminalId: 't', engine: 'codex', cwd: 'C:/work' })
+    const first = recorder.handleHookPayload({ source: 'codex', terminalId: 't', event: 'UserPromptSubmit', message: 'private words' })
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    const second = recorder.handleHookPayload({ source: 'codex', terminalId: 't', event: 'Stop' })
+    mocks.getKnowledgeSettings.mockResolvedValue({ enabled: false })
+    await recorder.refreshPolicy()
+    finish({ id: 'old-result', workspaceId: 'w' })
+    await Promise.all([first, second, recorder.settle()])
+    expect(mocks.capture).toHaveBeenCalledTimes(1)
+    expect(mocks.scheduleImmediate).not.toHaveBeenCalled()
+    expect(events).not.toHaveBeenCalled()
+    recorder.dispose()
   })
 })

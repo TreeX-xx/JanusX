@@ -1,0 +1,36 @@
+{
+  "dataManagement": "Data management",
+  "title": "Legacy workspace data migration",
+  "scope": "Move launch configurations, checkpoint history and command logs from workspace .janusX folders to the JanusX application data location below.",
+  "cleanup": "Verified legacy files are removed after migration succeeds. Project source, unrecognized files and Hook assets stay in place. The .janusX directory is removed only when empty.",
+  "retention": "Time-based retention restarts once at the first successful migration. Original creation dates are preserved. Retries and later ordinary upgrades do not restart it again.",
+  "closeTasks": "Close terminals and running tasks in the selected workspaces and their subdirectories, and exit older JanusX versions still using these folders before migrating.",
+  "destinationRoot": "Save location",
+  "source": "Source directory",
+  "destination": "Destination directory",
+  "copy": "Copy path",
+  "check": "Check again",
+  "selectAll": "Select eligible workspaces",
+  "checking": "Checking registered workspaces…",
+  "noPending": "No workspaces awaiting migration. Reconnect offline workspaces or resolve errors, then check again.",
+  "migrating": "Migrating and cleaning up…",
+  "migrate": "Migrate and remove legacy files",
+  "go": "Review migration",
+  "later": "Later",
+  "found": "Found",
+  "absent": "Not found",
+  "category": {
+    "0": "Launch configuration: janusX.launch.json → launch.json",
+    "1": "Checkpoint history: checkpoints/ → checkpoints/",
+    "2": "Command logs: logs/ → logs/"
+  },
+  "status": {
+    "pending": "Awaiting migration",
+    "new": "No migration needed",
+    "migrated": "Migration complete",
+    "cleanup-pending": "Using new storage; legacy cleanup incomplete",
+    "offline": "Offline or directory missing",
+    "unsupported": "Migration required in the workspace environment",
+    "failed": "Check or migration failed"
+  }
+}

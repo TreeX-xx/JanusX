@@ -1,7 +1,7 @@
+import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — trusted shells only; plugin code stays in isolated native pages.
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { PluginHostEvent, PluginHostSnapshot, PluginManageRequest, PluginMount } from '../../../shared/ipc/plugins'
-import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 import type { ExtensionViewProps } from './types'
 import { extensionRegistry } from './registry'
 import { manifestContribution } from './manifest'

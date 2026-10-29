@@ -603,3 +603,67 @@ describe('AgentHookCoordinator synthetic turn ends', () => {
     expect(coordinator.hasActiveTurn('term-claude')).toBe(false)
   })
 })
+
+
+describe('P3 accepted lifecycle boundaries', () => {
+  it('normalizes approval, input, success and session close through one callback', async () => {
+    const { CompanionSessionState } = await import('../../src/main/companion/session-state')
+    const state = new CompanionSessionState()
+    state.registerTerminal({ ...codexTerminal, workspaceId: 'workspace-1', cwd: 'C:/repo' })
+    const accepted: unknown[] = []
+    const started = vi.fn(), completed = vi.fn()
+    const coordinator = new AgentHookCoordinator(() => null, {
+      deliverCompletion: completed, deliverAttention: () => true, onTurnStarted: started,
+      onResolvedPayload: (payload, terminal, semantic) => {
+        accepted.push(semantic)
+        state.handleLifecycle(terminal.terminalId, semantic)
+      },
+    })
+    coordinator.registerTerminal(codexTerminal)
+    const send = (event: string, matcher?: string) => coordinator.handleHookPayload({ source: 'codex', event, matcher, terminalId: 'term-1', sessionId: 's' })
+    send('SessionStart')
+    expect(coordinator.hasActiveTurn('term-1')).toBe(false)
+    send('UserPromptSubmit'); send('UserPromptSubmit')
+    send('Notification', 'permission_prompt')
+    expect(state.hasPendingApproval('term-1')).toBe(true)
+    send('UserPromptSubmit') // resumes the existing wait
+    expect(started).toHaveBeenCalledTimes(1)
+    expect(state.hasPendingApproval('term-1')).toBe(false)
+    send('Notification', 'idle_prompt')
+    expect(state.hasPendingApproval('term-1')).toBe(false)
+    send('Stop'); send('Stop'); send('SessionEnd')
+    expect(completed).toHaveBeenCalledTimes(1)
+    expect(accepted).toEqual([{ type: 'session-update' }, { type: 'turn-start' },
+      { type: 'waiting-user', kind: 'approval' }, { type: 'turn-start', resume: true },
+      { type: 'waiting-user', kind: 'input' }, { type: 'turn-end', kind: 'done' }, { type: 'session-close' }])
+  })
+
+  it('does not let another session replace an active turn or use a mismatched workspace fallback', () => {
+    const accepted = vi.fn(), ended = vi.fn()
+    const coordinator = new AgentHookCoordinator(() => null, { onResolvedPayload: accepted, onTurnEnded: ended, deliverCompletion: () => true })
+    coordinator.registerTerminal(codexTerminal)
+    coordinator.handleHookPayload({ source: 'codex', event: 'UserPromptSubmit', terminalId: 'term-1', sessionId: 'active' })
+    coordinator.handleHookPayload({ source: 'codex', event: 'UserPromptSubmit', terminalId: 'term-1', sessionId: 'other' })
+    coordinator.handleHookPayload({ source: 'codex', event: 'SessionStart', terminalId: 'term-1', sessionId: 'other' })
+    coordinator.handleHookPayload({ source: 'codex', event: 'Stop', workspaceId: 'other-workspace', sessionId: 'active' })
+    expect(accepted).toHaveBeenCalledTimes(1)
+    expect(coordinator.hasActiveTurn('term-1')).toBe(true)
+    coordinator.handleHookPayload({ source: 'codex', event: 'Stop', terminalId: 'term-1', sessionId: 'active' })
+    expect(ended).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects stale IDs, engine mismatch and old session ends after a new session starts', () => {
+    const { coordinator, resolvedPayloads, completions } = createCoordinator(() => Date.now())
+    coordinator.registerTerminal(codexTerminal)
+    const send = (payload: Partial<AgentHookPayload>) => coordinator.handleHookPayload({ source: 'codex', event: 'UserPromptSubmit', terminalId: 'term-1', ...payload })
+    send({ terminalId: 'dead-id' }); send({ source: 'claude' })
+    expect(resolvedPayloads).toHaveLength(0)
+    send({ sessionId: 'new', timestamp: '2026-10-29T10:00:01Z' })
+    send({ event: 'Stop', sessionId: 'old', timestamp: '2026-10-29T10:00:02Z' })
+    send({ event: 'Stop', sessionId: 'new', timestamp: '2026-10-29T10:00:00Z' })
+    expect(coordinator.hasActiveTurn('term-1')).toBe(true)
+    expect(completions).toHaveLength(0)
+    send({ event: 'Interrupt', sessionId: 'new', timestamp: '2026-10-29T10:00:03Z' })
+    expect(completions[0].kind).toBe('interrupted')
+  })
+})

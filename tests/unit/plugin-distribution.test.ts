@@ -111,7 +111,7 @@ describe('official plugin distribution boundary', () => {
     await host.service.rollback(f.manifest.id)
     expect(host.service.snapshot().plugins[0]).toMatchObject({ enabled: false, manifest: { version: f.release.version } })
   })
-  it('requires a separately pinned native signer, explicit enablement and granted project scope', async () => {
+  it('requires a separately pinned native signer and enablement, then accepts every registered project', async () => {
     const f = await fixture()
     f.manifest.native = { entry: 'dist/service.cjs', dataVersion: 1, methods: ['echo'] }
     f.manifest.capabilities.required.push('runtime.native')
@@ -130,13 +130,18 @@ describe('official plugin distribution boundary', () => {
         return { listen: callback => { listener = callback; return () => {} }, exited: () => () => {}, terminate() {},
           send(packet: NativePacket) { if (packet.type === 'request') queueMicrotask(() => listener({ protocol: 1, generation: packet.generation, type: 'result', id: packet.id, value: packet.value })) } }
       } }))
-    const host = await serviceFixture({ official: { keys, nativePlugins: { [f.manifest.id]: ['release'] }, hostVersion: '0.9.4', platform: 'win32-x64' }, createNativeService })
+    const host = await serviceFixture({ official: { keys, nativePlugins: { [f.manifest.id]: ['release'] }, hostVersion: '0.9.4', platform: 'win32-x64' }, createNativeService,
+      resolveProject: async id => {
+        if (id === 'missing') throw new Error('Project is not registered')
+        return { root: tmpdir(), name: id }
+      } })
     await host.service.installPackage(packaged)
     expect(createNativeService).not.toHaveBeenCalled()
     await host.service.enable(f.manifest.id, ['allowed'])
     expect(createNativeService).toHaveBeenCalledTimes(1)
     expect(await host.service.nativeCall(f.manifest.id, 'echo', 'input', 'allowed')).toMatchObject({ input: 'input', project: { id: 'allowed' } })
-    await expect(host.service.nativeCall(f.manifest.id, 'echo', null, 'other')).rejects.toThrow('Project is not granted')
+    expect(await host.service.nativeCall(f.manifest.id, 'echo', null, 'other')).toMatchObject({ project: { id: 'other' } })
+    await expect(host.service.nativeCall(f.manifest.id, 'echo', null, 'missing')).rejects.toThrow('Project is not registered')
     await expect(host.service.nativeCall(f.manifest.id, 'undeclared', null)).rejects.toThrow('Native method is not declared')
     await host.service.disable(f.manifest.id)
     await expect(host.service.nativeCall(f.manifest.id, 'echo', null)).rejects.toThrow('Plugin is disabled')

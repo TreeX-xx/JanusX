@@ -14,6 +14,7 @@ describe('OpenCode plugin delivery', () => {
   const payloads: AgentHookPayload[] = []
   let bridge: AgentHookBridge
   let plugin: { event: (input: { event: unknown }) => Promise<void> }
+  let dispose: () => void
 
   beforeEach(async () => {
     payloads.length = 0
@@ -26,11 +27,24 @@ describe('OpenCode plugin delivery', () => {
       engine: 'opencode', terminalId: 'opencode-term', workspaceId: 'workspace',
     }, bridge.getEnv()))) vi.stubEnv(key, value)
     const source = await readFile(join(manager.getOpencodeConfigDir(), 'plugins', 'janusx-notify.js'), 'utf8')
-    const factory = new Function(source.replace('export const JanusXNotifyPlugin', 'const JanusXNotifyPlugin') + '\nreturn JanusXNotifyPlugin;')()
-    plugin = await factory({ directory: 'C:/repo' })
+    const definition = new Function(source.replace('export default', 'return'))()
+    let push: (event: unknown) => void
+    const pending: unknown[] = []
+    let resume: (() => void) | undefined
+    dispose = await definition.setup({ location: { directory: 'C:/repo' }, event: {
+      subscribe: async function* ({ signal }: { signal: AbortSignal }) {
+        push = event => { pending.push(event); resume?.() }
+        while (!signal.aborted) {
+          if (!pending.length) await new Promise<void>(resolve => { resume = resolve; signal.addEventListener('abort', () => resolve(), { once: true }) })
+          while (pending.length) yield pending.shift()
+        }
+      },
+    } })
+    plugin = { event: async ({ event }) => { push(event); await new Promise(resolve => setTimeout(resolve, 30)) } }
   })
 
   afterEach(async () => {
+    dispose?.()
     vi.unstubAllEnvs()
     await bridge.stop()
   })
@@ -79,6 +93,7 @@ describe('OpenCode plugin delivery', () => {
     try {
       const started = Date.now()
       await plugin.event({ event: { type: 'session.idle' } })
+      await new Promise(resolve => setTimeout(resolve, 2200))
       expect(Date.now() - started).toBeLessThan(5000)
     } finally {
       stalled.closeAllConnections()

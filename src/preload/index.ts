@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { WORKSPACE_STORAGE_CHANNELS, type WorkspaceStorageAPI } from '../shared/ipc/workspace-storage'
 import { WORKSPACE_RUNTIME_CHANNELS, type WorkspaceRuntimeAPI } from '../shared/workspace-runtime'
 import { BLUEPRINT_REVIEW_CHANNELS } from '../shared/ipc/legacy-review-channels'
 import type { BlueprintReviewAPI } from '../../plugins/blueprint/src/shared/ipc/blueprint-review'
@@ -672,6 +673,11 @@ const pluginAPI: PluginHostAPI = {
 }
 
 contextBridge.exposeInMainWorld('electron', {
+  workspaceStorage: {
+    list: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.list),
+    migrate: ids => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.migrate, ids),
+    dismiss: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.dismiss),
+  } satisfies WorkspaceStorageAPI,
   /*-- 同步暴露平台与 Windows build 号，供渲染端构造 xterm windowsPty 用 --*/
   /*-- preload 在 Node 环境，可同步读取；os.release() 形如 "10.0.22621"，第三段为 build 号 --*/
   platform: process.platform,

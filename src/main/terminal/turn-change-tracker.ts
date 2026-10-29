@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { workspaceIo } from '@janus-agent/agent-core'
 import type { TerminalTurnChangesEvent, TurnChangeKind } from '../../shared/ipc/terminal'
 import { captureTurnFiles, compareTurnFiles, type TurnFileSnapshot } from './turn-file-snapshot'
 
@@ -7,7 +8,9 @@ interface TerminalTracking {
   baseline?: TurnFileSnapshot
   activeTurn?: string
   sequence: number
+  baselineSequence: number
   queue: Promise<void>
+  abort: AbortController
 }
 
 // Note: adjacent completed turns own independent file baselines — see .agents/notes/terminal/terminal-right-island-turn-history.md
@@ -21,9 +24,12 @@ export class TerminalTurnChangeTracker {
   ) {}
 
   register(id: string, cwd: string): Promise<void> {
-    const state: TerminalTracking = { cwd, sequence: 0, queue: Promise.resolve() }
+    this.unregister(id)
+    const state: TerminalTracking = { cwd, sequence: 0, baselineSequence: 0, queue: Promise.resolve(), abort: new AbortController() }
     this.terminals.set(id, state)
-    state.queue = this.capture(cwd).then(snapshot => { state.baseline = snapshot }).catch(this.reportError)
+    state.queue = this.capture(cwd, state.abort.signal).then(snapshot => {
+      if (this.terminals.get(id) === state) state.baseline = snapshot
+    }).catch(error => { if (!state.abort.signal.aborted) this.reportError(error) })
     return state.queue
   }
 
@@ -44,23 +50,29 @@ export class TerminalTurnChangeTracker {
     state.activeTurn = undefined
     const sequence = ++state.sequence
     const endedAt = new Date().toISOString()
-    state.queue = state.queue.then(async () => {
+    state.queue = workspaceIo.run(state.cwd, async () => {
       if (this.terminals.get(id) !== state) return
-      const current = await this.capture(state.cwd)
+      const current = await this.capture(state.cwd, state.abort.signal)
       if (this.terminals.get(id) !== state) return
-      const files = state.baseline ? compareTurnFiles(state.baseline, current) : []
-      const available = state.baseline !== undefined
-      state.baseline = current
+      const available = state.baseline !== undefined && state.baselineSequence === sequence - 1
+      const files = available ? compareTurnFiles(state.baseline!, current) : []
+      if (state.baselineSequence < sequence) {
+        state.baseline = current
+        state.baselineSequence = sequence
+      }
       this.publish({
         id, turnId, sequence, kind, checkpointId, endedAt, available,
         files: files.slice(0, 100), fileCount: files.length,
         additions: files.reduce((sum, file) => sum + (file.additions ?? 0), 0),
         deletions: files.reduce((sum, file) => sum + (file.deletions ?? 0), 0),
       })
-    }).catch(error => {
+    }, { signal: state.abort.signal, background: true }).catch(error => {
       if (this.terminals.get(id) !== state) return
       // A failed boundary cannot become a cumulative diff on the next turn.
-      state.baseline = undefined
+      if (state.baselineSequence < sequence) {
+        state.baseline = undefined
+        state.baselineSequence = sequence
+      }
       this.reportError(error)
       this.publish({ id, turnId, sequence, kind, checkpointId, endedAt, available: false, files: [], fileCount: 0, additions: 0, deletions: 0 })
     })
@@ -68,6 +80,7 @@ export class TerminalTurnChangeTracker {
   }
 
   unregister(id: string): void {
+    this.terminals.get(id)?.abort.abort()
     this.terminals.delete(id)
   }
 }

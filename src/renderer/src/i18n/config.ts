@@ -20,6 +20,7 @@ export const NAMESPACE_LIST = [
   'model',
   'team',
   'plugins',
+  'storage',
 ] as const
 
 export type Namespace = (typeof NAMESPACE_LIST)[number]

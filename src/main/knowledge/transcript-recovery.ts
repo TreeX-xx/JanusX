@@ -22,7 +22,7 @@ export class TranscriptRecovery {
   private readonly queue = new SerialQueue()
   constructor(private readonly deps = {
     read: readKnowledgeTurn,
-    submit: (entries: CaptureEntry[]) => knowledgeCaptureInbox.submit(entries),
+    submit: (entries: CaptureEntry[], enabled?: () => Promise<boolean>) => knowledgeCaptureInbox.submit(entries, enabled),
     now: Date.now,
   }) {}
   private path() { return join(knowledgeRootPath(), 'processing', 'transcript-recovery.json') }
@@ -32,10 +32,13 @@ export class TranscriptRecovery {
   }
   private write(rows: Pending[]) { return writeFileAtomic(this.path(), JSON.stringify(rows) + '\n') }
   async submit(job: TranscriptJob, enabled: () => Promise<boolean> = async () => true): Promise<Observation[]> {
+    if (!await enabled()) return []
     return this.queue.run(async () => {
+      if (!await enabled()) return []
       const rows = await this.read()
       const safe = JSON.parse(redactHighConfidenceSecrets(JSON.stringify(job)).text) as TranscriptJob
       const id = createHash('sha256').update(JSON.stringify([safe.end.input.workspaceId, safe.end.context.sourceEventId])).digest('hex')
+      if (!await enabled()) return []
       let row = rows.find(item => item.id === id)
       if (!row) { row = { ...safe, id, attempts: 0, nextAttemptAt: 0 }; rows.push(row); await this.write(rows) }
       return this.deliver(rows, row, enabled)
@@ -60,14 +63,18 @@ export class TranscriptRecovery {
     try {
       if (!await enabled()) return []
       if ((await readObservationRevocationBarrier()).blocksObservations(row.end.input.workspaceId ?? '', row.end.context.relatedObservationIds ?? [])) {
+        if (!await enabled()) return []
         await this.write(rows.filter(item => item.id !== row.id)); return []
       }
+      if (!await enabled()) return []
       const result = await this.deps.read(row.path, row.engine, row.end.input.sessionId, row.prompt, row.end.context.createdAt, row.end.input.workspacePath)
       if (!await enabled()) return []
       if ((await readObservationRevocationBarrier()).blocksObservations(row.end.input.workspaceId ?? '', row.end.context.relatedObservationIds ?? [])) {
+        if (!await enabled()) return []
         await this.write(rows.filter(item => item.id !== row.id)); return []
       }
-      const observations = await this.deps.submit(this.entries(row, result))
+      const observations = await this.deps.submit(this.entries(row, result), enabled)
+      if (!await enabled()) return []
       if (!result.reason) { await this.write(rows.filter(item => item.id !== row.id)); return observations }
       row.error = result.reason
       row.end.context.relatedObservationIds = [...new Set([...(row.end.context.relatedObservationIds ?? []), ...observations.map(observation => observation.id)])]
@@ -76,6 +83,7 @@ export class TranscriptRecovery {
       await this.write(rows)
       return observations
     } catch (error) {
+      if (!await enabled()) return []
       row.attempts++
       row.error = redactHighConfidenceSecrets(error instanceof Error ? error.message : String(error)).text.slice(0, 300)
       row.nextAttemptAt = this.deps.now() + Math.min(300000, 1000 * 2 ** Math.min(row.attempts, 8))
@@ -84,9 +92,12 @@ export class TranscriptRecovery {
     }
   }
   async drain(enabled: () => Promise<boolean> = async () => true): Promise<Observation[]> {
+    if (!await enabled()) return []
     return this.queue.run(async () => {
       const observations: Observation[] = []
+      if (!await enabled()) return observations
       for (const row of (await this.read()).filter(item => item.nextAttemptAt <= this.deps.now()).slice(0, 10)) {
+        if (!await enabled()) return observations
         try { observations.push(...await this.deliver(await this.read(), row, enabled)) } catch { /* Durable retry and diagnostics retain the error. */ }
       }
       return observations

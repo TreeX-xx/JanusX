@@ -70,44 +70,21 @@ describe('terminal attribution without hooks', () => {
     expect(snapshot).toMatchObject({ sessionId: SESSION_ID, sessionBinding: 'correlated', detectedModel: 'gpt-6-astra' })
   })
 
-  it('never re-attributes a terminal that already has a hook binding', async () => {
+  it.each(['hook', undefined])('ignores persisted legacy binding source %s until independent attribution', async (source) => {
     await writeCodexSession(CWD, NOW)
+    const path = join(testContext.userData, 'janusx', 'terminal-context-ledger.json')
+    await mkdir(join(testContext.userData, 'janusx'), { recursive: true })
+    await writeFile(path, JSON.stringify({ version: 1, terminals: { 'terminal-1': {
+      engine: 'codex', sessionId: SESSION_ID, source, modelSegments: [], updatedAt: NOW,
+    } } }))
     const coordinator = createCoordinator()
     coordinator.trackTerminal('terminal-1', 'codex', CWD)
-    // The hook asserted this session first; correlation must not disturb it.
-    expect(coordinator.bindSession('terminal-1', 'codex', SESSION_ID, 'hook')).toBe(true)
-    coordinator.noteTerminalActivity('terminal-1', NOW)
-
-    await coordinator.runAttributionPass()
-
-    const snapshot = await coordinator.getSnapshot({ terminalId: 'terminal-1', preset: 'codex', cwd: CWD })
-    expect(snapshot?.sessionBinding).toBe('exact')
-    expect(snapshot?.sessionId).toBe(SESSION_ID)
-  })
-
-  it('lets a hook assertion upgrade a correlated binding', async () => {
-    await writeCodexSession(CWD, NOW)
-    const coordinator = createCoordinator()
-    coordinator.trackTerminal('terminal-1', 'codex', CWD)
+    const request = { terminalId: 'terminal-1', preset: 'codex' as const, cwd: CWD }
+    expect((await coordinator.getSnapshot(request))?.sessionId).toBeUndefined()
     coordinator.noteTerminalActivity('terminal-1', NOW)
     await coordinator.runAttributionPass()
-    expect((await coordinator.getSnapshot({ terminalId: 'terminal-1', preset: 'codex', cwd: CWD }))?.sessionBinding).toBe('correlated')
-
-    // Same session asserted by the hook: the binding source upgrades.
-    expect(coordinator.bindSession('terminal-1', 'codex', SESSION_ID, 'hook')).toBe(true)
-    const snapshot = await coordinator.getSnapshot({ terminalId: 'terminal-1', preset: 'codex', cwd: CWD })
-    expect(snapshot?.sessionBinding).toBe('exact')
-
-    // A different hook session replaces the correlated one entirely. The new
-    // session has no file on disk, so the snapshot is null; the persisted
-    // binding is what records the replacement and its source.
-    expect(coordinator.bindSession('terminal-1', 'codex', 'hook-session-2', 'hook')).toBe(true)
-    const replaced = await coordinator.getSnapshot({ terminalId: 'terminal-1', preset: 'codex', cwd: CWD })
-    expect(replaced).toBeNull()
-    const persisted = JSON.parse(await readFile(join(testContext.userData, 'janusx', 'terminal-context-ledger.json'), 'utf8')) as {
-      terminals: Record<string, { sessionId: string; source?: string }>
-    }
-    expect(persisted.terminals['terminal-1']).toMatchObject({ sessionId: 'hook-session-2', source: 'hook' })
+    expect(await coordinator.getSnapshot(request)).toMatchObject({ sessionId: SESSION_ID, sessionBinding: 'correlated' })
+    expect(JSON.parse(await readFile(path, 'utf8')).terminals['terminal-1'].source).toBe('correlated')
   })
 
   it('keeps one session exclusive across terminals', async () => {
@@ -120,13 +97,9 @@ describe('terminal attribution without hooks', () => {
 
     await coordinator.runAttributionPass()
 
-    // Both terminals correlate the same file; the first claim wins and the
-    // second stays unbound rather than sharing one session.
     const first = await coordinator.getSnapshot({ terminalId: 'terminal-1', preset: 'codex', cwd: CWD })
     const second = await coordinator.getSnapshot({ terminalId: 'terminal-2', preset: 'codex', cwd: CWD })
-    const bound = [first, second].filter(snapshot => snapshot?.sessionId === SESSION_ID)
-    expect(bound).toHaveLength(1)
-    expect([first, second].filter(snapshot => snapshot?.sessionId === undefined)).toHaveLength(1)
+    expect([first, second].filter(snapshot => snapshot?.sessionId === undefined)).toHaveLength(2)
   })
 
   it('stays unbound without pty activity even when a session file exists', async () => {

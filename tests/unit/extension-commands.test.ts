@@ -76,6 +76,20 @@ describe('commands independent of view positions and menu entries', () => {
     registry.dispose()
   })
 
+  it('does not expose a second toolbar launcher when a workbench declares a toolbox entry', () => {
+    const source = new ExtensionRegistry()
+    const registry = new ExtensionCommandRegistry(source)
+    const value = definition()
+    source.register({ ...value, views: [{ ...value.views[0], location: 'workbench' }] })
+    expect(registry.getMenus('toolbox', true)).toHaveLength(1)
+    expect(registry.getToolbarWorkbenches(true)).toEqual([])
+    registry.setMenuPreference('menu:test.commands/toolbox/open', { hidden: true })
+    expect(registry.getMenus('toolbox', true)).toEqual([])
+    expect(registry.getToolbarWorkbenches(true)).toEqual([])
+    expect(registry.canExecute('command:test.commands/open', true)).toBe(true)
+    registry.dispose()
+  })
+
   it('adapts legacy launchers exactly once and removes all entries on disable/unregister', () => {
     const source = new ExtensionRegistry()
     const registry = new ExtensionCommandRegistry(source)

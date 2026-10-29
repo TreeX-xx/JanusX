@@ -1,7 +1,7 @@
+import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — explicit read-only document binding.
 import { matchesPluginViewer, type PluginViewer } from '@janusx/plugin-sdk'
 import type { PluginHostSnapshot } from '../../../shared/ipc/plugins'
-import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 
 export interface AvailableDocumentViewer extends PluginViewer { key: string; pluginId: string; pluginName: string; digest: string }
 

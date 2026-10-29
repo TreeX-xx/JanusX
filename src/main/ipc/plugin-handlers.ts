@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { PluginError, messageSchema } from '@janusx/plugin-sdk'
 import { PLUGIN_CHANNELS, type PluginManageRequest, type PluginHostResult } from '../../shared/ipc/plugins'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
+import { listRegisteredWorkspaces } from '../companion/workspace-registry'
 import { PluginService } from '../plugins/service'
 import { PluginRuntime } from '../plugins/runtime'
 import { hostPluginModelBackend } from '../plugins/model-backend'
@@ -19,7 +20,6 @@ import { createOfficialNativeService } from '../plugins/native-process'
 import { appShutdown } from '../shutdown/AppShutdown'
 import { installLocalDevelopmentPlugin, type LocalPluginBuild } from '../plugins/local-development'
 import { readPluginImport } from '../plugins/distribution/import'
-import { listRegisteredWorkspaces } from '../companion/workspace-registry'
 
 declare const __JANUSX_LOCAL_PLUGIN__: LocalPluginBuild | null
 

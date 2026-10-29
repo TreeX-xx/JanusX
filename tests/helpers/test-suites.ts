@@ -1,6 +1,7 @@
 // Note: fast feedback and complete acceptance — see .agents/notes/desktop/reproducible-verification.md
 // All new tests enter the unit project unless explicitly assigned here.
 export const browserTestFiles = [
+  'tests/unit/workspace-storage-ui.test.ts',
   'tests/unit/assistant-ui.test.ts',
   'tests/unit/blueprint-edge-label.test.ts',
   'tests/unit/blueprint-legacy-import-ui.test.ts',
@@ -21,6 +22,7 @@ export const browserTestFiles = [
 // The list uses observed cost, not a filename rule that would hide new tests.
 export const integrationTestFiles = [
   'tests/unit/agent-hook-shell.test.ts',
+  'tests/unit/agent-hook-cli.test.ts',
   'tests/unit/blueprint-native.test.ts',
   'tests/unit/blueprint-review-engine.test.ts',
   'tests/unit/blueprint-review-git.test.ts',

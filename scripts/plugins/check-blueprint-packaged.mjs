@@ -125,7 +125,6 @@ try {
   expect(await nativeProcesses()).toEqual([])
   await card.getByRole('button', { name: 'Review permissions', exact: true }).click()
   const review = page.getByRole('region', { name: 'Review permissions' })
-
   await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
   await page.locator('[data-tab="extension:official.blueprint/settings"]').click()
   let plugin = await guest()

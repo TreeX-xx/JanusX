@@ -34,10 +34,8 @@ interface TerminalLedgerEntry {
   compactionCount?: number
   modelSegments: ModelSegment[]
   updatedAt: number
-  /** hook: an adapter/hook event asserted this session. correlated: the main
-   *  process matched the session file to this terminal's pty activity. Legacy
-   *  rows predate the field and came from hooks. */
-  source?: 'hook' | 'correlated'
+  /** Only independently correlated native-session bindings are reusable. */
+  source: 'correlated'
 }
 
 interface TelemetryLedger {
@@ -90,8 +88,7 @@ export class TerminalContextCoordinator {
             if (snapshot && this.requests.get(request.terminalId!) === request) this.listeners.get(request.terminalId!)?.(snapshot)
           }).catch(error => this.reportUsageError(error))
         }
-        // Hook-free attribution: only terminals without a binding are scanned,
-        // and a hook binding always wins over a correlated one.
+        // Session attribution is independent of hook delivery.
         if (Date.now() - this.lastAttributionAt >= ATTRIBUTION_INTERVAL_MS && !this.attributionBusy) {
           this.lastAttributionAt = Date.now()
           void this.runAttributionPass()
@@ -109,12 +106,6 @@ export class TerminalContextCoordinator {
   }
 
   /**
-   * Binds unbound terminals to the native session their pty activity matches.
-   * Runs only for terminals without a hook binding, so a working hook path is
-   * never disturbed; failures leave the terminal unbound (unknown) instead of
-   * guessing another terminal's session.
-   */
-  /**
    * Runs one attribution sweep now. The poll timer drives it on a cadence;
    * terminal creation can also call it so a fresh terminal binds within one IO
    * cycle instead of waiting out the interval. Awaited by callers that need the
@@ -127,6 +118,9 @@ export class TerminalContextCoordinator {
   }
 
   private async attributeUnboundTerminals(): Promise<void> {
+    this.load()
+    const candidates = new Map<string, { engine: TelemetryEngine; sessionId: string; request: RuntimeTelemetryRequest }>()
+    const claims = new Map<string, number>()
     for (const request of this.requests.values()) {
       const terminalId = request.terminalId
       const preset = request.preset
@@ -143,10 +137,19 @@ export class TerminalContextCoordinator {
           lastActivityAt,
           codexHome: this.codexHomes.get(terminalId),
         })
-        if (candidate) this.bindSession(terminalId, preset, candidate.sessionId, 'correlated')
+        if (candidate && this.requests.get(terminalId) === request) {
+          candidates.set(terminalId, { engine: preset, sessionId: candidate.sessionId, request })
+          const key = this.sessionKey(preset, candidate.sessionId)
+          claims.set(key, (claims.get(key) ?? 0) + 1)
+        }
       } catch (error) {
         this.reportUsageError(error)
       }
+    }
+    // Competing terminals do not gain ownership just because they were visited first.
+    for (const [terminalId, candidate] of candidates) {
+      if (claims.get(this.sessionKey(candidate.engine, candidate.sessionId)) !== 1) continue
+      if (this.requests.get(terminalId) === candidate.request) this.bindSession(terminalId, candidate.engine, candidate.sessionId)
     }
   }
 
@@ -203,7 +206,8 @@ export class TerminalContextCoordinator {
     console.error('Usage ledger:', this.usageError)
   }
 
-  bindSession(terminalId: string, engine: TelemetryEngine, sessionId?: string, source: 'hook' | 'correlated' = 'hook'): boolean {
+  bindSession(terminalId: string, engine: TelemetryEngine, sessionId?: string, source: 'correlated' = 'correlated'): boolean {
+    if (source !== 'correlated') return false
     if (this.stopping) return false
     const normalizedSessionId = sessionId?.trim()
     if (!terminalId || !normalizedSessionId) return false
@@ -214,11 +218,6 @@ export class TerminalContextCoordinator {
 
     const previous = this.entries.get(terminalId)
     if (previous?.sessionId === normalizedSessionId && previous.engine === engine) {
-      // A hook assertion upgrades an earlier correlation for the same session.
-      if (source === 'hook' && previous.source !== 'hook') {
-        previous.source = 'hook'
-        this.persist()
-      }
       return true
     }
     if (previous) this.sessionOwners.delete(this.sessionKey(previous.engine, previous.sessionId))
@@ -299,7 +298,7 @@ export class TerminalContextCoordinator {
       const info = cached.snapshot.filePath ? await stat(cached.snapshot.filePath).catch(() => null) : null
       if (request.terminalId && this.entries.get(request.terminalId) !== bound) return null
       if (info && sourceVersion(info) === cached.version) return {
-        ...cached.snapshot, observedAt: Date.now(), sessionBinding: bound.source === 'correlated' ? 'correlated' : 'exact',
+        ...cached.snapshot, observedAt: Date.now(), sessionBinding: 'correlated',
       }
     }
     if (request.terminalId) this.snapshots.delete(request.terminalId)
@@ -336,7 +335,7 @@ export class TerminalContextCoordinator {
       ...telemetry,
       observedAt: Date.now(),
       sessionId: bound.sessionId,
-      sessionBinding: bound.source === 'correlated' ? 'correlated' : 'exact',
+      sessionBinding: 'correlated',
     }
     this.recordSnapshot(request.terminalId!, bound, exact)
     if (request.terminalId && version && exact.filePath && !usageObservation?.issue
@@ -380,7 +379,8 @@ export class TerminalContextCoordinator {
       const ledger = JSON.parse(raw) as TelemetryLedger
       if (ledger.version !== 1 || !ledger.terminals || typeof ledger.terminals !== 'object') return
       for (const [terminalId, entry] of Object.entries(ledger.terminals)) {
-        if (!entry || !entry.sessionId || !entry.engine) continue
+        // Historical hook/unknown origins cannot become independent evidence on upgrade.
+        if (!entry || !entry.sessionId || !entry.engine || entry.source !== 'correlated') continue
         const owner = this.sessionOwners.get(this.sessionKey(entry.engine, entry.sessionId))
         if (owner) continue
         this.entries.set(terminalId, { ...entry, modelSegments: Array.isArray(entry.modelSegments) ? entry.modelSegments : [] })

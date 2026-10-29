@@ -37,6 +37,9 @@ export function installMemoryDomainControls(): void {
 
 /** Closing a domain returns after writes admitted before the switch have settled. */
 export async function settleMemoryMutations(): Promise<void> {
+  const { agentTurnRecorder } = await import('./agent-turn-recorder')
+  await agentTurnRecorder.refreshPolicy()
+  await agentTurnRecorder.settle()
   await knowledgeObservationService.withSourceMutation(async () => {})
   await withFactCandidatesLock(async () => {})
 }

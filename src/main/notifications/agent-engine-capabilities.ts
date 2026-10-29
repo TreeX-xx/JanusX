@@ -84,9 +84,9 @@ export const AGENT_ENGINE_CAPABILITIES: Record<AgentHookSource, AgentEngineCapab
     sessionStore: 'pi-sessions',
   },
   opencode: {
-    start: [{ event: 'session.status', rawStatus: ['busy', 'running'] }],
-    complete: [{ event: 'session.idle' }],
-    fail: [{ event: 'session.error' }],
+    start: [{ event: 'session.status', rawStatus: ['busy', 'running'] }, { event: 'session.execution.started' }],
+    complete: [{ event: 'session.idle' }, { event: 'session.execution.succeeded' }],
+    fail: [{ event: 'session.error' }, { event: 'session.execution.failed' }],
     approval: ['permission.asked'],
     attention: ['permission.asked', 'question.asked', 'question.v2.asked'],
     // Sessions persist in sqlite with a list/detail driver in

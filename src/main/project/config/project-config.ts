@@ -3,13 +3,13 @@
  * 项目配置读写和管理的核心实现
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { readFile, mkdir } from 'node:fs/promises'
+import { workspaceIo, writeIoFile, resolveWorkspaceStorage } from '@janus-agent/agent-core'
+import { dirname } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { LaunchConfig, LaunchConfiguration, ValidationResult } from '../types'
 import { ProjectType } from '../types'
 
-const CONFIG_FILENAME = '.janusX/janusX.launch.json'
 const CONFIG_VERSION = '0.1.0'
 
 export class ProjectConfig {
@@ -19,20 +19,22 @@ export class ProjectConfig {
    * @returns 启动配置，若不存在则返回 null
    */
   static async read(projectPath: string): Promise<LaunchConfig | null> {
-    const configPath = join(projectPath, CONFIG_FILENAME)
+    return workspaceIo.run(projectPath, async () => {
+      const { launchPath: configPath } = await resolveWorkspaceStorage(projectPath)
 
-    if (!existsSync(configPath)) {
-      return null
-    }
+      if (!existsSync(configPath)) {
+        return null
+      }
 
-    try {
-      const content = await readFile(configPath, 'utf-8')
-      const config = JSON.parse(content) as LaunchConfig
+      try {
+        const content = await readFile(configPath, 'utf-8')
+        const config = JSON.parse(content) as LaunchConfig
 
-      return config
-    } catch (error) {
-      throw new Error(`Failed to read config from ${configPath}: ${error}`)
-    }
+        return config
+      } catch (error) {
+        throw new Error(`Failed to read config from ${configPath}: ${error}`)
+      }
+    })
   }
 
   /**
@@ -41,24 +43,26 @@ export class ProjectConfig {
    * @param config 启动配置
    */
   static async write(projectPath: string, config: LaunchConfig): Promise<void> {
-    const configPath = join(projectPath, CONFIG_FILENAME)
+    return workspaceIo.run(projectPath, async () => {
+      const { launchPath: configPath } = await resolveWorkspaceStorage(projectPath, true)
 
-    // 确保 .janusX 目录存在
-    const configDir = join(projectPath, '.janusX')
-    await mkdir(configDir, { recursive: true })
+      // Ensure the host-resolved configuration directory exists.
+      const configDir = dirname(configPath)
+      await mkdir(configDir, { recursive: true })
 
-    // 添加元数据
-    config.metadata = {
-      autoDetected: config.metadata?.autoDetected ?? false,
-      lastModified: new Date().toISOString(),
-    }
+      // 添加元数据
+      config.metadata = {
+        autoDetected: config.metadata?.autoDetected ?? false,
+        lastModified: new Date().toISOString(),
+      }
 
-    try {
-      const content = JSON.stringify(config, null, 2)
-      await writeFile(configPath, content, 'utf-8')
-    } catch (error) {
-      throw new Error(`Failed to write config to ${configPath}: ${error}`)
-    }
+      try {
+        const content = JSON.stringify(config, null, 2)
+        await writeIoFile(projectPath, configPath, [content], true)
+      } catch (error) {
+        throw new Error(`Failed to write config to ${configPath}: ${error}`)
+      }
+    })
   }
 
   /**
@@ -276,15 +280,15 @@ export class ProjectConfig {
   /**
    * 检查配置文件是否存在
    */
-  static exists(projectPath: string): boolean {
-    return existsSync(join(projectPath, CONFIG_FILENAME))
+  static async exists(projectPath: string): Promise<boolean> {
+    return existsSync((await resolveWorkspaceStorage(projectPath)).launchPath)
   }
 
   /**
    * 获取配置文件的完整路径
    */
-  static getConfigPath(projectPath: string): string {
-    return resolve(join(projectPath, CONFIG_FILENAME))
+  static async getConfigPath(projectPath: string): Promise<string> {
+    return (await resolveWorkspaceStorage(projectPath)).launchPath
   }
 
   /**

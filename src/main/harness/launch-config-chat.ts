@@ -51,7 +51,7 @@ export const LAUNCH_CONFIG_TOOLS = [
   {
     name: 'launch-config.apply',
     actionRisk: 'config-apply',
-    description: 'Validate the draft and write .janusX/janusX.launch.json. Asks the user for one approval before the file lands. Refuses when validation fails.',
+    description: 'Validate the draft and save the JanusX launch configuration. Asks the user for one approval before the file lands. Refuses when validation fails.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ] as ToolDefinition[]
@@ -163,8 +163,8 @@ export function attachLaunchConfigTools(ports: ChatTurnPorts, options: {
           } else {
             const detail = state.trail.slice(-30).join('\n')
             const target = options.draft.projectPath
-              ? `${options.draft.projectPath}/.janusX/janusX.launch.json`
-              : '.janusX/janusX.launch.json'
+              ? await ProjectConfig.getConfigPath(options.draft.projectPath)
+              : 'JanusX launch configuration'
             const applied = await original.executeFunctionCall({
               sessionId: input.sessionId,
               call: {
@@ -189,7 +189,7 @@ export function attachLaunchConfigTools(ports: ChatTurnPorts, options: {
                 validation,
                 applied: true,
               })
-              output = receipt('written .janusX/janusX.launch.json', validation, { applied: true, apply: applied.output })
+              output = receipt('written JanusX launch configuration', validation, { applied: true, apply: applied.output })
             }
           }
         }

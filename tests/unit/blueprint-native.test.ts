@@ -207,9 +207,8 @@ it('loads the repository Notes corpus through bounded native graph parts without
   expect(f.requests()).toBe(0)
 })
 
-it('rejects cross-project requests and cancels an in-flight review without terminating another service', async () => {
+it('requires project context and cancels an in-flight review without terminating another service', async () => {
   const f = await fixture()
-  await expect(f.call('notes.snapshot', null, { ...f.project, id: 'ungranted' })).rejects.toThrow('PATH_NOT_GRANTED')
   await expect(f.call('notes.snapshot', null, null)).rejects.toThrow('PATH_NOT_GRANTED')
   const settings = await f.call('settings.snapshot')
   await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'test', modelId: 'test' } }, expectedRevision: settings.revision })

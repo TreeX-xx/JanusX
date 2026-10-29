@@ -12,7 +12,8 @@
 import { spawn, spawnSync, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
+import { workspaceIo, writeIoFile, resolveWorkspaceStorage, assertWorkspaceStorageAvailable, useWorkspaceStorage as acquireWorkspaceStorage } from '@janus-agent/agent-core'
 import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { ProjectType, type LaunchConfiguration, type ProcessHandle, type ProjectRunOptions } from '../types'
 import ProjectConfig from '../config/project-config'
@@ -31,6 +32,8 @@ interface RunningProject extends ProcessHandle {
   terminated: boolean
   /** P4尾巴：仅 adhoc 后台命令有值，退出时落盘，process-output 可读已退出任务。 */
   persistLogPath?: string
+  storageRoot?: string
+  releaseStorage?: () => void
   /** R3：adhoc 可配超时（毫秒，未设置即无截止，保持 P3 历史行为）；触发后按 stop 语义 SIGTERM→SIGKILL。 */
   timeoutMs?: number
   timeoutTimer?: NodeJS.Timeout
@@ -180,6 +183,7 @@ export class ProjectRunner extends EventEmitter {
         )
       }
     }
+    assertWorkspaceStorageAvailable(projectPath)
     const childProc = this.spawnProcess(commandInfo.command, commandInfo.args, {
       cwd: runCwd,
       env: { ...process.env, ...launchConfig.env },
@@ -220,13 +224,13 @@ export class ProjectRunner extends EventEmitter {
    * 启动一次性后台命令（供 command.run background 复用）。
    * 不要求工作区存在已保存的 LaunchConfig；输出/生命周期与普通项目进程一致，
    * 可用 getRunning/getAllRunning/project.process-output 读取，用 stop 停止。
-   * P4尾巴：退出后日志落 `<cwd>/.janusX/logs/bg-*.log`，快照进 exitedAdhoc
+   * 退出后日志落宿主解析的 logs 目录，快照进 exitedAdhoc
    * （有界保留），project.process-output 可读已退出任务。
    * R3：`timeoutMs` 可选（整数 1000~600000，与 command.run 同步路径同界，
    * 缺席即无截止）；到期按 stop 语义 SIGTERM→SIGKILL，`timedOut` 随快照落盘。
    * R4：`env` 可选（调用方已 allowlist 校验，见 command-tools.ts filterCommandEnv），与进程 env 合并。
    */
-  async runAdhoc(input: { cwd: string; program: string; args?: string[]; label?: string; timeoutMs?: number; env?: Record<string, string> }): Promise<{ projectId: string; handle: ProcessHandle; logPath?: string }> {
+  async runAdhoc(input: { cwd: string; storageRoot?: string; program: string; args?: string[]; label?: string; timeoutMs?: number; env?: Record<string, string> }): Promise<{ projectId: string; handle: ProcessHandle; logPath?: string }> {
     if (this.activeCount >= this.maxConcurrent) {
       throw new Error(
         `Maximum concurrent projects (${this.maxConcurrent}) reached. Stop another project first.`,
@@ -252,52 +256,58 @@ export class ProjectRunner extends EventEmitter {
     }
     const projectId = `${input.cwd}::adhoc:${Date.now()}-${randomUUID().slice(0, 8)}`
     // 日志目录建失败不阻断启动：仅失去落盘，内存输出照常可用。
-    let logPath: string | undefined
+    const releaseStorage = acquireWorkspaceStorage(input.storageRoot ?? input.cwd)
     try {
-      await mkdir(join(input.cwd, '.janusX', 'logs'), { recursive: true })
-      logPath = join(input.cwd, '.janusX', 'logs', `bg-${Date.now()}-${randomUUID().slice(0, 8)}.log`)
-    } catch {
-      logPath = undefined
-    }
-    const childProc = this.spawnProcess(input.program, args, {
-      cwd: input.cwd,
-      env: { ...process.env, ...(input.env ?? {}) },
-      windowsHide: true,
-    })
-    const runningProject: RunningProject = {
-      pid: childProc.pid!,
-      config,
-      startTime: new Date(),
-      port: undefined,
-      output: [],
-      outputBuffer: '',
-      process: childProc,
-      eventEmitter: new EventEmitter(),
-      terminated: false,
-      executionMode,
-      ...(logPath ? { persistLogPath: logPath } : {}),
-    }
-    this.setupProcessListeners(projectId, runningProject)
-    this.runningProjects.set(projectId, runningProject)
-    this.activeCount++
-    // R3：超时计时与 stop/退出互斥清理（见 stop()/handleExit）；unref 避免长计时单独拖住主进程退出。
-    if (input.timeoutMs !== undefined) {
-      runningProject.timeoutMs = input.timeoutMs
-      runningProject.timedOut = false
-      runningProject.timeoutTimer = setTimeout(() => {
-        const current = this.runningProjects.get(projectId)
-        if (!current || current.terminated) return
-        current.timedOut = true
-        void this.stop(projectId, 5000).catch(() => undefined)
-      }, input.timeoutMs)
-      runningProject.timeoutTimer.unref?.()
-    }
-    this.emit('project:started', { projectId, type: config.type, command: label })
-    return {
-      projectId,
-      ...(logPath ? { logPath } : {}),
-      handle: this.toHandle(runningProject),
-    }
+      let logPath: string | undefined
+      try {
+        const storage = await resolveWorkspaceStorage(input.storageRoot ?? input.cwd, true)
+        await workspaceIo.run(input.cwd, () => mkdir(storage.logsPath, { recursive: true }))
+        logPath = join(storage.logsPath, `bg-${Date.now()}-${randomUUID().slice(0, 8)}.log`)
+      } catch {
+        logPath = undefined
+      }
+      const childProc = this.spawnProcess(input.program, args, {
+        cwd: input.cwd,
+        env: { ...process.env, ...(input.env ?? {}) },
+        windowsHide: true,
+      })
+      const runningProject: RunningProject = {
+        pid: childProc.pid!,
+        config,
+        startTime: new Date(),
+        port: undefined,
+        output: [],
+        outputBuffer: '',
+        process: childProc,
+        eventEmitter: new EventEmitter(),
+        terminated: false,
+        executionMode,
+        storageRoot: input.storageRoot ?? input.cwd,
+        releaseStorage,
+        ...(logPath ? { persistLogPath: logPath } : {}),
+      }
+      this.setupProcessListeners(projectId, runningProject)
+      this.runningProjects.set(projectId, runningProject)
+      this.activeCount++
+      // R3：超时计时与 stop/退出互斥清理（见 stop()/handleExit）；unref 避免长计时单独拖住主进程退出。
+      if (input.timeoutMs !== undefined) {
+        runningProject.timeoutMs = input.timeoutMs
+        runningProject.timedOut = false
+        runningProject.timeoutTimer = setTimeout(() => {
+          const current = this.runningProjects.get(projectId)
+          if (!current || current.terminated) return
+          current.timedOut = true
+          void this.stop(projectId, 5000).catch(() => undefined)
+        }, input.timeoutMs)
+        runningProject.timeoutTimer.unref?.()
+      }
+      this.emit('project:started', { projectId, type: config.type, command: label })
+      return {
+        projectId,
+        ...(logPath ? { logPath } : {}),
+        handle: this.toHandle(runningProject),
+      }
+    } catch (error) { releaseStorage(); throw error }
   }
 
   /**
@@ -429,6 +439,7 @@ export class ProjectRunner extends EventEmitter {
     args: string[],
     options: any
   ): ChildProcess {
+    assertWorkspaceStorageAvailable(options.cwd)
     return spawn(command, args, {
       ...options,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -581,12 +592,15 @@ export class ProjectRunner extends EventEmitter {
         if (!oldest) break
         const evicted = this.exitedAdhoc.get(oldest)
         this.exitedAdhoc.delete(oldest)
-        if (evicted?.logPath) rm(evicted.logPath, { force: true }).catch(() => undefined)
+        if (evicted?.logPath) void workspaceIo.run(evicted.config.cwd || '.', () => rm(evicted.logPath!, { force: true })).catch(() => undefined)
       }
       const logPath = running.persistLogPath
       const header = `# adhoc ${running.config.name}\nexitCode: ${String(code)} signal: ${String(signal)} timedOut: ${String(running.timedOut === true)}${running.executionMode ? ` executionMode: ${running.executionMode}` : ''}\n${spawnReport.length > 0 ? `${spawnReport.join('\n')}\n` : ''}--- output (${lines.length} lines, tail 1000 kept) ---\n`
-      writeFile(logPath, `${header}${lines.slice(-1000).join('\n')}\n`, 'utf-8').catch(() => undefined)
+      // Bounded retained output is written in chunks through the shared lane.
+      const chunks = function* () { yield header; for (const line of lines.slice(-1000)) yield `${line}\n` }
+      void writeIoFile(running.storageRoot ?? running.config.cwd ?? '.', logPath, chunks()).catch(error => console.error('Background log write failed:', error)).finally(() => running.releaseStorage?.())
     }
+    else running.releaseStorage?.()
 
     this.emit('project:exit', {
       projectId,

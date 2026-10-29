@@ -1,5 +1,6 @@
+import { normalizeHookLifecycle } from '../notifications/agent-hook-lifecycle'
 import {
-  JANUSX_SYNTHETIC_HOOK_EVENTS,
+  type AgentHookSemantic,
   type AgentHookPayload,
 } from '../notifications/agent-hook-types'
 
@@ -46,26 +47,15 @@ export class CompanionSessionState {
   }
 
   handleHookPayload(payload: AgentHookPayload): void {
-    if (!payload.terminalId) return
-    if (payload.event === 'PermissionRequest' || payload.event === 'permission.asked') {
-      this.setPendingApproval(payload.terminalId)
-      return
-    }
-    if (
-      [
-        'Stop',
-        'SessionEnd',
-        'TaskCompleted',
-        'session.idle',
-        'session.error',
-        // A synthetic turn end invalidates any approval prompt that died with the turn.
-        JANUSX_SYNTHETIC_HOOK_EVENTS.apiError,
-        JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted,
-        JANUSX_SYNTHETIC_HOOK_EVENTS.orphaned,
-      ].includes(payload.event)
-    ) {
-      this.clearPendingApproval(payload.terminalId)
-    }
+    const semantic = normalizeHookLifecycle(payload)
+    if (payload.terminalId && semantic) this.handleLifecycle(payload.terminalId, semantic)
+  }
+
+  handleLifecycle(terminalId: string, semantic: AgentHookSemantic): void {
+    if (semantic.type === 'waiting-user') {
+      if (semantic.kind === 'approval') this.setPendingApproval(terminalId)
+      else this.clearPendingApproval(terminalId)
+    } else if (semantic.type !== 'session-update') this.clearPendingApproval(terminalId)
   }
 
   clear(): void {

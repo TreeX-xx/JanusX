@@ -1,12 +1,15 @@
+// Note: launch-only assets and native trust — .agents/notes/terminal/terminal-hook-launch-isolation.md
+import { workspaceIo, writeIoFile } from '@janus-agent/agent-core'
 import { app } from 'electron'
 import { execFile } from 'node:child_process'
-import { homedir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
+import { access, mkdir, readFile, rm, stat } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import type { AgentEngine } from '../janus-runner/types'
 import type { AgentHookBridgeEnv } from './agent-hook-bridge'
 import { JANUSX_HOOK_MATCHER_FLAG } from './agent-hook-types'
+import { CliDetector } from '../external-cli/cli-detector'
 
 const execFileAsync = promisify(execFile)
 
@@ -39,7 +42,7 @@ interface AgentHookConfigManagerOptions {
   windowsHookScriptPath?: string
   /**
    * GUI-subsystem launcher for the Windows hook script (kills the visible
-   * console flash). `undefined` resolves to `<home>/.janusx/hooks/<name>`;
+   * console flash). `undefined` resolves under the current userData/hooks directory;
    * `null` disables the runner and keeps the legacy powershell command.
    */
   windowsHookRunnerPath?: string | null
@@ -51,6 +54,7 @@ interface TerminalHookEnvInput {
   terminalId: string
   workspaceId: string
   engine: HookableEngine
+  openCodeMajor?: 1 | 2
 }
 
 export interface HookInstallResult {
@@ -75,10 +79,26 @@ const CLAUDE_HOOKS: HookCommandSpec[] = [
 ]
 
 const CODEX_HOOKS: HookCommandSpec[] = [
+  { event: 'SessionStart' },
   { event: 'UserPromptSubmit' },
   { event: 'PermissionRequest' },
   { event: 'Stop' },
+  { event: 'Interrupt' },
+  { event: 'SessionEnd' },
 ]
+
+export function inlineToml(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(inlineToml).join(',') + ']'
+  if (value && typeof value === 'object') return '{' + Object.entries(value)
+    .map(([key, item]) => inlineToml(key) + '=' + inlineToml(item)).join(',') + '}'
+  // Literal TOML avoids nested double quotes breaking Windows npm .cmd shims.
+  if (typeof value === 'string' && !/[\r\n\x00-\x1f]/.test(value)) {
+    if (!value.includes("'")) return "'" + value + "'"
+    if (!value.includes("'''")) return "'''" + value + "'''"
+  }
+  if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') return JSON.stringify(value)
+  throw new Error('Unsupported launch config value')
+}
 
 function toArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
@@ -120,9 +140,15 @@ async function readJsonObject(filePath: string): Promise<JsonObject> {
   }
 }
 
-async function writeJsonObject(filePath: string, object: JsonObject): Promise<void> {
+async function writeStableFile(filePath: string, content: string): Promise<void> {
+  try { if (await readFile(filePath, 'utf8') === content) return }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
   await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(object, null, 2)}\n`, 'utf8')
+  await writeIoFile(dirname(filePath), filePath, [content], true)
+}
+
+async function writeJsonObject(filePath: string, object: JsonObject): Promise<void> {
+  await writeStableFile(filePath, JSON.stringify(object, null, 2) + '\n')
 }
 
 function removeManagedHookCommands(settings: JsonObject): void {
@@ -396,8 +422,8 @@ function mergeWslenv(existing: string | undefined, keys: string[]): string {
   return merged.join(':')
 }
 
-function buildOpencodePlugin(): string {
-  return `const TARGET_EVENTS = new Set(["session.created", "session.updated", "session.status", "session.idle", "session.error", "permission.asked", "question.asked", "question.v2.asked"]);
+function buildOpencodePlugin(major: 1 | 2 = 2): string {
+  return `const TARGET_EVENTS = new Set(["session.created", "session.updated", "session.deleted", "session.execution.started", "session.execution.succeeded", "session.execution.failed", "session.execution.interrupted", "permission.replied", "session.status", "session.idle", "session.error", "permission.asked", "question.asked", "question.v2.asked"]);
 
 function env(name) {
   const value = process.env[name];
@@ -407,7 +433,8 @@ function env(name) {
 function extractMessage(event) {
   if (!event || typeof event !== "object") return undefined;
   const properties = event.properties && typeof event.properties === "object" ? event.properties : {};
-  const candidates = [event.message, event.error, event.reason, properties.message, properties.error, properties.reason];
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  const candidates = [event.message, event.error, event.reason, properties.message, properties.error, properties.reason, data.message, data.error?.message, data.reason];
   return candidates.find((value) => typeof value === "string" && value.trim());
 }
 
@@ -416,7 +443,8 @@ function extractSessionId(event) {
   const properties = event.properties && typeof event.properties === "object" ? event.properties : {};
   const session = properties.session && typeof properties.session === "object" ? properties.session : {};
   const info = properties.info && typeof properties.info === "object" ? properties.info : {};
-  const candidates = [event.sessionID, event.sessionId, event.session_id, properties.sessionID, properties.sessionId, properties.session_id, session.id, session.sessionID, session.sessionId, info.id];
+  const data = event.data && typeof event.data === "object" ? event.data : {};
+  const candidates = [data.sessionID, event.sessionID, event.sessionId, event.session_id, properties.sessionID, properties.sessionId, properties.session_id, session.id, session.sessionID, session.sessionId, info.id];
   return candidates.find((value) => typeof value === "string" && value.trim());
 }
 
@@ -441,16 +469,33 @@ async function postToJanusX(event, directory) {
       cwd: directory,
       message: extractMessage(event),
       timestamp: new Date().toISOString(),
-      raw: event,
+      raw: { ...event, data: undefined, properties: event.properties ?? event.data },
     }),
   }).catch(() => {});
 }
 
-export const JanusXNotifyPlugin = async ({ directory }) => ({
-  event: async ({ event }) => {
-    await postToJanusX(event, directory);
+${major === 1 ? `export const JanusXNotifyPlugin = async ({ directory }) => ({
+  event: async ({ event }) => { await postToJanusX(event, directory); },
+});` : `export default {
+  id: "janusx-notify",
+  async setup(api) {
+    const controller = new AbortController();
+    const directory = api.location?.directory ?? api.location?.path ?? process.cwd();
+    // A private server inherits this launch's env. Shared services cannot
+    // safely assign a session to the terminal that happened to start them.
+    const stream = api.event.subscribe({ signal: controller.signal });
+    const children = new Set();
+    void (async () => {
+      for await (const event of stream) {
+        const sessionId = extractSessionId(event);
+        if (event.type === "session.created" && event.data?.parentID) children.add(sessionId);
+        if (sessionId && children.has(sessionId)) continue;
+        await postToJanusX(event, directory);
+      }
+    })().catch(() => {});
+    return () => controller.abort();
   },
-});
+};`}
 `
 }
 
@@ -611,7 +656,6 @@ try {
   $port = $env:JANUSX_HOOK_PORT
   $token = $env:JANUSX_HOOK_TOKEN
   if ([string]::IsNullOrWhiteSpace($port) -or [string]::IsNullOrWhiteSpace($token)) {
-    Write-Diagnostic "missing-env" "JANUSX_HOOK_PORT or JANUSX_HOOK_TOKEN is empty"
     exit 0
   }
 
@@ -715,7 +759,6 @@ try {
   # Never stall the agent: a stale JANUSX_HOOK_PORT (app restarted, terminal
   # kept) must fail fast instead of blocking the turn on the default 100s timeout.
   Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$port/api/agent-hook" -Headers $headers -ContentType "application/json; charset=utf-8" -Body $bodyBytes -TimeoutSec 2 | Out-Null
-  Write-Diagnostic "posted" "ok"
 } catch {
   Write-Diagnostic "error" $_.Exception.Message
 }
@@ -726,9 +769,8 @@ exit 0
 
 export class AgentHookConfigManager {
   private readonly platform: NodeJS.Platform
-  private readonly homeDir: string
-  private readonly claudeConfigDir: string
-  private readonly codexHome: string
+  private readonly preparing = new Map<HookableEngine, Promise<HookInstallResult>>()
+  private readonly cliVersions = new Map<'codex' | 'opencode', { key: string; result: Promise<string> }>()
   private readonly userDataDir: string
   private readonly executablePath: string
   private readonly appEntryArg?: string
@@ -738,13 +780,6 @@ export class AgentHookConfigManager {
 
   constructor(options: AgentHookConfigManagerOptions = {}) {
     this.platform = options.platform ?? process.platform
-    this.homeDir = options.homeDir ?? homedir()
-    this.claudeConfigDir = (options.claudeConfigDir
-      ?? (options.homeDir === undefined ? process.env.CLAUDE_CONFIG_DIR?.trim() : undefined))
-      || join(this.homeDir, '.claude')
-    this.codexHome = (options.codexHome
-      ?? (options.homeDir === undefined ? process.env.CODEX_HOME?.trim() : undefined))
-      || join(this.homeDir, '.codex')
     this.userDataDir = options.userDataDir ?? join(app.getPath('userData'), 'janusx')
     this.executablePath = options.executablePath ?? process.execPath
     this.appEntryArg = resolveAppEntryArg(options.appEntryArg)
@@ -753,7 +788,16 @@ export class AgentHookConfigManager {
     this.compileHookRunner = options.compileHookRunner ?? true
   }
 
-  async ensureInstalled(engine: HookableEngine): Promise<HookInstallResult> {
+  ensureInstalled(engine: HookableEngine): Promise<HookInstallResult> {
+    const pending = this.preparing.get(engine)
+    if (pending) return pending
+    const flight = workspaceIo.run(this.getHooksRootDir(), () => this.prepareAssets(engine))
+    this.preparing.set(engine, flight)
+    void flight.finally(() => { if (this.preparing.get(engine) === flight) this.preparing.delete(engine) }).catch(() => {})
+    return flight
+  }
+
+  private async prepareAssets(engine: HookableEngine): Promise<HookInstallResult> {
     // janus emits hook events from its own CLI (env-gated, no files to install).
     if (engine === 'janus') {
       return { engine, installed: true, path: this.getHooksRootDir() }
@@ -855,8 +899,7 @@ export class AgentHookConfigManager {
 
     if (engine === 'opencode') {
       return Promise.all([
-        access(join(this.getOpencodeConfigDir(), 'opencode.json')),
-        access(join(this.getOpencodeConfigDir(), 'janusx-agent-hook-marker.json')),
+        access(join(this.getOpencodeConfigDir(), 'server.js')),
         access(join(this.getOpencodeConfigDir(), 'plugins', 'janusx-notify.js')),
       ]).then(() => true, () => false)
     }
@@ -903,7 +946,17 @@ export class AgentHookConfigManager {
     }
 
     if (input.engine === 'opencode') {
-      env.OPENCODE_CONFIG_DIR = this.getOpencodeConfigDir()
+      const inline = process.env.OPENCODE_CONFIG_CONTENT?.trim()
+      const existing = inline ? JSON.parse(inline) : {}
+      const major = input.openCodeMajor ?? 2
+      const pluginKey = major === 1 ? 'plugin' : 'plugins'
+      const plugins = existing[pluginKey] ?? []
+      if (!Array.isArray(plugins)) throw new Error('OpenCode inline plugins must be an array')
+      // Additional config source preserves native config/home and custom directories.
+      env.OPENCODE_CONFIG_CONTENT = JSON.stringify({ ...existing,
+        [pluginKey]: [...plugins, major === 1
+          ? pathToFileURL(join(this.getOpencodeConfigDir(), 'v1.js')).href
+          : this.getOpencodeConfigDir().replace(/\\/g, '/')] })
     }
 
     if (this.platform === 'win32') {
@@ -914,19 +967,59 @@ export class AgentHookConfigManager {
         'JANUSX_HOOK_WORKSPACE_ID',
         'JANUSX_HOOK_ENGINE',
       ]
-      if (input.engine === 'opencode') forwarded.push('OPENCODE_CONFIG_DIR/p')
+      if (input.engine === 'opencode') forwarded.push('OPENCODE_CONFIG_CONTENT')
       env.WSLENV = mergeWslenv(process.env.WSLENV, forwarded)
     }
 
     return env
   }
 
+  private async getCliVersion(engine: 'codex' | 'opencode', command: string): Promise<string> {
+    const binary = await stat(command)
+    const key = `${command}:${binary.mtimeMs}:${binary.size}`
+    const cached = this.cliVersions.get(engine)
+    if (cached?.key === key) return cached.result
+    const result = new CliDetector(engine).detect({ path: command, source: 'path' }).then(probe => {
+      if (!probe.runnable || !probe.version) throw new Error(`${engine} hook version unknown`)
+      return probe.version
+    })
+    this.cliVersions.set(engine, { key, result })
+    // Retry failed probes; successful probes are reused until the binary changes.
+    void result.catch(() => { if (this.cliVersions.get(engine)?.result === result) this.cliVersions.delete(engine) })
+    return result
+  }
+
+  async getOpenCodeMajor(command: string): Promise<1 | 2> {
+    const version = await this.getCliVersion('opencode', command)
+    const major = Number(version.split('.')[0])
+    if (major !== 1 && major !== 2) throw new Error(`OpenCode hook version unsupported: ${version}`)
+    return major
+  }
+
+  async checkCodexLaunchVersion(command: string): Promise<void> {
+    const version = await this.getCliVersion('codex', command)
+    const [major, minor] = version.split('.').map(Number)
+    if (major !== 0 || minor < 165) throw new Error(`Codex launch hooks require 0.165 or newer 0.x: ${version}`)
+  }
+
+  async getLaunchArgs(engine: HookableEngine, openCodeMajor: 1 | 2 = 2): Promise<string[]> {
+    if (engine === 'claude') return ['--settings', this.getClaudeSettingsPath()]
+    if (engine === 'pi') return ['--extension', this.getPiExtensionPath()]
+    if (engine === 'opencode') return openCodeMajor === 2 ? ['--standalone'] : []
+    if (engine === 'codex') {
+      // Native review owns trust; no bypass flag or invented trusted_hash.
+      const managed = getObject((await readJsonObject(this.getCodexHooksPath())).hooks) ?? {}
+      return ['--no-daemon', '-c', 'hooks=' + inlineToml(managed)]
+    }
+    return []
+  }
+
   getClaudeSettingsPath(): string {
-    return join(this.claudeConfigDir, 'settings.json')
+    return join(this.getHooksRootDir(), 'claude', 'additional-settings.json')
   }
 
   getCodexHooksPath(): string {
-    return join(this.codexHome, 'hooks.json')
+    return join(this.getHooksRootDir(), 'codex', 'hooks.json')
   }
 
   getOpencodeConfigDir(): string {
@@ -942,7 +1035,7 @@ export class AgentHookConfigManager {
   }
 
   getWindowsHookScriptPath(): string {
-    return this.configuredWindowsHookScriptPath ?? join(this.homeDir, '.janusx', 'hooks', 'janusx-agent-hook.ps1')
+    return this.configuredWindowsHookScriptPath ?? join(this.getHooksRootDir(), 'janusx-agent-hook.ps1')
   }
 
   /**
@@ -952,7 +1045,7 @@ export class AgentHookConfigManager {
   getHookRunnerPath(): string | null {
     if (this.platform !== 'win32') return null
     if (this.configuredWindowsHookRunnerPath === null) return null
-    return this.configuredWindowsHookRunnerPath ?? join(this.homeDir, '.janusx', 'hooks', WINDOWS_HOOK_RUNNER_FILE_NAME)
+    return this.configuredWindowsHookRunnerPath ?? join(this.getHooksRootDir(), WINDOWS_HOOK_RUNNER_FILE_NAME)
   }
 
   /** Installed runner by existence only — never compiles (used by isInstalled). */
@@ -994,7 +1087,7 @@ export class AgentHookConfigManager {
   private async compileHookRunnerBinary(runnerPath: string): Promise<void> {
     const sourcePath = runnerPath.replace(/\.exe$/i, '.cs')
     await mkdir(dirname(runnerPath), { recursive: true })
-    await writeFile(sourcePath, buildHookRunnerSource(), 'utf8')
+    await writeStableFile(sourcePath, buildHookRunnerSource())
     // One-time cost: Add-Type shells out to the framework C# compiler.
     // Hidden like every other JanusX spawn; hook-time flashing is unaffected.
     const quote = (value: string): string => `'${value.replace(/'/g, "''")}'`
@@ -1011,8 +1104,7 @@ export class AgentHookConfigManager {
     if (this.platform !== 'win32') return undefined
 
     const scriptPath = this.getWindowsHookScriptPath()
-    await mkdir(dirname(scriptPath), { recursive: true })
-    await writeFile(scriptPath, buildWindowsHookScript(), 'utf8')
+    await writeStableFile(scriptPath, buildWindowsHookScript())
     return scriptPath
   }
 
@@ -1020,24 +1112,15 @@ export class AgentHookConfigManager {
     // Flag-injected (--extension), never merged into the user's pi settings:
     // the file is JanusX-owned and rewritten idempotently on every install.
     const extensionPath = this.getPiExtensionPath()
-    await mkdir(dirname(extensionPath), { recursive: true })
-    await writeFile(extensionPath, buildPiExtension(), 'utf8')
+    await writeStableFile(extensionPath, buildPiExtension())
   }
 
   private async ensureOpencodePlugin(): Promise<void> {
     const configDir = this.getOpencodeConfigDir()
     const pluginDir = join(configDir, 'plugins')
     await mkdir(pluginDir, { recursive: true })
-    await writeFile(
-      join(configDir, 'opencode.json'),
-      `${JSON.stringify({ $schema: 'https://opencode.ai/config.json' }, null, 2)}\n`,
-      'utf8',
-    )
-    await writeFile(
-      join(configDir, 'janusx-agent-hook-marker.json'),
-      `${JSON.stringify({ owner: 'JanusX', marker: JANUSX_HOOK_COMMAND_MARKER }, null, 2)}\n`,
-      'utf8',
-    )
-    await writeFile(join(pluginDir, 'janusx-notify.js'), buildOpencodePlugin(), 'utf8')
+    await writeStableFile(join(configDir, 'server.js'), "export { default } from './plugins/janusx-notify.js';\n")
+    await writeStableFile(join(pluginDir, 'janusx-notify.js'), buildOpencodePlugin())
+    await writeStableFile(join(configDir, 'v1.js'), buildOpencodePlugin(1))
   }
 }

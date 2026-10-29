@@ -52,7 +52,7 @@ describe('TerminalContextCoordinator', () => {
     const first = await coordinator.getSnapshot({ terminalId: 'terminal-a', preset: 'codex', cwd: 'C:/repo' })
     const second = await coordinator.getSnapshot({ terminalId: 'terminal-b', preset: 'codex', cwd: 'C:/repo', sessionId: 'session-1' })
 
-    expect(first).toMatchObject({ sessionId: 'session-1', sessionBinding: 'exact' })
+    expect(first).toMatchObject({ sessionId: 'session-1', sessionBinding: 'correlated' })
     expect(second).toMatchObject({ source: 'configuration' })
     expect(testContext.snapshots).toEqual([
       expect.objectContaining({ sessionId: 'session-1' }),
@@ -81,7 +81,7 @@ describe('TerminalContextCoordinator', () => {
     const restored = createCoordinator()
     const snapshot = await restored.getSnapshot({ terminalId: 'terminal-a', preset: 'codex', cwd: 'C:/repo' })
 
-    expect(snapshot).toMatchObject({ sessionId: 'session-1', sessionBinding: 'exact' })
+    expect(snapshot).toMatchObject({ sessionId: 'session-1', sessionBinding: 'correlated' })
   })
 
   it('releases a session when its terminal exits', async () => {

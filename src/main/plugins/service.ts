@@ -49,8 +49,8 @@ export interface PluginServiceDeps {
   legacyCredentials?: Readonly<Record<string, ReadonlyArray<{ slot: string; origin: string; path: string }>>>
   official?: { keys: PluginTrustKeys; hostVersion: string; platform: string; nativePlugins?: Readonly<Record<string, readonly string[]>> }
   createNativeService?(record: InstalledPlugin, directory: string, stopped: (code: string) => void, credentials: NativeModelCredentials): NativePluginService
-  resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
   listProjects?(): Promise<string[]>
+  resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
   worktrees?(projectId: string): Promise<Array<{ root: string; name: string; branch: string | null; isMain: boolean }>>
   changed(): void
   closed?(instanceId: string): void
@@ -284,7 +284,7 @@ export class PluginService {
       const previous = record.previous!
       if (previous.source?.kind !== 'official' || !previous.release || !Array.isArray(previous.projects) || typeof previous.grant !== 'string') error('SOURCE_UNAVAILABLE', 'Invalid previous official release.')
       if (previous.manifest?.native?.dataVersion !== record.manifest.native?.dataVersion) error('INVALID_REQUEST', 'Previous code is incompatible with current data.')
-      const restored = { ...previous, enabled: false, state: 'disabled' as const, failures: 0, error: undefined }
+      const restored = { ...previous, projectScope: 'all' as const, enabled: false, state: 'disabled' as const, failures: 0, error: undefined }
       const pkg = await this.readPackage(restored)
       if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Rollback identity mismatch.')
       this.records.set(id, restored)

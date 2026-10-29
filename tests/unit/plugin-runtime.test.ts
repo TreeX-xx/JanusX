@@ -72,6 +72,24 @@ it('enables current and future registered projects without a grant list and keep
   await expect(f.service.mount(f.manifest.id, 'desk', 'new-project', f.rootB)).rejects.toMatchObject({ code: 'PLUGIN_DISABLED' })
 })
 
+it('restores older enabled records into all-workspace access', async () => {
+  const f = await fixture()
+  await f.prepare()
+  const path = join(f.deps.directory, 'registry.json')
+  const saved = JSON.parse(await readFile(path, 'utf8'))
+  delete saved.plugins[0].projectScope
+  saved.plugins[0].projects = []
+  await writeFile(path, JSON.stringify(saved))
+  await f.service.dispose()
+  const restored = new PluginService(f.deps)
+  cleanups.push(() => restored.dispose())
+  await restored.initialize()
+  f.registered.add('after-restart')
+  await restored.setContext('after-restart', f.rootB, 'en', { id: '', tokens: {} })
+  expect(restored.snapshot().plugins[0]).toMatchObject({ enabled: true, projectScope: 'all' })
+  expect(await restored.mount(f.manifest.id, 'desk', 'after-restart', f.rootB)).toHaveProperty('instanceId')
+})
+
 describe('plugin-owned workbench frame', () => {
   it('retains only opted-in pages, revokes the old scope immediately and rejects late reads across worktree/project switches', async () => {
     const f = await fixture()

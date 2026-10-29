@@ -11,7 +11,6 @@ import {
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useI18n } from '@/i18n/useI18n'
-import { useCheckpointStore } from '@/stores/checkpoint'
 import { useRightToolStore } from '@/stores/right-tools'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { Titlebar } from '@/components/Titlebar'
@@ -80,7 +79,6 @@ export default function App() {
   // P5: 细粒度 selector——App 是整树根组件，任意 store 字段变化都不应带动整树
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const panelCollapsed = useAppStore((s) => s.panelCollapsed)
-  const subscribeToCheckpointEvents = useCheckpointStore((s) => s.subscribeToEvents)
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
   const worktreePath = useWorktreeStore(s => activeWorkspaceId ? s.activePaths[activeWorkspaceId] : undefined)
   const hasWorkspacePane = useWorkspaceStore((s) => s.paneTree !== null)
@@ -204,9 +202,6 @@ export default function App() {
 
   /*-- P0: 翻转容器 ref，拖拽时 direct DOM 操作 transform --*/
 
-  useEffect(() => {
-    return subscribeToCheckpointEvents()
-  }, [subscribeToCheckpointEvents])
 
   // Note: .agents/notes/workbench/unified-file-window.md
   useEffect(() => {

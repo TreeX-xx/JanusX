@@ -1,10 +1,9 @@
-// Note: .agents/notes/workbench/plugin-contract-v1.md ? project configuration follows all-workspace access.
+import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — host-generated plugin settings.
 import { useEffect, useRef, useState } from 'react'
 import { isPluginSettingValue, type PluginSettingValue } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginConfigurationState } from '../../../../shared/ipc/plugins'
 import { pluginRequest } from '@/extensions/plugin-runtime'
-import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
 import { useI18n } from '@/i18n/useI18n'

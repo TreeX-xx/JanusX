@@ -142,7 +142,6 @@ test('project plugins apply to existing and future workspaces after first enable
     await open()
     await expect((await guest(app, '/dist/index.html')).locator('#status')).toHaveText('Authorized project content')
     await page.evaluate(path => (window as any).electron.workspace.create({ name: 'Other grant project', path }), other)
-    // A workspace created after enable opens without another permission review.
     await page.reload()
     await page.getByText('Other grant project', { exact: true }).filter({ visible: true }).first().click()
     await open()

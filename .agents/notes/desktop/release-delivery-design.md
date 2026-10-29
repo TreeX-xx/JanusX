@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-27",
-  "updated": "2026-10-28T10:54:48.000Z",
+  "updated": "2026-10-29T15:58:58.182Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -41,6 +41,12 @@
 OfficeCLI 版本和 Windows 哈希在应用路径模块中固定，工作流又重复声明 Windows x64 下载地址和哈希。资源目录直接进入安装包；运行检查和发布脚本均面向 Windows。路径解析器在非 Windows 返回 undefined。`node-pty` 是原生依赖，electron-builder 的自动依赖重建已关闭，必须明确验证目标平台、架构及 Electron ABI。
 
 当前操作归 [维护者指南](../../../docs/maintainers.md)，相关职责归 [分支决策](./development-branch.md)、[可复现验证](./reproducible-verification.md)和 [OfficeCLI 内置决策](./officecli-bundled.md)。下文整体设计未完成的部分仍是拟议状态。
+
+## 本次 0.9.5 覆盖交付
+
+维护者明确要求将插件设置和工作区默认访问修复覆盖到既有 v0.9.5 tag 与 Release。该改动同时涉及宿主及蓝图原生服务，交付包含 Windows 安装版、便携版、更新清单／blockmap 和 Blueprint 1.0.8；插件从已公开的 1.0.7 递增，包地址归同一 v0.9.5 Release，历史附件保留。宿主版本保持 0.9.5，同版本用户需重新下载手动安装。此次授权不改变常规禁止覆盖公开版本的流程，也不授权推送受保护的 main 分支。
+
+构建使用隔离检出及发布工作流固定的 agentX 提交 53333123ca071a0a32b6902b392a7279da00c470，避免本机 sibling 未提交内容进入产物。替换前保存远端资产身份与说明，先完成实物验证，再移动 tag、替换资产并核对远端摘要；不依赖常规 publish:win 脚本绕过其公开版本保护。交付与验证收据保存在忽略的 release 目录，实际执行结果由该收据及 Release 附件确认。
 
 ## 外部参考与适用范围
 

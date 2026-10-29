@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, mkdir, writeFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { TranscriptRecovery, type TranscriptJob } from '../../../src/main/knowledge/transcript-recovery'
@@ -10,6 +10,17 @@ let root: string
 beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'transcript-recovery-')); vi.stubEnv('JANUSX_KNOWLEDGE_ROOT', root) })
 afterEach(async () => { vi.unstubAllEnvs(); await rm(root, { recursive: true, force: true }) })
 describe('durable transcript rereads', () => {
+  it('does not enqueue, read or persist when disabled before admission', async () => {
+    const read = vi.fn(), submit = vi.fn()
+    const recovery = new TranscriptRecovery({ read, submit, now: Date.now })
+    expect(await recovery.submit({ path: 'private', engine: 'codex', end: {
+      input: { workspaceId: 'project', workspacePath: root, source: 'agent-stream', type: 'system-event', content: 'private' },
+      context: { speaker: 'unknown', sourceEventId: 'disabled' },
+    } }, async () => false)).toEqual([])
+    expect(await recovery.drain(async () => false)).toEqual([])
+    expect(read).not.toHaveBeenCalled(); expect(submit).not.toHaveBeenCalled()
+    expect(await readdir(root)).toEqual([])
+  })
   it('persists before reading and resumes a not-yet-written answer after restart', async () => {
     let now = Date.now()
     const job: TranscriptJob = { path: join(root, 'conversation.jsonl'), engine: 'claude', prompt: 'Fix cache', end: {

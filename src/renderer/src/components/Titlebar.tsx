@@ -1,4 +1,5 @@
 import { WindowControls } from './WindowControls'
+import { WorkspaceMigrationNotice, focusWorkspaceStorageSettings } from './WorkspaceStoragePanel'
 import type { IslandControllerAction } from '@/components/janus/islandController'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -265,6 +266,11 @@ export function Titlebar() {
         pluginConfiguration={pluginConfiguration}
         pluginAuthorization={pluginAuthorization}
       />
+      <WorkspaceMigrationNotice onOpen={() => {
+        focusWorkspaceStorageSettings()
+        setSettingsInitialTab('general')
+        setSettingsModalOpen(true)
+      }} />
 
       {createPortal(
         <PromptDialog

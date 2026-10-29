@@ -89,7 +89,7 @@ export class ExtensionCommandRegistry {
       .filter(menu => menu.location === 'toolbox')
       .flatMap(menu => {
         const command = definition.commands?.find(command => command.id === menu.command)
-        return command ? [`extension:${definition.id}/${command.action.view}`] : []
+        return command ? ['extension:' + definition.id + '/' + command.action.view] : []
       })))
     return this.source.getSnapshot().filter(view => view.location === 'workbench'
       && (view.scope === 'application' || projectOpen) && !toolboxViews.has(view.id))
