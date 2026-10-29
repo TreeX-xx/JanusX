@@ -1,0 +1,46 @@
+name: Renew official plugin catalog
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: official-plugin-catalog
+  cancel-in-progress: false
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/plugins/renew-catalog.mjs
+            plugins/catalog/trust.json
+          sparse-checkout-cone-mode: false
+          path: tooling
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Renew signed catalog
+        env:
+          JANUSX_PLUGIN_KEY_ID: janusx-blueprint-20261026
+          JANUSX_PLUGIN_SIGNING_KEY: ${{ secrets.JANUSX_PLUGIN_SIGNING_KEY }}
+        run: node tooling/scripts/plugins/renew-catalog.mjs site/plugins/index.json tooling/plugins/catalog/trust.json
+      - name: Publish catalog and request Pages build
+        working-directory: site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add plugins/index.json
+          git commit -m 'chore: renew signed official plugin catalog'
+          git push origin HEAD:gh-pages
+          gh api --method POST repos/${{ github.repository }}/pages/builds

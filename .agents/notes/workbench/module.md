@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-27T12:01:13.611Z",
+  "updated": "2026-10-29T15:21:31Z",
   "moduleState": "partial"
 }
 ---
@@ -115,7 +115,7 @@ Chat 会话删除确认框虽通过 portal 挂到 body，仍属于 island 的交
 
 槽位演进链（非重复，保留先后）：[island-slots](./requirements/island-rightdock-slots.md)、[right-dock](./right-dock.md)、[empty-collapse](./right-rail-toggle-motion.md)、[toggle-motion](./right-rail-toggle-motion.md)、[drawer-resize](./runtime-drawer-cards-resize.md)、[run-orb](./run-orb-budding.md)、[hifi-alignment](./island-hifi-optimized-alignment.md)、[capsule](./island-hifi-optimized-alignment.md)；turn 双件[island](./turn-change-island.md)与[card](./turn-change-card-external-cli.md)同属本域。
 
-CLI 派发子智能体监控（已定案、未实现）：monitor 子代理运行时列表以被动观察各 CLI session 持久化（transcript/rollout/sqlite，零 hook）投影为既有 `SubAgentRun` 树，右列表按 `parentRunId` 组树做主次分层；三家实测样本归[子智能体会话结构实测](../sessions/records/session-subagent-structures.md)，分层纪律与排期归[监控投影方案](./cli-subagent-monitoring.md)。
+多智能体展示与 CLI 监控复用（方向已确认、未实现）：先开发非 CLI 对话框版本，再形成公共多智能体视图，随后用一个 CLI 验证并复用到监控界面；完整独立监控暂缓，其它引擎按需扩展。共用树、状态、任务与详情阅读，运行事件和 CLI 会话记录分别适配，控制操作按实际能力提供；CLI 接入与状态可信度仍需独立验证。后续监控保留当前终端归属及右侧辅助 Island 详情目标。开发顺序、复用边界和保留验收归[监控与右侧详情方案](./cli-subagent-monitoring.md)，历史样本归[子智能体会话结构实测](../sessions/records/session-subagent-structures.md)。
 
 Island 下滑展开通知（2026-10-27）：胶囊向下拖动 ≥60px 后松手打开既有通知面，已展开时再次下滑保持展开；未达阈值、反向拉回与取消不触发。单击、Esc 与点空白处收起，保留看过即焚。副黑板组件、中央列让位、板高状态与持久化、板缘拖拽、插件列表入口均已删除；蓝图继续使用插件声明的工作台入口。取舍与历史见[副黑板退役与通知手势](./island-blackboard.md)。
 

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-28T10:06:00Z",
+  "updated": "2026-10-28T12:19:47.627Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -432,3 +432,15 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 本节记录清理前交付：插件当时来自仓库外独立构建，沿用八个锁定公开依赖及同产物载体验证；确切产物和修订由 release/2026-10-26/delivery.json 固定，最新 artifacts/plugins/blueprint-build.json 已被后续九依赖构建刷新。实际正常打包桌面已验证无预装蓝图、单个 .jxp 原生入口导入、默认停用、授权启用、设置页面、真实仓库 Notes 与节点渲染；仅文件选择器在测试中返回指定路径。原收据与截图在 artifacts/delivery-2026-10-26，未修改运行中的开发 profile，未上传 Release 或部署目录。
 
 最终安装器的仓库外模块图、LLM runtime 及可见 GUI 检查通过，包体积预算通过。单元测试全量仍有失败，明细归[可复现验证](../desktop/reproducible-verification.md#october-26-delivery-checks)，不据本地交付将完整功能或远端分发验收标记完成。
+
+## 2026-10-28 官方分发修复
+
+0.9.5 首次公开时目录未部署，旧账号插件包地址也返回 404。当前插件改由 TreeX-xx/JanusX 的 blueprint-v1.0.7 Release 发布，宿主仍从 plugins/catalog/trust.json 指定的 GitHub Pages plugins/index.json 获取目录，保持原签名身份和按需安装。1.0.7 从已签名并验证的 1.0.6 包读取原业务文件，仅修改 manifest 版本及签名下载元数据，没有放宽依赖锁或混入共享包漂移。独立当前源码重建因六个公开依赖哈希变化而拒绝，本次不将该重建记为通过。
+
+日常目录续期由 .github/workflows/plugin-catalog.yml 和 scripts/plugins/renew-catalog.mjs 完成，使用加密仓库 secret，认证原目录及各 release 后仅更新 sequence 和七天有效期。工作流已通过 PR #3 合并并实际成功运行；必须保持 Actions 和签名 secret 可用，失败超过有效期仍会关闭新安装。线上元数据与包由 check-published.mjs 校验，真实安装由 check-published-install.mjs 在仓库外新 profile 验证，不伪造安装来源、不自动启用。
+
+下载器将 HTTP 404/410 归类 DOWNLOAD_NOT_FOUND，插件管理明确提示发布源缺失；CPA 仍映射到自身下载失败文案。39 项下载、目录、签名安装及 CPA 回归、2 项签名续期及发布工具测试、类型检查及 i18n 检查通过。按用户要求宿主沿用 0.9.5 重新打包；旧本地产物保存在 release/0.9.5-before-blueprint-fix。安装版、便携 payload/launcher、仓库外可见 GUI 和完整模块图验证通过，日志见 artifacts/plugins/distribution-fix-*.log。此记录不代替 WSL/SSH 新一轮实机或完整蓝图功能矩阵。
+
+公开验证：check-published.mjs 认证目录 sequence 1793189191 和 1,800,858 字节的 1.0.7 包，SHA256 为 9ab8053ea0aff73c7f42fa92708d20f0b1fe13a98a98800b853f66cc6fa41588。check-published-install.mjs 在仓库外新 profile 的 0.9.5 实物通过目录发现、真实下载、签名安装、显式启用、设置页显示、停用和卸载；收据在 release/0.9.5/verification/published-plugin-install.json。v0.9.5 Release 说明已补齐当前 WSL/SSH 支持及前提，这次分发测试未重新验收这些业务。
+
+同名发布替换已完成：v0.9.5 的安装器、便携包、blockmap 与 latest.yml 远端大小及 SHA256 均与本地产物一致，latest 仍为 v0.9.5；核对收据为 release/0.9.5/verification/published-release.json。相同版本号不会可靠触发自动更新，已有 0.9.5 用户需重新下载后手动安装。源码 tag 未移动，构建工作树及输出摘要保存于本地 BUILDINFO.json，旧产物另行保留。

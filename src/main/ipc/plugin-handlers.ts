@@ -19,6 +19,7 @@ import { createOfficialNativeService } from '../plugins/native-process'
 import { appShutdown } from '../shutdown/AppShutdown'
 import { installLocalDevelopmentPlugin, type LocalPluginBuild } from '../plugins/local-development'
 import { readPluginImport } from '../plugins/distribution/import'
+import { listRegisteredWorkspaces } from '../companion/workspace-registry'
 
 declare const __JANUSX_LOCAL_PLUGIN__: LocalPluginBuild | null
 
@@ -39,7 +40,7 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('importPackage') }).strict(),
   z.object({ type: z.literal('development'), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('import'), kind: z.enum(['linked', 'copied']) }).strict(),
-  z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256) }).strict(),
+  z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256).optional() }).strict(),
   ...(['disable', 'reload', 'uninstall', 'deleteData', 'rollback'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
   z.object({ type: z.literal('context'), projectId: text.nullable(), scopePath: nullableText, locale: z.string().max(32),
     theme: z.object({ id: z.string().max(256), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
@@ -97,6 +98,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     protectedDirectories: [app.getPath('userData'), app.getPath('sessionData')],
     legacyCredentials: { 'official.blueprint': [{ slot: 'jev', origin: 'https://api.typesafe.ai', path: join(app.getPath('userData'), 'janusx', 'knowledge-jev.credential') }] },
     resolveProject: resolvePluginProject,
+    listProjects: async () => (await listRegisteredWorkspaces(join(app.getPath('userData'), 'janusx', 'workspaces'))).map(project => project.id),
     worktrees: async id => {
       const project = await resolvePluginProject(id, null)
       const entries = await listWorktrees(id, project.root)

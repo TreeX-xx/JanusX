@@ -1,4 +1,4 @@
-// Note: .agents/notes/planning/blueprint-official-plugin.md - initial project authorization defaults to the current workspace.
+// Note: .agents/notes/workbench/plugin-contract-v1.md — enabled plugins apply to all workspaces.
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { pluginRequest, refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
@@ -96,17 +96,10 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
   const workspaces = useWorkspaceStore(state => state.workspaces)
   const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
   const projectOpen = Boolean(activeWorkspaceId)
-  const authorizationProjects = (record: InstalledPlugin) => {
-    const projects = new Set(record.projects)
-    if (!record.enabled && projects.size === 0 && record.manifest.contributes.views.some(view => view.scope === 'project')
-      && activeWorkspaceId && workspaces.some(workspace => workspace.id === activeWorkspaceId)) projects.add(activeWorkspaceId)
-    return [...projects]
-  }
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [imported, setImported] = useState(false)
   const [authorize, setAuthorize] = useState<InstalledPlugin | null>(null)
-  const [projects, setProjects] = useState<string[]>([])
   const locatedAuthorization = useRef<PluginAuthorizationTarget | null>(null)
   useEffect(() => {
     if (!authorizationTarget || locatedAuthorization.current === authorizationTarget) return
@@ -114,12 +107,10 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
     if (!record || !workspaces.some(workspace => workspace.id === authorizationTarget.projectId)) return
     locatedAuthorization.current = authorizationTarget
     setTab('installed'); setAuthorize(record)
-    setProjects([...new Set([...record.projects, authorizationTarget.projectId])])
   }, [authorizationTarget, snapshot.plugins, workspaces])
   const [confirmation, setConfirmation] = useState<{ id: string; type: 'uninstall' | 'deleteData' | 'rollback' } | null>(null)
   const [logsOpen, setLogsOpen] = useState(false)
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({})
-  const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const actionSection = useRef<HTMLElement>(null)
   useEffect(() => {
     const section = actionSection.current
@@ -202,10 +193,10 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
         </div>
         {record.error && <p role="status" className={styles.error}>{record.error}</p>}
         <div className={styles.actions}>
-          {!record.enabled && <button className={styles.primary} disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(authorizationProjects(record)) }}>{t('plugins:authorize')}</button>}
+          {!record.enabled && <button className={styles.primary} disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record) }}>{t('plugins:authorize')}</button>}
           {record.manifest.contributes.views.filter(view => view.location === 'settings').map(view => <button key={view.id} disabled={busy || !record.enabled}
             onClick={() => openExtensionView(`extension:${record.manifest.id}/${view.id}`)}>{view.title}</button>)}
-          {record.enabled && <button disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record); setProjects(authorizationProjects(record)) }}>{t('plugins:authorize')}</button>}
+          {record.enabled && <button disabled={busy || record.source.kind !== 'official' && !snapshot.developmentMode} onClick={() => { setAuthorize(record) }}>{t('plugins:authorize')}</button>}
           {record.enabled && <button disabled={busy} onClick={() => { void run({ type: 'disable', id: record.manifest.id }) }}>{t('plugins:disable')}</button>}
           {record.previousVersion && <button disabled={busy || record.enabled} onClick={() => setConfirmation({ type: 'rollback', id: record.manifest.id })}>{t('plugins:rollback')} · {record.previousVersion}</button>}
           <button className={styles.danger} disabled={busy} onClick={() => setConfirmation({ type: 'uninstall', id: record.manifest.id })}>{t('plugins:uninstall')}</button>
@@ -224,24 +215,26 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
             proposal={configurationTarget?.pluginId === record.manifest.id ? configurationTarget.proposal : undefined} onOpened={onOpened} />
         </details>}
         {ownCommands.length > 0 && <details><summary>{t('plugins:entries')}</summary>
-          {ownCommands.map(command => <div key={command.id} className={styles.preference}>
-            <span>{command.title}</span>
-            <input aria-label={`${t('plugins:shortcut')} ${command.title}`} placeholder="Ctrl+Alt+Shift+R" value={shortcuts[command.id] ?? preferences.keybindings[command.id] ?? (Object.hasOwn(preferences.keybindings, command.id) ? '' : commands.bindings.find(binding => binding.commandId === command.id)?.key ?? '')}
-              onChange={event => setShortcuts(values => ({ ...values, [command.id]: event.target.value }))} />
-            <button onClick={() => preference(() => { if (shortcuts[command.id] !== undefined) extensionCommands.setKeybinding(command.id, shortcuts[command.id] || null) })}>{t('plugins:applyShortcut')}</button>
-            <button onClick={() => preference(() => { extensionCommands.setKeybinding(command.id, undefined); setShortcuts(values => { const next = { ...values }; delete next[command.id]; return next }) })}>{t('plugins:resetShortcut')}</button>
-          </div>)}
-          {(record.manifest.contributes.menus ?? []).map(menu => {
-            const id = `menu:${record.manifest.id}/${menu.location}/${menu.command}`
-            return <div key={id} className={styles.preference}>
-              <label><input type="checkbox" checked={hidden[id] ?? !commands.menus.some(entry => entry.id === id)} onChange={event => {
-                const checked = event.target.checked
-                preference(() => { extensionCommands.setMenuPreference(id, { hidden: checked }); setHidden(values => ({ ...values, [id]: checked })) })
-              }} />{t('plugins:hideEntry')} · {menu.location} · {menu.command}</label>
-              <input type="number" aria-label={`${t('plugins:order')} ${menu.command} ${menu.location}`} defaultValue={preferences.menus[id]?.order ?? commands.menus.find(entry => entry.id === id)?.order ?? menu.order ?? 100}
-                onBlur={event => preference(() => extensionCommands.setMenuPreference(id, { hidden: hidden[id] ?? !commands.menus.some(entry => entry.id === id), order: Number(event.target.value) }))} />
+          {ownCommands.map(command => <div key={command.id} className={styles.commandPreference}>
+            <strong>{command.title}</strong>
+            <div className={styles.preference}>
+              <label className={styles.shortcutField}>{t('plugins:shortcut')}
+                <input aria-label={t('plugins:shortcut') + ' ' + command.title} placeholder={t('plugins:shortcutUnset')} value={shortcuts[command.id] ?? preferences.keybindings[command.id] ?? (Object.hasOwn(preferences.keybindings, command.id) ? '' : commands.bindings.find(binding => binding.commandId === command.id)?.key ?? '')}
+                  onChange={event => setShortcuts(values => ({ ...values, [command.id]: event.target.value }))} />
+              </label>
+              <button onClick={() => preference(() => { if (shortcuts[command.id] !== undefined) extensionCommands.setKeybinding(command.id, shortcuts[command.id] || null) })}>{t('plugins:applyShortcut')}</button>
+              <button onClick={() => preference(() => { extensionCommands.setKeybinding(command.id, undefined); setShortcuts(values => { const next = { ...values }; delete next[command.id]; return next }) })}>{t('plugins:resetShortcut')}</button>
             </div>
-          })}
+            {(record.manifest.contributes.menus ?? []).filter(menu => command.id === 'command:' + record.manifest.id + '/' + menu.command).map(menu => {
+              const id = 'menu:' + record.manifest.id + '/' + menu.location + '/' + menu.command
+              const location = menu.location === 'toolbox' ? t('plugins:showInToolbox') : t('plugins:showInWorkspaceAdd')
+              return <label key={id} className={styles.entryPreference}>
+                <span>{location}</span>
+                <input type="checkbox" role="switch" className={styles.switch} aria-label={command.title + ' ? ' + location} checked={!preferences.menus[id]?.hidden}
+                  onChange={event => preference(() => extensionCommands.setMenuPreference(id, { hidden: !event.target.checked }))} />
+              </label>
+            })}
+          </div>)}
         </details>}
         <details><summary>{t('plugins:advanced')}</summary>
           <div className={styles.path}>{record.source.directory}</div>
@@ -266,13 +259,8 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
       <PluginThemes manifest={authorize.manifest} />
       {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p className={styles.hint}>{t('plugins:modelHint')}</p>}
       {authorize.manifest.permissions.some(permission => permission.name === 'ui.workspace') && <p className={styles.hint}>{t('plugins:workspaceHandoffHint')}</p>}
-      <p className={styles.label}>{t('plugins:projectScope')}</p>
-      {workspaces.map(workspace => <label className={styles.row} key={workspace.id}><input type="checkbox" checked={projects.includes(workspace.id)} onChange={event => {
-        setProjects(values => event.target.checked ? [...values, workspace.id] : values.filter(id => id !== workspace.id))
-      }} />{workspace.name}</label>)}
       <p className={styles.hint}>{t('plugins:grantHint')}</p>
-      {!projects.length && authorize.manifest.contributes.views.some(view => view.scope === 'project') && <p role="status" className={styles.hint}>{t('plugins:projectScopeEmpty')}</p>}
-      <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id, projects }) }}>{t('plugins:confirmEnable')}</button>
+      <div className={styles.actions}><button className={styles.primary} disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id }) }}>{t('plugins:confirmEnable')}</button>
         <button onClick={() => setAuthorize(null)}>{t('plugins:cancel')}</button></div>
     </section>}
     {confirmation && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="alertdialog" aria-label={t(`plugins:${confirmation.type}`)}>

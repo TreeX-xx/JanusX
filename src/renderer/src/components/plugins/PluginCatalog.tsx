@@ -11,6 +11,7 @@ export function PluginDistributionError({ code }: { code?: string }) {
     : code === 'INCOMPATIBLE_PLUGIN' ? t('plugins:incompatible')
     : ['CATALOG_EXPIRED', 'CATALOG_ROLLBACK'].includes(code) ? t('plugins:catalogStale')
     : code === 'INSTALLATION_CANCELLED' ? t('plugins:downloadCancelled')
+    : code === 'DOWNLOAD_NOT_FOUND' ? t('plugins:downloadNotFound')
     : code === 'DISTRIBUTION_NOT_CONFIGURED' ? t('plugins:catalogNotConfigured') : t('plugins:downloadFailed')
   return <p role="status" className={styles.error}>{message} <small>({code})</small></p>
 }

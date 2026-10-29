@@ -12,6 +12,8 @@ export interface InstalledPlugin {
   source: { kind: 'linked' | 'copied' | 'official'; directory: string; publisher?: string }
   digest: string
   enabled: boolean
+  /** Enabled plugins apply to existing and future registered workspaces. */
+  projectScope?: 'all'
   projects: string[]
   state: 'disabled' | 'blocked' | 'ready' | 'loading' | 'active' | 'error'
   error?: string
@@ -44,7 +46,7 @@ export type PluginManageRequest =
   | { type: 'installOfficial'; id: string }
   | { type: 'development'; enabled: boolean }
   | { type: 'import'; kind: 'linked' | 'copied' }
-  | { type: 'enable'; id: string; projects: string[] }
+  | { type: 'enable'; id: string; projects?: string[] }
   | { type: 'disable' | 'reload' | 'uninstall' | 'deleteData' | 'rollback'; id: string }
   | { type: 'context'; projectId: string | null; scopePath: string | null; locale: string; theme: { id: string; tokens: Record<string, string> } }
   | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null; document?: PluginDocument; instanceKey?: string }

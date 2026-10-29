@@ -71,6 +71,17 @@ async function fixture() {
     agent: (reply: NonNullable<typeof agentReply>) => { agentReply = reply } }
 }
 
+it('accepts host-stamped workspaces added after native startup', async () => {
+  const f = await fixture()
+  const root = join(f.directory, 'added-workspace')
+  await cp(f.root, root, { recursive: true })
+  const project = { id: 'added-project', name: 'Added workspace', root }
+  expect((await f.call('blueprint.graph', null, project)).blueprint.nodes[f.noteId].title).toBe('Native fixture')
+  await f.call('workspace.activate', null, project)
+  await f.call('workspace.release', null, project)
+  expect(f.failures).toEqual([])
+})
+
 it('treats checkouts without Notes as empty discovery, including an unrelated .agents directory', async () => {
   const f = await fixture()
   await rm(join(f.root, '.agents'), { recursive: true })

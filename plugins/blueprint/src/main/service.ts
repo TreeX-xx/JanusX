@@ -144,7 +144,8 @@ export async function createBlueprintService(raw: JsonValue, host: Pick<NativePe
         case 'models.catalog': return host.call('models.catalog', null, scopeSignal)
       }
       const project = request.project
-      if (!project || !context.projects.some(item => item.id === project.id)) throw new NativeServiceError('PATH_NOT_GRANTED')
+      // Every call carries a host-resolved project; the startup list cannot exclude later workspaces.
+      if (!project) throw new NativeServiceError('PATH_NOT_GRANTED')
       const root = await realpath(project.root)
       scopeSignal.throwIfAborted()
       roots.set(key(root), project.id)

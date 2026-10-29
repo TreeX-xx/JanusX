@@ -25,7 +25,7 @@ export const downloadCpaAsset: Download = async (...args) => {
   try { return await downloadHostAsset(...args) }
   catch (cause) {
     if (cause instanceof Error && cause.message === 'DOWNLOAD_OVERSIZED') throw new Error('cpa-download-oversized')
-    if (cause instanceof Error && cause.message === 'DOWNLOAD_FAILED') throw new Error('cpa-download-failed')
+    if (cause instanceof Error && ['DOWNLOAD_FAILED', 'DOWNLOAD_NOT_FOUND'].includes(cause.message)) throw new Error('cpa-download-failed')
     throw cause
   }
 }

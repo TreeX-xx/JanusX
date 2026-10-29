@@ -1,12 +1,13 @@
 // Note: .agents/notes/workbench/plugin-contract-v1.md — explicit read-only document binding.
 import { matchesPluginViewer, type PluginViewer } from '@janusx/plugin-sdk'
 import type { PluginHostSnapshot } from '../../../shared/ipc/plugins'
+import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 
 export interface AvailableDocumentViewer extends PluginViewer { key: string; pluginId: string; pluginName: string; digest: string }
 
 export function documentViewerCandidates(snapshot: PluginHostSnapshot, projectId: string, path: string): AvailableDocumentViewer[] {
   if (!snapshot.developmentMode) return []
-  return snapshot.plugins.flatMap(record => record.enabled && record.projects.includes(projectId)
+  return snapshot.plugins.flatMap(record => record.enabled && hasPluginProjectAccess(record, projectId)
     && (['ready', 'loading', 'active'].includes(record.state) || record.state === 'error' && record.error === 'VIEW_LOAD_FAILED')
     ? (record.manifest.contributes.viewers ?? []).filter(viewer => matchesPluginViewer(viewer, path)).map(viewer => ({
       ...viewer, key: `${record.manifest.id}/${viewer.id}`, pluginId: record.manifest.id, pluginName: record.manifest.name, digest: record.digest,

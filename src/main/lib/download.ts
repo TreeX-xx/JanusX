@@ -27,7 +27,10 @@ export const downloadHostAsset: HostDownload = async (url, limit, signal, progre
         target = new URL(location, target)
         continue
       }
-      if (!response.ok || !response.body) { await response.body?.cancel(); throw new Error('DOWNLOAD_FAILED') }
+      if (!response.ok || !response.body) {
+        await response.body?.cancel()
+        throw new Error([404, 410].includes(response.status) ? 'DOWNLOAD_NOT_FOUND' : 'DOWNLOAD_FAILED')
+      }
       const declared = Number(response.headers.get('content-length'))
       if (declared > limit) { await response.body.cancel(); throw new Error('DOWNLOAD_OVERSIZED') }
       const chunks: Buffer[] = []
@@ -48,7 +51,7 @@ export const downloadHostAsset: HostDownload = async (url, limit, signal, progre
     throw new Error('DOWNLOAD_FAILED')
   } catch (cause) {
     if (signal.aborted) throw signal.reason
-    if (cause instanceof Error && cause.message === 'DOWNLOAD_OVERSIZED') throw cause
+    if (cause instanceof Error && ['DOWNLOAD_OVERSIZED', 'DOWNLOAD_NOT_FOUND'].includes(cause.message)) throw cause
     if (cause instanceof Error && cause.name === 'TimeoutError') throw new Error('DOWNLOAD_TIMEOUT')
     throw new Error('DOWNLOAD_FAILED')
   } finally { await dispatcher?.destroy(); await relay.close() }

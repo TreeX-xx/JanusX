@@ -123,9 +123,9 @@ try {
   const disabled = await sample(page, 'installed-disabled')
   expect(disabled.plugins).toMatchObject([{ enabled: false, source: { kind: 'official' }, runtime: { pages: 0, ready: 0 } }])
   expect(await nativeProcesses()).toEqual([])
-  await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
-  const review = page.getByRole('region', { name: 'Review permissions and scope' })
-  await review.getByLabel('Packaged project', { exact: true }).check()
+  await card.getByRole('button', { name: 'Review permissions', exact: true }).click()
+  const review = page.getByRole('region', { name: 'Review permissions' })
+
   await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
   await page.locator('[data-tab="extension:official.blueprint/settings"]').click()
   let plugin = await guest()

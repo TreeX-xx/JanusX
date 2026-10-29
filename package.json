@@ -33,7 +33,7 @@
     "plugins:create": "npm run build:plugin-sdk && node packages/plugin-sdk/tools/cli.mjs init",
     "plugins:verify-scaffold": "npm run build:plugin-sdk && node scripts/verify-plugin-scaffold.mjs",
     "plugins:distribution:check": "npm run plugins:distribution:test:tools && vitest run tests/unit/plugin-distribution.test.ts tests/unit/plugin-catalog.test.ts tests/unit/plugin-configuration-drafts.test.ts",
-    "plugins:distribution:test:tools": "node --test tests/plugins/distribution-tools.test.mjs tests/plugins/public-archives.test.mjs",
+    "plugins:distribution:test:tools": "node --test tests/plugins/distribution-tools.test.mjs tests/plugins/public-archives.test.mjs tests/plugins/catalog-renewal.test.mjs",
     "plugins:audit-blueprint": "node scripts/plugins/audit-blueprint-boundary.mjs",
     "plugins:package": "node scripts/plugins/package-plugin.mjs",
     "plugins:catalog": "node scripts/plugins/build-catalog.mjs",

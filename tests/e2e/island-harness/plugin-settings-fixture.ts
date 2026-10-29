@@ -14,7 +14,7 @@ export function installPluginSettingsFixture() {
     onChanged: () => () => {}, onEvent: () => () => {},
     request: async input => {
       if (input.type === 'installOfficial') snapshot.plugins = [{ manifest, enabled: false, state: 'disabled',
-        digest: 'synthetic-fixture', projects: [], failures: 0, source: { kind: 'official', directory: 'synthetic-fixture' } }]
+        digest: 'synthetic-fixture', projectScope: 'all', projects: [], failures: 0, source: { kind: 'official', directory: 'synthetic-fixture' } }]
       if (input.type === 'uninstall') snapshot.plugins = []
       if (input.type === 'enable' || input.type === 'disable') snapshot.plugins = snapshot.plugins.map(plugin => plugin.manifest.id !== input.id ? plugin
         : { ...plugin, enabled: input.type === 'enable', state: input.type === 'enable' ? 'ready' : 'disabled' })

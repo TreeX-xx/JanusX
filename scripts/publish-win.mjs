@@ -86,13 +86,14 @@ function runtimeIdentity(root, release, head) {
     artifacts: release.files.map(file => [file, sha256(file)]), unpacked: files }
 }
 
-function assertRemoteFile(run, release, asset, file) {
+function assertRemoteFile(run, release, asset, file, { metadataOnly = false } = {}) {
   const bytes = readFileSync(file)
   if (asset.size !== bytes.length) throw new Error(`Remote artifact differs: ${basename(file)}`)
   if (/^sha256:[a-f0-9]{64}$/.test(asset.digest ?? '')) {
     if (asset.digest !== `sha256:${sha256(file)}`) throw new Error(`Remote artifact differs: ${basename(file)}`)
     return
   }
+  if (metadataOnly) return
   // GitHub may omit digests for older assets. Compare downloaded bytes instead.
   const temporary = mkdtempSync(join(tmpdir(), 'janusx-release-compare-'))
   try {
@@ -107,6 +108,12 @@ function assertRemoteFile(run, release, asset, file) {
 export function stageWin(root = process.cwd(), run = runner(root), { outputDirectory } = {}) {
   const release = releaseFiles(root, outputDirectory)
   const head = assertSource(run, release)
+  // Reject public releases and known byte conflicts before launching Electron.
+  const existing = draftRelease(run, release, { allowMissing: true })
+  for (const file of release.files) {
+    const asset = existing?.assets.find(({ name }) => name === basename(file))
+    if (asset) assertRemoteFile(run, release, asset, file, { metadataOnly: true })
+  }
   const hashes = release.files.map(sha256)
   const identity = runtimeIdentity(root, release, head)
   const receiptPath = join(dirname(release.files[0]), 'staging-runtime.json')
@@ -120,6 +127,7 @@ export function stageWin(root = process.cwd(), run = runner(root), { outputDirec
   if (JSON.stringify(runtimeIdentity(root, release, head)) !== JSON.stringify(identity)) throw new Error('Runtime inputs changed during verification')
   assertSource(run, release)
   if (!verified) writeFileSync(receiptPath, JSON.stringify(identity))
+  // Refresh after runtime verification: the draft may have changed meanwhile.
   const remote = draftRelease(run, release, { allowMissing: true })
   const missing = []
   for (const file of release.files) {

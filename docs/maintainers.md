@@ -65,14 +65,13 @@ git push origin v0.9.3
 本地发布须准备已构建的固定 sibling、内置 OfficeCLI 和 GitHub CLI 登录，并使用与远端 tag 指向相同提交的干净 checkout。先完成版本提交，再构建；准备步骤若改变锁文件或打包清单，应将变化纳入版本提交并重新构建，不能忽略输入变化。
 
 ```bash
-npm run package:win
-npm run stage:win
+npm run package:win:stage
 # 检查草稿并填写说明，tag 仅为示例
 gh release edit v0.9.5 --notes-file release/release-notes-v0.9.5.md
 npm run publish:win
 ```
 
-`package:win` 构建并执行运行检查；`stage:win` 不编译，会再次运行包检查，校验安装包与更新清单，再将四个 Windows 附件上传到草稿。需一次完成构建与草稿上传时使用 `package:win:stage`；旧的 `package:win:publish` 已移除。
+正式发布推荐 `package:win:stage`：构建完整候选后，由 stage 执行一次运行检查和更新清单校验，再上传四个 Windows 附件到草稿。只生成本地候选时使用 `package:win`，它也执行运行检查；之后单独执行 `stage:win` 仍会首次验证，不能复用前一命令未保存的收据。上传失败只重跑 `stage:win`，不要重跑打包入口。旧的 `package:win:publish` 已移除。
 
 `publish:win` 不编译、不启动应用、不上传文件，只核对草稿的四个远端附件与本地候选逐字节身份一致，再公开。它仍需保留同一候选目录及匹配版本的干净 checkout；不能切到新版本后发布旧目录。两个命令都支持 `-- --release-dir <目录>`，公开前不能清理候选文件或修改安装包。
 

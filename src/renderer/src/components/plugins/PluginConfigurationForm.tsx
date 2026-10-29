@@ -1,8 +1,10 @@
+// Note: .agents/notes/workbench/plugin-contract-v1.md ? project configuration follows all-workspace access.
 // Note: .agents/notes/workbench/plugin-contract-v1.md — host-generated plugin settings.
 import { useEffect, useRef, useState } from 'react'
 import { isPluginSettingValue, type PluginSettingValue } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginConfigurationState } from '../../../../shared/ipc/plugins'
 import { pluginRequest } from '@/extensions/plugin-runtime'
+import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
 import { useI18n } from '@/i18n/useI18n'
@@ -19,7 +21,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
   const project = useWorkspaceStore(state => state.workspaces.find(item => item.id === projectId))
   const root = useWorktreeStore(state => projectId ? state.activePaths[projectId] ?? project?.path : undefined)
   const [scope, setScope] = useState(initialScope)
-  const projectAllowed = Boolean(projectId && record.projects.includes(projectId))
+  const projectAllowed = Boolean(projectId && hasPluginProjectAccess(record, projectId))
   const projectScope = scope === 'project' && projectAllowed
   const [configuration, setConfiguration] = useState<PluginConfigurationState | null>(null)
   const [patch, setPatch] = useState<Record<string, PluginSettingValue | null>>({})

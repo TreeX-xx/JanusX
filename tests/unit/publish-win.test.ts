@@ -118,6 +118,41 @@ describe('Windows draft staging and explicit publication', () => {
     expect(() => action(f.root, f.run)).toThrow('unpublished draft')
     expect(f.actions()).toEqual([])
   })
+  it.each(['public', 'conflict', 'prerelease'])('rejects remote %s before running the package', reason => {
+    const f = fixture()
+    if (reason === 'public') f.state.remote!.draft = false
+    else if (reason === 'conflict') f.state.remote!.assets[0].digest = `sha256:${'0'.repeat(64)}`
+    else f.state.remote!.prerelease = true
+    expect(() => stageWin(f.root, f.run)).toThrow()
+    expect(f.calls.some(call => call.command === process.execPath)).toBe(false)
+    expect(f.actions()).toEqual([])
+  })
+  it('rechecks the draft after runtime verification before uploading', () => {
+    const f = fixture(); f.state.remote!.assets = []
+    expect(() => stageWin(f.root, (command: string, args: string[]) => {
+      const result = f.run(command, args)
+      if (command === process.execPath) f.state.remote!.draft = false
+      return result
+    })).toThrow('unpublished draft')
+    expect(f.actions()).toEqual([])
+  })
+  it('rechecks conflicting remote bytes introduced during runtime verification', () => {
+    const f = fixture()
+    expect(() => stageWin(f.root, (command: string, args: string[]) => {
+      const result = f.run(command, args)
+      if (command === process.execPath) f.state.remote!.assets[0].digest = `sha256:${'0'.repeat(64)}`
+      return result
+    })).toThrow('Remote artifact differs')
+    expect(f.actions()).toEqual([])
+  })
+  it('downloads a digestless staged asset only once after runtime verification', () => {
+    const f = fixture(); f.state.remote!.assets[0].digest = ''
+    stageWin(f.root, f.run)
+    expect(f.actions()).toEqual(['download'])
+    const runtime = f.calls.findIndex(call => call.command === process.execPath)
+    const download = f.calls.findIndex(call => call.command === 'gh' && call.args[1] === 'download')
+    expect(download).toBeGreaterThan(runtime)
+  })
   it.each(['dirty', 'tag'])('rejects source mismatch: %s', reason => {
     const f = fixture()
     if (reason === 'tag') f.state.tagSha = 'another-commit'

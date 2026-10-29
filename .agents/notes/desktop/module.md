@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-28T01:36:29.950Z",
+  "updated": "2026-10-28T10:54:48.000Z",
   "moduleState": "partial"
 }
 ---
@@ -45,7 +45,11 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 打包与发布：[hoisted-deps](./packaged-hoisted-deps.md)、[runtime-size](./packaged-hoisted-deps.md)、[cli-publish](./janus-cli-npm-publish.md)、[officecli](./officecli-bundled.md)、[runner-backflow](../agent/external-runner-backflow.md)、[ci-order](./ci-sibling-build-order.md)、[verify-repair](./release-verify-repair.md)（v0.8.8 双管线修复）。
 
+[发布门禁成本与冗余审计](./release-gate-redundancy-audit.md)实测完整 verify 约 27min，指出发布级验收占约六成、同一断言重复执行、排序倒置与 PR 全量执行三类冗余，并确认分支保护未绑定 required status check；建议按性价比排序，接入分层与重排顺序为前置。该审计为草案，未实施。
+
 [开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。统一输入与新增平台仍在设计阶段，具体取舍与实施验收由该草案维护。
+
+正式 Windows 发布推荐 `package:win:stage`，避免打包和首次上传重复执行运行验证；上传先预检远端状态，运行检查后重新核对再续传。手动构建将版本及 OfficeCLI 资源检查前置，并复用本地资源哈希校验脚本。必要的构建、包边界与公开前字节核验保留，细节见上述解耦设计及维护者指南。
 
 协作入口由 [CONTRIBUTING](../../../CONTRIBUTING.md)、[开发环境](../../../docs/development.md)和[维护者指南](../../../docs/maintainers.md)分别承担：功能 PR 进入 dev，晋级 PR 进入 main，两者均运行 Windows 验证；发布由维护者负责。分支、验证和反馈取舍分别见 [development-branch](./development-branch.md)、[reproducible-verification](./reproducible-verification.md)及 [github-maintenance](./github-maintenance.md)。
 

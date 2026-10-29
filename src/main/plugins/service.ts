@@ -8,6 +8,7 @@ import semver from 'semver'
 import { PluginError, PLUGIN_API_VERSION, PLUGIN_CAPABILITIES, parsePluginManifest, validatePluginCall,
   isSensitivePluginPath, matchesPluginViewer, type PluginDocument, type JsonValue, type PluginContext, type PluginStoredValue, type PluginIslandStatus, type PluginSettingValue } from '@janusx/plugin-sdk'
 import type { InstalledPlugin, PluginHostSnapshot, PluginLog, PluginMount, PluginIslandEntry } from '../../shared/ipc/plugins'
+import { hasPluginProjectAccess } from '../../shared/plugin-project-access'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { readPluginFile, readPluginPackage, listPluginDirectory, type PluginPackage } from './files'
 import { PluginStorage } from './storage'
@@ -49,6 +50,7 @@ export interface PluginServiceDeps {
   official?: { keys: PluginTrustKeys; hostVersion: string; platform: string; nativePlugins?: Readonly<Record<string, readonly string[]>> }
   createNativeService?(record: InstalledPlugin, directory: string, stopped: (code: string) => void, credentials: NativeModelCredentials): NativePluginService
   resolveProject(id: string, scopePath: string | null): Promise<{ root: string; name: string }>
+  listProjects?(): Promise<string[]>
   worktrees?(projectId: string): Promise<Array<{ root: string; name: string; branch: string | null; isMain: boolean }>>
   changed(): void
   closed?(instanceId: string): void
@@ -124,7 +126,7 @@ export class PluginService {
         if (!raw.source || !['linked', 'copied', 'official'].includes(raw.source.kind) || typeof raw.source.directory !== 'string'
           || typeof raw.packageDirectory !== 'string' || !Array.isArray(raw.projects) || raw.projects.some(id => typeof id !== 'string')
           || typeof raw.enabled !== 'boolean' || typeof raw.grant !== 'string' || this.records.has(manifest.id)) throw new Error('Invalid record')
-        const record: RecordData = { ...raw, manifest, failures: 0, state: 'disabled' }
+        const record: RecordData = { ...raw, manifest, projectScope: 'all', failures: 0, state: 'disabled' }
         this.records.set(manifest.id, record)
         try {
           const pkg = await this.readPackage(record)
@@ -184,7 +186,7 @@ export class PluginService {
         }
       } } catch (cause) { await rm(packageDirectory, { recursive: true, force: true }); throw cause }
       const record: RecordData = { manifest: pkg.manifest, source: { kind, directory: pkg.directory }, packageDirectory,
-        digest: pkg.digest, enabled: false, projects: [], grant: '', state: 'disabled', failures: 0 }
+        digest: pkg.digest, enabled: false, projectScope: 'all', projects: [], grant: '', state: 'disabled', failures: 0 }
       this.records.set(pkg.manifest.id, record)
       try { await this.persist() } catch (cause) {
         this.records.delete(pkg.manifest.id)
@@ -264,7 +266,7 @@ export class PluginService {
         const { previous: _previous, ...previous } = old ?? {} as RecordData
         const record: RecordData = { manifest: pkg.manifest, digest: release.contentDigest, packageDirectory,
           source: { kind: 'official', directory: packageDirectory, publisher: release.publisher }, release: structuredClone(envelope),
-          enabled: false, projects: old?.projects ?? [], grant: old?.grant ?? '', state: 'disabled', failures: 0,
+          enabled: false, projectScope: 'all', projects: old?.projects ?? [], grant: old?.grant ?? '', state: 'disabled', failures: 0,
           ...(old ? { previous } : {}) }
         await this.readPackage(record)
         this.records.set(release.id, record)
@@ -290,6 +292,14 @@ export class PluginService {
       this.packages.set(id, pkg); await this.collectPackages(); this.log('ROLLED_BACK', { pluginId: id }); this.publish()
     }))
   }
+  private async registeredProjects(record: RecordData): Promise<Array<{ id: string; root: string; name: string }>> {
+    const ids = record.projectScope === 'all' && this.deps.listProjects
+      ? await this.deps.listProjects() : [...new Set([...record.projects, ...(this.current.projectId ? [this.current.projectId] : [])])]
+    const projects = await Promise.all(ids.map(async id => {
+      try { return { id, ...await this.deps.resolveProject(id, null) } } catch { return null }
+    }))
+    return projects.filter((project): project is NonNullable<typeof project> => project !== null)
+  }
   private async startNative(record: RecordData): Promise<void> {
     if (!record.manifest.native) return
     if (!this.deps.createNativeService) error('SOURCE_UNAVAILABLE', 'Native service runtime is unavailable.')
@@ -303,7 +313,7 @@ export class PluginService {
         || !record.manifest.contributes.credentials?.some(slot => slot.id === source.slot && slot.origin === source.origin)) continue
       await this.credentials.importLegacy(id, source.slot, source.origin, source.path, () => this.allowed(record))
     }
-    const projects = await Promise.all(record.projects.map(async projectId => ({ id: projectId, ...await this.deps.resolveProject(projectId, null) })))
+    const projects = await this.registeredProjects(record)
     const native = this.deps.createNativeService!(structuredClone(record), record.packageDirectory, code => {
       if (this.nativeServices.get(id) !== native) return
       this.nativeServices.delete(id)
@@ -345,7 +355,7 @@ export class PluginService {
     const record = this.record(id)
     this.allowed(record)
     if (!record.manifest.native?.methods.includes(method)) error('UNKNOWN_METHOD', 'Native method is not declared.')
-    if (projectId && !record.projects.includes(projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
+    if (projectId && !hasPluginProjectAccess(record, projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
     const project = projectId ? { id: projectId, ...await this.deps.resolveProject(projectId, scopePath) } : null
     this.allowed(record)
     const native = this.nativeServices.get(id)
@@ -358,16 +368,15 @@ export class PluginService {
       throw cause
     }
   }
-  enable(id: string, projects: string[]): Promise<void> {
+  enable(id: string, projects: string[] = []): Promise<void> {
     return this.queue.run(async () => {
       const record = this.record(id)
       if (!this.sourceAllowed(record)) error('DEVELOPMENT_MODE_REQUIRED', 'Enable local development mode first.')
       const pkg = await this.readPackage(record)
       if (pkg.manifest.id !== id) error('MANIFEST_INVALID', 'Plugin identity changed.')
-      for (const project of projects) await this.deps.resolveProject(project, null)
       this.requiredDependencies(pkg.manifest)
       const old = { ...record }
-      record.manifest = pkg.manifest; record.digest = pkg.digest; record.projects = [...new Set(projects)]
+      record.manifest = pkg.manifest; record.digest = pkg.digest; record.projectScope = 'all'; record.projects = [...new Set(projects)]
       record.grant = permissionFingerprint(pkg.manifest); record.enabled = true; record.failures = 0; record.state = 'ready'; delete record.error
       this.revokePlugin(id)
       try { await this.persist() } catch (cause) { Object.assign(record, old); record.enabled = false; record.state = 'disabled'; this.publish(); throw cause }
@@ -442,7 +451,7 @@ export class PluginService {
       }
       this.current = { ...this.current, projectId, root: project?.root ?? null, locale, theme }
       for (const instance of [...this.instances.values()]) if (instance.suspended) {
-        if (!project || !projectId || !this.record(instance.plugin).projects.includes(projectId)) { this.close(instance.id); continue }
+        if (!project || !projectId || !hasPluginProjectAccess(this.record(instance.plugin), projectId)) { this.close(instance.id); continue }
         instance.root = project.root
         instance.scope = `${projectId}:${createHash('sha256').update(project.root).digest('hex')}`
         instance.context = { ...instance.context, revision: this.current.revision,
@@ -482,7 +491,7 @@ export class PluginService {
       const viewer = record.manifest.contributes.viewers?.find(item => item.id === document.viewer && item.view === viewId)
       if (!viewer || !matchesPluginViewer(viewer, document.path)) error('PATH_NOT_GRANTED', 'File does not match the declared viewer.')
     }
-    if (view!.scope === 'project' && projectId && !record.projects.includes(projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
+    if (view!.scope === 'project' && projectId && !hasPluginProjectAccess(record, projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
     const project = view!.scope === 'project' && projectId ? await this.deps.resolveProject(projectId, scopePath) : null
     if (document) {
       if (!project) error('CONTEXT_UNAVAILABLE', 'Document viewers require a project.')
@@ -491,7 +500,7 @@ export class PluginService {
     this.allowed(record)
     if (this.records.get(id) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== activation
       || this.current.revision !== revision) error('STALE_CONTEXT', 'Context changed while mounting.')
-    if (view!.scope === 'project' && projectId && !record.projects.includes(projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
+    if (view!.scope === 'project' && projectId && !hasPluginProjectAccess(record, projectId)) error('PATH_NOT_GRANTED', 'Project is not granted.')
     if (view!.scope === 'project' && (!project
       || this.current.projectId !== projectId || this.current.root !== project.root)) error('CONTEXT_UNAVAILABLE', 'Project scope is unavailable.')
     if (this.instances.size >= 64 || [...this.instances.values()].filter(instance => instance.plugin === id).length >= 8) error('RATE_LIMITED', 'Too many plugin pages.')
@@ -529,7 +538,7 @@ export class PluginService {
   private suspendContext(instance: Instance, projectId: string | null): void {
     const record = this.record(instance.plugin)
     const view = record.manifest.contributes.views.find(view => view.id === instance.view)
-    if (!projectId || !record.projects.includes(projectId) || !instance.ready || view?.frame !== 'plugin'
+    if (!projectId || !hasPluginProjectAccess(record, projectId) || !instance.ready || view?.frame !== 'plugin'
       || !record.manifest.capabilities.required.includes('views.workbench.rebind')) { this.close(instance.id); return }
     if (instance.suspended) return
     instance.suspended = true
@@ -886,12 +895,8 @@ export class PluginService {
       if (view?.location !== 'workbench' || view.frame !== 'plugin') error('PERMISSION_DENIED', 'This view does not own a workbench frame.')
       valid()
       if (method === 'views.getFrame') {
-        const projects = []
-        for (const id of record.projects.slice(0, 128)) {
-          const project = await this.deps.resolveProject(id, null).catch(() => null)
-          valid()
-          if (project) projects.push({ id, name: project.name })
-        }
+        const projects = (await this.registeredProjects(record)).slice(0, 128).map(({ id, name }) => ({ id, name }))
+        valid()
         const projectId = instance.context.project?.projectId ?? null
         if (projectId && record.manifest.capabilities.required.includes('views.workbench.worktrees')) {
           const entries = await this.frameWorktrees(projectId)
@@ -903,14 +908,14 @@ export class PluginService {
       }
       if (!this.deps.workbenchAction) error('SOURCE_UNAVAILABLE', 'Workbench frame is unavailable.')
       if (params.action === 'selectProject') {
-        if (view!.scope !== 'project' || !record.projects.includes(params.projectId as string)) error('PERMISSION_DENIED', 'Project is not granted.')
+        if (view!.scope !== 'project' || !hasPluginProjectAccess(record, params.projectId as string)) error('PERMISSION_DENIED', 'Project is not granted.')
         await this.deps.resolveProject(params.projectId as string, null)
         valid()
       }
       let scopePath: string | undefined
       if (params.action === 'selectWorktree') {
         const projectId = instance.context.project?.projectId
-        if (view!.scope !== 'project' || !projectId || !record.projects.includes(projectId)) error('PERMISSION_DENIED', 'Project is not granted.')
+        if (view!.scope !== 'project' || !projectId || !hasPluginProjectAccess(record, projectId)) error('PERMISSION_DENIED', 'Project is not granted.')
         const entries = await this.frameWorktrees(projectId!)
         valid()
         const entry = entries.find(item => createHash('sha256').update(item.root).digest('hex') === params.worktreeId)
@@ -1061,7 +1066,7 @@ export class PluginService {
     const digest = record.digest; const activation = this.activations.get(record) ?? 0; const revision = this.current.revision
     if (!record.manifest.contributes.settings?.length) error('INVALID_REQUEST', 'Plugin has no settings.')
     if (!projectId && scopePath) error('INVALID_REQUEST', 'Application configuration has no project path.')
-    if (projectId && !record.projects.includes(projectId)) error('PERMISSION_DENIED', 'Project is not approved.')
+    if (projectId && !hasPluginProjectAccess(record, projectId)) error('PERMISSION_DENIED', 'Project is not approved.')
     const project = projectId ? await this.deps.resolveProject(projectId, scopePath) : null
     const valid = () => {
       if (this.records.get(id) !== record || record.digest !== digest || (this.activations.get(record) ?? 0) !== activation
@@ -1115,7 +1120,7 @@ export class PluginService {
   private backgroundIdentity(plugin: string, projectId: string | null, scope?: string): BackgroundIdentity {
     const record = this.record(plugin); this.allowed(record)
     const generation = this.activations.get(record) ?? 0; const digest = record.digest; const revision = this.current.revision
-    if (projectId && (!record.projects.includes(projectId) || this.current.projectId !== projectId || !this.current.root)) error('CONTEXT_UNAVAILABLE', 'Background project is unavailable.')
+    if (projectId && (!hasPluginProjectAccess(record, projectId) || this.current.projectId !== projectId || !this.current.root)) error('CONTEXT_UNAVAILABLE', 'Background project is unavailable.')
     const expectedScope = projectId ? `${projectId}:${createHash('sha256').update(this.current.root!).digest('hex')}` : 'application'
     if (scope && scope !== expectedScope) error('STALE_CONTEXT', 'Background root changed.')
     return { plugin, manifest: record.manifest, projectId, scope: expectedScope, rootId: projectId ? createHash('sha256').update(expectedScope).digest('hex') : null,
