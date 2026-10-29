@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { configureWorkspaceStorage, checkpointManager } from '@janus-agent/agent-core'
+import { configureWorkspaceStorage } from '@janus-agent/agent-core'
 import { WorkspaceStateStore } from './workspace-state'
 import { resolve } from 'node:path'
 
@@ -14,7 +14,6 @@ export function workspaceStateStore(): WorkspaceStateStore {
     if (terminalManager.listInstances().some(t => t.status !== 'exited' && under(t.config.cwd)) || [...getProjectRunner().getAllRunning().entries()].some(([id, p]) => under(p.scopePath ?? id.split('::')[0]))) {
       throw new Error('请先关闭此工作区及子目录的终端和运行任务，再执行迁移。 Close workspace terminals and tasks before migrating.')
     }
-    checkpointManager.releaseWorkspace(cwd)
   })
 }
 
