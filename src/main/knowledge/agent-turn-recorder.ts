@@ -1,15 +1,12 @@
+import { normalizeHookLifecycle } from '../notifications/agent-hook-lifecycle'
+import type { AgentHookSemantic, AgentHookCompletionKind } from '../notifications/agent-hook-types'
 import { resolveOpencodeDbPath } from '../sessions/opencode-store-path'
 import type { AgentEngine } from '../janus-runner/types'
 import { memoryDomainPolicy } from './memory-domain-policy'
 import {
-  JANUSX_SYNTHETIC_HOOK_EVENTS,
   type AgentHookPayload,
   type RegisteredHookTerminal,
 } from '../notifications/agent-hook-types'
-import {
-  matchesEngineEvents,
-  normalizeHookEventName,
-} from '../notifications/agent-engine-capabilities'
 import { knowledgeCaptureInbox, type CaptureEntry } from './capture-inbox'
 import { SerialQueue } from '../lib/atomic-file'
 import { knowledgeTranscriptRecovery } from './transcript-recovery'
@@ -52,30 +49,6 @@ function normalizePath(value?: string): string | undefined {
   return value?.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase() || undefined
 }
 
-function isStartEvent(payload: AgentHookPayload): boolean {
-  return matchesEngineEvents(payload.source, 'start', payload.event, payload.raw)
-}
-
-function isCompletionEvent(payload: AgentHookPayload): boolean {
-  return matchesEngineEvents(payload.source, 'complete', payload.event, payload.raw)
-}
-
-function isFailureEvent(payload: AgentHookPayload): boolean {
-  if (
-    payload.event === JANUSX_SYNTHETIC_HOOK_EVENTS.apiError ||
-    payload.event === JANUSX_SYNTHETIC_HOOK_EVENTS.orphaned
-  ) {
-    return true
-  }
-  if (payload.source === 'opencode') return payload.event === 'session.error'
-  return matchesEngineEvents(payload.source, 'fail', payload.event, payload.raw)
-}
-
-function isAttentionEvent(payload: AgentHookPayload): boolean {
-  if (payload.source === 'opencode') return payload.event === 'permission.asked'
-  return matchesEngineEvents(payload.source, 'attention', payload.event, payload.raw)
-}
-
 function hasText(value?: string): value is string {
   return Boolean(value?.trim())
 }
@@ -86,7 +59,10 @@ function timestampToMs(timestamp?: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-class AgentTurnRecorder {
+export class AgentTurnRecorder {
+  private epoch = 0
+  private enabled = false
+  private recoveryFlight?: Promise<void>
   private readonly deliveryIds = new WeakMap<AgentHookPayload, string>()
   private readonly queue = new SerialQueue()
   private retryTimer?: ReturnType<typeof setInterval>
@@ -96,28 +72,65 @@ class AgentTurnRecorder {
 
   registerTerminal(terminal: TerminalContext): void {
     this.terminals.set(terminal.terminalId, terminal)
-    if (!this.retryTimer) {
+    void this.refreshPolicy()
+  }
+
+  async refreshPolicy(): Promise<void> {
+    const epoch = this.epoch
+    const enabled = await this.isEnabled()
+    if (epoch !== this.epoch) return
+    if (!enabled) {
+      this.epoch++
+      this.activeTurns.clear()
+      clearInterval(this.retryTimer)
+      this.retryTimer = undefined
+    } else if (!this.retryTimer && (this.terminals.size || this.eventSink)) {
       this.retryTimer = setInterval(() => { void this.recover() }, 10000)
       this.retryTimer.unref()
       void this.recover()
     }
+    this.enabled = enabled
   }
 
-  private async recover(): Promise<void> {
-    try { if (await this.isEnabled()) {
-      await knowledgeCaptureInbox.drain()
-      for (const observation of await knowledgeTranscriptRecovery.drain(() => this.isEnabled())) knowledgeProcessingQueue.scheduleImmediate(observation.workspaceId)
-    } }
-    catch (error) { console.warn('[knowledge] capture recovery failed:', error instanceof Error ? error.message : String(error)) }
+  async isCaptureEnabled(): Promise<boolean> {
+    await this.refreshPolicy()
+    return this.enabled
+  }
+
+  private recover(): Promise<void> {
+    if (this.recoveryFlight) return this.recoveryFlight
+    const flight = this.runRecovery()
+    this.recoveryFlight = flight
+    void flight.finally(() => { if (this.recoveryFlight === flight) this.recoveryFlight = undefined }).catch(() => {})
+    return flight
+  }
+
+  async settle(): Promise<void> {
+    await this.queue.run(async () => {})
+    await this.recoveryFlight
+  }
+
+  private async runRecovery(): Promise<void> {
+    const epoch = this.epoch
+    const enabled = () => this.isCurrent(epoch)
+    try {
+      if (!await enabled()) return
+      await knowledgeCaptureInbox.drain(enabled)
+      if (!await enabled()) return
+      for (const observation of await knowledgeTranscriptRecovery.drain(enabled)) {
+        if (!await enabled()) return
+        knowledgeProcessingQueue.scheduleImmediate(observation.workspaceId)
+      }
+    } catch (error) { console.warn('[knowledge] capture recovery failed:', error instanceof Error ? error.message : String(error)) }
   }
 
   setEventSink(sink?: (event: AgentTurnRecorderEvent) => void): void {
     this.eventSink = sink
-    if (sink && !this.retryTimer) {
-      this.retryTimer = setInterval(() => { void this.recover() }, 10000)
-      this.retryTimer.unref()
-      void this.recover()
-    }
+    if (sink) void this.refreshPolicy()
+  }
+
+  private async isCurrent(epoch: number): Promise<boolean> {
+    return epoch === this.epoch && await this.isEnabled() && epoch === this.epoch
   }
 
   unregisterTerminal(terminalId: string): void {
@@ -126,20 +139,27 @@ class AgentTurnRecorder {
   }
 
   dispose(): void {
+    this.epoch++
+    this.enabled = false
     clearInterval(this.retryTimer)
     this.retryTimer = undefined
     this.terminals.clear()
     this.activeTurns.clear()
   }
 
-  handleHookPayload(payload: AgentHookPayload): Promise<void> {
+  async handleHookPayload(payload: AgentHookPayload, semantic = normalizeHookLifecycle(payload)): Promise<void> {
+    if (!await this.isCaptureEnabled()) return
+    const epoch = this.epoch
     const raw = payload.raw && typeof payload.raw === 'object' ? payload.raw as Record<string, unknown> : {}
     if (!payload.timestamp && !raw.event_id && !raw.eventId && !raw.message_id && !raw.tool_use_id && !raw.call_id) {
       let deliveryId = this.deliveryIds.get(payload)
       if (!deliveryId) { deliveryId = randomUUID(); this.deliveryIds.set(payload, deliveryId) }
       payload = { ...payload, raw: { ...raw, captureDeliveryId: deliveryId } }
     }
-    return this.queue.run(() => this.recordHookPayload(payload)).catch((error) => {
+    return this.queue.run(async () => {
+      if (await this.isCurrent(epoch)) await this.recordHookPayload(payload, epoch, semantic)
+    }).catch(async (error) => {
+      if (!await this.isCurrent(epoch)) return
       this.emit({
         type: 'failed',
         reason: error instanceof Error ? error.message : String(error),
@@ -170,7 +190,7 @@ class AgentTurnRecorder {
   private resolveTerminal(payload: AgentHookPayload): TerminalContext | null {
     if (payload.terminalId) {
       const terminal = this.terminals.get(payload.terminalId)
-      if (terminal) return terminal.engine === payload.source ? terminal : null
+      return terminal?.engine === payload.source ? terminal : null
     }
 
     const sameEngine = Array.from(this.terminals.values()).filter(
@@ -193,72 +213,21 @@ class AgentTurnRecorder {
     return sameEngine.length === 1 ? sameEngine[0] : null
   }
 
-  private async recordHookPayload(rawPayload: AgentHookPayload): Promise<void> {
-    if (!(await this.isEnabled())) {
-      this.emit({
-        type: 'skipped',
-        reason: 'knowledge-disabled',
-        terminalId: rawPayload.terminalId,
-        engine: rawPayload.source,
-        hookEvent: rawPayload.event,
-        workspaceId: rawPayload.workspaceId,
-        workspacePath: rawPayload.cwd,
-      })
-      return
-    }
-
-    const payload = {
-      ...rawPayload,
-      event: normalizeHookEventName(rawPayload.source, rawPayload.event),
-    }
+  private async recordHookPayload(payload: AgentHookPayload, epoch: number, semantic?: AgentHookSemantic): Promise<void> {
+    if (!semantic || !await this.isCurrent(epoch)) return
     const terminal = this.resolveTerminal(payload)
-    if (!terminal?.cwd) {
-      this.emit({
-        type: 'skipped',
-        reason: 'terminal-not-found',
-        terminalId: payload.terminalId,
-        engine: payload.source,
-        hookEvent: payload.event,
-        workspaceId: payload.workspaceId,
-        workspacePath: payload.cwd,
-      })
-      return
-    }
-
-    if (isStartEvent(payload)) {
-      await this.recordStart(payload, terminal)
-      return
-    }
-
-    if (isAttentionEvent(payload)) {
-      await this.recordAttention(payload, terminal)
-      return
-    }
-
-    if (isFailureEvent(payload)) {
-      await this.recordEnd(payload, terminal, true)
-      return
-    }
-
-    if (isCompletionEvent(payload)) {
-      await this.recordEnd(payload, terminal, false)
-      return
-    }
-
-    this.emit({
-      type: 'skipped',
-      reason: 'unsupported-hook-event',
-      terminalId: terminal.terminalId,
-      engine: terminal.engine,
-      hookEvent: payload.event,
-      workspaceId: terminal.workspaceId,
-      workspacePath: terminal.cwd,
-    })
+    if (!terminal?.cwd) return
+    if (semantic.type === 'turn-start') await this.recordStart(payload, terminal, epoch, semantic.resume)
+    else if (semantic.type === 'waiting-user') await this.recordAttention(payload, terminal, epoch)
+    else if (semantic.type === 'turn-end') await this.recordEnd(payload, terminal, semantic.kind, epoch)
+    else if (semantic.type === 'session-close' && semantic.interruptedTurn) await this.recordEnd(payload, terminal, 'interrupted', epoch)
   }
 
   private async recordStart(
     payload: AgentHookPayload,
     terminal: TerminalContext,
+    epoch: number,
+    resume = false,
   ): Promise<void> {
     const metadata = payload.raw && typeof payload.raw === 'object' ? payload.raw as Record<string, unknown> : {}
     if (payload.event === 'UserPromptSubmit' && (isRuntimeNotification(payload.message ?? '') || payload.source === 'claude' && metadata.isMeta === true)) {
@@ -270,7 +239,7 @@ class AgentTurnRecorder {
     const promptHash = hasText(payload.message) ? createHash('sha256').update(payload.message).digest('hex') : undefined
     const eventId = this.eventId(payload)
     if (
-      activeTurn &&
+      activeTurn && !resume &&
       (!hasText(payload.message) ||
         (payload.sessionId === activeTurn.sessionId && promptHash === activeTurn.promptHash && eventId === activeTurn.id))
     ) {
@@ -279,7 +248,7 @@ class AgentTurnRecorder {
 
     const now = timestampToMs(payload.timestamp) ?? Date.now()
     const startedAt = new Date(now).toISOString()
-    const turn: ActiveTurn = {
+    const turn: ActiveTurn = resume && activeTurn ? activeTurn : {
       id: eventId,
       terminalId: terminal.terminalId,
       engine: terminal.engine,
@@ -297,6 +266,7 @@ class AgentTurnRecorder {
     const userPrompt = payload.event === 'UserPromptSubmit' && hasText(payload.message)
     const sourceEventId = eventId
 
+    if (!await this.isCurrent(epoch)) return
     const [observation] = await knowledgeCaptureInbox.submit([{ input: {
       workspaceId: terminal.workspaceId,
       workspacePath: terminal.cwd,
@@ -306,7 +276,7 @@ class AgentTurnRecorder {
         ? redactHighConfidenceSecrets(payload.message).text
         : `${terminal.engine} terminal task started`,
       summary: `${terminal.engine} terminal task started`,
-      tags: ['terminal-hook', 'turn-started', terminal.engine],
+      tags: ['terminal-hook', resume && activeTurn ? 'turn-input' : 'turn-started', terminal.engine],
       actor: userPrompt ? 'user' : terminal.engine,
       correlationId: turn.id,
       sessionId: payload.sessionId,
@@ -318,17 +288,19 @@ class AgentTurnRecorder {
         sessionId: payload.sessionId,
         startedAt,
       },
-    }, context: { speaker: userPrompt ? 'user' : 'unknown', sourceEventId, createdAt: startedAt } }])
-    if (!observation) return
-    turn.observationId = observation.id
+    }, context: { speaker: userPrompt ? 'user' : 'unknown', sourceEventId, createdAt: startedAt } }], () => this.isCurrent(epoch))
+    if (!observation || !await this.isCurrent(epoch)) return
+    turn.observationId ??= observation.id
     this.emitCaptured(payload, terminal, observation.id)
   }
 
   private async recordAttention(
     payload: AgentHookPayload,
     terminal: TerminalContext,
+    epoch: number,
   ): Promise<void> {
     const activeTurn = this.activeTurns.get(terminal.terminalId)
+    if (!await this.isCurrent(epoch)) return
     const [observation] = await knowledgeCaptureInbox.submit([{ input: {
       workspaceId: terminal.workspaceId,
       workspacePath: terminal.cwd,
@@ -347,15 +319,17 @@ class AgentTurnRecorder {
         hookEvent: payload.event,
         sessionId: payload.sessionId,
       },
-    }, context: { speaker: 'system', sourceEventId: this.eventId(payload) } }])
-    if (observation) this.emitCaptured(payload, terminal, observation.id)
+    }, context: { speaker: 'system', sourceEventId: this.eventId(payload) } }], () => this.isCurrent(epoch))
+    if (observation && await this.isCurrent(epoch)) this.emitCaptured(payload, terminal, observation.id)
   }
 
   private async recordEnd(
     payload: AgentHookPayload,
     terminal: TerminalContext,
-    failed: boolean,
+    kind: AgentHookCompletionKind,
+    epoch: number,
   ): Promise<void> {
+    const failed = kind === 'failed'
     let activeTurn = this.activeTurns.get(terminal.terminalId)
     if (payload.sessionId && activeTurn?.sessionId !== payload.sessionId) activeTurn = undefined
     if (!activeTurn && payload.sessionId) {
@@ -364,7 +338,7 @@ class AgentTurnRecorder {
       const eventId = this.eventId(payload)
       const replay = sessionRows.find(row => row.sourceEvidence?.sourceEventId === `${eventId}:transcript-complete`)
       if (replay) { this.emitCaptured(payload, terminal, replay.id); return }
-      const closed = new Set(sessionRows.filter(row => (row.tags.includes('turn-completed') || row.tags.includes('turn-failed'))
+      const closed = new Set(sessionRows.filter(row => (row.tags.includes('turn-completed') || row.tags.includes('turn-failed') || row.tags.includes('turn-interrupted'))
         && ![eventId, `${eventId}:transcript-pending`].includes(row.sourceEvidence?.sourceEventId ?? '')).map(row => row.correlationId))
       const starts = sessionRows.filter(row => row.tags.includes('turn-started') && !closed.has(row.correlationId)
         && Date.parse(row.createdAt) <= (timestampToMs(payload.timestamp) ?? Date.now()))
@@ -388,11 +362,9 @@ class AgentTurnRecorder {
       workspacePath: terminal.cwd,
       source: 'agent-stream',
       type: 'system-event',
-      content: failed ? 'Terminal turn failed' : 'Terminal turn completed',
-      summary: failed
-        ? `${terminal.engine} terminal task failed`
-        : `${terminal.engine} terminal task completed`,
-      tags: ['terminal-hook', failed ? 'turn-failed' : 'turn-completed', terminal.engine],
+      content: `Terminal turn ${kind === 'done' ? 'completed' : kind}`,
+      summary: `${terminal.engine} terminal task ${kind === 'done' ? 'completed' : kind}`,
+      tags: ['terminal-hook', failed ? 'turn-failed' : kind === 'interrupted' ? 'turn-interrupted' : 'turn-completed', terminal.engine],
       actor: terminal.engine,
       correlationId,
       sessionId: payload.sessionId ?? activeTurn?.sessionId,
@@ -406,16 +378,18 @@ class AgentTurnRecorder {
         endedAt: new Date(endedAtMs).toISOString(),
         durationMs,
         failed,
+        completionKind: kind,
         prompt: activeTurn?.prompt,
         evidenceStatus: failed ? 'turn-failed' : 'transcript-path-unavailable',
       },
     }, context: { speaker: 'unknown', sourceEventId: this.eventId(payload), createdAt: new Date(endedAtMs).toISOString(),
       relatedObservationIds: activeTurn?.observationId ? [activeTurn.observationId] : undefined } }
-    if (!(await this.isEnabled())) return
-    const observations = !failed && typeof transcriptPath === 'string'
-      ? await knowledgeTranscriptRecovery.submit({ end, path: transcriptPath, engine: terminal.engine, prompt: activeTurn?.prompt }, () => this.isEnabled())
-      : await knowledgeCaptureInbox.submit([end])
+    if (!await this.isCurrent(epoch)) return
+    const observations = kind === 'done' && typeof transcriptPath === 'string'
+      ? await knowledgeTranscriptRecovery.submit({ end, path: transcriptPath, engine: terminal.engine, prompt: activeTurn?.prompt }, () => this.isCurrent(epoch))
+      : await knowledgeCaptureInbox.submit([end], () => this.isCurrent(epoch))
     const observation = observations[observations.length - 1]!
+    if (!await this.isCurrent(epoch)) return
     this.activeTurns.delete(terminal.terminalId)
     if (!observation) return // A revoked parent cancels the persisted reread.
     // Phase 5 (§6 gap close): the turn ended — bypass the capture debounce so

@@ -18,8 +18,8 @@ import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import type { SubAgentRunEngine } from '../../shared/subAgentRun'
 import { AgentHookBridge } from '../notifications/agent-hook-bridge'
 import { AgentHookConfigManager } from '../notifications/agent-hook-config'
-import { AgentHookCoordinator, getHookMatcher, getRawString } from '../notifications/agent-hook-coordinator'
-import { AGENT_ENGINE_CAPABILITIES, matchesEngineEvents } from '../notifications/agent-engine-capabilities'
+import { AgentHookCoordinator, getRawString } from '../notifications/agent-hook-coordinator'
+import { AGENT_ENGINE_CAPABILITIES } from '../notifications/agent-engine-capabilities'
 import { AgentTurnSentinel } from '../notifications/agent-turn-sentinel'
 import {
   JANUSX_SYNTHETIC_HOOK_EVENTS,
@@ -87,32 +87,6 @@ interface TerminalCpState {
 }
 
 const terminalStates = new Map<string, TerminalCpState>()
-
-function getHookRawMatcher(payload: AgentHookPayload): string | undefined {
-  // Top-level payload.matcher is authoritative (hook argv --matcher/-Matcher);
-  // raw is the fallback. Must stay aligned with the coordinator's
-  // getHookMatcher so sidebar status and desktop toasts never diverge.
-  return getHookMatcher(payload)
-}
-
-function isHookApprovalRequest(payload: AgentHookPayload, lowerEvent: string): boolean {
-  const approvals = AGENT_ENGINE_CAPABILITIES[payload.source].approval
-  if (payload.source === 'opencode') {
-    return approvals.some((name) => name.toLowerCase() === lowerEvent)
-  }
-  if (approvals.some((name) => name.toLowerCase() === lowerEvent)) return true
-  if (lowerEvent !== 'notification') return false
-  return getHookRawMatcher(payload) === 'permission_prompt'
-}
-
-function isHookInputRequest(payload: AgentHookPayload, lowerEvent: string): boolean {
-  if (payload.source === 'opencode') {
-    return matchesEngineEvents('opencode', 'attention', payload.event) &&
-      !matchesEngineEvents('opencode', 'approval', payload.event)
-  }
-  if (lowerEvent !== 'notification') return false
-  return getHookRawMatcher(payload) !== 'permission_prompt'
-}
 
 let companionTerminalCreator: ((config: TerminalCreateRequest) => Promise<{ pid: number }>) | null = null
 
@@ -410,31 +384,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       detail: event.observationId ?? event.workspacePath,
     })
   })
-  const refreshRuntimeTelemetry = async (
-    terminalId: string,
-    engine: Exclude<CheckpointEngine, 'shell' | 'manual'>,
-    cwd: string,
-    sessionId?: string,
-  ) => {
-    const instance = terminalManager.getInstance(terminalId)
-    if (!instance) return
-    terminalContextCoordinator.trackTerminal(terminalId, engine, cwd)
-    if (sessionId) terminalContextCoordinator.bindSession(terminalId, engine, sessionId)
-    const telemetry = await terminalContextCoordinator.getSnapshot({
-      terminalId,
-      preset: engine,
-      cwd,
-      startedAt: instance.createdAt,
-      sessionId,
-    })
-    if (telemetry) {
-      sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.telemetry, {
-        id: terminalId,
-        telemetry,
-      })
-    }
-  }
-
   // Single ingest point for CLI-origin (bridge) and main-process synthetic
   // (sentinel / pty-exit) hook payloads: identical diagnostics + coordinator path.
   function ingestHookPayload(payload: AgentHookPayload): void {
@@ -490,22 +439,26 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     onTurnEnded: (terminalId) => {
       turnSentinel.endTurn(terminalId)
     },
-    onResolvedPayload: async (payload, terminal) => {
+    onResolvedPayload: async (payload, terminal, semantic) => {
       const state = terminalStates.get(terminal.terminalId)
       const event = payload.event.toLowerCase()
-      const syntheticFails =
-        event === JANUSX_SYNTHETIC_HOOK_EVENTS.apiError || event === JANUSX_SYNTHETIC_HOOK_EVENTS.orphaned
-      const syntheticCompletes =
-        event === JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted || event === 'sessionend'
-      const startsTurn = matchesEngineEvents(payload.source, 'start', payload.event, payload.raw)
-      const completesTurn = syntheticCompletes || (payload.source === 'opencode'
-        ? event === 'session.idle'
-        : event === 'stop')
-      const failsTurn = syntheticFails || (payload.source === 'opencode'
-        ? event === 'session.error'
-        : event === 'stopfailure' || event === 'posttoolusefailure')
-      const needsApproval = isHookApprovalRequest(payload, event)
-      const needsInput = !needsApproval && isHookInputRequest(payload, event)
+      const startsTurn = semantic.type === 'turn-start'
+      const completesTurn = semantic.type === 'session-close' && semantic.interruptedTurn === true || semantic.type === 'turn-end' && semantic.kind !== 'failed'
+      const failsTurn = semantic.type === 'turn-end' && semantic.kind === 'failed'
+      const needsApproval = semantic.type === 'waiting-user' && semantic.kind === 'approval'
+      const needsInput = semantic.type === 'waiting-user' && semantic.kind === 'input'
+      if (payload.sessionId) agentSessionRegistry.noteProviderSession(terminal.terminalId, payload.sessionId,
+        getRawString(payload.raw, ['transcript_path', 'transcriptPath']))
+      companionSessionState.handleLifecycle(terminal.terminalId, semantic)
+      // Keep habit content out of the capture branch entirely while disabled.
+      void (async () => {
+        if (!await agentTurnRecorder.isCaptureEnabled()) return
+        await agentTurnRecorder.handleHookPayload({ ...payload, raw: {
+          ...(payload.raw && typeof payload.raw === 'object' ? payload.raw : {}),
+          transcriptPath: getRawString(payload.raw, ['transcript_path', 'transcriptPath'])
+            ?? agentSessionRegistry.transcriptPathForTerminal(terminal.terminalId),
+        } }, semantic)
+      })().catch(error => console.warn('[hook] habit capture failed:', error))
       if (state && (startsTurn || completesTurn || failsTurn || needsApproval || needsInput)) {
         if (startsTurn) serviceErrorDetectors.get(terminal.terminalId)?.reset()
         // Turn 级失败（429 限流 / 5xx 过载 / StopFailure / session.error）时 CLI
@@ -530,7 +483,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       if (state && (completesTurn || failsTurn)) {
         const kind = failsTurn
           ? 'failed'
-          : event === JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted || event === 'sessionend'
+          : semantic.type === 'session-close' || semantic.type === 'turn-end' && semantic.kind === 'interrupted'
             ? 'interrupted'
             : 'done'
         const baselineId = state.checkpointId ?? undefined
@@ -545,6 +498,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         if (openTurn) {
           // Answer prose resolves per engine capability (hook raw first,
           // session record second). Failures yield undefined and never block.
+          const attachExcerpt = agentSessionRegistry.recordTurnEnd(terminal.terminalId, kind, baselineId)
           const excerpt = await readAssistantExcerpt({
             transcriptPath:
               getRawString(payload.raw, ['transcript_path', 'transcriptPath']) ??
@@ -556,35 +510,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             cwd: state.cwd,
             engine: terminal.engine,
           })
-          agentSessionRegistry.recordTurnEnd(terminal.terminalId, kind, baselineId, excerpt)
+          attachExcerpt?.(excerpt)
         }
       }
-      companionSessionState.handleHookPayload(payload)
-      await agentTurnRecorder.handleHookPayload({ ...payload, raw: {
-        ...(payload.raw && typeof payload.raw === 'object' ? payload.raw : {}),
-        transcriptPath: getRawString(payload.raw, ['transcript_path', 'transcriptPath'])
-          ?? agentSessionRegistry.transcriptPathForTerminal(terminal.terminalId),
-      } })
-      if (payload.sessionId) {
-        agentSessionRegistry.noteProviderSession(terminal.terminalId, payload.sessionId)
-        const refresh = () => refreshRuntimeTelemetry(
-          terminal.terminalId,
-          terminal.engine as Exclude<CheckpointEngine, 'shell' | 'manual'>,
-          terminal.cwd ?? payload.cwd ?? '',
-          payload.sessionId,
-        ).catch(() => undefined)
-        void refresh()
-      }
-      if (/stop|complete|idle|janusx\.turn\./i.test(payload.event)) {
-        const refresh = () => refreshRuntimeTelemetry(
-          terminal.terminalId,
-          terminal.engine as Exclude<CheckpointEngine, 'shell' | 'manual'>,
-          terminal.cwd ?? payload.cwd ?? '',
-          payload.sessionId,
-        ).catch(() => undefined)
-        void refresh()
-        setTimeout(() => { void refresh() }, 750)
-      }
+
     },
   })
   const hookBridge = new AgentHookBridge({
@@ -602,7 +531,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   ): Promise<void> {
     const key = engine === 'claude' ? manager.getClaudeSettingsPath()
       : engine === 'codex' ? manager.getCodexHooksPath() : engine
-    if (hooksInstalledThisSession.has(key) && await manager.isInstalled(engine)) return
+    if (hooksInstalledThisSession.has(key)) return
     await manager.ensureInstalled(engine)
     hooksInstalledThisSession.add(key)
   }
@@ -745,8 +674,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     const workspaceId = typeof config.workspaceId === 'string' ? config.workspaceId : ''
     const engine: CheckpointEngine =
       isTerminalPreset(preset) && preset !== 'shell' ? preset : 'shell'
-    const launchHookManager = recoveryEnv?.claudeConfigDir || recoveryEnv?.codexHome
-      ? new AgentHookConfigManager(recoveryEnv) : hookConfigManager
+    const launchHookManager = hookConfigManager
 
     // AC6: per-id creation lock. Concurrent terminal:create with the same id
     // (e.g. double-click preset, retry during launch) is rejected so the
@@ -844,24 +772,30 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       return launchProgram
     })()
 
-    let recoveryHookError: Error | undefined
+    let hookLaunchArgs: string[] = []
     const hookEnvPromise = (async (): Promise<Record<string, string> | undefined> => {
       // shell spawns no agent and needs no hook env.
       if (engine === 'shell') return undefined
       try {
         await hookBridge.start()
         await ensureHooksInstalled(engine, launchHookManager)
+        const program = await resolveProgramPromise
+        if (engine === 'codex' && program && 'command' in program) await launchHookManager.checkCodexLaunchVersion(program.command)
+        const openCodeMajor = engine === 'opencode' && program && 'command' in program
+          ? await launchHookManager.getOpenCodeMajor(program.command) : undefined
+        hookLaunchArgs = await launchHookManager.getLaunchArgs(engine, openCodeMajor)
         return launchHookManager.buildTerminalEnv(
           {
             terminalId: id,
             workspaceId,
             engine,
+            openCodeMajor,
           },
           hookBridge.getEnv(),
         )
       } catch (err) {
+        hookLaunchArgs = []
         const message = err instanceof Error ? err.message : String(err)
-        if (recoveryEnv) recoveryHookError = new Error(`Session recovery hook setup failed: ${message}`)
         console.error('Agent hook setup failed:', err)
         const event = {
           type: 'ignored',
@@ -886,20 +820,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     const launchProgramError = resolvedProgram && 'error' in resolvedProgram ? resolvedProgram.error : undefined
     const launchProgramResolved = resolvedProgram && 'command' in resolvedProgram ? resolvedProgram : undefined
 
-    // pi loads the JanusX-owned notify extension via CLI flag, never via the
-    // user's pi settings. Missing file (setup failed) launches bare pi: status
-    // stays wait, exactly the pre-hook behavior.
-    const piExtensionArgs: string[] = []
-    if (engine === 'pi') {
-      try {
-        if (await hookConfigManager.isInstalled('pi')) {
-          piExtensionArgs.push('--extension', hookConfigManager.getPiExtensionPath())
-        }
-      } catch {
-        // Best effort: launch bare pi below.
-      }
-    }
-    const programArgs = [...(launchProgramResolved?.args ?? []), ...piExtensionArgs, ...(extraArgs ?? [])]
+    const programArgs = [...(launchProgramResolved?.args ?? []), ...hookLaunchArgs, ...(extraArgs ?? [])]
     const preparationMs = Math.round(performance.now() - launchStartedAt)
 
     logTerminalDiagnostic('terminal create requested', {
@@ -916,7 +837,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     let instance
     try {
       if (launchProgramError) throw new Error(launchProgramError)
-      if (recoveryHookError) throw recoveryHookError
       const baselineStartedAt = performance.now()
       if (engine !== 'shell') await turnChangeTracker.register(id, cwd)
       const baselineMs = Math.round(performance.now() - baselineStartedAt)

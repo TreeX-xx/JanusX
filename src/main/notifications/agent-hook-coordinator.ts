@@ -1,3 +1,5 @@
+import { getHookMatcher, normalizeHookLifecycle } from './agent-hook-lifecycle'
+export { getHookMatcher } from './agent-hook-lifecycle'
 import type { BrowserWindow } from 'electron'
 import { TERMINAL_EVENT_CHANNELS } from '../../shared/ipc/terminal'
 import type { AgentEngine } from '../janus-runner/types'
@@ -6,7 +8,7 @@ import { remoteNotificationDispatcher } from '../remote-notifications/dispatcher
 import type { RemoteNotificationType } from '../remote-notifications/types'
 import { notifyAgentAttention, notifyAgentEvent } from './agent-notifier'
 import {
-  JANUSX_SYNTHETIC_HOOK_EVENTS,
+  type AgentHookSemantic,
   type AgentHookCompletion,
   type AgentHookCompletionKind,
   type AgentHookCoordinatorEvent,
@@ -15,7 +17,7 @@ import {
   type AgentHookTurnStart,
   type RegisteredHookTerminal,
 } from './agent-hook-types'
-import { matchesEngineEvents, normalizeHookEventName } from './agent-engine-capabilities'
+import { normalizeHookEventName } from './agent-engine-capabilities'
 
 interface ActiveHookTurn {
   id: string
@@ -25,6 +27,7 @@ interface ActiveHookTurn {
   startedAtMs: number
   sessionId?: string
   transcriptPath?: string
+  waiting?: boolean
 }
 
 interface AgentHookCoordinatorOptions {
@@ -32,7 +35,7 @@ interface AgentHookCoordinatorOptions {
   deliverCompletion?: (completion: AgentHookCompletion) => Promise<boolean> | boolean
   deliverAttention?: (payload: AgentHookPayload, terminal: RegisteredHookTerminal) => Promise<boolean> | boolean
   onEvent?: (event: AgentHookCoordinatorEvent) => void
-  onResolvedPayload?: (payload: AgentHookPayload, terminal: RegisteredHookTerminal) => void
+  onResolvedPayload?: (payload: AgentHookPayload, terminal: RegisteredHookTerminal, semantic: AgentHookSemantic) => void | Promise<void>
   onTurnStarted?: (turn: AgentHookTurnStart) => void
   onTurnEnded?: (terminalId: string) => void
 }
@@ -41,12 +44,6 @@ interface TerminalResolution {
   terminal: RegisteredHookTerminal | null
   reason?: string
 }
-
-const SYNTHETIC_FAILURE_EVENTS = new Set<string>([
-  JANUSX_SYNTHETIC_HOOK_EVENTS.apiError,
-  JANUSX_SYNTHETIC_HOOK_EVENTS.orphaned,
-])
-const INTERRUPT_EVENTS = new Set<string>([JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted, 'SessionEnd'])
 
 function toIsoString(timestampMs: number): string {
   return new Date(timestampMs).toISOString()
@@ -57,101 +54,15 @@ function normalizePathForMatch(value?: string): string | undefined {
   return normalized || undefined
 }
 
-export function getHookMatcher(payload: AgentHookPayload): string | undefined {
-  if (payload.matcher?.trim()) return payload.matcher.trim()
-  const raw = payload.raw
-  if (!raw || typeof raw !== 'object') return undefined
-  const record = raw as Record<string, unknown>
-  const matcher = record.matcher ?? record.notification_type ?? record.type
-  return typeof matcher === 'string' && matcher.trim() ? matcher.trim() : undefined
-}
-
-// Note: Claude idle_prompt is a 60s-idle nudge, not a question — see .agents/notes/terminal/terminal-status-display.md
-function isIdlePromptNotification(payload: AgentHookPayload): boolean {
-  if (payload.source === 'opencode' || payload.event !== 'Notification') return false
-  return getHookMatcher(payload) === 'idle_prompt'
-}
-
-function isHookAttentionNotification(payload: AgentHookPayload): boolean {
-  // Any non-opencode Notification means the CLI is waiting (approval or option
-  // input). Matcher only decides which one; the toast fires either way so the
-  // desktop reminder stays wired to the terminal needs-input/needs-approval
-  // status. Top-level payload.matcher is authoritative (hook argv), raw is the
-  // fallback — real hook clients send the matcher top-level, not in raw.
-  if (payload.event !== 'Notification') return false
-  if (payload.source === 'opencode') return false
-  return true
-}
-
-function isStartEvent(payload: AgentHookPayload): boolean {
-  return matchesEngineEvents(payload.source, 'start', payload.event, payload.raw)
-}
-
-function isCompletionEvent(payload: AgentHookPayload): boolean {
-  return matchesEngineEvents(payload.source, 'complete', payload.event, payload.raw)
-}
-
-function isFailureEvent(payload: AgentHookPayload): boolean {
-  if (SYNTHETIC_FAILURE_EVENTS.has(payload.event)) return true
-  return matchesEngineEvents(payload.source, 'fail', payload.event, payload.raw)
-}
-
-function isInterruptEvent(payload: AgentHookPayload): boolean {
-  return INTERRUPT_EVENTS.has(payload.event)
-}
-
-/**
- * Synthetic turn-end signals and SessionEnd are reconciliation sources: they
- * only close a turn that is actually open. The first end signal to arrive wins;
- * later ones are dropped so multiple sources can never double-notify. Real
- * CLI completion hooks (Stop/session.idle) keep their fallback delivery even
- * without a tracked turn — if one arrives after a sentinel abort, the sentinel
- * was wrong and the late completion is the correction.
- */
-function requiresActiveTurn(payload: AgentHookPayload): boolean {
-  return SYNTHETIC_FAILURE_EVENTS.has(payload.event) || INTERRUPT_EVENTS.has(payload.event)
-}
-
-function resolveTurnEndKind(payload: AgentHookPayload): AgentHookCompletionKind | null {
-  if (isInterruptEvent(payload)) return 'interrupted'
-  if (isFailureEvent(payload)) return 'failed'
-  if (isCompletionEvent(payload)) return 'done'
-  return null
+function isApprovalEvent(payload: AgentHookPayload): boolean {
+  const semantic = normalizeHookLifecycle(payload)
+  return semantic?.type === 'waiting-user' && semantic.kind === 'approval'
 }
 
 export function getRawString(raw: unknown, keys: string[]): string | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const record = raw as Record<string, unknown>
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'string' && value.trim()) return value
-  }
-  return undefined
-}
-
-function isAttentionEvent(payload: AgentHookPayload): boolean {
-  // opencode never consults the matcher contract; native sources layer it on.
-  if (payload.source === 'opencode') {
-    return matchesEngineEvents(payload.source, 'attention', payload.event, payload.raw)
-  }
-  return (
-    matchesEngineEvents(payload.source, 'approval', payload.event, payload.raw) ||
-    isHookAttentionNotification(payload)
-  )
-}
-
-function isApprovalEvent(payload: AgentHookPayload): boolean {
-  // Engine-agnostic by design: either approval literal qualifies everywhere.
-  // Notification + permission_prompt is also an approval wait (terminal shows
-  // needs-approval for it), so remote severity and coordinator event type stay
-  // aligned with the sidebar instead of downgrading to plain attention.
-  if (
-    matchesEngineEvents(payload.source, 'approval', payload.event, payload.raw) ||
-    payload.event === 'permission.asked'
-  ) {
-    return true
-  }
-  return payload.event === 'Notification' && getHookMatcher(payload) === 'permission_prompt'
+  return keys.map(key => record[key]).find((value): value is string => typeof value === 'string' && Boolean(value.trim()))
 }
 
 function buildAttentionRemoteEventId(
@@ -175,11 +86,13 @@ export class AgentHookCoordinator {
   private readonly terminals = new Map<string, RegisteredHookTerminal>()
   private readonly activeTurns = new Map<string, ActiveHookTurn>()
   private readonly syntheticTurnEnds = new Set<string>()
+  private readonly sessions = new Map<string, string>()
+  private readonly latestEventAt = new Map<string, number>()
   private readonly now: () => number
   private readonly deliverCompletion: (completion: AgentHookCompletion) => Promise<boolean> | boolean
   private readonly deliverAttention: (payload: AgentHookPayload, terminal: RegisteredHookTerminal) => Promise<boolean> | boolean
   private readonly onEvent?: (event: AgentHookCoordinatorEvent) => void
-  private readonly onResolvedPayload?: (payload: AgentHookPayload, terminal: RegisteredHookTerminal) => void
+  private readonly onResolvedPayload?: (payload: AgentHookPayload, terminal: RegisteredHookTerminal, semantic: AgentHookSemantic) => void | Promise<void>
   private readonly onTurnStarted?: (turn: AgentHookTurnStart) => void
   private readonly onTurnEnded?: (terminalId: string) => void
 
@@ -202,6 +115,8 @@ export class AgentHookCoordinator {
 
   unregisterTerminal(terminalId: string): void {
     this.terminals.delete(terminalId)
+    this.sessions.delete(terminalId)
+    this.latestEventAt.delete(terminalId)
     this.syntheticTurnEnds.delete(terminalId)
     if (this.activeTurns.delete(terminalId)) {
       this.onTurnEnded?.(terminalId)
@@ -214,6 +129,8 @@ export class AgentHookCoordinator {
 
   dispose(): void {
     this.terminals.clear()
+    this.sessions.clear()
+    this.latestEventAt.clear()
     this.syntheticTurnEnds.clear()
     for (const terminalId of [...this.activeTurns.keys()]) {
       this.activeTurns.delete(terminalId)
@@ -254,89 +171,63 @@ export class AgentHookCoordinator {
       cwd: payload.cwd ?? terminal.cwd,
     }
 
-    const turnEndKind = resolveTurnEndKind(normalizedPayload)
-    if (
-      turnEndKind &&
-      !requiresActiveTurn(normalizedPayload) &&
-      !this.activeTurns.has(terminal.terminalId) &&
-      this.syntheticTurnEnds.has(terminal.terminalId)
-    ) {
-      this.emit({
-        type: 'ignored',
-        terminalId: terminal.terminalId,
-        engine: terminal.engine,
-        source: normalizedPayload.source,
-        hookEvent: normalizedPayload.event,
-        reason: 'turn-already-ended',
-        delivered: false,
-      })
+    const semantic = normalizeHookLifecycle(normalizedPayload)
+    if (!semantic) return
+    const id = terminal.terminalId
+    const active = this.activeTurns.get(id)
+    const eventAt = payload.timestamp ? Date.parse(payload.timestamp) : NaN
+    const previousAt = this.latestEventAt.get(id)
+    const stale = Number.isFinite(eventAt) && previousAt !== undefined && eventAt < previousAt
+    const wrongSession = payload.sessionId && this.sessions.has(id) && payload.sessionId !== this.sessions.get(id)
+      && (Boolean(active) || semantic.type !== 'session-update' && semantic.type !== 'turn-start')
+    const duplicateEnd = semantic.type === 'turn-end' && !active && this.syntheticTurnEnds.has(id)
+    const lateIdle = payload.source === 'claude' && payload.event === 'Notification'
+      && getHookMatcher(payload) === 'idle_prompt' && !active
+    if (stale || wrongSession || duplicateEnd || lateIdle) {
+      this.emit({ type: 'ignored', terminalId: id, engine: terminal.engine, source: payload.source,
+        hookEvent: normalizedEvent, reason: stale ? 'stale-event' : wrongSession ? 'session-mismatch' : lateIdle ? 'idle-without-active-turn' : 'turn-already-ended', delivered: false })
       return
     }
-    // Post-completion idle nudges carry no question: Claude fires idle_prompt
-    // ~60s after a finished response, after Stop has already closed the turn
-    // and settled the tab to wait. Dropping them before onResolvedPayload keeps
-    // the tab grey; a mid-turn idle (real AskUserQuestion wait) still has its
-    // turn open and flows to attention below. permission_prompt stays ungated
-    // so a true approval never depends on turn tracking.
-    if (
-      normalizedPayload.source === 'claude' &&
-      isIdlePromptNotification(normalizedPayload) &&
-      !this.activeTurns.has(terminal.terminalId)
-    ) {
-      this.emit({
-        type: 'ignored',
-        terminalId: terminal.terminalId,
-        engine: terminal.engine,
-        source: normalizedPayload.source,
-        hookEvent: normalizedPayload.event,
-        reason: 'idle-without-active-turn',
-        delivered: false,
-      })
-      return
-    }
-    this.onResolvedPayload?.(normalizedPayload, terminal)
-
-    if (isStartEvent(normalizedPayload)) {
-      this.startTurn(normalizedPayload, terminal)
-      return
-    }
-
-    if (isAttentionEvent(normalizedPayload)) {
+    if (semantic.type === 'turn-start') {
+      if (!active && semantic.resume) return
+      if (active && !active.waiting) return // busy/status repeats never create a second turn.
+      if (active) { active.waiting = false; semantic.resume = true }
+      else this.startTurn(normalizedPayload, terminal)
+    } else if (semantic.type === 'waiting-user') {
+      if (active) active.waiting = true
       this.notifyAttention(normalizedPayload, terminal)
-      return
-    }
-
-    if (turnEndKind) {
-      if (requiresActiveTurn(normalizedPayload) && !this.activeTurns.has(terminal.terminalId)) {
-        this.emit({
-          type: 'ignored',
-          terminalId: terminal.terminalId,
-          engine: terminal.engine,
-          source: normalizedPayload.source,
-          hookEvent: normalizedPayload.event,
-          reason: 'no-active-turn',
-          delivered: false,
-        })
+    } else if (semantic.type === 'turn-end') {
+      if (!active && normalizedEvent.startsWith('janusx.turn.')) {
+        this.emit({ type: 'ignored', terminalId: id, engine: terminal.engine, source: payload.source,
+          hookEvent: normalizedEvent, reason: 'no-active-turn', delivered: false })
         return
       }
-      this.completeTurn(normalizedPayload, terminal, turnEndKind)
-      return
+      this.completeTurn(normalizedPayload, terminal, semantic.kind)
+    } else if (semantic.type === 'session-close') {
+      if (active) {
+        semantic.interruptedTurn = true
+        this.completeTurn(normalizedPayload, terminal, 'interrupted')
+      }
+      else this.emit({ type: 'ignored', terminalId: id, engine: terminal.engine, source: payload.source,
+        hookEvent: normalizedEvent, reason: 'no-active-turn', delivered: false })
+      this.syntheticTurnEnds.add(id)
     }
-
-    this.emit({
-      type: 'ignored',
-      terminalId: terminal.terminalId,
-      engine: terminal.engine,
-      source: normalizedPayload.source,
-      hookEvent: normalizedPayload.event,
-      reason: 'unsupported-hook-event',
-    })
+    if (Number.isFinite(eventAt)) this.latestEventAt.set(id, eventAt)
+    if (payload.sessionId) this.sessions.set(id, payload.sessionId)
+    // The boundary is committed synchronously. Slow history/capture consumers
+    // cannot make a duplicate end pass validation or block another terminal.
+    try {
+      void Promise.resolve(this.onResolvedPayload?.(normalizedPayload, terminal, semantic)).catch(error => {
+        console.warn('[hook] lifecycle consumer failed:', error)
+      })
+    } catch (error) { console.warn('[hook] lifecycle consumer failed:', error) }
   }
 
   private resolveTerminal(payload: AgentHookPayload): TerminalResolution {
     if (payload.terminalId) {
       const terminal = this.terminals.get(payload.terminalId)
-      if (terminal) return { terminal }
+      return terminal?.engine === payload.source
+        ? { terminal } : { terminal: null, reason: terminal ? 'engine-mismatch' : 'terminal-id-stale' }
     }
 
     const sameEngine = Array.from(this.terminals.values()).filter(
@@ -351,19 +242,13 @@ export class AgentHookCoordinator {
 
     const workspaceMatches = payload.workspaceId
       ? sameEngine.filter((terminal) => terminal.workspaceId === payload.workspaceId)
-      : []
-    if (workspaceMatches.length === 1) return { terminal: workspaceMatches[0] }
-
+      : sameEngine
     const payloadCwd = normalizePathForMatch(payload.cwd)
-    const cwdSource = workspaceMatches.length > 0 ? workspaceMatches : sameEngine
+    const cwdSource = workspaceMatches
     const cwdMatches = payloadCwd
       ? cwdSource.filter((terminal) => normalizePathForMatch(terminal.cwd) === payloadCwd)
-      : []
+      : cwdSource
     if (cwdMatches.length === 1) return { terminal: cwdMatches[0] }
-
-    if (sameEngine.length === 1) {
-      return { terminal: sameEngine[0] }
-    }
 
     if (payload.workspaceId && workspaceMatches.length > 1) {
       return { terminal: null, reason: 'multiple-workspace-engine-terminals' }
@@ -442,9 +327,7 @@ export class AgentHookCoordinator {
     kind: AgentHookCompletionKind,
   ): void {
     const activeTurn = this.activeTurns.get(terminal.terminalId)
-    if (requiresActiveTurn(payload)) {
-      this.syntheticTurnEnds.add(terminal.terminalId)
-    }
+    this.syntheticTurnEnds.add(terminal.terminalId)
     const endedAtMs = this.now()
     const completion: AgentHookCompletion = {
       turnId: activeTurn?.id ?? `${terminal.terminalId}:${endedAtMs}`,

@@ -220,10 +220,10 @@ export class CliDetector {
     return locations
   }
 
-  async detect(): Promise<ExternalCliDetectResult> {
+  async detect(candidateOverride?: ResolvedCliBinary): Promise<ExternalCliDetectResult> {
     const tool = this.tool
     const manualHint = tool.manualInstallCommand
-    const candidate = await this.findCandidate()
+    const candidate = candidateOverride ?? await this.findCandidate()
     if (!candidate) {
       return { toolId: this.toolId, installed: false, runnable: false, hint: manualHint }
     }

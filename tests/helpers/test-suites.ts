@@ -22,6 +22,7 @@ export const browserTestFiles = [
 // The list uses observed cost, not a filename rule that would hide new tests.
 export const integrationTestFiles = [
   'tests/unit/agent-hook-shell.test.ts',
+  'tests/unit/agent-hook-cli.test.ts',
   'tests/unit/blueprint-native.test.ts',
   'tests/unit/blueprint-review-engine.test.ts',
   'tests/unit/blueprint-review-git.test.ts',

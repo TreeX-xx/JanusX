@@ -7,7 +7,7 @@
   "created": "2026-10-14",
   "class": "architecture",
   "tags": ["telemetry", "usage-stats", "terminal", "session-files", "hooks"],
-  "updated": "2026-10-17T01:51:20.000Z",
+  "updated": "2026-10-29T11:24:13.898Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -42,7 +42,7 @@
 
 ## Consequences
 
-- hook 故障/未装/引擎升级改契约只影响归属精度，账本不受影响；终端统计的故障形态从"全空"变为"降级并标注"。
+- hook 故障/未装/引擎升级改契约不影响统计归属和账本，只影响非统计生命周期消费者；终端统计的故障形态从"全空"变为"降级并标注"。
 - 全局统计覆盖全部历史：Claude/Codex/Pi 和新导入的 OpenCode 会话按事件时间回放；已有累计基线会话保留原覆盖起点，不重放其历史。
 - 读放大需要基础设施：持久字节游标、64MB 单文件上限、启动扫描与低峰增量的调度；当前账本无持久游标，属新增件。
 - 同 workspace 并发归属依赖"诞生时刻单一性"，人类交互速度下成立；脚本并发场景退化 `estimated`。
@@ -57,14 +57,20 @@ Codex 事件模式的迁移政策：**一次性重放全历史**（数字最全�
 ## 实施状态
 
 - **L1 已落地**（2026-10-14）：`corpus-scan.ts` 全语料扫描（Claude projects、Codex sessions+archived_sessions、Pi 全局 sessionDir；OpenCode 为 sqlite 单库暂未枚举）；codex 事件模式 `collectCodexEvents`（身份=ordinal、时间=事件时间戳）；`readJsonlLinesWithCursor` 提供完整字节回游标，未变化文件只 stat 不读；coordinator 启动 20 秒后首扫、之后 5 分钟周期，零终端时仍运行；ledger 增模式锁与 `sessionState` 查询。
-- **L2 已落地**（2026-10-14）：`session-attribution.ts` 按"会话诞生/激活时刻"归属——候选必须位于该终端工作区（Claude project 键、Codex `session_meta.cwd`、Pi header `cwd`）且末次写入落在终端 pty 活跃窗口（15s）内；唯一候选才绑定，零或多个候选保持未绑定（显示未知，不猜）。pty 活跃度经 `noteTerminalActivity`（1 秒节流）采集；`bindSession` 增 `source` 字段，hook 断言优先且可把 correlated 升级为 exact；快照 `sessionBinding` 扩展为 `exact | correlated`，渲染层对两者同等接受（无绑定的 history 快照仍拒绝）。终端创建时立即跑一次归属通道，轮询每 15 秒兜底。
+- **L2 已落地**（2026-10-14）：`session-attribution.ts` 按"会话诞生/激活时刻"归属——候选必须位于该终端工作区（Claude project 键、Codex `session_meta.cwd`、Pi header `cwd`）且末次写入落在终端 pty 活跃窗口（15s）内；唯一候选才绑定，零或多个候选保持未绑定（显示未知，不猜）。pty 活跃度经 `noteTerminalActivity`（1 秒节流）采集；`bindSession` 仅保留 correlated 来源；P3 已移除 Hook 优先／升级路径，快照只标 correlated。终端创建及独立轮询继续执行归属，不依赖 Hook。
 - **L3 未实施**：每终端私有 home 暂缓，重启条件不变。
 
 2026-10-17 补齐 OpenCode：L1 全语料扫描读取 v1/v2 SQLite 消息用量并沿用原生身份去重，L2 使用同库工作区与会话活动时间关联 pty，唯一候选才绑定；旧累计模式不迁移。费用从既有账本与模型目录计算，不引入另一路采集。当前行为与 545 会话真实只读核验见[会话源单源化](./requirements/usage-telemetry-single-source.md)的 OpenCode 全历史与费用估算章节。
 
 ## Verification
 
-决策本身尚未实施；以下为决策依据的已完成实证（2026-10-14）：
+### 当前实现与纯后台边界的差距
+
+2026-10-29 P3 已完成残留清理：onResolvedPayload 不再调用 refreshRuntimeTelemetry、bindSession、getSnapshot 或 750ms 延迟刷新；规范化事件也不触发遥测。旧持久 Hook 来源及缺少 source 的绑定不加载为独立证据，等待 PTY／原生会话相关性归属；同一候选被多个终端认领时全部保持未知。状态、历史继续接收 sessionId，不回灌统计。原生全语料扫描、游标、记账模式锁和独立上下文轮询保留。
+
+定向回归验证 Hook 到达零额外遥测调用／定时任务、旧绑定拒绝、双终端歧义及无 Hook 的历史扫描、归属和记账；P3 实现与命令见[单次启动隔离](terminal-hook-launch-isolation.md#verification)。本节标题保留原锚点，所述差距已清除。
+
+以下为最初决策时的依据实证（2026-10-14）；后台能力的落地与残留耦合分别以上文实施状态及当前差距为准：
 
 - Codex hook stdin 编码实测：pty 起真实 TUI 捕获 payload，首字节 `FF FE`（UTF-16LE BOM）；同载荷按 UTF-8 解析失败。修复（BOM 探测解码）后，生成的脚本与部署的脚本均能正确解出 `sessionId`，用户便携版应用中的 codex 终端于 15:13:21 成功绑定（修复部署后首次 hook）。
 - Codex 事件模式等价性：本机会话 `rollout-2026-10-14T14-55-54-01a13932-*.jsonl`，13 个 `token_count` 事件 `last_token_usage.total_tokens` 之和 = 最终 `total_token_usage` = 774,721。
