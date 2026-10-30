@@ -1,5 +1,6 @@
 {
   "dataManagement": "Data management",
+  "retentionPolicy": "Retention and cleanup rules",
   "hooks": {
     "title": "Legacy Hook integration",
     "scope": "Remove verified JanusX Hook commands from your Claude and Codex settings, old Windows sender scripts and obsolete OpenCode additional configuration. User Hooks, sign-in, native sessions and Codex trust records are preserved. Unverified files are retained with a reason.",

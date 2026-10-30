@@ -38,13 +38,15 @@ export function WorkspaceDataPanel() {
   const [items, setItems] = useState<WorkspaceDataItem[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [sizes, setSizes] = useState<Record<string, number>>({})
   const [confirm, setConfirm] = useState<{ item: WorkspaceDataItem; category: WorkspaceCleanupCategory }>()
   const refresh = useCallback(async () => {
     try { setItems(await data()); setError('') }
     catch (failure) { setError(String(failure)) }
+    finally { setLoading(false) }
   }, [])
-  useEffect(() => { if (window.electron?.workspaceStorage?.data) void refresh() }, [refresh])
+  useEffect(() => { if (window.electron?.workspaceStorage?.data) void refresh(); else setLoading(false) }, [refresh])
   const action = async (operation: () => Promise<unknown>) => {
     if (busy) return
     setBusy(true); setError('')
@@ -53,13 +55,14 @@ export function WorkspaceDataPanel() {
     finally { setBusy(false) }
   }
   return <div className={styles.dataSection}>
-    <div className={styles.heading}><h4>{t('storage:maintenance.title')}</h4><button type="button" disabled={busy} onClick={() => { void action(refresh) }}>{t('storage:check')}</button></div>
-    <p className={styles.muted}>{t('storage:maintenance.policy')}</p>
+    <div className={styles.heading}><h4>{t('storage:maintenance.title')}</h4><button type="button" disabled={busy || loading} onClick={() => { void action(refresh) }}>{t('storage:check')}</button></div>
+    <details className={`${styles.details} ${styles.retention}`}><summary>{t('storage:retentionPolicy')}</summary><p className={styles.policy}>{t('storage:maintenance.policy')}</p></details>
     {error && <p role="alert">{error}</p>}
-    {!items.length && <p className={styles.muted}>{t('storage:maintenance.empty')}</p>}
+    {loading && <p className={styles.empty} role="status">{t('storage:checking')}</p>}
+    {!loading && !error && !items.length && <p className={styles.empty}>{t('storage:maintenance.empty')}</p>}
     {items.map(item => <article className={styles.dataItem} key={item.id}>
-      <div className={styles.heading}><strong>{item.name}</strong><span className={styles.muted} role="status">{t(`storage:maintenance.status.${item.status}`)}</span></div>
-      <code className={styles.path}>{item.path}</code>
+      <div className={styles.heading}><strong className={styles.workspaceName} title={item.name}>{item.name}</strong><span className={styles.status} data-status={item.status} title={t(`storage:maintenance.status.${item.status}`)} role="status">{t(`storage:maintenance.status.${item.status}`)}</span></div>
+      <code className={styles.path} dir="auto">{item.path}</code>
       {item.expiresAt && <p className={styles.muted}>{t('storage:maintenance.expires', { date: new Date(item.expiresAt).toLocaleDateString() })}</p>}
       {item.error && <p role="alert">{item.error}</p>}
       <div className={styles.actions}>

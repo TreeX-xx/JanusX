@@ -44,9 +44,14 @@ export function WorkspaceStoragePanel() {
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [busy, setBusy] = useState<string | null>(null)
+  const [migrationOpen, setMigrationOpen] = useState(false)
   const refresh = useCallback(async () => {
     setError('')
-    try { setView(await list()) } catch (failure) { setError(String(failure)) }
+    try {
+      const next = await list()
+      setView(next)
+      if (next.items.some(item => item.status !== 'new' && item.status !== 'migrated')) setMigrationOpen(true)
+    } catch (failure) { setError(String(failure)); setMigrationOpen(true) }
   }, [])
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
@@ -72,28 +77,36 @@ export function WorkspaceStoragePanel() {
     finally { setBusy(null) }
   }
   const candidates = view?.items.filter(canMigrate) ?? []
-  return <section className={styles.panel} id="workspace-data-migration" aria-label={t('storage:title')}>
+  return <section className={styles.panel} id="workspace-data-migration" aria-label={t('storage:dataManagement')}>
     <h3>{t('storage:dataManagement')}</h3>
     <WorkspaceDataPanel />
     <LegacyHooksCleanup />
-    <h4>{t('storage:title')}</h4>
-    <p>{t('storage:scope')}</p>
+    <details className={styles.maintenanceSection} open={migrationOpen} onToggle={event => setMigrationOpen(event.currentTarget.open)}>
+    <summary className={styles.sectionSummary}><span>{t('storage:title')}</span></summary>
+    <div className={styles.sectionBody}>
+    <p className={styles.muted}>{t('storage:scope')}</p>
     {view && <Location label={t('storage:destinationRoot')} path={view.root} />}
-    <p>{t('storage:cleanup')}</p><p>{t('storage:retention')}</p>
-    <p>{t('storage:closeTasks')}</p>
+    <div className={styles.policy}><p>{t('storage:cleanup')}</p><p>{t('storage:retention')}</p></div>
+    <p className={styles.muted}>{t('storage:closeTasks')}</p>
+    <div className={styles.toolbar}>
     <div className={styles.actions}>
       <button type="button" disabled={busy !== null} onClick={() => { void refresh() }}>{t('storage:check')}</button>
       <button type="button" disabled={busy !== null || !candidates.length} onClick={() => setSelected(candidates.map(item => item.id))}>{t('storage:selectAll')}</button>
+    </div>
+    <button type="button" className={styles.primary} disabled={busy !== null || !selected.length} onClick={() => { void migrate() }}>{t('storage:migrate')}</button>
     </div>
     {error && <p role="alert">{error}</p>}
     {!view && !error && <p role="status">{t('storage:checking')}</p>}
     {view && !candidates.length && <p>{t('storage:noPending')}</p>}
     {view?.items.map(item => <article key={item.id} className={styles.item}>
-      <label><input type="checkbox" disabled={busy !== null || !candidates.some(candidate => candidate.id === item.id)} checked={selected.includes(item.id)} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} /> {item.name}</label>
-      <strong role="status">{busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)}</strong>
-      <MigrationDetails item={item} />
+      <div className={styles.heading}><label className={styles.itemLabel}><input type="checkbox" disabled={busy !== null || !candidates.some(candidate => candidate.id === item.id)} checked={selected.includes(item.id)} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} /><span className={styles.workspaceName} title={item.name}>{item.name}</span></label>
+      <span className={styles.status} data-status={item.status} title={busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)} role="status">{busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)}</span></div>
+      <details className={styles.details} open={selected.includes(item.id) || busy === item.id || !!item.error}>
+        <summary>{t('storage:bulk.details')}</summary><MigrationDetails item={item} />
+      </details>
     </article>)}
-    <button type="button" className={styles.primary} disabled={busy !== null || !selected.length} onClick={() => { void migrate() }}>{t('storage:migrate')}</button>
+    </div>
+    </details>
   </section>
 }
 

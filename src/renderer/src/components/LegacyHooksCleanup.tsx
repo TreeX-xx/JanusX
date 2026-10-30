@@ -17,9 +17,10 @@ export function LegacyHooksCleanup() {
     catch (failure) { setError(String(failure)) }
     finally { setBusy(false) }
   }
-  return <div className={styles.dataSection}>
-    <h4>{t('storage:hooks.title')}</h4>
-    <p>{t('storage:hooks.scope')}</p>
+  return <details className={styles.maintenanceSection}>
+    <summary className={styles.sectionSummary}><span>{t('storage:hooks.title')}</span></summary>
+    <div className={styles.sectionBody}>
+    <p className={styles.muted}>{t('storage:hooks.scope')}</p>
     <button type="button" disabled={busy} onClick={() => setConfirm(true)}>{t('storage:hooks.action')}</button>
     {confirm && <div className={styles.confirm} role="group" aria-label={t('storage:hooks.confirmTitle')}>
       <p>{t('storage:hooks.closeTasks')}</p>
@@ -34,5 +35,6 @@ export function LegacyHooksCleanup() {
       {!!result.files.length && <details><summary>{t('storage:hooks.removed')}</summary>{result.files.map(path => <code key={path} className={styles.path}>{path}</code>)}</details>}
       {!!result.retained.length && <details open><summary>{t('storage:hooks.retained')}</summary>{result.retained.map((item, index) => <div key={index}><code className={styles.path}>{item.path}</code><p>{item.reason}</p></div>)}</details>}
     </div>}
-  </div>
+    </div>
+  </details>
 }

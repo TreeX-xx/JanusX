@@ -65,14 +65,15 @@ it('shows exact scope and source/destination before an explicit migration and up
   const page = await mount()
   try {
     await expect(page.getByText('待迁移', { exact: true })).toBeVisible()
-    await expect(page.getByText('D:/projects/中文项目/.janusX', { exact: true })).toBeVisible()
-    await expect(page.getByText(/仅将旧工作区.*启动配置和命令日志迁入/)).toBeVisible()
-    await expect(page.getByText(/旧还原点.*直接清除，不迁移、不保留/)).toBeVisible()
-    await expect(page.locator('li').getByText(/旧还原点.*不迁移/)).toBeVisible()
     const execute = page.getByRole('button', { name: '迁移并清理旧文件', exact: true })
     await expect(execute).toBeDisabled()
     expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])
     await page.getByRole('checkbox').check()
+    await expect(page.getByText('D:/projects/中文项目/.janusX', { exact: true })).toBeVisible()
+    await expect(page.getByText(/仅将旧工作区.*启动配置和命令日志迁入/)).toBeVisible()
+    await expect(page.getByText(/旧还原点.*直接清除，不迁移、不保留/)).toBeVisible()
+    await expect(page.locator('li').getByText(/旧还原点.*不迁移/)).toBeVisible()
+    await expect(execute).toBeEnabled()
     await execute.click()
     await expect(page.getByText('迁移完成', { exact: true })).toBeVisible()
     expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([['migrate', ['w']]])
@@ -233,10 +234,42 @@ it('renders maintenance in both themes at narrow width with full paths and keybo
   }
 })
 
+it('keeps completed maintenance collapsed and opens it with the keyboard without running operations', async () => {
+  for (const light of [false, true]) {
+    for (const width of [480, 1000]) {
+      const page = await mount('empty', width)
+      try {
+        if (light) await page.addStyleTag({ content: 'body{color:#252525;background:#fafafa;--shell-text:#252525;--shell-muted:#666;--shell-border:#ddd;--shell-canvas:#fafafa;--shell-pane:#f1f1f1;}' })
+        await page.evaluate(() => {
+          const state = (window as any).fixture
+          state.status = 'new'
+          state.storage.name = 'A long workspace name / 一个用于检查换行的工作区名称'.repeat(3)
+          state.storage.path = 'D:/projects/' + 'long-folder-name/'.repeat(15)
+          ;(window as any).mount('panel')
+        })
+        await expect(page.getByText('已关联', { exact: true })).toBeVisible()
+        const migration = page.locator('details').filter({ has: page.locator('summary', { hasText: '旧工作区数据迁移' }) })
+        const hooks = page.locator('details').filter({ has: page.locator('summary', { hasText: '旧 Hook 接入' }) })
+        await expect(migration).not.toHaveAttribute('open')
+        await expect(hooks).not.toHaveAttribute('open')
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+        await page.screenshot({ path: `artifacts/workspace-storage/settings-refined-${light ? 'light' : 'dark'}-${width}.png`, fullPage: true })
+        await migration.locator(':scope > summary').focus()
+        await page.keyboard.press('Enter')
+        await expect(page.getByText('暂无待迁移工作区。离线或失败的项目请恢复连接或处理问题后重新检查。', { exact: true })).toBeVisible()
+        expect(await page.evaluate(() => (window as any).fixture.calls.filter((call: unknown) => Array.isArray(call) || call === 'retireHooks'))).toEqual([])
+      } finally { await page.close() }
+    }
+  }
+})
+
 it('cleans legacy Hooks only after confirmation and reports retained files with retryable failures', async () => {
   const page = await mount('panel', 480)
   try {
     expect(await page.evaluate(() => (window as any).fixture.calls.includes('retireHooks'))).toBe(false)
+    const disclosure = page.locator('summary').filter({ hasText: '旧 Hook 接入' })
+    await disclosure.focus()
+    await page.keyboard.press('Enter')
     await page.getByRole('button', { name: '清理旧 Hook 接入', exact: true }).click()
     const confirm = page.getByRole('group', { name: '确认清理旧 Hook' })
     await expect(confirm).toContainText('外部 CLI')
@@ -254,5 +287,42 @@ it('cleans legacy Hooks only after confirmation and reports retained files with 
     await expect(page.getByText('C:/Users/Test/.janusx/hooks/janusx-hook-runner.exe', { exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: 'artifacts/workspace-storage/legacy-hooks-480.png', fullPage: true })
+  } finally { await page.close() }
+})
+
+it('keeps multi-workspace lists compact and migration statuses on one line in a narrow settings column', async () => {
+  const page = await mount('empty', 480)
+  try {
+    await page.evaluate(() => {
+      const state = (window as any).fixture
+      state.items = ['pending', 'new', 'migrated', 'cleanup-pending', 'offline', 'unsupported', 'failed'].map((status, index) => ({
+        id: 'w' + index, name: '很长的工作区名称用于检查状态不被挤压'.repeat(5), source: 'D:/projects/demo/.janusX', target: 'C:/app/workspace-state/' + index, categories: ['logs'], status,
+      }))
+      ;(window as any).electron.workspaceStorage.data = async () => Array.from({ length: 5 }, (_, index) => ({ ...state.storage, id: 's' + index }))
+      ;(window as any).mount('panel')
+    })
+    await expect(page.getByText('无需迁移', { exact: true })).toBeVisible()
+    for (const status of await page.locator('article [role="status"]').all()) {
+      expect(await status.evaluate(node => {
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        return new Set([...range.getClientRects()].map(rect => rect.top)).size
+      })).toBe(1)
+    }
+    const rows = page.locator('article').filter({ has: page.getByRole('button', { name: '重新定位', exact: true }) })
+    await expect(rows).toHaveCount(5)
+    for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeLessThanOrEqual(100)
+    for (const label of ['无需迁移', '迁移完成']) {
+      const row = page.locator('article').filter({ has: page.getByText(label, { exact: true }) })
+      await expect(row.locator('code').first()).toBeHidden()
+      expect((await row.boundingBox())!.height).toBeLessThanOrEqual(65)
+    }
+    const pending = page.locator('article').filter({ has: page.getByText('待迁移', { exact: true }) })
+    await expect(pending.locator('code').first()).toBeHidden()
+    expect((await pending.boundingBox())!.height).toBeLessThanOrEqual(65)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: 'artifacts/workspace-storage/settings-compact-multiple-480.png', fullPage: true })
+    await pending.getByRole('checkbox').check()
+    await expect(pending.locator('code').first()).toBeVisible()
   } finally { await page.close() }
 })

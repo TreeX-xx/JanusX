@@ -3784,6 +3784,7 @@ export type TypedI18nKey =
   | 'storage:migrating'
   | 'storage:noPending'
   | 'storage:retention'
+  | 'storage:retentionPolicy'
   | 'storage:scope'
   | 'storage:selectAll'
   | 'storage:source'

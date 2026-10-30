@@ -1,5 +1,6 @@
 {
   "dataManagement": "数据管理",
+  "retentionPolicy": "保留与清理规则",
   "hooks": {
     "title": "旧 Hook 接入",
     "scope": "清理用户 Claude、Codex 配置中可确认属于 JanusX 的旧 Hook 命令、旧 Windows 发送脚本和过时的 OpenCode 附加配置。保留用户 Hook、登录、原生会话及 Codex 信任记录。无法确认归属的文件会保留并列出原因。",
