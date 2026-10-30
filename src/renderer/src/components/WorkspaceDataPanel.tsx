@@ -54,9 +54,13 @@ export function WorkspaceDataPanel() {
     catch (failure) { setError(String(failure)) }
     finally { setBusy(false) }
   }
-  return <div className={styles.dataSection}>
-    <div className={styles.heading}><h4>{t('storage:maintenance.title')}</h4><button type="button" disabled={busy || loading} onClick={() => { void action(refresh) }}>{t('storage:check')}</button></div>
-    <details className={`${styles.details} ${styles.retention}`}><summary>{t('storage:retentionPolicy')}</summary><p className={styles.policy}>{t('storage:maintenance.policy')}</p></details>
+  return <details className={styles.maintenanceSection} open>
+    <summary className={styles.sectionSummary}><h4>{t('storage:maintenance.title')}</h4></summary>
+    <div className={styles.sectionBody}>
+    <div className={styles.heading}>
+      <details className={`${styles.details} ${styles.retention}`}><summary>{t('storage:retentionPolicy')}</summary><p className={styles.policy}>{t('storage:maintenance.policy')}</p></details>
+      <button type="button" disabled={busy || loading} onClick={() => { void action(refresh) }}>{t('storage:check')}</button>
+    </div>
     {error && <p role="alert">{error}</p>}
     {loading && <p className={styles.empty} role="status">{t('storage:checking')}</p>}
     {!loading && !error && !items.length && <p className={styles.empty}>{t('storage:maintenance.empty')}</p>}
@@ -88,7 +92,8 @@ export function WorkspaceDataPanel() {
       <p>{t(confirm.category === 'checkpoints' ? 'storage:maintenance.confirmSnapshots' : confirm.category === 'all' ? 'storage:maintenance.confirmAll' : 'storage:maintenance.confirmLogs')}</p>
       <div className={styles.actions}><button type="button" disabled={busy} onClick={() => setConfirm(undefined)}>{t('storage:maintenance.cancel')}</button><button type="button" className={styles.danger} disabled={busy} onClick={() => { void action(async () => { await window.electron.workspaceStorage!.cleanup(confirm.item.id, confirm.category); setConfirm(undefined); setSizes({}) }) }}>{t('storage:maintenance.confirm')}</button></div>
     </div>}
-  </div>
+    </div>
+  </details>
 }
 
 /** Local notice appears only for the selected unavailable workspace; never a startup modal. */

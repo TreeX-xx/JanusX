@@ -18,7 +18,6 @@
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .panel .primary { background: var(--shell-text); color: var(--shell-canvas); border-color: transparent; }
 .panel .primary:hover:enabled { background: var(--shell-text); filter: brightness(.9); }
-.dataSection { margin-bottom: 8px; }
 .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 12px 0; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .heading h4 { margin: 0; }
@@ -34,7 +33,7 @@
 .path { display: block; max-width: 100%; margin: 4px 0 8px; color: var(--shell-muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; user-select: text; }
 .details { flex: 1 1 100%; font-size: 12px; }
 .details summary { cursor: pointer; color: var(--shell-muted, #888); padding: 6px 0; }
-.retention { margin: 2px 0 6px; }
+.retention { min-width: 0; margin: 0; }
 .dataItem > .actions { align-items: center; }
 .dataItem > .actions > .details { flex: 0 1 auto; margin-left: auto; }
 .dataItem > .actions > .details[open] { flex-basis: 100%; margin-top: 0; margin-left: 0; padding: 0 10px 10px; border-radius: 8px; background: var(--shell-pane); }
@@ -42,12 +41,15 @@
 .item .location > span { flex: 0 0 4em; }
 .item .location code { font-size: 11px; }
 .details > .actions + .actions { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--shell-border); }
-.maintenanceSection { border-top: 1px solid var(--shell-border); }
-.sectionSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; font-size: 13px; font-weight: 500; list-style: none; cursor: pointer; }
+.maintenanceSection { min-width: 0; margin-top: 10px; border: 1px solid var(--shell-border); border-radius: 8px; }
+.sectionSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 40px; box-sizing: border-box; padding: 10px 12px; border-radius: 7px; background: var(--shell-pane); font-size: 13px; font-weight: 600; list-style: none; cursor: pointer; }
+.sectionSummary:hover { background: color-mix(in srgb, var(--shell-pane), var(--shell-text) 4%); }
+.maintenanceSection[open] > .sectionSummary { border-bottom: 1px solid var(--shell-border); border-radius: 7px 7px 0 0; }
 .sectionSummary::-webkit-details-marker { display: none; }
 .sectionSummary::after { content: ''; width: 6px; height: 6px; margin-right: 4px; border: solid var(--shell-muted); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); flex-shrink: 0; }
 .maintenanceSection[open] > .sectionSummary::after { transform: rotate(45deg); }
-.sectionBody { min-width: 0; padding-bottom: 12px; }
+.sectionBody { min-width: 0; padding: 10px 12px; }
+.sectionBody > .heading { align-items: flex-start; margin-bottom: 6px; }
 .sectionBody > p:first-child { margin-top: 0; }
 .panel [role='alert'] { color: var(--shell-diff-del, #c65d5d); overflow-wrap: anywhere; }
 .panel .danger { color: var(--shell-diff-del, #c65d5d); }

@@ -290,6 +290,39 @@ it('cleans legacy Hooks only after confirmation and reports retained files with 
   } finally { await page.close() }
 })
 
+it('separates three groups and preserves workspace details while collapsing with the keyboard', async () => {
+  for (const light of [false, true]) {
+    const page = await mount('panel', 480)
+    try {
+      if (light) await page.addStyleTag({ content: 'body{color:#252525;background:#fafafa;--shell-text:#252525;--shell-muted:#666;--shell-border:#ddd;--shell-canvas:#fafafa;--shell-pane:#f1f1f1;}' })
+      const groups = page.getByRole('region', { name: '数据管理', exact: true }).locator(':scope > details')
+      await expect(groups).toHaveCount(3)
+      const workspace = groups.nth(0)
+      await expect(workspace).toHaveAttribute('open')
+      const row = workspace.locator('article').first()
+      await row.locator('summary').click()
+      await row.getByRole('button', { name: '计算占用' }).click()
+      await expect(row.getByText('1.00 MiB', { exact: true })).toBeVisible()
+      const summary = workspace.locator(':scope > summary')
+      await summary.focus()
+      await page.keyboard.press('Enter')
+      await expect(row).toBeHidden()
+      await expect(groups.nth(1)).not.toHaveAttribute('open')
+      await expect(groups.nth(2)).toHaveAttribute('open')
+      for (let index = 1; index < 3; index++) {
+        const previous = (await groups.nth(index - 1).boundingBox())!
+        const current = (await groups.nth(index).boundingBox())!
+        expect(current.y - previous.y - previous.height).toBeGreaterThanOrEqual(10)
+      }
+      await page.screenshot({ path: `artifacts/workspace-storage/groups-collapsed-${light ? 'light' : 'dark'}-480.png`, fullPage: true })
+      await page.keyboard.press('Enter')
+      await expect(row.getByText('1.00 MiB', { exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      await page.screenshot({ path: `artifacts/workspace-storage/groups-expanded-${light ? 'light' : 'dark'}-480.png`, fullPage: true })
+    } finally { await page.close() }
+  }
+})
+
 it('keeps multi-workspace lists compact and migration statuses on one line in a narrow settings column', async () => {
   const page = await mount('empty', 480)
   try {
