@@ -1,12 +1,10 @@
-# PR 统一门禁：在 Windows runner 上跑仓库的 `verify` 全链。
-# release-win 只做手动构建；本流程保留 PR 门禁和手动入口，不重复响应分支 push。
+# 可选远端验证：仅在维护者手动触发时运行完整 verify 链。
+# PR 和分支 push 均不自动运行；日常验证在本地完成并记录结果。
 # Note: reproducible inputs and clean-checkout tests — see .agents/notes/desktop/reproducible-verification.md
 # Note: development promotion — see .agents/notes/desktop/development-branch.md
 name: verify
 
 on:
-  pull_request:
-    branches: [main, dev]
   workflow_dispatch:
 
 permissions:

@@ -4,16 +4,16 @@
 
 ## 审核与分支保护
 
-`main` 已启用 GitHub 分支保护：所有变更必须通过 PR 合并，管理员也受约束，禁止强推和删除分支。当前未设置强制批准人数或 required status check；`dev` 保持可推送，供维护者同步已集成的 `main`。常规功能与晋级 PR 仍应通过 `verify` 并取得至少一名非作者审核者批准，新增实质性修改后重新审核。仓库文件本身不会创建这些保护规则。
+`main` 已启用 GitHub 分支保护：所有变更必须通过 PR 合并，管理员也受约束，禁止强推和删除分支。当前未设置强制批准人数或 required status check；`dev` 保持可推送，供维护者同步已集成的 `main`。常规功能与晋级 PR 应记录本地 `verify` 结果并取得至少一名非作者审核者批准，新增实质性修改后重新审核。仓库文件本身不会创建这些保护规则。
 
-审核关注问题是否解决、范围是否清楚、回归测试是否覆盖，以及文档是否与最终行为一致。未运行的本地检查必须在 PR 中明确，CI 仍须通过。对外部贡献者首次运行工作流的批准应先检查其变更；验证使用 `pull_request` 与只读仓库权限。
+审核关注问题是否解决、范围是否清楚、回归测试是否覆盖，以及文档是否与最终行为一致。未运行的本地检查必须在 PR 中明确并记录补验安排。PR 和 push 不自动运行远端验证；需要时由维护者手动触发只读权限的 `verify` 工作流。
 
 作者不能批准自己的 PR。确因紧急修复、CI 基础设施故障或无人可审核而需要审核或检查例外时，必须在 PR 中记录原因、实际完成的检查、未覆盖风险及后续补验安排；不能把自查写成独立审核。例外仅限维护者显式决定，不授予 Agent 默认绕过权限。所有 `main` 变更仍须通过 PR，不能以例外为由直推；常规功能贡献也不直推 `dev`。
 
 ## 晋级与同步
 
 1. 维护者确认 `dev` 的当前批次范围清楚，创建 `dev → main` PR，汇总行为变化、关联 Issue 和验证结果。
-2. 审核并通过 PR 的 `verify` 后，使用 **merge commit** 合并；不要对长期分支使用 squash 或 rebase merge。
+2. 审核并确认 PR 记录的本地验证通过后，使用 **merge commit** 合并；不要对长期分支使用 squash 或 rebase merge。
 3. 将 `main` 同步回 `dev`：
 
 ```bash
@@ -36,7 +36,7 @@ Issue 合入开发分支后可关闭并注明“已集成，待发布”；Relea
 推荐通过版本 PR 保持审核链：
 
 1. 当前开发批次晋级 `main` 后，从最新 `main` 创建 `release/<版本>` 分支，只修改 `package.json` 和 `package-lock.json` 的版本，创建目标为 `main` 的版本 PR。
-2. 审核与 `verify` 通过后合并，检出并确认最新 `origin/main` 的版本，再创建指向该提交的 annotated tag 并推送。
+2. 审核与本地 `verify` 通过后合并，检出并确认最新 `origin/main` 的版本，再创建指向该提交的 annotated tag 并推送。
 3. 在该版本的干净 checkout 中本地构建、上传草稿、补充说明，再单独公开；检查更新清单、Release 类型与下载入口，最后将 `main` 同步回 `dev`。
 
 ```bash
@@ -85,4 +85,4 @@ npm run publish:win
 
 `verify.yml` 和 `release-win.yml` 固定使用上游 `TreeX-xx/janus-agentX`，验证还固定使用 `TreeX-xx/WorkFlowX`，避免 Fork 在自己的账号下查找缺失的依赖仓库。升级 sibling 时检查提交在远端可读取，并同步两个工作流的 agentX pin、构建顺序和开发说明。修改 `package.json` 的 `verify` 检查链时，同步 `verify.yml` 的拆分步骤。
 
-`verify` 保留原 PR job 名与完整检查，取消 main/dev push 的重复运行，仍可手动触发。required check 名和完整 PR 验证链保持不变，GitHub 实际保护设置见本页的审核与分支保护约定。统一构建输入、正式构建收据和更多平台属于[后续设计](../.agents/notes/desktop/release-delivery-design.md)，当前 tag 对齐检查不等于已经证明开发机二进制的完整构建来源。
+`verify` 仅保留手动触发入口和完整检查，PR 与分支 push 均不自动运行。日常合并依据本地验证记录；远端验证用于维护者主动选择的补验。GitHub 实际保护设置见本页的审核与分支保护约定。统一构建输入、正式构建收据和更多平台属于[后续设计](../.agents/notes/desktop/release-delivery-design.md)，当前 tag 对齐检查不等于已经证明开发机二进制的完整构建来源。
