@@ -375,7 +375,6 @@
   gap: 24px;
   align-items: start;
   padding: 18px 0;
-  border-bottom: 1px solid var(--shell-border-soft);
 }
 
 .generalLabelCol {
@@ -386,7 +385,8 @@
 }
 
 .generalSection { display: flex; flex-direction: column; min-width: 0; }
-.generalSectionTitle { margin: 0 0 18px; color: var(--shell-muted); font-size: 12px; font-weight: 600; }
+.generalSection + .generalSection { padding-top: 24px; border-top: 1px solid var(--shell-border); }
+.generalSectionTitle { margin: 0 0 18px; color: var(--shell-text); font-size: 14px; font-weight: 600; }
 .generalSection > .generalHelp { margin-top: 10px; }
 .generalRowWide { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .generalRowWide:last-child { border-bottom: 0; padding-bottom: 0; }

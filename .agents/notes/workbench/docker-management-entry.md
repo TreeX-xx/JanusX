@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-10-11",
-  "updated": "2026-10-29T16:29:15Z",
+  "updated": "2026-10-30T07:00:04.864Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -18,7 +18,7 @@ JanusX 需要面向本机开发的 Docker 日常管理面板，能与代码、�
 
 ## Decision
 
-2026-10-29 用户确认：Docker 作为可选安装的官方插件，从工具箱打开，使用隔离页面与官方 native 后台、应用级单实例面板。首版封装本机 Docker CLI，容器终端和浏览器由宿主提供受控联动。现已按 xdo 实现七项能力的代码及本地签名开发包；真实 Docker 引擎验收和生产发布仍未完成，accepted 表示设计决定已接受。
+2026-10-29 用户确认：Docker 作为可选安装的官方插件，从工具箱打开，使用隔离页面与官方 native 后台、应用级单实例面板。首版封装本机 Docker CLI，容器终端和浏览器由宿主提供受控联动。现已按 xdo 实现七项能力的代码。2026-10-30 本地交付使用现有 `janusx-blueprint-20261026` 发布签名，生产 trust 增加 `official.docker` native 白名单；`release/10-30/official.docker-1.0.0.jxp` 与同目录重新构建的宿主配套，可手动导入，无需开发模式。真实 Docker 引擎验收和在线生产发布仍未完成，accepted 表示设计决定已接受。
 
 ### 功能范围
 

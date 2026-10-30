@@ -1,5 +1,5 @@
-/* 插件管理页：沿用设置中心的配色纪律（AppSettingsModal.module.css 头注释）。
-   - 面板/卡片透明，只用 1px 发丝线框；不刷填充色块。
+/* 插件市场：搜索、响应式卡片与渐进展开的管理区域。
+   - 沿用设置中心的主题阶梯、发丝边框和轻微底色。
    - 强调色只出现在 2px 页签条、1px 边框和文字上。
    - 四级层次：插件名(13/600 text) → 状态徽标(语义色) → 元信息(11 dim) → 操作钮(发丝框)。 */
 
@@ -145,3 +145,66 @@
 .commandPreference .preference { border: 0; padding: 0; }
 .shortcutField { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--shell-muted); }
 .entryPreference { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--shell-muted); }
+
+/* Market browsing stays compact; expanded management takes the full row. */
+.root[data-plugin-settings] { container-type: inline-size; gap: 22px; }
+.marketToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.search {
+  display: flex; align-items: center; gap: 9px; flex: 1 1 220px; min-width: 0;
+  padding: 0 12px; border: 1px solid var(--so-field-border, var(--shell-border)); border-radius: 8px;
+  color: var(--shell-dim); background: var(--so-field, transparent);
+}
+.search:focus-within { border-color: var(--shell-accent-border); }
+.root .search input[type=search] {
+  width: 100%; height: 36px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; outline: none; font-size: 12px;
+}
+.root .search input::placeholder { color: var(--shell-dim); }
+.root .search input:focus-visible { outline: none; }
+.root .marketToolbar > button { height: 36px; padding: 0 13px; border-radius: 8px; }
+.collectionHeading { display: flex; align-items: center; gap: 8px; color: var(--shell-text); }
+.collectionHeading strong { font-size: 12px; font-weight: 600; }
+.collectionHeading > span { color: var(--shell-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.marketGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; min-width: 0; }
+.marketCard {
+  display: flex; flex-direction: column; gap: 16px; padding: 20px; border-radius: 12px;
+  background: color-mix(in srgb, var(--shell-card) 25%, transparent);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.marketCard:hover { border-color: var(--control-border); background: color-mix(in srgb, var(--shell-card) 45%, transparent); }
+.marketCard .avatar {
+  width: 40px; height: 40px; border-radius: 10px; font-size: 18px; font-weight: 600;
+  color: var(--shell-text); background: var(--shell-hover); border-color: var(--shell-border-soft);
+}
+.marketCard .cardTitle { gap: 4px; }
+.marketCard .cardTitle strong { font-size: 14px; line-height: 1.4; }
+.marketCard .badge { padding: 0; border: 0; font-size: 10px; gap: 3px; }
+.marketCard .chip { max-width: 42%; height: auto; min-height: 20px; padding: 2px 7px; white-space: normal; font-size: 10px; }
+.marketCard > .description { line-height: 1.7; overflow-wrap: anywhere; }
+.marketCard > .actions { margin-top: auto; }
+.cardFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; }
+.root .marketCard .primary { min-width: 64px; }
+.root .management { margin-top: 0; border-top: 1px solid var(--shell-border-soft); padding: 0; }
+.root .management > summary { padding: 12px 0 0; font-weight: 500; font-size: 11px; }
+.marketCard:has(.management[open]) { grid-column: 1 / -1; }
+.root .management[open] { padding-bottom: 0; }
+.management .sections { margin: 12px 0 0; }
+.management .sections > details { padding-left: 0; padding-right: 0; }
+.root .management[open] > .sections { margin-top: 12px; }
+.emptyState {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 52px 24px; min-height: 230px; border: 1px dashed var(--shell-border); border-radius: 12px;
+  text-align: center; color: var(--shell-muted);
+}
+.emptyState > svg { color: var(--shell-dim); stroke-width: 1.3; margin-bottom: 4px; }
+.emptyState > strong { color: var(--shell-text); font-size: 14px; font-weight: 500; }
+.emptyState > p { max-width: 340px; line-height: 1.8; }
+.emptyState > button { margin-top: 4px; }
+@container (max-width: 420px) {
+  .marketToolbar { gap: 8px; }
+  .search { flex-basis: 100%; }
+  .marketCard { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketCard { transition: none; }
+}

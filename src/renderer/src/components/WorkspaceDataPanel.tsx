@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
 import type { WorkspaceDataItem, WorkspaceCleanupCategory } from '../../../shared/ipc/workspace-storage'
 import styles from './WorkspaceStoragePanel.module.css'
+import { StorageHelp } from './StorageHelp'
 
 let dataRequest: Promise<WorkspaceDataItem[]> | undefined
 const data = () => dataRequest ??= window.electron.workspaceStorage!.data().finally(() => { dataRequest = undefined })
@@ -58,7 +59,7 @@ export function WorkspaceDataPanel() {
     <summary className={styles.sectionSummary}><h4>{t('storage:maintenance.title')}</h4></summary>
     <div className={styles.sectionBody}>
     <div className={styles.heading}>
-      <details className={`${styles.details} ${styles.retention}`}><summary>{t('storage:retentionPolicy')}</summary><p className={styles.policy}>{t('storage:maintenance.policy')}</p></details>
+      <div className={styles.explanation}><span className={styles.muted}>{t('storage:retentionPolicy')}</span><StorageHelp label={t('storage:retentionPolicy')} paragraphs={[t('storage:maintenance.policy')]} /></div>
       <button type="button" disabled={busy || loading} onClick={() => { void action(refresh) }}>{t('storage:check')}</button>
     </div>
     {error && <p role="alert">{error}</p>}

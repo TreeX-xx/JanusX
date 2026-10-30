@@ -10,6 +10,13 @@ export function installPluginSettingsFixture() {
     distribution: { configured: true, entries: [{ id: manifest.id, name: manifest.name,
       description: 'Synthetic Blueprint catalog fixture', version: manifest.version, publisher: 'JanusX', bytes: 1024, compatible: true }] },
   }
+  if (new URLSearchParams(location.search).has('plugin-gallery')) {
+    const entry = snapshot.distribution!.entries[0]
+    snapshot.distribution!.entries.push(
+      { ...entry, id: 'fixture.tools', name: 'Workspace Tools', description: 'Synthetic fixture for workspace utilities and everyday workflows.' },
+      { ...entry, id: 'fixture.reader', name: 'Document Reader', description: 'Synthetic fixture for reading project documents in your workspace.' },
+    )
+  }
   window.electron.plugins = {
     onChanged: () => () => {}, onEvent: () => () => {},
     request: async input => {

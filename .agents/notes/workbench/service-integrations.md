@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-14",
-  "updated": "2026-10-29T11:30:41Z",
+  "updated": "2026-10-30T07:43:43.593Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -18,7 +18,9 @@
 
 ## CPA 官方插件
 
-CPA 已迁入独立 `plugins/cpa/`，ID 为 `official.cpa`，通过签名包安装、权限审阅和启用。主程序移除内置 CPA 注册、专用 IPC、固定服务集成设置以及安装器／托管代码；仅保留旧配置和登录分区的固定迁移映射。现阶段提供本地签名构建与隔离桌面开发入口，生产目录公钥和 native 白名单未变更，尚未发布可下载版本。下文原内置实现的回归记录为历史证据；插件验证单独记录。
+旧 `release/10-30-before-plugins-20261030-145752` 宿主仅授权 Blueprint，其 `1.0.0-local.1` CPA 包使用 `cpa-local`，不能与正式宿主混用。应使用 `release/10-30` 的宿主和 `official.cpa-1.0.0.jxp`。2026-10-30 复验命令 `node release/10-30/verification/check-cpa-packaged.mjs` 直接读取打包宿主的公钥与 native 白名单，签名、完整性、兼容性、实际导入／启用及重启恢复通过；开发模式关闭，仅替换文件选择器，使用隔离 profile，未验收 CPA 完整业务。结果保存在同目录 `cpa-packaged-verification.json`。
+
+CPA 已迁入独立 `plugins/cpa/`，ID 为 `official.cpa`，通过签名包安装、权限审阅和启用。主程序移除内置 CPA 注册、专用 IPC、固定服务集成设置以及安装器／托管代码；仅保留旧配置和登录分区的固定迁移映射。2026-10-30 本地交付使用现有 `janusx-blueprint-20261026` 发布签名，生产 trust 增加 `official.cpa` native 白名单；`release/10-30/official.cpa-1.0.0.jxp` 与同目录重新构建的宿主配套，可手动导入，无需开发模式。未上传 Release 或上线发现目录。隔离开发入口继续可用。下文原内置实现的回归记录为历史证据；插件验证单独记录。
 
 目标为：插件中心管理安装、授权、启停、更新和卸载；安装启用后在工具箱提供应用级 CPA 入口，连接配置与运行状态进入插件设置。未安装不显示 CPA 专属工具/设置入口，不包含 CPA 专属页面、安装器和运行策略；宿主保留通用浏览器、加密存储、代理及受监督进程能力。CPA 的自有前后端组件继续按需获取，插件安装和组件准备是两层状态，不能将安装插件等同于已有可运行服务。
 

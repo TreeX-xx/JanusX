@@ -640,6 +640,7 @@ const hostedAPI: HostedAPI = {
 
 const desktopToastAPI: DesktopToastAPI = {
   ready: () => ipcRenderer.send(SYSTEM_CHANNELS.toastReady),
+  painted: (deliveryId) => ipcRenderer.send(SYSTEM_CHANNELS.toastPainted, deliveryId),
   action: (action) => ipcRenderer.send(SYSTEM_CHANNELS.toastAction, { action }),
   onShow: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.toastShow, callback),
   onHide: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.toastHide, callback),

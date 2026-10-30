@@ -446,7 +446,7 @@ export function installElectronApiFallback(): void {
       save: unavailable,
       detect: () => Promise.resolve([]),
     },
-    desktopToast: { ready: () => {}, action: () => {}, onShow: () => () => {}, onHide: () => () => {} },
+    desktopToast: { ready: () => {}, painted: () => {}, action: () => {}, onShow: () => () => {}, onHide: () => () => {} },
     janusPersona: '',
   }
 }

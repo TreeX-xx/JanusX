@@ -1,4 +1,11 @@
 {
+  "searchCatalog": "搜索插件名称、功能或发布者…",
+  "searchInstalled": "搜索已安装的插件…",
+  "catalogCollection": "探索插件",
+  "installedCollection": "我的插件",
+  "noSearchResults": "没有找到匹配的插件，请尝试其他关键词。",
+  "emptyTitle": "让工作区更得心应手",
+  "manageDetails": "管理与配置",
   "showInWorkspaceAdd": "在工作区添加菜单中显示",
   "showInToolbox": "在工具箱中显示",
   "shortcutUnset": "未设置",

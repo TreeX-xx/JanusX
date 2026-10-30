@@ -1,4 +1,11 @@
 {
+  "searchCatalog": "Search plugins, features or publishers…",
+  "searchInstalled": "Search installed plugins…",
+  "catalogCollection": "Explore plugins",
+  "installedCollection": "My plugins",
+  "noSearchResults": "No matching plugins. Try another keyword.",
+  "emptyTitle": "Make your workspace your own",
+  "manageDetails": "Manage and configure",
   "showInWorkspaceAdd": "Show in workspace add menu",
   "showInToolbox": "Show in toolbox",
   "shortcutUnset": "Not set",

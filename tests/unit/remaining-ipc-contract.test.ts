@@ -108,6 +108,7 @@ describe('remaining typed IPC contracts', () => {
   it('routes one-way and event APIs without exposing Electron events', () => {
     const toastListener = vi.fn()
     api.desktopToast.ready()
+    api.desktopToast.painted(7)
     api.desktopToast.action('activate')
     const unsubscribe = api.desktopToast.onShow(toastListener)
     const handler = on.mock.calls.at(-1)?.[1]
@@ -116,6 +117,7 @@ describe('remaining typed IPC contracts', () => {
     handler({}, payload)
     expect(send.mock.calls).toEqual([
       [SYSTEM_CHANNELS.toastReady],
+      [SYSTEM_CHANNELS.toastPainted, 7],
       [SYSTEM_CHANNELS.toastAction, { action: 'activate' }],
     ])
     expect(toastListener).toHaveBeenCalledWith(payload)

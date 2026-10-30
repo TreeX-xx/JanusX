@@ -7,6 +7,7 @@ import type { WorkspaceMigrationItem, WorkspaceMigrationView } from '../../../sh
 import styles from './WorkspaceStoragePanel.module.css'
 import { WorkspaceDataPanel } from './WorkspaceDataPanel'
 import { LegacyHooksCleanup } from './LegacyHooksCleanup'
+import { StorageHelp } from './StorageHelp'
 
 export const OPEN_STORAGE_SETTINGS = 'janusx:open-storage-settings'
 let focusPending = false
@@ -84,10 +85,11 @@ export function WorkspaceStoragePanel() {
     <details className={styles.maintenanceSection} open={migrationOpen} onToggle={event => setMigrationOpen(event.currentTarget.open)}>
     <summary className={styles.sectionSummary}><span>{t('storage:title')}</span></summary>
     <div className={styles.sectionBody}>
-    <p className={styles.muted}>{t('storage:scope')}</p>
+    <div className={styles.explanation}>
+      <p className={styles.muted}>{t('storage:scope')}</p>
+      <StorageHelp label={t('storage:retentionPolicy')} paragraphs={[t('storage:cleanup'), t('storage:retention'), t('storage:closeTasks')]} />
+    </div>
     {view && <Location label={t('storage:destinationRoot')} path={view.root} />}
-    <div className={styles.policy}><p>{t('storage:cleanup')}</p><p>{t('storage:retention')}</p></div>
-    <p className={styles.muted}>{t('storage:closeTasks')}</p>
     <div className={styles.toolbar}>
     <div className={styles.actions}>
       <button type="button" disabled={busy !== null} onClick={() => { void refresh() }}>{t('storage:check')}</button>

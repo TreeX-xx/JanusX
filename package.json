@@ -1,6 +1,6 @@
 {
   "name": "janusx",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "type": "module",
   "description": "CLI 工作区管理器 - 统一管理多个 AI 编程助手",
   "main": "out/main/index.js",

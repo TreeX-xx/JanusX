@@ -71,7 +71,9 @@ it('shows exact scope and source/destination before an explicit migration and up
     await page.getByRole('checkbox').check()
     await expect(page.getByText('D:/projects/中文项目/.janusX', { exact: true })).toBeVisible()
     await expect(page.getByText(/仅将旧工作区.*启动配置和命令日志迁入/)).toBeVisible()
-    await expect(page.getByText(/旧还原点.*直接清除，不迁移、不保留/)).toBeVisible()
+    await page.getByRole('button', { name: '保留与清理规则', exact: true }).last().hover()
+    await expect(page.getByRole('tooltip')).toContainText('直接清除，不迁移、不保留')
+    await page.keyboard.press('Escape')
     await expect(page.locator('li').getByText(/旧还原点.*不迁移/)).toBeVisible()
     await expect(execute).toBeEnabled()
     await execute.click()
@@ -290,6 +292,42 @@ it('cleans legacy Hooks only after confirmation and reports retained files with 
   } finally { await page.close() }
 })
 
+it('shows migration rules on help hover and keyboard focus without starting migration', async () => {
+  for (const light of [false, true]) {
+    const page = await mount('panel', 480)
+    try {
+      if (light) await page.addStyleTag({ content: 'body{color:#252525;background:#fafafa;--shell-text:#252525;--shell-muted:#666;--shell-border:#ddd;--shell-canvas:#fafafa;--shell-pane:#f1f1f1;}' })
+      const help = page.getByRole('button', { name: '保留与清理规则', exact: true }).last()
+      await page.locator('html').evaluate((element, value) => { element.dataset.theme = value }, light ? 'planche' : 'dark')
+      await expect(help).toBeVisible()
+      await expect(page.getByRole('tooltip')).toHaveCount(0)
+      await help.hover()
+      const tooltip = page.getByRole('tooltip')
+      await expect(tooltip).toBeVisible()
+      await expect(tooltip).toContainText('旧还原点记录、索引和内容块将直接清除')
+      await expect(tooltip).toContainText('保留期从首次迁移成功时重新起算一次')
+      await expect(tooltip).toContainText('迁移前请关闭所选工作区')
+      const bounds = (await tooltip.boundingBox())!
+      expect(bounds.x).toBeGreaterThanOrEqual(8)
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(472)
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(892)
+      await mkdir('artifacts/workspace-storage', { recursive: true })
+      await page.screenshot({ path: `artifacts/workspace-storage/help-${light ? 'light' : 'dark'}-480.png`, fullPage: true })
+      await page.keyboard.press('Escape')
+      await expect(tooltip).toHaveCount(0)
+      await page.mouse.move(0, 0)
+      await help.focus()
+      await page.keyboard.press('Shift+Tab')
+      await page.keyboard.press('Tab')
+      await expect(help).toBeFocused()
+      await expect(tooltip).toBeVisible()
+      await page.keyboard.press('Tab')
+      await expect(tooltip).toHaveCount(0)
+      expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])
+    } finally { await page.close() }
+  }
+})
+
 it('separates three groups and preserves workspace details while collapsing with the keyboard', async () => {
   for (const light of [false, true]) {
     const page = await mount('panel', 480)
@@ -312,7 +350,7 @@ it('separates three groups and preserves workspace details while collapsing with
       for (let index = 1; index < 3; index++) {
         const previous = (await groups.nth(index - 1).boundingBox())!
         const current = (await groups.nth(index).boundingBox())!
-        expect(current.y - previous.y - previous.height).toBeGreaterThanOrEqual(10)
+        expect(current.y - previous.y - previous.height).toBeGreaterThanOrEqual(20)
       }
       await page.screenshot({ path: `artifacts/workspace-storage/groups-collapsed-${light ? 'light' : 'dark'}-480.png`, fullPage: true })
       await page.keyboard.press('Enter')
