@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-29T11:43:07Z",
+  "updated": "2026-10-30T10:04:39Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -23,6 +23,8 @@ A live Electron process retains hashed chunk paths from its startup build. If de
 On Windows, libuv's short-path directory watcher assertion terminates the worker before Vitest can report all failures. The native failure reproduces under Node 24.20.0/libuv 1.52.1 when a short directory alias and a short file alias are used together. The same probe completes under Node 24.15.0/libuv 1.51.0, or with the watched directory expanded by `realpathSync.native`. Upstream [libuv issue 5010](https://github.com/libuv/libuv/issues/5010) documents the same assertion and GitHub runner temporary paths.
 
 ## Decision
+
+The v0.9.6 local candidate pins agentX `4df4c4457269e46a52b7ed430db379e194fac175` in both workflows and builds it in an isolated worktree. It combines committed workspace lifecycle support `c2f24ee` with the existing hash-bound Note paging repair `8baa18e`, cherry-picked onto the local release branch. The previous pin `5333312` lacks the workspace storage and bounded command-log exports now required by the application; its clean typecheck fails. The lifecycle revision alone lacks the Note APIs used by Blueprint. Developer sibling modifications are excluded. This new revision is not reachable from the inspected remote branches yet, so remote verification and publication require making that committed dependency available first. This local preparation does not authorize a dependency push.
 
 本地依赖安装若使用 `--ignore-scripts`，Electron npm 包可能存在但缺少 `dist/` 与 `path.txt`，普通 `npm run dev` 会在前置检查失败，绕过检查的入口则构建完成后报 `Electron uninstall`。恢复运行时使用 `npm rebuild electron`；无法联网时仅可使用已核对相同版本、平台和架构的完整 Electron 运行目录，不改变依赖声明。2026-10-29 当前 checkout 恢复匹配的 Windows x64 Electron 35.7.5 后，普通 `npm run dev` 与 `npm run dev:cpa` 均实际打开响应正常的 JanusX 主窗口；运行日志位于 `.cache/dev-startup-fix.log` 和 `.cache/cpa-startup-fix.log`，开发环境检查四项单测通过。CPA 入口复用相同前置检查，签名包 prepare-only 保持无需启动 Electron。
 

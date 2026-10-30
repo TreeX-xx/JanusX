@@ -47,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: TreeX-xx/janus-agentX
-          ref: 53333123ca071a0a32b6902b392a7279da00c470
+          ref: 4df4c4457269e46a52b7ed430db379e194fac175
           path: janus-agentX
 
       - name: Setup Node

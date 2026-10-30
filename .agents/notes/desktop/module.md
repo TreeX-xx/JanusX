@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-30T09:50:45.000Z",
+  "updated": "2026-10-30T10:04:39.000Z",
   "moduleState": "partial"
 }
 ---
@@ -31,7 +31,7 @@
 
 ## Design
 
-v0.9.6 的用户可见变化、主动迁移的还原点清理行为及实验性 Docker 限制见[版本说明](../../../docs/releases/v0.9.6.md)。本地候选沿用工作流固定的 agentX `53333123ca071a0a32b6902b392a7279da00c470`，在独立 checkout 构建，避免开发目录中的未提交 sibling 改动进入发布。正式远端晋级仍遵循维护者指南的 PR 流程；本地标签与候选不代表已公开发布。
+v0.9.6 的用户可见变化、主动迁移的还原点清理行为及实验性 Docker 限制见[版本说明](../../../docs/releases/v0.9.6.md)。本地候选与工作流固定 agentX `4df4c4457269e46a52b7ed430db379e194fac175`，在独立 checkout 构建，避免开发目录中的未提交 sibling 改动进入发布。原固定版本缺少工作区存储接口，无法通过类型检查。新依赖尚需在远端发布前确认可获取；正式远端晋级仍遵循维护者指南的 PR 流程，本地标签与候选不代表已公开发布。
 
 v0.9.4 的 Windows 启动修复采用调用者权限启动桌面程序与便携启动器，终端继承当前权限。用户已确认候选包在故障 Windows 10 上可以打开，并授权以正式名称替换 v0.9.4 的 Windows 附件与标签代码。包验证包含不带 GPU 绕过参数的真实窗口启动；启动日志保存于所选用户配置目录的 `logs`。原因、代价及验证范围由 [reproducible-verification](./reproducible-verification.md) 维护。
 
