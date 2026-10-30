@@ -17,7 +17,7 @@ beforeAll(async () => {
     const candidate = {id:'candidate',type:'fact',status:'proposed',derivation:'deterministic',evidence:{observationIds:[]},
       fact:{id:'fact',content:'Keep backups for seven days.',scope:'user',kind:'procedure',files:[],concepts:[],tags:[],
         provenance:{workspaceId:'project',workspaceName:'Project',fileRefs:[],sourceObservationIds:[]}},
-      decision:{status:'old',reason:'Old advisory reason',scorer:{provider:'laya'},answers:[]}}
+      decision:{status:'old',reason:'Old advisory reason',scorer:{provider:'legacy-scorer'},answers:[]}}
     window.item = candidate; window.pages=[]; window.reads = 0; window.actions = []
     window.current={reviewStateVersion:1,reviewEnabled:true,enabled:true,running:false,queue:[],tasks:[],total:0,
       stages:{extraction:'rules-only',entryReview:'automatic',wikiGeneration:'automatic',wikiReview:'automatic'},

@@ -1,5 +1,3 @@
-import { syncLayaSettings } from '../knowledge/laya-runtime'
-import { cancelKnowledgeLocalSetup, updateKnowledgeSettingsFromRenderer } from '../knowledge/knowledge-local-settings'
 import { BrowserWindow, ipcMain } from 'electron'
 import { configService } from '../config/service'
 import { remoteNotificationDispatcher } from '../remote-notifications/dispatcher'
@@ -95,8 +93,7 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     KNOWLEDGE_CHANNELS.updateSettings,
     async (_event, settings: Partial<KnowledgeSettings>) => {
-      const next = await updateKnowledgeSettingsFromRenderer(settings ?? {})
-      await syncLayaSettings()
+      const next = await configService.updateKnowledgeSettings(settings ?? {})
       return next
     },
   )
@@ -113,10 +110,8 @@ export function registerSettingsHandlers(): void {
         const { stopMobileHost } = await import('../remote/mobile-host')
         await stopMobileHost()
       }
-      if (!next.knowledge) await cancelKnowledgeLocalSetup()
       const { settleMemoryMutations } = await import('../knowledge/memory-domain-controls')
       await settleMemoryMutations()
-      await syncLayaSettings()
       return next
     },
   )

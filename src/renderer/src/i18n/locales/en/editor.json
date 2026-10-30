@@ -243,15 +243,6 @@
     "promptInsert": "Insert (don't submit)"
   },
   "product": {
-    "panelTitle": "PREVIEW",
-    "closeAria": "Close preview",
-    "closeTabAria": "Close {{relPath}}",
-    "reloadFromDisk": "Reload from disk",
-    "emptyStage": "Click a file in the island notice or monitor products pane to preview it here",
-    "selectWorkspace": "Please select a workspace",
-    "startingPreview": "Loading preview…",
-    "iframeTitle": "Generated document preview",
-    "truncatedPreview": "File is too long, showing the first 512KB only",
-    "unsupportedKind": "This file kind cannot be previewed here"
+    "startingPreview": "Loading preview…"
   }
 }

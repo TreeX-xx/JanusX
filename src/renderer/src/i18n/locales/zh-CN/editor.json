@@ -243,15 +243,6 @@
     "promptInsert": "插入（不提交）"
   },
   "product": {
-    "panelTitle": "预览",
-    "closeAria": "关闭预览",
-    "closeTabAria": "关闭 {{relPath}}",
-    "reloadFromDisk": "从磁盘重新加载",
-    "emptyStage": "在灵动岛提醒或监控界面的产物分区点击文件，即可在此预览",
-    "selectWorkspace": "请选择工作区",
-    "startingPreview": "正在加载预览…",
-    "iframeTitle": "生成文档预览",
-    "truncatedPreview": "文件过长，仅显示前 512KB",
-    "unsupportedKind": "此类文件暂不支持在此预览"
+    "startingPreview": "正在加载预览…"
   }
 }

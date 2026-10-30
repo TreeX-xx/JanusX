@@ -38,7 +38,6 @@ import { installMemoryDomainControls } from '../knowledge/memory-domain-controls
 import { memoryDomainPolicy } from '../knowledge/memory-domain-policy'
 import { observationScope } from '../knowledge/memory-evidence'
 import { runDeterministicStage } from '../knowledge/deterministic-extractor'
-import { registerLayaScorer } from '../knowledge/laya-runtime'
 import { runCandidateAction } from '../knowledge/candidate-actions'
 import { runLlmStage } from '../knowledge/llm-stage'
 import { appShutdown } from '../shutdown/AppShutdown'
@@ -147,7 +146,6 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   // report unprocessed ranges from the persisted cursor on startup.
   // Persist plans after deterministic batches; recover model tasks independently of cursors.
   installMemoryDomainControls()
-  registerLayaScorer()
   knowledgeProcessingQueue.configureCandidateActionHandler(runCandidateAction)
   knowledgeProcessingQueue.configureDeterministicHandler((batch) =>
     runDeterministicStage(batch, { allowHabitSource: async observation => {

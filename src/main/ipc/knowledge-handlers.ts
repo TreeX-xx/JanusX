@@ -1,7 +1,3 @@
-import { controlLaya } from '../knowledge/laya-runtime'
-
-import { configureKnowledgeLocalModel, disableKnowledgeLocalModel, startKnowledgeLocalResources } from '../knowledge/knowledge-local-settings'
-import { knowledgeLocalResources } from '../knowledge/knowledge-local-resources'
 import { ipcMain } from 'electron'
 
 import { knowledgeContractService } from '../knowledge/contract-service'
@@ -27,14 +23,7 @@ import { KNOWLEDGE_CHANNELS, type AuditQuery, type AuditPageQuery, type ReviewCa
 import type { CaptureObservationInput, Observation, ObservationPruneQuery, ObservationQuery } from '../../shared/knowledge';
 
 export function registerKnowledgeHandlers(): void {
-
-  ipcMain.handle(KNOWLEDGE_CHANNELS.localModelConfigure, (_event, input: unknown) => configureKnowledgeLocalModel(input))
-  ipcMain.handle(KNOWLEDGE_CHANNELS.localResourcesInstall, () => startKnowledgeLocalResources())
-  ipcMain.handle(KNOWLEDGE_CHANNELS.localResourcesStatus, () => knowledgeLocalResources.status())
-  ipcMain.handle(KNOWLEDGE_CHANNELS.localModelStop, () => { return disableKnowledgeLocalModel() })
-
   ipcMain.handle(KNOWLEDGE_CHANNELS.candidateAction, (_event, input: unknown) => knowledgeProcessingQueue.processCandidateAction(input))
-  ipcMain.handle(KNOWLEDGE_CHANNELS.layaControl, (_event, action) => controlLaya(action))
   ipcMain.handle(KNOWLEDGE_CHANNELS.importLegacyPersonalMemory, () => importLegacyPersonalMemory())
   ipcMain.handle(KNOWLEDGE_CHANNELS.forgetPersonalMemory, (_event, input: unknown) => forgetPersonalMemory(input))
   ipcMain.handle(KNOWLEDGE_CHANNELS.proposePersonalMemoryCorrection, (_event, input: unknown) => proposePersonalMemoryCorrection(input))

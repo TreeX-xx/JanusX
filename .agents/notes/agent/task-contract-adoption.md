@@ -30,7 +30,7 @@
       }
     }
   },
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-10-30T09:34:45.524Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10"
 }
 ---
@@ -38,6 +38,8 @@
 
 
 ## Problem
+
+当前适用性：旧桌面任务契约编辑和执行界面已于 2026-10-30 删除；下文 UI 行为与测试保留为历史记录，源码链接固定到删除前版本。任务契约及运行后端继续保留，当前产品边界见[Agent 模块](module.md)。
 
 Roundtable action artifacts are valid task drafts, but their open scope, acceptance criteria and checks are not executable contracts. A run panel without an adoption step either refuses these drafts without a repair path or risks treating discussion as execution authorization.
 
@@ -47,7 +49,7 @@ The task run panel reads the current task and offers a contract editor for draft
 
 The editor currently targets the selected primary repository. Scope and verification must remain in that repository. External acceptance references must resolve to accepted requirements or initiatives in the same repository; task-local criteria are included automatically. Requirement references determine implements relations, avoiding another independently edited coverage list. Required verification must include at least one concrete step. Placeholder scope or criteria, unknown criteria, escaping paths and malformed inputs are refused before writing. Execution readiness remains subject to the shared baseline validator.
 
-Entry points are the [adoption service](../../../src/main/harness/task-adoption.ts), [IPC handlers](../../../src/main/ipc/harness-handlers.ts), [contract editor](../../../src/renderer/src/components/janus/TaskContractEditor.tsx) and [run panel](../../../src/renderer/src/components/janus/HarnessRunPanel.tsx). Formal validity and closeout continue to use [portable task results](./harness-execution-adapter-s8.md), not the adoption lifecycle or UI checkboxes.
+Entry points are the [adoption service](../../../src/main/harness/task-adoption.ts), [IPC handlers](../../../src/main/ipc/harness-handlers.ts), [contract editor](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/renderer/src/components/janus/TaskContractEditor.tsx) and [run panel](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/renderer/src/components/janus/HarnessRunPanel.tsx). Formal validity and closeout continue to use [portable task results](./harness-execution-adapter-s8.md), not the adoption lifecycle or UI checkboxes.
 
 ## Alternatives considered
 

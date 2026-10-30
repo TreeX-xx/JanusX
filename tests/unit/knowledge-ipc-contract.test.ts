@@ -10,16 +10,6 @@ import type {
   StructuredCloneValue,
 } from '../../src/shared/knowledge'
 import { installElectronApiFallback } from '../../src/renderer/src/lib/electron-api-fallback'
-import { defaultKnowledgeAutomation } from '../../src/shared/knowledge-automation'
-import { normalizeKnowledgeSettings } from '../../src/shared/knowledge-settings'
-import * as localEnvironment from '../../src/main/knowledge/knowledge-local-environment'
-import { configureKnowledgeLocalModel, disableKnowledgeLocalModel, startKnowledgeLocalResources, updateKnowledgeSettingsFromRenderer } from '../../src/main/knowledge/knowledge-local-settings'
-import { knowledgeLocalResources } from '../../src/main/knowledge/knowledge-local-resources'
-import { getJevKey } from '../../src/main/knowledge/knowledge-credentials'
-import {
-  getKnowledgeSettings,
-  updateKnowledgeSettings,
-} from '../../src/renderer/src/services/knowledge-settings'
 
 const mocks = vi.hoisted(() => ({
   expose: vi.fn(),
@@ -49,10 +39,6 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../../src/main/knowledge/laya-runtime', () => ({ controlLaya: vi.fn(), syncLayaSettings: vi.fn(async () => {}) }))
-vi.mock('../../src/main/knowledge/automation-service', () => ({ knowledgeAutomationService: { stop: vi.fn() } }))
-vi.mock('../../src/main/knowledge/knowledge-models', () => ({ stopKnowledgeLocalModel: vi.fn() }))
-vi.mock('../../src/main/knowledge/knowledge-credentials', () => ({ getJevKey: vi.fn(), setJevKey: vi.fn() }))
 vi.mock('../../src/main/knowledge/contract-service', () => ({ knowledgeContractService: {} }))
 vi.mock('../../src/main/knowledge/audit-service', () => ({ knowledgeAuditService: { page: mocks.auditPage } }))
 vi.mock('../../src/main/knowledge/observation-service', () => ({ knowledgeObservationService: {} }))
@@ -108,7 +94,8 @@ describe('Knowledge IPC contract', () => {
     // Post-Phase 5: +2 external-MCP registration channels (status/register).
     // User memory M4: +1 workspace-free glance channel (user-memory:overview).
     // R3 note wiki: +4 note-wiki channels (pages/prepare/propose/statuses).
-    expect(channels).toHaveLength(38)
+    // Laya retirement: remove its runtime control channel.
+    expect(channels).toHaveLength(33)
     expect(new Set(channels).size).toBe(channels.length)
     expect(mocks.handle.mock.calls.map(([channel]) => channel)).toEqual(expect.arrayContaining(channels))
     expect(channels).not.toEqual(expect.arrayContaining([
@@ -158,7 +145,6 @@ describe('Knowledge IPC contract', () => {
     await knowledgeApi.savePersonalProfile({ expectedHash: 'a'.repeat(64), overrides: { identity: 'Tree' } })
     await knowledgeApi.importLegacyPersonalMemory()
     await knowledgeApi.migrateLegacyEpisodes({ expectedHash: 'b'.repeat(64) })
-    await knowledgeApi.layaControl('status')
     await knowledgeApi.candidateAction({candidateId: 'c', candidateHash: 'a'.repeat(64), action: 'score'})
     await knowledgeApi.forgetPersonalMemory({ targetId: 'old', targetHash: 'hash', kind: 'episode' })
     await knowledgeApi.proposePersonalMemoryCorrection({ targetId: 'old', targetHash: 'hash', content: 'new' })
@@ -190,7 +176,6 @@ describe('Knowledge IPC contract', () => {
       [KNOWLEDGE_CHANNELS.savePersonalProfile, { expectedHash: 'a'.repeat(64), overrides: { identity: 'Tree' } }],
       [KNOWLEDGE_CHANNELS.importLegacyPersonalMemory],
       [KNOWLEDGE_CHANNELS.migrateLegacyEpisodes, { expectedHash: 'b'.repeat(64) }],
-      [KNOWLEDGE_CHANNELS.layaControl, 'status'],
       [KNOWLEDGE_CHANNELS.candidateAction, {candidateId: 'c', candidateHash: 'a'.repeat(64), action: 'score'}],
       [KNOWLEDGE_CHANNELS.forgetPersonalMemory, { targetId: 'old', targetHash: 'hash', kind: 'episode' }],
       [KNOWLEDGE_CHANNELS.proposePersonalMemoryCorrection, { targetId: 'old', targetHash: 'hash', content: 'new' }],
@@ -215,19 +200,11 @@ describe('Knowledge IPC contract', () => {
     expect(mocks.expose.mock.calls[0]?.[0]).not.toHaveProperty('invoke')
   })
 
-  it('preserves Knowledge Settings service values, arguments, and failures', async () => {
-    const expected = { enabled: false }
-    const getSettings = vi.fn().mockResolvedValue(expected)
-    const updateSettings = vi.fn().mockResolvedValue(expected)
-    vi.stubGlobal('window', { electron: { knowledge: { getSettings, updateSettings } } })
-
-    await expect(getKnowledgeSettings()).resolves.toBe(expected)
-    await expect(updateKnowledgeSettings({ enabled: false })).resolves.toBe(expected)
-    expect(updateSettings).toHaveBeenCalledWith({ enabled: false })
-
-    const failure = new Error('settings unavailable')
-    getSettings.mockRejectedValueOnce(failure)
-    await expect(getKnowledgeSettings()).rejects.toBe(failure)
+  it('does not expose or register the retired knowledge model deployment API', () => {
+    for (const method of ['stopLocalModel', 'configureLocalModel', 'installLocalResources', 'localResourcesStatus']) {
+      expect(knowledgeApi).not.toHaveProperty(method)
+    }
+    expect(mocks.handle.mock.calls.map(([channel]) => channel).filter(channel => channel.startsWith('knowledge:local-model:'))).toEqual([])
   })
 
   it('delegates Settings handler defaults, partial updates, raw returns, and failures', async () => {
@@ -239,7 +216,7 @@ describe('Knowledge IPC contract', () => {
 
     await expect(getHandler({})).resolves.toBe(raw)
     await expect(updateHandler({}, undefined)).resolves.toBe(raw)
-    expect(mocks.updateKnowledgeSettings).toHaveBeenLastCalledWith({ automation: undefined })
+    expect(mocks.updateKnowledgeSettings).toHaveBeenLastCalledWith({})
     await expect(updateHandler({}, { enabled: false })).resolves.toBe(raw)
     expect(mocks.updateKnowledgeSettings).toHaveBeenLastCalledWith({ enabled: false, automation: undefined })
 
@@ -248,63 +225,6 @@ describe('Knowledge IPC contract', () => {
     mocks.updateKnowledgeSettings.mockRejectedValueOnce(failure)
     await expect(getHandler({})).rejects.toBe(failure)
     await expect(updateHandler({}, { enabled: true })).rejects.toBe(failure)
-  })
-
-  it('persists opt-in only after host checks and prevents stale Save or detection from reversing disable', async () => {
-    let stored = normalizeKnowledgeSettings({ automation: defaultKnowledgeAutomation() })
-    mocks.getKnowledgeSettings.mockImplementation(async () => structuredClone(stored))
-    mocks.updateKnowledgeSettings.mockImplementation(async partial => { stored = normalizeKnowledgeSettings({ ...stored, ...partial }); return structuredClone(stored) })
-    const local = { ...defaultKnowledgeAutomation().local, enabled: true }
-    const report = { ok: true, mode: 'gpu' as const, availableMemoryMiB: 16000, modelContextTokens: 262144,
-      recommendedContextTokens: 65536, selectedContextTokens: 65536, supportedContextTokens: [32768, 65536] }
-    const detect = vi.spyOn(localEnvironment, 'detectLocalEnvironment').mockResolvedValue({ ...report, ok: false, reason: 'local-memory-insufficient' })
-    expect((await configureKnowledgeLocalModel(local)).report.ok).toBe(false)
-    expect(stored.automation!.local.enabled).toBe(false)
-    detect.mockResolvedValue(report)
-    expect((await configureKnowledgeLocalModel(local)).settings.automation!.local.enabled).toBe(true)
-    const stale = structuredClone(stored)
-    stale.automation!.stages.entryReview.provider = 'local'
-    await disableKnowledgeLocalModel()
-    await updateKnowledgeSettingsFromRenderer(stale)
-    expect(stored.automation!.local.enabled).toBe(false)
-    expect(stored.automation!.stages.entryReview.provider).toBe('off')
-    let finish!: (value: typeof report) => void
-    detect.mockImplementation(() => new Promise(resolve => { finish = resolve }))
-    const pending = configureKnowledgeLocalModel(local)
-    const rejected = expect(pending).rejects.toThrow()
-    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
-    await disableKnowledgeLocalModel()
-    finish(report)
-    await rejected
-    expect(stored.automation!.local.enabled).toBe(false)
-    // Cancellation also wins if the host is still reading settings before detection begins.
-    const beforeRead = configureKnowledgeLocalModel(local)
-    const cancelled = expect(beforeRead).rejects.toThrow()
-    await disableKnowledgeLocalModel()
-    await cancelled
-    expect(stored.automation!.local.enabled).toBe(false)
-    detect.mockRestore()
-  })
-
-  it('routes resource operations and cancels pending setup before it can start a download', async () => {
-    await knowledgeApi.installLocalResources()
-    expect(mocks.invoke).toHaveBeenLastCalledWith(KNOWLEDGE_CHANNELS.localResourcesInstall)
-    await knowledgeApi.localResourcesStatus()
-    expect(mocks.invoke).toHaveBeenLastCalledWith(KNOWLEDGE_CHANNELS.localResourcesStatus)
-    mocks.getKnowledgeSettings.mockResolvedValue(normalizeKnowledgeSettings({ automation: defaultKnowledgeAutomation() }))
-    const start = vi.spyOn(knowledgeLocalResources, 'start')
-    const cancel = vi.spyOn(knowledgeLocalResources, 'cancel')
-    try {
-      const pending = startKnowledgeLocalResources()
-      const rejected = expect(pending).rejects.toThrow()
-      await disableKnowledgeLocalModel()
-      await rejected
-      expect(start).not.toHaveBeenCalled()
-      expect(cancel).toHaveBeenCalledOnce()
-      mocks.getKnowledgeSettings.mockResolvedValue({ automation: { ...defaultKnowledgeAutomation(), local: { ...defaultKnowledgeAutomation().local, enabled: true } } })
-      await expect(startKnowledgeLocalResources()).rejects.toThrow('local-model-already-enabled')
-      expect(start).not.toHaveBeenCalled()
-    } finally { start.mockRestore(); cancel.mockRestore() }
   })
 
   it('constrains public extensible values to structured-clone-safe data', () => {
@@ -371,8 +291,8 @@ describe('Knowledge IPC contract', () => {
     }
     const api = window.electron.knowledge
     const calls = Object.values(api).map(method => () => (method as () => Promise<unknown>)())
-    expect(Object.keys(api)).toHaveLength(38)
-    expect(calls).toHaveLength(38)
+    expect(Object.keys(api)).toHaveLength(33)
+    expect(calls).toHaveLength(33)
     for (const call of calls) {
       await expect(call()).rejects.toThrow('Electron knowledge API is unavailable')
     }

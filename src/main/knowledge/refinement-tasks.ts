@@ -258,7 +258,7 @@ export class RefinementTaskService {
         const cost = observations.reduce((sum, observation) => sum + observation.content.length, 0)
         if (this.domainAllowed && !await this.domainAllowed(task.scope)) { result.deferred += 1; continue }
         if (task.nextRetryAt > this.deps.nowMs() || task.scope !== 'user' && !settings.enabled
-          || (!manual && (settings.mode === 'deterministic-only' || scorer.provider === 'noop' || this.deps.scorerAvailable?.() === false || (scorer.provider === 'laya' && settings.laya?.enabled !== true)))
+          || (!manual && (settings.mode === 'deterministic-only' || scorer.provider === 'noop' || this.deps.scorerAvailable?.() === false))
           || cost > budget || calls >= 20 || !(await this.deps.hasModel().catch(() => false))) {
           result.deferred++; continue
         }
@@ -272,7 +272,6 @@ export class RefinementTaskService {
           const current = await this.deps.settings()
           if (task.scope !== 'user' && !current.enabled || (!manual && (current.mode === 'deterministic-only'
             || this.deps.scorerAvailable?.() === false
-            || (task.scorer.provider === 'laya' && current.laya?.enabled !== true)
             || refinementHash(this.deps.scorerIdentity()) !== refinementHash(task.scorer)))) return false
           const sources = new Map((await this.deps.listObservations()).map(item => [item.id, item]))
           for (const [id, hash] of Object.entries(task.evidenceHashes)) {

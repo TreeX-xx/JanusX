@@ -22,7 +22,7 @@ export function readyAnswers(refine = false) {
 }
 
 function scorer(output: unknown): DecisionScorer {
-  return { identity: { provider: 'test-laya', modelRevision: 'pinned', templateVersion: DECISION_TEMPLATE_VERSION, calibrationId: null },
+  return { identity: { provider: 'test-scorer', modelRevision: 'pinned', templateVersion: DECISION_TEMPLATE_VERSION, calibrationId: null },
     score: vi.fn(async () => output) }
 }
 

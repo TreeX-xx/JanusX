@@ -49,9 +49,9 @@ function relocatedConfig(source: string, target: string): Buffer | undefined {
   if (!existsSync(path)) return
   const document = JSON.parse(readFileSync(path, 'utf8'))
   let changed = false
-  for (const settings of [document?.knowledgeSettings?.automation?.local, document?.knowledgeSettings?.laya]) {
+  for (const settings of [document?.knowledgeSettings?.automation?.local]) {
     if (!settings) continue
-    for (const key of ['serverPath', 'modelPath', 'pythonPath']) {
+    for (const key of ['serverPath', 'modelPath']) {
       const value = settings[key]
       if (typeof value === 'string' && isAbsolute(value) && isInside(source, resolve(value))) {
         settings[key] = join(target, relative(source, resolve(value)))

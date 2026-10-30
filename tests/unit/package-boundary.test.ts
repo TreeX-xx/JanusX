@@ -14,7 +14,6 @@ const treeExclusions = [
   '  - !.github{,/**/*}',
   '  - !.janusX{,/**/*}',
   '  - !.janusx{,/**/*}',
-  '  - !resources/laya{,/**/*}',
   '  - !artifacts{,/**/*}',
   '  - !apps{,/**/*}',
   '  - !scripts/android-lab{,/**/*}',

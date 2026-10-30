@@ -190,10 +190,6 @@ const browserAPI: BrowserAPI = {
 }
 
 const knowledgeAPI: KnowledgeAPI = {
-  stopLocalModel: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localModelStop),
-  installLocalResources: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localResourcesInstall),
-  localResourcesStatus: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localResourcesStatus),
-  configureLocalModel: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localModelConfigure, input),
   contracts: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.contracts),
   bootstrap: (workspacePath) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.bootstrap, workspacePath),
   observe: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.observe, input),
@@ -221,7 +217,6 @@ const knowledgeAPI: KnowledgeAPI = {
   savePersonalProfile: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.savePersonalProfile, input),
   importLegacyPersonalMemory: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.importLegacyPersonalMemory),
   migrateLegacyEpisodes: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.migrateLegacyEpisodes, input),
-  layaControl: (action) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.layaControl, action),
   candidateAction: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.candidateAction, input),
   forgetPersonalMemory: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.forgetPersonalMemory, input),
   proposePersonalMemoryCorrection: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.proposePersonalMemoryCorrection, input),

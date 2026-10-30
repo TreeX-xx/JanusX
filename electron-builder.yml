@@ -51,7 +51,6 @@ files:
   - "!plugins{,/**/*}"
   - "!test-results{,/**/*}"
   - "!tests{,/**/*}"
-  - "!resources/laya{,/**/*}"
   - "!wiki{,/**/*}"
   - "!playwright.config.ts"
   - "!playwright.blueprint.config.ts"
@@ -497,12 +496,6 @@ files:
   # --- END dev-only node_modules ---
 
 extraResources:
-  - from: resources/laya
-    to: laya
-    filter:
-      - "sidecar.py"
-      - "model-manifest.json"
-      - "requirements.txt"
   - from: resources/officecli
     to: officecli
 

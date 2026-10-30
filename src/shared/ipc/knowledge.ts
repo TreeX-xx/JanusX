@@ -47,11 +47,6 @@ export interface ObservationRevocationsPage {
 }
 
 export const KNOWLEDGE_CHANNELS = {
-  localModelStop: 'knowledge:local-model:stop',
-  localModelConfigure: 'knowledge:local-model:configure',
-  localResourcesInstall: 'knowledge:local-model:install',
-  localResourcesStatus: 'knowledge:local-model:resources-status',
-  layaControl: 'knowledge:laya:control',
   candidateAction: 'knowledge:candidate:action',
   contracts: 'knowledge:contracts:get',
   bootstrap: 'knowledge:bootstrap',
@@ -311,10 +306,6 @@ export interface ExternalMcpRegisterResult {
 }
 
 export interface KnowledgeAPI {
-  stopLocalModel: () => Promise<void>
-  installLocalResources: () => Promise<import('../knowledge-automation').KnowledgeLocalResources>
-  localResourcesStatus: () => Promise<import('../knowledge-automation').KnowledgeLocalResources>
-  configureLocalModel: (input: import('../knowledge-automation').KnowledgeLocalSettings) => Promise<{ settings: KnowledgeSettings; report: import('../knowledge-automation').KnowledgeLocalEnvironment }>
   contracts: () => Promise<KnowledgeContractsSnapshot>
   bootstrap: (workspacePath?: string) => Promise<KnowledgeBootstrapResult>
   observe: (input: CaptureObservationInput) => Promise<Observation>
@@ -341,7 +332,6 @@ export interface KnowledgeAPI {
   savePersonalProfile: (input: { expectedHash: string; overrides: PersonalProfileOverrides }) => Promise<void>
   importLegacyPersonalMemory: () => Promise<{ created: number; remaining: number }>
   migrateLegacyEpisodes: (input?: { expectedHash?: string }) => Promise<{ hash: string; files: number; episodes: number; migrated: number }>
-  layaControl: (action: import('../laya').LayaAction) => Promise<import('../laya').LayaStatus>
   candidateAction: (input: { candidateId: string; candidateHash: string; action: 'score' | 'refine' }) => Promise<void>
   forgetPersonalMemory: (input: { targetId: string; targetHash: string; kind?: 'fact' | 'episode' | 'override' }) => Promise<void>
   proposePersonalMemoryCorrection: (input: { targetId: string; targetHash: string; content: string }) => Promise<{ candidateId: string; status: CandidateFact['status'] }>

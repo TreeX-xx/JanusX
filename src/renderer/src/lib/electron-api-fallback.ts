@@ -112,10 +112,6 @@ export function installElectronApiFallback(): void {
       onAgentControlChanged: () => () => {},
     },
     knowledge: {
-      stopLocalModel: () => unavailableKnowledge(),
-      installLocalResources: () => unavailableKnowledge(),
-      localResourcesStatus: () => unavailableKnowledge(),
-      configureLocalModel: () => unavailableKnowledge(),
       contracts: () => unavailableKnowledge(),
       bootstrap: () => unavailableKnowledge(),
       observe: () => unavailableKnowledge(),
@@ -142,7 +138,6 @@ export function installElectronApiFallback(): void {
       savePersonalProfile: () => unavailableKnowledge(),
       importLegacyPersonalMemory: () => unavailableKnowledge(),
       migrateLegacyEpisodes: () => unavailableKnowledge(),
-      layaControl: () => unavailableKnowledge(),
       candidateAction: () => unavailableKnowledge(),
       forgetPersonalMemory: () => unavailableKnowledge(),
       proposePersonalMemoryCorrection: () => unavailableKnowledge(),

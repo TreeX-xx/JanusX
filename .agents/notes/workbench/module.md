@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-30T04:24:16Z",
+  "updated": "2026-10-30T09:34:45.519Z",
   "moduleState": "partial"
 }
 ---
@@ -52,6 +52,8 @@
 组织 Island、右侧工具栏、产物预览与共享编辑器的交互和视觉。RightDock 负责工具承载与布局，ProductWorkspacePanel 负责生成文件的预览，JanusIsland 负责工作状态及通知入口。文件事实由既有读取服务提供，会话耐久、Agent 执行与工程 Note 事务分别由对应模块负责。
 
 ## Design
+
+旧独立产物工作区已删除：退出其面板、本地文件 stage、发现与尺寸工具、Zustand store、专用动画和测试夹具。文件查看统一使用现用文件窗口，保留文件类型映射、Office 后端与预览 frame、共享 HTML／图片／Markdown viewer；旧方案由[产物记录](product-workspace.md)保留历史证据。
 
 [文件预览与编辑](./file-editor-experience.md)以当前文件阅读、轻量修改和文件内搜索为边界，保留语法高亮与显式差异对比，移除 clangd 语言服务及定义／引用／符号导航。
 
