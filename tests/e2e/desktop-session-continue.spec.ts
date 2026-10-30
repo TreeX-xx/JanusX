@@ -333,6 +333,9 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
     // Regression: Continue on an external Claude row resumes its provider
     // history in the active workspace without submitting the first prompt.
     const argvBefore = (await readFakeAgentState(binDir)).argvs.length
+    const resumeCount = async () => (await readFakeAgentState(binDir)).argvs
+      .filter(argv => argv.at(-2) === '--resume' && argv.at(-1) === PROVIDER_SESSION_ID).length
+    const resumesBefore = await resumeCount()
     const xtermsBeforeExtContinue = await page.locator('.xterm-rows').count()
     const rowsBeforeContinue = await listLive(page)
     await externalCard.getByRole('button', { name: '在新会话中继续', exact: true }).click()
@@ -346,8 +349,8 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
       .poll(async () => page.locator('.xterm-rows').count(), { timeout: 15_000 })
       .toBeGreaterThan(xtermsBeforeExtContinue)
     await expect
-      .poll(async () => (await readFakeAgentState(binDir)).argvs.slice(argvBefore).map(argv => argv.slice(-2)), { timeout: 20_000 })
-      .toContainEqual(['--resume', PROVIDER_SESSION_ID])
+      .poll(resumeCount, { timeout: 20_000 })
+      .toBe(resumesBefore + 1)
     const extContinued = (await listLive(page)).find(
       (row) => !rowsBeforeContinue.some((before) => before.id === row.id),
     )
