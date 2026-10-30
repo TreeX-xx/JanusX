@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-29",
-  "updated": "2026-10-29T17:22:01.375Z",
+  "updated": "2026-10-30T02:20:12.913Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -88,6 +88,12 @@ Claude 2.1.312 四类生命周期投递及移除参数后脱离；Pi 0.85.1 启�
 复验命令为 `JANUSX_TEST_REAL_CLIS=1 npx vitest run tests/unit/agent-hook-cli.test.ts --maxWorkers=1`，以及 `JANUSX_DESKTOP_ENTRY=artifacts/build-check/main/index.js npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-session-continue.spec.ts -g "restore native history"`；Windows PowerShell 用 `$env:` 设置前述环境变量。主 Agent 对高风险启动引用、会话串线、旧绑定和停用竞态进行了自检，发现的问题已修复；没有独立审阅者，不宣称独立审阅 PASS。
 
 真实 CLI 成功回合和应用内故障／中断回归不等于四 CLI 全交互 TUI、真实账号登录、每种审批、跨平台打包或长期多实例验收。这些场景及 OpenCode 1.19.5 是明确限制；P6 再做长期与跨环境验证，不以 mock 冒充真实 CLI。原探索 artifacts/hook-launch-review 被忽略且可清理，正式可重复测试才是维护入口。
+
+## P6 真实 CLI 与恢复复验
+
+2026-10-30 在 Windows 隔离临时 home、localhost 模型上设置 `JANUSX_TEST_REAL_CLIS=1`，运行 `npx vitest run tests/unit/agent-hook-cli.test.ts --maxWorkers=1`，四项均通过、没有按默认跳过计数。实测版本为 Claude 2.1.312、Codex 0.165.0、Pi 0.85.1、OpenCode 2.1.4。覆盖旧全局条目主动清理后用户 Hook 保留、Codex 原生主动审阅、单次注入及移除后脱离、Pi 用户扩展保留、OpenCode 双终端独立服务与会话归属；本机报告为 `artifacts/workspace-storage/p6-real-cli.json`。本轮未复测 OpenCode 1.x，既有 1.19.5 未通过边界不变。
+
+新构建上运行 `tests/e2e/desktop-session-continue.spec.ts -g "restore native history"` 一项通过，覆盖三引擎新建、恢复和后续回合；使用真实 Electron 与本地 CLI fixture，不声称真实提供方历史恢复通过。真实 WSL／SSH 的断线用例单独开启后通过，保持原 PTY PID 并读回断线期间输出；远程 fixture 不携带真实凭据，也不意味着远程数据迁移或远程各引擎 Hook 已验收。完整原生审批／中断、跨平台和长期多实例仍归[总计划剩余出口](../planning/workspace-data-lifecycle-plan.md#p6-本机代表验收与剩余出口)，生产接入与阈值没有变化。
 
 ## Consequences
 
