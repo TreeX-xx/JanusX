@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="download.css">
 <script src="download.js" defer></script>
 <script src="hero.js" defer></script>
+<script src="reveal.js" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">跳转到下载内容</a>
@@ -29,6 +30,7 @@
           <span class="float-card fc-a"><img src="assets/logos/claude.svg" alt="" width="26" height="26"></span>
           <span class="float-card fc-b"><img src="assets/logos/codex.svg" alt="" width="26" height="26"></span>
           <span class="float-card fc-c"><img src="assets/logos/opencode.svg" alt="" width="26" height="26"></span>
+          <span class="float-card fc-d"><img src="assets/logos/pi.svg" alt="" width="26" height="26"></span>
         </div>
       </div>
       <p class="lede"><span>项目、终端与 AI 编程助手。</span><span>各就其位，一起向前。</span></p>
@@ -65,17 +67,17 @@
   </div>
   </div>
   <section id="downloads" class="container" aria-labelledby="download-heading">
-    <div class="section-heading"><div><p class="eyebrow"><span>01</span> DOWNLOAD</p><h2 id="download-heading">Windows 桌面版</h2></div><a class="text-link" href="https://github.com/TreeX-xx/JanusX/releases">全部版本 ↗</a></div>
+    <div class="section-heading reveal reveal-flip"><div><p class="eyebrow"><span>01</span> DOWNLOAD</p><h2 id="download-heading">Windows 桌面版</h2></div><a class="text-link" href="https://github.com/TreeX-xx/JanusX/releases">全部版本 ↗</a></div>
     <div class="release-bar" aria-live="polite" aria-atomic="true"><span class="release-label"><span class="status-dot" aria-hidden="true"></span><span id="release-status">正在查询最新版本…</span></span><span id="release-date" class="mono">GITHUB RELEASES</span></div>
     <div class="downloads">
-      <article class="download-option featured">
+      <article class="download-option featured reveal">
         <p class="package-kind mono">01 / INSTALLER</p>
         <div class="option-heading"><h3>安装版</h3><span class="tag">日常使用</span></div>
         <p class="description">安装到你的电脑，自选安装位置，<br>创建桌面快捷方式。</p>
         <p class="package-meta mono" id="setup-meta">Windows x64 · .exe</p>
         <a class="download-button primary" id="download-setup" href="https://github.com/TreeX-xx/JanusX/releases"><span id="setup-label">查看安装版发布</span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg></a>
       </article>
-      <article class="download-option">
+      <article class="download-option reveal">
         <p class="package-kind mono">02 / PORTABLE</p>
         <div class="option-heading"><h3>便携版</h3><span class="tag neutral">免安装</span></div>
         <p class="description">下载后直接运行，<br>无需完成安装向导。</p>
@@ -88,25 +90,25 @@
     <div class="platform-note"><span>其他平台</span><p>目前提供 Windows 下载。macOS 与 Linux 暂无公开安装包。</p></div>
   </section>
   <section id="install" class="install-section container" aria-labelledby="install-heading">
-    <div class="section-heading"><div><p class="eyebrow"><span>02</span> GET STARTED</p><h2 id="install-heading">从下载到开始工作</h2></div></div>
+    <div class="section-heading reveal reveal-flip"><div><p class="eyebrow"><span>02</span> GET STARTED</p><h2 id="install-heading">从下载到开始工作</h2></div></div>
     <ol class="steps">
-      <li><span class="step-number mono">01</span><h3>选择安装包</h3><p>日常使用选择安装版；希望直接运行，选择便携版。</p></li>
-      <li><span class="step-number mono">02</span><h3>启动 JanusX</h3><p>运行下载的 .exe 文件。安装版按向导选择安装位置并完成安装。</p></li>
-      <li><span class="step-number mono">03</span><h3>连接你的工作区</h3><p>打开本地项目，选择 Shell 开始工作。需要 AI 功能时，再配置模型提供商与 API Key。</p></li>
+      <li class="reveal"><span class="step-number mono">01</span><h3>选择安装包</h3><p>日常使用选择安装版；希望直接运行，选择便携版。</p></li>
+      <li class="reveal"><span class="step-number mono">02</span><h3>启动 JanusX</h3><p>运行下载的 .exe 文件。安装版按向导选择安装位置并完成安装。</p></li>
+      <li class="reveal"><span class="step-number mono">03</span><h3>连接你的工作区</h3><p>打开本地项目，选择 Shell 开始工作。需要 AI 功能时，再配置模型提供商与 API Key。</p></li>
     </ol>
   </section>
   <section id="tour" class="product-tour container" aria-labelledby="tour-heading">
-    <div class="section-heading"><div><p class="eyebrow"><span>03</span> EVERYDAY WORKSPACE</p><h2 id="tour-heading">先看工作流，再开始工作</h2></div></div>
+    <div class="section-heading reveal reveal-flip"><div><p class="eyebrow"><span>03</span> EVERYDAY WORKSPACE</p><h2 id="tour-heading">先看工作流，再开始工作</h2></div></div>
     <p class="tour-intro">终端、账号管理和文档，都放进同一个工作区。以下黑色主题画面采集自真实 JanusX，使用独立的 Atlas 演示项目；终端中是未提交的任务草稿。</p>
-    <figure class="tour-shot">
+    <figure class="tour-shot reveal">
       <figcaption><span class="eyebrow">PARALLEL TERMINALS</span><h3>四个终端，各有自己的任务</h3><p>Claude、Codex、OpenCode 与 Pi 在四格分屏中保留各自的上下文。拖动标签拆分或合并，调整分隔线，为当前任务留出更多空间。</p></figcaption>
       <a href="assets/workspace/terminals.png" target="_blank" rel="noopener" aria-label="查看四终端分屏原图"><img src="assets/workspace/terminals.png" alt="黑色主题下 Claude、Codex、OpenCode 与 Pi 的真实四格终端布局" width="1760" height="884" loading="lazy" decoding="async"></a>
     </figure>
-    <figure class="tour-shot">
+    <figure class="tour-shot reveal">
       <figcaption><span class="eyebrow">CPA / JANUS TOOLBOX</span><h3>CPA，就在终端旁边</h3><p>从 Janus 工具箱打开 CPA 管理页，在同一窗口管理 CLI 账号与服务连接。画面使用独立的本地 CPA 空实例，未添加账号或发起请求。</p></figcaption>
       <a href="assets/workspace/cpa.png" target="_blank" rel="noopener" aria-label="查看 CPA 工具箱原图"><img src="assets/workspace/cpa.png" alt="JanusX 中嵌入的真实黑色 CPA 管理页，旁边保留四个终端" width="1760" height="884" loading="lazy" decoding="async"></a>
     </figure>
-    <figure class="tour-shot">
+    <figure class="tour-shot reveal">
       <figcaption><span class="eyebrow">EMBEDDED DOCUMENTS</span><h3>写下思路，预览就在眼前</h3><p>Markdown 编辑与预览嵌入工具区，发布清单、表格和笔记随手可读。工具区还能继续拆分，让文档和 CPA 同时留在视野里。</p></figcaption>
       <a href="assets/workspace/documents.png" target="_blank" rel="noopener" aria-label="查看嵌入式文档预览原图"><img src="assets/workspace/documents.png" alt="四个终端旁嵌入 Markdown 源码编辑与发布清单预览" width="1760" height="884" loading="lazy" decoding="async"></a>
     </figure>
@@ -114,23 +116,23 @@
     <a class="text-link" href="#downloads">选择 Windows 安装包 ↑</a>
   </section>
   <section id="more-tools" class="product-tour container" aria-labelledby="more-tools-heading">
-    <div class="section-heading"><div><p class="eyebrow"><span>04</span> KEEP YOUR CONTEXT</p><h2 id="more-tools-heading">从代码到会话，接着往下做</h2></div></div>
+    <div class="section-heading reveal reveal-flip"><div><p class="eyebrow"><span>04</span> KEEP YOUR CONTEXT</p><h2 id="more-tools-heading">从代码到会话，接着往下做</h2></div></div>
     <p class="tour-intro">新版工具与会话视图，让文件、记录和上下文留在工作区里。会话内容使用人工编写的演示记录，展示浏览与续接入口。</p>
-    <figure class="tour-shot">
+    <figure class="tour-shot reveal">
       <figcaption><span class="eyebrow">FILES &amp; CODE</span><h3>打开文件，就地对照代码</h3><p>从项目文件树打开代码，在嵌入式编辑器里阅读和修改。终端保留在旁边，思路不用随着窗口切换而中断。</p></figcaption>
       <a href="assets/workspace/files.png" target="_blank" rel="noopener" aria-label="查看新版文件与代码工具原图"><img src="assets/workspace/files.png" alt="新版黑色 JanusX 中的项目文件树、代码编辑器和终端" width="1760" height="884" loading="lazy" decoding="async"></a>
     </figure>
-    <figure class="tour-shot">
+    <figure class="tour-shot reveal">
       <figcaption><span class="eyebrow">SESSION HISTORY</span><h3>找回上一轮的上下文</h3><p>按工作区和项目查看会话，展开每一轮的记录。从详情中查看续接入口，继续原会话或在新会话里接着处理。</p></figcaption>
       <a href="assets/workspace/sessions.png" target="_blank" rel="noopener" aria-label="查看新版会话历史原图"><img src="assets/workspace/sessions.png" alt="新版黑色会话详情窗口，显示两轮人工编写的示例记录和续接入口" width="1760" height="884" loading="lazy" decoding="async"></a>
     </figure>
-    <figure class="tour-shot">
+    <figure class="tour-shot reveal">
       <figcaption><span class="eyebrow">EXTERNAL SESSIONS</span><h3>外部 CLI 的记录，也能集中查看</h3><p>查看扫描导入的外部会话、来源和只读转录，找到需要继续的任务。图中使用示例 Claude 会话文件，未执行续接或模型调用。</p></figcaption>
       <a href="assets/workspace/external-sessions.png" target="_blank" rel="noopener" aria-label="查看新版外部会话原图"><img src="assets/workspace/external-sessions.png" alt="黑色主题下的外部 Claude 示例会话转录与来源信息" width="1760" height="884" loading="lazy" decoding="async"></a>
     </figure>
     <a class="text-link" href="https://github.com/TreeX-xx/JanusX#readme">阅读完整功能介绍 ↗</a>
   </section>
-  <section class="support container" aria-labelledby="support-heading"><div><h2 id="support-heading">安装遇到问题？</h2><p>在反馈中附上系统版本、JanusX 版本与错误信息。</p></div><a class="text-link" href="https://github.com/TreeX-xx/JanusX/issues">反馈问题 ↗</a></section>
+  <section class="support container reveal" aria-labelledby="support-heading"><div><h2 id="support-heading">安装遇到问题？</h2><p>在反馈中附上系统版本、JanusX 版本与错误信息。</p></div><a class="text-link" href="https://github.com/TreeX-xx/JanusX/issues">反馈问题 ↗</a></section>
 </main>
 <footer><div class="container footer-inner"><a class="brand" href="./"><img src="icon.png" alt="" width="22" height="22"><span>JanusX</span></a><span>一个工作区，连接你的开发日常。</span><a href="https://github.com/TreeX-xx/JanusX/blob/main/LICENSE">MIT License ↗</a></div></footer>
 </body>
