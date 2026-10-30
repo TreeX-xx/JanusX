@@ -1620,6 +1620,7 @@ test('copied development sources retain trust and restart only enabled entries, 
     await expect(booted.page.locator('[data-plugin-native]')).toHaveCount(0)
     await settings(booted.page)
     const restoredCard = booted.page.locator(`[data-plugin-id="${pluginId}"]`)
+    await openManagement(restoredCard)
     await restoredCard.getByText('Entries and shortcuts', { exact: true }).click()
     await expect(restoredCard.getByRole('textbox', { name: 'Shortcut Open project reference', exact: true })).toHaveValue('Ctrl+Alt+Shift+Q')
     await expect(restoredCard.getByRole('switch', { name: /Open project reference.*Show in toolbox/ })).not.toBeChecked()
