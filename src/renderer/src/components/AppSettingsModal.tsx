@@ -177,7 +177,10 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                 </section>
               ))}
             </nav>
-            <LearningButton onOpen={onClose} />
+            {/* Note: .agents/notes/workbench/first-run-learning.md — keep learning outside scrolling navigation. */}
+            <div className={styles.sidebarFooter}>
+              <LearningButton variant="settings" onOpen={onClose} />
+            </div>
           </aside>
 
           <section className={styles.content}>

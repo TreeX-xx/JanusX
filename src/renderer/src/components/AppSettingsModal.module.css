@@ -68,11 +68,19 @@
 }
 
 .navigation {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   /* Keep Chromium's explicit 4px geometry instead of its native thin preset. */
   scrollbar-width: auto;
   scrollbar-color: auto;
+}
+
+.sidebarFooter {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--shell-border);
 }
 
 .navigation::-webkit-scrollbar {
@@ -125,6 +133,7 @@
 /* 品牌行压成一行：JanusX + "设置中心" 基线对齐，不再占两行高度。 */
 .brand {
   display: flex;
+  flex-shrink: 0;
   align-items: baseline;
   gap: 6px;
   padding: 2px 8px 12px;
@@ -299,6 +308,15 @@
     display: flex;
     min-width: 0;
     overflow-x: auto;
+  }
+
+  .sidebarFooter {
+    margin-top: 0;
+    margin-left: 8px;
+    padding-top: 0;
+    padding-left: 8px;
+    border-top: 0;
+    border-left: 1px solid var(--shell-border);
   }
 
   .navGroup {

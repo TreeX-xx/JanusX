@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-10-18",
-  "updated": "2026-10-19T03:15:35Z",
+  "updated": "2026-10-30T04:24:16Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "codeRefs": [
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/onboarding/OnboardingHost.tsx","symbol":"OnboardingHost","role":"entry"},
@@ -22,6 +22,8 @@
 首次入门包含选择项目、启动终端、拖拽分屏和查看文件四步。它只使用本地工作区与 Shell，不要求配置模型、安装外部 AI CLI 或开启蓝图。特色功能的独立课程是后续方向，本次没有实现 Island、蓝图或运行配置课程，也不显示尚不可用的课程按钮。
 
 App 等待工作区初始化成功与创新功能开关加载，再决定首次介绍。无项目且没有学习记录时显示可关闭的欢迎页；已有项目的用户不自动弹窗。团队登录或组织挡板出现时让出界面，关闭后再介绍。空工作区页和设置侧栏的“帮助与学习”共用同一学习中心，可开始、继续和从头重学。右上角不常驻学习入口，避免低频辅助功能挤占工作台工具空间；退出引导后不额外增加常驻提醒，续学提示指向设置入口。
+
+设置中的学习入口独立放在左侧底部，导航菜单占满其余高度并单独滚动，品牌与底部入口不参与收缩。底部通过细分隔线与菜单区分，入口采用与导航一致的 36px 行高、16px 书本图标、13px 文字及右侧进入箭头；紧凑入口样式继续用于空工作区。720px 及以下设置改用横向导航时，学习入口固定于导航右端，菜单可横向滚动，入口保持可见。点击入口关闭设置并打开原学习中心，课程和进度逻辑不变。
 
 ## 实操与状态
 
@@ -44,6 +46,8 @@ App 等待工作区初始化成功与创新功能开关加载，再决定首次�
 复用静态教程的成本更低，但无法判断用户是否完成操作；全屏强制导览容易阻断开发流程。本方案保持主动操作与明确退出，代价是用户需要在完成后手动点击下一步，且拖拽不便时只能跳过。若后续观察到分屏步骤持续难以完成，应优先补充替代交互或短演示，再增加更多入门步骤。
 
 ## 验证
+
+底部入口调整的 `tests/e2e/settings-layout.spec.ts` 在明暗主题、1440／900／640px 宽度和 480px 矮窗口检查入口可见、滚动菜单不移动入口、桌面布局贴近侧栏底部；截图为 Playwright 输出中的 `learning-footer-{theme}-{width}-480.png`。`tests/e2e/onboarding.spec.ts` 的 7 项回归通过，类型检查和 AppSettingsModal／LearningButton ESLint 通过。两套并行首次运行时通知草稿用例在 page.goto 加载阶段超时，其余 15 项通过；该项通过 `npx playwright test tests/e2e/settings-layout.spec.ts --project=island --workers=1 --grep 'notification disclosure keeps draft values' --output artifacts/settings-learning-retry` 单独复验通过，当前两套共 16 项均已通过。
 
 移除标题栏学习入口后，`npx playwright test tests/e2e/onboarding.spec.ts --project=island --workers=1 --output artifacts/onboarding-settings-entry` 7/7 通过，覆盖已有项目无常驻入口、从设置手动进入、退出后重载续学、首次欢迎和重学；中英文续学提示均改指向设置。`npm run typecheck`、`npm run i18n:check`、Titlebar ESLint 与 `npm run check:notes` 通过（322 篇，0 错误、17 项既有外部链接诊断）。本次未修改学习状态逻辑，未重跑单元测试或安装包构建。
 
