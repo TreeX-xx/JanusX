@@ -1,9 +1,13 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { productKindForPath, toProductFileEntry } from '../../../src/shared/product'
 import { buildOfficePreviewUrl, getOfficeErrorCopy, OfficePreviewFrame } from '../../../src/renderer/src/components/office/OfficePreviewFrame'
+
+vi.mock('../../../src/renderer/src/i18n/useI18n', () => ({
+  useI18n: () => ({ t: (key: string) => key, currentLanguage: 'en' }),
+}))
 
 describe('product workspace kind mapping', () => {
   it('routes office, markdown and html files while rejecting the rest', () => {
