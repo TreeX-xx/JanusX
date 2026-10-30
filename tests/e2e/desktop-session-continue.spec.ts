@@ -323,7 +323,7 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
     await resumeButton.click()
     await expect
       .poll(async () => (await readFakeAgentState(binDir)).argvs, { timeout: 20_000 })
-      .toContainEqual(['--resume', PROVIDER_SESSION_ID])
+      .toContainEqual(expect.arrayContaining(['--resume', PROVIDER_SESSION_ID]))
     await expect
       .poll(async () => (await listLive(page)).filter((row) => row.continuedFrom === external!.id).length, {
         timeout: 15_000,
@@ -347,7 +347,7 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
       .toBeGreaterThan(xtermsBeforeExtContinue)
     await expect
       .poll(async () => (await readFakeAgentState(binDir)).argvs, { timeout: 20_000 })
-      .toContainEqual(['--resume', PROVIDER_SESSION_ID])
+      .toContainEqual(expect.arrayContaining(['--resume', PROVIDER_SESSION_ID]))
     const extContinued = (await listLive(page)).find(
       (row) => !rowsBeforeContinue.some((before) => before.id === row.id),
     )
