@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-28T10:06:00Z",
+  "updated": "2026-10-30T07:02:28.560Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -19,6 +19,8 @@
 # 蓝图官方可下载插件实施计划
 
 ## 目标与当前状态
+
+2026-10-30 本地交付：蓝图 `1.0.8`、CPA `1.0.0`、Docker `1.0.0` 统一以现有 `janusx-blueprint-20261026` 密钥签名，宿主保留蓝图信任并增加另两个插件的 native signer 白名单。配套安装器及三个自包含 `.jxp` 输出到 `release/10-30`，不上传 Release、不变更发现目录。蓝图公开依赖归档与旧锁存在差异，按当前相邻公开包和宿主包重新锁定，并通过仓库外独立类型检查与构建；构建记录在 `artifacts/plugins/blueprint-build.json`。相邻仓库现有修改纳入其公开包构建，未修改相邻源码。此轮不将包导入验证等同于全部业务功能验收。
 
 用户要求将蓝图作为按需下载的官方功能，并整理代码维护位置、下载安装来源、扩展设计及缺陷防护任务。目标是新安装的主程序不包含蓝图专属业务包；用户安装后获得原有蓝图工作台、文档浏览、维护、审阅与 Note MCP 能力。未安装或停用时不启动蓝图自己的监听、调度或模型任务；项目原始 Notes 不因插件卸载而删除。
 
@@ -58,9 +60,13 @@
 
 `npm run plugins:blueprint:check` 以八个锁定公开归档在仓库外重新构建，同包的一项签名 Electron 回归通过，验证首次等待时骨架／加载卡片、两栏、180ms 卡片／320ms 首节点延迟、减少动画、插件关闭、设置冲突、流式讨论收起恢复、实施交接、文件应用撤销和卸载重装。收据为 artifacts/plugins/blueprint-build.json，初始与加载截图在 artifacts/plugins/blueprint-restored-initial.png、blueprint-restored-loading.png。依赖复核仅 SDK 归档变化，七个共享归档不变，见 artifacts/plugins/frame-dependency-lock-review.json。全仓 Note 校验仍只有 entrance-choreography.md 的两项既有错误（缺 AC、更新时间早于创建），本次四份 Note 无新增错误。临时签名与确定性模型不代表生产发布或真实供应商验收。
 
-## 空项目授权导致打开失败
+## 工作区访问体验与历史授权修复
 
-10-27 dev 导入生产签名 1.0.4 后，打开蓝图仅显示 CONTEXT_UNAVAILABLE。读取 JanusX-Dev 的插件登记确认 official.blueprint 已启用且状态 ready，但 projects 为空；原宿主将未授权项目和不可用上下文合并返回同一错误，页面创建前即失败，反复重试不能恢复。应用级设置允许在空项目列表下使用，因此不禁止该启用状态。通用宿主现区分 PATH_NOT_GRANTED，失败页可定位当前插件／项目的权限审阅并在确认后自动重新挂载；取消不保存，未选项目有明确提示，工作台失败页可返回。契约归[项目授权缺失的恢复](../workbench/plugin-contract-v1.md#项目授权缺失的恢复)。修复只改宿主，原签名 1.0.4 包无需重建；未改动用户真实授权列表。
+当前蓝图随宿主统一采用[工作区默认访问范围](../workbench/plugin-contract-v1.md#工作区默认访问范围)：启用后适用于全部现有及未来注册工作区，设置取消逐项目选择，恢复旧空授权记录后也可直接打开。原生后台使用宿主逐次验证的项目上下文，新增工作区无需重启插件。入口设置改用正向显示开关并归入对应命令，移除内部标识和排序数字；隐藏工具箱入口时不再出现替代的顶栏入口。下述记录保留此前空白名单故障的修复与验证历史，不代表当前仍需逐项目授权。
+
+对应交付将蓝图源版本从 1.0.6 递增为 1.0.8，越过已公开且业务文件相同的 1.0.7。签名包使用 v0.9.5 Release 下的新资产地址，声明宿主至少 0.9.5；宿主和插件需配套更新。维护者本次覆盖 tag／Release 的授权与隔离构建规则归[交付设计](../desktop/release-delivery-design.md#本次-095-覆盖交付)。
+
+10-27 dev 导入生产签名 1.0.4 后，打开蓝图仅显示 CONTEXT_UNAVAILABLE。读取 JanusX-Dev 的插件登记确认 official.blueprint 已启用且状态 ready，但 projects 为空；原宿主将未授权项目和不可用上下文合并返回同一错误，页面创建前即失败，反复重试不能恢复。应用级设置允许在空项目列表下使用，因此不禁止该启用状态。通用宿主现区分 PATH_NOT_GRANTED，失败页可定位当前插件／项目的权限审阅并在确认后自动重新挂载；取消不保存，未选项目有明确提示，工作台失败页可返回。契约归[项目授权缺失的恢复](../workbench/plugin-contract-v1.md#工作区默认访问范围)。修复只改宿主，原签名 1.0.4 包无需重建；未改动用户真实授权列表。
 
 验证命令 npx vitest run tests/unit/plugin-runtime.test.ts tests/unit/plugin-documents.test.ts tests/unit/plugin-settings-pages.test.ts，三文件 64 项通过。新增 desktop-plugins.spec.ts 的 project plugin views recover from empty grants through explicit permission review 完整 Electron 回归一项通过：空授权设置页可用、项目页面拒绝、定向选择、取消不保存、失败返回、确认后自动显示文件及另一未授权项目拒绝。宿主严格未用类型检查、修改宿主文件 ESLint、双语键检查及 electron-vite build --outDir artifacts/context-fix 通过。全仓 312 份 Notes 检查仍只有未修改的 entrance-choreography.md 缺 AC、更新时间早于创建两项既有错误，两份维护 Note 无新增错误。
 
@@ -432,3 +438,15 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 本节记录清理前交付：插件当时来自仓库外独立构建，沿用八个锁定公开依赖及同产物载体验证；确切产物和修订由 release/2026-10-26/delivery.json 固定，最新 artifacts/plugins/blueprint-build.json 已被后续九依赖构建刷新。实际正常打包桌面已验证无预装蓝图、单个 .jxp 原生入口导入、默认停用、授权启用、设置页面、真实仓库 Notes 与节点渲染；仅文件选择器在测试中返回指定路径。原收据与截图在 artifacts/delivery-2026-10-26，未修改运行中的开发 profile，未上传 Release 或部署目录。
 
 最终安装器的仓库外模块图、LLM runtime 及可见 GUI 检查通过，包体积预算通过。单元测试全量仍有失败，明细归[可复现验证](../desktop/reproducible-verification.md#october-26-delivery-checks)，不据本地交付将完整功能或远端分发验收标记完成。
+
+## 2026-10-28 官方分发修复
+
+0.9.5 首次公开时目录未部署，旧账号插件包地址也返回 404。当前插件改由 TreeX-xx/JanusX 的 blueprint-v1.0.7 Release 发布，宿主仍从 plugins/catalog/trust.json 指定的 GitHub Pages plugins/index.json 获取目录，保持原签名身份和按需安装。1.0.7 从已签名并验证的 1.0.6 包读取原业务文件，仅修改 manifest 版本及签名下载元数据，没有放宽依赖锁或混入共享包漂移。独立当前源码重建因六个公开依赖哈希变化而拒绝，本次不将该重建记为通过。
+
+日常目录续期由 .github/workflows/plugin-catalog.yml 和 scripts/plugins/renew-catalog.mjs 完成，使用加密仓库 secret，认证原目录及各 release 后仅更新 sequence 和七天有效期。工作流已通过 PR #3 合并并实际成功运行；必须保持 Actions 和签名 secret 可用，失败超过有效期仍会关闭新安装。线上元数据与包由 check-published.mjs 校验，真实安装由 check-published-install.mjs 在仓库外新 profile 验证，不伪造安装来源、不自动启用。
+
+下载器将 HTTP 404/410 归类 DOWNLOAD_NOT_FOUND，插件管理明确提示发布源缺失；CPA 仍映射到自身下载失败文案。39 项下载、目录、签名安装及 CPA 回归、2 项签名续期及发布工具测试、类型检查及 i18n 检查通过。按用户要求宿主沿用 0.9.5 重新打包；旧本地产物保存在 release/0.9.5-before-blueprint-fix。安装版、便携 payload/launcher、仓库外可见 GUI 和完整模块图验证通过，日志见 artifacts/plugins/distribution-fix-*.log。此记录不代替 WSL/SSH 新一轮实机或完整蓝图功能矩阵。
+
+公开验证：check-published.mjs 认证目录 sequence 1793189191 和 1,800,858 字节的 1.0.7 包，SHA256 为 9ab8053ea0aff73c7f42fa92708d20f0b1fe13a98a98800b853f66cc6fa41588。check-published-install.mjs 在仓库外新 profile 的 0.9.5 实物通过目录发现、真实下载、签名安装、显式启用、设置页显示、停用和卸载；收据在 release/0.9.5/verification/published-plugin-install.json。v0.9.5 Release 说明已补齐当前 WSL/SSH 支持及前提，这次分发测试未重新验收这些业务。
+
+同名发布替换已完成：v0.9.5 的安装器、便携包、blockmap 与 latest.yml 远端大小及 SHA256 均与本地产物一致，latest 仍为 v0.9.5；核对收据为 release/0.9.5/verification/published-release.json。相同版本号不会可靠触发自动更新，已有 0.9.5 用户需重新下载后手动安装。源码 tag 未移动，构建工作树及输出摘要保存于本地 BUILDINFO.json，旧产物另行保留。

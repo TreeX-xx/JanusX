@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 const islandPort = Number(process.env.JANUS_E2E_PORT ?? 41731)
 
 const desktopTestFiles = [
-  'blueprint-plugin.spec.ts', 'desktop-workspace-runtime.spec.ts', 'desktop-plugins.spec.ts',
-  'unified-file-window.spec.ts', 'desktop-cpa.spec.ts', 'desktop-smoke.spec.ts',
+  'blueprint-plugin.spec.ts', 'desktop-workspace-runtime.spec.ts', 'desktop-workspace-storage.spec.ts', 'desktop-plugins.spec.ts',
+  'unified-file-window.spec.ts', 'desktop-global-tools.spec.ts', 'desktop-smoke.spec.ts',
   'desktop-harness-runtime.spec.ts', 'desktop-session-continue.spec.ts', 'editor-definition.spec.ts',
   'editor-find-widget.spec.ts', 'editor-window-tabs.spec.ts', 'run-config-assistant.spec.ts',
   'memo-desktop.spec.ts', 'memo-layout-desktop.spec.ts', 'memo-chat-desktop.spec.ts',
@@ -33,7 +33,7 @@ export default defineConfig({
   projects: [
     {
       name: 'island',
-      testIgnore: [...desktopTestFiles, 'blueprint-local.spec.ts'],
+      testIgnore: [...desktopTestFiles, 'blueprint-local.spec.ts', 'cpa-plugin.spec.ts', 'docker-plugin.spec.ts'],
       timeout: 20_000,
       expect: { timeout: 5_000 },
       use: {

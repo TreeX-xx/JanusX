@@ -69,6 +69,14 @@ export interface AgentHookPayload {
   raw?: unknown
 }
 
+/** Accepted non-telemetry lifecycle; engine names are interpreted once at ingress. */
+export type AgentHookSemantic =
+  | { type: 'session-update' }
+  | { type: 'turn-start'; resume?: boolean }
+  | { type: 'waiting-user'; kind: 'approval' | 'input' }
+  | { type: 'turn-end'; kind: AgentHookCompletionKind }
+  | { type: 'session-close'; interruptedTurn?: boolean }
+
 export interface AgentHookCoordinatorEvent {
   type: AgentHookLifecycle
   terminalId?: string

@@ -6,6 +6,12 @@
   "nativePlugins": {
     "official.blueprint": [
       "janusx-blueprint-20261026"
+    ],
+    "official.cpa": [
+      "janusx-blueprint-20261026"
+    ],
+    "official.docker": [
+      "janusx-blueprint-20261026"
     ]
   }
 }

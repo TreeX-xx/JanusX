@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-27T10:06:00Z",
+  "updated": "2026-10-30T05:29:31Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -29,17 +29,27 @@
 
 ## 单文件签名包导入
 
+设置中的插件页以搜索栏和响应式卡片网格呈现已安装与发现目录。已安装按名称、简介、标识筛选，发现目录另支持发布者；筛选忽略大小写及首尾空白。卡片突出名称、简介和状态，权限、参数、入口和诊断归入默认折叠的“管理与配置”，展开后占满一行。外部参数定位会清除筛选并打开两层折叠区；导入成功会清除已安装筛选。页面使用既有主题令牌，不增加市场数据、评分或分类来源。浏览器合成目录验证搜索、双列／单列布局及安装至卸载生命周期，不代表生产下载源可用。
+
 主窗口管理接口增加无路径参数的 importPackage；仅由已验证主窗口顶层发起。宿主打开单选 .jxp 文件对话框并限量读取，取消返回 imported:false；成功返回 imported:true。选择的路径不从页面或插件传入。已安装页提供常驻导入按钮、忙碌反馈及本地化失败提示，导入后保持停用，再显式审阅权限及项目范围。开发目录的 linked／copied 入口及限制不变。
 
 新 jxp/2 包由固定头、32 KiB 内的签名发布描述和原压缩归档组成。发布描述中的 bytes／sha256 绑定内层归档，packageFormat 绑定新封装；目录展示及下载上限另计固定头和描述的实际 UTF-8 字节。在线安装核对包内描述与已签名目录条目一致；离线导入从包内取出描述，复用同一安装器、预置公钥、平台／API／宿主版本检查及 native signer allowlist，不访问目录或接受包内自授信公钥。原单文件／文件数／解压预算继续生效。旧 raw JXP 与签名目录仍可在线安装，新本地入口不接受缺描述的旧包或普通 ZIP。构建仍输出 release.json 供目录生成使用，用户只交付一个 .jxp；新包需要支持此封装的宿主。10-26 本地交付已在正常宿主预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist；私钥不进入 Git 或安装包。Release／目录尚未上线。实施及验证归[官方蓝图插件](../planning/blueprint-official-plugin.md#单文件包与本地导入)。
 
-## 项目授权缺失的恢复
+## 工作区默认访问范围
 
-启用与项目授权分别记录；空项目列表合法，应用级设置仍可打开，但项目页面不可读取或挂载。宿主 mount 在解析项目根之前检查 grant，缺少当前项目时返回既有公开错误 PATH_NOT_GRANTED；实际根缺失或与当前上下文不符仍返回 CONTEXT_UNAVAILABLE，异步挂载仍复核授权和代次。不新增权限、错误枚举或插件版本要求。
+启用插件即允许其用于全部已注册工作区，以及启用后新增的工作区。管理页不再展示逐项目授权列表；权限审阅仍说明插件声明的能力，停用会撤销执行能力和活动实例。宿主安装、恢复和启用记录统一标记 `projectScope: all`；旧 `projects` 列表仅保留为历史兼容数据，不再限制实际范围。管理 IPC 的 enable 可省略 projects，旧调用仍可发送该字段。
 
-可信页面外壳订阅安装快照。缺少项目授权的失败页显示本地化说明，提供重试、工作台返回和权限审阅入口；入口定位该插件并将当前项目加入待确认列表，保留既有项目选择。只有用户在原权限表单确认后才调用 enable，取消不保存。授权变化使失败页重新挂载，定向审阅成功后关闭设置并返回页面。没有选中项目的审阅表单明确提示项目页面将不可用。该流程适用于通用插件，不按蓝图 ID 特判，也不把授权范围扩展到全部项目。
+工作台切换列表每次从宿主已注册工作区读取，原生服务启动时取得当前列表，后续调用使用宿主验证并盖章的项目上下文，因而新增工作区不要求重启或重新授权。文档查看器、项目配置、原生模型／Agent 及后台服务沿用同一范围规则。全部工作区可用不扩大清单声明的文件／网络／能力权限；未注册项目、非所属 worktree、失效上下文和停用后的迟到请求继续拒绝，应用级页面不能读取项目文件。
 
-普通管理入口在插件未启用、无既有项目授权且声明项目级视图时，默认勾选当前有效工作区，避免首次确认只启用插件而遗漏项目范围。用户仍可取消勾选，只有确认才保存；无当前工作区或只有应用级视图的插件不自动选择项目。已启用插件重新审阅和已有项目列表继续按保存的范围展示，保留主动选择的空列表。应用级设置的空授权使用方式不变。
+这一选择省去每次加入项目的重复配置，也意味着不再提供逐项目禁用插件。若以后引入用户确有隔离需求的插件，再单独设计可选范围策略；不恢复默认阻断新工作区的流程。旧快照的失败页及权限定位仍保留兼容能力，但当前宿主恢复后的插件不会因历史空列表要求再次授权。
+
+## 入口设置
+
+入口与快捷键按命令标题分组，各命令下展示快捷键及“在工具箱中显示”或“在工作区添加菜单中显示”开关。开关直接读取持久化偏好，使用正向显示语义，不显示内部 location／command 标识或无标签排序数字。排序偏好仍兼容已有数据，界面不再提供数字排序。隐藏入口不影响该命令的快捷键。
+
+工作台声明工具箱入口时，不再额外生成顶栏直达入口；隐藏工具箱入口也不会让同一视图从另一处冒出。无工具箱声明的工作台仍沿用顶栏直达入口。
+
+本轮定向验证：18 份 Vitest 文件共 252 项通过，覆盖项目新增、旧记录恢复、原生后台、签名分发、停用与异步失效，以及文档、配置、后台服务和入口偏好。`tests/e2e/plugin-settings.spec.ts` 的浏览器回归一项通过，检查正向开关、无项目列表、560px 窄窗和插件启停；截图 `artifacts/plugins/settings-entries-narrow.png` 已查看。`tests/e2e/desktop-plugins.spec.ts` 两项完整 Electron 回归通过，验证首次启用、启用后新增工作区、设置页生命周期与卸载。宿主严格未用项类型检查、插件类型检查、修改源码 ESLint、双语键检查和 electron-vite 构建通过。全仓 Notes 检查 315 份、零错误，保留 17 条既有跨仓链接诊断。桌面隔离构建首次因缺少相邻图标未能创建窗口，补齐本地测试资源后通过；未构建或发布安装包。
 
 ## 现有消费者与兼容改造
 
@@ -48,7 +58,7 @@
 | 消费者 | 当前事实 | P1／P2 改造与保留 |
 |---|---|---|
 | [定义](../../../src/renderer/src/extensions/types.ts)、[注册表](../../../src/renderer/src/extensions/registry.ts) | 组件、图标组件和同步 activate；注册即 enable，disable／unregister 发布视图变更 | 可信 API 保留；新增可序列化清单和主进程安装记录；先授权再由可信适配器注册壳组件，不能把异步激活放入同步函数 |
-| [启动](../../../src/renderer/src/main.tsx)、[内置定义](../../../src/renderer/src/extensions/builtins.tsx)、[右侧注册表](../../../src/renderer/src/right-tools/registry.ts)、[CPA](../../../src/renderer/src/extensions/cpa.tsx) | CPA 在 renderer 入口注册，内置面板通过右侧元数据模块先注册，包含懒加载和兼容 ID | 保持初始化先后与按需组件加载，不能引入 registry→store→组件循环；保留 `janusx.*`、旧 files／git／sessions ID 和 CPA 停用清理 |
+| [启动](../../../src/renderer/src/main.tsx)、[内置定义](../../../src/renderer/src/extensions/builtins.tsx)、[右侧注册表](../../../src/renderer/src/right-tools/registry.ts)、[CPA 插件](../../../plugins/cpa/manifest.json) | 内置面板先注册元数据，CPA 由官方签名包安装启用后注册 | 保持初始化先后与按需组件加载，不能引入 registry→store→组件循环；保留 `janusx.*`、旧 files／git／sessions ID，插件激活拥有 CPA 后台 |
 | [视图宿主](../../../src/renderer/src/extensions/ExtensionViewHost.tsx)、[右侧宿主](../../../src/renderer/src/components/right-tools/RightToolHost.tsx)、[终端区](../../../src/renderer/src/components/TerminalArea.tsx) | 可信组件按 active 和 scope 渲染，项目级重挂载，使用现有局部错误边界 | 隔离壳接收实例与上下文，只使用插件桥；普通组件错误与隔离页面超时分别处理，关闭页面不结束宿主 PTY |
 | [工具箱](../../../src/renderer/src/components/TitlebarToolGroup.tsx)、[打开路由](../../../src/renderer/src/extensions/workbench.ts) | 工具箱筛选 `launcher: tool-menu`，打开路由直接写两个 store | P1 增加命令与入口 registry；旧 launcher 转为内部命令适配，最终仍走现有打开与 reveal 语义，不出现重复入口 |
 | [pane 模型](../../../src/renderer/src/lib/workspace-pane.ts)、[工作区](../../../src/renderer/src/stores/workspace.ts)、[全局工具](../../../src/renderer/src/stores/global-tools.ts) | pane ID 含 view／project，两个 store 订阅 registry，停用时清理活动树与历史项目快照；布局目前为内存状态 | 保留旧 ID，外部实例另加不透明 root／代次映射；P2 只持久化插件设置和私有数据，不把全工作区布局磁盘化捆入首版 |

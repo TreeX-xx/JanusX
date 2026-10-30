@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-10-28T01:36:29.950Z",
+  "updated": "2026-10-30T10:04:39.000Z",
   "moduleState": "partial"
 }
 ---
@@ -31,6 +31,8 @@
 
 ## Design
 
+v0.9.6 的用户可见变化、主动迁移的还原点清理行为及实验性 Docker 限制见[版本说明](../../../docs/releases/v0.9.6.md)。本地候选与工作流固定 agentX `4df4c4457269e46a52b7ed430db379e194fac175`，在独立 checkout 构建，避免开发目录中的未提交 sibling 改动进入发布。原固定版本缺少工作区存储接口，无法通过类型检查。新依赖尚需在远端发布前确认可获取；正式远端晋级仍遵循维护者指南的 PR 流程，本地标签与候选不代表已公开发布。
+
 v0.9.4 的 Windows 启动修复采用调用者权限启动桌面程序与便携启动器，终端继承当前权限。用户已确认候选包在故障 Windows 10 上可以打开，并授权以正式名称替换 v0.9.4 的 Windows 附件与标签代码。包验证包含不带 GPU 绕过参数的真实窗口启动；启动日志保存于所选用户配置目录的 `logs`。原因、代价及验证范围由 [reproducible-verification](./reproducible-verification.md) 维护。
 
 v0.9.4 相较 v0.9.3 的用户可见变化及安装说明维护在[版本说明](../../../docs/releases/v0.9.4.md)，发布包限定 Android 局域网测试，开发构建保留跨网实现。旧 wiki 已删除，README 和相关专题中的历史素材链接固定至 v0.9.3 Git 存档，避免随 main 删除失效；当前工程文档继续由 `.agents/notes` 与 `docs` 维护。二维码扫描区的白底及其深色加载文字是主题无关的扫描对比度要求，主题例外随组件迁移至 StatusBar.module.css；操作按钮已使用主题变量，不保留旧的白字按钮例外。
@@ -41,11 +43,17 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 免安装版配置使用用户目录下独立的 `JanusX-Portable`，不提供随身模式；旧同级 `data` 在应用数据服务打开前完成校验迁移，并清理已迁移文件及明确可重建的缓存。路径隔离、失败保护和重试语义见 [application-profile](./application-profile.md)。
 
+[工作区私有状态迁出项目目录](./workspace-state-storage.md)已完成本地 P2 和 P4：新数据接入 userData，旧数据主动迁移；稳定身份重新定位、最后关联移除后的 30 天恢复期、过期维护和按需统计从通用设置管理。终端与 Agent 的自动快照已退场，Island 差异独立保留；迁移只复制启动配置和日志，旧还原点连同已迁入 userData 的副本直接清除，不再按年龄或数量保留。P1 队列和三个常量继续复用；P3 Hook 资产采用 userData 单次启动注入，P5 的旧 Hook 主动清理与结果展示位于同一数据管理区块，未知文件保留。迁移不含源码、工程 Notes 和构建产物，远程迁移不支持；P6 已完成本机代表恢复和桌面迁移演练，正式安装器升级、物理慢盘及多日验收仍未完成。
+
 桌面执行史：[scoped implementation 与实施史](../agent/desktop-task-implementation.md)、[delegated-modes 与 xdo 宿主](../agent/desktop-delegated-modes.md)、[ade-survey](./desktop-ade-mit-survey.md)。
 
 打包与发布：[hoisted-deps](./packaged-hoisted-deps.md)、[runtime-size](./packaged-hoisted-deps.md)、[cli-publish](./janus-cli-npm-publish.md)、[officecli](./officecli-bundled.md)、[runner-backflow](../agent/external-runner-backflow.md)、[ci-order](./ci-sibling-build-order.md)、[verify-repair](./release-verify-repair.md)（v0.8.8 双管线修复）。
 
+[发布门禁成本与冗余审计](./release-gate-redundancy-audit.md)实测完整 verify 约 27min，指出发布级验收占约六成、同一断言重复执行、排序倒置与 PR 全量执行三类冗余，并确认分支保护未绑定 required status check；建议按性价比排序，接入分层与重排顺序为前置。该审计为草案，未实施。
+
 [开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。统一输入与新增平台仍在设计阶段，具体取舍与实施验收由该草案维护。
+
+正式 Windows 发布推荐 `package:win:stage`，避免打包和首次上传重复执行运行验证；上传先预检远端状态，运行检查后重新核对再续传。手动构建将版本及 OfficeCLI 资源检查前置，并复用本地资源哈希校验脚本。必要的构建、包边界与公开前字节核验保留，细节见上述解耦设计及维护者指南。
 
 协作入口由 [CONTRIBUTING](../../../CONTRIBUTING.md)、[开发环境](../../../docs/development.md)和[维护者指南](../../../docs/maintainers.md)分别承担：功能 PR 进入 dev，晋级 PR 进入 main，两者均运行 Windows 验证；发布由维护者负责。分支、验证和反馈取舍分别见 [development-branch](./development-branch.md)、[reproducible-verification](./reproducible-verification.md)及 [github-maintenance](./github-maintenance.md)。
 

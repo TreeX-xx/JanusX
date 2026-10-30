@@ -6,7 +6,6 @@ import { createProductionOfficeOperations } from '../office/office-handler-opera
 import type { BrowserSurfaceManager } from '../browser/surface-manager'
 import { registerAgentHandlers } from './janus-runner-handlers'
 import { registerBrowserHandlers } from './browser-handlers'
-import { registerCpaHandlers } from './cpa-handlers'
 import { registerPluginHandlers } from './plugin-handlers'
 import { registerCheckpointHandlers } from './checkpoint-handlers'
 import { registerSessionHandlers } from './session-handlers'
@@ -39,7 +38,6 @@ import { installMemoryDomainControls } from '../knowledge/memory-domain-controls
 import { memoryDomainPolicy } from '../knowledge/memory-domain-policy'
 import { observationScope } from '../knowledge/memory-evidence'
 import { runDeterministicStage } from '../knowledge/deterministic-extractor'
-import { registerLayaScorer } from '../knowledge/laya-runtime'
 import { runCandidateAction } from '../knowledge/candidate-actions'
 import { runLlmStage } from '../knowledge/llm-stage'
 import { appShutdown } from '../shutdown/AppShutdown'
@@ -51,6 +49,7 @@ import { registerAgentRuntimeHandlers } from './agent-runtime-handlers'
 import { registerExternalCliHandlers } from './external-cli-handlers'
 import { registerWorkflowXHandlers } from './workflowx-handlers'
 import { registerWorkspaceRuntimeHandlers } from './workspace-runtime-handlers'
+import { registerWorkspaceStorageHandlers, syncWorkspaceStorageRecords } from './workspace-storage-handlers'
 export interface RegisterApplicationIpcOptions {
   mainWindow: BrowserWindow
   getAllowedWindows: () => BrowserWindow[]
@@ -98,12 +97,17 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
     return
   }
   applicationIpcRegistered = true
+  registerWorkspaceStorageHandlers(options.getAllowedWindows)
 
   registerWorkspaceHandlers(getCurrentMainWindow, {
+    storageChanged: syncWorkspaceStorageRecords,
     getAllowedWindows: options.getAllowedWindows,
     beforeWorkspaceDelete: async (workspaceId) => {
       // 删除工作区前先回收其全部终端，避免 pty 子进程变孤儿；onExit 负责状态清理。
       terminalManager.killByWorkspace(workspaceId)
+      const { getProjectRunner } = await import('../project/runner/service')
+      const runner = getProjectRunner()
+      for (const [id, task] of runner.getAllRunning()) if (task.workspaceId === workspaceId) await runner.stop(id)
       await officeWatchPool.stopUnderRoot(workspaceId)
       officeArtifactIndex.dispose(workspaceId)
     },
@@ -112,8 +116,6 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
   pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
-  const cpaService = registerCpaHandlers(getCurrentMainWindow, options.browserSurfaces)
-  appShutdown.configure({ stopCpa: () => cpaService.dispose() })
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
   registerCheckpointHandlers()
@@ -144,7 +146,6 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   // report unprocessed ranges from the persisted cursor on startup.
   // Persist plans after deterministic batches; recover model tasks independently of cursors.
   installMemoryDomainControls()
-  registerLayaScorer()
   knowledgeProcessingQueue.configureCandidateActionHandler(runCandidateAction)
   knowledgeProcessingQueue.configureDeterministicHandler((batch) =>
     runDeterministicStage(batch, { allowHabitSource: async observation => {

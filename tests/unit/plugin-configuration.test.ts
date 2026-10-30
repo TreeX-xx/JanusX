@@ -288,7 +288,7 @@ describe('declarative plugin configuration', () => {
     expect((await f.get('a', f.tree)).values.label).toBe('Global')
     expect((await f.get()).values.label).toBe('Global')
     await expect(f.update(updated.revision, { style: 'compact' }, 'a', f.root)).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
-    await expect(f.get('unapproved', f.root)).rejects.toMatchObject({ code: 'PERMISSION_DENIED' })
+    await expect(f.get('unapproved', f.root)).rejects.toThrow('Unregistered root')
     await expect(f.get('a', f.other)).rejects.toThrow()
   })
   it('rejects invalid values and competing writes; parent changes invalidate an old project form', async () => {

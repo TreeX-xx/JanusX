@@ -64,7 +64,7 @@ describe('durable refinement tasks', () => {
     truths = []
     settings = { ...DEFAULT_KNOWLEDGE_SETTINGS, mode: 'auto' }
     available = true
-    identity = { provider: 'test-laya', modelRevision: 'pinned', templateVersion: DECISION_TEMPLATE_VERSION, calibrationId: null }
+    identity = { provider: 'test-scorer', modelRevision: 'pinned', templateVersion: DECISION_TEMPLATE_VERSION, calibrationId: null }
     extract.mockReset().mockResolvedValue(undefined)
     deps = { listCandidates: async () => candidates, listObservations: async () => observations, listTruth: async () => truths,
       resolveContent: async (observation) => observation.content, settings: async () => settings, hasModel: async () => available,
@@ -157,20 +157,6 @@ describe('durable refinement tasks', () => {
     expect(await service.runDue()).toMatchObject({ processed: 1 })
     expect(extract).toHaveBeenCalledExactlyOnceWith(observations, { [candidates[0]!.id]: hash }, expect.any(Function))
     expect(candidates[0]!.status).toBe('proposed')
-  })
-
-  it('defers Laya automatic tasks when the optional runtime is disabled', async () => {
-    identity.provider = 'laya'
-    seed()
-    const service = new RefinementTaskService(deps)
-    await service.enqueue(plan())
-    expect(await service.runDue()).toMatchObject({ deferred: 1 })
-    expect(extract).not.toHaveBeenCalled()
-    settings.laya = { enabled: true, pythonPath: 'test', modelPath: 'test' }
-    deps.scorerAvailable = () => false
-    expect(await service.runDue()).toMatchObject({ deferred: 1 })
-    deps.scorerAvailable = () => true
-    expect(await service.runDue()).toMatchObject({ processed: 1 })
   })
 
   it('revalidates evidence after model work and cancels stale manual output', async () => {

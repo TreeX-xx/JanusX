@@ -8,7 +8,7 @@
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/736081fc-db55-40cd-b2ab-43c63f1729e9",
   "class": "architecture",
   "tags": ["memory","knowledge","review","wiki","jev","qwen","orchestration"],
-  "updated": "2026-10-10T06:17:37.849Z",
+  "updated": "2026-10-30T09:31:30.968Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf"
 }
 ---
@@ -106,27 +106,27 @@ Jev 设置仅在状态文字中标记已配置，可以复用最少控件，但�
 
 自动入口仅接受有宿主归因的 project 内容；个人记忆、来源不明、显式替代和冲突需要人工审核。条目审核使用来源正文及分块的相关有效条目。主题采用知识类别与明确概念细分，并复用已发布来源的页面身份；具体分组、关系及兼容规则见[知识库优化需求](./memory-noise-progress-audit.md)。按相关条目生成稳定页面，合并 15 秒内的变化。正文由独立落盘的 Wiki 候选承接；复核检查每个完整段落组的支持度，再逐条核对必要知识覆盖。没有剩余有效来源的页面明确失效，管理界面保留页面和历史供人工处理。
 
-[模型适配](../../../../src/main/knowledge/knowledge-models.ts)复用外部提供方的已配置模型及凭据；本地兼容服务按环节传递思考开关。可选的 llama-server 由用户提供程序和 GGUF 路径，使用单并发、经环境检测确定的上下文与空闲 180 秒释放；无需自动下载或安装。纯外部配置不启动本地服务，也不需要 Jev 密钥。配置新管线后暂停旧 Laya 与旧自动精修，关闭新管线保持人工审核。Jev 凭据使用系统加密存储；普通配置与状态查询不返回明文，用户点击显示时可通过要求 knowledge 开启的 `knowledge:jev:credential-reveal` 读取已解密凭证。
+[模型适配](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/knowledge-models.ts)复用外部提供方的已配置模型及凭据；本地兼容服务按环节传递思考开关。可选的 llama-server 由用户提供程序和 GGUF 路径，使用单并发、经环境检测确定的上下文与空闲 180 秒释放；无需自动下载或安装。纯外部配置不启动本地服务，也不需要 Jev 密钥。配置新管线后暂停旧 Laya 与旧自动精修，关闭新管线保持人工审核。Jev 凭据使用系统加密存储；普通配置与状态查询不返回明文，用户点击显示时可通过要求 knowledge 开启的 `knowledge:jev:credential-reveal` 读取已解密凭证。
 
 [密钥控件](https://github.com/TreeX-X/JanusX/blob/c8332f1949dba249d1cec81a72c57746c31bb951/src/renderer/src/components/knowledge/JevCredentialFields.tsx)在保存时禁用重复操作并显示等待文字，成功后隐藏明文、显示固定圆点占位和成功提示。重新挂载仅查询是否已配置；用户输入的新值保留为未保存草稿，保存失败允许原值重试，显式删除才清除已有凭证。读取、显示、保存与删除的错误出现在控件旁，已识别的加密不可用、功能关闭与输入非法使用对应说明，未识别错误不回显原始异常。密钥不进入普通设置、日志或 Note。
 
 ### 本地部署与上下文
 
 
-[资源安装器](../../../../src/main/knowledge/knowledge-local-resources.ts)在用户点击“下载或复用本地资源”后工作，挂载设置页和启动应用仅允许读取状态。资源位于 Electron userData 下的 `knowledge/local-models`，应用升级复用该目录；dev 与发行版使用各自配置目录。安装入口 `knowledge:local-model:install` 要求 knowledge 创新开关开启且本地部署关闭；状态入口 `knowledge:local-model:resources-status` 返回组件、阶段、字节进度和检测原因。下载完成自动填入路径，用户再点击“检测并启用”。关闭、关闭 knowledge 创新开关和应用退出均取消进行中的准备任务；迟到结果不能启用本地模型。
+[资源安装器](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/knowledge-local-resources.ts)在用户点击“下载或复用本地资源”后工作，挂载设置页和启动应用仅允许读取状态。资源位于 Electron userData 下的 `knowledge/local-models`，应用升级复用该目录；dev 与发行版使用各自配置目录。安装入口 `knowledge:local-model:install` 要求 knowledge 创新开关开启且本地部署关闭；状态入口 `knowledge:local-model:resources-status` 返回组件、阶段、字节进度和检测原因。下载完成自动填入路径，用户再点击“检测并启用”。关闭、关闭 knowledge 创新开关和应用退出均取消进行中的准备任务；迟到结果不能启用本地模型。
 
 清单固定 llama.cpp b11277 Windows x64 Vulkan 与 Qwen3.5-4B Q5_K_M 的版本、URL、大小和 SHA-256；权重 revision 为 `e87f176479d0855a907a41277aca2f8ee7a09523`。下载通过 Electron 网络栈使用系统代理，采用流式写入与哈希，逐块限制大小，60 秒无新数据或总时长超过 4 小时会失败。每个文件必须满足长度与哈希后才替换缓存；取消移除当前临时文件，重试复用完整且重新校验通过的组件，不续传未校验片段。可用磁盘必须覆盖待下载文件加 512 MiB 余量。运行程序压缩包校验后检查路径穿越、512 个条目和 256 MiB 解压上限；运行程序及 DLL 的清单与哈希用于后续复用与损坏修复。
 
 安装器先获取约 33 MB 的运行程序，再按固定模型元数据检测 GPU；GPU 通过才下载约 3.14 GB 权重。首次完整下载为 3,176,752,524 字节；保留压缩包、约 94.5 MB 解压文件及模型后的磁盘占用约 3.27 GB，不计文件系统开销。完整资源留在磁盘，关闭不会删除资源，也不会保留模型进程。首版自动下载仅支持 Windows x64；其他平台显示限制并保留手动路径。来源不可达、空间不足、校验失败与解压失败均明确显示，可重试；不放宽校验、不自动替换来源。
 
 
-[本地设置入口](../../../../src/main/knowledge/knowledge-local-settings.ts)负责启用、持久关闭与设置写入串行化。`knowledge:local-model:configure` 只接受程序、权重、地址与上下文参数，环境通过结果由宿主产生；普通知识库 Save 保留宿主的本地配置，不能提交启用授权。`knowledge:local-model:stop` 取消检测并持久关闭，本地环节归为关闭，不自动转用云端。关闭时内存门禁先阻止新调用，磁盘写入与进程退出均完成后操作才返回成功；写入或退出失败须在界面报错。取消信号覆盖读取配置、环境检测与等待写锁期间，迟到结果不得授权。即时操作同步页面已保存配置，Reset 和进行中的 Save 不得恢复旧本地状态。
+[本地设置入口](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/knowledge-local-settings.ts)负责启用、持久关闭与设置写入串行化。`knowledge:local-model:configure` 只接受程序、权重、地址与上下文参数，环境通过结果由宿主产生；普通知识库 Save 保留宿主的本地配置，不能提交启用授权。`knowledge:local-model:stop` 取消检测并持久关闭，本地环节归为关闭，不自动转用云端。关闭时内存门禁先阻止新调用，磁盘写入与进程退出均完成后操作才返回成功；写入或退出失败须在界面报错。取消信号覆盖读取配置、环境检测与等待写锁期间，迟到结果不得授权。即时操作同步页面已保存配置，Reset 和进行中的 Save 不得恢复旧本地状态。
 
-[环境检测](../../../../src/main/knowledge/knowledge-local-environment.ts)检查 loopback 地址、绝对文件路径、空闲端口及可执行程序的 `--list-devices`，程序启动验证同时覆盖系统架构和依赖库是否可运行。GGUF 元数据读取最多 32 MiB，当前资源模型支持 qwen35，读取 context_length、层数、全注意力间隔、KV 头数与维度。Qwen3.5-4B 的 32 层中每 4 层包含一层全注意力，f16 KV 估算为每 token 32 KiB，32K、64K、128K 分别约占 1、2、4 GiB KV。GPU 预算另计权重与 1280 MiB 运行/余量，主内存需保留权重大小加 2048 MiB。GPU 选择取可确认空闲显存最多的设备，排除 CPU、RPC 与软件实现；NVIDIA 的可用显存取运行时预算和 nvidia-smi 空闲测量的较小值。没有有效测量、显卡或最低 32K 容量分别返回独立原因，绝不使用主内存替代显存预算。自动模式每次冷启动重新选档；手动档位不足时明确失败，不降档。
+[环境检测](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/knowledge-local-environment.ts)检查 loopback 地址、绝对文件路径、空闲端口及可执行程序的 `--list-devices`，程序启动验证同时覆盖系统架构和依赖库是否可运行。GGUF 元数据读取最多 32 MiB，当前资源模型支持 qwen35，读取 context_length、层数、全注意力间隔、KV 头数与维度。Qwen3.5-4B 的 32 层中每 4 层包含一层全注意力，f16 KV 估算为每 token 32 KiB，32K、64K、128K 分别约占 1、2、4 GiB KV。GPU 预算另计权重与 1280 MiB 运行/余量，主内存需保留权重大小加 2048 MiB。GPU 选择取可确认空闲显存最多的设备，排除 CPU、RPC 与软件实现；NVIDIA 的可用显存取运行时预算和 nvidia-smi 空闲测量的较小值。没有有效测量、显卡或最低 32K 容量分别返回独立原因，绝不使用主内存替代显存预算。自动模式每次冷启动重新选档；手动档位不足时明确失败，不降档。
 
 程序和权重路径均为空时，检测只连接已有本机服务，不自动搜索仓库中的模型文件或启动进程。`/health` 连接拒绝、超时和非成功状态统一显示服务不可用，提示实际地址，并说明应用下载资源和自行启动服务这两种处理方式；这不是内存不足结论。`/props` 网络、状态、JSON 或上下文参数异常单独显示上下文无法确认，用户取消仍保留取消语义。dev 使用独立 `JanusX-Dev` 配置，仓库中的实验权重与测试中显式传入的路径不会自动成为 dev 设置。
 
-[运行时](../../../../src/main/knowledge/knowledge-local-runtime.ts)按需加载，托管启动明确指定检测出的 GPU 和全部 GPU 层，`--fit off` 保留用户上下文，加载预热和 `/health` 成功后继续检查 `/props` 中实际 n_ctx。运行失败和请求取消均释放托管进程；同一时间只允许一个本地请求，重启等待旧进程退出。空闲计时仅由本地请求维护，外部模型调用不会延长或误触本地计时。短输入采用 UTF-8 字节保守上界；长托管输入通过 `/apply-template` 和 `/tokenize` 复核真实 token 数，再预留输出与模板余量。外部管理的本机服务须提供 `/health` 与 `/props` 且至少 32K；应用只能限制请求预算和停止调用，不能替它重配上下文或结束进程，其输入仍采用保守字节上界。
+[运行时](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/knowledge-local-runtime.ts)按需加载，托管启动明确指定检测出的 GPU 和全部 GPU 层，`--fit off` 保留用户上下文，加载预热和 `/health` 成功后继续检查 `/props` 中实际 n_ctx。运行失败和请求取消均释放托管进程；同一时间只允许一个本地请求，重启等待旧进程退出。空闲计时仅由本地请求维护，外部模型调用不会延长或误触本地计时。短输入采用 UTF-8 字节保守上界；长托管输入通过 `/apply-template` 和 `/tokenize` 复核真实 token 数，再预留输出与模板余量。外部管理的本机服务须提供 `/health` 与 `/props` 且至少 32K；应用只能限制请求预算和停止调用，不能替它重配上下文或结束进程，其输入仍采用保守字节上界。
 
 [本地控件](https://github.com/TreeX-X/JanusX/blob/c8332f1949dba249d1cec81a72c57746c31bb951/src/renderer/src/components/KnowledgeLocalModelPanel.tsx)始终显示本地服务入口，显示关闭或按需加载状态。路径和上下文仅在关闭时可改，“检测并启用”“关闭本地部署”即时保存，不依赖总 Save。检查期间可以取消，即使总设置正在保存也可关闭；通过后显示内存、显存或 CPU 模式及推荐档位。所有生成与审核环节仅在启用后列出本地选项。
 

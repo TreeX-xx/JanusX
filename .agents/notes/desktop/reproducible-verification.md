@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-28T10:34:00Z",
+  "updated": "2026-10-30T12:21:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -23,6 +23,14 @@ A live Electron process retains hashed chunk paths from its startup build. If de
 On Windows, libuv's short-path directory watcher assertion terminates the worker before Vitest can report all failures. The native failure reproduces under Node 24.20.0/libuv 1.52.1 when a short directory alias and a short file alias are used together. The same probe completes under Node 24.15.0/libuv 1.51.0, or with the watched directory expanded by `realpathSync.native`. Upstream [libuv issue 5010](https://github.com/libuv/libuv/issues/5010) documents the same assertion and GitHub runner temporary paths.
 
 ## Decision
+
+The v0.9.6 candidate pins agentX `4df4c4457269e46a52b7ed430db379e194fac175` in both workflows and builds it in an isolated worktree. It combines committed workspace lifecycle support `c2f24ee` with the existing hash-bound Note paging repair `8baa18e`, cherry-picked onto the release branch. The previous pin `5333312` lacks the workspace storage and bounded command-log exports now required by the application; its clean typecheck fails. The lifecycle revision alone lacks the Note APIs used by Blueprint. Developer sibling modifications are excluded. The dependency is now published on the upstream `release/janusx-0.9.6` branch; PR #4 successfully checks out and builds it.
+
+The first remote v0.9.6 verification passes 4,101 tests and exposes two fixture assumptions: Office preview rendering must own its translation hook instead of inheriting another test's shared i18n state, and compact storage rows need a 72-pixel height budget for runner CJK font metrics (observed 66 versus the original 65). The layout test separately retains single-line statuses, hidden collapsed paths and horizontal containment checks. These follow-up changes affect tests and documentation only; the published v0.9.6 tag and Windows assets remain immutable.
+
+The subsequent remote run passes 4,102 tests but times out waiting for the native page-release fixture's first host request. That wait now uses the same 15-second startup budget as other native reviews and includes the current job state in failure output; cancellation and the other page's filesystem-watch assertions remain intact. The complete native fixture passes all 19 cases locally in CI mode with Node 24.20.0. A complete remote run is still required before merging.
+
+本地依赖安装若使用 `--ignore-scripts`，Electron npm 包可能存在但缺少 `dist/` 与 `path.txt`，普通 `npm run dev` 会在前置检查失败，绕过检查的入口则构建完成后报 `Electron uninstall`。恢复运行时使用 `npm rebuild electron`；无法联网时仅可使用已核对相同版本、平台和架构的完整 Electron 运行目录，不改变依赖声明。2026-10-29 当前 checkout 恢复匹配的 Windows x64 Electron 35.7.5 后，普通 `npm run dev` 与 `npm run dev:cpa` 均实际打开响应正常的 JanusX 主窗口；运行日志位于 `.cache/dev-startup-fix.log` 和 `.cache/cpa-startup-fix.log`，开发环境检查四项单测通过。CPA 入口复用相同前置检查，签名包 prepare-only 保持无需启动 Electron。
 
 插件独立构建按 npm 发布文件清单及其内容、权限和 Node 版本缓存归档，并在复用前验证归档摘要；npm 枚举和未命中打包分别批量执行。构建锁失配在安装前列出具体包及新旧摘要，不再只给笼统错误。Windows 草稿上传保存本地运行验证收据，以提交、工具环境、检查脚本、发布附件和解包文件全量摘要决定能否复用；源码或任一产物变化均重跑。签名、包校验、远端附件核对和受保护分支要求不变。
 
@@ -54,7 +62,7 @@ Workspace outputs follow the [development guide](../../../docs/development.md#�
 
 On 2026-10-21 the workspace organization moved 101 old build/staging and isolated test-runtime targets (3.49 GiB) into `artifacts/archive/workspace-2026-10-21/`, with original paths and sizes in `artifacts/workspace-cleanup/report.json`. A further 240 loose logs/screenshots and root test items were organized with hashes and path mappings in `organization-report.json`; the root PPT is preserved at `artifacts/manual-fixtures/test-presentation.pptx`. Existing reports/screenshots and copied runtime logs remain at their evidence locations. Current Android 0.1.7, release packages, live outputs, credentials, user data and registered worktrees are retained. Bulk permanent deletion was rejected by automatic approval with only “blocked by policy”; this operation is reversible archiving and freed zero bytes. Historical build directories and isolated profiles now resolve through the archive map when reproducing old evidence.
 
-Contributor setup is documented in the [development guide](../../../docs/development.md): Node from `.node-version`, a per-checkout dependency install, both sibling revisions from the current verify workflow, ordered agentX builds, package refresh and Chromium installation. Workflow checkouts use the explicit upstream TreeX-X repositories so Forks do not need their own siblings. Verification covers PRs into both dev and main. The split Windows job includes theme and packaging-exclusion checks in the same order as package.json's verify chain; future check-chain changes must update both owners.
+Contributor setup is documented in the [development guide](../../../docs/development.md): Node from `.node-version`, a per-checkout dependency install, both sibling revisions from the current verify workflow, ordered agentX builds, package refresh and Chromium installation. Workflow checkouts use the explicit upstream TreeX-X repositories so Forks do not need their own siblings. At the maintainer's October 30 request, remote verification is manual-only; PRs and pushes do not trigger it. Local verification evidence is recorded before merging into dev or main. The optional split Windows job includes theme and packaging-exclusion checks in the same order as package.json's verify chain; future check-chain changes must update both owners.
 
 `vitest.config.ts` expands Windows temporary directories before worker creation, so real filesystem tests retain their watchers without passing short directory aliases to libuv. CI and release use the exact Node version in `.node-version` and the same sibling repository commit. Sibling build commands stop at the first failure instead of allowing a later successful command to hide it.
 

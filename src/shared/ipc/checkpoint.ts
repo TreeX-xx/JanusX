@@ -25,7 +25,7 @@ export interface CheckpointSummary {
   branch: string
   prompt: string
   fileCount: number
-  changedFileCount: number
+  changedFileCount: number | null
   status: 'ready'
   sessionId?: string
 }

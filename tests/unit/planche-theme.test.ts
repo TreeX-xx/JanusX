@@ -462,19 +462,6 @@ describe('planche theme contract', () => {
     expect(assist).toContain(":global([data-theme='planche']) .searchInput")
     expect(assist).toContain(":global([data-theme='planche']) .rowTitle")
     // 卡片品类手绘标：石板单线、无辉光（种子生成已移除）
-    const topo = read('components/ui/QuantumTopologyPreview.module.css')
-    for (const selector of [
-      ":global([data-theme='planche']) .mark",
-      ":global([data-theme='planche']) .kindFact",
-      ":global([data-theme='planche']) .kindWiki",
-      ":global([data-theme='planche']) .kindGraph",
-    ]) {
-      expect(topo, selector).toContain(selector)
-    }
-    expect(topo).not.toMatch(/linear-gradient/)
-    expect(topo).not.toMatch(/drop-shadow/)
-    expect(topo).not.toMatch(/backdrop-filter/)
-    // 自绘悬浮提示 pill 纸面化（title= 原生提示由系统绘制，不在主题范围内）
     const islandCss = read('components/janus/styles/13-janus-planche.css')
     expect(islandCss).toContain("[data-theme='planche'] .pull-hint {")
   })

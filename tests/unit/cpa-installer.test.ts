@@ -4,7 +4,7 @@ import { deflateRawSync } from 'node:zlib'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CpaInstaller, extractCpaArchive, type Download } from '../../src/main/cpa/installer'
+import { CpaInstaller, extractCpaArchive, type Download } from '../../plugins/cpa/src/main/installer'
 
 const roots: string[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })

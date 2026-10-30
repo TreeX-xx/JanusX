@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { useThemeStore } from '@/stores/theme'
 import { useI18n } from '@/i18n/useI18n'
 import { ProjectLauncher } from './ProjectLauncher'
+import { WorkspaceUnavailableNotice, relocateWorkspaceData } from './WorkspaceDataPanel'
 import { WorktreeComposer, WorktreeDeleteDialog, WorktreeShipDialog } from './WorktreeDialogs'
 import { ModalCloseButton } from './ModalCloseButton'
 import { ModalFrame } from './shared/ModalFrame'
@@ -66,6 +67,7 @@ interface WorkspaceContextMenuProps {
   onRemoveFromGroup: (workspaceId: string) => void
   onClearGroup: (groupId: string) => void
   onDelete: (workspace: Workspace) => void
+  onRelocate: (workspace: Workspace) => void
 }
 
 // Expanded rows reveal a fixed-slot ⋯ on hover/focus; names do not move.
@@ -78,6 +80,7 @@ function WorkspaceContextMenu({
   onRemoveFromGroup,
   onClearGroup,
   onDelete,
+  onRelocate,
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n('common')
   const menuRef = useRef<HTMLDivElement>(null)
@@ -126,6 +129,7 @@ function WorkspaceContextMenu({
           <button type="button" className={itemClassName} onClick={() => onCreateWorktree(target.workspace)}>
             {t('common:workspace.createWorktree')}
           </button>
+          <button type="button" className={itemClassName} onClick={() => onRelocate(target.workspace)}>{t('storage:maintenance.relocate')}</button>
           {target.workspace.sidebarGroup && (
             <>
               <div className={separatorClassName} />
@@ -673,6 +677,17 @@ export function Sidebar() {
       }))
     )
   const orderedWorkspaces = useMemo(() => sortWorkspaceSidebar(workspaces), [workspaces])
+  useEffect(() => {
+    const refresh = () => {
+      const path = getActiveScopePath()
+      if (!path) return
+      invalidateEditorFileCache(path)
+      useWorkspaceStore.setState({ fileTree: [], activeFilePath: null })
+      void loadWorkspaceFileTree(path, () => getActiveScopePath() === path, { visualTransition: true }).catch(() => {})
+    }
+    window.addEventListener('janusx:workspace-data-changed', refresh)
+    return () => window.removeEventListener('janusx:workspace-data-changed', refresh)
+  }, [])
   const setLoadState = useAppStore((s) => s.setLoadState)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
@@ -1548,6 +1563,13 @@ export function Sidebar() {
           onRemoveFromGroup={handleRemoveFromGroup}
           onClearGroup={handleClearGroup}
           onDelete={handleContextDelete}
+          onRelocate={workspace => {
+            setContextMenu(null)
+            void window.electron.workspaceStorage?.data().then(async items => {
+              const item = items.find(item => item.workspaceIds.includes(workspace.id))
+              if (item) await relocateWorkspaceData(item, t('storage:maintenance.mismatch'), t('storage:maintenance.addNew'), t('storage:maintenance.cancel'))
+            }).catch(error => { void window.electron.dialog.showMessageBox({ message: String(error), buttons: ['OK'] }) })
+          }}
         />
       )}
       {composerTarget && (
@@ -1720,6 +1742,7 @@ export function Sidebar() {
           )}
         </ModalFrame>
       )}
+      {!sidebarCollapsed && <WorkspaceUnavailableNotice />}
     </aside>
   )
 }

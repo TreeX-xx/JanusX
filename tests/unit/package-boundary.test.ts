@@ -13,7 +13,7 @@ const treeExclusions = [
   '  - !.codex{,/**/*}',
   '  - !.github{,/**/*}',
   '  - !.janusX{,/**/*}',
-  '  - !resources/laya{,/**/*}',
+  '  - !.janusx{,/**/*}',
   '  - !artifacts{,/**/*}',
   '  - !apps{,/**/*}',
   '  - !scripts/android-lab{,/**/*}',

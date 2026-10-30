@@ -131,11 +131,9 @@ describe('legacy no-install profile migration', () => {
   })
 
   it('relocates configured local model paths only within the old profile', () => {
-    const external = join(root, 'external-python.exe')
     put(join(source, 'janusx/config.json'), JSON.stringify({
       knowledgeSettings: {
         automation: { local: { serverPath: join(source, 'knowledge/server.exe'), modelPath: join(source, 'knowledge/model.gguf') } },
-        laya: { pythonPath: external, modelPath: join(source, 'laya-weights') },
       },
       description: source,
     }))
@@ -145,8 +143,6 @@ describe('legacy no-install profile migration', () => {
     const config = JSON.parse(fs.readFileSync(join(target, 'janusx/config.json'), 'utf8'))
     expect(config.knowledgeSettings.automation.local.modelPath).toBe(join(target, 'knowledge/model.gguf'))
     expect(config.knowledgeSettings.automation.local.serverPath).toBe(join(target, 'knowledge/server.exe'))
-    expect(config.knowledgeSettings.laya.pythonPath).toBe(external)
-    expect(config.knowledgeSettings.laya.modelPath).toBe(join(target, 'laya-weights'))
     expect(config.description).toBe(source)
   })
 

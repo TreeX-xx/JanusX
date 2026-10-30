@@ -6,7 +6,8 @@ import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { TerminalTurnChangeTracker } from '../terminal/turn-change-tracker'
-import { checkpointManager } from '@janus-agent/agent-core'
+import { useWorkspaceStorage as acquireWorkspaceStorage } from '@janus-agent/agent-core'
+import { requestWorkspaceMaintenance } from '../storage/service'
 import type { CheckpointEngine } from '@janus-agent/agent-core'
 import { agentSessionRegistry, type AgentSessionRecord } from '../sessions/session-registry'
 import { buildContinueHandoff } from '../sessions/continue-handoff'
@@ -18,8 +19,9 @@ import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import type { SubAgentRunEngine } from '../../shared/subAgentRun'
 import { AgentHookBridge } from '../notifications/agent-hook-bridge'
 import { AgentHookConfigManager } from '../notifications/agent-hook-config'
-import { AgentHookCoordinator, getHookMatcher, getRawString } from '../notifications/agent-hook-coordinator'
-import { AGENT_ENGINE_CAPABILITIES, matchesEngineEvents } from '../notifications/agent-engine-capabilities'
+import { assertHookCleanupIdle } from '../notifications/retire-legacy-hooks'
+import { AgentHookCoordinator, getRawString } from '../notifications/agent-hook-coordinator'
+import { AGENT_ENGINE_CAPABILITIES } from '../notifications/agent-engine-capabilities'
 import { AgentTurnSentinel } from '../notifications/agent-turn-sentinel'
 import {
   JANUSX_SYNTHETIC_HOOK_EVENTS,
@@ -51,7 +53,6 @@ import {
   type TerminalWarmupRequest,
 } from '../../shared/ipc/terminal'
 import { AGENT_CHANNELS } from '../../shared/ipc/janus-runner'
-import { CHECKPOINT_CHANNELS } from '../../shared/ipc/checkpoint'
 import { buildContinueResumeArgs, buildProviderResumeArgs, isNativeResumeEngine } from '../../shared/ipc/session'
 import { companionSessionState } from '../companion/session-state'
 import { rollbackTerminalCreation } from '../companion/terminal-creation-rollback'
@@ -64,18 +65,14 @@ import {
   type TerminalServiceErrorDetector,
 } from '../notifications/terminal-turn-signals'
 
-// Track checkpoint state per terminal
-interface TerminalCpState {
-  checkpointId: string | null  // current pending checkpoint
+// Track lifecycle state per terminal
+interface TerminalState {
   cwd: string
   workspaceId: string
   engine: CheckpointEngine
-  initialized: boolean         // whether checkpointManager.initialize() succeeded
-  creating: boolean
   // AC6: per-id creation lock. True while a terminal:create for this id is
   // in flight; concurrent create requests with the same id are rejected.
   creationLocked: boolean
-  pendingSubmitTexts: string[]
   // Retained for lifecycle cleanup compatibility. AI activity status is
   // sourced exclusively from agent hooks, never inferred from PTY output.
   flowStatus: 'wait' | 'running'
@@ -88,33 +85,7 @@ interface TerminalCpState {
   userKillRequested?: boolean
 }
 
-const terminalStates = new Map<string, TerminalCpState>()
-
-function getHookRawMatcher(payload: AgentHookPayload): string | undefined {
-  // Top-level payload.matcher is authoritative (hook argv --matcher/-Matcher);
-  // raw is the fallback. Must stay aligned with the coordinator's
-  // getHookMatcher so sidebar status and desktop toasts never diverge.
-  return getHookMatcher(payload)
-}
-
-function isHookApprovalRequest(payload: AgentHookPayload, lowerEvent: string): boolean {
-  const approvals = AGENT_ENGINE_CAPABILITIES[payload.source].approval
-  if (payload.source === 'opencode') {
-    return approvals.some((name) => name.toLowerCase() === lowerEvent)
-  }
-  if (approvals.some((name) => name.toLowerCase() === lowerEvent)) return true
-  if (lowerEvent !== 'notification') return false
-  return getHookRawMatcher(payload) === 'permission_prompt'
-}
-
-function isHookInputRequest(payload: AgentHookPayload, lowerEvent: string): boolean {
-  if (payload.source === 'opencode') {
-    return matchesEngineEvents('opencode', 'attention', payload.event) &&
-      !matchesEngineEvents('opencode', 'approval', payload.event)
-  }
-  if (lowerEvent !== 'notification') return false
-  return getHookRawMatcher(payload) !== 'permission_prompt'
-}
+const terminalStates = new Map<string, TerminalState>()
 
 let companionTerminalCreator: ((config: TerminalCreateRequest) => Promise<{ pid: number }>) | null = null
 
@@ -215,7 +186,7 @@ export async function resendSessionHandoff(
 
   if (result.verdict === 'delivered') {
     agentSessionRegistry.notePrompt(terminalId, handoff)
-    enqueueCheckpointFromSubmit(terminalId, handoff)
+    recordSubmittedPrompt(terminalId, handoff)
     agentSessionRegistry.setPendingHandoff(sessionId, undefined)
   } else {
     agentSessionRegistry.setPendingHandoff(sessionId, handoff, result.verdict)
@@ -283,27 +254,6 @@ export function createCompanionTerminal(config: TerminalCreateRequest): Promise<
   return companionTerminalCreator(config)
 }
 
-/** Finalize current pending checkpoints for all terminals (best-effort, no wipe). */
-export async function finalizePendingTerminalCheckpoints(): Promise<void> {
-  const pending = Array.from(terminalStates.entries())
-    .filter(([, state]) => Boolean(state.checkpointId))
-    .map(([id, state]) => ({ id, checkpointId: state.checkpointId!, cwd: state.cwd }))
-
-  await Promise.all(
-    pending.map(async ({ id, checkpointId, cwd }) => {
-      try {
-        await checkpointManager.finalizeCheckpoint(checkpointId, cwd)
-        const state = terminalStates.get(id)
-        if (state?.checkpointId === checkpointId) {
-          state.checkpointId = null
-        }
-      } catch (err) {
-        console.error('Checkpoint finalize on shutdown failed:', err)
-      }
-    }),
-  )
-}
-
 function sendToRenderer(mainWindow: BrowserWindow | null, channel: string, payload: unknown): void {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
   try {
@@ -324,80 +274,23 @@ function normalizeSubmittedPrompt(text: string): string {
     .trimEnd()
 }
 
-function enqueueCheckpointFromSubmit(id: string, text: string): void {
+// Note: snapshots retired; .agents/notes/sessions/checkpoints/module.md
+function recordSubmittedPrompt(id: string, text: string): void {
   const prompt = normalizeSubmittedPrompt(text)
-  if (!prompt.trim()) return
-
-  const state = terminalStates.get(id)
-  if (!state) {
-    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-      type: 'error',
-      terminalId: id,
-      error: 'Terminal checkpoint state not found',
-    })
-    return
-  }
-
-  state.pendingSubmitTexts.push(prompt)
-  agentSessionRegistry.notePrompt(id, prompt)
-  processCheckpointQueue(id)
+  if (prompt.trim() && terminalStates.has(id)) agentSessionRegistry.notePrompt(id, prompt)
 }
 
-/** Remote control uses the same checkpoint transaction as renderer submit-line. */
 export function submitCompanionTerminalLine(id: string, text: string): void {
-  terminalManager.write(id, `${text}\r`)
-  enqueueCheckpointFromSubmit(id, text)
+  terminalManager.write(id, text + '\r')
+  recordSubmittedPrompt(id, text)
 }
 
-function processCheckpointQueue(id: string): void {
-  const state = terminalStates.get(id)
-  if (!state || !state.initialized || state.creating) return
-
-  const prompt = state.pendingSubmitTexts.shift()
-  if (!prompt) return
-
-  state.creating = true
-
-  const previousCpId = state.checkpointId
-  state.checkpointId = null
-
-  // Note: session tag joins the card count with the session-scoped list — see .agents/notes/sessions/checkpoints/session-checkpoint-count-truth.md
-  const sessionId = agentSessionRegistry.sessionIdForTerminal(id)
-  checkpointManager.finalizeAndCreateCheckpoint(previousCpId, {
-    terminalId: id,
-    engine: state.engine,
-    prompt,
-    cwd: state.cwd,
-    ...(sessionId ? { sessionId } : {}),
-  }).then(({ finalized, checkpoint }) => {
-    if (finalized && previousCpId) {
-      sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-        type: 'finalized',
-        terminalId: id,
-        checkpointId: previousCpId,
-      })
-    }
-    state.checkpointId = checkpoint.id
-    agentSessionRegistry.noteCheckpoint(id, checkpoint.id)
-    agentSessionRegistry.noteBranch(id, checkpoint.branch)
-    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-      type: 'created',
-      terminalId: id,
-      checkpointId: checkpoint.id,
-    })
-  }).catch((err) => {
-    state.checkpointId = previousCpId
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('Checkpoint lifecycle failed:', err)
-    sendToRenderer(getHostWindow(), CHECKPOINT_CHANNELS.event, {
-      type: 'error',
-      terminalId: id,
-      error: message,
-    })
-  }).finally(() => {
-    state.creating = false
-    processCheckpointQueue(id)
-  })
+const terminalStorageReleases = new Map<string, () => void>()
+function forgetTerminalState(id: string): void {
+  terminalStates.delete(id)
+  terminalStorageReleases.get(id)?.()
+  terminalStorageReleases.delete(id)
+  requestWorkspaceMaintenance()
 }
 
 const AGENT_CLI_COMMANDS = ['claude', 'codex', 'opencode', 'janus', 'pi', 'dsh'] as const
@@ -439,31 +332,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       detail: event.observationId ?? event.workspacePath,
     })
   })
-  const refreshRuntimeTelemetry = async (
-    terminalId: string,
-    engine: Exclude<CheckpointEngine, 'shell' | 'manual'>,
-    cwd: string,
-    sessionId?: string,
-  ) => {
-    const instance = terminalManager.getInstance(terminalId)
-    if (!instance) return
-    terminalContextCoordinator.trackTerminal(terminalId, engine, cwd)
-    if (sessionId) terminalContextCoordinator.bindSession(terminalId, engine, sessionId)
-    const telemetry = await terminalContextCoordinator.getSnapshot({
-      terminalId,
-      preset: engine,
-      cwd,
-      startedAt: instance.createdAt,
-      sessionId,
-    })
-    if (telemetry) {
-      sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.telemetry, {
-        id: terminalId,
-        telemetry,
-      })
-    }
-  }
-
   // Single ingest point for CLI-origin (bridge) and main-process synthetic
   // (sentinel / pty-exit) hook payloads: identical diagnostics + coordinator path.
   function ingestHookPayload(payload: AgentHookPayload): void {
@@ -519,22 +387,26 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     onTurnEnded: (terminalId) => {
       turnSentinel.endTurn(terminalId)
     },
-    onResolvedPayload: async (payload, terminal) => {
+    onResolvedPayload: async (payload, terminal, semantic) => {
       const state = terminalStates.get(terminal.terminalId)
       const event = payload.event.toLowerCase()
-      const syntheticFails =
-        event === JANUSX_SYNTHETIC_HOOK_EVENTS.apiError || event === JANUSX_SYNTHETIC_HOOK_EVENTS.orphaned
-      const syntheticCompletes =
-        event === JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted || event === 'sessionend'
-      const startsTurn = matchesEngineEvents(payload.source, 'start', payload.event, payload.raw)
-      const completesTurn = syntheticCompletes || (payload.source === 'opencode'
-        ? event === 'session.idle'
-        : event === 'stop')
-      const failsTurn = syntheticFails || (payload.source === 'opencode'
-        ? event === 'session.error'
-        : event === 'stopfailure' || event === 'posttoolusefailure')
-      const needsApproval = isHookApprovalRequest(payload, event)
-      const needsInput = !needsApproval && isHookInputRequest(payload, event)
+      const startsTurn = semantic.type === 'turn-start'
+      const completesTurn = semantic.type === 'session-close' && semantic.interruptedTurn === true || semantic.type === 'turn-end' && semantic.kind !== 'failed'
+      const failsTurn = semantic.type === 'turn-end' && semantic.kind === 'failed'
+      const needsApproval = semantic.type === 'waiting-user' && semantic.kind === 'approval'
+      const needsInput = semantic.type === 'waiting-user' && semantic.kind === 'input'
+      if (payload.sessionId) agentSessionRegistry.noteProviderSession(terminal.terminalId, payload.sessionId,
+        getRawString(payload.raw, ['transcript_path', 'transcriptPath']))
+      companionSessionState.handleLifecycle(terminal.terminalId, semantic)
+      // Keep habit content out of the capture branch entirely while disabled.
+      void (async () => {
+        if (!await agentTurnRecorder.isCaptureEnabled()) return
+        await agentTurnRecorder.handleHookPayload({ ...payload, raw: {
+          ...(payload.raw && typeof payload.raw === 'object' ? payload.raw : {}),
+          transcriptPath: getRawString(payload.raw, ['transcript_path', 'transcriptPath'])
+            ?? agentSessionRegistry.transcriptPathForTerminal(terminal.terminalId),
+        } }, semantic)
+      })().catch(error => console.warn('[hook] habit capture failed:', error))
       if (state && (startsTurn || completesTurn || failsTurn || needsApproval || needsInput)) {
         if (startsTurn) serviceErrorDetectors.get(terminal.terminalId)?.reset()
         // Turn 级失败（429 限流 / 5xx 过载 / StopFailure / session.error）时 CLI
@@ -555,14 +427,13 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
           status: state.hookStatus,
         })
       }
-      // Session turn ledger: the pending checkpoint is this turn's baseline.
+      // Session ledger and Island boundaries are independent of retired snapshots.
       if (state && (completesTurn || failsTurn)) {
         const kind = failsTurn
           ? 'failed'
-          : event === JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted || event === 'sessionend'
+          : semantic.type === 'session-close' || semantic.type === 'turn-end' && semantic.kind === 'interrupted'
             ? 'interrupted'
             : 'done'
-        const baselineId = state.checkpointId ?? undefined
         // A turn end closes an open turn only: SessionEnd after Stop and
         // duplicate ends must not fabricate phantom turns. An end with no
         // open hook turn and no pending submit is ignored.
@@ -570,10 +441,11 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
           turnChangeTracker.hasActiveTurn(terminal.terminalId) ||
           agentSessionRegistry.hasPendingTurn(terminal.terminalId)
         // Capture the boundary before transcript reads; duplicate end hooks are ignored.
-        void turnChangeTracker.finish(terminal.terminalId, kind, baselineId ?? null)
+        void turnChangeTracker.finish(terminal.terminalId, kind, null)
         if (openTurn) {
           // Answer prose resolves per engine capability (hook raw first,
           // session record second). Failures yield undefined and never block.
+          const attachExcerpt = agentSessionRegistry.recordTurnEnd(terminal.terminalId, kind)
           const excerpt = await readAssistantExcerpt({
             transcriptPath:
               getRawString(payload.raw, ['transcript_path', 'transcriptPath']) ??
@@ -585,35 +457,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             cwd: state.cwd,
             engine: terminal.engine,
           })
-          agentSessionRegistry.recordTurnEnd(terminal.terminalId, kind, baselineId, excerpt)
+          attachExcerpt?.(excerpt)
         }
       }
-      companionSessionState.handleHookPayload(payload)
-      await agentTurnRecorder.handleHookPayload({ ...payload, raw: {
-        ...(payload.raw && typeof payload.raw === 'object' ? payload.raw : {}),
-        transcriptPath: getRawString(payload.raw, ['transcript_path', 'transcriptPath'])
-          ?? agentSessionRegistry.transcriptPathForTerminal(terminal.terminalId),
-      } })
-      if (payload.sessionId) {
-        agentSessionRegistry.noteProviderSession(terminal.terminalId, payload.sessionId)
-        const refresh = () => refreshRuntimeTelemetry(
-          terminal.terminalId,
-          terminal.engine as Exclude<CheckpointEngine, 'shell' | 'manual'>,
-          terminal.cwd ?? payload.cwd ?? '',
-          payload.sessionId,
-        ).catch(() => undefined)
-        void refresh()
-      }
-      if (/stop|complete|idle|janusx\.turn\./i.test(payload.event)) {
-        const refresh = () => refreshRuntimeTelemetry(
-          terminal.terminalId,
-          terminal.engine as Exclude<CheckpointEngine, 'shell' | 'manual'>,
-          terminal.cwd ?? payload.cwd ?? '',
-          payload.sessionId,
-        ).catch(() => undefined)
-        void refresh()
-        setTimeout(() => { void refresh() }, 750)
-      }
+
     },
   })
   const hookBridge = new AgentHookBridge({
@@ -631,7 +478,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   ): Promise<void> {
     const key = engine === 'claude' ? manager.getClaudeSettingsPath()
       : engine === 'codex' ? manager.getCodexHooksPath() : engine
-    if (hooksInstalledThisSession.has(key) && await manager.isInstalled(engine)) return
+    if (hooksInstalledThisSession.has(key)) return
     await manager.ensureInstalled(engine)
     hooksInstalledThisSession.add(key)
   }
@@ -651,7 +498,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   // Window close without full quit still needs local cleanup.
   appShutdown.configure({
     stopRuntimeTelemetry: () => terminalContextCoordinator.shutdown(),
-    finalizePendingCheckpoints: () => finalizePendingTerminalCheckpoints(),
     flushAgentSessions: () => agentSessionRegistry.flush(),
     stopHookBridge: () => hookBridge.stop(),
     disposeTerminalSession: () => {
@@ -685,9 +531,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     }
 
     // Darwin keeps the app process alive after the last window closes.
-    void finalizePendingTerminalCheckpoints()
-      .catch((err) => console.error('Checkpoint finalize on window close failed:', err))
-      .finally(() => {
+    void Promise.resolve().then(() => {
         void terminalManager.killAll()
         terminalStates.clear()
         serviceErrorDetectors.clear()
@@ -768,18 +612,18 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
   const createTerminalLifecycle = async (config: TerminalCreateRequest, recoveryEnv?: SessionRecoveryEnvironment) => {
     if (parseRuntimeResource(config.cwd)) return createRemoteLifecycle(config)
+    assertHookCleanupIdle()
     const launchStartedAt = performance.now()
     const { id, cwd, shell, preset, command, args, cols, rows, extraArgs, shellProfileId, shellCommand } = config
 
     const workspaceId = typeof config.workspaceId === 'string' ? config.workspaceId : ''
     const engine: CheckpointEngine =
       isTerminalPreset(preset) && preset !== 'shell' ? preset : 'shell'
-    const launchHookManager = recoveryEnv?.claudeConfigDir || recoveryEnv?.codexHome
-      ? new AgentHookConfigManager(recoveryEnv) : hookConfigManager
+    const launchHookManager = hookConfigManager
 
     // AC6: per-id creation lock. Concurrent terminal:create with the same id
     // (e.g. double-click preset, retry during launch) is rejected so the
-    // second caller does not race checkpointManager.initialize on the same
+    // second caller does not race terminal lifecycle preparation on the same
     // cwd or collide with the first pty spawn (Vector B/F).
     const priorState = terminalStates.get(id)
     if (priorState?.creationLocked) {
@@ -826,14 +670,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     // Pre-stub a locked state so concurrent callers see the lock immediately.
     // This is replaced by the full state below once the pty is spawned.
     terminalStates.set(id, {
-      checkpointId: null,
       cwd,
       workspaceId,
       engine,
-      initialized: false,
-      creating: false,
       creationLocked: true,
-      pendingSubmitTexts: [],
       flowStatus: 'wait',
       flowTimer: null,
       lastDataAt: 0,
@@ -875,24 +715,30 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       return launchProgram
     })()
 
-    let recoveryHookError: Error | undefined
+    let hookLaunchArgs: string[] = []
     const hookEnvPromise = (async (): Promise<Record<string, string> | undefined> => {
       // shell spawns no agent and needs no hook env.
       if (engine === 'shell') return undefined
       try {
         await hookBridge.start()
         await ensureHooksInstalled(engine, launchHookManager)
+        const program = await resolveProgramPromise
+        if (engine === 'codex' && program && 'command' in program) await launchHookManager.checkCodexLaunchVersion(program.command)
+        const openCodeMajor = engine === 'opencode' && program && 'command' in program
+          ? await launchHookManager.getOpenCodeMajor(program.command) : undefined
+        hookLaunchArgs = await launchHookManager.getLaunchArgs(engine, openCodeMajor)
         return launchHookManager.buildTerminalEnv(
           {
             terminalId: id,
             workspaceId,
             engine,
+            openCodeMajor,
           },
           hookBridge.getEnv(),
         )
       } catch (err) {
+        hookLaunchArgs = []
         const message = err instanceof Error ? err.message : String(err)
-        if (recoveryEnv) recoveryHookError = new Error(`Session recovery hook setup failed: ${message}`)
         console.error('Agent hook setup failed:', err)
         const event = {
           type: 'ignored',
@@ -917,20 +763,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     const launchProgramError = resolvedProgram && 'error' in resolvedProgram ? resolvedProgram.error : undefined
     const launchProgramResolved = resolvedProgram && 'command' in resolvedProgram ? resolvedProgram : undefined
 
-    // pi loads the JanusX-owned notify extension via CLI flag, never via the
-    // user's pi settings. Missing file (setup failed) launches bare pi: status
-    // stays wait, exactly the pre-hook behavior.
-    const piExtensionArgs: string[] = []
-    if (engine === 'pi') {
-      try {
-        if (await hookConfigManager.isInstalled('pi')) {
-          piExtensionArgs.push('--extension', hookConfigManager.getPiExtensionPath())
-        }
-      } catch {
-        // Best effort: launch bare pi below.
-      }
-    }
-    const programArgs = [...(launchProgramResolved?.args ?? []), ...piExtensionArgs, ...(extraArgs ?? [])]
+    const programArgs = [...(launchProgramResolved?.args ?? []), ...hookLaunchArgs, ...(extraArgs ?? [])]
     const preparationMs = Math.round(performance.now() - launchStartedAt)
 
     logTerminalDiagnostic('terminal create requested', {
@@ -947,7 +780,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     let instance
     try {
       if (launchProgramError) throw new Error(launchProgramError)
-      if (recoveryHookError) throw recoveryHookError
       const baselineStartedAt = performance.now()
       if (engine !== 'shell') await turnChangeTracker.register(id, cwd)
       const baselineMs = Math.round(performance.now() - baselineStartedAt)
@@ -958,6 +790,8 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         logTerminalDiagnostic('Office automation policy-only mode', { engine, limitation: officeSession.limitation })
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
+      terminalStorageReleases.set(id, acquireWorkspaceStorage(cwd))
+      assertHookCleanupIdle()
       instance = terminalManager.create({
         id,
         workspaceId,
@@ -994,7 +828,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       })
       // Release the creation lock stub so a later retry is not blocked.
       turnChangeTracker.unregister(id)
-      terminalStates.delete(id)
+      forgetTerminalState(id)
       throw err
     }
 
@@ -1039,14 +873,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     }
 
     terminalStates.set(id, {
-      checkpointId: null,
       cwd,
       workspaceId,
       engine,
-      initialized: false,
-      creating: false,
       creationLocked: false,
-      pendingSubmitTexts: [],
       flowStatus: 'wait',
       flowTimer: null,
       lastDataAt: 0,
@@ -1129,7 +959,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
     })
 
-    // Terminal exit: finalize any pending checkpoint.
+    // Terminal exit releases lifecycle state.
     instance.pty.onExit(({ exitCode }: { exitCode: number }) => {
       // AC3: isolate onExit callback exceptions; a throw here must not crash
       // the main process or leave the terminal in a half-cleaned state.
@@ -1150,7 +980,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         // cleanup so the new create's pre-stub state (incl. creationLocked)
         // is not deleted out from under it — otherwise AC6's lock is
         // dropped early and a concurrent same-id create can race
-        // checkpointManager.initialize (Vector B/F). This also subsumes
+        // terminal lifecycle preparation (Vector B/F). This also subsumes
         // the I-4 double-finishRun noise: the early return skips the
         // stale finishRun call entirely.
         const state0 = terminalStates.get(id)
@@ -1192,16 +1022,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             exitCode === 0 ? 'Terminal completed' : `Terminal exited with code ${exitCode}`
           )
         }
-        if (state?.checkpointId) {
-          const cpId = state.checkpointId
-          checkpointManager.finalizeCheckpoint(cpId, state.cwd).then(() => {
-            sendToRenderer(getMainWindow(), CHECKPOINT_CHANNELS.event, {
-              type: 'finalized',
-              checkpointId: cpId,
-            })
-          }).catch(err => console.error('Checkpoint finalize failed:', err))
-        }
-        terminalStates.delete(id)
+        forgetTerminalState(id)
         turnChangeTracker.unregister(id)
         serviceErrorDetectors.delete(id)
         clearHandoffDeliveryForTerminal(id)
@@ -1213,7 +1034,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       } catch (err) {
         console.error(`[terminal ${id}] onExit error:`, err)
         // Best-effort cleanup so a partial failure does not leak state.
-        try { terminalStates.delete(id) } catch {}
+        try { forgetTerminalState(id) } catch {}
         turnChangeTracker.unregister(id)
         try { serviceErrorDetectors.delete(id) } catch {}
         try { clearHandoffDeliveryForTerminal(id) } catch {}
@@ -1225,17 +1046,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
     })
 
-    checkpointManager.initialize(cwd).then(() => {
-      const state = terminalStates.get(id)
-      if (state) {
-        state.initialized = true
-        processCheckpointQueue(id)
-      }
-      sendToRenderer(getMainWindow(), CHECKPOINT_CHANNELS.ready, { terminalId: id, success: true })
-    }).catch((err) => {
-      console.error('Checkpoint init failed:', err)
-      sendToRenderer(getMainWindow(), CHECKPOINT_CHANNELS.ready, { terminalId: id, success: false, error: String(err) })
-    })
 
     terminalContextCoordinator.trackTerminal(id, engine, cwd, telemetry => {
       sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.telemetry, { id, telemetry })
@@ -1251,7 +1061,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       rollbackTerminalCreation({
         clearState: () => {
           turnChangeTracker.unregister(id)
-          terminalStates.delete(id)
+          forgetTerminalState(id)
           serviceErrorDetectors.delete(id)
           clearHandoffDeliveryForTerminal(id)
           // Discard, not detach: a create that never came up must not leave a
@@ -1405,7 +1215,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         handoffDeliveries.delete(record.id)
         if (verdict === 'delivered') {
           agentSessionRegistry.notePrompt(terminalId, handoff)
-          enqueueCheckpointFromSubmit(terminalId, handoff)
+          recordSubmittedPrompt(terminalId, handoff)
           agentSessionRegistry.setPendingHandoff(record.id, undefined)
           return
         }
@@ -1442,7 +1252,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
   // Submit-line handler: renderer sends one complete user input transaction.
   ipcMain.on(TERMINAL_SEND_CHANNELS.submitLine, (_event, { id, text }: TerminalSubmitLinePayload) => {
-    enqueueCheckpointFromSubmit(id, text)
+    recordSubmittedPrompt(id, text)
   })
 
   ipcMain.on(TERMINAL_SEND_CHANNELS.resize, (_event, { id, cols, rows }: TerminalResizePayload) => {

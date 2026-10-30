@@ -37,9 +37,12 @@ class DesktopToastWindow {
   private currentOptions: DesktopToastOptions | null = null
   private hideTimer: ReturnType<typeof setTimeout> | null = null
   private readyTimer: ReturnType<typeof setTimeout> | null = null
+  private deliverySequence = 0
+  private pendingDelivery: number | null = null
 
   constructor() {
     ipcMain.on(SYSTEM_CHANNELS.toastReady, this.handleReady)
+    ipcMain.on(SYSTEM_CHANNELS.toastPainted, this.handlePainted)
     ipcMain.on(SYSTEM_CHANNELS.toastAction, this.handleAction)
   }
 
@@ -52,16 +55,20 @@ class DesktopToastWindow {
     this.currentPayload = payload
     this.currentOptions = options
     this.clearReadyTimer()
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer)
+      this.hideTimer = null
+    }
 
     try {
       const win = this.ensureWindow()
       this.positionWindow(win)
       this.flush()
-      if (!this.rendererReady) {
+      if (!this.rendererReady || this.pendingDelivery !== null) {
         const expectedPayload = payload
         this.readyTimer = setTimeout(() => {
           this.readyTimer = null
-          if (this.currentPayload !== expectedPayload || this.rendererReady) return
+          if (this.currentPayload !== expectedPayload) return
           this.currentOptions?.onError?.('desktop-toast-renderer-not-ready')
         }, 1500)
         this.readyTimer.unref?.()
@@ -105,13 +112,12 @@ class DesktopToastWindow {
         // development builds; the preload bundle is emitted under out/preload.
         preload: join(__dirname, '../../preload/index.mjs'),
         sandbox: false,
+        // Hidden toasts must paint before the window is shown.
+        backgroundThrottling: false,
       },
     })
 
     win.setAlwaysOnTop(true, 'screen-saver')
-    win.setBackgroundColor('#00000000')
-    win.setBackgroundMaterial('none')
-    win.setHasShadow(false)
     win.on('closed', () => {
       if (this.toastWindow === win) {
         this.toastWindow = null
@@ -161,25 +167,30 @@ class DesktopToastWindow {
     const win = this.toastWindow
     if (!win || win.isDestroyed() || !this.rendererReady || !this.currentPayload) return
 
-    this.clearReadyTimer()
-
     if (this.hideTimer) {
       clearTimeout(this.hideTimer)
       this.hideTimer = null
     }
 
-    win.webContents.send(SYSTEM_CHANNELS.toastShow, this.currentPayload)
     this.pushTheme(win)
     this.positionWindow(win)
-    // DWM 可能在 show 时重铺系统材质：show 前后重申无材质/全透明/无阴影，
-    // 否则外圈透明带回退成灰色玻璃壳
-    win.setBackgroundColor('#00000000')
-    win.setBackgroundMaterial('none')
-    win.setHasShadow(false)
-    win.showInactive()
-    win.setBackgroundColor('#00000000')
-    win.setBackgroundMaterial('none')
-    win.setHasShadow(false)
+    this.pendingDelivery = ++this.deliverySequence
+    win.webContents.send(SYSTEM_CHANNELS.toastShow, {
+      ...this.currentPayload,
+      deliveryId: this.pendingDelivery,
+    })
+  }
+
+  private handlePainted = (event: IpcMainEvent, deliveryId: unknown): void => {
+    const win = this.toastWindow
+    if (!win || win.isDestroyed() || event.sender !== win.webContents
+      || this.pendingDelivery === null || deliveryId !== this.pendingDelivery || !this.currentPayload) return
+
+    this.pendingDelivery = null
+    this.clearReadyTimer()
+    // Keep native composition settings stable; changing material around show
+    // rebuilds the Windows backdrop while the rounded card is visible.
+    if (!win.isVisible()) win.showInactive()
     this.currentOptions?.onShown?.()
 
     const timeoutMs = this.currentOptions?.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -201,6 +212,7 @@ class DesktopToastWindow {
   }
 
   private hide(): void {
+    this.pendingDelivery = null
     this.clearReadyTimer()
     if (this.hideTimer) {
       clearTimeout(this.hideTimer)

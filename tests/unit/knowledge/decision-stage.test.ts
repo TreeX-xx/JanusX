@@ -27,7 +27,7 @@ function output(input: MemoryDecisionInput, uncertain = true) {
 }
 
 function model(score: DecisionScorer['score'] = async (input) => output(input)): DecisionScorer {
-  return { identity: { provider: 'test-laya', modelRevision: 'pinned', templateVersion: DECISION_TEMPLATE_VERSION, calibrationId: null }, score }
+  return { identity: { provider: 'test-scorer', modelRevision: 'pinned', templateVersion: DECISION_TEMPLATE_VERSION, calibrationId: null }, score }
 }
 
 describe('queue-owned memory decision gate', () => {

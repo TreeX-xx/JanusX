@@ -4,9 +4,11 @@ import { createServer as createHttpsServer } from 'node:https'
 import { connect } from 'node:net'
 import { generate } from 'selfsigned'
 import { ProxyAgent } from 'undici'
-import { CpaProxy, cpaBypassesProxy } from '../../src/main/cpa/proxy'
-import { cpaLocalRequest } from '../../src/main/cpa/local-request'
-import { downloadCpaAsset } from '../../src/main/cpa/installer'
+import { HostProxy as CpaProxy, hostBypassesProxy as cpaBypassesProxy } from '../../src/main/lib/host-proxy'
+import { connectDesktop } from '../../plugins/cpa/src/main/desktop'
+import type { NativePeer } from '@janusx/plugin-sdk/native'
+import { cpaLocalRequest } from '../../plugins/cpa/src/main/local-request'
+import { downloadCpaAsset } from '../../plugins/cpa/src/main/installer'
 
 const h = vi.hoisted(() => ({ proxy: null as string | null }))
 vi.mock('@janusx/llm-core', () => ({ getProxyManager: () => ({ getProxyUrl: () => h.proxy }), getSystemProxy: () => null }))
@@ -142,6 +144,7 @@ describe('CPA proxy exit', () => {
       socket.on('close', () => remote.destroy()); remote.on('close', () => socket.destroy())
     })
     h.proxy = `http://127.0.0.1:${await listen(upstream)}`
+    connectDesktop({ call: async () => (await relay()).href } as unknown as NativePeer)
     const signal = AbortSignal.timeout(3000)
     expect((await downloadCpaAsset('http://download.invalid/component', 100, signal)).toString()).toBe('component-fixture')
     expect(targets).toContain('download.invalid:80')

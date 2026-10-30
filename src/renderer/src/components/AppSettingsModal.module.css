@@ -68,11 +68,19 @@
 }
 
 .navigation {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   /* Keep Chromium's explicit 4px geometry instead of its native thin preset. */
   scrollbar-width: auto;
   scrollbar-color: auto;
+}
+
+.sidebarFooter {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--shell-border);
 }
 
 .navigation::-webkit-scrollbar {
@@ -125,6 +133,7 @@
 /* 品牌行压成一行：JanusX + "设置中心" 基线对齐，不再占两行高度。 */
 .brand {
   display: flex;
+  flex-shrink: 0;
   align-items: baseline;
   gap: 6px;
   padding: 2px 8px 12px;
@@ -301,6 +310,15 @@
     overflow-x: auto;
   }
 
+  .sidebarFooter {
+    margin-top: 0;
+    margin-left: 8px;
+    padding-top: 0;
+    padding-left: 8px;
+    border-top: 0;
+    border-left: 1px solid var(--shell-border);
+  }
+
   .navGroup {
     flex-shrink: 0;
   }
@@ -357,7 +375,6 @@
   gap: 24px;
   align-items: start;
   padding: 18px 0;
-  border-bottom: 1px solid var(--shell-border-soft);
 }
 
 .generalLabelCol {
@@ -368,7 +385,8 @@
 }
 
 .generalSection { display: flex; flex-direction: column; min-width: 0; }
-.generalSectionTitle { margin: 0 0 18px; color: var(--shell-muted); font-size: 12px; font-weight: 600; }
+.generalSection + .generalSection { padding-top: 24px; border-top: 1px solid var(--shell-border); }
+.generalSectionTitle { margin: 0 0 18px; color: var(--shell-text); font-size: 14px; font-weight: 600; }
 .generalSection > .generalHelp { margin-top: 10px; }
 .generalRowWide { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .generalRowWide:last-child { border-bottom: 0; padding-bottom: 0; }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { CaptureInbox, type CaptureEntry } from '../../../src/main/knowledge/capture-inbox'
@@ -9,6 +9,31 @@ let root: string
 beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'capture-inbox-')); vi.stubEnv('JANUSX_KNOWLEDGE_ROOT', root) })
 afterEach(async () => { vi.unstubAllEnvs(); await rm(root, { recursive: true, force: true }) })
 const entry = (id: string): CaptureEntry => ({ input: { workspaceId: 'project', workspacePath: '/project', source: 'agent-stream', type: 'conversation-turn', content: id }, context: { speaker: 'user', sourceEventId: id } })
+it('does not read or persist the inbox when capture and recovery are disabled', async () => {
+  const capture = vi.fn(), filter = vi.fn(async entries => entries)
+  const inbox = new CaptureInbox(capture, filter)
+  expect(await inbox.submit([entry('private')], async () => false)).toEqual([])
+  await inbox.drain(async () => false)
+  expect(filter).not.toHaveBeenCalled()
+  expect(capture).not.toHaveBeenCalled()
+  expect(await readdir(root)).toEqual([])
+})
+
+it('invalidates queued admission and does not write retry metadata after disabling in flight', async () => {
+  let enabled = true, release!: () => void
+  const capture = vi.fn(async () => { await new Promise<void>(resolve => { release = resolve }); throw new Error('disabled failure') })
+  const inbox = new CaptureInbox(capture)
+  const first = inbox.submit([entry('first')], async () => enabled)
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+  const path = join(root, 'processing/capture-inbox.json')
+  const before = await readFile(path, 'utf8')
+  const queued = inbox.submit([entry('queued')], async () => enabled)
+  enabled = false; release()
+  expect(await first).toEqual([])
+  expect(await queued).toEqual([])
+  expect(capture).toHaveBeenCalledTimes(1)
+  expect(await readFile(path, 'utf8')).toBe(before)
+})
 it('recovers a partially written batch after restart without duplicating successful events', async () => {
   const stored = new Map<string, Observation>(); let fail = true
   const capture = vi.fn(async (input, context) => {

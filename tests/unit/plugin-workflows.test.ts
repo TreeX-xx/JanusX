@@ -182,10 +182,12 @@ describe('P6 supervised service workflows', () => {
     expect(calls).toBe(1); expect(run.error).toBe('RATE_LIMITED')
     expect(run.workflow?.steps).toMatchObject([{ state: 'completed', modelResults: { start: 0, end: 1 } }, { state: 'failed', modelResults: { start: 1, end: 1 } }])
   })
-  it('does not expose project workflows outside grants or the current worktree', async () => {
+  it('binds all-workspace workflows to the current worktree and revokes them on disable', async () => {
     const f = await fixture()
     await expect(f.service.discoverAgentWorkflows({ ...f.context, workspaceRoot: f.other }, signal())).rejects.toThrow()
     await f.service.enable(f.data.id, [])
+    expect((await f.service.discoverAgentWorkflows(f.context, signal())).workflows).toHaveLength(1)
+    await f.service.disable(f.data.id)
     expect((await f.service.discoverAgentWorkflows(f.context, signal())).workflows).toEqual([]); await expect(f.run()).rejects.toThrow()
   })
   it('honors cancellation before discovery or workflow start', async () => {

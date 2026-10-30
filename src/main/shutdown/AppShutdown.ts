@@ -6,11 +6,9 @@ export interface AppShutdownDeps {
   stopPlugins?: ShutdownStep
   stopNoteReview?: ShutdownStep
   stopKnowledge?: ShutdownStep
-  stopCpa?: ShutdownStep
   abortChatStreams?: ShutdownStep
   cancelAnalyzer?: ShutdownStep
   cancelBlueprintMaintenance?: ShutdownStep
-  finalizePendingCheckpoints?: ShutdownStep
   flushAgentSessions?: ShutdownStep
   stopHookBridge?: ShutdownStep
   stopCompanion?: ShutdownStep
@@ -92,15 +90,11 @@ export class AppShutdown {
   private async runSteps(): Promise<void> {
     // Order matters:
     // 1) kill keep-alive windows first (toast/editor)
-    // 2) AC9: kill terminals BEFORE finalizing pending checkpoints so no native
-    //    pty callback can fire sendToRenderer into a torn-down window during
-    //    the finalize window. finalizeCheckpoint only touches workspace files
-    //    and does not require a live pty.
+    // 2) stop terminals before flushing the session ledger.
     const ordered: Array<[keyof AppShutdownDeps, ShutdownStep | undefined]> = [
       ['stopPlugins', this.deps.stopPlugins],
       ['stopNoteReview', this.deps.stopNoteReview],
       ['stopKnowledge', this.deps.stopKnowledge],
-      ['stopCpa', this.deps.stopCpa],
       ['destroyToast', this.deps.destroyToast],
       ['closeEditors', this.deps.closeEditors],
       ['destroyBrowserSurfaces', this.deps.destroyBrowserSurfaces],
@@ -111,7 +105,6 @@ export class AppShutdown {
       ['stopCompanion', this.deps.stopCompanion],
       ['killTerminals', this.deps.killTerminals],
       ['stopRuntimeTelemetry', this.deps.stopRuntimeTelemetry],
-      ['finalizePendingCheckpoints', this.deps.finalizePendingCheckpoints],
       ['flushAgentSessions', this.deps.flushAgentSessions],
       ['stopOfficeWatches', this.deps.stopOfficeWatches],
       ['killAgents', this.deps.killAgents],

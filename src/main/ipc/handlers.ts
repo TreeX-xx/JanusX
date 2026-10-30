@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+// Note: .agents/notes/desktop/workspace-state-storage.md
+import { workspaceIo } from '@janus-agent/agent-core'
 import { projectWorkspace, validateRuntime, runtimeRequest } from '../workspace/runtime'
 import { workspaceFileIpc } from '../workspace/runtime-ipc'
 import { spawn } from 'node:child_process'
@@ -31,6 +33,7 @@ import {
 } from '../terminal/shell-profiles'
 
 const WORKSPACES_DIR = join(app.getPath('userData'), 'janusx', 'workspaces')
+const STORAGE_LANE = join(app.getPath('userData'), 'janusx', 'workspace-state')
 const HIDDEN_FILETREE_ENTRIES = new Set(['.git', '.janusX'])
 const watcherRegistry = new Map<string, FSWatcher>()
 const applicationDataEventFilters = new Map<string, ReturnType<typeof createApplicationDataEventFilter>>()
@@ -52,6 +55,7 @@ export interface WorkspaceHandlerOptions {
   beforeWorkspaceDelete?: (workspaceId: string) => Promise<void> | void
   authorizeRendererAction?: RendererActionAuthorizer
   getAllowedWindows?: () => readonly BrowserWindow[]
+  storageChanged?: () => Promise<void>
 }
 
 let getWorkspaceAllowedWindows: () => readonly BrowserWindow[] = () => []
@@ -410,7 +414,7 @@ export function registerWorkspaceHandlers(
     return projectWorkspace(JSON.parse(data))
   })
 
-  ipcMain.handle(WORKSPACE_CHANNELS.create, async (event, dto: WorkspaceCreateInput) => {
+  ipcMain.handle(WORKSPACE_CHANNELS.create, async (event, dto: WorkspaceCreateInput) => workspaceIo.run(STORAGE_LANE, async () => {
     const runtime = dto.runtime && dto.runtime.kind !== 'windows' ? validateRuntime(dto.runtime) : undefined
     if (runtime) {
       const info = await runtimeRequest<{ isDirectory: boolean }>(runtime, 'fs.stat', { root: runtime.root })
@@ -429,23 +433,23 @@ export function registerWorkspaceHandlers(
       updatedAt: new Date().toISOString(),
     }
     await writeFile(join(WORKSPACES_DIR, `${workspace.id}.json`), JSON.stringify(workspace, null, 2))
+    await options.storageChanged?.().catch(error => console.error('[workspace-data] record sync failed:', error))
     return projectWorkspace(workspace as Workspace)
-  })
+  }))
 
-  ipcMain.handle(WORKSPACE_CHANNELS.update, async (event, id: string, updates: WorkspaceUpdates) => {
+  ipcMain.handle(WORKSPACE_CHANNELS.update, async (event, id: string, updates: WorkspaceUpdates) => workspaceIo.run(STORAGE_LANE, async () => {
     const filePath = join(WORKSPACES_DIR, `${id}.json`)
     const data = JSON.parse(await readFile(filePath, 'utf-8'))
     const workspaceRoot = typeof data.path === 'string' ? data.path : id
     if (!await authorize(event, { workspaceRoot, toolName: 'legacy.workspace.update', actionRisk: 'write', source: 'renderer-user', preview: { summary: 'Update workspace record', paths: [workspaceRoot], detail: Object.keys(updates).join(', '), truncated: false } })) throw new Error('Workspace update denied by workspace policy')
-    // Location changes require a new import; sidebar saves must never persist
+    // Location changes use verified relocation; sidebar saves must never persist
     // the projected resource URI over the target's native directory.
     const { path: _path, runtime: _runtime, id: _id, ...editable } = updates
-    const updated = { ...data, ...editable,
-      ...(!data.runtime || data.runtime.kind === 'windows' ? (typeof _path === 'string' ? { path: _path } : {}) : {}),
-      updatedAt: new Date().toISOString() }
+    const updated = { ...data, ...editable, updatedAt: new Date().toISOString() }
     await writeFile(filePath, JSON.stringify(updated, null, 2))
+    await options.storageChanged?.().catch(error => console.error('[workspace-data] record sync failed:', error))
     return projectWorkspace(updated)
-  })
+  }))
 
   ipcMain.handle(WORKSPACE_CHANNELS.delete, async (event, id: string) => {
     try {
@@ -453,10 +457,15 @@ export function registerWorkspaceHandlers(
       const record = JSON.parse(await readFile(recordPath, 'utf-8')) as { path?: unknown }
       const workspaceRoot = typeof record.path === 'string' ? record.path : id
       if (!await authorize(event, { workspaceRoot, toolName: 'legacy.workspace.delete', actionRisk: 'delete', source: 'renderer-user', preview: { summary: 'Delete workspace record', paths: [workspaceRoot], truncated: false } })) return { success: false }
+      // Stop/flush tasks before owning the lane they use to finish their logs.
       await options.beforeWorkspaceDelete?.(id)
-      await unlink(recordPath)
-      if (typeof record.path === 'string') disposeWorkspaceWatcher(record.path)
-      return { success: true }
+      return await workspaceIo.run(STORAGE_LANE, async () => {
+        const current = JSON.parse(await readFile(recordPath, 'utf-8')) as { path?: unknown }
+        await unlink(recordPath)
+        await options.storageChanged?.().catch(error => console.error('[workspace-data] record sync failed:', error))
+        if (typeof current.path === 'string') disposeWorkspaceWatcher(current.path)
+        return { success: true }
+      })
     } catch {
       return { success: false }
     }

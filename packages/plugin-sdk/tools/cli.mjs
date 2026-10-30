@@ -38,7 +38,7 @@ export async function checkPlugin(directory) {
   if (manifestStat.size > 64 * 1024) throw new PluginError('PACKAGE_LIMIT_EXCEEDED', 'Manifest exceeds 64 KiB.')
   const manifest = parsePluginManifest(await readFile(manifestFile, 'utf8'))
   // Match the host installer: declarative-only packages deliver only their manifest.
-  if (!manifest.contributes.views.length) return manifest
+  if (!manifest.contributes.views.length && !manifest.native) return manifest
   const found = new Set()
   let count = 1
   let bytes = manifestStat.size
@@ -56,7 +56,7 @@ export async function checkPlugin(directory) {
     if (found.has(lower)) throw new PluginError('INVALID_PACKAGE_PATH', 'Resource paths collide by case.')
     found.add(lower)
     const image = /\.(?:png|jpe?g|webp|gif|ico)$/.test(name)
-    if (!image && !/\.(?:html|js|mjs|css|json)$/.test(name)) throw new PluginError('INVALID_PACKAGE_PATH', 'Unsupported resource type.')
+    if (!image && !/\.(?:html|js|mjs|css|json)$/.test(name) && !(manifest.native && name.endsWith('.cjs'))) throw new PluginError('INVALID_PACKAGE_PATH', 'Unsupported resource type.')
     count++; bytes += stat.size
     if (count > 2000 || bytes > 50 * 1024 * 1024 || stat.size > (image ? 10 : 5) * 1024 * 1024) {
       throw new PluginError('PACKAGE_LIMIT_EXCEEDED', 'Resource budget exceeded.')
@@ -69,6 +69,9 @@ export async function checkPlugin(directory) {
   }
   for (const view of manifest.contributes.views) {
     if (!found.has(view.entry.toLowerCase()) || !(await lstat(resolve(root, view.entry)).catch(() => null))?.isFile()) throw new PluginError('ENTRY_NOT_FOUND', 'A declared HTML entry is missing.')
+  }
+  for (const entry of [manifest.native?.entry, manifest.native?.mcp?.entry]) {
+    if (entry && !found.has(entry.toLowerCase())) throw new PluginError('ENTRY_NOT_FOUND', 'A native entry is missing.')
   }
   return manifest
 }

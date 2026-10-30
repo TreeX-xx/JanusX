@@ -727,32 +727,3 @@ export interface KnowledgeSearchResult {
   indexStats: KnowledgeSearchIndexStats
   degraded?: { reason: string; detail?: string }
 }
-
-/** Unified card view-model for Island / side panel / MCP consumers. */
-export type KnowledgeCardKind = 'fact' | 'wiki' | 'observation' | 'graph'
-
-export interface KnowledgeCardSourceRefs {
-  observationIds: string[]
-  fileRefs: string[]
-}
-
-export interface KnowledgeCard {
-  fullContent?: string
-  pageSlug?: string
-  sourceNoteRefs?: WikiNoteRef[]
-  id: string
-  kind: KnowledgeCardKind
-  title: string
-  summary: string
-  score: number
-  tags: string[]
-  workspaceId?: string
-  workspacePath?: string
-  sourceRefs: KnowledgeCardSourceRefs
-  createdAt?: string
-  status?: CandidateStatus | 'active' | 'archived' | 'expired'
-  /** Original search document type before kind mapping. */
-  rawType?: KnowledgeSearchDocumentType
-  /** Why the document matched (search-result cards only). */
-  scoreExplanation?: KnowledgeScoreExplanation
-}

@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   onRenderer: vi.fn(),
   removeListener: vi.fn(),
   send: vi.fn(),
+  hookOptions: undefined as any,
+  trackTelemetry: vi.fn(),
+  bindTelemetry: vi.fn(),
+  snapshotTelemetry: vi.fn(),
   officeProbe: vi.fn(() => new Promise(() => {})),
 }))
 
@@ -44,13 +48,13 @@ vi.mock('../../src/main/janus/analyzer', () => ({ analyzer: {} }))
 vi.mock('../../src/main/janus-runner/cli-resolver', () => ({ resolveCLIPath: vi.fn(async () => null) }))
 vi.mock('../../src/main/janus-runner/subagent-run-registry', () => ({ subAgentRunRegistry: {} }))
 vi.mock('../../src/main/terminal/shell-profiles', () => ({ resolveShellProfileLaunch: vi.fn(async () => ({ program: { command: 'powershell.exe', args: [] } })) }))
-vi.mock('../../src/main/runtime-telemetry/coordinator', () => ({ terminalContextCoordinator: { startCorpusScan: vi.fn(), trackTerminal: vi.fn(), runAttributionPass: vi.fn(async () => {}) } }))
+vi.mock('../../src/main/runtime-telemetry/coordinator', () => ({ terminalContextCoordinator: { startCorpusScan: vi.fn(), trackTerminal: mocks.trackTelemetry, bindSession: mocks.bindTelemetry, getSnapshot: mocks.snapshotTelemetry, runAttributionPass: vi.fn(async () => {}), releaseTerminal: vi.fn(async () => {}) } }))
 vi.mock('../../src/main/notifications/agent-hook-bridge', () => ({ AgentHookBridge: class { start = vi.fn(async () => {}); stop = vi.fn(); getEnv = vi.fn(() => ({})) } }))
 vi.mock('../../src/main/notifications/agent-hook-config', () => ({ AgentHookConfigManager: class {} }))
-vi.mock('../../src/main/notifications/agent-hook-coordinator', () => ({ AgentHookCoordinator: class { dispose = vi.fn() } }))
+vi.mock('../../src/main/notifications/agent-hook-coordinator', () => ({ getRawString: (raw: Record<string, unknown> | undefined, keys: string[]) => keys.map(key => raw?.[key]).find(value => typeof value === 'string'), AgentHookCoordinator: class { constructor(_window: unknown, options: unknown) { mocks.hookOptions = options }; dispose = vi.fn() } }))
 vi.mock('../../src/main/notifications/agent-hook-diagnostics', () => ({ AgentHookDiagnostics: class { record = vi.fn() }, summarizeCoordinatorEvent: vi.fn(), summarizeHookPayload: vi.fn() }))
 vi.mock('../../src/main/terminal/diagnostics', () => ({ logTerminalDiagnostic: vi.fn() }))
-vi.mock('../../src/main/knowledge/agent-turn-recorder', () => ({ agentTurnRecorder: { dispose: vi.fn(), setEventSink: vi.fn() } }))
+vi.mock('../../src/main/knowledge/agent-turn-recorder', () => ({ agentTurnRecorder: { dispose: vi.fn(), setEventSink: vi.fn(), isCaptureEnabled: vi.fn(async () => false), handleHookPayload: vi.fn() } }))
 vi.mock('../../src/main/shutdown/AppShutdown', () => ({ appShutdown: { configure: vi.fn(), isQuitting: false } }))
 vi.mock('../../src/main/office/officecli-manager', () => ({ officecliManager: { resolveBinary: mocks.officeProbe, getVerifiedBinary: vi.fn(), resolveAgentPathDir: vi.fn(), refreshAgentPathDir: mocks.officeProbe } }))
 vi.mock('../../src/main/office/office-agent-policy', () => ({ buildOfficeAgentSession: vi.fn(() => ({ env: {}, mode: 'managed' })), mergeOfficeAgentEnv: vi.fn(() => ({})) }))
@@ -62,6 +66,29 @@ beforeAll(async () => {
 })
 
 describe('Terminal IPC contract', () => {
+  it('blocks local terminal creation while explicit legacy Hook cleanup owns the gate', async () => {
+    const { retireLegacyHooks } = await import('../../src/main/notifications/retire-legacy-hooks')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    const cleanup = retireLegacyHooks({ homeDir: 'C:/janus-unused-hook-home', userDataDir: 'C:/janus-unused-hook-profile' }, () => { throw new Error('active cleanup fixture') })
+    const result = expect(cleanup).rejects.toThrow('active cleanup fixture')
+    await expect(create({}, { id: 'blocked-by-cleanup', cwd: 'C:/janus-terminal-fixture', preset: 'shell' })).rejects.toThrow('cleanup is in progress')
+    await result
+  })
+  it('holds workspace usage from terminal spawn until exit, even when exit cleanup partly fails', async () => {
+    const { workspaceStorageInUse } = await import('@janus-agent/agent-core')
+    const { terminalManager } = await import('../../src/main/terminal/manager')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    const cwd = 'C:/janus-terminal-storage-fixture'
+    await create({}, { id: 'usage-guard', cwd, shell: 'powershell.exe', preset: 'shell' })
+    expect(workspaceStorageInUse(cwd)).toBe(true)
+    const instance = vi.mocked(terminalManager.create).mock.results.at(-1)!.value
+    const exit = instance.pty.onExit.mock.calls[0][0]
+    const { agentSessionRegistry } = await import('../../src/main/sessions/session-registry')
+    const detach = vi.spyOn(agentSessionRegistry, 'detachTerminal').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try { await exit({ exitCode: 0 }) } finally { error.mockRestore(); detach.mockRestore() }
+    expect(workspaceStorageInUse(cwd)).toBe(false)
+  })
   it('starts repeated shells without invoking a blocked OfficeCLI probe', async () => {
     const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
     const warmup = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.warmup)![1]
@@ -71,6 +98,26 @@ describe('Terminal IPC contract', () => {
     }
     expect(mocks.officeProbe).not.toHaveBeenCalled()
   }, 2000)
+
+  it('dispatches session/start/wait/end events without any telemetry binding, read or delayed refresh', async () => {
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    await create({}, { id: 'hook-boundary', cwd: process.cwd(), shell: 'powershell.exe', preset: 'shell' })
+    const { normalizeHookLifecycle } = await import('../../src/main/notifications/agent-hook-lifecycle')
+    const { agentTurnRecorder } = await import('../../src/main/knowledge/agent-turn-recorder')
+    mocks.trackTelemetry.mockClear(); mocks.bindTelemetry.mockClear(); mocks.snapshotTelemetry.mockClear()
+    const timeout = vi.spyOn(globalThis, 'setTimeout')
+    try {
+      for (const event of ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'Stop', 'Stop', 'SessionEnd']) {
+        const payload = { source: 'codex' as const, terminalId: 'hook-boundary', sessionId: 'hook-session', event }
+        await mocks.hookOptions.onResolvedPayload(payload, { terminalId: 'hook-boundary', engine: 'codex' }, normalizeHookLifecycle(payload))
+      }
+      expect(mocks.trackTelemetry).not.toHaveBeenCalled()
+      expect(mocks.bindTelemetry).not.toHaveBeenCalled()
+      expect(mocks.snapshotTelemetry).not.toHaveBeenCalled()
+      expect(timeout).not.toHaveBeenCalled()
+      expect(agentTurnRecorder.handleHookPayload).not.toHaveBeenCalled()
+    } finally { timeout.mockRestore() }
+  })
 
   beforeEach(() => {
     mocks.invoke.mockReset()

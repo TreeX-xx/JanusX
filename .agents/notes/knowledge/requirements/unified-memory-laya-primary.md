@@ -8,7 +8,7 @@
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c0a75c6a-5d06-4088-b7ed-9ecdd835b3d3",
   "class": "architecture",
   "tags": ["memory","knowledge","unification","laya","qwen","jev","decision-model"],
-  "updated": "2026-10-10T06:17:38.994Z",
+  "updated": "2026-10-30T09:31:30.972Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf"
 }
 ---
@@ -18,6 +18,8 @@
 当前适用性：工程生成 Wiki、图谱、检索和自动化已随蓝图重构退出；下文相关设计及验收保留为当时记录，源码链接固定到退出前 Git 版本。个人及共享能力的当前边界见[模块入口](../module.md)。原验收编号、执行与评审记录不被此次退出改写为新版本通过。
 
 ## 当前适用性
+
+2026-10-30 退出决定：用户确认不再使用 Laya。产品运行时、设置与控制接口、适配资源和打包规则，以及 Laya 专用测试和评测脚本已移除；其他评测脚本移除 Laya 分支与依赖。旧设置读取时丢弃，用户自选模型和 Python 环境不自动删除。下文 Laya 实现与测试结论均为历史快照，不再作为当前使用或复验说明；已删除源码的链接固定到退出前版本，固定样例与报告保留。当前机制见[模块入口](../module.md)。
 
 后续工程知识与蓝图概念融合、设置由蓝图承接、个人画像保留已经确认，见[当前产品方向](../../blueprint/product-direction.md)及[新交付计划](../../blueprint/evolution-roadmap.md)。具体退出与审核策略尚待细化。本篇保留已有实现、个人领域约束、模型实验和原验收记录；下文工程流水线扩建、模型默认值与旧排期属于历史研究，不作为当前继续实施的要求。既有测试不代表新蓝图审核通过；原文中“以本篇为依据”等表述按当时方案理解，未执行功能移除。
 
@@ -37,7 +39,7 @@ JanusX 的 observation → candidate → review → truth → BM25 管线承载�
 
 ### Python 测试资产与复验（2026-10-03）
 
-`tests/laya` 常驻保留 [test_sidecar.py](../../../../tests/laya/test_sidecar.py) 的 7 项协议与文件校验测试，因为 [sidecar](../../../../resources/laya/sidecar.py) 仍是应用发布的兼容资源。8 个评测工具测试文件、共 55 项用例以本节的方法和结果记录为归档，完整源码由 Git 保存，不另建测试副本。评测脚本、固定标准、样例及原始模型报告继续保留；Python 的 `__pycache__` 属于忽略的生成缓存。
+`tests/laya` 常驻保留 [test_sidecar.py](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/tests/laya/test_sidecar.py) 的 7 项协议与文件校验测试，因为 [sidecar](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/resources/laya/sidecar.py) 仍是应用发布的兼容资源。8 个评测工具测试文件、共 55 项用例以本节的方法和结果记录为归档，完整源码由 Git 保存，不另建测试副本。评测脚本、固定标准、样例及原始模型报告继续保留；Python 的 `__pycache__` 属于忽略的生成缓存。
 
 清理前基线为提交 `7713065def15ae167a93899ff0e8eff1fdbd0b8f`。2026-10-03 在该基线工作区执行 `artifacts/qwen-review/.venv/Scripts/python.exe -B -m unittest discover -s tests/laya -v`，9 个文件、62 项全部通过，unittest 报告耗时 0.687 秒，无跳过。下表“通过”均指这次确定性测试；它们使用固定样例、构造响应、替身和临时文件，不加载模型权重、不调用真实云端接口，Jev 子进程只运行无网络预览。
 
@@ -316,13 +318,13 @@ Profile 按“人工 override → 已确认事实账本 → 有效近期事件�
 
 ## Scope
 
-知识库审计页的[已撤回来源](../../../../src/renderer/src/components/knowledge/ObservationRevocations.tsx)从[宿主分页接口](../../../../src/main/knowledge/observation-revocation.ts)读取原子撤回记录，不依赖仍然可召回的观察卡片，也不复制正文进新日志。按撤回时间倒序、来源摘要稳定打破同时间排序，默认每页 20 条，宿主最多 100 条。条目显示撤回时间、原始回执记录的观察/事实身份数量（包含待审事实），不将它们冒充当前有效事实或 Wiki/图边数量。
+知识库审计页的[已撤回来源](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/renderer/src/components/knowledge/ObservationRevocations.tsx)从[宿主分页接口](../../../../src/main/knowledge/observation-revocation.ts)读取原子撤回记录，不依赖仍然可召回的观察卡片，也不复制正文进新日志。按撤回时间倒序、来源摘要稳定打破同时间排序，默认每页 20 条，宿主最多 100 条。条目显示撤回时间、原始回执记录的观察/事实身份数量（包含待审事实），不将它们冒充当前有效事实或 Wiki/图边数量。
 
 宿主严格扫描现存 active 与 gzip 来源，只解析本页唯一匹配来源的正文，预览最多 4,000 字符。状态区分与撤回快照一致、正文或元数据已变化、来源缺失、同身份存在多个记录；缺失或歧义时仍显示撤回记录，但不挑选正文。变化时明确展示当前正文，不能从无正文回执重建历史内容。损坏来源或 blob 读取失败向界面报错，不能当作空列表或已删除。管理页刷新返回首页，卸载或新请求会使旧响应失效，浏览与翻页不写入回执、事实或强度。
 
 该入口仅接入本地 Knowledge IPC 与审计页，不加入 MCP 输出，不解除撤回。选择复用原回执而非新增持久索引，代价是每次分页仍扫描来源元数据；offset 分页在并发新增记录时可能移动页边界，用户刷新可重新从首页读取。大库应测量扫描耗时后再考虑可重建索引和稳定游标。恢复必须另行定义重新授权和派生内容复审规则，不能通过删除回执恢复所有历史派生项。
 
-[来源撤回](../../../../src/main/knowledge/observation-revocation.ts)提供宿主预览与提交接口；知识库观察详情通过[确认控件](../../../../src/renderer/src/components/knowledge/ObservationRevokeControl.tsx)先读取当前完整正文及 sourceHash，再由用户确认撤回。hash 绑定解析后的观察全部字段与解析后的 blob 正文，排除宿主派生 revokedAt；workspace 与 ID 唯一定位来源。来源缺失、重复、损坏、摘要过期或已撤回时拒绝新提交；相同成功快照重试幂等。失败后界面清除旧预览，要求重新读取；关闭详情后，未完成请求不能重新打开或刷新其他详情。
+[来源撤回](../../../../src/main/knowledge/observation-revocation.ts)提供宿主预览与提交接口；知识库观察详情通过[确认控件](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/renderer/src/components/knowledge/ObservationRevokeControl.tsx)先读取当前完整正文及 sourceHash，再由用户确认撤回。hash 绑定解析后的观察全部字段与解析后的 blob 正文，排除宿主派生 revokedAt；workspace 与 ID 唯一定位来源。来源缺失、重复、损坏、摘要过期或已撤回时拒绝新提交；相同成功快照重试幂等。失败后界面清除旧预览，要求重新读取；关闭详情后，未完成请求不能重新打开或刷新其他详情。
 
 宿主按事实、Wiki、图边审核锁、观察写锁的固定顺序进入撤回，严格读取 active 与 gzip 归档观察及事实、候选日志。沿同 workspace 的 relatedObservationIds 求已有观察后代集合，再依据 provenance、sourceEvidence 与候选 evidence 记录关联事实身份。单次原子写入 `observations/revoked.json`，保存 workspace/ID 摘要、来源快照摘要、派生身份摘要和时间；该记录同时是撤回决策与无正文审计回执，不另写一个可能失败的审计事务。损坏输入或写入失败不改变原库。
 
@@ -359,11 +361,11 @@ Profile 按“人工 override → 已确认事实账本 → 有效近期事件�
 
 应用仅携带 sidecar.py、model-manifest.json 和 requirements.txt，Python/torch 环境与权重按需安装，默认模型目录为 userData/laya-weights/ 下的固定 revision。设置页提供开关、Python 绝对路径、模型目录、下载校验、加载使用和释放内存。安装、下载、校验、预热与 ready 是不同状态，禁用或未 ready 时不能进入模型决策；自动精炼任务也必须检查运行时仍 ready。固定 SDK 0.3.21 和全部模型文件的 SHA-256；运行阶段设置离线模式，不临时联网拉取模型。
 
-[Laya 设置面板](../../../../src/renderer/src/components/LayaSettingsPanel.tsx)位于知识库总开关之后，复用设置页的主题和控件，专用样式负责路径、操作及运行详情。关闭时收起环境字段；总开关关闭时禁止编辑和启动，运行中的取消或释放仍可用。Python 要求绝对路径，模型目录可留空并支持系统目录选择。下载和加载会保存当前知识库设置，失败保存不能启动进程；操作期间禁用总开关、处理模式与保存/重置，取消可以抢占尚未完成的保存或启动。释放内存保留已下载文件。
+[Laya 设置面板](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/renderer/src/components/LayaSettingsPanel.tsx)位于知识库总开关之后，复用设置页的主题和控件，专用样式负责路径、操作及运行详情。关闭时收起环境字段；总开关关闭时禁止编辑和启动，运行中的取消或释放仍可用。Python 要求绝对路径，模型目录可留空并支持系统目录选择。下载和加载会保存当前知识库设置，失败保存不能启动进程；操作期间禁用总开关、处理模式与保存/重置，取消可以抢占尚未完成的保存或启动。释放内存保留已下载文件。
 
 面板明确说明 Python 及依赖需另行安装，已有知识和人工标注集不是使用前提。状态及已知故障提示使用中英文文案，模型版本、内部原因码和真实测得的耗时位于折叠详情；没有推理记录时不显示零毫秒。轮询按请求和操作代次过滤过期结果，读取失败显示未知并允许重试，不以旧状态表示成功。浅色、深色及窄窗口保持字段可读和操作可达。直接显示全部诊断成本较低，但会掩盖正常配置步骤；独立安装向导能够进一步简化环境准备，却需要额外的安装和恢复机制，因此本面板复用现有受控运行时，不承担 Python 安装。
 
-Windows 验证环境采用 Python 3.12、torch 2.6.0+cpu、transformers 4.57.6，其余版本见 [requirements.txt](../../../../resources/laya/requirements.txt)。安装示例为 `uv venv --python 3.12 <环境目录>`，然后 `uv pip install --python <环境目录>/Scripts/python.exe -r resources/laya/requirements.txt`；把该 Python 绝对路径填入设置，再下载并预热。该文件固定版本但没有依赖包哈希，不等同于模型文件的摘要校验。环境和权重未写入仓库，也未修改用户现有 Janus 配置。
+Windows 验证环境采用 Python 3.12、torch 2.6.0+cpu、transformers 4.57.6，其余版本见 [requirements.txt](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/resources/laya/requirements.txt)。安装示例为 `uv venv --python 3.12 <环境目录>`，然后 `uv pip install --python <环境目录>/Scripts/python.exe -r resources/laya/requirements.txt`；把该 Python 绝对路径填入设置，再下载并预热。该文件固定版本但没有依赖包哈希，不等同于模型文件的摘要校验。环境和权重未写入仓库，也未修改用户现有 Janus 配置。
 
 SDK 会在加载时改写 tokenizer_config.json，因此 sidecar 在同卷临时目录复制该配置，并为大文件建立硬链接；不支持硬链接时复制文件。下载原件保留原摘要，重复预热仍可验证。正常卸载关闭 stdin，使临时目录清理完成；超时、崩溃和强制结束可能残留 `.runtime-*`，不保证异常退出清理。Windows venv 启动器可能另建 Python 子进程，强制停止必须终止整个专属进程树，不能只结束启动器。
 
@@ -373,7 +375,7 @@ SDK 会在加载时改写 tokenizer_config.json，因此 sidecar 在同卷临时
 
 官方已有 Python ONNXAgent 与导出/INT8 工具，但仍复用 Python tokenizer/common 协议，所核对 HF snapshot 没有现成 ONNX 图。ONNX/量化作为后续 CPU 优化，需要另验导出、分词、选项、概率一致性及重新校准。
 
-[实测报告](../../../../tests/fixtures/laya-evaluation-windows.json)记录 Windows CPU、最多四线程、24 条中英文合成样例的完整六题输出、模型版本及适配器摘要：进程预热 19,855 ms，六题总延迟 P50 714.5 ms、P95 874 ms，实际 Python 解释器峰值工作集 2,325,618,688 bytes（约 2.17 GiB）。预热包含校验、导入和推理，不代表清空系统缓存后的磁盘冷启动。报告由 [evaluate-laya.py](../../../../scripts/evaluate-laya.py)生成；Windows venv 启动器的约 5 MB 内存不能代表模型进程。以上是单台机器测量，不是设备性能承诺。
+[实测报告](../../../../tests/fixtures/laya-evaluation-windows.json)记录 Windows CPU、最多四线程、24 条中英文合成样例的完整六题输出、模型版本及适配器摘要：进程预热 19,855 ms，六题总延迟 P50 714.5 ms、P95 874 ms，实际 Python 解释器峰值工作集 2,325,618,688 bytes（约 2.17 GiB）。预热包含校验、导入和推理，不代表清空系统缓存后的磁盘冷启动。报告由 [evaluate-laya.py](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/scripts/evaluate-laya.py)生成；Windows venv 启动器的约 5 MB 内存不能代表模型进程。以上是单台机器测量，不是设备性能承诺。
 
 [评估样例](../../../../tests/fixtures/laya-memory-eval.json)包含 8 条校准样例和 16 条留出样例，按 source 分离；双语对照共用语义场景，样本量不足以建立生产校准。留出集两种语言 retention 准确率均为 37.5%、kind 为 50%、support 为 87.5%；conflict 正例召回率为 0。逐语言逐题 Brier、ECE 和 precision/recall 保留在报告。未拟合温度，未根据留出集调模板，calibrationId 仍为 null；自动接受在产品中始终关闭，不用零次自动接受伪装通过质量门槛。AC-8 保持未完成：下一项质量工作是扩大真实脱敏标注集、仅用校准部分改进题目，再对新的独立留出集验收。
 
@@ -498,9 +500,9 @@ truth 读取、Profile 投影、近期记忆、治理检索和个人召回都核
 
 [诊断集](../../../../tests/fixtures/laya-memory-diagnostics.json)包含 48 条中英文合成样例，其中 8 条标记为 calibration、40 条标记为 holdout；每种语言的评估部分均覆盖六题的全部标签，包括明确替代、不同主体、否定、引用和语义重复。相同语义场景及翻译共用 scenario，合成集也禁止跨 split。该集合保留既有样例，仅用于前置角色诊断；预期标签由测试作者设定，没有真实用户数据或独立人工标注，不构成新的生产留出验收。
 
-[评测脚本](../../../../scripts/evaluate-laya.py)只统计符合宿主完整六题契约的输出。拒答和无效 ready 输出保留在 attempted 与覆盖率分母中；报告同时给出条件准确率、正确数占全部尝试的比例、各类样本数、混淆矩阵、逐类 precision/recall/F1、平衡准确率、macro-F1、多数类基线、Brier、ECE 及错误样例 ID。Wilson 95% 区间按单组样本独立假设计算，不表示跨场景或真实分布保证。缺少任一类别时平衡准确率和 macro-F1 为 null。真实验收策略逐语言逐题检查覆盖率及类别数，minClassCount 默认至少 1，可设更高门槛；单类高准确率不能通过。质量策略失败时先保存报告，再以退出码 2 结束。
+[评测脚本](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/scripts/evaluate-laya.py)只统计符合宿主完整六题契约的输出。拒答和无效 ready 输出保留在 attempted 与覆盖率分母中；报告同时给出条件准确率、正确数占全部尝试的比例、各类样本数、混淆矩阵、逐类 precision/recall/F1、平衡准确率、macro-F1、多数类基线、Brier、ECE 及错误样例 ID。Wilson 95% 区间按单组样本独立假设计算，不表示跨场景或真实分布保证。缺少任一类别时平衡准确率和 macro-F1 为 null。真实验收策略逐语言逐题检查覆盖率及类别数，minClassCount 默认至少 1，可设更高门槛；单类高准确率不能通过。质量策略失败时先保存报告，再以退出码 2 结束。
 
-前置分流报告使用显式 candidateKind 和宿主单块证据的 0.9 规则，统计六题全对率、跳过精修比例、漏精修与多余精修。此诊断集的初始 candidateKind 设为预期类别，以隔离 Laya 判断；它不测试确定性提取器的分类错误或长证据分块。没有 candidateKind 的旧集合不推断该字段，而报告 missingCandidateKind。[宿主对照测试](../../../../tests/unit/knowledge/laya-evaluation-routing.test.ts)把已记录的真实模型输出交给 scoreMemoryDecision，核对中英文的分流计数，避免 Python 报告与生产规则漂移。
+前置分流报告使用显式 candidateKind 和宿主单块证据的 0.9 规则，统计六题全对率、跳过精修比例、漏精修与多余精修。此诊断集的初始 candidateKind 设为预期类别，以隔离 Laya 判断；它不测试确定性提取器的分类错误或长证据分块。没有 candidateKind 的旧集合不推断该字段，而报告 missingCandidateKind。[宿主对照测试](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/tests/unit/knowledge/laya-evaluation-routing.test.ts)把已记录的真实模型输出交给 scoreMemoryDecision，核对中英文的分流计数，避免 Python 报告与生产规则漂移。
 
 [Windows 实测](../../../../tests/fixtures/laya-diagnostics-windows.json)使用固定 revision 和未改动的六题模板，不拟合温度：48 条评分覆盖率为 100%，预热 52,872 ms，六题合计 P50 718 ms、P95 841 ms，解释器峰值工作集 2,358,120,448 bytes（约 2.20 GiB）。测量设备为 Ryzen 9 7945HX、16 核 32 线程、约 32 GB 内存，sidecar 使用 CPU 且计算线程最多 4 个。预热包含校验、导入和推理，与已有 19,855 ms 记录的差异不表示算法变更；没有受控的磁盘冷缓存比较。隔离测试 Python 依赖目录文件合计约 1.31 GB，固定模型文件约 678.2 MB，不含下载缓存或宿主应用。
 
@@ -512,7 +514,7 @@ truth 读取、Profile 投影、近期记忆、治理检索和个人召回都核
 
 Laya 拟位于候选提取与正式知识提交之间，比较候选、证据与检索到的相关旧条目，回答支持度、长期价值及新旧关系；宿主核验来源、作用域、有效期与目标版本，执行新增、合并、替代、拒绝或暂存并记录历史。知识类型用于解释与分类，不再将 kind 必须吻合预设类型作为实验入库前提。没有旧条目时，由宿主确定没有新旧关系需要处理。Laya 不承担原始事件采集、任意正文提取、数据库提交或 Wiki 长文生成。个人偏好自动替代等权限仍需另行确定，实验覆盖这些案例只是探测能力，不授予生产写入权限。
 
-[准入探针](../../../../scripts/probe-laya-admission.py)与[24 条中文场景](../../../../tests/fixtures/laya-knowledge-admission.json)采用固定 multilingual checkpoint、CPU 和既有 SDK，比较现有六题、聚焦三题英文模板、聚焦三题中文模板。三题为证据支持、长期价值和五选一关系（无旧条目、无关、重复、明确更新、未解决冲突）。样例覆盖配置、流程、决策和偏好，并包含否定、建议未采纳、他人偏好、临时状态、不同项目/环境、重复和版本替代。预设标签含 8 项新增、4 项合并、4 项替代、5 项拒绝、3 项暂存。
+[准入探针](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/scripts/probe-laya-admission.py)与[24 条中文场景](../../../../tests/fixtures/laya-knowledge-admission.json)采用固定 multilingual checkpoint、CPU 和既有 SDK，比较现有六题、聚焦三题英文模板、聚焦三题中文模板。三题为证据支持、长期价值和五选一关系（无旧条目、无关、重复、明确更新、未解决冲突）。样例覆盖配置、流程、决策和偏好，并包含否定、建议未采纳、他人偏好、临时状态、不同项目/环境、重复和版本替代。预设标签含 8 项新增、4 项合并、4 项替代、5 项拒绝、3 项暂存。
 
 策略在推理前固定所需答案置信度至少 0.9；未达到门槛或输出不可用则暂存，关系冲突暂存，有明确不支持或无长期价值则拒绝，其余根据关系模拟新增、合并或替代。这只是可复现的实验策略，非生产阈值或已采纳的权限设计。六题组复用当前题目，但将其答案映射到同一实验策略，不表示当前生产流程已经支持自动写入。样例、标签和模板由助手为本次讨论编写，相关变体共享场景，不存在独立人工标注或留出验收；没有拟合温度、根据结果挑选阈值或启用自动审核。
 
@@ -654,7 +656,7 @@ Qwen3.5 三次均正确拦截 Jev 的“98.5% 到 99.5% 提高10个百分点”�
 
 ### Laya 真实数据验收入口
 
-[评测脚本](../../../../scripts/evaluate-laya.py)支持 --dataset、--dataset-kind annotated、--policy 及 --validate-only。输入采用现有 JSON 样例结构：id、source、scenario、language、split、content、evidence、related、labels；labels 按 retention/kind/support/duplicate/supersede/conflict 顺序，除 kind 是 fact/preference/decision/procedure，其余为布尔值。真实脱敏样本须附 annotation.origin=redacted-real、reviewer 和带时区的 reviewedAt。标注元数据只记录来源声明，不能证明标签正确；不能把合成样例改元数据后当作真实验收。
+[评测脚本](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/scripts/evaluate-laya.py)支持 --dataset、--dataset-kind annotated、--policy 及 --validate-only。输入采用现有 JSON 样例结构：id、source、scenario、language、split、content、evidence、related、labels；labels 按 retention/kind/support/duplicate/supersede/conflict 顺序，除 kind 是 fact/preference/decision/procedure，其余为布尔值。真实脱敏样本须附 annotation.origin=redacted-real、reviewer 和带时区的 reviewedAt。标注元数据只记录来源声明，不能证明标签正确；不能把合成样例改元数据后当作真实验收。
 
 source 按会话或原始来源分组，翻译及同事件变体共用 scenario；来源、场景和相同模型输入均禁止跨 calibration/holdout。先用 `<Python> scripts/evaluate-laya.py --dataset <JSON> --dataset-kind annotated --validate-only` 验证，再传入 --python <推理Python> --model-dir <模型目录> --output <报告> --policy <策略JSON> 运行。真实数据文件不写入仓库；策略必须在看留出结果前固定，记录 id、modelRevision、adapterSha256、minCoverage，以及每个 holdout/<语言>/<题目> 的 minCount、minAccuracy、maxBrier、maxEce；布尔题可额外设置 minPositiveRecall/minPositivePrecision。模型 revision 或 sidecar 文件摘要不匹配则拒绝评估。
 
@@ -662,7 +664,7 @@ source 按会话或原始来源分组，翻译及同事件变体共用 scenario�
 
 评测增加 `--calibration-output <产物JSON>` 与 `--min-calibration-count`（默认每题 20 个可用样本）。拟合只读取 calibration 分区，按题型在 0.05–20 范围确定性搜索使负对数似然最小的温度；holdout 标签不参与拟合。报告保留原始输出与校准输出，按校准后的独立留出指标判定预先固定的策略。产物记录数据、策略、适配器摘要、模型与模板版本、拟合来源和温度；calibrationId 是最终产物原字节的 SHA-256。没有请求拟合时保持 null。产物仅保留样本 ID，不复制原始正文；完整评测报告仍包含输入结果，需保存在受控的本地目录。
 
-[校准加载器](../../../../src/main/knowledge/laya-calibration.ts)从设置中的模型目录读取可选 `calibration.json`。只有真实标注声明、独立验收 passed、完整质量策略摘要和匹配模型/模板/sidecar 摘要的产物可用于评分；损坏、不匹配、合成或验收失败的文件使当前评分不可用，不回用旧校准。不存在产物时原始概率继续作为人工审核的辅助信息。载入后逐题归一化分布、被选答案概率和 noul，保持答案方向；产物变更使旧身份失效。真实标注声明和 passed 报告仍依赖数据作者如实提供，不是来源真实性的密码学证明。这个机制不启用自动批准，也不能证明超出留出集语言和场景的质量。
+[校准加载器](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/laya-calibration.ts)从设置中的模型目录读取可选 `calibration.json`。只有真实标注声明、独立验收 passed、完整质量策略摘要和匹配模型/模板/sidecar 摘要的产物可用于评分；损坏、不匹配、合成或验收失败的文件使当前评分不可用，不回用旧校准。不存在产物时原始概率继续作为人工审核的辅助信息。载入后逐题归一化分布、被选答案概率和 noul，保持答案方向；产物变更使旧身份失效。真实标注声明和 passed 报告仍依赖数据作者如实提供，不是来源真实性的密码学证明。这个机制不启用自动批准，也不能证明超出留出集语言和场景的质量。
 
 ### 设置界面验证（2026-09-30）
 

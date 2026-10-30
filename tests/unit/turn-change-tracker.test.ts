@@ -101,6 +101,29 @@ describe('adjacent completed turn snapshots', () => {
     expect(published.map(event => event.available)).toEqual([false, false, true])
     expect(error).toHaveBeenCalledTimes(1)
   })
+
+  it('bounds rapid completed turns and cancels waiting captures when the terminal closes', async () => {
+    const initial = new Map()
+    let release!: (snapshot: typeof initial) => void
+    const capture = vi.fn().mockResolvedValueOnce(initial).mockImplementationOnce(() => new Promise(resolve => { release = resolve })).mockResolvedValue(initial)
+    const errors = vi.fn()
+    const tracker = new TerminalTurnChangeTracker(event => published.push(event), capture, errors)
+    await tracker.register('a', cwd)
+    const finishes: Promise<void>[] = []
+    for (let i = 0; i < 70; i++) {
+      tracker.start('a')
+      finishes.push(tracker.finish('a', 'done', null))
+    }
+    await Promise.resolve()
+    expect(errors).toHaveBeenCalled()
+    expect(published.every(event => !event.available)).toBe(true)
+    const alreadyPublished = published.length
+    tracker.unregister('a')
+    release(initial)
+    await Promise.all(finishes)
+    expect(capture).toHaveBeenCalledTimes(2)
+    expect(published).toHaveLength(alreadyPublished)
+  })
 })
 
 describe('bounded file capture', () => {

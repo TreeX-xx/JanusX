@@ -4,11 +4,12 @@ const path = require('node:path')
 const http = require('node:http')
 const engine = process.argv[2]
 const args = process.argv.slice(3)
+if (args.includes('--version')) { console.log(engine === 'opencode' ? '2.1.4' : '0.165.0'); process.exit(0) }
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'recovery-manifest.json'), 'utf8'))
 const source = manifest[engine]
 const env = process.env
 const terminalId = env.JANUSX_HOOK_TERMINAL_ID
-const resumed = args.length > 0
+const resumed = args.includes('--resume') || args.includes('resume') || args.includes('--session')
 let transcriptPath = source.transcriptPath
 if (resumed && engine === 'claude') transcriptPath = path.join(env.CLAUDE_CONFIG_DIR, 'projects', 'repo', source.id + '.jsonl')
 if (resumed && engine === 'codex') transcriptPath = path.join(env.CODEX_HOME, 'sessions', '2026', 'rollout-date-' + source.id + '.jsonl')
@@ -24,10 +25,11 @@ function storedHistory() {
   try { return JSON.stringify(db.prepare('SELECT data FROM part WHERE session_id = ?').all(source.id)) }
   finally { db.close() }
 }
-const hooksPath = engine === 'claude' ? path.join(env.CLAUDE_CONFIG_DIR, 'settings.json')
-  : engine === 'codex' ? path.join(env.CODEX_HOME, 'hooks.json') : path.join(env.OPENCODE_CONFIG_DIR, 'plugins', 'janusx-notify.js')
+const hooksPath = engine === 'claude' ? args[args.indexOf('--settings') + 1]
+  : engine === 'opencode' ? path.join(JSON.parse(env.OPENCODE_CONFIG_CONTENT).plugins.at(-1), 'server.js') : undefined
+const hooksInstalled = engine === 'codex' ? args.some(arg => arg.startsWith('hooks=')) : fs.existsSync(hooksPath)
 fs.writeFileSync(path.join(__dirname, 'launch-' + terminalId + '.json'), JSON.stringify({
-  args, cwd: process.cwd(), transcriptPath, history: resumed ? storedHistory() : '', hooksInstalled: fs.existsSync(hooksPath),
+  args, cwd: process.cwd(), transcriptPath, history: resumed ? storedHistory() : '', hooksInstalled, hooksPath,
 }))
 function hook(event, prompt) {
   const body = JSON.stringify({ source: engine, event, terminalId, workspaceId: env.JANUSX_HOOK_WORKSPACE_ID,

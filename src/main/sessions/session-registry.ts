@@ -551,7 +551,7 @@ export class AgentSessionRegistry {
     kind: AgentSessionTurnKind,
     checkpointId?: string,
     excerpt?: string,
-  ): void {
+  ): ((excerpt?: string) => void) | undefined {
     const record = this.recordForTerminal(terminalId)
     if (!record) return
     const now = new Date().toISOString()
@@ -576,6 +576,12 @@ export class AgentSessionRegistry {
     record.updatedAt = now
     this.persist()
     this.notify(record.id)
+    return excerpt => {
+      if (!excerpt || !record.turns.includes(turn)) return
+      turn.excerpt = excerpt
+      this.persist()
+      this.notify(record.id)
+    }
   }
 
   noteBranch(terminalId: string, branch: string): void {

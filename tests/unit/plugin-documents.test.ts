@@ -187,10 +187,10 @@ describe('P4 read-only document viewers', () => {
     const value = await manifest(); value.permissions = value.permissions.filter(p => p.name !== 'documents.read')
     expect(() => validatePluginCall(value, 'documents.readText', {})).toThrow()
   })
-  it('filters choices by enabled state, grants, development mode and selectors', async () => {
+  it('filters choices by enabled state, workspace policy, development mode and selectors', async () => {
     const f = await fixture(); const snapshot = f.service.snapshot()
     expect(documentViewerCandidates(snapshot, 'a', 'a.txt')).toHaveLength(1)
-    expect(documentViewerCandidates(snapshot, 'ungranted', 'a.txt')).toEqual([])
+    expect(documentViewerCandidates(snapshot, 'new-workspace', 'a.txt')).toHaveLength(1)
     expect(documentViewerCandidates(snapshot, 'a', 'a.json')).toEqual([])
     await f.service.disable(f.value.id)
     expect(documentViewerCandidates(f.service.snapshot(), 'a', 'a.txt')).toEqual([])

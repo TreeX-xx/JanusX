@@ -70,6 +70,9 @@ for (const theme of ['planche', 'dark']) {
       await page.goto(`/settings.html?theme=${theme}`)
       await expect(page.getByRole('heading', { name: '外观与语言', exact: true })).toBeVisible()
       const dialog = page.getByRole('dialog')
+      const sidebar = dialog.locator('aside')
+      const learning = sidebar.getByRole('button', { name: '帮助与学习', exact: true })
+      await expect(learning).toBeInViewport()
       await page.evaluate(async () => {
         await Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => undefined)))
       })
@@ -78,9 +81,22 @@ for (const theme of ['planche', 'dark']) {
       await page.locator('[data-tab="notifications"]').click()
       const save = page.getByRole('button', { name: '保存', exact: true })
       await expect(save).toBeInViewport()
+      await expect(learning).toBeInViewport()
       const body = page.locator('main')
       expect(await body.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
       await page.screenshot({ path: test.info().outputPath(`notifications-${theme}-${width}.png`) })
+      await page.setViewportSize({ width, height: 480 })
+      await expect(learning).toBeInViewport()
+      const before = (await learning.boundingBox())!
+      if (width > 760) {
+        const bounds = (await sidebar.boundingBox())!
+        expect(bounds.y + bounds.height - before.y - before.height).toBeLessThanOrEqual(20)
+      }
+      await sidebar.locator('nav').evaluate(node => { node.scrollTop = node.scrollHeight; node.scrollLeft = node.scrollWidth })
+      const after = (await learning.boundingBox())!
+      expect(after.y).toBeCloseTo(before.y, 0)
+      await expect(learning).toBeInViewport()
+      await page.screenshot({ path: test.info().outputPath(`learning-footer-${theme}-${width}-480.png`) })
       await page.getByRole('button', { name: '关闭', exact: true }).click()
       await expect(dialog).toHaveCount(0)
     })

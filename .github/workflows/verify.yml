@@ -1,12 +1,10 @@
-# PR 统一门禁：在 Windows runner 上跑仓库的 `verify` 全链。
-# release-win 只做手动构建；本流程保留 PR 门禁和手动入口，不重复响应分支 push。
+# 可选远端验证：仅在维护者手动触发时运行完整 verify 链。
+# PR 和分支 push 均不自动运行；日常验证在本地完成并记录结果。
 # Note: reproducible inputs and clean-checkout tests — see .agents/notes/desktop/reproducible-verification.md
 # Note: development promotion — see .agents/notes/desktop/development-branch.md
 name: verify
 
 on:
-  pull_request:
-    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
@@ -30,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: TreeX-xx/janus-agentX
-          ref: 53333123ca071a0a32b6902b392a7279da00c470
+          ref: 4df4c4457269e46a52b7ed430db379e194fac175
           path: janus-agentX
 
       # S1.2 相容测试与 Note 外链检查按相对路径 ../WorkFlowX 读取标准与

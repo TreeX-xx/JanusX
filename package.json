@@ -1,6 +1,6 @@
 {
   "name": "janusx",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "type": "module",
   "description": "CLI 工作区管理器 - 统一管理多个 AI 编程助手",
   "main": "out/main/index.js",
@@ -24,6 +24,8 @@
     "test:showcase": "node --test tests/showcase/motion.test.mjs",
     "predev": "node scripts/check-dev-environment.mjs",
     "dev": "npm run build:note-tools && npm run build:llm-core && electron-vite dev --outDir .cache --entry scripts/dev-entry.mjs",
+    "dev:cpa": "node scripts/plugins/cpa-dev.mjs",
+    "dev:docker": "node scripts/plugins/docker-dev.mjs",
     "dev:blueprint": "node scripts/plugins/blueprint-dev.mjs",
     "build": "npm run build:note-tools && npm run build:llm-core && electron-vite build",
     "build:app": "npm run build:note-tools && electron-vite build",
@@ -33,7 +35,7 @@
     "plugins:create": "npm run build:plugin-sdk && node packages/plugin-sdk/tools/cli.mjs init",
     "plugins:verify-scaffold": "npm run build:plugin-sdk && node scripts/verify-plugin-scaffold.mjs",
     "plugins:distribution:check": "npm run plugins:distribution:test:tools && vitest run tests/unit/plugin-distribution.test.ts tests/unit/plugin-catalog.test.ts tests/unit/plugin-configuration-drafts.test.ts",
-    "plugins:distribution:test:tools": "node --test tests/plugins/distribution-tools.test.mjs tests/plugins/public-archives.test.mjs",
+    "plugins:distribution:test:tools": "node --test tests/plugins/distribution-tools.test.mjs tests/plugins/public-archives.test.mjs tests/plugins/catalog-renewal.test.mjs",
     "plugins:audit-blueprint": "node scripts/plugins/audit-blueprint-boundary.mjs",
     "plugins:package": "node scripts/plugins/package-plugin.mjs",
     "plugins:catalog": "node scripts/plugins/build-catalog.mjs",
@@ -91,7 +93,11 @@
     "plugins:blueprint:check": "npm run plugins:blueprint:verify -- --test-runtime",
     "test:blueprint:desktop": "playwright test --config playwright.blueprint.config.ts --workers=1",
     "test:blueprint:local": "npm run build:plugin-sdk && npm run build:llm-core && playwright test --config playwright.blueprint-local.config.ts --workers=1",
-    "build:note-tools": "npm run build --workspace=@janusx/note-tools"
+    "build:note-tools": "npm run build --workspace=@janusx/note-tools",
+    "plugins:cpa:check": "npm run build:plugin-sdk && node scripts/plugins/verify-cpa-build.mjs",
+    "plugins:docker:check": "npm run build:plugin-sdk && node scripts/plugins/verify-docker-build.mjs",
+    "test:docker:desktop": "npm run build:plugin-sdk && npm run build:llm-core && playwright test --config playwright.docker.config.ts --workers=1",
+    "test:cpa:desktop": "npm run build:plugin-sdk && npm run build:llm-core && playwright test --config playwright.cpa.config.ts --workers=1"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

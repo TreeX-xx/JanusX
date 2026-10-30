@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createServer } from 'node:net'
 import type { Session } from 'electron'
-import { CpaOAuthBridge, isCpaOAuthAuthorizationUrl, probeCpaOAuthPort } from '../../src/main/cpa/oauth'
+import { BrowserOAuthBridge, probeOAuthPort } from '../../src/main/plugins/browser-oauth'
 
-const bridges: CpaOAuthBridge[] = []
+const oauth = { prefix: '/v8/management/oauth/', auth: '/v8/management/oauth/auth-url', status: '/v8/management/oauth/status', session: '/v8/management/oauth/session',
+  providers: { codex: {port:1455,urls:['https://auth.openai.com/oauth/authorize']}, claude: {port:54545,urls:['https://claude.ai/oauth/authorize']}, antigravity: {port:51121,urls:['https://accounts.google.com/o/oauth2/auth','https://accounts.google.com/o/oauth2/v2/auth']} } }
+const bridges: BrowserOAuthBridge[] = []
 afterEach(() => { bridges.splice(0).forEach((bridge) => bridge.dispose()); vi.useRealTimers() })
 function fixture(reason: 'restricted' | 'occupied' | 'unavailable' | undefined = 'restricted') {
   const onBeforeRequest = vi.fn()
@@ -11,8 +13,8 @@ function fixture(reason: 'restricted' | 'occupied' | 'unavailable' | undefined =
   const report = vi.fn()
   const status = vi.fn(async (_state: string, _signal: AbortSignal): Promise<string | undefined> => 'wait')
   const probe = vi.fn(async () => reason)
-  const bridge = new CpaOAuthBridge({ webRequest: { onBeforeRequest, onCompleted, onErrorOccurred } } as unknown as Session,
-    'http://127.0.0.1:8317', report, probe, status)
+  const bridge = new BrowserOAuthBridge({ webRequest: { onBeforeRequest, onCompleted, onErrorOccurred } } as unknown as Session,
+    'http://127.0.0.1:8317', report, oauth, probe, status)
   bridges.push(bridge)
   const handler = onBeforeRequest.mock.calls[0][1] as (details: unknown, callback: (response: unknown) => void) => void
   const request = (url: string, method = 'GET', id = 1) => new Promise<any>((resolve) => handler({ url, method, id }, resolve))
@@ -117,10 +119,10 @@ describe('CPA OAuth callback fallback', () => {
     await new Promise<void>((resolve) => server.listen(0, '0.0.0.0', resolve))
     const port = (server.address() as { port: number }).port
     try {
-      expect(await probeCpaOAuthPort(port)).toBe('occupied')
+      expect(await probeOAuthPort(port)).toBe('occupied')
       expect(server.listening).toBe(true)
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())) }
-    expect(await probeCpaOAuthPort(port)).toBeUndefined()
+    expect(await probeOAuthPort(port)).toBeUndefined()
   })
 
   it('clears failed link generation and ignores status results after disposal', async () => {
@@ -139,18 +141,4 @@ describe('CPA OAuth callback fallback', () => {
     expect(signal.aborted).toBe(true)
     expect(f.report).toHaveBeenCalledTimes(calls)
   })
-})
-
-describe('CPA OAuth system browser routing', () => {
-  it.each([
-    'https://auth.openai.com/oauth/authorize?state=fixture',
-    'https://claude.ai/oauth/authorize',
-    'https://accounts.google.com/o/oauth2/v2/auth',
-    'https://accounts.google.com/o/oauth2/auth',
-  ])('allows verified authorization endpoints %s', (url) => { expect(isCpaOAuthAuthorizationUrl(url)).toBe(true) })
-  it.each([
-    'https://evil.example/oauth/authorize', 'https://auth.openai.com.evil.example/oauth/authorize',
-    'https://auth.openai.com/help', 'https://user:pass@auth.openai.com/oauth/authorize',
-    'http://auth.openai.com/oauth/authorize', 'file:///secret', 'javascript:alert(1)',
-  ])('keeps other URLs out of automatic external routing', (url) => { expect(isCpaOAuthAuthorizationUrl(url)).toBe(false) })
 })

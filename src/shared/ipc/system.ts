@@ -11,7 +11,7 @@ export const SYSTEM_CHANNELS = {
   setAlwaysOnTop: 'editor-window:set-always-on-top', runtimeTelemetry: 'runtime-telemetry:get', usageLedger: 'usage-ledger:list',
   editorViewed: 'editor-window:viewed',
   requestEditorClose: 'editor-window:request-close', confirmEditorClose: 'editor-window:confirm-close',
-  toastReady: 'desktop-toast:ready', toastAction: 'desktop-toast:action', toastShow: 'desktop-toast:show', toastHide: 'desktop-toast:hide',
+  toastReady: 'desktop-toast:ready', toastPainted: 'desktop-toast:painted', toastAction: 'desktop-toast:action', toastShow: 'desktop-toast:show', toastHide: 'desktop-toast:hide',
   getLanguage: 'app:getLanguage', setLanguage: 'app:setLanguage',
   openVSCode: 'system:openVSCode',
   prepareQuit: 'app:prepareQuit',
@@ -43,6 +43,7 @@ export interface RuntimeTelemetrySnapshot {
   modelChangedAt?: number
 }
 export interface DesktopToastPayload {
+  deliveryId?: number
   id?: string; type?: 'completed' | 'failed' | 'attention'; engine?: string; title?: string; body?: string
   terminalId?: string; workspaceId?: string; createdAt?: string
 }
@@ -79,6 +80,7 @@ export interface SystemAPI {
   onPrepareQuit(callback: () => Promise<void> | void): () => void
 }
 export interface DesktopToastAPI {
+  painted(deliveryId: number): void
   ready(): void; action(action: 'activate' | 'dismiss'): void
   onShow(callback: (payload: DesktopToastPayload) => void): () => void
   onHide(callback: () => void): () => void

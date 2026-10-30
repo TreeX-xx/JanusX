@@ -322,7 +322,7 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
     await expect(resumeButton).toHaveCount(1, { timeout: 10_000 })
     await resumeButton.click()
     await expect
-      .poll(async () => (await readFakeAgentState(binDir)).argvs, { timeout: 20_000 })
+      .poll(async () => (await readFakeAgentState(binDir)).argvs.map(argv => argv.slice(-2)), { timeout: 20_000 })
       .toContainEqual(['--resume', PROVIDER_SESSION_ID])
     await expect
       .poll(async () => (await listLive(page)).filter((row) => row.continuedFrom === external!.id).length, {
@@ -333,6 +333,9 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
     // Regression: Continue on an external Claude row resumes its provider
     // history in the active workspace without submitting the first prompt.
     const argvBefore = (await readFakeAgentState(binDir)).argvs.length
+    const resumeCount = async () => (await readFakeAgentState(binDir)).argvs
+      .filter(argv => argv.at(-2) === '--resume' && argv.at(-1) === PROVIDER_SESSION_ID).length
+    const resumesBefore = await resumeCount()
     const xtermsBeforeExtContinue = await page.locator('.xterm-rows').count()
     const rowsBeforeContinue = await listLive(page)
     await externalCard.getByRole('button', { name: '在新会话中继续', exact: true }).click()
@@ -346,8 +349,8 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
       .poll(async () => page.locator('.xterm-rows').count(), { timeout: 15_000 })
       .toBeGreaterThan(xtermsBeforeExtContinue)
     await expect
-      .poll(async () => (await readFakeAgentState(binDir)).argvs, { timeout: 20_000 })
-      .toContainEqual(['--resume', PROVIDER_SESSION_ID])
+      .poll(resumeCount, { timeout: 20_000 })
+      .toBe(resumesBefore + 1)
     const extContinued = (await listLive(page)).find(
       (row) => !rowsBeforeContinue.some((before) => before.id === row.id),
     )
@@ -513,7 +516,7 @@ test('Claude, Codex and Opencode restore native history and track follow-up turn
   try {
     const cwd = join(fixtureRoot, 'workspace')
     const { binDir, manifest } = await seedRecoveryFixture(fixtureRoot, cwd)
-    application = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`], env: fixtureEnv(fixtureRoot, binDir) })
+    application = await electron.launch({ args: [resolve(process.env.JANUSX_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`], env: fixtureEnv(fixtureRoot, binDir) })
     page = await application.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     const workspace = await page.evaluate((path) => (window as DesktopWindow).electron.workspace.create({ name: 'Recovery drill', path }), cwd)
@@ -574,7 +577,9 @@ test('Claude, Codex and Opencode restore native history and track follow-up turn
         terminalIds.push(result.terminalId)
         await expect.poll(async () => existsSync(join(binDir, 'launch-' + result.terminalId + '.json'))).toBe(true)
         const launch = JSON.parse(await readFile(join(binDir, 'launch-' + result.terminalId + '.json'), 'utf8'))
-        expect(launch).toMatchObject({ args: argv, cwd, transcriptPath: manifest[engine].transcriptPath, hooksInstalled: true })
+        expect(launch).toMatchObject({ cwd, transcriptPath: manifest[engine].transcriptPath, hooksInstalled: true })
+        expect(launch.args.slice(-argv.length)).toEqual(argv)
+        if (engine !== 'codex') expect(launch.hooksPath).toContain(join(fixtureRoot, 'user-data'))
         expect(launch.history).toContain('seed ' + (engine === 'claude' ? 'Claude' : engine === 'codex' ? 'Codex' : 'Opencode') + ' history')
         expect(existsSync(join(binDir, 'input-' + result.terminalId + '.txt')), 'native restore must not inject a prompt').toBe(false)
         expect((await listLive(page)).length).toBe(beforeRows.length + 1)
@@ -590,17 +595,8 @@ test('Claude, Codex and Opencode restore native history and track follow-up turn
       }
       const beforeFailure = (await listLive(page)).length
       await expect(page.evaluate((sessionId) => (window as DesktopWindow).electron.session.continue({ sessionId, mode: 'resume', engine: 'pi' }), source.id)).rejects.toThrow('change')
-      if (engine === 'claude') {
-        const settingsPath = join(fixtureRoot, 'original-claude', 'settings.json')
-        const settings = await readFile(settingsPath)
-        await rm(settingsPath)
-        await mkdir(settingsPath)
-        await expect(page.evaluate((sessionId) => (window as DesktopWindow).electron.session.continue({ sessionId, mode: 'resume' }), source.id))
-          .rejects.toThrow('hook setup failed')
-        expect((await listLive(page)).length).toBe(beforeFailure)
-        await rm(settingsPath, { recursive: true })
-        await writeFile(settingsPath, settings)
-      }
+      if (engine === 'claude') expect(existsSync(join(fixtureRoot, 'original-claude', 'settings.json'))).toBe(false)
+      if (engine === 'codex') expect(existsSync(join(fixtureRoot, 'original-codex', 'hooks.json'))).toBe(false)
       await rm(manifest[engine].transcriptPath)
       await expect(page.evaluate((sessionId) => (window as DesktopWindow).electron.session.continue({ sessionId, mode: 'continue' }), source.id)).rejects.toThrow('history')
       expect((await listLive(page)).length).toBe(beforeFailure)

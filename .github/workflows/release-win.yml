@@ -47,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: TreeX-xx/janus-agentX
-          ref: 53333123ca071a0a32b6902b392a7279da00c470
+          ref: 4df4c4457269e46a52b7ed430db379e194fac175
           path: janus-agentX
 
       - name: Setup Node
@@ -58,23 +58,6 @@ jobs:
           cache-dependency-path: |
             JanusX/package-lock.json
             janus-agentX/package-lock.json
-
-      # @janus-agent/* 以 dist/ 发布，CI 里是源码检出，必须先构建同级仓，
-      # 否则 JanusX 侧构建找不到模块入口（verify 曾因此全红）。
-      # 构建顺序说明见 verify.yml 同名步骤（依赖分层定序，一次通过）。
-      - name: Build sibling janus-agentX
-        working-directory: janus-agentX
-        shell: pwsh
-        run: |
-          npm ci
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/agent-core --workspace=@janus-agent/harness-core --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/chat-core --workspace=@janus-agent/harness-node --workspace=@janus-agent/node-hosts --workspace=@janus-agent/notes-cli --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/janus-agent --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/cli --if-present
 
       # publisher 用 package.json 的 version 生成 tag 名与 latest.yml；
       # tag 与包版本错位会产出名字错乱的 Release 或静默无更新，先拦。
@@ -90,6 +73,33 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
 
+      # The binary is intentionally untracked; fresh runners must materialize
+      # the same pinned artifact before electron-builder copies extraResources.
+      - name: Prepare bundled OfficeCLI
+        working-directory: JanusX
+        shell: pwsh
+        run: |
+          $binary = 'resources/officecli/officecli.exe'
+          Invoke-WebRequest -Uri 'https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0.135/officecli-win-x64.exe' -OutFile $binary
+          node scripts/check-win-resources.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Fail version/resource checks before dependency installation and builds.
+      # Keep the sibling dependency layers aligned with verify.yml.
+      - name: Build sibling janus-agentX
+        working-directory: janus-agentX
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build --workspace=@janus-agent/agent-core --workspace=@janus-agent/harness-core --if-present
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build --workspace=@janus-agent/chat-core --workspace=@janus-agent/harness-node --workspace=@janus-agent/node-hosts --workspace=@janus-agent/notes-cli --if-present
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build --workspace=@janus-agent/janus-agent --if-present
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build --workspace=@janus-agent/cli --if-present
+
       - name: Install
         working-directory: JanusX
         run: npm run prepackage
@@ -101,19 +111,6 @@ jobs:
       - name: Boundary check
         working-directory: JanusX
         run: npm run check:package-boundary
-
-      # The binary is intentionally untracked; fresh runners must materialize
-      # the same pinned artifact before electron-builder copies extraResources.
-      - name: Prepare bundled OfficeCLI
-        working-directory: JanusX
-        shell: pwsh
-        run: |
-          $binary = 'resources/officecli/officecli.exe'
-          Invoke-WebRequest -Uri 'https://github.com/iOfficeAI/OfficeCLI/releases/download/v1.0.135/officecli-win-x64.exe' -OutFile $binary
-          $expected = '937db176b585e874aa5bff48d536bce78037665cd862b5deefe56e79977e6588'
-          if ((Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
-            throw 'Bundled OfficeCLI SHA256 mismatch'
-          }
 
       # devDependencies 不进 archive。重新把 electron-builder.yml 的 dev-only
       # 排除块对齐当前生产闭包再打包：清单本身已提交，这里同步只是保证

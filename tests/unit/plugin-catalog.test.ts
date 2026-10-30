@@ -29,6 +29,21 @@ async function fixture() {
 }
 
 describe('official catalog lifecycle', () => {
+  it('reports an unpublished catalog or package without changing installed plugins', async () => {
+    const f = await fixture()
+    f.download.mockRejectedValue(new Error('DOWNLOAD_NOT_FOUND'))
+    await expect(f.service.refresh()).rejects.toThrow('DOWNLOAD_NOT_FOUND')
+    expect(f.service.snapshot()).toMatchObject({ error: 'DOWNLOAD_NOT_FOUND', entries: [] })
+    await expect(f.service.install(release.id)).rejects.toThrow('DOWNLOAD_NOT_FOUND')
+    expect(f.install).not.toHaveBeenCalled()
+    f.download.mockImplementation(async url => {
+      if (url.endsWith('catalog.json')) return Buffer.from(JSON.stringify(catalog(1)))
+      throw new Error('DOWNLOAD_NOT_FOUND')
+    })
+    await expect(f.service.install(release.id)).rejects.toThrow('DOWNLOAD_NOT_FOUND')
+    expect(f.service.snapshot().entries).toHaveLength(1)
+    expect(f.install).not.toHaveBeenCalled()
+  })
   it('downloads only metadata on refresh and exposes compatibility without acquiring packages', async () => {
     const f = await fixture()
     await f.service.refresh()

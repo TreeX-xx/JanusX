@@ -130,6 +130,11 @@ describe('unified personal memory writes', () => {
     expect((await knowledgeExtractService.listFactCandidates())[0].status).toBe('proposed')
   })
 
+  it('drops retired Laya settings from persisted legacy configuration', () => {
+    const legacy = { ...DEFAULT_KNOWLEDGE_SETTINGS, laya: { enabled: true, pythonPath: 'old-python', modelPath: 'old-model' } }
+    expect(normalizeKnowledgeSettings(legacy)).toEqual(DEFAULT_KNOWLEDGE_SETTINGS)
+  })
+
   it('uses the same observation as the recent episode and deduplicates chat completion retries', async () => {
     const turn = { userText: 'Today I repaired Bluebird.', assistantText: 'Recorded.', correlationId: 'one-turn', sessionId: 'personal-chat' }
     await capturePersonChatTurn(turn)

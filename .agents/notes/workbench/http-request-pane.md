@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-14",
-  "updated": "2026-10-14T07:20:37Z",
+  "updated": "2026-10-29T06:52:35Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -14,11 +14,11 @@
 
 ## Intent
 
-用户要一个内置的 HTTP 请求工具，用来调试自己项目里的服务。它是中央工作区的一种新 pane 内容类型，与 [Docker 面板](./docker-management-entry.md) 配套：一边发请求，一边在旁边看容器日志。本文只记录方向与入口，尚未实现。
+用户要一个 HTTP 请求工具，用来调试自己项目里的服务。它与 [Docker 插件](./docker-management-entry.md) 配套：一边发请求，一边在旁边看容器日志。本文记录功能方向与入口，尚未实现；2026-10-29 Docker 已确认改用官方插件，HTTP 的最终承载方式独立待定。
 
 ## Agreed direction
 
-HTTP 请求是新的 pane 内容类型，不是浏览器里的一个网页，也不放进右侧窄面板。用户眼里它应该和终端、编辑器、浏览器一样，是一种能打开、拖动、并排显示的工作区标签页：复用 Janus 现有的标签页与分屏，整个面板可拖到上下左右边缘创建分屏、拖到中央合并为标签、用工作区分隔线调比例。与 Markdown 独立 pane 走同一条改造路径（见 [Markdown 独立 pane 与顶栏工具分组](./markdown-pane-entry.md)）。
+HTTP 请求保留可打开、拖动、并排显示的标签页目标，复用现有分屏，不放进右侧窄面板。早期拟新增核心 pane 类型，但 Docker 已转向 extension pane，该路径不再作为 HTTP 的既定依赖。HTTP 是否也采用独立插件、页面作用域及落点需另行确认；如使用应用级页面，遵循[全局工具布局](./global-tool-layout.md)的工具区/项目区边界，不承诺与项目终端同 pane 混排。
 
 它买的是 JanusX 的分屏，不是一个更强的 Postman：
 
@@ -56,15 +56,15 @@ HTTP 请求是新的 pane 内容类型，不是浏览器里的一个网页，也
 
 ## Decisions
 
-2026-10-14 定为新的 pane 内容类型（不停留在浏览器网页或右侧面板），入口只做三个，保存的请求按项目/worktree 归属。
+2026-10-14 确认可分屏请求页、三个入口和保存请求按项目/worktree 归属，早期实现设想为新的核心 pane 类型。2026-10-29 配套 Docker 已改用官方插件，HTTP 的承载方式留待单独确认；功能与数据归属目标保留。
 
 ## Open questions
 
 - 保存的请求存哪里：项目内文件（可进 Git、可手改）还是应用数据目录。倾向项目内文件，实现时定。
 - 响应体的呈现形式：纯文本/JSON 美化，还是也要预览 HTML 与图片。首版倾向前者，HTML 预览交给内置浏览器。
 - 与 Docker 面板的联动深度：只把地址带进新请求页，还是也提供"对这个容器发请求"的快捷入口。首版只做前者。
-- 顶栏是否常驻 HTTP 请求入口，以及与 Docker 面板入口的分组方式。
+- HTTP 是否采用独立插件，以及项目/worktree 数据归属与页面作用域的关系；工具箱/新建标签入口如何组合。Docker 已确定使用工具箱，不再等待两者共同决定固定顶栏入口。
 
 ## Implementation
 
-尚无 Task。依赖 [Docker 面板](./docker-management-entry.md) 的 pane 内容类型改造先落地，请求页复用同一套内容类型与拖拽落点。
+尚无 Task，未启动实现。HTTP 独立规划，不依赖 Docker 新增核心 pane 类型，也不阻塞 [Docker 插件 D0–D5](./docker-management-entry.md#implementation-plan)。后续联动只先考虑将容器服务地址带入请求页；如采用插件，现有受限公网网络接口不能直接满足本地 HTTP 调试，需要另定传输契约。

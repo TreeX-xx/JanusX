@@ -54,7 +54,7 @@ describe('AppShutdown', () => {
     const disposeWatchers = vi.fn()
     const destroyToast = vi.fn()
     const closeEditors = vi.fn()
-    const finalizePendingCheckpoints = vi.fn()
+    const flushAgentSessions = vi.fn()
     const disposeTerminalSession = vi.fn()
     const clearAllLoaded = vi.fn()
 
@@ -71,7 +71,7 @@ describe('AppShutdown', () => {
       disposeWatchers,
       destroyToast,
       closeEditors,
-      finalizePendingCheckpoints,
+      flushAgentSessions,
       disposeTerminalSession,
     })
 
@@ -89,7 +89,7 @@ describe('AppShutdown', () => {
     expect(disposeWatchers).toHaveBeenCalledTimes(1)
     expect(destroyToast).toHaveBeenCalledTimes(1)
     expect(closeEditors).toHaveBeenCalledTimes(1)
-    expect(finalizePendingCheckpoints).toHaveBeenCalledTimes(1)
+    expect(flushAgentSessions).toHaveBeenCalledTimes(1)
     expect(disposeTerminalSession).toHaveBeenCalledTimes(1)
     expect(appExit).toHaveBeenCalledTimes(1)
   })
@@ -113,7 +113,7 @@ describe('AppShutdown', () => {
     expect(appExit).toHaveBeenCalledTimes(1)
   })
 
-  it('destroys toast/editor early and kills terminals before finalizing checkpoints', async () => {
+  it('destroys toast/editor early and kills terminals before flushing session records', async () => {
     const order: string[] = []
     const track = (name: string) => vi.fn(() => {
       order.push(name)
@@ -121,7 +121,7 @@ describe('AppShutdown', () => {
 
     const destroyToast = track('destroyToast')
     const closeEditors = track('closeEditors')
-    const finalizePendingCheckpoints = track('finalizePendingCheckpoints')
+    const flushAgentSessions = track('flushAgentSessions')
     const stopOfficeWatches = track('stopOfficeWatches')
     const killTerminals = track('killTerminals')
     const stopRuntimeTelemetry = track('stopRuntimeTelemetry')
@@ -134,7 +134,7 @@ describe('AppShutdown', () => {
       destroyToast,
       closeEditors,
       abortChatStreams,
-      finalizePendingCheckpoints,
+      flushAgentSessions,
       stopOfficeWatches,
       killTerminals,
       stopRuntimeTelemetry,
@@ -148,9 +148,9 @@ describe('AppShutdown', () => {
     expect(order.indexOf('closeEditors')).toBeLessThan(order.indexOf('abortChatStreams'))
     // AC9: kill terminals before finalizing checkpoints so no native pty
     // callback can fire sendToRenderer into a torn-down window during finalize.
-    expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('finalizePendingCheckpoints'))
+    expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('flushAgentSessions'))
     expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('stopRuntimeTelemetry'))
-    expect(order.indexOf('stopRuntimeTelemetry')).toBeLessThan(order.indexOf('finalizePendingCheckpoints'))
+    expect(order.indexOf('stopRuntimeTelemetry')).toBeLessThan(order.indexOf('flushAgentSessions'))
     expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('stopOfficeWatches'))
     expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('disposeOfficeArtifactIndexes'))
     expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('disposeTerminalSession'))

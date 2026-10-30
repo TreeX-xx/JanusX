@@ -7,7 +7,7 @@
   "created": "2026-10-06",
   "class": "bug-fix",
   "tags": ["memory","persona","automation","review","audit","graph","ui"],
-  "updated": "2026-10-10T06:17:38.649Z",
+  "updated": "2026-10-30T08:13:08.858Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf"
 }
 ---
@@ -15,6 +15,8 @@
 # 知识库噪声过滤、审核详情、图谱与运行状态优化
 
 当前适用性：工程生成 Wiki、图谱、检索和自动化已随蓝图重构退出；下文相关设计及验收保留为当时记录，源码链接固定到退出前 Git 版本。个人及共享能力的当前边界见[模块入口](../module.md)。原验收编号、执行与评审记录不被此次退出改写为新版本通过。
+
+2026-10-30：Laya 功能、设置、控制接口和发布资源已退出；下文有关 Laya 命名和接线的问题保留为历史审计记录。当前边界见[模块入口](../module.md)。
 
 ## Problem
 
@@ -45,7 +47,7 @@ S3 基线的审计查询问题：[工作台快照](../../../../src/renderer/src/
 | 已确认问题 | 源码依据与影响 |
 | --- | --- |
 | 旧评分被当作主要详情 | [MemoryReviewCard](../../../../src/renderer/src/components/knowledge/MemoryReviewTool.tsx)存在 candidate.decision 就显示 scorer.provider、status、reason、题目答案和概率。它不整合当前自动任务的阶段、结论与依据，也不提示注解是否对应当前候选快照。旧注解可出现 laya，但不能据此断言当前正在运行 Laya。 |
-| 旧操作与新执行链脱节 | 中英文 knowledge.json 仍将 rescore 命名为“Laya 重新评分”，refine 为“提交 LLM 精炼”。[候选动作](../../../../src/main/knowledge/candidate-actions.ts)仍调用旧 decision/refinement 通路；[Laya 配置](../../../../src/main/knowledge/laya-runtime.ts)在存在 automation 配置时禁用旧模型，[队列注册](../../../../src/main/ipc/register.ts)同时跳过旧精炼执行。因此新流程下仍可能接收入旧队列，却没有对应执行。这里只确认路径，未实际提交精炼。 |
+| 旧操作与新执行链脱节 | 中英文 knowledge.json 仍将 rescore 命名为“Laya 重新评分”，refine 为“提交 LLM 精炼”。[候选动作](../../../../src/main/knowledge/candidate-actions.ts)仍调用旧 decision/refinement 通路；[Laya 配置](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/laya-runtime.ts)在存在 automation 配置时禁用旧模型，[队列注册](../../../../src/main/ipc/register.ts)同时跳过旧精炼执行。因此新流程下仍可能接收入旧队列，却没有对应执行。这里只确认路径，未实际提交精炼。 |
 | 两个入口适配不一致 | 审核侧栏按 [splitReviewCandidates](../../../../src/renderer/src/components/knowledge/inboxScope.ts)分离自动处理与人工候选，并向卡片传 automaticStatus。工作台 Inspector 仅检查 proposed，并未传 automaticStatus 或 onDecision；因此右侧能显示旧评分，却没有侧栏的评分按钮，也缺少相同的自动处理操作约束。不能把两个入口描述成完全相同。 |
 | 通用详情留下无关控件 | [Inspector](https://github.com/TreeX-X/JanusX/blob/c8332f1949dba249d1cec81a72c57746c31bb951/src/renderer/src/components/knowledge/KnowledgeWorkbench.tsx)的非待审分支固定渲染批准、拒绝和归档，不适用时仅禁用。AuditList 丢失事件快照后也进入该分支。已有领域校验、候选 hash 和 [FactReviewControls](../../../../src/renderer/src/components/knowledge/FactReviewControls.tsx)的冲突替代确认仍有效；问题不是完全没有审核保护。 |
 | 详情布局缺少层次 | 340px 右侧面板内再嵌套完整卡片；[factReview 样式](../../../../src/renderer/src/components/knowledge/MemoryReviewTool.module.css)占满一行，使批准和刷新冲突检查一组、拒绝另排。控件没有主要、次要与破坏性操作的视觉区分；内容、评分、证据与操作共用长滚动区。Wiki 候选正文用普通 p 呈现，没有阅读与变更层次。 |

@@ -84,6 +84,17 @@ export class ExtensionCommandRegistry {
       && !(location === 'workspace-add' && !projectOpen && entry.view.scope === 'project'))
   }
 
+  getToolbarWorkbenches(projectOpen: boolean): readonly RegisteredExtensionView[] {
+    const toolboxViews = new Set(this.source.getDefinitions().flatMap(definition => (definition.menus ?? [])
+      .filter(menu => menu.location === 'toolbox')
+      .flatMap(menu => {
+        const command = definition.commands?.find(command => command.id === menu.command)
+        return command ? ['extension:' + definition.id + '/' + command.action.view] : []
+      })))
+    return this.source.getSnapshot().filter(view => view.location === 'workbench'
+      && (view.scope === 'application' || projectOpen) && !toolboxViews.has(view.id))
+  }
+
   canExecute(id: string, projectOpen: boolean): boolean {
     const command = this.snapshot.commands.find((item) => item.id === id)
     return Boolean(command && (command.scope === 'application' || projectOpen))

@@ -7,7 +7,7 @@
   "created": "2026-10-07",
   "class": "testing",
   "tags": ["knowledge","p0","validation","fixtures"],
-  "updated": "2026-10-09T08:23:28.326Z",
+  "updated": "2026-10-30T08:04:31.258Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf",
   "disposition": {"reason": "用户暂缓原流水线细节，转向评估独立知识库退出、个人画像保留与蓝图审核；保留原方案和验证依据供历史查阅。"}
 }
@@ -39,7 +39,7 @@
 | processing-queue、processing-status、automation-service | 按新状态机重写 | 旧游标和任务总数断言不代表新正确性；增加分域执行预算、可靠完成信号、公平排队、批次版本和历史计数 |
 | extraction-context、extraction-run、extract-service | 按批次/候选契约改写 | 全历史窗口和整批失败假设退出；保留精确引用、纠正、覆盖及检查点 |
 | deterministic-extractor、deterministic-pipeline、decision-stage、decision-scorer、llm-stage、refinement-tasks | 拆分工程退出与个人保留 | 先按测试断言标记领域；工程规则晋升及旧精炼链退出，个人行为到 P10 |
-| laya-process、laya-calibration、laya-real、laya-evaluation-routing；laya-settings-ui | 工程退出，核对个人依赖后再删除 | 新 JEV/local 提供方测试不能继承 Laya 分数含义；仍有个人依赖的部分暂留 |
+| laya-process、laya-calibration、laya-real、laya-evaluation-routing；laya-settings-ui | 2026-10-30 随 Laya 产品功能退出删除 | 历史结果保留；新提供方测试不能继承 Laya 分数含义 |
 | candidate-actions、candidate-review-state、review-service、fact-evidence-review、fact-conflicts、fact-review-recovery | 改写模型/状态，保留领域门禁 | 人工自动共用发布，错误引用、过时结果、并发、审计失败和拒绝重放 |
 | truth-service、operations-service、wiki-history、wiki-relations、knowledge-graph | 保留发布/撤回/关系语义，改新条目引用 | 多页引用同条目、部分来源变化、人工页面所有权和恢复原子性 |
 | search-service、recall-service、recall-phase3、context-service、knowledge-context-ipc | 保留范围与预算，改新投影 | 候选不当正式知识、已失效版本不混入、空库诚实返回 |

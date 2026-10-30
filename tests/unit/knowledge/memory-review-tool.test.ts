@@ -24,7 +24,7 @@ afterEach(() => vi.unstubAllGlobals())
 describe('unified memory review', () => {
   it('shows window-specific source ranges and probabilities without a whole-source confidence', () => {
     const candidate = fact('chunked', 'user')
-    candidate.decision = { version: 1, scorer: { provider: 'laya', modelRevision: 'fixture', templateVersion: 'memory-decision/1', calibrationId: null },
+    candidate.decision = { version: 1, scorer: { provider: 'legacy-scorer', modelRevision: 'fixture', templateVersion: 'memory-decision/1', calibrationId: null },
       inputHash: 'hash', candidateHash: 'hash', createdAt: '2026-09-29', status: 'ready', route: 'review', reason: 'cross-chunk-conflict',
       answers: [], evidenceRanges: [{ observationId: 'obs-1', start: 0, end: 1000 }], relatedFactIds: [], truncated: false,
       chunks: [{ evidenceRanges: [{ observationId: 'obs-1', start: 0, end: 800 }], answers: [{ question: 'support', answer: true, answer_confidence: .98, distribution: { true: .98, false: .02 }, noul: .98 }] },

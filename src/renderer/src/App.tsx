@@ -11,7 +11,6 @@ import {
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useI18n } from '@/i18n/useI18n'
-import { useCheckpointStore } from '@/stores/checkpoint'
 import { useRightToolStore } from '@/stores/right-tools'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { Titlebar } from '@/components/Titlebar'
@@ -80,8 +79,8 @@ export default function App() {
   // P5: 细粒度 selector——App 是整树根组件，任意 store 字段变化都不应带动整树
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const panelCollapsed = useAppStore((s) => s.panelCollapsed)
-  const subscribeToCheckpointEvents = useCheckpointStore((s) => s.subscribeToEvents)
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
+  const activeWorkspacePath = useWorkspaceStore(s => s.workspaces.find(item => item.id === s.activeWorkspaceId)?.path)
   const worktreePath = useWorktreeStore(s => activeWorkspaceId ? s.activePaths[activeWorkspaceId] : undefined)
   const hasWorkspacePane = useWorkspaceStore((s) => s.paneTree !== null)
   const hasRetainedWorkspacePane = useWorkspaceStore((s) =>
@@ -204,9 +203,6 @@ export default function App() {
 
   /*-- P0: 翻转容器 ref，拖拽时 direct DOM 操作 transform --*/
 
-  useEffect(() => {
-    return subscribeToCheckpointEvents()
-  }, [subscribeToCheckpointEvents])
 
   // Note: .agents/notes/workbench/unified-file-window.md
   useEffect(() => {
@@ -226,9 +222,8 @@ export default function App() {
     void useEditorStore.getState().reloadOpenFiles(payload.workspacePath, payload.changedFilePath ?? null)
   }), [])
   useEffect(() => {
-    const workspace = useWorkspaceStore.getState().workspaces.find(item => item.id === activeWorkspaceId)
-    useEditorStore.getState().switchScope(worktreePath ?? workspace?.path ?? null)
-  }, [activeWorkspaceId, worktreePath])
+    useEditorStore.getState().switchScope(worktreePath ?? activeWorkspacePath ?? null)
+  }, [activeWorkspaceId, activeWorkspacePath, worktreePath])
 
   useEffect(() => {
     const idleWindow = window as IdleWindow

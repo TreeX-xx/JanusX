@@ -85,13 +85,16 @@ describe('P6 inert plugin skills', () => {
       { ...f.request, skill: 'missing' }, { ...f.request, revision: '' }]) await expect(f.read(request)).rejects.toThrow()
     expect(f.service.snapshot().tasks).toEqual([])
   })
-  it('enforces active worktree and project grants for discovery and direct reads', async () => {
+  it('enforces active worktree and revocation with all-workspace authorization', async () => {
     const f = await fixture()
     for (const context of [{ ...f.context, workspaceRoot: f.other }, { ...f.context, workspaceId: 'other' }]) {
       await expect(f.service.discoverAgentSkills(context, signal())).rejects.toThrow()
       await expect(f.service.readAgentSkill(context, f.request, signal())).rejects.toThrow()
     }
     await f.service.enable(f.data.id, [])
+    expect((await f.service.discoverAgentSkills(f.context, signal())).skills).toHaveLength(1)
+    await f.read()
+    await f.service.disable(f.data.id)
     expect((await f.service.discoverAgentSkills(f.context, signal())).skills).toEqual([])
     await expect(f.read()).rejects.toThrow()
   })

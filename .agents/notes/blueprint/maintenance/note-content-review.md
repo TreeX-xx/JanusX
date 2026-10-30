@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "proposed",
   "created": "2026-10-09",
-  "updated": "2026-10-25T15:35:32.953Z",
+  "updated": "2026-10-30T09:31:30.938Z",
   "class": "architecture",
   "tags": ["blueprint", "note", "review", "automation", "jev"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b",
@@ -289,7 +289,7 @@ B2 完成左侧展示与原生 MCP 读取、处理闭环，共用建议管理模
 
 ## JEV 与生成式 LLM 分工（方向已确认）
 
-用户指出 JEV 不会提出建议。现有[模型适配](../../../../src/main/knowledge/knowledge-models.ts)确认这一点：knowledgeModelJson 对 JEV 拒绝生成请求；reviewKnowledge 发送 support、consistent、逐项 coverage 问题，接收 noul 数值。返回对象中的 reason 是程序选择的固定字符串，不是 JEV 生成的解释。不能将当前适配包装成能直接提出修订方案的审核 Agent。
+用户指出 JEV 不会提出建议。现有[模型适配](https://github.com/TreeX-xx/JanusX/blob/f2e0194fccab765142b6c58a62e393498ae9c3d2/src/main/knowledge/knowledge-models.ts)确认这一点：knowledgeModelJson 对 JEV 拒绝生成请求；reviewKnowledge 发送 support、consistent、逐项 coverage 问题，接收 noul 数值。返回对象中的 reason 是程序选择的固定字符串，不是 JEV 生成的解释。不能将当前适配包装成能直接提出修订方案的审核 Agent。
 
 用户已选择 JEV 负责命题核验，生成式 LLM 负责理解、分析并在已有授权内继续维护 Note。维护方可以是现有对话或外部 Agent；这项确认不授权后台无条件改写，也不要求另设专门维护模型。检查输入需要明确目标陈述、独立来源或现行约束、待回答的问题，以及各自的原文位置与版本。输入组织由审核服务和发起审核的 Agent 配合完成；已有明确检查项可由程序套用问题模板，任意长文的陈述识别、材料选择与问项拆分通常仍需 Agent。JEV 不会自动找齐相关 Note，也不能从整篇的一个低分推导出错误段落或根因。
 

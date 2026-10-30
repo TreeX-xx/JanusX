@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-27",
-  "updated": "2026-10-28T01:36:29.950Z",
+  "updated": "2026-10-29T15:58:58.182Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -24,7 +24,11 @@
 
 本地 `stage:win` 对指定候选目录做更新清单及运行检查，要求干净 checkout 与远端 tag 提交一致。上传仅复用尚未公开的草稿，同名同内容附件跳过，缺件续传，同名不同内容拒绝。`publish:win` 单独核对本地四个附件与远端的大小和 SHA256；远端无摘要时下载比较，再公开，不构建、不运行应用、不上传或替换文件。旧的自动构建公开命令和 `replace_existing` 入口已移除。操作见[维护者指南](../../../docs/maintainers.md)。
 
+正式 Windows 发布推荐现有 `package:win:stage` 入口，构建后在 stage 内完成一次运行验证再上传，避免先运行 `package:win` 后首次 stage 重复验证。上传失败只重跑 stage。stage 在启动 Electron 前预检远端草稿状态、附件大小和可用的 SHA256，检查结束后重新读取远端状态并完整比对，避免检查期间草稿变化后继续上传；远端无摘要的附件仍下载比对，仅执行一次下载。手动 Windows 构建先校验 tag/版本并下载、验证 OfficeCLI，再安装和构建依赖；OfficeCLI 哈希复用本地资源校验脚本，不在 YAML 重复维护。正式构建、包边界、体积、运行检查及公开前远端字节核验均保留，未按 sibling 刷新数量跳过构建。
+
 第一阶段保留当前 sibling 准备和 OfficeCLI 下载方式，未实现统一输入清单、完整构建收据、快速 PR 门禁或新增平台。tag 对齐与附件身份核验并不证明开发机包的完整构建来源，正式候选仍需在匹配 tag 的隔离目录构建并保留；这是下一阶段要消除的人工约束。
+
+打包发布优化验证：`npm run test:unit -- --run tests/unit/publish-win.test.ts --maxWorkers=1` 通过 34 项，覆盖远端冲突前置、运行检查期间草稿状态及附件变化、无摘要附件单次下载和原有断点续传/公开边界。严格 unused 类型检查、发布脚本语法、本地 OfficeCLI 固定哈希及 diff 检查通过；YAML 解析和阶段顺序检查通过。Notes 校验为 0 错误、17 条既存外部链接诊断，本地 sibling 对应目标未全部可达。远端调用由替身验证，未执行完整安装包构建、Electron 运行、云端任务、实际上传或公开。
 
 本地验证：`npm run test:unit -- --run tests/unit/publish-win.test.ts tests/unit/updater tests/unit/app-shutdown.test.ts --maxWorkers=1` 首次通过 67 项；随后补充运行检查期间产物变化、远端无摘要时下载字节不符的回归，单独重跑发布文件通过 27 项。`npm run typecheck:strict-unused`、两个修改脚本的 `node --check`、版本脚本帮助和定向 diff 检查通过。GitHub 命令由测试替身驱动，未实际创建或公开远端 Release，未执行新的云端构建。本次 Notes 无格式或链接错误，仓库其他文档仍有两条旧插件附件断链和两条 entrance-choreography 要求/时间错误。
 
@@ -37,6 +41,12 @@
 OfficeCLI 版本和 Windows 哈希在应用路径模块中固定，工作流又重复声明 Windows x64 下载地址和哈希。资源目录直接进入安装包；运行检查和发布脚本均面向 Windows。路径解析器在非 Windows 返回 undefined。`node-pty` 是原生依赖，electron-builder 的自动依赖重建已关闭，必须明确验证目标平台、架构及 Electron ABI。
 
 当前操作归 [维护者指南](../../../docs/maintainers.md)，相关职责归 [分支决策](./development-branch.md)、[可复现验证](./reproducible-verification.md)和 [OfficeCLI 内置决策](./officecli-bundled.md)。下文整体设计未完成的部分仍是拟议状态。
+
+## 本次 0.9.5 覆盖交付
+
+维护者明确要求将插件设置和工作区默认访问修复覆盖到既有 v0.9.5 tag 与 Release。该改动同时涉及宿主及蓝图原生服务，交付包含 Windows 安装版、便携版、更新清单／blockmap 和 Blueprint 1.0.8；插件从已公开的 1.0.7 递增，包地址归同一 v0.9.5 Release，历史附件保留。宿主版本保持 0.9.5，同版本用户需重新下载手动安装。此次授权不改变常规禁止覆盖公开版本的流程，也不授权推送受保护的 main 分支。
+
+构建使用隔离检出及发布工作流固定的 agentX 提交 53333123ca071a0a32b6902b392a7279da00c470，避免本机 sibling 未提交内容进入产物。替换前保存远端资产身份与说明，先完成实物验证，再移动 tag、替换资产并核对远端摘要；不依赖常规 publish:win 脚本绕过其公开版本保护。交付与验证收据保存在忽略的 release 目录，实际执行结果由该收据及 Release 附件确认。
 
 ## 外部参考与适用范围
 
@@ -142,6 +152,8 @@ Codeg 的官方脚本方案能降低它自己维护下载和 PATH 的工作量�
 
 ## Open questions
 
-下一阶段先统计少量代表性的失败 run，区分输入漂移、下载、工具链、测试/桌面环境和真正源码错误。没有这个证据，不承诺重构后所有 CI 错误消失。尚需确定首批正式支持的非 Windows 目标、可用 Mac/签名身份、Office 是否仍是默认能力，以及维护者的手动公开入口偏好；这些不妨碍先完成 Windows 发布解耦。
+下一阶段先统计少量代表性的失败 run，区分输入漂移、下载、工具链、测试/桌面环境和真正源码错误。没有这个证据，不承诺重构后所有 CI 错误消失。
+
+门禁成本与冗余审计已提供第一部分证据：完整 verify 约 27min，其中发布级验收占约六成，且存在同一断言重复执行、排序倒置与 PR 全量跑发布级检查三类冗余；同时确认分支保护未绑定 required status check，门禁当前不阻止合并。该审计只覆盖成本与结构，未逐条分析失败 run，也未区分输入漂移与工具链失败，这部分证据仍然缺失。审计结论、实测数据与建议见[发布门禁成本与冗余审计](./release-gate-redundancy-audit.md)，阶段三的分层范围应在采纳其建议时一并确定。尚需确定首批正式支持的非 Windows 目标、可用 Mac/签名身份、Office 是否仍是默认能力，以及维护者的手动公开入口偏好；这些不妨碍先完成 Windows 发布解耦。
 
 已完成源码调查、设计草案及上述第一阶段流程代码；未运行三个平台的完整构建、Office 二进制或安装测试，未修改 GitHub 设置，未提交、推送或实际发布。本地代码生效于推送并被 GitHub 读取之后。

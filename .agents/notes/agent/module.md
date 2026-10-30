@@ -78,7 +78,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-10-23T12:32:57Z",
+  "updated": "2026-10-30T09:34:45.520Z",
   "moduleState": "partial"
 }
 ---
@@ -94,6 +94,8 @@ WorkflowX v2 中，普通 xdo 直接使用工程工具，不要求建立 Task。
 下列链接保留已有决策、阶段需求和交付记录的阅读路径；正文及生命周期由原 Note 负责。历史 parent 仅组织文档，跨模块关联由本声明的 related-to 补充。模块声明只在职责、接口、明确依赖或代码入口变化时维护。
 
 ## Design
+
+旧 HarnessRunPanel 桌面任务执行界面、TaskContractEditor、实现历史面板和无消费者的 harness store 已移除，E2E 不再通过夹具重新挂载退出界面。任务运行／验证／接管后端、共享契约、现用 Chat 和 WorkflowX 监视能力保留；本次清理不声明后端执行能力退出。
 
 通用工程工具、MCP、Note 编辑、压缩和 WorkflowX 模式由 agentX 提供，Janus 负责模型与会话端口、审批界面、子会话事件归属及产品扩展。项目会话从共享工具清单继承工程能力；受限维护讨论继续使用调用者的工具限制。具体分工见 [agentX 复用边界](../blueprint/agentx-harness-inheritance.md)。
 

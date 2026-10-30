@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-21",
-  "updated": "2026-10-22T15:33:26Z",
+  "updated": "2026-10-29T11:10:21Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -62,7 +62,7 @@
 
 ## JanusX 的现状与分层建议
 
-现有 [types.ts](../../../../src/renderer/src/extensions/types.ts) 和 [registry.ts](../../../../src/renderer/src/extensions/registry.ts) 已有可信 React 视图贡献、同步激活、停用清理、中部／右侧位置和应用级／项目级作用域。[builtins.tsx](../../../../src/renderer/src/extensions/builtins.tsx) 已注册文件树、Git、会话面板，[cpa.tsx](../../../../src/renderer/src/extensions/cpa.tsx) 已注册 CPA 管理页。这证明界面贡献协议可复用，不代表外部插件包已经可导入。
+现有 [types.ts](../../../../src/renderer/src/extensions/types.ts) 和 [registry.ts](../../../../src/renderer/src/extensions/registry.ts) 保留可信内置 React 视图贡献，[builtins.tsx](../../../../src/renderer/src/extensions/builtins.tsx) 注册文件树、Git、会话面板。CPA 后续迁入[独立官方包](../../../../plugins/cpa/manifest.json)，使用隔离页面及受信 native 激活，已不在 renderer 启动入口内置注册。下方功能矩阵保留原调研判断，当前 CPA 实施与验证归[服务集成](../service-integrations.md)。
 
 建议分三层管理。宿主提供窗口布局、项目身份、文件事务、进程与会话生命周期、凭证、审批、审计和数据持久化。官方功能扩展组合宿主服务形成工具页面，可默认启用或按需启用。第三方扩展通过隔离页面和授权 API 添加自己的功能，不能直接使用内部 Zustand store、任意 IPC 或其他插件私有数据。
 

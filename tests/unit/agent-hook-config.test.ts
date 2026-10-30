@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, readFile, unlink, writeFile } from 'fs/promises'
+import { mkdir, mkdtemp, readFile, stat, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { describe, expect, it, vi } from 'vitest'
+import { CliDetector } from '../../src/main/external-cli/cli-detector'
 
 vi.mock('electron', () => ({
   app: {
@@ -44,7 +45,59 @@ function makeManager(homeDir: string, overrides: ManagerOverrides = {}) {
 }
 
 describe('AgentHookConfigManager', () => {
-  it('installs recovery hooks in the provider homes selected by the source history', async () => {
+  it('leaves older or unknown Codex versions out of the launch injection path', async () => {
+    const root = await createTempDir(), binary = join(root, 'codex.exe')
+    const detect = vi.spyOn(CliDetector.prototype, 'detect')
+    try {
+      const manager = makeManager(root)
+      await writeFile(binary, 'old')
+      detect.mockResolvedValue({ toolId: 'codex', installed: true, runnable: true, version: '0.164.0' })
+      await expect(manager.checkCodexLaunchVersion(binary)).rejects.toThrow('require 0.165')
+      await writeFile(binary, 'supported')
+      detect.mockResolvedValue({ toolId: 'codex', installed: true, runnable: true, version: '0.165.0' })
+      await expect(manager.checkCodexLaunchVersion(binary)).resolves.toBeUndefined()
+      await manager.checkCodexLaunchVersion(binary)
+      expect(detect).toHaveBeenCalledTimes(2)
+    } finally { detect.mockRestore() }
+  })
+
+  it.each([1, 2] as const)('preserves OpenCode %s inline user plugins and native config directory', async major => {
+    const manager = makeManager(await createTempDir())
+    const key = major === 1 ? 'plugin' : 'plugins'
+    vi.stubEnv('OPENCODE_CONFIG_CONTENT', JSON.stringify({ [key]: ['user-plugin'], model: 'user/model' }))
+    vi.stubEnv('OPENCODE_CONFIG_DIR', 'user-native-dir')
+    try {
+      const env = manager.buildTerminalEnv({ engine: 'opencode', terminalId: 't', workspaceId: 'w', openCodeMajor: major }, {})
+      expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT)).toMatchObject({ [key]: ['user-plugin', expect.any(String)], model: 'user/model' })
+      expect(env).not.toHaveProperty('OPENCODE_CONFIG_DIR')
+      expect(process.env.OPENCODE_CONFIG_DIR).toBe('user-native-dir')
+    } finally { vi.unstubAllEnvs() }
+  })
+
+  it('selects OpenCode adapters by the actual binary version and invalidates the probe after upgrade', async () => {
+    const root = await createTempDir(), binary = join(root, 'opencode.exe')
+    await writeFile(binary, 'v1')
+    const detect = vi.spyOn(CliDetector.prototype, 'detect')
+      .mockResolvedValue({ toolId: 'opencode', installed: true, runnable: true, version: '1.19.5' })
+    try {
+      const manager = makeManager(root)
+      expect(await Promise.all([manager.getOpenCodeMajor(binary), manager.getOpenCodeMajor(binary)])).toEqual([1, 1])
+      expect(detect).toHaveBeenCalledTimes(1)
+      expect(detect).toHaveBeenCalledWith({ path: binary, source: 'path' })
+      expect(await manager.getLaunchArgs('opencode', 1)).toEqual([])
+      const v1 = JSON.parse(manager.buildTerminalEnv({ engine: 'opencode', terminalId: 't', workspaceId: 'w', openCodeMajor: 1 }, {}).OPENCODE_CONFIG_CONTENT)
+      expect(v1.plugin[0]).toContain('v1.js')
+      await writeFile(binary, 'changed v2 binary')
+      detect.mockResolvedValue({ toolId: 'opencode', installed: true, runnable: true, version: '2.1.4' })
+      expect(await manager.getOpenCodeMajor(binary)).toBe(2)
+      expect(await manager.getLaunchArgs('opencode', 2)).toEqual(['--standalone'])
+      await writeFile(binary, 'unknown future major')
+      detect.mockResolvedValue({ toolId: 'opencode', installed: true, runnable: true, version: '3.0.0' })
+      await expect(manager.getOpenCodeMajor(binary)).rejects.toThrow('unsupported')
+    } finally { detect.mockRestore() }
+  })
+
+  it('keeps recovery hook assets in userData without writing the original provider homes', async () => {
     const homeDir = await createTempDir()
     const claudeConfigDir = join(homeDir, 'original-claude')
     const codexHome = join(homeDir, 'original-codex')
@@ -52,8 +105,8 @@ describe('AgentHookConfigManager', () => {
       userDataDir: join(homeDir, 'userData'), platform: 'linux', compileHookRunner: false })
     await manager.ensureInstalled('claude')
     await manager.ensureInstalled('codex')
-    expect(manager.getClaudeSettingsPath()).toBe(join(claudeConfigDir, 'settings.json'))
-    expect(manager.getCodexHooksPath()).toBe(join(codexHome, 'hooks.json'))
+    expect(manager.getClaudeSettingsPath()).toBe(join(homeDir, 'userData/hooks/claude/additional-settings.json'))
+    expect(manager.getCodexHooksPath()).toBe(join(homeDir, 'userData/hooks/codex/hooks.json'))
     expect(await readFile(manager.getClaudeSettingsPath(), 'utf8')).toContain(JANUSX_HOOK_COMMAND_MARKER)
     expect(await readFile(manager.getCodexHooksPath(), 'utf8')).toContain(JANUSX_HOOK_COMMAND_MARKER)
   })
@@ -78,12 +131,12 @@ describe('AgentHookConfigManager', () => {
     const manager = makeManager(homeDir, { executablePath: 'C:/Program Files/JanusX/JanusX.exe', platform: 'win32' })
 
     await manager.ensureInstalled('claude')
-    const parsed = JSON.parse(await readFile(settingsPath, 'utf8')) as {
+    expect(JSON.parse(await readFile(settingsPath, 'utf8')).hooks.Stop[0].hooks[0].command).toBe('echo user-hook')
+    const parsed = JSON.parse(await readFile(manager.getClaudeSettingsPath(), 'utf8')) as {
       hooks: Record<string, Array<{ matcher?: string; hooks: Array<{ command: string }> }>>
     }
 
-    expect(parsed.hooks.Stop).toHaveLength(2)
-    expect(parsed.hooks.Stop[0].hooks[0].command).toBe('echo user-hook')
+    expect(parsed.hooks.Stop).toHaveLength(1)
     expect(JSON.stringify(parsed)).toContain(JANUSX_HOOK_COMMAND_MARKER)
     expect(parsed.hooks.Notification.map((entry) => entry.matcher)).toEqual([
       'permission_prompt',
@@ -97,6 +150,24 @@ describe('AgentHookConfigManager', () => {
       expect(parsed.hooks.UserPromptSubmit[0].hooks[0].command).not.toContain('-File')
       expect(parsed.hooks.UserPromptSubmit[0].hooks[0].command).toContain('Test-Path -LiteralPath')
       expect(parsed.hooks.UserPromptSubmit[0].hooks[0].command).not.toContain('$utf8')
+  })
+
+  it('serializes concurrent preparation and does not rewrite unchanged assets', async () => {
+    const home = await createTempDir()
+    const manager = makeManager(home)
+    await Promise.all(Array.from({ length: 16 }, () => manager.ensureInstalled('claude')))
+    const path = manager.getClaudeSettingsPath()
+    const before = await stat(path)
+    await manager.ensureInstalled('claude')
+    expect((await stat(path)).mtimeMs).toBe(before.mtimeMs)
+    expect(await manager.getLaunchArgs('claude')).toEqual(['--settings', path])
+    const codex = await manager.ensureInstalled('codex')
+    const args = await manager.getLaunchArgs('codex')
+    expect(codex.path).toContain('userData')
+    expect(args.join(' ')).not.toContain('bypass')
+    expect(args.join(' ')).not.toContain('trusted_hash')
+    const { parse } = await import('smol-toml')
+    expect(parse(args.at(-1)!).hooks).toHaveProperty('Stop')
   })
 
   it('bakes the fired matcher into posix Claude Notification commands', async () => {
@@ -118,7 +189,7 @@ describe('AgentHookConfigManager', () => {
     expect(await manager.isInstalled('claude')).toBe(true)
   })
 
-  it('removes legacy JanusX hook commands during install', async () => {
+  it('leaves legacy global hook cleanup to P5', async () => {
     const homeDir = await createTempDir()
     const settingsPath = join(homeDir, '.claude', 'settings.json')
     await mkdir(join(homeDir, '.claude'), { recursive: true })
@@ -149,12 +220,13 @@ describe('AgentHookConfigManager', () => {
     await manager.ensureInstalled('claude')
     const settings = await readFile(settingsPath, 'utf8')
 
-    expect(settings).not.toContain('janusx-hook-v1')
+    expect(settings).toContain('janusx-hook-v1')
     expect(settings).toContain('echo user-hook')
-    expect(settings).toContain(JANUSX_HOOK_COMMAND_MARKER)
+    expect(settings).not.toContain(JANUSX_HOOK_COMMAND_MARKER)
+    expect(await readFile(manager.getClaudeSettingsPath(), 'utf8')).toContain(JANUSX_HOOK_COMMAND_MARKER)
   })
 
-  it('repairs JSON configs that were saved with a UTF-8 BOM', async () => {
+  it('preserves native user hook bytes including their UTF-8 BOM', async () => {
     const homeDir = await createTempDir()
     const hooksPath = join(homeDir, '.codex', 'hooks.json')
     await mkdir(join(homeDir, '.codex'), { recursive: true })
@@ -178,13 +250,13 @@ describe('AgentHookConfigManager', () => {
 
     await manager.ensureInstalled('codex')
     const repaired = await readFile(hooksPath)
-    const parsed = JSON.parse(repaired.toString('utf8')) as {
+    const parsed = JSON.parse(repaired.toString('utf8').replace(/^\uFEFF/, '')) as {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>
     }
 
-    expect(Array.from(repaired.slice(0, 3))).not.toEqual([0xef, 0xbb, 0xbf])
+    expect(Array.from(repaired.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
     expect(parsed.hooks.Stop[0].hooks[0].command).toBe('echo user-codex-hook')
-    expect(JSON.stringify(parsed)).toContain(JANUSX_HOOK_COMMAND_MARKER)
+    expect(JSON.stringify(parsed)).not.toContain(JANUSX_HOOK_COMMAND_MARKER)
   })
 
   it('uninstalls only marker-owned Codex hooks and keeps user hooks', async () => {
@@ -295,7 +367,8 @@ describe('AgentHookConfigManager', () => {
       },
     )
 
-    expect(env.OPENCODE_CONFIG_DIR).toBe(manager.getOpencodeConfigDir())
+    expect(env.OPENCODE_CONFIG_DIR).toBeUndefined()
+    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT).plugins).toContain(manager.getOpencodeConfigDir().replace(/\\/g, '/'))
     const plugin = await readFile(join(manager.getOpencodeConfigDir(), 'plugins', 'janusx-notify.js'), 'utf8')
     expect(plugin).toContain('session.idle')
     expect(plugin).toContain('session.created')
@@ -407,7 +480,7 @@ describe('AgentHookConfigManager', () => {
       compileHookRunner: false,
     })
 
-    expect(manager.getHookRunnerPath()).toBe(join(homeDir, '.janusx', 'hooks', 'janusx-hook-runner.exe'))
+    expect(manager.getHookRunnerPath()).toBe(join(homeDir, 'userData', 'hooks', 'janusx-hook-runner.exe'))
 
     await manager.ensureInstalled('codex')
     const hooksJson = await readFile(manager.getCodexHooksPath(), 'utf8')

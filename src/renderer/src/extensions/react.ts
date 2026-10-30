@@ -12,9 +12,7 @@ export function useExtensionCommands() {
 
 // Note: .agents/notes/workbench/plugin-contract-v1.md — one visible launcher per workbench.
 export function useToolbarWorkbenches(projectOpen: boolean) {
-  const views = useExtensionViews()
+  useExtensionViews()
   useExtensionCommands()
-  const toolboxViews = new Set(extensionCommands.getMenus('toolbox', projectOpen).map(entry => entry.view.id))
-  return views.filter(view => view.location === 'workbench'
-    && (view.scope === 'application' || projectOpen) && !toolboxViews.has(view.id))
+  return extensionCommands.getToolbarWorkbenches(projectOpen)
 }

@@ -5,8 +5,8 @@
       "name": "@janus-agent/agent-core",
       "version": "0.1.0",
       "file": "janus-agent-agent-core-0.1.0.tgz",
-      "sha256": "342349a6f17c14c0ac1bbfb80453b41a03ff3f5450c1decfd74f5deded82c090",
-      "integrity": "sha512-a7AAWt/ARplDaa9GWQHHmNbZgnnWgTIBdd2edww+FaLF78ZiEeA0lJgdyVxcWfSCMmiz1C/trFOhDc+O74wB1Q=="
+      "sha256": "d2209d57eb5f4c821900fc561ee1093de6666971c7101ad7de65c90e708e7f33",
+      "integrity": "sha512-r2i0/sfw93M+QA4q8JC5OBPJG7WA1RVlQhjhlQXG1r8FrXqyP0g9woZZuKKMQxdxsIGB52h8RmVt5MXUseXkyw=="
     },
     {
       "name": "@janus-agent/chat-core",
@@ -40,8 +40,8 @@
       "name": "@janus-agent/node-hosts",
       "version": "0.1.0",
       "file": "janus-agent-node-hosts-0.1.0.tgz",
-      "sha256": "fb408de903cc36fa31082673c227c513501b5136027f7d599b1239ac190d794c",
-      "integrity": "sha512-Il+xjRIoVHQnl18Sbq8EhjtPPvOzqdkg0bS0do7LIM8oPXs3rr9Su9a+Q6bl0Tk9I4cIKjeINlPW0rrDxMYF+A=="
+      "sha256": "7264f951fe22d91e36a7512b04635fa157261191617f1d1114480732bc5555e1",
+      "integrity": "sha512-23nee6OFRbWyhk1nEeyCAQaUkIMx0rh0CdfmRRslpfBrdAvgkTeeRbCiXlz5BY1SNa20BswiimreM/FsLjVWXQ=="
     },
     {
       "name": "@janusx/llm-core",
@@ -61,8 +61,8 @@
       "name": "@janusx/plugin-sdk",
       "version": "0.1.0",
       "file": "janusx-plugin-sdk-0.1.0.tgz",
-      "sha256": "82b2be3ec30d7667e5deed0ce8cf6092c6acb89e22a7ac03594947647dab7f90",
-      "integrity": "sha512-teq4nDpAtdbBhzrmV5gRIFh5qZXEWKgLNxIMOugwjTY2lBq0/60nvi3uuFDun2BY9F8NFYUUy2fLvw/p4eMjQg=="
+      "sha256": "2ff4181d68d486243a8fb76bce2e316e7d28a86df5ba322a29d6405af87a5802",
+      "integrity": "sha512-3K1y2pMMMFn+YIcFyoP3acY6BmpzhM60kOEylxAvWRoLNREWmNSTx3295mnM1o2wYhzqKs+a3GgR1MnLQB5CNw=="
     }
   ]
 }

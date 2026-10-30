@@ -182,7 +182,10 @@ test('run-config assistant edits via launch-config tools and applies through the
     await expect(launchModal.getByText('Janus 请求写入运行配置', { exact: true })).toBeHidden()
 
     // 4. The config file lands on disk and the baseline settles (diff cleared).
-    const configPath = join(workspacePath, '.janusX', 'janusX.launch.json')
+    const storage = await page.evaluate(async () => (window as any).electron.workspaceStorage.data())
+    const workspaceData = storage.find((item: { path: string }) => item.path === workspacePath)
+    expect(workspaceData, 'saved config belongs to the workspace private data').toBeTruthy()
+    const configPath = join(workspaceData.target, 'launch.json')
     await expect.poll(async () => {
       try { JSON.parse(await readFile(configPath, 'utf8')); return true } catch { return false }
     }, { timeout: 20_000 }).toBe(true)

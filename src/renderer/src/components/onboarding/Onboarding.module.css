@@ -16,6 +16,10 @@
   white-space: nowrap;
 }
 .entry:hover, .iconButton:hover, .textButton:hover { background: var(--shell-hover); color: var(--shell-text); }
+.settingsEntry { width: 100%; min-height: 36px; justify-content: flex-start; gap: 10px; padding: 8px 12px; text-align: left; font-size: 13px; font-weight: 500; line-height: 20px; }
+.settingsEntry > svg { flex-shrink: 0; }
+.settingsEntry > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.entryArrow { margin-left: auto; color: var(--shell-dim); }
 .entry:focus-visible, .overview button:focus-visible, .tour button:focus-visible {
   outline: 2px solid var(--shell-accent-border);
   outline-offset: 3px;

@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path'
 import type { DetectResult, LaunchConfiguration } from '../types'
 import { ProjectType } from '../types'
 import { detectByFeatures, getProjectSchema } from '../config/project-schemas'
+import ProjectConfig from '../config/project-config'
 
 export interface DetectionContext {
   projectPath: string
@@ -57,6 +58,7 @@ export class ProjectDetector {
    */
   static async detectWithDetails(projectPath: string): Promise<DetectResult> {
     const context = this.createContext(projectPath)
+    context.hasConfig = await ProjectConfig.exists(projectPath)
     const candidates = detectByFeatures(context.files)
     const detectedType = candidates.length > 0 ? candidates[0] : ProjectType.Unknown
 
@@ -101,12 +103,11 @@ export class ProjectDetector {
   private static createContext(projectPath: string): DetectionContext {
     try {
       const files = readdirSync(projectPath)
-      const configPath = join(projectPath, '.janusX/janusX.launch.json')
 
       return {
         projectPath: resolve(projectPath),
         files,
-        hasConfig: existsSync(configPath),
+        hasConfig: false,
       }
     } catch (error) {
       throw new Error(`Failed to read directory ${projectPath}: ${error}`)

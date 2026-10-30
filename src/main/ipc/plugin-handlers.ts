@@ -1,10 +1,12 @@
 import { app, dialog, ipcMain, safeStorage, type BrowserWindow } from 'electron'
 import { join, basename } from 'node:path'
+import { NativeDesktop } from '../plugins/native-desktop'
 import { realpath } from 'node:fs/promises'
 import { z } from 'zod'
 import { PluginError, messageSchema } from '@janusx/plugin-sdk'
 import { PLUGIN_CHANNELS, type PluginManageRequest, type PluginHostResult } from '../../shared/ipc/plugins'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
+import { listRegisteredWorkspaces } from '../companion/workspace-registry'
 import { PluginService } from '../plugins/service'
 import { PluginRuntime } from '../plugins/runtime'
 import { hostPluginModelBackend } from '../plugins/model-backend'
@@ -39,7 +41,7 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('importPackage') }).strict(),
   z.object({ type: z.literal('development'), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('import'), kind: z.enum(['linked', 'copied']) }).strict(),
-  z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256) }).strict(),
+  z.object({ type: z.literal('enable'), id: text, projects: z.array(text).max(256).optional() }).strict(),
   ...(['disable', 'reload', 'uninstall', 'deleteData', 'rollback'] as const).map(type => z.object({ type: z.literal(type), id: text }).strict()),
   z.object({ type: z.literal('context'), projectId: text.nullable(), scopePath: nullableText, locale: z.string().max(32),
     theme: z.object({ id: z.string().max(256), tokens: z.record(z.string().max(512)).refine(tokens => Object.keys(tokens).length <= 512) }).strict() }).strict(),
@@ -83,7 +85,11 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     modelBackend: hostPluginModelBackend,
     directory: join(app.getPath('userData'), 'janusx', 'plugins'),
     official: { keys: officialTrust.keys, nativePlugins: officialTrust.nativePlugins, hostVersion: app.getVersion(), platform: `${process.platform}-${process.arch}` },
-    createNativeService: (record, directory, stopped, credentials) => createOfficialNativeService(record, directory, stopped, resolvePluginProject, credentials),
+    createNativeService: (record, directory, stopped, credentials) => {
+      const desktop = new NativeDesktop(record, () => runtime, () => native, url => send(PLUGIN_CHANNELS.openBrowser, url))
+      const native = createOfficialNativeService(record, directory, code => { desktop.dispose(); stopped(code) }, resolvePluginProject, credentials, desktop.call)
+      return native
+    },
     encryption: {
       encrypt: value => {
         if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') throw new Error('Encryption unavailable')
@@ -97,6 +103,7 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     protectedDirectories: [app.getPath('userData'), app.getPath('sessionData')],
     legacyCredentials: { 'official.blueprint': [{ slot: 'jev', origin: 'https://api.typesafe.ai', path: join(app.getPath('userData'), 'janusx', 'knowledge-jev.credential') }] },
     resolveProject: resolvePluginProject,
+    listProjects: async () => (await listRegisteredWorkspaces(join(app.getPath('userData'), 'janusx', 'workspaces'))).map(project => project.id),
     worktrees: async id => {
       const project = await resolvePluginProject(id, null)
       const entries = await listWorktrees(id, project.root)

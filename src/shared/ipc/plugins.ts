@@ -6,12 +6,14 @@ export interface PluginConfigurationState extends PluginConfiguration {
   migrations: Array<{ from: string; to: string; status: 'ready' | 'occupied' | 'incompatible' }>
 }
 
-export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event' } as const
+export const PLUGIN_CHANNELS = { manage: 'plugins:manage', changed: 'plugins:changed', event: 'plugins:event', openBrowser: 'plugins:openBrowser' } as const
 export interface InstalledPlugin {
   manifest: PluginManifest
   source: { kind: 'linked' | 'copied' | 'official'; directory: string; publisher?: string }
   digest: string
   enabled: boolean
+  /** Enabled plugins apply to existing and future registered workspaces. */
+  projectScope?: 'all'
   projects: string[]
   state: 'disabled' | 'blocked' | 'ready' | 'loading' | 'active' | 'error'
   error?: string
@@ -44,7 +46,7 @@ export type PluginManageRequest =
   | { type: 'installOfficial'; id: string }
   | { type: 'development'; enabled: boolean }
   | { type: 'import'; kind: 'linked' | 'copied' }
-  | { type: 'enable'; id: string; projects: string[] }
+  | { type: 'enable'; id: string; projects?: string[] }
   | { type: 'disable' | 'reload' | 'uninstall' | 'deleteData' | 'rollback'; id: string }
   | { type: 'context'; projectId: string | null; scopePath: string | null; locale: string; theme: { id: string; tokens: Record<string, string> } }
   | { type: 'mount'; id: string; view: string; projectId: string | null; scopePath: string | null; document?: PluginDocument; instanceKey?: string }
@@ -62,6 +64,7 @@ export type PluginHostResult = { ok: true; data: unknown } | { ok: false; code: 
 export interface PluginHostEvent { instanceId: string; packet: JsonValue }
 /** This management API belongs only to the trusted main-window top frame. */
 export interface PluginHostAPI {
+  onOpenBrowser(callback: (url: string) => void): () => void
   request(input: PluginManageRequest): Promise<PluginHostResult>
   onChanged(callback: () => void): () => void
   onEvent(callback: (event: PluginHostEvent) => void): () => void

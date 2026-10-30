@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import hashlib
 import importlib.metadata
-import importlib.util
 import json
 import math
 import os
@@ -31,12 +30,6 @@ def sha(path):
             h.update(block)
     return h.hexdigest()
 
-
-def module(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def write_json(path, data):
@@ -187,82 +180,51 @@ def worker(args, standard):
     start = time.perf_counter()
     key = args.worker
     modelkey = 'mdeberta' if key.startswith('mdeberta') else key
-    modelroot = args.laya_dir if key == 'laya' else args.cache/modelkey
-    stack = contextlib.ExitStack()
+    modelroot = args.cache/modelkey
     try:
-        if key == 'laya':
-            sidecar = module('review_sidecar',ROOT/'resources/laya/sidecar.py')
-            manifest = json.loads((ROOT/'resources/laya/model-manifest.json').read_text(encoding='utf-8'))
-            sidecar.verify(modelroot,manifest)
-            if importlib.metadata.version('laya') != manifest['sdk']:
-                raise ValueError('Laya SDK mismatch')
-            runtime = stack.enter_context(sidecar.runtime_checkpoint(modelroot,manifest))
+        manifest=json.loads((modelroot/'verified-manifest.json').read_text(encoding='utf-8'))
+        expected=standard['models'][modelkey]
+        if manifest['revision']!=expected['revision'] or set(manifest['files'])!=set(expected['files']):
+            raise ValueError('Manifest mismatch')
+        used=[name for name in manifest['files'] if name!='model.safetensors'] if key.endswith('int8') else [name for name in manifest['files'] if not name.startswith('onnx/')]
+        for name in used:
+            if sha(modelroot/name)!=manifest['files'][name]['sha256']:
+                raise ValueError('Artifact changed')
+        from transformers import AutoTokenizer
+        tokenizer=AutoTokenizer.from_pretrained(modelroot,local_files_only=True)
+        config=json.loads((modelroot/'config.json').read_text(encoding='utf-8'))
+        labels=[config['id2label'][str(i)] for i in range(3)]
+        if set(labels)!={'entailment','neutral','contradiction'}:
+            raise ValueError('Unexpected NLI labels')
+        if key.endswith('int8'):
+            import onnxruntime as ort
+            options=ort.SessionOptions()
+            options.intra_op_num_threads=standard['threads']
+            options.inter_op_num_threads=1
+            model=ort.InferenceSession(str(modelroot/'onnx/model_quantized.onnx'),options,providers=['CPUExecutionProvider'])
+            names=[item.name for item in model.get_inputs()]
+        else:
             import torch
-            from laya import Agent
-            from laya.common import build_sequence
+            from transformers import AutoModelForSequenceClassification
             torch.set_num_threads(standard['threads'])
             torch.set_num_interop_threads(1)
-            model = Agent(str(runtime), device='cpu', expected_sha256={k:v['sha256'] for k,v in manifest['files'].items()})
-            definition = {'type':'noul','instructions':standard['layaQuestion']}
-            def predict(row):
-                state = json.dumps({'candidate':row['claim'],'evidence':[row['evidence']], 'existing_facts':[]},ensure_ascii=False)
-                seq,markers,stats = build_sequence(model.tok,state,model._to_internal(definition),1000000,256,return_stats=True)
-                if len(seq)>standard['maxPairTokens'] or stats['options']!=stats['options_distinct'] or len(markers)!=stats['options']:
-                    raise ValueError('token-budget-exceeded')
-                raw=model.predict(state,{'support':definition},max_len=standard['maxPairTokens'],head_max_len=256)
-                if raw.get('usage',{}).get('options'):
-                    raise ValueError('collapsed-options')
-                answer=raw['answers']['support']
-                p=answer['noul']
-                decision(p,standard['threshold'])
-                if abs(max(p,1-p)-answer['answer_confidence'])>.0002:
-                    raise ValueError('invalid-answer-confidence')
-                return p,{'support':p,'not-supported':1-p},len(seq)
-            filebytes=sum(v['size'] for v in manifest['files'].values())
-        else:
-            manifest=json.loads((modelroot/'verified-manifest.json').read_text(encoding='utf-8'))
-            expected=standard['models'][modelkey]
-            if manifest['revision']!=expected['revision'] or set(manifest['files'])!=set(expected['files']):
-                raise ValueError('Manifest mismatch')
-            used=[name for name in manifest['files'] if name!='model.safetensors'] if key.endswith('int8') else [name for name in manifest['files'] if not name.startswith('onnx/')]
-            for name in used:
-                if sha(modelroot/name)!=manifest['files'][name]['sha256']:
-                    raise ValueError('Artifact changed')
-            from transformers import AutoTokenizer
-            tokenizer=AutoTokenizer.from_pretrained(modelroot,local_files_only=True)
-            config=json.loads((modelroot/'config.json').read_text(encoding='utf-8'))
-            labels=[config['id2label'][str(i)] for i in range(3)]
-            if set(labels)!={'entailment','neutral','contradiction'}:
-                raise ValueError('Unexpected NLI labels')
+            model=AutoModelForSequenceClassification.from_pretrained(modelroot,local_files_only=True,torch_dtype=torch.float32).eval()
+        def predict(row):
+            encoded=tokenizer(row['evidence'],row['claim'],truncation=False)
+            count=len(encoded['input_ids'])
+            if count>standard['maxPairTokens']:
+                raise ValueError('token-budget-exceeded')
             if key.endswith('int8'):
-                import onnxruntime as ort
-                options=ort.SessionOptions()
-                options.intra_op_num_threads=standard['threads']
-                options.inter_op_num_threads=1
-                model=ort.InferenceSession(str(modelroot/'onnx/model_quantized.onnx'),options,providers=['CPUExecutionProvider'])
-                names=[item.name for item in model.get_inputs()]
+                import numpy as np
+                inputs={name:np.array([encoded.get(name,[0]*count)],dtype=np.int64) for name in names}
+                logits=model.run(None,inputs)[0][0].tolist()
             else:
-                import torch
-                from transformers import AutoModelForSequenceClassification
-                torch.set_num_threads(standard['threads'])
-                torch.set_num_interop_threads(1)
-                model=AutoModelForSequenceClassification.from_pretrained(modelroot,local_files_only=True,torch_dtype=torch.float32).eval()
-            def predict(row):
-                encoded=tokenizer(row['evidence'],row['claim'],truncation=False)
-                count=len(encoded['input_ids'])
-                if count>standard['maxPairTokens']:
-                    raise ValueError('token-budget-exceeded')
-                if key.endswith('int8'):
-                    import numpy as np
-                    inputs={name:np.array([encoded.get(name,[0]*count)],dtype=np.int64) for name in names}
-                    logits=model.run(None,inputs)[0][0].tolist()
-                else:
-                    with torch.inference_mode():
-                        logits=model(**{name:torch.tensor([value]) for name,value in encoded.items()}).logits[0].tolist()
-                weights=[math.exp(x-max(logits)) for x in logits]
-                distribution={label:weight/sum(weights) for label,weight in zip(labels,weights)}
-                return distribution['entailment'],distribution,count
-            filebytes=sum(manifest['files'][name]['bytes'] for name in used)
+                with torch.inference_mode():
+                    logits=model(**{name:torch.tensor([value]) for name,value in encoded.items()}).logits[0].tolist()
+            weights=[math.exp(x-max(logits)) for x in logits]
+            distribution={label:weight/sum(weights) for label,weight in zip(labels,weights)}
+            return distribution['entailment'],distribution,count
+        filebytes=sum(manifest['files'][name]['bytes'] for name in used)
         loaded=time.perf_counter()
         warm={'evidence':'The service uses PostgreSQL.','claim':'The service uses PostgreSQL.'}
         predict(warm)
@@ -306,18 +268,16 @@ def worker(args, standard):
     finally:
         stop.set()
         monitor.join(timeout=1)
-        stack.close()
 
 
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--standard',type=Path,default=STANDARD)
     parser.add_argument('--cache',type=Path,default=ROOT/'artifacts/knowledge-review-models')
-    parser.add_argument('--laya-dir',type=Path,default=ROOT/'artifacts/laya-eval-runtime/model')
     parser.add_argument('--output',type=Path,default=ROOT/'tests/fixtures/knowledge-review-benchmark-windows.json')
     parser.add_argument('--prepare',action='store_true')
     parser.add_argument('--validate-only',action='store_true')
-    parser.add_argument('--worker',choices=['laya','mdeberta','minilm','mdeberta-int8'])
+    parser.add_argument('--worker',choices=['mdeberta','minilm','mdeberta-int8'])
     args=parser.parse_args()
     standard=json.loads(args.standard.read_text(encoding='utf-8'))
     rows=cases(standard)
@@ -338,20 +298,19 @@ def main():
             'developmentSha256':sha(ROOT/standard['developmentDataset']), 'qualityGate':'not-evaluated-synthetic',
             'python':platform.python_version(),'platform':platform.platform(),'cpu':platform.processor(),
             'physicalCores':psutil.cpu_count(logical=False),'logicalCores':psutil.cpu_count(), 'systemMemoryBytes':psutil.virtual_memory().total,
-            'environment':{name:importlib.metadata.version(name) for name in ['torch','transformers','tokenizers','laya','onnxruntime','psutil','sentencepiece','protobuf','numpy']},
+            'environment':{name:importlib.metadata.version(name) for name in ['torch','transformers','tokenizers','onnxruntime','psutil','sentencepiece','protobuf','numpy']},
             'measurement':'Fresh process per model, CPU four threads, batch one, one warmup, three repeated sequential measurements per case. Load includes hash verification/imports. Peak RSS sampled every 20ms; no guarantee of cache-cold disk.',
             'limits':['Validation labels are assistant-authored, not independent human labels.',
                       'Repeated and shared wiki claims are correlated; repetitions never enlarge accuracy denominators.',
-                      'Laya uses its existing support question only, at a 512-token budget; not the deployed six-task workflow.',
                       'NLI binary support probability is P(entailment); other classes are not-supported.',
                       'No extraction, full admission policy, source-version transactions, wiki claim extraction/completeness or application deployment tested.'],
             'models':[]}
     args.cache.mkdir(parents=True,exist_ok=True)
-    for key in ['laya','mdeberta','minilm','mdeberta-int8']:
+    for key in ['mdeberta','minilm','mdeberta-int8']:
         output=args.cache/(key+'-result.json')
         print('benchmark',key,flush=True)
         subprocess.run([sys.executable,str(Path(__file__)),'--worker',key,'--standard',str(args.standard),
-                        '--cache',str(args.cache),'--laya-dir',str(args.laya_dir),'--output',str(output)],check=True,timeout=900)
+                        '--cache',str(args.cache),'--output',str(output)],check=True,timeout=900)
         result=json.loads(output.read_text(encoding='utf-8'))
         report['models'].append(result)
         write_json(args.output,report)

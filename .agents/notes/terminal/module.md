@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-24T08:06:37Z",
+  "updated": "2026-10-29T17:22:01.375Z",
   "moduleState": "partial"
 }
 ---
@@ -66,7 +66,11 @@ WSL／SSH 新建 Agent 终端在目标 Linux 检测 CLI：已安装直接打开�
 
 状态显示链（路由与投影分层，互链不合并）：[model-lifecycle](./terminal-model-lifecycle.md)、[sidebar-states](./terminal-sidebar-states.md)、[status-display](./terminal-status-display.md)、[idle-prompt](./terminal-status-display.md)、[status-ring](./terminal-status-display.md)、[sidebar-hierarchy](./terminal-sidebar-states.md)、[context-telemetry](./claude-opencode-context-telemetry.md)。
 
-上下文与消耗统计共用主进程 history 的原生会话源，分别投影当前上下文与历史消耗；PTY 仅保留必要状态信号。coordinator 管理精确绑定、hook 刷新和 10 秒采集，独立 SQLite 用量账本保留去重身份、累计基线和新增消耗，关闭终端不删除记录。账本复用连接、普通查询不执行初始化写入，同步锁等待限制为 100ms；绑定投影按文件版本缓存，最多 128 份、30 秒强制复核，变化后完整校验。退出先取消扫描并完成最终采集再关闭账本。Claude/Pi 按稳定响应事件导入（Pi 保留放弃分支消耗），Codex/OpenCode 新会话按事件回放，已有累计会话保留模式锁；来源异常暂停，Janus/DSH 缺少原生 usage 时显示未知。OpenCode 全扫描读取 v1/v2 原生消息，自动归属使用工作区与会话活动时间。设置用量页查询账本，按事件时间或已声明的采样时间归桶，并结合当前模型目录在总用量旁紧凑展示 USD 预估总额，缺价不作免费；Codex 事件按前置 turn_context 关联模型，旧记录从原始会话唯一匹配回补，不改变消耗。[会话源单源化](./requirements/usage-telemetry-single-source.md)拥有当前契约、实现边界与验收证据；[统计修复](./requirements/usage-telemetry-fix-and-stats.md)和[日期及明细](./requirements/usage-stats-custom-range-detail.md)保留历史交付记录及继续沿用的交互要求。[筛选切换的加载过渡](./requirements/usage-stats-loading-transition.md)（2026-10-14 实施）在切换类型/范围时保留上一份数据，以 2px 发丝线进度与降透明度衔接旧值到新值，周期重查不闪烁。
+[Hook 单次启动隔离](./terminal-hook-launch-isolation.md)已接入新建、预热与历史恢复。自有资产位于当前 profile 的 userData，Claude 附加 settings、Pi extension、Codex 原生审阅及启动定义、OpenCode 按版本选择插件。普通启动不写原生配置；P5 在数据管理中提供主动清除可确认旧全局 Hook 的入口，保留用户配置、登录、会话和信任；无法确认的旧二进制列出并保留。用户允许 Codex 原生界面在主动审阅后保存信任。真实版本矩阵、清理边界和兼容缺口由专题维护。
+
+P3 已清除 Hook 对遥测的绑定、刷新和调度，保留[独立扫描与归属](./usage-telemetry-hook-decoupling.md#当前实现与纯后台边界的差距)，歧义保持未知。五类非统计生命周期统一确认边界，习惯采集只在双开关开启后接入，关闭使排队／在途旧结果失效；状态 Hook 继续服务终端。
+
+上下文与消耗统计共用主进程 history 的原生会话源，分别投影当前上下文与历史消耗；PTY 仅保留必要状态信号。coordinator 管理独立会话归属和 10 秒上下文采集，独立 SQLite 用量账本保留去重身份、累计基线和新增消耗，关闭终端不删除记录。账本复用连接、普通查询不执行初始化写入，同步锁等待限制为 100ms；绑定投影按文件版本缓存，最多 128 份、30 秒强制复核，变化后完整校验。退出先取消扫描并完成最终采集再关闭账本。Claude/Pi 按稳定响应事件导入（Pi 保留放弃分支消耗），Codex/OpenCode 新会话按事件回放，已有累计会话保留模式锁；来源异常暂停，Janus/DSH 缺少原生 usage 时显示未知。OpenCode 全扫描读取 v1/v2 原生消息，自动归属使用工作区与会话活动时间。设置用量页查询账本，按事件时间或已声明的采样时间归桶，并结合当前模型目录在总用量旁紧凑展示 USD 预估总额，缺价不作免费；Codex 事件按前置 turn_context 关联模型，旧记录从原始会话唯一匹配回补，不改变消耗。[会话源单源化](./requirements/usage-telemetry-single-source.md)拥有当前契约、实现边界与验收证据；[统计修复](./requirements/usage-telemetry-fix-and-stats.md)和[日期及明细](./requirements/usage-stats-custom-range-detail.md)保留历史交付记录及继续沿用的交互要求。[筛选切换的加载过渡](./requirements/usage-stats-loading-transition.md)（2026-10-14 实施）在切换类型/范围时保留上一份数据，以 2px 发丝线进度与降透明度衔接旧值到新值，周期重查不闪烁。
 
 已接受的架构转向：[hook 解耦决策](./usage-telemetry-hook-decoupling.md)（accepted）决定统计链路完全移除 hook——用量账本改纯会话扫描（覆盖未打开历史，Codex 升级事件模式重放），终端归属改会话诞生/激活时刻的 pty×文件相关性，每终端私有 home 暂缓。**L1、L2 已落地**（2026-10-14）：账本不再依赖 hook 与终端绑定（全语料扫描 + 回游标 + 记账模式锁）；终端归属在无 hook 绑定时按 pty 活跃度×会话文件写入相关性推断（唯一候选才绑定，hook 断言优先），hook 仍是回合状态/通知的来源。L3（每终端私有 home）未实施。
 

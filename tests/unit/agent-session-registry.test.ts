@@ -655,6 +655,21 @@ describe('agent session registry', () => {
     expect(turns[1].prompt).toBeUndefined()
   })
 
+  it('attaches a slow reply to its original turn after another submit completes', async () => {
+    const registry = track(new AgentSessionRegistry(await userDataDir()))
+    const record = registry.createSession(createInput('term-1'))
+    registry.notePrompt('term-1', 'first question')
+    const attachFirst = registry.recordTurnEnd('term-1', 'done')
+    registry.notePrompt('term-1', 'second question')
+    registry.recordTurnEnd('term-1', 'done', undefined, 'second answer')
+    attachFirst?.('first answer')
+    expect(registry.getSession(record.id)?.turns).toMatchObject([
+      { prompt: 'first question', excerpt: 'first answer' },
+      { prompt: 'second question', excerpt: 'second answer' },
+    ])
+    expect(registry.getSession(record.id)?.turnCount).toBe(2)
+  })
+
   it('absorbs an external row when a hook session learns its provider id late', async () => {
     const registry = track(new AgentSessionRegistry(await userDataDir()))
     const hook = registry.createSession({

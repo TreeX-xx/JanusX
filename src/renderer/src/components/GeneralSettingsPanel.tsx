@@ -8,6 +8,7 @@ import { ThemePreviewPicker } from './ThemePreviewPicker'
 import { DEFAULT_APP_THEME } from '../../../shared/ipc/theme'
 import type { AppTheme } from '../../../shared/ipc/theme'
 import styles from './AppSettingsModal.module.css'
+import { WorkspaceStoragePanel } from './WorkspaceStoragePanel'
 
 export function GeneralSettingsPanel() {
   const { t, currentLanguage, setLanguage } = useI18n('settings')
@@ -80,6 +81,7 @@ export function GeneralSettingsPanel() {
           <WorkflowXStatus surface="settings" />
         </div>
       </section>
+      <WorkspaceStoragePanel />
     </div>
   )
 }

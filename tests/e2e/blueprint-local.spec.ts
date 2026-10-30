@@ -168,9 +168,8 @@ test('local signed build installs disabled, opens in the full desktop and serves
     await expect(page.getByRole('status')).toContainText('Plugin package installed')
     await expect(card).toContainText(build.version)
     expect(await page.evaluate(() => (window as any).electron.plugins.request({ type: 'list' }))).toMatchObject({ ok: true, data: { developmentMode: false, plugins: [{ enabled: false }] } })
-    await card.getByRole('button', { name: 'Review permissions and scope', exact: true }).click()
-    const review = page.getByRole('region', { name: 'Review permissions and scope' })
-    await review.getByLabel('Local project', { exact: true }).check()
+    await card.getByRole('button', { name: 'Review permissions', exact: true }).click()
+    const review = page.getByRole('region', { name: 'Review permissions' })
     await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
     await page.locator('[data-tab="extension:official.blueprint/settings"]').click()
     const guest = async () => {

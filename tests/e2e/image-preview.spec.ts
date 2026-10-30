@@ -42,20 +42,3 @@ test('image previews fit both dimensions when the editor window grows or shrinks
     }
   }
 })
-
-test('the shared image preview fits the product panel and keeps its caption visible', async ({ page }) => {
-  await page.goto('/product-preview.html')
-  await page.getByRole('button', { name: 'image.svg', exact: false }).first().click()
-  const image = page.getByRole('img', { name: 'image.svg', exact: true })
-  await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth)).toBe(2400)
-  const outer = (await page.locator('main').boundingBox())!
-  const bounds = (await image.boundingBox())!
-  expect(bounds.x).toBeGreaterThanOrEqual(outer.x)
-  expect(bounds.y).toBeGreaterThanOrEqual(outer.y)
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(outer.x + outer.width)
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(outer.y + outer.height)
-  expect(bounds.width / bounds.height).toBeCloseTo(2 / 3, 2)
-  await expect(page.getByText('image/svg+xml', { exact: true })).toBeInViewport()
-  const caption = (await page.getByText('image/svg+xml', { exact: true }).boundingBox())!
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(caption.y)
-})

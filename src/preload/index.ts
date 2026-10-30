@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { WORKSPACE_STORAGE_CHANNELS, type WorkspaceStorageAPI } from '../shared/ipc/workspace-storage'
 import { WORKSPACE_RUNTIME_CHANNELS, type WorkspaceRuntimeAPI } from '../shared/workspace-runtime'
 import { BLUEPRINT_REVIEW_CHANNELS } from '../shared/ipc/legacy-review-channels'
 import type { BlueprintReviewAPI } from '../../plugins/blueprint/src/shared/ipc/blueprint-review'
@@ -21,7 +22,6 @@ import {
 } from '../shared/ipc/terminal'
 import { PROJECT_CHANNELS, type ProjectAPI } from '../shared/ipc/project'
 import { BROWSER_EVENT_CHANNELS, BROWSER_INVOKE_CHANNELS, type BrowserAPI } from '../shared/ipc/browser'
-import { CPA_CHANNELS, type CpaAPI } from '../shared/ipc/cpa'
 import { PLUGIN_CHANNELS, type PluginHostAPI } from '../shared/ipc/plugins'
 import { KNOWLEDGE_CHANNELS, type KnowledgeAPI } from '../shared/ipc/knowledge'
 import {
@@ -190,10 +190,6 @@ const browserAPI: BrowserAPI = {
 }
 
 const knowledgeAPI: KnowledgeAPI = {
-  stopLocalModel: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localModelStop),
-  installLocalResources: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localResourcesInstall),
-  localResourcesStatus: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localResourcesStatus),
-  configureLocalModel: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.localModelConfigure, input),
   contracts: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.contracts),
   bootstrap: (workspacePath) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.bootstrap, workspacePath),
   observe: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.observe, input),
@@ -221,7 +217,6 @@ const knowledgeAPI: KnowledgeAPI = {
   savePersonalProfile: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.savePersonalProfile, input),
   importLegacyPersonalMemory: () => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.importLegacyPersonalMemory),
   migrateLegacyEpisodes: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.migrateLegacyEpisodes, input),
-  layaControl: (action) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.layaControl, action),
   candidateAction: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.candidateAction, input),
   forgetPersonalMemory: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.forgetPersonalMemory, input),
   proposePersonalMemoryCorrection: (input) => ipcRenderer.invoke(KNOWLEDGE_CHANNELS.proposePersonalMemoryCorrection, input),
@@ -645,33 +640,31 @@ const hostedAPI: HostedAPI = {
 
 const desktopToastAPI: DesktopToastAPI = {
   ready: () => ipcRenderer.send(SYSTEM_CHANNELS.toastReady),
+  painted: (deliveryId) => ipcRenderer.send(SYSTEM_CHANNELS.toastPainted, deliveryId),
   action: (action) => ipcRenderer.send(SYSTEM_CHANNELS.toastAction, { action }),
   onShow: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.toastShow, callback),
   onHide: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.toastHide, callback),
 }
 
-const cpaAPI: CpaAPI = {
-  getSettings: () => ipcRenderer.invoke(CPA_CHANNELS.get),
-  saveSettings: (settings, managementKey) => ipcRenderer.invoke(CPA_CHANNELS.save, settings, managementKey),
-  open: () => ipcRenderer.invoke(CPA_CHANNELS.open),
-  close: () => ipcRenderer.invoke(CPA_CHANNELS.close),
-  openExternal: () => ipcRenderer.invoke(CPA_CHANNELS.openExternal),
-  status: () => ipcRenderer.invoke(CPA_CHANNELS.status),
-  start: () => ipcRenderer.invoke(CPA_CHANNELS.start),
-  stop: () => ipcRenderer.invoke(CPA_CHANNELS.stop),
-  restart: () => ipcRenderer.invoke(CPA_CHANNELS.restart),
-  update: () => ipcRenderer.invoke(CPA_CHANNELS.update),
-  openLogs: () => ipcRenderer.invoke(CPA_CHANNELS.logs),
-  copyManagementKey: () => ipcRenderer.invoke(CPA_CHANNELS.copyKey),
-}
-
 const pluginAPI: PluginHostAPI = {
+  onOpenBrowser: callback => subscribeIpcEvent(PLUGIN_CHANNELS.openBrowser, callback),
   request: input => ipcRenderer.invoke(PLUGIN_CHANNELS.manage, input),
   onChanged: callback => subscribeIpcEvent(PLUGIN_CHANNELS.changed, callback),
   onEvent: callback => subscribeIpcEvent(PLUGIN_CHANNELS.event, callback),
 }
 
 contextBridge.exposeInMainWorld('electron', {
+  workspaceStorage: {
+    retireHooks: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.retireHooks),
+    data: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.data),
+    measure: (id: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.measure, id),
+    cleanup: (id: string, category: import('../shared/ipc/workspace-storage').WorkspaceCleanupCategory) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.cleanup, id, category),
+    relocate: (id: string, destination: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.relocate, id, destination),
+    restore: (id: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.restore, id),
+    list: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.list),
+    migrate: ids => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.migrate, ids),
+    dismiss: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.dismiss),
+  } satisfies WorkspaceStorageAPI,
   /*-- 同步暴露平台与 Windows build 号，供渲染端构造 xterm windowsPty 用 --*/
   /*-- preload 在 Node 环境，可同步读取；os.release() 形如 "10.0.22621"，第三段为 build 号 --*/
   platform: process.platform,
@@ -687,7 +680,6 @@ contextBridge.exposeInMainWorld('electron', {
   terminal: terminalAPI,
   project: projectAPI,
   browser: browserAPI,
-  cpa: cpaAPI,
   plugins: pluginAPI,
   knowledge: knowledgeAPI,
   janus: janusAPI,

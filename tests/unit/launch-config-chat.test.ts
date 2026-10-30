@@ -180,7 +180,7 @@ describe('launch-config tool surface', () => {
     const result = await invoke('launch-config.apply')
     expect(result.status).toBe('completed')
     expect(result.output?.applied).toBe(true)
-    expect(String(result.output?.summary)).toContain('janusX.launch.json')
+    expect(String(result.output?.summary)).toContain('written JanusX launch configuration')
     expect(calls[0].call.toolName).toBe('project.apply-config')
     expect(calls[0].call.input?.config.projectName).toBe('demo')
     expect(calls[0].call.preview?.summary).toContain('demo')
