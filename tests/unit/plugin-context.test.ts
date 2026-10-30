@@ -109,13 +109,17 @@ describe('P6 document context providers', () => {
     for (const request of [{ ...f.request, version: 2 }, { ...f.request, revision: '0'.repeat(64) }, { ...f.request, provider: 'missing' },
       { ...f.request, path: 'other.md' }, { ...f.request, text: 'injected' }]) await expect(f.read(request)).rejects.toThrow()
   })
-  it('checks project grants and current worktree for both discovery and reads', async () => {
+  it('binds discovery and reads to the current worktree with all-workspace authorization', async () => {
     const f = await fixture()
     for (const context of [{ ...f.context, workspaceRoot: f.other }, { ...f.context, workspaceId: 'other' }]) {
       await expect(f.service.discoverDocumentContexts(context, signal())).rejects.toThrow()
       await expect(f.service.readDocumentContext(context, f.request, signal())).rejects.toThrow()
     }
-    await f.service.enable(f.data.id, []); expect((await f.service.discoverDocumentContexts(f.context, signal())).providers).toEqual([])
+    await f.service.enable(f.data.id, [])
+    expect((await f.service.discoverDocumentContexts(f.context, signal())).providers).toHaveLength(1)
+    await f.read()
+    await f.service.disable(f.data.id)
+    expect((await f.service.discoverDocumentContexts(f.context, signal())).providers).toEqual([])
     await expect(f.read()).rejects.toThrow()
   })
   it.each(['disable', 'development', 'uninstall'])('revokes new reads and metadata on %s', async kind => {

@@ -130,7 +130,9 @@ export function ModalFrame({
   }, [])
 
   useEffect(() => {
-    if (focusPanelOnReveal && revealReady) panelRef.current?.focus({ preventScroll: true })
+    if (focusPanelOnReveal && revealReady && !panelRef.current?.contains(document.activeElement)) {
+      panelRef.current?.focus({ preventScroll: true })
+    }
   }, [focusPanelOnReveal, revealReady, phase])
 
   useEffect(() => {

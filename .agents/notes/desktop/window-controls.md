@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-20",
-  "updated": "2026-10-26T05:55:15Z",
+  "updated": "2026-10-30T10:22:15Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
   "codeRefs": [
@@ -30,6 +30,8 @@
 Desktop windows previously displayed macOS traffic lights on Windows. Internal dialogs and floating panels reused the same appearance even when minimize was unavailable or actually closed the panel.
 
 ## Decision
+
+Shared modal reveal focuses the panel only when focus is outside the panel. A field already focused by the user keeps focus while the first animation frame reveals the dialog; otherwise an early Enter can miss the editable draft. The plugin handoff browser regression verifies newline entry, preservation across project changes and bracketed paste without submission.
 
 Main, standalone editor, browser and editor-loading windows share WindowControls. Windows and Linux show minimize, maximize/restore and close at the right; macOS shows traffic lights at the left. Existing application themes and centered Island remain. Platform indicator colors are explicit, bounded exceptions in the theme audit; ordinary chrome uses theme tokens.
 
