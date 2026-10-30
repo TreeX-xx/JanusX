@@ -322,8 +322,8 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
     await expect(resumeButton).toHaveCount(1, { timeout: 10_000 })
     await resumeButton.click()
     await expect
-      .poll(async () => (await readFakeAgentState(binDir)).argvs, { timeout: 20_000 })
-      .toContainEqual(expect.arrayContaining(['--resume', PROVIDER_SESSION_ID]))
+      .poll(async () => (await readFakeAgentState(binDir)).argvs.map(argv => argv.slice(-2)), { timeout: 20_000 })
+      .toContainEqual(['--resume', PROVIDER_SESSION_ID])
     await expect
       .poll(async () => (await listLive(page)).filter((row) => row.continuedFrom === external!.id).length, {
         timeout: 15_000,
@@ -346,8 +346,8 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
       .poll(async () => page.locator('.xterm-rows').count(), { timeout: 15_000 })
       .toBeGreaterThan(xtermsBeforeExtContinue)
     await expect
-      .poll(async () => (await readFakeAgentState(binDir)).argvs, { timeout: 20_000 })
-      .toContainEqual(expect.arrayContaining(['--resume', PROVIDER_SESSION_ID]))
+      .poll(async () => (await readFakeAgentState(binDir)).argvs.slice(argvBefore).map(argv => argv.slice(-2)), { timeout: 20_000 })
+      .toContainEqual(['--resume', PROVIDER_SESSION_ID])
     const extContinued = (await listLive(page)).find(
       (row) => !rowsBeforeContinue.some((before) => before.id === row.id),
     )
