@@ -430,7 +430,13 @@ it('releases closed page jobs while retaining another page watching the same che
   await f.call('settings.update', { value: { ...settings.value, generation: { providerId: 'fixture', modelId: 'fixture' } }, expectedRevision: settings.revision })
   f.slow()
   const job = await call(first, 'review.run', f.noteId)
-  await expect.poll(f.requests).toBe(1)
+  // Cold filesystem/index work precedes the host request on Windows runners.
+  // Include job state in failures and use the same startup budget as other native reviews.
+  await expect.poll(async () => {
+    const current = await call(first, 'jobs.read', job.id)
+    expect(current.status, JSON.stringify(current)).not.toBe('failed')
+    return f.requests()
+  }, { timeout: 15_000 }).toBe(1)
   await f.raw().call('lifecycle.release', { instanceId: first })
   await expect.poll(async () => (await call(second, 'jobs.read', job.id)).status).toBe('cancelled')
   const count = f.events.filter(event => event.name === 'notes.changed').length
