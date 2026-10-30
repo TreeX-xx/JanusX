@@ -15,6 +15,7 @@ test('workspace migration survives a desktop crash, restarts and profile ownersh
   test.setTimeout(180_000)
   const root = await realpath(await mkdtemp(join(tmpdir(), 'janusx-p6-desktop-')))
   const cwd = join(root, "project space's 中文"), profile = join(root, 'profile')
+  const secondCwd = join(root, 'another project')
   const oldExe = process.env.JANUSX_P6_OLD_EXE
   let app: ElectronApplication | undefined
   const evidence: Array<{ stage: string; reportedVersion: string }> = []
@@ -34,6 +35,7 @@ test('workspace migration survives a desktop crash, restarts and profile ownersh
   }
   async function close() { await app?.close(); app = undefined }
   const list = (page: Page) => page.evaluate(() => (window as Host).electron.workspaceStorage.list())
+  const item = async (page: Page) => (await list(page)).items.find(value => value.source === join(cwd, '.janusX'))!
   try {
     await mkdir(join(cwd, '.janusX', 'logs'), { recursive: true })
     await mkdir(join(cwd, '.janusX', 'checkpoints'))
@@ -43,26 +45,34 @@ test('workspace migration survives a desktop crash, restarts and profile ownersh
     await writeFile(join(cwd, '.janusX', 'checkpoints', 'retired.json'), 'invalid retired snapshot')
     await writeFile(join(cwd, '.janusX', 'unknown.txt'), 'preserve me')
     await writeFile(join(cwd, 'source.ts'), 'preserve source')
+    await mkdir(join(secondCwd, '.janusX', 'logs'), { recursive: true })
+    await writeFile(join(secondCwd, '.janusX', 'logs', 'another.log'), 'second workspace log')
     if (oldExe) {
       const oldPage = await open('old executable before upgrade', oldExe)
       await oldPage.evaluate(path => (window as Host).electron.workspace.create({ name: 'P6 upgrade', path }), cwd)
+      await oldPage.evaluate(path => (window as Host).electron.workspace.create({ name: 'P6 second', path }), secondCwd)
       expect(await oldPage.evaluate(path => (window as Host).electron.project.readConfig(path), cwd)).toMatchObject({ success: true, data: { projectName: 'P6 old config' } })
       await close()
     }
     let page = await open('current build before migration')
     if (!oldExe) {
       await page.evaluate(path => (window as Host).electron.workspace.create({ name: 'P6 upgrade', path }), cwd)
+      await page.evaluate(path => (window as Host).electron.workspace.create({ name: 'P6 second', path }), secondCwd)
       await page.reload()
     }
     await expect(page.getByRole('button', { name: '前往迁移', exact: true })).toBeVisible()
     expect(await readFile(join(cwd, '.janusX', 'logs', 'command.log'), 'utf8')).toBe('old log')
-    await page.getByRole('button', { name: '前往迁移', exact: true }).click()
-    const panel = page.locator('#workspace-data-migration')
-    await expect(panel).toBeVisible()
-    await panel.locator('article').filter({ hasText: 'P6 upgrade' }).getByRole('checkbox').check()
-    await panel.getByRole('button', { name: '迁移并清理旧文件', exact: true }).click()
-    await expect.poll(async () => (await list(page)).items[0]?.status).toBe('migrated')
-    const migrated = (await list(page)).items[0]
+    await page.getByRole('button', { name: '迁移全部工作区', exact: true }).click()
+    const notice = page.getByRole('complementary', { name: '旧工作区数据迁移', exact: true })
+    await expect(notice.getByText(join(cwd, '.janusX'), { exact: true })).toBeVisible()
+    expect((await item(page)).status).toBe('pending')
+    await notice.getByRole('button', { name: '确认全部迁移并清理', exact: true }).click()
+    await expect.poll(async () => (await item(page))?.status).toBe('migrated')
+    const migrated = await item(page)
+    await expect(notice.getByRole('status')).toContainText('已完成 2 个工作区，0 个仍需处理')
+    const secondMigrated = (await list(page)).items.find(value => value.source === join(secondCwd, '.janusX'))!
+    expect(secondMigrated.status).toBe('migrated')
+    expect(await readFile(join(secondMigrated.target, 'logs', 'another.log'), 'utf8')).toBe('second workspace log')
     const receiptPath = join(migrated.target, 'manifest.json')
     const receipt = await readFile(receiptPath, 'utf8')
     expect(await readFile(join(migrated.target, 'logs', 'command.log'), 'utf8')).toBe('old log')
@@ -82,11 +92,11 @@ test('workspace migration survives a desktop crash, restarts and profile ownersh
       second.on('error', error => { clearTimeout(timer); reject(error) })
       second.on('exit', code => { clearTimeout(timer); if (code === 0) resolveExit(); else reject(new Error(`second process exited ${code}`)) })
     })
-    expect((await list(page)).items[0]).toMatchObject({ target: migrated.target, status: 'migrated' })
+    expect(await item(page)).toMatchObject({ target: migrated.target, status: 'migrated' })
     expect((await list(page)).prompt).toBe(false)
     expect(await readFile(receiptPath, 'utf8')).toBe(receipt)
     expect(await page.evaluate(path => (window as Host).electron.project.readConfig(path), cwd)).toMatchObject({ success: true, data: { projectName: 'P6 config after migration' } })
-    const id = (await list(page)).items[0].id
+    const id = (await item(page)).id
     expect((await page.evaluate(id => (window as Host).electron.workspaceStorage.migrate([id]), id))[0].status).toBe('migrated')
     expect(await readFile(join(migrated.target, 'launch.json'), 'utf8')).toBe(newer)
     await close()
@@ -104,7 +114,7 @@ test('workspace migration survives a desktop crash, restarts and profile ownersh
     expect(await readFile(receiptPath, 'utf8')).toBe(receipt)
     await close()
     page = await open('original profile on later restart')
-    expect((await list(page)).items[0]).toMatchObject({ target: migrated.target, status: 'migrated' })
+    expect(await item(page)).toMatchObject({ target: migrated.target, status: 'migrated' })
     expect((await list(page)).prompt).toBe(false)
     expect(await readFile(receiptPath, 'utf8')).toBe(receipt)
     expect(await readFile(join(cwd, '.janusX', 'unknown.txt'), 'utf8')).toBe('preserve me')

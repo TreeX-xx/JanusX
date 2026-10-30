@@ -7,7 +7,7 @@
 .location { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12px; margin: 8px 0; }
 .location code { flex: 1 1 220px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 .panel button, .notice button { padding: 6px 10px; border: 1px solid var(--shell-border); border-radius: 6px; background: var(--shell-pane); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
-.panel button:disabled { opacity: .5; cursor: default; }
+.panel button:disabled, .notice button:disabled { opacity: .5; cursor: default; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .panel .primary { margin-top: 12px; }
 .dataSection { margin-bottom: 28px; }
@@ -22,4 +22,6 @@
 .confirm { padding: 14px; margin-top: 16px; border: 1px solid var(--shell-border); border-radius: 8px; }
 .unavailable { margin: 8px; padding: 12px; border: 1px solid var(--shell-border); border-radius: 8px; background: var(--shell-pane); font-size: 12px; }
 .unavailable button { padding: 5px 8px; border-radius: 5px; border: 1px solid var(--shell-border); background: transparent; color: inherit; }
-.notice { position: fixed; bottom: 28px; right: 20px; width: min(460px, calc(100vw - 40px)); max-height: 70vh; overflow: auto; box-sizing: border-box; padding: 18px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-canvas); color: var(--shell-text); box-shadow: 0 8px 32px #0004; z-index: 9000; }
+.notice { position: fixed; bottom: 28px; right: 20px; width: min(460px, calc(100vw - 40px)); max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; padding: 18px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-canvas); color: var(--shell-text); box-shadow: 0 8px 32px #0004; z-index: 9000; }
+.noticeBody { overflow: auto; min-height: 0; }
+.notice > .actions { flex-shrink: 0; padding-top: 12px; }

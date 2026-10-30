@@ -18,7 +18,13 @@ beforeAll(async () => {
     Element.prototype.scrollIntoView=function(){state.focused++;};
     window.focusStorage=focusWorkspaceStorageSettings;
     const item=()=>({id:'w',name:'中文项目',source:'D:/projects/中文项目/.janusX',target:root+'/12345678-1234-1234-1234-123456789012',categories:['janusX.launch.json','checkpoints','logs'],status:state.status});
-    window.electron={workspaceStorage:{list:async()=>{state.calls.push('list');return{root,prompt:!state.dismissed,items:[item()]};},dismiss:async()=>{state.calls.push('dismiss');state.dismissed=true;},migrate:async(ids)=>{state.calls.push(['migrate',ids]);state.status='migrated';return[item()];}}};
+    window.electron={workspaceStorage:{list:async()=>{state.calls.push('list');return{root,prompt:!state.dismissed,items:state.items||[item()]};},dismiss:async()=>{state.calls.push('dismiss');state.dismissed=true;},migrate:async(ids)=>{
+      state.calls.push(['migrate',ids]);
+      if(state.block)await new Promise(resolve=>{state.release=resolve;});
+      if(state.failId===ids[0])throw Error('Close active terminals');
+      if(state.items){state.items=state.items.map(value=>ids.includes(value.id)?{...value,status:'migrated'}:value);return state.items.filter(value=>ids.includes(value.id));}
+      state.status='migrated';return[item()];
+    }}};
     const storage={id:'s',name:'中文项目',path:'D:/projects/demo',target:root+'/12345678-1234-1234-1234-123456789012',workspaceIds:['w'],legacy:false,status:'associated'};
     state.storage=storage;state.canceled=false;state.mismatch=false;state.response=1;state.workspaces=[{id:'w',name:'中文项目',path:storage.path}];
     Object.assign(window.electron.workspaceStorage,{
@@ -85,6 +91,56 @@ it('upgrade notice explains location, dismisses once and opens settings without 
     await page.evaluate(() => (window as any).mount('notice'))
     await expect(page.getByRole('button', { name: '前往迁移' })).toHaveCount(0)
     expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])
+  } finally { await page.close() }
+})
+
+it('reviews all workspace paths before bulk migration, respects cancel and does not migrate on display', async () => {
+  const page = await mount('notice', 480)
+  try {
+    const action = page.getByRole('button', { name: '迁移全部工作区', exact: true })
+    await expect(action).toBeVisible()
+    expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])
+    await action.click()
+    await expect(page.getByText('D:/projects/中文项目/.janusX', { exact: true })).toBeVisible()
+    await expect(page.getByText(/旧还原点.*直接清除，不迁移、不保留/)).toBeVisible()
+    await expect(page.getByText(/迁移前请关闭/)).toBeVisible()
+    expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await mkdir('artifacts/workspace-storage', { recursive: true })
+    await page.screenshot({ path: 'artifacts/workspace-storage/bulk-review-480.png', fullPage: true })
+    await page.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(action).toBeVisible()
+    expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([])
+    await page.getByRole('button', { name: '稍后处理', exact: true }).click()
+    await expect(page.getByRole('complementary')).toHaveCount(0)
+  } finally { await page.close() }
+})
+
+it('migrates eligible workspaces serially, continues after failure and retains offline and remote results', async () => {
+  const page = await mount('notice')
+  try {
+    await page.evaluate(() => {
+      const state = (window as any).fixture
+      state.items = ['pending', 'cleanup-pending', 'failed', 'offline', 'unsupported', 'migrated', 'new'].map((status, index) => ({
+        id: 'w' + index, name: 'Project ' + index, source: 'D:/projects/' + index + '/.janusX', target: 'C:/app/workspace-state/' + index, categories: ['logs'], status,
+      }))
+      state.block = true; state.failId = 'w0'
+    })
+    await page.getByRole('button', { name: '迁移全部工作区', exact: true }).click()
+    await expect(page.getByText(/3 个可迁移工作区/)).toBeVisible()
+    await page.getByRole('button', { name: '确认全部迁移并清理', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('1 / 3')
+    await expect(page.getByRole('button', { name: '前往迁移', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '稍后处理', exact: true })).toBeDisabled()
+    expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([['migrate', ['w0']]])
+    await page.evaluate(() => { const state = (window as any).fixture; state.block = false; state.release() })
+    await expect(page.getByRole('status')).toContainText('已完成 3 个工作区，3 个仍需处理')
+    expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([['migrate', ['w0']], ['migrate', ['w1']], ['migrate', ['w2']]])
+    await expect(page.getByRole('alert')).toContainText('Close active terminals')
+    await expect(page.getByText('离线或路径不存在', { exact: true })).toBeVisible()
+    await expect(page.getByText('需在对应运行环境中迁移', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '前往迁移', exact: true }).click()
+    expect(await page.evaluate(() => (window as any).fixture.opened)).toBe(1)
   } finally { await page.close() }
 })
 

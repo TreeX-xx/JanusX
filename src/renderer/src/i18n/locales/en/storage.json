@@ -39,6 +39,16 @@
   "noPending": "No workspaces awaiting migration. Reconnect offline workspaces or resolve errors, then check again.",
   "migrating": "Migrating and cleaning up…",
   "migrate": "Migrate and remove legacy files",
+  "bulk": {
+    "action": "Migrate all workspaces",
+    "confirm": "Confirm migration and cleanup",
+    "scope": "Process {{count}} eligible workspaces in the current app profile. Completed workspaces and those without legacy data are left as they are. Offline and remote workspaces need attention later.",
+    "details": "Workspace scope and results",
+    "progress": "Processing {{current}} / {{total}}: {{name}}",
+    "result": "Of the workspaces checked, {{completed}} are complete and {{remaining}} still need attention. Open settings to review or retry.",
+    "noResult": "No migration result was returned for this workspace. Check again before retrying.",
+    "close": "Close"
+  },
   "go": "Review migration",
   "later": "Later",
   "found": "Found",
