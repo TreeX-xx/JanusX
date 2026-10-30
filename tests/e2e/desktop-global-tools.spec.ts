@@ -59,7 +59,8 @@ for (const tool of ['Browser', 'Markdown']) {
       await expect(tab).toHaveCount(0)
       if (tool === 'Browser') {
         expect(await page.evaluate((id) => (window as any).electron.browser.getState(id), tabId!.slice('browser:'.length))).toBeNull()
-        await expect.poll(() => nativeCount(app!)).toBe(0)
+        await expect.poll(() => app!.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0].contentView.children.length)).toBe(0)
       }
       await open()
       await tab.hover()

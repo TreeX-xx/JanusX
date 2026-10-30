@@ -1,4 +1,4 @@
-import { _electron as electron, expect, test, type ElectronApplication, type Page, type Frame } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication, type Page, type Frame, type Locator } from '@playwright/test'
 import { mkdtemp, mkdir, cp, readFile, writeFile, rm, link, symlink, readdir } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -10,6 +10,10 @@ import { createServer as createTcpServer } from 'node:net'
 import { createDesktopTestEnv, seedIntroducedLearning } from './desktop-test-env'
 
 const pluginId = 'example.project-reference'
+async function openManagement(card: Locator) {
+  const details = card.locator('[data-plugin-management]')
+  if (await details.getAttribute('open') === null) await details.locator(':scope > summary').click()
+}
 async function boot(root: string) {
   const app = await electron.launch({ args: [resolve(process.env.JANUS_E2E_MAIN_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(root, 'profile')}`], env: createDesktopTestEnv(root) })
   const page = await app.firstWindow()
@@ -320,7 +324,7 @@ test('P7 windows preserve isolated bridges, restore geometry, shield host dialog
     await expect(review.locator('[data-plugin-windows]')).toContainText('Project utility')
     await expect(review.locator('[data-plugin-windows]')).toContainText('not unsaved content')
     await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
-    await card.locator('[data-plugin-windows] > summary').click()
+    await openManagement(card); await card.locator('[data-plugin-windows] > summary').click()
     await card.getByRole('button', { name: 'Open window · Project utility', exact: true }).click()
     // Opening while settings covers the host must not reveal the plugin page.
     await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(win => win.getTitle().includes(' — Project utility [')).length)).toBe(1)
@@ -421,7 +425,7 @@ test('P6 workflows review the full sequence, share UI and Agent execution, track
     await expect(review.locator('[data-plugin-workflows]')).toContainText('completed effects are not undone')
     await expect(review.locator('[data-plugin-workflows]')).toContainText('inputFromTask')
     await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
-    await card.locator('[data-plugin-background] > summary').click()
+    await openManagement(card); await card.locator('[data-plugin-background] > summary').click()
     await card.getByLabel('Background scope', { exact: true }).selectOption('project')
     await card.getByLabel('Sequential report Input (JSON)', { exact: true }).fill('{"topic":"UI report"}')
     await card.getByRole('button', { name: 'Run Sequential report', exact: true }).click()
@@ -480,7 +484,7 @@ test('P6 skills show reviewed inert guidance, load through real Agent tools and 
     await expect(review).toContainText('cannot erase content already read')
     await review.getByRole('button', { name: 'Grant and enable', exact: true }).click()
     await expect(card).toContainText('Enabled, no page open')
-    await card.locator('[data-plugin-skills] > summary').click()
+    await openManagement(card); await card.locator('[data-plugin-skills] > summary').click()
     await card.locator('[data-plugin-skills]').scrollIntoViewIfNeeded()
     await page.screenshot({ path: 'artifacts/plugin-skills-ui.png' })
     const loaded = await page.evaluate(async context => {
@@ -557,7 +561,7 @@ test('P6 model tasks use the real host model adapter for UI and Agent without ex
     await page.reload(); await page.getByText('P6 Model project', { exact: true }).filter({ visible: true }).first().click()
     await model.configure(page); await enableFixture(app, page, f.source, workspace.id, 'example.text-summary')
     await settings(page)
-    const card = page.locator('[data-plugin-id="example.text-summary"]'); await card.locator('[data-plugin-background] > summary').click()
+    const card = page.locator('[data-plugin-id="example.text-summary"]'); await openManagement(card); await card.locator('[data-plugin-background] > summary').click()
     await expect(card).toContainText('may incur charges')
     await card.getByLabel('Summarize supplied text Input (JSON)').fill(JSON.stringify({ text: 'A supplied UI text.' }))
     await card.getByRole('button', { name: 'Run Summarize supplied text', exact: true }).click()
@@ -682,7 +686,7 @@ test('P5 manifest-only tasks run without pages, expose service logs, survive set
     await importDirectory(app, page, f.source)
     for (const id of [providerId, consumerId]) expect((await page.evaluate(id => (window as any).electron.plugins.request({ type: 'enable', id, projects: [] }), id)).ok).toBe(true)
     let provider = page.locator(`[data-plugin-id="${providerId}"]`)
-    await provider.locator('[data-plugin-background] > summary').click()
+    await openManagement(provider); await provider.locator('[data-plugin-background] > summary').click()
     await provider.getByRole('button', { name: 'Run Background report', exact: true }).click()
     await expect(provider.locator('[data-plugin-task]')).toContainText('Running')
     await page.keyboard.press('Escape')
@@ -691,10 +695,10 @@ test('P5 manifest-only tasks run without pages, expose service logs, survive set
       return result.data.tasks.find((run: any) => run.pluginId === providerId)?.state
     }).toBe('completed')
     await settings(page); provider = page.locator(`[data-plugin-id="${providerId}"]`)
-    await provider.locator('[data-plugin-background] > summary').click()
+    await openManagement(provider); await provider.locator('[data-plugin-background] > summary').click()
     await expect(provider.locator('[data-plugin-task]')).toContainText('Report completed')
     const consumer = page.locator(`[data-plugin-id="${consumerId}"]`)
-    await consumer.locator('[data-plugin-background] > summary').click()
+    await openManagement(consumer); await consumer.locator('[data-plugin-background] > summary').click()
     await consumer.getByRole('button', { name: 'Run Request background report', exact: true }).click()
     await expect(consumer.locator('[data-plugin-task]')).toContainText('Running')
     await provider.getByRole('button', { name: 'Disable', exact: true }).click()
@@ -760,7 +764,7 @@ test('P5 host credential input encrypts, persists and revokes tokens without ret
     await settings(page); await importDirectory(app, page, f.source)
     for (const request of [{ type: 'development', enabled: true }, { type: 'enable', id: value.id, projects: [] }]) expect((await page.evaluate(input => (window as any).electron.plugins.request(input), request)).ok).toBe(true)
     let card = page.locator(`[data-plugin-id="${value.id}"]`)
-    await card.locator('[data-plugin-background] > summary').click()
+    await openManagement(card); await card.locator('[data-plugin-background] > summary').click()
     await card.getByLabel('P5 API token', { exact: true }).fill('p5-desktop-fixture-token')
     await card.getByRole('button', { name: 'Save credential', exact: true }).click()
     await expect(card.getByText('https://api.example.com · Credential configured', { exact: true })).toBeVisible()
@@ -774,7 +778,7 @@ test('P5 host credential input encrypts, persists and revokes tokens without ret
     expect(persisted.includes(Buffer.from('p5-desktop-fixture-token'))).toBe(false)
     await close(app); app = undefined; booted = await boot(f.root); app = booted.app; page = booted.page
     await settings(page); card = page.locator(`[data-plugin-id="${value.id}"]`)
-    await card.locator('[data-plugin-background] > summary').click()
+    await openManagement(card); await card.locator('[data-plugin-background] > summary').click()
     await expect(card.getByText('https://api.example.com · Credential configured', { exact: true })).toBeVisible()
     await card.getByRole('button', { name: 'Revoke credential', exact: true }).click()
     await expect(card.getByText('https://api.example.com · No credential configured', { exact: true })).toBeVisible()
@@ -829,7 +833,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-plugin-settings]')).toBeHidden()
     await settings(page)
-    await card.getByText('Configuration', { exact: true }).click()
+    await openManagement(card); await card.getByText('Configuration', { exact: true }).click()
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Global label')
     await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
     await expect(form.getByRole('textbox', { name: 'Reference label', exact: true })).toHaveValue('Project draft')
@@ -881,7 +885,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await openDetails(page); details = await guest(app, '/dist/index.html')
     await expect(details.locator('#configuration')).toContainText('Other editor')
     await settings(page); card = page.locator(`[data-plugin-id="${pluginId}"]`)
-    await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
+    await openManagement(card); await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
     await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
     await form.getByRole('button', { name: 'Reset this scope', exact: true }).click()
     await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
@@ -891,7 +895,7 @@ test('P4a declarative configuration persists, inherits, updates both plugin view
     await openDetails(page)
     await expect((await guest(app, '/dist/index.html')).locator('#configuration')).toContainText('Global label')
     await settings(page); card = page.locator(`[data-plugin-id="${pluginId}"]`)
-    await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
+    await openManagement(card); await card.getByText('Configuration', { exact: true }).click(); form = card.locator('[data-plugin-configuration]')
     await form.getByRole('button', { name: 'Reset this scope', exact: true }).click()
     await form.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click()
     await expect((await guest(app, '/dist/index.html')).locator('#configuration')).toContainText('Reference')
@@ -916,7 +920,7 @@ test('P4a isolated custom settings propose edits for host review and keep applic
     await page.reload(); await page.getByText('Custom settings project', { exact: true }).filter({ visible: true }).first().click()
     await enableFixture(app, page, f.source, workspace.id); await settings(page)
     const card = page.locator(`[data-plugin-id="${pluginId}"]`)
-    await card.getByText('Configuration', { exact: true }).click()
+    await openManagement(card); await card.getByText('Configuration', { exact: true }).click()
     const form = card.locator('[data-plugin-configuration]')
     await form.getByRole('combobox', { name: 'Configuration scope', exact: true }).selectOption('project')
     await form.getByRole('button', { name: 'Open custom settings', exact: true }).click()
@@ -940,7 +944,7 @@ test('P4a isolated custom settings propose edits for host review and keep applic
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Return to previous view', exact: true }).click()
     await expect.poll(() => custom.isClosed()).toBe(true)
-    await settings(page); await card.getByText('Configuration', { exact: true }).click()
+    await settings(page); await openManagement(card); await card.getByText('Configuration', { exact: true }).click()
     await form.getByRole('button', { name: 'Open custom settings', exact: true }).click()
     const application = await guest(app, '/dist/summary.html')
     await application.getByRole('textbox', { name: 'Configuration patch', exact: true }).fill('{"style":"full","label":"Custom app"}')
@@ -983,7 +987,7 @@ test('P4a users review and explicitly migrate renamed configuration independentl
     await page.reload(); await page.getByText('Migration project', { exact: true }).filter({ visible: true }).first().click()
     await enableFixture(app, page, f.source, workspace.id); await settings(page)
     const card = page.locator(`[data-plugin-id="${pluginId}"]`)
-    await card.getByText('Configuration', { exact: true }).click()
+    await openManagement(card); await card.getByText('Configuration', { exact: true }).click()
     const form = card.locator('[data-plugin-configuration]')
     await form.getByRole('textbox', { name: 'Reference label', exact: true }).fill('Application old')
     await form.getByRole('button', { name: 'Save configuration', exact: true }).click()
@@ -997,7 +1001,7 @@ test('P4a users review and explicitly migrate renamed configuration independentl
     manifest.contributes.settings[0].title = 'Reference name'
     manifest.contributes.settingMigrations = [{ from: 'label', to: 'name' }]
     await writeFile(manifestPath, JSON.stringify(manifest))
-    await card.getByText('Advanced actions and diagnostics', { exact: true }).click()
+    await openManagement(card); await card.getByText('Advanced actions and diagnostics', { exact: true }).click()
     await card.getByRole('button', { name: 'Reload', exact: true }).click()
     const input = form.getByRole('textbox', { name: 'Reference name', exact: true })
     await expect(input).toHaveValue('Reference')
@@ -1540,10 +1544,10 @@ test('external packed SDK plugin completes import, grant, both views, scoped sto
     await settings(page)
     await expect.poll(() => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(child => (child as any).webContents?.getURL().startsWith('janusx-plugin:')).length)).toBe(0)
     const beforeManualReload = (await guest(app, '/dist/index.html')).url()
-    await card.getByText('Advanced actions and diagnostics', { exact: true }).click()
+    await openManagement(card); await card.getByText('Advanced actions and diagnostics', { exact: true }).click()
     await card.getByRole('button', { name: 'Reload', exact: true }).click()
     await expect.poll(() => app!.context().pages().some(candidate => candidate.url().startsWith('janusx-plugin:') && candidate.url().endsWith('/dist/index.html') && candidate.url() !== beforeManualReload)).toBe(true)
-    await card.getByText('Entries and shortcuts', { exact: true }).click()
+    await openManagement(card); await card.getByText('Entries and shortcuts', { exact: true }).click()
     const shortcut = card.getByRole('textbox', { name: 'Shortcut Open project reference', exact: true })
     await shortcut.fill('Ctrl+Alt+Shift+Q')
     await shortcut.locator('../..').getByRole('button', { name: 'Apply or disable', exact: true }).click()
@@ -1602,7 +1606,7 @@ test('copied development sources retain trust and restart only enabled entries, 
     await invoke(booted.page, { type: 'development', enabled: true })
     await invoke(booted.page, { type: 'enable', id: pluginId, projects: [] })
     const card = booted.page.locator(`[data-plugin-id="${pluginId}"]`)
-    await card.getByText('Entries and shortcuts', { exact: true }).click()
+    await openManagement(card); await card.getByText('Entries and shortcuts', { exact: true }).click()
     const shortcut = card.getByRole('textbox', { name: 'Shortcut Open project reference', exact: true })
     await shortcut.fill('Ctrl+Alt+Shift+Q')
     await shortcut.locator('../..').getByRole('button', { name: 'Apply or disable', exact: true }).click()
