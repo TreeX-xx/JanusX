@@ -1,7 +1,8 @@
 import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronDown, ChevronRight, Globe, Minimize2, PanelRightClose, Puzzle, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Globe, Minimize2, Puzzle, X } from 'lucide-react'
+import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { GlobalToolsLayout } from './GlobalToolsLayout'
 import { TerminalSelector } from './TerminalSelector'
@@ -1029,13 +1030,8 @@ function LeafPane({
           <div data-tab-drag-slot="" aria-hidden="true" className={styles.slot} />
         </div>
         <div className={styles.controls}>
-          {toolsRegion && <ThemedTooltip label={t('common:toolGroup.collapseTools')}>
-            <button type="button" className={styles.action} aria-expanded={true}
-              aria-label={t('common:toolGroup.collapseTools')}
-              onClick={() => useGlobalToolsStore.getState().setCollapsed(true)}>
-              <PanelRightClose size={14} aria-hidden="true" />
-            </button>
-          </ThemedTooltip>}
+          {toolsRegion && <AuxiliaryPanelCollapseButton label={t('common:toolGroup.collapseTools')}
+            onCollapse={() => useGlobalToolsStore.getState().setCollapsed(true)} />}
           {showFocusChrome && (
             <HoldToConfirm label={t('terminal:tab.collapseLayout')} onConfirm={onCollapseLayout} className={styles.action}>
               <Minimize2 size={13} strokeWidth={1.6} aria-hidden="true" />

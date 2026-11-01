@@ -1,0 +1,23 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--shell-muted);
+  background: transparent;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.button::before { content: ''; position: absolute; inset: -1px; }
+.button:hover { color: var(--shell-text); background: var(--shell-hover); }
+.button:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: -1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .button { transition: none; }
+}

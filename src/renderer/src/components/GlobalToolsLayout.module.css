@@ -12,7 +12,7 @@
 .toggle { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 23px; height: 23px; border-radius: 4px; color: var(--shell-muted); background: var(--shell-canvas); }
 .toggle:hover:not(:disabled), .toggle:focus-visible { color: var(--shell-text); background: var(--shell-chrome-raised); }
 .toggle:disabled { opacity: 0.45; cursor: not-allowed; }
-.layout[data-resizing='true'], .layout[data-compact='true'] { transition: none; }
+.layout[data-resizing='true'] { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .layout, .tools[data-visible='false'] { transition: none; }
 }

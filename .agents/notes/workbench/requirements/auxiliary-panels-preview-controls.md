@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-23",
-  "updated": "2026-10-23T15:29:07.823Z",
+  "updated": "2026-11-01T16:17:53.000Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/dfdaad8f-cf1b-40f5-8509-9a5d97bfb876"},
@@ -27,6 +27,8 @@
 ## 布局与收起
 
 工具箱指浏览器／Markdown／CPA 全局工具区，与 RightDock 的文件树／Git 等工具不同。两类辅助面板的恢复按钮集中在最右侧 48px 入口栏的独立分组，面板内部保留收起动作；App 不再在工具箱与文件窗口之间渲染旧的 29px 恢复条。无项目时也保留全局工具恢复入口。
+
+工具箱与内嵌文件窗口的内部收起动作共用 AuxiliaryPanelCollapseButton：28px 按钮、30px 命中区、6px 圆角、16px／1.6 线宽图标，主题提示、悬停与键盘焦点反馈一致。aria-expanded 只表达可访问状态，不将一次性收起动作染成选中底色；持续展开状态由最右侧入口表达。工具箱自动收起也使用 240ms 宽度过渡，拖动与减少动态效果模式关闭过渡。保留两类宿主的测量与宽度分配，避免将工具箱实际空间不足状态强制清零；不把辅助面板恢复按钮改为悬停预览。
 
 lib/auxiliary-layout.ts 协调项目分屏、工具箱、文件窗口与 RightDock。项目叶片最低 240px，横向树按已有比例反推所需宽度，中心区至少 320px；工具箱最低 320px、分隔线 9px、文件窗口最低 360px。显式打开、恢复和内容区指针操作更新工具箱／文件优先级。工具优先时先为项目与工具预留空间，再决定文件窗口可见性；RightDock 仍沿用自身约束。放不下时临时收起，恢复需要额外 24px 余量；自动状态不覆盖手动收起或宽度比例偏好。
 
@@ -60,6 +62,8 @@ HTML 与 Markdown 共用代码／双栏／预览图标单选组，提供本地�
 - [x] AC-8: 回归保存、查找、HEAD 比较、差异导航、Markdown 同步滚动、HTML 脚本开关／刷新／视口／缩放、Office 翻页／缩放及图片查看；不适用的模式不出现，专业查看器不重复显示控件。
 
 ## Verification
+
+AuxiliaryPanelCollapseButton 控件一致性回归：`npx playwright test tests/e2e/global-tools.spec.ts --project=island --workers=1` 通过 12 项，覆盖纸面／深色的尺寸、默认底色、主题提示、键盘收起恢复、窄窗切换、草稿保留与减少动态效果；两主题截图已目视检查。首次运行期间其它文件热更新出现编译错误，纸面组合用例超时，完整复跑通过。本次触达 TSX 的 ESLint 与定向 Note 检查通过。全库 `npm run typecheck` 仍受范围外 `electron-api-fallback.ts` 缺少 `importConversationAttachment` 阻断；本轮未重新验证 Electron 原生网页动画。
 
 - 布局与偏好：auxiliary-layout、editor-tabs、editor-session、editor-routing、global-tools、global-tool-entry、planche-theme、browser-occlusion 八个单测文件共 55 项通过；right-tool-dock 另有 7 项通过。覆盖空间优先级、24px 恢复余量、手动偏好、会话与路由。
 - 浏览器：npx playwright test tests/e2e/global-tools.spec.ts tests/e2e/office-preview-controls.spec.ts tests/e2e/image-preview.spec.ts tests/e2e/workspace-surface.spec.ts tests/e2e/terminal-usage.spec.ts --project=island --workers=2 通过 29 项；最终隐藏样式修复后 global-tools／terminal-usage／workspace-surface 重跑 26 项通过。新增组合用例固定外层宽度、真实拖动分隔线，验证百分比边界、提供商／模型隐藏、草稿与 DOM 保留、窄窗切换优先级和无项目恢复。
