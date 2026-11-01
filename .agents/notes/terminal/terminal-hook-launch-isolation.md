@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-29",
-  "updated": "2026-10-30T02:20:12.913Z",
+  "updated": "2026-10-31T13:12:07Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -25,7 +25,9 @@ P3 将 JanusX Hook 接入限定到本次启动链，保留原生身份、登录�
 | 引擎 | 本次启动入口 | 保留与限制 |
 | --- | --- | --- |
 | Claude | --settings 指向自有 additional-settings.json | 不关闭用户／项目 settings 来源，不修改原生 settings |
+| Claude 双模式（实验） | 每 worker 的附加 settings 合并现有启动 Hook、身份 env 与 HTTP PermissionRequest，--plugin-dir 加载会话专属 Mods；只读模型目录辅助进程另用 disableAllHooks | userData 内临时资产，不注册全局插件或 settings；Windows 2.1.316 精确门控，原生 attach 与对话共用 worker，模型／强度覆盖只在 worker 内应用，关闭仅 stop 自有 job 并回收目录进程 |
 | Codex | --no-daemon 与 -c hooks=<inline TOML> | 原生加载器保留用户 hooks.json、config.toml 和会话参数的独立来源及信任；未审阅时不执行。验证版本为 0.165.0，其他版本未验收 |
+| Codex 双模式（实验） | 每会话自有 app-server 接收 -c hooks 与身份环境，原生 TUI 使用 --remote | 不与 --no-daemon 叠加、不复用用户共享 daemon；0.166.x 门控，实测 0.166.0。原生审阅仍由用户完成，启动准备失败不降级为无 Hook 双模式 |
 | Pi | --extension 指向自有脚本 | 保留用户扩展自动发现，不改用户 settings |
 | OpenCode 2 | OPENCODE_CONFIG_CONTENT.plugins 添加自有目录，--standalone 使用独立服务 | default definition 的 id/setup 与 api.event.subscribe 接口；每个服务继承所属终端环境，避免复用共享服务串线 |
 | OpenCode 1 | OPENCODE_CONFIG_CONTENT.plugin 添加自有 v1.js 文件 URL | 保留旧式事件插件，不传新版 --standalone；真实通过版本 1.2.27，1.19.5 初始化超时未通过 |
@@ -34,6 +36,8 @@ P3 将 JanusX Hook 接入限定到本次启动链，保留原生身份、登录�
 Codex 和 OpenCode 探测实际解析到的二进制版本；相同路径、mtime、大小共享探测，文件变化后重新识别。Codex 仅对 0.x 且 minor >=165 启用当前参数，其他版本降级，真实验收仅覆盖 0.165.0。OpenCode 保留原生 config dir 和对应 inline 配置字段，未知大版本或探测失败记录 setup 诊断后裸启动，不向旧 CLI 传新版参数。Hook 准备失败不阻止终端本身启动／历史恢复。尚未主动清理的旧全局 Hook 仍可能与新注入同时触发；生命周期层对重复开始和结束去重，清理入口不保证未知接入也被移除。
 
 ### P5 旧接入主动清理
+
+双模式补充验证（2026-10-30）：`tests/unit/codex-conversation-cli.test.ts` 在独立临时 home、中文/空格路径、真实 Codex 0.166.0 和 localhost 模型上贯通正式 Hook 资产与 Bridge。两套 app-server/TUI 并存时各自 UserPromptSubmit/Stop 对应本 terminal/thread；对话协议输入也触发所属 Hook。测试仅对可销毁夹具在原生界面主动审阅，不为产品写信任哈希。详细运行/显示边界与命令见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 
 “设置 → 通用 → 数据管理 → 旧 Hook 接入”提供一个清理按钮，执行前说明范围，并要求先退出旧版 JanusX、关闭本应用终端／运行任务及外部 CLI。打开设置不扫描 home；没有启动自动清理、周期轮询、保留期或新增阈值。点击确认后，仅核对默认 `.claude/settings.json`、`.codex/hooks.json` 及当前 CLAUDE_CONFIG_DIR／CODEX_HOME 对应文件，不扫描整盘或未知自定义 home。位置由主进程决定，renderer 不能提交任意删除路径。IPC 仅允许应用窗口。
 

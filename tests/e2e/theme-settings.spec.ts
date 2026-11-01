@@ -1,5 +1,22 @@
 import { expect, test } from '@playwright/test'
 
+test('session startup preference persists and migrates the retired opt-in to terminal first', async ({ page }) => {
+  await page.goto('/theme-settings.html')
+  await page.evaluate(() => localStorage.setItem('janusx-conversation-launch', JSON.stringify({ state: { enabled: false }, version: 0 })))
+  await page.reload()
+  const choice = page.getByRole('button', { name: 'Default view for new sessions', exact: true })
+  await expect(choice).toHaveText('Terminal')
+  await choice.click()
+  await page.getByRole('option', { name: 'Conversation', exact: true }).click()
+  await expect(choice).toHaveText('Conversation')
+  await page.reload()
+  await expect(choice).toHaveText('Conversation')
+  await page.setViewportSize({ width: 380, height: 800 })
+  await choice.scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'artifacts/codex-dual-mode/startup-preference.png' })
+})
+
 for (const width of [1100, 480, 320]) {
   test(`theme cards preview both palettes and fit at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })

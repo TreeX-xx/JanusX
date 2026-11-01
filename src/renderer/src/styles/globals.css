@@ -730,13 +730,11 @@ textarea::placeholder {
 .group:hover .llm-trigger-line-1 {
   background: #fff !important;
   transform: translate(-50%, -4px) rotate(0deg) !important;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
 }
 
 .group:hover .llm-trigger-line-2 {
   background: #ff7830 !important;
   transform: translate(-50%, 3px) rotate(0deg) !important;
-  box-shadow: 0 0 8px rgba(255, 120, 48, 0.4);
 }
 
 .group:hover .llm-trigger-reveal {

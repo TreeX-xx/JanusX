@@ -19,6 +19,10 @@ import type {
 export type { TerminalStatus }
 
 export interface Terminal {
+  conversationEnabled?: boolean
+  conversationInitialView?: 'terminal' | 'conversation'
+  conversationDraft?: string
+  conversationScrollTop?: number
   id: string
   workspaceId: string
   name: string

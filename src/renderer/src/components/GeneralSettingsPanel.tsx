@@ -9,6 +9,7 @@ import { DEFAULT_APP_THEME } from '../../../shared/ipc/theme'
 import type { AppTheme } from '../../../shared/ipc/theme'
 import styles from './AppSettingsModal.module.css'
 import { WorkspaceStoragePanel } from './WorkspaceStoragePanel'
+import { useConversationPreferences } from '@/stores/conversation-preferences'
 
 export function GeneralSettingsPanel() {
   const { t, currentLanguage, setLanguage } = useI18n('settings')
@@ -18,6 +19,8 @@ export function GeneralSettingsPanel() {
   const setTheme = useThemeStore((s) => s.setTheme)
   const [themeError, setThemeError] = useState<string | null>(null)
   const [themeSaving, setThemeSaving] = useState(false)
+  const initialView = useConversationPreferences(s => s.initialView)
+  const setInitialView = useConversationPreferences(s => s.setInitialView)
 
   useEffect(() => {
     void loadTheme()
@@ -73,6 +76,21 @@ export function GeneralSettingsPanel() {
           </div>
         </div>
         <div className={styles.generalHelp}>{t('settings:general.autoSave')}</div>
+      </section>
+
+      <section className={styles.generalSection}>
+        <h3 className={styles.generalSectionTitle}>{t('settings:general.session.section')}</h3>
+        <div className={styles.generalRow}>
+          <div className={styles.generalLabelCol}>
+            <div className={styles.generalLabel}>{t('settings:general.session.label')}</div>
+            <div className={styles.generalHelp}>{t('settings:general.session.help')}</div>
+          </div>
+          <div className={styles.generalControlCol}>
+            <Select value={initialView} onChange={value => setInitialView(value === 'conversation' ? 'conversation' : 'terminal')}
+              options={['terminal', 'conversation'].map(value => ({ value, label: t(`settings:general.session.${value}`) }))}
+              className={styles.generalSelect} ariaLabel={t('settings:general.session.label')} />
+          </div>
+        </div>
       </section>
 
       <section className={styles.generalSection}>

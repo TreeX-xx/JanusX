@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /** Local-only models: no credentials or provider network access in CLI acceptance. */
-export async function hookCliFixture() {
+export async function hookCliFixture(options: { codexCommandProbe?: boolean; codexPlanProbe?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'janusx-hook-cli-'))
   const home = join(root, "home space's 中文")
   const cwd = join(root, "workspace space's 中文")
@@ -22,6 +22,7 @@ export async function hookCliFixture() {
     OPENCODE_DISABLE_DEFAULT_PLUGINS: '1',
     PI_OFFLINE: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', DISABLE_AUTOUPDATER: '1', NO_PROXY: '127.0.0.1,localhost', NO_COLOR: '1',
   })
+  const responseRequests: Array<{ model: string; effort: string | undefined; input: string }> = []
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = []
     for await (const chunk of req) chunks.push(chunk)
@@ -39,7 +40,29 @@ export async function hookCliFixture() {
         event('message_stop', {}); res.end()
       } else { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(msg)) }
     } else if (req.url?.includes('responses')) {
+      responseRequests.push({ model: body.model, effort: body.reasoning?.effort, input: JSON.stringify(body.input) })
       res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      const lastUser = (body.input ?? []).filter((item: any) => item.role === 'user').at(-1)
+      if (options.codexPlanProbe && body.tools?.some((tool: any) => tool.name === 'update_plan')
+        && JSON.stringify(lastUser).includes('TERMINAL_FIRST') && body.input?.at(-1)?.type !== 'function_call_output') {
+        const tool = { id: 'plan_fixture', type: 'function_call', name: 'update_plan', call_id: 'fixture_plan', status: 'completed',
+          arguments: JSON.stringify({ plan: [{ step: 'Inspect', status: 'completed' }, { step: 'Implement', status: 'in_progress' }, { step: 'Verify', status: 'pending' }] }) }
+        const response = { id: 'plan_response', object: 'response', status: 'completed', model: body.model, output: [tool] }
+        event('response.created', { response: { ...response, status: 'in_progress', output: [] } })
+        event('response.output_item.added', { output_index: 0, item: tool })
+        event('response.output_item.done', { output_index: 0, item: tool })
+        event('response.completed', { response }); res.end(); return
+      }
+      if (options.codexCommandProbe && body.tools?.some((tool: any) => tool.name === 'exec_command')
+        && JSON.stringify(lastUser).includes('FIXTURE_COMMAND') && body.input?.at(-1)?.type !== 'function_call_output') {
+        const tool = { id: 'tool_fixture', type: 'function_call', name: 'exec_command', call_id: 'fixture_command', status: 'completed',
+          arguments: JSON.stringify({ cmd: 'Write-Output MANAGED_COMMAND_OK', shell: 'powershell.exe', login: false, sandbox_permissions: 'require_escalated', justification: 'Local fixture command approval verification' }) }
+        const response = { id: 'tool_response', object: 'response', status: 'completed', model: 'probe', output: [tool] }
+        event('response.created', { response: { ...response, status: 'in_progress', output: [] } })
+        event('response.output_item.added', { output_index: 0, item: tool })
+        event('response.output_item.done', { output_index: 0, item: tool })
+        event('response.completed', { response }); res.end(); return
+      }
       const item = { id: 'msg_probe', type: 'message', status: 'completed', role: 'assistant', content: [{ type: 'output_text', text: 'OK', annotations: [] }] }
       const response = { id: 'resp_probe', object: 'response', created_at: 1, status: 'completed', model: 'probe', output: [item], usage: { input_tokens: 8, output_tokens: 1, total_tokens: 9, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } }
       event('response.created', { response: { ...response, status: 'in_progress', output: [] } })
@@ -59,7 +82,7 @@ export async function hookCliFixture() {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
-  return { root, home, cwd, env, url, close: async () => {
+  return { root, home, cwd, env, url, responseRequests, close: async () => {
     server.closeAllConnections()
     await new Promise<void>(resolve => server.close(() => resolve()))
   } }

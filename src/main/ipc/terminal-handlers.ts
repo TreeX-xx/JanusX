@@ -1,6 +1,13 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
+import { CodexConversation } from '../terminal/codex-conversation'
+import { ClaudeConversation } from '../terminal/claude-conversation'
+import { PiConversation, DshConversation } from '../terminal/extension-conversation'
+import { OpenCodeConversation } from '../terminal/opencode-conversation'
+import { supportsConversation } from '../../shared/conversation-display'
+import { conversations, type ConversationController } from '../terminal/conversations'
+import type { ConversationCommand } from '../../shared/conversation-display'
 import { createRemoteTerminal } from '../terminal/remote-pty'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
@@ -500,7 +507,9 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     stopRuntimeTelemetry: () => terminalContextCoordinator.shutdown(),
     flushAgentSessions: () => agentSessionRegistry.flush(),
     stopHookBridge: () => hookBridge.stop(),
-    disposeTerminalSession: () => {
+    disposeTerminalSession: async () => {
+      await Promise.all([...conversations.values()].map(conversation => conversation.dispose()))
+      conversations.clear()
       for (const id of [...pendingTerminalData.keys()]) dropPendingTerminalData(id)
       terminalStates.clear()
       serviceErrorDetectors.clear()
@@ -611,6 +620,9 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   }
 
   const createTerminalLifecycle = async (config: TerminalCreateRequest, recoveryEnv?: SessionRecoveryEnvironment) => {
+    if (config.conversationEnabled && (!supportsConversation(config.preset ?? '') || parseRuntimeResource(config.cwd) || config.extraArgs?.length || recoveryEnv)) {
+      throw new Error('Dual mode requires a new local supported agent session')
+    }
     if (parseRuntimeResource(config.cwd)) return createRemoteLifecycle(config)
     assertHookCleanupIdle()
     const launchStartedAt = performance.now()
@@ -778,7 +790,9 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     })
 
     let instance
+    let conversation: ConversationController | undefined
     try {
+      if (config.conversationEnabled && (terminalStates.get(id)?.userKillRequested || appShutdown.isQuitting)) throw new Error('Agent launch cancelled')
       if (launchProgramError) throw new Error(launchProgramError)
       const baselineStartedAt = performance.now()
       if (engine !== 'shell') await turnChangeTracker.register(id, cwd)
@@ -790,6 +804,29 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         logTerminalDiagnostic('Office automation policy-only mode', { engine, limitation: officeSession.limitation })
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
+      const launchEnv = {
+        ...hookEnv,
+        ...(recoveryEnv?.claudeConfigDir ? { CLAUDE_CONFIG_DIR: recoveryEnv.claudeConfigDir } : {}),
+        ...(recoveryEnv?.codexHome ? { CODEX_HOME: recoveryEnv.codexHome } : {}),
+      }
+      let runtimeProgram = launchProgramResolved?.command
+      let runtimeArgs = programArgs
+      if (config.conversationEnabled) {
+        if (!runtimeProgram || !hookEnvBase || (engine === 'claude' && !hookLaunchArgs.includes('--settings')) || (engine === 'codex' && !hookLaunchArgs.includes('--no-daemon')) || (engine === 'pi' && !hookLaunchArgs.includes('--extension'))) throw new Error('Dual mode requires working isolated launch hooks')
+        if (!supportsConversation(engine)) throw new Error('Unsupported conversation engine')
+        const adapter = { claude: ClaudeConversation, codex: CodexConversation, pi: PiConversation, opencode: OpenCodeConversation, dsh: DshConversation }[engine]
+        const managed = new adapter(id,
+          snapshot => sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.conversation, snapshot),
+          (threadId, transcriptPath) => agentSessionRegistry.noteProviderSession(id, threadId, transcriptPath))
+        conversation = managed
+        conversations.set(id, conversation)
+        if (config.initialView === 'conversation') await managed.command({ type: 'mode', mode: 'conversation' })
+        const remote = await managed.start({ command: runtimeProgram, args: programArgs, cwd,
+          env: { ...process.env, ...launchEnv }, pathDir: office.pathDir, assetsDir: resolve(app.getPath('userData'), 'janusx', 'conversations') })
+        runtimeProgram = remote.command; runtimeArgs = remote.args
+        if ('env' in remote) Object.assign(launchEnv, remote.env)
+      }
+      if (config.conversationEnabled && (terminalStates.get(id)?.userKillRequested || appShutdown.isQuitting)) throw new Error('Agent launch cancelled')
       terminalStorageReleases.set(id, acquireWorkspaceStorage(cwd))
       assertHookCleanupIdle()
       instance = terminalManager.create({
@@ -797,16 +834,20 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         workspaceId,
         cwd,
         shell,
-        program: launchProgramResolved?.command,
-        programArgs,
+        program: runtimeProgram,
+        programArgs: runtimeArgs,
         cols: typeof cols === 'number' ? cols : undefined,
         rows: typeof rows === 'number' ? rows : undefined,
-        env: {
-          ...hookEnv,
-          ...(recoveryEnv?.claudeConfigDir ? { CLAUDE_CONFIG_DIR: recoveryEnv.claudeConfigDir } : {}),
-          ...(recoveryEnv?.codexHome ? { CODEX_HOME: recoveryEnv.codexHome } : {}),
-        },
+        env: launchEnv,
       }, office.pathDir)
+      if (conversation) {
+        const owned = conversation
+        instance.disposeRuntime = () => {
+          const stopped = owned.dispose()
+          if (conversations.get(id) === owned) conversations.delete(id)
+          return stopped
+        }
+      }
       logTerminalDiagnostic('terminal launch timing', {
         id, engine, preparationMs, baselineMs,
         totalMs: Math.round(performance.now() - launchStartedAt),
@@ -817,6 +858,8 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         serviceErrorDetectors.delete(id)
       }
     } catch (err) {
+      await conversation?.dispose()
+      if (conversations.get(id) === conversation) conversations.delete(id)
       logTerminalDiagnostic('terminal create failed', {
         id,
         workspaceId,
@@ -1054,6 +1097,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     // as its first pty output lands, without waiting for the poll cadence.
     void terminalContextCoordinator.runAttributionPass().catch(() => undefined)
     sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.created, {
+      ...(config.conversationEnabled ? { conversationEnabled: true, initialView: conversation?.snapshot().mode } : {}),
       id, workspaceId, cwd, preset: engine, shell, pid: instance.pty.pid,
     })
     return { pid: instance.pty.pid }
@@ -1235,9 +1279,16 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.create, async (_event, config: TerminalCreateRequest) => (
     createTerminalLifecycle(config)
   ))
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversation, (_event, { id }: { id: string }) => conversations.get(id)?.snapshot() ?? null)
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: ConversationCommand }) => {
+    const conversation = conversations.get(id)
+    if (!conversation) throw new Error('No managed conversation for this terminal')
+    return conversation.command(command)
+  })
 
   // Ctrl+C ends the active turn without exiting the interactive CLI process.
   ipcMain.on(TERMINAL_SEND_CHANNELS.input, (_event, { id, data }: TerminalInputPayload) => {
+    if (conversations.get(id)?.acceptsTerminalInput(data) === false) return
     const state = terminalStates.get(id)
     if (state && state.engine !== 'shell' && isTerminalInterrupt(data) && hookCoordinator.hasActiveTurn(id)) {
       ingestHookPayload({
@@ -1252,6 +1303,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
   // Submit-line handler: renderer sends one complete user input transaction.
   ipcMain.on(TERMINAL_SEND_CHANNELS.submitLine, (_event, { id, text }: TerminalSubmitLinePayload) => {
+    if (conversations.get(id)?.state.mode === 'conversation') return
     recordSubmittedPrompt(id, text)
   })
 
@@ -1277,6 +1329,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         clearTimeout(st.flowTimer)
         st.flowTimer = null
       }
+    }
+    if (!terminalManager.getInstance(id)) {
+      await conversations.get(id)?.dispose()
+      conversations.delete(id)
     }
     dropPendingTerminalData(id)
     clearHandoffDeliveryForTerminal(id)

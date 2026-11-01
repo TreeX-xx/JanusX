@@ -64,6 +64,9 @@ export function installElectronApiFallback(): void {
       stat: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
     },
     terminal: {
+      conversation: () => Promise.resolve(null),
+      conversationCommand: () => Promise.reject(new Error('Electron conversation API is unavailable')),
+      onConversation: () => () => {},
       warmup: () => Promise.resolve({ ok: true }),
       create: () => Promise.reject(new Error('Electron terminal API is unavailable')),
       replay: () => Promise.resolve({ data: '', seq: 0 }),

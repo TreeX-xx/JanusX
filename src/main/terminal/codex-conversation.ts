@@ -1,0 +1,455 @@
+import { spawn, execFile, type ChildProcess } from 'node:child_process'
+import { promisify } from 'node:util'
+import { createServer } from 'node:net'
+import { existsSync } from 'node:fs'
+import { delimiter, dirname, extname, join } from 'node:path'
+import WebSocket, { WebSocketServer } from 'ws'
+import type { ConversationCommand, ConversationItem, ConversationSnapshot, ConversationModelOption } from '../../shared/conversation-display'
+import { CODEX_CONVERSATION_CAPABILITIES, parseConversationSlashCommand } from '../../shared/conversation-display'
+
+type Json = Record<string, any> // Codex's versioned JSON-RPC boundary; normalized before IPC.
+const MAX_ITEMS = 500
+const MAX_TEXT = 32_000
+// Native startup plugin/list catalogs can exceed 25 MiB. Match ws's default
+// transport ceiling; display limits must not truncate native protocol messages.
+const MAX_PAYLOAD = 100 * 1024 * 1024
+const execFileAsync = promisify(execFile)
+
+/** Codex's native remote transport honors proxy variables, including for localhost. */
+export function codexLoopbackEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const bypass = [...new Set([
+    ...Object.entries(source).filter(([key]) => key.toLowerCase() === 'no_proxy').flatMap(([, value]) => (value ?? '').split(',')),
+    '127.0.0.1', 'localhost', '::1',
+  ].map(value => value.trim()).filter(Boolean))].join(',')
+  return { ...source, NO_PROXY: bypass, no_proxy: bypass }
+}
+
+/** npm's Windows shim cannot be spawned with shell:false. Never interpolate Hook TOML in a shell. */
+export function resolveCodexServerBinary(command: string): string {
+  if (process.platform !== 'win32' || extname(command).toLowerCase() === '.exe') return command
+  const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64'
+  const platform = process.arch === 'arm64' ? 'arm64' : 'x64'
+  const packageRoot = join(dirname(command), 'node_modules', '@openai', 'codex')
+  const candidates = [
+    join(packageRoot, 'node_modules', '@openai', `codex-win32-${platform}`, 'vendor', `${arch}-pc-windows-msvc`, 'bin', 'codex.exe'),
+    join(packageRoot, 'vendor', `${arch}-pc-windows-msvc`, 'bin', 'codex.exe'),
+  ]
+  const binary = candidates.find(existsSync)
+  if (!binary) throw new Error('Codex dual mode requires a native codex.exe (npm installation supported).')
+  return binary
+}
+
+export class CodexConversation {
+  readonly state: ConversationSnapshot
+  private child?: ChildProcess
+  private socket?: WebSocket
+  private proxy?: WebSocketServer
+  private nativeClient?: WebSocket
+  private disposed = false
+  private stopping?: Promise<void>
+  private requestId = 0
+  private pending = new Map<string, { resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
+  private sent = new Map<string, { identity: string; promise: Promise<void> }>()
+  private nativeThreadRequests = new Set<string | number>()
+  private otherRequests = new Set<string | number>()
+  private lastCompletedTurnId?: string
+  private publishTimer?: ReturnType<typeof setTimeout>
+  private endpoint = ''
+  private loadingModels?: Promise<void>
+
+  constructor(readonly id: string, private readonly publish: (state: ConversationSnapshot) => void,
+    private readonly bind: (threadId: string, transcriptPath?: string) => void = () => {}) {
+    this.state = { id, engine: 'codex', capabilities: CODEX_CONVERSATION_CAPABILITIES, revision: 0, mode: 'terminal', controlEpoch: 0, connection: 'starting', threadId: null,
+      turnId: null, submitting: false, items: [], approvals: [], needsTerminal: false, truncated: false,
+      model: null, effort: null, models: [], modelsLoading: false, settingsUpdating: false }
+  }
+
+  snapshot(): ConversationSnapshot { return structuredClone(this.state) }
+  private changed(immediate = true): void {
+    this.state.revision++
+    if (!immediate && this.publishTimer) return
+    if (this.publishTimer) clearTimeout(this.publishTimer)
+    this.publishTimer = undefined
+    if (immediate) this.publish(this.snapshot())
+    else this.publishTimer = setTimeout(() => { this.publishTimer = undefined; this.publish(this.snapshot()) }, 32)
+  }
+
+  async start(options: { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string }): Promise<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> {
+    const command = resolveCodexServerBinary(options.command)
+    const env = codexLoopbackEnv(options.env)
+    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
+    if (options.pathDir) env[pathKey] = `${options.pathDir}${delimiter}${env[pathKey] ?? ''}`
+    const version = await execFileAsync(command, ['--version'], { env, windowsHide: true, timeout: 8000 })
+    if (!/codex-cli 0\.166\./.test(version.stdout)) throw new Error(`Codex dual mode is validated with 0.166.x; installed: ${version.stdout.trim()}`)
+    if (this.disposed) throw new Error('Codex launch cancelled')
+    const reservation = createServer()
+    await new Promise<void>((resolve, reject) => { reservation.once('error', reject); reservation.listen(0, '127.0.0.1', resolve) })
+    const address = reservation.address()
+    if (!address || typeof address === 'string') throw new Error('Could not reserve Codex listener')
+    this.endpoint = `ws://127.0.0.1:${address.port}`
+    await new Promise<void>(resolve => reservation.close(() => resolve()))
+    if (this.disposed) throw new Error('Codex launch cancelled')
+    this.child = spawn(command, [...options.args.filter(arg => arg !== '--no-daemon'), '-c', 'tools.update_plan.enabled=true', 'app-server', '--listen', this.endpoint],
+      { cwd: options.cwd, env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
+    let diagnostic = ''
+    this.child.stderr?.on('data', bytes => { diagnostic = (diagnostic + String(bytes)).slice(-4000) })
+    this.child.on('error', error => this.fail(error.message))
+    this.child.on('exit', () => { if (!this.disposed) this.fail(`Codex backend exited. ${diagnostic}`) })
+    const deadline = Date.now() + 10000
+    while (!this.disposed && Date.now() < deadline) {
+      if (this.child.exitCode !== null) throw new Error(`Codex backend failed to start. ${diagnostic}`)
+      // An explicit agent prevents the host's global HTTP proxy hook from
+      // intercepting our process-local channel. Native TUI routing uses NO_PROXY.
+      const probe = new WebSocket(this.endpoint, { handshakeTimeout: 1000, agent: false })
+      const ready = await new Promise<boolean>(resolve => { probe.once('open', () => resolve(true)); probe.once('error', () => resolve(false)) })
+      probe.terminate()
+      if (ready && !this.disposed) {
+        this.proxy = new WebSocketServer({ host: '127.0.0.1', port: 0, maxPayload: MAX_PAYLOAD,
+          verifyClient: (info: { origin: string }) => !info.origin })
+        await new Promise<void>((resolve, reject) => { this.proxy!.once('listening', resolve); this.proxy!.once('error', reject) })
+        this.proxy.on('error', error => this.fail(error.message))
+        this.proxy.on('connection', downstream => {
+          if (this.nativeClient || this.disposed) { downstream.close(); return }
+          this.nativeClient = downstream
+          this.connect(downstream)
+        })
+        const proxyAddress = this.proxy.address()
+        if (!proxyAddress || typeof proxyAddress === 'string') throw new Error('Codex bridge is unavailable')
+        if (this.disposed) { this.proxy.close(); throw new Error('Codex launch cancelled') }
+        return { command, args: ['-c', 'tools.update_plan.enabled=true', '--remote', `ws://127.0.0.1:${proxyAddress.port}`],
+          env: { NO_PROXY: env.NO_PROXY, no_proxy: env.no_proxy } }
+      }
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    throw new Error('Codex backend did not become ready')
+  }
+
+  private connect(downstream: WebSocket): void {
+    const socket = new WebSocket(this.endpoint, { handshakeTimeout: 1500, maxPayload: MAX_PAYLOAD, agent: false })
+    this.socket = socket
+    const queue: string[] = []
+    downstream.on('message', bytes => {
+      const text = bytes.toString()
+      try {
+        const message = JSON.parse(text) as Json
+        if (!this.acceptsNativeCommand(message)) {
+          if (message.method && message.id !== undefined) downstream.send(JSON.stringify({ id: message.id, error: { code: -32600, message: 'JanusX conversation view owns input' } }))
+          return
+        }
+        if ((message.method === 'thread/start' && !message.params?.ephemeral && message.params?.threadSource !== 'thread_title') || message.method === 'thread/resume') {
+          this.nativeThreadRequests.add(message.id)
+        }
+      } catch { downstream.close(); return }
+      if (socket.readyState === WebSocket.OPEN) socket.send(text)
+      else if (queue.length < 100) queue.push(text)
+      else downstream.close()
+    })
+    downstream.on('error', error => this.fail(error.message))
+    downstream.on('close', () => socket.terminate())
+    socket.on('open', () => { for (const text of queue) socket.send(text); queue.length = 0 })
+    socket.on('message', bytes => {
+      try {
+        const message = JSON.parse(bytes.toString()) as Json
+        if (typeof message.id === 'string' && message.id.startsWith('janusx:') && !message.method) {
+          const pending = this.pending.get(message.id)
+          if (!pending) return
+          clearTimeout(pending.timer); this.pending.delete(message.id)
+          if (message.error) pending.reject(new Error(message.error.message ?? 'Codex request failed'))
+          else pending.resolve(message.result ?? {})
+        } else {
+          if (!message.method && this.nativeThreadRequests.delete(message.id) && message.result?.thread) {
+            this.attach(message.result.thread, message.result)
+            void this.loadModels()
+          }
+          if (downstream.readyState === WebSocket.OPEN) downstream.send(bytes.toString())
+          // The native connection is the authoritative subscription, including empty threads.
+          // Control responses are intercepted above; native responses pass through unchanged.
+          this.receive(message)
+        }
+      } catch (error) { this.fail(String(error)) }
+    })
+    socket.on('error', error => this.fail(error.message))
+    socket.on('close', () => {
+      for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('Codex connection closed; delivery may be unknown. Do not automatically resend.')) }
+      this.pending.clear()
+      downstream.close()
+      if (!this.disposed) this.fail(this.state.error ?? 'Codex local connection lost. No request will be resent. Check the native terminal for details.')
+    })
+  }
+
+  private send(message: Json): void {
+    if (this.disposed || this.socket?.readyState !== WebSocket.OPEN) throw new Error('Codex connection is unavailable')
+    this.socket.send(JSON.stringify(message))
+  }
+  private call(method: string, params: Json): Promise<Json> {
+    const id = `janusx:${++this.requestId}`
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} timed out; delivery may be unknown. Do not automatically resend.`)) }, 15000)
+      this.pending.set(id, { resolve, reject, timer })
+      try { this.send({ id, method, params }) } catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error) }
+    })
+  }
+  private fail(error: string): void {
+    if (this.disposed) return
+    this.state.connection = 'disconnected'; this.state.error = error.slice(0, 4000); this.changed()
+  }
+
+  private attach(thread: Json, settings: Json = {}): void {
+    if (this.state.threadId && this.state.threadId !== thread.id) {
+      this.state.items = []; this.state.approvals = []; this.state.turnId = null; this.state.turnStartedAt = undefined
+      this.state.plans = []
+      this.state.needsTerminal = false; this.state.truncated = false; this.state.controlEpoch++
+      this.otherRequests.clear()
+    }
+    this.state.threadId = thread.id
+    this.updateSettings(settings)
+    this.bind(thread.id, thread.path ?? undefined)
+    for (const turn of thread.turns ?? []) {
+      for (const item of turn.items ?? []) this.item(item, turn.id, turn.status !== 'inProgress')
+      if (turn.status === 'inProgress') this.state.turnId = turn.id
+    }
+    this.state.connection = 'ready'; this.changed()
+  }
+
+  private updateSettings(settings: Json): void {
+    if (typeof settings.model === 'string') this.state.model = settings.model
+    const effort = Object.hasOwn(settings, 'effort') ? settings.effort : settings.reasoningEffort
+    if (typeof effort === 'string' || effort === null) this.state.effort = effort
+  }
+
+  private loadModels(): Promise<void> {
+    if (this.loadingModels) return this.loadingModels
+    this.state.modelsLoading = true; this.state.modelsError = undefined; this.changed()
+    this.loadingModels = (async () => {
+      try {
+        const models = new Map<string, ConversationModelOption>()
+        const cursors = new Set<string>()
+        let cursor: string | undefined
+        do {
+          const result = await this.call('model/list', { limit: 100, ...(cursor ? { cursor } : {}) })
+          if (!Array.isArray(result.data)) throw new Error('Invalid Codex model catalog')
+          for (const raw of result.data) {
+            if (raw.hidden || typeof raw.model !== 'string' || !raw.model) continue
+            const efforts = (Array.isArray(raw.supportedReasoningEfforts) ? raw.supportedReasoningEfforts : [])
+              .filter((option: Json) => typeof option.reasoningEffort === 'string')
+              .map((option: Json) => ({ effort: option.reasoningEffort as string, description: String(option.description ?? '').slice(0, 1000) }))
+            models.set(raw.model, { model: raw.model, displayName: String(raw.displayName || raw.model), description: String(raw.description ?? '').slice(0, 2000),
+              defaultEffort: efforts.some((option: { effort: string }) => option.effort === raw.defaultReasoningEffort) ? raw.defaultReasoningEffort : efforts[0]?.effort ?? null, efforts })
+          }
+          cursor = typeof result.nextCursor === 'string' && result.nextCursor ? result.nextCursor : undefined
+          if (cursor && (cursors.has(cursor) || cursors.size >= 9 || models.size > 500)) throw new Error('Codex model catalog pagination limit reached')
+          if (cursor) cursors.add(cursor)
+        } while (cursor)
+        if (!this.disposed) this.state.models = [...models.values()]
+      } catch (error) {
+        if (!this.disposed) this.state.modelsError = String(error).slice(0, 2000)
+      } finally {
+        this.loadingModels = undefined; this.state.modelsLoading = false
+        if (!this.disposed) this.changed()
+      }
+    })()
+    return this.loadingModels
+  }
+
+  private item(raw: Json, turnId: string, done: boolean): void {
+    if (typeof raw.id !== 'string' || typeof raw.type !== 'string') return
+    const key = `${turnId}:${raw.id}`
+    const previous = this.state.items.find(item => item.id === key)
+    const text = raw.type === 'userMessage' ? (raw.content ?? []).filter((part: Json) => part.type === 'text').map((part: Json) => part.text).join('\n')
+      : raw.type === 'agentMessage' ? raw.text ?? previous?.text ?? ''
+        : raw.type === 'commandExecution' ? `${raw.command ?? ''}\n${raw.aggregatedOutput ?? ''}` : raw.text ?? raw.summary ?? ''
+    const normalized: ConversationItem = { id: key, turnId, type: raw.type, receivedAt: previous?.receivedAt ?? Date.now(), durationMs: previous?.durationMs,
+      editable: raw.type === 'userMessage' ? raw.content?.every((part: Json) => part.type === 'text') : undefined,
+      text: typeof text === 'string' ? text.slice(0, MAX_TEXT) : '', status: raw.status ?? (done ? 'completed' : 'inProgress'),
+      truncated: typeof text === 'string' && text.length > MAX_TEXT }
+    if (raw.type === 'fileChange') {
+      let remaining = MAX_TEXT
+      normalized.files = (raw.changes ?? []).slice(0, 100).flatMap((file: Json) => {
+        const filePath = String(file.path)
+        if (filePath.length > remaining) { normalized.truncated = true; return [] }
+        remaining -= filePath.length
+        const diff = String(file.diff ?? '')
+        const preview = diff.slice(0, remaining)
+        remaining -= preview.length
+        normalized.truncated ||= preview.length !== diff.length
+        return [{ path: filePath, diff: preview }]
+      })
+      normalized.truncated ||= (raw.changes?.length ?? 0) > 100
+    }
+    if (previous) Object.assign(previous, normalized)
+    else this.state.items.push(normalized)
+    this.trimHistory()
+  }
+
+  private trimHistory(): void {
+    const size = (item: ConversationItem) => item.text.length + (item.files ?? []).reduce((sum, file) => sum + file.path.length + file.diff.length, 0)
+    let chars = this.state.items.reduce((sum, item) => sum + size(item), 0)
+    while (this.state.items.length > 1 && (this.state.items.length > MAX_ITEMS || chars > 1_000_000)) {
+      chars -= size(this.state.items.shift()!); this.state.truncated = true
+    }
+  }
+
+  private receive(message: Json): void {
+    const { method, params: p = {} } = message
+    // Only a native thread/start or thread/resume response selects the visible conversation.
+    // Global announcements can describe title generation or subagents and never select it.
+    if (method === 'serverRequest/resolved') {
+      this.state.approvals = this.state.approvals.filter(approval => approval.id !== p.requestId)
+      this.otherRequests.delete(p.requestId); this.state.needsTerminal = this.otherRequests.size > 0
+      this.changed(); return
+    }
+    if (!this.state.threadId || p.threadId !== this.state.threadId) return
+    if (method === 'thread/settings/updated') this.updateSettings(p.threadSettings ?? {})
+    else if (method === 'turn/plan/updated') {
+      // Only the active turn may publish a new revision; never revive an old plan.
+      if (typeof p.turnId !== 'string' || p.turnId !== this.state.turnId || !Array.isArray(p.plan) || p.plan.length > 100
+        || !p.plan.every((step: Json) => step && typeof step.step === 'string' && step.step.length <= 2000 && ['pending', 'inProgress', 'completed'].includes(step.status))) return
+      const plans = this.state.plans ?? []
+      const previous = [...plans].reverse().find(plan => plan.turnId === p.turnId)
+      const steps = p.plan.map((step: Json) => ({ step: step.step, status: step.status }))
+      const explanation = typeof p.explanation === 'string' ? p.explanation.slice(0, 4000) : ''
+      if (previous && JSON.stringify(previous.steps) === JSON.stringify(steps) && previous.explanation === explanation) return
+      this.state.plans = [...plans, { turnId: p.turnId, version: (previous?.version ?? 0) + 1, steps, explanation, outcome: 'running' as const }].slice(-100)
+    }
+    else if (method === 'turn/started') { this.state.turnStartedAt = Date.now(); this.state.turnId = p.turn.id; this.state.error = undefined }
+    else if (method === 'turn/completed') {
+      const outcome = ['completed', 'interrupted', 'failed'].includes(p.turn.status) ? p.turn.status : 'failed'
+      this.state.plans = this.state.plans?.map(plan => plan.turnId === p.turn.id ? { ...plan, outcome } : plan)
+      if (this.state.turnId === p.turn.id && this.state.turnStartedAt !== undefined) {
+        const durationMs = Math.max(0, Date.now() - this.state.turnStartedAt)
+        for (const item of this.state.items) if (item.turnId === p.turn.id && item.type === 'agentMessage') item.durationMs = durationMs
+        this.state.turnStartedAt = undefined
+      }
+      this.lastCompletedTurnId = p.turn.id
+      if (this.state.turnId === p.turn.id) this.state.turnId = null
+      for (const item of this.state.items) if (item.turnId === p.turn.id && item.status === 'inProgress') item.status = p.turn.status
+      this.state.approvals = []; this.otherRequests.clear(); this.state.needsTerminal = false
+      if (p.turn.error) this.state.error = String(p.turn.error.message ?? 'Turn failed')
+    } else if (method === 'item/started' || method === 'item/completed') this.item(p.item, p.turnId, method === 'item/completed')
+    else if (method === 'item/agentMessage/delta') {
+      const key = `${p.turnId}:${p.itemId}`
+      let item = this.state.items.find(item => item.id === key)
+      if (!item) { this.item({ id: p.itemId, type: 'agentMessage', text: '' }, p.turnId, false); item = this.state.items.find(item => item.id === key)! }
+      const next = item.text + String(p.delta ?? '')
+      item.text = next.slice(0, MAX_TEXT); item.truncated ||= next.length > MAX_TEXT
+      this.trimHistory()
+      this.changed(false); return
+    } else if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') {
+      if (!this.state.approvals.some(approval => approval.id === message.id)) this.state.approvals.push({ id: message.id, itemId: p.itemId, kind: method.includes('fileChange') ? 'file' : 'command', description: String(p.command ?? p.reason ?? '').slice(0, MAX_TEXT) })
+    } else if (message.id !== undefined && method) { this.otherRequests.add(message.id); this.state.needsTerminal = true }
+    else if (method === 'error') this.state.error = String(p.error?.message ?? 'Codex error')
+    else return
+    this.changed()
+  }
+
+  async command(command: ConversationCommand): Promise<ConversationSnapshot> {
+    if (command.type === 'mode') {
+      if (command.mode !== 'terminal' && command.mode !== 'conversation') throw new Error('Invalid display mode')
+      if (this.state.submitting) throw new Error('Wait for the current delivery')
+      if (this.state.mode !== command.mode) { this.state.mode = command.mode; this.state.controlEpoch++; this.changed() }
+      return this.snapshot()
+    }
+    if (this.disposed || this.state.connection !== 'ready' || !this.state.threadId) throw new Error('Codex conversation is not ready')
+    if (this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Display control changed; action rejected')
+    if (command.type === 'models') {
+      await this.loadModels()
+    } else if (command.type === 'settings') {
+      if (this.state.settingsUpdating || this.state.submitting) throw new Error('Codex settings update is busy')
+      const model = this.state.models.find(option => option.model === command.model)
+      if (!model) throw new Error('Model is not in the current Codex catalog')
+      if (command.effort === null ? model.efforts.length > 0 : !model.efforts.some(option => option.effort === command.effort)) throw new Error('Unsupported reasoning effort for this model')
+      this.state.settingsUpdating = true; this.changed()
+      try {
+        // The server broadcasts thread/settings/updated to the native TUI as well.
+        // Use that authoritative event for the displayed selection; no config-file write.
+        await this.call('thread/settings/update', { threadId: this.state.threadId, model: command.model, effort: command.effort })
+      } finally { this.state.settingsUpdating = false; this.changed() }
+    } else if (command.type === 'send' || command.type === 'edit') {
+      if (typeof command.commandId !== 'string' || !command.commandId || command.commandId.length > 128) throw new Error('Invalid command identity')
+      const identity = JSON.stringify([command.type, command.type === 'edit' ? command.itemId : null, command.text])
+      const existing = this.sent.get(command.commandId)
+      if (existing) { if (existing.identity !== identity) throw new Error('Command ID reused'); await existing.promise; return this.snapshot() }
+      if (typeof command.text !== 'string' || !command.text.trim() || command.text.length > MAX_TEXT) throw new Error('Invalid prompt length')
+      if (parseConversationSlashCommand(command.text)) throw new Error('Use the conversation command menu or the native terminal for slash commands')
+      if (this.state.turnId || this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || this.state.needsTerminal) throw new Error('Codex is busy')
+      if (this.sent.size >= 10000) throw new Error('Session submission limit reached')
+      const target = command.type === 'edit' ? this.state.items.find(item => item.id === command.itemId) : undefined
+      if (command.type === 'edit' && (!target || target.type !== 'userMessage' || target.truncated || target.editable === false
+        || this.state.items.filter(item => item.turnId === target.turnId && item.type === 'userMessage').length !== 1)) throw new Error('This message cannot be edited safely')
+      this.state.submitting = true; this.changed()
+      const submitted = (async () => {
+        if (target) {
+          // Version 0.166 exposes revert, not the removed rollback API. Native
+          // clients receive thread/reverted and reload the same thread.
+          const result = await this.call('thread/revert', { threadId: this.state.threadId, beforeTurnId: target.turnId })
+          if (result.thread?.id !== this.state.threadId) throw new Error('Invalid Codex edit response')
+          const index = this.state.items.findIndex(item => item.turnId === target.turnId)
+          this.state.items = this.state.items.slice(0, index)
+          const retained = new Set(this.state.items.map(item => item.turnId))
+          this.state.plans = this.state.plans?.filter(plan => retained.has(plan.turnId))
+          this.changed()
+        }
+        const result = await this.call('turn/start', { threadId: this.state.threadId, input: [{ type: 'text', text: command.text, text_elements: [] }] })
+        if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
+      })().catch(error => {
+        if (target) this.fail(`Codex edit delivery could not be confirmed. Check the terminal before retrying. ${String(error)}`)
+        throw error
+      })
+      this.sent.set(command.commandId, { identity, promise: submitted })
+      try { await submitted } finally { this.state.submitting = false; this.changed() }
+    } else if (command.type === 'interrupt') {
+      if (this.state.turnId) await this.call('turn/interrupt', { threadId: this.state.threadId, turnId: this.state.turnId })
+    } else if (command.type === 'approve') {
+      if (command.decision !== 'accept' && command.decision !== 'decline') throw new Error('Invalid approval decision')
+      const approval = this.state.approvals.find(item => item.id === command.requestId)
+      if (!approval) throw new Error('Approval is no longer pending')
+      this.send({ id: approval.id, result: { decision: command.decision } })
+      this.state.approvals = this.state.approvals.filter(item => item !== approval); this.changed()
+    } else throw new Error('Unknown conversation command')
+    return this.snapshot()
+  }
+
+  acceptsTerminalInput(data: string): boolean {
+    // Hidden xterm still answers terminal device queries; it must not submit user input.
+    return this.state.mode === 'terminal' || /^\x1b\[[?\d;]*[Rcn]$/.test(data)
+  }
+
+  private acceptsNativeCommand(message: Json): boolean {
+    if (this.state.settingsUpdating && message.method === 'turn/start' && message.params?.threadId === this.state.threadId) return false
+    if (this.state.mode === 'terminal') return true
+    if (['turn/start', 'turn/steer', 'turn/interrupt', 'thread/revert', 'thread/settings/update', 'turn/settings/update'].includes(message.method) && message.params?.threadId === this.state.threadId) return false
+    if (this.state.threadId && (message.method === 'thread/resume' || (message.method === 'thread/start' && !message.params?.ephemeral))) return false
+    if (!message.method && (this.state.approvals.some(approval => approval.id === message.id) || this.otherRequests.has(message.id))) return false
+    return true // Native subscriptions, device responses and title generation keep working.
+  }
+
+  dispose(): Promise<void> {
+    if (this.disposed) return this.stopping ?? Promise.resolve()
+    this.disposed = true
+    if (this.publishTimer) clearTimeout(this.publishTimer)
+    this.socket?.terminate()
+    this.nativeClient?.terminate()
+    this.proxy?.close()
+    for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('Codex session ended')) }
+    this.pending.clear()
+    if (this.child?.pid && this.child.exitCode === null) {
+      if (process.platform === 'win32') {
+        const pid = this.child.pid
+        this.stopping = new Promise(resolve => {
+          const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+          killer.on('error', () => { this.child?.kill(); resolve() })
+          killer.on('exit', () => resolve())
+        })
+      } else {
+        this.child.kill()
+        this.stopping = new Promise(resolve => {
+          const timer = setTimeout(resolve, 2000)
+          this.child!.once('exit', () => { clearTimeout(timer); resolve() })
+        })
+      }
+    }
+    this.state.connection = 'closed'; this.state.turnId = null; this.state.approvals = []; this.changed()
+    return this.stopping ?? Promise.resolve()
+  }
+}
+

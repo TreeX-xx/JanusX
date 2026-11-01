@@ -241,7 +241,7 @@ export function Titlebar() {
         </div>
 
         {/* 文字 */}
-        <span className="text-[13px] font-medium tracking-[0.5px] transition-all duration-[400ms] group-hover:text-[var(--shell-text)] group-hover:drop-shadow-[0_0_10px_rgba(255,120,48,0.4)]" style={{ color: 'var(--shell-muted)' }}>
+        <span className="text-[13px] font-medium tracking-[0.5px] transition-all duration-[400ms] group-hover:text-[var(--shell-text)]" style={{ color: 'var(--shell-muted)' }}>
           JanusX
         </span>
 

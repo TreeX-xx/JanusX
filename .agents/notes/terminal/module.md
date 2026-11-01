@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-29T17:22:01.375Z",
+  "updated": "2026-10-31T18:57:00.000Z",
   "moduleState": "partial"
 }
 ---
@@ -53,6 +53,14 @@
 建议先由宿主终端外观设置提供本地选图、移除／恢复纯色及持久化；图片适配、透明度／暗化、全局或按项目／终端覆盖等细节待定。绘制方案需让默认终端背景透出图片，同时保持文字、光标、选择及输入可读，不通过降低整个终端透明度淡化文字。CLI 显式绘制的单元格背景可能遮挡图片，不能承诺任意 TUI 全屏都完整透图。主题包是否能提供背景资源另定契约，不授予插件直接修改终端 DOM 或 PTY 的能力。
 
 ### 现有终端设计
+
+Codex 双形态的本机 WebSocket 通信在后端和原生 TUI 两侧都补充 NO_PROXY／no_proxy，合并已有排除项并绕过 loopback；宿主就绪探测与正式 WebSocket 显式直连，避免全局 HTTP 代理 hook 接管内部通道。外部模型访问仍沿用用户代理，不改全局环境。具体传输错误保留，断线不自动重发请求；真实 CLI 与 Electron 代理场景证据见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
+
+新建本地 Codex 默认具备[终端与对话双形态](../workbench/terminal-dialog-dual-mode.md)，设置中的启动习惯只决定先显示哪个视图，不关闭任一形态。主进程拥有每会话独立 app-server，向后端传入原 Hook 配置和身份环境，原生 remote TUI 经本地协议转发器与对话共用 thread。空会话无需额外模型提示；控制代次与输入门控防止隐藏视图提交。模式/工作区切换保留运行，关闭终端、替换及退出回收自有后端，killAll 等待其进程树结束；普通 --no-daemon 路径保留。协议数据用于对话投影，不读取 ANSI 构造气泡。实际验证为 Windows/Codex 0.166.0 和 localhost 模型；其它平台、旧进程迁移及产品自动重连未验收。
+
+新建本地 Claude 共用默认双形态与启动视图偏好，`ClaudeConversation` 管理一个原生 daemon worker 和会话专属 Mods/HTTP bridge，终端是真实 attach；Windows 2.1.316 精确门控。显式发送使用 daemon 语义输入，Mods 提供正文、工具、停止与后台完成状态；原生 Esc 后对话仍可继续。原生 initialize 辅助进程只读模型目录，不发送提示词，禁用 Hook，读取后回收；会话模型／强度由 Mods 与 worker 局部环境应用，原生设置命令撤销覆盖。关闭只停止自有 job 并取消目录读取，不关闭共享 daemon；启动中关闭等待在途创建完成后清理。启动资产保留原 Hook 与 worker 身份，不改全局设置；登录和目录信任先在普通终端完成。设置语义、有限审批、失败降级、共享 daemon 隔离及真实 Electron 验证见双模式专题。
+
+Claude 的主 Agent 任务通过成功的 TaskCreate／TaskUpdate 后读取 TaskList，或 TodoWrite 返回的保存清单，投影到共享执行计划面板。读失败保留并标记最后确认状态，下一有效快照恢复；不从回答文字猜测 todo，不改变用户工具策略。固定版本的真实 CLI 与 Electron 验证及跨轮／历史边界见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 
 终端阅读入口分为状态、设置、外部 CLI 和 Shell 语义；各组可跨模块引用：
 

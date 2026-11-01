@@ -29,6 +29,7 @@ import {
   getDrawerPanelId,
 } from './note/quick-note-behavior'
 import { CLITerminal } from './CLITerminal'
+import { AgentSessionPane } from './AgentSessionPane'
 import { TurnChangeIsland } from './TurnChangeIsland'
 import { HoldToConfirm } from './ui/HoldToConfirm'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
@@ -1134,12 +1135,17 @@ function LeafPane({
               }}
               aria-hidden={!isActive}
             >
-              <CLITerminal
+              {terminal.conversationEnabled ? <AgentSessionPane
                 terminalId={terminal.id}
                 visible={workspaceVisible && isActive}
                 focused={workspaceVisible && isFocused && isActive}
                 workspaceVisible={workspaceVisible}
-              />
+              /> : <CLITerminal
+                terminalId={terminal.id}
+                visible={workspaceVisible && isActive}
+                focused={workspaceVisible && isFocused && isActive}
+                workspaceVisible={workspaceVisible}
+              />}
               {/* 仅 PTY 真死才弹模态遮罩：创建失败（errorMessage）或非零退出（exitCode）。
                   Turn 级失败（429/5xx）主进程上报 'degraded' 保持可用，此处再加一道兜底，
                   避免无 message 的裸 'error'（历史残留/误报）锁死输入。 */}
@@ -1175,10 +1181,10 @@ function LeafPane({
                   </div>
                 </div>
               )}
-              <TurnChangeIsland
+              {!terminal.conversationEnabled && <TurnChangeIsland
                 terminalId={terminal.id}
                 focused={workspaceVisible && isFocused && isActive}
-              />
+              />}
             </div>
           )
         })}

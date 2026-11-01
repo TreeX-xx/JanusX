@@ -63,6 +63,13 @@
     }
   },
   "general": {
+    "session": {
+      "section": "Session startup",
+      "label": "Default view for new sessions",
+      "help": "Choose which view opens first. Supported sessions always include terminal and conversation views; switch at any time. Existing sessions keep their current view.",
+      "terminal": "Terminal",
+      "conversation": "Conversation"
+    },
     "section": {
       "preferences": "Appearance & language",
       "environment": "Development environment",

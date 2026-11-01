@@ -63,6 +63,13 @@
     }
   },
   "general": {
+    "session": {
+      "section": "会话启动习惯",
+      "label": "新会话默认视图",
+      "help": "选择启动后先显示的界面。支持的会话始终具备终端和对话两种形态，可随时切换；已有会话保持当前视图。",
+      "terminal": "终端",
+      "conversation": "对话"
+    },
     "section": {
       "preferences": "外观与语言",
       "environment": "开发环境",
