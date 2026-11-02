@@ -4,6 +4,7 @@ import { Check, Download, PackageSearch, RefreshCw, Search } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import { pluginRequest, refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
 import styles from './PluginSettingsPanel.module.css'
+import { PluginIcon } from './PluginIcon'
 
 export function PluginDistributionError({ code }: { code?: string }) {
   const { t } = useI18n('plugins')
@@ -63,7 +64,7 @@ export function PluginCatalog({ onUninstall }: { onUninstall?: (id: string) => v
       const disabled = busy || Boolean(distribution?.operation) || !entry.compatible || Boolean(installed && (!update || installed.enabled || installed.source.kind !== 'official'))
       return <section key={entry.id} className={`${styles.card} ${styles.marketCard}`} data-catalog-id={entry.id}>
         <div className={styles.cardHeader}>
-          <span className={styles.avatar} aria-hidden="true">{entry.name.trim().charAt(0).toUpperCase() || '?'}</span>
+          <PluginIcon id={entry.id} name={entry.name} />
           <div className={styles.cardTitle}>
             <strong>{entry.name}</strong>
             <span className={styles.meta}>{entry.publisher}</span>

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-30T07:02:28.560Z",
+  "updated": "2026-11-02T17:02:40.207Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -450,3 +450,7 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 公开验证：check-published.mjs 认证目录 sequence 1793189191 和 1,800,858 字节的 1.0.7 包，SHA256 为 9ab8053ea0aff73c7f42fa92708d20f0b1fe13a98a98800b853f66cc6fa41588。check-published-install.mjs 在仓库外新 profile 的 0.9.5 实物通过目录发现、真实下载、签名安装、显式启用、设置页显示、停用和卸载；收据在 release/0.9.5/verification/published-plugin-install.json。v0.9.5 Release 说明已补齐当前 WSL/SSH 支持及前提，这次分发测试未重新验收这些业务。
 
 同名发布替换已完成：v0.9.5 的安装器、便携包、blockmap 与 latest.yml 远端大小及 SHA256 均与本地产物一致，latest 仍为 v0.9.5；核对收据为 release/0.9.5/verification/published-release.json。相同版本号不会可靠触发自动更新，已有 0.9.5 用户需重新下载后手动安装。源码 tag 未移动，构建工作树及输出摘要保存于本地 BUILDINFO.json，旧产物另行保留。
+
+## Discovery card artwork
+
+Discovery cards use bundled artwork keyed by exact official plugin ID: CPA uses its management UI logo, Docker uses its documentation whale icon, and Blueprint uses an original engineering-sheet and connected-node SVG. Asset provenance is recorded in `src/renderer/src/assets/plugins/SOURCES.md`. Unknown IDs and failed loads fall back to the name initial. This keeps offline discovery independent of plugin installation and remote image services; adding official artwork requires a host update. The signed catalog and plugin manifest remain unchanged.

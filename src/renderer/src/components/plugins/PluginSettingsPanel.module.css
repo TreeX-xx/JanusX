@@ -177,6 +177,7 @@
   color: var(--shell-text); background: var(--shell-hover); border-color: var(--shell-border-soft);
 }
 .marketCard .cardTitle { gap: 4px; }
+.pluginIcon { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 .marketCard .cardTitle strong { font-size: 14px; line-height: 1.4; }
 .marketCard .badge { padding: 0; border: 0; font-size: 10px; gap: 3px; }
 .marketCard .chip { max-width: 42%; height: auto; min-height: 20px; padding: 2px 7px; white-space: normal; font-size: 10px; }
