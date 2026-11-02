@@ -161,7 +161,7 @@
     "ready": "就绪"
   },
   "titlebar": {
-    "settings": "Settings",
+    "settings": "设置",
     "settingsReveal": ":: SETTINGS",
     "closeConfirmTitle": "确认关闭",
     "closeConfirmDesc": "确定要退出 JanusX 吗？未保存的内容可能丢失。",

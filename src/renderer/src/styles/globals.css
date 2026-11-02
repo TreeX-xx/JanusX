@@ -727,19 +727,36 @@ textarea::placeholder {
 /* 核心：X 形图标悬浮时变成两个横杠 */
 
 /* LLM 触发器悬浮效果：两条线旋转成平行横杠 */
-.group:hover .llm-trigger-line-1 {
-  background: #fff !important;
+.titlebar-settings-trigger:is(:hover, :focus-visible) .llm-trigger-line-1 {
+  background: var(--shell-text) !important;
   transform: translate(-50%, -4px) rotate(0deg) !important;
 }
 
-.group:hover .llm-trigger-line-2 {
-  background: #ff7830 !important;
+.titlebar-settings-trigger:is(:hover, :focus-visible) .llm-trigger-line-2 {
+  background: var(--shell-accent) !important;
   transform: translate(-50%, 3px) rotate(0deg) !important;
 }
 
-.group:hover .llm-trigger-reveal {
-  opacity: 0.9 !important;
-  transform: translateX(0) scale(1) !important;
+.titlebar-settings-trigger {
+  min-height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--shell-muted);
+  transition: background 160ms ease, color 160ms ease;
+}
+.titlebar-settings-trigger:is(:hover, :focus-visible) {
+  background: var(--shell-border);
+  color: var(--shell-text);
+}
+.titlebar-settings-trigger:focus-visible {
+  outline: 2px solid var(--shell-accent);
+  outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-settings-trigger,
+  .titlebar-settings-trigger * { transition: none !important; }
 }
 
 .agent-notification-stack {

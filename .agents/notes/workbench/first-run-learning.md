@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-10-18",
-  "updated": "2026-10-30T04:24:16Z",
+  "updated": "2026-11-02T16:54:32.495Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "codeRefs": [
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/onboarding/OnboardingHost.tsx","symbol":"OnboardingHost","role":"entry"},
@@ -62,3 +62,7 @@ App 等待工作区初始化成功与创新功能开关加载，再决定首次�
 `npm run typecheck`、`npm run typecheck:strict-unused`、`npm run build:check`、`npm run i18n:check` 与 `npm run check:notes` 通过。Note 校验为 0 错误，另保留 17 项既有外部链接诊断。新增导引代码 ESLint 为 0 错误、0 警告；所涉独立编辑器有 2 条既有依赖警告。`npm run theme:check` 的 CSS 生成比对通过，审计仍报告 21 项既有问题，涉及关于页、蓝图、CPA、Island 和用量统计，未修改这些无关样式。未运行安装包实机或真实 PTY 的端到端验收。
 
 桌面 shell 面的 e2e（CPA 设置、Browser 入口、memo 布局等）若在 OnboardingHost 初始化之前 reload，首次欢迎会在 reload 后的新页面上出现，modal 背板拦住标题栏与 island 点击，表现为 30 秒点击超时；09-19 远端 verify 的 13 个红灯中 8 个属此因。非导引用例统一在 reload 前调用 `tests/e2e/desktop-test-env.ts` 的 `seedIntroducedLearning` 预写 `janusx:learning:v1` 的 introduced 标记：先初始化则标记已落盘，后初始化则早退，两条时序下欢迎弹窗都不再干扰 shell 操作。欢迎弹窗本身的行为不变；覆盖面仍由 `tests/e2e/onboarding.spec.ts` 与单测负责，桌面套件只种状态不点导引 UI。同批修复顺带把 CPA 窄窗断言放宽到 ±1 CSS 像素（Windows 会把 `setSize` 的原生边界取整 1 像素），与 memo-layout 既有容差口径一致。
+
+## Settings discoverability
+
+The titlebar brand button keeps a localized Settings label visible in the secondary text color. Hover and keyboard focus retain the X-to-lines animation and strengthen feedback. A native button supports Tab, Enter and Space; the updater badge remains a separate adjacent button. This trades a little titlebar space for discovery without onboarding or hover. Consider a separate gear entry if first-time users still cannot find settings.
