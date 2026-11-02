@@ -15,6 +15,7 @@ import type { PluginAuthorizationTarget, PluginConfigurationTarget } from '@/ext
 import { openExtensionView } from '@/extensions/workbench'
 import { pluginConfigurationDrafts } from '@/extensions/plugin-configuration-drafts'
 import { PluginCatalog } from './PluginCatalog'
+import { PluginIcon } from './PluginIcon'
 
 function PluginThemes({ manifest }: { manifest: InstalledPlugin['manifest'] }) {
   const { t } = useI18n('plugins')
@@ -194,7 +195,7 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
       const source = record.source.kind === 'official' ? t('plugins:official') : record.source.kind === 'linked' ? t('plugins:linked') : t('plugins:copied')
       return <section key={record.manifest.id} className={`${styles.card} ${styles.marketCard}`} data-plugin-id={record.manifest.id}>
         <div className={styles.cardHeader}>
-          <span className={styles.avatar} aria-hidden="true">{record.manifest.name.trim().charAt(0).toUpperCase() || '?'}</span>
+          <PluginIcon id={record.manifest.id} name={record.manifest.name} />
           <div className={styles.cardTitle}>
             <strong>{record.manifest.name}</strong>
             <span className={styles.meta}>v{record.manifest.version} · {source}</span>

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-11-02T17:02:40.207Z",
+  "updated": "2026-11-02T17:05:27.638Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -453,4 +453,4 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 ## Discovery card artwork
 
-Discovery cards use bundled artwork keyed by exact official plugin ID: CPA uses its management UI logo, Docker uses its documentation whale icon, and Blueprint uses an original engineering-sheet and connected-node SVG. Asset provenance is recorded in `src/renderer/src/assets/plugins/SOURCES.md`. Unknown IDs and failed loads fall back to the name initial. This keeps offline discovery independent of plugin installation and remote image services; adding official artwork requires a host update. The signed catalog and plugin manifest remain unchanged.
+Discovery and installed cards share PluginIcon and use bundled artwork keyed by exact official plugin ID: CPA uses its management UI logo, Docker uses its documentation whale icon, and Blueprint uses an original engineering-sheet and connected-node SVG. Asset provenance is recorded in `src/renderer/src/assets/plugins/SOURCES.md`. Unknown IDs and failed loads fall back to the name initial. This keeps offline discovery independent of plugin installation and remote image services; adding official artwork requires a host update. The signed catalog and plugin manifest remain unchanged.
