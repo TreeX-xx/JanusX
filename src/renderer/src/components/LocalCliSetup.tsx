@@ -11,7 +11,9 @@ export function LocalCliSetup() {
   const dialog = useRef<HTMLDialogElement>(null)
   const { i18n } = useTranslation()
   const text = (zh: string, en: string) => i18n.language.startsWith('zh') ? zh : en
-  const open = Boolean(request)
+  // Note: .agents/notes/terminal/cc-switch-multi-terminal.md
+  // The initial probe reserves the launch intent, but is not a setup request yet.
+  const open = Boolean(request && !request.checking)
   useEffect(() => {
     if (open) dialog.current?.showModal()
     else dialog.current?.close()
@@ -25,7 +27,7 @@ export function LocalCliSetup() {
     })
   }
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="local-cli-title" onCancel={event => { event.preventDefault(); closeLocalCliSetup() }}>
-    {request && <>
+    {open && request && <>
       <TerminalPresetIcon preset={request.toolId} style={{ width: 32, height: 32 }} />
       <h2 id="local-cli-title">{text(`准备使用 ${name}`, `Set up ${name}`)}</h2>
       <p>{text('JanusX 会准备所需运行环境并安装工具，完成后自动打开。首次使用可能需要登录账号。', 'JanusX will prepare the runtime, install this tool, and open it. You may need to sign in on first use.')}</p>

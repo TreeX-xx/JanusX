@@ -1,5 +1,35 @@
 import { expect, test } from '@playwright/test'
 
+for (const installed of [true, false]) {
+  test(`initial detection opens setup only when needed: installed=${installed}`, async ({ page }) => {
+    await page.goto(`/terminal-startup.html?delayDetect${installed ? '' : '&localCli=missing'}`)
+    // Count actual modal openings, so a transient flash cannot pass a final-state assertion.
+    await page.evaluate(() => {
+      const original = HTMLDialogElement.prototype.showModal
+      ;(window as any).setupOpenings = 0
+      HTMLDialogElement.prototype.showModal = function () {
+        if (this.getAttribute('aria-labelledby') === 'local-cli-title') (window as any).setupOpenings++
+        original.call(this)
+      }
+    })
+    await page.getByRole('button', { name: 'New Codex' }).click()
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    expect(await page.evaluate(() => (window as any).setupOpenings)).toBe(0)
+    expect(await page.evaluate(() => (window as any).startupFixture.pending())).toBe(false)
+    await page.evaluate(() => (window as any).localCliFixture.completeDetection())
+    if (installed) {
+      await expect.poll(() => page.evaluate(() => (window as any).startupFixture.pending())).toBe(true)
+      await expect(page.getByRole('dialog')).not.toBeVisible()
+      expect(await page.evaluate(() => (window as any).setupOpenings)).toBe(0)
+      expect(await page.evaluate(() => (window as any).localCliFixture.installs)).toBe(0)
+    } else {
+      await expect(page.getByRole('dialog', { name: 'Set up Codex' })).toBeVisible()
+      expect(await page.evaluate(() => (window as any).setupOpenings)).toBe(1)
+      expect(await page.evaluate(() => (window as any).startupFixture.pending())).toBe(false)
+    }
+  })
+}
+
 test('missing marker sits inside the terminal card bottom-right corner', async ({ page }) => {
   await page.goto('/terminal-startup.html?localCli=missing&selector')
   const card = page.getByRole('button', { name: /^Codex/ })

@@ -16,11 +16,18 @@ import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
 const remote = new URLSearchParams(location.search).get('remote')
-const local = { installed: !new URLSearchParams(location.search).has('localCli'), installs: 0, fail: false, delayed: false, links: [] as string[], complete: () => {} }
+const detections: (() => void)[] = []
+const local = { installed: !new URLSearchParams(location.search).has('localCli'), installs: 0, fail: false, delayed: false, links: [] as string[], complete: () => {},
+  detecting: new URLSearchParams(location.search).has('delayDetect'),
+  completeDetection: () => { local.detecting = false; detections.splice(0).forEach(resolve => resolve()) },
+}
 Object.assign(window, { localCliFixture: local })
 Object.assign(window.electron.file, { openPreviewLink: async (url: string) => { local.links.push(url) } })
 Object.assign(window.electron.externalCli, {
-  detect: async (toolId: string) => ({ toolId, installed: local.installed, runnable: local.installed, version: local.installed ? '1.0.0' : undefined }),
+  detect: async (toolId: string) => {
+    if (local.detecting) await new Promise<void>(resolve => detections.push(resolve))
+    return { toolId, installed: local.installed, runnable: local.installed, version: local.installed ? '1.0.0' : undefined }
+  },
   install: async (toolId: string) => {
     local.installs++
     if (local.delayed) await new Promise<void>(resolve => { local.complete = resolve })

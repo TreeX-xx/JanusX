@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-11-02T13:17:38Z",
+  "updated": "2026-11-02T15:32:36Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -53,7 +53,9 @@ Installation and repair badges are anchored inside the bottom-right corner of th
 
 The xdo closeout adds asynchronous recovery guards: a forced post-install probe waits for an older in-flight probe and then performs a fresh check; a failed external-download-link callback updates only its still-active dialog. The focused suite including `tests/unit/cli-readiness.test.ts` now passes 156 tests (one opt-in network test skipped); the earlier real Windows runtime verification remains applicable.
 
-New-terminal entry icons retain visibility independently of installation. A small download badge marks a missing CLI; a repair badge marks an installed but non-runnable CLI. Both the empty selector and the new-terminal menu share readiness probes, scoped to local versus WSL/SSH environments. The local launch/retry path opens a setup dialog before creating a PTY. Install-and-open and re-detection resume the original launch only while its dialog remains active; closing it abandons automatic opening while an already-started installation continues. Detection errors remain unknown instead of inventing an uninstalled state. Settings uses an explicit eye button and shown/hidden text; clicking the brand no longer toggles visibility.
+New-terminal entry icons retain visibility independently of installation. A small download badge marks a missing CLI; a repair badge marks an installed but non-runnable CLI. Both the empty selector and the new-terminal menu share readiness probes, scoped to local versus WSL/SSH environments. The local launch/retry path reserves its launch intent during the initial probe without opening or rendering the setup dialog. A runnable result proceeds directly to terminal startup; only a missing, broken or failed detection opens setup before creating a PTY. This prevents installed tools from flashing installation instructions when the readiness cache is absent or expired, while keeping the existing duplicate-click guard. Install-and-open and re-detection resume the original launch only while its dialog remains active; closing it abandons automatic opening while an already-started installation continues. Detection errors remain unknown instead of inventing an uninstalled state. Settings uses an explicit eye button and shown/hidden text; clicking the brand no longer toggles visibility.
+
+Initial-probe regression verification (2026-11-02): `npx playwright test tests/e2e/local-cli-setup.spec.ts --project=island` passes all 9 cases. Delayed installed/missing probes count actual `showModal()` calls, asserting zero setup openings for an installed tool and exactly one after a missing result; existing install, retry, cancellation and narrow-screen cases remain covered. The 2 `cli-readiness.test.ts` unit tests, type checking and targeted ESLint also pass. Browser evidence uses the Electron API fixture rather than a real installer.
 
 The existing installer reuses a working Node 22+ and npm when no private runtime exists. Otherwise it prepares checksum-pinned Node 24.22.2 under the profile's `userData/cli-runtime`, with a separate tools prefix. Downloads use official Node archives for Windows, macOS and Linux x64/arm64, validate SHA-256 before extraction and verify the executable before publishing the runtime directory. Runtime preparation shares the installation lock. Global npm operations explicitly pass `--prefix`; an inherited npm configuration can override an environment-only prefix, as the Windows integration probe demonstrated. Runtime paths are applied only to child processes. Detection, launch resolution and new Agent terminal environments discover the same managed tool directories, and successful installs clear cached CLI paths. Existing system Node configuration is not rewritten.
 
