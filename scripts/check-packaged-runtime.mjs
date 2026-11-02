@@ -118,7 +118,16 @@ const CLOSURE_EXCEPTIONS = new Map([
   ['electron', 'the built-in Electron module answers `import "electron"`; node_modules/electron exports an exe path'],
   ['typescript', 'declared by the MCP and Lark SDKs, required by neither at runtime'],
   ['monaco-editor', 'bundled into out/renderer as renderer assets'],
+  ['@napi-rs/canvas', 'optional PDF.js Node backend; PDF previews use Chromium Canvas'],
 ])
+
+// PDF preview is renderer-only. Removing its optional native backend must not
+// remove the actual viewer, worker or offline resources shipped to Chromium.
+// Note: .agents/notes/workbench/file-editor-experience.md
+for (const pattern of [/^out\/renderer\/assets\/PdfViewer-.*\.js$/, /^out\/renderer\/assets\/pdf\.worker.*\.mjs$/,
+  /^out\/renderer\/pdfjs\/cmaps\/.+\.bcmap$/, /^out\/renderer\/pdfjs\/standard_fonts\/.+/, /^out\/renderer\/pdfjs\/wasm\/.+\.wasm$/]) {
+  if (![...asarEntries].some(entry => pattern.test(entry))) throw new Error(`Packaged PDF renderer resource missing: ${pattern}`)
+}
 
 // `npm ls` exits non-zero on workspace file: dependencies even when it prints the
 // whole tree, so the status is ignored and the printed tree is the only input.
@@ -174,7 +183,7 @@ for (const name of readdirSync(join(root, 'node_modules'))) {
 }
 
 const missingFromArchive = [...closure].filter(
-  (name) => installedAtRoot.has(name) && !archivePackages.has(name) && !CLOSURE_EXCEPTIONS.has(name),
+  (name) => installedAtRoot.has(name) && !archivePackages.has(name) && !CLOSURE_EXCEPTIONS.has(name) && !name.startsWith('@napi-rs/canvas-'),
 )
 if (missingFromArchive.length > 0) {
   throw new Error(

@@ -65,6 +65,11 @@ files:
   - "!node_modules/.vite-cache{,/**/*}"
   - "!node_modules/.vite-*{,/**/*}"
   - "!node_modules/monaco-editor{,/**/*}"
+  # PDF rendering uses Chromium Canvas; its optional Node/Skia backend is unused.
+  # Keep pdfjs-dist metadata and bundled renderer assets.
+  # Note: .agents/notes/workbench/file-editor-experience.md
+  - "!**/node_modules/@napi-rs/canvas{,/**/*}"
+  - "!**/node_modules/@napi-rs/canvas-*{,/**/*}"
 
   # Everything the production dependency closure never reaches. node_modules is
   # copied verbatim, so without these negations every devDependency ships in

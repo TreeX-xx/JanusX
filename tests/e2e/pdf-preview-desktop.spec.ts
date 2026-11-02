@@ -13,7 +13,9 @@ test('built Electron previews a local PDF offline in embedded and floating windo
     await mkdir(workspacePath)
     const filePath = join(workspacePath, 'report.pdf')
     await writeFile(filePath, pdfFixture(3))
-    app = await electron.launch({ args: [resolve(process.env.JANUS_PDF_TEST_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(root, 'data')}`], env: createDesktopTestEnv(root) })
+    const executablePath = process.env.JANUS_PDF_TEST_EXE
+    app = await electron.launch({ ...(executablePath ? { executablePath: resolve(executablePath) } : {}),
+      args: [...(executablePath ? [] : [resolve(process.env.JANUS_PDF_TEST_ENTRY ?? 'out/main/index.js')]), `--user-data-dir=${join(root, 'data')}`], env: createDesktopTestEnv(root) })
     const main = await app.firstWindow()
     main.on('console', message => { if (message.type() === 'warning' || message.type() === 'error') console.log(message.text()) })
     await main.waitForFunction(() => typeof (window as any).electron?.window?.openEditor === 'function')

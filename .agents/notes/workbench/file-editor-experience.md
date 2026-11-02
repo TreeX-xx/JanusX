@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-19",
-  "updated": "2026-11-02T10:22:08Z",
+  "updated": "2026-11-02T11:34:37Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -44,7 +44,13 @@ HTML 共用 HtmlPreviewFrame，默认 1280×800 虚拟视口与适合窗口缩�
 
 Worker、CMap、标准字体及 WASM 随 renderer 构建分发，无 CDN 依赖。应用工具栏跟随主题，页面保留文档自身颜色。当前不启用 PDF 脚本、注释交互、表单编辑或链接导航，不提供 OCR、全文搜索或批注保存。选择库内分页查看器的收益是复用文字层与页面缓存；代价是增加离线资源与兼容版本维护。超过 16 MiB 或持续出现大文档内存需求时，应另行评估分段读取，避免放大 Base64 和会话迁移载荷。
 
+打包排除 PDF.js 可选的 `@napi-rs/canvas` 及平台 Skia 包，包含嵌套副本；预览仅在 Chromium renderer 使用浏览器 Canvas，当前主进程没有 Node PDF 渲染入口。保留 pdfjs-dist 声明元数据与已构建的查看器、Worker、CMap、字体和 WASM。`check-packaged-runtime.mjs` 对可选 Canvas 后端作明确依赖例外，并检查这些浏览器资源确实存在；原有体积上限不变。若以后引入主进程 PDF 渲染，必须重新评估此排除，不能沿用当前例外。
+
+2026-11-02 重打 `release/11-2` 时，首包载荷为 274.2 MiB，超出 260 MiB 上限；排除两份未使用的原生 Canvas 后降至 202.1 MiB，unpacked 为 12.3 MiB、便携包为 140.1 MiB。包内 449 个 `out` 文件与本次构建逐一一致，更新清单校验通过。`JANUS_PDF_TEST_EXE=release/11-2/win-unpacked/JanusX.exe` 配合 `npx playwright test tests/e2e/pdf-preview-desktop.spec.ts --config playwright.desktop.config.ts --workers=1 --timeout=90000` 的实际打包程序测试通过，覆盖离线内嵌预览、翻页、浮窗与页码迁移；可选 executablePath 不改变默认源码构建测试入口。
+
 验证（2026-11-02）：`vitest run tests/unit/pdf-editor.test.ts tests/unit/editor-cache.test.ts tests/unit/file-classification.test.ts` 共 29 项通过。`pdf-preview.spec.ts` 3 项通过，覆盖真实多页 PDF 的文字层、按需画布、翻页／缩放、切换标签恢复、窄窗、只读保存、损坏文件与加密文件密码重试；`image-preview.spec.ts` 图片回归通过。初次加载 legacy 依赖时 Vite 重优化触发导航，用例复跑通过。`pdf-preview-desktop.spec.ts` 在 `artifacts/build-check/main/index.js` 的真实 Electron、隔离配置目录及禁止页面 HTTP(S) 的条件下通过，覆盖本地读取、内嵌与浮窗和页码迁移。主 Agent 查看窄窗与桌面截图。类型检查、相关组件 ESLint、双语键检查及生产构建通过；未执行安装包分发、其他操作系统、中文字体专项或全库 verify。
+
+重打包后，`node scripts/check-packaged-runtime.mjs --portable --release-dir release/11-2` 通过，包含仓库外临时目录中的 unpacked、portable payload 和 portable stub 检查，模块图、模型适配器导入、renderer／preload 及原生 GPU 启动均通过。打包排除同步检查通过。
 
 本次 Note 校验为 321 篇、0 errors，保留 17 条既有外部链接诊断。主题 CSS 生成检查通过；主题审计仍有 6 条来自既有 ConversationAttachment、ConversationImages、ConversationStartupPanel 工作区改动的诊断，PDF 样式无剩余诊断，未将这些组件改动纳入本次提交。
 
