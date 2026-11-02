@@ -1,5 +1,19 @@
 import { expect, test } from '@playwright/test'
 
+test('missing marker sits inside the terminal card bottom-right corner', async ({ page }) => {
+  await page.goto('/terminal-startup.html?localCli=missing&selector')
+  const card = page.getByRole('button', { name: /^Codex/ })
+  const badge = card.getByRole('img', { name: 'Not installed. Click to install' })
+  await expect(badge).toBeVisible()
+  const outer = (await card.boundingBox())!
+  const marker = (await badge.boundingBox())!
+  expect(outer.x + outer.width - marker.x - marker.width).toBeGreaterThanOrEqual(5)
+  expect(outer.x + outer.width - marker.x - marker.width).toBeLessThanOrEqual(10)
+  expect(outer.y + outer.height - marker.y - marker.height).toBeGreaterThanOrEqual(5)
+  expect(outer.y + outer.height - marker.y - marker.height).toBeLessThanOrEqual(10)
+  await page.screenshot({ path: test.info().outputPath('terminal-card-badge.png') })
+})
+
 test('missing CLI has a badge and installs before any terminal is created', async ({ page }) => {
   await page.goto('/terminal-startup.html?localCli=missing')
   await expect(page.getByRole('img', { name: 'Not installed. Click to install' })).toBeVisible()

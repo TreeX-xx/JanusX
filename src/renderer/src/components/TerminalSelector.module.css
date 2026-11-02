@@ -45,6 +45,7 @@
 }
 
 .card {
+  position: relative;
   width: 100%;
   min-width: 0;
   min-height: 108px;

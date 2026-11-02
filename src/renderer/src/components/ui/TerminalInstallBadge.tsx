@@ -3,11 +3,10 @@ import { Download, CircleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { probeCli, useCliReadiness } from '@/stores/cli-readiness'
-import { TerminalPresetIcon, type TerminalPresetIconProps } from './TerminalPresetIcon'
+import type { TerminalPreset } from '@/types'
 
 /** Only new-terminal entry points show installation status; running tabs do not. */
-export function TerminalLaunchIcon(props: TerminalPresetIconProps) {
-  const { preset } = props
+export function TerminalInstallBadge({ preset, compact = false }: { preset: TerminalPreset; compact?: boolean }) {
   const { i18n } = useTranslation()
   const remoteId = useWorkspaceStore(s => {
     const workspace = s.workspaces.find(w => w.id === s.activeWorkspaceId)
@@ -26,10 +25,8 @@ export function TerminalLaunchIcon(props: TerminalPresetIconProps) {
   const label = i18n.language.startsWith('zh')
     ? probe?.installed ? '需要修复，点击准备' : '未安装，点击安装'
     : probe?.installed ? 'Needs repair. Click to set up' : 'Not installed. Click to install'
-  return <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-    <TerminalPresetIcon {...props} />
-    {needsSetup && <span role="img" aria-label={label} title={label} style={{ position: 'absolute', right: -5, bottom: -4, display: 'grid', placeItems: 'center', width: 13, height: 13, borderRadius: '50%', background: 'var(--shell-canvas)', color: 'var(--shell-muted)', boxShadow: '0 0 0 1px var(--shell-border-soft)' }}>
-      {probe.installed ? <CircleAlert size={10} aria-hidden /> : <Download size={10} aria-hidden />}
-    </span>}
+  if (!needsSetup) return null
+  return <span role="img" aria-label={label} title={label} style={{ position: 'absolute', right: compact ? 3 : 7, bottom: compact ? 3 : 7, display: 'grid', placeItems: 'center', width: compact ? 12 : 16, height: compact ? 12 : 16, borderRadius: '50%', background: 'var(--shell-canvas)', color: 'var(--shell-muted)', boxShadow: '0 0 0 1px var(--shell-border-soft)' }}>
+    {probe.installed ? <CircleAlert size={compact ? 9 : 11} aria-hidden /> : <Download size={compact ? 9 : 11} aria-hidden />}
   </span>
 }

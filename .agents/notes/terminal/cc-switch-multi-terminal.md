@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-11-02T12:56:00Z",
+  "updated": "2026-11-02T13:17:38Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -48,6 +48,8 @@ The terminal matrix covers third-party npm tools but not the two CLIs closest to
 ## Decision
 
 ### First-use setup and private Node runtime
+
+Installation and repair badges are anchored inside the bottom-right corner of the entire terminal card, independently of the centered brand icon. The compact new-terminal menu follows the same placement with reserved right padding. The whole card remains the install/launch target; the badge adds no separate action.
 
 The xdo closeout adds asynchronous recovery guards: a forced post-install probe waits for an older in-flight probe and then performs a fresh check; a failed external-download-link callback updates only its still-active dialog. The focused suite including `tests/unit/cli-readiness.test.ts` now passes 156 tests (one opt-in network test skipped); the earlier real Windows runtime verification remains applicable.
 

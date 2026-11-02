@@ -2,7 +2,9 @@ import React, { useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { CLITerminal } from '../../../src/renderer/src/components/CLITerminal'
 import { LocalCliSetup } from '../../../src/renderer/src/components/LocalCliSetup'
-import { TerminalLaunchIcon } from '../../../src/renderer/src/components/ui/TerminalLaunchIcon'
+import { TerminalInstallBadge } from '../../../src/renderer/src/components/ui/TerminalInstallBadge'
+import { TerminalPresetIcon } from '../../../src/renderer/src/components/ui/TerminalPresetIcon'
+import { TerminalSelector } from '../../../src/renderer/src/components/TerminalSelector'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { launchTerminalPreset, retryTerminalCreate } from '../../../src/renderer/src/lib/terminal-launch'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
@@ -83,11 +85,12 @@ function Harness() {
   }
   return <>
     <button onClick={() => start('shell')}>New Shell</button>
-    <button onClick={() => start('codex')}>{!remote && <TerminalLaunchIcon preset="codex" style={{ width: 22, height: 22 }} />}New Codex</button>
+    <button style={{ position: 'relative', paddingRight: 20 }} onClick={() => start('codex')}>{!remote && <><TerminalPresetIcon preset="codex" style={{ width: 22, height: 22 }} /><TerminalInstallBadge preset="codex" compact /></>}New Codex</button>
     <LocalCliSetup />
     <button onClick={() => setGeneration(value => value + 1)}>Remount</button>
     <button onClick={() => { if (id) void retryTerminalCreate(id) }}>Retry</button>
     <div style={{ position: 'relative', height: 'calc(100vh - 40px)' }}>
+      {!id && new URLSearchParams(location.search).has('selector') && <TerminalSelector />}
       {id && <CLITerminal key={`${id}:${generation}`} terminalId={id} focused />}
     </div>
   </>

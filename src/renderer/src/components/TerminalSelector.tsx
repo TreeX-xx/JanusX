@@ -19,7 +19,7 @@ import {
 } from '@/lib/terminal-launch'
 import { useI18n } from '@/i18n/useI18n'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
-import { TerminalLaunchIcon } from './ui/TerminalLaunchIcon'
+import { TerminalInstallBadge } from './ui/TerminalInstallBadge'
 import styles from './TerminalSelector.module.css'
 
 interface TerminalOptionProps {
@@ -42,11 +42,12 @@ function TerminalOption({ preset, name, busy, onClick, onHover }: TerminalOption
       className={`${styles.card}${busy ? ` ${styles.cardBusy}` : ''}`}
     >
       <span className={styles.iconWrap}>
-        <TerminalLaunchIcon preset={preset} className={styles.icon} />
+        <TerminalPresetIcon preset={preset} className={styles.icon} />
       </span>
       <span className={styles.label}>
         {busy ? t('terminal:selector.starting') : name}
       </span>
+      <TerminalInstallBadge preset={preset} />
     </button>
   )
 }

@@ -90,7 +90,7 @@ import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
 import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { TerminalStatusLight } from '@/components/ui/TerminalStatusLight'
 import { TerminalPresetIcon } from '@/components/ui/TerminalPresetIcon'
-import { TerminalLaunchIcon } from '@/components/ui/TerminalLaunchIcon'
+import { TerminalInstallBadge } from '@/components/ui/TerminalInstallBadge'
 import styles from './TerminalArea.module.css'
 import {
   buildWorkspaceTerminalSurfaces,
@@ -707,7 +707,7 @@ function TerminalPresetCapsule({
                       type="button"
                       role="menuitem"
                       aria-label={`New ${item.name} terminal`}
-                      className={`terminal-preset-item flex min-w-0 items-center gap-2 rounded-md border px-2 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 ${plancheMenu ? 'focus-visible:ring-[rgba(212,61,42,0.5)]' : 'focus-visible:ring-[rgba(255,120,48,0.35)]'}`}
+                      className={`terminal-preset-item relative flex min-w-0 items-center gap-2 rounded-md border pl-2 pr-5 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 ${plancheMenu ? 'focus-visible:ring-[rgba(212,61,42,0.5)]' : 'focus-visible:ring-[rgba(255,120,48,0.35)]'}`}
                       style={{
                         borderColor: 'transparent',
                         background: 'transparent',
@@ -718,8 +718,9 @@ function TerminalPresetCapsule({
                         onSelect(item)
                       }}
                     >
-                      <TerminalLaunchIcon preset={item.type} className="h-4 w-4 shrink-0" />
+                      <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" />
                       <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                      <TerminalInstallBadge preset={item.type} compact />
                     </button>
                     </ThemedTooltip>
                   ))}
