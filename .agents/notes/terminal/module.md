@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-11-02T14:17:44Z",
+  "updated": "2026-11-02T15:20:05Z",
   "moduleState": "partial"
 }
 ---
@@ -46,7 +46,7 @@
 
 ## Design
 
-OpenCode 双形态按原生新建／查看会话的成功响应和身份回读同步绑定，历史预览不触发断线；切换失败或结果未知时保留终端并允许重新选择恢复。旧控制与迟到轮询隔离，具体协议与真实 CLI 验证见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
+OpenCode 双形态按原生新建／查看会话的成功响应和身份回读同步绑定，历史预览不触发断线；切换失败或结果未知时保留终端并允许重新选择恢复。该实例关闭原生内层标签栏，避免共享 tab 恢复带入其他空会话，多个实例由 JanusX 终端标签管理；保留用户全局配置及历史。旧控制与迟到轮询隔离，具体协议与真实 CLI 验证见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 
 ### 终端自选背景图（待实施）
 

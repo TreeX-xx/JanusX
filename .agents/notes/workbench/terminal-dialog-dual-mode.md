@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-02T14:17:44Z",
+  "updated": "2026-11-02T15:20:05Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -18,6 +18,10 @@
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
 
 ## OpenCode 原生会话切换
+
+JanusX 管理的双模式 OpenCode 使用外层终端标签承载多个运行实例；原生 TUI 通过进程级 `OPENCODE_CLI_CONFIG_CONTENT` 覆盖 `tabs.mode=off` 与 `tabs.enabled=false`，不恢复或写入共享的内层 tab 列表。仍可打开 New session、主动新建或切换历史会话。覆盖合并已有 JSONC 环境配置，保留主题、快捷键及其他字段，不修改全局配置和原生历史；配置格式无效时在启动服务前明确失败。这样避免同目录的旧空会话在新 pane 中再次出现，以及窄窗内多层标签标题互相挤压；代价是双模式实例不提供 OpenCode 内层标签栏，需要多实例时使用 JanusX 的终端标签。
+
+验证（2026-11-02）：`vitest run tests/unit/opencode-terminal-config.test.ts tests/unit/opencode-tabs-cli.test.ts tests/unit/opencode-session-startup.test.ts tests/unit/opencode-conversation-cli.test.ts` 共 11 项通过，类型检查与适配器 ESLint 通过。真实 Windows OpenCode 2.2.5 的对照复现两个保存 tab 加新会话显示三个 New session；修复后 80／45 列终端不加载旧 tab、不追加新 tab、不额外创建会话，保存文件字节不变，双向对话／新建／切换回归通过。画面证据取真实 PTY 输出与 xterm buffer；窗口捕获工具初始化失败，未验收用户 dev 窗口整体是否另有裁切问题。测试清理仍有既有 ConPTY 警告。若后续需要保留内层多标签，应引入按 pane 隔离的 tab 状态及单独布局验收，不能直接恢复共享 tab 列表。
 
 OpenCode 代理不再把其他会话的历史读取或尚未成功的新建请求判为会话损坏。原生 TUI 成功新建会话或发送 `POST /api/session/{id}/view` 后，适配器回读身份与工作目录再绑定；清空旧会话投影、撤销旧控制代次，并通过既有回调同步原生会话归属。读取历史不改变绑定，失败请求保留原会话；切换期间暂停轮询与对话控制，旧轮询的迟到消息和错误不能污染新会话。
 

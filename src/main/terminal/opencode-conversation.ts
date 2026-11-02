@@ -4,11 +4,26 @@ import { randomBytes } from 'node:crypto'
 import { dirname, extname, join, delimiter, resolve } from 'node:path'
 import { createServer, request as httpRequest, type Server } from 'node:http'
 import type { Socket } from 'node:net'
+import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { NativeConversation, type NativeLaunch } from './native-conversation'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../shared/conversation-display'
 
 type Json = Record<string, any> // Native API boundary; validate actual responses rather than CLI versions.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Note: .agents/notes/workbench/terminal-dialog-dual-mode.md
+// JanusX owns the outer tabs. Restoring shared native tabs mixes other panes'
+// sessions into this one; override only the launched TUI, never its saved state.
+export function openCodeTerminalConfig(content?: string): string {
+  const errors: ParseError[] = []
+  const config = content ? parseJsonc(content, errors, { allowTrailingComma: true }) : {}
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  if (errors.length || !object(config) || (config.tabs !== undefined && !object(config.tabs))) {
+    throw new Error('Invalid OPENCODE_CLI_CONFIG_CONTENT; expected a CLI configuration object')
+  }
+  return JSON.stringify({ ...config, tabs: { ...config.tabs as Record<string, unknown> | undefined, enabled: false, mode: 'off' } })
+}
+
 export class OpenCodeConversation extends NativeConversation {
   private child?: ChildProcess
   private endpoint = ''
@@ -42,6 +57,7 @@ export class OpenCodeConversation extends NativeConversation {
     return this.startup
   }
   private async launch(options: NativeLaunch): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
+    const terminalConfig = openCodeTerminalConfig(options.env.OPENCODE_CLI_CONFIG_CONTENT)
     this.directory = options.cwd
     const binary = process.platform === 'win32' && extname(options.command) !== '.exe'
       ? join(dirname(options.command), 'node_modules/@opencode/cli/bin/opencode.exe') : options.command
@@ -131,7 +147,8 @@ export class OpenCodeConversation extends NativeConversation {
     this.proxy.on('error', error => this.fail(error.message))
     const proxyAddress = this.proxy.address() as { port: number }
     this.polling = this.poll()
-    return { command: binary, args: ['--server', `http://127.0.0.1:${proxyAddress.port}`, '--session', info.data.id, options.cwd], env: { OPENCODE_SERVER_PASSWORD: this.password } }
+    return { command: binary, args: ['--server', `http://127.0.0.1:${proxyAddress.port}`, '--session', info.data.id, options.cwd],
+      env: { OPENCODE_SERVER_PASSWORD: this.password, OPENCODE_CLI_CONFIG_CONTENT: terminalConfig } }
   }
   private async api(path: string, body?: unknown): Promise<Json> {
     const response = await fetch(this.endpoint + path, { method: body === undefined ? 'GET' : 'POST',
