@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { probeCli } from '@/stores/cli-readiness'
 import { useI18n } from '@/i18n/useI18n'
 import {
   EXTERNAL_CLI_TOOL_META,
@@ -56,7 +58,7 @@ export function ExternalCliManager({
   // 否则安装失败信息会被随后一次重探洗掉。
   // 最新版查询独立于本地探测：注册表往返可达 15 秒，行内先按本地结果首绘。
   const refreshDetect = useCallback(async () => {
-    const detectResult = await externalCliService.detect(toolId)
+    const detectResult = await probeCli(toolId, undefined, true)
     setDetect(detectResult)
     setLoading(false)
   }, [toolId])
@@ -135,7 +137,7 @@ export function ExternalCliManager({
   const visibilityLabel =
     !visible ? t('settings:cliTools.visibility.hidden') : t('settings:cliTools.visibility.visible')
 
-  // 品牌图标即显隐开关：点了置灰就不从新建入口显示（已有终端照常运行）。
+  // Brand is decorative; visibility has an explicit eye control.
   const brandIcon = iconFailed ? (
     <span
       className={styles.lsToolIcon}
@@ -158,17 +160,12 @@ export function ExternalCliManager({
     <div className={cliStyles.client} role="group" aria-label={meta.displayName} data-cli-tool={toolId}>
       <div className={cliStyles.main}>
         <div className={cliStyles.identity}>
-          <button
-            type="button"
+          <span
             className={cliStyles.icon}
             data-tool={toolId}
-            aria-label={visibilityLabel}
-            aria-pressed={visible}
-            title={visibilityLabel}
-            onClick={() => onVisibleChange(!visible)}
           >
             {brandIcon}
-          </button>
+          </span>
           <div className={cliStyles.info}>
             <div className={cliStyles.heading}>
               <span>{meta.displayName}</span>
@@ -187,6 +184,11 @@ export function ExternalCliManager({
           </div>
         </div>
         <span className={`${styles.lsToolRowActions} ${cliStyles.actions}`}>
+          <button type="button" className={cliStyles.visibility} aria-label={visibilityLabel}
+            aria-pressed={visible} title={visibilityLabel} onClick={() => onVisibleChange(!visible)}>
+            {visible ? <Eye size={16} aria-hidden /> : <EyeOff size={16} aria-hidden />}
+            <span>{t(visible ? 'settings:cliTools.visibility.shown' : 'settings:cliTools.visibility.notShown')}</span>
+          </button>
           {!loading && state === 'not-installed' && !busy && (toolId !== 'opencode' || installOptions) && (
             <button
               type="button"
@@ -245,7 +247,12 @@ export function ExternalCliManager({
           <span className={styles.lsMetaItem}>{notice}</span>
         </div>
       )}
-      {error && <div className={`${styles.lsCardError} ${cliStyles.feedback}`} role="alert">{error}</div>}
+      {error && <div className={`${styles.lsCardError} ${cliStyles.feedback}`} role="alert">{error}
+        <div><a href="https://nodejs.org/en/download" target="_blank" rel="noreferrer" onClick={event => {
+          event.preventDefault()
+          void window.electron.file.openPreviewLink('https://nodejs.org/en/download').catch(reason => setError(String(reason)))
+        }}>{t('settings:cliTools.action.manualRuntime')}</a></div>
+      </div>}
       {justInstalled && state === 'ready' && (
         <div className={`${styles.lsCardMeta} ${cliStyles.feedback}`}>
           <span className={styles.lsMetaItem}>{t('settings:cliTools.notice.existingTerminal')}</span>

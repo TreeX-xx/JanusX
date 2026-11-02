@@ -103,7 +103,7 @@ export function registerExternalCliHandlers(options: RegisterExternalCliHandlers
         if (channel === EXTERNAL_CLI_CHANNELS.latest) return { toolId: fallbackTool }
         if (channel === EXTERNAL_CLI_CHANNELS.syncState) return { claude: null }
         if (channel === EXTERNAL_CLI_CHANNELS.detect) {
-          return { toolId: isSupportedToolId(payload) ? payload : fallbackTool, installed: false, runnable: false, hint: message }
+          return { toolId: isSupportedToolId(payload) ? payload : fallbackTool, installed: false, runnable: false, hint: message, error: message }
         }
         if (channel === EXTERNAL_CLI_CHANNELS.terminalRead) {
           return { toolId: isSupportedToolId(payload) ? payload : fallbackTool, configPath: null, exists: false, error: message }

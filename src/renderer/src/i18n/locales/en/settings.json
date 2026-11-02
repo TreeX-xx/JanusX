@@ -474,6 +474,7 @@
       "upgrade": "Upgrade",
       "updateLine": "Update {{channel}}",
       "installV2": "Install v2",
+      "manualRuntime": "Install Node.js LTS manually, then retry",
       "upgradeV2": "Upgrade to v2 · {{version}}",
       "refresh": "Re-detect",
       "refreshing": "Detecting...",
@@ -484,6 +485,8 @@
       "installed": "Install finished. Restart terminals to take effect."
     },
     "visibility": {
+      "shown": "Shown",
+      "notShown": "Hidden",
       "visible": "Shown at the new-terminal entries",
       "hidden": "Hidden from the new-terminal entries"
     }

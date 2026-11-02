@@ -2,6 +2,10 @@ import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter } from 'node:path'
 import { execa } from 'execa'
+import { existsSync } from 'node:fs'
+import { managedCliEnv, managedCliPaths } from './managed-paths'
+import { ensureManagedRuntime } from './managed-runtime'
+import { clearCache } from '../janus-runner/cli-resolver'
 import type {
   ExternalCliApplyResult,
   ExternalCliDetectResult,
@@ -73,9 +77,25 @@ function notInstalled(toolId: ExternalCliToolId, error: string): ExternalCliDete
 export class DefaultExternalCliService implements ExternalCliService {
   private readonly installer = new CliInstaller({
     platform: process.platform,
-    env: process.env,
+    get env() { return managedCliEnv() },
     homeDir: homedir(),
     isRegularFile: async path => (await stat(path)).isFile(),
+    installPrefix: () => existsSync(managedCliPaths().npm) ? managedCliPaths().prefix : undefined,
+    prepareNpm: async candidate => {
+      const paths = managedCliPaths()
+      if (!existsSync(paths.node) && candidate) {
+        const env = { ...process.env, PATH: candidate.pathDirs.join(delimiter) }
+        try {
+          const node = await execa('node', ['--version'], { env, timeout: 15_000, windowsHide: true })
+          const npm = process.platform === 'win32'
+            ? await execa('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& '${candidate.path.replace(/'/g, "''")}' --version; exit $LASTEXITCODE`], { env, timeout: 15_000, windowsHide: true })
+            : await execa(candidate.path, ['--version'], { env, timeout: 15_000 })
+          if (Number(node.stdout.match(/^v(\d+)/)?.[1]) >= 22 && /^\d+\./.test(npm.stdout.trim())) return candidate
+        } catch { /* Missing/broken system runtime: prepare a private copy. */ }
+      }
+      const ready = await ensureManagedRuntime()
+      return { path: ready.npm, pathDirs: [ready.bin, ready.toolsBin] }
+    },
     run: async (file, args, options) => {
       const pathValue = Object.entries(process.env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? ''
       const mergedPath = [...options.pathDirs, ...pathValue.split(delimiter).filter(Boolean)]
@@ -87,7 +107,8 @@ export class DefaultExternalCliService implements ExternalCliService {
           reject: false,
           windowsHide: true,
           cwd: options.cwd,
-          env: { ...process.env, PATH: mergedPath },
+          env: { ...process.env, PATH: mergedPath,
+            ...(options.pathDirs.includes(managedCliPaths().bin) ? { npm_config_prefix: managedCliPaths().prefix } : {}) },
         })
         return { exitCode: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
       } catch (error) {
@@ -190,6 +211,7 @@ export class DefaultExternalCliService implements ExternalCliService {
       const outcome = version ? await this.installer.install(tool, version, replace) : await this.installer.install(tool)
       if (!outcome.success) return { toolId, success: false, command: outcome.command, error: outcome.error }
       // 安装后重探：展示=实际运行，绝不凭 exit 0 断言成功。
+      clearCache()
       const probe = await this.detectorFor(toolId).detect()
       if (!probe.runnable || !probe.version) {
         return { toolId, success: false, command: outcome.command, error: probe.hint ?? `Install finished but ${tool.displayName} is not runnable.` }

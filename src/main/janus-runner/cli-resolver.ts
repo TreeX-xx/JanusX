@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import { managedCliDirs } from '../external-cli/managed-paths'
 
 const execAsync = promisify(exec)
 
@@ -133,6 +134,13 @@ function parseLookupLines(stdout: string): string[] {
 }
 
 export async function resolveCLIPath(command: string): Promise<string | null> {
+  // Managed installs take the same precedence as detection, even after a cached miss.
+  for (const dir of managedCliDirs()) {
+    const candidates = process.platform === 'win32'
+      ? WIN_SPAWN_EXTS.map(ext => join(dir, `${command}${ext}`)) : [join(dir, command)]
+    const managed = process.platform === 'win32' ? selectWindowsSpawnPath(candidates, command) : candidates.find(path => existsSync(path))
+    if (managed) return managed
+  }
   if (pathCache.has(command)) return pathCache.get(command)!
 
   const win = process.platform === 'win32'

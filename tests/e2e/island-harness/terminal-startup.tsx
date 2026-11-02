@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { CLITerminal } from '../../../src/renderer/src/components/CLITerminal'
+import { LocalCliSetup } from '../../../src/renderer/src/components/LocalCliSetup'
+import { TerminalLaunchIcon } from '../../../src/renderer/src/components/ui/TerminalLaunchIcon'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { launchTerminalPreset, retryTerminalCreate } from '../../../src/renderer/src/lib/terminal-launch'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
@@ -12,6 +14,19 @@ import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
 const remote = new URLSearchParams(location.search).get('remote')
+const local = { installed: !new URLSearchParams(location.search).has('localCli'), installs: 0, fail: false, delayed: false, links: [] as string[], complete: () => {} }
+Object.assign(window, { localCliFixture: local })
+Object.assign(window.electron.file, { openPreviewLink: async (url: string) => { local.links.push(url) } })
+Object.assign(window.electron.externalCli, {
+  detect: async (toolId: string) => ({ toolId, installed: local.installed, runnable: local.installed, version: local.installed ? '1.0.0' : undefined }),
+  install: async (toolId: string) => {
+    local.installs++
+    if (local.delayed) await new Promise<void>(resolve => { local.complete = resolve })
+    if (local.fail) return { toolId, success: false, error: 'Fixture network failure' }
+    local.installed = true
+    return { toolId, success: true }
+  },
+})
 const cliFixture = { installed: false, installs: 0, detectCalls: 0, state: 'running', fail: false, statusFail: false }
 if (remote) {
   useWorkspaceStore.setState({ workspaces: [{ id: 'ws', name: 'Remote project', path: 'janusx-workspace://ws/project',
@@ -68,7 +83,8 @@ function Harness() {
   }
   return <>
     <button onClick={() => start('shell')}>New Shell</button>
-    <button onClick={() => start('codex')}>New Codex</button>
+    <button onClick={() => start('codex')}>{!remote && <TerminalLaunchIcon preset="codex" style={{ width: 22, height: 22 }} />}New Codex</button>
+    <LocalCliSetup />
     <button onClick={() => setGeneration(value => value + 1)}>Remount</button>
     <button onClick={() => { if (id) void retryTerminalCreate(id) }}>Retry</button>
     <div style={{ position: 'relative', height: 'calc(100vh - 40px)' }}>

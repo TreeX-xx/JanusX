@@ -19,6 +19,8 @@ interface CliInstallerDependencies {
   isRegularFile(path: string): Promise<boolean>
   run(file: string, args: readonly string[], options: { timeout: number; pathDirs: string[]; cwd?: string }): Promise<RunResult>
   resolveSiblingRoot?: () => string | undefined
+  prepareNpm?: (candidate: { path: string; pathDirs: string[] } | undefined) => Promise<{ path: string; pathDirs: string[] }>
+  installPrefix?: () => string | undefined
 }
 
 export interface LocalToolSource {
@@ -49,6 +51,16 @@ export class CliInstaller {
 
   isBusy(): boolean {
     return this.running
+  }
+
+  private prefixArgs(): string[] {
+    const prefix = this.deps.installPrefix?.()
+    return prefix ? ['--prefix', prefix] : []
+  }
+
+  private prefixScript(): string {
+    const prefix = this.deps.installPrefix?.()
+    return prefix ? ` --prefix ${quotePowerShellPath(prefix)}` : ''
   }
 
   /** 定位 npm 并给出执行期 PATH 补齐目录；找不到则调用方只能展示手动命令。 */
@@ -95,28 +107,28 @@ export class CliInstaller {
     const target = `${tool.npmPackage}@${version}`
     if (this.deps.platform === 'win32') {
       // 与探测同理走 PowerShell：npm 报错与缺 node 的 cmd 报错都是 GBK，固定 UTF-8 才可读。
-      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} i -g ${target}; exit $LASTEXITCODE`
+      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} i -g ${target}${this.prefixScript()}; exit $LASTEXITCODE`
       return {
         file: 'powershell.exe',
         args: ['-NoProfile', '-NonInteractive', '-Command', script],
         display: `& "${npmPath}" i -g ${target}`,
       }
     }
-    return { file: npmPath, args: ['i', '-g', target], display: `${npmPath} i -g ${target}` }
+    return { file: npmPath, args: ['i', '-g', target, ...this.prefixArgs()], display: `${npmPath} i -g ${target}` }
   }
 
   /** Codex self-heal half: `uninstall || install` starts by removing the broken bits. */
   buildUninstallCommand(npmPath: string, tool: ExternalCliToolDescriptor): { file: string; args: readonly string[]; display: string } {
     if (!tool.npmPackage) throw new Error(`${tool.displayName} is not npm-distributed.`)
     if (this.deps.platform === 'win32') {
-      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} rm -g ${tool.npmPackage}; exit $LASTEXITCODE`
+      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} rm -g ${tool.npmPackage}${this.prefixScript()}; exit $LASTEXITCODE`
       return {
         file: 'powershell.exe',
         args: ['-NoProfile', '-NonInteractive', '-Command', script],
         display: `& "${npmPath}" rm -g ${tool.npmPackage}`,
       }
     }
-    return { file: npmPath, args: ['rm', '-g', tool.npmPackage], display: `${npmPath} rm -g ${tool.npmPackage}` }
+    return { file: npmPath, args: ['rm', '-g', tool.npmPackage, ...this.prefixArgs()], display: `${npmPath} rm -g ${tool.npmPackage}` }
   }
 
   /** 自有源码更新：包目录内 build 后全局 link；两步任一步失败即停并透出尾部输出。 */
@@ -133,12 +145,12 @@ export class CliInstaller {
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} ${args}; exit $LASTEXITCODE`,
+          `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} ${args}${args === 'link' ? this.prefixScript() : ''}; exit $LASTEXITCODE`,
         ],
       }))
       : ([
         { display: `npm run build (${source.packageDir})`, args: ['run', 'build'] as const },
-        { display: `npm link (${source.packageDir})`, args: ['link'] as const },
+        { display: `npm link (${source.packageDir})`, args: ['link', ...this.prefixArgs()] },
       ]).map(step => ({ ...step, file: npmPath }))
     const displays: string[] = []
     for (const step of steps) {
@@ -160,8 +172,9 @@ export class CliInstaller {
     // 同步置位：检查与置位之间不允许 await，否则两次同步进入的调用会同时通过检查。
     this.running = true
     try {
-      const located = await this.locateNpm()
-      if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Run the manual command in a terminal.' }
+      const candidate = await this.locateNpm()
+      const located = this.deps.prepareNpm ? await this.deps.prepareNpm(candidate) : candidate
+      if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
       if (tool.localLifecycle) {
         const source = await this.locateLocalSource(tool)
         if (source) return this.installLocal(located.path, located.pathDirs, source)
@@ -178,8 +191,8 @@ export class CliInstaller {
       const displays: string[] = []
       if (replace?.npmPackage) {
         const inspect = this.deps.platform === 'win32'
-          ? { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(located.path)} ls -g --depth=0 --json ${replace.npmPackage}; exit $LASTEXITCODE`] }
-          : { file: located.path, args: ['ls', '-g', '--depth=0', '--json', replace.npmPackage] }
+          ? { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(located.path)} ls -g --depth=0 --json ${replace.npmPackage}${this.prefixScript()}; exit $LASTEXITCODE`] }
+          : { file: located.path, args: ['ls', '-g', '--depth=0', '--json', replace.npmPackage, ...this.prefixArgs()] }
         const listed = await this.deps.run(inspect.file, inspect.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs: located.pathDirs })
         try {
           const data = JSON.parse(listed.stdout) as { name?: unknown; error?: unknown; dependencies?: Record<string, { version?: unknown }> }
@@ -238,7 +251,7 @@ export class CliInstaller {
     this.running = true
     try {
       const located = await this.locateNpm()
-      if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Run the manual command in a terminal.' }
+      if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
       if (!tool.npmPackage) return { success: false, command: tool.manualInstallCommand, error: 'No uninstall strategy for this tool.' }
       const command = this.buildUninstallCommand(located.path, tool)
       const result = await this.deps.run(command.file, command.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs: located.pathDirs })

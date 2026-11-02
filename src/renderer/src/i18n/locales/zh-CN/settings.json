@@ -474,6 +474,7 @@
       "upgrade": "升级",
       "updateLine": "更新 {{channel}}",
       "installV2": "安装 v2",
+      "manualRuntime": "手动安装 Node.js LTS 后重试",
       "upgradeV2": "升级到 v2 · {{version}}",
       "refresh": "重新检测",
       "refreshing": "检测中...",
@@ -484,6 +485,8 @@
       "installed": "安装完成，重启终端后生效。"
     },
     "visibility": {
+      "shown": "已显示",
+      "notShown": "已隐藏",
       "visible": "在新建终端入口显示",
       "hidden": "已从新建终端入口隐藏"
     }

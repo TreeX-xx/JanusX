@@ -23,6 +23,22 @@ function createHarness(options: {
 }
 
 describe('CliInstaller', () => {
+  it('prepares missing npm under the install lock and explicitly pins the private prefix', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const run = vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' }))
+    const prepareNpm = vi.fn(async () => { await gate; return { path: 'C:\\private\\npm.cmd', pathDirs: ['C:\\private'] } })
+    const installer = new CliInstaller({ platform: 'win32', env: {}, homeDir: 'C:\\fixture',
+      isRegularFile: async () => false, run, prepareNpm, installPrefix: () => "C:\\user's data\\tools" })
+    const first = installer.install(EXTERNAL_CLI_TOOLS.claude)
+    await expect(installer.install(EXTERNAL_CLI_TOOLS.codex)).resolves.toMatchObject({ success: false, error: 'Another install is already running.' })
+    release()
+    await expect(first).resolves.toMatchObject({ success: true })
+    expect(prepareNpm).toHaveBeenCalledWith(undefined)
+    expect(run.mock.calls[0][1].join(' ')).toContain("--prefix 'C:\\user''s data\\tools'")
+    expect(installer.buildUninstallCommand('C:\\private\\npm.cmd', EXTERNAL_CLI_TOOLS.claude).args.join(' ')).toContain('--prefix')
+  })
+
   it('refuses to run when npm cannot be located and hands out the manual command', async () => {
     const { installer, run } = createHarness()
 

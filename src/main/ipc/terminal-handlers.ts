@@ -22,6 +22,7 @@ import { deliverHandoff, type HandoffTransport } from '../sessions/handoff-deliv
 import { prepareSessionRecovery, type SessionRecoveryEnvironment } from '../sessions/session-recovery'
 import { isTerminalPreset, resolveTerminalLaunchProgram } from '../../shared/terminalLaunch'
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
+import { managedCliEnv } from '../external-cli/managed-paths'
 import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import type { SubAgentRunEngine } from '../../shared/subAgentRun'
 import { AgentHookBridge } from '../notifications/agent-hook-bridge'
@@ -805,6 +806,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
       const launchEnv = {
+        ...(engine !== 'shell' ? { PATH: managedCliEnv().PATH ?? managedCliEnv().Path ?? '' } : {}),
         ...hookEnv,
         ...(recoveryEnv?.claudeConfigDir ? { CLAUDE_CONFIG_DIR: recoveryEnv.claudeConfigDir } : {}),
         ...(recoveryEnv?.codexHome ? { CODEX_HOME: recoveryEnv.codexHome } : {}),

@@ -16,6 +16,7 @@ import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { Titlebar } from '@/components/Titlebar'
 import { Sidebar } from '@/components/Sidebar'
 import { TerminalArea } from '@/components/TerminalArea'
+import { LocalCliSetup } from '@/components/LocalCliSetup'
 import { WorkbenchErrorBoundary } from '@/components/WorkbenchErrorBoundary'
 import { TerminalSelector } from '@/components/TerminalSelector'
 import { Panel, RightDockLayoutProvider } from '@/components/Panel'
@@ -334,6 +335,7 @@ export default function App() {
         </div>
       </div>
       <AgentNotificationHost />
+      <LocalCliSetup />
       {/* ToB M2：未登录/无组织时全屏挡板 */}
       <TeamSetupGate />
       <OnboardingHost workspaceReady={workspaceReady} />

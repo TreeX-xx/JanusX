@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-10-31T18:57:00.000Z",
+  "updated": "2026-11-02T12:50:00Z",
   "moduleState": "partial"
 }
 ---
@@ -53,6 +53,8 @@
 建议先由宿主终端外观设置提供本地选图、移除／恢复纯色及持久化；图片适配、透明度／暗化、全局或按项目／终端覆盖等细节待定。绘制方案需让默认终端背景透出图片，同时保持文字、光标、选择及输入可读，不通过降低整个终端透明度淡化文字。CLI 显式绘制的单元格背景可能遮挡图片，不能承诺任意 TUI 全屏都完整透图。主题包是否能提供背景资源另定契约，不授予插件直接修改终端 DOM 或 PTY 的能力。
 
 ### 现有终端设计
+
+首次使用的 CLI 新建入口按目标环境检测可运行状态；未安装图标带下载角标，点击进入安装并打开引导，本地安装缺少 Node/npm 时准备私有运行环境，并保留 Node.js LTS 手动安装与重新检测兜底。关闭引导后不会因后台安装完成而自动打开终端。终端管理使用独立眼睛按钮控制显隐，品牌图标不再切换状态。私有目录、npm prefix 隔离和验证边界见 [多 CLI 安装专题](./cc-switch-multi-terminal.md#first-use-setup-and-private-node-runtime)。
 
 Codex 双形态的本机 WebSocket 通信在后端和原生 TUI 两侧都补充 NO_PROXY／no_proxy，合并已有排除项并绕过 loopback；宿主就绪探测与正式 WebSocket 显式直连，避免全局 HTTP 代理 hook 接管内部通道。外部模型访问仍沿用用户代理，不改全局环境。具体传输错误保留，断线不自动重发请求；真实 CLI 与 Electron 代理场景证据见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 

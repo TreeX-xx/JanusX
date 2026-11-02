@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, isAbsolute, join, resolve } from 'node:path'
 import { execa } from 'execa'
+import { managedCliEnv } from './managed-paths'
 import type { ExternalCliBinarySource, ExternalCliDetectResult, ExternalCliToolId } from '../../shared/ipc/external-cli'
 import type { ExternalCliToolDescriptor } from './tool-registry'
 import { getExternalCliTool } from './tool-registry'
@@ -137,6 +138,7 @@ async function defaultRun(file: string, args: readonly string[]): Promise<Comman
       timeout: PROBE_TIMEOUT_MS,
       reject: false,
       windowsHide: true,
+      env: managedCliEnv(),
     })
     return { exitCode: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
   } catch (error) {
@@ -168,7 +170,7 @@ function versionProbeCommand(platform: NodeJS.Platform, binaryPath: string): { f
 }
 
 const defaultDependencies: CliDetectorDependencies = {
-  env: process.env,
+  get env() { return managedCliEnv() },
   platform: process.platform,
   homeDir: homedir(),
   isRegularFile: async path => (await stat(path)).isFile(),

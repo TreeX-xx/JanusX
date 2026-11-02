@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-10-24T10:01:54Z",
+  "updated": "2026-11-02T12:56:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -46,6 +46,19 @@ The terminal matrix covers third-party npm tools but not the two CLIs closest to
 
 
 ## Decision
+
+### First-use setup and private Node runtime
+
+The xdo closeout adds asynchronous recovery guards: a forced post-install probe waits for an older in-flight probe and then performs a fresh check; a failed external-download-link callback updates only its still-active dialog. The focused suite including `tests/unit/cli-readiness.test.ts` now passes 156 tests (one opt-in network test skipped); the earlier real Windows runtime verification remains applicable.
+
+New-terminal entry icons retain visibility independently of installation. A small download badge marks a missing CLI; a repair badge marks an installed but non-runnable CLI. Both the empty selector and the new-terminal menu share readiness probes, scoped to local versus WSL/SSH environments. The local launch/retry path opens a setup dialog before creating a PTY. Install-and-open and re-detection resume the original launch only while its dialog remains active; closing it abandons automatic opening while an already-started installation continues. Detection errors remain unknown instead of inventing an uninstalled state. Settings uses an explicit eye button and shown/hidden text; clicking the brand no longer toggles visibility.
+
+The existing installer reuses a working Node 22+ and npm when no private runtime exists. Otherwise it prepares checksum-pinned Node 24.22.2 under the profile's `userData/cli-runtime`, with a separate tools prefix. Downloads use official Node archives for Windows, macOS and Linux x64/arm64, validate SHA-256 before extraction and verify the executable before publishing the runtime directory. Runtime preparation shares the installation lock. Global npm operations explicitly pass `--prefix`; an inherited npm configuration can override an environment-only prefix, as the Windows integration probe demonstrated. Runtime paths are applied only to child processes. Detection, launch resolution and new Agent terminal environments discover the same managed tool directories, and successful installs clear cached CLI paths. Existing system Node configuration is not rewritten.
+
+The setup dialog retains an official Node.js LTS download link as a manual fallback, plus re-detection and actionable failure details. Installation readiness does not assert authentication or model readiness. WSL/SSH retain their target-environment installation workflow. The cost of this choice is maintaining pinned runtime versions/checksums and eventually runtime cleanup/upgrade policy; revisit when supported CLI engines require a newer runtime. This change does not introduce an automatic runtime updater or an uninstall UI. macOS/Linux archives are declared but their real extraction and CLI execution remain unverified on those platforms.
+
+Machine verification: 154 focused unit tests passed (`npx vitest run tests/unit/external-cli tests/unit/agent/cli-resolver.test.ts tests/unit/terminal-launch.test.ts`), with the network-dependent runtime test skipped in that default run. A separate `JANUS_TEST_RUNTIME_DOWNLOAD=1` run of `managed-runtime.test.ts` passed all four tests on Windows x64: official archive download, private Node/npm execution, fixture-package installation with explicit prefix, CLI detection, launch-path resolution and cached runtime reuse. The test installed only a local fixture package, not every third-party CLI. The 31 browser tests across local setup, external CLI settings, terminal startup and remote Agent setup passed; narrow-screen screenshots were visually inspected in both themes. Type checking, targeted ESLint and bilingual key validation passed. Notes validation reported zero errors and 17 existing cross-repository link diagnostics.
+
 The registry declares three tools (Claude Code, Codex, OpenCode — the external CLIs the workspace presets actually launch) with npm package, binary names, manual command, and native-installer leftover directories in one row each, and the shared contract carries display metadata (monogram plus brand color) so main and renderer never fork a mapping. `ClaudeDetector` becomes descriptor-driven `CliDetector`, constructed per tool id, with Windows executable variants expanded from the base name and per-tool extra directories resolved through case-insensitive `%VAR%` expansion; the installer follows the same descriptor for its npm target. The service keeps one installer and one sync chain but fans detection out through a lazily built per-tool detector map, and the IPC allowlist validates against the registry instead of a literal. Settings renders one compact row per tool in registry order inside a single card — Janus first as the in-house tool, then the externals — using the official brand SVGs from `src/renderer/src/assets/icons/` (the same assets the terminal sidebar uses) with the monogram badge as load fallback. The card fills the settings control column like its neighbors (the column is a non-stretching flex row, so the card carries its own full width). Rows paint from the local probe behind a spinner, fold the latest version in when it arrives, and manual re-detect holds its own spinner state so fast no-change probes still read as acknowledged. Credential sync stays Claude-only by explicit guard; detection, latest, and install are the generalized surface.
 
 ### Claude Code version detection and install in Settings

@@ -90,6 +90,7 @@ import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
 import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { TerminalStatusLight } from '@/components/ui/TerminalStatusLight'
 import { TerminalPresetIcon } from '@/components/ui/TerminalPresetIcon'
+import { TerminalLaunchIcon } from '@/components/ui/TerminalLaunchIcon'
 import styles from './TerminalArea.module.css'
 import {
   buildWorkspaceTerminalSurfaces,
@@ -717,7 +718,7 @@ function TerminalPresetCapsule({
                         onSelect(item)
                       }}
                     >
-                      <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" />
+                      <TerminalLaunchIcon preset={item.type} className="h-4 w-4 shrink-0" />
                       <span className="min-w-0 flex-1 truncate">{item.name}</span>
                     </button>
                     </ThemedTooltip>

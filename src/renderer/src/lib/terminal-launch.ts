@@ -1,6 +1,7 @@
 import { supportsConversation } from '../../../shared/conversation-display'
 import type { Terminal, TerminalPreset } from '@/types'
 import { ensureRemoteAgent } from './remote-agent-setup'
+import { ensureLocalCli } from '@/stores/cli-readiness'
 import { parseRuntimeResource } from '../../../shared/workspace-runtime'
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -201,6 +202,7 @@ export async function launchTerminalPreset(
 
   const cwd = cwdOverride ?? workspacePath
   const remote = Boolean(parseRuntimeResource(cwd))
+  if (!remote && preset !== 'shell' && !options.attachOnly && !await ensureLocalCli(preset)) return null
   const conversationEnabled = supportsConversation(preset) && !remote && !options.attachOnly
   const initialView = conversationEnabled ? useConversationPreferences.getState().initialView : 'terminal'
   const nativeInput = initialView === 'terminal' ? initialInput : undefined
@@ -322,6 +324,7 @@ export async function retryTerminalCreate(terminalId: string): Promise<boolean> 
 async function runRetryTerminalCreate(terminalId: string): Promise<boolean> {
   const terminal = useWorkspaceStore.getState().terminals.find((item) => item.id === terminalId)
   if (!terminal) return false
+  if (!parseRuntimeResource(terminal.cwd) && terminal.preset !== 'shell' && !await ensureLocalCli(terminal.preset)) return false
 
   useWorkspaceStore.getState().updateTerminal(terminalId, {
     status: 'wait',
