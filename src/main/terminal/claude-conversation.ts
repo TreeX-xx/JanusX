@@ -89,8 +89,6 @@ export class ClaudeConversation {
     const pathKey = Object.keys(this.env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) this.env[pathKey] = `${options.pathDir}${delimiter}${this.env[pathKey] ?? ''}`
     this.configDir = this.env.CLAUDE_CONFIG_DIR || join(this.env.USERPROFILE || this.env.HOME || homedir(), '.claude')
-    const version = await this.cli(['--version'])
-    if (version.stdout.trim() !== '2.1.316 (Claude Code)') throw new Error(`Claude dual mode requires validated 2.1.316; installed: ${version.stdout.trim()}`)
     if (this.disposed) throw new Error('Claude launch cancelled')
     await mkdir(options.assetsDir, { recursive: true })
     this.directory = await mkdtemp(join(options.assetsDir, 'claude-'))

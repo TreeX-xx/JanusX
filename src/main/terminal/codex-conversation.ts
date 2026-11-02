@@ -1,5 +1,4 @@
-import { spawn, execFile, type ChildProcess } from 'node:child_process'
-import { promisify } from 'node:util'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import { existsSync } from 'node:fs'
 import { delimiter, dirname, extname, join } from 'node:path'
@@ -13,7 +12,6 @@ const MAX_TEXT = 32_000
 // Native startup plugin/list catalogs can exceed 25 MiB. Match ws's default
 // transport ceiling; display limits must not truncate native protocol messages.
 const MAX_PAYLOAD = 100 * 1024 * 1024
-const execFileAsync = promisify(execFile)
 
 /** Codex's native remote transport honors proxy variables, including for localhost. */
 export function codexLoopbackEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -79,8 +77,6 @@ export class CodexConversation {
     const env = codexLoopbackEnv(options.env)
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) env[pathKey] = `${options.pathDir}${delimiter}${env[pathKey] ?? ''}`
-    const version = await execFileAsync(command, ['--version'], { env, windowsHide: true, timeout: 8000 })
-    if (!/codex-cli 0\.166\./.test(version.stdout)) throw new Error(`Codex dual mode is validated with 0.166.x; installed: ${version.stdout.trim()}`)
     if (this.disposed) throw new Error('Codex launch cancelled')
     const reservation = createServer()
     await new Promise<void>((resolve, reject) => { reservation.once('error', reject); reservation.listen(0, '127.0.0.1', resolve) })

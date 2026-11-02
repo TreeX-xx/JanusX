@@ -7,7 +7,7 @@ import type { Socket } from 'node:net'
 import { NativeConversation, type NativeLaunch } from './native-conversation'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../shared/conversation-display'
 
-type Json = Record<string, any> // Validated, version-pinned native API boundary.
+type Json = Record<string, any> // Native API boundary; validate actual responses rather than CLI versions.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 export class OpenCodeConversation extends NativeConversation {
   private child?: ChildProcess
@@ -45,9 +45,7 @@ export class OpenCodeConversation extends NativeConversation {
     const env: NodeJS.ProcessEnv = { ...options.env, OPENCODE_SERVER_PASSWORD: this.password }
     const pathKey = Object.keys(env).find(k => k.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) env[pathKey] = `${options.pathDir}${delimiter}${env[pathKey] ?? ''}`
-    const version = (await promisify(execFile)(binary, ['--version'], { env, windowsHide: true, timeout: 10000 })).stdout.trim()
     if (this.disposed) throw new Error('OpenCode launch cancelled')
-    if (!/^(?:opencode v)?2\.1\.4$/.test(version)) throw new Error(`OpenCode dual mode requires validated 2.1.4; installed: ${version}`)
     this.child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd: options.cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     let log = ''
     const record = (bytes: Buffer) => { log = (log + bytes).slice(-4000); this.endpoint ||= /http:\/\/127\.0\.0\.1:\d+/.exec(log)?.[0] ?? '' }

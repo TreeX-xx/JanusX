@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-01T09:57:01Z",
+  "updated": "2026-11-02T10:38:56Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -16,6 +16,15 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## CLI 版本兼容策略
+
+Claude、Codex、OpenCode、Pi 与 DSH 的双模式启动不再以 CLI 或 DSH TUI 包版本号作为准入条件。启动前不运行仅用于门禁的 --version，也不读取 Pi／DSH 包清单做精确版本比较；升级后会直接进入既有后端启动或扩展桥准备流程。已验证版本只描述历史测试环境，不构成产品允许列表。诊断探针中的固定版本条件用于复现已有实验，不参与产品启动。
+
+实际可执行文件解析、平台限制、DSH 的 dsh-tui profile、登录／目录信任、原生服务响应、桥认证、会话身份、事件序号及控制权校验仍保留。移除门禁不代表承诺任意上游版本兼容；协议或扩展 API 变化时按实际启动、握手或请求失败报错，不伪造就绪、不自动重发。这样消除每次 CLI 升级都需改允许列表的维护成本；出现真实接口变化时再适配该接口，而非恢复精确版本锁。
+
+验证（2026-11-02）：conversation-launch-version 新增 6 项行为测试，验证 Codex／OpenCode 直接进入后端启动、Claude 进入实际启动操作、Pi／DSH 无包版本清单时仍可准备桥且保持 starting、DSH 错误 profile 仍拒绝。连同 codex-conversation、claude-conversation、opencode-conversation 与 native-conversation 共 45 项单测通过；类型检查与四个适配器 ESLint 通过。Note 校验 321 篇、0 errors，保留 17 条既有外部链接诊断。启动测试使用子进程替身或本地扩展桥，不调用供应商；尚未实测用户机器的 OpenCode 2.2.5 协议兼容性。
+
 
 ## Intent
 
@@ -167,7 +176,7 @@ Write/Edit/Bash 的 HTTP 审批只在能唯一关联当前工具时展示“允�
 
 产品应建立 turnId/tool_use_id → native task_id 映射，停止时阻止该轮新增执行、取消回答、停止属于该轮的任务，再确认终态；不能停止其它会话或用户明确保留的长期服务。TaskStop 两项只覆盖单个本地 Bash 子进程，不保证任意进程树、并行工具、子代理或远端任务；任务结果迟到、历史截断、重复停止和完成竞态还需测试。若原生停止超时，保持“仍有任务运行”，提供单独的结束会话操作。自有进程树回收只能作为结束会话的兜底，不能冒充保留同实例的停止回答；停止也不会回滚已完成的写入或外部操作。
 
-这两处已从“候选未验证”推进到“固定版本与场景下可行”。三个专项及原完整矩阵回归均退出码 0，回归报告为 `mods-1793423533458/`；记录的原生进程、daemon worker 及 TaskStop 子进程均已核实退出。daemon 私有协议仍需版本门控，公开 Mods 直接发送的停止屏障没有被修改；必须保留显式用户发送与后台插件工作的区别，不自动重试旧请求、伪造来源或全局截获 Esc。后续已接入产品，当前实现及新增证据见上节。
+这两处已从“候选未验证”推进到“固定版本与场景下可行”。三个专项及原完整矩阵回归均退出码 0，回归报告为 `mods-1793423533458/`；记录的原生进程、daemon worker 及 TaskStop 子进程均已核实退出。daemon 私有协议仍需实际握手与响应校验，公开 Mods 直接发送的停止屏障没有被修改；必须保留显式用户发送与后台插件工作的区别，不自动重试旧请求、伪造来源或全局截获 Esc。后续已接入产品，当前实现及新增证据见上节。
 
 ## ZCode：把执行事实、传输和界面分层
 
@@ -216,7 +225,7 @@ ZCode 的 [README](https://github.com/zai-org/ZCode/blob/a60ba6a7e5a06742270ca60
 | --- | --- | --- | --- |
 | 原生 CLI + PTY | 原生 TUI，完整保留 | 从明确绑定的 Hook/原生转录投影；标记“实时”“轮后同步”或“记录不完整” | 初期终端独占输入，对话只读；有正式可验证控制协议后再开放 |
 | Janus 或结构化协议托管 Agent | 工具命令输出、关联 shell；只有真实 TUI attach 能力才显示“Agent 终端” | 完整流式、工具、审批和输入 | 对话控制执行；关联 shell 是另一进程，不能当成同一 Agent 输入端 |
-| 明确支持同实例多前端的运行时 | 真实 attach 的 TUI | 同实例事件投影 | 新建本地 Codex 双模式已实现当前可见视图取得输入控制权；0.166.x 为版本门控，实际验收版本为 0.166.0 |
+| 明确支持同实例多前端的运行时 | 真实 attach 的 TUI | 同实例事件投影 | 新建本地 Codex 双模式已实现当前可见视图取得输入控制权；不以版本号拦截启动，历史实际验收版本为 0.166.0 |
 
 创建时选择 Agent 和默认显示模式，之后在同一会话内切换。支持的会话可以在空闲、输出中、执行工具、等待审批、完成或失败时切换，无需等当前轮结束。若当前引擎没有可用正文源，解释暂不支持，而不是显示看似完整的空对话；只有只读投影时标注“对话只读”，不能标为完整双向切换。
 
@@ -410,7 +419,7 @@ Codex 原生 remote 传输会读取代理环境变量，127.0.0.1 也可能被�
 
 2026-11-01 现场定位启动期 `Max payload size exceeded`：原生 TUI 的 `plugin/list` 单条响应为 26,304,472 字节（约 25.09 MiB），其中 `openai-curated-remote` 返回 10,689 条目录记录。旧桥接两端的 16 MiB 限额在接收后端响应时断开连接；以该限额直接请求接口复现 `WS_ERR_UNSUPPORTED_MESSAGE_LENGTH`。两端现统一为有限的 100 MiB，与 `ws` 默认值及独立探针一致，原生报文完整转发，不受对话展示裁剪影响。代价是单次接收、字符串转换和 JSON 解析可占用更多内存；若目录继续增长接近上限，应重新评估上游分页和转发成本。`npx vitest run tests/unit/codex-conversation.test.ts --project=unit` 十二项通过，新增真实 loopback WebSocket 回归发送超过 25 MiB 的插件目录，验证原文转发、后续轮次事件与连接存活；该用例在旧限额下失败。本轮未重跑完整 Electron 交互回归。
 
-新路径把现有 inline Hook 配置、terminal/workspace 身份环境、工作目录及 Office 环境传入自有 app-server，移除该后端命令中不适用的 --no-daemon。原 Hook manager 的默认参数未更改，不连接用户共享 daemon，不复制用户登录或原生 home。Hook 准备失败时新双模式启动失败并显示错误，避免悄悄运行无归属会话；原生信任仍在 TUI 由用户审阅。版本门控为 0.166.x，实测仅 0.166.0；Windows npm shim 会解析到原生 codex.exe，不能以 shell 字符串拼接 Hook TOML。仅接受新建本地 Codex，会话恢复参数与远程路径明确拒绝。
+新路径把现有 inline Hook 配置、terminal/workspace 身份环境、工作目录及 Office 环境传入自有 app-server，移除该后端命令中不适用的 --no-daemon。原 Hook manager 的默认参数未更改，不连接用户共享 daemon，不复制用户登录或原生 home。Hook 准备失败时新双模式启动失败并显示错误，避免悄悄运行无归属会话；原生信任仍在 TUI 由用户审阅。不再设置版本门控，此处历史实测版本为 0.166.0；Windows npm shim 会解析到原生 codex.exe，不能以 shell 字符串拼接 Hook TOML。仅接受新建本地 Codex，会话恢复参数与远程路径明确拒绝。
 
 显示切换不创建/取消/resume 轮次，原生 PTY/xterm 保持挂载；隐藏视图设为 inert，主进程同时拒绝隐藏终端的普通输入、原生主线程发送/中断与审批回复。显示控制代次让切换前的迟到对话操作失效。对话发送使用 commandId 去重，超时/断线不自动重发，运行中禁止再开一轮；原生终端继续保留它自己的补充输入语义。正文完成并不意味着轮结束，停止与忙碌状态以 turn 事件为准。对话草稿和阅读位置放在已有终端状态，终端草稿由原生 TUI 保留，两边不自动互拷。
 
@@ -420,7 +429,7 @@ Codex 原生 remote 传输会读取代理环境变量，127.0.0.1 也可能被�
 
 切换模式、标签或工作区不结束运行。显式关闭终端标签沿用现有“结束会话”语义，PTY 退出、同 ID 替换、创建失败及应用退出均回收自有后端；killAll 等待后端进程树回收。关闭标签后后台保活、应用重启恢复、协议自动重连和断线增量重放未实现，不能把 P0 的重连探针记作产品恢复能力。
 
-[官方 app-server 文档](https://developers.openai.com/codex/app-server/)与 [CLI 参考](https://developers.openai.com/codex/cli/reference/)给出了 remote TUI 连接方式，但明确将 app-server/WebSocket 标为实验性且不支持生产负载。产品入口默认具备双形态，底层仍保留版本门控与后端回收；启动失败显示错误，不静默重启或迁移。入口文案不改变协议的固定版本验证边界。
+[官方 app-server 文档](https://developers.openai.com/codex/app-server/)与 [CLI 参考](https://developers.openai.com/codex/cli/reference/)给出了 remote TUI 连接方式，但明确将 app-server/WebSocket 标为实验性且不支持生产负载。产品入口默认具备双形态，底层保留协议校验与后端回收，不再设置版本门控；启动失败显示错误，不静默重启或迁移。入口文案不改变协议的固定版本验证边界。
 
 可重复验证：`tests/unit/codex-conversation.test.ts` 八项覆盖 thread 过滤、稳定身份、去重、控制代次、审批失效、预算、初始化期间切换及模型/指令控制；`terminal-officecli-path.test.ts` 补充 shutdown 等待自有后端回收。真实集成 `tests/unit/codex-conversation-cli.test.ts` 使用生成的 Hook、原生审阅、两套后端/TUI 和 localhost 模型，覆盖空会话、往返输入、模型/effort 同步、两会话 Hook 归属、真实命令审批、执行输出与退出后进程消失。设置 `JANUSX_TEST_CODEX_BIN` 为原生 CLI 绝对路径后运行 `npx vitest run tests/unit/codex-conversation-cli.test.ts --project=integration`，默认跳过不能记通过。UI 五项 `tests/e2e/codex-conversation.spec.ts` 使用真实组件和 IPC 替身，覆盖流式切换、不重建终端、草稿、工作区往返、重挂载、IME、审批、文件窗口路由、断线、历史阅读不抢滚动、键盘返回最新、输入框自适应与命令选择器；暗色/纸面/窄窗截图在本地 `artifacts/codex-dual-mode/`。协议/P0 真实文件写入和 P1 文件 UI 属不同层证据，不能合称 P1 真实文件编辑全链路通过。
 
@@ -575,7 +584,7 @@ Codex 的 P1 可直接验证双向切换，不必把只读投影作为必经产�
 
 ## OpenCode 会话模型与强度设置
 
-2026-11-01 在 Windows OpenCode 2.1.4 的隔离服务确认原生支持会话设置：`GET /api/model`、`/api/provider`、`/api/model/default` 按 `location[directory]` 返回当前工作目录的目录与默认模型；`POST /api/session/{id}/model` 接收 `{ model: { providerID, id, variant? } }`，`GET /api/session/{id}` 返回确认后的选择。未传 variant 时原生读回 `default`。在线[模型说明](https://opencode.ai/v2/docs/models/)与[API 文档](https://dev.opencode.ai/v2/docs/api)用于核对概念，兼容依据是本机固定版本实测；其它版本仍受原版本门控限制。
+2026-11-01 在 Windows OpenCode 2.1.4 的隔离服务确认原生支持会话设置：`GET /api/model`、`/api/provider`、`/api/model/default` 按 `location[directory]` 返回当前工作目录的目录与默认模型；`POST /api/session/{id}/model` 接收 `{ model: { providerID, id, variant? } }`，`GET /api/session/{id}` 返回确认后的选择。未传 variant 时原生读回 `default`。在线[模型说明](https://opencode.ai/v2/docs/models/)与[API 文档](https://dev.opencode.ai/v2/docs/api)用于核对概念，兼容依据是本机固定版本实测；其它版本不再被版本门控拦截，实际兼容性由协议行为决定。
 
 OpenCode adapter 独立开启 settings 能力，不修改 Pi/DSH 的基类默认能力。模型以 provider/id 区分，筛除未启用模型及不可用 provider，IPC 仅发布名称、身份和 variants，不传含凭据的原生 settings。强度选择保留原生 variant 名称和顺序并提供默认值；variant 也可能代表供应商自定义参数组合，不承诺所有模型具备相同思考档位。无 variants 的模型只显示默认值。设置只影响当前会话，不改全局配置，不提交模型提示词。
 

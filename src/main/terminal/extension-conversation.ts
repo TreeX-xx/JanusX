@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { NativeConversation, type NativeEvent, type NativeLaunch } from './native-conversation'
 import type { ConversationSnapshot } from '../../shared/conversation-display'
@@ -8,7 +8,6 @@ import bridgeSource from './native-bridge.js?raw'
 import piSource from './pi-extension.js?raw'
 import dshSource from './dsh-extension.js?raw'
 import { pathToFileURL } from 'node:url'
-import { homedir } from 'node:os'
 
 class ExtensionConversation extends NativeConversation {
   private server?: Server
@@ -28,20 +27,14 @@ class ExtensionConversation extends NativeConversation {
     return this.startup
   }
   private async launch(options: NativeLaunch): Promise<{ command: string; args: string[] }> {
-    // Pin the extension contract to the installed npm package, without launching a second agent.
+    // CLI versions are not launch gates; the live extension handshake owns readiness.
+    // Note: .agents/notes/workbench/terminal-dialog-dual-mode.md — CLI version policy.
     const dsh = this.state.engine === 'dsh'
     const packageRoot = join(dirname(options.command), 'node_modules', ...(dsh ? ['@deepseek-ai', 'dsh'] : ['@earendil-works', 'pi-coding-agent']))
-    const manifest = join(packageRoot, 'package.json')
-    const version = JSON.parse(await readFile(manifest, 'utf8')).version
     if (this.disposed) throw new Error('Native launch cancelled')
-    const expected = dsh ? '0.2.0-rc.2' : '0.85.1'
-    if (version !== expected) throw new Error(`${this.state.engine} dual mode requires validated ${expected}; installed: ${version}`)
     if (dsh) {
       const profile = options.args[options.args.indexOf('--profile') + 1]
       if (profile !== 'dsh-tui') throw new Error('DSH dual mode requires the dsh-tui profile')
-      const home = options.env.DSH_HOME ?? join(options.env.USERPROFILE ?? options.env.HOME ?? homedir(), '.dsh')
-      const tui = JSON.parse(await readFile(join(home, 'profiles/dsh-tui/node_modules/@deepseek-harness-tui/dsh-tui/package.json'), 'utf8'))
-      if (tui.version !== '0.12.0') throw new Error(`DSH dual mode requires validated TUI 0.12.0; installed: ${tui.version}`)
     }
     await mkdir(options.assetsDir, { recursive: true })
     this.directory = await mkdtemp(join(options.assetsDir, `${this.state.engine}-`))
