@@ -40,7 +40,7 @@ import { readAssistantExcerpt } from '../sessions/transcript-excerpt'
 import { appShutdown } from '../shutdown/AppShutdown'
 import { officecliManager } from '../office/officecli-manager'
 import { existsSync } from 'node:fs'
-import { extname, resolve } from 'node:path'
+import { extname, isAbsolute, resolve, win32 } from 'node:path'
 import { buildOfficeAgentSession, mergeOfficeAgentEnv } from '../office/office-agent-policy'
 import {
   TERMINAL_EVENT_CHANNELS,
@@ -91,6 +91,16 @@ let companionTerminalCreator: ((config: TerminalCreateRequest) => Promise<{ pid:
 
 /** 直启程序；shell 条目解析失败时用 error 占位，错误在调用方已有 try 内抛出。 */
 type ResolvedLaunchProgram = { command: string; args: string[] } | { error: string } | undefined
+
+/** Absolute registeredCLIs command, when the user pointed Claude at a real binary. */
+function configuredClaudeCommand(command: string): string {
+  if (command !== 'claude') return command
+  const entry = configService.getRegisteredCLIs().find((item) => item.id === 'claude-code')
+  const configured = entry?.command?.trim()
+  if (!configured) return command
+  if (isAbsolute(configured) || win32.isAbsolute(configured)) return configured
+  return command
+}
 
 export type ContinueSessionOptions = {
   engine?: string
@@ -699,7 +709,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
       if (!launchProgram) return undefined
       try {
-        const resolved = await resolveCLIPath(launchProgram.command)
+        const resolved = await resolveCLIPath(configuredClaudeCommand(launchProgram.command))
         // Never pass a non-existent or extensionless Windows path to node-pty.
         // Fall back to the bare command so CreateProcess can still search PATHEXT.
         if (
@@ -709,7 +719,9 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         ) {
           return { command: resolved, args: launchProgram.args }
         }
-      } catch {
+      } catch (error) {
+        // A missing native claude.exe is the failure; don't hide it behind a bare PATH spawn.
+        if (error instanceof Error && error.name === 'ClaudeNativeBinaryError') throw error
         // Fall back to bare command; PATH-based spawn may still succeed.
       }
       return launchProgram
