@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-11-02T12:50:00Z",
+  "updated": "2026-11-02T14:17:44Z",
   "moduleState": "partial"
 }
 ---
@@ -45,6 +45,8 @@
 下列链接保留已有决策、阶段需求和交付记录的阅读路径；正文及生命周期由原 Note 负责。当前目录和蓝图归属以最近模块的 module 声明为准；历史 parent 关系保留旧阅读脉络，不参与模块层级，跨模块关联由本声明的 related-to 补充。模块声明只在职责、接口、明确依赖或代码入口变化时维护。
 
 ## Design
+
+OpenCode 双形态按原生新建／查看会话的成功响应和身份回读同步绑定，历史预览不触发断线；切换失败或结果未知时保留终端并允许重新选择恢复。旧控制与迟到轮询隔离，具体协议与真实 CLI 验证见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 
 ### 终端自选背景图（待实施）
 

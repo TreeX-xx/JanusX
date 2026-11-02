@@ -22,6 +22,7 @@ export const integrationTestFiles = [
   'tests/unit/conversation-edit-cli.test.ts',
   'tests/unit/dsh-conversation-cli.test.ts',
   'tests/unit/opencode-conversation-cli.test.ts',
+  'tests/unit/opencode-session-startup.test.ts',
   'tests/unit/pi-conversation-cli.test.ts',
   'tests/unit/codex-conversation-cli.test.ts',
   'tests/unit/claude-conversation-cli.test.ts',

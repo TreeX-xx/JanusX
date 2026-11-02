@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-02T10:38:56Z",
+  "updated": "2026-11-02T14:17:44Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -17,13 +17,21 @@
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
 
+## OpenCode 原生会话切换
+
+OpenCode 代理不再把其他会话的历史读取或尚未成功的新建请求判为会话损坏。原生 TUI 成功新建会话或发送 `POST /api/session/{id}/view` 后，适配器回读身份与工作目录再绑定；清空旧会话投影、撤销旧控制代次，并通过既有回调同步原生会话归属。读取历史不改变绑定，失败请求保留原会话；切换期间暂停轮询与对话控制，旧轮询的迟到消息和错误不能污染新会话。
+
+对话视图、发送或设置更新占用输入时，原生新建／切换返回 409。回读失败、响应丢失或切换交叠只暂停对话控制，保留终端操作；重新选择原生会话并确认后可恢复，不永久断开、不自动重发提示词。仍只管理当前服务与工作目录，其他引擎的身份保护不变。接口变化应更新选择信号适配，不能恢复“读历史即切换”的猜测。
+
+验证（2026-11-02）：`vitest run tests/unit/opencode-session-selection.test.ts tests/unit/opencode-conversation.test.ts tests/unit/native-conversation.test.ts` 共 19 项通过，覆盖旧控制失效、同会话保留历史、未知结果恢复、迟到读回及旧轮询消息／失败隔离。Windows 真实 OpenCode 2.2.5 的 `opencode-session-startup.test.ts` 与 `opencode-conversation-cli.test.ts` 各 1 项通过，使用隔离目录和 localhost 模型夹具，覆盖启动、历史预览、失败新建、原生 `/new`、双向发送、返回旧会话、模型设置及取消。测试通过不代表所有上游版本或生产模型均已验收；强制回收 TUI 时仍有既有 ConPTY `AttachConsole failed` 警告。
+
 ## CLI 版本兼容策略
 
 Claude、Codex、OpenCode、Pi 与 DSH 的双模式启动不再以 CLI 或 DSH TUI 包版本号作为准入条件。启动前不运行仅用于门禁的 --version，也不读取 Pi／DSH 包清单做精确版本比较；升级后会直接进入既有后端启动或扩展桥准备流程。已验证版本只描述历史测试环境，不构成产品允许列表。诊断探针中的固定版本条件用于复现已有实验，不参与产品启动。
 
 实际可执行文件解析、平台限制、DSH 的 dsh-tui profile、登录／目录信任、原生服务响应、桥认证、会话身份、事件序号及控制权校验仍保留。移除门禁不代表承诺任意上游版本兼容；协议或扩展 API 变化时按实际启动、握手或请求失败报错，不伪造就绪、不自动重发。这样消除每次 CLI 升级都需改允许列表的维护成本；出现真实接口变化时再适配该接口，而非恢复精确版本锁。
 
-验证（2026-11-02）：conversation-launch-version 新增 6 项行为测试，验证 Codex／OpenCode 直接进入后端启动、Claude 进入实际启动操作、Pi／DSH 无包版本清单时仍可准备桥且保持 starting、DSH 错误 profile 仍拒绝。连同 codex-conversation、claude-conversation、opencode-conversation 与 native-conversation 共 45 项单测通过；类型检查与四个适配器 ESLint 通过。Note 校验 321 篇、0 errors，保留 17 条既有外部链接诊断。启动测试使用子进程替身或本地扩展桥，不调用供应商；尚未实测用户机器的 OpenCode 2.2.5 协议兼容性。
+验证（2026-11-02）：conversation-launch-version 新增 6 项行为测试，验证 Codex／OpenCode 直接进入后端启动、Claude 进入实际启动操作、Pi／DSH 无包版本清单时仍可准备桥且保持 starting、DSH 错误 profile 仍拒绝。连同 codex-conversation、claude-conversation、opencode-conversation 与 native-conversation 共 45 项单测通过；类型检查与四个适配器 ESLint 通过。Note 校验 321 篇、0 errors，保留 17 条既有外部链接诊断。启动测试使用子进程替身或本地扩展桥，不调用供应商；该轮未实测 OpenCode 2.2.5，后续真实 CLI 验证及边界见上方原生会话切换小节。
 
 
 ## Intent
