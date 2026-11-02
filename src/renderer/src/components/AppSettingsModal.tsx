@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
+import { Bell, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
 import { ModalFrame } from '@/components/shared/ModalFrame'
 import { GeneralSettingsPanel } from './GeneralSettingsPanel'
 import { AboutSettingsPanel } from './AboutSettingsPanel'
 import { TerminalManagerPanel } from './TerminalManagerPanel'
-import { ExperimentalSettingsPanel } from './ExperimentalSettingsPanel'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import { PersonalMemorySettingsPanel } from './PersonalMemorySettingsPanel'
 import { LlmConfigModal } from './LlmConfigModal'
@@ -25,7 +24,7 @@ import { useI18n } from '@/i18n/useI18n'
 import styles from './AppSettingsModal.module.css'
 import { LearningButton } from './onboarding/LearningButton'
 
-type BuiltinSettingsTab = 'general' | 'terminal' | 'plugins' | 'experimental' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
+type BuiltinSettingsTab = 'general' | 'terminal' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
 export type SettingsTab = BuiltinSettingsTab | ExtensionViewId
 
 interface AppSettingsModalProps {
@@ -38,14 +37,15 @@ interface AppSettingsModalProps {
 
 // Note: grouped navigation preserves independent feature gates — see .agents/notes/knowledge/assistant-persona-layout.md
 const TAB_GROUPS: { id: string; tabs: SettingsTab[] }[] = [
-  { id: 'application', tabs: ['general', 'terminal', 'plugins', 'notifications', 'experimental'] },
+  // Experimental opt-in retired: .agents/notes/workbench/experimental-preview-features.md
+  { id: 'application', tabs: ['general', 'terminal', 'plugins', 'notifications'] },
   { id: 'memory', tabs: ['personal'] },
   { id: 'models', tabs: ['llm', 'models', 'usage'] },
   { id: 'collaboration', tabs: ['agent', 'team', 'hosted'] },
   { id: 'about', tabs: ['about'] },
 ]
 const TAB_ICONS: Record<BuiltinSettingsTab, LucideIcon> = {
-  general: Settings, terminal: SquareTerminal, notifications: Bell, experimental: Sparkles,
+  general: Settings, terminal: SquareTerminal, notifications: Bell,
   personal: Brain, llm: SlidersHorizontal,
   models: ListFilter, usage: ChartNoAxesCombined, agent: ShieldCheck,
   team: Users, hosted: Cloud, about: Info,
@@ -169,7 +169,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                           onClick={() => setActiveTab(tab)}
                         >
                           <Icon size={16} strokeWidth={1.7} aria-hidden="true" className={styles.tabIcon} />
-                          <span className={styles.tabLabel}>{tabNav(tab)}{tab === 'experimental' && <span className={styles.tabBadge}>{t('settings:experimental.badge')}</span>}</span>
+                          <span className={styles.tabLabel}>{tabNav(tab)}</span>
                         </button>
                       )
                     })}
@@ -200,7 +200,6 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'about' && <AboutSettingsPanel />}
               {activeTab === 'terminal' && <TerminalManagerPanel />}
               {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} authorizationTarget={pluginAuthorization} onOpened={requestClose} />}
-              {activeTab === 'experimental' && <ExperimentalSettingsPanel />}
               {activeTab === 'notifications' && <NotificationSettingsPanel />}
               {activeTab === 'personal' && <PersonalMemorySettingsPanel />}
               {activeTab === 'agent' && <AgentSettingsPanel />}
