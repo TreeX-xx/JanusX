@@ -1,4 +1,20 @@
 {
+  "pdf": {
+    "previous": "上一页",
+    "next": "下一页",
+    "page": "页码",
+    "zoom": "PDF 缩放",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "fitWidth": "适应宽度",
+    "fitPage": "适应整页",
+    "document": "PDF 文档",
+    "error": "无法显示此 PDF，文件可能已损坏或格式不受支持。",
+    "password": "PDF 密码",
+    "incorrectPassword": "密码不正确，请重试。",
+    "unlock": "打开 PDF",
+    "loading": "正在加载 PDF…"
+  },
   "fileTree": {
     "searchPlaceholder": "搜索文件...",
     "ariaContent": "文件浏览器内容",

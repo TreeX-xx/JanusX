@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-19",
-  "updated": "2026-10-24T10:10:36Z",
+  "updated": "2026-11-02T10:22:08Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -35,6 +35,18 @@ Markdown 双栏默认开启左侧带动右侧的同步滚动，可手动关闭�
 HTML 共用 HtmlPreviewFrame，默认 1280×800 虚拟视口与适合窗口缩放，可选桌面／移动尺寸、响应式模式、50%–150% 和刷新。固定视口在父容器中缩放；100% 等实际比例允许外层双向滚动，长文仍由 iframe 内部按原页面规则滚动。响应式模式采用实际面板尺寸，不改写文档 overflow。
 
 主进程提供 127.0.0.1 随机端口的只读资源服务，以随机 capability 和 renderer 所属租约限定工作区。HTML 草稿内存更新，CSS、模块脚本、CSS 内图片及 fetch 等保留浏览器原生相对路径解析；根相对路径通过同源 Referer 归入租约。只读 GET/HEAD，限制文件类型和 32MB 大小，真实路径检查拒绝工作区外资源；关闭预览或销毁窗口释放租约。HTTP iframe 与应用来源隔离，不提供 preload。建立租约期间显示加载提示，避免先运行 srcDoc 再运行 HTTP 页面；服务不可用时回退有限媒体解析，并移除 allow-same-origin 保持脚本隔离。
+
+## PDF 阅读预览
+
+文件窗口将 `.pdf` 分流为独立只读类型，内嵌面板与浮窗共用按需加载的 PdfViewer。PDF.js 5.7.284 的 legacy core、viewer 与 Worker 成套使用，以兼容 Electron 35；现代构建在浏览器可用，但本机 Electron 文档解析失败，不能用浏览器结果替代桌面验证。沿用有界二进制读取 IPC，单文件上限 16 MiB；PDF 不进入文本编辑、插件文档查看器或文本保存，包括 Ctrl+S。
+
+阅读器支持连续滚动、前后页与页码跳转、25%–400% 缩放、适应宽度／整页和可选择的文字层。页面由 PDF.js 渲染队列按需绘制，每张画布限制为 8M 像素；标签切换、内嵌／浮窗迁移保留当前页和缩放，组件关闭时取消加载并销毁文档。加密文件可输入密码、错误后重试；密码仅用于当前加载，不保存到会话。损坏文件显示错误，不回退文本编辑。
+
+Worker、CMap、标准字体及 WASM 随 renderer 构建分发，无 CDN 依赖。应用工具栏跟随主题，页面保留文档自身颜色。当前不启用 PDF 脚本、注释交互、表单编辑或链接导航，不提供 OCR、全文搜索或批注保存。选择库内分页查看器的收益是复用文字层与页面缓存；代价是增加离线资源与兼容版本维护。超过 16 MiB 或持续出现大文档内存需求时，应另行评估分段读取，避免放大 Base64 和会话迁移载荷。
+
+验证（2026-11-02）：`vitest run tests/unit/pdf-editor.test.ts tests/unit/editor-cache.test.ts tests/unit/file-classification.test.ts` 共 29 项通过。`pdf-preview.spec.ts` 3 项通过，覆盖真实多页 PDF 的文字层、按需画布、翻页／缩放、切换标签恢复、窄窗、只读保存、损坏文件与加密文件密码重试；`image-preview.spec.ts` 图片回归通过。初次加载 legacy 依赖时 Vite 重优化触发导航，用例复跑通过。`pdf-preview-desktop.spec.ts` 在 `artifacts/build-check/main/index.js` 的真实 Electron、隔离配置目录及禁止页面 HTTP(S) 的条件下通过，覆盖本地读取、内嵌与浮窗和页码迁移。主 Agent 查看窄窗与桌面截图。类型检查、相关组件 ESLint、双语键检查及生产构建通过；未执行安装包分发、其他操作系统、中文字体专项或全库 verify。
+
+本次 Note 校验为 321 篇、0 errors，保留 17 条既有外部链接诊断。主题 CSS 生成检查通过；主题审计仍有 6 条来自既有 ConversationAttachment、ConversationImages、ConversationStartupPanel 工作区改动的诊断，PDF 样式无剩余诊断，未将这些组件改动纳入本次提交。
 
 ## Alternatives considered
 

@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
+import { pdfAssets } from '../../scripts/pdf-assets'
 
 export default defineConfig({
   root: resolve(__dirname, 'island-harness'),
@@ -12,5 +13,5 @@ export default defineConfig({
       '@': resolve(__dirname, '../../src/renderer/src'),
     },
   },
-  plugins: [react()],
+  plugins: [react(), pdfAssets()],
 })

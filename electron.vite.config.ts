@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { transformWithEsbuild } from 'vite'
 import { build as bundleBackend } from 'esbuild'
+import { pdfAssets } from './scripts/pdf-assets'
 
 export default defineConfig(async ({ command }) => {
   const remoteScope = process.env.JANUSX_REMOTE_SCOPE || (command === 'serve' ? 'develop' : 'lan')
@@ -92,7 +93,7 @@ export default defineConfig(async ({ command }) => {
           '@': resolve(__dirname, 'src/renderer/src')
         }
       },
-      plugins: [react()],
+      plugins: [react(), pdfAssets()],
       build: {
         rollupOptions: {
           input: {

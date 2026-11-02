@@ -40,7 +40,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-01T06:44:24.335Z",
+  "updated": "2026-11-02T10:22:08Z",
   "moduleState": "partial"
 }
 ---
@@ -72,6 +72,8 @@ Codex 的原生执行计划与 Claude 的 TaskCreate／TaskUpdate／TodoWrite �
 旧独立产物工作区已删除：退出其面板、本地文件 stage、发现与尺寸工具、Zustand store、专用动画和测试夹具。文件查看统一使用现用文件窗口，保留文件类型映射、Office 后端与预览 frame、共享 HTML／图片／Markdown viewer；旧方案由[产物记录](product-workspace.md)保留历史证据。
 
 [文件预览与编辑](./file-editor-experience.md)以当前文件阅读、轻量修改和文件内搜索为边界，保留语法高亮与显式差异对比，移除 clangd 语言服务及定义／引用／符号导航。
+
+PDF 已接入共享文件窗口的只读预览，支持分页阅读、缩放、文字选择、密码解锁及内嵌／浮窗阅读状态迁移；离线资源、16 MiB 文件上限与验证边界见[PDF 阅读预览](./file-editor-experience.md#pdf-阅读预览)。
 
 [顶栏运行控件](./run-orb-budding.md)与收起的工具箱入口保持普通标题栏层级，展开 Island 覆盖其重叠区域；仅打开的工具菜单抬高层级。运行状态与控件实例不会随 Island 展开而清除。
 

@@ -219,7 +219,7 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
   const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties
   const diffEnabled = Boolean(activeFile && diffFileId === activeFile.id)
   const activeBaselineContent = diffEnabled && baselineFileId === activeFile?.id ? baselineContent : undefined
-  const canSave = Boolean(!pluginReadOnly && activeFile && activeFile.viewType !== 'image' && activeFile.viewType !== 'binary')
+  const canSave = Boolean(!pluginReadOnly && activeFile && !['image', 'binary', 'pdf'].includes(activeFile.viewType))
   const canFind = !pluginReadOnly && (activeFile?.viewType === 'code' || activeFile?.viewType === 'markdown' || activeFile?.viewType === 'html')
 
   return (

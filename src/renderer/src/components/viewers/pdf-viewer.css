@@ -1,0 +1,15 @@
+.pdf-preview { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+.pdf-stage { position: relative; flex: 1; min-height: 0; background: var(--shell-void); }
+.pdf-scroll { position: absolute; inset: 0; overflow: auto; }
+.pdf-preview .pdfViewer { padding: 12px 0; }
+.pdf-preview .pdfViewer .page { margin-bottom: 12px; }
+.pdf-page-number { width: 48px; text-align: center; background: transparent; color: inherit; border: 1px solid var(--shell-border); border-radius: 4px; }
+.pdf-controls { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; }
+.pdf-controls button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 5px; }
+.pdf-controls button:hover:not(:disabled) { background: var(--shell-hover); }
+.pdf-controls button:disabled { opacity: .35; }
+.pdf-controls select { max-width: 110px; padding: 3px; border-radius: 4px; border: 1px solid var(--shell-border); background: var(--shell-canvas); color: var(--shell-text); }
+.pdf-controls :focus-visible { outline: 1px solid var(--shell-accent); outline-offset: 1px; }
+.pdf-message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; color: var(--shell-text); background: var(--shell-canvas); font-size: 13px; }
+.pdf-message label { display: flex; flex-direction: column; gap: 8px; }
+.pdf-message input, .pdf-message button { padding: 6px 10px; border: 1px solid var(--shell-border); border-radius: 5px; background: var(--shell-canvas); }
