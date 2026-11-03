@@ -9,7 +9,7 @@ import { ConversationInput, type ConversationInputHandle } from './ConversationI
 import { activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
 import { insertConversationNewline } from '../lib/conversation-input'
 import { InputHistoryCursor, rememberConversationInput, mergeInputHistory, useConversationInputHistory, type InputHistoryEntry } from '../stores/conversation-input-history'
-import { EffortGlyph, ReasoningEffortPreview, effortVisualLevel } from './ReasoningEffort'
+import { EffortActivation, EffortGlyph, ReasoningEffortPreview, effortVisualLevel } from './ReasoningEffort'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort'
@@ -54,7 +54,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [active, setActive] = useState(0)
   const [selectionFailed, setSelectionFailed] = useState(false)
-  const [effortFeedback, setEffortFeedback] = useState(0)
+  const [effortFeedback, setEffortFeedback] = useState<{ id: number; effort: string | null }>({ id: 0, effort: null })
   const [acceptedCommand, setAcceptedCommand] = useState<string | null>(null)
   const [terminalCommand, setTerminalCommand] = useState<string | null>(null)
   useEffect(() => { setTerminalCommand(null) }, [draft, terminalId, snapshot?.threadId])
@@ -113,7 +113,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     setSelectionFailed(false)
     const originalDraft = draft
     if (await action({ type: 'settings', model: nextModel, effort, controlEpoch: snapshot.controlEpoch })) {
-      if (effort !== snapshot.effort) setEffortFeedback(value => value + 1)
+      if (effort !== snapshot.effort) setEffortFeedback(value => ({ id: value.id + 1, effort }))
       // A quick picker must never erase a message being composed.
       if (!panel && slash && inputRef.current?.value === originalDraft) setDraft('')
       setPanel(null); setDismissed(null); inputRef.current?.focus()
@@ -215,6 +215,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   }, [active, listId, currentPanel, choices.length])
 
   return <form ref={root} className={styles.composer} onSubmit={event => { event.preventDefault(); submit() }}>
+    {effortFeedback.id > 0 && <EffortActivation key={effortFeedback.id} effort={effortFeedback.effort} suppressed={Boolean(currentPanel)}
+      label={effortFeedback.effort && effortFeedback.effort !== 'default' ? t(`conversation.efforts.${effortFeedback.effort}`, { defaultValue: effortFeedback.effort }) : t('conversation.defaultEffort')}
+      status={t('conversation.effortActivated')} />}
     {currentPanel && <div className={styles.commandPanel} data-panel={currentPanel}>
       <div className={styles.commandHeader}>{!panel && currentPanel !== 'commands' && <button type="button" aria-label={t('conversation.picker.commands')} onClick={() => { setDraft('/'); inputRef.current?.focus() }}><ArrowLeft size={15} /></button>}<span>{t(`conversation.picker.${currentPanel}`)}</span>{currentPanel !== 'effort' && <span title={t('conversation.commandKeys')}>{t('conversation.compactCommandKeys')}</span>}</div>
       {currentPanel === 'effort' && activeChoice && <ReasoningEffortPreview effort={activeChoice.id} label={activeChoice.label}
@@ -264,7 +267,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
         {(!snapshot || snapshot.capabilities.settings) ? <><button type="button" ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-haspopup="listbox" aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
           <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></button>
         <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
-          <span key={effortFeedback} className={styles.effortFeedback} data-confirmed={effortFeedback > 0 || undefined}><EffortGlyph effort={snapshot?.effort} /></span><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
+          <span key={effortFeedback.id} className={styles.effortFeedback} data-confirmed={effortFeedback.id > 0 || undefined}><EffortGlyph effort={snapshot?.effort} /></span><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
           : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={styles.modelControl}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>

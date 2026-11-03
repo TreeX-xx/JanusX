@@ -512,6 +512,7 @@
     "compactCommandKeys": "↑↓ · Enter",
     "effortKeys": "← → · Enter",
     "effortPreview": "Preview",
+    "effortActivated": "Activated",
     "effortSelected": "Currently selected",
     "nextTurnShort": "Applies next turn",
     "modelsLoading": "Loading available models…",

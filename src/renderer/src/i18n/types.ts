@@ -4048,6 +4048,7 @@ export type TypedI18nKey =
   | 'terminal:conversation.editSubmit'
   | 'terminal:conversation.editSubmitting'
   | 'terminal:conversation.editText'
+  | 'terminal:conversation.effortActivated'
   | 'terminal:conversation.effortKeys'
   | 'terminal:conversation.effortPreview'
   | 'terminal:conversation.effortSelected'

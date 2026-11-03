@@ -1,5 +1,5 @@
 // Note: effort preview and confirmation — see .agents/notes/workbench/terminal-dialog-dual-mode.md
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import styles from './ReasoningEffort.module.css'
 
 const levels: Record<string, number> = { none: 0, minimal: 0.5, low: 1, medium: 2, high: 3, xhigh: 4, max: 5, ultra: 6 }
@@ -16,18 +16,52 @@ export function EffortGlyph({ effort }: { effort?: string | null }) {
   </svg>
 }
 
+const kinds = ['quiet', 'spark', 'pulse', 'orbit', 'vortex', 'corona', 'supernova'] as const
+
+function visualTier(effort?: string | null): number {
+  return Math.ceil(effortVisualLevel(effort) ?? 0)
+}
+
+function EffortReactor({ effort, burst = false }: { effort?: string | null; burst?: boolean }) {
+  const tier = visualTier(effort)
+  const rings = tier < 2 ? 0 : tier - 1
+  const particles = tier < 3 ? 0 : [0, 0, 0, 4, 8, 16, 24][tier]
+  return <span className={styles.reactor} data-reactor={kinds[tier]} data-burst={burst || undefined} aria-hidden="true">
+    <span className={styles.aura} />
+    {tier >= 2 && <span className={styles.wave} />}
+    {tier >= 5 && <span className={`${styles.wave} ${styles.waveOuter}`} />}
+    {Array.from({ length: rings }, (_, index) => <span key={index} className={styles.orbitPlane} style={{ '--orbit-angle': `${index * 57 - 28}deg`, '--orbit-size': `${58 + index * 12}px`, '--orbit-delay': `${index * 65}ms` } as CSSProperties}>
+      <i className={styles.orbit} />
+    </span>)}
+    {tier >= 5 && <span className={styles.corona}>{Array.from({ length: tier === 6 ? 20 : 12 }, (_, index) => <i key={index} className={styles.ray} style={{ '--angle': `${index * 360 / (tier === 6 ? 20 : 12)}deg` } as CSSProperties} />)}</span>}
+    <span className={styles.particles}>{Array.from({ length: particles }, (_, index) => <i key={index} className={styles.particle} style={{ '--angle': `${index * 360 / particles + 15}deg`, '--distance': `${44 + index % 3 * 10}px`, '--particle-delay': `${index % 4 * 45}ms` } as CSSProperties} />)}</span>
+    <span className={styles.core} data-energy-core="" />
+    {tier === 6 && <span className={styles.flare} />}
+  </span>
+}
+
 export function ReasoningEffortPreview({ effort, label, status }: { effort: string; label: string; status: string }) {
   const level = effortVisualLevel(effort)
   return <div className={styles.preview} data-effort-preview={effort} data-effort-level={level ?? 'neutral'}>
     <div className={styles.readout} aria-live="polite" aria-atomic="true"><span>{status}</span><strong>{label}</strong></div>
-    <div className={styles.meter} aria-hidden="true">
-      {Array.from({ length: 24 }, (_, index) => {
-        const filled = level !== undefined && index < level * 4
-        return <i key={index} data-filled={filled} style={{
-          '--effort-delay': `${index * 7}ms`,
-          '--effort-height': level === undefined ? 0.25 : 0.18 + (level / 6) * (0.32 + 0.5 * index / 23),
-        } as CSSProperties} />
-      })}
-    </div>
+    <EffortReactor key={effort} effort={effort} />
+  </div>
+}
+
+/** An accepted selection gets its own stage after the picker closes, without delaying application. */
+export function EffortActivation({ effort, label, status, suppressed }: { effort?: string | null; label: string; status: string; suppressed: boolean }) {
+  const [visible, setVisible] = useState(true)
+  const tier = visualTier(effort)
+  const duration = 900 + tier * 220
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(false), duration)
+    return () => window.clearTimeout(timer)
+  }, [duration])
+  useEffect(() => { if (suppressed) setVisible(false) }, [suppressed])
+  if (!visible || suppressed) return null
+  return <div className={styles.activation} data-effort-activation={effort ?? 'default'} data-activation-kind={kinds[tier]}
+    style={{ '--activation-duration': `${duration}ms` } as CSSProperties} role="status">
+    <div className={styles.readout}><span>{status}</span><strong>{label}</strong></div>
+    <EffortReactor effort={effort} burst />
   </div>
 }

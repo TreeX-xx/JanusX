@@ -1,10 +1,62 @@
 .glyph { flex-shrink: 0; }
 .glyph rect { transition: opacity 180ms ease, height 180ms ease, y 180ms ease; }
-.preview { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 12px 10px; padding: 12px 2px 14px; border-bottom: 1px solid var(--shell-border); min-height: 64px; }
-.readout { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.preview { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 12px 8px; padding: 0 2px 8px; border-bottom: 1px solid var(--shell-border); min-height: 106px; flex-shrink: 0; }
+.readout { display: flex; flex-direction: column; gap: 5px; min-width: 0; z-index: 1; }
 .readout > span { font-size: 10px; line-height: 1.4; color: var(--shell-muted); }
-.readout strong { font-size: 18px; line-height: 1.3; font-weight: 550; color: var(--shell-text); overflow-wrap: anywhere; }
-.meter { flex-shrink: 0; display: flex; align-items: flex-end; gap: 3px; height: 32px; color: var(--shell-accent); }
-.meter i { display: block; width: 3px; height: 32px; border-radius: 2px; background: var(--shell-muted); opacity: .2; transform: scaleY(var(--effort-height)); transform-origin: bottom; transition: transform 240ms cubic-bezier(.22, 1, .36, 1), background 200ms, opacity 200ms; transition-delay: var(--effort-delay); }
-.meter i[data-filled=true] { background: currentColor; opacity: .85; }
-@media (prefers-reduced-motion: reduce) { .glyph rect, .meter i { transition: none; } }
+.readout strong { font-size: 22px; line-height: 1.3; font-weight: 600; color: var(--shell-text); overflow-wrap: anywhere; }
+.reactor { --energy: var(--shell-accent); --core-size: 10px; position: relative; display: block; flex-shrink: 0; width: 150px; height: 106px; isolation: isolate; color: var(--energy); }
+.reactor[data-reactor=quiet] { --energy: var(--shell-muted); --core-size: 6px; }
+.reactor[data-reactor=pulse] { --energy: #22b8cf; --core-size: 14px; }
+.reactor[data-reactor=orbit] { --energy: #8b7cf8; --core-size: 18px; }
+.reactor[data-reactor=vortex] { --energy: #d65de3; --core-size: 22px; }
+.reactor[data-reactor=corona] { --energy: #e9a52b; --core-size: 26px; }
+.reactor[data-reactor=supernova] { --energy: #b174ff; --core-size: 32px; }
+.core, .aura, .wave, .orbitPlane, .particles, .corona, .flare { position: absolute; left: 50%; top: 50%; }
+.core { width: var(--core-size); height: var(--core-size); border-radius: 50%; translate: -50% -50%; background: radial-gradient(circle at 35% 30%, #fff, var(--energy) 68%); box-shadow: 0 0 10px currentColor, 0 0 24px color-mix(in srgb, currentColor 45%, transparent); }
+.aura { width: 80px; height: 80px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, currentColor 30%, transparent), transparent 70%); }
+.reactor[data-reactor=quiet] .core { background: transparent; border: 1px solid currentColor; box-shadow: none; }
+.reactor[data-reactor=quiet] .aura { display: none; }
+.reactor[data-reactor=spark] .aura { width: 36px; height: 36px; }
+.wave { width: 70px; height: 70px; border: 1px solid currentColor; border-radius: 50%; translate: -50% -50%; opacity: .25; }
+.waveOuter { width: 100px; height: 100px; opacity: .16; }
+.orbitPlane { width: var(--orbit-size); height: var(--orbit-size); translate: -50% -50%; transform: rotate(var(--orbit-angle)) scaleY(.48); }
+.orbit { display: block; width: 100%; height: 100%; border: 1.5px solid color-mix(in srgb, currentColor 30%, transparent); border-top: 2px solid currentColor; border-radius: 50%; animation: orbit-spin 5s linear infinite; }
+.orbit::after { content: ''; display: block; position: absolute; top: -3px; left: 48%; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
+.reactor[data-reactor=pulse] .orbitPlane { transform: none; }
+.reactor[data-reactor=vortex] .orbit { animation-duration: 2.4s; border-bottom: 2px solid currentColor; }
+.reactor[data-reactor=corona] .orbit { border-style: dashed; animation-duration: 8s; }
+.reactor[data-reactor=supernova] .orbit { animation-duration: 1.8s; border-color: #67e8f9 transparent #f0abfc; }
+.reactor[data-reactor=supernova] .core { background: radial-gradient(circle, white 20%, #f0abfc 48%, #8b5cf6 72%); box-shadow: 0 0 16px #e879f9, 0 0 32px #22d3ee; }
+.reactor[data-reactor=supernova] .aura { width: 140px; height: 106px; background: conic-gradient(from 30deg, transparent, #22d3ee33, #e879f94d, transparent, #fbbf2433, transparent); filter: blur(10px); }
+.particles, .corona { width: 0; height: 0; animation: orbit-spin 18s linear infinite; }
+.particle { position: absolute; width: 3px; height: 3px; background: currentColor; border-radius: 50%; box-shadow: 0 0 5px currentColor; transform: rotate(var(--angle)) translateX(var(--distance)); opacity: .8; }
+.ray { position: absolute; width: 2px; height: 14px; border-radius: 50%; background: linear-gradient(currentColor, transparent); transform: rotate(var(--angle)) translateY(-39px); transform-origin: 0 0; }
+.reactor[data-reactor=supernova] .ray { height: 21px; background: linear-gradient(#67e8f9, #e879f9, transparent); transform: rotate(var(--angle)) translateY(-49px); }
+.flare { width: 116px; height: 2px; translate: -50% -50%; transform: rotate(-25deg); background: linear-gradient(90deg, transparent, #f0abfc, white, #67e8f9, transparent); box-shadow: 0 0 10px #a78bfa; }
+.activation { pointer-events: none; position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 13; width: min(100%, 340px); min-height: 140px; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--shell-border); border-radius: 14px; background: var(--shell-chrome-raised); box-shadow: 0 12px 36px #0002; animation: activation-stage var(--activation-duration) ease-out both; }
+.activation .reactor { height: 116px; }
+.activation .readout strong { font-size: 26px; }
+.reactor[data-burst] .core { animation: spark-ignite 700ms cubic-bezier(.16, 1, .3, 1) both; }
+.reactor[data-burst][data-reactor=pulse] .core { animation-name: pulse-ignite; animation-duration: 1100ms; }
+.reactor[data-burst][data-reactor=orbit] .core { animation-name: orbit-ignite; animation-duration: 1250ms; }
+.reactor[data-burst][data-reactor=vortex] .core { animation-name: vortex-ignite; animation-duration: 1450ms; }
+.reactor[data-burst][data-reactor=corona] .core { animation-name: corona-ignite; animation-duration: 1750ms; }
+.reactor[data-burst][data-reactor=supernova] .core { animation-name: nova-ignite; animation-duration: 2000ms; }
+.reactor[data-burst] .wave { animation: shockwave 1200ms cubic-bezier(.16, 1, .3, 1) both; }
+.reactor[data-burst] .waveOuter { animation-delay: 180ms; animation-duration: 1550ms; }
+.reactor[data-burst] .particle { animation: scatter 1300ms cubic-bezier(.12, .7, .25, 1) both; animation-delay: var(--particle-delay); }
+.reactor[data-burst] .orbitPlane { animation: orbit-arrive 800ms cubic-bezier(.16, 1, .3, 1) both; animation-delay: var(--orbit-delay); }
+.reactor[data-burst] .flare { animation: flare-ignite 1600ms ease-out both; }
+@keyframes orbit-spin { to { rotate: 360deg; } }
+@keyframes activation-stage { 0% { opacity: 0; translate: 0 5px; } 12%, 78% { opacity: 1; translate: 0 0; } 100% { opacity: 0; translate: 0 -4px; } }
+@keyframes spark-ignite { from { scale: .5; opacity: .25; } 45% { scale: 1.25; opacity: 1; } to { scale: 1; opacity: 1; } }
+@keyframes pulse-ignite { 0% { scale: .4; } 35% { scale: 1.8; } 65% { scale: .85; } 100% { scale: 1; } }
+@keyframes orbit-ignite { from { scale: .3; rotate: -120deg; } 45% { scale: 1.45; } to { scale: 1; rotate: 0deg; } }
+@keyframes vortex-ignite { from { scale: .15; rotate: -270deg; } 50% { scale: 1.65; } to { scale: 1; rotate: 90deg; } }
+@keyframes corona-ignite { 0% { scale: .25; filter: brightness(1); } 30% { scale: 1.9; filter: brightness(1.7); } 60% { scale: 1.2; } 100% { scale: 1; filter: brightness(1); } }
+@keyframes nova-ignite { 0% { scale: .1; filter: brightness(1); } 18% { scale: .7; } 38% { scale: 2.3; filter: brightness(2); } 65% { scale: 1.3; } 100% { scale: 1; filter: brightness(1); } }
+@keyframes shockwave { from { scale: .15; opacity: .8; } to { scale: 1.5; opacity: 0; } }
+@keyframes scatter { from { transform: rotate(var(--angle)) translateX(12px) scale(.4); opacity: 0; } 25% { opacity: 1; } to { transform: rotate(var(--angle)) translateX(calc(var(--distance) * 1.25)) scale(.5); opacity: .15; } }
+@keyframes orbit-arrive { from { opacity: 0; scale: .3; rotate: -100deg; } to { opacity: 1; scale: 1; rotate: 0deg; } }
+@keyframes flare-ignite { 0% { scale: 0; opacity: 0; } 35% { scale: 1.4; opacity: 1; } 100% { scale: 1; opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .glyph rect { transition: none; } .reactor *, .activation { animation: none !important; } }
