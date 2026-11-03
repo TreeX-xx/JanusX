@@ -511,6 +511,8 @@
     "commandKeys": "↑↓ select · Enter apply · Esc close",
     "compactCommandKeys": "↑↓ · Enter",
     "effortKeys": "← → · Enter",
+    "effortPreview": "Preview",
+    "effortSelected": "Currently selected",
     "nextTurnShort": "Applies next turn",
     "modelsLoading": "Loading available models…",
     "modelsFailed": "Could not load models. Your current selection is unchanged.",

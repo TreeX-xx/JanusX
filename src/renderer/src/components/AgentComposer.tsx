@@ -9,17 +9,12 @@ import { ConversationInput, type ConversationInputHandle } from './ConversationI
 import { activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
 import { insertConversationNewline } from '../lib/conversation-input'
 import { InputHistoryCursor, rememberConversationInput, mergeInputHistory, useConversationInputHistory, type InputHistoryEntry } from '../stores/conversation-input-history'
+import { EffortGlyph, ReasoningEffortPreview, effortVisualLevel } from './ReasoningEffort'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort'
 interface Choice { icon?: LucideIcon; source?: string; completion?: string; id: string; label: string; description: string; selected?: boolean; disabled?: boolean; run(): void }
 const effortOrder = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
-
-function EffortGlyph({ level }: { level: number }) {
-  return <svg className={styles.effortGlyph} width="18" height="16" viewBox="0 0 18 16" aria-hidden="true">
-    {[4, 6, 8, 10, 12, 14].map((height, index) => <rect key={height} x={index * 3} y={15 - height} width="2" height={height} rx=".7" fill="currentColor" data-filled={index < level} />)}
-  </svg>
-}
 
 export function AgentComposer({ terminalId, historyScope, workspacePath, references, snapshot, setDraft, inputRef, canSend, hasOutgoing, busy, switching, send, action, changeMode }: {
   terminalId: string
@@ -59,6 +54,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [active, setActive] = useState(0)
   const [selectionFailed, setSelectionFailed] = useState(false)
+  const [effortFeedback, setEffortFeedback] = useState(0)
   const [acceptedCommand, setAcceptedCommand] = useState<string | null>(null)
   const [terminalCommand, setTerminalCommand] = useState<string | null>(null)
   useEffect(() => { setTerminalCommand(null) }, [draft, terminalId, snapshot?.threadId])
@@ -117,6 +113,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     setSelectionFailed(false)
     const originalDraft = draft
     if (await action({ type: 'settings', model: nextModel, effort, controlEpoch: snapshot.controlEpoch })) {
+      if (effort !== snapshot.effort) setEffortFeedback(value => value + 1)
       // A quick picker must never erase a message being composed.
       if (!panel && slash && inputRef.current?.value === originalDraft) setDraft('')
       setPanel(null); setDismissed(null); inputRef.current?.focus()
@@ -171,7 +168,6 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   })) : [...commands, ...nativeChoices]).filter(option => `${currentPanel === 'commands' ? '' : option.id} ${option.label} ${option.description}`.toLowerCase().includes(query.toLowerCase()))
   const activeChoice = choices[Math.min(active, choices.length - 1)]
   const selectedIndex = currentPanel !== 'commands' && !query ? choices.findIndex(option => option.selected) : -1
-  const effortLevel = Math.max(0, ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'].indexOf(snapshot?.effort ?? '') + 1)
   useEffect(() => { setActive(Math.max(0, selectedIndex)); setSelectionFailed(false) }, [query, currentPanel, selectedIndex])
   const submit = () => {
     if (slash) {
@@ -220,7 +216,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
 
   return <form ref={root} className={styles.composer} onSubmit={event => { event.preventDefault(); submit() }}>
     {currentPanel && <div className={styles.commandPanel} data-panel={currentPanel}>
-      <div className={styles.commandHeader}>{!panel && currentPanel !== 'commands' && <button type="button" aria-label={t('conversation.picker.commands')} onClick={() => { setDraft('/'); inputRef.current?.focus() }}><ArrowLeft size={15} /></button>}<span>{t(`conversation.picker.${currentPanel}`)}</span><span title={t('conversation.commandKeys')}>{currentPanel === 'effort' ? activeChoice?.label : t('conversation.compactCommandKeys')}</span></div>
+      <div className={styles.commandHeader}>{!panel && currentPanel !== 'commands' && <button type="button" aria-label={t('conversation.picker.commands')} onClick={() => { setDraft('/'); inputRef.current?.focus() }}><ArrowLeft size={15} /></button>}<span>{t(`conversation.picker.${currentPanel}`)}</span>{currentPanel !== 'effort' && <span title={t('conversation.commandKeys')}>{t('conversation.compactCommandKeys')}</span>}</div>
+      {currentPanel === 'effort' && activeChoice && <ReasoningEffortPreview effort={activeChoice.id} label={activeChoice.label}
+        status={t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : activeChoice.selected ? 'conversation.effortSelected' : 'conversation.effortPreview')} />}
       {(currentPanel === 'model' || panel === 'commands') && <label className={styles.pickerSearch}><Search size={14} aria-hidden="true" /><input ref={searchRef} value={query} onChange={event => panel ? setSearch(event.target.value) : setDraft('/model ' + event.target.value)} onKeyDown={keyboard}
         role="combobox" aria-label={t('conversation.searchOptions')} aria-expanded aria-controls={listId} aria-activedescendant={activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined} placeholder={t('conversation.searchOptions')} /></label>}
       <div className={currentPanel === 'effort' ? styles.effortScale : styles.commandList} role="listbox" id={listId} aria-label={t(`conversation.picker.${currentPanel}`)}
@@ -231,7 +229,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
         {choices.map((option, index) => <button key={option.id} id={`${listId}-${index}`} type="button" role="option" aria-selected={Boolean(option.selected)} aria-disabled={option.disabled || undefined}
           className={currentPanel === 'effort' ? styles.effortOption : styles.commandOption} data-active={index === Math.min(active, choices.length - 1)} tabIndex={-1} onMouseEnter={() => setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
           title={currentPanel === 'effort' ? undefined : option.description} aria-label={currentPanel === 'effort' ? option.label : undefined}>
-          {currentPanel === 'effort' ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + Math.max(0, effortOrder.indexOf(option.id) - 2) * 3 }} data-filled={index <= active} /></span><span>{option.label}</span></>
+          {currentPanel === 'effort' ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + (effortVisualLevel(option.id) ?? 0) * 3 }} data-filled={index === active} /></span><span>{option.label}</span><i className={styles.effortSelected} aria-hidden="true" /></>
             : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}{option.selected && <Check size={14} aria-hidden="true" />}</>}
         </button>)}
         </div>
@@ -266,8 +264,8 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
         {(!snapshot || snapshot.capabilities.settings) ? <><button type="button" ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-haspopup="listbox" aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
           <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></button>
         <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
-          <EffortGlyph level={effortLevel} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
-          : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={styles.modelControl}><EffortGlyph level={effortLevel} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
+          <span key={effortFeedback} className={styles.effortFeedback} data-confirmed={effortFeedback > 0 || undefined}><EffortGlyph effort={snapshot?.effort} /></span><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
+          : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={styles.modelControl}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
       {Boolean(snapshot?.turnId || snapshot?.backgroundTasks) && snapshot?.capabilities.cancel && !slash && <button className={styles.submit} type="button" disabled={!available} aria-label={t('conversation.stop')} title={t('conversation.stop')} onClick={() => void action({ type: 'interrupt', controlEpoch: snapshot.controlEpoch })}><Square size={13} fill="currentColor" aria-hidden="true" /></button>}

@@ -197,15 +197,21 @@
 .commandOption svg { flex-shrink: 0; }
 .pickerMessage, .pickerFootnote { padding: 6px 11px 8px; font-size: 11px; line-height: 1.5; color: var(--shell-muted); }
 .pickerFootnote { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--shell-border); padding: 6px 11px; flex-shrink: 0; font-size: 10px; }
-.effortGlyph { flex-shrink: 0; }
-.effortGlyph rect { opacity: .2; transition: opacity 180ms ease; }
-.effortGlyph rect[data-filled=true] { opacity: 1; }
+.modelControl .effortFeedback { display: flex; flex-shrink: 0; overflow: visible; border-radius: 3px; }
+.effortFeedback[data-confirmed] { animation: effort-confirm 520ms ease-out; }
+@keyframes effort-confirm {
+  0% { color: var(--shell-accent); box-shadow: 0 0 0 0 color-mix(in srgb, var(--shell-accent) 28%, transparent); transform: scale(.9); }
+  35% { color: var(--shell-accent); transform: scale(1.15); }
+  100% { box-shadow: 0 0 0 7px transparent; transform: scale(1); }
+}
 .commandPanel[data-panel=effort] { width: min(100%, 340px); }
 .effortScale { margin: 2px 8px 8px; min-height: 0; overflow: auto; flex-shrink: 0; outline: none; }
 .effortTrack { position: relative; display: grid; grid-template-columns: repeat(var(--effort-count), minmax(40px, 1fr)); min-width: calc(var(--effort-count) * 40px); isolation: isolate; }
 .effortIndicator { position: absolute; inset: 0 auto 0 0; width: calc(100% / var(--effort-count)); border-radius: 7px; background: var(--shell-hover); transform: translateX(calc(var(--effort-active) * 100%)); transition: transform 200ms cubic-bezier(.22, 1, .36, 1); pointer-events: none; z-index: -1; }
 .effortScale .effortOption { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 3px 8px; color: var(--shell-muted); font-size: 10px; line-height: 1.2; border-radius: 6px; }
-.effortOption > span:last-child { white-space: nowrap; }
+.effortOption > span:nth-child(2) { white-space: nowrap; }
+.effortSelected { display: block; width: 4px; height: 4px; border-radius: 50%; background: var(--shell-accent); opacity: 0; }
+.effortOption[aria-selected=true] .effortSelected { opacity: 1; }
 .effortOption[aria-selected=true], .effortOption[data-active=true] { color: var(--shell-text); }
 .effortScale:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: 2px; border-radius: 7px; }
 .effortOption[aria-disabled=true] { opacity: .4; cursor: default; }
