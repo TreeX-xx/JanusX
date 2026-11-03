@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-10-20",
-  "updated": "2026-10-21T17:19:58Z",
+  "updated": "2026-11-03T09:50:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5",
   "tags": ["remote", "android", "pairing", "verification"]
 }
@@ -77,6 +77,10 @@ Android 离线终端此前没有启动超时、资源错误或脚本失败反馈
 十个远程相关 Vitest 文件共 50 项通过（包含四项新增兼容测试），`npm run typecheck` 通过；`scripts/android-lab/run.ps1 -Action Build` 构建、12 项 Java 测试和 lint 通过（0 errors、14 warnings），日志 `artifacts/android-lab/webview-compat-build.log`。交付副本 `artifacts/android-lab/JanusX-Android-0.1.12.apk` 通过 APK v2 签名验证；安装包和测试证据保持 Git 忽略。真实手机 WebView 版本、连续交互及跨网验收仍待新版复测。
 
 ### 桌面配对面板视觉层级
+
+桌面底栏仅承载远控入口、连接进度、待审批提示与已连接终端数量。已移除左侧重复的终端名称、状态、加载提示及强调色圆点，终端状态继续由工作区侧栏展示。`remoteControl` 未加载或关闭时底栏不渲染，App 网格底行按内容定高，将原固定的 28px 归还工作区；开启后底栏恢复 28px，远控操作保持靠右。关闭功能同时关闭面板并清理状态轮询，重新开启不会自动弹出面板。
+
+此次调整通过 `npm run typecheck`、App/StatusBar ESLint 与 `npm run i18n:check`。`node artifacts/status-bar-removal/check.mjs` 复用 onboarding 的真实 App 浏览器夹具与受控 IPC，深色／纸色两组均验证关闭时主区延伸至窗口底部、开启时恰占 28px、待审批和连接数量、Escape 焦点返回、打开面板时关闭功能，以及 900×650 窗口边界；无页面异常。截图和报告存于 `artifacts/status-bar-removal/`，已复核默认无底栏及小窗口远控面板；这不替代真实手机链路验收。
 
 远程入口采用现有主题的中性色、细线图标与单一实心主操作，移除启动、批准和拒绝的大面积橙/绿/红背景；异常保留语义错误色。初始面板展示工作区、连接环境和生成二维码，信令、STUN 与 LAN 网卡位于可展开的「连接设置」；已运行时用一行摘要替代不可修改的工作区/环境控件。二维码保留最大 320px、白底和原留白，倒计时使用等宽数字。待审批请求优先于二维码，设备和终端分别分组；面板正文独立滚动，关闭远程留在固定页脚，小窗口仍可访问。Esc 关闭后焦点回到入口，点击面板外部也可关闭。风格以用户指定的 Codex 简约方向为参考，实际颜色复用 JanusX 主题变量，深浅主题均适配。
 

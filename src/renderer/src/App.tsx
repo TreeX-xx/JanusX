@@ -255,7 +255,7 @@ export default function App() {
       <Titlebar />
       <div
         ref={appGridRef}
-        className={`flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)_28px] overflow-hidden ${dockStyles.workbenchGrid}`}
+        className={`flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden ${dockStyles.workbenchGrid}`}
         data-resizing={rightDockResizing || editorResizing}
         style={{
           // 文件窗口轨道常驻（隐藏时 0px）：双击打开时 workbenchGrid 的 240ms 过渡才能平滑展开
@@ -330,7 +330,8 @@ export default function App() {
         >
           <Panel />
         </RightDockLayoutProvider>
-        <div className="col-span-full min-w-0 [&>footer]:h-full">
+        {/* Note: .agents/notes/remote/android-pairing-handshake.md — remote-only footer collapses when disabled. */}
+        <div className="col-span-full min-w-0">
           <StatusBar />
         </div>
       </div>

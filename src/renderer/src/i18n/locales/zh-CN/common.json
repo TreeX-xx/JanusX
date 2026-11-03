@@ -152,15 +152,6 @@
   "chat": {
     "copy": "复制"
   },
-  "statusBar": {
-    "waitingWorkspace": "等待加载工作区",
-    "workspaceLoaded": "已加载工作区",
-    "waitingTerminal": "等待选择终端",
-    "terminalActiveFocused": "{{name}} · {{status}}",
-    "terminalActiveNoFocus": "{{count}} 个终端 · 未聚焦",
-    "blueprintRunning": "蓝图画布引擎运行中",
-    "ready": "就绪"
-  },
   "titlebar": {
     "settings": "设置",
     "settingsReveal": ":: SETTINGS",

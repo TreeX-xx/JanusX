@@ -152,15 +152,6 @@
   "chat": {
     "copy": "Copy"
   },
-  "statusBar": {
-    "waitingWorkspace": "Waiting for workspace",
-    "workspaceLoaded": "Workspace loaded",
-    "waitingTerminal": "Waiting for terminal selection",
-    "terminalActiveFocused": "{{name}} · {{status}}",
-    "terminalActiveNoFocus": "{{count}} terminals · no focus",
-    "blueprintRunning": "Blueprint canvas engine running",
-    "ready": "Ready"
-  },
   "titlebar": {
     "settings": "Settings",
     "settingsReveal": ":: SETTINGS",
