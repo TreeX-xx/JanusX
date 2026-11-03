@@ -175,8 +175,7 @@
 .speedControl[aria-pressed=true] svg { fill: currentColor; }
 .speedControl:disabled { opacity: .45; cursor: default; }
 .modelControls .modelControl:hover, .modelControls .modelControl[aria-expanded=true] { background: var(--shell-hover); color: var(--shell-text); }
-.modelControls .effortControl, .modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { color: var(--effort-color); border-radius: 6px; background: color-mix(in srgb, var(--effort-color) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--effort-color) 18%, transparent); }
-.modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { background: color-mix(in srgb, var(--effort-color) 16%, transparent); }
+.modelControls .effortControl, .modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { color: var(--effort-color); background: transparent; }
 .composer { position: relative; }
 .commandPanel { position: absolute; bottom: calc(100% + 8px); left: 0; width: min(100%, 360px); z-index: 12; display: flex; flex-direction: column; max-height: clamp(160px, calc(100vh - 300px), 360px); border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-chrome-raised); box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-deep) 35%, transparent); overflow: hidden; }
 .commandHeader { display: flex; align-items: center; gap: 8px; padding: 12px; font-size: 12px; font-weight: 500; flex-shrink: 0; }
