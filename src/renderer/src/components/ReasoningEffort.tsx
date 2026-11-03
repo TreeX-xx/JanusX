@@ -1,4 +1,4 @@
-// Note: effort preview and confirmation — see .agents/notes/workbench/terminal-dialog-dual-mode.md
+// Note: effort activation on the composer — see .agents/notes/workbench/terminal-dialog-dual-mode.md
 import { useEffect, useState, type CSSProperties } from 'react'
 import styles from './ReasoningEffort.module.css'
 
@@ -16,43 +16,14 @@ export function EffortGlyph({ effort }: { effort?: string | null }) {
   </svg>
 }
 
-const kinds = ['quiet', 'spark', 'pulse', 'orbit', 'vortex', 'corona', 'supernova'] as const
+const kinds = ['quiet', 'spark', 'pulse', 'sweep', 'surge', 'corona', 'supernova'] as const
 
-function visualTier(effort?: string | null): number {
-  return Math.ceil(effortVisualLevel(effort) ?? 0)
-}
-
-function EffortReactor({ effort, burst = false }: { effort?: string | null; burst?: boolean }) {
-  const tier = visualTier(effort)
-  const rings = tier < 2 ? 0 : tier - 1
-  const particles = tier < 3 ? 0 : [0, 0, 0, 4, 8, 16, 24][tier]
-  return <span className={styles.reactor} data-reactor={kinds[tier]} data-burst={burst || undefined} aria-hidden="true">
-    <span className={styles.aura} />
-    {tier >= 2 && <span className={styles.wave} />}
-    {tier >= 5 && <span className={`${styles.wave} ${styles.waveOuter}`} />}
-    {Array.from({ length: rings }, (_, index) => <span key={index} className={styles.orbitPlane} style={{ '--orbit-angle': `${index * 57 - 28}deg`, '--orbit-size': `${58 + index * 12}px`, '--orbit-delay': `${index * 65}ms` } as CSSProperties}>
-      <i className={styles.orbit} />
-    </span>)}
-    {tier >= 5 && <span className={styles.corona}>{Array.from({ length: tier === 6 ? 20 : 12 }, (_, index) => <i key={index} className={styles.ray} style={{ '--angle': `${index * 360 / (tier === 6 ? 20 : 12)}deg` } as CSSProperties} />)}</span>}
-    <span className={styles.particles}>{Array.from({ length: particles }, (_, index) => <i key={index} className={styles.particle} style={{ '--angle': `${index * 360 / particles + 15}deg`, '--distance': `${44 + index % 3 * 10}px`, '--particle-delay': `${index % 4 * 45}ms` } as CSSProperties} />)}</span>
-    <span className={styles.core} data-energy-core="" />
-    {tier === 6 && <span className={styles.flare} />}
-  </span>
-}
-
-export function ReasoningEffortPreview({ effort, label, status }: { effort: string; label: string; status: string }) {
-  const level = effortVisualLevel(effort)
-  return <div className={styles.preview} data-effort-preview={effort} data-effort-level={level ?? 'neutral'}>
-    <div className={styles.readout} aria-live="polite" aria-atomic="true"><span>{status}</span><strong>{label}</strong></div>
-    <EffortReactor key={effort} effort={effort} />
-  </div>
-}
-
-/** An accepted selection gets its own stage after the picker closes, without delaying application. */
+/** A successful change lights the composer itself; the overlay never captures input. */
 export function EffortActivation({ effort, label, status, suppressed }: { effort?: string | null; label: string; status: string; suppressed: boolean }) {
   const [visible, setVisible] = useState(true)
-  const tier = visualTier(effort)
-  const duration = 900 + tier * 220
+  const tier = Math.ceil(effortVisualLevel(effort) ?? 0)
+  const duration = 900 + tier * 250
+  const particles = tier < 4 ? 0 : (tier - 3) * 8
   useEffect(() => {
     const timer = window.setTimeout(() => setVisible(false), duration)
     return () => window.clearTimeout(timer)
@@ -61,7 +32,24 @@ export function EffortActivation({ effort, label, status, suppressed }: { effort
   if (!visible || suppressed) return null
   return <div className={styles.activation} data-effort-activation={effort ?? 'default'} data-activation-kind={kinds[tier]}
     style={{ '--activation-duration': `${duration}ms` } as CSSProperties} role="status">
-    <div className={styles.readout}><span>{status}</span><strong>{label}</strong></div>
-    <EffortReactor effort={effort} burst />
+    <span className={styles.announcement}>{status}: {label}</span>
+    <span className={styles.surface} data-effort-surface="" aria-hidden="true" />
+    {tier >= 2 && <span className={styles.wave} aria-hidden="true" />}
+    {tier >= 4 && <span className={`${styles.wave} ${styles.waveOuter}`} aria-hidden="true" />}
+    {tier >= 3 && <span className={styles.wash} aria-hidden="true"><i /></span>}
+    {particles > 0 && <span className={styles.particles} aria-hidden="true"><span className={styles.particleField}>
+      {Array.from({ length: particles }, (_, index) => {
+        const side = Math.floor(index * 4 / particles)
+        const along = (index * 4 / particles % 1) * 80 + 10
+        return <i key={index} className={styles.particle} style={{
+          left: `${side === 0 ? along : side === 1 ? 100 : side === 2 ? 100 - along : 0}%`,
+          top: `${side === 0 ? 0 : side === 1 ? along : side === 2 ? 100 : 100 - along}%`,
+          '--drift-x': `${side === 1 ? 8 : side === 3 ? -8 : (index % 3 - 1) * 12}px`,
+          '--drift-y': `${side === 0 ? -8 : side === 2 ? 8 : (index % 3 - 1) * 12}px`,
+          '--particle-delay': `${160 + index % 4 * 95}ms`,
+        } as CSSProperties} />
+      })}
+    </span></span>}
+    {tier === 6 && <span className={styles.flares} aria-hidden="true"><i /><i /><i /><i /></span>}
   </div>
 }

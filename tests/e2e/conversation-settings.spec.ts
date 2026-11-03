@@ -1,17 +1,15 @@
 import { test, expect } from '@playwright/test'
 
-test('effort energy previews retain the applied marker and confirm only successful changes', async ({ page }) => {
+test('effort picker has no preview and activates the composer only after a successful change', async ({ page }) => {
   await page.goto('/codex-conversation.html')
   await page.getByRole('button', { name: 'Conversation', exact: true }).click()
   const button = page.getByRole('button', { name: 'Choose reasoning effort' })
   await button.click()
   const scale = page.getByRole('listbox', { name: 'Reasoning effort', exact: true })
-  const preview = page.locator('[data-effort-preview]')
-  await expect(preview).toHaveAttribute('data-effort-level', '2')
-  await expect(preview).toContainText('Currently selected')
+  await expect(page.locator('[data-effort-preview]')).toHaveCount(0)
+  await expect(page.getByText('Preview', { exact: true })).toHaveCount(0)
   await scale.getByRole('option', { name: 'High', exact: true }).hover()
-  await expect(preview).toHaveAttribute('data-effort-level', '3')
-  await expect(preview).toContainText('Preview')
+  await expect(page.locator('[data-effort-activation]')).toHaveCount(0)
   await expect(scale.getByRole('option', { name: 'Medium', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(button.locator('svg[data-effort]')).toHaveAttribute('data-effort', 'medium')
   expect(await page.evaluate(() => (window as any).codexFixture.calls.settings)).toEqual([])
@@ -19,24 +17,27 @@ test('effort energy previews retain the applied marker and confirm only successf
   await scale.press('Enter')
   await expect(page.getByRole('alert')).toContainText('Fixture settings update failed')
   await expect(button.locator('svg[data-effort]')).toHaveAttribute('data-effort', 'medium')
-  await expect(button.locator('[data-confirmed]')).toHaveCount(0)
   await expect(page.locator('[data-effort-activation]')).toHaveCount(0)
   await page.evaluate(() => (window as any).codexFixture.settingsFail(false))
   await scale.press('Escape')
   await button.click()
-  for (const [index, name] of ['Low', 'Medium', 'High', 'Extra high', 'max', 'ultra'].entries()) {
+  for (const name of ['Low', 'Medium', 'High', 'Extra high', 'max', 'ultra']) {
     await scale.getByRole('option', { name, exact: true }).hover()
-    await expect(preview).toHaveAttribute('data-effort-level', String(index + 1))
-    await expect(preview.locator('[data-reactor]')).toHaveAttribute('data-reactor', ['spark', 'pulse', 'orbit', 'vortex', 'corona', 'supernova'][index])
-    await page.locator('[data-panel=effort]').screenshot({ path: `artifacts/effort-feedback/level-${index + 1}.png`, animations: 'disabled' })
+    await expect(page.locator('[data-effort-activation]')).toHaveCount(0)
+    await expect(scale.getByRole('option', { name: 'Medium', exact: true })).toHaveAttribute('aria-selected', 'true')
   }
+  await page.locator('[data-panel=effort]').screenshot({ path: 'artifacts/effort-feedback/compact-picker.png', animations: 'disabled' })
   await scale.press('Enter')
   await expect(button).toHaveText('ultra')
-  await expect(button.locator('[data-confirmed]')).toHaveCount(1)
+  await expect(page.locator('form > [data-effort-activation]')).toHaveAttribute('data-effort-activation', 'ultra')
   expect(await page.evaluate(() => (window as any).codexFixture.calls.settings)).toEqual([{ model: 'fixture-fast', effort: 'ultra' }])
+  await button.click()
+  await expect(page.locator('[data-effort-activation]')).toHaveCount(0)
+  await scale.getByRole('option', { name: 'ultra', exact: true }).click()
+  await expect(page.locator('[data-effort-activation]')).toHaveCount(0)
 })
 
-test('effort preview supports reduced motion and keeps native custom variants neutral', async ({ page }) => {
+test('effort activation supports reduced motion and keeps native custom variants neutral', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/codex-conversation.html?engine=opencode&theme=light')
   await page.getByRole('button', { name: 'Conversation', exact: true }).click()
@@ -45,11 +46,9 @@ test('effort preview supports reduced motion and keeps native custom variants ne
   const button = page.getByRole('button', { name: 'Choose reasoning effort' })
   await button.click()
   const scale = page.getByRole('listbox', { name: 'Reasoning effort', exact: true })
-  const preview = page.locator('[data-effort-preview]')
-  await expect(preview).toHaveAttribute('data-effort-level', 'neutral')
+  await expect(page.locator('[data-effort-preview]')).toHaveCount(0)
   await scale.getByRole('option', { name: 'careful', exact: true }).hover()
-  await expect(preview).toHaveAttribute('data-effort-level', 'neutral')
-  await expect(preview.locator('[data-reactor]')).toHaveAttribute('data-reactor', 'quiet')
+  await expect(page.locator('[data-effort-activation]')).toHaveCount(0)
   await scale.press('Enter')
   await expect(button).toHaveText('careful')
   expect(await button.evaluate(el => el.getAnimations({ subtree: true }).length)).toBe(0)
@@ -60,7 +59,7 @@ test('effort preview supports reduced motion and keeps native custom variants ne
   expect(await page.locator('[data-panel=effort]').evaluate(el => el.getAnimations({ subtree: true }).length)).toBe(0)
 })
 
-test('each applied effort has a distinct activation that expires without blocking composition', async ({ page }) => {
+test('each applied effort lights the composer bounds and expires without blocking composition', async ({ page }) => {
   await page.setViewportSize({ width: 420, height: 740 })
   await page.goto('/codex-conversation.html?initialView=conversation')
   const button = page.getByRole('button', { name: 'Choose reasoning effort' })
@@ -72,20 +71,33 @@ test('each applied effort has a distinct activation that expires without blockin
     await button.click()
     await page.getByRole('option', { name, exact: true }).click()
     const activation = page.locator('[data-effort-activation]')
-    await expect(activation).toHaveAttribute('data-activation-kind', ['spark', 'pulse', 'orbit', 'vortex', 'corona', 'supernova'][index])
+    await expect(activation).toHaveAttribute('data-activation-kind', ['spark', 'pulse', 'sweep', 'surge', 'corona', 'supernova'][index])
     await expect(button).toHaveText(name)
     await expect(page.getByRole('listbox')).toHaveCount(0)
-    animationNames.push(await activation.locator('[data-energy-core]').evaluate(el => getComputedStyle(el).animationName))
-    await activation.evaluate(el => el.getAnimations({ subtree: true }).forEach(animation => { animation.pause(); animation.currentTime = 380 }))
+    animationNames.push(await activation.locator('[data-effort-surface]').evaluate(el => getComputedStyle(el).animationName))
+    await activation.evaluate(el => el.getAnimations({ subtree: true }).forEach(animation => { animation.pause(); animation.currentTime = 600 }))
     await page.getByRole('combobox', { name: 'Message Codex' }).fill('Still composing')
+    const input = page.getByRole('combobox', { name: 'Message Codex' })
+    await expect(input).toBeFocused()
+    const composer = input.locator('xpath=ancestor::form')
+    const bounds = (await composer.boundingBox())!
+    const overlayBounds = (await activation.boundingBox())!
+    for (const dimension of ['x', 'y', 'width', 'height'] as const) expect(overlayBounds[dimension]).toBeCloseTo(bounds[dimension], 0)
     await expect(activation).toHaveCSS('pointer-events', 'none')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await activation.screenshot({ path: `artifacts/effort-feedback/activation-${index + 1}.png` })
+    await page.screenshot({ path: `artifacts/effort-feedback/composer-${index + 1}.png` })
     await page.clock.fastForward(3000)
     await expect(activation).toHaveCount(0)
   }
   expect(new Set(animationNames).size).toBe(6)
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await button.click()
+  await page.getByRole('option', { name: 'max', exact: true }).click()
+  const activation = page.locator('[data-effort-activation]')
+  expect(await activation.evaluate(el => el.getAnimations({ subtree: true }).length)).toBe(0)
+  await page.clock.fastForward(3000)
+  await expect(activation).toHaveCount(0)
 })
 
 test('Codex speed is an icon-only toggle and retains native state on failure', async ({ page }) => {
@@ -202,7 +214,7 @@ test('reduced motion keeps real pending feedback without the reveal animation', 
   expect((await input.boundingBox())!.y).toBeGreaterThan(before!.y + 80)
 })
 
-test('uses six concise effort labels, previews with left/right and applies only the confirmed supported level', async ({ page }) => {
+test('uses six concise effort labels, navigates with left/right and applies only the confirmed supported level', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 700 })
   await page.goto('/codex-conversation.html?theme=light')
   await page.getByRole('button', { name: 'Conversation', exact: true }).click()

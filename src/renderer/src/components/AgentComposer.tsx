@@ -9,7 +9,7 @@ import { ConversationInput, type ConversationInputHandle } from './ConversationI
 import { activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
 import { insertConversationNewline } from '../lib/conversation-input'
 import { InputHistoryCursor, rememberConversationInput, mergeInputHistory, useConversationInputHistory, type InputHistoryEntry } from '../stores/conversation-input-history'
-import { EffortActivation, EffortGlyph, ReasoningEffortPreview, effortVisualLevel } from './ReasoningEffort'
+import { EffortActivation, EffortGlyph, effortVisualLevel } from './ReasoningEffort'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort'
@@ -220,8 +220,6 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       status={t('conversation.effortActivated')} />}
     {currentPanel && <div className={styles.commandPanel} data-panel={currentPanel}>
       <div className={styles.commandHeader}>{!panel && currentPanel !== 'commands' && <button type="button" aria-label={t('conversation.picker.commands')} onClick={() => { setDraft('/'); inputRef.current?.focus() }}><ArrowLeft size={15} /></button>}<span>{t(`conversation.picker.${currentPanel}`)}</span>{currentPanel !== 'effort' && <span title={t('conversation.commandKeys')}>{t('conversation.compactCommandKeys')}</span>}</div>
-      {currentPanel === 'effort' && activeChoice && <ReasoningEffortPreview effort={activeChoice.id} label={activeChoice.label}
-        status={t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : activeChoice.selected ? 'conversation.effortSelected' : 'conversation.effortPreview')} />}
       {(currentPanel === 'model' || panel === 'commands') && <label className={styles.pickerSearch}><Search size={14} aria-hidden="true" /><input ref={searchRef} value={query} onChange={event => panel ? setSearch(event.target.value) : setDraft('/model ' + event.target.value)} onKeyDown={keyboard}
         role="combobox" aria-label={t('conversation.searchOptions')} aria-expanded aria-controls={listId} aria-activedescendant={activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined} placeholder={t('conversation.searchOptions')} /></label>}
       <div className={currentPanel === 'effort' ? styles.effortScale : styles.commandList} role="listbox" id={listId} aria-label={t(`conversation.picker.${currentPanel}`)}
@@ -267,7 +265,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
         {(!snapshot || snapshot.capabilities.settings) ? <><button type="button" ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-haspopup="listbox" aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
           <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></button>
         <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
-          <span key={effortFeedback.id} className={styles.effortFeedback} data-confirmed={effortFeedback.id > 0 || undefined}><EffortGlyph effort={snapshot?.effort} /></span><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
+          <EffortGlyph effort={snapshot?.effort} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
           : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={styles.modelControl}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>

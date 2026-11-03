@@ -4050,8 +4050,6 @@ export type TypedI18nKey =
   | 'terminal:conversation.editText'
   | 'terminal:conversation.effortActivated'
   | 'terminal:conversation.effortKeys'
-  | 'terminal:conversation.effortPreview'
-  | 'terminal:conversation.effortSelected'
   | 'terminal:conversation.effortUnavailable'
   | 'terminal:conversation.efforts.high'
   | 'terminal:conversation.efforts.low'
