@@ -1,14 +1,18 @@
 .glyph { flex-shrink: 0; }
 .glyph rect { transition: opacity 180ms ease, height 180ms ease, y 180ms ease; }
 
+/* One hue per native level; text shades follow the app's resolved color scheme. */
+.tone0 { --effort-color: var(--shell-muted); --energy: var(--shell-muted); --energy-hot: var(--shell-muted); }
+.toneMinimal { --effort-color: light-dark(#516679, #a3b4c4); --energy: #a3b4c4; --energy-hot: #d5e2ed; }
+.tone1 { --effort-color: light-dark(#217748, #69ce97); --energy: #69ce97; --energy-hot: #b2f5d0; }
+.tone2 { --effort-color: light-dark(#096c7a, #58cad8); --energy: #58cad8; --energy-hot: #a5f3fc; }
+.tone3 { --effort-color: light-dark(#245bb0, #7caafa); --energy: #7caafa; --energy-hot: #c3dbff; }
+.tone4 { --effort-color: light-dark(#7540b6, #b39af8); --energy: #b39af8; --energy-hot: #e1d4ff; }
+.tone5 { --effort-color: light-dark(#8a590d, #e9b65c); --energy: #e9b65c; --energy-hot: #ffe6a3; }
+.tone6 { --effort-color: light-dark(#b02f6b, #ee8dbf); --energy: #ee8dbf; --energy-hot: #ffd0e7; }
+
 /* The form supplies the bounds and radius. All decoration is short lived and inert. */
-.activation { --energy: var(--shell-accent); --energy-hot: var(--shell-accent); pointer-events: none; position: absolute; inset: -1px; z-index: 2; border-radius: inherit; color: var(--energy); animation: activation-fade var(--activation-duration) ease-out both; }
-.activation[data-activation-kind=quiet] { --energy: var(--shell-muted); --energy-hot: var(--shell-muted); }
-.activation[data-activation-kind=pulse] { --energy: #22b8cf; --energy-hot: #a5f3fc; }
-.activation[data-activation-kind=sweep] { --energy: #8876ed; --energy-hot: #c4b5fd; }
-.activation[data-activation-kind=surge] { --energy: #d45ce5; --energy-hot: #f5b7ff; }
-.activation[data-activation-kind=corona] { --energy: #e6a02b; --energy-hot: #ffe6a3; }
-.activation[data-activation-kind=supernova] { --energy: #a775ff; --energy-hot: #67e8f9; }
+.activation { pointer-events: none; position: absolute; inset: -1px; z-index: 2; border-radius: inherit; color: var(--energy); animation: activation-fade var(--activation-duration) ease-out both; }
 .announcement { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .surface, .wave, .wash, .flares { position: absolute; inset: 0; border-radius: inherit; }
 .surface { border: 1px solid currentColor; animation: edge-ignite var(--activation-duration) ease-out both; }
@@ -20,27 +24,27 @@
 .surface::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; background: linear-gradient(110deg, transparent 12%, var(--energy) 32%, var(--energy-hot) 48%, var(--energy) 64%, transparent 86%); background-size: 250% 100%; mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude; animation: rim-travel var(--activation-duration) ease-out both; }
 .activation[data-activation-kind=quiet] .surface::after, .activation[data-activation-kind=spark] .surface::after, .activation[data-activation-kind=pulse] .surface::after { display: none; }
 .activation[data-activation-kind=surge] .surface::after { background-size: 150% 100%; animation: rim-travel 800ms ease-in-out 2 alternate both; }
-.activation[data-activation-kind=corona] .surface::after { padding: 2px; background-image: linear-gradient(110deg, #e6a02b, #ffebbd, #e6a02b, #fff8df, #e6a02b); }
-.activation[data-activation-kind=supernova] .surface::after { padding: 3px; background-image: linear-gradient(100deg, #67e8f9, #a78bfa, #f0abfc, #fff3bc, #67e8f9, #a78bfa); animation: rim-travel 1700ms ease-in-out both; }
+.activation[data-activation-kind=corona] .surface::after { padding: 2px; background-image: linear-gradient(110deg, var(--energy), var(--energy-hot), var(--energy), #fff8df, var(--energy)); }
+.activation[data-activation-kind=supernova] .surface::after { padding: 3px; background-image: linear-gradient(100deg, var(--energy), var(--energy-hot), #a78bfa, #67e8f9, var(--energy), var(--energy-hot)); animation: rim-travel 1700ms ease-in-out both; }
 .wave { opacity: 0; border: 1px solid currentColor; animation: edge-wave 1100ms cubic-bezier(.16, 1, .3, 1) 120ms both; }
 .waveOuter { animation-delay: 350ms; animation-duration: 1300ms; }
 .activation[data-activation-kind=supernova] .wave { color: #67e8f9; }
-.activation[data-activation-kind=supernova] .waveOuter { color: #e879f9; }
+.activation[data-activation-kind=supernova] .waveOuter { color: var(--energy); }
 .wash { overflow: hidden; }
 .wash > i { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 28%, color-mix(in srgb, var(--energy) 12%, transparent) 43%, color-mix(in srgb, var(--energy-hot) 20%, transparent) 50%, transparent 65%); animation: surface-sweep 1200ms cubic-bezier(.16, 1, .3, 1) both; }
 .activation[data-activation-kind=surge] .wash > i { animation: surface-sweep 850ms ease-in-out 2 alternate both; }
-.activation[data-activation-kind=corona] .wash > i { background: radial-gradient(ellipse at 50% 100%, #e6a02b35, transparent 75%); animation: surface-bloom 1600ms ease-out both; }
-.activation[data-activation-kind=supernova] .wash > i { background: radial-gradient(ellipse at 10% 100%, #22d3ee35, transparent 60%), radial-gradient(ellipse at 90% 0%, #e879f940, transparent 60%); animation: surface-bloom 2100ms ease-out both; }
+.activation[data-activation-kind=corona] .wash > i { background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--energy) 21%, transparent), transparent 75%); animation: surface-bloom 1600ms ease-out both; }
+.activation[data-activation-kind=supernova] .wash > i { background: radial-gradient(ellipse at 10% 100%, #22d3ee35, transparent 60%), radial-gradient(ellipse at 90% 0%, color-mix(in srgb, var(--energy) 25%, transparent), transparent 60%); animation: surface-bloom 2100ms ease-out both; }
 /* Clip moving particles within the composer's existing 12px minimum page margin. */
 .particles { position: absolute; inset: -10px; overflow: hidden; border-radius: 28px; }
 .particleField { position: absolute; inset: 10px; }
 .particle { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--energy-hot); box-shadow: 0 0 6px currentColor; opacity: 0; animation: spark-release 1100ms ease-out var(--particle-delay) both; }
 .activation[data-activation-kind=corona] .particle { width: 4px; height: 4px; }
-.activation[data-activation-kind=supernova] .particle { width: 4px; height: 4px; border-radius: 1px; background: #f0abfc; }
+.activation[data-activation-kind=supernova] .particle { width: 4px; height: 4px; border-radius: 1px; background: var(--energy-hot); }
 .activation[data-activation-kind=supernova] .particle:nth-child(3n) { background: #67e8f9; }
 .activation[data-activation-kind=supernova] .particle:nth-child(3n + 1) { background: #ffedba; }
 .flares { overflow: hidden; }
-.flares > i { position: absolute; width: 64px; height: 64px; background: radial-gradient(ellipse, #fff9, #e879f94d 25%, transparent 66%); animation: corner-flare 1700ms ease-out both; }
+.flares > i { position: absolute; width: 64px; height: 64px; background: radial-gradient(ellipse, #fff9, color-mix(in srgb, var(--energy) 30%, transparent) 25%, transparent 66%); animation: corner-flare 1700ms ease-out both; }
 .flares > i:nth-child(1) { left: -30px; top: -30px; }
 .flares > i:nth-child(2) { right: -30px; top: -30px; animation-delay: 100ms; }
 .flares > i:nth-child(3) { right: -30px; bottom: -30px; animation-delay: 200ms; }
@@ -48,11 +52,11 @@
 
 @keyframes activation-fade { 0% { opacity: 0; } 12%, 65% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes edge-ignite { 0%, 100% { box-shadow: none; opacity: 0; } 25%, 50% { box-shadow: 0 0 8px color-mix(in srgb, currentColor 22%, transparent); opacity: .8; } }
-@keyframes pulse-ignite { 0%, 100% { box-shadow: none; } 25%, 65% { box-shadow: 0 0 12px #22b8cf55, inset 0 0 12px #22b8cf15; } 45% { box-shadow: 0 0 3px #22b8cf33; } }
-@keyframes sweep-ignite { 0%, 100% { box-shadow: none; } 30%, 60% { box-shadow: 0 0 16px #8876ed66, inset 0 0 12px #8876ed22; } }
-@keyframes surge-ignite { 0%, 100% { box-shadow: none; } 25%, 60% { box-shadow: 0 0 0 1px #d45ce566, 0 0 20px #d45ce57a, inset 0 0 18px #d45ce52b; } 42% { box-shadow: 0 0 10px #d45ce53d; } }
-@keyframes corona-ignite { 0%, 100% { box-shadow: none; } 22%, 55% { box-shadow: 0 0 0 1px #ffe6a399, 0 0 24px #e6a02b99, inset 0 0 24px #e6a02b3d; } }
-@keyframes nova-ignite { 0%, 100% { box-shadow: none; } 18% { box-shadow: 0 0 12px #a775ff55; } 32%, 55% { box-shadow: -4px 0 24px #22d3ee80, 4px 0 24px #e879f999, 0 0 0 1px #f0abfc99, inset 0 0 30px #a775ff40; } 75% { box-shadow: 0 0 18px #a775ff55; } }
+@keyframes pulse-ignite { 0%, 100% { box-shadow: none; } 25%, 65% { box-shadow: 0 0 12px color-mix(in srgb, var(--energy) 33%, transparent), inset 0 0 12px color-mix(in srgb, var(--energy) 8%, transparent); } 45% { box-shadow: 0 0 3px color-mix(in srgb, var(--energy) 20%, transparent); } }
+@keyframes sweep-ignite { 0%, 100% { box-shadow: none; } 30%, 60% { box-shadow: 0 0 16px color-mix(in srgb, var(--energy) 40%, transparent), inset 0 0 12px color-mix(in srgb, var(--energy) 13%, transparent); } }
+@keyframes surge-ignite { 0%, 100% { box-shadow: none; } 25%, 60% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--energy) 40%, transparent), 0 0 20px color-mix(in srgb, var(--energy) 48%, transparent), inset 0 0 18px color-mix(in srgb, var(--energy) 17%, transparent); } 42% { box-shadow: 0 0 10px color-mix(in srgb, var(--energy) 24%, transparent); } }
+@keyframes corona-ignite { 0%, 100% { box-shadow: none; } 22%, 55% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--energy-hot) 60%, transparent), 0 0 24px color-mix(in srgb, var(--energy) 60%, transparent), inset 0 0 24px color-mix(in srgb, var(--energy) 24%, transparent); } }
+@keyframes nova-ignite { 0%, 100% { box-shadow: none; } 18% { box-shadow: 0 0 12px color-mix(in srgb, var(--energy) 33%, transparent); } 32%, 55% { box-shadow: -4px 0 24px #22d3ee80, 4px 0 24px color-mix(in srgb, var(--energy) 60%, transparent), 0 0 0 1px color-mix(in srgb, var(--energy-hot) 60%, transparent), inset 0 0 30px color-mix(in srgb, var(--energy) 25%, transparent); } 75% { box-shadow: 0 0 18px color-mix(in srgb, var(--energy) 33%, transparent); } }
 @keyframes rim-travel { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 @keyframes edge-wave { from { inset: 0; opacity: .65; } to { inset: -9px; border-radius: 27px; opacity: 0; } }
 @keyframes surface-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }

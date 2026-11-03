@@ -176,6 +176,8 @@
 .speedControl[aria-pressed=true] svg { fill: currentColor; }
 .speedControl:disabled { opacity: .45; cursor: default; }
 .modelControls .modelControl:hover, .modelControls .modelControl[aria-expanded=true] { background: var(--shell-hover); color: var(--shell-text); }
+.modelControls .effortControl, .modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { color: var(--effort-color); border-radius: 6px; background: color-mix(in srgb, var(--effort-color) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--effort-color) 18%, transparent); }
+.modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { background: color-mix(in srgb, var(--effort-color) 16%, transparent); }
 .composer { position: relative; }
 .commandPanel { position: absolute; bottom: calc(100% + 8px); left: 0; width: min(100%, 360px); z-index: 12; display: flex; flex-direction: column; max-height: clamp(160px, calc(100vh - 300px), 360px); border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-chrome-raised); box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-deep) 35%, transparent); overflow: hidden; }
 .commandHeader { display: flex; align-items: center; gap: 8px; padding: 12px; font-size: 12px; font-weight: 500; flex-shrink: 0; }
@@ -201,17 +203,17 @@
 .effortScale { margin: 2px 8px 8px; min-height: 0; overflow: auto; flex-shrink: 0; outline: none; }
 .effortTrack { position: relative; display: grid; grid-template-columns: repeat(var(--effort-count), minmax(40px, 1fr)); min-width: calc(var(--effort-count) * 40px); isolation: isolate; }
 .effortIndicator { position: absolute; inset: 0 auto 0 0; width: calc(100% / var(--effort-count)); border-radius: 7px; background: var(--shell-hover); transform: translateX(calc(var(--effort-active) * 100%)); transition: transform 200ms cubic-bezier(.22, 1, .36, 1); pointer-events: none; z-index: -1; }
-.effortScale .effortOption { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 3px 8px; color: var(--shell-muted); font-size: 10px; line-height: 1.2; border-radius: 6px; }
+.effortScale .effortOption { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 3px 8px; color: var(--effort-color); font-size: 10px; line-height: 1.2; border-radius: 6px; }
 .effortOption > span:nth-child(2) { white-space: nowrap; }
-.effortSelected { display: block; width: 4px; height: 4px; border-radius: 50%; background: var(--shell-accent); opacity: 0; }
+.effortSelected { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0; }
 .effortOption[aria-selected=true] .effortSelected { opacity: 1; }
-.effortOption[aria-selected=true], .effortOption[data-active=true] { color: var(--shell-text); }
+.effortOption[aria-selected=true], .effortOption[data-active=true] { color: var(--effort-color); }
 .effortScale:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: 2px; border-radius: 7px; }
 .effortOption[aria-disabled=true] { opacity: .4; cursor: default; }
 .effortStep { height: 28px; display: flex; align-items: flex-end; justify-content: center; width: 100%; }
-.effortStep > span { display: block; width: 18px; max-width: 70%; border-radius: 3px 3px 1px 1px; background: var(--shell-border); transform: scaleY(.85); transform-origin: bottom; transition: background 180ms ease, transform 200ms cubic-bezier(.22, 1, .36, 1); }
-.effortStep > span[data-filled=true] { background: var(--shell-muted); transform: scaleY(1); }
-.effortOption[data-active=true] .effortStep > span { background: var(--shell-text); }
+.effortStep > span { display: block; width: 18px; max-width: 70%; border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--effort-color) 38%, transparent); transform: scaleY(.85); transform-origin: bottom; transition: background 180ms ease, transform 200ms cubic-bezier(.22, 1, .36, 1); }
+.effortStep > span[data-filled=true] { background: var(--effort-color); transform: scaleY(1); }
+.effortOption[aria-selected=true] .effortStep > span { background: var(--effort-color); }
 .pickerMessage button, .terminalCommand { padding: 6px 8px; text-decoration: underline; text-underline-offset: 3px; }
 .terminalCommand { align-self: flex-start; margin: 0 6px 8px; }
 .delivery { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 6px; color: var(--shell-muted); font-size: 11px; }

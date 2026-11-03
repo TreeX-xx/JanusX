@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-03T11:45:21Z",
+  "updated": "2026-11-03T11:56:38Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -629,15 +629,17 @@ Codex `/new` 由主进程向所属原生 TUI 发出固定命令，仅放行一�
 
 浏览器五项覆盖指令预览、搜索、键盘选择、快捷入口保留草稿、目录重试、设置失败、未知指令拦截、原生设置投影、IME，以及既有流式/审批/阅读位置回归。截图 `model-command-dark.png` 与 `effort-command-light.png` 在 `artifacts/codex-dual-mode/`；主 Agent 已查看暗色与 380px 浅色选项面板。
 
-预览层宽度由 480px 调整为最多 360px，高度与内边距同步降低，命令行采用更紧凑的“指令名 + 单行说明”；外层 `box-shadow` 移除，避免悬浮面板周围出现黑色阴影圈。effort 使用横向强度阶梯，中文按“低／中／高／极高／max／ultra”表达，max、ultra 保留原词；选项按强度排序并仅展示模型实际声明支持的档位，不补造能力。底部使用六根递增柱形，避免四档图标合并 max 和 ultra 的视觉状态。
+预览层宽度由 480px 调整为最多 360px，高度与内边距同步降低，命令行采用更紧凑的“指令名 + 单行说明”；外层 `box-shadow` 移除，避免悬浮面板周围出现黑色阴影圈。effort 使用横向强度阶梯，中文按“低／中／高／极高／极限／超限”表达，极限、超限分别对应原生 `max`、`ultra`；设置提交和斜杠参数保留原生值。选项按强度排序并仅展示模型实际声明支持的档位，不补造能力。底部使用六根递增柱形，避免四档图标合并最高两档的视觉状态。
 
-effort 面板只保留横向档位和操作提示，不显示预览区、推理用途描述或描述 title。左右键、Home/End 与鼠标悬停只移动候选档位：底板在 200ms 内移动，候选柱形伸展，不播放激活动效；当前已提交档位用固定主题色圆点、aria-selected 与入口标签表达。Enter 或点击提交设置；快捷选择器中的 Tab 关闭并恢复焦点，斜杠入口中的 Tab 只补全。左右到达两端后停止，不跨端跳转。保留下一轮生效与键盘提示，窄窗横向容纳六档，更多档位允许内部滚动，不撑破页面。
+effort 面板只保留横向档位和操作提示，不显示预览区、推理用途描述或描述 title。左右键、Home/End 与鼠标悬停只移动候选档位：底板在 200ms 内移动，候选柱形伸展，不播放激活动效；当前已提交档位用同档颜色的圆点、aria-selected 与入口标签表达。Enter 或点击提交设置；快捷选择器中的 Tab 关闭并恢复焦点，斜杠入口中的 Tab 只补全。左右到达两端后停止，不跨端跳转。保留下一轮生效与键盘提示，窄窗横向容纳六档，更多档位允许内部滚动，不撑破页面。
 
-`EffortActivation` 直接覆盖对话输入框的边界并继承圆角，不再创建独立激活卡片。六档分别采用轻亮边框、青色脉冲、紫色扫光、双向流光、金色光晕与粒子、多色扩散与角部闪光。高档增加边框厚度、光晕、扩散圈与粒子，单次时长从约 1.15 秒增至 2.4 秒；文字和控件不随动画移动。色彩是装饰性档位表达，不表示警告、实际 token 预算、耗时或跨模型能力分数。`none`、默认、未知及自定义 variant 使用中性边框，`minimal` 使用轻量边框；紧凑入口图标仍保留最低半级映射。菜单只展示原生目录支持的选项，OpenCode 保留原生顺序。
+六档固定色相依次为绿、青、蓝、紫、金、玫红。`effortToneClass` 统一菜单标签和柱形、激活动效、底部入口的配色；文字按应用的深浅主题使用相应明度。底部强度入口以彩色图标、中文标签和淡色底持续表达原生快照中的档位，动画结束、悬停与展开菜单都不抹除颜色。候选变化和失败不会覆盖实际颜色；CLI 原生设置更新后，入口名称与颜色一起同步。`minimal` 使用灰蓝，`none`、默认及未知自定义值使用中性色，不推断原生自定义强度高低。
+
+`EffortActivation` 直接覆盖对话输入框的边界并继承圆角，不再创建独立激活卡片。六档分别采用绿色轻亮边框、青色脉冲、蓝色扫光、紫色双向流光、金色光晕与粒子、以玫红为主的多色扩散与角部闪光。高档增加边框厚度、光晕、扩散圈与粒子，单次时长从约 1.15 秒增至 2.4 秒；文字和控件不随动画移动。色彩是装饰性档位表达，不表示警告、实际 token 预算、耗时或跨模型能力分数。`none`、默认、未知及自定义 variant 使用中性边框，`minimal` 使用轻量边框；紧凑入口图标仍保留最低半级映射。菜单只展示原生目录支持的选项，OpenCode 保留原生顺序。
 
 设置命令成功且 effort 改变后才播放激活反馈，菜单随成功提交收起。动效不延迟设置应用、不改变焦点，使用 `pointer-events: none` 保持输入可用；到时卸载，再打开选择器会取消旧反馈，不重复播放。悬停、键盘导航、失败和重复选择当前档位不触发激活。入口标签始终取原生快照，不乐观覆盖。视觉层不展示文字，只用屏幕阅读器状态播报已激活档位。`prefers-reduced-motion` 关闭全部动画与装饰粒子，保留短时静态边框。
 
-2026-11-03：`npx playwright test tests/e2e/conversation-settings.spec.ts --project=island --workers=1 --timeout=60000` 十项通过。逐档用例检查六种不同的边框动画、激活层与输入框边界一致、超时移除、输入焦点可用和窄屏无横向溢出；其余覆盖菜单无预览、候选与已选分离、失败和重复选择不激活、重开菜单取消反馈、OpenCode 自定义 variant 中性态、减少动态效果，以及 Claude 原生档位、中文标签、快捷键和草稿回归。普通类型检查、组件 ESLint、中英文文案检查通过。截图位于 `artifacts/effort-feedback/composer-1.png` 至 `composer-6.png`；切换录制位于 `artifacts/effort-feedback/activation-demo.webm`。静态截图不代表动态帧率测量；本轮使用浏览器 fixture，未重跑生产构建、真实供应商或 Electron 协议验收，桌面证据仍为下述此前记录。
+2026-11-03：`npx playwright test tests/e2e/conversation-settings.spec.ts --project=island --workers=1 --timeout=60000` 十一项通过。逐档用例检查六种不同颜色与边框动画、菜单/入口/动效色相一致、动效超时后颜色保留、激活层与输入框边界一致、输入焦点可用和窄屏无横向溢出。中文用例分别覆盖深浅主题，验证极限/超限仍提交 `max`/`ultra`，并跟随原生快照更新名称与颜色；其余覆盖菜单无预览、失败和重复选择不激活、候选与已选分离、OpenCode 自定义 variant 中性态、减少动态效果、Claude 原生档位、快捷键和草稿回归。普通类型检查、组件 ESLint、中英文文案检查通过。深浅主题截图为 `artifacts/effort-feedback/chinese-picker-{dark,light}.png` 与 `chinese-persistent-{dark,light}.png`；逐档底部状态为同目录 `persistent-1.png` 至 `persistent-6.png`，切换录制为 `activation-demo.webm`。静态截图不代表动态帧率测量；本轮使用浏览器 fixture，未重跑生产构建、真实供应商或 Electron 协议验收，桌面证据仍为下述此前记录。
 
 紧凑控件阶段 `npx playwright test tests/e2e/codex-conversation.spec.ts --project=island --workers=1` 五项通过，覆盖 effort 横向语义、键盘切换和窄窗边界；紧凑外观与去阴影属于上述截图人工核对，不是独立样式断言。`npm run theme:check`、`npm run i18n:check`、严格 unused 类型检查通过；构建日志 `build-compact-controls.log` 已确认完成。真实模型/effort 协议集成证据沿用上一段记录。
 

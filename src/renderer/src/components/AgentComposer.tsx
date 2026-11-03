@@ -9,7 +9,7 @@ import { ConversationInput, type ConversationInputHandle } from './ConversationI
 import { activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
 import { insertConversationNewline } from '../lib/conversation-input'
 import { InputHistoryCursor, rememberConversationInput, mergeInputHistory, useConversationInputHistory, type InputHistoryEntry } from '../stores/conversation-input-history'
-import { EffortActivation, EffortGlyph, effortVisualLevel } from './ReasoningEffort'
+import { EffortActivation, EffortGlyph, effortToneClass, effortVisualLevel } from './ReasoningEffort'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort'
@@ -228,7 +228,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
         <div className={currentPanel === 'effort' ? styles.effortTrack : undefined} style={currentPanel === 'effort' ? { '--effort-count': Math.max(1, choices.length), '--effort-active': Math.min(active, Math.max(0, choices.length - 1)) } as CSSProperties : undefined}>
         {currentPanel === 'effort' && choices.length > 0 && <span className={styles.effortIndicator} aria-hidden="true" />}
         {choices.map((option, index) => <button key={option.id} id={`${listId}-${index}`} type="button" role="option" aria-selected={Boolean(option.selected)} aria-disabled={option.disabled || undefined}
-          className={currentPanel === 'effort' ? styles.effortOption : styles.commandOption} data-active={index === Math.min(active, choices.length - 1)} tabIndex={-1} onMouseEnter={() => setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
+          className={currentPanel === 'effort' ? `${styles.effortOption} ${effortToneClass(option.id)}` : styles.commandOption} data-active={index === Math.min(active, choices.length - 1)} tabIndex={-1} onMouseEnter={() => setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
           title={currentPanel === 'effort' ? undefined : option.description} aria-label={currentPanel === 'effort' ? option.label : undefined}>
           {currentPanel === 'effort' ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + (effortVisualLevel(option.id) ?? 0) * 3 }} data-filled={index === active} /></span><span>{option.label}</span><i className={styles.effortSelected} aria-hidden="true" /></>
             : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}{option.selected && <Check size={14} aria-hidden="true" />}</>}
@@ -264,9 +264,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
           <Zap size={12} strokeWidth={1.75} aria-hidden="true" /></button>}
         {(!snapshot || snapshot.capabilities.settings) ? <><button type="button" ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-haspopup="listbox" aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
           <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></button>
-        <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
+        <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={`${styles.modelControl} ${styles.effortControl} ${effortToneClass(snapshot?.effort)}`} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
           <EffortGlyph effort={snapshot?.effort} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
-          : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={styles.modelControl}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
+          : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={`${styles.modelControl} ${styles.effortControl} ${effortToneClass(snapshot.effort)}`}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
       {Boolean(snapshot?.turnId || snapshot?.backgroundTasks) && snapshot?.capabilities.cancel && !slash && <button className={styles.submit} type="button" disabled={!available} aria-label={t('conversation.stop')} title={t('conversation.stop')} onClick={() => void action({ type: 'interrupt', controlEpoch: snapshot.controlEpoch })}><Square size={13} fill="currentColor" aria-hidden="true" /></button>}
