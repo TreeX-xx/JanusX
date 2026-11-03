@@ -85,12 +85,12 @@ export function GitPanel({ active = true }: { active?: boolean }) {
         <GitWorkspace key={scope} scope={scope} cwd={cwd} git={git} active={active} refresh={refresh} onStage={stageFile} onOpen={openFile} onDiscard={discardFile} onCommit={commit} />
       </WorkspaceTransition>
     </div>
-    {discardTarget && active && <PromptDialog open confirmOnly tone="danger" title={t('discard.title')} description={<>{t('discard.description', { path: discardTarget.path })}{git.error && <p className={styles.danger}>{git.error}</p>}</>}
+    {discardTarget && active && <PromptDialog open confirmOnly className={styles.confirmDialog} tone="danger" title={t('discard.title')} description={<>{t('discard.description', { path: discardTarget.path })}{git.error && <p className={styles.danger}>{git.error}</p>}</>}
       confirmText={git.loading ? t('remote.executing') : t('discard.confirm')} onCancel={() => setDiscardTarget(null)} onConfirm={() => {
         if (useGitStore.getState().loading) return
         void git.discardChange(cwd, discardTarget.path).then(success => { if (success) setDiscardTarget(null) })
       }} />}
-    {remoteAction && active && <PromptDialog open confirmOnly title={t(`remote.${remoteAction}.title`)}
+    {remoteAction && active && <PromptDialog open confirmOnly className={styles.confirmDialog} title={t(`remote.${remoteAction}.title`)}
       description={<><p>{t(`remote.${remoteAction}.description`)}</p><p className={styles.remoteInfo}>{currentStatus?.branch.name} → {currentStatus?.branch.upstream ?? t('branch.upstreamUnset')}</p><p>{t(`remote.${remoteAction}.hint`)}</p>{git.error && <p className={styles.danger}>{git.error}</p>}</>}
       confirmText={git.loading ? t('remote.executing') : t(`remote.${remoteAction}.actionLabel`)} onCancel={() => setRemoteAction(null)} onConfirm={() => void confirmRemote()} />}
   </ViewerActive.Provider>

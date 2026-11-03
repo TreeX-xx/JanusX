@@ -1,10 +1,10 @@
 /* Note: .agents/notes/workbench/git-workbench.md */
 .panel, .workspace, .view { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; overflow: hidden; color: var(--shell-text); font-size: 12px; }
 .view[hidden] { display: none; }
-.panel button, .panel input, .panel select, .panel textarea { font: inherit; }
+.panel button, .panel input, .panel textarea { font: inherit; }
 .panel button { cursor: pointer; }
 .panel button:disabled { opacity: .38; cursor: default; }
-.panel button:focus-visible, .panel select:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: -2px; }
+.panel button:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: -2px; }
 .repositoryHeader { display: flex; align-items: center; gap: 8px; padding: 12px 12px 10px; flex-shrink: 0; }
 .branchInfo { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }
 .branchInfo > svg { flex-shrink: 0; color: var(--shell-muted); }
@@ -15,14 +15,14 @@
 .syncActions { display: flex; align-items: center; gap: 3px; }
 .syncActions > button { display: flex; align-items: center; gap: 3px; height: 27px; border-radius: 5px; padding: 0 5px; font-size: 11px; color: var(--shell-muted); }
 .syncActions > button:hover:not(:disabled), .iconButton:hover:not(:disabled), .textButton:hover { background: color-mix(in srgb, var(--shell-text) 7%, transparent); color: var(--shell-text); }
-.syncActions > button span { font-variant-numeric: tabular-nums; color: var(--shell-accent); }
+.syncActions > button span { font-variant-numeric: tabular-nums; color: var(--shell-text); }
 .tabs { display: flex; flex-shrink: 0; gap: 20px; padding: 0 12px; border-bottom: 1px solid var(--shell-border-soft); }
 .tabs > button { display: flex; align-items: center; gap: 7px; padding: 9px 1px; border-bottom: 2px solid transparent; color: var(--shell-dim); }
 .tabs > button[aria-selected=true] { border-bottom-color: var(--shell-text); color: var(--shell-text); font-weight: 600; }
 .count { color: var(--shell-dim); font-size: 10px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .searchToolbar { display: flex; gap: 7px; align-items: center; padding: 10px 12px 8px; flex-shrink: 0; }
 .search { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; background: var(--shell-card); border: 1px solid var(--shell-border-soft); border-radius: 5px; min-width: 0; flex: 1; color: var(--shell-dim); }
-.search:focus-within { border-color: var(--shell-accent-border); }
+.search:focus-within { border-color: color-mix(in srgb, var(--shell-text) 35%, transparent); }
 .search input { min-width: 0; width: 100%; background: none; outline: none; color: var(--shell-text); font-size: 11px; }
 .search input::placeholder { color: var(--shell-dim); }
 .search > svg, .search > button { flex-shrink: 0; }
@@ -44,7 +44,7 @@
 .fileStatus { width: 16px; flex-shrink: 0; font: 10px ui-monospace, monospace; text-align: center; color: var(--shell-muted); }
 .fileStatus[data-status=A], .fileStatus[data-status='??'], .add { color: var(--shell-diff-add); }
 .fileStatus[data-status=D], .fileStatus[data-status=UU], .del, .danger { color: var(--shell-diff-del); }
-.fileStatus[data-status=M], .fileStatus[data-status=R] { color: var(--shell-accent); }
+.fileStatus[data-status=M], .fileStatus[data-status=R] { color: var(--shell-muted); }
 .fileName { flex: 1; min-width: 0; display: flex; gap: 7px; align-items: baseline; text-align: left; }
 .fileName > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .fileName small { color: var(--shell-dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -55,20 +55,24 @@
 .clean { display: flex; justify-content: center; gap: 7px; align-items: center; color: var(--shell-muted); padding: 24px 12px; }
 .composer { flex-shrink: 0; padding: 10px 12px; border-top: 1px solid var(--shell-border-soft); }
 .composer > input, .composer > textarea { display: block; width: 100%; background: var(--shell-card); border: 1px solid var(--shell-border-soft); border-radius: 5px; color: var(--shell-text); padding: 8px; outline: none; font-size: 11px; }
-.composer > input:focus, .composer > textarea:focus { border-color: var(--shell-accent-border); }
+.composer > input:focus, .composer > textarea:focus { border-color: color-mix(in srgb, var(--shell-text) 35%, transparent); }
 .composer > textarea { margin-top: 6px; resize: vertical; max-height: 120px; min-height: 50px; }
 .composerActions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .textButton { display: flex; align-items: center; gap: 4px; color: var(--shell-dim); font-size: 10px !important; padding: 4px; border-radius: 4px; }
-.commitButton { display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 5px; color: var(--shell-accent); background: var(--shell-accent-soft); border: 1px solid var(--shell-accent-border); font-size: 11px !important; }
+.commitButton { display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 5px; color: var(--shell-text); background: color-mix(in srgb, var(--shell-text) 8%, transparent); border: 1px solid var(--control-border); font-size: 11px !important; }
+.commitButton:hover:not(:disabled) { background: color-mix(in srgb, var(--shell-text) 12%, transparent); }
 .historyToolbar { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 10px 12px 0; flex-shrink: 0; }
-.historyToolbar select { background: var(--shell-card); color: var(--shell-text); border: 1px solid var(--shell-border-soft); border-radius: 4px; height: 26px; padding: 0 5px; font-size: 11px; }
+.panel .historyToolbar .historyScope { width: auto; min-width: 112px; min-height: 28px; background: var(--shell-card); color: var(--shell-text); border: 1px solid var(--control-border); border-radius: 5px; padding: 0 8px; font-size: 11px; }
+.panel .historyToolbar .historyScope:hover:not(:disabled), .panel .historyToolbar .historyScope[aria-expanded=true], .panel .historyToolbar .historyScope:focus-visible { border-color: color-mix(in srgb, var(--shell-text) 35%, transparent); box-shadow: none; }
+.historyScopeMenu [role=option] { color: var(--shell-text); }
+.historyScopeMenu [role=option][aria-selected=true]::before { background: var(--shell-text); }
 .historyToolbar > span, .matchNav > span { color: var(--shell-dim); font-size: 10px; white-space: nowrap; }
 .matchNav { display: flex; align-items: center; gap: 1px; }
 .historyCanvas { width: 100%; }
 .commitRow { display: flex; align-items: stretch; width: 100%; text-align: left; content-visibility: auto; contain-intrinsic-size: auto 66px; padding-right: 10px; }
 .commitRow:hover { background: color-mix(in srgb, var(--shell-text) 5%, transparent); }
 .commitRow[aria-pressed=true] { background: color-mix(in srgb, var(--shell-text) 10%, transparent); }
-.commitRow[data-match=true] .commitSubject { color: var(--shell-accent); }
+.commitRow[data-match=true] .commitSubject { color: var(--shell-text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--shell-text) 35%, transparent); text-underline-offset: 3px; }
 .graph { flex-shrink: 0; overflow: visible; }
 .commitText { display: flex; flex-direction: column; min-width: 0; flex: 1; justify-content: center; gap: 4px; padding-left: 4px; }
 .commitSubject { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
@@ -78,7 +82,7 @@
 .refs { display: flex; gap: 4px; overflow: hidden; }
 .refs:empty { display: none; }
 .refs > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; padding: 0 4px; border: 1px solid var(--shell-border-soft); border-radius: 3px; font-size: 9px; line-height: 14px; color: var(--shell-muted); }
-.refs > span[data-kind=head] { border-color: var(--shell-accent-border); color: var(--shell-accent); }
+.refs > span[data-kind=head] { border-color: var(--control-border); background: var(--shell-hover); color: var(--shell-text); font-weight: 600; }
 .refs > span[data-kind=remote] { border-style: dashed; }
 .refs > span[data-kind=tag] { border-radius: 7px; }
 .loadMore { display: block; height: 32px; width: calc(100% - 24px); margin: 8px 12px; border: 1px solid var(--shell-border-soft); border-radius: 4px; color: var(--shell-muted); font-size: 11px !important; }
@@ -108,6 +112,13 @@
 .commitPreview p { margin: 5px 0; color: var(--shell-dim); font-size: 10px; }
 .previewFile { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10px; color: var(--shell-muted); }
 .remoteInfo { padding: 10px 0; color: var(--shell-text); }
+/* Git dialogs opt into neutral controls without changing other prompt callers. */
+.confirmDialog:global(.prompt-dialog) :global(.blueprint-btn) { color: var(--shell-text); background: transparent; border-color: var(--control-border); }
+.confirmDialog:global(.prompt-dialog) :global(.blueprint-btn--primary) { background: color-mix(in srgb, var(--shell-text) 8%, transparent); }
+.confirmDialog:global(.prompt-dialog) :global(.blueprint-btn):hover:not(:disabled) { color: var(--shell-text); background: var(--shell-hover); border-color: color-mix(in srgb, var(--shell-text) 35%, transparent); }
+.confirmDialog:global(.prompt-dialog) :global(.blueprint-btn):focus-visible { outline: 1px solid var(--shell-muted); outline-offset: 2px; }
+.confirmDialog:global(.prompt-dialog) :global(.blueprint-btn--danger) { color: var(--status-danger); }
+.confirmDialog:global(.prompt-dialog) :global(.blueprint-btn--danger):hover:not(:disabled) { color: var(--status-danger); background: color-mix(in srgb, var(--status-danger) 8%, transparent); border-color: var(--status-danger); }
 .emptyState { display: flex; height: 100%; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px 28px; text-align: center; }
 .emptyIcon { margin-bottom: 6px; color: var(--shell-dim); }
 .emptyTitle { margin: 0; font-size: 14px; font-weight: 500; color: var(--shell-muted); }

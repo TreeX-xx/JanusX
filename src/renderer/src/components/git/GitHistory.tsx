@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Check, Copy, GitCommitHorizontal, Search, X } from 'lucide-react'
 import type { GitCommitChange, GitHistoryCommit, GitHistoryScope } from '../../../../shared/ipc/git'
 import { useI18n } from '@/i18n/useI18n'
+import { Select } from '../ui/Select'
 import { layoutCommitGraph, type GraphRow } from './graph'
 import type { GitViewState } from './view-state'
 import styles from '../GitPanel.module.css'
@@ -14,7 +15,7 @@ interface Props {
 }
 const ROW_HEIGHT = 66
 const LANE_WIDTH = 14
-const COLORS = ['var(--shell-accent)', 'var(--shell-muted)', '#7d9cac', '#a591b5', '#8b9d78', '#ba9876']
+const COLORS = ['var(--shell-text)', 'var(--shell-muted)', '#7d9cac', '#a591b5', '#8b9d78', '#869fb2']
 const color = (index: number) => COLORS[index === 0 ? 0 : 1 + (index - 1) % (COLORS.length - 1)]
 
 export function GitHistory({ cwd, commits, loading, moreLoading, hasMore, error, visible, active, state, update, saveScroll, onScope, onMore, onRefresh }: Props) {
@@ -91,9 +92,12 @@ export function GitHistory({ cwd, commits, loading, moreLoading, hasMore, error,
   }
   return <section className={styles.view} hidden={!visible} role="tabpanel" id="git-view-history" aria-labelledby="git-tab-history">
     <div className={styles.historyToolbar}>
-      <select aria-label={t('history.scope')} value={state.historyScope} disabled={loading || moreLoading} onChange={e => { if (scroll.current) scroll.current.scrollTop = 0; onScope(e.target.value as GitHistoryScope) }}>
-        <option value="all">{t('history.all')}</option><option value="current">{t('history.current')}</option>
-      </select><span>{t('history.loaded', { count: commits.length })}</span>
+      <Select key={visible && active ? 'active' : 'inactive'} role="combobox" ariaLabel={t('history.scope')}
+        className={styles.historyScope} dropdownClassName={styles.historyScopeMenu}
+        value={state.historyScope} disabled={loading || moreLoading}
+        options={[{ value: 'all', label: t('history.all') }, { value: 'current', label: t('history.current') }]}
+        onChange={value => { if (scroll.current) scroll.current.scrollTop = 0; onScope(value as GitHistoryScope) }} />
+      <span>{t('history.loaded', { count: commits.length })}</span>
     </div>
     <div className={styles.searchToolbar}>
       <label className={styles.search}><Search size={13} aria-hidden="true" /><input aria-label={t('history.search')} placeholder={t('history.search')} value={state.historySearch}

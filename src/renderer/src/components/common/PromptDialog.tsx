@@ -13,6 +13,7 @@ import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
 
 export interface PromptDialogProps {
   open: boolean
+  className?: string
   title: string
   label?: string
   placeholder?: string
@@ -31,6 +32,7 @@ export interface PromptDialogProps {
 
 export function PromptDialog({
   open,
+  className,
   title,
   label,
   placeholder,
@@ -113,7 +115,7 @@ export function PromptDialog({
     <div className="prompt-dialog__overlay" onMouseDown={onOverlayClick}>
       <div
         ref={dialogRef}
-        className="prompt-dialog"
+        className={`prompt-dialog${className ? ` ${className}` : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
