@@ -1,7 +1,9 @@
 import { memo, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useGitStore } from '@/stores/git'
+import { normalizeGitCwd, useGitStore } from '@/stores/git'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useWorktreeStore } from '@/stores/worktree'
+import { WorkspaceTransition } from './shared/WorkspaceTransition'
 import { useI18n } from '@/i18n/useI18n'
 import type { TFunction } from 'i18next'
 import type { GitFileChange } from '@/types'
@@ -17,10 +19,13 @@ const GIT_HISTORY_LIMIT = 100
 const commitDateFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' })
 
 export function GitPanel({ active = true }: { active?: boolean }) {
-  const { status, commits, loading, error, fetchLog, stageFiles, unstageFiles, discardChange, commitChangesByHash, commitChanges, pushChanges, pullChanges } = useGitStore()
+  const { status, statusCwd, statusLoading, commits, logCwd, logLoading, logError, loading, error, fetchStatus, fetchLog, stageFiles, unstageFiles, discardChange, commitChangesByHash, commitChanges, pushChanges, pullChanges } = useGitStore()
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
-  const cwd = workspaces.find((w) => w.id === activeWorkspaceId)?.path
+  const workspace = workspaces.find((w) => w.id === activeWorkspaceId)
+  const worktreePath = useWorktreeStore(s => activeWorkspaceId ? s.activePaths[activeWorkspaceId] : undefined)
+  const cwd = worktreePath ?? workspace?.path
+  const scopePending = Boolean(cwd && (statusCwd !== normalizeGitCwd(cwd) || logCwd !== normalizeGitCwd(cwd) || statusLoading || logLoading))
   const { t } = useI18n('git')
   const [commitMsg, setCommitMsg] = useState('')
   const [confirmAction, setConfirmAction] = useState<GitRemoteAction | null>(null)
@@ -92,8 +97,16 @@ export function GitPanel({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     if (!cwd) return
+    if (useGitStore.getState().statusCwd !== normalizeGitCwd(cwd)) void fetchStatus(cwd)
     void refreshGitData()
-  }, [cwd, refreshGitData])
+  }, [cwd, fetchStatus, refreshGitData])
+
+  useEffect(() => {
+    setConfirmAction(null)
+    setDiscardTarget(null)
+    setExpandedCommit(null)
+    setCommitFiles({})
+  }, [cwd])
 
   const handleStageAll = useCallback(async () => {
     if (!cwd || !status) return
@@ -237,6 +250,7 @@ export function GitPanel({ active = true }: { active?: boolean }) {
         )}
       </div>
 
+      <WorkspaceTransition scopeKey={cwd ? `${activeWorkspaceId}:${cwd}` : null} pending={scopePending} active={active} name={workspace?.name}>
       {/* Status summary */}
       {(modifiedCount > 0 || addedCount > 0 || deletedCount > 0) && <div className={styles.statusSummary}>
         {modifiedCount > 0 && <div>
@@ -252,9 +266,9 @@ export function GitPanel({ active = true }: { active?: boolean }) {
 
       {/* Changed files */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="git-scroll-region">
-        {error && (
+        {(error || logError) && (
           <div className="px-3 py-2 text-[10px]" style={{ color: 'var(--shell-diff-del)' }}>
-            {error}
+            {error || logError}
           </div>
         )}
 
@@ -452,6 +466,7 @@ export function GitPanel({ active = true }: { active?: boolean }) {
           </button>
         </div>
       </div>
+      </WorkspaceTransition>
     </div>
     {discardTarget && active && (
       <PromptDialog

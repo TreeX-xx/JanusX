@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-24T17:01:29.510Z",
+  "updated": "2026-11-03T07:35:53Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -34,6 +34,8 @@
 The right side freezes four singleton tabs in a fixed strip while the file tree speaks no visual language. Adding a tool squeezes the tab row, tool state drifts across stores, and file kinds, selection, and version-control states collide in one channel.
 
 ## Decision
+
+Workspace and worktree changes share a glass transition in the Files, Git and Sessions content areas. The visible panel defocuses in 120ms, waits for its own data and refocuses in 220ms; navigation remains readable and background refreshes do not replay motion. Loading, failure and late-response handling are owned by [workspace context readiness](./file-tree-reveal-race.md).
 
 Files, Git and sessions now register as trusted bundled extensions through `extensions/builtins.tsx`. The adapter keeps their original tool IDs, translated labels, icons, order, gates and saved widths; the rail and content host no longer branch on these three tools. Disabling removes an entry and unmounts its view, while re-enabling retains its width and leaves it closed. Application-scoped shells preserve existing local state across project switches while the original stores own project/worktree context. Host services remain independent of the view lifecycle. The container supplies the same retry/close boundary for every right-hand contribution. Migration verification and limits are recorded in the [plugin delivery plan](../planning/plugin-platform-roadmap.md).
 

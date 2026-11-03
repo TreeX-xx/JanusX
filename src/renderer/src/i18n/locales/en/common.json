@@ -83,6 +83,7 @@
   },
   "workspace": {
     "label": "Workspaces",
+    "switching": "Switching to {{name}}…",
     "ariaLabel": "Workspace sidebar",
     "add": "Add workspace",
     "collapse": "Collapse sidebar",

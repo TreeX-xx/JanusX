@@ -9,6 +9,7 @@ for (const theme of ['planche', 'dark']) {
     const initialY = (await filesButton.boundingBox())!.y
     await page.locator('#right-tool-rail-sessions').click()
     const panel = page.getByRole('region', { name: /会话/ })
+    await expect(panel.locator('[data-workspace-transition]')).toHaveAttribute('aria-busy', 'false')
     const row = panel.locator('[data-session-id="session-palette"]')
     await expect(row).toBeVisible()
     await expect.poll(() => panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0)

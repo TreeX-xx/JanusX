@@ -83,6 +83,7 @@
   },
   "workspace": {
     "label": "工作区",
+    "switching": "正在切换到 {{name}}…",
     "ariaLabel": "工作区侧栏",
     "add": "添加工作区",
     "collapse": "收起侧栏",
