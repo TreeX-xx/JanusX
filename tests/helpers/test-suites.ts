@@ -37,6 +37,7 @@ export const integrationTestFiles = [
   'tests/unit/blueprint-workspace-init.test.ts',
   'tests/unit/electron-build-isolation.test.ts',
   'tests/unit/git-service.test.ts',
+  'tests/unit/git-history-service.test.ts',
   'tests/unit/harness-desktop-executor.test.ts',
   'tests/unit/harness-independent-review.test.ts',
   'tests/unit/harness-service.test.ts',

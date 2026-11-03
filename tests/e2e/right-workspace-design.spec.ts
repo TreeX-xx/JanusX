@@ -41,7 +41,7 @@ for (const theme of ['planche', 'dark']) {
     await page.waitForTimeout(350)
     await page.screenshot({ path: test.info().outputPath(`right-sessions-${theme}-${width}.png`) })
     await page.locator('#right-tool-rail-git').click()
-    await expect(page.getByText('src/renderer/RightDock.tsx', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'src/renderer/RightDock.tsx', exact: true })).toBeVisible()
     await page.mouse.move(400, 20)
     await page.waitForTimeout(350)
     await page.screenshot({ path: test.info().outputPath(`right-git-${theme}-${width}.png`) })

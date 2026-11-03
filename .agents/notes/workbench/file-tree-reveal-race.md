@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-11-03T07:45:02Z",
+  "updated": "2026-11-03T08:27:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -34,7 +34,7 @@ The file-tree scan expressed only one part of a workspace change, while Git and 
 
 ## Decision
 
-Workspace and worktree changes use the same `WorkspaceTransition` content boundary in Files, Git and Sessions. The visible content defocuses through a theme-tinted 5px glass layer for 120ms, holds until that panel's data settles, then refocuses over 220ms. The previous rendered content remains beneath the glass until replacement data or an error is ready. There is no fixed loading delay beyond the short entry motion. Loading lasting 600ms shows a clear target-workspace label above the glass. Navigation, search controls and the Git branch bar stay readable; the transitioning content is inert for both pointer and keyboard input.
+Workspace and worktree changes use the same `WorkspaceTransition` content boundary in Files, Git and Sessions. The visible content defocuses through a theme-tinted 5px glass layer for 120ms, holds until that panel's data settles, then refocuses over 220ms. The previous rendered content remains beneath the glass until replacement data or an error is ready. There is no fixed loading delay beyond the short entry motion. Loading lasting 600ms shows a clear target-workspace label above the glass. Tool navigation, the Files/Sessions search controls and the Git repository header stay readable; the transitioning content is inert for both pointer and keyboard input.
 
 Only the visible panel waits for its own data. Files follow the full-tree load, Git follows status and history for the active worktree, and Sessions follows its selected filter. Global/all-session scopes keep their own identity. Hidden panels do not run motion. Returning to a hidden panel with unfinished data starts the same feedback; background updates in an already visible scope do not replay it. Reduced-motion mode removes blur and entry/exit delays while keeping loading feedback and interaction protection. The glass is disabled at rest, avoiding a permanent filtered surface.
 

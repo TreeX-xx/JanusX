@@ -15,15 +15,26 @@
   },
   "staged": {
     "title": "Staged",
-    "unstageAll": "Unstage all"
+    "unstageAll": "Unstage all",
+    "empty": "No staged files"
   },
   "changes": {
-    "title": "Changes",
+    "title": "Working changes",
     "stageAll": "Stage all",
     "open": "Open file",
     "stage": "Stage change",
     "unstage": "Unstage change",
-    "discard": "Discard change"
+    "discard": "Discard change",
+    "search": "Search files…",
+    "view": "File view",
+    "tree": "Directory tree",
+    "list": "File list",
+    "more": "File actions: {{path}}",
+    "empty": "No unstaged files",
+    "noMatch": "No matching files",
+    "diff": "File diff",
+    "noDiff": "No text diff. Only file attributes may have changed.",
+    "truncated": "Showing the first 256 KiB of the diff. Open the file for its full content."
   },
   "discard": {
     "title": "Discard changes?",
@@ -33,14 +44,31 @@
   "clean": "Working tree clean",
   "history": {
     "title": "Commit history",
-    "previewHint": "Click to expand changed files",
+    "previewHint": "Click to view commit details",
     "loadingChanges": "Loading changed files...",
     "filesCount": "{{count}} files",
-    "moreFiles": "+{{count}} more files"
+    "moreFiles": "+{{count}} more files",
+    "scope": "History scope",
+    "all": "All branches",
+    "current": "Current branch",
+    "loaded": "{{count}} loaded",
+    "search": "Search loaded commits…",
+    "previousMatch": "Previous match",
+    "nextMatch": "Next match",
+    "loading": "Loading history…",
+    "empty": "No commits yet",
+    "loadMore": "Load older commits",
+    "end": "All available history loaded",
+    "detail": "Commit details",
+    "copyHash": "Copy full commit hash",
+    "copyFailed": "Could not copy. Try again.",
+    "mergeHint": "Merge commit: changes relative to the first parent."
   },
   "commit": {
-    "placeholder": "Commit message...",
-    "button": "Commit"
+    "placeholder": "Commit title…",
+    "button": "Commit",
+    "description": "Description",
+    "staged": "Commit staged · {{count}}"
   },
   "remote": {
     "executing": "Working...",
@@ -66,5 +94,15 @@
     "minutesAgo": "{{count}} min ago",
     "hoursAgo": "{{count}} h ago",
     "daysAgo": "{{count}} d ago"
-  }
+  },
+  "tabs": {
+    "changes": "Changes",
+    "history": "History"
+  },
+  "views": "Git views",
+  "refresh": "Refresh Git",
+  "retry": "Retry",
+  "more": "Repository actions",
+  "clearSearch": "Clear search",
+  "closeDetail": "Close details"
 }

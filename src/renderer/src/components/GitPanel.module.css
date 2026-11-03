@@ -1,171 +1,115 @@
-/**
- * GitPanel.module.css
- *
- * 右侧 Git 栏浮层表面：修改记录悬浮预览卡 + push/pull 确认弹窗。
- * 底座一律吃主题令牌，纸面只在加法层翻投影（与 team/TeamFooter.popover 同构）：
- *  - 背景用 --shell-chrome-raised：dark 比 chrome 高一阶，planche 是纸深 #DCCFA8，
- *    在纸面上有可见台阶（--shell-card 在 planche 里与纸同值，当浮层底等于没画）。
- *  - 边框用 --shell-accent-border：保留原来的“强调色描边”意图，dark 是橙、planche 是朱红。
- *  - 行 hover / 组头底 / 分隔线用 color-mix 朝 --shell-text 混出，不再写死
- *    rgba(255,255,255,*)（落在纸面上是几乎透明的亮斑）。
- */
-
-.commitPreview {
-  position: fixed;
-  z-index: 1100;
-  box-sizing: border-box;
-  width: min(280px, calc(100vw - 16px));
-  max-height: min(220px, calc(100vh - 16px));
-  overflow: hidden;
-  pointer-events: none;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 11px;
-  line-height: 1.5;
-  background: var(--shell-chrome-raised);
-  border: 1px solid var(--shell-accent-border);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  color: var(--shell-text);
-  animation: git-preview-in 120ms ease-out;
-}
-
-.previewDivider {
-  border-top: 1px solid var(--shell-border-soft);
-}
-
-/* 提交列表行：hover 只抬底色，文字色不变，避免闪烁（与 pane-tab 同语言）。 */
-.commitRow {
-  /* Keep the full history accessible without laying out offscreen rows on reveal. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 49px;
-}
-
-.commitRow:hover {
-  background: color-mix(in srgb, var(--shell-text) 6%, transparent);
-}
-
-.commitRow:focus-visible {
-  outline: 1px solid var(--shell-accent-border);
-  outline-offset: -1px;
-  background: color-mix(in srgb, var(--shell-text) 6%, transparent);
-}
-
-/* 分组头（Staged / Changes / History）：自带 4% 纸深/白底，两主题都可见。 */
-.sectionHeader {
-  background: transparent;
-  padding-top: 12px;
-  padding-bottom: 6px;
-  font-size: 11px;
-  letter-spacing: normal;
-  text-transform: none;
-}
-
-.sectionHeader button { font-size: 11px; }
-.branchToolbar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px 4px; }
-.statusSummary { display: flex; flex-wrap: wrap; gap: 12px; padding: 2px 12px 8px; font-size: 11px; }
-
-/* ── 空态（未加载工作区 / 非 Git 仓库）：Codex 式居中留白。
- * 宿主 .toolContent 是普通块容器，高度靠 height:100% 撑满，再在内部居中；
- * 只写 flex-1 不会生效（父级不是 flex），必须自带 100% 高度。
- * 灰阶只走 --shell-muted / --shell-dim 两级，不放任何填充色块。 */
-.emptyState {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 24px 28px;
-  text-align: center;
-  animation: git-empty-in 160ms ease-out;
-}
-
-.emptyIcon {
-  margin-bottom: 6px;
-  color: var(--shell-dim);
-  opacity: 0.7;
-}
-
-.emptyTitle {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.5;
-  letter-spacing: -0.01em;
-  color: var(--shell-muted);
-}
-
-.emptyHint {
-  margin: 0;
-  max-width: 250px;
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--shell-dim);
-}
-
-@keyframes git-empty-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* 文件行 hover：同上走令牌混色。 */
-.fileGroup {
-  /* Skip whole offscreen batches, including their row layout and style work. */
-  content-visibility: auto;
-}
-
-.fileRow:hover {
-  background: color-mix(in srgb, var(--shell-text) 5%, transparent);
-}
-
-/* push/pull 确认弹窗：与悬浮卡片同底座同描边，尺寸走行内 width。 */
-.confirmDialog {
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--shell-chrome-raised);
-  border: 1px solid var(--shell-accent-border);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  animation: island-expand-modal 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-/* 弹窗内信息盒 / 提示盒：走令牌，不写死白底与 #b8896d 暖灰字。 */
-.dialogInfoBox {
-  background: color-mix(in srgb, var(--shell-text) 4%, transparent);
-  border: 1px solid var(--shell-border-soft);
-}
-
-.dialogHintBox {
-  background: var(--shell-accent-soft);
-  border: 1px solid var(--shell-accent-border);
-  color: var(--shell-muted);
-}
-
-@keyframes git-preview-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .commitPreview,
-  .confirmDialog,
-  .emptyState {
-    animation: none;
-  }
-}
-
-/* ── planche：纸面浮层（加法层，dark 原样不动）──
- * 黑硬影在纸面上过脏，换石板套印偏移影（与 TeamFooter.popover 同口径）。 */
-:global([data-theme='planche']) .commitPreview {
-  box-shadow: 3px 3px 0 var(--line, #1c343b);
-}
-
-:global([data-theme='planche']) .confirmDialog {
-  box-shadow: 3px 3px 0 var(--line, #1c343b);
-}
+/* Note: .agents/notes/workbench/git-workbench.md */
+.panel, .workspace, .view { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; overflow: hidden; color: var(--shell-text); font-size: 12px; }
+.view[hidden] { display: none; }
+.panel button, .panel input, .panel select, .panel textarea { font: inherit; }
+.panel button { cursor: pointer; }
+.panel button:disabled { opacity: .38; cursor: default; }
+.panel button:focus-visible, .panel select:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: -2px; }
+.repositoryHeader { display: flex; align-items: center; gap: 8px; padding: 12px 12px 10px; flex-shrink: 0; }
+.branchInfo { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }
+.branchInfo > svg { flex-shrink: 0; color: var(--shell-muted); }
+.branchInfo > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.branchInfo strong { font-size: 12px; font-weight: 600; }
+.branchInfo span { font-size: 10px; color: var(--shell-dim); }
+.branchInfo strong, .branchInfo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.syncActions { display: flex; align-items: center; gap: 3px; }
+.syncActions > button { display: flex; align-items: center; gap: 3px; height: 27px; border-radius: 5px; padding: 0 5px; font-size: 11px; color: var(--shell-muted); }
+.syncActions > button:hover:not(:disabled), .iconButton:hover:not(:disabled), .textButton:hover { background: color-mix(in srgb, var(--shell-text) 7%, transparent); color: var(--shell-text); }
+.syncActions > button span { font-variant-numeric: tabular-nums; color: var(--shell-accent); }
+.tabs { display: flex; flex-shrink: 0; gap: 20px; padding: 0 12px; border-bottom: 1px solid var(--shell-border-soft); }
+.tabs > button { display: flex; align-items: center; gap: 7px; padding: 9px 1px; border-bottom: 2px solid transparent; color: var(--shell-dim); }
+.tabs > button[aria-selected=true] { border-bottom-color: var(--shell-text); color: var(--shell-text); font-weight: 600; }
+.count { color: var(--shell-dim); font-size: 10px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.searchToolbar { display: flex; gap: 7px; align-items: center; padding: 10px 12px 8px; flex-shrink: 0; }
+.search { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; background: var(--shell-card); border: 1px solid var(--shell-border-soft); border-radius: 5px; min-width: 0; flex: 1; color: var(--shell-dim); }
+.search:focus-within { border-color: var(--shell-accent-border); }
+.search input { min-width: 0; width: 100%; background: none; outline: none; color: var(--shell-text); font-size: 11px; }
+.search input::placeholder { color: var(--shell-dim); }
+.search > svg, .search > button { flex-shrink: 0; }
+.search > button { display: grid; place-items: center; }
+.segmented { display: flex; gap: 2px; }
+.segmented button { display: grid; place-items: center; width: 25px; height: 26px; border-radius: 4px; color: var(--shell-dim); }
+.segmented button[aria-pressed=true] { color: var(--shell-text); background: color-mix(in srgb, var(--shell-text) 9%, transparent); }
+.scroll { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.sectionHeader { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 2; min-height: 32px; padding: 0 10px; background: var(--shell-chrome); border-bottom: 1px solid var(--shell-border-soft); }
+.sectionHeader > button:first-child { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; color: var(--shell-muted); }
+.iconButton { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 4px; color: var(--shell-dim); }
+.fileGroup { content-visibility: auto; }
+.folderRow, .fileRow { display: flex; align-items: center; gap: 6px; height: 30px; min-width: 0; width: 100%; padding-right: 7px; padding-left: calc(12px + var(--depth, 0) * 12px); }
+.folderRow { text-align: left; color: var(--shell-muted); font-size: 11px; }
+.folderRow > span:first-of-type { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.folderRow > svg { flex-shrink: 0; color: var(--shell-dim); }
+.folderRow:hover, .fileRow:hover { background: color-mix(in srgb, var(--shell-text) 5%, transparent); }
+.fileRow[data-selected=true] { background: color-mix(in srgb, var(--shell-text) 9%, transparent); }
+.fileStatus { width: 16px; flex-shrink: 0; font: 10px ui-monospace, monospace; text-align: center; color: var(--shell-muted); }
+.fileStatus[data-status=A], .fileStatus[data-status='??'], .add { color: var(--shell-diff-add); }
+.fileStatus[data-status=D], .fileStatus[data-status=UU], .del, .danger { color: var(--shell-diff-del); }
+.fileStatus[data-status=M], .fileStatus[data-status=R] { color: var(--shell-accent); }
+.fileName { flex: 1; min-width: 0; display: flex; gap: 7px; align-items: baseline; text-align: left; }
+.fileName > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.fileName small { color: var(--shell-dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fileActions { display: flex; align-items: center; gap: 1px; opacity: 0; }
+.fileRow:hover .fileActions, .fileRow:focus-within .fileActions { opacity: 1; }
+.fileActions :global(.viewer-icon) { width: 22px; height: 24px; }
+.groupEmpty { margin: 0; padding: 10px 28px; color: var(--shell-dim); font-size: 11px; }
+.clean { display: flex; justify-content: center; gap: 7px; align-items: center; color: var(--shell-muted); padding: 24px 12px; }
+.composer { flex-shrink: 0; padding: 10px 12px; border-top: 1px solid var(--shell-border-soft); }
+.composer > input, .composer > textarea { display: block; width: 100%; background: var(--shell-card); border: 1px solid var(--shell-border-soft); border-radius: 5px; color: var(--shell-text); padding: 8px; outline: none; font-size: 11px; }
+.composer > input:focus, .composer > textarea:focus { border-color: var(--shell-accent-border); }
+.composer > textarea { margin-top: 6px; resize: vertical; max-height: 120px; min-height: 50px; }
+.composerActions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.textButton { display: flex; align-items: center; gap: 4px; color: var(--shell-dim); font-size: 10px !important; padding: 4px; border-radius: 4px; }
+.commitButton { display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 5px; color: var(--shell-accent); background: var(--shell-accent-soft); border: 1px solid var(--shell-accent-border); font-size: 11px !important; }
+.historyToolbar { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 10px 12px 0; flex-shrink: 0; }
+.historyToolbar select { background: var(--shell-card); color: var(--shell-text); border: 1px solid var(--shell-border-soft); border-radius: 4px; height: 26px; padding: 0 5px; font-size: 11px; }
+.historyToolbar > span, .matchNav > span { color: var(--shell-dim); font-size: 10px; white-space: nowrap; }
+.matchNav { display: flex; align-items: center; gap: 1px; }
+.historyCanvas { width: 100%; }
+.commitRow { display: flex; align-items: stretch; width: 100%; text-align: left; content-visibility: auto; contain-intrinsic-size: auto 66px; padding-right: 10px; }
+.commitRow:hover { background: color-mix(in srgb, var(--shell-text) 5%, transparent); }
+.commitRow[aria-pressed=true] { background: color-mix(in srgb, var(--shell-text) 10%, transparent); }
+.commitRow[data-match=true] .commitSubject { color: var(--shell-accent); }
+.graph { flex-shrink: 0; overflow: visible; }
+.commitText { display: flex; flex-direction: column; min-width: 0; flex: 1; justify-content: center; gap: 4px; padding-left: 4px; }
+.commitSubject { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+.commitMeta { display: flex; align-items: center; gap: 7px; font-size: 10px; color: var(--shell-dim); }
+.commitMeta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.commitMeta time, .commitMeta code { white-space: nowrap; flex-shrink: 0; }
+.refs { display: flex; gap: 4px; overflow: hidden; }
+.refs:empty { display: none; }
+.refs > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; padding: 0 4px; border: 1px solid var(--shell-border-soft); border-radius: 3px; font-size: 9px; line-height: 14px; color: var(--shell-muted); }
+.refs > span[data-kind=head] { border-color: var(--shell-accent-border); color: var(--shell-accent); }
+.refs > span[data-kind=remote] { border-style: dashed; }
+.refs > span[data-kind=tag] { border-radius: 7px; }
+.loadMore { display: block; height: 32px; width: calc(100% - 24px); margin: 8px 12px; border: 1px solid var(--shell-border-soft); border-radius: 4px; color: var(--shell-muted); font-size: 11px !important; }
+.historyEnd { text-align: center; color: var(--shell-dim); font-size: 10px; margin: 12px; }
+.detail { display: flex; flex-direction: column; flex: 0 0 auto; max-height: 42%; min-height: 110px; overflow: hidden; border-top: 1px solid var(--shell-border-soft); background: color-mix(in srgb, var(--shell-text) 2%, transparent); }
+.detailHeader { display: flex; align-items: center; gap: 6px; padding: 5px 10px; min-height: 33px; flex-shrink: 0; color: var(--shell-muted); }
+.detailHeader strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 500; }
+.detailHeader > span { font-size: 10px; color: var(--shell-dim); }
+.detailScroll { min-height: 0; overflow: auto; overscroll-behavior: contain; padding-bottom: 8px; }
+.detailSubject { font-size: 12px; font-weight: 500; line-height: 1.5; margin: 0 12px 5px; overflow-wrap: anywhere; }
+.detailMeta { font-size: 10px; line-height: 1.5; color: var(--shell-dim); margin: 3px 12px; }
+.detailBody { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.6; color: var(--shell-muted); margin: 8px 12px; }
+.detailTotals { display: flex; gap: 8px; font-size: 10px; padding: 8px 12px 5px; }
+.detailTotals > span:first-child { margin-right: auto; color: var(--shell-muted); }
+.commitFile { display: flex; align-items: center; gap: 6px; padding: 4px 12px; font-size: 10px; }
+.commitFile > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detailOpen { font-size: 10px !important; color: var(--shell-muted); padding: 5px 12px; border-top: 1px solid var(--shell-border-soft); text-align: left; flex-shrink: 0; }
+.patch { font: 10px/1.65 ui-monospace, monospace; padding: 0; margin: 0; min-width: max-content; }
+.patch > div { padding: 0 10px; }
+.patch [data-line=add] { color: var(--shell-diff-add); background: color-mix(in srgb, var(--shell-diff-add) 6%, transparent); }
+.patch [data-line=del] { color: var(--shell-diff-del); background: color-mix(in srgb, var(--shell-diff-del) 6%, transparent); }
+.patch [data-line=hunk] { color: var(--shell-dim); }
+.error { font-size: 11px; line-height: 1.5; color: var(--shell-diff-del); padding: 8px 12px; overflow-wrap: anywhere; max-height: 130px; overflow: auto; flex-shrink: 0; }
+.error button { display: block; text-decoration: underline; margin-top: 4px; }
+.message { font-size: 11px; line-height: 1.6; color: var(--shell-dim); padding: 12px; margin: 0; }
+.commitPreview { position: fixed; pointer-events: none; z-index: 1100; width: min(280px, calc(100vw - 16px)); max-height: min(220px, calc(100vh - 16px)); overflow: hidden; border-radius: 7px; padding: 10px 12px; font-size: 11px; line-height: 1.5; background: var(--shell-chrome-raised); border: 1px solid var(--shell-border-soft); color: var(--shell-text); box-shadow: 0 8px 28px #0003; }
+.commitPreview p { margin: 5px 0; color: var(--shell-dim); font-size: 10px; }
+.previewFile { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10px; color: var(--shell-muted); }
+.remoteInfo { padding: 10px 0; color: var(--shell-text); }
+.emptyState { display: flex; height: 100%; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px 28px; text-align: center; }
+.emptyIcon { margin-bottom: 6px; color: var(--shell-dim); }
+.emptyTitle { margin: 0; font-size: 14px; font-weight: 500; color: var(--shell-muted); }
+.emptyHint { margin: 0; max-width: 250px; font-size: 12px; line-height: 1.65; color: var(--shell-dim); }
+@media (hover: none) { .fileActions { opacity: 1; } }

@@ -21,9 +21,9 @@ window.electron.git.status = path => read('status', path, {
   branch: { name: name(path), ahead: 0, behind: 0 }, clean: false,
   changes: [{ path: `${name(path)}.ts`, status: 'M', staged: false, additions: 3, deletions: 1 }],
 })
-window.electron.git.log = path => read('log', path, [
-  { hash: path, shortHash: 'abc123', message: `${name(path)} history`, author: 'JanusX', date: new Date().toISOString() },
-])
+window.electron.git.history = path => read('log', path, { commits: [
+  { hash: path, shortHash: 'abc123', message: `${name(path)} history`, author: 'JanusX', date: new Date().toISOString(), parents: [], refs: [] },
+], cursor: null })
 window.electron.session.list = filter => {
   const path = filter?.cwd ?? 'all'
   return read('sessions', path, [{ id: path, workspaceId: name(path), engine: 'codex', cwd: path,
