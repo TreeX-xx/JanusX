@@ -2,6 +2,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearCache, selectWindowsSpawnPath } from '../../../src/main/janus-runner/cli-resolver'
 
 describe('selectWindowsSpawnPath', () => {
+  it('keeps an earlier npm native install ahead of a later WinGet executable', () => {
+    const npm = 'C:\\Users\\77777\\AppData\\Roaming\\npm'
+    const native = `${npm}\\node_modules\\@opencode\\cli\\bin\\opencode.exe`
+    const winget = 'C:\\WinGet\\Links\\opencode.exe'
+    const shim = `${npm}\\opencode.cmd`
+    const exists = new Set([shim, native, winget])
+    expect(selectWindowsSpawnPath([`${npm}\\opencode`, shim, winget], 'opencode', {
+      existsSync: p => exists.has(p),
+      readFileSync: () => '@ECHO off\r\n"%dp0%\\node_modules\\@opencode\\cli\\bin\\opencode.exe" %*',
+    })).toBe(native)
+  })
+
+  it('preserves lookup order among native executables regardless of path length', () => {
+    const first = 'C:\\preferred-install\\opencode.exe'
+    expect(selectWindowsSpawnPath([first, 'C:\\bin\\opencode.exe'], 'opencode', {
+      existsSync: () => true,
+    })).toBe(first)
+  })
+
   afterEach(() => {
     clearCache()
   })

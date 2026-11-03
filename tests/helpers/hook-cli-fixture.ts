@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readdir } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PNG_PIXEL } from './image-fixture'
 
 /** Local-only models: no credentials or provider network access in CLI acceptance. */
-export async function hookCliFixture(options: { codexCommandProbe?: boolean; codexPlanProbe?: boolean } = {}) {
+export async function hookCliFixture(options: { codexImageProbe?: boolean; codexCommandProbe?: boolean; codexPlanProbe?: boolean; codexLiveProbe?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'janusx-hook-cli-'))
   const home = join(root, "home space's 中文")
   const cwd = join(root, "workspace space's 中文")
@@ -63,12 +64,15 @@ export async function hookCliFixture(options: { codexCommandProbe?: boolean; cod
         event('response.output_item.done', { output_index: 0, item: tool })
         event('response.completed', { response }); res.end(); return
       }
-      const item = { id: 'msg_probe', type: 'message', status: 'completed', role: 'assistant', content: [{ type: 'output_text', text: 'OK', annotations: [] }] }
+      if (options.codexImageProbe) await writeFile(join(cwd, 'generated.png'), Buffer.from(PNG_PIXEL, 'base64'))
+      const outputText = options.codexImageProbe ? '![Fixture image](generated.png)' : 'OK'
+      const item = { id: 'msg_probe', type: 'message', status: 'completed', role: 'assistant', content: [{ type: 'output_text', text: outputText, annotations: [] }] }
       const response = { id: 'resp_probe', object: 'response', created_at: 1, status: 'completed', model: 'probe', output: [item], usage: { input_tokens: 8, output_tokens: 1, total_tokens: 9, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } }
       event('response.created', { response: { ...response, status: 'in_progress', output: [] } })
       event('response.output_item.added', { output_index: 0, item: { ...item, status: 'in_progress', content: [] } })
       event('response.content_part.added', { item_id: item.id, output_index: 0, content_index: 0, part: { type: 'output_text', text: '', annotations: [] } })
-      event('response.output_text.delta', { item_id: item.id, output_index: 0, content_index: 0, delta: 'OK' })
+      event('response.output_text.delta', { item_id: item.id, output_index: 0, content_index: 0, delta: outputText })
+      if (options.codexLiveProbe && responseRequests.length === 1) await new Promise(resolve => setTimeout(resolve, 5000))
       event('response.output_item.done', { output_index: 0, item })
       event('response.completed', { response }); res.end()
     } else if (req.url?.includes('chat/completions')) {

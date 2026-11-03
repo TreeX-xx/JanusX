@@ -1,0 +1,21 @@
+/* Shared reading surface for Island and agent conversation mode. */
+.markdown-preview.conversation-markdown { padding: 0; min-width: 0; font-size: 14px; line-height: 1.8; color: var(--shell-text); overflow-wrap: anywhere; white-space: normal; }
+.markdown-preview.conversation-markdown > :first-child { margin-top: 0; }
+.markdown-preview.conversation-markdown > :last-child { margin-bottom: 0; }
+.markdown-preview.conversation-markdown p { margin: 10px 0; }
+.markdown-preview.conversation-markdown :is(h1,h2,h3,h4,h5,h6) { margin: 22px 0 10px; padding: 0; border: 0; font-size: 16px; line-height: 1.5; font-weight: 600; color: inherit; }
+.markdown-preview.conversation-markdown strong { font-weight: 600; color: inherit; }
+.markdown-preview.conversation-markdown :is(ul,ol) { margin: 10px 0; padding-left: 24px; }
+.markdown-preview.conversation-markdown ul { list-style-type: disc; }
+.markdown-preview.conversation-markdown ol { list-style-type: decimal; }
+.markdown-preview.conversation-markdown li { margin: 4px 0; }
+.markdown-preview.conversation-markdown pre { max-height: none; white-space: pre; overflow-wrap: normal; overflow: auto; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-hover); }
+.markdown-preview.conversation-markdown blockquote { margin: 12px 0; padding: 2px 14px; border-left: 2px solid var(--shell-border); color: var(--shell-muted); }
+.conversation-work { margin: 12px 0 20px; min-width: 0; }
+.conversation-work-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 0; border: 0; background: transparent; color: var(--shell-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.conversation-work-toggle:hover { color: var(--shell-text); }
+.conversation-work-toggle:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+.conversation-work-toggle[aria-expanded=true] svg { transform: rotate(90deg); }
+.conversation-work-body { padding: 8px 0 4px 12px; border-left: 1px solid var(--shell-border); }
+.conversation-work-body[hidden] { display: none; }
+.conversation-work .markdown-preview.conversation-markdown { color: var(--shell-muted); }

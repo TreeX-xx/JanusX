@@ -12,7 +12,7 @@ for (const engine of ['codex', 'opencode']) test(`${engine} edits a historical m
   await expect(editor).toBeFocused()
   await expect(editor).toHaveValue('Original question')
   await expect(page.getByRole('button', { name: 'Terminal', exact: true })).toBeDisabled()
-  await expect(draft).toHaveValue('My next question')
+  await expect(draft).toHaveText('My next question')
   await editor.fill('Revised question')
   await editor.press('Enter')
   await expect(editor).toHaveValue('Revised question\n')
@@ -29,7 +29,7 @@ for (const engine of ['codex', 'opencode']) test(`${engine} edits a historical m
   await expect(page.getByText('Revised question', { exact: true })).toBeVisible()
   await expect(original).toHaveCount(0)
   await expect(page.getByText('Later question', { exact: true })).toHaveCount(0)
-  await expect(draft).toHaveValue('My next question')
+  await expect(draft).toHaveText('My next question')
 })
 
 test('failed edits keep their text and original position, including after native history was replaced', async ({ page }) => {

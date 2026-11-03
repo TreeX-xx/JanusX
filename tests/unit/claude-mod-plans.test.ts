@@ -25,8 +25,21 @@ async function fixture() {
   const emit = (name: string, event: object, result: object = {}) => hooks.get(name)($, event, async () => result)
   await emit('session.start', {})
   await emit('turn.start', { turnId: 't', text: 'test' })
-  return { $, emit, read: async () => { await flush(); return events.filter(event => event.type.startsWith('plan.')) } }
+  return { $, emit, hooks, readAll: async () => { await flush(); return events }, read: async () => { await flush(); return events.filter(event => event.type.startsWith('plan.')) } }
 }
+
+it('captures batched prompts before downstream starts the turn and removes rejected inputs', async () => {
+  const { $, emit, hooks, readAll } = await fixture()
+  await emit('prompt.submit', { text: 'rejected', origin: { kind: 'composer' } }, { drop: 'rejected' })
+  await emit('prompt.submit', { text: 'first', origin: { kind: 'composer' } })
+  await hooks.get('prompt.submit')($, { text: 'second', origin: { kind: 'composer' } }, async () => {
+    await emit('turn.start', { turnId: 'batch', text: 'second' })
+    return {}
+  })
+  expect((await readAll()).find(event => event.type === 'turn.start' && event.data.turnId === 'batch')?.data.inputs).toEqual(['first', 'second'])
+  await emit('turn.start', { turnId: 'later', text: 'later' })
+  expect((await readAll()).find(event => event.type === 'turn.start' && event.data.turnId === 'later')?.data.inputs).toEqual([])
+})
 
 it('reads native tasks only after successful root mutations and preserves last confirmed state on read failure', async () => {
   const { $, emit, read } = await fixture()

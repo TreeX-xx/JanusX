@@ -14,6 +14,16 @@ class Fixture extends NativeConversation {
   async dispose() { this.close() }
 }
 describe('native conversation controls', () => {
+  it('keeps active-turn submission blocked for adapters without liveInput', async () => {
+    const c = new Fixture()
+    try {
+      c.emit({ type: 'session', sessionId: 'session' })
+      await c.command({ type: 'mode', mode: 'conversation' })
+      c.emit({ type: 'start', turnId: 'active' })
+      await expect(c.command({ type: 'send', commandId: 'blocked', text: 'text', controlEpoch: c.state.controlEpoch })).rejects.toThrow('busy')
+      expect(c.deliver).not.toHaveBeenCalled()
+    } finally { await c.dispose() }
+  })
   it('enables the five supported engines and rejects unrelated terminals', () => {
     for (const engine of ['codex', 'claude', 'pi', 'dsh', 'opencode']) expect(supportsConversation(engine)).toBe(true)
     for (const engine of ['shell', 'janus', '']) expect(supportsConversation(engine)).toBe(false)

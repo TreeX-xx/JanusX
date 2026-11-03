@@ -31,6 +31,14 @@ function createHarness(options: {
 }
 
 describe('CliDetector', () => {
+  it('finds a Windows user-local install absent from PATH', async () => {
+    const binary = resolve('C:\\Users\\test', '.local', 'bin', 'claude.exe')
+    const { detector } = createHarness({ files: [binary] })
+    await expect(detector.detect()).resolves.toMatchObject({
+      installed: true, runnable: true, path: binary, source: 'known-location',
+    })
+  })
+
   it('reports not-installed with a manual hint and probes nothing', async () => {
     const { detector, run } = createHarness()
 

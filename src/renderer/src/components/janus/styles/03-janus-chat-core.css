@@ -96,6 +96,11 @@
   animation: none !important;
 }
 
+/* Re-entering the historical viewport is scrolling, not a new message. */
+.janus-chat-messages [data-virtual-history] [data-index] .janus-chat-message {
+  animation: none;
+}
+
 .janus-chat-messages::-webkit-scrollbar {
   display: none;
 }
@@ -1125,3 +1130,8 @@
 .janus-context-indicator input { width: 110px; color: inherit; background: var(--shell-bg); border: 1px solid var(--shell-border); }
 .janus-context-indicator input:disabled,.janus-context-indicator button:disabled { cursor: default; opacity: .5; }
 .janus-context-indicator button,.janus-chat-load-history { color: inherit; background: transparent; border: 1px solid var(--shell-border); border-radius: 4px; cursor: pointer; padding: 3px 6px; }
+
+/* Conversation output uses an open reading flow in every Island size. */
+.janus-chat-message.assistant .janus-chat-message-content { border: 0; border-radius: 0; padding: 8px 0; background: transparent; backdrop-filter: none; }
+.janus-chat-message.user .janus-chat-message-content { border: 1px solid var(--shell-border); background: var(--shell-hover); border-radius: 16px; padding: 10px 14px; }
+.janus-chat-streaming-text:has(.conversation-markdown) { white-space: normal; }

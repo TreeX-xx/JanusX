@@ -22,7 +22,7 @@ export function AuxiliaryPanelButtons() {
       <button type="button" className={styles.railButton} data-tools-toggle="" data-visual-active={toolsOpen}
         aria-label={t(toolsOpen ? 'common:toolGroup.collapseTools' : 'common:toolGroup.expandTools')} aria-expanded={toolsOpen}
         onClick={() => useGlobalToolsStore.getState().setCollapsed(toolsOpen)}>
-        <ToolboxIcon size={16} aria-hidden="true" />
+        <ToolboxIcon size={16} strokeWidth={1.6} aria-hidden="true" />
       </button>
     </ThemedTooltip>}
     {hasFiles && <ThemedTooltip placement="left" label={t(editorOpen ? 'editor:fileEditor.collapsePanel' : 'editor:fileEditor.expandPanel')}>

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Download, CircleAlert } from 'lucide-react'
+import { Download, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { probeCli, useCliReadiness } from '@/stores/cli-readiness'
@@ -26,7 +26,7 @@ export function TerminalInstallBadge({ preset, compact = false }: { preset: Term
     ? probe?.installed ? '需要修复，点击准备' : '未安装，点击安装'
     : probe?.installed ? 'Needs repair. Click to set up' : 'Not installed. Click to install'
   if (!needsSetup) return null
-  return <span role="img" aria-label={label} title={label} style={{ position: 'absolute', right: compact ? 3 : 7, bottom: compact ? 3 : 7, display: 'grid', placeItems: 'center', width: compact ? 12 : 16, height: compact ? 12 : 16, borderRadius: '50%', background: 'var(--shell-canvas)', color: 'var(--shell-muted)', boxShadow: '0 0 0 1px var(--shell-border-soft)' }}>
-    {probe.installed ? <CircleAlert size={compact ? 9 : 11} aria-hidden /> : <Download size={compact ? 9 : 11} aria-hidden />}
+  return <span role="img" aria-label={label} title={label} style={{ position: 'absolute', right: compact ? 4 : 8, bottom: compact ? 4 : 8, display: 'grid', placeItems: 'center', width: compact ? 12 : 14, height: compact ? 12 : 14, color: 'var(--shell-muted)' }}>
+    {probe.installed ? <Wrench size={compact ? 10 : 12} strokeWidth={1.5} aria-hidden /> : <Download size={compact ? 10 : 12} strokeWidth={1.5} aria-hidden />}
   </span>
 }

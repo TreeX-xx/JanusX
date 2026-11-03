@@ -1,12 +1,17 @@
+import { createHash } from 'node:crypto'
+import { ConversationCatalog, type NativeCatalogEntry } from './conversation-catalog'
+import { ConversationSession, conversationState } from './conversation-session'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import { existsSync } from 'node:fs'
 import { delimiter, dirname, extname, join } from 'node:path'
 import WebSocket, { WebSocketServer } from 'ws'
+import { CodexStartup } from './codex-startup'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot, ConversationModelOption } from '../../shared/conversation-display'
-import { CODEX_CONVERSATION_CAPABILITIES, parseConversationSlashCommand } from '../../shared/conversation-display'
+import { CODEX_CONVERSATION_CAPABILITIES } from '../../shared/conversation-display'
 
 type Json = Record<string, any> // Codex's versioned JSON-RPC boundary; normalized before IPC.
+// Session speed state and icon contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 const MAX_ITEMS = 500
 const MAX_TEXT = 32_000
 // Native startup plugin/list catalogs can exceed 25 MiB. Match ws's default
@@ -39,6 +44,9 @@ export function resolveCodexServerBinary(command: string): string {
 
 export class CodexConversation {
   readonly state: ConversationSnapshot
+  private session: ConversationSession
+  private catalog: ConversationCatalog
+  private cwd = ''
   private child?: ChildProcess
   private socket?: WebSocket
   private proxy?: WebSocketServer
@@ -47,32 +55,31 @@ export class CodexConversation {
   private stopping?: Promise<void>
   private requestId = 0
   private pending = new Map<string, { resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
-  private sent = new Map<string, { identity: string; promise: Promise<void> }>()
   private nativeThreadRequests = new Set<string | number>()
   private otherRequests = new Set<string | number>()
   private lastCompletedTurnId?: string
-  private publishTimer?: ReturnType<typeof setTimeout>
   private endpoint = ''
   private loadingModels?: Promise<void>
+  private nativeInput?: (text: string) => void
+  private newThread?: { allowStart: boolean; resolve(): void; reject(error: Error): void }
+  private startup = new CodexStartup((method, params) => this.call(method, params), startup => { this.state.startup = startup; this.changed() })
 
-  constructor(readonly id: string, private readonly publish: (state: ConversationSnapshot) => void,
+  setNativeInput(write: (text: string) => void): void { this.nativeInput = write }
+
+  constructor(readonly id: string, publish: (state: ConversationSnapshot) => void,
     private readonly bind: (threadId: string, transcriptPath?: string) => void = () => {}) {
-    this.state = { id, engine: 'codex', capabilities: CODEX_CONVERSATION_CAPABILITIES, revision: 0, mode: 'terminal', controlEpoch: 0, connection: 'starting', threadId: null,
-      turnId: null, submitting: false, items: [], approvals: [], needsTerminal: false, truncated: false,
-      model: null, effort: null, models: [], modelsLoading: false, settingsUpdating: false }
+    this.state = conversationState(id, 'codex', CODEX_CONVERSATION_CAPABILITIES)
+    this.session = new ConversationSession(this.state, publish)
+    this.state.capabilities = { ...this.state.capabilities, commands: true }
+    this.catalog = new ConversationCatalog(this.session, () => this.loadCommands())
   }
 
-  snapshot(): ConversationSnapshot { return structuredClone(this.state) }
-  private changed(immediate = true): void {
-    this.state.revision++
-    if (!immediate && this.publishTimer) return
-    if (this.publishTimer) clearTimeout(this.publishTimer)
-    this.publishTimer = undefined
-    if (immediate) this.publish(this.snapshot())
-    else this.publishTimer = setTimeout(() => { this.publishTimer = undefined; this.publish(this.snapshot()) }, 32)
-  }
+  snapshot(): ConversationSnapshot { return this.session.snapshot() }
+  private changed(immediate = true): void { this.session.changed(immediate) }
 
-  async start(options: { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string }): Promise<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> {
+  async start(options: { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string; assetsDir?: string }): Promise<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> {
+    this.cwd = options.cwd
+    this.session.configureImages(options.assetsDir ? join(options.assetsDir, 'images') : '', options.cwd)
     const command = resolveCodexServerBinary(options.command)
     const env = codexLoopbackEnv(options.env)
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
@@ -112,7 +119,7 @@ export class CodexConversation {
         const proxyAddress = this.proxy.address()
         if (!proxyAddress || typeof proxyAddress === 'string') throw new Error('Codex bridge is unavailable')
         if (this.disposed) { this.proxy.close(); throw new Error('Codex launch cancelled') }
-        return { command, args: ['-c', 'tools.update_plan.enabled=true', '--remote', `ws://127.0.0.1:${proxyAddress.port}`],
+        return { command, args: ['-c', 'tools.update_plan.enabled=true', '--cd', options.cwd, '--remote', `ws://127.0.0.1:${proxyAddress.port}`],
           env: { NO_PROXY: env.NO_PROXY, no_proxy: env.no_proxy } }
       }
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -125,14 +132,21 @@ export class CodexConversation {
     this.socket = socket
     const queue: string[] = []
     downstream.on('message', bytes => {
-      const text = bytes.toString()
+      let text = bytes.toString()
       try {
         const message = JSON.parse(text) as Json
+        if (this.state.mode === 'conversation' && !this.state.threadId) this.startup.observeRequest(message)
         if (!this.acceptsNativeCommand(message)) {
           if (message.method && message.id !== undefined) downstream.send(JSON.stringify({ id: message.id, error: { code: -32600, message: 'JanusX conversation view owns input' } }))
           return
         }
         if ((message.method === 'thread/start' && !message.params?.ephemeral && message.params?.threadSource !== 'thread_title') || message.method === 'thread/resume') {
+          // New sessions start at standard speed even when native config defaults to fast.
+          // Resumes retain the saved session choice; later settings updates pass through.
+          if (message.method === 'thread/start') {
+            message.params = { ...message.params, serviceTier: 'default' }
+            text = JSON.stringify(message)
+          }
           this.nativeThreadRequests.add(message.id)
         }
       } catch { downstream.close(); return }
@@ -153,8 +167,14 @@ export class CodexConversation {
           if (message.error) pending.reject(new Error(message.error.message ?? 'Codex request failed'))
           else pending.resolve(message.result ?? {})
         } else {
+          if (!this.state.threadId && this.startup.intercept(message, reply => {
+            if (downstream.readyState === WebSocket.OPEN) downstream.send(JSON.stringify(reply))
+          })) return
+          void this.startup.receive(message)
           if (!message.method && this.nativeThreadRequests.delete(message.id) && message.result?.thread) {
+            const oldThreadId = this.state.threadId
             this.attach(message.result.thread, message.result)
+            if (this.newThread && oldThreadId !== this.state.threadId) this.newThread.resolve()
             void this.loadModels()
           }
           if (downstream.readyState === WebSocket.OPEN) downstream.send(bytes.toString())
@@ -187,6 +207,8 @@ export class CodexConversation {
   }
   private fail(error: string): void {
     if (this.disposed) return
+    this.newThread?.reject(new Error(error))
+    this.startup.dispose(); this.state.startup = undefined
     this.state.connection = 'disconnected'; this.state.error = error.slice(0, 4000); this.changed()
   }
 
@@ -198,6 +220,7 @@ export class CodexConversation {
       this.otherRequests.clear()
     }
     this.state.threadId = thread.id
+    this.state.serviceTier = undefined
     this.updateSettings(settings)
     this.bind(thread.id, thread.path ?? undefined)
     for (const turn of thread.turns ?? []) {
@@ -208,6 +231,7 @@ export class CodexConversation {
   }
 
   private updateSettings(settings: Json): void {
+    if (typeof settings.serviceTier === 'string' || settings.serviceTier === null) this.state.serviceTier = settings.serviceTier
     if (typeof settings.model === 'string') this.state.model = settings.model
     const effort = Object.hasOwn(settings, 'effort') ? settings.effort : settings.reasoningEffort
     if (typeof effort === 'string' || effort === null) this.state.effort = effort
@@ -229,7 +253,9 @@ export class CodexConversation {
             const efforts = (Array.isArray(raw.supportedReasoningEfforts) ? raw.supportedReasoningEfforts : [])
               .filter((option: Json) => typeof option.reasoningEffort === 'string')
               .map((option: Json) => ({ effort: option.reasoningEffort as string, description: String(option.description ?? '').slice(0, 1000) }))
-            models.set(raw.model, { model: raw.model, displayName: String(raw.displayName || raw.model), description: String(raw.description ?? '').slice(0, 2000),
+            const tiers = Array.isArray(raw.serviceTiers) ? raw.serviceTiers.map((tier: Json) => tier.id) : raw.additionalSpeedTiers ?? []
+            const fastTier = Array.isArray(tiers) ? tiers.find((tier: unknown) => tier === 'fast' || tier === 'priority') : undefined
+            models.set(raw.model, { model: raw.model, fastTier, displayName: String(raw.displayName || raw.model), description: String(raw.description ?? '').slice(0, 2000),
               defaultEffort: efforts.some((option: { effort: string }) => option.effort === raw.defaultReasoningEffort) ? raw.defaultReasoningEffort : efforts[0]?.effort ?? null, efforts })
           }
           cursor = typeof result.nextCursor === 'string' && result.nextCursor ? result.nextCursor : undefined
@@ -255,9 +281,16 @@ export class CodexConversation {
       : raw.type === 'agentMessage' ? raw.text ?? previous?.text ?? ''
         : raw.type === 'commandExecution' ? `${raw.command ?? ''}\n${raw.aggregatedOutput ?? ''}` : raw.text ?? raw.summary ?? ''
     const normalized: ConversationItem = { id: key, turnId, type: raw.type, receivedAt: previous?.receivedAt ?? Date.now(), durationMs: previous?.durationMs,
+      phase: raw.phase === 'commentary' || raw.phase === 'final_answer' ? raw.phase : previous?.phase,
       editable: raw.type === 'userMessage' ? raw.content?.every((part: Json) => part.type === 'text') : undefined,
       text: typeof text === 'string' ? text.slice(0, MAX_TEXT) : '', status: raw.status ?? (done ? 'completed' : 'inProgress'),
       truncated: typeof text === 'string' && text.length > MAX_TEXT }
+    if (raw.type === 'imageGeneration') {
+      normalized.text = String(raw.revisedPrompt ?? '').slice(0, MAX_TEXT)
+      normalized.status = raw.failure || raw.status === 'failed' ? 'failed' : raw.status === 'interrupted' ? 'interrupted' : done ? 'completed' : 'inProgress'
+      normalized.images = previous?.images
+      if (raw.failure) normalized.text = JSON.stringify(raw.failure).slice(0, MAX_TEXT)
+    }
     if (raw.type === 'fileChange') {
       let remaining = MAX_TEXT
       normalized.files = (raw.changes ?? []).slice(0, 100).flatMap((file: Json) => {
@@ -275,6 +308,8 @@ export class CodexConversation {
     if (previous) Object.assign(previous, normalized)
     else this.state.items.push(normalized)
     this.trimHistory()
+    if (raw.type === 'imageGeneration' && done && normalized.status === 'completed') this.session.attachImages(key, [{ path: raw.savedPath ?? undefined, data: raw.result || undefined }])
+    else if (done) this.session.discoverImages(key)
   }
 
   private trimHistory(): void {
@@ -338,17 +373,65 @@ export class CodexConversation {
     this.changed()
   }
 
+  private async loadCommands(): Promise<NativeCatalogEntry[]> {
+    const result = await this.call('skills/list', { cwds: [this.cwd], forceReload: true })
+    if (!Array.isArray(result.data)) throw new Error('Invalid Codex skill catalog')
+    const skills = result.data.flatMap((group: Json) => group.skills ?? [])
+    return skills.filter((row: Json) => row.enabled !== false && typeof row.name === 'string' && typeof row.path === 'string').map((row: Json) => ({
+      id: 'skill:' + createHash('sha256').update(row.path).digest('hex'), name: row.name, label: row.interface?.displayName || row.name,
+      description: String(row.interface?.shortDescription || row.description || '').slice(0, 2000), kind: 'skill' as const,
+      source: String(row.scope ?? 'codex'), execution: 'native' as const,
+      invoke: async (args: string) => {
+        const result = await this.call('turn/start', { threadId: this.state.threadId, input: [
+          { type: 'text', text: '$' + row.name + (args ? ' ' + args : ''), text_elements: [] },
+          { type: 'skill', name: row.name, path: row.path },
+        ] })
+        if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
+      },
+    }))
+  }
+
   async command(command: ConversationCommand): Promise<ConversationSnapshot> {
-    if (command.type === 'mode') {
-      if (command.mode !== 'terminal' && command.mode !== 'conversation') throw new Error('Invalid display mode')
-      if (this.state.submitting) throw new Error('Wait for the current delivery')
-      if (this.state.mode !== command.mode) { this.state.mode = command.mode; this.state.controlEpoch++; this.changed() }
+    if (command.type === 'mode' && this.socket && this.state.connection === 'starting' && command.mode !== this.state.mode) throw new Error('Complete startup before switching views')
+    if (command.type === 'mode') return this.session.mode(command, this.disposed)
+    if (command.type === 'startup') {
+      if (this.disposed || this.state.connection !== 'starting' || this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Startup control changed; action rejected')
+      await this.startup.command(command)
       return this.snapshot()
     }
-    if (this.disposed || this.state.connection !== 'ready' || !this.state.threadId) throw new Error('Codex conversation is not ready')
-    if (this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Display control changed; action rejected')
-    if (command.type === 'models') {
+    this.session.guard(command, this.disposed)
+    if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
+    if (command.type === 'new') {
+      if (!this.nativeInput) throw new Error('Native Codex input is unavailable')
+      if (this.state.turnId || this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || this.state.needsTerminal) throw new Error('Wait until Codex is idle before starting a new conversation')
+      this.state.submitting = true; this.state.error = undefined; this.changed()
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      let enter: ReturnType<typeof setTimeout> | undefined
+      try {
+        await new Promise<void>((resolve, reject) => {
+          this.newThread = { allowStart: true, resolve, reject }
+          timeout = setTimeout(() => reject(new Error('Codex new conversation could not be confirmed. Check the terminal before retrying.')), 15000)
+          // Let the native client own selection and subscription, just as its /new does.
+          // Clear both sides of the native cursor before invoking the fixed command.
+          this.nativeInput!('\x15\x0b/new')
+          enter = setTimeout(() => { try { this.nativeInput!('\r') } catch (error) { reject(error as Error) } }, 150)
+        })
+      } catch (error) { this.fail(String(error)); throw error }
+      finally {
+        clearTimeout(timeout); clearTimeout(enter); this.newThread = undefined
+        this.state.submitting = false; this.changed()
+      }
+    } else if (command.type === 'models') {
       await this.loadModels()
+    } else if (command.type === 'speed') {
+      if (this.state.settingsUpdating || this.state.submitting) throw new Error('Codex settings update is busy')
+      if (typeof command.fast !== 'boolean' || this.state.serviceTier === undefined) throw new Error('Codex speed state is unavailable')
+      const fastTier = this.state.models.find(model => model.model === this.state.model)?.fastTier
+      if (command.fast && !fastTier) throw new Error('Fast mode is not supported by the current model catalog')
+      this.state.settingsUpdating = true; this.changed()
+      try {
+        await this.call('thread/settings/update', { threadId: this.state.threadId, serviceTier: command.fast ? fastTier : null })
+      } finally { this.state.settingsUpdating = false; this.changed() }
     } else if (command.type === 'settings') {
       if (this.state.settingsUpdating || this.state.submitting) throw new Error('Codex settings update is busy')
       const model = this.state.models.find(option => option.model === command.model)
@@ -361,38 +444,37 @@ export class CodexConversation {
         await this.call('thread/settings/update', { threadId: this.state.threadId, model: command.model, effort: command.effort })
       } finally { this.state.settingsUpdating = false; this.changed() }
     } else if (command.type === 'send' || command.type === 'edit') {
-      if (typeof command.commandId !== 'string' || !command.commandId || command.commandId.length > 128) throw new Error('Invalid command identity')
-      const identity = JSON.stringify([command.type, command.type === 'edit' ? command.itemId : null, command.text])
-      const existing = this.sent.get(command.commandId)
-      if (existing) { if (existing.identity !== identity) throw new Error('Command ID reused'); await existing.promise; return this.snapshot() }
-      if (typeof command.text !== 'string' || !command.text.trim() || command.text.length > MAX_TEXT) throw new Error('Invalid prompt length')
-      if (parseConversationSlashCommand(command.text)) throw new Error('Use the conversation command menu or the native terminal for slash commands')
-      if (this.state.turnId || this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || this.state.needsTerminal) throw new Error('Codex is busy')
-      if (this.sent.size >= 10000) throw new Error('Session submission limit reached')
-      const target = command.type === 'edit' ? this.state.items.find(item => item.id === command.itemId) : undefined
-      if (command.type === 'edit' && (!target || target.type !== 'userMessage' || target.truncated || target.editable === false
-        || this.state.items.filter(item => item.turnId === target.turnId && item.type === 'userMessage').length !== 1)) throw new Error('This message cannot be edited safely')
-      this.state.submitting = true; this.changed()
-      const submitted = (async () => {
-        if (target) {
-          // Version 0.166 exposes revert, not the removed rollback API. Native
-          // clients receive thread/reverted and reload the same thread.
-          const result = await this.call('thread/revert', { threadId: this.state.threadId, beforeTurnId: target.turnId })
-          if (result.thread?.id !== this.state.threadId) throw new Error('Invalid Codex edit response')
-          const index = this.state.items.findIndex(item => item.turnId === target.turnId)
-          this.state.items = this.state.items.slice(0, index)
-          const retained = new Set(this.state.items.map(item => item.turnId))
-          this.state.plans = this.state.plans?.filter(plan => retained.has(plan.turnId))
-          this.changed()
-        }
-        const result = await this.call('turn/start', { threadId: this.state.threadId, input: [{ type: 'text', text: command.text, text_elements: [] }] })
-        if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
-      })().catch(error => {
-        if (target) this.fail(`Codex edit delivery could not be confirmed. Check the terminal before retrying. ${String(error)}`)
-        throw error
+      await this.session.submit(command, async () => {
+        const target = command.type === 'edit' ? this.state.items.find(item => item.id === command.itemId) : undefined
+        if (command.type === 'edit' && (!target || target.type !== 'userMessage' || target.truncated || target.editable === false
+          || this.state.items.filter(item => item.turnId === target.turnId && item.type === 'userMessage').length !== 1)) throw new Error('This message cannot be edited safely')
+        await (async () => {
+          if (target) {
+            // Version 0.166 exposes revert, not the removed rollback API. Native
+            // clients receive thread/reverted and reload the same thread.
+            const result = await this.call('thread/revert', { threadId: this.state.threadId, beforeTurnId: target.turnId })
+            if (result.thread?.id !== this.state.threadId) throw new Error('Invalid Codex edit response')
+            const index = this.state.items.findIndex(item => item.turnId === target.turnId)
+            this.state.items = this.state.items.slice(0, index)
+            const retained = new Set(this.state.items.map(item => item.turnId))
+            this.state.plans = this.state.plans?.filter(plan => retained.has(plan.turnId))
+            this.changed()
+          }
+          const imagePaths = command.type === 'send' ? command.imagePaths ?? [] : []
+          if (!Array.isArray(imagePaths) || imagePaths.length > 8 || imagePaths.some(path => typeof path !== 'string' || path.length > 4096 || !/^(?:[a-z]:[\\/]|[\\/])/i.test(path))) throw new Error('Invalid image references')
+          const input = [{ type: 'text', text: command.text, text_elements: [] }, ...imagePaths.map(path => ({ type: 'localImage', path }))]
+          if (this.state.turnId) {
+            // Pin the destination: a completion race must not silently start or steer another turn.
+            await this.call('turn/steer', { threadId: this.state.threadId, expectedTurnId: this.state.turnId, input })
+          } else {
+            const result = await this.call('turn/start', { threadId: this.state.threadId, input })
+            if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
+          }
+        })().catch(error => {
+          if (target) this.fail(`Codex edit delivery could not be confirmed. Check the terminal before retrying. ${String(error)}`)
+          throw error
+        })
       })
-      this.sent.set(command.commandId, { identity, promise: submitted })
-      try { await submitted } finally { this.state.submitting = false; this.changed() }
     } else if (command.type === 'interrupt') {
       if (this.state.turnId) await this.call('turn/interrupt', { threadId: this.state.threadId, turnId: this.state.turnId })
     } else if (command.type === 'approve') {
@@ -407,10 +489,15 @@ export class CodexConversation {
 
   acceptsTerminalInput(data: string): boolean {
     // Hidden xterm still answers terminal device queries; it must not submit user input.
-    return this.state.mode === 'terminal' || /^\x1b\[[?\d;]*[Rcn]$/.test(data)
+    return this.state.mode === 'terminal'
+      || /^\x1b\[[?\d;]*[Rcn]$/.test(data)
   }
 
   private acceptsNativeCommand(message: Json): boolean {
+    if (this.newThread?.allowStart && message.method === 'thread/start' && !message.params?.ephemeral && message.params?.threadSource !== 'thread_title') {
+      this.newThread.allowStart = false
+      return true
+    }
     if (this.state.settingsUpdating && message.method === 'turn/start' && message.params?.threadId === this.state.threadId) return false
     if (this.state.mode === 'terminal') return true
     if (['turn/start', 'turn/steer', 'turn/interrupt', 'thread/revert', 'thread/settings/update', 'turn/settings/update'].includes(message.method) && message.params?.threadId === this.state.threadId) return false
@@ -421,8 +508,9 @@ export class CodexConversation {
 
   dispose(): Promise<void> {
     if (this.disposed) return this.stopping ?? Promise.resolve()
-    this.disposed = true
-    if (this.publishTimer) clearTimeout(this.publishTimer)
+    this.disposed = true; this.session.stop()
+    this.startup.dispose(); this.state.startup = undefined
+    this.newThread?.reject(new Error('Codex session ended'))
     this.socket?.terminate()
     this.nativeClient?.terminate()
     this.proxy?.close()

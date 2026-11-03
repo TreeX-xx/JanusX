@@ -30,6 +30,26 @@ async function setup() {
 }
 
 describe('OpenCode session settings', () => {
+  it('admits live inputs with steer without waiting for history projection, while keeping control fences', async () => {
+    const { controller, api } = await setup()
+    try {
+      controller.state.turnId = 'active'
+      expect(controller.state.capabilities.liveInput).toBe(true)
+      api.mockResolvedValue({})
+      api.mockClear()
+      const send = (id: string) => controller.command({ type: 'send', commandId: id, text: id, controlEpoch: controller.state.controlEpoch })
+      await send('first'); await send('second'); await send('second')
+      expect(api.mock.calls).toEqual([
+        ['/api/session/session/prompt', { text: 'first', delivery: 'steer' }],
+        ['/api/session/session/prompt', { text: 'second', delivery: 'steer' }],
+      ])
+      expect(controller.state).toMatchObject({ connection: 'ready', turnId: 'active', submitting: false })
+      await expect(controller.command({ type: 'edit', itemId: 'old', text: 'edit', commandId: 'edit', controlEpoch: controller.state.controlEpoch })).rejects.toThrow('busy')
+      controller.state.needsTerminal = true
+      await expect(send('blocked')).rejects.toThrow('busy')
+      expect(api).toHaveBeenCalledTimes(2)
+    } finally { await controller.dispose() }
+  })
   it('lists project models by provider identity and publishes only display metadata', async () => {
     const { controller, api } = await setup()
     try {

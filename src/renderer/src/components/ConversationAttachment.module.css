@@ -1,0 +1,9 @@
+.attachment { position: relative; width: 112px; max-width: 100%; overflow: hidden; border: 1px solid var(--shell-border); border-radius: 8px; background: var(--shell-bg); }
+.attachment > .thumbnail { display: flex; width: 100%; height: 80px; padding: 4px; align-items: center; justify-content: center; background: var(--shell-hover); cursor: zoom-in; }
+.thumbnail img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.thumbnail:disabled { cursor: default; }
+.thumbnail > span { display: flex; align-items: center; flex-direction: column; gap: 4px; font-size: 11px; color: var(--shell-muted); }
+.name { display: block; padding: 5px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.attachment > .remove { position: absolute; top: 4px; right: 4px; padding: 3px; border: 1px solid var(--shell-border); border-radius: 50%; background: var(--shell-bg); color: var(--shell-text); }
+.remove:disabled { opacity: .45; }
+.attachment button:focus-visible { outline: 2px solid var(--shell-text); outline-offset: -2px; }

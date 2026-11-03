@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
 import pty from 'node-pty'
@@ -13,6 +13,176 @@ const { AgentHookConfigManager } = await import('../../src/main/notifications/ag
 
 const bin = process.env.JANUSX_TEST_CODEX_BIN
 describe.skipIf(!bin || process.platform !== 'win32')('managed Codex native TUI integration (local model only)', () => {
+  it('discovers and invokes a structured skill and projects its generated image in the same native thread', async () => {
+    const fixture = await hookCliFixture({ codexImageProbe: true })
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const skill = join(fixture.cwd, '.agents/skills/native-review')
+    await mkdir(skill, { recursive: true })
+    await writeFile(join(skill, 'SKILL.md'), ['---', 'name: native-review', 'description: Native test skill', '---', 'CODEX_SKILL_BODY_MARKER'].join('\n'))
+    const c = new CodexConversation('skill-test', () => {})
+    let terminal: pty.IPty | undefined
+    try {
+      const launch = await c.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env, assetsDir: join(fixture.root, 'assets') })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(c.state.connection).toBe('ready'), { timeout: 15000 })
+      const thread = c.state.threadId
+      const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
+      await c.command({ type: 'commands', controlEpoch })
+      const entry = c.state.commands?.find(row => row.name === 'native-review')
+      expect(entry?.execution).toBe('native')
+      await c.command({ type: 'invoke', entryId: entry!.id, arguments: 'ARGUMENT_MARKER', catalogRevision: c.state.commandsRevision!, commandId: 'skill', controlEpoch })
+      await vi.waitFor(() => expect(fixture.responseRequests.some(request => request.input.includes('CODEX_SKILL_BODY_MARKER') && request.input.includes('ARGUMENT_MARKER'))).toBe(true), { timeout: 15000 })
+      expect(c.state.threadId).toBe(thread)
+      expect(c.state.commandReceipts?.at(-1)).toEqual({ id: 'skill', status: 'accepted' })
+      await vi.waitFor(() => expect(c.state.items.find(item => item.images?.length)?.images?.[0].status).toBe('ready'), { timeout: 15000 })
+      const image = c.state.items.find(item => item.images?.length)!.images![0]
+      expect((await readFile(image.path!)).subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
+      expect(JSON.stringify(c.snapshot())).not.toContain('iVBORw0KGgo')
+    } finally { terminal?.kill(); await c.dispose(); await fixture.close() }
+  })
+  it('reviews actual startup hooks through structured confirmation without native keystrokes', async () => {
+    const fixture = await hookCliFixture()
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const hooks = new AgentHookConfigManager({ homeDir: fixture.home, userDataDir: join(fixture.root, 'userData') })
+    await hooks.ensureInstalled('codex')
+    const args = await hooks.getLaunchArgs('codex')
+    const controller = new CodexConversation('hooks-probe', () => {})
+    let terminal: pty.IPty | undefined
+    let output = ''
+    try {
+      await controller.command({ type: 'mode', mode: 'conversation' })
+      const launch = await controller.start({ command: bin!, args, cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { output = (output + data).slice(-10000); if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(controller.state.startup?.kind, output).toBe('hooks'), { timeout: 15000 })
+      expect(controller.state.startup?.hooks?.length).toBeGreaterThan(0)
+      expect(controller.state.threadId).toBeNull()
+      await controller.command({ type: 'startup', startupId: controller.state.startup!.id, action: 'trust', controlEpoch: controller.state.controlEpoch })
+      expect(controller.state.startup, output).toBeUndefined()
+      await vi.waitFor(() => expect(controller.state.connection, output).toBe('ready'), { timeout: 15000 })
+    } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
+  }, 60000)
+  it('signs in with an isolated API key through startup controls before trusting the folder', async () => {
+    const fixture = await hookCliFixture()
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false', 'cli_auth_credentials_store="file"',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=true',
+    ].join('\n'))
+    const controller = new CodexConversation('login-probe', () => {})
+    let terminal: pty.IPty | undefined
+    let output = ''
+    try {
+      await controller.command({ type: 'mode', mode: 'conversation' })
+      const launch = await controller.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { output = (output + data).slice(-10000); if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(controller.state.startup?.kind, output).toBe('login'), { timeout: 15000 })
+      await controller.command({ type: 'startup', startupId: controller.state.startup!.id, action: 'apiKey', apiKey: 'sk-local-fixture-not-a-real-key', controlEpoch: controller.state.controlEpoch })
+      await vi.waitFor(() => expect(controller.state.startup?.kind, output).toBe('trust'), { timeout: 15000 })
+      await controller.command({ type: 'startup', startupId: controller.state.startup!.id, action: 'trust', controlEpoch: controller.state.controlEpoch })
+      await vi.waitFor(() => expect(controller.state.connection, output).toBe('ready'), { timeout: 15000 })
+      expect(JSON.stringify(controller.snapshot())).not.toContain('sk-local-fixture')
+      expect(fixture.responseRequests).toHaveLength(0)
+    } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
+  }, 60000)
+  it('confirms folder trust from conversation without native keystrokes and resumes the real TUI', async () => {
+    const fixture = await hookCliFixture()
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+    ].join('\n'))
+    const controller = new CodexConversation('trust-probe', () => {})
+    let terminal: pty.IPty | undefined
+    let output = ''
+    try {
+      await controller.command({ type: 'mode', mode: 'conversation' })
+      const launch = await controller.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { output = (output + data).slice(-10000); if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(controller.state.startup?.kind, output).toBe('trust'), { timeout: 15000 })
+      expect(controller.state.threadId).toBeNull()
+      const command = { type: 'startup' as const, startupId: controller.state.startup!.id, controlEpoch: controller.state.controlEpoch }
+      await controller.command({ ...command, action: 'cancel' })
+      expect(controller.state.startup?.status).toBe('cancelled')
+      expect(controller.state.threadId).toBeNull()
+      await controller.command({ ...command, action: 'resume' })
+      await controller.command({ ...command, action: 'trust' })
+      expect(controller.state.startup, output).toBeUndefined()
+      await vi.waitFor(() => expect(controller.state.connection, output).toBe('ready'), { timeout: 15000 })
+      await controller.command({ type: 'send', text: 'TRUST_DIALOG', commandId: 'trust-dialog', controlEpoch: controller.state.controlEpoch })
+      await vi.waitFor(() => expect(controller.state.items.some(item => item.type === 'agentMessage' && item.status === 'completed')).toBe(true), { timeout: 15000 })
+    } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
+  }, 60000)
+  it('delivers consecutive input into the active native turn', async () => {
+    const fixture = await hookCliFixture({ codexLiveProbe: true })
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const controller = new CodexConversation('live-probe', () => {})
+    let terminal: pty.IPty | undefined
+    try {
+      const launch = await controller.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(controller.state.connection).toBe('ready'), { timeout: 15000 })
+      const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+      const send = (text: string) => controller.command({ type: 'send', text, commandId: text, controlEpoch })
+      await send('LIVE_FIRST')
+      await vi.waitFor(() => expect(controller.state.items.some(item => item.type === 'agentMessage' && item.text === 'OK')).toBe(true), { timeout: 10000 })
+      const active = controller.state.turnId
+      expect(active).toBeTruthy()
+      await send('LIVE_SECOND'); await send('LIVE_THIRD')
+      expect(controller.state.turnId).toBe(active)
+      await vi.waitFor(() => expect(fixture.responseRequests.some(request => request.input.includes('LIVE_SECOND') && request.input.includes('LIVE_THIRD'))).toBe(true), { timeout: 15000 })
+      await vi.waitFor(() => expect(controller.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(['LIVE_FIRST', 'LIVE_SECOND', 'LIVE_THIRD']), { timeout: 10000 })
+    } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
+  }, 60000)
+  it('starts /new from conversation view and keeps the native client on the confirmed new thread', async () => {
+    const fixture = await hookCliFixture()
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const controller = new CodexConversation('new-thread-probe', () => {})
+    let terminal: pty.IPty | undefined
+    let output = ''
+    try {
+      const launch = await controller.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { output += data; if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      controller.setNativeInput(text => terminal!.write(text))
+      await vi.waitFor(() => expect(controller.state.connection, output.slice(-1000)).toBe('ready'), { timeout: 15000 })
+      await vi.waitFor(() => expect(output).toContain('state=idle'), { timeout: 10000 })
+      terminal.write('UNSENT_NATIVE_DRAFT\x1b[D\x1b[D\x1b[D')
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const old = controller.state.threadId
+      const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+      const fresh = await controller.command({ type: 'new', controlEpoch })
+      expect(fresh.threadId).not.toBe(old)
+      expect(fresh.items).toEqual([])
+      expect(fixture.responseRequests).toHaveLength(0)
+      await controller.command({ type: 'send', text: 'NEW_THREAD_DIALOG', commandId: 'new-dialog', controlEpoch: fresh.controlEpoch })
+      await vi.waitFor(() => expect(controller.state.items.some(item => item.type === 'agentMessage' && item.status === 'completed')).toBe(true), { timeout: 15000 })
+      await vi.waitFor(() => expect(controller.state.turnId).toBeNull(), { timeout: 10000 })
+      await controller.command({ type: 'mode', mode: 'terminal' })
+      terminal.write('NEW_THREAD_NATIVE')
+      await new Promise(resolve => setTimeout(resolve, 300)); terminal.write('\r')
+      await vi.waitFor(() => expect(controller.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(['NEW_THREAD_DIALOG', 'NEW_THREAD_NATIVE']), { timeout: 15000 })
+      expect(controller.state.threadId).toBe(fresh.threadId)
+    } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
+  }, 60000)
   it('bypasses an inherited proxy for the loopback bridge while preserving proxy configuration', async () => {
     const fixture = await hookCliFixture()
     const requests: string[] = []

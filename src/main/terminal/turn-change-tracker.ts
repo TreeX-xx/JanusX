@@ -27,7 +27,9 @@ export class TerminalTurnChangeTracker {
     this.unregister(id)
     const state: TerminalTracking = { cwd, sequence: 0, baselineSequence: 0, queue: Promise.resolve(), abort: new AbortController() }
     this.terminals.set(id, state)
-    state.queue = this.capture(cwd, state.abort.signal).then(snapshot => {
+    // Launch waits for this boundary: yield cooperatively without the background
+    // batch rest. Completed-turn captures below retain background scheduling.
+    state.queue = this.capture(cwd, state.abort.signal, { background: false }).then(snapshot => {
       if (this.terminals.get(id) === state) state.baseline = snapshot
     }).catch(error => { if (!state.abort.signal.aborted) this.reportError(error) })
     return state.queue

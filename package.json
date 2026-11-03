@@ -1,6 +1,6 @@
 {
   "name": "janusx",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "type": "module",
   "description": "CLI 工作区管理器 - 统一管理多个 AI 编程助手",
   "main": "out/main/index.js",
@@ -115,6 +115,7 @@
     "@larksuiteoapi/node-sdk": "^1.71.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
+    "@tanstack/react-virtual": "^3.14.25",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "ai": "3.4.33",

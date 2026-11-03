@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-15",
-  "updated": "2026-10-19T16:12:31Z",
+  "updated": "2026-11-02T08:01:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/80f207b2-591b-5a1d-824e-e169dc5b80c0" }
@@ -14,6 +14,20 @@
 ---
 
 # 长时间使用后的交互卡顿与便携版进程负载
+
+## 长对话显示与滚动（2026-11-02）
+
+用户反馈同一应用中长对话输入、上下滚动迟钝，切到短对话立即恢复。共享显示层此前一直挂载历史正文和折叠的工具/diff；输入隔离只避免草稿更新重算历史，不能降低这些常驻节点的布局成本。本次参考 [ZCode ConversationTimeline](https://github.com/zai-org/ZCode/blob/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1/packages/ui/src/v4/ConversationTimeline.tsx) 的历史窗口、正常流最新内容和阅读锚点方向，在 JanusX 公共层实现，未复制其业务控制器。
+
+`VirtualHistory` 供 `AgentSessionPane` 与 `JanusChat` 共用，后者覆盖 Chat、项目讨论与 Launch。超过 20 个显示单元后，只挂载可视历史及前后各 2 项缓冲，最新单元保持正常文档流；终端以轮次为单元，Chat 以消息/业务卡为单元，正在生成的 Chat 内容继续由原实时区域展示。测量实际高度，旧消息前插按稳定 key 保持位置；只补偿视口上方的估算误差和高度变化，当前阅读行内部增长不拉动位置。窗口宽度变化重测可见节点，不清空所有历史高度估算。正在编辑的消息额外保留挂载，底部跟随继续服从原有阅读状态。
+
+`WorkDisclosure`、工具明细、文件列表和逐行 diff 在展开时才构建子树；按显示单元保存展开选择，滚出再滚回恢复。会话切换或记录删除时释放相应状态。`createConversationTurns` 在终端 IPC 边界比较快照值并复用未变轮次的分组和文件统计，避免流式每次重新解析旧补丁；这仍需扫描快照内容，不是增量传输。JanusChat 的历史合并排序改为随消息/卡片变化计算。
+
+自动验证使用真实组件与模拟 IPC：`conversation-virtual-history.spec.ts` 覆盖 100 轮/400 条终端记录和 205 条 Chat 消息，检查终端挂载轮次少于 15、Chat 历史单元少于 20、关闭 diff 无逐行节点、离屏后恢复展开、上滑时新增输出、窗口变窄、加载更早页面和底部跟随。`conversation-typing-isolation.spec.ts` 检查同一 400 条记录下逐字输入的历史正文读取增量为 0，保留草稿重建与发送。`conversation-turns.test.ts` 检查克隆快照复用、补丁更改失效、重写删除和会话隔离；原有时间线、文件变更与上下文回归继续覆盖业务内容。浏览器命令使用 `JANUS_E2E_PORT=41866`，避免占用已有开发服务。
+
+验证结果：27 项单测、65 项不重复浏览器用例通过；新增历史编辑测试确认滚出视口时草稿和焦点保留，返回后可取消。Vitest 文件为 `conversation-turns`、`conversation-output`、`conversation-file-changes`、`chat-timeline`、`janus-reasoning`、`tool-call-group`，命令 `npx vitest run tests/unit/<name>.test.ts`。Playwright 文件为 `conversation-virtual-history`、`conversation-typing-isolation`、`conversation-file-changes`、`chat-work-timeline`、`janus-context`、`codex-conversation`、`conversation-context`，分批执行 `npx playwright test tests/e2e/<name>.spec.ts --project=island --workers=2 --timeout=60000`。类型检查通过；定向 ESLint 为 0 errors，保留 JanusChat 既有 4 条中文文案警告；Note 检查为 321 篇、0 errors、17 条既有外部链接诊断。窄窗与长 Chat 截图分别位于 `artifacts/conversation-virtual-history.png`、`artifacts/chat-virtual-history.png`。未重打安装包或测试用户实际运行实例。
+
+边界：完整已接收数据仍在内存中，原生历史分页和全量 IPC 传输未改。单个超大且展开的最新轮次仍有渲染成本；原生浏览器查找及跨离屏记录的长距离文本选择不能覆盖未挂载 DOM。测试证明显示树有界和交互语义，尚未测用户实际 Electron 会话的长时帧率、输入延迟分位数或内存曲线，不能据此承诺所有软件卡顿已消除。
 
 ## Intent
 
@@ -245,7 +259,7 @@ profile 事件主要来自用量数据库 WAL/SHM、本体、审查状态及其�
 
 `CLITerminal.tsx` 隐藏终端仍接收解析输出；四个热工作区上限不等于四个终端上限，每终端预算也不等于总预算。多个持续输出可能共同挤占输入；尚无 trace 将 renderer CPU 精确归因于 xterm。
 
-`JanusChatProvider` context 随 runtimeStates 重建，流式按 16 ms 合批，相关消费者可能连带更新。JanusChat 输入与历史在同一组件，每次输入重跑消息合并、排序和逐消息工具过滤。历史 MarkdownContent 已 memo，不能称为每次输入都重新解析全部 Markdown。
+`JanusChatProvider` context 随 runtimeStates 重建，流式按 16 ms 合批，相关消费者可能连带更新。JanusChat 输入与历史仍在同一组件；本次已缓存消息合并排序并虚拟化历史，逐消息工具过滤只作用于挂载消息。历史 MarkdownContent 已 memo，不能称为每次输入都重新解析全部 Markdown。
 
 `JanusIslandExpandedShell` 展开态定时增删粒子 React state，活跃时约每 200 ms 新建粒子，CSS 存在持续动画和滤镜；需要隔离对照，GPU 进程 CPU 高不能证明动画是主因。ThemedTooltip 默认 350 ms 延迟是设计行为，数秒延迟需另查事件循环。
 

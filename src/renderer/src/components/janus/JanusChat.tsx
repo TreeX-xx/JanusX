@@ -17,6 +17,8 @@ import { useI18n } from '@/i18n/useI18n'
 import { PromptDialog } from '../common/PromptDialog'
 import { ToolCallGroup } from './ToolCallCard'
 import { ThinkingRegion } from './ThinkingRegion'
+import { VirtualHistory } from '../chat/VirtualHistory'
+import { WorkDisclosureScope } from '../chat/WorkDisclosure'
 import { ChatTimeline, type ChatTimelineProps } from './ChatTimeline'
 import type { ChatTimelineSnapshot } from '../../../../shared/chat-timeline'
 import { NoteTimelineDetails } from '../note/NoteTimelineDetails'
@@ -436,6 +438,9 @@ export function JanusChat({
   const memoTitle = (memoId: string) => useMemoStore.getState().memos.find(memo => memo.id === memoId)?.title
   const [input, setInput] = useState('')
   const [historyPageSize, setHistoryPageSize] = useState(100)
+  const historyEntries = useMemo(() => [...messages.slice(-historyPageSize).map((msg) => ({ kind: 'message' as const, timestamp: msg.timestamp, msg })), ...roundtableCards.map((card) => ({ kind: 'card' as const, timestamp: Date.parse(card.updatedAt || card.createdAt) || 0, card })), ...roundtableQuestions.map((block) => ({ kind: 'questions' as const, timestamp: block.timestamp, block}))]
+          .sort((a, b) => a.timestamp - b.timestamp), [messages, historyPageSize, roundtableCards, roundtableQuestions])
+
   // Composer auto-grows from content (including soft-wrapped long lines) up to
   // MAX_COMPOSER_HEIGHT, then scrolls internally. Counting '\n' is not enough:
   // a single long line without newlines would stay one row high and overflow.
@@ -1064,6 +1069,7 @@ export function JanusChat({
   const activeModelLabel = activeModel?.modelId ?? t('janus:chat.model.noneConfigured')
 
   return (
+    <WorkDisclosureScope scopeKey={conversations?.conversationId ?? 'chat'}>
       <div
         ref={chatRootRef}
         hidden={!visible}
@@ -1426,9 +1432,7 @@ export function JanusChat({
         ))}
 
         {messages.length > historyPageSize && <button type="button" className="janus-chat-load-history" onClick={() => setHistoryPageSize(size => size + 100)}>{t('janus:chat.context.older')}</button>}
-        {[...messages.slice(-historyPageSize).map((msg) => ({ kind: 'message' as const, timestamp: msg.timestamp, msg })), ...roundtableCards.map((card) => ({ kind: 'card' as const, timestamp: Date.parse(card.updatedAt || card.createdAt) || 0, card })), ...roundtableQuestions.map((block) => ({ kind: 'questions' as const, timestamp: block.timestamp, block}))]
-          .sort((a, b) => a.timestamp - b.timestamp)
-          .map((entry) => entry.kind === 'card' ? (
+        {<VirtualHistory rowStyle={{ display: 'flex', flexDirection: 'column' }} gap={6} key={conversations?.conversationId ?? 'chat'} items={historyEntries} itemKey={entry => entry.kind === 'message' ? entry.msg.id : entry.kind === 'card' ? 'card:' + entry.card.id : 'questions:' + entry.block.roundNumber} scrollRef={messagesContainerRef} following={isAtBottomRef} active={visible} pinnedKey={editingMessageId ?? undefined} renderItem={(entry) => entry.kind === 'card' ? (
           <div key={entry.card.id} className="janus-chat-message assistant janus-chat-agent-card-message">
             <div className="janus-chat-message-author">{entry.card.title}</div>
             <AgentResultCardView card={entry.card} onOpen={() => onOpenAgentResult?.(entry.card)} />
@@ -1552,9 +1556,9 @@ export function JanusChat({
               <div className="janus-chat-message-content">
                 {msg.role === 'assistant' && msg.timeline ? <ChatTimeline snapshot={msg.timeline} workspaceNames={workspaceNames} renderToolDetails={renderToolDetails} /> : <>
                 {msg.role === 'assistant' && activeReasoningByTurn[msg.id] && (
-                  <ThinkingRegion snapshot={activeReasoningByTurn[msg.id]} streaming={false} />
+                  <ThinkingRegion snapshot={activeReasoningByTurn[msg.id]} streaming={false} defaultExpanded={false} />
                 )}
-                <MarkdownContent content={msg.content} />
+                <MarkdownContent content={msg.content} variant="conversation" />
                 {msg.role === 'assistant' && (
                   <ToolCallGroup
                     entries={toolTraces.filter((entry) => entry.turnId === msg.id)}
@@ -1567,7 +1571,7 @@ export function JanusChat({
               </div>
             )}
           </div>
-        )})() )}
+        )})()} />}
 
         {(isStreaming || pendingContent || (error && liveToolTraces.length > 0)) && (
           <div className="janus-chat-message assistant streaming">
@@ -1575,7 +1579,7 @@ export function JanusChat({
             <div className="janus-chat-message-content">
               {isStreaming && <TurnStatusRow status={activeTurnStatus} startedAt={activeTurnStartedAt} />}
               {(activeTimeline?.blocks.length || activeTimeline?.truncated) ? <ChatTimeline snapshot={activeTimeline} streaming={isStreaming} workspaceNames={workspaceNames} renderToolDetails={renderToolDetails} /> : <>
-              <ThinkingRegion snapshot={activePendingReasoning} streaming={isStreaming} startedAt={activeTurnStartedAt} />
+              <ThinkingRegion snapshot={activePendingReasoning} streaming={isStreaming} startedAt={activeTurnStartedAt} defaultExpanded={false} />
               {pendingContent ? (
                 <StreamingText content={pendingContent} />
               ) : (
@@ -1587,7 +1591,7 @@ export function JanusChat({
                   </div>
                 )
               )}
-              <ToolCallGroup entries={liveToolTraces} workspaceNames={workspaceNames} />
+              <ToolCallGroup entries={liveToolTraces} workspaceNames={workspaceNames} collapsible />
               </>}
               {renderTurnFooter?.(undefined, activeTimeline)}
             </div>
@@ -1804,5 +1808,6 @@ export function JanusChat({
         onCancel={() => setPendingDeleteConversation(null)}
       /></div>, document.body)}
     </div>
+    </WorkDisclosureScope>
   )
 }

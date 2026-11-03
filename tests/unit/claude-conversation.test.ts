@@ -15,6 +15,30 @@ function setup() {
   return { controller, wire, emit }
 }
 describe('Claude conversation control and projection', () => {
+  it('closes stdin for prompt-free control subprocesses instead of waiting for an input timeout', async () => {
+    const controller = new ClaudeConversation('control-eof', vi.fn())
+    const wire = controller as any
+    wire.binary = process.execPath; wire.env = { ...process.env }; wire.cwd = process.cwd()
+    try {
+      const result = await wire.cli(['-e', "process.stdin.resume(); process.stdin.on('end', () => process.stdout.write('CONTROL_EOF'))"], 4000)
+      expect(result.stdout).toBe('CONTROL_EOF')
+    } finally { await controller.dispose() }
+  })
+
+  it('retains each input in a native batch and accepts live input without waiting for a new turn', async () => {
+    const { controller, wire, emit } = setup()
+    await controller.command({ type: 'mode', mode: 'conversation' })
+    emit('turn.start', { turnId: 'active', text: 'second', inputs: ['first', 'second'] })
+    expect(controller.state.items.map(item => item.text)).toEqual(['first', 'second'])
+    const reply = vi.spyOn(wire, 'reply').mockResolvedValue({ ok: true })
+    const command = { type: 'send' as const, text: 'third', commandId: 'live', controlEpoch: controller.state.controlEpoch }
+    await controller.command(command); await controller.command(command)
+    expect(reply).toHaveBeenCalledTimes(1)
+    expect(reply.mock.calls[0][0]).toMatchObject({ text: 'third', nextTurn: false })
+    expect(controller.state.connection).toBe('ready')
+    expect(controller.state.turnId).toBe('active')
+    await controller.dispose()
+  })
   it('projects confirmed task snapshots, preserves unfinished steps and rejects invalid or late updates', async () => {
     const { controller, emit } = setup()
     emit('turn.start', { turnId: 't', text: 'tasks' })

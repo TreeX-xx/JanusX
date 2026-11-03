@@ -11,8 +11,66 @@ import { claudeConversationFixture } from '../helpers/claude-conversation-fixtur
 const binary = process.env.JANUSX_TEST_CLAUDE_BIN
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native dialog', () => {
+  it('settles real background work without an attached native transcript', async () => {
+    const fixture = await claudeConversationFixture()
+    const main = new ClaudeConversation('claude-background', () => {})
+    let setup: pty.IPty | undefined
+    let setupExited = false
+    let output = ''
+    const until = async (fn: () => boolean, label: string) => {
+      const end = Date.now() + 20000
+      while (!fn()) { if (Date.now() > end) throw new Error(`${label}: ${JSON.stringify(main.snapshot())}\n${output.slice(-1000)}`); await delay(50) }
+    }
+    const clean = () => output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/\s/g, '')
+    try {
+      setup = pty.spawn(binary!, ['--model', 'claude-sonnet-4-6', '--tools', ''], { cwd: fixture.cwd, env: fixture.env as Record<string, string>, cols: 130, rows: 36 })
+      setup.onData(data => { output += data }); setup.onExit(() => { setupExited = true })
+      await until(() => output.includes('trust'), 'native trust'); await delay(1200)
+      setup.write('\x1b[B'); await delay(200); setup.write('\r'); await delay(1500)
+      await until(() => clean().includes('DoyouwanttousethisAPIkey'), 'native API key')
+      setup.write('\x1b[A'); await delay(200); setup.write('\r')
+      await until(() => clean().includes('Sonnet4.6'), 'native ready'); await delay(500)
+      // The setup TUI can still be showing a tip after login; close only this
+      // fixture process once its isolated login/trust state has been persisted.
+      await promisify(execFile)('taskkill', ['/PID', String(setup.pid), '/T', '/F'], { windowsHide: true })
+      await until(() => setupExited, 'setup exits')
+      await main.start({ command: binary!, args: ['--model', 'claude-sonnet-4-6', '--tools', 'Bash,TaskStop', '--permission-mode', 'manual'],
+        cwd: fixture.cwd, env: { ...fixture.env, JANUSX_HOOK_TERMINAL_ID: main.id }, assetsDir: join(fixture.root, 'assets') })
+      await main.command({ type: 'mode', mode: 'conversation' })
+      const session = main.state.threadId
+      await main.command({ type: 'send', text: 'CC_BACKGROUND', commandId: 'background', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.approvals.length === 1, 'background approval')
+      await main.command({ type: 'approve', requestId: main.state.approvals[0].id, decision: 'accept', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.items.some(item => item.type === 'commandExecution' && item.status === 'inProgress'), 'background starts')
+      await until(() => !main.state.turnId && main.state.backgroundTasks === 0 && main.state.items.some(item => item.type === 'commandExecution' && item.status === 'completed'), 'background settles without UI')
+      await main.command({ type: 'send', text: 'CC_TOOL', commandId: 'stop-running', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.approvals.length === 1, 'foreground approval')
+      await main.command({ type: 'approve', requestId: main.state.approvals[0].id, decision: 'accept', controlEpoch: main.state.controlEpoch })
+      await until(() => existsSync(fixture.pidFile), 'foreground child starts')
+      const child = JSON.parse(await readFile(fixture.pidFile, 'utf8'))
+      await main.command({ type: 'interrupt', controlEpoch: main.state.controlEpoch })
+      await until(() => { try { process.kill(child.pid, 0); return false } catch { return true } }, 'foreground child stops')
+      await delay(Math.max(0, child.startedAt + 9500 - Date.now()))
+      expect(existsSync(fixture.sideEffect)).toBe(false)
+      await main.command({ type: 'send', text: 'CC_AFTER_STOP', commandId: 'continue', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId && main.state.items.some(item => item.type === 'agentMessage' && item.text.includes('CC_AFTER_STOP') && item.status === 'completed'), 'next turn completes')
+      expect(main.state.threadId).toBe(session)
+      expect(main.state.backgroundTasks).toBe(0)
+      expect(main.state.items.some(item => item.type === 'userMessage' && item.text.includes('<task-notification>'))).toBe(false)
+    } finally {
+      await mkdir('artifacts/claude-completion-fix', { recursive: true })
+      await writeFile('artifacts/claude-completion-fix/native.json', JSON.stringify({ state: main.snapshot(), root: fixture.root }, null, 2))
+      await main.dispose()
+      if (setup && !setupExited) await promisify(execFile)('taskkill', ['/PID', String(setup.pid), '/T', '/F'], { windowsHide: true }).catch(() => {})
+      await promisify(execFile)(binary!, ['daemon', 'stop', '--any'], { env: fixture.env, cwd: fixture.cwd, windowsHide: true, timeout: 10000 }).catch(() => {})
+      await fixture.close()
+    }
+  }, 120000)
+
   it('streams, survives native Esc, approves, stops real Bash and closes only its own worker', async () => {
     const fixture = await claudeConversationFixture()
+    await mkdir(join(fixture.cwd, '.claude/skills/native-review'), { recursive: true })
+    await writeFile(join(fixture.cwd, '.claude/skills/native-review/SKILL.md'), ['---', 'name: native-review', 'description: Catalog-only test', '---', 'Never invoked by this test.'].join('\n'))
     const snapshots: any[] = []
     const main = new ClaudeConversation('claude-main', state => snapshots.push(state))
     const controls: any[] = []
@@ -55,6 +113,10 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await sendNative(terminal, 'CC_PLAN_CREATE'); await done('CC_PLAN_CREATE')
       expect(main.state.plans?.at(-1)).toMatchObject({ outcome: 'completed', steps: [{ step: 'Verify native todo', status: 'pending' }] })
       await main.command({ type: 'mode', mode: 'conversation' })
+      const beforeCatalog = fixture.requests.length
+      await main.command({ type: 'commands', controlEpoch: main.state.controlEpoch })
+      expect(main.state.commands?.find(entry => entry.name === 'native-review')?.execution).toBe('terminal')
+      expect(fixture.requests).toHaveLength(beforeCatalog)
       for (const [marker, status] of [['CC_PLAN_PROGRESS', 'inProgress'], ['CC_PLAN_MISSING', 'inProgress'], ['CC_PLAN_COMPLETE', 'completed'], ['CC_PLAN_DELETE', null]]) {
         await send(marker!); await done(marker!)
         expect(main.state.plans?.at(-1)?.steps).toEqual(status ? [{ step: 'Verify native todo', status }] : [])
@@ -63,6 +125,14 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await send('CC_SECOND'); await send('CC_SECOND'); await done('CC_SECOND')
       expect(fixture.requests.filter(r => r.marker === 'CC_SECOND' && r.stream)).toHaveLength(1)
       expect(main.state.items.filter(item => item.type === 'userMessage' && item.text === 'CC_SECOND')).toHaveLength(1)
+      await send('CC_CANCEL')
+      await until(() => main.state.items.some(item => item.text === 'First CC_CANCEL'), 'live input partial')
+      await send('CC_LIVE_FIRST'); await send('CC_LIVE_SECOND')
+      expect(fixture.requests.find(request => request.marker === 'CC_CANCEL' && request.stream)?.finishedAt).toBe(0)
+      await until(() => fixture.requests.some(request => request.stream && JSON.stringify(request.messages).includes('CC_LIVE_SECOND')), 'live input consumed', 20000)
+      await until(() => !main.state.turnId, 'live input done', 20000)
+      expect(main.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(expect.arrayContaining(['CC_LIVE_FIRST', 'CC_LIVE_SECOND']))
+      expect(main.state.threadId).toBe(session)
       await until(() => main.state.models.length > 0, 'native model catalog')
       const userSettingsBefore = await readFile(join(fixture.config, 'settings.json'), 'utf8')
       for (const [name, effort] of [['Haiku', 'low'], ['Sonnet', 'high'], ['Opus', 'max']]) {
@@ -159,5 +229,5 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await fixture.close()
     }
     expect(main.state.connection).toBe('closed')
-  }, 120000)
+  }, 180000)
 })

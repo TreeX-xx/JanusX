@@ -53,7 +53,7 @@ function expandWindowsVars(raw: string, env: NodeJS.ProcessEnv): string {
 
 export function cliKnownBinDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, homeDir: string, tool?: ExternalCliToolDescriptor): string[] {
   if (platform === 'win32') {
-    const dirs: string[] = []
+    const dirs: string[] = [join(homeDir, '.local', 'bin')]
     if (env.APPDATA) dirs.push(join(env.APPDATA, 'npm'))
     if (env.ProgramFiles) dirs.push(join(env.ProgramFiles, 'nodejs'))
     for (const raw of tool?.extraKnownDirs?.win32 ?? []) {

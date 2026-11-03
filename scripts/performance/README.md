@@ -71,3 +71,23 @@ node scripts/performance/desktop-sample.mjs retention --check-editor --checks-on
 先运行 history/coordinator/accounting/corpus/projection 的单测，再跑工具区和编辑器功能，再审查数据语义，最后采样比较。Codex event 模式按块校验全部 JSONL，但只保留记账记录；旧 cumulative 模式及哈希检测保持原路。完整尾行无换行、半写尾行、CRLF、多字节、坏行、分叉继承、重复事件、模型变化及取消都有兼容性约束。
 
 本轮不是跨重启增量解析，也没有迁移数据库到 worker；Claude/Pi、活动终端 cumulative 读取、SQLite 主线程事务、多终端总输出预算仍需后续工作。蓝图、知识库与历史统计继续启用。长会话现场需要补采 CPU profile、真实输入延迟和保留堆，当前基准只回答指定场景。
+
+## Terminal pre-launch baseline
+
+Run `node scripts/performance/terminal-baseline.mjs [workspace] [baseline-revision]` from the checkout. Defaults are the repository workspace and `HEAD`; pass the original revision again after committing the optimization. The probe bundles the production tracker and scanner from that revision and the working tree, alternates three samples each, and records registration time followed by a real PTY ready marker. Windows uses bundled ConPTY, as the application does. It reads the workspace without changing its files; keep other writers idle so snapshot digests can be compared.
+
+Results, source copies and bundles are written under `artifacts/terminal-startup-performance/`. All six complete snapshot digests must match. Measurements exclude Electron startup, hook installation, CLI initialization, renderer paint and interactive readiness; the OS cache is not flushed. This is a component comparison, not an end-to-end desktop speed claim.
+
+The legacy marker does not answer terminal capability requests. Bundled ConPTY can therefore wait approximately three seconds in that probe; do not interpret that interval as normal xterm startup cost.
+
+For a working-tree comparison, run `node scripts/performance/snapshot-startup-probe.mjs --freeze` **before editing**, then run `node scripts/performance/snapshot-startup-probe.mjs` after the change. It preserves the frozen scanner, alternates three foreground samples per version and checks complete snapshot digests. Keep workspace writers idle during sampling. Results and exact sources are in `artifacts/terminal-startup-investigation/`; it measures capture only, with no memory or full-desktop claim.
+
+On Windows, `node scripts/performance/pty-startup-probe.mjs` independently runs twelve isolated cmd marker probes: bundled/system ConPTY, with/without capability replies, three samples each. It records spawn, first-byte and marker timings plus control sequences in `pty.json` in the same directory. The real xterm reply/replay behavior is checked by `npx playwright test tests/e2e/terminal-startup.spec.ts --project=island --workers=1`.
+
+## Native Claude startup and overlapping preparation
+
+`node scripts/performance/claude-startup-probe.mjs --freeze` bundles the current adapter before editing. `--baseline` then measures one original start; no flag compares three alternating before/after samples. The Windows probe uses `JANUSX_TEST_CLAUDE_BIN` or the standard npm native executable, creates a separate home/config/workspace with a localhost fixture, accepts trust only there, and requires zero model requests during startup. It stops only its own workers and isolated daemon. Reports and frozen sources are under `artifacts/claude-startup-performance/`. It does not measure app rendering or use the user's provider credentials.
+
+`node scripts/performance/launch-preparation-probe.mjs` compares serial and overlapping native `--version` probing plus production foreground capture, three alternating samples each. Reports under `artifacts/terminal-startup-round2/` include full snapshot digests; keep workspace writers idle. This is a component comparison, not a measurement of the entire IPC/Agent startup. Production `preparationMs` and `baselineMs` now overlap, so their sum is not total startup time.
+
+Set `JANUSX_PERF_DIRECTORY` to a separate artifact directory when freezing a new round with `snapshot-startup-probe.mjs`; retain earlier frozen baselines instead of overwriting them after edits.

@@ -1,3 +1,5 @@
+import { ConversationCatalog } from './conversation-catalog'
+import { ConversationSession, conversationState } from './conversation-session'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -8,15 +10,14 @@ import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, dirname, extname, join } from 'node:path'
 import type { ConversationCommand, ConversationSnapshot, ConversationItem } from '../../shared/conversation-display'
-import { parseConversationSlashCommand } from '../../shared/conversation-display'
 import modSource from './claude-mod.js?raw'
-import { readClaudeModels } from './claude-models'
+import { readClaudeCatalog } from './claude-models'
 
 type Json = Record<string, any> // Native versioned Mods/daemon boundary; normalized before IPC.
 const exec = promisify(execFile)
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const MAX_TEXT = 32000
-const caps = { submit: true, cancel: true, settings: true, approvals: true, liveText: true }
+const caps = { submit: true, cancel: true, settings: true, approvals: true, liveText: true, liveInput: true }
 type LaunchOptions = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string; assetsDir: string }
 
 export function resolveClaudeBinary(command: string): string {
@@ -28,6 +29,9 @@ export function resolveClaudeBinary(command: string): string {
 
 export class ClaudeConversation {
   readonly state: ConversationSnapshot
+  private session: ConversationSession
+  private catalog: ConversationCatalog
+  private nativeCommands: ConversationSnapshot['commands'] = []
   private server?: Server
   private directory?: string
   private token = randomBytes(32).toString('hex')
@@ -43,9 +47,7 @@ export class ClaudeConversation {
   private lastSeen = 0
   private broken = false
   private heartbeat?: ReturnType<typeof setInterval>
-  private publishTimer?: ReturnType<typeof setTimeout>
   private pending = new Map<string, { command: Json; resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
-  private sent = new Map<string, { text: string; result: Promise<void> }>()
   private tools = new Map<string, { turnId: string; name: string; taskId?: string; active: boolean }>()
   private finishedTasks = new Map<string, string>()
   private catalogSettings = ''
@@ -55,21 +57,16 @@ export class ClaudeConversation {
   private lastTurn?: string
   private lastTurnSequence = 0
 
-  constructor(readonly id: string, private readonly publish: (snapshot: ConversationSnapshot) => void,
+  constructor(readonly id: string, publish: (snapshot: ConversationSnapshot) => void,
     private readonly bind: (sessionId: string, transcriptPath?: string) => void = () => {}) {
-    this.state = { id, engine: 'claude', capabilities: { ...caps }, revision: 0, mode: 'terminal', controlEpoch: 0,
-      connection: 'starting', threadId: null, turnId: null, submitting: false, items: [], approvals: [], needsTerminal: false,
-      truncated: false, model: null, effort: null, models: [], modelsLoading: false, settingsUpdating: false }
+    this.state = conversationState(id, 'claude', caps)
+    this.session = new ConversationSession(this.state, publish)
+    this.state.capabilities.commands = true
+    this.catalog = new ConversationCatalog(this.session, async () => { await this.loadModels(); if (this.state.modelsError) throw new Error(this.state.modelsError); return this.nativeCommands ?? [] })
   }
-  snapshot(): ConversationSnapshot { return structuredClone(this.state) }
-  private changed(immediate = true): void {
-    this.state.revision++
-    if (!immediate && this.publishTimer) return
-    if (this.publishTimer) clearTimeout(this.publishTimer)
-    this.publishTimer = undefined
-    if (immediate) this.publish(this.snapshot())
-    else this.publishTimer = setTimeout(() => { this.publishTimer = undefined; this.publish(this.snapshot()) }, 32)
-  }
+  snapshot(): ConversationSnapshot { return this.session.snapshot() }
+  private changed(immediate = true): void { this.session.changed(immediate) }
+
   private fail(message: string): void {
     if (this.disposed) return
     this.state.connection = 'disconnected'; this.state.error = message; this.changed()
@@ -85,6 +82,7 @@ export class ClaudeConversation {
   }
   private async launch(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
     if (process.platform !== 'win32') throw new Error('Claude dual mode is currently validated on Windows only.')
+    this.session.configureImages(join(options.assetsDir, 'images'), options.cwd)
     this.binary = resolveClaudeBinary(options.command); this.env = { ...options.env }; this.cwd = options.cwd
     const pathKey = Object.keys(this.env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) this.env[pathKey] = `${options.pathDir}${delimiter}${this.env[pathKey] ?? ''}`
@@ -148,15 +146,19 @@ export class ClaudeConversation {
     return { command: this.binary, args: ['attach', this.short] }
   }
   private cli(args: string[], timeout = 10000) {
-    return exec(this.binary, args, { cwd: this.cwd, env: this.env, windowsHide: true, timeout, maxBuffer: 2 * 1024 * 1024 })
+    const pending = exec(this.binary, args, { cwd: this.cwd, env: this.env, windowsHide: true, timeout, maxBuffer: 2 * 1024 * 1024 })
+    // These control commands never accept piped prompts. Leaving their stdin
+    // open makes native --bg wait for possible input before dispatching.
+    pending.child.stdin?.end()
+    return pending
   }
   private loadModels(): Promise<void> {
     if (this.loadingModels) return this.loadingModels
     this.state.modelsLoading = true; this.state.modelsError = undefined; this.changed()
     this.loadingModels = (async () => {
       try {
-        const models = await readClaudeModels({ binary: this.binary, cwd: this.cwd, env: this.env, settings: this.catalogSettings, signal: this.catalogAbort.signal })
-        if (!this.disposed) this.state.models = models
+        const catalog = await readClaudeCatalog({ binary: this.binary, cwd: this.cwd, env: this.env, settings: this.catalogSettings, signal: this.catalogAbort.signal })
+        if (!this.disposed) { this.nativeCommands = catalog.commands; this.state.models = catalog.models }
       } catch (error) { if (!this.disposed) this.state.modelsError = String(error).slice(0, 1000) }
       finally { this.loadingModels = undefined; this.state.modelsLoading = false; if (!this.disposed) this.changed() }
     })()
@@ -237,7 +239,14 @@ export class ClaudeConversation {
       this.lastTurnSequence = event.seq
       this.state.needsTerminal = false
       if (e.model && !this.state.settingsOverride) this.state.model = typeof e.model === 'string' ? e.model : e.model.model ?? this.state.model
-      if (!e.isMeta && e.text) Object.assign(this.item(`user:${e.turnId}`, e.turnId, 'userMessage'), { text: String(e.text).slice(0, MAX_TEXT), status: 'completed' })
+      if (!e.isMeta && e.text) {
+        const inputs = Array.isArray(e.inputs) && e.inputs.length ? e.inputs.slice(-100) : [e.text]
+        inputs.forEach((text: unknown, index: number) => {
+          if (typeof text !== 'string') return
+          const id = index === inputs.length - 1 ? `user:${e.turnId}` : `user:${e.turnId}:${index}`
+          Object.assign(this.item(id, e.turnId, 'userMessage'), { text: text.slice(0, MAX_TEXT), status: 'completed' })
+        })
+      }
     } else if (event.type === 'plan.updated') {
       if (typeof e.turnId !== 'string' || e.turnId !== this.state.turnId || !Array.isArray(e.plan) || e.plan.length > 100 ||
         !e.plan.every((step: Json) => step && typeof step.step === 'string' && step.step.length <= 2000 && ['pending', 'inProgress', 'completed'].includes(step.status))) return
@@ -272,17 +281,18 @@ export class ClaudeConversation {
       tool.taskId = e.taskId; tool.active = (Boolean(e.taskId) && !this.finishedTasks.has(e.taskId)) || (event.type === 'tool.error' && tool.name === 'Bash')
       const item = this.state.items.find(value => value.id === `tool:${e.toolUseId}`)
       const finished = this.finishedTasks.get(e.taskId)
-      if (item) { item.text = `${item.text}\n${e.text ?? ''}`.slice(0, MAX_TEXT); item.status = tool.active ? 'inProgress' : finished === 'killed' ? 'interrupted' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed' }
+      if (item) { item.text = `${item.text}\n${e.text ?? ''}`.slice(0, MAX_TEXT); item.status = tool.active ? 'inProgress' : finished === 'killed' || finished === 'missing' ? 'interrupted' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed' }
+      if (item) this.session.discoverImages(item.id)
       this.expireToolApproval(e.toolUseId)
       if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(tool.name)) this.state.needsTerminal = false
     } else if (event.type === 'task.complete') {
-      if (typeof e.taskId !== 'string' || !['completed', 'failed', 'killed'].includes(e.status)) return
+      if (typeof e.taskId !== 'string' || !['completed', 'failed', 'killed', 'missing'].includes(e.status)) return
       this.finishedTasks.set(e.taskId, e.status)
       if (this.finishedTasks.size > 1000) this.finishedTasks.delete(this.finishedTasks.keys().next().value!)
       for (const [id, tool] of this.tools) if (tool.taskId === e.taskId || id === e.toolUseId) {
         tool.active = false
         const item = this.state.items.find(value => value.id === `tool:${id}`)
-        if (item) item.status = e.status === 'killed' ? 'interrupted' : e.status
+        if (item) item.status = e.status === 'killed' || e.status === 'missing' ? 'interrupted' : e.status
       }
     } else if (event.type === 'turn.complete') {
       const outcome = e.reason === 'aborted' ? 'interrupted' : e.reason === 'error' ? 'failed' : 'completed'
@@ -295,6 +305,7 @@ export class ClaudeConversation {
         this.state.turnStartedAt = undefined; this.state.turnId = null; this.state.needsTerminal = false
       }
       for (const item of this.state.items) if (item.turnId === e.turnId && item.type === 'agentMessage') item.status = e.reason === 'aborted' ? 'interrupted' : e.reason === 'error' ? 'failed' : 'completed'
+      for (const item of this.state.items) if (item.turnId === e.turnId) this.session.discoverImages(item.id)
       for (const [id, tool] of this.tools) if (tool.turnId === e.turnId) this.expireToolApproval(id)
       if (e.reason === 'error') this.state.error = 'Claude turn failed. See the native terminal for details.'
     }
@@ -349,13 +360,9 @@ export class ClaudeConversation {
     })
   }
   async command(command: ConversationCommand): Promise<ConversationSnapshot> {
-    if (command.type === 'mode') {
-      if (!['terminal', 'conversation'].includes(command.mode)) throw new Error('Invalid display mode')
-      if (this.state.mode !== command.mode) { this.state.mode = command.mode; this.state.controlEpoch++; this.changed() }
-      return this.snapshot()
-    }
-    if (this.disposed || this.broken || this.state.connection !== 'ready') throw new Error('Claude conversation is not ready')
-    if (this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Display control changed; action rejected')
+    if (command.type === 'mode') return this.session.mode(command, this.disposed)
+    this.session.guard(command, this.disposed || this.broken)
+    if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'models') { await this.loadModels() }
     else if (command.type === 'settings') {
       if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
@@ -366,22 +373,19 @@ export class ClaudeConversation {
       try { await this.call({ type: 'settings', model: command.model, effort: command.effort }) }
       finally { this.state.settingsUpdating = false; this.changed() }
     } else if (command.type === 'send') {
-      if (typeof command.commandId !== 'string' || !command.commandId || command.commandId.length > 128) throw new Error('Invalid command identity')
-      const previous = this.sent.get(command.commandId)
-      if (previous) { if (previous.text !== command.text) throw new Error('Command identity reused with different text'); await previous.result; return this.snapshot() }
-      if (this.sent.size >= 2000) throw new Error('Conversation command limit reached; create a new session')
-      if (typeof command.text !== 'string' || !command.text.trim() || command.text.length > MAX_TEXT) throw new Error('Invalid message')
-      if (parseConversationSlashCommand(command.text)) throw new Error('Use the command menu or native terminal for slash commands')
-      if (this.state.turnId || this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || this.state.needsTerminal) throw new Error('Claude is busy or needs terminal input')
-      this.state.submitting = true; this.state.error = undefined; this.changed()
-      const result = (async () => {
+      await this.session.submit(command, async () => {
+        this.state.error = undefined
         const before = this.sequence
+        const liveInput = Boolean(this.state.turnId)
         let ack: Json
-        try { ack = await this.reply({ op: 'reply', short: this.short, text: command.text, nextTurn: true }) } catch (error) {
+        try { ack = await this.reply({ op: 'reply', short: this.short, text: command.text, nextTurn: !liveInput }) } catch (error) {
           this.broken = true; this.fail('Claude delivery is unknown. Check the terminal; this message will not be resent.')
           throw error
         }
         if (!ack.ok) throw new Error(String(ack.error ?? 'Claude refused submission'))
+        // The native input queue owns live input now. Consumption may wait for
+        // a model/tool boundary; keep the UI receipt pending its native echo.
+        if (liveInput) return
         // Daemon ack alone is not delivery. Wait for the observed native user turn.
         for (let i = 0; i < 100; i++) {
           if (this.disposed || this.broken) break
@@ -390,9 +394,7 @@ export class ClaudeConversation {
         }
         this.broken = true; this.fail('Claude delivery is unknown. Check the terminal; this message will not be resent.')
         throw new Error('Claude delivery unknown; check the terminal before sending again')
-      })()
-      this.sent.set(command.commandId, { text: command.text, result })
-      try { await result } finally { this.state.submitting = false; this.changed() }
+      })
     } else if (command.type === 'interrupt') {
       if (this.state.submitting || this.state.settingsUpdating) throw new Error('Claude control is busy')
       const turnId = this.state.turnId ?? [...this.tools.values()].reverse().find(tool => tool.active)?.turnId ?? this.lastTurn
@@ -402,10 +404,16 @@ export class ClaudeConversation {
       for (const [id] of selected) this.expireToolApproval(id)
       try {
         const outcome = await this.call({ type: 'stop', turnId, toolIds: selected.map(([id]) => id), taskIds: selected.flatMap(([, tool]) => tool.taskId ? [tool.taskId] : []) })
-        for (const taskId of outcome.stopped ?? []) this.receive({ type: 'task.complete', data: { taskId, status: 'killed' } })
+        for (const task of outcome.settled ?? []) this.receive({ type: 'task.complete', data: task })
+        for (const taskId of outcome.stopped ?? []) if (!this.finishedTasks.has(taskId)) this.receive({ type: 'task.complete', data: { taskId, status: 'killed' } })
         for (const [id, tool] of selected) {
           const history = outcome.history?.find((value: Json) => value.tool_use_id === id)
           const taskId = tool.taskId ?? history?.result?.backgroundTaskId
+          if (taskId && this.finishedTasks.has(taskId)) {
+            tool.taskId = taskId
+            this.receive({ type: 'task.complete', data: { taskId, toolUseId: id, status: this.finishedTasks.get(taskId) } })
+            continue
+          }
           if (taskId && !outcome.stopped?.includes(taskId)) throw new Error('A background task is still running. Use the terminal to stop it.')
           if (!taskId && tool.name === 'Bash' && !history?.result) throw new Error('Bash termination is unknown. Check the terminal.')
           tool.active = false
@@ -425,7 +433,7 @@ export class ClaudeConversation {
   acceptsTerminalInput(data: string): boolean { return (this.state.mode === 'terminal' && !this.state.settingsUpdating) || /^\x1b\[[?\d;]*[Rcn]$/.test(data) }
   dispose(): Promise<void> {
     if (this.stopping) return this.stopping
-    this.disposed = true
+    this.disposed = true; this.session.stop()
     this.catalogAbort.abort()
     this.stopping = (async () => {
       // Wait for any native dispatch and asset creation before cleaning up.
@@ -433,7 +441,6 @@ export class ClaudeConversation {
       await this.startup?.catch(() => {})
       await this.loadingModels
       if (this.heartbeat) clearInterval(this.heartbeat)
-      if (this.publishTimer) clearTimeout(this.publishTimer)
       for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('Claude session closed')) }
       this.pending.clear()
       for (const id of this.approvals.keys()) this.finishApproval(id, {})

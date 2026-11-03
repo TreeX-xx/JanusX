@@ -667,7 +667,7 @@ function TerminalPresetCapsule({
                           onSelect(item)
                         }}
                       >
-                        <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" />
+                        <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" style={item.type === 'codex' ? { filter: 'brightness(0) invert(1)' } : undefined} />
                         <span className="min-w-0 flex-1 truncate">{item.name}</span>
                         {item.isDefaultShell && (
                           <span
@@ -718,7 +718,7 @@ function TerminalPresetCapsule({
                         onSelect(item)
                       }}
                     >
-                      <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" />
+                      <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" style={item.type === 'codex' ? { filter: 'brightness(0) invert(1)' } : undefined} />
                       <span className="min-w-0 flex-1 truncate">{item.name}</span>
                       <TerminalInstallBadge preset={item.type} compact />
                     </button>

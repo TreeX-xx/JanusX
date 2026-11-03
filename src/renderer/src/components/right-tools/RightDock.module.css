@@ -188,6 +188,9 @@
 .railButton:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: 1px; }
 .railButton:disabled { opacity: 0.25; }
 .railButton[data-visual-active='true'] { color: var(--shell-text); }
+.auxiliaryTools .railButton[data-visual-active='true'] {
+  background: color-mix(in srgb, var(--shell-text) 8%, var(--shell-canvas));
+}
 
 .railIcon { display: block; }
 

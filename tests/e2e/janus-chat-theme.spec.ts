@@ -75,6 +75,10 @@ for (const theme of ['planche', 'dark']) {
       await expectToken(host.locator('.janus-chat-dot').first(), 'background-color', 'shell-accent')
     }
     await emit(page, 'reasoning_delta', 'Reading the Note and checking its references.\nThe discussion remains read-only.')
+    for (const host of hosts) {
+      await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
+      await host.locator('.conversation-work-toggle').click()
+    }
     // Switch palettes while both independent streams are still active.
     for (const activeTheme of [theme, theme === 'planche' ? 'dark' : 'planche']) {
       await setTheme(page, activeTheme)

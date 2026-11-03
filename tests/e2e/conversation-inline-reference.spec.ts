@@ -1,0 +1,79 @@
+import { test, expect, type Locator } from '@playwright/test'
+import { PNG_PIXEL } from '../helpers/image-fixture'
+
+async function dropFile(input: Locator, offset: number, name: string) {
+  await input.evaluate((el, { offset, name }) => {
+    const range = document.createRange(); range.setStart(el.firstChild!, offset); range.collapse(true)
+    const box = range.getBoundingClientRect()
+    const dataTransfer = new DataTransfer()
+    dataTransfer.setData('application/x-janusx-workspace-file', JSON.stringify({ workspacePath: 'C:/fixture', path: name, name, type: 'file' }))
+    el.dispatchEvent(new DragEvent('dragover', { bubbles: true, clientX: box.x, clientY: box.y + 5, dataTransfer }))
+    el.dispatchEvent(new DragEvent('drop', { bubbles: true, clientX: box.x, clientY: box.y + 5, dataTransfer }))
+  }, { offset, name })
+}
+
+test('inserts references at the drop caret, supports undo and preserves order after remount and send', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('Compare  then explain.')
+  await dropFile(input, 8, 'old.ts')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await expect(input).toContainText('Compare old.ts×  then explain.')
+  await input.locator('[data-reference-id]').evaluate(chip => {
+    const range = document.createRange(); range.setStartAfter(chip); range.collapse(true)
+    const selection = getSelection()!; selection.removeAllRanges(); selection.addRange(range)
+  })
+  await input.press('Backspace')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(0)
+  await input.press('Control+z')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await input.getByRole('button', { name: 'Remove old.ts' }).click()
+  await expect(input.locator('[data-reference-id]')).toHaveCount(0)
+  await input.press('Control+z')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Remount', exact: true }).click()
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await input.press('Enter')
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['Compare file: "C:/fixture/old.ts"  then explain.'])
+  await expect(input).toHaveText('')
+})
+
+test('plain paste stays text and composition does not submit or replace the editor', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('Review ')
+  await input.evaluate(el => {
+    const data = new DataTransfer(); data.setData('text/html', '<b>bold</b>'); data.setData('text/plain', '<b>plain</b>')
+    el.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }))
+    el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', isComposing: true }))
+    el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '文' }))
+  })
+  await expect(input).toHaveText('Review <b>plain</b>')
+  await expect(input.locator('b')).toHaveCount(0)
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+})
+
+test('inline references move between text segments and images remain native inputs', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await page.evaluate(base64 => { window.electron.file.readBinary = async () => ({ base64, mimeType: 'image/png', size: 68 }) }, PNG_PIXEL)
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('First  last')
+  await dropFile(input, 6, 'screen.png')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await input.locator('[data-reference-id]').evaluate(chip => {
+    const editor = chip.closest('[data-conversation-input]')!
+    const range = document.createRange(); range.setStart(editor.lastChild!, editor.lastChild!.textContent!.length); range.collapse(true)
+    const box = range.getBoundingClientRect(), dataTransfer = new DataTransfer()
+    chip.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }))
+    editor.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer, clientX: box.x, clientY: box.y + 5 }))
+    editor.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer, clientX: box.x, clientY: box.y + 5 }))
+  })
+  await expect(input).toHaveText('First   lastscreen.png×')
+  await page.locator('[data-conversation-welcome]').evaluate(el => el.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations !== Infinity).forEach(animation => animation.finish()))
+  await page.screenshot({ path: 'artifacts/conversation-inline-reference/editor.png' })
+  await input.press('Enter')
+  const command = await page.evaluate(() => (window as any).codexFixture.calls.commands.find((command: any) => command.type === 'send'))
+  expect(command.text).toBe('First   lastimage: "C:/fixture/screen.png"')
+  expect(command.imagePaths).toEqual(['C:/fixture/screen.png'])
+})

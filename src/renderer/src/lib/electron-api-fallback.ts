@@ -54,6 +54,7 @@ export function installElectronApiFallback(): void {
       onChanged: () => () => {},
     },
     file: {
+      importConversationAttachment: () => Promise.reject(new Error('Electron attachment API is unavailable')),
       openHtmlPreview: unavailable,
       openPreviewLink: async (url) => { window.open(url, '_blank', 'noopener,noreferrer') },
       updateHtmlPreview: unavailable,

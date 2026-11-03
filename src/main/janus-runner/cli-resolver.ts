@@ -86,6 +86,7 @@ function resolveSameNamedExe(
 
 /**
  * Pick the best Windows spawn path from candidate paths (e.g. all `where` lines).
+ * Resolve npm native binaries before ranking; preserve lookup order for ties.
  * Prefer .exe > .cmd > .bat > .com; never return extensionless npm shims.
  */
 export function selectWindowsSpawnPath(
@@ -103,12 +104,12 @@ export function selectWindowsSpawnPath(
     .map((p) => p.trim())
     .filter(Boolean)
     .filter((p) => isWinSpawnable(p, exists))
-    .sort((a, b) => winExtRank(a) - winExtRank(b) || a.length - b.length)
+    .map((p) => resolveSameNamedExe(p, command, read, exists) ?? p)
+    .sort((a, b) => winExtRank(a) - winExtRank(b))
 
   if (!ranked.length) return null
 
-  const best = ranked[0]
-  return resolveSameNamedExe(best, command, read, exists) ?? best
+  return ranked[0]
 }
 
 function collectCommonCandidates(command: string): string[] {

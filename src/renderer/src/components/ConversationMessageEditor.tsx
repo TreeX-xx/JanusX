@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef } from 'react'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styles from './AgentSessionPane.module.css'
+import { insertConversationNewline } from '../lib/conversation-input'
 
 export function ConversationMessageEditor({ text, setText, busy, disabled, error, cancel, submit }: {
   text: string; setText(text: string): void; busy: boolean; disabled: boolean; error: string
@@ -32,11 +33,12 @@ export function ConversationMessageEditor({ text, setText, busy, disabled, error
     if (!disabled && !busy && text.trim()) void submit()
   }} onKeyDown={event => {
     if (event.nativeEvent.isComposing || busy) return
+    if (insertConversationNewline(event, setText)) return
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel() }
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.requestSubmit() }
   }}>
     <label className={styles.editLabel}><Pencil size={13} aria-hidden="true" />{t('conversation.editMessage')}
-      <textarea ref={input} value={text} onChange={event => setText(event.target.value)} aria-label={t('conversation.editText')} aria-describedby={hintId} readOnly={busy} maxLength={32000} rows={2} />
+      <textarea ref={input} value={text} spellCheck={false} autoCorrect="off" autoCapitalize="off" onChange={event => setText(event.target.value)} aria-label={t('conversation.editText')} aria-describedby={hintId} readOnly={busy} maxLength={32000} rows={2} />
     </label>
     <div className={styles.editFooter}>
       <p id={hintId}>{t('conversation.editHint')}</p>

@@ -2,6 +2,12 @@
 export type ConversationEngine = 'codex' | 'claude' | 'opencode' | 'pi' | 'dsh'
 export function supportsConversation(engine: string): engine is ConversationEngine { return ['codex', 'claude', 'opencode', 'pi', 'dsh'].includes(engine) }
 export interface ConversationCapabilities {
+  /** Supports a turn-pinned steer request, distinct from a native input queue. */
+  steer?: boolean
+  commands?: boolean
+  /** Native input can be delivered while a response is running. */
+  liveInput?: boolean
+  newThread?: boolean
   edit?: boolean
   submit: boolean
   cancel: boolean
@@ -10,7 +16,7 @@ export interface ConversationCapabilities {
   liveText: boolean
 }
 export const CODEX_CONVERSATION_CAPABILITIES: ConversationCapabilities = {
-  submit: true, cancel: true, settings: true, approvals: true, liveText: true, edit: true,
+  submit: true, cancel: true, settings: true, approvals: true, liveText: true, edit: true, newThread: true, liveInput: true, steer: true,
 }
 export type ConversationDisplayMode = 'terminal' | 'conversation'
 export interface ConversationPlan {
@@ -23,6 +29,8 @@ export interface ConversationPlan {
   outcome: 'running' | 'completed' | 'interrupted' | 'failed'
 }
 export interface ConversationItem {
+  images?: ConversationImage[]
+  phase?: 'commentary' | 'final_answer'
   /** False when the text projection cannot faithfully reproduce the native input. */
   editable?: boolean
   /** Local receipt time; absent for older snapshots without timing metadata. */
@@ -36,6 +44,14 @@ export interface ConversationItem {
   files?: Array<{ path: string; diff: string }>
   truncated?: boolean
 }
+export interface ConversationImage {
+  source?: string
+  id: string
+  status: 'loading' | 'ready' | 'unavailable'
+  path?: string
+  mimeType?: string
+  error?: string
+}
 export interface ConversationApproval {
   id: string | number
   itemId: string
@@ -43,6 +59,7 @@ export interface ConversationApproval {
   description: string
 }
 export interface ConversationModelOption {
+  fastTier?: string
   model: string
   displayName: string
   description: string
@@ -51,11 +68,35 @@ export interface ConversationModelOption {
 }
 
 /** Slash commands are client actions, never prompts. Absolute paths such as /tmp/a remain text. */
-export function parseConversationSlashCommand(text: string): { name: string; query: string } | null {
-  const match = /^\s*\/([a-z][\w-]*)?(?:\s+([\s\S]*))?$/i.exec(text)
-  return match ? { name: (match[1] ?? '').toLowerCase(), query: (match[2] ?? '').trim() } : null
+export function parseConversationSlashCommand(text: string, entries: ConversationCatalogEntry[] = []): { name: string; query: string } | null {
+  const match = /^\s*\/([^\s]*)(?:\s+([\s\S]*))?$/.exec(text)
+  if (!match) return null
+  const name = match[1]
+  const known = name && entries.some(entry => entry.name.startsWith(name))
+  if (name.includes('/') && !known) return null
+  if (name && !known && !/^[\w:-]+$/.test(name)) return null
+  return { name, query: (match[2] ?? '').trim() }
+}
+export interface ConversationCatalogEntry {
+  id: string
+  name: string
+  label: string
+  description: string
+  kind: 'skill' | 'command' | 'prompt'
+  source: string
+  execution: 'native' | 'terminal'
+  argumentHint?: string
 }
 export interface ConversationSnapshot {
+  /** Undefined until the native session reports its tier; null means standard. */
+  serviceTier?: string | null
+  commands?: ConversationCatalogEntry[]
+  commandsRevision?: number
+  commandsLoading?: boolean
+  commandsError?: string
+  /** Native acceptance is not model completion; uncertain deliveries must not be retried. */
+  commandReceipts?: Array<{ id: string; status: 'accepted' | 'unknown' }>
+  startup?: ConversationStartup
   /** Bounded, immutable plan revisions observed during this runtime. */
   plans?: ConversationPlan[]
   turnStartedAt?: number
@@ -86,10 +127,34 @@ export interface ConversationSnapshot {
   error?: string
 }
 export type ConversationCommand =
+  | { type: 'commands'; controlEpoch: number }
+  | { type: 'invoke'; entryId: string; catalogRevision: number; arguments: string; commandId: string; controlEpoch: number }
+  | { type: 'startup'; startupId: number; action: 'trust' | 'login' | 'apiKey' | 'cancel' | 'resume' | 'check'; apiKey?: string; controlEpoch: number }
   | { type: 'mode'; mode: ConversationDisplayMode }
-  | { type: 'send'; text: string; commandId: string; controlEpoch: number }
+  | { type: 'send'; text: string; commandId: string; controlEpoch: number; delivery?: 'queue' | 'steer'; expectedTurnId?: string; imagePaths?: string[] }
   | { type: 'edit'; itemId: string; text: string; commandId: string; controlEpoch: number }
   | { type: 'interrupt'; controlEpoch: number }
+  | { type: 'new'; controlEpoch: number }
   | { type: 'models'; controlEpoch: number }
+  | { type: 'speed'; fast: boolean; controlEpoch: number }
   | { type: 'settings'; model: string; effort: string | null; controlEpoch: number }
   | { type: 'approve'; requestId: string | number; decision: 'accept' | 'decline'; controlEpoch: number }
+
+export interface ConversationStartup {
+  id: number
+  kind: 'trust' | 'login' | 'hooks'
+  status: 'pending' | 'busy' | 'waiting' | 'cancelled'
+  directory?: string
+  hooks?: Array<{ key: string; event: string; source: string; command: string }>
+  authUrl?: string
+  error?: string
+}
+
+/** Explicit UI intent survives IPC races; legacy native clients omit delivery. */
+export function validateConversationDelivery(snapshot: ConversationSnapshot, command: ConversationCommand): void {
+  if (command.type !== 'send') return
+  if (command.delivery !== undefined && command.delivery !== 'queue' && command.delivery !== 'steer') throw new Error('Invalid delivery mode')
+  if (command.delivery === 'queue' && snapshot.turnId) throw new Error('A new turn started. Restore the queued message and send again.')
+  if (command.delivery === 'steer' && (!snapshot.capabilities.steer || !snapshot.capabilities.liveInput
+    || !command.expectedTurnId || command.expectedTurnId !== snapshot.turnId)) throw new Error('The target turn has ended or cannot accept steering. Restore the message before sending again.')
+}

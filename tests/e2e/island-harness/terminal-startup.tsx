@@ -56,7 +56,9 @@ let ready: (() => void) | undefined
 let fail: (() => void) | undefined
 let sequence = 0
 let replay = ''
+const inputs: string[] = []
 Object.assign(window.electron.terminal, {
+  input: (_id: string, data: string) => { inputs.push(data) },
   create: (_request: TerminalCreateRequest) => new Promise<{ pid: number }>((resolve, reject) => {
     ready = () => resolve({ pid: 42 })
     fail = () => reject(new Error('Test startup failure'))
@@ -69,6 +71,7 @@ Object.assign(window.electron.terminal, {
 })
 Object.assign(window, {
   startupFixture: {
+    inputs,
     pending: () => Boolean(ready),
     ready: () => ready?.(),
     fail: () => fail?.(),

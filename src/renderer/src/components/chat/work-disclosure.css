@@ -1,0 +1,7 @@
+.conversation-work-toggle { flex-wrap: wrap; text-align: start; }
+.conversation-work-toggle > svg { flex-shrink: 0; }
+.conversation-work-status { color: var(--shell-muted); }
+.conversation-work[data-status="running"] .conversation-work-status,
+.conversation-work[data-status="waiting"] .conversation-work-status { color: var(--shell-accent); }
+.conversation-work[data-status="failed"] .conversation-work-status { color: var(--shell-text); font-weight: 600; }
+.janus-chat-tool-evidence:empty { display: none; }

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import type { ConversationModelOption } from '../../shared/conversation-display'
+import type { ConversationModelOption, ConversationCatalogEntry } from '../../shared/conversation-display'
 
 export function claudeModelOptions(rows: unknown): ConversationModelOption[] {
   if (!Array.isArray(rows)) throw new Error('Claude returned no model catalog')
@@ -20,11 +20,11 @@ export function claudeModelOptions(rows: unknown): ConversationModelOption[] {
 }
 
 /** Read-only native initialization, no user prompt/model call or saved session. */
-export function readClaudeModels(options: { binary: string; cwd: string; env: NodeJS.ProcessEnv; settings: string; signal: AbortSignal }): Promise<ConversationModelOption[]> {
+export function readClaudeCatalog(options: { binary: string; cwd: string; env: NodeJS.ProcessEnv; settings: string; signal: AbortSignal }): Promise<{ models: ConversationModelOption[]; commands: ConversationCatalogEntry[] }> {
   return new Promise((resolve, reject) => {
     if (options.signal.aborted) { reject(new Error('Claude session closed')); return }
     const id = randomUUID()
-    let result: ConversationModelOption[] | undefined
+    let result: { models: ConversationModelOption[]; commands: ConversationCatalogEntry[] } | undefined
     let failure: Error | undefined
     let buffer = '', size = 0
     const child = spawn(options.binary, ['--print', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
@@ -51,7 +51,13 @@ export function readClaudeModels(options: { binary: string; cwd: string; env: No
           const message = JSON.parse(line)
           if (message.type !== 'control_response' || message.response?.request_id !== id) continue
           if (message.response.subtype !== 'success') throw new Error('Claude refused model discovery')
-          result = claudeModelOptions(message.response.response?.models)
+          const data = message.response.response
+          result = { models: claudeModelOptions(data?.models), commands: (Array.isArray(data?.commands) ? data.commands : [])
+            .filter((row: { name?: unknown }) => typeof row.name === 'string').slice(0, 1000)
+            .map((row: { name: string; description?: string; argumentHint?: string }) => ({ id: 'command:' + row.name,
+              name: row.name, label: row.name, description: String(row.description ?? '').slice(0, 2000),
+              argumentHint: row.argumentHint, kind: 'command' as const, source: 'claude', execution: 'terminal' as const })) }
+
         } catch (error) { failure = error instanceof Error ? error : new Error(String(error)) }
         if (result || failure) { child.stdin?.end(); child.kill(); break }
       }

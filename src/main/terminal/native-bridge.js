@@ -29,8 +29,8 @@ export function bridge(execute) {
         executed.add(command.id)
         try {
           if (command.sessionId !== sessionId) throw new Error('Native session changed')
-          await execute(command)
-          acks.set(command.id, { id: command.id, ok: true })
+          const result = await execute(command)
+          acks.set(command.id, { id: command.id, ok: true, result })
         } catch (error) { acks.set(command.id, { id: command.id, ok: false, error: String(error) }) }
         if (executed.size > 2500) { overflow = true; break }
       }

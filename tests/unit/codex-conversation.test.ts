@@ -15,6 +15,102 @@ function setup() {
 }
 
 describe('Codex conversation ownership and event projection', () => {
+  it('starts new sessions at standard speed while preserving resumes and explicit toggles', async () => {
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+    await new Promise<void>(resolve => server.once('listening', resolve))
+    const { controller, wire } = setup()
+    const downstream = Object.assign(new EventEmitter(), { send: vi.fn(), close: vi.fn(), readyState: WebSocket.OPEN })
+    const received: any[] = []
+    server.on('connection', socket => socket.on('message', data => received.push(JSON.parse(data.toString()))))
+    wire.endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
+    try {
+      wire.connect(downstream)
+      const messages = [
+        { id: 1, method: 'thread/start', params: { serviceTier: 'fast', cwd: 'C:/repo' } },
+        { id: 2, method: 'thread/resume', params: { threadId: 'saved', serviceTier: 'fast' } },
+        { id: 3, method: 'thread/settings/update', params: { threadId: 'main', serviceTier: 'fast' } },
+      ]
+      for (const message of messages) downstream.emit('message', Buffer.from(JSON.stringify(message)))
+      await vi.waitFor(() => expect(received).toHaveLength(3))
+      expect(received[0].params).toEqual({ serviceTier: 'default', cwd: 'C:/repo' })
+      expect(received.slice(1)).toEqual(messages.slice(1))
+    } finally {
+      await controller.dispose()
+      for (const client of server.clients) client.terminate()
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
+  })
+  it('toggles native speed without changing model or effort and only projects confirmed settings', async () => {
+    const { controller, wire, emit } = setup()
+    const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+    const call = vi.spyOn(wire, 'call').mockResolvedValue({ data: [{ model: 'probe', serviceTiers: [{ id: 'fast' }], supportedReasoningEfforts: [] }] })
+    await controller.command({ type: 'models', controlEpoch })
+    expect(controller.state.models[0].fastTier).toBe('fast')
+    await expect(controller.command({ type: 'speed', fast: true, controlEpoch })).rejects.toThrow('unavailable')
+    emit('thread/settings/updated', { threadSettings: { model: 'probe', effort: 'high', serviceTier: null } })
+    call.mockImplementation(async () => {
+      expect(controller.state.settingsUpdating).toBe(true)
+      expect(controller.state.serviceTier).toBeNull()
+      emit('thread/settings/updated', { threadSettings: { serviceTier: 'fast' } })
+      return {}
+    })
+    await controller.command({ type: 'speed', fast: true, controlEpoch })
+    expect(call).toHaveBeenLastCalledWith('thread/settings/update', { threadId: 'main', serviceTier: 'fast' })
+    expect(controller.state).toMatchObject({ model: 'probe', effort: 'high', serviceTier: 'fast', settingsUpdating: false })
+    call.mockRejectedValue(new Error('Unavailable for account'))
+    await expect(controller.command({ type: 'speed', fast: false, controlEpoch })).rejects.toThrow('Unavailable')
+    expect(controller.state.serviceTier).toBe('fast')
+    call.mockResolvedValue({})
+    await controller.command({ type: 'speed', fast: false, controlEpoch })
+    expect(call).toHaveBeenLastCalledWith('thread/settings/update', { threadId: 'main', serviceTier: null })
+    expect(controller.state.serviceTier).toBe('fast')
+    emit('thread/settings/updated', { threadId: 'child', threadSettings: { serviceTier: null } })
+    expect(controller.state.serviceTier).toBe('fast')
+    emit('thread/settings/updated', { threadSettings: { serviceTier: null, model: 'unsupported' } })
+    await expect(controller.command({ type: 'speed', fast: true, controlEpoch })).rejects.toThrow('not supported')
+    wire.attach({ id: 'next', turns: [] })
+    expect(controller.state.serviceTier).toBeUndefined()
+    await controller.dispose()
+  })
+  it('steers the active turn once, pins its identity and never retries a failed steer as a new turn', async () => {
+    const { controller, wire, emit } = setup()
+    const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+    emit('turn/started', { turn: { id: 'active' } })
+    const call = vi.spyOn(wire, 'call').mockResolvedValue({ turnId: 'active' })
+    const command = { type: 'send' as const, text: 'Change direction', commandId: 'live', controlEpoch }
+    await controller.command(command); await controller.command(command)
+    expect(call).toHaveBeenCalledExactlyOnceWith('turn/steer', { threadId: 'main', expectedTurnId: 'active', input: [{ type: 'text', text: 'Change direction', text_elements: [] }] })
+    call.mockRejectedValue(new Error('Turn already completed'))
+    await expect(controller.command({ ...command, commandId: 'race' })).rejects.toThrow('Turn already completed')
+    expect(call.mock.calls.every(([method]) => method === 'turn/steer')).toBe(true)
+    await controller.dispose()
+  })
+  it('preserves explicit assistant phase across completion events', () => {
+    const { controller, emit } = setup()
+    emit('item/started', { turnId: 'turn', item: { id: 'message', type: 'agentMessage', phase: 'commentary', text: 'Checking' } })
+    emit('item/completed', { turnId: 'turn', item: { id: 'message', type: 'agentMessage', text: 'Checked' } })
+    expect(controller.state.items[0]).toMatchObject({ phase: 'commentary', text: 'Checked', status: 'completed' })
+  })
+  it('runs /new through the native client with a single-use start gate and waits for confirmed selection', async () => {
+    const { controller, wire } = setup()
+    const input = vi.fn()
+    controller.setNativeInput(input)
+    const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+    const pending = controller.command({ type: 'new', controlEpoch })
+    expect(controller.state.submitting).toBe(true)
+    expect(input).toHaveBeenCalledWith('\x15\x0b/new')
+    expect(controller.acceptsTerminalInput('accidental\r')).toBe(false)
+    expect(wire.acceptsNativeCommand({ method: 'thread/start', params: {} })).toBe(true)
+    expect(wire.acceptsNativeCommand({ method: 'thread/start', params: {} })).toBe(false)
+    await expect(controller.command({ type: 'new', controlEpoch })).rejects.toThrow('idle')
+    await vi.waitFor(() => expect(input).toHaveBeenCalledWith('\r'))
+    expect(controller.state.threadId).toBe('main')
+    wire.attach({ id: 'new-thread', turns: [] }); wire.newThread.resolve()
+    await pending
+    expect(controller.snapshot()).toMatchObject({ threadId: 'new-thread', items: [], submitting: false, mode: 'conversation' })
+    await expect(controller.command({ type: 'new', controlEpoch })).rejects.toThrow('control changed')
+    await controller.dispose()
+  })
   it('forwards a large native plugin catalog intact and keeps the conversation connected', async () => {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
     await new Promise<void>(resolve => server.once('listening', resolve))
@@ -160,6 +256,10 @@ describe('Codex conversation ownership and event projection', () => {
     const controller = new CodexConversation('starting', () => {})
     await controller.command({ type: 'mode', mode: 'conversation' })
     expect((controller as any).acceptsNativeCommand({ method: 'thread/start', params: {} })).toBe(true)
+    expect(controller.acceptsTerminalInput('1\r')).toBe(false)
+    expect(controller.acceptsTerminalInput('\x1b[1;1R')).toBe(true)
+    ;(controller as any).attach({ id: 'authorized', turns: [] })
+    expect(controller.acceptsTerminalInput('1\r')).toBe(false)
     await controller.dispose()
   })
   it('ignores title/subagent announcements and unrelated deltas; uses turn/item identity', () => {
@@ -229,4 +329,16 @@ describe('Codex conversation ownership and event projection', () => {
     expect(controller.snapshot().truncated).toBe(true)
     controller.dispose()
   })
+  it('sends image references through native localImage input and rejects stale delivery intents', async () => {
+    const { controller, wire } = setup()
+    const state = await controller.command({ type: 'mode', mode: 'conversation' })
+    const call = vi.spyOn(wire, 'call').mockResolvedValue({ turn: { id: 'image-turn' } })
+    await controller.command({ type: 'send', text: 'Inspect screenshot', commandId: 'image', controlEpoch: state.controlEpoch, delivery: 'queue', imagePaths: ['C:/attachments/screen.png'] })
+    expect(call).toHaveBeenCalledWith('turn/start', { threadId: 'main', input: [{ type: 'text', text: 'Inspect screenshot', text_elements: [] }, { type: 'localImage', path: 'C:/attachments/screen.png' }] })
+    await expect(controller.command({ type: 'send', text: 'Next task', commandId: 'queue', controlEpoch: state.controlEpoch, delivery: 'queue' })).rejects.toThrow('new turn')
+    await expect(controller.command({ type: 'send', text: 'Correction', commandId: 'steer', controlEpoch: state.controlEpoch, delivery: 'steer', expectedTurnId: 'old-turn' })).rejects.toThrow('target turn')
+    expect(call).toHaveBeenCalledTimes(1)
+    await controller.dispose()
+  })
+
 })

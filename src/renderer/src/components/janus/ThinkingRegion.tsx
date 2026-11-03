@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useHistoryDisclosure } from '../chat/VirtualHistory'
 import { ChevronDown, ChevronRight, LoaderCircle } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import {
@@ -21,6 +22,8 @@ export interface ThinkingRegionProps {
   /** 本轮开始时间（毫秒时间戳；流式中用于实时计时，落库后用 snapshot.durationMs）。 */
   startedAt?: number | null
   preview?: string
+  stateKey?: string
+  defaultExpanded?: boolean
 }
 
 function useNowWhileStreaming(streaming: boolean): number {
@@ -34,9 +37,9 @@ function useNowWhileStreaming(streaming: boolean): number {
   return now
 }
 
-export function ThinkingRegion({ snapshot, streaming, startedAt = null, preview }: ThinkingRegionProps) {
+export function ThinkingRegion({ snapshot, streaming, startedAt = null, preview, stateKey = 'reasoning', defaultExpanded = true }: ThinkingRegionProps) {
   const { t } = useI18n('janus')
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useHistoryDisclosure(`thinking:${stateKey}`, defaultExpanded)
   const now = useNowWhileStreaming(streaming)
   if (snapshot.chars === 0) return null
 

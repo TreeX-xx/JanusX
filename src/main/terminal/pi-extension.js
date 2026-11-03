@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import { setTimeout } from 'node:timers'
 import { bridge } from './native-bridge.mjs'
+import { storeConversationImage } from './conversation-images.mjs'
+import { fileURLToPath, URL } from 'node:url'
 
 export default function (pi) {
   let context, turnId = '', assistantId = '', userId = ''
   const link = bridge(async command => {
     if (!context) throw new Error('Pi is starting')
-    if (command.type === 'interrupt') {
+    if (command.type === 'catalog') return pi.getCommands().slice(0, 1000).map(({ name, description, source, sourceInfo }) => ({ name, description, source, sourceInfo }))
+    if (command.type === 'invoke') {
+      if (!context.isIdle() || context.hasPendingMessages()) throw new Error('Pi is busy')
+      const entry = pi.getCommands().find(row => row.name === command.name && row.source === command.source)
+      if (!entry) throw new Error('Pi command changed; refresh the catalog')
+      pi.sendUserMessage('/' + entry.name + (command.arguments ? ' ' + command.arguments : ''), { expandPromptTemplates: true })
+    } else if (command.type === 'interrupt') {
       if (command.turnId !== turnId) throw new Error('Pi turn changed')
       await context.abort()
     } else {
@@ -19,6 +27,16 @@ export default function (pi) {
     if (!msg || !['user', 'assistant', 'toolResult'].includes(msg.role)) return
     const blocks = typeof msg.content === 'string' ? [{ type: 'text', text: msg.content }] : msg.content ?? []
     const base = msg.role === 'user' ? userId : msg.role === 'assistant' ? assistantId : `tool:${msg.toolCallId}`
+    if (done && msg.role !== 'user') {
+      const images = blocks.filter(block => block.type === 'image').slice(0, 8)
+      if (images.length) {
+        const imageTurn = turnId
+        void Promise.all(images.map(async (block, index) => {
+          try { return await storeConversationImage(fileURLToPath(new URL('../images/', import.meta.url)), { data: block.data }) }
+          catch (error) { return { id: `${base}:image:${index}`, status: 'unavailable', error: String(error).slice(0, 300) } }
+        })).then(images => link.emit({ type: 'item', item: { id: `${base}:images`, turnId: imageTurn, type: 'imageOutput', text: '', status: msg.isError ? 'failed' : 'completed', images } }))
+      }
+    }
     const status = done ? (msg.stopReason === 'aborted' ? 'interrupted' : msg.stopReason === 'error' || msg.isError ? 'failed' : 'completed') : 'inProgress'
     if (done && msg.errorMessage) link.emit({ type: 'item', item: { id: `${base}:error`, turnId, type: 'error', text: msg.errorMessage, status: 'failed' } })
     if (msg.role === 'toolResult') {

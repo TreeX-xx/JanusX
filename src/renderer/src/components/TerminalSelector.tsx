@@ -42,7 +42,7 @@ function TerminalOption({ preset, name, busy, onClick, onHover }: TerminalOption
       className={`${styles.card}${busy ? ` ${styles.cardBusy}` : ''}`}
     >
       <span className={styles.iconWrap}>
-        <TerminalPresetIcon preset={preset} className={styles.icon} />
+        <TerminalPresetIcon preset={preset} className={styles.icon} style={preset === 'codex' ? { filter: 'brightness(0) invert(1)' } : undefined} />
       </span>
       <span className={styles.label}>
         {busy ? t('terminal:selector.starting') : name}

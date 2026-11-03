@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-11-02T15:20:05Z",
+  "updated": "2026-11-03T02:06:49Z",
   "moduleState": "partial"
 }
 ---
@@ -56,6 +56,8 @@ OpenCode 双形态按原生新建／查看会话的成功响应和身份回读�
 
 ### 现有终端设计
 
+Windows CLI 启动解析先将 npm shim 展开到存在的同名原生 exe，再按可执行类型排序；同级保留 lookup 顺序，不按路径长度选择。这样 PATH 中靠前的 npm OpenCode 不会被后面的 WinGet exe 抢占；私有安装优先级保持不变。`tests/unit/agent/cli-resolver.test.ts` 覆盖 npm／WinGet 共存与同级路径顺序，相关启动测试共 21 项通过；另一台机器的桌面启动仍待验证。
+
 首次使用的 CLI 新建入口按目标环境检测可运行状态；未安装图标带下载角标，点击进入安装并打开引导，本地安装缺少 Node/npm 时准备私有运行环境，并保留 Node.js LTS 手动安装与重新检测兜底。关闭引导后不会因后台安装完成而自动打开终端。终端管理使用独立眼睛按钮控制显隐，品牌图标不再切换状态。私有目录、npm prefix 隔离和验证边界见 [多 CLI 安装专题](./cc-switch-multi-terminal.md#first-use-setup-and-private-node-runtime)。
 
 Codex 双形态的本机 WebSocket 通信在后端和原生 TUI 两侧都补充 NO_PROXY／no_proxy，合并已有排除项并绕过 loopback；宿主就绪探测与正式 WebSocket 显式直连，避免全局 HTTP 代理 hook 接管内部通道。外部模型访问仍沿用用户代理，不改全局环境。具体传输错误保留，断线不自动重发请求；真实 CLI 与 Electron 代理场景证据见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
@@ -64,11 +66,13 @@ Codex 双形态的本机 WebSocket 通信在后端和原生 TUI 两侧都补充 
 
 新建本地 Claude 共用默认双形态与启动视图偏好，`ClaudeConversation` 管理一个原生 daemon worker 和会话专属 Mods/HTTP bridge，终端是真实 attach；Windows 2.1.316 精确门控。显式发送使用 daemon 语义输入，Mods 提供正文、工具、停止与后台完成状态；原生 Esc 后对话仍可继续。原生 initialize 辅助进程只读模型目录，不发送提示词，禁用 Hook，读取后回收；会话模型／强度由 Mods 与 worker 局部环境应用，原生设置命令撤销覆盖。关闭只停止自有 job 并取消目录读取，不关闭共享 daemon；启动中关闭等待在途创建完成后清理。启动资产保留原 Hook 与 worker 身份，不改全局设置；登录和目录信任先在普通终端完成。设置语义、有限审批、失败降级、共享 daemon 隔离及真实 Electron 验证见双模式专题。
 
-Claude 的主 Agent 任务通过成功的 TaskCreate／TaskUpdate 后读取 TaskList，或 TodoWrite 返回的保存清单，投影到共享执行计划面板。读失败保留并标记最后确认状态，下一有效快照恢复；不从回答文字猜测 todo，不改变用户工具策略。固定版本的真实 CLI 与 Electron 验证及跨轮／历史边界见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
+Claude 的主 Agent 任务通过成功的 TaskCreate／TaskUpdate 后读取 TaskList，或 TodoWrite 返回的保存清单，投影到共享执行计划面板。读失败保留并标记最后确认状态，下一有效快照恢复；不从回答文字猜测 todo，不改变用户工具策略。后台执行完成从原生任务通知投递同步，不依赖终端界面渲染；中断遇到已消失的所选任务正常收尾，真实停止失败仍保留错误。固定版本的真实 CLI 与 Electron 验证及跨轮／历史边界见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 
 终端阅读入口分为状态、设置、外部 CLI 和 Shell 语义；各组可跨模块引用：
 
-新建终端立即显示启动反馈，直到 xterm 实际绘出文字；进程创建与首屏内容就绪分别表达。启动链路只读应用启动时已验证的 OfficeCLI 缓存，不因 Office 能力探测等待；AI 终端的文件基线保留在进程创建之前，采用最多八文件并发、按路径顺序提交与 16 MiB 文本保留上限。分段计时、验证结果和大目录限制见 [turn-history](./terminal-right-island-turn-history.md)。
+本地启动的 CLI／Hook 准备与文件基线并行，全部完成后才创建 Agent；关闭、退出或失败会取消并收完在途扫描。Claude 无提示词的控制子进程立即关闭标准输入，避免原生后台启动等待管道输入；桥接和原生身份核验仍须完成。真实 CLI 对比、回归测试及计时边界见 [turn-history](./terminal-right-island-turn-history.md)。
+
+新建终端立即显示终端风格启动占位（提示符、呼吸光标、淡色文本骨架和细流动线），文案按进程状态区分启动与等待输出，不模拟百分比；动效遵循减少动画偏好，直到 xterm 实际绘出文字后退场；等待期间隐藏空白光标与终端画面，但保持解析、布局和能力回应。进程创建、首屏文字和会话可用分别表达。启动链路只读应用启动时已验证的 OfficeCLI 缓存，不因 Office 能力探测等待；AI 终端的文件基线保留在进程创建之前，采用最多八文件并发、按路径顺序提交与 16 MiB 文本保留上限。分段计时、dev 实测瓶颈、验证结果和大目录限制见 [turn-history](./terminal-right-island-turn-history.md)。
 
 WSL／SSH 新建 Agent 终端在目标 Linux 检测 CLI：已安装直接打开，缺失则在终端内显示“安装并打开”，完成后继续原启动；错误、重试、安装日志及普通 Linux 终端入口保持在同一面板。安装使用目标用户目录，兼容 WSL 登录 PATH／nvm，缺少依赖时按 Linux 架构准备私有 Node，不使用 Windows npm 或 sudo。已启动的安装 worker 和既有 PTY 均不随桌面断开退出；依赖准备阶段仍需桌面连接。实现、真实 Codex/Pi 安装证据和未测边界见[工作区运行时](../sessions/workspace-runtime-import.md)。
 

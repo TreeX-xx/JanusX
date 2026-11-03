@@ -5,6 +5,7 @@ import { dirname, extname, join, delimiter, resolve } from 'node:path'
 import { createServer, request as httpRequest, type Server } from 'node:http'
 import type { Socket } from 'node:net'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
+import type { NativeCatalogEntry } from './conversation-catalog'
 import { NativeConversation, type NativeLaunch } from './native-conversation'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../shared/conversation-display'
 
@@ -50,6 +51,9 @@ export class OpenCodeConversation extends NativeConversation {
     super(id, 'opencode', publish, bind)
     this.state.capabilities.settings = true
     this.state.capabilities.edit = true
+    this.state.capabilities.liveInput = true
+    this.state.capabilities.steer = true
+    this.state.capabilities.commands = true
   }
   start(options: NativeLaunch): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
     if (this.startup || this.disposed) throw new Error('OpenCode session already started')
@@ -58,6 +62,7 @@ export class OpenCodeConversation extends NativeConversation {
   }
   private async launch(options: NativeLaunch): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
     const terminalConfig = openCodeTerminalConfig(options.env.OPENCODE_CLI_CONFIG_CONTENT)
+    this.session.configureImages(join(options.assetsDir, 'images'), options.cwd)
     this.directory = options.cwd
     const binary = process.platform === 'win32' && extname(options.command) !== '.exe'
       ? join(dirname(options.command), 'node_modules/@opencode/cli/bin/opencode.exe') : options.command
@@ -91,7 +96,7 @@ export class OpenCodeConversation extends NativeConversation {
       if (selectsSession && (this.state.mode === 'conversation' || this.state.settingsUpdating || this.state.submitting)) {
         response.writeHead(409).end('JanusX conversation view owns input'); return
       }
-      if (['POST', 'DELETE'].includes(request.method ?? '') && /^\/api\/session\/[^/]+\/(model|prompt|revert)(?:\/|\?|$)/.test(request.url ?? '')
+      if (['POST', 'DELETE'].includes(request.method ?? '') && /^\/api\/session\/[^/]+\/(model|prompt|command|revert)(?:\/|\?|$)/.test(request.url ?? '')
         && (this.state.mode === 'conversation' || this.state.settingsUpdating || this.state.submitting)) {
         response.writeHead(409).end('JanusX conversation view owns input'); return
       }
@@ -235,14 +240,36 @@ export class OpenCodeConversation extends NativeConversation {
     })()
     return this.loadingModels
   }
+  protected override async loadCommands(): Promise<NativeCatalogEntry[]> {
+    const query = '?location[directory]=' + encodeURIComponent(this.directory)
+    let commands: Json, skills: Json
+    // The registry is populated asynchronously after the server starts.
+    for (let attempt = 0; ; attempt++) {
+      ;[commands, skills] = await Promise.all([this.api('/api/command' + query), this.api('/api/skill' + query)])
+      if (!Array.isArray(commands.data) || !Array.isArray(skills.data)) throw new Error('Invalid OpenCode command catalog')
+      if (commands.data.length || skills.data.length || attempt === 3 || this.disposed) break
+      await delay(250)
+    }
+    return [
+      ...commands.data.filter((row: Json) => typeof row.name === 'string').map((row: Json) => ({
+        id: 'command:' + row.name, name: row.name, label: row.name, description: String(row.description ?? '').slice(0, 2000),
+        kind: 'command' as const, source: 'opencode', execution: 'native' as const,
+        invoke: async (args: string) => { await this.api('/api/session/' + encodeURIComponent(this.state.threadId!) + '/command', { name: row.name, text: args }) },
+      })),
+      ...skills.data.filter((row: Json) => typeof row.id === 'string' && typeof row.name === 'string').map((row: Json) => ({
+        id: 'skill:' + row.id, name: row.id, label: row.name, description: String(row.description ?? '').slice(0, 2000),
+        kind: 'skill' as const, source: 'opencode', execution: 'native' as const,
+        invoke: async (args: string) => { await this.api('/api/session/' + encodeURIComponent(this.state.threadId!) + '/prompt', { text: args || row.name, skills: [{ id: row.id }] }) },
+      })),
+    ]
+  }
   override async command(command: ConversationCommand): Promise<ConversationSnapshot> {
     if (!(command.type === 'mode' && command.mode === 'terminal') && (this.nativeSelectionsPending || this.nativeSelectionUncertain)) {
       throw new Error('OpenCode is selecting a session. Finish selecting it in the terminal before using the conversation view.')
     }
     if (this.state.settingsUpdating) throw new Error('Wait for OpenCode settings to finish updating')
     if (command.type !== 'models' && command.type !== 'settings') return super.command(command)
-    if (this.disposed || this.state.connection !== 'ready' || !this.state.threadId) throw new Error('OpenCode session unavailable')
-    if (this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Stale conversation control')
+    this.session.guard(command, this.disposed)
     if (command.type === 'models') { await this.loadModels(); return this.snapshot() }
     if (this.state.submitting || this.state.turnId || this.state.needsTerminal) throw new Error('Wait until OpenCode is idle before changing settings')
     const option = this.state.models.find(model => model.model === command.model)
@@ -250,7 +277,7 @@ export class OpenCodeConversation extends NativeConversation {
     const effort = command.effort ?? 'default'
     if (this.state.modelsLoading || this.state.modelsError || !option || !ref || !option.efforts.some(v => v.effort === effort)) throw new Error('Unsupported OpenCode model or variant')
     this.state.settingsUpdating = true; this.settingsRevision++; this.changed()
-    const path = `/api/session/${encodeURIComponent(this.state.threadId)}`
+    const path = `/api/session/${encodeURIComponent(this.state.threadId!)}`
     try {
       await this.api(`${path}/model`, { model: { ...ref, ...(effort === 'default' ? {} : { variant: effort }) } })
       const session = await this.api(path)
@@ -350,7 +377,10 @@ export class OpenCodeConversation extends NativeConversation {
     try {
       if (command.type === 'interrupt') { await this.api(`${path}/interrupt`, {}); return }
       const before = this.lastUser
-      await this.api(`${path}/prompt`, { text: command.text })
+      await this.api(`${path}/prompt`, { text: command.text, ...(command.turnId ? { delivery: 'steer' } : {}) })
+      // Native inbox admission is durable; consumption can wait for a tool/model
+      // boundary. Polling will replace the pending receipt with the real message.
+      if (command.turnId) return
       for (let i = 0; i < 100 && !this.disposed && this.state.connection === 'ready'; i++) {
         if (this.lastUser !== before && this.state.items.some(item => item.id === this.lastUser && item.text === command.text)) return
         await delay(50)

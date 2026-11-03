@@ -65,12 +65,20 @@ test('the original transcript survives 200 messages and displays earlier pages o
     messages: Array.from({ length: 205 }, (_, index) => ({ id: String(index), role: index % 2 ? 'assistant' : 'user', content: `Archived decision ${index}`, timestamp: index + 1 })),
   }] })))
   await page.goto('/project.html')
+  await page.addStyleTag({ content: '.fixture-layout {display:flex;height:620px} .fixture-layout > section {width:420px;height:620px;min-height:0} .fixture-layout .janus-chat {height:100%}' })
   const chat = page.getByTestId('main-chat')
-  await expect(chat.locator('.janus-chat-message')).toHaveCount(100)
+  await expect(chat.locator('[data-live-tail]')).toContainText('Archived decision 204')
+  await expect.poll(() => chat.locator('.janus-chat-message').count()).toBeLessThan(100)
   await chat.getByRole('button', { name: 'Show earlier messages' }).click()
   await chat.getByRole('button', { name: 'Show earlier messages' }).click()
-  await expect(chat.locator('.janus-chat-message')).toHaveCount(205)
+  await chat.locator('[data-virtual-history]').evaluate(root => {
+    let container = root.parentElement!
+    while (!['auto', 'scroll'].includes(getComputedStyle(container).overflowY)) container = container.parentElement!
+    container.scrollTop = 0
+    container.dispatchEvent(new Event('scroll'))
+  })
   await expect(chat).toContainText('Archived decision 0')
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('project-conversations')!).conversations[0].messages.length)).toBe(205)
 })
 
 test('manual compaction retains transcript and unrecognized models require catalog refresh before both manual limits', async ({ page }) => {

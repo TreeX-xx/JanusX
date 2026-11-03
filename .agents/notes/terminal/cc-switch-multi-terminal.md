@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-11-02T15:32:36Z",
+  "updated": "2026-11-03T03:14:25Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -49,7 +49,7 @@ The terminal matrix covers third-party npm tools but not the two CLIs closest to
 
 ### First-use setup and private Node runtime
 
-Installation and repair badges are anchored inside the bottom-right corner of the entire terminal card, independently of the centered brand icon. The compact new-terminal menu follows the same placement with reserved right padding. The whole card remains the install/launch target; the badge adds no separate action.
+Installation and repair badges are anchored inside the bottom-right corner of the entire terminal card, independently of the centered brand icon. The compact new-terminal menu follows the same placement with reserved right padding. The whole card remains the install/launch target; the badge adds no separate action. Badges use muted 1.5px download/wrench strokes without a circular background or outline. Windows known-location detection includes the home directory `.local/bin` even when it is absent from PATH; PATH matches retain priority.
 
 The xdo closeout adds asynchronous recovery guards: a forced post-install probe waits for an older in-flight probe and then performs a fresh check; a failed external-download-link callback updates only its still-active dialog. The focused suite including `tests/unit/cli-readiness.test.ts` now passes 156 tests (one opt-in network test skipped); the earlier real Windows runtime verification remains applicable.
 

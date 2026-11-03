@@ -11,9 +11,10 @@ let flushing = false
 let currentTurn = null
 const blocked = new Set()
 const executions = new Map()
-const finishedTasks = new Set()
+const finishedTasks = new Map()
 const activeTools = new Map()
 const metaPrompts = new Set()
+let userPrompts = []
 let settings = null
 let originalEffort
 let settingsBusy = false
@@ -63,6 +64,36 @@ function record(type, data) {
   const size = JSON.stringify(event).length
   if (events.length >= 4000 || eventBytes + size > 2000000) { overflow = true; return }
   events.push(event); eventBytes += size
+}
+
+// Completion belongs to the native lifecycle, not transcript visibility.
+// See .agents/notes/workbench/terminal-dialog-dual-mode.md.
+function finishTask(taskId, status, toolUseId) {
+  if (typeof taskId !== 'string' || !['completed', 'failed', 'killed', 'missing'].includes(status)) return
+  if (!finishedTasks.has(taskId) || (finishedTasks.get(taskId) === 'missing' && status !== 'missing')) {
+    finishedTasks.set(taskId, status)
+    if (finishedTasks.size > 1000) finishedTasks.delete(finishedTasks.keys().next().value)
+    record('task.complete', { taskId, toolUseId, status })
+  }
+  for (const [id, tool] of activeTools) if (tool.taskId === taskId || id === toolUseId) activeTools.delete(id)
+}
+
+function observeTaskNotification(e) {
+  if (e.origin.kind !== 'task-notification' || typeof e.text !== 'string') return
+  // The pinned CLI's machine envelope, never an assistant answer or user text.
+  for (const match of e.text.matchAll(/<task-notification>\s*([\s\S]*?)<\/task-notification>/g)) {
+    const envelope = match[1].split('<summary>')[0]
+    const taskId = envelope.match(/<task-id>([\w-]+)<\/task-id>/)?.[1]
+    const status = envelope.match(/<status>(completed|failed|killed)<\/status>/)?.[1]
+    const toolUseId = envelope.match(/<tool-use-id>([\w-]+)<\/tool-use-id>/)?.[1]
+    if (taskId && status) finishTask(taskId, status, toolUseId)
+  }
+}
+
+function taskMissing(error, taskId) {
+  const text = String(error).replace(/^(?:Error:\s*)+/, '').trim()
+  const message = `No task found with ID: ${taskId}`
+  return text === message || text === `<tool_use_error>${message}</tool_use_error>`
 }
 
 async function execute($, command) {
@@ -118,17 +149,33 @@ async function execute($, command) {
         if (toolIds.includes(tool.tool_use_id) && tool.result?.backgroundTaskId) tasks.add(tool.result.backgroundTaskId)
       }
       const stopped = []
+      const settled = []
       for (const taskId of tasks) {
-        const outcome = await $.tool.call({ tool: 'TaskStop', task_id: taskId })
-        if (outcome.deny || outcome.isError) throw new Error(outcome.deny ?? outcome.text ?? 'Task stop failed')
-        stopped.push(taskId)
+        let status = finishedTasks.get(taskId)
+        if (!status) {
+          let outcome
+          try {
+            outcome = await $.tool.call({ tool: 'TaskStop', task_id: taskId })
+          } catch (error) {
+            if (!taskMissing(error, taskId)) throw error
+            status = 'missing'
+          }
+          if (outcome?.deny) throw new Error(outcome.deny)
+          if (outcome?.isError) {
+            if (!taskMissing(outcome.text, taskId)) throw new Error(outcome.text ?? 'Task stop failed')
+            status = 'missing'
+          } else if (!status) { status = 'killed'; stopped.push(taskId) }
+          // Publish each confirmed result even if stopping a later task fails.
+          finishTask(taskId, status)
+        }
+        settled.push({ taskId, status: finishedTasks.get(taskId) })
       }
       const selected = history.flatMap(row => row.toolUses ?? []).filter(tool => toolIds.includes(tool.tool_use_id))
       if (toolIds.some(id => !selected.some(tool => tool.tool_use_id === id && (tool.result || tool.deny || tool.isError)))) {
         throw new Error('Tool termination is unknown. Check the native terminal.')
       }
       for (const id of toolIds) activeTools.delete(id)
-      result = { stopped, history: selected.map(tool => ({ tool_use_id: tool.tool_use_id,
+      result = { stopped, settled, history: selected.map(tool => ({ tool_use_id: tool.tool_use_id,
         result: tool.result ? { backgroundTaskId: tool.result.backgroundTaskId, interrupted: tool.result.interrupted } : undefined,
         deny: tool.deny, isError: tool.isError })) }
     } else throw new Error('Unsupported controller command')
@@ -181,21 +228,29 @@ export function register(on) {
     return { type: 'Box', props: { flexDirection: 'column' }, children: [original,
       { type: 'Text', props: { dimColor: true }, children: [`JanusX session: ${settings.model} · ${settings.effort ?? 'default'} effort (/model or /effort to use native settings)`] }] }
   })
-  on('prompt.submit', ($, e, next) => {
+  on('prompt.submit', async ($, e, next) => {
+    observeTaskNotification(e)
     if (e.isMeta || e.origin.kind === 'task-notification') {
       metaPrompts.add(e.text)
       if (metaPrompts.size > 100) metaPrompts.delete(metaPrompts.values().next().value)
     }
-    return next(e)
+    const prompt = !e.isMeta && e.origin.kind !== 'task-notification' ? { text: e.text } : null
+    if (prompt) {
+      userPrompts.push(prompt)
+      if (userPrompts.length > 100) userPrompts.shift()
+    }
+    try {
+      const result = await next(e)
+      if (result?.drop && prompt) userPrompts = userPrompts.filter(value => value !== prompt)
+      return result
+    } catch (error) {
+      if (prompt) userPrompts = userPrompts.filter(value => value !== prompt)
+      throw error
+    }
   })
   on('ui.render', { component: 'UserMessage' }, ($, e, next) => {
     const task = e.props.task
-    if (task?.id && ['completed', 'failed', 'killed'].includes(task.status) && !finishedTasks.has(task.id)) {
-      finishedTasks.add(task.id)
-      if (finishedTasks.size > 1000) finishedTasks.delete(finishedTasks.values().next().value)
-      record('task.complete', { taskId: task.id, toolUseId: task.toolUseId, status: task.status })
-      for (const [id, tool] of activeTools) if (tool.taskId === task.id || id === task.toolUseId) activeTools.delete(id)
-    }
+    if (task) finishTask(task.id, task.status, task.toolUseId)
     return next(e)
   })
   on('session.start', async ($, e, next) => {
@@ -209,7 +264,8 @@ export function register(on) {
     if (!e.agentId) {
       while (settingsBusy) await $.clock.sleep(20)
       blocked.clear(); currentTurn = e.turnId
-      record('turn.start', { turnId: e.turnId, text: e.text, isMeta: metaPrompts.delete(e.text), model: await $.session.model() })
+      const inputs = userPrompts.map(value => value.text); userPrompts = []
+      record('turn.start', { turnId: e.turnId, text: e.text, inputs, isMeta: metaPrompts.delete(e.text), model: await $.session.model() })
       if (planSource === 'tasks') await refreshTasks($, e.turnId)
       else if (lastTodos?.some(row => row.status !== 'completed')) recordPlan(e.turnId, lastTodos, 'todos')
     }
@@ -249,7 +305,7 @@ export function register(on) {
       command: e.command?.slice(0, 16000), path: e.file_path, old: e.old_string?.slice(0, 16000), text: (e.new_string ?? e.content)?.slice(0, 16000) })
     try {
       const result = await next(e)
-      if (result.result?.backgroundTaskId) activeTools.set(e.tool_use_id, { turnId, taskId: result.result.backgroundTaskId })
+      if (result.result?.backgroundTaskId && !finishedTasks.has(result.result.backgroundTaskId)) activeTools.set(e.tool_use_id, { turnId, taskId: result.result.backgroundTaskId })
       else activeTools.delete(e.tool_use_id)
       record('tool.complete', { turnId, toolUseId: e.tool_use_id, text: result.text?.slice(0, 24000),
         taskId: result.result?.backgroundTaskId, failed: Boolean(result.deny || result.isError) })

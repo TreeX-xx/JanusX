@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { useHistoryDisclosure } from '../chat/VirtualHistory'
 import { Check, ChevronDown, ChevronRight, CircleX, Clock, LoaderCircle, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { ChatToolTraceEntry } from '../../../../shared/ipc/llm'
 import { useI18n } from '@/i18n/useI18n'
@@ -46,7 +47,7 @@ function formatDuration(entry: ChatToolTraceEntry): number | null {
 
 export function ToolCallCard({ entry, workspaceNames, defaultExpanded = false }: ToolCallCardProps) {
   const { t } = useI18n('janus')
-  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [expanded, setExpanded] = useHistoryDisclosure(`tool:${entry.callId}`, defaultExpanded)
   const [copied, setCopied] = useState(false)
   const statusLabels = {
     requested: t('janus:chat.tool.status.requested'),
@@ -178,7 +179,7 @@ export interface ToolCallGroupProps {
 
 export function ToolCallGroup({ entries, workspaceNames, defaultExpanded = false, collapsible = false }: ToolCallGroupProps) {
   const { t } = useI18n('janus')
-  const [groupExpanded, setGroupExpanded] = useState(defaultExpanded)
+  const [groupExpanded, setGroupExpanded] = useHistoryDisclosure(`tools:${entries[0]?.callId}`, defaultExpanded)
   if (entries.length === 0) return null
   const summary = summarizeToolCallGroup(entries)
   const showCards = !collapsible || groupExpanded

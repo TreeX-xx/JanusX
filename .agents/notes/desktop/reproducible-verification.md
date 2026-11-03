@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-10-30T12:21:00Z",
+  "updated": "2026-11-02T16:44:17Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -160,3 +160,5 @@ The local 0.9.4 Windows x64 installer and Blueprint 1.0.0 JXP are built under re
 The complete unit run records 473 passing files, six failing files and eight skipped files: 4221 tests passed, eight failed and 69 skipped. One suite cannot load its old blueprint-review-settings path; four architect parsing cases use the removed HarnessNoteService.projectView fixture API; the native review cancellation case times out; Sidebar native title and terminal drawer structural checks fail; the Notes gate reports the two existing entrance-choreography requirement errors. These are delivery limitations, not a passing full-suite claim. Strict unused typecheck, application build and source package boundary checks passed. Detailed logs are in artifacts/delivery-2026-10-26; final runtime results and artifact hashes are stored with that delivery.
 
 Final October 26 package verification passed: payload 181.6 MiB and unpacked native files 12.3 MiB; repository-external LLM adapters, complete module graph and real visible GUI all passed with native GPU launch enabled. The updated source boundary tests pass all 13 cases. `node scripts/check-packaged-runtime.mjs --release-dir release/2026-10-26` records the result in artifacts/delivery-2026-10-26/packaged-runtime.log.
+
+Conversation coverage keeps provider protocol unit tests and real CLI integration tests separate: similar user scenarios exercise different boundaries. The three provider CLI suites already belong to integration. The conversation browser suite is split by startup, native plans, motion and settings while preserving its 36 cases. Real bounded file capture (including both scheduling modes at the 16 MiB retention boundary) belongs to integration in `turn-file-capture.test.ts`; tracker lifecycle tests remain in unit. The pre-split local run spent 27.4 seconds of its 29.5 seconds on the two capacity cases. Splitting preserves coverage and reduces default unit cost; it does not reduce full acceptance work.

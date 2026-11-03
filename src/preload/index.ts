@@ -119,6 +119,7 @@ const fileTreeAPI: FileTreeAPI = {
 }
 
 const fileAPI: FileAPI = {
+  importConversationAttachment: (name, bytes) => ipcRenderer.invoke(FILE_CHANNELS.importConversationAttachment, name, bytes),
   read: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.read, filePath),
     save: (filePath, content, expectedVersion) => expectedVersion === undefined
       ? ipcRenderer.invoke(FILE_CHANNELS.save, filePath, content)
@@ -139,6 +140,8 @@ function subscribeIpcEvent<T>(channel: string, callback: (event: T) => void): ()
 
 const terminalAPI: TerminalAPI = {
   conversation: (id) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.conversation, { id }),
+  saveConversationImage: (id, itemId, imageId) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.saveConversationImage, { id, itemId, imageId }),
+  inputHistory: (id) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.inputHistory, { id }),
   conversationCommand: (id, command) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.conversationCommand, { id, command }),
   onConversation: (callback) => subscribeIpcEvent(TERMINAL_EVENT_CHANNELS.conversation, callback),
   warmup: (request) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.warmup, request),

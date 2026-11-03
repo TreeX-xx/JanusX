@@ -6,6 +6,63 @@ import { hookCliFixture } from '../helpers/hook-cli-fixture'
 import { seedIntroducedLearning } from './desktop-test-env'
 
 test.skip(!process.env.JANUSX_TEST_CODEX_BIN || process.platform !== 'win32', 'Requires the explicitly selected local Codex binary')
+test('conversation-first startup completes folder and hook authorization in dialogs with real IPC', async () => {
+  const fixture = await hookCliFixture()
+  let application: ElectronApplication | undefined
+  try {
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      '[analytics]', 'enabled=false', '[feedback]', 'enabled=false',
+    ].join('\n'))
+    const env = { ...fixture.env, NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(fixture.root, 'knowledge') }
+    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
+    env[pathKey] = `${dirname(process.env.JANUSX_TEST_CODEX_BIN!)};${env[pathKey] ?? ''}`
+    application = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${join(fixture.root, 'profile')}`], env })
+    const page = await application.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await seedIntroducedLearning(page)
+    await page.evaluate(async cwd => {
+      const api = (window as any).electron
+      await api.system.setLanguage('en')
+      localStorage.setItem('janusx-conversation-launch', JSON.stringify({ version: 1, state: { initialView: 'conversation' } }))
+      const workspace = await api.workspace.create({ name: 'Startup dialog fixture', path: cwd })
+      await api.workspace.load(workspace.id)
+    }, fixture.cwd)
+    await page.reload()
+    await page.locator('.ws').filter({ hasText: 'Startup dialog fixture' }).first().click()
+    await page.getByRole('button', { name: 'Codex', exact: true }).click()
+    const host = page.locator('[data-agent-session]')
+    await expect(host).toBeVisible()
+    const trust = page.getByRole('region', { name: 'Trust this folder?' })
+    await expect(trust).toBeVisible({ timeout: 25000 })
+    await expect(host.locator('.xterm')).toBeHidden()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await host.getByRole('combobox').fill('Draft')
+    await host.getByRole('combobox').press('Control+j')
+    await expect(host.getByRole('combobox')).toHaveValue('Draft\n')
+    await expect(host.getByRole('combobox')).toHaveAttribute('spellcheck', 'false')
+    await trust.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await host.getByRole('combobox').fill('DESKTOP_STARTUP_DRAFT')
+    await host.getByRole('button', { name: 'Continue setup' }).click()
+    await trust.getByRole('button', { name: 'Trust and continue' }).click()
+    const hooks = page.getByRole('region', { name: 'Allow these startup hooks?' })
+    await expect(hooks).toBeVisible({ timeout: 20000 })
+    await hooks.locator('summary').first().click()
+    await expect(hooks.locator('pre').first()).toBeVisible()
+    await page.screenshot({ path: 'artifacts/codex-startup/desktop-hooks-inline.png' })
+    await hooks.getByRole('button', { name: 'Trust and continue' }).click()
+    await expect(hooks).toHaveCount(0)
+    const id = await host.getAttribute('data-agent-session')
+    await expect.poll(() => page.evaluate(async id => (await (window as any).electron.terminal.conversation(id))?.connection, id), { timeout: 20000 }).toBe('ready')
+    await expect(host.locator('.xterm')).toBeHidden()
+    await expect(host.getByRole('combobox')).toHaveValue('DESKTOP_STARTUP_DRAFT')
+    await host.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect.poll(() => page.evaluate(async id => (await (window as any).electron.terminal.conversation(id))?.items.some((item: any) => item.type === 'agentMessage' && item.status === 'completed'), id), { timeout: 20000 }).toBe(true)
+    await page.screenshot({ path: 'artifacts/codex-startup/desktop-ready.png' })
+  } finally { await application?.close(); await fixture.close() }
+})
+
 test('new dual-mode entry uses real preload, IPC, native TUI and one thread through view switches', async () => {
   const fixture = await hookCliFixture()
   const proxyRequests: string[] = []
