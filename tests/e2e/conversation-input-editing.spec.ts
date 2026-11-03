@@ -1,5 +1,54 @@
 import { expect, test, type Locator } from '@playwright/test'
 
+for (const entry of ['typing', 'paste']) test(`placeholder follows the whole draft after ${entry}, deleting a second line, clearing and undoing`, async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  const placeholder = JSON.stringify(await input.getAttribute('data-placeholder'))
+  const before = () => input.evaluate(el => getComputedStyle(el, '::before').content)
+  await expect.poll(before).toBe(placeholder)
+  if (entry === 'typing') {
+    await input.fill('第一行仍有内容')
+    await input.press('Shift+Enter')
+    await input.pressSequentially('second')
+  } else {
+    await input.focus()
+    await input.evaluate(el => {
+      const data = new DataTransfer(); data.setData('text/plain', '第一行仍有内容\nsecond')
+      el.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }))
+    })
+  }
+  for (let index = 0; index < 6; index++) await input.press('Backspace')
+  await expect.poll(before).toBe('none')
+  await input.press('Backspace')
+  await expect(input).toHaveText('第一行仍有内容')
+  await expect.poll(before).toBe('none')
+  await input.press('Control+a')
+  await input.press('Backspace')
+  await expect.poll(before).toBe(placeholder)
+  await input.press('Control+z')
+  await expect(input).toHaveText('第一行仍有内容')
+  await expect.poll(before).toBe('none')
+  await page.getByRole('button', { name: 'Remount', exact: true }).click()
+  await expect.poll(before).toBe('none')
+  await input.press('Enter')
+  await expect(input).toHaveText('')
+  await expect.poll(before).toBe(placeholder)
+})
+
+test('placeholder stays hidden while composing text before the draft is published', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.focus()
+  await input.evaluate(el => {
+    el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    document.execCommand('insertText', false, '正在输入')
+  })
+  await expect.poll(() => input.evaluate(el => getComputedStyle(el, '::before').content)).toBe('none')
+  await input.evaluate(el => el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '正在输入' })))
+  await input.press('Enter')
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['正在输入'])
+})
+
 async function caretTop(input: Locator): Promise<number> {
   return input.evaluate(() => {
     const range = getSelection()!.getRangeAt(0).cloneRange()

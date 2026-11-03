@@ -136,11 +136,15 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
       if (!line) block.replaceChildren(document.createElement('br'))
       return block
     })))
+    editor.dataset.inputEmpty = String(text.length === 0)
   }
   const publish = () => {
-    if (!root.current || composing.current) return
-    remember()
+    if (!root.current) return
     const text = read(root.current)
+    // CSS :only-child ignores text nodes; use the whole draft, including IME text.
+    root.current.dataset.inputEmpty = String(text.length === 0)
+    if (composing.current) return
+    remember()
     if (text.length > 32000) { restore(root.current, latest.current.value); select(root.current, latest.current.value.length, latest.current.value.length); return }
     latest.current.value = text
     latest.current.onChange(text)
@@ -167,7 +171,10 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   }))
   useLayoutEffect(() => {
     const editor = root.current
-    if (!editor || composing.current || read(editor) === value) return
+    if (!editor) return
+    const text = read(editor)
+    editor.dataset.inputEmpty = String(text.length === 0)
+    if (composing.current || text === value) return
     const focused = editor.contains(document.activeElement)
     const position = offsets(editor) ?? caret.current
     restore(editor, value)
