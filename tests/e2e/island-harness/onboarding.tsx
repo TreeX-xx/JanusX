@@ -21,7 +21,7 @@ let hasWorkspace = params.has('existing') || localStorage.getItem('fixture:intro
 const state = { creates: 0, cancel: params.has('cancel'), failTerminal: params.has('failTerminal'), failRead: params.has('failRead') }
 const viewed = new Set<(payload: { filePath: string; workspacePath: string }) => void>()
 Object.assign(window.electron.system, { getLanguage: async () => params.has('en') ? 'en' : 'zh-CN', setLanguage: async () => {}, getDefaultShell: async () => 'powershell.exe' })
-Object.assign(window.electron.theme, { get: async () => params.get('theme') === 'dark' ? 'dark' : 'planche' })
+Object.assign(window.electron.theme, { get: async () => params.get('theme') ?? 'planche' })
 Object.assign(window.electron.experimental, { get: async () => ({ blueprint: false, persona: false, teamCollab: params.has('team') }) })
 Object.assign(window.electron.workspace, {
   initialize: async () => ({ workspaces: hasWorkspace ? [workspace] : [], activeWorkspaceId: hasWorkspace ? workspace.id : null, loadState: hasWorkspace ? 'no-terminal' : 'no-workspace' }),

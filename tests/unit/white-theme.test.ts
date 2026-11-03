@@ -40,6 +40,9 @@ describe('white theme', () => {
       }
     }
     expect(contrast(tokens['on-accent'], tokens['shell-accent'])).toBeGreaterThanOrEqual(4.5)
+    for (const level of ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']) {
+      expect(contrast(tokens[`effort-${level}-color`], tokens['shell-canvas']), level).toBeGreaterThanOrEqual(4.5)
+    }
   })
 
   it('provides readable ANSI colors and answers terminal background probes as white', () => {

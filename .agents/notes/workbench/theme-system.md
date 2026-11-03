@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-11-03",
-  "updated": "2026-11-03T09:47:59Z",
+  "updated": "2026-11-03T12:05:47.716Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -38,7 +38,7 @@ SDK 额外携带一份生成 CSS，因此主题变动需要更新 SDK 生成物�
 
 ## 审计与验证
 
-审计覆盖 renderer 与 Blueprint、Docker、CPA 的 UI 源码。历史预算目前仅保留 1,126 处既有主题选择器；绘制颜色及失效变量不再占历史预算。14 处固定色例外保留平台按钮、二维码、文档及导出 HTML 的独立语义；CSS 选择器中的 SVG 色值只用于匹配，不作为绘制颜色。静态扫描仍不等于级联或全部界面无障碍证明。
+审计覆盖 renderer、公共 UI 包与 Blueprint、Docker、CPA 的 UI 源码。历史预算目前仅保留 1,063 处既有主题选择器；绘制颜色及失效变量不再占历史预算。14 处固定色例外保留平台按钮、二维码、文档及导出 HTML 的独立语义；CSS 选择器中的 SVG 色值只用于匹配，不作为绘制颜色。静态扫描仍不等于级联或全部界面无障碍证明。
 
 相关 15 个单测文件共 178 项通过，运行时变量补齐后另复跑注册、白色主题及插件调色板 34 项通过。`tests/unit/white-theme.test.ts` 检查主要文字与状态的对比度、ANSI palette、运行时主题清理和 SDK 一致性。浏览器共 31 项通过，覆盖设置选择、portal 下拉、实时切换、三个 Island 视图、真实 Blueprint 节点及三种主题的 640／900／1440 像素设置布局；检查过的主要截图在 `artifacts/white-theme/visual-final/`。这些场景使用真实组件与测试 IPC，不代表真实模型、容器执行或完整 Electron 安装包验收。
 
@@ -46,6 +46,10 @@ SDK 额外携带一份生成 CSS，因此主题变动需要更新 SDK 生成物�
 
 后续覆盖检查补充了白色主题浏览器场景：终端／文件图标实时切换、Git 边框、备忘录与输入提示对比度、Markdown 阅读面、设置／用量品牌入口，以及与系统明暗相反的 CPA／Docker 原生控件。`white-theme.spec.ts` 共 9 项通过，设置布局、终端管理与用量另有 25 项通过；主题相关 5 个单测文件共 57 项通过。截图检查覆盖设置、侧栏、用量、备忘录、对话及编辑预览，证据在 `artifacts/white-theme/recheck/`，不代表全部交互状态的无障碍验收。CPA／Docker 的本轮新增验证使用实际插件 CSS 与浏览器原生控件，未重跑真实容器或 CPA 服务端业务。
 
-应用生产构建、类型、i18n、主题审计和三个官方插件的独立构建均完成验证。Blueprint 独立构建使用更新锁模式验证当前公开归档；本机相邻 janus-agentX 的四个归档已有字节漂移，最终分支只保留本次 SDK 的归档锁更新，不重钉无关依赖。严格按原锁复现仍受该外部状态限制。文档校验为 0 错误、17 条既有外部链接诊断；lint 为 0 错误、51 条既有中文直写警告。完整桌面安装包回归未执行。
+应用生产构建、类型、i18n、主题审计和三个官方插件的独立构建均完成验证。Blueprint 独立构建使用更新锁模式验证当前公开归档；本机相邻 janus-agentX 的四个归档已有字节漂移，当时只保留 SDK 的归档锁更新，不重钉无关依赖。严格按原锁复现仍受该外部状态限制。文档校验为 0 错误、17 条既有外部链接诊断；lint 为 0 错误、51 条既有中文直写警告。完整桌面安装包回归未执行。
 
-? dev ? Git ??????????????????? 11 ?????? 109 ????? Git ????????14 ?????????????`JANUS_E2E_PORT=23818 npx playwright test tests/e2e/white-theme.spec.ts tests/e2e/git-workbench.spec.ts tests/e2e/workspace-transition.spec.ts tests/e2e/conversation-questions.spec.ts --project=island --workers=1 --timeout=60000` ? 35 ??????? `artifacts/white-theme/merge-browser-results/`?????? Git ?????????????? worktree ????????????????????? dev ? `artifacts/white-theme/retained/`???????????????
+与 dev 的 Git 面板、工作区切换和对话问答整合后，相关 11 个单测文件共 109 项通过；旧 Git 样式断言更新后，14 项石板主题用例单独复跑。白色主题、Git 工作台、工作区切换和问答卡片的 35 项浏览器回归通过，截图在 `artifacts/white-theme/merge-browser-results/`。旧 worktree 的其他插件截图与临时开发配置保留到 dev 的 `artifacts/white-theme/retained/`，主题验证目录保留原相对路径。
+
+共享设置控件迁入 `@janusx/ui` 后，主题审计同时覆盖 `packages/ui/src`；公共控件、菜单阴影与图标底板只读取宿主／SDK 的主题变量，不另设暗色兜底。蓝图的中性图标及 Codex 滤镜由图标组件管理，避免控件样式迁移后丢失。推理强度保持 dev 的六档色相与原生设置确认行为，文字、辉光、高光和彩色装饰统一归入 `effort-*` 令牌，浅色使用更深的文字与边界色。手机远控沿用新增右栏入口；二维码的固定白色扫描底板属于既有例外，随文件迁移更新审计路径。
+
+本轮与 dev 的共享设置、模型用量、手机远控和推理强度改动整合后，7 个单测文件共 91 项通过；`white-theme`、`settings-controls`、`settings-layout`、`conversation-settings`、`usage-stats` 和 `mobile-remote-rail` 共 49 项浏览器回归通过。签名蓝图插件的 Electron 综合场景再次通过，包含主题切换、MCP 图标、设置、讨论与重装数据保留。类型检查、应用生产构建、主题及 i18n 检查、蓝图独立类型检查和 CPA／Docker 构建通过；lint 仍为 0 错误、51 条既有警告。新截图与日志在 `artifacts/white-theme/dev-adapt-*`，真实插件及推理强度截图在保留资料的 `final-integration/artifacts/` 下。已复核纯白 MCP、推理强度与共享设置界面。SDK 与公共 UI 归档锁随本次修改更新；未重跑外部 janus-agentX 归档的严格复现或完整安装包验收。

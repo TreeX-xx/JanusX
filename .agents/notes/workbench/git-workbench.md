@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-11-03",
-  "updated": "2026-11-03T09:47:59Z",
+  "updated": "2026-11-03T12:01:49.140Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -50,4 +50,4 @@ Git 面板保留工具区的 340–520px 宽度约束，采用常驻仓库栏和
 
 下拉和中性控件调整后，Git 八项浏览器回归、类型检查、修改源码范围的 ESLint 与 Notes 检查通过；回归补充 JanusX 下拉键盘选择、Escape 关闭和切换视图关闭浮层。深色／纸色 340px 两项复跑将截图保存到 `artifacts/git-controls-neutral/`，已人工复核展开菜单、启用的提交按钮、输入框焦点及同步确认弹窗，均无橙色操作强调。
 
-???????? 340?520px ? Git ???`git-workbench.spec.ts` ????????? 10 ????????? `artifacts/white-theme/merge-browser-results/`??????????????????????????
+白色主题整合补充 340／520px 的 Git 场景；`git-workbench.spec.ts` 的三种主题及交互共 10 项通过，截图保留于 `artifacts/white-theme/merge-browser-results/`。主题审计覆盖提交图和摘要阴影，均无新增固定绘制色。

@@ -7,12 +7,13 @@ async function settings(page: Page) {
   return dialog
 }
 
-for (const theme of ['dark', 'planche']) test(`mobile remote is enabled in settings and stays at the bottom of the rail in ${theme}`, async ({ page }) => {
+for (const theme of ['dark', 'planche', 'white']) test(`mobile remote is enabled in settings and stays at the bottom of the rail in ${theme}`, async ({ page }) => {
   test.setTimeout(60000)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto(`/onboarding.html?existing&remote&theme=${theme}`)
   await expect(page.locator('[data-onboarding="shell"]')).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
   const main = page.locator('[class*="workbenchGrid"] > main')
   const trigger = page.locator('[data-mobile-remote]')
   await expect(trigger).toHaveCount(0)

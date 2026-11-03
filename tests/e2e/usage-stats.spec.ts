@@ -38,7 +38,7 @@ test('model details distinguish engines, switched models, missing cache and prec
 })
 
 test('model details fit narrow panes and English labels in both themes', async ({ page }) => {
-  for (const theme of ['planche', 'dark']) {
+  for (const theme of ['planche', 'dark', 'white']) {
     await page.setViewportSize({ width: 480, height: 900 })
     await page.goto(`/usage.html?detail=yes&theme=${theme}&lang=en`)
     const table = page.getByRole('table', { name: 'Model usage breakdown' })
@@ -157,7 +157,7 @@ test('usage layout fits a narrow settings pane', async ({ page }) => {
 
 test('usage categories stay distinct and input/output colors match their ratio bar', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 850 })
-  for (const theme of ['planche', 'dark']) {
+  for (const theme of ['planche', 'dark', 'white']) {
     await page.goto(`/usage.html?theme=${theme}&mix=all`)
     await expect(page.getByTestId('usage-total')).toHaveText('25ktokens')
     const colors = await page.getByTestId('usage-summary').locator('svg').first().locator('circle').evaluateAll(circles => circles.slice(1).map(circle => getComputedStyle(circle).stroke))

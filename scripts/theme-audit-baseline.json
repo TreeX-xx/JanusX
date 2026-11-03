@@ -56,13 +56,13 @@
       "reason": "HTML/Office document canvas keeps its own page colors; only application chrome follows the theme."
     },
     {
-      "path": "src/renderer/src/components/StatusBar.module.css",
+      "path": "src/renderer/src/components/MobileRemoteControl.module.css",
       "key": "literal-color:#fff",
       "count": 1,
       "reason": "The pairing QR quiet zone keeps a theme-independent light backing for camera scan contrast."
     },
     {
-      "path": "src/renderer/src/components/StatusBar.module.css",
+      "path": "src/renderer/src/components/MobileRemoteControl.module.css",
       "key": "literal-color:#525252",
       "count": 1,
       "reason": "The QR loading label stays readable against the fixed white scanning surface in both light and dark themes."
@@ -82,7 +82,7 @@
   ],
   "legacy": {
     "src/renderer/src/components/AppSettingsModal.module.css": {
-      "theme-selector:planche": 23
+      "theme-selector:planche": 13
     },
     "src/renderer/src/components/janus/styles/13-janus-planche.css": {
       "theme-selector:planche": 477
@@ -100,13 +100,10 @@
       "theme-selector:planche": 3
     },
     "src/renderer/src/components/ModelCatalogPanel.module.css": {
-      "theme-selector:planche": 12
+      "theme-selector:planche": 7
     },
     "src/renderer/src/components/note/QuickNote.module.css": {
       "theme-selector:planche": 3
-    },
-    "src/renderer/src/components/NotificationSettingsPanel.module.css": {
-      "theme-selector:planche": 10
     },
     "src/renderer/src/components/ProjectConfigForm/QuickConfigForm.module.css": {
       "theme-selector:planche": 6
@@ -135,9 +132,6 @@
     "src/renderer/src/components/TurnChangeIsland.css": {
       "theme-selector:planche": 2
     },
-    "src/renderer/src/components/ui/Select.module.css": {
-      "theme-selector:planche": 13
-    },
     "src/renderer/src/components/ui/ThemedTooltip.module.css": {
       "theme-selector:planche": 2
     },
@@ -154,16 +148,10 @@
       "theme-selector:planche": 314
     },
     "plugins/blueprint/src/ui/BlueprintSettingsPanel.module.css": {
-      "theme-selector:planche": 3
+      "theme-selector:planche": 1
     },
     "plugins/blueprint/src/ui/note-wiki.css": {
       "theme-selector:planche": 22
-    },
-    "plugins/blueprint/src/ui/Select.module.css": {
-      "theme-selector:planche": 13
-    },
-    "plugins/cpa/src/ui/forms.module.css": {
-      "theme-selector:planche": 10
     }
   }
 }

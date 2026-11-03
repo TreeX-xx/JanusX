@@ -8,6 +8,11 @@ export function effortVisualLevel(effort?: string | null): number | undefined {
   return effort && Object.hasOwn(levels, effort) ? levels[effort] : undefined
 }
 
+/** Shared by the picker, persistent control and activation, including native snapshot updates. */
+export function effortToneClass(effort?: string | null): string {
+  return effort === 'minimal' ? styles.toneMinimal : styles[`tone${effortVisualLevel(effort) ?? 0}`]
+}
+
 export function EffortGlyph({ effort }: { effort?: string | null }) {
   const level = effortVisualLevel(effort)
   return <svg className={styles.glyph} width="18" height="16" viewBox="0 0 18 16" aria-hidden="true" data-effort={effort ?? 'unknown'}>
@@ -30,7 +35,7 @@ export function EffortActivation({ effort, label, status, suppressed }: { effort
   }, [duration])
   useEffect(() => { if (suppressed) setVisible(false) }, [suppressed])
   if (!visible || suppressed) return null
-  return <div className={styles.activation} data-effort-activation={effort ?? 'default'} data-activation-kind={kinds[tier]}
+  return <div className={`${styles.activation} ${effortToneClass(effort)}`} data-effort-activation={effort ?? 'default'} data-activation-kind={kinds[tier]}
     style={{ '--activation-duration': `${duration}ms` } as CSSProperties} role="status">
     <span className={styles.announcement}>{status}: {label}</span>
     <span className={styles.surface} data-effort-surface="" aria-hidden="true" />

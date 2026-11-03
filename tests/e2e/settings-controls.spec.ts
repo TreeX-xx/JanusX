@@ -17,12 +17,13 @@ test('settings select supports keyboard selection and Escape without closing set
   await expect(page.getByRole('dialog')).toBeVisible()
 })
 
-for (const theme of ['dark', 'planche']) {
+for (const theme of ['dark', 'planche', 'white']) {
   for (const plugin of ['blueprint', 'cpa']) {
     test(`${plugin} settings share neutral controls and fit ${theme}`, async ({ page }) => {
       await page.setViewportSize({ width: 650, height: 900 })
       await page.goto(`/settings-plugins.html?plugin=${plugin}&theme=${theme}`)
       const frame = page.frameLocator('iframe')
+      await expect(frame.locator('html')).toHaveAttribute('data-theme', theme)
       await expect(frame.locator('[data-jx-control="checkbox"]').first()).toBeVisible()
       if (plugin === 'blueprint') {
         const provider = frame.locator('[data-jx-control="select"]').first()
@@ -30,6 +31,7 @@ for (const theme of ['dark', 'planche']) {
         await frame.getByRole('option', { name: 'Local provider', exact: true }).click()
         await expect(provider).toContainText('Local provider')
         const codex = frame.getByRole('group', { name: 'Codex', exact: true })
+        await expect(codex.locator('img')).toHaveCSS('filter', theme === 'dark' ? 'invert(1)' : 'none')
         const install = codex.getByRole('button').first()
         const colors = await install.evaluate(node => {
           const probe = document.createElement('span'); probe.style.color = 'var(--shell-text)'; node.append(probe)

@@ -15,5 +15,5 @@ export function CliIcon({ client }: { client: string }) {
       <path d="M152 48V152" stroke="var(--shell-accent)" />
     </svg>
   )
-  return <img src={EXTERNAL_CLI_TOOL_ICONS[client === 'claude-code' ? 'claude' : client]} alt="" draggable={false} />
+  return <img src={EXTERNAL_CLI_TOOL_ICONS[client === 'claude-code' ? 'claude' : client]} alt="" draggable={false} style={client === 'codex' ? { filter: 'var(--sidebar-codex-filter)' } : undefined} />
 }

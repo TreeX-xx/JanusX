@@ -6,7 +6,7 @@ import ts from 'typescript'
 import postcss from 'postcss'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const roots = ['src/renderer/src', 'plugins/blueprint/src/ui', 'plugins/docker/src/ui', 'plugins/cpa/src/ui']
+const roots = ['src/renderer/src', 'packages/ui/src', 'plugins/blueprint/src/ui', 'plugins/docker/src/ui', 'plugins/cpa/src/ui']
 const generated = new Set(['src/renderer/src/styles/themes.generated.css', 'packages/plugin-sdk/theme.css'])
 
 function filesIn(directory) {
