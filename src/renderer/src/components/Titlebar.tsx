@@ -26,6 +26,7 @@ import { useWorkflowXDetection } from './janus/useWorkflowXDetection'
 import { useI18n } from '@/i18n/useI18n'
 import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginAuthorizationTarget, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { extensionRegistry, isExtensionViewId } from '@/extensions/registry'
+import { LOCAL_INTEGRATIONS_EVENT } from './local-integrations-navigation'
 
 /* ════════════════════════════════════════════════════════════
    Titlebar �?标题栏（简化版�?
@@ -49,6 +50,16 @@ export function Titlebar() {
   islandPinnedRef.current = islandPinned
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
+  const [integrationWorkspaceId, setIntegrationWorkspaceId] = useState<string>()
+  useEffect(() => {
+    const open = (event: Event) => {
+      const id: unknown = (event as CustomEvent).detail
+      if (typeof id !== 'string' || !useWorkspaceStore.getState().workspaces.some(workspace => workspace.id === id)) return
+      setIntegrationWorkspaceId(id); setSettingsInitialTab('integrations'); setSettingsModalOpen(true)
+    }
+    window.addEventListener(LOCAL_INTEGRATIONS_EVENT, open)
+    return () => window.removeEventListener(LOCAL_INTEGRATIONS_EVENT, open)
+  }, [])
   const [pluginConfiguration, setPluginConfiguration] = useState<PluginConfigurationTarget | null>(null)
   const [pluginAuthorization, setPluginAuthorization] = useState<PluginAuthorizationTarget | null>(null)
   useEffect(() => {
@@ -254,6 +265,7 @@ export function Titlebar() {
         isOpen={settingsModalOpen}
         onClose={() => { setSettingsModalOpen(false); setPluginConfiguration(null); setPluginAuthorization(null) }}
         initialTab={settingsInitialTab}
+        initialIntegrationWorkspaceId={settingsInitialTab === 'integrations' ? integrationWorkspaceId : undefined}
         pluginConfiguration={pluginConfiguration}
         pluginAuthorization={pluginAuthorization}
       />

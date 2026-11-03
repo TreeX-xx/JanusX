@@ -44,6 +44,7 @@ import { MEMO_CHANNELS, type MemoAPI } from '../shared/ipc/memo'
 import { HARNESS_COMMAND_CHANNELS, HARNESS_EVENT_CHANNELS, type HarnessAPI } from '../shared/ipc/harness'
 import { ROUNDTABLE_CHANNELS, type RoundtableAPI } from '../shared/ipc/roundtable'
 import { AGENT_SETTINGS_CHANNELS, NOTIFICATION_SETTINGS_CHANNELS, type AgentSettingsAPI, type NotificationSettingsAPI } from '../shared/ipc/settings'
+import { LOCAL_INTEGRATION_CHANNELS, type LocalIntegrationsAPI } from '../shared/local-integrations'
 import { EXPERIMENTAL_CHANNELS, type ExperimentalAPI } from '../shared/ipc/experimental'
 import { THEME_CHANNELS, type AppTheme, type ThemeAPI } from '../shared/ipc/theme'
 import { SYSTEM_CHANNELS, type DesktopToastAPI, type DialogAPI, type SystemAPI, type WindowAPI } from '../shared/ipc/system'
@@ -491,6 +492,14 @@ const agentSettingsAPI: AgentSettingsAPI = {
   update: (settings) => ipcRenderer.invoke(AGENT_SETTINGS_CHANNELS.update, settings),
 }
 
+const localIntegrationsAPI: LocalIntegrationsAPI = {
+  scan: query => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.scan, query),
+  read: (query, id) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.read, query, id),
+  save: input => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.save, input),
+  reveal: (query, id) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.reveal, query, id),
+  probe: (query, id, revision) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.probe, query, id, revision),
+}
+
 const experimentalAPI: ExperimentalAPI = {
   get: () => ipcRenderer.invoke(EXPERIMENTAL_CHANNELS.get),
   update: (settings) => ipcRenderer.invoke(EXPERIMENTAL_CHANNELS.update, settings),
@@ -709,6 +718,7 @@ contextBridge.exposeInMainWorld('electron', {
   git: gitAPI,
   notificationSettings: notificationSettingsAPI,
   agentSettings: agentSettingsAPI,
+  localIntegrations: localIntegrationsAPI,
   experimental: experimentalAPI,
   theme: themeAPI,
   updater: updaterAPI,

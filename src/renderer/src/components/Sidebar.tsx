@@ -7,6 +7,7 @@ import { EMPTY_PENDING_LIST, EMPTY_STRING_LIST, EMPTY_WORKTREE_LIST, useWorktree
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
 import { ProjectLauncher } from './ProjectLauncher'
+import { openLocalIntegrations } from './local-integrations-navigation'
 import { WorkspaceUnavailableNotice, relocateWorkspaceData } from './WorkspaceDataPanel'
 import { WorktreeComposer, WorktreeDeleteDialog, WorktreeShipDialog } from './WorktreeDialogs'
 import { ModalCloseButton } from './ModalCloseButton'
@@ -67,6 +68,7 @@ interface WorkspaceContextMenuProps {
   onClearGroup: (groupId: string) => void
   onDelete: (workspace: Workspace) => void
   onRelocate: (workspace: Workspace) => void
+  onIntegrations: (workspace: Workspace) => void
 }
 
 // Expanded rows reveal a fixed-slot ⋯ on hover/focus; names do not move.
@@ -80,6 +82,7 @@ function WorkspaceContextMenu({
   onClearGroup,
   onDelete,
   onRelocate,
+  onIntegrations,
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n('common')
   const menuRef = useRef<HTMLDivElement>(null)
@@ -125,6 +128,7 @@ function WorkspaceContextMenu({
           <button type="button" className={itemClassName} onClick={() => onRunConfiguration(target.workspace)}>
             {t('common:workspace.runConfiguration')}
           </button>
+          {(!target.workspace.runtime || target.workspace.runtime.kind === 'windows') && <button type="button" className={itemClassName} onClick={() => onIntegrations(target.workspace)}>{t('integrations:title')}</button>}
           <button type="button" className={itemClassName} onClick={() => onCreateWorktree(target.workspace)}>
             {t('common:workspace.createWorktree')}
           </button>
@@ -1554,6 +1558,7 @@ export function Sidebar() {
         <WorkspaceContextMenu
           menu={contextMenu}
           onRunConfiguration={handleRunConfiguration}
+          onIntegrations={workspace => { setContextMenu(null); openLocalIntegrations(workspace.id) }}
           onCreateWorktree={handleCreateWorktree}
           onRenameGroup={startRenamingGroup}
           onRemoveFromGroup={handleRemoveFromGroup}

@@ -19,6 +19,7 @@ export const browserTestFiles = [
 // These retain real Git, subprocess, repository-corpus and build integration.
 // The list uses observed cost, not a filename rule that would hide new tests.
 export const integrationTestFiles = [
+  'tests/unit/local-integrations-probe.test.ts',
   'tests/unit/turn-file-capture.test.ts',
   'tests/unit/conversation-edit-cli.test.ts',
   'tests/unit/dsh-conversation-cli.test.ts',

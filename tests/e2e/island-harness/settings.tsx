@@ -11,11 +11,13 @@ import type { UpdaterEvent, UpdaterState } from '../../../src/shared/ipc/updater
 import { LLM_CONSUMERS, authTypeForProtocol, type AgentModelBinding, type LlmConfiguration, type LlmConsumer } from '../../../src/shared/llm-configuration'
 import type { NativeLoginState } from '../../../src/shared/native-login'
 import { installPluginSettingsFixture } from './plugin-settings-fixture'
+import { installLocalIntegrationsFixture } from './local-integrations-fixture'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
 const params = new URLSearchParams(location.search)
+if (params.get('tab') === 'integrations') installLocalIntegrationsFixture()
 if (params.has('plugin-market')) installPluginSettingsFixture()
 const language = params.has('en') ? 'en' : 'zh-CN'
 if (params.get('tab') === 'llm') {
@@ -121,5 +123,5 @@ await changeLanguage(language)
 await useThemeStore.getState().load()
 const root = ReactDOM.createRoot(document.getElementById('root')!)
 root.render(
-  <AppSettingsModal isOpen initialTab={(params.get('tab') ?? 'general') as SettingsTab} onClose={() => root.unmount()} />,
+  <AppSettingsModal isOpen initialTab={(params.get('tab') ?? 'general') as SettingsTab} initialIntegrationWorkspaceId={params.has('workspace') ? 'demo' : undefined} onClose={() => root.unmount()} />,
 )
