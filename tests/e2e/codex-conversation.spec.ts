@@ -33,21 +33,33 @@ test('Ctrl+J inserts a newline at the selection without sending, with spellcheck
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['before\n\nafter'])
 })
 
-test('OpenCode submits consecutive messages while the native response is still active', async ({ page }) => {
-  await page.goto('/codex-conversation.html?engine=opencode&initialView=conversation')
-  const input = page.getByRole('combobox', { name: 'Message OpenCode', exact: true })
-  for (const text of ['First task', 'Change direction', 'Additional constraint']) {
-    await input.fill(text); await input.press('Enter')
+for (const [engine, label] of [['codex', 'Codex'], ['claude', 'Claude'], ['opencode', 'OpenCode']]) test(`${label} submits consecutive messages while the native response is still active`, async ({ page }) => {
+  await page.goto(`/codex-conversation.html?engine=${engine}&initialView=conversation`)
+  const input = page.getByRole('combobox', { name: `Message ${label}`, exact: true })
+  const messages = ['First task', 'Change direction', 'Additional constraint']
+  for (const [index, text] of messages.entries()) {
+    await input.fill(text)
+    if (index === 1) await page.getByRole('button', { name: 'Send', exact: true }).click()
+    else await input.press('Enter')
     await expect(page.getByText(text, { exact: true })).toHaveCount(1)
+    await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(messages.slice(0, index + 1))
+    await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
   }
   await expect(page.getByRole('combobox', { name: 'Delivery mode' })).toHaveCount(0)
+  await expect(page.locator('[data-outgoing-message][data-delivery="queued"]')).toHaveCount(0)
+  await expect(input).toHaveText('')
+})
+
+for (const [engine, label] of [['pi', 'Pi'], ['dsh', 'DeepSeek']]) test(`${label} waits for idle when its adapter cannot accept live input`, async ({ page }) => {
+  await page.goto(`/codex-conversation.html?engine=${engine}&initialView=conversation`)
+  const input = page.getByRole('combobox', { name: `Message ${label}`, exact: true })
+  await input.fill('First task'); await input.press('Enter')
+  await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
+  await input.fill('Next task'); await input.press('Enter')
+  await expect(page.locator('[data-outgoing-message][data-delivery="queued"]')).toHaveCount(1)
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task'])
   await page.evaluate(() => (window as any).codexFixture.finish())
-  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task', 'Change direction'])
-  await page.evaluate(() => (window as any).codexFixture.finish())
-  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task', 'Change direction', 'Additional constraint'])
-  await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
-  await expect(input).toHaveText('')
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task', 'Next task'])
 })
 
 test('chat file and web links open through IPC without navigating or losing the draft', async ({ page }) => {
@@ -70,7 +82,7 @@ test('chat file and web links open through IPC without navigating or losing the 
   await expect(input).toHaveText('Keep my draft')
 })
 
-test('consecutive messages appear immediately, queue through remount, and /new clears the confirmed conversation', async ({ page }) => {
+test('consecutive messages survive remount and dispatch after receipt without waiting for idle', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 700 })
   await page.goto('/codex-conversation.html?initialView=conversation')
   const input = page.getByRole('combobox', { name: 'Message Codex' })
@@ -85,6 +97,7 @@ test('consecutive messages appear immediately, queue through remount, and /new c
   await expect(page.getByText('Second', { exact: true })).toBeVisible()
   await page.evaluate(() => (window as any).codexFixture.releaseSend())
   await expect(page.getByText('First', { exact: true })).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First', 'Second'])
   await expect(page.getByRole('combobox', { name: 'Delivery mode' })).toHaveCount(0)
   await input.fill('/new')
   await expect(page.getByRole('option', { name: /\/new/ })).toHaveAttribute('aria-disabled', 'true')
@@ -93,12 +106,8 @@ test('consecutive messages appear immediately, queue through remount, and /new c
   await expect(page.getByText('Third', { exact: true })).toBeVisible()
   await page.screenshot({ path: 'artifacts/codex-dual-mode/outbox-narrow.png' })
   await expect(page.getByText('Second', { exact: true })).toHaveCount(1)
-  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First'])
-  await page.evaluate(() => (window as any).codexFixture.finish())
-  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First', 'Second'])
-  await page.evaluate(() => (window as any).codexFixture.finish())
   await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First', 'Second', 'Third'])
-  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.filter((command: any) => command.type === 'send').map((command: any) => command.delivery))).toEqual(['queue', 'queue', 'queue'])
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.filter((command: any) => command.type === 'send').map((command: any) => command.delivery))).toEqual([undefined, undefined, undefined])
   await page.evaluate(() => (window as any).codexFixture.finish())
   await input.fill('/new'); await input.press('Enter')
   await expect(page.locator('[data-empty=true]')).toBeVisible()

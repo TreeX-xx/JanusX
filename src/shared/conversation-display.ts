@@ -156,7 +156,7 @@ export interface ConversationStartup {
   error?: string
 }
 
-/** Explicit UI intent survives IPC races; legacy native clients omit delivery. */
+/** Omitted delivery uses native input behavior; explicit queue/steer preserves that intent across IPC races. */
 export function validateConversationDelivery(snapshot: ConversationSnapshot, command: ConversationCommand): void {
   if (command.type !== 'send') return
   if (command.delivery !== undefined && command.delivery !== 'queue' && command.delivery !== 'steer') throw new Error('Invalid delivery mode')

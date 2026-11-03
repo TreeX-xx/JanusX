@@ -173,7 +173,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     if (slash) {
       setDismissed(null)
       if (activeChoice && !activeChoice.disabled) activeChoice.run()
-    } else if (!importing) { setAcceptedCommand(null); void send('queue') }
+    } else if (!importing) { setAcceptedCommand(null); void send() }
   }
   const keyboard = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLDivElement>) => {
     if (insertConversationNewline(event, text => { setDraft(text); setPanel(null); setDismissed(null) })) return

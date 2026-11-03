@@ -221,7 +221,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   }
   const canSend = snapshot?.capabilities.submit && snapshot.connection === 'ready' && !snapshot.turnId && !snapshot.submitting && !snapshot.settingsUpdating && !snapshot.approvals.length && !hasBlockingQuestions(snapshot) && !snapshot.needsTerminal && !busy && !transitioning
   const canEnqueue = snapshot?.capabilities.submit && snapshot.connection === 'ready' && !snapshot.needsTerminal && !busy && !transitioning && outgoing.length < 100
-  const send = async (delivery: 'queue' | 'steer' = 'queue') => {
+  const send = async (delivery?: 'queue' | 'steer') => {
     if (editing || !canEnqueue || !snapshot || busyRef.current || switchLocked.current) return
     // Read synchronously: a second Enter before React renders must not send the old draft again.
     const text = useWorkspaceStore.getState().terminals.find(item => item.id === terminalId)?.conversationDraft ?? ''

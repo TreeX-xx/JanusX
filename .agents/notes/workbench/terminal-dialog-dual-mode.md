@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-03T17:21:40Z",
+  "updated": "2026-11-03T17:48:02Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -115,7 +115,7 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 
 验证（2026-11-03）：17 项上下文、队列及输入历史单元测试通过；3 项内联编辑专项浏览器测试覆盖落点、退格／按钮删除与撤销、重排、重挂载、纯文本粘贴、合成输入事件和图片原生发送。既有附件预览／缺失图片、失败恢复、命令、历史编辑、启动、设置、输入历史及窄窗布局相关回归通过，类型检查与变更组件 ESLint 通过。截图见 artifacts/conversation-inline-reference/editor.png。浏览器夹具不代表真实供应商对引用内容的理解效果；真实中文输入法仍需用户实际使用确认。
 
-输入区默认排队，当前轮结束后才提交。Codex、Claude、OpenCode 等共用输入区在工作中允许立即发送到待发队列，统一不显示排队／纠偏选择器，Enter 和发送按钮固定入队；主进程拒绝过期纠偏及因并发出现新轮次而可能误变成纠偏的排队消息。未指定 delivery 的旧协议保留兼容能力，其他引擎在本 UI 仅提供排队。未发送消息可编辑或删除；结果未知的发送不自动重试，恢复草稿前应核查原生历史。
+输入区默认使用原生输入行为，Enter 和发送按钮不再固定指定 queue。Codex、Claude、OpenCode 在工作中直接提交给原生接口，无须等当前轮结束；未声明 liveInput 的 Pi、DSH 仍等空闲后派发。输入区统一不显示排队／纠偏选择器，审批、必答问题、设置更新及在途提交仍暂停派发；原生接收后的消费时机由各引擎决定。协议保留显式 queue／steer，并拒绝过期纠偏及排队消息撞上新轮次的竞态。未发送消息可编辑或删除；结果未知的发送不自动重试，恢复草稿前应核查原生历史。
 
 每轮文件变更卡片提供文件反馈、补丁行反馈及鼠标划选反馈。点击只将文件、历史轮次和差异加入输入区，不覆盖草稿或直接执行修改；单次选区上限 8000 字符。补丁行号是补丁内位置，不是当前源码行号。对话目录与当前项目根目录一致时，卡片提供现有 Git 面板入口，继续使用其暂存、撤销和提交操作；worktree 或其他目录不误跳到项目根目录。历史补丁不作为当前 Git diff，也不直接用于撤销。实现入口为 AgentComposer、ConversationContext、ConversationFileChanges、conversation-outbox 与 conversation-context。
 
@@ -612,11 +612,11 @@ Windows Claude Code 2.1.316 已验证并接入同会话任务投影。Mods 在�
 
 每次按 Enter 或点击发送时，前端先把文字存入运行期 outbox，立即显示待发气泡并清空输入框，不等待 IPC 或原生消息回传。首次发送复用原输入表单，以实际位置差执行 420ms 缓出动画，从中部落到底部；草稿高度与 pane 尺寸参与起点测量，流式回复和焦点不等待动画。切换视图、隐藏 pane 或卸载取消动画；已有历史不重播，减少动态效果时直接使用最终布局。
 
-五个引擎共用投递队列，工程界面提交即入队，实际派发等待当前轮结束；底层协议仍支持显式纠偏，但输入区不暴露该选项。Codex、Claude 与 OpenCode 适配器保留 liveInput 协议兼容能力；当前工程输入区始终默认入队，不显示投递方式选择器，Claude 的普通 daemon reply 路径不作为该 UI 的纠偏保证。Codex 使用 turn/steer 并携带 expectedTurnId，完成竞态失败不自动重发为新轮，协议依据为 [官方 app-server 文档](https://learn.chatgpt.com/docs/app-server)。Claude 活跃时使用 daemon 的普通 reply，交给原生输入处理，不强制 nextTurn；空闲仍使用 nextTurn:true。活跃输入收到 daemon 确认后保持已发送待同步，实际消费由原生模型／工具边界决定，不再因十秒内没有新 turn.start 就判定断线。
+五个引擎共用投递队列保存提交状态，普通发送不指定 delivery，由 liveInput 能力决定工作中是否立即派发。Codex、Claude 与 OpenCode 直接提交原生输入，Pi、DSH 等空闲后派发；底层协议保留显式 queue／steer，输入区不显示投递方式选择器。Codex 使用 turn/steer 并携带 expectedTurnId，完成竞态失败不自动重发为新轮，协议依据为 [官方 app-server 文档](https://learn.chatgpt.com/docs/app-server)。OpenCode 活跃时使用原生 prompt 的 steer 投递。Claude 活跃时使用 daemon 的普通 reply，交给原生输入处理，不强制 nextTurn；空闲仍使用 nextTurn:true。活跃输入收到 daemon 确认后保持已发送待同步，实际消费由原生模型／工具边界决定，不再因十秒内没有新 turn.start 就判定断线。
 
 IPC 仍串行提交，原生已接收的不同文字不阻塞后续输入；重复文字等待前一条原生回显，以免确认身份混淆。停止与发送按钮同时保留，队列最多保留 100 条；后台任务本身不阻止下一轮主对话。每条文字显示等待发送、发送中、已发送待同步或未确认状态，原生回传用发送前不存在的 user item 身份与正文确认。队列跨 pane remount 保留但不持久化到磁盘，pane 未挂载时的后续调度等重新订阅快照；应用退出不承诺恢复待发文字。发送失败暂停后续队列并保留全部文字，可移回输入框；未知送达不自动重发。模式、thread 或进程变化使未确认文字停止派发，旧进程迟到结果不能覆盖新进程状态。IPC 在途时禁止切换视图，确认后可去终端检查，保留的队列不会跟随旧控制代次自动发送。
 
-`tests/unit/conversation-outbox.test.ts` 覆盖延迟确认、FIFO、重复文字、失败保留、线程变化和进程重启。`tests/e2e/codex-conversation.spec.ts` 覆盖五引擎首次延迟回传、连续输入即时显示、remount 后顺序派发、失败移回草稿及减少动态效果；2026-11-02 Codex 隐藏投递选择器后，定向浏览器用例验证工作中 Enter／发送立即收进队列、清空草稿、remount 保留和 FIFO，并回归 OpenCode 显式纠偏，共 2 项通过。界面夹具不替代各供应商调用验收。
+验证（2026-11-04）：修复前 Codex、Claude、OpenCode 三项浏览器用例均复现第二条消息被本地强制排队；去掉 AgentComposer 和 AgentSessionPane 的默认 queue 后，通过 Enter 与发送按钮连续提交三条消息，全程无须结束当前轮。conversation-outbox、codex-conversation、claude-conversation、opencode-conversation、native-conversation、conversation-questions 共 60 项单元测试通过，覆盖原生活跃提交、重复身份、延迟回显、失败保留、控制代次和提问校验。codex-conversation、conversation-context、conversation-attachment-recovery、conversation-input-editing、conversation-questions 共 35 个不同浏览器用例分轮通过，覆盖 Pi／DSH 等待空闲、remount 后继续派发、必答问题暂存及删除消息、回答后立即派发、附件和多行占位提示回归。旧 OpenCode 强制排队断言改为必答问题阻塞场景后复验通过；类型检查与变更源码 ESLint 通过。日志在 artifacts/conversation-live-input。此次未修改原生适配器，界面与协议夹具不代表真实供应商模型采纳输入的效果。
 
 Claude 同一原生轮可合并多条输入；Mods 在 prompt.submit 进入下游前暂存每条正文，在 turn.start 一次投影独立 user item，拒绝／异常的暂存输入移除。不能仅使用 turn.start.text，否则只显示合并批次最后一条，前面消息无法确认。真实 CLI 回归已验证 Codex 0.166.0 的第二、第三条输入留在同一 turn 并进入后续模型请求，以及 Claude 2.1.316 在流式未结束时接受两条输入、后续请求包含两条且界面投影完整；均为隔离配置与 localhost 模型。Claude 完整审批／停止／多会话回归 96.3 秒通过；浏览器 31 项通过。未验证真实供应商模型采纳新要求的效果。
 
@@ -814,7 +814,7 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 
 2026-11-02，确认原有 CodexConversation、ClaudeConversation、NativeConversation 重复维护快照初始化、发布计时器、revision、模式/epoch 校验、提交去重和 busy 状态，而且存在漂移：Native 接受 100000 字符而显示只保留 32000；Claude 发送中仍可切换视图；各家 commandId 指纹字段不一致。这些职责已通过组合收敛到 `conversation-session.ts`，三条入口均使用同一控制实现，没有把 Claude 或 Codex 强行继承进 NativeConversation。
 
-公共提交预算统一为 32000 字符、每个运行实例最多 2000 个提交身份；身份包含操作类型、输入/条目、控制代次以及发送方式和附件。重复身份复用原 promise，改变语义则拒绝；失败身份也保留，不自动重发。发送或设置更新期间禁止切换模式，关闭后拒绝控制。纠偏以 `capabilities.steer` 声明，当前仍只有 Codex/OpenCode；公共校验按能力判断；输入框按产品交互要求统一移除投递方式选择，保持默认排队。原有 renderer outbox、原生 RPC pending 与提交去重承担不同职责，分别保留。
+公共提交预算统一为 32000 字符、每个运行实例最多 2000 个提交身份；身份包含操作类型、输入/条目、控制代次以及发送方式和附件。重复身份复用原 promise，改变语义则拒绝；失败身份也保留，不自动重发。发送或设置更新期间禁止切换模式，关闭后拒绝控制。显式纠偏以 `capabilities.steer` 声明，当前仍只有 Codex/OpenCode；公共校验按能力判断。输入框不显示投递方式选择，普通发送使用原生输入行为，按 `capabilities.liveInput` 决定能否在工作中派发。原有 renderer outbox、原生 RPC pending 与提交去重承担不同职责，分别保留。
 
 `conversation-catalog.ts` 统一目录刷新、版本与调用回执，目录按 controller 实例持有，工作目录来自原生启动参数。IPC 的 invoke 只传 entryId、catalogRevision、arguments、commandId 与 controlEpoch，不能传任意 skill 路径；路径或实际原生 ID 由主进程已加载条目闭包持有。调用前检查当前控制权、目录版本和空闲状态。目录最多展示 1000 项，回执保留最近 100 项。原生命令目前不进入普通文字 outbox，不支持忙时排队，也不附带输入区文件引用；输入区有附件时禁用调用。
 
