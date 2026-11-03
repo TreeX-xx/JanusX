@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-11-03T16:28:25Z",
+  "updated": "2026-11-03T16:34:53Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
   "relations": [
     {
@@ -59,7 +59,7 @@ Terminal rows are draggable keyboard-accessible navigation targets. Click, Enter
 
 ### Compact workspace navigation
 
-The collapsed sidebar remains 52px wide. Its expand button and bottom terminal, add-workspace and optional team controls stay fixed, while project entries scroll independently with 36px targets that cannot shrink. The active project is brought into view when switching or collapsing. Project icons reuse cached repository avatars, falling back to two initials derived from words or camel case; full names and paths remain in accessible labels. Hover or keyboard focus shows the project group, path, terminal activity counts and the ArrowRight shortcut. Duplicate names or shared avatars still require path context to distinguish them.
+The collapsed sidebar remains 52px wide. Its expand button and bottom terminal, add-workspace and optional team controls stay fixed, while project entries scroll independently with 36px targets that cannot shrink. The active project is brought into view when switching or collapsing. Project entries consistently use two text initials derived from words or camel case; repository avatar images are omitted by user preference. Full names and paths remain in accessible labels. Hover or keyboard focus shows the project group, path, terminal activity counts and the ArrowRight shortcut. Duplicate names or initials still require path context to distinguish them.
 
 Click, Enter and Space retain workspace switching. The bottom terminal button opens the active project's quick list; ArrowRight on a project opens that project's list without first switching workspaces. The non-modal popover uses existing terminal snapshots, sorts by attention and selects existing pane tabs through the same navigation handler as the expanded tree. It never starts a terminal or changes the main grid width. The list shows terminal names, paths and textual statuses, remains inside the viewport, and scrolls independently. Escape, ArrowLeft and the close button return focus to the opener; Tab at either end also closes and returns focus. Outside interaction dismisses without stealing focus. Workspace changes, rail expansion and project removal dismiss the list.
 

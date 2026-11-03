@@ -217,14 +217,11 @@ function TerminalStatusIndicator({ status }: { status: Terminal['status'] }) {
   )
 }
 
-function WorkspaceRailIcon({ workspace }: { workspace: Workspace }) {
-  const avatar = useWorktreeStore(s => s.avatars[workspace.path])
-  const [failedAvatar, setFailedAvatar] = useState<string | null>(null)
+function WorkspaceRailLabel({ workspace }: { workspace: Workspace }) {
   const words = workspace.name.trim().replace(/([a-z\d])([A-Z])/g, '$1 $2').split(/[\s_\-/]+/).filter(Boolean)
   const initials = words.length > 1
     ? words.slice(0, 2).map(word => Array.from(word)[0]).join('')
     : Array.from(workspace.name.trim()).slice(0, 2).join('')
-  if (avatar && avatar !== failedAvatar) return <img className={styles.railAvatar} src={avatar} alt="" onError={() => setFailedAvatar(avatar)} />
   return <span aria-hidden="true" className="text-[11px] font-semibold">{initials.toUpperCase() || '?'}</span>
 }
 
@@ -1588,7 +1585,7 @@ export function Sidebar() {
                 {isDropAfter && (
                   <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 rounded bg-[var(--primary)]" />
                 )}
-                <WorkspaceRailIcon workspace={ws} />
+                <WorkspaceRailLabel workspace={ws} />
                 {collapsedDotColor && (
                   <span
                     className={collapsedActivity.needsAction > 0 ? 'term-status-pulse absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full' : 'absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full'}
