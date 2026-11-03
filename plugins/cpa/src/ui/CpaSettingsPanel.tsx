@@ -1,3 +1,5 @@
+import { InputGroup } from '@janusx/ui'
+import { SettingsSurface, SettingsSection, SettingsFooter, SettingsRow, Input as SettingsInput, Button as SettingsButton, SettingsCheckbox } from '@janusx/ui'
 // Note: .agents/notes/workbench/service-integrations.md — settings layout and managed CPA lifecycle.
 import { useEffect, useId, useState } from 'react'
 import { Copy, Eye, EyeOff, FileText, Play, RotateCw, Shuffle, Square } from 'lucide-react'
@@ -6,7 +8,7 @@ import { useCpaStore } from './store'
 import { api, cpa } from './bridge'
 import { useI18n, cpaError } from './i18n'
 import { normalizeCpaSettings, validateCpaManagementKey } from '../shared/cpa'
-import formStyles from './forms.module.css'
+import { settingsStyles as formStyles } from '@janusx/ui'
 import styles from './CpaSettingsPanel.module.css'
 
 export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
@@ -87,90 +89,89 @@ export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
   const canStop = running || status?.phase === 'starting' || status?.phase === 'downloading'
   const runtimeError = mode === 'managed' && (status?.error || status?.updateError || status?.operationError)
   const failure = error ?? (runtimeError ? operationError(new Error(runtimeError)) : null)
-  const buttonClass = `${formStyles.button} ${formStyles.ghostButton}`
 
-  return <section className={styles.panel} aria-label={t('common:cpa.title')} data-cpa-settings>
+  return <SettingsSurface as="section" className={styles.panel} aria-label={t('common:cpa.title')} data-cpa-settings>
     <header className={styles.intro}>
       <h3>CPA <span>CLIProxyAPI</span></h3>
       <p className={formStyles.hint}>{t('common:cpa.description')}</p>
     </header>
 
-    <div className={styles.group}>
-      <div className={styles.fieldRow}>
+    <SettingsSection className={styles.group}>
+      <SettingsRow className={styles.fieldRow}>
         <span className={formStyles.labelText}>{t('common:cpa.mode')}</span>
         <Select role="combobox" ariaLabel={t('common:cpa.mode')} value={mode} disabled={busy} className={styles.select}
           options={[{ value: 'managed', label: t('common:cpa.managed') }, { value: 'external', label: t('common:cpa.external') }]}
           onChange={(value) => { setMode(value as 'managed' | 'external'); setManagementKey(''); setShowKey(false); edit() }} />
-      </div>
+      </SettingsRow>
       {mode === 'managed' ? <>
         <SettingToggle label={t('common:cpa.enableManaged')} hint={t('common:cpa.managedHelp')}
           checked={enabled} disabled={busy} onChange={(value) => { setEnabled(value); edit() }} />
-        <div className={styles.fieldRow}>
+        <SettingsRow className={styles.fieldRow}>
           <div className={formStyles.label}>
             <label className={formStyles.labelText} htmlFor={`${fieldId}-port`}>{t('common:cpa.port')}</label>
             <p className={formStyles.hint} id={`${fieldId}-port-help`}>{t('common:cpa.portHelp')}</p>
           </div>
-          <input className={`${formStyles.input} ${styles.port}`} id={`${fieldId}-port`} aria-describedby={`${fieldId}-port-help`}
+          <SettingsInput className={`${formStyles.input} ${styles.port}`} id={`${fieldId}-port`} aria-describedby={`${fieldId}-port-help`}
             type="number" min={1024} max={65535} value={port} disabled={busy} onChange={(event) => { setPort(event.target.value); edit() }} />
-        </div>
+        </SettingsRow>
       </> : <div className={styles.addressRow}>
         <div className={formStyles.label}>
           <label className={formStyles.labelText} htmlFor={`${fieldId}-address`}>{t('common:cpa.managementUrl')}</label>
           <p className={formStyles.hint} id={`${fieldId}-address-help`}>{t('common:cpa.addressHelp')}</p>
         </div>
-        <input className={`${formStyles.input} ${styles.address}`} id={`${fieldId}-address`} aria-describedby={`${fieldId}-address-help`}
+        <SettingsInput className={`${formStyles.input} ${styles.address}`} id={`${fieldId}-address`} aria-describedby={`${fieldId}-address-help`}
           value={draft} spellCheck={false} placeholder="http://127.0.0.1:8317/management.html"
           disabled={busy} onChange={(event) => { setDraft(event.target.value); edit() }} />
         <p className={formStyles.hint}>{t('common:cpa.loginHelp')}</p>
       </div>}
-    </div>
+    </SettingsSection>
 
     {mode === 'managed' && <>
-      <div className={styles.group}>
+      <SettingsSection className={styles.group}>
         <div className={styles.keyRow}>
           <div className={formStyles.label}>
             <label className={formStyles.labelText} htmlFor={`${fieldId}-key`}>{t('common:cpa.managementKey')}</label>
             <p className={formStyles.hint} id={`${fieldId}-key-help`}>{t('common:cpa.keyHelp')}</p>
           </div>
           <div className={styles.keyControl}>
-            <div className={styles.keyInput}>
-              <input className={`${formStyles.input} ${styles.input}`} id={`${fieldId}-key`} aria-describedby={`${fieldId}-key-help`}
+            <InputGroup className={styles.keyInput}>
+              <SettingsInput className={`${formStyles.input} ${styles.input}`} id={`${fieldId}-key`} aria-describedby={`${fieldId}-key-help`}
                 type={showKey ? 'text' : 'password'} value={managementKey} disabled={busy} autoComplete="new-password" spellCheck={false}
                 maxLength={128} placeholder={t('common:cpa.keyPlaceholder')}
                 onChange={(event) => { setManagementKey(event.target.value); edit() }} />
               <ThemedTooltip label={showKey ? t('common:cpa.hideKey') : t('common:cpa.showKey')}>
-                <button type="button" className={styles.iconButton} aria-label={showKey ? t('common:cpa.hideKey') : t('common:cpa.showKey')}
+                <SettingsButton variant="ghost" size="icon" type="button" className={styles.iconButton} aria-label={showKey ? t('common:cpa.hideKey') : t('common:cpa.showKey')}
                   disabled={busy} onClick={() => setShowKey((value) => !value)}>
                   {showKey ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
-                </button>
+                </SettingsButton>
               </ThemedTooltip>
               <ThemedTooltip label={t('common:cpa.generateKey')}>
-                <button type="button" className={styles.iconButton} aria-label={t('common:cpa.generateKey')} disabled={busy} onClick={() => {
+                <SettingsButton variant="ghost" size="icon" type="button" className={styles.iconButton} aria-label={t('common:cpa.generateKey')} disabled={busy} onClick={() => {
                   const bytes = crypto.getRandomValues(new Uint8Array(32))
                   setManagementKey(Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join(''))
                   edit()
-                }}><Shuffle size={14} aria-hidden="true" /></button>
+                }}><Shuffle size={14} aria-hidden="true" /></SettingsButton>
               </ThemedTooltip>
-            </div>
-            {canOperate && <button type="button" className={`${buttonClass} ${styles.copyButton}`} disabled={busy} onClick={() => void operate('copyManagementKey')}>
+            </InputGroup>
+            {canOperate && <SettingsButton type="button" className={`${styles.copyButton}`} disabled={busy} onClick={() => void operate('copyManagementKey')}>
               <Copy size={13} aria-hidden="true" />{t('common:cpa.copyKey')}
-            </button>}
+            </SettingsButton>}
           </div>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className={styles.group}>
+      <SettingsSection className={styles.group}>
         <SettingToggle label={t('common:cpa.autoUpdate')} hint={t('common:cpa.updateHelp')}
           checked={autoUpdate} disabled={busy} onChange={(value) => { setAutoUpdate(value); edit() }} />
         {canOperate && <div className={styles.updateActions}>
           {status?.pendingVersion && <p className={formStyles.hint}>{t('common:cpa.updateReady')}: {status.pendingVersion}</p>}
-          <button type="button" className={buttonClass} disabled={busy} onClick={() => void operate('update')}>
+          <SettingsButton type="button" disabled={busy} onClick={() => void operate('update')}>
             <RotateCw size={13} aria-hidden="true" />{t('common:cpa.updateNow')}
-          </button>
+          </SettingsButton>
         </div>}
-      </div>
+      </SettingsSection>
 
-      <div className={styles.group}>
+      <SettingsSection className={styles.group}>
         <div className={styles.runtimeRow}>
           <span className={formStyles.labelText}>{t('common:cpa.runtimeStatus')}</span>
           {status && <div className={styles.runtimeInfo} role="status">
@@ -180,12 +181,12 @@ export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
         </div>
         {canOperate && <div className={styles.runtimeActions}>
           {canStop
-            ? <button type="button" className={buttonClass} onClick={() => void operate('stop')}><Square size={12} aria-hidden="true" />{t('common:cpa.stop')}</button>
-            : <button type="button" className={buttonClass} disabled={busy} onClick={() => void operate('start')}><Play size={13} aria-hidden="true" />{t('common:cpa.start')}</button>}
-          <button type="button" className={buttonClass} disabled={busy || !running} onClick={() => void operate('restart')}><RotateCw size={13} aria-hidden="true" />{t('common:cpa.restart')}</button>
-          <button type="button" className={`${buttonClass} ${styles.logsButton}`} disabled={busy} onClick={() => void operate('openLogs')}><FileText size={13} aria-hidden="true" />{t('common:cpa.logs')}</button>
+            ? <SettingsButton type="button" onClick={() => void operate('stop')}><Square size={12} aria-hidden="true" />{t('common:cpa.stop')}</SettingsButton>
+            : <SettingsButton type="button" disabled={busy} onClick={() => void operate('start')}><Play size={13} aria-hidden="true" />{t('common:cpa.start')}</SettingsButton>}
+          <SettingsButton type="button" disabled={busy || !running} onClick={() => void operate('restart')}><RotateCw size={13} aria-hidden="true" />{t('common:cpa.restart')}</SettingsButton>
+          <SettingsButton type="button" className={`${styles.logsButton}`} disabled={busy} onClick={() => void operate('openLogs')}><FileText size={13} aria-hidden="true" />{t('common:cpa.logs')}</SettingsButton>
         </div>}
-      </div>
+      </SettingsSection>
     </>}
 
     <p className={formStyles.hint}>{t('common:cpa.quotaHelp')}</p>
@@ -194,24 +195,23 @@ export function CpaSettingsPanel({ onOpened }: { onOpened?: () => void }) {
       {notice && <p className={styles.success} role="status">{notice}</p>}
       {failure && <p className={styles.error} role="alert">{failure}</p>}
     </div>
-    <footer className={styles.footer}>
-      <button type="button" className={buttonClass} disabled={busy || !settings} onClick={() => void save(false)}>{settings?.mode === 'managed' && running && (Number(port) !== settings.port || mode !== settings.mode || !enabled || managementKey !== '') ? t('common:cpa.saveRestart') : t('common:action.save')}</button>
-      <button type="button" className={`${formStyles.button} ${formStyles.primaryButton}`} disabled={busy || !settings || mode === 'managed' && !enabled} onClick={() => void save(true)}>{t('common:cpa.saveAndOpen')}</button>
-    </footer>
-  </section>
+    <SettingsFooter className={styles.footer}>
+      <div className={formStyles.actions}>
+      <SettingsButton type="button" disabled={busy || !settings} onClick={() => void save(false)}>{settings?.mode === 'managed' && running && (Number(port) !== settings.port || mode !== settings.mode || !enabled || managementKey !== '') ? t('common:cpa.saveRestart') : t('common:action.save')}</SettingsButton>
+      <SettingsButton variant="primary" type="button"  disabled={busy || !settings || mode === 'managed' && !enabled} onClick={() => void save(true)}>{t('common:cpa.saveAndOpen')}</SettingsButton>
+      </div>
+    </SettingsFooter>
+  </SettingsSurface>
 }
 
 function SettingToggle({ label, hint, checked, disabled, onChange }: {
   label: string; hint: string; checked: boolean; disabled: boolean; onChange: (checked: boolean) => void
 }) {
-  return <div className={formStyles.row}>
+  return <SettingsRow className={formStyles.row}>
     <div className={formStyles.label}>
       <span className={formStyles.labelText}>{label}</span>
       <p className={formStyles.hint}>{hint}</p>
     </div>
-    <label className={formStyles.switch}>
-      <input type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
-      <span className={formStyles.switchTrack} aria-hidden="true" />
-    </label>
-  </div>
+    <SettingsCheckbox aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+  </SettingsRow>
 }

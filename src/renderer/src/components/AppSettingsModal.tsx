@@ -23,6 +23,7 @@ import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './AppSettingsModal.module.css'
 import { LearningButton } from './onboarding/LearningButton'
+import { SettingsSurface, Button as SettingsButton } from '@janusx/ui'
 
 type BuiltinSettingsTab = 'general' | 'terminal' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
 export type SettingsTab = BuiltinSettingsTab | ExtensionViewId
@@ -160,7 +161,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                     {group.tabs.map((tab) => {
                       const Icon = TAB_ICONS[tab as BuiltinSettingsTab] ?? Puzzle
                       return (
-                        <button
+                        <SettingsButton variant="plain"
                           key={tab}
                           type="button"
                           data-tab={tab}
@@ -170,7 +171,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                         >
                           <Icon size={16} strokeWidth={1.7} aria-hidden="true" className={styles.tabIcon} />
                           <span className={styles.tabLabel}>{tabNav(tab)}</span>
-                        </button>
+                        </SettingsButton>
                       )
                     })}
                   </div>
@@ -189,12 +190,12 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                 <h2 className={styles.title}>{meta.title}</h2>
                 <div className={styles.subtitle}>{meta.subtitle}</div>
               </div>
-              <button type="button" className={styles.closeButton} aria-label={tCommon('common:action.close')} onClick={requestClose}>
+              <SettingsButton variant="ghost" size="icon" type="button" className={styles.closeButton} aria-label={tCommon('common:action.close')} onClick={requestClose}>
                 <X size={18} strokeWidth={1.7} aria-hidden="true" />
-              </button>
+              </SettingsButton>
             </header>
 
-            <main className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
+            <SettingsSurface as="main" className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
               {pluginPage && <PluginSettingsView page={pluginPage} active={contentVisible} onManage={() => setActiveTab('plugins')} />}
               {activeTab === 'general' && <GeneralSettingsPanel />}
               {activeTab === 'about' && <AboutSettingsPanel />}
@@ -208,7 +209,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'models' && <ModelCatalogPanel />}
               {activeTab === 'team' && <TeamSettingsPanel />}
               {activeTab === 'hosted' && <HostedSettingsPanel />}
-            </main>
+            </SettingsSurface>
           </section>
         </>
       )}

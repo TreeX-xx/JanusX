@@ -1,5 +1,7 @@
 /* Shares settings form controls; scoped defaults also support the CPA connection dialog. */
 .panel {
+  --so-body-pad-x: 24px;
+  --so-body-pad-y: 24px;
   --so-control-h: var(--control-h, 30px);
   --so-radius: 6px;
   --so-field-border: var(--control-border);
@@ -21,20 +23,15 @@
 .group { display: flex; flex-direction: column; gap: 18px; padding: 0 0 20px; border-bottom: 1px solid var(--shell-border-soft); }
 .fieldRow, .keyRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); align-items: start; gap: 24px; }
 .fieldRow { align-items: center; }
-.panel .select { width: 100%; min-height: var(--so-control-h); background: var(--so-field); color: var(--shell-text); border-color: var(--so-field-border); }
+.panel .select { width: 100%; }
 .panel .port { width: 112px; justify-self: end; font-family: var(--font-mono, monospace); }
 .addressRow { display: flex; flex-direction: column; gap: 10px; }
 .panel .address { width: 100%; font-family: var(--font-mono, monospace); font-size: 12px; }
 .keyControl { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 0; }
 .keyInput { display: flex; align-items: center; gap: 2px; width: 100%; border: 1px solid var(--so-field-border); border-radius: var(--so-radius); background: var(--so-field); padding-right: 4px; }
-.panel .input { flex: 1; min-width: 0; width: 100%; padding: 0 8px; border: 0; background: transparent; font-size: 12px; }
-.panel .input:focus { background: transparent; }
+.panel .input { flex: 1; min-width: 0; width: 100%; }
 .keyInput:focus-within { border-color: var(--shell-accent); }
-.iconButton { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; color: var(--shell-muted); background: transparent; cursor: pointer; }
-.iconButton:hover:not(:disabled) { color: var(--shell-text); background: var(--shell-hover); }
-.iconButton:disabled { cursor: not-allowed; opacity: .45; }
-.panel button:focus-visible, .panel input:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
-.panel .input:focus-visible { outline: 0; }
+.iconButton { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; }
 .panel .copyButton { display: inline-flex; align-items: center; gap: 6px; }
 .updateActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .runtimeRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
@@ -52,7 +49,7 @@
 .success { color: var(--status-success); }
 .error { color: var(--shell-diff-del); }
 /* Match the settings scroller's bottom inset so covered rows cannot leak beneath the footer. */
-.footer { position: sticky; bottom: calc(var(--so-body-pad-y, 24px) * -1); z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: auto; margin-bottom: calc(var(--so-body-pad-y, 24px) * -1); padding: 14px 0; border-top: 1px solid var(--shell-border-soft); background: var(--shell-canvas); }
+.footer { flex-shrink: 0; }
 
 @container cpa-settings (max-width: 560px) {
   .fieldRow, .keyRow { grid-template-columns: minmax(0, 1fr); gap: 10px; }

@@ -63,6 +63,12 @@
     }
   },
   "general": {
+    "remote": {
+      "label": "手机远程",
+      "enable": "启用手机远程",
+      "help": "开启后在右侧栏底部显示手机入口，点击后生成二维码并批准连接。关闭会断开手机并停止远程服务，电脑终端继续运行。",
+      "saveError": "手机远程设置保存失败，请重试。"
+    },
     "session": {
       "section": "会话启动习惯",
       "label": "新会话默认视图",
@@ -513,7 +519,19 @@
     "ledgerUnavailable": "Janus / DSH 暂无可读取的会话用量；已有累计会话首次接入仅建立基线。",
     "ledgerPaused": "部分会话的来源缺失或计数异常，用量尚不完整。已确认的历史记录保留。",
     "ledgerError": "用量账本读取或保存失败，请检查应用数据目录与可用磁盘空间。",
-    "breakdown": "终端与模型用量",
+    "breakdown": "模型使用明细",
+    "model": "模型 / 终端",
+    "totalTokens": "总 Tokens",
+    "freshInput": "新鲜输入",
+    "cacheRead": "缓存读取",
+    "cacheWrite": "缓存写入",
+    "sortedByUsage": "按总用量降序 · 展开查看详情",
+    "expandModel": "展开 {{engine}} · {{model}} 的用量详情",
+    "collapseModel": "收起 {{engine}} · {{model}} 的用量详情",
+    "cacheFormula": "命中率 = 缓存读取 ÷（缓存读取 + 新鲜输入 + 缓存写入），不含输出。",
+    "tokenComposition": "总 Tokens 包含新鲜输入、输出、缓存读取和缓存写入；缺失分项显示为 –。",
+    "incompleteCacheData": "缓存数据不完整，暂不计算命中率。",
+    "missingCacheWrite": "部分记录未报告缓存写入；命中率沿用已记录的输入侧计数。",
     "unknownModel": "未报告模型",
     "title": "用量统计",
     "subtitle": "追踪消耗、缓存效率与每日使用节奏",

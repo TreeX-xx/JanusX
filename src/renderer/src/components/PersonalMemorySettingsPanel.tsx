@@ -1,8 +1,11 @@
+import { SettingsSurface, SettingsSection, SettingsLabel } from '@janusx/ui'
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
+import { Select } from './ui/Select'
 import { useEffect, useState } from 'react'
 import { Clock3, MessageSquare, UserRound } from 'lucide-react'
 import type { PersonalMemorySettings } from '../../../shared/personal-memory-settings'
 import { useI18n } from '@/i18n/useI18n'
-import styles from './KnowledgeSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 
 export function PersonalMemorySettingsPanel() {
   const { t } = useI18n('knowledge')
@@ -22,33 +25,33 @@ export function PersonalMemorySettingsPanel() {
     catch { setError(t('knowledge:review.failed')) }
     finally { setBusy(false) }
   }
-  return <div className={styles.panel}>
+  return <SettingsSurface className={styles.panel}>
     <p className={styles.hint}>{t('knowledge:memorySettings.description')}</p>
     {error && <p role="alert" className={styles.statusError}>{error}</p>}
     {!settings && !error && <p role="status">{t('knowledge:state.loading.title')}</p>}
     {settings && <>
       {[{ title: 'capture', icon: UserRound, keys: ['captureConversations', 'inferEngineeringHabits'] as const },
-        { title: 'recall', icon: MessageSquare, keys: ['useInChat'] as const }].map(group => <section key={group.title} className={styles.section} aria-busy={busy}>
+        { title: 'recall', icon: MessageSquare, keys: ['useInChat'] as const }].map(group => <SettingsSection key={group.title} className={styles.section} aria-busy={busy}>
         <h3 className={styles.sectionTitle}><group.icon size={14} aria-hidden />{t(`knowledge:memorySettings.groups.${group.title}`)}</h3>
       {group.keys.map(key =>
-        <label key={key} className={styles.row}>
+        <SettingsLabel key={key} className={styles.row}>
           <span className={styles.label}><span className={styles.labelText}>{t(`knowledge:memorySettings.${key}`)}</span>
             <span className={styles.hint}>{t(`knowledge:memorySettings.${key}Hint`)}</span></span>
-          <span className={styles.switch}><input type="checkbox" checked={settings[key]} disabled={busy}
-            onChange={event => void update({ [key]: event.target.checked })} /><span className={styles.switchTrack} /></span>
-        </label>)}
-      </section>)}
-      <section className={styles.section} aria-busy={busy}>
+          <SettingsCheckbox checked={settings[key]} disabled={busy}
+            onChange={event => void update({ [key]: event.target.checked })} />
+        </SettingsLabel>)}
+      </SettingsSection>)}
+      <SettingsSection className={styles.section} aria-busy={busy}>
       <h3 className={styles.sectionTitle}><Clock3 size={14} aria-hidden />{t('knowledge:memorySettings.groups.retention')}</h3>
-      <label className={styles.row}><span className={styles.label}>
+      <SettingsLabel className={styles.row}><span className={styles.label}>
         <span className={styles.labelText}>{t('knowledge:memorySettings.retention')}</span>
         <span className={styles.hint}>{t('knowledge:memorySettings.retentionHint')}</span></span>
-        <select className={styles.button} value={settings.episodeTtlDays} disabled={busy} onChange={event => void update({ episodeTtlDays: Number(event.target.value) })}>
-          {[...new Set([30, 60, 90, settings.episodeTtlDays])].sort((a, b) => a - b).map(days => <option key={days} value={days}>{t('knowledge:memorySettings.days', { count: days })}</option>)}
-        </select>
-      </label>
-      </section>
+        <Select ariaLabel={t('knowledge:memorySettings.retention')} value={String(settings.episodeTtlDays)} disabled={busy}
+          onChange={value => void update({ episodeTtlDays: Number(value) })}
+          options={[...new Set([30, 60, 90, settings.episodeTtlDays])].sort((a, b) => a - b).map(days => ({ value: String(days), label: t('knowledge:memorySettings.days', { count: days }) }))} />
+      </SettingsLabel>
+      </SettingsSection>
     </>}
     <p className={styles.hint}>{t('knowledge:memorySettings.savedImmediately')}</p>
-  </div>
+  </SettingsSurface>
 }

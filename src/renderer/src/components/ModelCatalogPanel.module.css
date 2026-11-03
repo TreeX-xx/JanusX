@@ -24,35 +24,16 @@
 }
 
 .searchIcon {
-  position: absolute;
-  left: 11px;
-  top: 50%;
+  flex: 0 0 auto;
+  margin-left: 6px;
   color: var(--shell-dim);
   font-size: 17px;
-  transform: translateY(-52%);
   pointer-events: none;
 }
 
 .searchInput {
   width: 100%;
-  height: var(--so-control-h);
-  padding: 0 12px 0 34px;
-  color: var(--shell-text);
-  background: var(--so-field);
-  border: 1px solid var(--so-field-border);
-  border-radius: var(--so-radius);
-  outline: none;
-  font: inherit;
-  font-size: 12px;
-  transition: background 0.18s ease, border-color 0.18s ease;
 }
-
-.searchInput:focus {
-  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
-  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
-}
-
-.searchInput::placeholder { color: var(--shell-dim); }
 
 .refreshButton {
   display: inline-flex;
@@ -60,45 +41,7 @@
   justify-content: center;
   gap: 7px;
   min-width: 96px;
-  height: var(--so-control-h);
-  padding: 0 12px;
-  color: var(--shell-text);
-  background: transparent;
-  border: 1px solid var(--so-field-border);
-  border-radius: var(--so-radius);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
-
-.refreshButton:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
-  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
-  color: var(--shell-text);
-}
-.refreshButton:disabled { opacity: 0.5; cursor: wait; }
-
-.inlineButton {
-  height: 28px;
-  padding: 0 12px;
-  color: var(--shell-muted);
-  background: transparent;
-  border: 1px solid var(--so-field-border);
-  border-radius: var(--so-radius);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-}
-
-.inlineButton:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
-  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
-  color: var(--shell-text);
-}
-.inlineButton:disabled { opacity: 0.5; cursor: wait; }
 
 .spinning { animation: spin 0.8s linear infinite; }
 
@@ -277,26 +220,6 @@
   color: var(--ink, var(--shell-text));
 }
 
-:global([data-theme='planche']) .searchInput {
-  color: var(--ink, var(--shell-text));
-}
-
-:global([data-theme='planche']) .searchInput:focus {
-  background: var(--paper, var(--shell-canvas));
-  border-color: var(--planche-red, var(--shell-accent));
-}
-
-:global([data-theme='planche']) .searchInput::placeholder {
-  color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
-}
-
-:global([data-theme='planche']) .refreshButton:hover:not(:disabled),
-:global([data-theme='planche']) .inlineButton:hover:not(:disabled) {
-  background: var(--paper-deep, var(--shell-hover));
-  border-color: var(--planche-red, var(--shell-accent));
-  color: var(--planche-red, var(--shell-accent));
-}
-
 :global([data-theme='planche']) .vendorHeader:hover,
 :global([data-theme='planche']) .modelSummary:hover {
   background: var(--paper-deep, var(--shell-hover));
@@ -325,9 +248,6 @@
 .specialRule pre { margin: 8px 0 0; padding: 10px; border-radius: 6px; color: var(--shell-muted); background: color-mix(in srgb, var(--shell-text) 4%, transparent); font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .chevron { transition: transform 0.15s ease; }
 .modelItem[open] > summary .chevron { transform: rotate(90deg); }
-.vendorHeader:focus-visible, .modelSummary:focus-visible, .specialRule summary:focus-visible, .refreshButton:focus-visible, .inlineButton:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: 2px; border-radius: 5px; }
-.searchInput:focus { background: var(--so-field, var(--shell-card)); border-color: var(--shell-muted); }
-.vendorHeader:hover, .modelSummary:hover, .refreshButton:hover:not(:disabled), .inlineButton:hover:not(:disabled) { background: color-mix(in srgb, var(--shell-text) 4%, transparent); }
 @media (max-width: 720px) {
   .detailSection + .detailSection { border-left: 0; border-top: 1px solid var(--so-rule-soft, var(--shell-border-soft)); padding: 20px 0 0; }
   .modelList { margin-left: 0; }

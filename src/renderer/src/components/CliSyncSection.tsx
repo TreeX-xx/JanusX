@@ -1,3 +1,6 @@
+import { InputGroup } from '@janusx/ui'
+import { Button as SettingsButton, Input as SettingsInput, SettingsFooter, Textarea as SettingsTextarea } from '@janusx/ui'
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Eye, EyeOff, LogIn, Network, Plug, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { ProviderSettings } from '@janusx/llm-core'
@@ -126,7 +129,7 @@ export function CliSyncSection() {
     })
   }
   if (!config) return <section className={styles.root} aria-busy={!error}>
-    {error ? <><p role="alert">{error}</p><button className={styles.button} onClick={() => void act(load)}>{c('retry')}</button></> : <p>{c('loading')}</p>}
+    {error ? <><p role="alert">{error}</p><SettingsButton className={styles.button} onClick={() => void act(load)}>{c('retry')}</SettingsButton></> : <p>{c('loading')}</p>}
   </section>
   const providers = Object.values(config.providers)
   const selected = drafts[active] || config.bindings[active]
@@ -141,19 +144,19 @@ export function CliSyncSection() {
   }
   return <section className={styles.root}>
     <div className={styles.navigation} role="tablist" aria-label={c('title')}>
-      {(['agents', 'channels'] as const).map(tab => <button key={tab} type="button" role="tab" aria-selected={view === tab} disabled={busy} onClick={() => { setView(tab); setError(''); setNotice('') }}>{c(tab)}<span>{tab === 'agents' ? 5 : providers.length}</span></button>)}
+      {(['agents', 'channels'] as const).map(tab => <SettingsButton variant="tab" key={tab} type="button" role="tab" aria-selected={view === tab} disabled={busy} onClick={() => { setView(tab); setError(''); setNotice('') }}>{c(tab)}<span>{tab === 'agents' ? 5 : providers.length}</span></SettingsButton>)}
     </div>
     {error && <div className={styles.error} role="alert">{error}</div>}
     {notice && <div className={styles.notice} role="status"><Check size={14} />{notice}</div>}
     <div className={styles.agentPage} role="tabpanel" hidden={view !== 'agents'} aria-label={c('agents')}>
       <div className={styles.agentList}>
-        {LLM_CONSUMERS.map(consumer => <button type="button" key={consumer} disabled={busy} className={styles.agentRow} aria-pressed={consumer === active} onClick={() => { setActive(consumer); setError(''); setNotice('') }}>
+        {LLM_CONSUMERS.map(consumer => <SettingsButton variant="plain" type="button" key={consumer} disabled={busy} className={styles.agentRow} aria-pressed={consumer === active} onClick={() => { setActive(consumer); setError(''); setNotice('') }}>
           <TerminalPresetIcon preset={consumer} />
           <span className={styles.agentName}>{EXTERNAL_CLI_TOOL_META[consumer].displayName}</span>
           <span className={styles.summary} title={summary(config.bindings[consumer])}>{summary(config.bindings[consumer])}</span>
           {config.bindings[consumer].needsApply && <span className={styles.pending}>{c('pending')}</span>}
           <ChevronRight size={14} />
-        </button>)}
+        </SettingsButton>)}
       </div>
       <div className={styles.bindingPanel}>
         <div className={styles.panelHeading}><h4>{EXTERNAL_CLI_TOOL_META[active].displayName}</h4><span>{c(active === 'janus' ? 'internal' : 'external')}</span></div>
@@ -171,14 +174,14 @@ export function CliSyncSection() {
               }} />
           </label>
           {selected.mode === 'provider' && <label className={styles.field}><span>{c('model')}</span>
-            <input aria-label={c('model')} value={selected.modelId || ''} disabled={busy}
+            <SettingsInput aria-label={c('model')} value={selected.modelId || ''} disabled={busy}
               placeholder={c('modelPlaceholder')} onChange={event => changeBinding({ ...selected, modelId: event.target.value })} />
             {selectedProvider && channelModels(selectedProvider).length > 0 && (channelModels(selectedProvider).length > 8
               ? <Select ariaLabel={c('availableModels')} value={selected.modelId || ''} disabled={busy}
                   options={channelModels(selectedProvider).map(model => ({ value: model, label: model }))}
                   onChange={value => changeBinding({ ...selected, modelId: value })} />
               : <div className={styles.modelChoices} aria-label={c('availableModels')}>
-                  {channelModels(selectedProvider).map(model => <button key={model} type="button" aria-pressed={selected.modelId === model} disabled={busy} onClick={() => changeBinding({ ...selected, modelId: model })}>{model}</button>)}
+                  {channelModels(selectedProvider).map(model => <SettingsButton key={model} type="button" aria-pressed={selected.modelId === model} disabled={busy} onClick={() => changeBinding({ ...selected, modelId: model })}>{model}</SettingsButton>)}
                 </div>)}
           </label>}
         </div>
@@ -189,24 +192,24 @@ export function CliSyncSection() {
               : loginState.status === 'logged-out' ? c('nativeLoggedOut')
               : c('nativeLoginUnknown')}
           </span>
-          {loginCapability && loginState?.status === 'logged-out' && <button type="button" className={styles.button} disabled={busy} title={c('nativeLoginHint')} onClick={() => void startNativeLogin()}><LogIn size={13} />{c('nativeLogin')}</button>}
-          <button type="button" className={styles.iconButton} aria-label={c('nativeLoginRefresh')} title={c('nativeLoginRefresh')} disabled={loginChecking} onClick={() => void checkLogin()}><RefreshCw size={13} className={loginChecking ? styles.spinning : undefined} /></button>
+          {loginCapability && loginState?.status === 'logged-out' && <SettingsButton type="button" className={styles.button} disabled={busy} title={c('nativeLoginHint')} onClick={() => void startNativeLogin()}><LogIn size={13} />{c('nativeLogin')}</SettingsButton>}
+          <SettingsButton variant="ghost" size="icon" type="button" className={styles.iconButton} aria-label={c('nativeLoginRefresh')} title={c('nativeLoginRefresh')} disabled={loginChecking} onClick={() => void checkLogin()}><RefreshCw size={13} className={loginChecking ? styles.spinning : undefined} /></SettingsButton>
         </div>}
         {selected.mode === 'native' && loginFailure && <p className={styles.loginFailure} role="status">{loginFailure}</p>}
         <p className={styles.hint}>{selected.mode === 'native'
           ? (loginState?.status === 'logged-out' ? c('nativeLoginHint') : c('nativeHint'))
           : c('compatibility', { protocol: active === 'codex' ? 'Responses API' : active === 'claude' ? 'Anthropic Messages' : active === 'janus' ? 'Chat Completions / Responses / Anthropic / Vertex AI' : 'Chat Completions / Responses / Anthropic' })}</p>
-        {!providers.length && <button type="button" className={styles.link} onClick={() => setView('channels')}>{c('addFirst')}<ChevronRight size={13} /></button>}
-        <div className={styles.footer}><span>{active === 'janus' ? c('internalHint') : (selected.mode === 'native' && loginState?.status === 'logged-out' ? c('nativeApplyBlocked') : c('restartHint'))}</span>
-          <button type="button" className={styles.primary} disabled={busy || (selected.mode === 'provider' && (!selected.modelId?.trim() || !selectedProvider || !supportsChannel(active, selectedProvider))) || (selected.mode === 'native' && loginState?.status === 'logged-out')} onClick={() => void act(async () => {
+        {!providers.length && <SettingsButton variant="ghost" type="button" className={styles.link} onClick={() => setView('channels')}>{c('addFirst')}<ChevronRight size={13} /></SettingsButton>}
+        <SettingsFooter sticky={false} className={styles.footer}><span>{active === 'janus' ? c('internalHint') : (selected.mode === 'native' && loginState?.status === 'logged-out' ? c('nativeApplyBlocked') : c('restartHint'))}</span>
+          <SettingsButton variant="primary" type="button" className={styles.primary} disabled={busy || (selected.mode === 'provider' && (!selected.modelId?.trim() || !selectedProvider || !supportsChannel(active, selectedProvider))) || (selected.mode === 'native' && loginState?.status === 'logged-out')} onClick={() => void act(async () => {
             const result = await window.electron.llm.applyBinding(active, selected)
             if (!result.success) throw new Error(result.error || c('applyFailed'))
             await load()
             setDrafts(previous => { const next = { ...previous }; delete next[active]; return next })
             notify(selected.providerId, active === 'janus')
             setNotice(c(active === 'janus' ? 'appliedInternal' : 'applied'))
-          })}>{busy ? c('working') : c('apply')}</button>
-        </div>
+          })}>{busy ? c('working') : c('apply')}</SettingsButton>
+        </SettingsFooter>
       </div>
       <p className={styles.footnote}>{c('scope')}</p>
     </div><div role="tabpanel" hidden={view !== 'channels'} aria-label={c('channels')}>
@@ -214,8 +217,8 @@ export function CliSyncSection() {
         onCancel={() => { setEditing(null); setError('') }}
         onSaved={async provider => { await load(); setEditing(null); notify(provider.id); setNotice(c('saved')) }} />
         : <>
-          <div className={styles.toolbar}><input aria-label={c('search')} placeholder={c('search')} value={query} onChange={event => setQuery(event.target.value)} />
-            <button type="button" className={styles.primary} disabled={busy} onClick={() => { setNotice(''); setError(''); setEditing({ id: crypto.randomUUID(), name: 'OpenAI', authType: authTypeForProtocol('responses'), baseURL: 'https://api.openai.com/v1', models: [], extra: { presetId: 'openai', protocol: 'responses' } }) }}><Plus size={14} />{c('addChannel')}</button>
+          <div className={styles.toolbar}><SettingsInput aria-label={c('search')} placeholder={c('search')} value={query} onChange={event => setQuery(event.target.value)} />
+            <SettingsButton variant="primary" type="button" className={styles.primary} disabled={busy} onClick={() => { setNotice(''); setError(''); setEditing({ id: crypto.randomUUID(), name: 'OpenAI', authType: authTypeForProtocol('responses'), baseURL: 'https://api.openai.com/v1', models: [], extra: { presetId: 'openai', protocol: 'responses' } }) }}><Plus size={14} />{c('addChannel')}</SettingsButton>
           </div>
           {!providers.length && <div className={styles.empty}><h4>{c('emptyTitle')}</h4><p>{c('emptyDescription')}</p></div>}
           <div className={styles.channelList}>
@@ -227,14 +230,14 @@ export function CliSyncSection() {
                   <small title={provider.baseURL}>{provider.baseURL || provider.vertexAI?.projectId}</small>
                   {users.length > 0 && <small>{c('usedBy', { agents: users.map(consumer => EXTERNAL_CLI_TOOL_META[consumer].displayName).join(' · ') })}</small>}
                 </div>
-                <div className={styles.rowActions}><button type="button" className={styles.button} disabled={busy} onClick={() => { setEditing(provider); setNotice(''); setError('') }}>{c('edit')}</button>
-                  <button type="button" className={styles.iconButton} aria-label={c('deleteChannel', { name: provider.name })} disabled={busy || users.length > 0} title={users.length ? c('inUseHint') : c('delete')} onClick={() => setDeleting(provider.id)}><Trash2 size={14} /></button>
+                <div className={styles.rowActions}><SettingsButton type="button" className={styles.button} disabled={busy} onClick={() => { setEditing(provider); setNotice(''); setError('') }}>{c('edit')}</SettingsButton>
+                  <SettingsButton variant="ghost" size="icon" type="button" className={styles.iconButton} aria-label={c('deleteChannel', { name: provider.name })} disabled={busy || users.length > 0} title={users.length ? c('inUseHint') : c('delete')} onClick={() => setDeleting(provider.id)}><Trash2 size={14} /></SettingsButton>
                 </div>
-                {deleting === provider.id && <div className={styles.deleteConfirm}><span>{c('confirmDelete', { name: provider.name })}</span><button className={styles.button} disabled={busy} onClick={() => setDeleting(null)}>{c('cancel')}</button><button className={styles.button} disabled={busy} onClick={() => void act(async () => {
+                {deleting === provider.id && <div className={styles.deleteConfirm}><span>{c('confirmDelete', { name: provider.name })}</span><SettingsButton className={styles.button} disabled={busy} onClick={() => setDeleting(null)}>{c('cancel')}</SettingsButton><SettingsButton className={styles.button} disabled={busy} onClick={() => void act(async () => {
                   const result = await window.electron.llm.removeTerminalProvider('janus', provider.id)
                   if (!result.success) throw new Error(result.error || c('deleteFailed'))
                   await load(); setDeleting(null); notify(provider.id)
-                })}>{c('delete')}</button></div>}
+                })}>{c('delete')}</SettingsButton></div>}
               </div>
             })}
           </div>
@@ -304,48 +307,48 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setBusy(false) }
   }
   return <form className={styles.editor} onSubmit={event => { event.preventDefault(); void saveOrTest(false) }}>
-    <button type="button" className={styles.link} disabled={busy} onClick={onCancel}><ArrowLeft size={14} />{c('back')}</button>
+    <SettingsButton variant="ghost" type="button" className={styles.link} disabled={busy} onClick={onCancel}><ArrowLeft size={14} />{c('back')}</SettingsButton>
     <div className={styles.panelHeading}><h4>{initial.name ? c('editChannel') : c('addChannel')}</h4></div>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {result && <p className={styles.notice} role="status">{result}</p>}
     <div className={styles.fields}>
       <div className={styles.field + ' ' + styles.full}><span>{c('preset')}</span>
         <div className={styles.presetGrid} role="group" aria-label={c('preset')}>
-          {PRESETS.map(item => <button key={item.id} type="button" className={styles.presetButton} aria-pressed={draft.extra?.presetId === item.id} disabled={busy || discovering}
+          {PRESETS.map(item => <SettingsButton variant="plain" key={item.id} type="button" className={styles.presetButton} aria-pressed={draft.extra?.presetId === item.id} disabled={busy || discovering}
             title={item.id === 'custom' ? c('custom') : item.name} onClick={() => choosePreset(item.id)}>
             {item.icon ? item.monochrome
               ? <span aria-hidden="true" className={styles.presetIcon + ' ' + styles.monochromeIcon} style={{ maskImage: `url("${item.icon}")`, WebkitMaskImage: `url("${item.icon}")` }} />
               : <img className={styles.presetIcon} src={item.icon} alt="" />
               : item.id === 'cpa' ? <Network className={styles.presetIcon} aria-hidden="true" /> : <Plug className={styles.presetIcon} aria-hidden="true" />}
             <span className={styles.presetLabel}>{item.id === 'custom' ? c('custom') : item.name}</span>
-          </button>)}
+          </SettingsButton>)}
         </div>
       </div>
-      <label className={styles.field}><span>{c('name')}</span><input aria-label={c('name')} required maxLength={80} value={draft.name} disabled={busy} placeholder={c('namePlaceholder')} onChange={event => update({ name: event.target.value })} /></label>
+      <label className={styles.field}><span>{c('name')}</span><SettingsInput aria-label={c('name')} required maxLength={80} value={draft.name} disabled={busy} placeholder={c('namePlaceholder')} onChange={event => update({ name: event.target.value })} /></label>
       {protocol !== 'vertex' ? <>
-        <label className={styles.field + ' ' + styles.full}><span>{c('endpoint')}</span><input aria-label={c('endpoint')} type="url" required disabled={busy} value={draft.baseURL || ''} placeholder="https://api.example.com/v1" onChange={event => update({ baseURL: event.target.value })} /></label>
-        <label className={styles.field + ' ' + styles.full}><span>{c('apiKey')}</span><div className={styles.secret}><input aria-label={c('apiKey')} type={visible ? 'text' : 'password'} autoComplete="new-password" disabled={busy || draft.authType === 'none'} value={draft.apiKey || ''} placeholder="sk-…" onChange={event => update({ apiKey: event.target.value })} />
-          <button type="button" className={styles.iconButton} aria-label={c(visible ? 'hideKey' : 'showKey')} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={14} /> : <Eye size={14} />}</button></div></label>
-        {(protocol === 'openai' || protocol === 'responses') && <label className={styles.checkbox}><input type="checkbox" checked={draft.authType === 'none'} disabled={busy} onChange={event => update({ authType: authTypeForProtocol(protocol, event.target.checked) })} />{c('noAuth')}</label>}
+        <label className={styles.field + ' ' + styles.full}><span>{c('endpoint')}</span><SettingsInput aria-label={c('endpoint')} type="url" required disabled={busy} value={draft.baseURL || ''} placeholder="https://api.example.com/v1" onChange={event => update({ baseURL: event.target.value })} /></label>
+        <label className={styles.field + ' ' + styles.full}><span>{c('apiKey')}</span><InputGroup className={styles.secret}><SettingsInput aria-label={c('apiKey')} type={visible ? 'text' : 'password'} autoComplete="new-password" disabled={busy || draft.authType === 'none'} value={draft.apiKey || ''} placeholder="sk-…" onChange={event => update({ apiKey: event.target.value })} />
+          <SettingsButton variant="ghost" size="icon" type="button" className={styles.iconButton} aria-label={c(visible ? 'hideKey' : 'showKey')} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={14} /> : <Eye size={14} />}</SettingsButton></InputGroup></label>
+        {(protocol === 'openai' || protocol === 'responses') && <label className={styles.checkbox}><span>{c('noAuth')}</span><SettingsCheckbox checked={draft.authType === 'none'} disabled={busy} onChange={event => update({ authType: authTypeForProtocol(protocol, event.target.checked) })} /></label>}
       </> : <>
-        <label className={styles.field}><span>{c('project')}</span><input aria-label={c('project')} disabled={busy} value={draft.vertexAI?.projectId || ''} onChange={event => vertex({ projectId: event.target.value })} /></label>
-        <label className={styles.field}><span>{c('region')}</span><input aria-label={c('region')} disabled={busy} value={draft.vertexAI?.region || ''} placeholder="us-central1" onChange={event => vertex({ region: event.target.value })} /></label>
-        <label className={styles.checkbox}><input type="checkbox" disabled={busy} checked={!!draft.vertexAI?.useADC} onChange={event => vertex({ useADC: event.target.checked })} />{c('adc')}</label>
-        {!draft.vertexAI?.useADC && <label className={styles.field + ' ' + styles.full}><span>Service Account JSON</span><textarea aria-label="Service Account JSON" disabled={busy} rows={3} value={draft.vertexAI?.serviceAccountJSON || ''} onChange={event => vertex({ serviceAccountJSON: event.target.value })} /></label>}
+        <label className={styles.field}><span>{c('project')}</span><SettingsInput aria-label={c('project')} disabled={busy} value={draft.vertexAI?.projectId || ''} onChange={event => vertex({ projectId: event.target.value })} /></label>
+        <label className={styles.field}><span>{c('region')}</span><SettingsInput aria-label={c('region')} disabled={busy} value={draft.vertexAI?.region || ''} placeholder="us-central1" onChange={event => vertex({ region: event.target.value })} /></label>
+        <label className={styles.checkbox}><span>{c('adc')}</span><SettingsCheckbox disabled={busy} checked={!!draft.vertexAI?.useADC} onChange={event => vertex({ useADC: event.target.checked })} /></label>
+        {!draft.vertexAI?.useADC && <label className={styles.field + ' ' + styles.full}><span>Service Account JSON</span><SettingsTextarea aria-label="Service Account JSON" disabled={busy} rows={3} value={draft.vertexAI?.serviceAccountJSON || ''} onChange={event => vertex({ serviceAccountJSON: event.target.value })} /></label>}
         <details className={styles.full}><summary>{c('advanced')}</summary><div className={styles.fields}>
-          {(['clientEmail', 'privateKey', 'serviceAccountPath', 'proxy'] as const).map(key => <label key={key} className={styles.field + ' ' + styles.full}><span>{key}</span><input aria-label={key} type={key === 'privateKey' ? 'password' : 'text'} disabled={busy} value={draft.vertexAI?.[key] || ''} onChange={event => vertex({ [key]: event.target.value })} /></label>)}
+          {(['clientEmail', 'privateKey', 'serviceAccountPath', 'proxy'] as const).map(key => <label key={key} className={styles.field + ' ' + styles.full}><span>{key}</span><SettingsInput aria-label={key} type={key === 'privateKey' ? 'password' : 'text'} disabled={busy} value={draft.vertexAI?.[key] || ''} onChange={event => vertex({ [key]: event.target.value })} /></label>)}
         </div></details>
       </>}
-      <div className={styles.field + ' ' + styles.full}><div className={styles.fieldHeader}><span>{c('models')}</span>{protocol !== 'vertex' && <button type="button" className={styles.link} disabled={busy || discovering} onClick={() => void discover()}><RefreshCw size={13} className={discovering ? styles.spinning : undefined} />{discovering ? c('modelsLoading') : c('fetchModels')}</button>}</div>
-        <textarea aria-label={c('models')} required rows={3} disabled={busy || discovering} value={models} placeholder={c('modelsPlaceholder')} onChange={event => { setModels(event.target.value); setResult(''); setError('') }} /><small>{c('modelsHint')}</small></div>
+      <div className={styles.field + ' ' + styles.full}><div className={styles.fieldHeader}><span>{c('models')}</span>{protocol !== 'vertex' && <SettingsButton variant="ghost" type="button" className={styles.link} disabled={busy || discovering} onClick={() => void discover()}><RefreshCw size={13} className={discovering ? styles.spinning : undefined} />{discovering ? c('modelsLoading') : c('fetchModels')}</SettingsButton>}</div>
+        <SettingsTextarea aria-label={c('models')} required rows={3} disabled={busy || discovering} value={models} placeholder={c('modelsPlaceholder')} onChange={event => { setModels(event.target.value); setResult(''); setError('') }} /><small>{c('modelsHint')}</small></div>
       {modelIds.length > 1 && <label className={styles.field + ' ' + styles.full}><span>{c('defaultModel')}</span><Select ariaLabel={c('defaultModel')} disabled={busy} value={modelIds.includes(draft.defaultModelId || '') ? draft.defaultModelId! : modelIds[0]} options={modelIds.map(id => ({ value: id, label: id }))} onChange={value => update({ defaultModelId: value })} /></label>}
       <details className={styles.full}><summary>{c('advanced')}</summary><div className={styles.fields}>
         <label className={styles.field + ' ' + styles.full}><span>{c('protocol')}</span><Select ariaLabel={c('protocol')} disabled={busy} value={protocol} options={Object.entries(PROTOCOL_NAMES).map(([value, label]) => ({ value, label }))} onChange={value => update({
           authType: authTypeForProtocol(value as ChannelProtocol), extra: { ...draft.extra, protocol: value },
         })} /></label>
-        <label className={styles.checkbox}><input type="checkbox" checked={draft.enabled !== false} disabled={busy} onChange={event => update({ enabled: event.target.checked })} />{c('enabled')}</label>
+        <label className={styles.checkbox}><span>{c('enabled')}</span><SettingsCheckbox checked={draft.enabled !== false} disabled={busy} onChange={event => update({ enabled: event.target.checked })} /></label>
       </div></details>
     </div>
-    <div className={styles.footer}><button type="button" className={styles.button} disabled={busy} onClick={() => void saveOrTest(true)}>{busy ? c('working') : c('test')}</button><div className={styles.rowActions}><button type="button" className={styles.button} disabled={busy} onClick={onCancel}>{c('cancel')}</button><button className={styles.primary} type="submit" disabled={busy}>{busy ? c('working') : c('save')}</button></div></div>
+    <SettingsFooter sticky={false} className={styles.footer}><SettingsButton type="button" className={styles.button} disabled={busy} onClick={() => void saveOrTest(true)}>{busy ? c('working') : c('test')}</SettingsButton><div className={styles.rowActions}><SettingsButton type="button" className={styles.button} disabled={busy} onClick={onCancel}>{c('cancel')}</SettingsButton><SettingsButton variant="primary" className={styles.primary} type="submit" disabled={busy}>{busy ? c('working') : c('save')}</SettingsButton></div></SettingsFooter>
   </form>
 }

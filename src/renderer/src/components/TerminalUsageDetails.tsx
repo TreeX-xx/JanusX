@@ -5,7 +5,7 @@ import type { Terminal } from '@/types'
 import type { ReactNode } from 'react'
 import { resolveContextWindows } from '@/lib/runtime-telemetry'
 import { contextPercentLabel, contextRatio, contextRatioColor, providerLabel } from '@/lib/terminal-labels'
-import { cacheSplitFor } from '@/lib/usage-stats'
+import { cacheSplitFor, formatUsageRate } from '@/lib/usage-stats'
 import { ThemedTooltip } from './ui/ThemedTooltip'
 
 const tokenCount = (value?: number) => value === undefined ? '–' : value.toLocaleString('en-US')
@@ -45,7 +45,7 @@ function cacheHitRateLabel(terminal: Terminal): string {
   const { cacheReadTokens, inputTokens, cacheWriteTokens } = terminal
   if (cacheReadTokens === undefined || inputTokens === undefined) return '–'
   const split = cacheSplitFor(cacheReadTokens, inputTokens, cacheWriteTokens ?? 0)
-  return split.rate === undefined ? '–' : `${(split.rate * 100).toFixed(1)}%`
+  return formatUsageRate(split.rate)
 }
 
 /**

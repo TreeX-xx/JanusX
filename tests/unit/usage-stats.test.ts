@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   aggregateUsageStats,
   cacheSplitFor,
+  formatUsageRate,
   customBucketModeFor,
   endOfDay,
   normalizeCustomRange,
@@ -21,6 +22,48 @@ function terminal(overrides: Fixture): UsageRecord {
 const NOW = new Date(2026, 9, 2, 12, 0, 0).getTime()
 
 describe('usage stats aggregation', () => {
+  it('groups models within each engine without double-counting sessions or records', () => {
+    const records = [
+      terminal({ id: 'a', sessionId: 'shared', preset: 'codex', detectedModel: 'model-a', totalTokens: 100, inputTokens: 20, outputTokens: 10, cacheReadTokens: 60, cacheWriteTokens: 10, telemetryUpdatedAt: NOW }),
+      terminal({ id: 'b', sessionId: 'shared', preset: 'codex', detectedModel: 'model-b', totalTokens: 200, inputTokens: 50, outputTokens: 50, cacheReadTokens: 100, cacheWriteTokens: 0, telemetryUpdatedAt: NOW }),
+      terminal({ id: 'c', sessionId: 'shared', preset: 'codex', detectedModel: 'model-a', totalTokens: 100, inputTokens: 30, outputTokens: 10, cacheReadTokens: 60, telemetryUpdatedAt: NOW }),
+      terminal({ id: 'd', sessionId: 'shared', preset: 'claude', detectedModel: 'model-a', totalTokens: 50, inputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, telemetryUpdatedAt: NOW }),
+      terminal({ id: 'e', sessionId: 'shared', preset: 'codex', totalTokens: 10, inputTokens: 10, telemetryUpdatedAt: NOW }),
+      terminal({ id: 'old', detectedModel: 'excluded', totalTokens: 9000, telemetryUpdatedAt: NOW - 86_400_000 }),
+    ]
+    const summary = aggregateUsageStats([...records, records[0]], 'today', NOW)
+    expect(summary.modelRows).toHaveLength(4)
+    expect(summary.modelRows.map(row => row.totalTokens)).toEqual([200, 200, 50, 10])
+    expect(summary.modelRows.reduce((sum, row) => sum + row.totalTokens, 0)).toBe(summary.totalTokens)
+    expect(summary.terminals).toBe(2)
+    expect(summary.modelRows.find(row => row.preset === 'codex' && row.model === 'model-a')).toMatchObject({ terminals: 1, totalTokens: 200, inputTokens: 50, outputTokens: 20, cacheReadTokens: 120, cacheWriteTokens: 10, cacheKnown: true, cacheWriteKnown: false })
+    expect(summary.modelRows.find(row => row.model === undefined)).toMatchObject({ cacheKnown: false, cacheReported: false, cacheWriteKnown: false })
+    const zero = summary.modelRows.find(row => row.preset === 'claude')!
+    expect(cacheSplitFor(zero.cacheReadTokens, zero.inputTokens, zero.cacheWriteTokens, zero.cacheKnown).rate).toBe(0)
+    expect(summary.cacheKnown).toBe(false)
+    expect(summary.cacheReported).toBe(true)
+    expect(aggregateUsageStats(records, 'today', NOW, 'claude').modelRows).toHaveLength(1)
+  })
+
+  it('keeps partial cache coverage distinct from a reported zero', () => {
+    const summary = aggregateUsageStats([
+      terminal({ id: 'a', detectedModel: 'model', totalTokens: 100, inputTokens: 100, cacheReadTokens: 0, telemetryUpdatedAt: NOW }),
+      terminal({ id: 'b', detectedModel: 'model', totalTokens: 100, inputTokens: 100, telemetryUpdatedAt: NOW }),
+    ], 'today', NOW)
+    expect(summary.modelRows[0]).toMatchObject({ cacheKnown: false, cacheReported: true })
+    expect(formatUsageRate(cacheSplitFor(0, 200, 0, summary.modelRows[0].cacheKnown).rate)).toBe('–')
+  })
+
+  it('formats cache rates consistently without changing their calculation', () => {
+    const rate = cacheSplitFor(8000, 2000, 1000).rate
+    expect(rate).toBe(8 / 11)
+    expect(formatUsageRate(rate)).toBe('72.7%')
+    expect(formatUsageRate(rate, 2)).toBe('72.73%')
+    expect(formatUsageRate(0)).toBe('0.0%')
+    expect(formatUsageRate(1)).toBe('100.0%')
+    expect(formatUsageRate(0.996)).toBe('99.6%')
+    expect(formatUsageRate(undefined)).toBe('–')
+  })
   it('deduplicates record ids, counts sessions instead of observations and preserves unknown cache coverage', () => {
     const records = [terminal({ id: '1', sessionId: 's', totalTokens: 10, inputTokens: 10, cacheReadTokens: 0, telemetryUpdatedAt: NOW }), terminal({ id: '2', sessionId: 's', totalTokens: 20, inputTokens: 20, telemetryUpdatedAt: NOW })]
     const summary = aggregateUsageStats([...records, records[0]], 'today', NOW)
@@ -211,6 +254,8 @@ describe('usage stats custom range', () => {
     expect(summary.terminals).toBe(1)
     expect(summary.totalTokens).toBe(1_000)
     expect(summary.inputTokens).toBe(700)
+    expect(summary.modelRows).toHaveLength(1)
+    expect(summary.modelRows[0].totalTokens).toBe(1_000)
     expect(summary.outputTokens).toBe(200)
     expect(summary.rangeStart).toBe(startOfDay(day(9, 28)))
   })

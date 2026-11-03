@@ -1,9 +1,11 @@
+import { SettingsSurface, SettingsSection, SettingsRow, Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
 import { useState } from 'react'
+import { Select } from '../ui/Select'
 import { Check, Copy } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import { useTeamStore } from '@/stores/team'
 import type { TeamRole } from '../../../../shared/team/types'
-import styles from '../NotificationSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 
 const ROLE_ORDER: TeamRole[] = ['viewer', 'contributor', 'maintainer', 'owner']
 
@@ -62,48 +64,46 @@ export function TeamSettingsPanel() {
   }
 
   return (
-    <div className={styles.panel}>
-      <section className={styles.section}>
+    <SettingsSurface className={styles.panel}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('team:gate.title')}</h3>
         {status !== 'authed' ? (
-          <div className={styles.row}>
+          <SettingsRow className={styles.row}>
             <div className={styles.label}>
               <span className={styles.labelText}>{t('team:footer.login')}</span>
               <span className={styles.hint}>{t('team:gate.subtitle')}</span>
             </div>
-            <button
+            <SettingsButton variant="primary"
               type="button"
               onClick={() => requestLogin()}
-              className={`${styles.button} ${styles.primaryButton}`}
             >
               {t('team:footer.login')}
-            </button>
-          </div>
+            </SettingsButton>
+          </SettingsRow>
         ) : (
           user && (
-            <div className={styles.row}>
+            <SettingsRow className={styles.row}>
               <div className={styles.label}>
                 <span className={styles.labelText}>{user.name}</span>
                 <span className={styles.hint}>{user.email}</span>
               </div>
-              <button
+              <SettingsButton variant="ghost"
                 type="button"
                 onClick={() => void logout()}
-                className={`${styles.button} ${styles.ghostButton}`}
               >
                 {t('team:footer.logout')}
-              </button>
-            </div>
+              </SettingsButton>
+            </SettingsRow>
           )
         )}
-      </section>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('team:footer.switchOrg')}</h3>
         {tenants.map((tenant) => {
           const isActive = tenant.id === activeTenantId
           return (
-            <div className={styles.row} key={tenant.id}>
+            <SettingsRow className={styles.row} key={tenant.id}>
               <div className={styles.label}>
                 <span className={styles.labelText}>{tenant.name}</span>
                 <span className={styles.hint}>{t(`team:panel.${tenant.myRole}`)}</span>
@@ -111,25 +111,24 @@ export function TeamSettingsPanel() {
               {isActive ? (
                 <span className={styles.status}>{t('team:panel.current')}</span>
               ) : (
-                <button
+                <SettingsButton variant="ghost"
                   type="button"
                   disabled={busy}
                   onClick={() => void switchTenant(tenant.id)}
-                  className={`${styles.button} ${styles.ghostButton}`}
                 >
                   {t('team:panel.switch')}
-                </button>
+                </SettingsButton>
               )}
-            </div>
+            </SettingsRow>
           )
         })}
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('team:footer.createOrg')}</span>
             <span className={styles.hint}>{t('team:gate.createOrgDesc')}</span>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <input
+            <SettingsInput
               value={newOrgName}
               onChange={(e) => setNewOrgName(e.target.value)}
               placeholder={t('team:footer.createOrgPlaceholder')}
@@ -141,26 +140,25 @@ export function TeamSettingsPanel() {
                 }
               }}
             />
-            <button
+            <SettingsButton variant="primary"
               type="button"
               disabled={busy || !newOrgName.trim()}
               onClick={() => {
                 void createTenant(newOrgName.trim())
                 setNewOrgName('')
               }}
-              className={`${styles.button} ${styles.primaryButton}`}
             >
               {t('team:footer.createOrg')}
-            </button>
+            </SettingsButton>
           </div>
-        </div>
-        <div className={styles.row}>
+        </SettingsRow>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('team:gate.joinOrgAction')}</span>
             <span className={styles.hint}>{t('team:gate.inviteHint')}</span>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <input
+            <SettingsInput
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
               placeholder={t('team:gate.inviteCodePlaceholder')}
@@ -172,22 +170,21 @@ export function TeamSettingsPanel() {
                 }
               }}
             />
-            <button
+            <SettingsButton variant="ghost"
               type="button"
               disabled={busy || !joinCode.trim()}
               onClick={() => {
                 void acceptInvite(joinCode)
                 setJoinCode('')
               }}
-              className={`${styles.button} ${styles.ghostButton}`}
             >
               {t('team:gate.joinOrgAction')}
-            </button>
+            </SettingsButton>
           </div>
-        </div>
-      </section>
+        </SettingsRow>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>
           {t('team:panel.members')} · {active?.name ?? '—'}
         </h3>
@@ -196,7 +193,7 @@ export function TeamSettingsPanel() {
           const isMe = m.user.id === user?.id
           const disabled = m.membership.status !== 'active'
           return (
-            <div className={styles.row} key={m.user.id} style={disabled ? { opacity: 0.55 } : undefined}>
+            <SettingsRow className={styles.row} key={m.user.id} style={disabled ? { opacity: 0.55 } : undefined}>
               <div className={styles.label}>
                 <span className={styles.labelText}>
                   {m.user.name}
@@ -209,73 +206,64 @@ export function TeamSettingsPanel() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {canManage && !isMe && !disabled && (
                   <>
-                    <select
+                    <Select
                       value={m.membership.role}
                       disabled={busy}
-                      onChange={(e) => void setRole(m.user.id, e.target.value as TeamRole)}
+                      onChange={value => void setRole(m.user.id, value as TeamRole)}
                       className={styles.select}
-                      aria-label={t('team:panel.role')}
-                    >
-                      {ROLE_ORDER.map((role) => (
-                        <option key={role} value={role}>{t(`team:panel.${role}`)}</option>
-                      ))}
-                    </select>
-                    <button
+                      ariaLabel={t('team:panel.role')}
+                      options={ROLE_ORDER.map(role => ({ value: role, label: t(`team:panel.${role}`) }))}
+                    />
+                    <SettingsButton variant="ghost"
                       type="button"
                       disabled={busy}
                       onClick={() => void setMemberStatus(m.user.id, 'disabled')}
-                      className={`${styles.button} ${styles.ghostButton}`}
                     >
                       {t('team:panel.disable')}
-                    </button>
+                    </SettingsButton>
                   </>
                 )}
                 {canManage && !isMe && disabled && (
-                  <button
+                  <SettingsButton variant="ghost"
                     type="button"
                     disabled={busy}
                     onClick={() => void setMemberStatus(m.user.id, 'active')}
-                    className={`${styles.button} ${styles.ghostButton}`}
                   >
                     {t('team:panel.enable')}
-                  </button>
+                  </SettingsButton>
                 )}
               </div>
-            </div>
+            </SettingsRow>
           )
         })}
-      </section>
+      </SettingsSection>
 
       {canManage && (
-        <section className={styles.section}>
+        <SettingsSection className={styles.section}>
           <h3 className={styles.sectionTitle}>{t('team:panel.inviteSection')}</h3>
-          <div className={styles.row}>
+          <SettingsRow className={styles.row}>
             <div className={styles.label}>
               <span className={styles.labelText}>{t('team:panel.inviteRole')}</span>
               <span className={styles.hint}>{t('team:panel.codeLabel')}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <select
+              <Select
                 value={inviteRole}
                 disabled={busy}
-                onChange={(e) => setInviteRole(e.target.value as TeamRole)}
+                onChange={value => setInviteRole(value as TeamRole)}
                 className={styles.select}
-                aria-label={t('team:panel.inviteRole')}
-              >
-                {(['viewer', 'contributor', 'maintainer'] as const).map((role) => (
-                  <option key={role} value={role}>{t(`team:panel.${role}`)}</option>
-                ))}
-              </select>
-              <button
+                ariaLabel={t('team:panel.inviteRole')}
+                options={(['viewer', 'contributor', 'maintainer'] as const).map(role => ({ value: role, label: t(`team:panel.${role}`) }))}
+              />
+              <SettingsButton variant="primary"
                 type="button"
                 disabled={busy}
                 onClick={() => void doInvite()}
-                className={`${styles.button} ${styles.primaryButton}`}
               >
                 {busy ? t('team:panel.inviting') : t('team:panel.inviteAction')}
-              </button>
+              </SettingsButton>
             </div>
-          </div>
+          </SettingsRow>
           {inviteCode && (
             <div className={styles.controlStatus}>
               <div className={styles.label}>
@@ -288,24 +276,24 @@ export function TeamSettingsPanel() {
                 >
                   {inviteCode}
                 </span>
-                <button
+                <SettingsButton variant="ghost"
                   type="button"
                   onClick={() => void copyCode()}
-                  className={`${styles.button} ${styles.ghostButton}`}
+
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
                   {copied ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}
                   {copied ? t('team:panel.copied') : t('team:panel.copyCode')}
-                </button>
+                </SettingsButton>
               </div>
             </div>
           )}
-        </section>
+        </SettingsSection>
       )}
 
       {error && <div className={`${styles.status} ${styles.statusError}`}>{error}</div>}
 
       <p className={styles.controlNotice}>{t('team:panel.feishuSoon')}</p>
-    </div>
+    </SettingsSurface>
   )
 }

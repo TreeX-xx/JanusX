@@ -1,0 +1,19 @@
+{
+  "name": "@janusx/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared JanusX settings controls and layout for the desktop and plugins",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./styles.css": "./dist/styles.css" },
+  "files": ["dist", "README.md"],
+  "sideEffects": ["**/*.css"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": { "react": "^18.3.1 || ^19.0.0", "react-dom": "^18.3.1 || ^19.0.0" },
+  "devDependencies": { "@types/react": "^18.3.0", "@types/react-dom": "^18.3.0", "typescript": "^5.6.0" }
+}

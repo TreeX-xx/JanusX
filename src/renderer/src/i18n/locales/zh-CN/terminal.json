@@ -511,6 +511,7 @@
     "commandKeys": "↑↓ 选择 · Enter 应用 · Esc 关闭",
     "compactCommandKeys": "↑↓ · Enter",
     "effortKeys": "← → · Enter",
+    "effortActivated": "已激活",
     "nextTurnShort": "下一轮生效",
     "modelsLoading": "正在加载可用模型…",
     "modelsFailed": "模型列表加载失败，当前选择保持不变。",
