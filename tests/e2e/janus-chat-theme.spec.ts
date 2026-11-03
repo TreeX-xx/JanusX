@@ -52,7 +52,7 @@ async function openHosts(page: Page, theme: string) {
   return hosts
 }
 
-for (const theme of ['planche', 'dark']) {
+for (const theme of ['planche', 'dark', 'white']) {
   test(`${theme}: real Island uses the shared feedback palette`, async ({ page }) => {
     await page.goto('/')
     await setTheme(page, theme)

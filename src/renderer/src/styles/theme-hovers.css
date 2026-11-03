@@ -1,19 +1,19 @@
 /* ── M2c：JS hover 改色迁移区 ──────────────────────────────────────────
    悬浮态一律走 CSS 类，主题分支用 [data-theme]；禁止 onMouseEnter 改 style。
    命名：tbtn-*（28px 小按钮：ghost/accent/danger）+ terminal-*（终端区）。 */
-.tbtn-ghost:hover { background: rgba(255,255,255,0.08); color: #ccc; }
+.tbtn-ghost:hover { background: color-mix(in srgb, var(--surface-tint) 8%, transparent); color: var(--shell-text); }
 [data-theme='planche'] .tbtn-ghost:hover { background: var(--shell-hover); color: var(--shell-text); }
-.tbtn-accent:not(:disabled):hover { background: rgba(255,120,48,0.2); border-color: rgba(255,120,48,0.5); }
-[data-theme='planche'] .tbtn-accent:not(:disabled):hover { background: var(--shell-accent-mid); border-color: var(--shell-accent-border); }
-.tbtn-danger:hover { background: rgba(255,88,88,0.22); border-color: rgba(255,88,88,0.5); }
-[data-theme='planche'] .tbtn-danger:hover { background: rgba(212,61,42,0.16); border-color: #D43D2A; }
-.terminal-preset-item:hover { border-color: rgba(255,120,48,0.46); background: rgb(36, 27, 21); }
-[data-theme='planche'] .terminal-preset-item:hover { border-color: rgba(212,61,42,0.5); background: var(--shell-hover); }
-.terminal-empty-new:hover { background: rgba(255,120,48,0.08); }
+.tbtn-accent:not(:disabled):hover { background: color-mix(in srgb, var(--primary) 20%, transparent); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+[data-theme='planche'] .tbtn-accent:not(:disabled):hover { background: var(--accent-mid); border-color: var(--shell-accent-border); }
+.tbtn-danger:hover { background: color-mix(in srgb, var(--status-danger) 22%, transparent); border-color: color-mix(in srgb, var(--status-danger) 50%, transparent); }
+[data-theme='planche'] .tbtn-danger:hover { background: color-mix(in srgb, var(--shell-accent) 16%, transparent); border-color: var(--shell-accent); }
+.terminal-preset-item:hover { border-color: color-mix(in srgb, var(--primary) 46%, transparent); background: var(--shell-pane); }
+[data-theme='planche'] .terminal-preset-item:hover { border-color: color-mix(in srgb, var(--shell-accent) 50%, transparent); background: var(--shell-hover); }
+.terminal-empty-new:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
 [data-theme='planche'] .terminal-empty-new:hover { background: var(--shell-hover); }
 /* 预览器分栏条：悬浮点睛（拖拽中保持由 JS 的 isDragging 语义退化为纯 CSS，接受拖拽中也高亮） */
-.viewer-divider:hover { background: #ff7830; }
-[data-theme='planche'] .viewer-divider:hover { background: #D43D2A; }
+.viewer-divider:hover { background: var(--primary); }
+[data-theme='planche'] .viewer-divider:hover { background: var(--shell-accent); }
 /* 文件 tab 关闭钮：常态清晰可见，悬浮转删除色并亮出反馈（禁止内联 color/opacity 压掉本规则） */
 .filetab-close {
   position: relative;
@@ -89,7 +89,7 @@
   color: var(--shell-dim);
   user-select: none;
 }
-[data-theme='planche'] .terminal-menu-section { color: var(--ink-faint, rgba(28, 52, 59, 0.38)); }
+[data-theme='planche'] .terminal-menu-section { color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent)); }
 /* Shell 区整行：比 CLI 格宽一倍，名称不被截断的概率更高 */
 .terminal-preset-item-wide { min-height: 28px; }
 

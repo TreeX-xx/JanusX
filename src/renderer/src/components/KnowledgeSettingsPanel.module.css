@@ -12,8 +12,8 @@
 .clientIdentity { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .clientIcon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid var(--shell-border-soft); border-radius: 8px; background: var(--shell-card); color: var(--shell-text); }
 .clientIcon img, .clientIcon svg { width: 22px; height: 22px; object-fit: contain; }
-.clientIcon[data-client='codex'] { background: #f4f4f4; }
-.clientIcon[data-client='opencode'], .clientIcon[data-client='janus'] { background: #202024; }
+.clientIcon[data-client='codex'] { background: var(--shell-text); }
+.clientIcon[data-client='opencode'], .clientIcon[data-client='janus'] { background: var(--shell-chrome-raised); }
 .hint { margin: 0; color: var(--shell-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .button { display: inline-flex; justify-content: center; align-items: center; gap: 5px; min-height: 28px; padding: 4px 10px; border: 1px solid var(--control-border); border-radius: 5px; color: var(--shell-text); background: transparent; font: inherit; font-size: 11px; line-height: 1.5; cursor: pointer; }

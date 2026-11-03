@@ -25,11 +25,11 @@
 }
 
 .janus-island-shell.mode-running[data-stage="expanded"] .janus-expanded-shell {
-  border-color: rgba(0,255,136,0.25);
+  border-color: color-mix(in srgb, var(--status-success) 25%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 24px 64px rgba(0,0,0,0.6),
-    0 0 18px rgba(0,255,136,0.1);
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 6%, transparent),
+    0 24px 64px color-mix(in srgb, var(--shadow-color) 60%, transparent),
+    0 0 18px color-mix(in srgb, var(--status-success) 10%, transparent);
 }
 
 .janus-island-shell.mode-analytics[data-stage="expanded"] .janus-expanded-shell,
@@ -130,19 +130,19 @@
 }
 
 .janus-pin-button[data-pinned="true"] {
-  border-color: rgba(255, 120, 48, 0.42);
-  background: rgba(255, 120, 48, 0.12);
-  color: #ffb27d;
+  border-color: color-mix(in srgb, var(--primary) 42%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--shell-accent-strong);
 }
 
 .janus-pin-button[data-pinned="true"]:hover:not(:disabled) {
-  border-color: rgba(255, 120, 48, 0.55);
-  background: rgba(255, 120, 48, 0.16);
-  color: #ffd1b5;
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--shell-accent);
 }
 
 .janus-island-shell[data-pinned="true"] .janus-expanded-topbar {
-  border-bottom: 1px dashed rgba(255, 120, 48, 0.22);
+  border-bottom: 1px dashed color-mix(in srgb, var(--primary) 22%, transparent);
   border-radius: 6px 6px 0 0;
 }
 

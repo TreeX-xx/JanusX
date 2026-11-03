@@ -123,8 +123,8 @@
 
 .placeholder,
 .slot {
-  background: rgba(128, 128, 128, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.32);
+  background: color-mix(in srgb, var(--shell-muted) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shell-muted) 32%, transparent);
   border-radius: 7px;
   pointer-events: none;
 }
@@ -137,8 +137,8 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  background: rgba(128, 128, 128, 0.18);
-  border: 1px solid rgba(128, 128, 128, 0.32);
+  background: color-mix(in srgb, var(--shell-muted) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-muted) 32%, transparent);
   border-radius: 0;
 }
 

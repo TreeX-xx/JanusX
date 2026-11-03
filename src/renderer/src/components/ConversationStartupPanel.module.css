@@ -16,7 +16,7 @@
 .keyRow { display: flex; gap: 8px; margin-top: 10px; max-width: 400px; }
 .keyRow input { min-width: 0; width: 100%; background: transparent; border: 1px solid var(--shell-border); border-radius: 7px; padding: 8px; color: var(--shell-text); }
 .keyRow button { flex-shrink: 0; }
-.panel .error { color: var(--shell-danger, #e87c7c); }
+.panel .error { color: var(--status-danger); }
 .hooks { max-height: 200px; overflow: auto; margin-top: 14px; border-block: 1px solid var(--shell-border); }
 .hooks details { padding: 8px 0; font-size: 12px; }
 .hooks details + details { border-top: 1px solid var(--shell-border); }

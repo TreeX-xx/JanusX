@@ -43,7 +43,7 @@
 }
 
 .typeItem:hover {
-  background: rgba(255, 255, 255, 0.045);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
   color: var(--shell-text);
 }
 
@@ -87,7 +87,6 @@
 .typeDesc {
   display: none;
   color: var(--shell-muted);
-  opacity: 0.7;
 }
 
 .checkmark {
@@ -102,14 +101,14 @@
 
 /* ── planche：hover/选中走纸深，强调条走朱红（加法层，dark 原样不动）── */
 :global([data-theme='planche']) .typeItem:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .typeItem.selected,
 :global([data-theme='planche']) .typeItem.selected:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .typeItem.selected::before {
-  background: var(--planche-red, #D43D2A);
+  background: var(--planche-red, var(--shell-accent));
 }

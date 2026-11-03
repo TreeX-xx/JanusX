@@ -11,7 +11,7 @@ import '../../../src/renderer/src/styles/themes.generated.css'
 installElectronApiFallback()
 await initI18n()
 await changeLanguage('zh-CN')
-useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'planche')
+useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') ?? 'planche')
 document.body.style.background = 'var(--shell-canvas)'
 const catalog: ModelCatalogSnapshot = {
   source: 'cache', isStale: false, updatedAt: '2026-10-17T08:00:00Z',

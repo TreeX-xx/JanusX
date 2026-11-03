@@ -8,6 +8,7 @@
   "class": "architecture",
   "tags": ["product","surface"],
   "relations": [
+    {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/41a64d3c-2811-4dc8-a1ab-2c5c541ec123"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/93151b7b-6a33-5e5d-bf83-f2109fc85389"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/b1978fa7-4732-553a-83c3-12aefd34c248"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/671574ba-c6e4-54ab-8fee-8d762e72f622"},
@@ -40,7 +41,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-02T10:22:08Z",
+  "updated": "2026-11-03T07:29:37Z",
   "moduleState": "partial"
 }
 ---
@@ -52,6 +53,8 @@
 组织 Island、右侧工具栏、产物预览与共享编辑器的交互和视觉。RightDock 负责工具承载与布局，ProductWorkspacePanel 负责生成文件的预览，JanusIsland 负责工作状态及通知入口。文件事实由既有读取服务提供，会话耐久、Agent 执行与工程 Note 事务分别由对应模块负责。
 
 ## Design
+
+[主题机制](./theme-system.md)集中维护经典黑、石板色与纯白的配色，应用、终端、Monaco 和三个官方插件共用生成来源。组件绘制颜色读取语义令牌；主题审计覆盖宿主与官方插件，固定色仅保留有明确用途的例外。新增主题不需要逐组件添加颜色分支。
 
 对话视觉使用开放正文与清楚的标题层级：空态标题、引擎身份和输入区左边缘对齐，用户气泡收紧间距，连续工具行以细线组织，状态颜色沿用主题语义。输入区独立底色、底部控制分隔及主题色焦点反馈；Markdown 对话变体由 pane 控制正文排版，其他文档渲染维持共享默认。实际组件的深浅主题、390px 窄窗与空态示例截图位于 `artifacts/conversation-design/`，不代表真实模型运行内容。
 

@@ -67,7 +67,7 @@
 }
 
 .note {
-  color: #d78b92;
+  color: var(--status-danger);
   font-size: 11px;
   line-height: 1.5;
   max-width: 560px;
@@ -89,7 +89,7 @@
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border: 1px solid var(--so-field-border);
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
@@ -103,15 +103,15 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #8b8b91;
+  background: var(--shell-muted);
   transition: transform 0.18s ease, background 0.18s ease;
 }
 
 /* 开关"开"态：轨道保持中性灰，只让滑块保留强调色小点。
    整条轨道染橙会在长列表里变成一排橙色条，正是要避免的色块堆积。 */
 .switch input:checked + .switchTrack {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--surface-tint) 12%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 18%, transparent);
 }
 
 .switch input:checked + .switchTrack::after {
@@ -140,8 +140,8 @@
 }
 
 .input:focus {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .textInput {
@@ -192,12 +192,12 @@
 }
 
 .select:focus {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .select option {
-  background: var(--shell-card, #1c1c1f);
+  background: var(--shell-card, var(--shell-pane));
   color: var(--shell-text);
 }
 
@@ -243,11 +243,11 @@
 }
 
 .statusError {
-  color: #d78b92;
+  color: var(--status-danger);
 }
 
 .statusSuccess {
-  color: #6fb88a;
+  color: var(--status-success);
 }
 
 .actions {
@@ -279,8 +279,8 @@
 }
 
 .ghostButton:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
   color: var(--shell-text);
 }
 
@@ -339,41 +339,41 @@
 /* 底栏在纸面下不吃毛玻璃：压成实心纸色，只靠顶部发丝线分界。
    否则 blur(16px) 会把滚过的纸面糊成一块脏影，横条读起来像浮在内容上的遮罩。 */
 :global([data-theme='planche']) .footer {
-  background: var(--paper, #EFE4C5);
+  background: var(--paper, var(--shell-canvas));
   backdrop-filter: none;
 }
 
 :global([data-theme='planche']) .labelText {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .switch input:checked + .switchTrack {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--line-soft, rgba(28, 52, 59, 0.22));
+  background: var(--paper-deep, var(--shell-hover));
+  border-color: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
 }
 
 :global([data-theme='planche']) .switch input:checked + .switchTrack::after {
-  background: var(--planche-red, #D43D2A);
+  background: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .input,
 :global([data-theme='planche']) .select {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .input:focus,
 :global([data-theme='planche']) .select:focus {
-  background: var(--paper, #EFE4C5);
-  border-color: var(--planche-red, #D43D2A);
+  background: var(--paper, var(--shell-canvas));
+  border-color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .select option {
-  background: var(--paper, #EFE4C5);
-  color: var(--ink, #1C343B);
+  background: var(--paper, var(--shell-canvas));
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .ghostButton:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
+  background: var(--paper-deep, var(--shell-hover));
+  border-color: var(--planche-red, var(--shell-accent));
+  color: var(--planche-red, var(--shell-accent));
 }

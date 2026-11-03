@@ -136,10 +136,10 @@ export function useIslandGesture({
             const labels = pullHintLabelsRef.current
             if (deltaY >= SWIPE_THRESHOLD) {
               hint.textContent = labels?.release ?? 'Release to open notifications'
-              hint.style.color = '#fff'
+              hint.style.color = 'var(--shell-text)'
             } else {
               hint.textContent = labels?.keep ?? 'Keep pulling to open notifications'
-              hint.style.color = '#888'
+              hint.style.color = 'var(--shell-muted)'
             }
           } else {
             hint.style.opacity = '0'

@@ -2,21 +2,7 @@
 .settings-surface { overflow: auto; flex: 1; min-height: 0; padding: 22px; }
 .blueprint-plugin.settings-only { min-width: 0; }
 :root {
-  --shell-canvas: #191d24;
-  --shell-text: #e5e7eb;
-  --shell-muted: #9298a3;
-  --shell-card: #222731;
-  --shell-border: #414652;
-  --shell-accent: #84b8eb;
-  --shell-border-soft: color-mix(in srgb, var(--shell-border) 65%, transparent);
-  --shell-chrome: var(--shell-canvas);
-  --shell-chrome-raised: var(--shell-card);
-  --shell-dim: var(--shell-muted);
-  --shell-hover: color-mix(in srgb, var(--shell-text) 6%, transparent);
   --control-border: var(--shell-border);
-  --shell-accent-border: var(--shell-accent);
-  --shell-diff-del: #d16c68;
-  --shell-diff-add: #65a879;
 }
 .blueprint-settings .settings-heading { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: 0; }
 .blueprint-settings .credential-clear { grid-column: 2; justify-self: end; }

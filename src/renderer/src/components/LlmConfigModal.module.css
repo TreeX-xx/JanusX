@@ -11,7 +11,7 @@
 .modalBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 8, 10, 0.62);
+  background: var(--modal-backdrop);
   backdrop-filter: blur(10px);
   z-index: 9999;
   display: flex;
@@ -22,14 +22,14 @@
   transition: opacity 0.24s ease;
 
   /* 与 AppSettingsModal .panel 保持同源（同时覆盖 portal 出去的 Select 下拉）。 */
-  --so-accent: #f2934f;
-  --so-accent-ink: #f0a878;
-  --so-accent-hover: #ffbf94;
+  --so-accent: var(--shell-accent);
+  --so-accent-ink: var(--shell-accent);
+  --so-accent-hover: var(--shell-accent-strong);
   --so-accent-rgb: 244, 125, 67;
   --janus-order: var(--so-accent);
   --so-rule: var(--shell-border);
   --so-rule-soft: var(--shell-border-soft);
-  --so-field: rgba(0, 0, 0, 0.28);
+  --so-field: color-mix(in srgb, var(--surface-shade) 28%, transparent);
   --so-field-border: var(--control-border);
   --so-control-h: var(--control-h);
   --so-radius: 6px;
@@ -46,7 +46,7 @@
   background: var(--shell-canvas);
   border-radius: 10px;
   border: 1px solid var(--shell-border);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--shadow-color) 55%, transparent);
   transform: translateY(14px) scale(0.98);
   transition: transform 0.24s ease;
   display: flex;
@@ -105,7 +105,7 @@
 .statusDot {
   width: 7px;
   height: 7px;
-  background: #77777f;
+  background: var(--shell-muted);
   border-radius: 50%;
 }
 
@@ -141,17 +141,17 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #77777f;
+  background: var(--shell-muted);
 }
 
-.runtimeStatus[data-state='available'] .runtimeIndicator { background: #68b99c; }
-.runtimeStatus[data-state='unavailable'] .runtimeIndicator { background: #cf787f; }
+.runtimeStatus[data-state='available'] .runtimeIndicator { background: var(--status-success); }
+.runtimeStatus[data-state='unavailable'] .runtimeIndicator { background: var(--status-danger); }
 .runtimeStatus > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.runtimeStatus strong { color: #d9d9dd; font-size: 11px; font-weight: 600; }
+.runtimeStatus strong { color: var(--shell-text); font-size: 11px; font-weight: 600; }
 .runtimeStatus span, .runtimeStatus small { overflow-wrap: anywhere; color: var(--shell-dim); font-size: 9px; line-height: 1.45; }
-.runtimeStatus small { color: #a66f74; }
-.runtimeStatus button { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 1px solid var(--so-field-border); border-radius: 5px; background: transparent; color: #77777f; cursor: pointer; }
-.runtimeStatus button:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.16); color: #d9d9dd; }
+.runtimeStatus small { color: var(--status-danger); }
+.runtimeStatus button { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 1px solid var(--so-field-border); border-radius: 5px; background: transparent; color: var(--shell-dim); cursor: pointer; }
+.runtimeStatus button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent); color: var(--shell-text); }
 .runtimeStatus button:disabled { opacity: 0.45; }
 .spinning { animation: runtime-spin 0.8s linear infinite; }
 
@@ -166,7 +166,7 @@
 }
 
 .configBody::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--surface-tint) 10%, transparent);
   border-radius: 3px;
 }
 
@@ -220,12 +220,12 @@
 }
 
 .configInput:focus {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .configInput::placeholder {
-  color: #5f6368;
+  color: var(--shell-dim);
 }
 
 .configInput.selectInput {
@@ -277,11 +277,11 @@
 }
 
 .providerItem:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
 }
 
 .providerItemActive {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--surface-tint) 3%, transparent);
 }
 
 .providerItemActive::before {
@@ -296,7 +296,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #d9d9dd;
+  color: var(--shell-text);
   font-size: 12px;
   font-weight: 600;
 }
@@ -350,7 +350,7 @@
 /* 提示条：去掉填充底，只留一条中性细线做锚点。 */
 .notice {
   padding: 2px 0 2px 11px;
-  border-left: 2px solid rgba(255, 255, 255, 0.16);
+  border-left: 2px solid color-mix(in srgb, var(--surface-tint) 16%, transparent);
   color: var(--shell-muted);
   font-size: 11px;
   line-height: 1.55;
@@ -397,11 +397,11 @@
 }
 
 .testStatus.success {
-  color: #6fb88a;
+  color: var(--status-success);
 }
 
 .testStatus.error {
-  color: #d78b92;
+  color: var(--status-danger);
 }
 
 .btn {
@@ -438,8 +438,8 @@
 }
 
 .btnGhost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
   color: var(--shell-text);
 }
 
@@ -448,18 +448,18 @@
 }
 
 .btnAccent:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.045);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
   color: var(--shell-text);
 }
 
 .btnDanger {
-  color: #d78b92;
+  color: var(--status-danger);
 }
 
 .btnDanger:hover:not(:disabled) {
-  border-color: rgba(215, 139, 146, 0.42);
-  color: #e8a2a8;
+  border-color: color-mix(in srgb, var(--status-danger) 42%, transparent);
+  color: var(--status-danger);
 }
 
 .btnPrimary {
@@ -523,7 +523,7 @@
   height: 14px;
   flex: none;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface-tint) 8%, transparent);
   color: var(--shell-muted);
   font-size: 9px;
   font-weight: 700;
@@ -542,7 +542,7 @@
   padding: 10px 12px;
   border: 1px solid var(--so-rule-soft);
   border-radius: var(--so-radius);
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--surface-tint) 2%, transparent);
 }
 
 @media (max-width: 720px) {
@@ -566,64 +566,64 @@
    独立弹窗与设置内嵌共用 --so-*，此处翻变量值即全跟随；
    白字标签与输入聚焦逐条点名。 */
 :global([data-theme='planche']) .modalBackdrop {
-  --so-field: var(--paper, #EFE4C5);
-  --so-accent: var(--planche-red, #D43D2A);
-  --so-accent-ink: var(--planche-red, #D43D2A);
-  --so-accent-hover: var(--planche-red, #D43D2A);
+  --so-field: var(--paper, var(--shell-canvas));
+  --so-accent: var(--planche-red, var(--shell-accent));
+  --so-accent-ink: var(--planche-red, var(--shell-accent));
+  --so-accent-hover: var(--planche-red, var(--shell-accent));
   --so-accent-rgb: 212, 61, 42;
-  --janus-order: var(--planche-red, #D43D2A);
+  --janus-order: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .llmConfigPanel {
-  box-shadow: 3px 3px 0 var(--line, #1C343B);
+  box-shadow: 3px 3px 0 var(--line, var(--shell-text));
 }
 
 :global([data-theme='planche']) .runtimeStatus strong,
 :global([data-theme='planche']) .formGroup label,
 :global([data-theme='planche']) .providerName {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .runtimeStatus button {
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .runtimeStatus button:hover:not(:disabled) {
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
+  border-color: var(--planche-red, var(--shell-accent));
+  color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .configInput {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .configInput:focus {
-  background: var(--paper, #EFE4C5);
-  border-color: var(--planche-red, #D43D2A);
+  background: var(--paper, var(--shell-canvas));
+  border-color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .configInput::placeholder {
-  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+  color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .providerItem:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .providerItemActive {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .providerItemActive::before {
-  background: var(--planche-red, #D43D2A);
+  background: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .terminalFile {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 /* 内嵌底栏与通知/知识库设置同源：纸面下压成实心纸色，不吃毛玻璃。 */
 :global([data-theme='planche']) .embeddedPanel .configFooter {
-  background: var(--paper, #EFE4C5);
+  background: var(--paper, var(--shell-canvas));
   backdrop-filter: none;
 }

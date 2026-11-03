@@ -5,7 +5,6 @@ import { ChevronRight, Ellipsis, Folder, GitBranch, PanelLeftClose, PanelLeftOpe
 import { useWorkspaceStore } from '@/stores/workspace'
 import { EMPTY_PENDING_LIST, EMPTY_STRING_LIST, EMPTY_WORKTREE_LIST, useWorktreeStore } from '@/stores/worktree'
 import { useAppStore } from '@/stores/app'
-import { useThemeStore } from '@/stores/theme'
 import { useI18n } from '@/i18n/useI18n'
 import { ProjectLauncher } from './ProjectLauncher'
 import { WorkspaceUnavailableNotice, relocateWorkspaceData } from './WorkspaceDataPanel'
@@ -344,7 +343,6 @@ function TerminalRow({
           preset={terminal.preset}
           alt={t('common:workspace.presetIconAlt', { preset: presetLabel })}
           className="h-3.5 w-3.5 shrink-0"
-          style={terminal.preset === 'codex' ? { filter: 'var(--sidebar-codex-filter)' } : undefined}
         />
       </span>
       <span className="min-w-0">
@@ -691,8 +689,6 @@ export function Sidebar() {
   const setLoadState = useAppStore((s) => s.setLoadState)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  // 删除确认弹窗主题分支：底座走语义令牌，纸面点睛（硬套印影）走分支，与 ⋯ 菜单同构
-  const plancheModal = useThemeStore((s) => s.theme) === 'planche'
 
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [configTarget, setConfigTarget] = useState<Workspace | null>(null)
@@ -1229,7 +1225,7 @@ export function Sidebar() {
                   onDrop={(event) => handleBoundaryDrop('start', event)}
                 >
                   {dropIntent?.mode === 'start' && (
-                    <div className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded bg-[#ff7830] shadow-[0_0_7px_rgba(255,120,48,0.7)]" />
+                    <div className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
                   )}
                 </div>
                 {orderedWorkspaces.map((ws, workspaceIndex) => {
@@ -1291,7 +1287,7 @@ export function Sidebar() {
                               onKeyDown={handleGroupNameKeyDown}
                               onBlur={() => commitGroupRename(group.id)}
                               onClick={(event) => event.stopPropagation()}
-                              className="min-w-0 flex-1 rounded-sm border border-[rgba(255,120,48,0.35)] bg-[rgba(0,0,0,0.28)] px-1.5 py-0.5 text-[11px] text-[var(--shell-text)] outline-none"
+                              className="min-w-0 flex-1 rounded-sm border border-[color-mix(in_srgb,_var(--primary)_35%,_transparent)] bg-[color-mix(in_srgb,_var(--surface-shade)_28%,_transparent)] px-1.5 py-0.5 text-[11px] text-[var(--shell-text)] outline-none"
                               aria-label={t('common:workspace.groupNameAria')}
                             />
                           ) : (
@@ -1310,7 +1306,7 @@ export function Sidebar() {
                             </ThemedTooltip>
                           )}
                           {isGroupCollapsed && hasActiveGroupMember && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-[#ff7830] shadow-[0_0_5px_rgba(255,120,48,0.65)]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] shadow-[0_0_5px_color-mix(in_srgb,_var(--primary)_65%,_transparent)]" />
                           )}
                           <span className="font-mono text-[9px] text-[var(--shell-dim)]">{groupMembers.length}</span>
                         </div>
@@ -1319,7 +1315,7 @@ export function Sidebar() {
                       {!isGroupCollapsed && (
                         <div className={`relative mb-px${group ? ' ml-2 pl-1.5' : ''}`}>
                           {group && (
-                            <div className="pointer-events-none absolute bottom-0 left-0 top-0 w-px bg-[rgba(255,255,255,0.075)]" />
+                            <div className="pointer-events-none absolute bottom-0 left-0 top-0 w-px bg-[color-mix(in_srgb,_var(--surface-tint)_7.5%,_transparent)]" />
                           )}
                           <ThemedTooltip label={t('common:workspace.wsTitle', { prefix: group ? `${group.name} · ` : '', name: ws.name })}>
                           <div
@@ -1346,17 +1342,17 @@ export function Sidebar() {
                                     : undefined,
                               opacity: isDragged ? 0.42 : 1,
                               boxShadow: isGroupTarget
-                                ? 'inset 0 0 0 1px rgba(255,120,48,0.48), 0 0 12px rgba(255,120,48,0.08)'
+                                ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 48%, transparent), 0 0 12px color-mix(in srgb, var(--primary) 8%, transparent)'
                                 : isGroupPending
-                                  ? 'inset 0 0 0 1px rgba(255,255,255,0.07)'
+                                  ? 'inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 7%, transparent)'
                                   : 'none',
                             }}
                           >
                             {isDropBefore && (
-                              <div className="pointer-events-none absolute -top-px inset-x-1 h-0.5 rounded bg-[#ff7830] shadow-[0_0_7px_rgba(255,120,48,0.7)]" />
+                              <div className="pointer-events-none absolute -top-px inset-x-1 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
                             )}
                             {isDropAfter && (
-                              <div className="pointer-events-none absolute -bottom-px inset-x-1 h-0.5 rounded bg-[#ff7830] shadow-[0_0_7px_rgba(255,120,48,0.7)]" />
+                              <div className="pointer-events-none absolute -bottom-px inset-x-1 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
                             )}
                       <ThemedTooltip label={isExpanded ? t('common:workspace.terminalListCollapseShort', { count: terminalCount }) : t('common:workspace.terminalListExpandShort', { count: terminalCount })}>
                       <button
@@ -1372,7 +1368,7 @@ export function Sidebar() {
                           event.stopPropagation()
                           handleToggleWorkspaceExpand(ws.id, event)
                         }}
-                        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent text-[var(--shell-dim)] transition-colors duration-150 hover:bg-[var(--shell-hover)] hover:text-[var(--shell-muted)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[rgba(255,120,48,0.24)]"
+                        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent text-[var(--shell-dim)] transition-colors duration-150 hover:bg-[var(--shell-hover)] hover:text-[var(--shell-muted)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--primary)_24%,_transparent)]"
                       >
                         <ChevronRight
                           size={12}
@@ -1448,7 +1444,7 @@ export function Sidebar() {
                   onDrop={(event) => handleBoundaryDrop('end', event)}
                 >
                   {dropIntent?.mode === 'end' && (
-                    <div className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded bg-[#ff7830] shadow-[0_0_7px_rgba(255,120,48,0.7)]" />
+                    <div className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
                   )}
                 </div>
               </>
@@ -1474,7 +1470,7 @@ export function Sidebar() {
           </ThemedTooltip>
           <div
             className="w-5 h-px my-1"
-            style={{ background: 'rgba(255, 255, 255, 0.06)' }}
+            style={{ background: 'color-mix(in srgb, var(--surface-tint) 6%, transparent)' }}
           />
           {orderedWorkspaces.map((ws, workspaceIndex) => {
             const isActive = ws.id === activeWorkspaceId
@@ -1489,9 +1485,9 @@ export function Sidebar() {
             )
             const collapsedActivity = summarizeTerminalActivity(collapsedTerminals)
             const collapsedDotColor =
-              collapsedActivity.errors > 0 ? '#ff6666'
-              : collapsedActivity.needsAction > 0 ? '#f0a35e'
-              : collapsedActivity.running > 0 ? '#58c98d'
+              collapsedActivity.errors > 0 ? 'var(--status-danger)'
+              : collapsedActivity.needsAction > 0 ? 'var(--status-warning)'
+              : collapsedActivity.running > 0 ? 'var(--status-success)'
               : null
 
             return (
@@ -1511,7 +1507,7 @@ export function Sidebar() {
                 onDragOver={(event) => handleWorkspaceDragOver(ws, event)}
                 onDrop={(event) => handleWorkspaceDrop(ws, event)}
                 onDragEnd={() => handleWorkspaceDragEnd(ws.id)}
-                className="ws relative flex h-9 w-9 cursor-grab items-center justify-center rounded-[4px] transition-colors active:cursor-grabbing focus:outline-none focus-visible:ring-1 focus-visible:ring-[rgba(255,120,48,0.38)]"
+                className="ws relative flex h-9 w-9 cursor-grab items-center justify-center rounded-[4px] transition-colors active:cursor-grabbing focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--primary)_38%,_transparent)]"
                 style={{
                   marginTop: isGroupStart && workspaceIndex > 0 ? 5 : 0,
                   background: isGroupTarget
@@ -1523,17 +1519,17 @@ export function Sidebar() {
                         : 'transparent',
                   opacity: isDragged ? 0.42 : 1,
                   boxShadow: isGroupTarget
-                    ? 'inset 0 0 0 1px rgba(255,120,48,0.45)'
+                    ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent)'
                     : isGroupPending
-                      ? 'inset 0 0 0 1px rgba(255,255,255,0.07)'
+                      ? 'inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 7%, transparent)'
                       : 'none',
                 }}
               >
                 {isDropBefore && (
-                  <div className="pointer-events-none absolute -top-px inset-x-0 h-0.5 rounded bg-[#ff7830]" />
+                  <div className="pointer-events-none absolute -top-px inset-x-0 h-0.5 rounded bg-[var(--primary)]" />
                 )}
                 {isDropAfter && (
-                  <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 rounded bg-[#ff7830]" />
+                  <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 rounded bg-[var(--primary)]" />
                 )}
                 <span
                   className="font-mono text-[13px] font-semibold"
@@ -1606,7 +1602,7 @@ export function Sidebar() {
         <div
           className="fixed inset-0 flex items-center justify-center"
           style={{
-            background: 'rgba(8,8,10,0.62)',
+            background: 'var(--modal-backdrop)',
             backdropFilter: 'blur(10px)',
             zIndex: 1000,
           }}
@@ -1618,9 +1614,7 @@ export function Sidebar() {
               background: 'var(--shell-chrome)',
               border: '1px solid var(--shell-accent-border)',
               borderRadius: 8,
-              boxShadow: plancheModal
-                ? '3px 3px 0 #E8A08A'
-                : '0 20px 50px rgba(0,0,0,0.8)',
+              boxShadow: 'var(--popover-shadow)',
               animation: 'island-expand-modal 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
             }}
           >

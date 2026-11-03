@@ -49,6 +49,5 @@
 .hint {
   font-size: 11px;
   color: var(--text-secondary);
-  opacity: 0.6;
   padding: 0 2px;
 }

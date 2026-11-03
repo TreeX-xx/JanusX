@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { Plug, RefreshCw } from './SettingsIcons'
 import { settingsText as t } from './settings-text'
 import { call } from './client'
-import { EXTERNAL_CLI_TOOL_ICONS } from './cli-icons'
+import { CliIcon } from './CliIcon'
 import type { NoteMcpChange, NoteMcpProbe, NoteMcpStatus } from '../shared/note-mcp'
 import settingsStyles from './SettingsCards.module.css'
 import styles from './BlueprintSettingsPanel.module.css'
@@ -49,7 +49,7 @@ export function NoteMcpSettings() {
           <div key={client.id} className={styles.client} role="group" aria-label={client.label}>
             <div className={settingsStyles.clientIdentity}>
               <span className={settingsStyles.clientIcon} data-client={client.id} aria-hidden="true">
-                <img src={EXTERNAL_CLI_TOOL_ICONS[client.id === 'claude-code' ? 'claude' : client.id]} alt="" draggable={false} />
+                <CliIcon client={client.id} />
               </span>
               <div className={styles.clientInfo}>
                 <div className={styles.clientHeading}>

@@ -69,12 +69,11 @@ export function Graph({
     canvas = useRef<ReactFlowInstance<Node<BlueprintNodeData>>>()
   const firstClick = useRef<{ id: string; x: number; y: number; time: number }>()
   const [contextMenu, setContextMenu] = useState<{ nodeId: string; x: number; y: number }>()
-  const [theme, setTheme] = useState(document.documentElement.dataset.theme)
-  const planche = theme === 'planche'
+  const [theme, setTheme] = useState(() => getComputedStyle(document.documentElement).colorScheme)
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    const observer = new MutationObserver(() => setTheme(document.documentElement.dataset.theme))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    const observer = new MutationObserver(() => setTheme(getComputedStyle(document.documentElement).colorScheme))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] })
     return () => observer.disconnect()
   }, [])
   useEffect(() => {
@@ -223,7 +222,7 @@ export function Graph({
           proOptions={{ hideAttribution: true }}
           style={{ background: 'transparent' }}
           defaultViewport={navigation.viewport}
-          colorMode={planche ? 'light' : 'dark'}
+          colorMode={theme === 'light' ? 'light' : 'dark'}
           minZoom={0.05}
           maxZoom={4}
           onlyRenderVisibleElements
@@ -231,13 +230,13 @@ export function Graph({
         >
           <ViewportPortal>{browse.groups.map(group => <div key={group.id} className="bp-module-document-group" data-module-id={group.moduleId} data-kind={group.kind}
             style={{ left: group.x, top: group.y, width: group.width, height: group.height }}><span>{bt(NOTE_KIND_LABEL_KEY[group.kind] ?? group.kind)}</span></div>)}</ViewportPortal>
-          <Background color={planche ? 'rgba(28,52,59,0.16)' : 'rgba(255,255,255,0.05)'} gap={24} />
+          <Background color={'var(--shell-border-soft)'} gap={24} />
           {!modules.size && nodes.length <= 250 && <MiniMap pannable zoomable
-            nodeColor={node => node.data.noteId ? planche ? 'rgba(28,52,59,0.45)' : '#555' : getBlueprintStatusVisual(node.data.status as BlueprintNodeData['status']).color}
-            style={{ background: planche ? '#DCCFA8' : 'rgba(12,12,12,0.9)' }} />}
+            nodeColor={node => node.data.noteId ? 'var(--shell-dim)' : getBlueprintStatusVisual(node.data.status as BlueprintNodeData['status']).color}
+            style={{ background: 'var(--shell-card)' }} />}
         </ReactFlow>
         <div className="bp-canvas-legend" aria-hidden="true">
-          <span><i className="ld" style={{ background: 'var(--shell-accent, #b98736)' }} />{bt('review.pendingLegend')}</span>
+          <span><i className="ld" style={{ background: 'var(--shell-accent)' }} />{bt('review.pendingLegend')}</span>
           {(!modules.size && Object.values(blueprint.nodes).some(node => !node.note && !node.sourceUri) ? ['planning', 'in-progress', 'done', 'archived'] as const : []).map(status => <span key={status}><i className="ld" style={{ background: getBlueprintStatusVisual(status).color }} />{bt(getBlueprintStatusVisual(status).labelKey)}</span>)}
           <span><i style={{ color: 'var(--shell-muted)' }}>━</i>{bt('legend.parent')}</span>
           {!modules.size && [{ type: 'dependsOn', dash: '5 4' }, { type: 'implements', dash: '2 3' }, { type: 'relatedTo', dash: '5 5' }].map(relation => <span key={relation.type}><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" strokeWidth="1.5" strokeDasharray={relation.dash} style={{ stroke: 'var(--shell-muted)' }} /></svg>{bt('maintenance.relationType.' + relation.type)}</span>)}

@@ -3456,6 +3456,7 @@ export type TypedI18nKey =
   | 'settings:general.theme.label'
   | 'settings:general.theme.planche'
   | 'settings:general.theme.saveError'
+  | 'settings:general.theme.white'
   | 'settings:groups.application'
   | 'settings:groups.collaboration'
   | 'settings:groups.memory'

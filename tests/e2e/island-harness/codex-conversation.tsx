@@ -17,7 +17,7 @@ const claude = new URLSearchParams(location.search).get('engine') === 'claude'
 const extraEngine = new URLSearchParams(location.search).get('engine')
 const initialView = new URLSearchParams(location.search).get('initialView') === 'conversation' ? 'conversation' : 'terminal'
 let pendingStartup = new URLSearchParams(location.search).has('pendingStartup')
-useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'light' ? 'planche' : 'dark')
+useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'light' ? 'planche' : new URLSearchParams(location.search).get('theme') ?? 'dark')
 useWorkspaceStore.setState({ activeWorkspaceId: 'ws', terminals: [{ id: 'codex', workspaceId: 'ws', name: 'Codex', preset: 'codex', cwd: 'C:/fixture', shell: 'powershell.exe', pid: 42, status: 'wait', conversationEnabled: true, conversationInitialView: initialView }], activeTerminalId: 'codex' })
 const state: ConversationSnapshot = { id: 'codex', engine: 'codex', capabilities: CODEX_CONVERSATION_CAPABILITIES, revision: 1, mode: 'terminal', controlEpoch: 0, connection: 'ready', threadId: 'native-thread', turnId: null, submitting: false, items: [], approvals: [], needsTerminal: false, truncated: false,
   serviceTier: null, model: 'fixture-fast', effort: 'medium', modelsLoading: false, settingsUpdating: false, models: [

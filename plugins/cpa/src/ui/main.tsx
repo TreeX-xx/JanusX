@@ -10,6 +10,7 @@ async function main() {
   setApi(api)
   const info = await api.app.getInfo()
   const theme = (value: typeof info.theme) => {
+    document.documentElement.dataset.theme = value.id
     for (const [key, token] of Object.entries(value.tokens)) if (/^--[a-z0-9-]+$/i.test(key)) document.documentElement.style.setProperty(key, token)
   }
   theme(info.theme); setLocale(info.locale)

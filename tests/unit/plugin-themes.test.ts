@@ -57,7 +57,7 @@ describe('P7 declarative palettes', () => {
     expect(theme.monaco.colors['editor.foreground']).toBe(colors.text); expect(theme.monacoName).toMatch(/^[a-z0-9-]+$/)
     expect(getThemeDefinition('plugin:another.palette/ocean').monacoName).not.toBe(theme.monacoName)
     expect(getThemeDefinition('dark')).toBe(base); expect(theme.tokens['dialog-backdrop']).toBe(base.tokens['dialog-backdrop'])
-    syncPluginThemes([]); expect(getThemeDefinition(id).id).toBe('dark'); expect(listThemeDefinitions().map(item => item.id)).toEqual(['dark', 'planche'])
+    syncPluginThemes([]); expect(getThemeDefinition(id).id).toBe('dark'); expect(listThemeDefinitions().map(item => item.id)).toEqual(['dark', 'planche', 'white'])
   })
   it('does not register an ungranted theme or accept invalid palette data at the renderer boundary', () => {
     syncPluginThemes([{ ...manifest(), permissions: [] }]); expect(getThemeDefinition(id).id).toBe('dark')

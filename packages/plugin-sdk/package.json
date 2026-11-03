@@ -6,9 +6,9 @@
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./native": { "types": "./dist/native.d.ts", "import": "./dist/native.js" } },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./native": { "types": "./dist/native.d.ts", "import": "./dist/native.js" }, "./theme.css": "./theme.css" },
   "bin": { "janusx-plugin": "./tools/cli.mjs" },
-  "files": ["dist", "tools", "template", "examples", "README.md"],
+  "files": ["dist", "tools", "template", "examples", "README.md", "theme.css"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

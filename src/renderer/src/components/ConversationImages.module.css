@@ -7,7 +7,7 @@
 .actions button { display: flex; gap: 5px; align-items: center; padding: 5px 7px; font-size: 11px; border-radius: 5px; }
 .actions button:hover { background: var(--shell-hover); }
 .actions button:disabled { opacity: .45; cursor: default; }
-.dialog { max-width: 92vw; max-height: 92vh; padding: 36px 12px 12px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-bg); color: var(--shell-text); }
-.dialog::backdrop { background: rgb(0 0 0 / .65); }
+.dialog { max-width: 92vw; max-height: 92vh; padding: 36px 12px 12px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-canvas); color: var(--shell-text); }
+.dialog::backdrop { background: color-mix(in srgb, var(--surface-shade) 65%, transparent); }
 .dialog > button { position: absolute; right: 9px; top: 7px; }
 .dialog img { display: block; max-width: 85vw; max-height: 80vh; object-fit: contain; }

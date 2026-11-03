@@ -10,4 +10,4 @@
 .preview { max-width: 90vw; max-height: 90vh; padding: 30px 12px 12px; background: var(--shell-chrome); color: var(--shell-text); border: 1px solid var(--shell-border); border-radius: 10px; }
 .preview img { display: block; max-width: 85vw; max-height: 80vh; object-fit: contain; }
 .preview button { position: absolute; right: 8px; top: 4px; }
-.preview::backdrop { background: #0009; }
+.preview::backdrop { background: color-mix(in srgb, var(--surface-shade) 60%, transparent); }

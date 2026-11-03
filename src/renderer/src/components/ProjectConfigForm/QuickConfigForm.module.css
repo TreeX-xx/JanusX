@@ -151,7 +151,6 @@
 .description {
   font-size: 11px;
   color: var(--shell-muted);
-  opacity: 0.7;
   margin: 0;
   line-height: 1.4;
 }
@@ -244,26 +243,25 @@
   margin: 0;
   font-size: 11px;
   color: var(--shell-muted);
-  opacity: 0.6;
 }
 
 /* ── planche：输入纸面墨框（加法层，dark 原样不动；分组卡与设置内卡共用一条
    规则，两主题同料，不另加墨框）── */
 :global([data-theme='planche']) .input,
 :global([data-theme='planche']) .select {
-  border-color: var(--line, #1C343B);
-  background: var(--paper, #EFE4C5);
+  border-color: var(--line, var(--shell-text));
+  background: var(--paper, var(--shell-canvas));
 }
 
 :global([data-theme='planche']) .input:focus,
 :global([data-theme='planche']) .select:focus {
-  border-color: var(--planche-red, #D43D2A);
+  border-color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .configTab.active::after {
-  background: var(--planche-red, #D43D2A);
+  background: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .configTab.active {
-  border-color: var(--line-soft, rgba(28, 52, 59, 0.22));
+  border-color: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
 }

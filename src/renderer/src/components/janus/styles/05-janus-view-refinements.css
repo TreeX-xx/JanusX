@@ -69,10 +69,10 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat--docked {
   padding: 12px;
-  border-color: rgba(255,255,255,0.09);
+  border-color: color-mix(in srgb, var(--surface-tint) 9%, transparent);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012)),
-    rgba(0,0,0,0.56);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 4%, transparent), color-mix(in srgb, var(--surface-tint) 1.2%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 56%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-expanded-body {
@@ -128,8 +128,8 @@
 /* Two-state refinement: Monitor owns the stage, Chat owns the thread. */
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-switch {
   padding: 2px;
-  background: rgba(255,255,255,0.028);
-  border-color: rgba(255,255,255,0.07);
+  background: color-mix(in srgb, var(--surface-tint) 2.8%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 7%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button {
@@ -140,8 +140,8 @@
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button[data-active="true"] {
-  background: rgba(255,255,255,0.12);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+  background: color-mix(in srgb, var(--surface-tint) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 7%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-expanded-body {
@@ -153,10 +153,10 @@
   min-height: 0;
   padding: 14px;
   border-radius: 20px;
-  border-color: rgba(255,255,255,0.065);
+  border-color: color-mix(in srgb, var(--surface-tint) 6.5%, transparent);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.034), rgba(255,255,255,0.01)),
-    rgba(0,0,0,0.62);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 3.4%, transparent), color-mix(in srgb, var(--surface-tint) 1%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 62%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-feedback-surface {
@@ -172,12 +172,12 @@
   max-height: 170px;
   margin: 0 auto;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)),
-    rgba(0,0,0,0.54);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.26);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 4.5%, transparent), color-mix(in srgb, var(--surface-tint) 2%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 54%, transparent);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--shadow-color) 26%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-toolbar,
@@ -190,7 +190,7 @@
   min-height: 0;
   padding: 0 2px 8px;
   gap: 5px;
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, var(--surface-shade) 18px, var(--surface-shade) 100%);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-empty {
@@ -209,7 +209,7 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-empty-hint {
   margin: 0;
-  color: rgba(255,255,255,0.46);
+  color: var(--shell-muted);
   font-size: 11px;
 }
 
@@ -223,15 +223,15 @@
   font-size: 11.5px;
   line-height: 1.45;
   background: transparent;
-  border-color: rgba(255,255,255,0.045);
+  border-color: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-message.user .janus-chat-message-content {
-  background: rgba(255,255,255,0.055);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-message.assistant .janus-chat-message-content {
-  background: rgba(255,255,255,0.025);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-input-wrapper {
@@ -239,8 +239,8 @@
   margin: 0;
   padding: 8px;
   border-radius: 14px;
-  border-color: rgba(255,255,255,0.075);
-  background: rgba(0,0,0,0.3);
+  border-color: color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
+  background: color-mix(in srgb, var(--surface-shade) 30%, transparent);
   box-shadow: none;
 }
 
@@ -253,7 +253,7 @@
   max-height: 64px;
   padding: 8px 10px;
   font-size: 12.5px;
-  background: rgba(255,255,255,0.035);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-send,
@@ -271,7 +271,7 @@
   max-height: 52px;
   padding: 8px 12px;
   border-radius: 16px;
-  background: rgba(255,255,255,0.026);
+  background: color-mix(in srgb, var(--surface-tint) 2.6%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat--docked {
@@ -279,24 +279,24 @@
   height: 100%;
   padding: 14px;
   border-radius: 20px;
-  border-color: rgba(255,255,255,0.075);
+  border-color: color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)),
-    rgba(0,0,0,0.62);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 3.5%, transparent), color-mix(in srgb, var(--surface-tint) 1.2%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 62%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-toolbar {
   padding-bottom: 10px;
-  border-bottom-color: rgba(255,255,255,0.055);
+  border-bottom-color: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-toolbar-kicker {
-  color: rgba(255,255,255,0.38);
+  color: var(--shell-dim);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-toolbar strong {
   font-size: 14px;
-  color: rgba(255,255,255,0.86);
+  color: color-mix(in srgb, var(--shell-text) 86%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-messages {
@@ -305,30 +305,30 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message-content {
   border-radius: 14px;
-  background: rgba(255,255,255,0.032);
+  background: color-mix(in srgb, var(--surface-tint) 3.2%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message.assistant .janus-chat-message-content {
-  border-color: rgba(255,255,255,0.045);
+  border-color: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-input-wrapper {
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025)),
-    rgba(0,0,0,0.42);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 5%, transparent), color-mix(in srgb, var(--surface-tint) 2.5%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 42%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 4%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-tool-button {
-  color: rgba(255,255,255,0.58);
-  background: rgba(255,255,255,0.035);
+  color: var(--shell-muted);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-suggestions button {
   height: 28px;
-  color: rgba(255,255,255,0.62);
-  background: rgba(255,255,255,0.035);
+  color: var(--shell-muted);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 /* Minimal premium pass: fewer labels, calmer hierarchy, cleaner thread. */
@@ -340,13 +340,13 @@
 .janus-island-shell[data-stage="expanded"] .janus-island {
   border-radius: 24px;
   background:
-    radial-gradient(circle at 50% 0%, rgba(255,255,255,0.045), transparent 30%),
-    #030303;
-  border-color: rgba(255,255,255,0.075);
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--surface-tint) 4.5%, transparent), transparent 30%),
+    var(--surface-shade);
+  border-color: color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.045),
-    0 22px 70px rgba(0,0,0,0.68),
-    0 0 20px rgba(255,255,255,0.025);
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 4.5%, transparent),
+    0 22px 70px color-mix(in srgb, var(--shadow-color) 68%, transparent),
+    0 0 20px color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-shell {
@@ -365,7 +365,7 @@
 .janus-island-shell[data-stage="expanded"] .janus-expanded-brand {
   font-size: 10px;
   letter-spacing: 1.8px;
-  color: rgba(255,255,255,0.64);
+  color: var(--shell-muted);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-brand span {
@@ -380,9 +380,9 @@
 .janus-island-shell[data-stage="expanded"] .janus-expanded-mode-pill {
   height: 22px;
   padding: 0 9px;
-  border-color: rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.025);
-  color: rgba(255,255,255,0.5);
+  border-color: color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
+  color: var(--shell-muted);
   font-size: 9px;
   letter-spacing: 0.6px;
 }
@@ -390,21 +390,21 @@
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-switch {
   padding: 2px;
   gap: 2px;
-  background: rgba(255,255,255,0.035);
-  border-color: rgba(255,255,255,0.065);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 6.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button {
   min-width: 72px;
   height: 24px;
   padding: 0 12px;
-  color: rgba(255,255,255,0.46);
+  color: var(--shell-muted);
   font-size: 10px;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button[data-active="true"] {
-  color: rgba(255,255,255,0.9);
-  background: rgba(255,255,255,0.105);
+  color: color-mix(in srgb, var(--shell-text) 90%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 10.5%, transparent);
   box-shadow: none;
 }
 
@@ -436,22 +436,22 @@
   border-radius: 20px;
   background:
     radial-gradient(circle at center, var(--janus-hover-glow-soft), transparent 38%),
-    rgba(255,255,255,0.018);
+    color-mix(in srgb, var(--surface-tint) 1.8%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-feedback-surface .janus-crt {
-  border: 1px solid rgba(255,255,255,0.045);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
   border-radius: 20px;
   background:
-    radial-gradient(circle at 50% 42%, rgba(255,255,255,0.035), rgba(0,0,0,0.1) 36%, rgba(0,0,0,0.42) 100%);
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--surface-tint) 3.5%, transparent), color-mix(in srgb, var(--surface-shade) 10%, transparent) 36%, color-mix(in srgb, var(--surface-shade) 42%, transparent) 100%);
   box-shadow:
-    inset 0 0 60px rgba(0,0,0,0.78),
-    inset 0 1px 0 rgba(255,255,255,0.035);
+    inset 0 0 60px color-mix(in srgb, var(--shadow-color) 78%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-status-text {
   margin-top: 22px;
-  color: rgba(255,255,255,0.48);
+  color: var(--shell-muted);
   font-size: 10px;
   letter-spacing: 1.6px;
 }
@@ -472,9 +472,9 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   padding: 8px;
-  border: 1px solid rgba(255,255,255,0.055);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
   border-radius: 18px;
-  background: rgba(255,255,255,0.028);
+  background: color-mix(in srgb, var(--surface-tint) 2.8%, transparent);
   box-shadow: none;
 }
 
@@ -529,7 +529,7 @@
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-empty-hint {
   margin: 0;
   padding-left: 4px;
-  color: rgba(255,255,255,0.38);
+  color: var(--shell-dim);
   font-size: 11px;
 }
 
@@ -549,9 +549,9 @@
   min-height: 38px;
   max-height: 56px;
   padding: 9px 12px;
-  border-color: rgba(255,255,255,0.055);
+  border-color: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
   border-radius: 14px;
-  background: rgba(0,0,0,0.28);
+  background: color-mix(in srgb, var(--surface-shade) 28%, transparent);
   font-size: 12.5px;
 }
 
@@ -584,7 +584,7 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-toolbar {
   padding: 0 0 12px;
-  border-bottom-color: rgba(255,255,255,0.045);
+  border-bottom-color: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-toolbar-kicker {
@@ -592,7 +592,7 @@
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-toolbar strong {
-  color: rgba(255,255,255,0.72);
+  color: color-mix(in srgb, var(--shell-text) 72%, transparent);
   font-size: 12px;
   font-weight: 560;
   letter-spacing: 0.5px;
@@ -601,9 +601,9 @@
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-tool-button {
   height: 25px;
   padding: 0 8px;
-  border-color: rgba(255,255,255,0.055);
-  background: rgba(255,255,255,0.024);
-  color: rgba(255,255,255,0.46);
+  border-color: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2.4%, transparent);
+  color: var(--shell-muted);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-messages {
@@ -622,22 +622,22 @@
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message-content {
   padding: 9px 12px;
   border-radius: 15px;
-  border-color: rgba(255,255,255,0.045);
-  background: rgba(255,255,255,0.028);
+  border-color: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2.8%, transparent);
   font-size: 13px;
   line-height: 1.62;
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message.user .janus-chat-message-content {
-  background: rgba(255,255,255,0.075);
+  background: color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-input-wrapper {
   padding: 9px;
   border-radius: 18px;
-  border-color: rgba(255,255,255,0.065);
-  background: rgba(255,255,255,0.028);
+  border-color: color-mix(in srgb, var(--surface-tint) 6.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2.8%, transparent);
   box-shadow: none;
 }
 
@@ -650,7 +650,7 @@
   padding: 10px 12px;
   border-radius: 14px;
   border-color: transparent;
-  background: rgba(0,0,0,0.25);
+  background: color-mix(in srgb, var(--surface-shade) 25%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send,
@@ -669,13 +669,13 @@
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-empty-text {
-  color: rgba(255,255,255,0.62);
+  color: var(--shell-muted);
   font-size: 12px;
   letter-spacing: 0.8px;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-empty-hint {
-  color: rgba(255,255,255,0.36);
+  color: var(--shell-dim);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-suggestions {
@@ -684,9 +684,9 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-suggestions button {
   height: 28px;
-  border-color: rgba(255,255,255,0.055);
-  background: rgba(255,255,255,0.024);
-  color: rgba(255,255,255,0.52);
+  border-color: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2.4%, transparent);
+  color: var(--shell-muted);
 }
 
 @media (max-width: 900px) {
@@ -717,46 +717,46 @@
 
 .janus-island-shell[data-stage="expanded"] .janus-island {
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.032), rgba(255,255,255,0.008)),
-    #030303;
-  border-color: rgba(255,255,255,0.07);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 3.2%, transparent), color-mix(in srgb, var(--surface-tint) 0.8%, transparent)),
+    var(--surface-shade);
+  border-color: color-mix(in srgb, var(--surface-tint) 7%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.035),
-    0 22px 64px rgba(0,0,0,0.66);
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 3.5%, transparent),
+    0 22px 64px color-mix(in srgb, var(--shadow-color) 66%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-feedback-surface {
-  background: rgba(255,255,255,0.014);
+  background: color-mix(in srgb, var(--surface-tint) 1.4%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-feedback-surface .janus-crt {
-  border-color: rgba(255,255,255,0.04);
+  border-color: color-mix(in srgb, var(--surface-tint) 4%, transparent);
   background:
-    radial-gradient(circle at 50% 42%, rgba(255,255,255,0.026), rgba(0,0,0,0.18) 38%, rgba(0,0,0,0.48) 100%);
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--surface-tint) 2.6%, transparent), color-mix(in srgb, var(--surface-shade) 18%, transparent) 38%, color-mix(in srgb, var(--surface-shade) 48%, transparent) 100%);
   box-shadow:
-    inset 0 0 48px rgba(0,0,0,0.72),
-    inset 0 1px 0 rgba(255,255,255,0.026);
+    inset 0 0 48px color-mix(in srgb, var(--shadow-color) 72%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 2.6%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-switch {
-  background: rgba(255,255,255,0.024);
-  border-color: rgba(255,255,255,0.055);
+  background: color-mix(in srgb, var(--surface-tint) 2.4%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button {
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button:hover {
-  color: rgba(255,255,255,0.72);
-  background: rgba(255,255,255,0.045);
+  color: color-mix(in srgb, var(--shell-text) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button[data-active="true"] {
-  color: rgba(255,255,255,0.78);
-  background: rgba(255,255,255,0.062);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035);
+  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 6.2%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-view-button:active,
@@ -765,55 +765,55 @@
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:active,
 .janus-island-shell[data-stage="expanded"] .janus-chat-stop:active {
   transform: none;
-  background: rgba(255,255,255,0.052);
+  background: color-mix(in srgb, var(--surface-tint) 5.2%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-input:focus,
 .janus-island-shell[data-stage="expanded"] .janus-chat-input:focus-visible {
-  border-color: rgba(255,255,255,0.12);
-  background: rgba(0,0,0,0.28);
+  border-color: color-mix(in srgb, var(--surface-tint) 12%, transparent);
+  background: color-mix(in srgb, var(--surface-shade) 28%, transparent);
   box-shadow: none;
-  outline: 1px solid rgba(255,255,255,0.09);
+  outline: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   outline-offset: 1px;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-tool-button,
 .janus-island-shell[data-stage="expanded"] .janus-chat-suggestions button {
-  border-color: rgba(255,255,255,0.045);
-  background: rgba(255,255,255,0.018);
-  color: rgba(255,255,255,0.48);
+  border-color: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 1.8%, transparent);
+  color: var(--shell-muted);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-tool-button:hover:not(:disabled),
 .janus-island-shell[data-stage="expanded"] .janus-chat-suggestions button:hover:not(:disabled) {
-  border-color: rgba(255,255,255,0.075);
-  background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.7);
+  border-color: color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 70%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:not(:disabled) {
-  color: rgba(255,255,255,0.84);
-  background: rgba(255,255,255,0.07);
-  border-color: rgba(255,255,255,0.07);
+  color: color-mix(in srgb, var(--shell-text) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 7%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 7%, transparent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:hover:not(:disabled) {
-  color: rgba(255,255,255,0.92);
-  background: rgba(255,255,255,0.095);
-  border-color: rgba(255,255,255,0.1);
+  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 9.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 10%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-stop {
-  color: rgba(255,170,170,0.76);
-  background: rgba(255,255,255,0.045);
-  border-color: rgba(255,255,255,0.07);
+  color: color-mix(in srgb, var(--status-danger) 76%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 7%, transparent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-stop:hover {
-  color: rgba(255,190,190,0.88);
-  background: rgba(255,255,255,0.065);
+  color: color-mix(in srgb, var(--status-danger) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 6.5%, transparent);
   box-shadow: none;
 }
 
@@ -827,9 +827,9 @@
   min-height: 176px;
   max-height: 176px;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 5%, transparent);
   border-radius: 18px;
-  background: rgba(255,255,255,0.02);
+  background: color-mix(in srgb, var(--surface-tint) 2%, transparent);
   box-shadow: none;
 }
 
@@ -842,8 +842,8 @@
   gap: 6px;
   opacity: 0.94;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.16) transparent;
-  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 8px), transparent 100%);
+  scrollbar-color: color-mix(in srgb, var(--surface-tint) 16%, transparent) transparent;
+  mask-image: linear-gradient(to bottom, transparent 0, var(--surface-shade) 14px, var(--surface-shade) calc(100% - 8px), transparent 100%);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-messages::-webkit-scrollbar {
@@ -853,7 +853,7 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-messages::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(255,255,255,0.14);
+  background: color-mix(in srgb, var(--surface-tint) 14%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-message:not(:last-of-type) {
@@ -871,15 +871,15 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-message-content {
   padding: 5px 8px;
-  border: 1px solid rgba(255,255,255,0.035);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
   border-radius: 10px;
-  background: rgba(255,255,255,0.018);
+  background: color-mix(in srgb, var(--surface-tint) 1.8%, transparent);
   font-size: 11.5px;
   line-height: 1.48;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-message.user .janus-chat-message-content {
-  background: rgba(255,255,255,0.045);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-input-wrapper {
@@ -896,9 +896,9 @@
   min-height: 38px;
   max-height: 54px;
   padding: 9px 12px;
-  border-color: rgba(255,255,255,0.05);
+  border-color: color-mix(in srgb, var(--surface-tint) 5%, transparent);
   border-radius: 14px;
-  background: rgba(0,0,0,0.25);
+  background: color-mix(in srgb, var(--surface-shade) 25%, transparent);
 }
 
 @media (max-width: 900px) {
@@ -926,8 +926,8 @@
   line-height: 0.88;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: #f6f3ea;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.22), 0 14px 34px rgba(0,0,0,0.42);
+  color: var(--shell-text);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--surface-tint) 22%, transparent), 0 14px 34px color-mix(in srgb, var(--shadow-color) 42%, transparent);
   image-rendering: pixelated;
   text-rendering: geometricPrecision;
 }
@@ -962,7 +962,7 @@
   height: 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  filter: drop-shadow(0 0 10px rgba(255,122,26,0.28));
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--shell-accent) 28%, transparent));
 }
 
 /* 绌?wordmark-mark 榛樿鍦ㄦ姌鍙犳€佸瓨鍦紝杩欓噷鏄惧紡闅愯棌閬垮厤涓庡儚绱?logo 鍐茬獊 */
@@ -972,7 +972,7 @@
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-empty-hint {
   margin-top: 6px;
-  color: rgba(255,255,255,0.34);
+  color: var(--shell-dim);
   font-family: 'SF Mono', Consolas, monospace;
   font-size: 12px;
   letter-spacing: 0.4px;
@@ -989,7 +989,7 @@
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-feedback-surface,
 .janus-island-shell[data-stage="expanded"] .janus-feedback-surface {
   border-radius: 0;
-  background: #020203;
+  background: var(--surface-shade);
   box-shadow: none;
 }
 
@@ -1000,7 +1000,7 @@
   border: 0;
   border-radius: 0;
   margin: 0;
-  background: #020203;
+  background: var(--surface-shade);
   box-shadow: none;
 }
 
@@ -1013,7 +1013,7 @@
 /* 鎵弿绾挎瀬寮卞寲锛屽嚑涔庝笉鍙 */
 .janus-island-shell[data-stage="expanded"] .scanline {
   opacity: 0.04;
-  background: linear-gradient(to bottom, transparent 70%, rgba(255,255,255,0.06) 71%);
+  background: linear-gradient(to bottom, transparent 70%, color-mix(in srgb, var(--surface-tint) 6%, transparent) 71%);
   background-size: 100% 12px;
   animation-duration: 24s;
 }
@@ -1022,23 +1022,23 @@
 .janus-island-shell[data-stage="expanded"] .pixel-overlay {
   opacity: 0.025;
   background-image:
-    repeating-linear-gradient(transparent, transparent 7px, rgba(255,255,255,0.1) 7px, rgba(255,255,255,0.1) 8px),
-    repeating-linear-gradient(90deg, transparent, transparent 7px, rgba(255,255,255,0.07) 7px, rgba(255,255,255,0.07) 8px);
+    repeating-linear-gradient(transparent, transparent 7px, color-mix(in srgb, var(--surface-tint) 10%, transparent) 7px, color-mix(in srgb, var(--surface-tint) 10%, transparent) 8px),
+    repeating-linear-gradient(90deg, transparent, transparent 7px, color-mix(in srgb, var(--surface-tint) 7%, transparent) 7px, color-mix(in srgb, var(--surface-tint) 7%, transparent) 8px);
 }
 
 /* warp-grid 寮卞寲锛屽幓鎺夋柟妗嗘劅 */
 .janus-island-shell[data-stage="expanded"] .warp-grid,
 .janus-island-shell[data-stage="expanded"] .warp-grid.running {
   background-image:
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--surface-tint) 2.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-tint) 2.5%, transparent) 1px, transparent 1px);
   opacity: 0.18;
 }
 
 .janus-island-shell[data-stage="expanded"] .warp-grid.running {
   background-image:
-    linear-gradient(rgba(0,255,136,0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,255,136,0.05) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--status-success) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--status-success) 5%, transparent) 1px, transparent 1px);
 }
 
 /* 鈹€鈹€ 3. opencode 鏂规杈撳叆妗?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
@@ -1052,18 +1052,18 @@
   width: min(720px, 100%);
   margin: 0 auto;
   padding: 0;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 4px;
-  background: #08080a;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+  background: var(--shell-void);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--shadow-color) 22%, transparent);
   overflow: hidden;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-input-wrapper:focus-within {
-  border-color: rgba(255,122,26,0.34);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.24), 0 0 0 1px rgba(255,122,26,0.08);
+  border-color: color-mix(in srgb, var(--shell-accent) 34%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--shadow-color) 24%, transparent), 0 0 0 1px color-mix(in srgb, var(--shell-accent) 8%, transparent);
 }
 
 /* composer-row 鍦ㄤ笂 */
@@ -1084,8 +1084,8 @@
   align-items: center;
   min-height: 46px;
   padding: 0 10px 0 12px;
-  border-right: 1px solid rgba(255,255,255,0.06);
-  color: rgba(255,122,26,0.78);
+  border-right: 1px solid color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  color: color-mix(in srgb, var(--shell-accent) 78%, transparent);
   background: transparent;
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 12px;
@@ -1137,10 +1137,10 @@
   height: 38px;
   margin: 4px 6px 4px 0;
   padding: 0;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 4px;
-  background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.6);
+  background: color-mix(in srgb, var(--surface-tint) 4%, transparent);
+  color: var(--shell-muted);
   font-size: 15px;
   font-weight: 700;
   box-shadow: none;
@@ -1151,25 +1151,25 @@
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:not(:disabled),
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send:not(:disabled),
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-send:not(:disabled) {
-  color: #0a0a0b;
-  background: #ff7a1a;
-  border-color: rgba(255,122,26,0.55);
+  color: var(--shell-dim);
+  background: var(--shell-accent);
+  border-color: color-mix(in srgb, var(--shell-accent) 55%, transparent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:hover:not(:disabled),
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send:hover:not(:disabled),
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-send:hover:not(:disabled) {
-  color: #050505;
-  background: #ff8a2e;
-  border-color: rgba(255,138,46,0.6);
+  color: var(--shell-dim);
+  background: var(--shell-accent);
+  border-color: color-mix(in srgb, var(--shell-accent) 60%, transparent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:disabled {
-  color: rgba(255,255,255,0.22);
-  background: rgba(255,255,255,0.03);
-  border-color: rgba(255,255,255,0.05);
+  color: var(--shell-dim);
+  background: color-mix(in srgb, var(--surface-tint) 3%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 5%, transparent);
   box-shadow: none;
 }
 
@@ -1177,18 +1177,18 @@
 .janus-island-shell[data-stage="expanded"] .janus-chat-stop,
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-stop,
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-stop {
-  color: rgba(255,180,180,0.8);
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.08);
+  color: color-mix(in srgb, var(--status-danger) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 8%, transparent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-stop:hover,
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-stop:hover,
 .janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-stop:hover {
-  color: rgba(255,200,200,0.92);
-  background: rgba(255,255,255,0.07);
-  border-color: rgba(255,255,255,0.12);
+  color: color-mix(in srgb, var(--status-danger) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 7%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 12%, transparent);
   box-shadow: none;
 }
 
@@ -1202,13 +1202,13 @@
   justify-content: space-between;
   gap: 10px;
   padding: 6px 12px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.42);
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  color: var(--shell-muted);
   font-family: 'SF Mono', Consolas, monospace;
   font-size: 10px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
-  background: rgba(0,0,0,0.32);
+  background: color-mix(in srgb, var(--surface-shade) 32%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-composer-meta .janus-chat-composer-chip {
@@ -1216,16 +1216,16 @@
   align-items: center;
   gap: 5px;
   padding: 2px 7px;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border-radius: 3px;
-  background: rgba(255,255,255,0.025);
-  color: rgba(255,255,255,0.62);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
+  color: var(--shell-muted);
   font-size: 9.5px;
   letter-spacing: 0.4px;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-composer-meta .janus-chat-composer-hint {
-  color: rgba(255,255,255,0.28);
+  color: var(--shell-dim);
   font-size: 9.5px;
   text-transform: none;
   letter-spacing: 0;
@@ -1276,7 +1276,7 @@
   image-rendering: crisp-edges;
   shape-rendering: crispEdges;
   vertical-align: middle;
-  filter: drop-shadow(0 0 10px rgba(255,122,26,0.24));
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--shell-accent) 24%, transparent));
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-pixel-janus {
@@ -1301,7 +1301,7 @@
   background: linear-gradient(
     to bottom,
     transparent 0 3px,
-    rgba(255, 255, 255, 0.06) 3px 4px
+    color-mix(in srgb, var(--surface-tint) 6%, transparent) 3px 4px
   ) !important;
   background-size: 100% 4px !important;
   animation: scan-crt 8s linear infinite !important;
@@ -1333,10 +1333,10 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-input-wrapper {
   padding: 0;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 4px;
-  background: #08080a;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+  background: var(--shell-void);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--shadow-color) 22%, transparent);
   overflow: hidden;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -1357,28 +1357,28 @@
   position: relative;
   padding: 0.16em 0.28em 0.18em;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.42);
+  background: color-mix(in srgb, var(--surface-shade) 42%, transparent);
   /* 鐐归樀 LED 缃戞牸搴曠汗锛氱瓑璺濆渾鐐归樀 */
   background-image:
-    radial-gradient(circle, rgba(255, 180, 80, 0.16) 1px, transparent 1.3px);
+    radial-gradient(circle, color-mix(in srgb, var(--status-warning) 16%, transparent) 1px, transparent 1.3px);
   background-size: 10px 10px;
   background-position: center center;
   /* 杈圭紭铏氬寲鏀惰竟锛岄伩鍏嶇‖鐭╁舰 grid */
-  -webkit-mask-image: radial-gradient(ellipse 78% 70% at center, #000 42%, transparent 88%);
-  mask-image: radial-gradient(ellipse 78% 70% at center, #000 42%, transparent 88%);
+  -webkit-mask-image: radial-gradient(ellipse 78% 70% at center, var(--surface-shade) 42%, transparent 88%);
+  mask-image: radial-gradient(ellipse 78% 70% at center, var(--surface-shade) 42%, transparent 88%);
 }
 
 /* 鈹€鈹€ 2. JANUS 鍍忕礌鏂归樀锛歀ED 鏆栨 + 纾峰厜鍏夋檿 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .janus-island-shell[data-stage="expanded"] .janus-chat-pixel-janus {
-  filter: drop-shadow(0 0 6px rgba(255, 160, 60, 0.55));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--shell-accent) 55%, transparent));
   animation: janus-led-flicker 4.2s ease-in-out infinite;
 }
 
 /* 鈹€鈹€ 3. X 鍍忕礌鏂归樀锛氱櫧绾?LED 鏆栫櫧 + 姗欑嚎 LED 姗欏彂鍏?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .janus-island-shell[data-stage="expanded"] .janus-chat-pixel-x {
   filter:
-    drop-shadow(0 0 5px rgba(255, 243, 224, 0.45))
-    drop-shadow(0 0 6px rgba(255, 122, 26, 0.55));
+    drop-shadow(0 0 5px color-mix(in srgb, var(--surface-tint) 45%, transparent))
+    drop-shadow(0 0 6px color-mix(in srgb, var(--shell-accent) 55%, transparent));
   animation: janus-led-flicker 4.2s ease-in-out 0.6s infinite;
 }
 
@@ -1418,7 +1418,7 @@
   mask-image: none !important;
   -webkit-mask-image: none !important;
   border-radius: 0;
-  filter: drop-shadow(0 2px 6px rgba(255, 160, 60, 0.25)) drop-shadow(0 0 14px rgba(255, 120, 40, 0.16));
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--shell-accent) 25%, transparent)) drop-shadow(0 0 14px color-mix(in srgb, var(--shell-accent) 16%, transparent));
 }
 
 @media (max-width: 560px) {
@@ -1483,7 +1483,7 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-wordmark {
   margin-bottom: 24px;
-  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5));
+  filter: drop-shadow(0 4px 16px color-mix(in srgb, var(--shadow-color) 50%, transparent));
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-logo {
@@ -1492,23 +1492,23 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-logo rect[fill="#ffd089"],
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-logo rect[fill="#fff3e0"] {
-  fill: #71717a;
+  fill: var(--shell-dim);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-logo rect[fill="#ff7a1a"] {
-  fill: #ff7830;
+  fill: var(--primary);
 }
 
 .janus-chat-empty-title {
   margin-bottom: 8px;
-  color: rgba(255,255,255,0.94);
+  color: color-mix(in srgb, var(--shell-text) 94%, transparent);
   font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
 }
 
 .janus-chat-empty-subtitle {
-  color: rgba(255,255,255,0.34);
+  color: var(--shell-dim);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -1522,7 +1522,7 @@
   border: 0;
   background: transparent;
   box-shadow: none;
-  color: rgba(224,230,236,0.9);
+  color: color-mix(in srgb, var(--shell-text) 90%, transparent);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
 }
 
@@ -1560,21 +1560,21 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-char span {
   border-radius: 1px;
-  background: rgba(255,255,255,0.055);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-char span.active {
-  background: #ffffff;
+  background: var(--shell-text);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-char span.x-orange {
-  background: #ff7830;
+  background: var(--primary);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-pixel-char span.x-gray {
-  background: #8a8f98;
+  background: var(--shell-muted);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-ascii {
@@ -1583,24 +1583,24 @@
   flex: 0 1 auto;
   min-width: 0;
   margin: 0;
-  color: #dce8f4;
+  color: var(--shell-text);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   font-size: clamp(10px, 2.2vw, 22px);
   font-weight: 900;
   line-height: 0.92;
   letter-spacing: 0;
   text-shadow:
-    2px 2px 0 #050506,
-    3px 3px 0 rgba(255,120,48,0.42),
-    0 0 16px rgba(220,232,244,0.12);
+    2px 2px 0 var(--shadow-color),
+    3px 3px 0 color-mix(in srgb, var(--primary) 42%, transparent),
+    0 0 16px color-mix(in srgb, var(--surface-tint) 12%, transparent);
   white-space: pre;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-ascii span {
   display: block;
   background:
-    linear-gradient(90deg, rgba(255,120,48,0.3) 1px, transparent 1px),
-    linear-gradient(180deg, #f2f6f8, #aab8c4);
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 30%, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, var(--shell-text), var(--surface-tint));
   background-size: 8px 100%, 100% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -1614,27 +1614,27 @@
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-x-shadow-light {
-  stroke: #d7b38f;
+  stroke: var(--shell-accent);
   stroke-width: 16px;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-x-shadow-dark {
-  stroke: #050506;
+  stroke: var(--shell-dim);
   stroke-width: 17px;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-x-outline {
-  stroke: #d9e6f3;
+  stroke: var(--shell-text);
   stroke-width: 15px;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-x-grey {
-  stroke: #8a8f98;
+  stroke: var(--shell-muted);
   stroke-width: 10px;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-terminal-x-orange {
-  stroke: #ff7830;
+  stroke: var(--primary);
   stroke-width: 10px;
 }
 
@@ -1645,7 +1645,7 @@
   height: auto;
   margin-bottom: -3px;
   overflow: visible;
-  filter: drop-shadow(0 0 13px rgba(255,120,48,0.14));
+  filter: drop-shadow(0 0 13px color-mix(in srgb, var(--primary) 14%, transparent));
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-wordmark,
@@ -1689,8 +1689,8 @@
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message.user .janus-chat-message-content {
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.16);
+  background: color-mix(in srgb, var(--surface-tint) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message.assistant .janus-chat-message-content {
@@ -1710,15 +1710,15 @@
   max-width: min(360px, 72%);
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid rgba(255,120,90,0.18);
-  border-left: 2px solid rgba(255,120,90,0.76);
+  border: 1px solid color-mix(in srgb, var(--status-danger) 18%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--status-danger) 76%, transparent);
   border-radius: 8px;
-  background: rgba(80,22,18,0.22);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.24);
+  background: color-mix(in srgb, var(--shell-pane) 22%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 24%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-error-text {
-  color: rgba(255,150,130,0.9);
+  color: color-mix(in srgb, var(--status-danger) 90%, transparent);
   font-size: 12px;
 }
 
@@ -1730,7 +1730,7 @@
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-config-llm {
   height: 26px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.055);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-input-wrapper {
@@ -1739,9 +1739,9 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  border: 1px solid rgba(255,255,255,0.16);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 16%, transparent);
   border-radius: 4px;
-  background: #111113;
+  background: var(--shell-canvas);
   box-shadow: none;
   overflow: visible;
 }
@@ -1760,13 +1760,13 @@
   bottom: -1px;
   width: 3px;
   border-radius: 4px 0 0 4px;
-  background: #ff7830;
+  background: var(--primary);
   box-shadow: none;
   pointer-events: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-input-wrapper:focus-within {
-  border-color: rgba(255,120,48,0.64);
+  border-color: color-mix(in srgb, var(--primary) 64%, transparent);
   box-shadow: none;
 }
 
@@ -1805,13 +1805,13 @@
   height: 32px;
   margin: 8px 8px 8px 10px;
   border-radius: 6px;
-  color: rgba(255,255,255,0.72);
-  background: rgba(255,255,255,0.05);
-  border-color: rgba(255,255,255,0.08);
+  color: color-mix(in srgb, var(--shell-text) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 8%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-stop {
-  color: rgba(255,150,150,0.86);
+  color: color-mix(in srgb, var(--status-danger) 86%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-status-bar {
@@ -1822,8 +1822,8 @@
   gap: 12px;
   min-height: 34px;
   padding: 8px 14px 9px 20px;
-  border-top: 1px solid rgba(255,255,255,0.035);
-  background: rgba(0,0,0,0.16);
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
+  background: color-mix(in srgb, var(--surface-shade) 16%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat--docked,
@@ -1843,7 +1843,7 @@
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-message.user .janus-chat-message-content {
-  border-color: rgba(255,255,255,0.2);
+  border-color: color-mix(in srgb, var(--surface-tint) 20%, transparent);
 }
 
 .janus-chat-message.user .janus-chat-message-content,
@@ -1855,7 +1855,7 @@
   margin-left: auto;
   padding: 3px 0 6px;
   border: 0;
-  border-bottom: 1px solid rgba(255, 120, 48, 0.62);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 62%, transparent);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -1874,7 +1874,7 @@
   min-width: 0;
   border: 0;
   background: transparent;
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   cursor: pointer;
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 11px;
@@ -1887,14 +1887,14 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 7px rgba(16,185,129,0.76);
+  background: var(--status-success);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--status-success) 76%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-model-tag strong {
   min-width: 0;
   overflow: hidden;
-  color: rgba(255,255,255,0.84);
+  color: color-mix(in srgb, var(--shell-text) 84%, transparent);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1905,18 +1905,18 @@
   align-items: center;
   justify-content: flex-end;
   gap: 14px;
-  color: rgba(255,255,255,0.28);
+  color: var(--shell-dim);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
   white-space: nowrap;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-shortcuts > span:first-child {
-  color: rgba(255,120,48,0.75);
+  color: color-mix(in srgb, var(--primary) 75%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-shortcuts kbd {
-  color: rgba(255,255,255,0.58);
+  color: var(--shell-muted);
   font: inherit;
   font-weight: 700;
 }
@@ -1930,10 +1930,10 @@
   gap: 4px;
   width: min(360px, calc(100% - 32px));
   padding: 6px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 6px;
-  background: rgba(8,8,10,0.98);
-  box-shadow: 0 18px 34px rgba(0,0,0,0.45);
+  background: color-mix(in srgb, var(--shell-void) 98%, transparent);
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--shadow-color) 45%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-model-menu button {
@@ -1946,7 +1946,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: rgba(255,255,255,0.5);
+  color: var(--shell-muted);
   cursor: pointer;
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 11px;
@@ -1956,13 +1956,13 @@
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-model-menu button:hover,
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-model-menu button[data-active="true"],
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-model-menu button[data-highlighted="true"] {
-  background: rgba(255,255,255,0.055);
-  color: rgba(255,255,255,0.78);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-model-menu strong {
   overflow: hidden;
-  color: rgba(255,120,48,0.88);
+  color: color-mix(in srgb, var(--primary) 88%, transparent);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1979,11 +1979,11 @@
   z-index: 90;
   transform: translateX(-50%);
   padding: 8px 12px;
-  border: 1px solid rgba(255,120,48,0.22);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   border-radius: 4px;
-  background: rgba(12,12,14,0.96);
-  color: rgba(255,255,255,0.78);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.38);
+  background: color-mix(in srgb, var(--shell-void) 96%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--shadow-color) 38%, transparent);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 11px;
   pointer-events: none;
@@ -2069,41 +2069,41 @@
    覆盖上面的橙色填充规则；橙色只出现在可发送态的图标与描边上。 */
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send,
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-stop {
-  background: #17171b;
-  border-color: rgba(255,255,255,.09);
-  color: #8a8f98;
+  background: var(--shell-pane);
+  border-color: color-mix(in srgb, var(--surface-tint) 9%, transparent);
+  color: var(--shell-muted);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send:hover:not(:disabled),
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-stop:hover:not(:disabled) {
-  background: #202027;
-  border-color: rgba(255,255,255,.18);
-  color: #c9cdd4;
+  background: var(--shell-chrome-raised);
+  border-color: color-mix(in srgb, var(--surface-tint) 18%, transparent);
+  color: var(--shell-text);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send:not(:disabled) {
-  background: #17171b;
-  border-color: rgba(255,122,26,.40);
-  color: #ff8a2e;
+  background: var(--shell-pane);
+  border-color: color-mix(in srgb, var(--shell-accent) 40%, transparent);
+  color: var(--shell-accent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send:not(:disabled):hover {
-  background: #202027;
-  border-color: rgba(255,122,26,.60);
-  color: #ffa25e;
+  background: var(--shell-chrome-raised);
+  border-color: color-mix(in srgb, var(--shell-accent) 60%, transparent);
+  color: var(--shell-accent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-send:disabled {
-  background: #101013;
-  border-color: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.20);
+  background: var(--shell-canvas);
+  border-color: color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  color: var(--shell-dim);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-stop:not(:disabled) {
-  color: rgba(255,154,154,.85);
+  color: color-mix(in srgb, var(--status-danger) 85%, transparent);
 }

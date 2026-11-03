@@ -6,7 +6,8 @@
  * 从同一份 definition 生成，三端不可能漂移。
  * 扩展新主题：复制 PLANCHE_THEME_DEFINITION 改值 + registry.defineTheme()，详见 README。
  */
-import type { AppTheme } from '../ipc/theme'
+import type { AppTheme, BuiltInThemeId } from '../ipc/theme'
+import type { SemanticToken } from './tokens'
 
 export type ThemeBase = 'dark' | 'light'
 
@@ -32,7 +33,7 @@ export interface ContextScaleDefinition {
 
 export interface ThemeDefinition {
   /** Authorized plugin palettes inherit built-in structural styles. */
-  pluginBase?: 'planche' | 'dark'
+  pluginBase?: BuiltInThemeId
   overrides?: Record<string, string>
   /** 主题 id，与 GlobalConfig.theme / data-theme 取值一致。 */
   id: AppTheme
@@ -43,7 +44,7 @@ export interface ThemeDefinition {
   /** 生成文件的注释说明。 */
   notes?: string
   /** CSS 变量表（key 不带 -- 前缀，值原样写入，允许 var() 引用）。 */
-  tokens: Record<string, string>
+  tokens: Record<SemanticToken, string> & Record<string, string>
   /** 文本选中底色（::selection）。 */
   selection: string
   /** 中部工作区 xterm 全量 palette。 */
@@ -58,10 +59,25 @@ export interface ThemeDefinition {
   ctxScale: ContextScaleDefinition
 }
 
-/* ── dark（经典黑，第二位）：值与历史 :root 逐字一致 ─────────────────────────── */
+/* ── 共用视觉令牌与默认经典黑 ────────────────────────────────────────────── */
 
 // Shared visual constants preserve the existing component artwork.
 const SHARED_UI_TOKENS = {
+  'modal-backdrop': 'rgba(8, 8, 10, 0.62)',
+  'usage-claude': '#c4623d',
+  'usage-codex': '#247e83',
+  'usage-opencode': '#8562b6',
+  'usage-pi': '#a87c24',
+  'usage-janus': '#587b35',
+  'usage-dsh': '#416ac4',
+  'usage-input': '#28769a',
+  'usage-output': '#a9672e',
+  'roundtable-paper': '#e8d4b0',
+  'roundtable-paper-light': '#fff7e8',
+  'roundtable-paper-edge': '#c9a979',
+  'roundtable-wood': '#503a27',
+  'roundtable-wood-deep': '#321e12',
+  'roundtable-ribbon': '#8e1c1c',
   'support-star-stroke': '#d99a0b',
   'support-star-fill': '#facc15',
   'dialog-backdrop': 'rgba(0,0,0,.3)',
@@ -88,6 +104,29 @@ const SHARED_UI_TOKENS = {
 
 const DARK_TOKENS = {
   ...SHARED_UI_TOKENS,
+  'glow-core': '#ffffff',
+  'glow-strength': '1',
+  'usage-claude': '#e69a79',
+  'usage-codex': '#6ac6bd',
+  'usage-opencode': '#bba2eb',
+  'usage-pi': '#e2c06a',
+  'usage-janus': '#a6c97e',
+  'usage-dsh': '#7fa6f1',
+  'usage-input': '#7bb8dc',
+  'usage-output': '#e5b67e',
+  'on-accent': '#151517',
+  'surface-tint': '#ffffff',
+  'surface-shade': '#000000',
+  'shadow-color': '#000000',
+  'selection-background': 'rgba(38, 79, 120, 0.35)',
+  'status-info': '#58a6ff',
+  'status-degraded': '#c9a0ff',
+  'role-coder': '#38bdf8',
+  'role-evaluator': '#a78bfa',
+  'role-abstracter': '#fbbf24',
+  'role-prompter': '#f472b6',
+  'role-teammate': '#94a3b8',
+  'role-subagent': '#a9805a',
   'sidebar-codex-filter': 'invert(1)',
   'session-sheet-base-weight': '96%',
   'cli-logo-light': '#f4f4f4',
@@ -238,6 +277,21 @@ export const DARK_THEME_DEFINITION: ThemeDefinition = {
 
 const PLANCHE_TOKENS = {
   ...SHARED_UI_TOKENS,
+  'glow-core': 'transparent',
+  'glow-strength': '0',
+  'on-accent': '#ffffff',
+  'surface-tint': '#1C343B',
+  'surface-shade': '#DCCFA8',
+  'shadow-color': 'rgba(28,52,59,0.3)',
+  'selection-background': 'rgba(212, 61, 42, 0.22)',
+  'status-info': '#265F85',
+  'status-degraded': '#6E5A9E',
+  'role-coder': '#265F85',
+  'role-evaluator': '#6E5A9E',
+  'role-abstracter': '#8A5A12',
+  'role-prompter': '#9B3F71',
+  'role-teammate': '#5A6D72',
+  'role-subagent': '#805632',
   'sidebar-codex-filter': 'none',
   'session-sheet-base-weight': '84%',
   'cli-logo-light': '#f4f4f4',
@@ -394,4 +448,165 @@ export const PLANCHE_THEME_DEFINITION: ThemeDefinition = {
     empty: 'rgba(28, 52, 59, 0.18)',
     stops: ['#2E6B5E', '#E5A422', '#D43D2A', '#A3281C'],
   },
+}
+
+/** Neutral white surfaces, dark ink and a restrained orange accent. */
+const WHITE_TOKENS = {
+  ...SHARED_UI_TOKENS,
+  'glow-core': 'transparent',
+  'glow-strength': '0.1',
+  'roundtable-paper': '#edf0f4',
+  'roundtable-paper-light': '#ffffff',
+  'roundtable-paper-edge': '#d3d9e2',
+  'roundtable-wood': '#bdc5d1',
+  'roundtable-wood-deep': '#929eaf',
+  'roundtable-ribbon': '#be343e',
+  'on-accent': '#ffffff',
+  'surface-tint': '#17212f',
+  'surface-shade': '#e9edf3',
+  'shadow-color': 'rgba(16,24,40,0.18)',
+  'selection-background': 'rgba(185,74,24,0.18)',
+  'status-info': '#175fbd',
+  'status-degraded': '#7650a5',
+  'role-coder': '#175fbd',
+  'role-evaluator': '#7650a5',
+  'role-abstracter': '#865b0a',
+  'role-prompter': '#a33872',
+  'role-teammate': '#566171',
+  'role-subagent': '#805632',
+  'dialog-backdrop': 'rgba(16,24,40,0.22)',
+  'dialog-shadow': 'rgba(16,24,40,0.14)',
+  'run-bud-border': 'rgba(25,116,78,0.3)',
+  'run-bud-glow': 'rgba(25,116,78,0.08)',
+  'run-bud-skin-top': '#ffffff',
+  'run-bud-skin-bottom': '#f1f5f3',
+  'run-bud-text': '#19744e',
+  'run-bud-hover': '#145f40',
+  'run-bud-active-ring': 'rgba(25,116,78,0.4)',
+  'run-bud-active-glow': 'rgba(25,116,78,0.12)',
+  'run-bud-stop-border': 'rgba(190,52,62,0.45)',
+  'run-bud-stop-text': '#be343e',
+  'run-bud-stop-glow': 'rgba(190,52,62,0.12)',
+  'run-scope-accent': '#175fbd',
+  'usage-heatmap-mid': '#4e9a68',
+  'usage-heatmap-high': '#19744e',
+  'sidebar-codex-filter': 'none',
+  'session-sheet-base-weight': '96%',
+  'cli-logo-light': '#ffffff',
+  'cli-logo-dark': '#202024',
+  'shell-void': '#eef0f3',
+  'shell-canvas': '#ffffff',
+  'shell-pane': '#ffffff',
+  'shell-pane-chrome': '#f7f8fa',
+  'shell-chrome': '#f4f5f7',
+  'shell-chrome-raised': '#ffffff',
+  'shell-card': '#ffffff',
+  'shell-drawer': '#f7f8fa',
+  'island-panel-background': 'var(--shell-canvas)',
+  'island-panel-border': 'var(--shell-border)',
+  'island-panel-radius': '26px',
+  'island-panel-shadow': '0 16px 48px rgba(16,24,40,0.12), 0 2px 6px rgba(16,24,40,0.06)',
+  'tool-canvas': '#f4f5f7',
+  'tool-card': '#ffffff',
+  'tool-chrome': '#f7f8fa',
+  'tool-hover': '#e9edf3',
+  'popover-background': '#ffffff',
+  'popover-hover': '#f0f2f5',
+  'popover-shadow': '0 12px 32px rgba(16,24,40,0.12), 0 2px 6px rgba(16,24,40,0.06)',
+  'control-h': '30px',
+  'control-border': '#d3d9e2',
+  'shell-hover': '#e9edf3',
+  'shell-active': '#e1e6ed',
+  'shell-border': '#d8dde5',
+  'shell-border-soft': '#e8ebf0',
+  'shell-text': '#202936',
+  'shell-muted': '#566171',
+  'shell-dim': '#626e7e',
+  'shell-diff-add': '#19744e',
+  'shell-diff-del': '#be343e',
+  'status-success': '#19744e',
+  'status-warning': '#865b0a',
+  'status-danger': '#be343e',
+  'shell-accent': '#b94a18',
+  'shell-accent-strong': '#963b12',
+  'shell-accent-soft': 'rgba(185,74,24,0.07)',
+  'shell-accent-border': 'rgba(185,74,24,0.4)',
+  'primary': 'var(--shell-accent)',
+  'bg-app': 'var(--shell-void)',
+  'bg-deep': 'var(--shell-canvas)',
+  'bg-dark': 'var(--shell-pane)',
+  'bg-darker': 'var(--shell-void)',
+  'workbench-canvas': '#ffffff',
+  'workbench-grid': '#eef0f3',
+  'surface': 'rgba(255,255,255,0.95)',
+  'surface-elevated': '#ffffff',
+  'chrome-bg': 'rgba(244,245,247,0.96)',
+  'text': 'var(--shell-text)',
+  'text-secondary': 'var(--shell-muted)',
+  'text-dim': 'var(--shell-dim)',
+  'border': 'var(--shell-border)',
+  'border-soft': 'var(--shell-border-soft)',
+  'accent-soft': 'var(--shell-accent-soft)',
+  'accent-mid': 'rgba(185,74,24,0.14)',
+  'accent-glow': 'rgba(185,74,24,0.18)',
+} as const
+
+export const WHITE_THEME_DEFINITION: ThemeDefinition = {
+  id: 'white',
+  label: 'Pure White',
+  base: 'light',
+  notes: 'Neutral white canvas, soft gray chrome, readable ink and orange focus accents.',
+  tokens: { ...WHITE_TOKENS },
+  selection: WHITE_TOKENS['selection-background'],
+  xterm: {
+    background: WHITE_TOKENS['shell-canvas'], foreground: WHITE_TOKENS['shell-text'],
+    cursor: WHITE_TOKENS['shell-accent'], cursorAccent: WHITE_TOKENS['shell-canvas'],
+    selectionBackground: WHITE_TOKENS['selection-background'],
+    black: '#202936', red: '#b52c38', green: '#19744e', yellow: '#865b0a',
+    blue: '#175fbd', magenta: '#8746a4', cyan: '#146f7d', white: '#566171',
+    brightBlack: '#677384', brightRed: '#be343e', brightGreen: '#176b49', brightYellow: '#78520a',
+    brightBlue: '#1455ab', brightMagenta: '#763b94', brightCyan: '#116471', brightWhite: '#202936',
+  },
+  monacoName: 'janusx-white',
+  monaco: {
+    base: 'vs', inherit: true, rules: [],
+    colors: {
+      'editor.background': WHITE_TOKENS['shell-canvas'],
+      'editor.foreground': WHITE_TOKENS['shell-text'],
+      'editor.lineHighlightBackground': '#f7f8fa',
+      'editorCursor.foreground': WHITE_TOKENS['shell-accent'],
+      'editor.selectionBackground': '#b94a182e',
+      'editor.inactiveSelectionBackground': '#b94a181a',
+      'editorLineNumber.foreground': '#677384',
+      'editorLineNumber.activeForeground': '#202936',
+      'editorWidget.background': '#ffffff',
+      'editorWidget.foreground': '#202936',
+      'editorWidget.border': '#d3d9e2',
+      'input.background': '#ffffff',
+      'input.foreground': '#202936',
+      'input.border': '#d3d9e2',
+      'focusBorder': '#b94a18',
+      'inputOption.activeBackground': '#b94a181a',
+      'inputOption.activeBorder': '#b94a1866',
+      'inputOption.activeForeground': '#963b12',
+      'toolbar.hoverBackground': '#e9edf3',
+      'editor.findMatchBackground': '#b94a1840',
+      'editor.findMatchBorder': '#b94a18',
+      'editor.findMatchHighlightBackground': '#b94a1820',
+      'diffEditor.insertedLineBackground': '#19744e0f',
+      'diffEditor.removedLineBackground': '#be343e0f',
+      'diffEditor.insertedTextBackground': '#19744e30',
+      'diffEditor.removedTextBackground': '#be343e30',
+      'diffEditorGutter.insertedLineBackground': '#19744e40',
+      'diffEditorGutter.removedLineBackground': '#be343e40',
+    },
+  },
+  status: {
+    running: { color: '#19744e', background: 'rgba(25,116,78,0.09)' },
+    wait: { color: '#677384', background: 'rgba(103,115,132,0.08)' },
+    attention: { color: '#865b0a', background: 'rgba(134,91,10,0.09)' },
+    degraded: { color: '#7650a5', background: 'rgba(118,80,165,0.09)' },
+    error: { color: '#be343e', background: 'rgba(190,52,62,0.09)' },
+  },
+  ctxScale: { empty: '#d8dde5', stops: ['#175fbd', '#865b0a', '#be343e', '#96242d'] },
 }

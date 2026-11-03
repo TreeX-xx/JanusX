@@ -48,8 +48,8 @@
 }
 
 .searchInput:focus {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .searchInput::placeholder { color: var(--shell-dim); }
@@ -74,8 +74,8 @@
 }
 
 .refreshButton:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
   color: var(--shell-text);
 }
 .refreshButton:disabled { opacity: 0.5; cursor: wait; }
@@ -94,8 +94,8 @@
 }
 
 .inlineButton:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
   color: var(--shell-text);
 }
 .inlineButton:disabled { opacity: 0.5; cursor: wait; }
@@ -122,8 +122,8 @@
   overflow-wrap: anywhere;
 }
 
-.messageError { border-color: rgba(215, 139, 146, 0.7); color: #d78b92; }
-.messageSuccess { border-color: rgba(111, 184, 138, 0.7); color: #6fb88a; }
+.messageError { border-color: color-mix(in srgb, var(--status-danger) 70%, transparent); color: var(--status-danger); }
+.messageSuccess { border-color: color-mix(in srgb, var(--status-success) 70%, transparent); color: var(--status-success); }
 
 /* 平面列表，用分隔线组织层级。 */
 .groups {
@@ -161,7 +161,7 @@
   font-weight: 650;
 }
 
-.vendorHeader:hover { background: rgba(255, 255, 255, 0.025); }
+.vendorHeader:hover { background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent); }
 
 .vendorHeader::before {
   content: '›';
@@ -203,7 +203,7 @@
   border-radius: 8px;
 }
 
-.modelSummary:hover { background: rgba(255, 255, 255, 0.025); }
+.modelSummary:hover { background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent); }
 
 .modelIdentity { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .modelIdentity strong { color: var(--shell-text); font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
@@ -274,32 +274,32 @@
 :global([data-theme='planche']) .modelIdentity strong,
 :global([data-theme='planche']) .metadata strong,
 :global([data-theme='planche']) .empty strong {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .searchInput {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .searchInput:focus {
-  background: var(--paper, #EFE4C5);
-  border-color: var(--planche-red, #D43D2A);
+  background: var(--paper, var(--shell-canvas));
+  border-color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .searchInput::placeholder {
-  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+  color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .refreshButton:hover:not(:disabled),
 :global([data-theme='planche']) .inlineButton:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
+  background: var(--paper-deep, var(--shell-hover));
+  border-color: var(--planche-red, var(--shell-accent));
+  color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .vendorHeader:hover,
 :global([data-theme='planche']) .modelSummary:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 .detailSection { min-width: 0; }

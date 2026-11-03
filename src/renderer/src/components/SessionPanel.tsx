@@ -333,7 +333,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
       {continueSource && createPortal(
         <div
           className="fixed inset-0 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.64)', zIndex: 1000 }}
+          style={{ background: 'var(--modal-backdrop)', zIndex: 1000 }}
         >
             <div
               className="overflow-hidden"
@@ -342,7 +342,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
                 background: 'var(--shell-chrome)',
                 border: '1px solid var(--shell-border)',
                 borderRadius: 8,
-                boxShadow: '0 24px 60px rgba(0,0,0,0.72)',
+                boxShadow: '0 24px 60px color-mix(in srgb, var(--shadow-color) 72%, transparent)',
               }}
             >
               <SessionDialogHeader
@@ -535,7 +535,7 @@ const SessionCard = memo(function SessionCard({
         style={{ gap: 7, cursor: 'pointer' }}
         onClick={() => onToggle(session.id)}
       >
-        <TerminalPresetIcon preset={iconPreset} alt={session.engine} className={iconPreset === 'codex' ? styles.codexIcon : undefined} style={{ width: 14, height: 14, flexShrink: 0 }} />
+        <TerminalPresetIcon preset={iconPreset} alt={session.engine} style={{ width: 14, height: 14, flexShrink: 0 }} />
         <span
           className="flex-1 min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap"
           style={{ fontSize: 13, color: 'var(--shell-text)', fontWeight: 500 }}
@@ -891,7 +891,7 @@ function SessionDetailWindow({
   return (
     <div
       className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.64)', zIndex: 1000 }}
+      style={{ background: 'var(--modal-backdrop)', zIndex: 1000 }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -908,7 +908,7 @@ function SessionDetailWindow({
           background: 'var(--shell-chrome)',
           border: '1px solid var(--shell-border)',
           borderRadius: 8,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.72)',
+          boxShadow: '0 24px 60px color-mix(in srgb, var(--shadow-color) 72%, transparent)',
         }}
       >
         <SessionDialogHeader

@@ -139,7 +139,7 @@ export function DesktopToastApp() {
           aria-label="Open JanusX notification"
         >
           <span className={styles.kicker}>
-            <TerminalPresetIcon preset={preset} className={`${styles.engineIcon} ${preset === 'codex' ? styles.codexIcon : ''}`} />
+            <TerminalPresetIcon preset={preset} className={styles.engineIcon} />
             <span className={styles.engineName}>{engineLabel}</span>
             <span className={styles.separator} aria-hidden="true" />
             <span>JanusX</span>

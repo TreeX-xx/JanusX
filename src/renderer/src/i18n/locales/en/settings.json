@@ -86,6 +86,7 @@
       "help": "Choose the interface appearance. Running terminal apps may need a redraw or restart.",
       "dark": "Classic Black (default)",
       "planche": "Slate",
+      "white": "Pure White",
       "saveError": "Failed to save theme"
     }
   },

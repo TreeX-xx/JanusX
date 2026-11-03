@@ -5,10 +5,10 @@
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.28);
+  background: color-mix(in srgb, var(--surface-shade) 28%, transparent);
   border: 1px solid var(--control-border);
   border-radius: 6px;
-  color: #d4d4d4;
+  color: var(--shell-text);
   font-size: 12px;
   font-family: inherit;
   padding: 0 10px;
@@ -21,13 +21,13 @@
 }
 
 .trigger:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .triggerOpen,
 .trigger:focus-visible {
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 .trigger:disabled {
@@ -50,12 +50,12 @@
 }
 
 .placeholder {
-  color: #666;
+  color: var(--shell-dim);
 }
 
 .arrow {
   flex-shrink: 0;
-  color: #888;
+  color: var(--shell-muted);
   transition: transform 0.18s;
 }
 
@@ -98,7 +98,7 @@
 .option {
   padding: 5px 10px;
   font-size: 12px;
-  color: #d4d4d4;
+  color: var(--shell-text);
   border-radius: 4px;
   cursor: pointer;
   position: relative;
@@ -123,7 +123,7 @@
 .optionSelected {
   background: var(--popover-hover);
   font-weight: 600;
-  color: var(--shell-text, #e8e8e8);
+  color: var(--shell-text);
 }
 
 .optionSelected::before {
@@ -133,14 +133,14 @@
   top: 4px;
   bottom: 4px;
   width: 2px;
-  background: var(--janus-order, #ff7830);
+  background: var(--janus-order, var(--primary));
   /* V2 设计语言：选中光条为直线，无圆角（见 design/blueprint-note-graph.html） */
   border-radius: 0;
 }
 
 .optionDisabled {
   opacity: 0.58;
-  color: #888;
+  color: var(--shell-muted);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -155,7 +155,7 @@
 .empty {
   padding: 8px 10px;
   font-size: 12px;
-  color: #666;
+  color: var(--shell-dim);
   text-align: center;
 }
 
@@ -164,24 +164,24 @@
    本文件不新增 hex。浮层挂 body  portal，但 data-theme 落在 <html>，
    故 :global 祖先选择器依然命中。 */
 :global([data-theme='planche']) .trigger {
-  background: var(--paper, #EFE4C5);
-  border: 1px solid var(--line, #1C343B);
-  color: var(--ink, #1C343B);
+  background: var(--paper, var(--shell-canvas));
+  border: 1px solid var(--line, var(--shell-text));
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .trigger:hover:not(:disabled),
 :global([data-theme='planche']) .triggerOpen,
 :global([data-theme='planche']) .trigger:focus-visible {
-  border-color: var(--planche-red, #D43D2A);
+  border-color: var(--planche-red, var(--shell-accent));
   box-shadow: 0 0 0 2px var(--shell-accent-soft);
 }
 
 :global([data-theme='planche']) .placeholder {
-  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+  color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .arrow {
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .dropdown {
@@ -193,7 +193,7 @@
 }
 
 :global([data-theme='planche']) .option {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .option:hover {
@@ -202,17 +202,17 @@
 
 :global([data-theme='planche']) .optionSelected {
   background: var(--popover-hover);
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .optionSelected::before {
-  background: var(--planche-red, #D43D2A);
+  background: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .optionDisabled {
-  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+  color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .empty {
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }

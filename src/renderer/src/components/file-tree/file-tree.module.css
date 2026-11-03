@@ -24,7 +24,6 @@
 
 .row[data-git-ignored='true'] {
   color: var(--shell-dim);
-  opacity: 0.68;
 }
 
 .row[data-git-ignored='true']:hover {
@@ -204,7 +203,7 @@
   left: 0;
   top: -36px;
   height: 36px;
-  background: linear-gradient(180deg, transparent, rgba(255, 120, 48, 0.02) 26%, rgba(255, 120, 48, 0.06) 60%, rgba(255, 120, 48, 0.14) 86%, rgba(255, 120, 48, 0.38));
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--primary) 2%, transparent) 26%, color-mix(in srgb, var(--primary) 6%, transparent) 60%, color-mix(in srgb, var(--primary) 14%, transparent) 86%, color-mix(in srgb, var(--primary) 38%, transparent));
   animation: scan-beam-travel var(--scan-duration, 1100ms) linear both;
   will-change: top;
 }
@@ -216,7 +215,7 @@
   left: 0;
   bottom: 0;
   height: 1px;
-  background: rgba(255, 120, 48, 0.7);
+  background: color-mix(in srgb, var(--primary) 70%, transparent);
 }
 
 .loadError {

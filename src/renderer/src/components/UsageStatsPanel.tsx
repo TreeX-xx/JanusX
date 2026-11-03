@@ -19,7 +19,7 @@ import {
 } from '@/lib/usage-stats'
 import type { TerminalPreset } from '@/types'
 import { EXTERNAL_CLI_TOOL_META, EXTERNAL_CLI_TOOL_ORDER, type ExternalCliToolId } from '../../../shared/ipc/external-cli'
-import { EXTERNAL_CLI_TOOL_ICONS } from '@/lib/cli-tool-icons'
+import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { getThemeDefinition } from '../../../shared/theme/registry'
 import llmStyles from './LlmConfigModal.module.css'
 import styles from './UsageStatsPanel.module.css'
@@ -484,7 +484,7 @@ export function UsageStatsPanel() {
           const meta = EXTERNAL_CLI_TOOL_META[toolId]
           return <button key={toolId} type="button" className={`${styles.tab} ${toolId === activeType ? styles.tabActive : ''}`} aria-pressed={toolId === activeType} onClick={() => setActiveType(toolId)}>
             {iconFailed[toolId] ? <span className={llmStyles.terminalTabMonogram}>{meta.monogram}</span>
-              : <img className={llmStyles.terminalTabIcon} data-tool={toolId} src={EXTERNAL_CLI_TOOL_ICONS[toolId]} alt="" onError={() => setIconFailed((prev) => ({ ...prev, [toolId]: true }))} />}
+              : <TerminalPresetIcon className={llmStyles.terminalTabIcon} preset={toolId} onError={() => setIconFailed((prev) => ({ ...prev, [toolId]: true }))} />}
             {meta.displayName}
           </button>
         })}

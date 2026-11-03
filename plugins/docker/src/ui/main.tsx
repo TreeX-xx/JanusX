@@ -7,7 +7,10 @@ import './style.css'
 async function main() {
   const api = await connectPlugin(); setApi(api)
   const info = await api.app.getInfo()
-  const theme = (value: typeof info.theme) => { for (const [key, token] of Object.entries(value.tokens)) if (/^--[a-z0-9-]+$/i.test(key)) document.documentElement.style.setProperty(key, token) }
+  const theme = (value: typeof info.theme) => {
+    document.documentElement.dataset.theme = value.id
+    for (const [key, token] of Object.entries(value.tokens)) if (/^--[a-z0-9-]+$/i.test(key)) document.documentElement.style.setProperty(key, token)
+  }
   theme(info.theme); setLocale(info.locale)
   const root = createRoot(document.getElementById('root')!), render = () => root.render(<App active={active}/>)
   let active = true

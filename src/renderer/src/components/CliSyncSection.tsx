@@ -6,6 +6,7 @@ import { EXTERNAL_CLI_TOOL_META } from '../../../shared/ipc/external-cli'
 import { LLM_CONSUMERS, authTypeForProtocol, channelModel, channelModels, channelProtocol, supportsChannel, type AgentModelBinding, type ChannelProtocol, type LlmConfiguration, type LlmConsumer } from '../../../shared/llm-configuration'
 import { NATIVE_LOGIN_CAPABILITIES, type NativeLoginState } from '../../../shared/native-login'
 import { EXTERNAL_CLI_TOOL_ICONS } from '@/lib/cli-tool-icons'
+import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import deepseekIcon from '@/assets/icons/providers/deepseek-color.svg'
 import qwenIcon from '@/assets/icons/providers/qwen-color.svg'
 import moonshotIcon from '@/assets/icons/providers/moonshot.svg'
@@ -147,7 +148,7 @@ export function CliSyncSection() {
     <div className={styles.agentPage} role="tabpanel" hidden={view !== 'agents'} aria-label={c('agents')}>
       <div className={styles.agentList}>
         {LLM_CONSUMERS.map(consumer => <button type="button" key={consumer} disabled={busy} className={styles.agentRow} aria-pressed={consumer === active} onClick={() => { setActive(consumer); setError(''); setNotice('') }}>
-          <img src={EXTERNAL_CLI_TOOL_ICONS[consumer]} alt="" />
+          <TerminalPresetIcon preset={consumer} />
           <span className={styles.agentName}>{EXTERNAL_CLI_TOOL_META[consumer].displayName}</span>
           <span className={styles.summary} title={summary(config.bindings[consumer])}>{summary(config.bindings[consumer])}</span>
           {config.bindings[consumer].needsApply && <span className={styles.pending}>{c('pending')}</span>}

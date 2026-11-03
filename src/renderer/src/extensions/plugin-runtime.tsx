@@ -16,6 +16,8 @@ import i18n from '@/i18n'
 import { useI18n } from '@/i18n/useI18n'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import { syncPluginThemes } from '../../../shared/theme/plugin-themes'
+import { SEMANTIC_TOKENS } from '../../../shared/theme/tokens'
+import { getThemeDefinition } from '../../../shared/theme/registry'
 import { useAppStore } from '@/stores/app'
 import { useIslandStore } from '@/stores/island'
 import type { PluginDocument, PluginDraft } from '@janusx/plugin-sdk'
@@ -64,13 +66,14 @@ export async function refreshPlugins(): Promise<void> {
 function publicTheme() {
   const tokens: Record<string, string> = {}
   const style = getComputedStyle(document.documentElement)
-  for (const token of ['shell-canvas', 'shell-text', 'shell-muted', 'shell-card', 'shell-border', 'shell-accent',
-    'shell-border-soft', 'shell-chrome', 'shell-chrome-raised', 'shell-dim', 'shell-hover', 'shell-accent-border',
-    'shell-accent-soft', 'shell-diff-del', 'shell-diff-add', 'shell-pane', 'control-border', 'control-h',
-    'popover-background', 'popover-shadow', 'popover-hover', 'so-field', 'so-radius', 'so-control-h']) {
+  for (const token of SEMANTIC_TOKENS) {
     const value = style.getPropertyValue(`--${token}`).trim()
     if (value) tokens[`--${token}`] = value
   }
+  const selected = getThemeDefinition(useThemeStore.getState().theme)
+  const definition = useBrowserOcclusionStore.getState().count > 0 && selected.pluginBase ? getThemeDefinition(selected.pluginBase) : selected
+  tokens['--theme-color-scheme'] = definition.base
+  for (const [key, value] of Object.entries(definition.xterm)) tokens[`--terminal-${key}`] = value
   return { id: document.documentElement.dataset.pluginTheme || document.documentElement.dataset.theme || '', tokens }
 }
 export function syncPluginContext(): Promise<void> {

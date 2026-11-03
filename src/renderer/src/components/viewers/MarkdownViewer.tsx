@@ -79,7 +79,7 @@ export function MarkdownViewer({ content, originalContent, onChange, onEditorMou
   useMarkdownScrollSync(containerRef, editor, syncScroll && isSplit, content)
 
   return (
-    <div ref={containerRef} className="flex h-full min-w-0 flex-1 flex-col overflow-hidden" style={{ background: 'var(--shell-void)' }}>
+    <div ref={containerRef} className="flex h-full min-w-0 flex-1 flex-col overflow-hidden" style={{ background: 'var(--shell-canvas)' }}>
       <ViewerToolbar>
         <PreviewModeToggle value={previewMode} onChange={mode => { setPreviewMode(mode); saveFileViewState(modelPath, { previewMode: mode }) }} />
         {isSplit && <ThemedTooltip label={t('editor:fileEditor.syncScroll')}>
@@ -101,7 +101,7 @@ export function MarkdownViewer({ content, originalContent, onChange, onEditorMou
           className="flex-1"
           style={{
             padding: 16,
-            background: 'var(--shell-void)',
+            background: 'var(--shell-canvas)',
             color: 'var(--shell-text)',
             minHeight: '100%',
           }}

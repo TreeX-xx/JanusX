@@ -2,7 +2,7 @@
    structured working deck on the right. Existing session controls remain in
    place while the visual surface is rebuilt around them. */
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-overlay--embedded {
-  background: #08080c;
+  background: var(--shell-void);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-header {
@@ -23,7 +23,7 @@
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-body {
   grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.9fr);
   position: relative;
-  background: #08080c;
+  background: var(--shell-void);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-participants {
@@ -54,9 +54,9 @@
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-role {
   margin: 22px 0 0;
   padding: 5px 7px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 6px;
-  background: rgba(8,8,12,0.78);
+  background: color-mix(in srgb, var(--shell-void) 78%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center {
@@ -67,12 +67,12 @@
   min-height: 0;
   padding: 0;
   overflow: hidden;
-  border-right: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   background:
-    radial-gradient(circle at 50% 46%, rgba(255,120,48,0.09), transparent 28%),
-    linear-gradient(rgba(255,120,48,0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,120,48,0.035) 1px, transparent 1px),
-    radial-gradient(circle at center, #111116 0%, #030305 76%);
+    radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 28%),
+    linear-gradient(color-mix(in srgb, var(--primary) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 3.5%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at center, var(--shell-canvas) 0%, var(--surface-shade) 76%);
   background-size: auto, 24px 24px, 24px 24px, auto;
 }
 
@@ -82,9 +82,9 @@
   left: 50%;
   width: min(42%, 260px);
   aspect-ratio: 1;
-  border: 2px solid rgba(255,85,0,0.68);
+  border: 2px solid color-mix(in srgb, var(--shell-accent) 68%, transparent);
   border-radius: 50%;
-  box-shadow: 0 0 28px rgba(255,85,0,0.22), inset 0 0 24px rgba(255,120,48,0.12);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--shell-accent) 22%, transparent), inset 0 0 24px color-mix(in srgb, var(--primary) 12%, transparent);
   content: '';
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -96,7 +96,7 @@
   left: 50%;
   width: min(30%, 180px);
   aspect-ratio: 1;
-  border: 1px dashed rgba(255,120,48,0.3);
+  border: 1px dashed color-mix(in srgb, var(--primary) 30%, transparent);
   border-radius: 50%;
   content: '';
   animation: janus-roundtable-stage-spin 20s linear infinite;
@@ -117,15 +117,15 @@
   min-width: 0;
   padding: 14px;
   border-left: 0;
-  background: #08080c;
+  background: var(--shell-void);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state::before {
   display: block;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(216,195,158,0.16);
-  color: rgba(216,195,158,0.72);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 16%, transparent);
+  color: color-mix(in srgb, var(--shell-muted) 72%, transparent);
   content: 'JANUS MIND SCHEMATIC';
   font: 10px 'SF Mono', Consolas, monospace;
   letter-spacing: 0.12em;
@@ -190,7 +190,7 @@
   min-height: 0;
   padding: 0;
   overflow: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-participants > * {
@@ -208,24 +208,24 @@
   margin: 14px 14px 10px;
   padding: 22px;
   overflow: auto;
-  border: 1px solid rgba(216, 195, 158, 0.24);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 24%, transparent);
   border-radius: 6px;
-  background-color: #12100e;
+  background-color: var(--shell-canvas);
   background-image:
-    radial-gradient(circle at center, transparent 28%, rgba(6, 5, 4, 0.96) 100%),
-    linear-gradient(135deg, transparent 42%, rgba(139, 115, 85, 0.06) 50%, transparent 58%),
-    repeating-linear-gradient(rgba(216, 195, 158, 0.018) 0 1px, transparent 1px 16px);
-  box-shadow: inset 0 0 35px rgba(5, 4, 3, 0.92), 0 8px 28px rgba(0, 0, 0, 0.62);
-  color: #c5b69e;
-  scrollbar-color: rgba(216, 195, 158, 0.16) transparent;
+    radial-gradient(circle at center, transparent 28%, color-mix(in srgb, var(--surface-shade) 96%, transparent) 100%),
+    linear-gradient(135deg, transparent 42%, color-mix(in srgb, var(--surface-tint) 6%, transparent) 50%, transparent 58%),
+    repeating-linear-gradient(color-mix(in srgb, var(--surface-tint) 1.8%, transparent) 0 1px, transparent 1px 16px);
+  box-shadow: inset 0 0 35px color-mix(in srgb, var(--shadow-color) 92%, transparent), 0 8px 28px color-mix(in srgb, var(--shadow-color) 62%, transparent);
+  color: var(--shell-muted);
+  scrollbar-color: color-mix(in srgb, var(--surface-tint) 16%, transparent) transparent;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state::before {
   display: block;
   margin: 0 0 14px;
   padding: 0 0 9px;
-  border-bottom: 1px solid rgba(216, 195, 158, 0.18);
-  color: #caa770;
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 18%, transparent);
+  color: var(--status-warning);
   content: 'JANUS MIND SCHEMATIC';
   font: 700 11px Georgia, 'Times New Roman', serif;
   letter-spacing: 0.14em;
@@ -235,7 +235,7 @@
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state::after {
   position: absolute;
   inset: 6px;
-  border: 1px double rgba(216, 195, 158, 0.08);
+  border: 1px double color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 4px;
   content: '';
   pointer-events: none;
@@ -250,7 +250,7 @@
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state section {
   margin: 0 0 8px;
   padding-left: 11px;
-  border-left: 1px dashed rgba(216, 195, 158, 0.14);
+  border-left: 1px dashed color-mix(in srgb, var(--surface-tint) 14%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center {
@@ -261,8 +261,8 @@
   min-height: 0;
   overflow: hidden;
   border: 0;
-  border-top: 1px solid rgba(216, 195, 158, 0.12);
-  background: #09090c;
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 12%, transparent);
+  background: var(--shell-void);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center::before,
@@ -308,9 +308,9 @@
   width: 100%;
   margin: 8px 0 0;
   padding: 6px 6px 6px 12px;
-  border: 1px solid rgba(255,255,255,.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 4px;
-  background: #0c0c0f;
+  background: var(--shell-void);
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -325,14 +325,14 @@
   bottom: -1px;
   width: 3px;
   border-radius: 4px 0 0 4px;
-  background: #ff7830;
+  background: var(--primary);
   box-shadow: none;
   pointer-events: none;
 }
 
 /* 圆桌对话框：与 chat 一致的橙色焦点语言 —— 四周橙色边框 + 左侧橙色光晕 */
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-input-wrapper:focus-within {
-  border-color: rgba(255,120,48,0.64);
+  border-color: color-mix(in srgb, var(--primary) 64%, transparent);
   box-shadow: none;
 }
 
@@ -375,10 +375,10 @@
   height: 32px;
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255,255,255,.09);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   border-radius: 4px;
-  background: #17171b;
-  color: #8a8f98;
+  background: var(--shell-pane);
+  color: var(--shell-muted);
   font-size: 12px;
   box-shadow: none;
   transition: background .12s ease, border-color .12s ease, color .12s ease, transform .06s ease;
@@ -386,9 +386,9 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-send:hover:not(:disabled),
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-stop:hover:not(:disabled) {
-  border-color: rgba(255,255,255,.18);
-  background: #202027;
-  color: #c9cdd4;
+  border-color: color-mix(in srgb, var(--surface-tint) 18%, transparent);
+  background: var(--shell-chrome-raised);
+  color: var(--shell-text);
   box-shadow: none;
 }
 
@@ -399,34 +399,34 @@
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-send:focus-visible,
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-stop:focus-visible {
-  outline: 1px solid rgba(255,122,26,.55);
+  outline: 1px solid color-mix(in srgb, var(--shell-accent) 55%, transparent);
   outline-offset: 1px;
 }
 
 /* 可发送态：仍是黑灰底，仅图标变橙 + 描边带一点橙，不做任何橙色填充/辉光 */
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-send:not(:disabled) {
-  border-color: rgba(255,122,26,.40);
-  background: #17171b;
-  color: #ff8a2e;
+  border-color: color-mix(in srgb, var(--shell-accent) 40%, transparent);
+  background: var(--shell-pane);
+  color: var(--shell-accent);
   box-shadow: none;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-send:not(:disabled):hover {
-  border-color: rgba(255,122,26,.55);
-  color: #ffa25e;
+  border-color: color-mix(in srgb, var(--shell-accent) 55%, transparent);
+  color: var(--shell-accent);
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-send:disabled {
-  border-color: rgba(255,255,255,.06);
-  background: #101013;
-  color: rgba(255,255,255,.20);
+  border-color: color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  background: var(--shell-canvas);
+  color: var(--shell-dim);
   box-shadow: none;
   cursor: not-allowed;
 }
 
 /* 停止态：留在黑灰体系内，仅用暗红图标示意 */
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center .janus-chat-stop:not(:disabled) {
-  color: rgba(255,154,154,.85);
+  color: color-mix(in srgb, var(--status-danger) 85%, transparent);
 }
 
 @media (max-width: 760px) {
@@ -501,7 +501,7 @@
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--seat-color), transparent 30%);
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.16), transparent 25%), radial-gradient(circle, #191a21, #05060a 78%);
+  background: radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--surface-tint) 16%, transparent), transparent 25%), radial-gradient(circle, var(--shell-pane), var(--shell-void) 78%);
   backface-visibility: hidden;
   transform-style: preserve-3d;
 }
@@ -510,7 +510,7 @@
 .janus-roundtable-seat-pod::after {
   position: absolute;
   inset: 2px;
-  border: 1px solid rgba(255,255,255,.1);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 10%, transparent);
   border-radius: 50%;
   content: '';
   transform: translateZ(8px);
@@ -536,17 +536,17 @@
 .janus-roundtable-scroll:focus-visible { animation-play-state: paused; }
 .janus-roundtable-scroll-sheet {
   border-radius: 2px;
-  background: linear-gradient(90deg, #503a27 0%, #e8d4b0 16%, #fff7e8 50%, #e8d4b0 84%, #503a27 100%);
-  box-shadow: inset 0 0 8px rgba(96,58,24,.55), 0 8px 18px rgba(0,0,0,.8), 0 0 12px rgba(216,195,158,.14);
+  background: linear-gradient(90deg, var(--roundtable-wood) 0%, var(--roundtable-paper) 16%, var(--surface-tint) 50%, var(--roundtable-paper) 84%, var(--roundtable-wood) 100%);
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--roundtable-wood) 55%, transparent), 0 8px 18px color-mix(in srgb, var(--shadow-color) 80%, transparent), 0 0 12px color-mix(in srgb, var(--roundtable-paper-edge) 14%, transparent);
 }
 .janus-roundtable-scroll-sheet::after {
   position: absolute;
   inset: 6px 9px;
-  border-top: 1px solid rgba(94,59,29,.28);
-  border-bottom: 1px solid rgba(94,59,29,.24);
+  border-top: 1px solid color-mix(in srgb, var(--roundtable-wood) 28%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--roundtable-wood) 24%, transparent);
   content: '';
 }
-.janus-roundtable-scroll-roll { border: 1px solid rgba(255,231,186,.42); box-shadow: inset 0 0 5px rgba(0,0,0,.65), 0 0 9px rgba(216,195,158,.3); }
+.janus-roundtable-scroll-roll { border: 1px solid color-mix(in srgb, var(--roundtable-paper) 42%, transparent); box-shadow: inset 0 0 5px color-mix(in srgb, var(--shadow-color) 65%, transparent), 0 0 9px color-mix(in srgb, var(--roundtable-paper-edge) 30%, transparent); }
 .janus-roundtable-focus-readout {
   position: absolute;
   left: 50%;
@@ -554,9 +554,9 @@
   z-index: 5;
   max-width: 150px;
   padding: 4px 8px;
-  border: 1px solid rgba(255,120,48,.24);
-  background: rgba(7,8,11,.76);
-  color: rgba(255,255,255,.56);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
+  background: color-mix(in srgb, var(--shell-void) 76%, transparent);
+  color: var(--shell-muted);
   font: 9px ui-monospace, monospace;
   letter-spacing: .08em;
   text-align: center;
@@ -577,9 +577,9 @@
 .janus-roundtable-camera-controls {
   gap: 2px;
   padding: 3px;
-  border: 1px solid rgba(255,255,255,.13);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 13%, transparent);
   border-radius: 8px;
-  background: rgba(10,10,13,.86);
+  background: color-mix(in srgb, var(--shell-void) 86%, transparent);
   backdrop-filter: blur(8px);
 }
 .janus-roundtable-camera-controls button {
@@ -588,14 +588,14 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: rgba(255,255,255,.48);
+  color: var(--shell-muted);
   font: 10px ui-monospace, monospace;
   white-space: nowrap;
 }
 .janus-roundtable-camera-controls button[data-active="true"] {
-  border: 1px solid rgba(255,120,48,.42);
-  background: rgba(255,120,48,.16);
-  color: #ffad78;
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, transparent);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--shell-accent);
 }
 .janus-roundtable-table {
   display: block;
@@ -612,28 +612,28 @@
 }
 .janus-roundtable-table-slab--bottom {
   transform: translateZ(-16px);
-  border: 4px solid #0d0c10;
-  background: #020203;
-  box-shadow: 0 0 30px rgba(0,0,0,.8);
+  border: 4px solid var(--shell-border);
+  background: var(--surface-shade);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--shadow-color) 80%, transparent);
 }
 .janus-roundtable-table-slab--rim {
   transform: translateZ(-8px);
-  border: 6px solid #ff5500;
+  border: 6px solid var(--shell-accent);
   background: transparent;
-  box-shadow: 0 0 25px rgba(255,85,0,.4);
+  box-shadow: 0 0 25px color-mix(in srgb, var(--shell-accent) 40%, transparent);
   filter: blur(1px);
   opacity: .8;
 }
 .janus-roundtable-table-slab--top {
   transform: translateZ(0);
-  border: 4px solid #1c1a22;
-  background: radial-gradient(circle at center, #0e0e12 40%, #030305 100%);
-  box-shadow: inset 0 0 20px rgba(255,120,48,.15);
+  border: 4px solid var(--shell-border);
+  background: radial-gradient(circle at center, var(--shell-canvas) 40%, var(--surface-shade) 100%);
+  box-shadow: inset 0 0 20px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 .janus-roundtable-table-slab--top::after {
   position: absolute;
   inset: 8%;
-  border: 1px solid rgba(255,120,48,.18);
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
   border-radius: 50%;
   content: '';
 }
@@ -700,10 +700,10 @@
   bottom: 14px;
   transform: translateX(50%);
   padding: 4px;
-  border: 1px solid rgba(255, 120, 48, 0.24);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
   border-radius: 5px;
-  background: rgba(8, 8, 12, 0.9);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), inset 0 0 14px rgba(255, 120, 48, 0.05);
+  background: color-mix(in srgb, var(--shell-void) 90%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 45%, transparent), inset 0 0 14px color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .janus-roundtable-camera-controls button {
@@ -712,35 +712,35 @@
   border: 1px solid transparent;
   border-radius: 3px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.48);
+  color: var(--shell-muted);
   font: 10px ui-monospace, monospace;
   letter-spacing: 0.04em;
 }
 
 .janus-roundtable-camera-controls button[data-active="true"] {
-  border-color: rgba(255, 120, 48, 0.56);
-  background: rgba(255, 120, 48, 0.14);
-  color: #ffad78;
+  border-color: color-mix(in srgb, var(--primary) 56%, transparent);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--shell-accent);
 }
 
 /* Charcoal codex treatment from the reference HTML, kept as a floating
    surface so the shared record reads like a physical archive. */
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state {
-  border-color: rgba(216, 195, 158, 0.28);
-  background-color: #12100e;
+  border-color: color-mix(in srgb, var(--surface-tint) 28%, transparent);
+  background-color: var(--shell-canvas);
   background-image:
-    radial-gradient(circle at center, transparent 28%, rgba(6, 5, 4, 0.98) 100%),
-    linear-gradient(135deg, transparent 42%, rgba(139, 115, 85, 0.08) 50%, transparent 58%),
-    radial-gradient(circle at 75% 20%, rgba(139, 115, 85, 0.08), transparent 42%),
-    repeating-linear-gradient(rgba(216, 195, 158, 0.02) 0 1px, transparent 1px 16px);
-  box-shadow: inset 0 0 35px rgba(5, 4, 3, 0.95), 0 8px 30px rgba(0, 0, 0, 0.72);
-  color: #dfd2be;
+    radial-gradient(circle at center, transparent 28%, color-mix(in srgb, var(--surface-shade) 98%, transparent) 100%),
+    linear-gradient(135deg, transparent 42%, color-mix(in srgb, var(--surface-tint) 8%, transparent) 50%, transparent 58%),
+    radial-gradient(circle at 75% 20%, color-mix(in srgb, var(--surface-tint) 8%, transparent), transparent 42%),
+    repeating-linear-gradient(color-mix(in srgb, var(--surface-tint) 2%, transparent) 0 1px, transparent 1px 16px);
+  box-shadow: inset 0 0 35px color-mix(in srgb, var(--shadow-color) 95%, transparent), 0 8px 30px color-mix(in srgb, var(--shadow-color) 72%, transparent);
+  color: var(--shell-text);
   font-family: Georgia, 'Times New Roman', serif;
 }
 
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state::after {
   inset: 6px;
-  border-color: rgba(216, 195, 158, 0.1);
+  border-color: color-mix(in srgb, var(--surface-tint) 10%, transparent);
 }
 
 @media (max-width: 760px) {
@@ -826,9 +826,9 @@
 .janus-roundtable-scroll-sheet {
   transform: rotateX(-12deg) translateZ(2px);
   background:
-    linear-gradient(90deg, #3c291b 0%, #c3a77c 12%, #f2dfb9 28%, #fff5dc 50%, #e1c798 78%, #4b321e 100%),
-    repeating-linear-gradient(0deg, rgba(86, 51, 22, .12) 0 1px, transparent 1px 5px);
-  box-shadow: inset 0 0 8px rgba(74, 42, 17, .7), 0 8px 18px rgba(0, 0, 0, .82), 0 0 14px rgba(216, 195, 158, .18);
+    linear-gradient(90deg, var(--roundtable-wood-deep) 0%, var(--roundtable-paper-edge) 12%, var(--roundtable-paper) 28%, var(--roundtable-paper) 50%, var(--roundtable-paper) 78%, var(--roundtable-wood) 100%),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--roundtable-wood) 12%, transparent) 0 1px, transparent 1px 5px);
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--roundtable-wood) 70%, transparent), 0 8px 18px color-mix(in srgb, var(--shadow-color) 82%, transparent), 0 0 14px color-mix(in srgb, var(--roundtable-paper-edge) 18%, transparent);
 }
 
 .janus-roundtable-scroll-roll {
@@ -943,15 +943,15 @@
 }
 
 .janus-roundtable-table-slab--rim {
-  border: 5px solid #ff5500;
-  box-shadow: 0 0 18px rgba(255, 85, 0, .28);
+  border: 5px solid var(--shell-accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--shell-accent) 28%, transparent);
   filter: none;
   opacity: .82;
 }
 
 .janus-roundtable-table-slab--top {
-  border-color: #1c1a22;
-  box-shadow: inset 0 0 18px rgba(255, 120, 48, .1);
+  border-color: var(--shell-border);
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .janus-roundtable-seats {
@@ -982,17 +982,17 @@
 .janus-roundtable-table-slab--bottom { transform: translateZ(-16px) !important; }
 .janus-roundtable-table-slab--rim {
   transform: translateZ(-8px) !important;
-  border: 6px solid #ff5500 !important;
-  box-shadow: 0 0 25px rgba(255,85,0,.4) !important;
+  border: 6px solid var(--shell-accent) !important;
+  box-shadow: 0 0 25px color-mix(in srgb, var(--shell-accent) 40%, transparent) !important;
   filter: blur(1px) !important;
   opacity: .8 !important;
 }
 .janus-roundtable-table-slab--top { transform: translateZ(0) !important; }
-.janus-roundtable-table-hud { inset: 12px !important; border-color: rgba(255,120,48,.3) !important; }
+.janus-roundtable-table-hud { inset: 12px !important; border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important; }
 .janus-roundtable-table-hud::before {
   position: absolute;
   inset: 12px;
-  border: 2px double #ff7830;
+  border: 2px double var(--primary);
   border-radius: 50%;
   content: '';
   opacity: .4;
@@ -1010,7 +1010,7 @@
 .janus-roundtable-scroll-ribbon { left:14px !important; top:-1px !important; width:4px !important; height:34px !important; }
 .janus-roundtable-scroll::after {
   position:absolute; left:50%; top:50%; width:76px; height:76px;
-  border:1px dashed rgba(216,195,158,.25); border-radius:50%; content:'';
+  border:1px dashed color-mix(in srgb, var(--surface-tint) 25%, transparent); border-radius:50%; content:'';
   pointer-events:none; transform:translate(-50%,-50%) translateZ(5px) rotateX(45deg);
   animation:janus-roundtable-scroll-halo 12s linear infinite;
 }
@@ -1044,7 +1044,7 @@
 .janus-roundtable-stage {
   perspective: 1200px;
   perspective-origin: 50% 50%;
-  background: radial-gradient(circle at center, #111116 0%, #030305 100%);
+  background: radial-gradient(circle at center, var(--shell-canvas) 0%, var(--surface-shade) 100%);
 }
 
 .janus-roundtable-scene {
@@ -1117,15 +1117,15 @@
 /* The reference table uses a saturated orange chassis ring. The previous
    blurred, semi-transparent rim read as a grey edge at normal pane sizes. */
 .janus-roundtable-table-slab--rim {
-  border: 6px solid #ff5500 !important;
-  box-shadow: 0 0 25px rgba(255, 85, 0, .55), 0 0 8px rgba(255, 120, 48, .42) !important;
+  border: 6px solid var(--shell-accent) !important;
+  box-shadow: 0 0 25px color-mix(in srgb, var(--shell-accent) 55%, transparent), 0 0 8px color-mix(in srgb, var(--primary) 42%, transparent) !important;
   filter: none !important;
   opacity: .96 !important;
 }
 
 .janus-roundtable-table-slab--top {
-  border-color: #282027 !important;
-  box-shadow: inset 0 0 24px rgba(255, 120, 48, .18), 0 0 10px rgba(255, 85, 0, .14) !important;
+  border-color: var(--shell-border) !important;
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--primary) 18%, transparent), 0 0 10px color-mix(in srgb, var(--shell-accent) 14%, transparent) !important;
 }
 
 /* The shared stage-spin keyframe includes a centering translate for other
@@ -1174,9 +1174,9 @@
   padding: 2px 5px;
   border: 1px solid color-mix(in srgb, var(--seat-color), transparent 72%);
   border-radius: 3px;
-  background: rgba(8, 8, 12, .52);
+  background: color-mix(in srgb, var(--shell-void) 52%, transparent);
   text-align: center;
-  text-shadow: 0 2px 5px #000;
+  text-shadow: 0 2px 5px var(--shadow-color);
   opacity: 1 !important;
   visibility: visible !important;
   /* The seat rotates around the table; counter-rotate only the label so its
@@ -1222,8 +1222,8 @@
   visibility: visible !important;
 }
 
-.janus-roundtable-seat-label strong { color: color-mix(in srgb, var(--seat-color), #fff 22%); font-size: 9px; font-weight: 600; }
-.janus-roundtable-seat-label small { color: rgba(255,255,255,.42); font-size: 7px; white-space: nowrap; }
+.janus-roundtable-seat-label strong { color: color-mix(in srgb, var(--seat-color), var(--shell-text) 22%); font-size: 9px; font-weight: 600; }
+.janus-roundtable-seat-label small { color: var(--shell-muted); font-size: 7px; white-space: nowrap; }
 
 .janus-roundtable-seat-link {
   transform: rotateX(90deg) rotateY(180deg);
@@ -1463,10 +1463,10 @@
   padding: 2px 6px;
   border: 1px solid color-mix(in srgb, var(--seat-color), transparent 42%);
   border-radius: 4px;
-  background: rgba(8, 8, 12, .95);
-  color: #fff;
+  background: color-mix(in srgb, var(--shell-void) 95%, transparent);
+  color: var(--shell-text);
   text-align: center;
-  text-shadow: 0 2px 5px #000;
+  text-shadow: 0 2px 5px var(--shadow-color);
   opacity: 1 !important;
   visibility: visible !important;
   transform: translateX(-50%) !important;
@@ -1504,14 +1504,14 @@
 }
 
 .janus-roundtable-seat-labels .janus-roundtable-seat-label strong {
-  color: color-mix(in srgb, var(--seat-color), #fff 22%);
+  color: color-mix(in srgb, var(--seat-color), var(--shell-text) 22%);
   font-size: 9px;
   font-weight: 600;
   line-height: 1.15;
 }
 
 .janus-roundtable-seat-labels .janus-roundtable-seat-label small {
-  color: rgba(255,255,255,.56);
+  color: var(--shell-muted);
   font-size: 7px;
   line-height: 1.15;
   white-space: nowrap;
@@ -1524,7 +1524,7 @@
   bottom: -25px;
   width: 2px;
   height: 135px;
-  background: linear-gradient(to top, transparent, var(--seat-color) 50%, #fff 100%);
+  background: linear-gradient(to top, transparent, var(--seat-color) 50%, var(--shell-text) 100%);
   opacity: .25;
   transform: rotateX(90deg);
   transform-origin: bottom center;
@@ -1768,8 +1768,8 @@
    backdrop on the stage instead, like the reference HTML viewport. */
 .janus-roundtable-stage {
   background:
-    radial-gradient(circle at 50% 48%, rgba(255, 120, 48, .09), transparent 34%),
-    #07080b !important;
+    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 34%),
+    var(--shell-void) !important;
 }
 
 .janus-roundtable-scene {
@@ -1980,22 +1980,22 @@
   top: 4px !important;
   width: 32px !important;
   height: 32px !important;
-  border-top: 1px solid rgba(216, 195, 158, .5);
-  border-bottom: 1px solid rgba(216, 195, 158, .5);
+  border-top: 1px solid color-mix(in srgb, var(--roundtable-paper-edge) 50%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--roundtable-paper-edge) 50%, transparent);
   border-radius: 2px !important;
   background:
-    linear-gradient(90deg, #503a27 0%, #d8bf94 16%, #fff4dc 50%, #e3c99d 84%, #503a27 100%),
-    repeating-linear-gradient(0deg, rgba(86, 51, 22, .12) 0 1px, transparent 1px 5px) !important;
-  box-shadow: inset 0 0 8px rgba(74, 42, 17, .7), 0 8px 18px rgba(0, 0, 0, .82),
-    0 0 14px rgba(216, 195, 158, .2) !important;
+    linear-gradient(90deg, var(--roundtable-wood) 0%, var(--roundtable-paper-edge) 16%, var(--roundtable-paper) 50%, var(--roundtable-paper) 84%, var(--roundtable-wood) 100%),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--roundtable-wood) 12%, transparent) 0 1px, transparent 1px 5px) !important;
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--roundtable-wood) 70%, transparent), 0 8px 18px color-mix(in srgb, var(--shadow-color) 82%, transparent),
+    0 0 14px color-mix(in srgb, var(--roundtable-paper-edge) 20%, transparent) !important;
   transform: translateZ(1px);
 }
 
 .janus-roundtable-scroll-sheet::after {
   position: absolute;
   inset: 6px 8px;
-  border-top: 1px solid rgba(94, 59, 29, .3);
-  border-bottom: 1px solid rgba(94, 59, 29, .25);
+  border-top: 1px solid color-mix(in srgb, var(--roundtable-wood) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--roundtable-wood) 25%, transparent);
   content: '';
 }
 
@@ -2003,10 +2003,10 @@
   top: 2px !important;
   width: 10px !important;
   height: 36px !important;
-  border: 1px solid rgba(255, 231, 186, .48);
+  border: 1px solid color-mix(in srgb, var(--roundtable-paper) 48%, transparent);
   border-radius: 5px;
-  background: linear-gradient(90deg, #321e12 0%, #c9a979 38%, #f0dbb5 50%, #c9a979 62%, #321e12 100%) !important;
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, .65), 0 0 9px rgba(216, 195, 158, .34) !important;
+  background: linear-gradient(90deg, var(--roundtable-wood-deep) 0%, var(--roundtable-paper-edge) 38%, var(--roundtable-paper) 50%, var(--roundtable-paper-edge) 62%, var(--roundtable-wood-deep) 100%) !important;
+  box-shadow: inset 0 0 5px color-mix(in srgb, var(--shadow-color) 65%, transparent), 0 0 9px color-mix(in srgb, var(--roundtable-paper-edge) 34%, transparent) !important;
 }
 
 .janus-roundtable-scroll-roll--left { left: 6px !important; }
@@ -2017,8 +2017,8 @@
   top: -1px !important;
   width: 4px !important;
   height: 34px !important;
-  background: #8e1c1c !important;
-  box-shadow: 0 0 6px rgba(142, 28, 28, .8), inset 0 0 3px rgba(255, 50, 50, .5) !important;
+  background: var(--roundtable-ribbon) !important;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--roundtable-ribbon) 80%, transparent), inset 0 0 3px color-mix(in srgb, var(--roundtable-ribbon) 50%, transparent) !important;
   transform: translateZ(5px);
 }
 
@@ -2028,13 +2028,13 @@
   top: 50%;
   width: 92px;
   height: 92px;
-  border: 1px solid rgba(255, 220, 164, .62);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 62%, transparent);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 190, 92, .16) 0%, rgba(255, 190, 92, .07) 42%, transparent 72%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--status-warning) 16%, transparent) 0%, color-mix(in srgb, var(--status-warning) 7%, transparent) 42%, transparent 72%);
   box-shadow:
-    0 0 10px rgba(255, 198, 112, .42),
-    0 0 24px rgba(255, 166, 72, .28),
-    inset 0 0 12px rgba(255, 225, 170, .16);
+    0 0 10px color-mix(in srgb, var(--status-warning) 42%, transparent),
+    0 0 24px color-mix(in srgb, var(--shell-accent) 28%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--status-warning) 16%, transparent);
   content: '';
   pointer-events: none;
   /* Keep the resting halo parallel to the tabletop. Tilting this 92px plane
@@ -2055,11 +2055,11 @@
 .janus-roundtable-scroll:hover::after,
 .janus-roundtable-scroll:focus-visible::after,
 .janus-roundtable-scroll[data-open="true"]::after {
-  border-color: rgba(255, 231, 186, .88);
+  border-color: color-mix(in srgb, var(--status-warning) 88%, transparent);
   box-shadow:
-    0 0 14px rgba(255, 210, 132, .58),
-    0 0 32px rgba(255, 166, 72, .38),
-    inset 0 0 16px rgba(255, 235, 190, .22);
+    0 0 14px color-mix(in srgb, var(--status-warning) 58%, transparent),
+    0 0 32px color-mix(in srgb, var(--shell-accent) 38%, transparent),
+    inset 0 0 16px color-mix(in srgb, var(--status-warning) 22%, transparent);
 }
 
 /* The shared parchment panel is closed until the centre scroll is clicked.
@@ -2150,8 +2150,8 @@
   left: 7px;
   height: 1px;
   border-radius: 1px;
-  background: #ff9b61;
-  box-shadow: 0 0 7px rgba(255, 120, 48, .78);
+  background: var(--shell-accent);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--primary) 78%, transparent);
   content: '';
   opacity: 0;
   transform: scaleX(.25);
@@ -2159,10 +2159,10 @@
 }
 
 .janus-roundtable-camera-controls button[data-active="true"] {
-  border-color: rgba(255, 120, 48, .74);
-  background: rgba(255, 120, 48, .18);
-  box-shadow: inset 0 0 12px rgba(255, 120, 48, .12), 0 3px 10px rgba(0, 0, 0, .28);
-  color: #ffd0ae;
+  border-color: color-mix(in srgb, var(--primary) 74%, transparent);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--primary) 12%, transparent), 0 3px 10px color-mix(in srgb, var(--shadow-color) 28%, transparent);
+  color: var(--shell-accent);
   transform: translateY(-1px);
 }
 
@@ -2172,7 +2172,7 @@
 }
 
 .janus-roundtable-camera-controls button[data-active="true"] svg {
-  color: #ff9b61;
+  color: var(--shell-accent);
   transform: rotate(-10deg) scale(1.08);
 }
 
@@ -2181,15 +2181,15 @@
 }
 
 .janus-roundtable-camera-controls[data-transitioning="true"] {
-  border-color: rgba(255, 120, 48, .5);
-  box-shadow: 0 0 14px rgba(255, 120, 48, .14), inset 0 0 14px rgba(255, 120, 48, .08);
+  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--primary) 14%, transparent), inset 0 0 14px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .janus-roundtable-camera-controls[data-transitioning="true"] button[data-active="true"]::before {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(105deg, transparent 28%, rgba(255, 214, 175, .3) 50%, transparent 72%);
+  background: linear-gradient(105deg, transparent 28%, color-mix(in srgb, var(--shell-accent) 30%, transparent) 50%, transparent 72%);
   content: '';
   animation: janus-roundtable-camera-control-scan .9s ease-out both;
 }
@@ -2206,46 +2206,46 @@
 /* Final control palette: charcoal glass with a pale active state. Keep the
    orange accent only as a restrained one-pixel scan line. */
 .janus-roundtable-camera-controls {
-  border-color: rgba(210, 220, 230, .16) !important;
-  background: rgba(8, 10, 13, .94) !important;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .42), inset 0 0 14px rgba(210, 220, 230, .035) !important;
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent) !important;
+  background: color-mix(in srgb, var(--shell-void) 94%, transparent) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 42%, transparent), inset 0 0 14px color-mix(in srgb, var(--surface-tint) 3.5%, transparent) !important;
 }
 
 .janus-roundtable-camera-controls button {
   border-color: transparent !important;
   background: transparent !important;
-  color: rgba(218, 226, 234, .58) !important;
+  color: var(--shell-muted) !important;
 }
 
 .janus-roundtable-camera-controls button:hover {
-  border-color: rgba(210, 220, 230, .2) !important;
-  background: rgba(210, 220, 230, .07) !important;
-  color: rgba(238, 243, 247, .88) !important;
+  border-color: color-mix(in srgb, var(--surface-tint) 20%, transparent) !important;
+  background: color-mix(in srgb, var(--surface-tint) 7%, transparent) !important;
+  color: color-mix(in srgb, var(--shell-text) 88%, transparent) !important;
 }
 
 .janus-roundtable-camera-controls button::after {
-  background: rgba(210, 220, 230, .82);
-  box-shadow: 0 0 6px rgba(210, 220, 230, .34);
+  background: color-mix(in srgb, var(--surface-tint) 82%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--surface-tint) 34%, transparent);
 }
 
 .janus-roundtable-camera-controls button[data-active="true"] {
-  border-color: rgba(210, 220, 230, .4) !important;
-  background: rgba(210, 220, 230, .11) !important;
-  box-shadow: inset 0 0 12px rgba(210, 220, 230, .08), 0 3px 10px rgba(0, 0, 0, .3) !important;
-  color: #eef2f5 !important;
+  border-color: color-mix(in srgb, var(--surface-tint) 40%, transparent) !important;
+  background: color-mix(in srgb, var(--surface-tint) 11%, transparent) !important;
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--surface-tint) 8%, transparent), 0 3px 10px color-mix(in srgb, var(--shadow-color) 30%, transparent) !important;
+  color: var(--shell-text) !important;
 }
 
 .janus-roundtable-camera-controls button[data-active="true"] svg {
-  color: #d9e1e7 !important;
+  color: var(--shell-text) !important;
 }
 
 .janus-roundtable-camera-controls[data-transitioning="true"] {
-  border-color: rgba(210, 220, 230, .3) !important;
-  box-shadow: 0 0 14px rgba(210, 220, 230, .1), inset 0 0 14px rgba(210, 220, 230, .06) !important;
+  border-color: color-mix(in srgb, var(--surface-tint) 30%, transparent) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--surface-tint) 10%, transparent), inset 0 0 14px color-mix(in srgb, var(--surface-tint) 6%, transparent) !important;
 }
 
 .janus-roundtable-camera-controls[data-transitioning="true"] button[data-active="true"]::before {
-  background: linear-gradient(105deg, transparent 28%, rgba(232, 239, 244, .22) 50%, transparent 72%);
+  background: linear-gradient(105deg, transparent 28%, color-mix(in srgb, var(--surface-tint) 22%, transparent) 50%, transparent 72%);
 }
 
 /* Once open, hovering remains informative: the scroll rises a little further
@@ -2257,11 +2257,11 @@
 
 .janus-roundtable-scroll[data-open="true"]:hover::after,
 .janus-roundtable-scroll[data-open="true"]:focus-visible::after {
-  border-color: rgba(255, 231, 186, .9);
+  border-color: color-mix(in srgb, var(--status-warning) 90%, transparent);
   box-shadow:
-    0 0 16px rgba(255, 210, 132, .62),
-    0 0 34px rgba(255, 166, 72, .42),
-    inset 0 0 18px rgba(255, 235, 190, .24);
+    0 0 16px color-mix(in srgb, var(--status-warning) 62%, transparent),
+    0 0 34px color-mix(in srgb, var(--shell-accent) 42%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--status-warning) 24%, transparent);
   animation-duration: 7s;
 }
 
@@ -2273,16 +2273,16 @@
    thin borders, text, and a 1px seat indicator — never a filled color block,
    so the toolbar reads as part of the dark roundtable chrome. */
 .janus-roundtable-focus-readout {
-  border-color: rgba(255, 120, 48, .26) !important;
-  background: rgba(8, 8, 10, .82) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .42) !important;
-  color: rgba(255, 175, 120, .74) !important;
+  border-color: color-mix(in srgb, var(--primary) 26%, transparent) !important;
+  background: color-mix(in srgb, var(--shell-void) 82%, transparent) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow-color) 42%, transparent) !important;
+  color: color-mix(in srgb, var(--shell-accent) 74%, transparent) !important;
 }
 
 .janus-roundtable-camera-controls {
-  border-color: rgba(255, 255, 255, .1) !important;
-  background: rgba(8, 8, 10, .9) !important;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .42) !important;
+  border-color: color-mix(in srgb, var(--surface-tint) 10%, transparent) !important;
+  background: color-mix(in srgb, var(--shell-void) 90%, transparent) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 42%, transparent) !important;
 }
 
 /* Kill the inner double frame added by the parchment pass; keep it flat. */
@@ -2293,40 +2293,40 @@
 .janus-roundtable-camera-controls button {
   border-color: transparent !important;
   background: transparent !important;
-  color: rgba(255, 255, 255, .52) !important;
+  color: var(--shell-muted) !important;
 }
 
 .janus-roundtable-camera-controls button:hover {
-  border-color: rgba(255, 120, 48, .32) !important;
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent) !important;
   background: transparent !important;
-  color: #ffae72 !important;
+  color: var(--shell-accent) !important;
 }
 
 /* Active: thin orange border + orange text only. No inset glow, no fill —
    the 1px underline is the single saturated mark. */
 .janus-roundtable-camera-controls button[data-active="true"] {
-  border-color: rgba(255, 120, 48, .44) !important;
+  border-color: color-mix(in srgb, var(--primary) 44%, transparent) !important;
   background: transparent !important;
   box-shadow: none !important;
-  color: #ff9b61 !important;
+  color: var(--shell-accent) !important;
 }
 
 .janus-roundtable-camera-controls button[data-active="true"] svg {
-  color: #ff9b61 !important;
+  color: var(--shell-accent) !important;
 }
 
 .janus-roundtable-camera-controls button::after {
-  background: #ff7a30 !important;
-  box-shadow: 0 0 5px rgba(255, 120, 48, .6) !important;
+  background: var(--shell-accent) !important;
+  box-shadow: 0 0 5px color-mix(in srgb, var(--primary) 60%, transparent) !important;
 }
 
 .janus-roundtable-camera-controls[data-transitioning="true"] {
-  border-color: rgba(255, 120, 48, .4) !important;
-  box-shadow: 0 0 12px rgba(255, 120, 48, .12) !important;
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent) !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 12%, transparent) !important;
 }
 
 .janus-roundtable-camera-controls[data-transitioning="true"] button[data-active="true"]::before {
-  background: linear-gradient(105deg, transparent 28%, rgba(255, 180, 120, .2) 50%, transparent 72%);
+  background: linear-gradient(105deg, transparent 28%, color-mix(in srgb, var(--shell-accent) 20%, transparent) 50%, transparent 72%);
 }
 /* Override the legacy 350deg loop: the roundtable glyph must spin a full
    360deg so seats revolve around the table without a visible snap. */
@@ -2340,20 +2340,20 @@
   bottom: 10px;
   z-index: 5;
   padding: 6px 10px;
-  border: 1px solid rgba(255, 120, 48, .35);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
   border-radius: 4px;
-  background: rgba(28, 18, 12, .92);
-  color: rgba(255, 190, 140, .9);
+  background: color-mix(in srgb, var(--shell-canvas) 92%, transparent);
+  color: color-mix(in srgb, var(--shell-accent) 90%, transparent);
   font-size: 11px;
   cursor: pointer;
   transition: border-color .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease, transform .1s ease;
 }
 .janus-roundtable-advance:hover:not(:disabled),
 .janus-roundtable-end:hover:not(:disabled) {
-  border-color: rgba(255, 120, 48, .75);
-  background: rgba(54, 29, 16, .96);
-  color: #ffd9b8;
-  box-shadow: 0 0 12px rgba(255, 120, 48, .22);
+  border-color: color-mix(in srgb, var(--primary) 75%, transparent);
+  background: color-mix(in srgb, var(--shell-pane) 96%, transparent);
+  color: var(--shell-accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 .janus-roundtable-advance:active:not(:disabled),
 .janus-roundtable-end:active:not(:disabled) {
@@ -2362,7 +2362,7 @@
 }
 .janus-roundtable-advance:focus-visible,
 .janus-roundtable-end:focus-visible {
-  outline: 2px solid rgba(255, 120, 48, .75);
+  outline: 2px solid color-mix(in srgb, var(--primary) 75%, transparent);
   outline-offset: 1px;
 }
 .janus-roundtable-advance:disabled,
@@ -2372,7 +2372,7 @@
 }
 .janus-roundtable-end { right: 120px; }
 .janus-roundtable-agent-deck { position: relative; z-index: 1; display: grid; gap: 9px; }
-.janus-roundtable-inline-deck { display: grid; flex: 0 0 auto; gap: 7px; max-height: 132px; padding: 7px 14px 10px; overflow: auto; border-top: 1px solid rgba(216,195,158,.14); background: rgba(8,8,10,.78); }
+.janus-roundtable-inline-deck { display: grid; flex: 0 0 auto; gap: 7px; max-height: 132px; padding: 7px 14px 10px; overflow: auto; border-top: 1px solid color-mix(in srgb, var(--surface-tint) 14%, transparent); background: color-mix(in srgb, var(--shell-void) 78%, transparent); }
 .janus-roundtable-inline-deck .janus-agent-result-card { padding: 8px 10px; }
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-center {
   flex-direction: column;
@@ -2394,7 +2394,7 @@
   max-height: 156px;
   overflow-y: auto;
   border-top: 0;
-  border-bottom: 1px solid rgba(216,195,158,.14);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 14%, transparent);
 }
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-inline-deck .janus-agent-result-card {
   width: min(100%, 360px);
@@ -2409,14 +2409,14 @@
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-advance,
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-end { order: 3; }
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state .janus-roundtable-agent-deck { display: none; }
-.janus-roundtable-deck-heading { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid rgba(216,195,158,.18); color: #caa770; font: 700 10px Georgia, serif; letter-spacing: .12em; }
-.janus-roundtable-deck-heading small { color: rgba(216,195,158,.52); font: 9px ui-monospace, monospace; letter-spacing: .04em; }
-.janus-roundtable-deck-empty { margin: 18px 0; color: rgba(216,195,158,.5); font: 11px ui-monospace, monospace; text-align: center; }
-.janus-agent-result-card { display: grid; grid-template-columns: auto 1fr; gap: 5px 9px; width: 100%; padding: 11px 12px; border: 1px solid rgba(216,195,158,.2); border-left: 2px solid color-mix(in srgb, #caa770, transparent 25%); border-radius: 3px; background: rgba(255,246,220,.045); color: #e7dcc8; text-align: left; cursor: pointer; transition: border-color .2s, background .2s, transform .2s; }
-.janus-agent-result-card:hover, .janus-agent-result-card:focus-visible { border-color: rgba(216,195,158,.58); background: rgba(255,246,220,.09); transform: translateX(2px); outline: none; }
-.janus-agent-result-card strong { min-width: 0; overflow: hidden; color: #f0e5d1; font: 700 12px Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
-.janus-agent-result-card span:last-child { grid-column: 1 / -1; display: -webkit-box; overflow: hidden; color: rgba(231,220,200,.64); font: 10px/1.45 ui-monospace, monospace; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-.janus-agent-result-card__status { align-self: center; color: #d7b47d; font: 9px ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.janus-roundtable-deck-heading { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 18%, transparent); color: var(--status-warning); font: 700 10px Georgia, serif; letter-spacing: .12em; }
+.janus-roundtable-deck-heading small { color: color-mix(in srgb, var(--shell-muted) 52%, transparent); font: 9px ui-monospace, monospace; letter-spacing: .04em; }
+.janus-roundtable-deck-empty { margin: 18px 0; color: color-mix(in srgb, var(--shell-muted) 50%, transparent); font: 11px ui-monospace, monospace; text-align: center; }
+.janus-agent-result-card { display: grid; grid-template-columns: auto 1fr; gap: 5px 9px; width: 100%; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--surface-tint) 20%, transparent); border-left: 2px solid color-mix(in srgb, var(--status-warning), transparent 25%); border-radius: 3px; background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent); color: var(--shell-text); text-align: left; cursor: pointer; transition: border-color .2s, background .2s, transform .2s; }
+.janus-agent-result-card:hover, .janus-agent-result-card:focus-visible { border-color: color-mix(in srgb, var(--surface-tint) 58%, transparent); background: color-mix(in srgb, var(--surface-tint) 9%, transparent); transform: translateX(2px); outline: none; }
+.janus-agent-result-card strong { min-width: 0; overflow: hidden; color: var(--shell-text); font: 700 12px Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.janus-agent-result-card span:last-child { grid-column: 1 / -1; display: -webkit-box; overflow: hidden; color: color-mix(in srgb, var(--shell-text) 64%, transparent); font: 10px/1.45 ui-monospace, monospace; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.janus-agent-result-card__status { align-self: center; color: var(--status-warning); font: 9px ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .janus-island-shell[data-stage="expanded"][data-view="roundtable"] .janus-roundtable-state { display: block !important; }
 
 /* Roundtable interaction rail: work evidence and conversation advance side by
@@ -2439,10 +2439,10 @@
   justify-content: space-between;
   min-height: 40px;
   padding: 0 14px;
-  border-bottom: 1px solid rgba(216,195,158,.14);
-  background: rgba(13,12,15,.96);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 14%, transparent);
+  background: color-mix(in srgb, var(--shell-void) 96%, transparent);
 }
-.janus-roundtable-dialog-status { color: rgba(216,195,158,.62); font: 10px ui-monospace, monospace; letter-spacing: .04em; }
+.janus-roundtable-dialog-status { color: color-mix(in srgb, var(--shell-muted) 62%, transparent); font: 10px ui-monospace, monospace; letter-spacing: .04em; }
 .janus-roundtable-dialog-actions { display: flex; align-items: center; gap: 8px; }
 .janus-roundtable-dialog-actions .janus-roundtable-advance,
 .janus-roundtable-dialog-actions .janus-roundtable-end {
@@ -2460,15 +2460,15 @@
 .janus-chat-agent-card-message .janus-agent-result-card { margin-top: 4px; }
 .janus-roundtable-view, .janus-chat-view { display: contents; }
 .janus-roundtable-view--hidden, .janus-chat-view--hidden { display: none !important; }
-.janus-roundtable-tool-trace { display: grid; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(216,195,158,.18); }
-.janus-roundtable-tool-trace-heading { display: flex; align-items: baseline; justify-content: space-between; color: #caa770; font: 700 10px Georgia, serif; letter-spacing: .12em; }
-.janus-roundtable-tool-trace-heading small { color: rgba(216,195,158,.52); font: 9px ui-monospace, monospace; letter-spacing: .04em; }
-.janus-roundtable-tool-trace-item { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; color: rgba(231,220,200,.72); font: 10px ui-monospace, monospace; }
-.janus-roundtable-tool-trace-item[data-status="failed"] .janus-roundtable-tool-trace-state { color: #e07856; }
-.janus-roundtable-tool-trace-item[data-status="completed"] .janus-roundtable-tool-trace-state { color: #9db87a; }
+.janus-roundtable-tool-trace { display: grid; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--surface-tint) 18%, transparent); }
+.janus-roundtable-tool-trace-heading { display: flex; align-items: baseline; justify-content: space-between; color: var(--status-warning); font: 700 10px Georgia, serif; letter-spacing: .12em; }
+.janus-roundtable-tool-trace-heading small { color: color-mix(in srgb, var(--shell-muted) 52%, transparent); font: 9px ui-monospace, monospace; letter-spacing: .04em; }
+.janus-roundtable-tool-trace-item { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; color: color-mix(in srgb, var(--shell-text) 72%, transparent); font: 10px ui-monospace, monospace; }
+.janus-roundtable-tool-trace-item[data-status="failed"] .janus-roundtable-tool-trace-state { color: var(--status-danger); }
+.janus-roundtable-tool-trace-item[data-status="completed"] .janus-roundtable-tool-trace-state { color: var(--status-success); }
 .janus-roundtable-tool-trace-error { flex-basis: 100%; }
-.janus-roundtable-tool-trace-error summary { cursor: pointer; color: #e07856; }
-.janus-roundtable-tool-trace-error p { margin: 4px 0 0; color: rgba(231,220,200,.6); white-space: pre-wrap; }
+.janus-roundtable-tool-trace-error summary { cursor: pointer; color: var(--status-danger); }
+.janus-roundtable-tool-trace-error p { margin: 4px 0 0; color: color-mix(in srgb, var(--shell-text) 60%, transparent); white-space: pre-wrap; }
 /* Ended-meeting banner: FINAL draft actions (save / copy / new topic). */
 .janus-roundtable-ended-banner {
   display: flex;
@@ -2477,15 +2477,15 @@
   align-items: center;
   gap: 8px 10px;
   padding: 8px 14px;
-  border-bottom: 1px solid rgba(216,195,158,.14);
-  background: rgba(26,20,16,.96);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 14%, transparent);
+  background: color-mix(in srgb, var(--shell-canvas) 96%, transparent);
 }
-.janus-roundtable-ended-banner__text { color: #ead2aa; font: 600 11px Georgia, serif; letter-spacing: .06em; }
+.janus-roundtable-ended-banner__text { color: var(--shell-text); font: 600 11px Georgia, serif; letter-spacing: .06em; }
 .janus-roundtable-ended-banner__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .janus-roundtable-ended-banner__actions .janus-roundtable-advance,
 .janus-roundtable-ended-banner__actions .janus-roundtable-end { position: static; margin: 0; padding: 5px 9px; }
 .janus-roundtable-ended-banner__actions button:disabled { opacity: .45; cursor: not-allowed; }
-.janus-roundtable-ended-banner__notice { flex-basis: 100%; color: rgba(216,195,158,.72); font: 10px ui-monospace, monospace; }
+.janus-roundtable-ended-banner__notice { flex-basis: 100%; color: color-mix(in srgb, var(--shell-muted) 72%, transparent); font: 10px ui-monospace, monospace; }
 /* §37.8 open-questions banner: mirrors the ended banner chrome, amber accent. */
 .janus-roundtable-questions-banner {
   display: flex;
@@ -2494,36 +2494,36 @@
   align-items: baseline;
   gap: 4px 10px;
   padding: 8px 14px;
-  border-bottom: 1px solid rgba(216,195,158,.14);
-  background: rgba(30,23,15,.96);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 14%, transparent);
+  background: color-mix(in srgb, var(--shell-canvas) 96%, transparent);
 }
-.janus-roundtable-questions-banner__text { color: #f0c979; font: 600 11px Georgia, serif; letter-spacing: .04em; }
-.janus-roundtable-questions-banner__hint { color: rgba(216,195,158,.62); font: 10px ui-monospace, monospace; }
+.janus-roundtable-questions-banner__text { color: var(--status-warning); font: 600 11px Georgia, serif; letter-spacing: .04em; }
+.janus-roundtable-questions-banner__hint { color: color-mix(in srgb, var(--shell-muted) 62%, transparent); font: 10px ui-monospace, monospace; }
 .janus-roundtable-questions-banner__detail {
   margin-left: auto;
   padding: 3px 9px;
-  color: #f0c979;
+  color: var(--status-warning);
   background: transparent;
-  border: 1px solid rgba(240,201,121,.4);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 40%, transparent);
   border-radius: 4px;
   font: 10px ui-monospace, monospace;
   cursor: pointer;
 }
-.janus-roundtable-questions-banner__detail:hover { border-color: rgba(240,201,121,.8); }
+.janus-roundtable-questions-banner__detail:hover { border-color: color-mix(in srgb, var(--status-warning) 80%, transparent); }
 /* §37.8 host question bubble: assistant message with numbered questions. */
 .janus-chat-host-questions p { margin: 2px 0; }
-.janus-chat-host-questions-hint { color: rgba(216,195,158,.62); font-size: 11px; }
+.janus-chat-host-questions-hint { color: color-mix(in srgb, var(--shell-muted) 62%, transparent); font-size: 11px; }
 .janus-chat-host-questions-detail {
   margin-top: 4px;
   padding: 3px 9px;
-  color: #f0c979;
+  color: var(--status-warning);
   background: transparent;
-  border: 1px solid rgba(240,201,121,.4);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 40%, transparent);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
 }
-.janus-chat-host-questions-detail:hover { border-color: rgba(240,201,121,.8); }
+.janus-chat-host-questions-detail:hover { border-color: color-mix(in srgb, var(--status-warning) 80%, transparent); }
 /* Staged new-topic exit: the dialog fades while the auxiliary Island plays
    its own 240ms exit; state resets only after both finished. */
 .janus-roundtable-center { transition: opacity .22s ease, transform .22s ease; }
@@ -2539,8 +2539,8 @@
   gap: 6px;
   flex: 0 0 auto;
   padding: 8px 14px;
-  border-bottom: 1px solid rgba(224,120,86,.35);
-  background: rgba(46,18,12,.96);
+  border-bottom: 1px solid color-mix(in srgb, var(--status-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--shell-pane) 96%, transparent);
 }
-.janus-roundtable-error-item summary { cursor: pointer; color: #e07856; font: 600 11px ui-monospace, monospace; }
-.janus-roundtable-error-item p { margin: 4px 0 0; color: rgba(231,220,200,.85); font: 11px ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
+.janus-roundtable-error-item summary { cursor: pointer; color: var(--status-danger); font: 600 11px ui-monospace, monospace; }
+.janus-roundtable-error-item p { margin: 4px 0 0; color: color-mix(in srgb, var(--shell-text) 85%, transparent); font: 11px ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }

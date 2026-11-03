@@ -1,25 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import type { ContainerTerminalOutput } from '@janusx/plugin-sdk'
 import '@xterm/xterm/css/xterm.css'
 import { call } from './bridge'
 import { useLocale, errorText } from './i18n'
+
+function terminalTheme(root: HTMLElement): ITheme {
+  const colors = getComputedStyle(root)
+  const keys = 'background foreground cursor cursorAccent selectionBackground black red green yellow blue magenta cyan white brightBlack brightRed brightGreen brightYellow brightBlue brightMagenta brightCyan brightWhite'.split(' ')
+  return Object.fromEntries(keys.map(key => [key, colors.getPropertyValue(`--terminal-${key}`).trim()]).filter(([, value]) => value))
+}
 export function TerminalPane({ container, session, onEnded }: { container: string; session: string; onEnded(): void }) {
   const body = useRef<HTMLDivElement>(null), [ended, setEnded] = useState(false), [error, setError] = useState(''), t = useLocale()
   const onEnd = useRef(onEnded); onEnd.current = onEnded
   useEffect(() => {
     let disposed = false, cursor = 0, pending = false, input = ''
     let inputTimer: ReturnType<typeof setTimeout> | undefined
-    const root = body.current!, colors = getComputedStyle(root)
+    const root = body.current!
     const terminal = new Terminal({ fontFamily: 'Consolas, "Cascadia Code", monospace', fontSize: 12, cursorBlink: true, scrollback: 3000,
-      theme: { background: colors.getPropertyValue('--shell-canvas').trim() || '#171717', foreground: colors.getPropertyValue('--shell-text').trim() || '#dddddd' }, allowProposedApi: false })
+      theme: terminalTheme(root), allowProposedApi: false })
     const fit = new FitAddon(); terminal.loadAddon(fit); terminal.open(root)
     const theme = new MutationObserver(() => {
-      const colors = getComputedStyle(root)
-      terminal.options.theme = { background: colors.getPropertyValue('--shell-canvas').trim(), foreground: colors.getPropertyValue('--shell-text').trim() }
+      terminal.options.theme = terminalTheme(root)
     })
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] })
     const resize = () => { if (!root.clientWidth || !root.clientHeight) return; fit.fit(); void call('terminal.resize', { container, id: session, cols: Math.min(500, Math.max(2, terminal.cols)), rows: Math.min(200, Math.max(1, terminal.rows)) }).catch(() => {}) }
     const observer = new ResizeObserver(resize); observer.observe(root); resize()
     const flushInput = () => {

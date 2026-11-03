@@ -1,12 +1,13 @@
-// Note: preview/theme maintenance — .agents/notes/workbench/product-workspace.md
+// Note: theme maintenance — .agents/notes/workbench/theme-system.md
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, relative, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import postcss from 'postcss'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const renderer = 'src/renderer/src'
-const generated = `${renderer}/styles/themes.generated.css`
+const roots = ['src/renderer/src', 'plugins/blueprint/src/ui', 'plugins/docker/src/ui', 'plugins/cpa/src/ui']
+const generated = new Set(['src/renderer/src/styles/themes.generated.css', 'packages/plugin-sdk/theme.css'])
 
 function filesIn(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -19,7 +20,15 @@ function filesIn(directory) {
 // outside strings. Keep raw source offsets so diagnostics refer to the source file.
 function fragments(path, source) {
   if (extname(path) === '.css') {
-    return [{ text: source.replace(/\/\*[\s\S]*?\*\//g, (s) => s.replace(/[^\r\n]/g, ' ')), start: 0 }]
+    const tree = postcss.parse(source, { from: path })
+    const parts = []
+    tree.walkDecls(declaration => {
+      const start = declaration.source.start.offset
+      parts.push({ text: source.slice(start, declaration.source.end.offset), start })
+    })
+    // Attribute values in selectors identify artwork; they do not paint it.
+    tree.walkRules(rule => parts.push({ text: rule.selector, start: rule.source.start.offset, selector: true }))
+    return parts
   }
   const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true,
     /\.[jt]sx$/.test(path) ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
@@ -47,20 +56,22 @@ export function scanThemeSources(sources) {
   }
   const findings = []
   for (const { path, source, parts } of parsed) {
-    if (path === generated) continue // generated definitions are the allowed color source
+    if (generated.has(path)) continue // generated definitions are the allowed color source
     const add = (kind, value, offset) => {
       const before = source.slice(0, offset)
       const line = before.split('\n').length
       const column = offset - before.lastIndexOf('\n')
       findings.push({ path, line, column, kind, value })
     }
-    for (const { text, start } of parts) {
-      for (const match of text.matchAll(/#[\da-f]{8}\b|#[\da-f]{6}\b|#[\da-f]{4}\b|#[\da-f]{3}\b|\brgba?\(\s*[\d.][^)]*\)|\bhsla?\(\s*[\d.][^)]*\)|\b(?:bg|text|border|ring|fill|stroke|divide|from|via|to|shadow)-(?:black|white)(?:\/[\d.]+)?\b/gi)) {
-        add('literal-color', match[0].toLowerCase().replace(/\s+/g, ''), start + match.index)
-      }
-      // Named colors used as CSS values or JS color strings (ordinary prose is ignored).
-      for (const match of text.matchAll(/(?:^|:\s*)(black|white)(?=\s*(?:[;,}]|$))/gi)) {
-        add('literal-color', match[1].toLowerCase(), start + match.index + match[0].indexOf(match[1]))
+    for (const { text, start, selector } of parts) {
+      if (!selector) {
+        for (const match of text.matchAll(/#[\da-f]{8}\b|#[\da-f]{6}\b|#[\da-f]{4}\b|#[\da-f]{3}\b|\brgba?\(\s*[\d.][^)]*\)|\bhsla?\(\s*[\d.][^)]*\)|\b(?:bg|text|border|ring|fill|stroke|divide|from|via|to|shadow)-(?:black|white)(?:\/[\d.]+)?\b/gi)) {
+          add('literal-color', match[0].toLowerCase().replace(/\s+/g, ''), start + match.index)
+        }
+        // Named colors used as CSS values or JS color strings (ordinary prose is ignored).
+        for (const match of text.matchAll(/(?:^|:\s*)(black|white)(?=\s*(?:[;,}]|$))/gi)) {
+          add('literal-color', match[1].toLowerCase(), start + match.index + match[0].indexOf(match[1]))
+        }
       }
       for (const match of text.matchAll(/\[data-theme\s*=\s*['"\\]*([\w-]+)/g)) {
         add('theme-selector', match[1], start + match.index)
@@ -95,7 +106,7 @@ export function classifyFindings(findings, config) {
 }
 
 export function readThemeFindings() {
-  return scanThemeSources(filesIn(resolve(root, renderer)).map((path) => ({
+  return scanThemeSources([...roots.flatMap(directory => filesIn(resolve(root, directory))), resolve(root, 'packages/plugin-sdk/theme.css')].map((path) => ({
     path: relative(root, path).replaceAll('\\', '/'), source: readFileSync(path, 'utf8'),
   })))
 }

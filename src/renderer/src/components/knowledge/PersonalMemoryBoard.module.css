@@ -3,7 +3,7 @@
 .header h2 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
 .header p { margin: 0; color: var(--shell-muted, var(--text-dim)); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.root button, .search { color: inherit; background: var(--shell-surface, transparent); border: 1px solid var(--shell-border, var(--border)); border-radius: 8px; font: inherit; }
+.root button, .search { color: inherit; background: var(--shell-card, transparent); border: 1px solid var(--shell-border, var(--border)); border-radius: 8px; font: inherit; }
 .root button { padding: 8px 12px; cursor: pointer; }
 .root button:disabled { opacity: .5; cursor: default; }
 .root button:focus-visible, .search:focus-visible { outline: 2px solid var(--shell-accent, var(--primary)); outline-offset: 2px; }

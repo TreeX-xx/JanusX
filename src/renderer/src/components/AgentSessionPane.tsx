@@ -303,7 +303,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           <div className={styles.content}>
             {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} />}
             {(starting || (empty && !startupActive)) && <div className={styles.welcome} data-conversation-welcome data-loading={starting} data-animate={starting && visible && conversation}>
-              <div className={styles.startingIdentity}><span className={styles.startingMark} aria-hidden="true"><TerminalPresetIcon preset={identityPreset} className={identityPreset === 'codex' ? styles.codexIcon : undefined} style={{ width: 20, height: 20 }} /><span className={styles.startingRing} /></span><span>{t(`provider.${identityPreset}`)}</span></div>
+              <div className={styles.startingIdentity}><span className={styles.startingMark} aria-hidden="true"><TerminalPresetIcon preset={identityPreset} style={{ width: 20, height: 20 }} /><span className={styles.startingRing} /></span><span>{t(`provider.${identityPreset}`)}</span></div>
               <div className={styles.welcomeLayers}>
                 <div className={styles.starting} data-active={starting} data-conversation-loading={starting ? '' : undefined} aria-hidden={!starting} role={starting ? 'status' : undefined} aria-live={starting ? 'polite' : undefined}>
                   <h2>{t('conversation.starting')}</h2><p>{t('conversation.startingHint')}</p>
@@ -321,7 +321,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
               } : undefined} /></>}</div>
               : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
-                <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} className={identityPreset === 'codex' ? styles.codexIcon : undefined} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
+                <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
                   <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
                 {item.text && <MarkdownContent content={conversationImageText(item.text, (item.images ?? []).flatMap(image => image.source ? [image.source] : []))} variant="conversation" workspacePath={terminal?.cwd} />}
                 <ConversationImages terminalId={terminalId} itemId={item.id} images={item.images ?? []} canReference={Boolean(canSend && !busy && !switching && references.length < MAX_CONVERSATION_ATTACHMENTS)}
@@ -332,7 +332,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                   }} />
               </article>
               : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
-                {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} className={identityPreset === 'codex' ? styles.codexIcon : undefined} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
+                {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
                 <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
               </article>
                 : <LazyDetails stateKey={item.id} className={styles.activity} key={item.id} data-state={item.status} summary={

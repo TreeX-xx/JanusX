@@ -24,44 +24,23 @@ export interface StatusVisual {
 
 /**
  * 状态 → 视觉映射表（顺序即菜单展示顺序）。
- * V2 设计语言：黑灰为主、橙为辅 —— 灰阶明暗表达状态，在途（in-progress）是全画布
- * 唯一的语义色（见 design/blueprint-note-graph.html）。blocked 的红色告警含义
- * 被有意收敛，与归档态以明暗区分。
- *
- * M1 之后：色值唯一来源扩展为主题感知函数 getBlueprintStatusVisual()，
- * STATUS_VISUALS 保留为 dark 快照（菜单顺序/测试/外部工具兼容）。
+ * 灰阶区分等待与规划，强调色表达在途，成功与异常使用共享状态色。
+ * CSS 变量在绘制时解析，已挂载的节点和菜单随宿主主题一起更新。
  */
 export const STATUS_VISUALS: Record<BlueprintNodeStatus, StatusVisual> = {
-  'not-started': { color: '#3a3a3e', label: '未开始', labelKey: 'blueprint:status.notStarted' },
-  planning: { color: '#55575e', label: '规划中', labelKey: 'blueprint:status.planning' },
-  'in-progress': { color: '#ff7830', label: '进行中', labelKey: 'blueprint:status.inProgress' },
-  testing: { color: '#8a8a8a', label: '测试中', labelKey: 'blueprint:status.testing' },
-  'bug-fixing': { color: '#a1a1aa', label: '修Bug', labelKey: 'blueprint:status.bugFixing' },
-  blocked: { color: '#63636b', label: '阻塞', labelKey: 'blueprint:status.blocked' },
-  paused: { color: '#6b6b72', label: '已暂停', labelKey: 'blueprint:status.paused' },
-  done: { color: '#d7d7db', label: '已完成', labelKey: 'blueprint:status.done' },
-  archived: { color: '#4a4a4e', label: '已归档', labelKey: 'blueprint:status.archived' }
+  'not-started': { color: 'var(--shell-dim)', label: '未开始', labelKey: 'blueprint:status.notStarted' },
+  planning: { color: 'var(--shell-muted)', label: '规划中', labelKey: 'blueprint:status.planning' },
+  'in-progress': { color: 'var(--shell-accent)', label: '进行中', labelKey: 'blueprint:status.inProgress' },
+  testing: { color: 'var(--shell-muted)', label: '测试中', labelKey: 'blueprint:status.testing' },
+  'bug-fixing': { color: 'var(--status-warning)', label: '修Bug', labelKey: 'blueprint:status.bugFixing' },
+  blocked: { color: 'var(--status-danger)', label: '阻塞', labelKey: 'blueprint:status.blocked' },
+  paused: { color: 'var(--shell-dim)', label: '已暂停', labelKey: 'blueprint:status.paused' },
+  done: { color: 'var(--status-success)', label: '已完成', labelKey: 'blueprint:status.done' },
+  archived: { color: 'var(--shell-dim)', label: '已归档', labelKey: 'blueprint:status.archived' }
 }
 
-/** planche 纸面映射：墨阶明暗 + 朱红在途 + 深绿完成 + 赭黄修Bug/阻塞。 */
-const PLANCHE_STATUS_VISUALS: Record<BlueprintNodeStatus, StatusVisual> = {
-  'not-started': { color: 'rgba(28, 52, 59, 0.38)', label: '未开始', labelKey: 'blueprint:status.notStarted' },
-  planning: { color: 'rgba(28, 52, 59, 0.62)', label: '规划中', labelKey: 'blueprint:status.planning' },
-  'in-progress': { color: '#D43D2A', label: '进行中', labelKey: 'blueprint:status.inProgress' },
-  testing: { color: 'rgba(28, 52, 59, 0.62)', label: '测试中', labelKey: 'blueprint:status.testing' },
-  'bug-fixing': { color: '#A86F0B', label: '修Bug', labelKey: 'blueprint:status.bugFixing' },
-  blocked: { color: '#1C343B', label: '阻塞', labelKey: 'blueprint:status.blocked' },
-  paused: { color: 'rgba(28, 52, 59, 0.38)', label: '已暂停', labelKey: 'blueprint:status.paused' },
-  done: { color: '#2E6B5E', label: '已完成', labelKey: 'blueprint:status.done' },
-  archived: { color: 'rgba(28, 52, 59, 0.38)', label: '已归档', labelKey: 'blueprint:status.archived' }
-}
-
-/** 主题感知读取：浅色基底统一走纸面映射，调用方零改动自动跟随。 */
-export function getBlueprintStatusVisual(
-  status: BlueprintNodeStatus,
-  theme: unknown = document.documentElement.dataset.theme,
-): StatusVisual {
-  if (['light', 'planche'].includes(String(theme))) return PLANCHE_STATUS_VISUALS[status] ?? PLANCHE_STATUS_VISUALS['not-started']
+/** Status paint follows the host tokens, including runtime plugin palettes. */
+export function getBlueprintStatusVisual(status: BlueprintNodeStatus, _theme?: unknown): StatusVisual {
   return STATUS_VISUALS[status] ?? STATUS_VISUALS['not-started']
 }
 

@@ -4,7 +4,7 @@
 
 .markdown-preview .md-tr:nth-child(even) td,
 .janus-chat-message-content .md-tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.025);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
 }
 
 .markdown-preview tbody tr:hover td,

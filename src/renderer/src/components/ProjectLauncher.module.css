@@ -28,12 +28,12 @@
   background: var(--shell-card);
   border: 1px solid var(--shell-border);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--shadow-color) 40%, transparent);
 }
 
 :global([data-theme='planche']) .loadingState,
 :global([data-theme='planche']) .errorState {
-  border-color: var(--line, #1C343B);
+  border-color: var(--line, var(--shell-text));
   box-shadow: none;
 }
 

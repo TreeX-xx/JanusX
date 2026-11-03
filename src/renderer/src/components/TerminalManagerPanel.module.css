@@ -106,7 +106,7 @@
   padding: 4px 4px 16px 32px;
 }
 .editor[hidden] { display: none; }
-.optional { margin-left: 6px; color: var(--shell-dim); opacity: .75; }
+.optional { margin-left: 6px; color: var(--shell-dim); }
 .editorFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .removeButton { flex-shrink: 0; }
 .removeButton:hover { color: var(--status-danger); }

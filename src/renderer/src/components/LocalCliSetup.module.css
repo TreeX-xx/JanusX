@@ -1,5 +1,5 @@
-.dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; margin: auto; padding: 28px; border: 1px solid var(--shell-border-soft); border-radius: 14px; background: var(--shell-canvas); color: var(--shell-text); box-shadow: 0 16px 64px #0003; }
-.dialog::backdrop { background: #0006; }
+.dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; margin: auto; padding: 28px; border: 1px solid var(--shell-border-soft); border-radius: 14px; background: var(--shell-canvas); color: var(--shell-text); box-shadow: 0 16px 64px color-mix(in srgb, var(--shadow-color) 20%, transparent); }
+.dialog::backdrop { background: color-mix(in srgb, var(--surface-shade) 40%, transparent); }
 .dialog h2 { margin: 16px 0 10px; font-size: 19px; font-weight: 600; }
 .dialog p { font-size: 13px; line-height: 1.7; color: var(--shell-muted); margin: 10px 0; }
 .environment { padding: 12px; background: var(--shell-chrome); border-radius: 8px; font-size: 12px; line-height: 1.7; }

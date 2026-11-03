@@ -63,7 +63,7 @@ test('agent settings enable saving only for changes and discard restores saved v
   await expect(save).toBeDisabled()
 })
 
-for (const theme of ['planche', 'dark']) {
+for (const theme of ['planche', 'dark', 'white']) {
   for (const width of [1440, 900, 640]) {
     test(`settings fit ${theme} at ${width}px with reachable navigation and footer`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })

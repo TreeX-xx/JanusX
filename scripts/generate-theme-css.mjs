@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const entry = join(root, 'src', 'shared', 'theme', 'css-codegen.ts')
 const outCss = join(root, 'src', 'renderer', 'src', 'styles', 'themes.generated.css')
+const sdkCss = join(root, 'packages', 'plugin-sdk', 'theme.css')
 const checkOnly = process.argv.includes('--check')
 
 const dir = mkdtempSync(join(tmpdir(), 'janusx-theme-css-'))
@@ -35,14 +36,16 @@ try {
   if (typeof css !== 'string' || css.length === 0) {
     throw new Error('renderThemeCss() returned empty output')
   }
-  if (checkOnly) {
-    if (readFileSync(outCss, 'utf8').replace(/\r\n/g, '\n') !== css.replace(/\r\n/g, '\n')) {
-      throw new Error('Theme CSS is out of date. Run npm run theme:css.')
+  for (const target of [outCss, sdkCss]) {
+    if (checkOnly) {
+      if (readFileSync(target, 'utf8').replace(/\r\n/g, '\n') !== css.replace(/\r\n/g, '\n')) {
+        throw new Error(`Theme CSS is out of date: ${target}. Run npm run theme:css.`)
+      }
+    } else {
+      writeFileSync(target, css)
     }
-  } else {
-    writeFileSync(outCss, css)
+    console.log(`[theme:css] ${checkOnly ? 'checked' : 'wrote'} ${target} (${css.length} bytes)`)
   }
-  console.log(`[theme:css] ${checkOnly ? 'checked' : 'wrote'} ${outCss} (${css.length} bytes)`)
 } finally {
   rmSync(dir, { recursive: true, force: true })
 }

@@ -24,7 +24,7 @@ function WorkbenchErrorFallback({ onRetry }: { onRetry: () => void }) {
       <div className="text-sm font-medium">{t('common:errorBoundary.workbenchFailed')}</div>
       <button
         type="button"
-        className="inline-flex h-8 items-center gap-2 rounded border border-white/15 bg-white/[0.06] px-3 text-xs hover:bg-white/10"
+        className="inline-flex h-8 items-center gap-2 rounded border border-[var(--shell-border)] bg-[var(--shell-hover)] px-3 text-xs hover:bg-[var(--shell-hover)]"
         onClick={onRetry}
       >
         <RotateCcw size={14} aria-hidden="true" />

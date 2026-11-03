@@ -468,7 +468,7 @@ export function GitPanel({ active = true }: { active?: boolean }) {
       <div
         className="fixed inset-0 flex items-center justify-center"
         style={{
-          background: 'rgba(8, 8, 10, 0.62)',
+          background: 'var(--modal-backdrop)',
           backdropFilter: 'blur(10px)',
           zIndex: 1000,
         }}
@@ -587,12 +587,12 @@ function groupFiles(files: GitFileChange[]): GitFileChange[][] {
 const GitFileItem = memo(function GitFileItem({ file, onToggle, onOpen, onDiscard }: { file: GitFileChange; onToggle: (file: GitFileChange) => void; onOpen: (file: GitFileChange) => void; onDiscard: (file: GitFileChange) => void }) {
   const { t } = useI18n('git')
   const statusColors: Record<string, { bg: string; fg: string }> = {
-    M: { bg: 'rgba(229, 192, 123, 0.15)', fg: '#e5c07b' },
-    A: { bg: 'rgba(78, 201, 176, 0.15)', fg: '#4ec9b0' },
-    D: { bg: 'rgba(224, 108, 117, 0.15)', fg: '#e06c75' },
-    R: { bg: 'rgba(198, 160, 246, 0.15)', fg: '#c6a0f6' },
-    '??': { bg: 'rgba(136, 136, 136, 0.15)', fg: '#888' },
-    UU: { bg: 'rgba(224, 108, 117, 0.15)', fg: '#e06c75' },
+    M: { bg: 'color-mix(in srgb, var(--status-warning) 15%, transparent)', fg: 'var(--status-warning)' },
+    A: { bg: 'color-mix(in srgb, var(--shell-diff-add) 15%, transparent)', fg: 'var(--shell-diff-add)' },
+    D: { bg: 'color-mix(in srgb, var(--shell-diff-del) 15%, transparent)', fg: 'var(--shell-diff-del)' },
+    R: { bg: 'color-mix(in srgb, var(--status-degraded) 15%, transparent)', fg: 'var(--status-degraded)' },
+    '??': { bg: 'color-mix(in srgb, var(--shell-muted) 15%, transparent)', fg: 'var(--shell-muted)' },
+    UU: { bg: 'color-mix(in srgb, var(--shell-diff-del) 15%, transparent)', fg: 'var(--shell-diff-del)' },
   }
   const colors = statusColors[file.status] ?? statusColors['??']
 

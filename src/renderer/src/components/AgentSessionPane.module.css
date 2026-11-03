@@ -1,4 +1,4 @@
-﻿.root { height: 100%; min-width: 0; display: flex; flex-direction: column; color: var(--shell-text); background: var(--bg-deep); container-type: inline-size; }
+.root { height: 100%; min-width: 0; display: flex; flex-direction: column; color: var(--shell-text); background: var(--bg-deep); container-type: inline-size; }
 .header { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 12px 24px; flex-shrink: 0; }
 .root button { cursor: pointer; border-radius: 8px; font-size: 12px; transition: background 140ms, color 140ms; }
 .root button:focus-visible, .activity summary:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: 3px; }
@@ -51,7 +51,6 @@
 .conversation[data-empty=true] { justify-content: center; padding-bottom: min(12vh, 96px); }
 .conversation[data-empty=true] .scroll { flex: 0 1 auto; }
 .empty { text-align: left; padding: 16px 0 18px; }
-:global([data-theme='dark']) .codexIcon { filter: invert(1); }
 .emptyIdentity { display: flex; align-items: center; gap: 9px; margin-bottom: 20px; color: var(--shell-muted); font-size: 12px; font-weight: 600; letter-spacing: .03em; }
 .answerIdentity { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--shell-muted); font-size: 12px; font-weight: 500; }
 .empty h2 { color: var(--shell-text); font-size: clamp(27px, 3.6cqi, 38px); font-weight: 550; letter-spacing: -.045em; line-height: 1.35; margin: 0 0 12px; }
@@ -218,7 +217,7 @@
 .delivery button { color: var(--shell-text); text-decoration: underline; }
 .composerActions .submit + .submit { margin-left: 4px; }
 .inputHint { margin-left: auto; font-size: 10px; color: var(--shell-muted); opacity: 0; transition: opacity 140ms; white-space: nowrap; }
-.composer:focus-within .inputHint { opacity: .7; }
+.composer:focus-within .inputHint { opacity: 1; }
 .composerActions .submit { display: grid; place-items: center; flex-shrink: 0; margin-left: auto; width: 32px; height: 32px; padding: 0; border-radius: 11px; color: var(--bg-deep); background: var(--shell-text); }
 .composerActions .submit:disabled { opacity: 1; color: var(--shell-dim); background: var(--shell-hover); }
 @container (max-width: 540px) {

@@ -7,8 +7,9 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
 import { packagePlugin } from '../../scripts/plugins/package-plugin.mjs'
+import { getThemeDefinition } from '../../src/shared/theme/registry'
 
-test('signed Blueprint UI preserves drafts, applies confirmed files without audit history, and restores data after reinstall', async () => {
+test('signed Blueprint UI follows themes, preserves drafts, applies confirmed files without audit history, and restores data after reinstall', async () => {
   test.setTimeout(120_000)
   const directory = await mkdtemp(join(tmpdir(), 'blueprint-ui-'))
   let app: ElectronApplication | undefined
@@ -49,6 +50,14 @@ test('signed Blueprint UI preserves drafts, applies confirmed files without audi
       await expect.poll(() => current.isClosed()).toBe(true)
       return guest()
     }
+    const setTheme = async (id: string) => {
+      const definition = getThemeDefinition(id)
+      const tokens = Object.fromEntries(Object.entries(definition.tokens).map(([key, value]) => [`--${key}`, value]))
+      tokens['--theme-color-scheme'] = definition.base
+      await app!.evaluate((_electron, value) => (globalThis as any).blueprintProbe.theme(value), { id, tokens })
+      return definition
+    }
+    const rgb = (hex: string) => `rgb(${hex.match(/[a-f\d]{2}/gi)!.map(value => parseInt(value, 16)).join(', ')})`
     let page = await guest()
     await expect(page.locator('.blueprint-canvas-loading')).toBeVisible()
     await expect(page.getByRole('button', { name: '来源诊断 · 33', exact: true })).toBeVisible()
@@ -69,6 +78,17 @@ test('signed Blueprint UI preserves drafts, applies confirmed files without audi
     await page.emulateMedia({ reducedMotion: 'no-preference' })
     await expect(page.locator('.blueprint-workbench-card--canvas')).toHaveCSS('opacity', '1')
 
+    await page.evaluate(() => { (window as any).themeCanvas = document.querySelector('.react-flow') })
+    for (const id of ['white', 'dark', 'planche', 'white']) {
+      const definition = await setTheme(id)
+      await expect(page.locator('html')).toHaveCSS('color-scheme', definition.base)
+      await expect(page.locator('.bp-node-card__title').first()).toHaveCSS('color', rgb(definition.tokens['shell-text']))
+      await expect(page.locator('.react-flow')).toHaveClass(new RegExp(`\\b${definition.base}\\b`))
+      expect(await page.evaluate(() => (window as any).themeCanvas === document.querySelector('.react-flow'))).toBe(true)
+      await page.screenshot({ path: `artifacts/plugins/blueprint-theme-${id}.png`, animations: 'disabled' })
+    }
+    await expect(page.locator('.blueprint-canvas-main')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+    await expect(page.locator('.bp-node-detail')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
     await page.screenshot({ path: 'artifacts/plugins/blueprint-restored-initial.png' })
     expect(await app.evaluate(() => (globalThis as any).blueprintProbe.lifecycle())).toMatchObject({
       startsBeforeInstall: 0, startsAfterInstall: 0, nativeStarts: 1, processes: 1,
@@ -79,6 +99,16 @@ test('signed Blueprint UI preserves drafts, applies confirmed files without audi
     page = await guest(await app.evaluate(() => (globalThis as any).blueprintProbe.open()))
     page = await settings(page)
     await expect(page.getByRole('heading', { name: '蓝图设置', exact: true })).toBeVisible()
+    const codex = page.locator('[data-client="codex"]')
+    await codex.scrollIntoViewIfNeeded()
+    for (const id of ['white', 'dark', 'planche', 'white']) {
+      const definition = await setTheme(id)
+      await expect(codex).toHaveCSS('background-color', rgb(definition.tokens['shell-card']))
+      await expect(codex.locator('img')).toHaveCSS('filter', definition.tokens['sidebar-codex-filter'])
+      await expect(page.locator('[data-client="opencode"] path').last()).toHaveCSS('fill', rgb(definition.tokens['shell-text']))
+      await expect(page.locator('[data-client="janus"] path').nth(1)).toHaveCSS('stroke', rgb(definition.tokens['shell-text']))
+      await page.locator('fieldset:has([data-client="codex"])').screenshot({ path: `artifacts/plugins/blueprint-mcp-theme-${id}.png`, animations: 'disabled' })
+    }
     await expect(page.getByRole('status').filter({ hasText: '已导入旧版蓝图数据' })).toBeVisible()
     await expect(page.getByRole('checkbox', { name: '自动审核', exact: true })).not.toBeChecked()
     expect(JSON.parse(await readFile(join(legacy, 'review-settings.json'), 'utf8')).automatic.enabled).toBe(true)
@@ -170,6 +200,11 @@ test('signed Blueprint UI preserves drafts, applies confirmed files without audi
     await page.getByRole('button', { name: '打开原文件', exact: true }).click()
     await expect.poll(() => app!.evaluate(() => (globalThis as any).blueprintProbe.notifications.some((item: any) => item.type === 'openDocument' && item.path === '.agents/notes/module.md'))).toBe(true)
     await page.getByRole('button', { name: 'JANUS // COPILOT', exact: true }).click()
+    await expect(page.locator('.blueprint-workbench-card--janus')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+    await page.getByRole('textbox', { name: '讨论内容' }).fill('Theme preview')
+    await expect(page.locator('.janus-chat-send')).toBeEnabled()
+    await expect(page.locator('.janus-chat-send')).toHaveCSS('color', 'rgb(255, 255, 255)')
+    await page.getByRole('textbox', { name: '讨论内容' }).fill('')
     await page.locator('.bp-maintenance-controls > summary').click()
     await page.locator('.bp-maintenance-models > summary').click()
     await page.screenshot({ path: 'artifacts/plugins/blueprint-maintenance-scope.png' })

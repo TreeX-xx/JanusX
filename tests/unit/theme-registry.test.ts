@@ -14,12 +14,12 @@ import { renderThemeCss } from '../../src/shared/theme/css-codegen'
 import type { ThemeDefinition } from '../../src/shared/theme/definition'
 
 describe('theme registry (M1 unified structure)', () => {
-  it('ships dark + planche builtins with classic black as default', () => {
+  it('ships dark + planche + white builtins with classic black as default', () => {
     const ids = listThemeDefinitions().map((d) => d.id)
     expect(ids).toContain('planche')
     expect(ids).toContain('dark')
     // 下拉顺序：经典黑第一，石板色第二
-    expect(ids).toEqual(['dark', 'planche'])
+    expect(ids).toEqual(['dark', 'planche', 'white'])
     expect(getThemeDefinition(undefined).id).toBe('dark')
     expect(getThemeDefinition('dark').base).toBe('dark')
     expect(getThemeDefinition('planche').base).toBe('light')

@@ -18,12 +18,12 @@ import { useI18n } from '@/i18n/useI18n'
 import styles from './file-tree.module.css'
 
 const FILE_CHANGE_VISUALS: Record<GitFileChange['status'], { label: string; color: string; titleKey: string }> = {
-  M: { label: 'M', color: '#d99a4e', titleKey: 'editor:fileTree.gitStatus.modified' },
-  A: { label: 'A', color: '#78b982', titleKey: 'editor:fileTree.gitStatus.added' },
-  D: { label: 'D', color: '#d27168', titleKey: 'editor:fileTree.gitStatus.deleted' },
-  R: { label: 'R', color: '#7ba3bd', titleKey: 'editor:fileTree.gitStatus.renamed' },
-  '??': { label: 'A', color: '#78b982', titleKey: 'editor:fileTree.gitStatus.untracked' },
-  UU: { label: '!', color: '#e05f4a', titleKey: 'editor:fileTree.gitStatus.conflict' },
+  M: { label: 'M', color: 'var(--status-warning)', titleKey: 'editor:fileTree.gitStatus.modified' },
+  A: { label: 'A', color: 'var(--shell-diff-add)', titleKey: 'editor:fileTree.gitStatus.added' },
+  D: { label: 'D', color: 'var(--shell-diff-del)', titleKey: 'editor:fileTree.gitStatus.deleted' },
+  R: { label: 'R', color: 'var(--status-info)', titleKey: 'editor:fileTree.gitStatus.renamed' },
+  '??': { label: 'A', color: 'var(--shell-diff-add)', titleKey: 'editor:fileTree.gitStatus.untracked' },
+  UU: { label: '!', color: 'var(--status-danger)', titleKey: 'editor:fileTree.gitStatus.conflict' },
 }
 
 interface DirectoryChangeSummary {
@@ -259,7 +259,7 @@ function FileChangeIndicator({
       {showStatus && (
         <span
           className={styles.gitStatus}
-          style={{ color: visual.color, borderColor: `${visual.color}52` }}
+          style={{ color: visual.color, borderColor: `color-mix(in srgb, ${visual.color} 32%, transparent)` }}
         >
           {statusLabel}
         </span>

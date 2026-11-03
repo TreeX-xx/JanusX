@@ -641,8 +641,8 @@ export const CLITerminal = memo(function CLITerminal({
           // Opacity keeps xterm parsing, sizing and rendering, so capability
           // replies and the first-render signal still work while its cursor is hidden.
           opacity: hasRenderedOutput ? 1 : 0,
-          boxShadow: fileDragOver ? 'inset 0 0 0 1px rgba(255, 120, 48, 0.45)' : 'none',
-          background: fileDragOver ? 'rgba(255, 120, 48, 0.035)' : 'transparent',
+          boxShadow: fileDragOver ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent)' : 'none',
+          background: fileDragOver ? 'color-mix(in srgb, var(--primary) 3.5%, transparent)' : 'transparent',
         }}
       />
       {agentSetup && <RemoteAgentSetup terminalId={terminalId} />}

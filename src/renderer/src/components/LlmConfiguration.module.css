@@ -9,10 +9,10 @@
 .agentList { display: flex; flex-direction: column; gap: 3px; }
 .agentRow { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr) 14px; align-items: center; gap: 6px 8px; min-height: 60px; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--shell-text); font: inherit; text-align: left; cursor: pointer; }
 .agentRow[aria-pressed="true"], .agentRow:hover { background: var(--shell-active); }
-.agentRow img { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.agentRow > [data-preset] { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
 .agentName { font-weight: 500; min-width: 0; }
 .summary { grid-column: 2 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--shell-muted); font-size: 11px; }
-.agentRow > svg { grid-column: 3; grid-row: 1; color: var(--shell-muted); }
+.agentRow > svg:last-child { grid-column: 3; grid-row: 1; color: var(--shell-muted); }
 .agentRow > .pending { grid-column: 2 / -1; }
 .pending { color: var(--so-accent-ink, var(--shell-text)); font-size: 10px; white-space: nowrap; }
 .bindingPanel { padding: 3px 0 4px; min-width: 0; }
@@ -93,7 +93,7 @@
   .agentPage { grid-template-columns: minmax(0, 1fr); }
   .agentRow { grid-template-columns: 20px 95px minmax(0, 1fr) 14px; min-height: 48px; }
   .summary { grid-column: 3; grid-row: 1; }
-  .agentRow > svg { grid-column: 4; }
+  .agentRow > svg:last-child { grid-column: 4; }
   .bindingPanel { padding-top: 20px; }
 }
 @container (max-width: 460px) {

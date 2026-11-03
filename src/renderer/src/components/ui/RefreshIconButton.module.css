@@ -7,10 +7,10 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.035);
-  color: #96969d;
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
+  color: var(--shell-muted);
   cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -35,7 +35,7 @@
 }
 
 .button:disabled {
-  color: rgba(150, 150, 157, 0.56);
+  color: color-mix(in srgb, var(--shell-muted) 56%, transparent);
   cursor: wait;
 }
 

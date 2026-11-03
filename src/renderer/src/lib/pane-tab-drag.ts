@@ -131,7 +131,7 @@ export function startPaneTabDrag({ root, source, event, onActiveChange, onDrop }
     Object.assign(clone.style, {
       position: 'fixed', left: '0', top: '0', width: `${width}px`, height: `${rect.height}px`,
       margin: '0', zIndex: '10000', pointerEvents: 'none', transition: 'none',
-      background: 'var(--shell-chrome-raised)', borderRadius: '7px', boxShadow: '0 6px 20px rgba(0,0,0,.2)', opacity: '.95',
+      background: 'var(--shell-chrome-raised)', borderRadius: '7px', boxShadow: '0 6px 20px color-mix(in srgb, var(--shadow-color) 20%, transparent)', opacity: '.95',
     })
     overlay.appendChild(clone)
     hint = document.createElement('div')

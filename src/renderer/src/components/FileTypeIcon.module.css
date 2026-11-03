@@ -6,7 +6,7 @@
   flex: 0 0 14px;
   align-items: center;
   justify-content: center;
-  color: rgba(190, 190, 190, 0.58);
+  color: var(--shell-muted);
 }
 
 .icon svg {
@@ -15,11 +15,11 @@
   height: 14px;
 }
 
-.folder { color: rgba(194, 174, 132, 0.68); }
-.code { color: rgba(145, 173, 190, 0.68); }
-.markup { color: rgba(178, 158, 190, 0.66); }
-.data { color: rgba(141, 181, 164, 0.65); }
-.media { color: rgba(177, 161, 133, 0.68); }
-.storage { color: rgba(160, 168, 178, 0.64); }
-.muted { color: rgba(178, 178, 178, 0.55); }
-.active { color: #ff7830; }
+.folder { color: var(--shell-muted); }
+.code { color: var(--status-info); }
+.markup { color: var(--shell-muted); }
+.data { color: var(--shell-muted); }
+.media { color: var(--shell-muted); }
+.storage { color: var(--shell-dim); }
+.muted { color: var(--shell-dim); }
+.active { color: var(--primary); }

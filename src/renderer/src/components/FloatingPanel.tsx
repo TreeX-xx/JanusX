@@ -2,7 +2,6 @@ import { Maximize2, Minimize2 } from 'lucide-react'
 import { ModalCloseButton } from './ModalCloseButton'
 import { useI18n } from '@/i18n/useI18n'
 import { useState, useRef, useEffect, useCallback, type CSSProperties } from 'react'
-import { useThemeStore } from '@/stores/theme'
 
 interface FloatingPanelProps {
   visible: boolean
@@ -42,9 +41,6 @@ export function FloatingPanel({
   const dragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0, width: 0, height: 0 })
   const restoreBounds = useRef({ x: 0, y: 0, width: initialWidth, height: initialHeight })
   const panelRef = useRef<HTMLDivElement>(null)
-  // Hooks 必须在 early-return 之前调用：之前 planche 判断写在 `if (!visible) return null`
-  // 之后，浮动/嵌入切换时 hook 顺序漂移，主题切换后顶栏可能停留在旧配色。
-  const isDark = useThemeStore((s) => s.theme) === 'dark'
 
   useEffect(() => {
     if (visible && !initialized) {
@@ -175,9 +171,7 @@ export function FloatingPanel({
         borderRadius: embedded ? 0 : 12,
         boxShadow: embedded
           ? 'none'
-          : isDark
-            ? '0 16px 40px rgba(0, 0, 0, 0.5)'
-            : '3px 3px 0 rgba(28, 52, 59, 0.22)',
+          : 'var(--popover-shadow)',
         animation: embedded ? 'none' : 'file-panel-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         display: 'flex',
         flexDirection: 'column',

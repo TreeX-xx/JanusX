@@ -79,7 +79,7 @@
   height: 320px;
   border-radius: 14px var(--terminal-island-right-radius) var(--terminal-island-right-radius) 14px;
   display: flex;
-  box-shadow: -6px 4px 20px rgb(0 0 0 / 16%);
+  box-shadow: -6px 4px 20px color-mix(in srgb, var(--shadow-color) 16%, transparent);
 }
 [data-turn-island].turn-change-island[data-stage='expanded'][data-view='history'] {
   width: min(370px, 100%);
@@ -87,7 +87,7 @@
 }
 [data-theme='planche'] [data-turn-island].turn-change-island[data-stage='expanded'],
 [data-theme='planche'] [data-turn-island].turn-change-island[data-stage='expanded']:hover {
-  box-shadow: -5px 4px 18px rgb(28 52 59 / 10%);
+  box-shadow: -5px 4px 18px color-mix(in srgb, var(--shell-text) 10%, transparent);
 }
 .turn-change-island button { font: inherit; color: inherit; }
 .turn-change-island button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: -2px; }

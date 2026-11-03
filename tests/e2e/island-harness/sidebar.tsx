@@ -17,7 +17,7 @@ import '../../../src/renderer/src/styles/themes.generated.css'
 // 展示数据为隔离 fixture；所有列表、菜单、键盘与选择行为运行真实 Sidebar/store。
 installElectronApiFallback()
 const params = new URLSearchParams(location.search)
-useThemeStore.getState().applyExternal(params.get('theme') === 'dark' ? 'dark' : 'planche')
+useThemeStore.getState().applyExternal(params.get('theme') ?? 'planche')
 useAppStore.setState({ sidebarCollapsed: false })
 useExperimentalStore.setState({ teamCollab: false, loaded: true })
 Object.assign(window.electron.system, { getLanguage: async () => 'zh-CN', setLanguage: async () => undefined })

@@ -1,5 +1,4 @@
-.panel { --usage-claude: #c4623d; --usage-codex: #247e83; --usage-opencode: #8562b6; --usage-pi: #a87c24; --usage-janus: #587b35; --usage-dsh: #416ac4; --usage-input: #28769a; --usage-output: #a9672e; container-type: inline-size; display: flex; flex-direction: column; gap: 22px; color: var(--shell-text); }
-.panel[data-theme-base='dark'] { --usage-claude: #e69a79; --usage-codex: #6ac6bd; --usage-opencode: #bba2eb; --usage-pi: #e2c06a; --usage-janus: #a6c97e; --usage-dsh: #7fa6f1; --usage-input: #7bb8dc; --usage-output: #e5b67e; }
+.panel { container-type: inline-size; display: flex; flex-direction: column; gap: 22px; color: var(--shell-text); }
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .headInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .headInfo > .title { font-size: 20px; letter-spacing: -0.5px; }
@@ -19,12 +18,11 @@
 .tabActive { color: var(--shell-text); border-bottom-color: var(--so-accent, var(--shell-accent)); }
 .customBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-card); }
 .dateField { display: inline-flex; align-items: center; gap: 8px; color: var(--shell-muted); font-size: 11px; }
-.dateField input { min-height: var(--control-h, 30px); background: var(--shell-canvas); border: 1px solid var(--control-border, var(--shell-border)); padding: 6px 10px; border-radius: 6px; color: var(--shell-text); font: inherit; font-size: 12px; color-scheme: dark light; transition: border-color 0.18s ease, background 0.18s ease; }
-.dateField input:hover { border-color: rgba(255, 255, 255, 0.16); }
+.dateField input { min-height: var(--control-h, 30px); background: var(--shell-canvas); border: 1px solid var(--control-border, var(--shell-border)); padding: 6px 10px; border-radius: 6px; color: var(--shell-text); font: inherit; font-size: 12px; color-scheme: inherit; transition: border-color 0.18s ease, background 0.18s ease; }
+.dateField input:hover { border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent); }
 .dateSep { color: var(--shell-dim); }
-.error { margin: 0; width: 100%; color: #d78b92; font-size: 11px; line-height: 1.55; }
+.error { margin: 0; width: 100%; color: var(--status-danger); font-size: 11px; line-height: 1.55; }
 .customMeta { margin: 0; color: var(--shell-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-:global([data-theme='dark']) .tabRow img[data-tool='codex'] { filter: invert(1); }
 /* 查询进行中：旧数据降透明度表示即将被替换，不产生布局位移 */
 .dimmed { opacity: 0.55; transition: opacity 160ms ease; }
 /* 汇总卡顶部 2px 不定进度发丝线，复用输入色，不引入新色块 */
@@ -49,7 +47,7 @@
 .legend i, .modelName i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 /* 图例即筛选器：点击显隐对应曲线，关闭态降透明度。 */
 .chip { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 4px; background: transparent; color: var(--shell-muted); font: inherit; font-size: 10px; line-height: 1.6; cursor: pointer; padding: 2px 6px; margin: -2px -6px; transition: background 120ms, color 120ms, opacity 120ms; }
-.chip:hover { color: var(--shell-text); background: rgba(255, 255, 255, 0.045); }
+.chip:hover { color: var(--shell-text); background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent); }
 .chipOff { opacity: 0.4; }
 .ioCell, .cacheCell { flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; }
 .ioNumbers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

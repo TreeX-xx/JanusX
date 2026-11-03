@@ -25,7 +25,7 @@
       }
     }
   },
-  "updated": "2026-10-30T09:34:45.522Z",
+  "updated": "2026-11-03T07:29:37Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -62,7 +62,7 @@ JanusX 的生成文件预览是一条只为 Office 写的特例链路。中部�
 
 预览界面的标题、关闭提示、岛入口与监控分区统一显示“预览”（英文 Preview），内部 productWorkspace 标识保留。Markdown／文本底色和文字、加载／错误状态、Office 外层按钮、滚动条与加载圈读取语义主题变量；HTML 与 Office iframe 的页面底板保留白色，生成文档自身的样式不被应用主题覆盖。共享 Markdown 复制反馈使用已定义的 --accent-mid。
 
-主题资源仍由 src/shared/theme/definition.ts 集中管理；npm run theme:audit 输出 renderer 的硬编码颜色、主题专属 CSS 和无法找到静态定义的变量的文件／行／列，历史项按文件、种类和值计数保留为迁移清单，必要固定色登记次数和原因。npm run theme:check 校验生成 CSS 与新增扫描项，已接入 verify。静态扫描不证明变量作用域、每种主题的对比度或外部文档适配，新增主题仍需完整性与实际界面验证；维护说明见 [主题系统](../../../src/shared/theme/README.md)。
+主题资源由 src/shared/theme/definition.ts 集中管理，应用与 SDK 生成同源 CSS，新增纯白主题。审计覆盖 renderer 与三个官方插件，原绘制颜色和失效变量预算已清理，保留主题专属选择器及明确固定色例外。当前机制、对比度与验证边界归 [主题专题](./theme-system.md)，扩展步骤见 [维护说明](../../../src/shared/theme/README.md)。
 
 验证：`npx vitest run tests/unit/theme-audit.test.ts tests/unit/product/product-workspace.test.ts tests/unit/theme-registry.test.ts tests/unit/planche-theme.test.ts` 49 项通过。`npx playwright test tests/e2e/product-preview.spec.ts --project=island --workers=1 --output=artifacts/product-preview` 3 项通过，使用真实预览组件与替身文件 IPC，覆盖双主题底色和文字、打开文档后切换主题、复制反馈、加载圈、Office 错误按钮及 HTML 自身背景；截图已人工查看。CLI 负向探针验证新增颜色／缺失变量与过期生成 CSS 均被拒绝。`theme:check`、类型、构建、翻译、Note 校验及改动组件 ESLint 通过；未运行完整 verify 或 Electron 实机 Office 渲染，Note 校验保留 17 条既有外部链接诊断。
 

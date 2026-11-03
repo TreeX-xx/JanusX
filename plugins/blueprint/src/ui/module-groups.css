@@ -1,11 +1,11 @@
 .bp-module-document-group {
   position: absolute;
   box-sizing: border-box;
-  border: 1px dashed #888;
+  border: 1px dashed var(--shell-muted);
   border-radius: 0;
   background: transparent;
   pointer-events: none;
-  color: var(--shell-muted, #888);
+  color: var(--shell-muted);
 }
 .bp-module-document-group > span {
   display: block;

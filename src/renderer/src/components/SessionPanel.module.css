@@ -40,7 +40,6 @@
   background: var(--shell-canvas);
 }
 
-:global([data-theme='dark']) .codexIcon { filter: invert(1); }
 
 .toolbar { flex-shrink: 0; padding: 8px 12px 10px; }
 .searchInput {
@@ -155,7 +154,7 @@
 
 /* First prompt and recent turns: a small lift from the parent card. */
 .sheet {
-  background: color-mix(in srgb, var(--session-card-surface) var(--session-sheet-base-weight), white);
+  background: color-mix(in srgb, var(--session-card-surface) var(--session-sheet-base-weight), var(--shell-text));
   border: 0;
   border-radius: 6px;
 }

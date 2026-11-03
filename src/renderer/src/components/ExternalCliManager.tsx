@@ -12,7 +12,7 @@ import {
   type ExternalCliToolId,
 } from '../../../shared/ipc/external-cli'
 import { externalCliService } from '@/services/external-cli'
-import { EXTERNAL_CLI_TOOL_ICONS } from '@/lib/cli-tool-icons'
+import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import styles from './AppSettingsModal.module.css'
 import cliStyles from './ExternalCliManager.module.css'
 
@@ -141,17 +141,15 @@ export function ExternalCliManager({
   const brandIcon = iconFailed ? (
     <span
       className={styles.lsToolIcon}
-      style={{ background: `${meta.color}22`, borderColor: `${meta.color}55`, color: meta.color }}
+      style={{ background: 'var(--shell-hover)', borderColor: 'var(--shell-border)', color: 'var(--shell-text)' }}
       aria-hidden="true"
     >
       {meta.monogram}
     </span>
   ) : (
-    <img
+    <TerminalPresetIcon
       className={cliStyles.logo}
-      src={EXTERNAL_CLI_TOOL_ICONS[toolId]}
-      alt=""
-      draggable={false}
+      preset={toolId}
       onError={() => setIconFailed(true)}
     />
   )

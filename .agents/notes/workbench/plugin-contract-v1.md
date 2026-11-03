@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-10-30T05:29:31Z",
+  "updated": "2026-11-03T07:29:37Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -524,7 +524,9 @@ P6 与 AC-15 按 Windows 开发构建中的声明式范围闭合：已有工具�
 
 ## P7 声明式调色板
 
-`themes.palette` 必需能力与独立 `ui.themes` 权限允许无页面主题包。每包最多 4 项 contributes.themes，包含 id、title、内置 base（dark／planche）和 canvas／text／muted／card／border／accent 六个不透明十六进制颜色。清单校验正文对背景／卡片 4.5:1、辅助文字与强调色对背景 3:1、强调色对卡片 3:1；不是全部组件无障碍认证。不接受 CSS、脚本、资源 URL、透明色或任意宿主令牌。宿主生成 plugin:<plugin-id>/<theme-id>，仅覆盖有限颜色角色及终端／编辑器基本颜色，保留结构、状态色和语法规则。
+`themes.palette` 必需能力与独立 `ui.themes` 权限允许无页面主题包。每包最多 4 项 contributes.themes，包含 id、title、内置 base（dark／planche／white）和 canvas／text／muted／card／border／accent 六个不透明十六进制颜色。清单校验正文对背景／卡片 4.5:1、辅助文字与强调色对背景 3:1、强调色对卡片 3:1；不是全部组件无障碍认证。不接受 CSS、脚本、资源 URL、透明色或任意宿主令牌。宿主生成 plugin:<plugin-id>/<theme-id>，仅覆盖有限颜色角色及终端／编辑器基本颜色，保留结构、状态色和语法规则。
+
+公开 SDK 的 `theme.css` 与应用样式由同一 definition 生成。主题上下文传递完整语义令牌、`--theme-color-scheme` 和 `--terminal-*`；Blueprint、Docker、CPA 使用公开样式作为默认来源，并接收上下文中的活动配色。白色主题、审计与实际验证范围见 [主题机制](./theme-system.md)。
 
 设置中显示插件身份并复用应用主题偏好；停用、撤权、卸载或关闭开发模式移除调色板，保留已选 ID 并回退内置主题，重新授权后恢复。主题声明变化要求重新授权。设置与审批采用内置颜色；目录晚到和撤销都会通知已挂载终端／Monaco，Monaco 动态注册新主题。主窗口之外没有授权主题目录的窗口继续内置回退。配置仍是独立的应用／项目／worktree 参数，不提供调色板内配置表达式；角色／皮肤资源、对话贡献及其它平台／安装包仍待续。作者说明见 `packages/plugin-sdk/examples/palette-themes.md`，验证归阶段计划，AC-16 保持开放。
 
