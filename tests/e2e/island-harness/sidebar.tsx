@@ -18,12 +18,13 @@ import '../../../src/renderer/src/styles/themes.generated.css'
 installElectronApiFallback()
 const params = new URLSearchParams(location.search)
 useThemeStore.getState().applyExternal(params.get('theme') ?? 'planche')
-useAppStore.setState({ sidebarCollapsed: false })
 useExperimentalStore.setState({ teamCollab: false, loaded: true })
 Object.assign(window.electron.system, { getLanguage: async () => 'zh-CN', setLanguage: async () => undefined })
-const workspaces = ['JanusX', 'Agent runtime', 'Documentation'].map((name, index) => ({
+const workspaceNames = params.has('many') ? Array.from({ length: 24 }, (_, index) => ['JanusX', 'Janus Web', 'Janus Agent'][index] ?? `Project ${index}`) : ['JanusX', 'Agent runtime', 'Documentation']
+const workspaces = workspaceNames.map((name, index) => ({
   id: `ws-${index}`, name, path: `C:/projects/${name}`, clis: [],
   layout: { mode: 'tabs' as const, positions: [] }, createdAt: '2026-10-15T00:00:00Z',
+  ...(params.has('grouped') && index < 2 ? { sidebarGroup: { id: 'development', name: 'Development' } } : {}),
 }))
 const root = workspaces[0].path
 const worktrees: WorktreeInfo[] = [
@@ -54,16 +55,17 @@ useWorkspaceStore.setState({
   focusedPaneId: 'left', focusedTabId: 'terminal:review',
   terminalSnapshots: { 'ws-1': { terminals: [background], activeTerminalId: 'background', paneTree: null, focusedPaneId: null, focusedTabId: null } },
 })
+useWorkspaceStore.getState().setWorkspaces(workspaces)
 Object.assign(window, { sidebarFixture: { state: () => {
   const state = useWorkspaceStore.getState()
-  return { workspace: state.activeWorkspaceId, terminal: state.activeTerminalId, pane: state.focusedPaneId, tab: state.focusedTabId, terminals: state.terminals.length, scope: useWorktreeStore.getState().activePaths[state.activeWorkspaceId ?? ''], droppedTerminal }
-} } })
+  return { workspace: state.activeWorkspaceId, terminal: state.activeTerminalId, pane: state.focusedPaneId, tab: state.focusedTabId, terminals: state.terminals.length, scope: useWorktreeStore.getState().activePaths[state.activeWorkspaceId ?? ''], droppedTerminal, sidebarCollapsed: useAppStore.getState().sidebarCollapsed }
+}, removeWorkspace: (id: string) => useWorkspaceStore.getState().removeWorkspace(id) } })
 await initI18n()
-await changeLanguage('zh-CN')
+await changeLanguage(params.has('en') ? 'en' : 'zh-CN')
 function Preview() {
   const active = useWorkspaceStore(s => s.activeTerminalId)
   return <main style={{ display: 'flex', height: '100vh', background: 'var(--shell-canvas)', color: 'var(--shell-text)' }}>
-    <style>{'.workspace-sidebar { width: 252px; }'}</style>
+    <style>{'.workspace-sidebar { width: 252px; } .workspace-sidebar[data-collapsed="true"] { width: 52px; }'}</style>
     <Sidebar />
     <div data-terminal-drop-target onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); droppedTerminal = event.dataTransfer.getData('application/x-janusx-terminal-id') }} style={{ padding: 32, flex: 1 }}><p style={{ fontSize: 12, color: 'var(--shell-muted)' }}>Sidebar preview · Fixture data</p><p data-selected-terminal>{active}</p></div>
   </main>

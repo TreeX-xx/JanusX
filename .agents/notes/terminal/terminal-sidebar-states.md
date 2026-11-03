@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-11-03T16:28:25Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
   "relations": [
     {
@@ -36,7 +36,7 @@
   ]
 }
 ---
-# Terminal sidebar hierarchy and six-state display
+# Workspace and terminal sidebar navigation
 
 ## Problem
 The left workspace sidebar expresses terminal quantity and a three-state badge. `TerminalStatus` in `src/shared/ipc/terminal.ts` holds `wait`, `running`, and `error`, and every hook-derived attention signal collapses into `wait` inside `src/main/ipc/terminal-handlers.ts`. A terminal waiting for a permission grant, a terminal waiting for an option answer, a terminal degraded by a rate limit, and a genuinely idle terminal all render the same yellow pill. Users must open each terminal to find the one that needs action, and stalled approvals sit unnoticed behind the sidebar.
@@ -57,6 +57,14 @@ The 2026-10-15 sidebar revision uses single-line interface-font labels: workspac
 
 Terminal rows are draggable keyboard-accessible navigation targets. Click, Enter or Space activates the existing pane tab through `setActiveTerminal`; background entries first restore their owning workspace snapshot. The file-tree scope follows the same worktree grouping as the displayed terminal, including terminals launched from checkout subdirectories. Switching workspace invalidates the editor file cache and uses guarded file-tree loading. Navigation does not launch or kill PTYs. Full paths require hover or keyboard focus; terminal names can still truncate at the sidebar width.
 
+### Compact workspace navigation
+
+The collapsed sidebar remains 52px wide. Its expand button and bottom terminal, add-workspace and optional team controls stay fixed, while project entries scroll independently with 36px targets that cannot shrink. The active project is brought into view when switching or collapsing. Project icons reuse cached repository avatars, falling back to two initials derived from words or camel case; full names and paths remain in accessible labels. Hover or keyboard focus shows the project group, path, terminal activity counts and the ArrowRight shortcut. Duplicate names or shared avatars still require path context to distinguish them.
+
+Click, Enter and Space retain workspace switching. The bottom terminal button opens the active project's quick list; ArrowRight on a project opens that project's list without first switching workspaces. The non-modal popover uses existing terminal snapshots, sorts by attention and selects existing pane tabs through the same navigation handler as the expanded tree. It never starts a terminal or changes the main grid width. The list shows terminal names, paths and textual statuses, remains inside the viewport, and scrolls independently. Escape, ArrowLeft and the close button return focus to the opener; Tab at either end also closes and returns focus. Outside interaction dismisses without stealing focus. Workspace changes, rail expansion and project removal dismiss the list.
+
+Both sidebar presentations stay mounted for width transitions. Hidden presentations and collapsed project children are inert, and the overall toggle hands focus to its visible counterpart. Group and project toggles expose their expanded state. The app store persists only sidebar collapse, expanded project IDs and collapsed group IDs under `janusx-workspace-sidebar` in renderer localStorage. Runtime workbench and terminal state are excluded. Malformed data falls back to defaults, and unavailable storage leaves navigation usable for the current session. Pruning runs after the authoritative workspace bootstrap/list update or deletion, never against the initial empty render. These are local interface preferences, not shared project configuration.
+
 
 
 ## Alternatives considered
@@ -71,6 +79,8 @@ Terminal rows are draggable keyboard-accessible navigation targets. Click, Enter
 - Match terminals by exact cwd equality only — strongest case is zero normalization code. The driver that rules it out is Windows reality: git prints forward slashes, the shell keys native separators, and renderer keys arrive lowercased, so exact match silently orphan terminals into the fallback on every Windows checkout.
 - Do nothing / reuse — keep one flat column with preset-only subtitles. The cost is checkout attribution left to full-path scanning and permanent drift from the ratified reference.
 
+For compact navigation, opening the full sidebar on hover would repeatedly resize the terminal area and blur the meaning of folding. A separate explicit terminal popover preserves the single-click workspace action and avoids automatic expansion for notifications. Reusing `FloatingPanel` would add unrelated drag, resize and maximize behavior, so the quick list uses a small anchored portal with its own focus lifecycle.
+
 
 ## Consequences
 - **Gains**: Pending work has a stable address in `Sidebar.tsx` badge, list order, and collapsed dot, all derived from `summarizeTerminalActivity` and `TERMINAL_ATTENTION_ORDER`. `degraded` terminals stay usable because the `TerminalArea.tsx` modal mask still gates on `error` with `errorMessage` or `exitCode` only.
@@ -82,3 +92,5 @@ Terminal rows are draggable keyboard-accessible navigation targets. Click, Enter
 
 ### Terminals as level-3 items grouped under their worktree
 2026-10-15 machine checks: `npx playwright test tests/e2e/sidebar-design.spec.ts --project=island --workers=2` passes 6 cases for pane focus, cross-workspace restoration, keyboard operation, stable hover layout, native drag identity and both themes. `tests/e2e/pane-tab-drag.spec.ts` passes all 21 cases in the combined run; the new sidebar drag case initially raced its expand animation, then passed after the fixture waited for finite transitions. `npx vitest run tests/unit/workspace-sidebar.test.ts tests/unit/worktree-store.test.ts tests/unit/terminal-sidebar-visual.test.ts tests/unit/side-panel-collapse-ui.test.ts tests/unit/planche-theme.test.ts` passes 28 cases. `npm run typecheck` and touched-file ESLint pass. The preview uses fixture data; screenshots are at `artifacts/sidebar-design/comparison.png`.
+
+2026-11-04 compact-navigation checks: `npx vitest run tests/unit/workspace-sidebar-preferences.test.ts tests/unit/workspace-sidebar.test.ts tests/unit/workspace-pane.test.ts tests/unit/side-panel-collapse-ui.test.ts tests/unit/terminal-sidebar-visual.test.ts tests/unit/global-tools.test.ts` passes 58 cases. `npx playwright test tests/e2e/sidebar-collapse.spec.ts tests/e2e/sidebar-design.spec.ts tests/e2e/workspace-transition.spec.ts --project=island --workers=1 --timeout=30000` passes 23 cases, including 24 projects at 480px height, keyboard focus, reload restoration, removal cleanup, Chinese summaries, existing background-terminal selection and dark/planche popovers. The first geometry check raced the rail transition; the corrected check waits for finite animations before measuring. A follow-up run of `sidebar-collapse.spec.ts` passes all 8 cases after adding the folded-rail workspace creation scenario. Typecheck, scoped ESLint, i18n key checks, Notes validation and `npm run build:app` pass; Notes retains 17 existing cross-repository link diagnostics and no errors. Screenshots and `build.log` in `artifacts/sidebar-collapse/` use the real Sidebar and stores with synthetic IPC and project data; they do not establish packaged-app restart persistence or real terminal-process behavior.

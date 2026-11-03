@@ -61,6 +61,7 @@ export function useWorkspaceBootstrap(): boolean {
     void window.electron.workspace.initialize().then(async (state) => {
       if (disposed) return
       useWorkspaceStore.setState({ workspaces: state.workspaces, activeWorkspaceId: state.activeWorkspaceId })
+      useAppStore.getState().pruneSidebarPreferences(state.workspaces)
       setWorkspaceReady(true)
       if (state.workspaces.length === 0) {
         useAppStore.setState({ loadState: 'no-workspace' })

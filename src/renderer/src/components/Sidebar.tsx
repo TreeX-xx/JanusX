@@ -1,7 +1,8 @@
+// Note: .agents/notes/terminal/terminal-sidebar-states.md
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { createPortal } from 'react-dom'
-import { ChevronRight, Ellipsis, Folder, GitBranch, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react'
+import { ChevronRight, Ellipsis, Folder, GitBranch, ListTree, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { EMPTY_PENDING_LIST, EMPTY_STRING_LIST, EMPTY_WORKTREE_LIST, useWorktreeStore } from '@/stores/worktree'
 import { useAppStore } from '@/stores/app'
@@ -13,6 +14,7 @@ import { WorktreeComposer, WorktreeDeleteDialog, WorktreeShipDialog } from './Wo
 import { ModalCloseButton } from './ModalCloseButton'
 import { ModalFrame } from './shared/ModalFrame'
 import { ThemedTooltip } from './ui/ThemedTooltip'
+import { SidebarTerminalPopover } from './SidebarTerminalPopover'
 import { TerminalStatusLight } from './ui/TerminalStatusLight'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TeamFooter, TeamFooterCollapsed } from './team/TeamFooter'
@@ -215,8 +217,15 @@ function TerminalStatusIndicator({ status }: { status: Terminal['status'] }) {
   )
 }
 
-function workspaceInitial(name: string): string {
-  return Array.from(name.trim())[0]?.toUpperCase() ?? '?'
+function WorkspaceRailIcon({ workspace }: { workspace: Workspace }) {
+  const avatar = useWorktreeStore(s => s.avatars[workspace.path])
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null)
+  const words = workspace.name.trim().replace(/([a-z\d])([A-Z])/g, '$1 $2').split(/[\s_\-/]+/).filter(Boolean)
+  const initials = words.length > 1
+    ? words.slice(0, 2).map(word => Array.from(word)[0]).join('')
+    : Array.from(workspace.name.trim()).slice(0, 2).join('')
+  if (avatar && avatar !== failedAvatar) return <img className={styles.railAvatar} src={avatar} alt="" onError={() => setFailedAvatar(avatar)} />
+  return <span aria-hidden="true" className="text-[11px] font-semibold">{initials.toUpperCase() || '?'}</span>
 }
 
 // Folder at rest; cached avatar appears on hover and remains for the selected workspace.
@@ -693,6 +702,29 @@ export function Sidebar() {
   const setLoadState = useAppStore((s) => s.setLoadState)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const expandedWorkspaceIds = useAppStore(s => s.expandedWorkspaceIds)
+  const collapsedGroupIds = useAppStore(s => s.collapsedGroupIds)
+  const setExpandedWorkspaceIds = useAppStore(s => s.setExpandedWorkspaceIds)
+  const setCollapsedGroupIds = useAppStore(s => s.setCollapsedGroupIds)
+  const collapseButtonRef = useRef<HTMLButtonElement>(null)
+  const expandButtonRef = useRef<HTMLButtonElement>(null)
+  const railListRef = useRef<HTMLDivElement>(null)
+  const focusToggleRef = useRef(false)
+  const [terminalPopover, setTerminalPopover] = useState<{ workspaceId: string; anchor: HTMLElement } | null>(null)
+  const closeTerminalPopover = useCallback(() => setTerminalPopover(null), [])
+  const handleToggleSidebar = () => { focusToggleRef.current = true; setTerminalPopover(null); toggleSidebar() }
+  useLayoutEffect(() => {
+    if (!focusToggleRef.current) return
+    focusToggleRef.current = false
+    ;(sidebarCollapsed ? expandButtonRef : collapseButtonRef).current?.focus({ preventScroll: true })
+  }, [sidebarCollapsed])
+  useEffect(() => { setTerminalPopover(null) }, [activeWorkspaceId, sidebarCollapsed])
+  useEffect(() => {
+    if (sidebarCollapsed) railListRef.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [activeWorkspaceId, sidebarCollapsed])
+  useEffect(() => {
+    if (terminalPopover && !workspaces.some(workspace => workspace.id === terminalPopover.workspaceId)) setTerminalPopover(null)
+  }, [workspaces, terminalPopover])
 
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [configTarget, setConfigTarget] = useState<Workspace | null>(null)
@@ -707,8 +739,6 @@ export function Sidebar() {
   } | null>(null)
   const [lastKeptBranchByWorkspace, setLastKeptBranchByWorkspace] = useState<Record<string, string>>({})
   const [projectCandidate, setProjectCandidate] = useState<JanusProjectCandidate | null>(null)
-  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<string[]>([])
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([])
   const [contextMenu, setContextMenu] = useState<WorkspaceContextMenuState | null>(null)
   const [draggedWorkspaceId, setDraggedWorkspaceId] = useState<string | null>(null)
   const [dropIntent, setDropIntent] = useState<WorkspaceDropIntent | null>(null)
@@ -791,7 +821,7 @@ export function Sidebar() {
       }
     }
     if (changed) expandRequestsRef.current = { ...expandRequests }
-  }, [expandRequests])
+  }, [expandRequests, setExpandedWorkspaceIds])
 
   const handleAddWorkspace = useCallback(async () => {
     try {
@@ -836,7 +866,6 @@ export function Sidebar() {
       await window.electron.workspace.delete(deleteTarget.id)
       removeWorkspace(deleteTarget.id)
       updateWorkspaceLayout((current) => current)
-      setExpandedWorkspaceIds((current) => current.filter((id) => id !== deleteTarget.id))
       if (workspaces.length <= 1) {
         setLoadState('no-workspace')
         useWorkspaceStore.setState({
@@ -881,7 +910,7 @@ export function Sidebar() {
     setExpandedWorkspaceIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
     )
-  }, [])
+  }, [setExpandedWorkspaceIds])
 
   const handleTerminalSelect = useCallback((terminal: Terminal) => {
     const state = useWorkspaceStore.getState()
@@ -1041,7 +1070,7 @@ export function Sidebar() {
       : intent.mode
     updateWorkspaceLayout((current) => moveWorkspaceInSidebar(current, sourceId, target.id, position))
     resetWorkspaceDrag()
-  }, [resetWorkspaceDrag, updateWorkspaceLayout])
+  }, [resetWorkspaceDrag, updateWorkspaceLayout, setCollapsedGroupIds])
 
   const handleBoundaryDrop = useCallback((boundary: WorkspaceSidebarBoundary, event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1106,7 +1135,7 @@ export function Sidebar() {
     setCollapsedGroupIds((current) => current.filter((id) => id !== group.id))
     setGroupNameDraft(group.name)
     setRenamingGroupId(group.id)
-  }, [])
+  }, [setCollapsedGroupIds])
 
   const commitGroupRename = useCallback((groupId: string) => {
     if (skipRenameBlurRef.current) {
@@ -1158,7 +1187,6 @@ export function Sidebar() {
 
   const handleClearGroup = useCallback((groupId: string) => {
     setContextMenu(null)
-    setCollapsedGroupIds((current) => current.filter((id) => id !== groupId))
     updateWorkspaceLayout((current) => clearWorkspaceSidebarGroup(current, groupId))
   }, [updateWorkspaceLayout])
 
@@ -1170,6 +1198,11 @@ export function Sidebar() {
   const dropTargetGroupId = dropIntent?.targetId
     ? orderedWorkspaces.find((workspace) => workspace.id === dropIntent.targetId)?.sidebarGroup?.id ?? null
     : null
+  const activeWorkspace = orderedWorkspaces.find(workspace => workspace.id === activeWorkspaceId)
+  const popoverWorkspace = terminalPopover && orderedWorkspaces.find(workspace => workspace.id === terminalPopover.workspaceId)
+  const popoverTerminals = popoverWorkspace
+    ? (popoverWorkspace.id === activeWorkspaceId ? terminals : terminalSnapshots[popoverWorkspace.id]?.terminals ?? []).filter(terminal => terminal.workspaceId === popoverWorkspace.id)
+    : []
 
   return (
     <aside
@@ -1204,7 +1237,8 @@ export function Sidebar() {
               </ThemedTooltip>
               <ThemedTooltip label={t('common:workspace.collapse')}>
               <button
-                onClick={toggleSidebar}
+                ref={collapseButtonRef}
+                onClick={handleToggleSidebar}
                 aria-expanded={!sidebarCollapsed}
                 aria-controls="workspace-sidebar-content"
                 className="flex h-7 w-7 items-center justify-center rounded-[4px] transition-colors hover:bg-[var(--shell-hover)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
@@ -1271,6 +1305,7 @@ export function Sidebar() {
                             type="button"
                             draggable={false}
                             aria-label={isGroupCollapsed ? t('common:workspace.groupExpand', { name: group.name }) : t('common:workspace.groupCollapse', { name: group.name })}
+                            aria-expanded={!isGroupCollapsed}
                             onDragStart={(event) => event.preventDefault()}
                             onClick={() => setCollapsedGroupIds((current) => current.includes(group.id)
                               ? current.filter((id) => id !== group.id)
@@ -1299,6 +1334,7 @@ export function Sidebar() {
                             <button
                               type="button"
                               draggable={false}
+                              aria-expanded={!isGroupCollapsed}
                               onDragStart={(event) => event.preventDefault()}
                               onClick={() => setCollapsedGroupIds((current) => current.includes(group.id)
                                 ? current.filter((id) => id !== group.id)
@@ -1363,6 +1399,8 @@ export function Sidebar() {
                         type="button"
                         draggable={false}
                         aria-label={isExpanded ? t('common:workspace.terminalListCollapse', { name: ws.name, count: terminalCount }) : t('common:workspace.terminalListExpand', { name: ws.name, count: terminalCount })}
+                        aria-expanded={isExpanded}
+                        aria-controls={`workspace-terminals-${ws.id}`}
                         onPointerDown={(event) => event.stopPropagation()}
                         onDragStart={(event) => {
                           event.preventDefault()
@@ -1413,10 +1451,12 @@ export function Sidebar() {
                     </div>
                     </ThemedTooltip>
                     <div
+                      id={`workspace-terminals-${ws.id}`}
                       className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
                         isExpanded ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'
                       }`}
                       aria-hidden={!isExpanded}
+                      {...(!isExpanded ? { inert: '' } : {})}
                     >
                       <div className="min-h-0 overflow-hidden">
                         <div
@@ -1459,12 +1499,12 @@ export function Sidebar() {
       </div>
 
       {/* 收起态 */}
-      <div className="workspace-sidebar__collapsed flex flex-1 flex-col items-center gap-1 overflow-hidden py-1.5" aria-hidden={!sidebarCollapsed} {...(!sidebarCollapsed ? { inert: '' } : {})}>
+      <div className={`workspace-sidebar__collapsed ${styles.rail}`} aria-hidden={!sidebarCollapsed} {...(!sidebarCollapsed ? { inert: '' } : {})}>
           <ThemedTooltip label={t('common:workspace.expand')}>
           <button
-            onClick={toggleSidebar}
-            className="mb-1 flex h-9 w-9 items-center justify-center rounded-[4px] transition-colors hover:bg-[var(--shell-hover)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
-            style={{ color: 'var(--shell-dim)' }}
+            ref={expandButtonRef}
+            onClick={handleToggleSidebar}
+            className={styles.railAction}
             aria-label={t('common:workspace.expandAria')}
             aria-expanded={false}
             aria-controls="workspace-sidebar-content"
@@ -1472,10 +1512,7 @@ export function Sidebar() {
             <PanelLeftOpen size={15} strokeWidth={1.6} aria-hidden="true" />
           </button>
           </ThemedTooltip>
-          <div
-            className="w-5 h-px my-1"
-            style={{ background: 'color-mix(in srgb, var(--surface-tint) 6%, transparent)' }}
-          />
+          <div ref={railListRef} className={styles.railList} data-workspace-rail-list="" aria-label={t('common:workspace.label')}>
           {orderedWorkspaces.map((ws, workspaceIndex) => {
             const isActive = ws.id === activeWorkspaceId
             const isGroupStart = !!ws.sidebarGroup && orderedWorkspaces[workspaceIndex - 1]?.sidebarGroup?.id !== ws.sidebarGroup.id
@@ -1497,22 +1534,38 @@ export function Sidebar() {
             return (
               <ThemedTooltip
                 key={ws.id}
-                label={t('common:workspace.wsTitle', { prefix: ws.sidebarGroup ? `${ws.sidebarGroup.name} · ` : '', name: ws.name })}
+                placement="left"
+                variant="panel"
+                disabled={!!terminalPopover || !!draggedWorkspaceId || !sidebarCollapsed}
+                label={<span className={styles.railTip}>
+                  <strong>{ws.sidebarGroup ? `${ws.sidebarGroup.name} · ` : ''}{ws.name}</strong>
+                  <span className={styles.railTipPath}>{ws.path}</span>
+                  <span>{t('common:workspace.activitySummary', collapsedActivity)}</span>
+                  <span className={styles.railTipHint}>{t('common:workspace.railHint')}</span>
+                </span>}
               >
               <div
                 draggable
                 tabIndex={0}
                 role="button"
+                aria-label={`${ws.name} · ${ws.path}`}
+                aria-keyshortcuts="ArrowRight"
+                data-rail-workspace={ws.id}
                 aria-current={isActive ? 'true' : undefined}
                 onClick={() => handleSelect(ws.id)}
-                onKeyDown={(event) => handleWorkspaceKeyDown(ws, event)}
-                onContextMenu={(event) => handleWorkspaceContextMenu(ws, event)}
-                onDragStart={(event) => handleWorkspaceDragStart(ws, event)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowRight') {
+                    event.preventDefault(); setContextMenu(null); setTerminalPopover({ workspaceId: ws.id, anchor: event.currentTarget })
+                  } else handleWorkspaceKeyDown(ws, event)
+                }}
+                onContextMenu={(event) => { setTerminalPopover(null); handleWorkspaceContextMenu(ws, event) }}
+                onDragStart={(event) => { setTerminalPopover(null); handleWorkspaceDragStart(ws, event) }}
                 onDragOver={(event) => handleWorkspaceDragOver(ws, event)}
                 onDrop={(event) => handleWorkspaceDrop(ws, event)}
                 onDragEnd={() => handleWorkspaceDragEnd(ws.id)}
-                className="ws relative flex h-9 w-9 cursor-grab items-center justify-center rounded-[4px] transition-colors active:cursor-grabbing focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--primary)_38%,_transparent)]"
+                className={`ws ${styles.railWorkspace} relative flex h-9 w-9 cursor-grab items-center justify-center rounded-[4px] transition-colors active:cursor-grabbing focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--primary)_38%,_transparent)]`}
                 style={{
+                  color: isActive ? 'var(--shell-text)' : 'var(--shell-muted)',
                   marginTop: isGroupStart && workspaceIndex > 0 ? 5 : 0,
                   background: isGroupTarget
                     ? 'var(--shell-accent-soft)'
@@ -1520,7 +1573,7 @@ export function Sidebar() {
                       ? 'var(--shell-hover)'
                       : isActive
                         ? 'var(--shell-active)'
-                        : 'transparent',
+                        : undefined,
                   opacity: isDragged ? 0.42 : 1,
                   boxShadow: isGroupTarget
                     ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent)'
@@ -1535,12 +1588,7 @@ export function Sidebar() {
                 {isDropAfter && (
                   <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 rounded bg-[var(--primary)]" />
                 )}
-                <span
-                  className="font-mono text-[13px] font-semibold"
-                  style={{ color: isActive ? 'var(--shell-text)' : 'var(--shell-dim)' }}
-                >
-                  {workspaceInitial(ws.name)}
-                </span>
+                <WorkspaceRailIcon workspace={ws} />
                 {collapsedDotColor && (
                   <span
                     className={collapsedActivity.needsAction > 0 ? 'term-status-pulse absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full' : 'absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full'}
@@ -1551,9 +1599,30 @@ export function Sidebar() {
               </ThemedTooltip>
             )
           })}
+          </div>
+          <div className={styles.railFooter}>
+            <ThemedTooltip placement="left" disabled={!!terminalPopover} label={activeWorkspace ? t('common:workspace.quickTerminals', { name: activeWorkspace.name }) : t('common:workspace.terminal.empty')}>
+              <button type="button" className={styles.railAction} disabled={!activeWorkspace}
+                aria-label={activeWorkspace ? t('common:workspace.quickTerminals', { name: activeWorkspace.name }) : t('common:workspace.terminal.empty')}
+                aria-haspopup="dialog" aria-expanded={!!terminalPopover} aria-controls={terminalPopover ? 'workspace-terminal-popover' : undefined}
+                onClick={event => {
+                  if (!activeWorkspace) return
+                  setContextMenu(null)
+                  setTerminalPopover(terminalPopover ? null : { workspaceId: activeWorkspace.id, anchor: event.currentTarget })
+                }}><ListTree size={16} aria-hidden="true" /></button>
+            </ThemedTooltip>
+            <ThemedTooltip placement="left" label={t('common:workspace.add')}>
+              <button type="button" className={styles.railAction} aria-label={t('common:workspace.add')} onClick={handleAddWorkspace}><Plus size={16} aria-hidden="true" /></button>
+            </ThemedTooltip>
           {/* ToB M2 收起态：组织首字母 + 本人头像 */}
           <TeamFooterCollapsed />
+          </div>
       </div>
+      {sidebarCollapsed && terminalPopover && popoverWorkspace && <SidebarTerminalPopover
+        workspace={popoverWorkspace} terminals={popoverTerminals}
+        activeTerminalId={popoverWorkspace.id === activeWorkspaceId ? activeTerminalId : null}
+        anchor={terminalPopover.anchor} onSelect={handleTerminalSelect} onClose={closeTerminalPopover}
+      />}
       {contextMenu && (
         <WorkspaceContextMenu
           menu={contextMenu}

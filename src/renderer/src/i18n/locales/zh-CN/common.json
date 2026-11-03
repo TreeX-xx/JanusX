@@ -90,6 +90,10 @@
     "collapseAria": "收起工作区侧栏",
     "expand": "展开侧栏",
     "expandAria": "展开工作区侧栏",
+    "quickTerminals": "查看 {{name}} 的终端",
+    "closeQuickTerminals": "关闭终端快捷列表",
+    "activitySummary": "{{total}} 个终端 · {{running}} 运行中 · {{needsApproval}} 待审批 · {{needsInput}} 待回复 · {{degraded}} 受限 · {{errors}} 异常",
+    "railHint": "单击切换工作区 · → 查看终端",
     "empty": "暂无工作区",
     "delete": {
       "title": "删除工作区",

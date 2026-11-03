@@ -28,6 +28,7 @@ import {
   type WorkspacePaneNode,
 } from '@/lib/workspace-pane'
 import { useGlobalToolsStore } from './global-tools'
+import { useAppStore } from './app'
 import { extensionRegistry } from '@/extensions/registry'
 import type { ExtensionViewId } from '@/extensions/types'
 
@@ -225,10 +226,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   tabDragInFlight: false,
   terminalSnapshots: {},
 
-  setWorkspaces: (workspaces) => set({ workspaces }),
+  setWorkspaces: (workspaces) => {
+    set({ workspaces })
+    // Prune only on an authoritative list update, not the empty startup render.
+    useAppStore.getState().pruneSidebarPreferences(workspaces)
+  },
   addWorkspace: (workspace) =>
     set((s) => ({ workspaces: [...s.workspaces, workspace] })),
-  removeWorkspace: (id) =>
+  removeWorkspace: (id) => {
     set((s) => {
       const { [id]: _, ...rest } = s.terminalSnapshots
       // 删掉的是活动工作区时一并清掉活动 pane 宿主：否则已删工作区的终端标签会
@@ -248,7 +253,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
           : {}),
         terminalSnapshots: rest,
       }
-    }),
+    })
+    useAppStore.getState().pruneSidebarPreferences(get().workspaces)
+  },
   setActiveWorkspace: (id) => {
     const s = get()
     if (s.activeWorkspaceId === id) return

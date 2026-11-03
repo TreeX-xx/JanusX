@@ -90,6 +90,10 @@
     "collapseAria": "Collapse workspace sidebar",
     "expand": "Expand sidebar",
     "expandAria": "Expand workspace sidebar",
+    "quickTerminals": "View terminals in {{name}}",
+    "closeQuickTerminals": "Close terminal quick list",
+    "activitySummary": "{{total}} terminals · {{running}} running · {{needsApproval}} awaiting approval · {{needsInput}} awaiting reply · {{degraded}} limited · {{errors}} errors",
+    "railHint": "Click to switch workspace · → to view terminals",
     "empty": "No workspaces",
     "delete": {
       "title": "Delete workspace",
