@@ -24,11 +24,19 @@ export interface UsagePresetRow {
   models: string[]
 }
 
+export interface UsageModelRow extends Omit<UsagePresetRow, 'models'> {
+  key: string
+  model?: string
+  cacheReported: boolean
+  cacheWriteKnown: boolean
+}
+
 export interface UsageStatsSummary {
   range: UsageRange
   rangeStart: number
   rangeEnd: number
   rows: UsagePresetRow[]
+  modelRows: UsageModelRow[]
   series: TimeBucket[]
   totalTokens: number
   inputTokens: number
@@ -38,6 +46,19 @@ export interface UsageStatsSummary {
   terminals: number
   terminalsWithoutData: number
   cacheKnown: boolean
+  cacheReported: boolean
+}
+
+/** Shared display precision for settings and terminal cache rates. */
+export function formatUsageRate(rate: number | undefined, digits = 1): string {
+  return rate === undefined ? '–' : `${(rate * 100).toFixed(digits)}%`
+}
+
+export function formatUsageCount(value: number): string {
+  const rounded = Math.round(value)
+  if (rounded >= 1_000_000) return `${(rounded / 1_000_000).toFixed(1)}M`
+  if (rounded >= 1000) return `${(rounded / 1000).toFixed(rounded >= 10_000 ? 0 : 1)}k`
+  return String(rounded)
 }
 
 /** 缓存命中口径：命中为读缓存命中数，未命中为新鲜输入加缓存写入数。 */
@@ -280,6 +301,8 @@ export function aggregateUsageStats(
   const rangeStart = rangeStartFor(range, now, custom)
   const rangeEnd = rangeEndFor(range, now, custom)
   const byPreset = new Map<TerminalPreset, UsagePresetRow>()
+  const byModel = new Map<string, UsageModelRow>()
+  const modelSessions = new Map<string, Set<string>>()
   const sessions = new Map<TerminalPreset, Set<string>>()
   const seen = new Set<string>()
   const seriesMap = new Map<string, TimeBucket>(
@@ -304,6 +327,25 @@ export function aggregateUsageStats(
     const cacheKnown = record.cacheReadTokens !== undefined
     row.cacheKnown &&= cacheKnown
     if (record.model && !row.models.includes(record.model)) row.models.push(record.model)
+    // Group by both engine and recorded model; never infer an absent model.
+    const model = record.model || undefined
+    const key = JSON.stringify([record.engine, model ?? null])
+    let modelRow = byModel.get(key)
+    if (!modelRow) {
+      modelRow = { key, model, preset: record.engine, terminals: 0, totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cacheKnown: true, cacheReported: false, cacheWriteKnown: true }
+      byModel.set(key, modelRow)
+      modelSessions.set(key, new Set())
+    }
+    modelSessions.get(key)!.add(record.sessionId)
+    modelRow.terminals = modelSessions.get(key)!.size
+    modelRow.totalTokens += record.totalTokens
+    modelRow.inputTokens += record.inputTokens
+    modelRow.outputTokens += record.outputTokens
+    modelRow.cacheReadTokens += record.cacheReadTokens ?? 0
+    modelRow.cacheWriteTokens += record.cacheWriteTokens ?? 0
+    modelRow.cacheKnown &&= cacheKnown
+    modelRow.cacheReported ||= cacheKnown
+    modelRow.cacheWriteKnown &&= record.cacheWriteTokens !== undefined
     const bucket = seriesMap.get(bucketKeyFor(range, record.at, custom, now).key)
     if (bucket) {
       bucket.totalTokens += record.totalTokens
@@ -313,15 +355,17 @@ export function aggregateUsageStats(
     }
   }
   const rows = [...byPreset.values()].sort((a, b) => b.totalTokens - a.totalTokens)
+  const modelRows = [...byModel.values()].sort((a, b) => b.totalTokens - a.totalTokens || a.key.localeCompare(b.key))
   for (const row of rows) row.models.sort()
   return {
-    range, rangeStart, rangeEnd, rows, series: [...seriesMap.values()],
+    range, rangeStart, rangeEnd, rows, modelRows, series: [...seriesMap.values()],
     totalTokens: rows.reduce((sum, row) => sum + row.totalTokens, 0),
     inputTokens: rows.reduce((sum, row) => sum + row.inputTokens, 0),
     outputTokens: rows.reduce((sum, row) => sum + row.outputTokens, 0),
     cacheReadTokens: rows.reduce((sum, row) => sum + row.cacheReadTokens, 0),
     cacheWriteTokens: rows.reduce((sum, row) => sum + row.cacheWriteTokens, 0),
     cacheKnown: rows.length > 0 && rows.every(row => row.cacheKnown),
+    cacheReported: modelRows.some(row => row.cacheReported),
     terminals: rows.reduce((sum, row) => sum + row.terminals, 0),
     terminalsWithoutData: 0,
   }

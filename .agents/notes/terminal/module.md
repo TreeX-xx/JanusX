@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-11-03T02:06:49Z",
+  "updated": "2026-11-03T09:51:53Z",
   "moduleState": "partial"
 }
 ---
@@ -105,6 +105,8 @@ Shell 入口探索：[可选择的普通终端 Shell](./shell-profiles.md)已定
 island 一词两义（pane 姿态层与 turn 历史浮层）为术语债，改名消歧前两篇并存，不合并。
 
 底部[用量面板](./requirements/usage-panel-direct-content.md)直接展示上下文、会话累计缓存命中率、累计缓存读取/写入、Token 总数及输入/输出；运行时间按当前终端实例计时。底栏徽标和卡片上下文区域提供精确容量、剩余量及压缩次数的悬浮提示。普通对话入口同名，原二次点击详情及遥测诊断展示已移除。2026-10-15 接入 Codex 原生 `cache_write_input_tokens`，从含缓存的输入中拆出读/写分量，保持总量不变；旧事件历史在原源可读且分项核对一致时补齐写入，旧累计基线的过渡区间保留未拆分输入。Claude 保留明确零值，整段未提供写入字段时显示未知。
+
+设置页的[模型明细](./requirements/usage-stats-custom-range-detail.md#当前展示布局)按终端类型与模型聚合，模型名为主信息，按总 Tokens 降序并可展开完整缓存分项；同一会话跨模型出现不改变汇总会话去重口径。缓存命中率与终端详情共用一位小数格式，缺失字段保留未知语义。
 
 ## Acceptance criteria
 

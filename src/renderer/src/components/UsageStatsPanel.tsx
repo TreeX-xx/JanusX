@@ -7,6 +7,8 @@ import { useThemeStore } from '@/stores/theme'
 import {
   aggregateUsageStats,
   cacheSplitFor,
+  formatUsageCount as formatCount,
+  formatUsageRate,
   customBucketModeFor,
   normalizeCustomRange,
   parseDateInput,
@@ -25,19 +27,14 @@ import llmStyles from './LlmConfigModal.module.css'
 import styles from './UsageStatsPanel.module.css'
 import { UsageHeatmap } from './UsageHeatmap'
 import { UsageCostPanel } from './UsageCostPanel'
+import { UsageModelBreakdown } from './UsageModelBreakdown'
+import { ThemedTooltip } from './ui/ThemedTooltip'
 
 const RANGES: UsageRange[] = ['today', 'week', 'month', 'custom']
 const RANGE_KEYS = { today: 'rangeToday', week: 'rangeWeek', month: 'rangeMonth', custom: 'rangeCustom' } as const
 const DAY_MS = 86_400_000
 
 type TypeFilter = 'all' | ExternalCliToolId
-
-function formatCount(value: number): string {
-  const rounded = Math.round(value)
-  if (rounded >= 1_000_000) return `${(rounded / 1_000_000).toFixed(1)}M`
-  if (rounded >= 1000) return `${(rounded / 1000).toFixed(rounded >= 10_000 ? 0 : 1)}k`
-  return String(rounded)
-}
 
 function formatRate(rate: number | undefined): string {
   return rate === undefined ? '–' : `${Math.round(rate * 100)}%`
@@ -518,10 +515,12 @@ export function UsageStatsPanel() {
             <CacheDonut hits={cache.hits} misses={cache.misses} hasData={cache.hasData} hitColor={hitColor} missColor={missColor} trackColor={trackColor} label={t('settings:usageStats.hitRate')} />
             <div className={styles.summaryInfo}>
               <span className={styles.label}>{t('settings:usageStats.hitRate')}</span>
-              <div className={styles.value} data-testid="usage-cache-rate">{formatRate(cache.hasData ? cache.rate : undefined)}</div>
+              <ThemedTooltip label={`${formatUsageRate(cache.rate, 2)} · ${t('settings:usageStats.cacheFormula')}`}>
+                <div className={styles.value} data-testid="usage-cache-rate" tabIndex={0}>{formatUsageRate(cache.rate)}</div>
+              </ThemedTooltip>
             </div>
           </div>
-          <div className={styles.legend}>{cache.hasData ? <><span><i style={{ background: hitColor }} />{t('settings:usageStats.hit')} <strong>{formatCount(cache.hits)}</strong></span><span><i style={{ background: missColor }} />{t('settings:usageStats.miss')} <strong>{formatCount(cache.misses)}</strong></span></> : t('settings:usageStats.noCacheData')}</div>
+          <div className={styles.legend}>{cache.hasData ? <><span><i style={{ background: hitColor }} />{t('settings:usageStats.hit')} <strong>{formatCount(cache.hits)}</strong></span><span><i style={{ background: missColor }} />{t('settings:usageStats.miss')} <strong>{formatCount(cache.misses)}</strong></span></> : t(view.cacheReported ? 'settings:usageStats.incompleteCacheData' : 'settings:usageStats.noCacheData')}</div>
         </div>
       </div>
       <UsageHeatmap engine={activeType === 'all' ? undefined : activeType} />
@@ -543,22 +542,7 @@ export function UsageStatsPanel() {
           emptyLabel={view.terminals === 0 ? t('settings:usageStats.empty') : undefined}
         />
       </div>
-      {view.rows.length > 0 && <div className={styles.breakdown}>
-        <h4 className={styles.title}>{t('settings:usageStats.breakdown')}</h4>
-        {view.rows.map((row) => {
-          const split = cacheSplitFor(row.cacheReadTokens, row.inputTokens, row.cacheWriteTokens, row.cacheKnown)
-          return <article className={styles.modelRow} key={row.preset}>
-            <div className={styles.modelInfo}>
-              <div className={styles.modelName}><i style={{ background: presetColor(row.preset) }} />{presetName(row.preset)}<span>{row.terminals} {t('settings:usageStats.terminals')}</span></div>
-              <div className={styles.models}>{row.models.length ? row.models.map((model) => <span key={model} title={model}>{model}</span>) : <span>{t('settings:usageStats.unknownModel')}</span>}</div>
-            </div>
-            <div className={styles.modelTotal}><span className={styles.label}>{t('settings:usageStats.total')}</span><strong>{formatCount(row.totalTokens)}</strong><small>tokens</small></div>
-            <div className={`${styles.modelIo} ${styles.inputMetric}`}><span className={styles.label}>{t('settings:usageStats.input')}</span><strong>{formatCount(row.inputTokens)}</strong></div>
-            <div className={`${styles.modelIo} ${styles.outputMetric}`}><span className={styles.label}>{t('settings:usageStats.output')}</span><strong>{formatCount(row.outputTokens)}</strong></div>
-            <div className={styles.modelRate}><span className={styles.label}>{t('settings:usageStats.hitRate')}</span><strong>{formatRate(split.hasData ? split.rate : undefined)}</strong></div>
-          </article>
-        })}
-      </div>}
+      <UsageModelBreakdown rows={view.modelRows} total={view.totalTokens} refreshing={refreshing} />
     </section>
   )
 }
