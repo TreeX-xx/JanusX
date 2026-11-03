@@ -15,15 +15,26 @@
   },
   "staged": {
     "title": "暂存区",
-    "unstageAll": "全部取消暂存"
+    "unstageAll": "全部取消暂存",
+    "empty": "暂无已暂存的文件"
   },
   "changes": {
-    "title": "更改",
+    "title": "工作区变更",
     "stageAll": "全部暂存",
     "open": "打开文件",
     "stage": "暂存更改",
     "unstage": "取消暂存",
-    "discard": "放弃更改"
+    "discard": "放弃更改",
+    "search": "搜索文件…",
+    "view": "文件显示方式",
+    "tree": "目录树",
+    "list": "文件列表",
+    "more": "文件操作：{{path}}",
+    "empty": "暂无未暂存的文件",
+    "noMatch": "没有匹配的文件",
+    "diff": "文件差异",
+    "noDiff": "没有文本差异，可能仅修改了文件属性。",
+    "truncated": "仅显示前 256 KiB 差异。打开文件查看完整内容。"
   },
   "discard": {
     "title": "放弃更改？",
@@ -33,21 +44,38 @@
   "clean": "工作区干净",
   "history": {
     "title": "提交历史",
-    "previewHint": "点击展开修改的文件",
+    "previewHint": "点击查看提交详情",
     "loadingChanges": "正在加载修改的文件...",
     "filesCount": "{{count}} 个文件",
-    "moreFiles": "另外 {{count}} 个文件"
+    "moreFiles": "另外 {{count}} 个文件",
+    "scope": "历史范围",
+    "all": "所有分支",
+    "current": "当前分支",
+    "loaded": "已加载 {{count}} 条",
+    "search": "搜索已加载的提交…",
+    "previousMatch": "上一个匹配",
+    "nextMatch": "下一个匹配",
+    "loading": "正在加载历史…",
+    "empty": "暂无提交记录",
+    "loadMore": "加载更早的提交",
+    "end": "已加载全部可用历史",
+    "detail": "提交详情",
+    "copyHash": "复制完整提交哈希",
+    "copyFailed": "复制失败，请重试",
+    "mergeHint": "合并提交：显示相对第一父提交的变更。"
   },
   "commit": {
-    "placeholder": "提交消息...",
-    "button": "提交"
+    "placeholder": "提交标题…",
+    "button": "提交",
+    "description": "详细说明",
+    "staged": "提交已暂存 · {{count}}"
   },
   "remote": {
     "executing": "执行中...",
     "branchLabel": "分支",
     "remoteLabel": "远端",
-    "pushButton": "Push",
-    "pullButton": "Pull",
+    "pushButton": "推送",
+    "pullButton": "拉取",
     "push": {
       "title": "确认 Push",
       "actionLabel": "确认 Push",
@@ -66,5 +94,15 @@
     "minutesAgo": "{{count}}分钟前",
     "hoursAgo": "{{count}}小时前",
     "daysAgo": "{{count}}天前"
-  }
+  },
+  "tabs": {
+    "changes": "变更",
+    "history": "历史"
+  },
+  "views": "Git 视图",
+  "refresh": "刷新 Git",
+  "retry": "重试",
+  "more": "仓库操作",
+  "clearSearch": "清空搜索",
+  "closeDetail": "关闭详情"
 }

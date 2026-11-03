@@ -1180,6 +1180,7 @@ export type TypedI18nKey =
   | 'common:workspace.removeFromGroup'
   | 'common:workspace.renameGroup'
   | 'common:workspace.runConfiguration'
+  | 'common:workspace.switching'
   | 'common:workspace.terminal.add'
   | 'common:workspace.terminal.empty'
   | 'common:workspace.terminalCountAttentionSuffix'

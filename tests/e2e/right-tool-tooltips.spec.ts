@@ -46,7 +46,8 @@ for (const theme of ['planche', 'dark']) {
     await page.setViewportSize({ width: 1280, height: 720 })
     await expect(tooltip).toHaveCount(0)
 
-    const commit = page.getByText('Tooltip preview commit', { exact: true })
+    await page.getByRole('tab', { name: '历史', exact: true }).click()
+    const commit = page.locator('[data-commit-hash="palette-commit"]')
     await commit.hover()
     await expect(tooltip).toBeVisible()
     await expect(tooltip).toContainText('tooltip-preview.txt')

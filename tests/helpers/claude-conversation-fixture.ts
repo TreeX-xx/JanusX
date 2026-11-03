@@ -29,6 +29,11 @@ export async function claudeConversationFixture() {
     const latest = body.messages.at(-1)?.content
     const hasResult = (Array.isArray(latest) && latest.some((item: any) => item.type === 'tool_result')) || JSON.stringify(latest).includes('<task-notification>')
     const plans: Record<string, { name: string; input: object }> = {
+      CC_QUESTION: { name: 'AskUserQuestion', input: { questions: [
+        { header: 'Deploy', question: 'Deploy now?', options: [{ label: 'Yes', description: 'Deploy once' }, { label: 'No', description: 'Keep current version' }], multiSelect: false },
+        { header: 'Checks', question: 'Select checks', options: [{ label: 'Unit', description: 'Run units' }, { label: 'Browser', description: 'Run browser' }], multiSelect: true },
+        { header: 'Notes', question: 'Additional notes?', options: [{ label: 'None', description: 'No notes' }, { label: 'Later', description: 'Add later' }], multiSelect: false },
+      ] } },
       CC_PLAN_CREATE: { name: 'TaskCreate', input: { subject: 'Verify native todo', description: 'Exercise the real task store', activeForm: 'Verifying native todo' } },
       CC_PLAN_PROGRESS: { name: 'TaskUpdate', input: { taskId: '1', status: 'in_progress' } },
       CC_PLAN_COMPLETE: { name: 'TaskUpdate', input: { taskId: '1', status: 'completed' } },

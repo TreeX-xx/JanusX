@@ -9,6 +9,7 @@ for (const theme of ['planche', 'dark']) {
     const initialY = (await filesButton.boundingBox())!.y
     await page.locator('#right-tool-rail-sessions').click()
     const panel = page.getByRole('region', { name: /会话/ })
+    await expect(panel.locator('[data-workspace-transition]')).toHaveAttribute('aria-busy', 'false')
     const row = panel.locator('[data-session-id="session-palette"]')
     await expect(row).toBeVisible()
     await expect.poll(() => panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0)
@@ -40,7 +41,7 @@ for (const theme of ['planche', 'dark']) {
     await page.waitForTimeout(350)
     await page.screenshot({ path: test.info().outputPath(`right-sessions-${theme}-${width}.png`) })
     await page.locator('#right-tool-rail-git').click()
-    await expect(page.getByText('src/renderer/RightDock.tsx', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'src/renderer/RightDock.tsx', exact: true })).toBeVisible()
     await page.mouse.move(400, 20)
     await page.waitForTimeout(350)
     await page.screenshot({ path: test.info().outputPath(`right-git-${theme}-${width}.png`) })

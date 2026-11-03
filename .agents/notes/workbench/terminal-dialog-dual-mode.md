@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-03T03:58:08Z",
+  "updated": "2026-11-03T07:40:20Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -16,6 +16,32 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## 对话内审批、选项和文字回答
+
+对话模式用独立请求卡片承载确认、单选、多选和 Type something 文字输入；一批问题完整提交，保留原生问题与选项身份。答案直接回应当前原生请求，不作为下一条聊天消息、不进入普通输入历史或待发队列。原生 CLI 仍可把已提交答案写入自己的工具结果与会话记录。底部草稿独立保留，阻塞问题未处理时暂停聊天发送与队列派发；不预选授权、不自动提交。
+
+| 引擎 | 当前对话内处理范围 | 原生答复路径 |
+| --- | --- | --- |
+| Codex | 命令／文件审批的允许一次、会话允许、拒绝、拒绝并停止；原生提议的命令／网络持久规则；request_user_input 多题、单选、Other、无选项文字及密码遮罩 | JSON-RPC request ID；文字按原生 user_note 前缀编码 |
+| Claude | Write／Edit／Bash 允许一次或拒绝；AskUserQuestion 多题、单选、多选及自定义文字 | Mods 暂存原生工具调用，用户回答后继续；PermissionRequest 只消费问题内容和答案都相符的唯一待答回执 |
+| OpenCode | 权限 once／always／reject；简单字符串、单选、多选、自定义文字、布尔和数值表单 | 原生 session permission/form reply；表单取消使用 DELETE，选项值与标签分开保存 |
+| Pi | 扩展 UI confirm、select、input、editor | 原 ExtensionUIContext 回调的布尔值、选项文字、输入文字或取消值 |
+| DSH | 当前根 Agent 的 approval/request 和无计时 user-questions/request；多选可附加自定义文字 | 原生 approval 结果词汇及结构化 selected/custom 答案 |
+
+公共 ConversationQuestions 管理请求版本和 pending／submitting／unknown 状态。主进程在消费回调前校验问题集合、选项、单多选约束、必填与原生表单范围；旧版本、已处理请求和重复点击均拒绝。原生解决通知、工具完成、会话切换会清除对应请求；传输失败按确认未知处理，禁用再次回答并保留终端核查入口，不自动重试。提交期间禁止模式切换。界面使用原生 radio／checkbox、中文输入法组合态保护及独立取消按钮，授权范围可换行，适配深浅主题与窄 pane。
+
+Claude／Pi／DSH 的新请求按已同步的显示模式选择一个回答方；切回终端或桥失联会把尚未回答的请求交给原生 UI，避免两个未能取消的原生对话框同时消费答案。已经在终端打开的这些原生弹窗仍在终端完成。Codex／OpenCode 使用可同步的原生请求身份，切换后继续以原生待处理状态为准。
+
+尚未通用化任意 TUI：Claude 的计划模式确认和并发匹配歧义、Pi custom UI、DSH 带 claim／超时续答的 timed questions、OpenCode 条件／隐藏／外部表单及带 pattern／format 的字段，以及 Codex 未识别的请求仍提示原生处理。普通 shell 及未接入的 CLI 不通过解析 ANSI 猜测问题。此范围只针对受管本地双模式会话；没有改用户全局权限规则，也没有给各家增加原生不存在的多选能力。
+
+协议依据为本机 Codex generate-json-schema、OpenCode /openapi.json、Pi／DSH 已安装扩展类型，以及 [Codex 原生回答编码](https://github.com/openai/codex/blob/main/codex-rs/app-server-test-client/src/request_user_input.rs)。Claude 的真实测试确认 PermissionRequest 会调整 JSON 对象键顺序，因此按结构比较问题与答案，不能按 JSON 字符串顺序关联。
+
+验证（2026-11-03）：11 个相关单测文件共 89 项通过，覆盖校验、过期、重复、未知回执、桥模式交接、队列门禁及既有编辑／命令控制。tests/unit/{codex,claude,opencode,pi,dsh}-conversation-cli.test.ts 中本次问答用例均以已安装 Windows CLI、隔离配置与本地模型／服务跑通：实际工具结果包含所选标签和中文文字；Claude 无需附加终端即可恢复工具，OpenCode 表单保存并清除待处理，Pi 返回原 UI 回调值，DSH 原生审批与问答结果一致。Codex 测试仅在隔离配置开启 default_mode_request_user_input，产品不替用户开启该实验功能。
+
+浏览器测试 conversation-questions、codex-conversation、conversation-work-disclosure 共 24 个不同用例通过；包含批量回答、IME、取消／过期、模式切换保留输入、普通草稿不变、多种授权范围与窄窗换行。已查看 artifacts/conversation-interactions/questions-{dark,light}.png，提交按钮与底部输入区不重叠。复现入口为 npx vitest run 加上述测试文件、按引擎设置 JANUSX_TEST_*_BIN；界面使用 JANUS_E2E_PORT 指定独立端口后运行 npx playwright test tests/e2e/conversation-questions.spec.ts tests/e2e/codex-conversation.spec.ts tests/e2e/conversation-work-disclosure.spec.ts --project=island --workers=1 --timeout=60000。本轮未覆盖真实供应商账户、跨平台、任意上游版本或长时间故障恢复。
+
+静态验证：本次生产文件定向 ESLint、i18n 检查与 Notes 校验通过。以 e7108583 加本次改动建立临时检出，npm run typecheck:strict-unused 和 npm run build:app 均通过；验证隔离于工作区同时进行的文件树、Git 与切换界面改动。构建仍有既有 theme 模块同时静态／动态导入提示，Notes 校验保留 17 项既有外部链接诊断、无错误。
 
 ## 对话直接启动的加载反馈
 
@@ -207,7 +233,7 @@ ACP adapter 是 Claude 完整结构化对话的一条候选路线，复用公共
 
 产品 Bridge 在取消 Hook 之外定时发送有序批次，按 seq 确认与去重；传输失败只重发事件，不重发模型请求。缓冲上限 4000 事件／约 200 万字符，溢出、序号缺口或会话变更即关闭对话控制并提示使用终端。短暂失联可恢复同一事件流，进程重启与持久重放未实现。发送按 commandId 去重，除 daemon ack 外必须观察到新原生 turn；未知送达锁住再次发送，保留终端核查入口。显示最多 500 项，单项文本约 32000 字符；尚无长会话性能验收。
 
-Write/Edit/Bash 的 HTTP 审批只在能唯一关联当前工具时展示“允许一次／拒绝”；并发歧义及问答／计划交互交还原生终端。原生批准或工具结束会使旧审批失效。模型与强度已接入公共选择器和 `/model`、`/effort` 预览，修改当前会话后续主对话请求；其它未适配指令仍提示去终端。设置只在空闲时提交，等待原生事件更新显示；提交期间阻止新发送及终端输入，失败保留原选择，超时标记结果未知并关闭对话控制。
+Write/Edit/Bash 的 HTTP 审批只在能唯一关联当前工具时展示“允许一次／拒绝”；AskUserQuestion 已接入[对话内问答](#对话内审批选项和文字回答)，并发歧义及计划模式确认仍交还原生终端。原生批准或工具结束会使旧审批失效。模型与强度已接入公共选择器和 `/model`、`/effort` 预览，修改当前会话后续主对话请求；其它未适配指令仍提示去终端。设置只在空闲时提交，等待原生事件更新显示；提交期间阻止新发送及终端输入，失败保留原选择，超时标记结果未知并关闭对话控制。
 
 #### Claude 会话模型与强度
 
@@ -492,7 +518,7 @@ Codex 原生 remote 传输会读取代理环境变量，127.0.0.1 也可能被�
 
 显示切换不创建/取消/resume 轮次，原生 PTY/xterm 保持挂载；隐藏视图设为 inert，主进程同时拒绝隐藏终端的普通输入、原生主线程发送/中断与审批回复。显示控制代次让切换前的迟到对话操作失效。对话发送使用 commandId 去重，超时/断线不自动重发，运行中禁止再开一轮；原生终端继续保留它自己的补充输入语义。正文完成并不意味着轮结束，停止与忙碌状态以 turn 事件为准。对话草稿和阅读位置放在已有终端状态，终端草稿由原生 TUI 保留，两边不自动互拷。
 
-对话正文复用现有 Markdown renderer；工具活动默认收拢，命令卡显示结构化输出，文件卡显示路径和 diff。命令与文件审批可允许一次或拒绝，通用问答等未实现的交互明确提示切回终端。点击文件使用现有 openEditor 路由，HTML 等预览由既有文件窗口承担；预览按已确认规则由用户点击打开，不自动弹出。尚无独立产物目录、版本化产物卡或撤销。终端 Island 保留在终端视图；对话文件卡使用协议补丁记录，尚未与 checkpoint Island 合并为单一变更记录。
+对话正文复用现有 Markdown renderer；工具活动默认收拢，命令卡显示结构化输出，文件卡显示路径和 diff。命令／文件审批保留原生授权范围，request_user_input 以独立问答卡片处理，边界见[对话内问答](#对话内审批选项和文字回答)。点击文件使用现有 openEditor 路由，HTML 等预览由既有文件窗口承担；预览按已确认规则由用户点击打开，不自动弹出。尚无独立产物目录、版本化产物卡或撤销。终端 Island 保留在终端视图；对话文件卡使用协议补丁记录，尚未与 checkpoint Island 合并为单一变更记录。
 
 显示投影按 turnId/itemId 更新，最多 500 项、总文本约 100 万字符，单项文本或 diff 预算 32000 字符，截断会显示提示，不修改原生记录。流式快照最多约 32ms 推送一次，后台工作区保留最新快照但暂停对话渲染。历史现已按轮次虚拟化并复用未变轮次的分组/文件统计；原生历史分页未实现，全量快照仍有传输成本，浏览器合成测试不代表 Electron 长时性能已验收。
 

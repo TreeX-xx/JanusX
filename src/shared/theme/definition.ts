@@ -63,6 +63,10 @@ export interface ThemeDefinition {
 
 // Shared visual constants preserve the existing component artwork.
 const SHARED_UI_TOKENS = {
+  'git-lane-blue': '#7d9cac',
+  'git-lane-purple': '#a591b5',
+  'git-lane-green': '#8b9d78',
+  'git-lane-slate': '#869fb2',
   'modal-backdrop': 'rgba(8, 8, 10, 0.62)',
   'usage-claude': '#c4623d',
   'usage-codex': '#247e83',
@@ -277,6 +281,10 @@ export const DARK_THEME_DEFINITION: ThemeDefinition = {
 
 const PLANCHE_TOKENS = {
   ...SHARED_UI_TOKENS,
+  'git-lane-blue': '#486b7f',
+  'git-lane-purple': '#765d8d',
+  'git-lane-green': '#526e42',
+  'git-lane-slate': '#526b91',
   'glow-core': 'transparent',
   'glow-strength': '0',
   'on-accent': '#ffffff',
@@ -453,6 +461,10 @@ export const PLANCHE_THEME_DEFINITION: ThemeDefinition = {
 /** Neutral white surfaces, dark ink and a restrained orange accent. */
 const WHITE_TOKENS = {
   ...SHARED_UI_TOKENS,
+  'git-lane-blue': '#486b7f',
+  'git-lane-purple': '#765d8d',
+  'git-lane-green': '#526e42',
+  'git-lane-slate': '#526b91',
   'glow-core': 'transparent',
   'glow-strength': '0.1',
   'roundtable-paper': '#edf0f4',

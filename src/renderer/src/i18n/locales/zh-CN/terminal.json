@@ -476,6 +476,23 @@
     "activity": "Agent 活动",
     "openFile": "打开文件或预览",
     "approval": "待处理的审批",
+    "approvalChoices": {
+      "accept": "允许一次",
+      "acceptForSession": "本会话允许",
+      "decline": "拒绝",
+      "cancel": "拒绝并停止"
+    },
+    "question": {
+      "heading": "需要你的回答",
+      "other": "输入其他回答",
+      "answer": "你的回答",
+      "customAria": "回答：{{question}}",
+      "placeholder": "输入你的回答…",
+      "submit": "提交回答",
+      "submitting": "正在提交…",
+      "cancel": "取消请求",
+      "unknown": "尚未确认回答是否送达。请先到终端核实该请求，再继续操作。"
+    },
     "approveFile": "允许这些文件修改？",
     "approveCommand": "允许执行此命令？",
     "decline": "拒绝",

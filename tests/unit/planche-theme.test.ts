@@ -134,8 +134,7 @@ describe('planche theme contract', () => {
     expect(area).toContain('terminal-empty-new')
     expect(area).not.toContain('onMouseEnter={(event) => {')
     const gitPanel = read('components/GitPanel.tsx')
-    expect(gitPanel).toContain('tbtn-ghost')
-    expect(gitPanel).toContain('tbtn-accent')
+    // Git's shared neutral controls are exercised in git-workbench.spec.ts.
     expect(gitPanel).not.toContain('currentTarget.style.background')
     const sidebar = read('components/Sidebar.tsx')
     expect(sidebar).toContain('tbtn-ghost')
@@ -222,7 +221,7 @@ describe('planche theme contract', () => {
     // 右 Dock 面板 + 左栏：文字走 shell 令牌，不再硬编码白/灰字
     for (const panel of [
       'components/SessionPanel.tsx',
-      'components/GitPanel.tsx',
+      'components/GitPanel.module.css',
       'components/FileExplorerTool.tsx',
       'components/TurnChangeIsland.tsx',
       'components/Sidebar.tsx',

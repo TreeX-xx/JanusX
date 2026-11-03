@@ -35,6 +35,8 @@ Object.assign(window.electron.git, {
     { path: 'src/renderer/SessionPanel.tsx', status: 'M', staged: true, additions: 24, deletions: 15 },
   ] }),
   log: async () => [{ hash: 'palette-commit', shortHash: 'abc1234', message: 'Tooltip preview commit', author: 'JanusX', date: new Date().toISOString() }],
+  history: async () => ({ commits: [{ hash: 'palette-commit', shortHash: 'abc1234', message: 'Tooltip preview commit', author: 'JanusX', date: new Date().toISOString(), parents: [], refs: [{ kind: 'head', name: 'HEAD' }, { kind: 'local', name: 'main' }] }], cursor: null }),
+  diff: async () => ({ content: '@@ -1 +1 @@\n-before\n+after', truncated: false }),
   commitChanges: async () => [{ path: 'tooltip-preview.txt', status: 'M', additions: 2, deletions: 1 }],
   stage: async (cwd: string, paths: string[]) => { stagedPaths.push(paths); return window.electron.git.status(cwd) },
 })

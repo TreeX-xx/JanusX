@@ -28,6 +28,14 @@ describe('session activation data reuse', () => {
     return list
   }
 
+  it('reveals a failed switch without retaining actionable cards from another workspace', async () => {
+    const list = installList()
+    await useSessionStore.getState().fetchSessions(filter, cached)
+    list.mockRejectedValueOnce(new Error('unavailable'))
+    await useSessionStore.getState().fetchSessions({ cwd: 'C:/other' }, cached)
+    expect(useSessionStore.getState()).toMatchObject({ scopeKey: 'cwd:C:/other', loading: false, error: 'unavailable', sessions: [] })
+  })
+
   it('reuses recent reads, expires them and forces event refreshes without loading flicker', async () => {
     const list = installList()
     const fetch = useSessionStore.getState().fetchSessions

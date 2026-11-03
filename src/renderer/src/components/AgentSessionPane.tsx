@@ -18,6 +18,8 @@ import { CLITerminal } from './CLITerminal'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TurnChangeIsland } from './TurnChangeIsland'
 import { AgentComposer } from './AgentComposer'
+import { ConversationQuestions } from './ConversationQuestions'
+import { hasBlockingQuestions } from '../../../shared/conversation-questions'
 import { ConversationPlanPanel } from './ConversationPlanPanel'
 import { ConversationDuration } from './ConversationDuration'
 import { ConversationMessageActions } from './ConversationMessageActions'
@@ -87,7 +89,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const projectTurns = useMemo(() => createConversationTurns(), [terminalId, snapshot?.threadId])
   const turns = useMemo(() => projectTurns(snapshot?.items ?? [], snapshot?.turnId ?? null), [projectTurns, snapshot?.items, snapshot?.turnId])
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
-  const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.plans?.length
+  const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.plans?.length
 
   const accept = useCallback((next: ConversationSnapshot) => {
     if (next.id !== terminalId || (latest.current && next.revision < latest.current.revision)) return
@@ -217,7 +219,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
       if (request === switchRequest.current) { setSwitching(false); setRequestedMode(null) }
     }
   }
-  const canSend = snapshot?.capabilities.submit && snapshot.connection === 'ready' && !snapshot.turnId && !snapshot.submitting && !snapshot.settingsUpdating && !snapshot.approvals.length && !snapshot.needsTerminal && !busy && !transitioning
+  const canSend = snapshot?.capabilities.submit && snapshot.connection === 'ready' && !snapshot.turnId && !snapshot.submitting && !snapshot.settingsUpdating && !snapshot.approvals.length && !hasBlockingQuestions(snapshot) && !snapshot.needsTerminal && !busy && !transitioning
   const canEnqueue = snapshot?.capabilities.submit && snapshot.connection === 'ready' && !snapshot.needsTerminal && !busy && !transitioning && outgoing.length < 100
   const send = async (delivery: 'queue' | 'steer' = 'queue') => {
     if (editing || !canEnqueue || !snapshot || busyRef.current || switchLocked.current) return
@@ -352,7 +354,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               const lastGroup = turn.groups[groupIndex + 1]?.items[0].turnId !== turnId
               return <div key={group.items[0].id}>
                 {group.process ? <WorkDisclosure stateKey={group.items[0].id} summary={{ ...group.summary,
-                  waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id)).length || group.summary.waiting,
+                  waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
                   incomplete: group.summary.incomplete || !!snapshot.truncated }} settled={group.settled && !snapshot.truncated}>{renderNodes}</WorkDisclosure> : renderNodes()}
                 {lastGroup && changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
               </div>
@@ -373,14 +375,15 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               {item.error && <p className={styles.error} role="alert">{item.error}</p>}
             </div>)}
             {editing && !snapshot?.items.some(item => item.id === editing.item.id) && <div className={styles.userMessage}>{editor}</div>}
-            {working && !turns.some(turn => turn.active && turn.groups.some(group => group.process && (group.summary.running || group.summary.waiting))) && !snapshot?.approvals.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
+            {working && !turns.some(turn => turn.active && turn.groups.some(group => group.process && (group.summary.running || group.summary.waiting))) && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
             {pastPlans.length > 0 && <details className={styles.planHistory}><summary>{t('conversation.planHistory')}</summary>{pastPlans.map(plan => <ConversationPlanPanel key={`${snapshot?.threadId}:${plan.turnId}:${plan.version}`} plan={plan} connection={snapshot!.connection} historical />)}</details>}
             {snapshot?.approvals.map(approval => <div className={styles.approval} key={approval.id} role="group" aria-label={t('conversation.approval')}>
               <strong><ShieldCheck size={17} aria-hidden="true" />{t(approval.kind === 'file' ? 'conversation.approveFile' : 'conversation.approveCommand')}</strong>
               {approval.description && <pre>{approval.description}</pre>}
-              <div><button type="button" disabled={busy || switching} onClick={() => void action({ type: 'approve', requestId: approval.id, decision: 'decline', controlEpoch: snapshot.controlEpoch })}>{t('conversation.decline')}</button>
-                <button type="button" className={styles.primary} disabled={busy || switching} onClick={() => void action({ type: 'approve', requestId: approval.id, decision: 'accept', controlEpoch: snapshot.controlEpoch })}>{t('conversation.accept')}</button></div>
+              <div>{(approval.choices ?? [{ id: 'decline', label: t('conversation.decline') }, { id: 'accept', label: t('conversation.accept') }]).map(choice => <button key={choice.id} type="button" title={choice.description} className={choice.id === 'accept' ? styles.primary : undefined} disabled={busy || switching || snapshot.connection !== 'ready'} onClick={() => void action({ type: 'approve', requestId: approval.id, decision: choice.id, controlEpoch: snapshot.controlEpoch })}>{t(`conversation.approvalChoices.${choice.id}`, { defaultValue: choice.label })}</button>)}</div>
             </div>)}
+            {snapshot?.questions?.map(request => <ConversationQuestions key={`${snapshot.threadId}:${typeof request.id}:${request.id}:${request.version}`} request={request} disabled={busy || transitioning || snapshot.connection !== 'ready' || !visible || !conversation}
+              answer={answer => void action({ type: 'answer', requestId: request.id, version: request.version, answer, controlEpoch: snapshot.controlEpoch })} />)}
             {startup?.status === 'cancelled' && <p className={styles.notice}>{t('conversation.startupPaused')} <button type="button" disabled={busy} onClick={() => void action({ type: 'startup', startupId: startup.id, action: 'resume', controlEpoch: snapshot!.controlEpoch })}>{t('conversation.startupResume')}</button></p>}
             {snapshot?.needsTerminal && <p className={styles.notice}>{t('conversation.useTerminal')} <button type="button" onClick={() => void changeMode('terminal')}>{t('conversation.terminal')}</button></p>}
             {!editing && (error || snapshot?.error) && <p className={styles.error} role="alert">{error || snapshot?.error}</p>}

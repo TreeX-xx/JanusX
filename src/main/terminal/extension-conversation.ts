@@ -3,12 +3,13 @@ import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { NativeCatalogEntry } from './conversation-catalog'
-import { NativeConversation, type NativeEvent, type NativeLaunch } from './native-conversation'
-import type { ConversationSnapshot } from '../../shared/conversation-display'
+import { NativeConversation, type NativeEvent, type NativeLaunch, type NativeCommand } from './native-conversation'
+import type { ConversationCommand, ConversationSnapshot } from '../../shared/conversation-display'
 import bridgeSource from './native-bridge.js?raw'
 import piSource from './pi-extension.js?raw'
 import imageSource from './conversation-images.js?raw'
 import dshSource from './dsh-extension.js?raw'
+import questionSource from './native-questions.js?raw'
 import { pathToFileURL } from 'node:url'
 
 class ExtensionConversation extends NativeConversation {
@@ -22,7 +23,7 @@ class ExtensionConversation extends NativeConversation {
   private startup?: Promise<{ command: string; args: string[] }>
   private stopping?: Promise<void>
   private pending = new Map<string, { command: unknown; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
-  constructor(id: string, engine: 'pi' | 'dsh', publish: (value: ConversationSnapshot) => void, bind?: (id: string, path?: string) => void) { super(id, engine, publish, bind); this.state.capabilities.commands = engine === 'pi' }
+  constructor(id: string, engine: 'pi' | 'dsh', publish: (value: ConversationSnapshot) => void, bind?: (id: string, path?: string) => void) { super(id, engine, publish, bind); this.state.capabilities.commands = engine === 'pi'; this.state.capabilities.questions = true }
   start(options: NativeLaunch): Promise<{ command: string; args: string[] }> {
     if (this.startup || this.disposed) throw new Error('Native session already started')
     this.startup = this.launch(options)
@@ -65,7 +66,7 @@ class ExtensionConversation extends NativeConversation {
           const pending = this.pending.get(ack.id)
           if (pending) { clearTimeout(pending.timer); this.pending.delete(ack.id); if (ack.ok) pending.resolve(ack.result); else pending.reject(new Error(String(ack.error))) }
         }
-        reply(200, { seq: this.seq, acks: (body.acks ?? []).map((a: { id: string }) => a.id), commands: [...this.pending.values()].map(p => p.command) })
+        reply(200, { seq: this.seq, mode: this.state.mode, acks: (body.acks ?? []).map((a: { id: string }) => a.id), commands: [...this.pending.values()].map(p => p.command) })
       } catch (error) { this.fail(String(error)); reply(409, {}) }
     })
     this.server.requestTimeout = 5000
@@ -75,6 +76,7 @@ class ExtensionConversation extends NativeConversation {
     if (!address || typeof address === 'string') throw new Error('Native bridge unavailable')
     await writeFile(join(this.directory, 'connection.mjs'), `export const endpoint=${JSON.stringify(`http://127.0.0.1:${address.port}`)};export const token=${JSON.stringify(this.token)};`, { mode: 0o600 })
     await writeFile(join(this.directory, 'native-bridge.mjs'), bridgeSource)
+    await writeFile(join(this.directory, 'native-questions.mjs'), questionSource)
     await writeFile(join(this.directory, 'conversation-images.mjs'), imageSource)
     const extension = join(this.directory, 'extension.mjs')
     await writeFile(extension, dsh ? dshSource.replace('__DSH_LLM_URL__', pathToFileURL(join(packageRoot, 'node_modules/@deepseek-ai/dsh-llm/lib/index.js')).href) : piSource)
@@ -105,8 +107,16 @@ class ExtensionConversation extends NativeConversation {
       this.pending.set(command.id, { command, resolve, reject, timer })
     })
   }
-  protected async deliver(command: { id: string; type: 'send' | 'interrupt'; text?: string; sessionId: string; turnId: string | null }): Promise<void> {
+  protected async deliver(command: NativeCommand): Promise<void> {
     await this.request(command)
+  }
+  override async command(command: ConversationCommand): Promise<ConversationSnapshot> {
+    const result = await super.command(command)
+    if (this.server && command.type === 'mode' && this.state.connection === 'ready') {
+      await this.request({ id: randomUUID(), type: 'display-mode', mode: command.mode, sessionId: this.state.threadId })
+      return this.snapshot()
+    }
+    return result
   }
   dispose(): Promise<void> {
     if (this.stopping) return this.stopping

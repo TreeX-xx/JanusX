@@ -1,9 +1,11 @@
 import { ipcMain } from 'electron'
-import { getStatus, getLog, stage, unstage, discard, getCommitChanges, commit, push, pull, getFileBaseline } from '../git/service'
+import { getStatus, getLog, getHistory, getChangeDiff, stage, unstage, discard, getCommitChanges, commit, push, pull, getFileBaseline } from '../git/service'
 
-import { GIT_CHANNELS } from '../../shared/ipc/git'
+import { GIT_CHANNELS, type GitHistoryQuery } from '../../shared/ipc/git'
 
 export function registerGitHandlers(): void {
+  ipcMain.handle(GIT_CHANNELS.history, (_event, cwd: string, query: GitHistoryQuery) => getHistory(cwd, query))
+  ipcMain.handle(GIT_CHANNELS.diff, (_event, cwd: string, path: string, staged: boolean) => getChangeDiff(cwd, path, staged))
   ipcMain.handle(GIT_CHANNELS.status, async (_event, cwd: string) => {
     const status = getStatus(cwd)
     return status

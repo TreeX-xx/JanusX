@@ -113,6 +113,13 @@ Object.assign(window.electron.terminal, {
       state.turnId = `turn-${calls.sends.length}`; state.turnStartedAt = Date.now();
       state.items.push({ id: `user-${calls.sends.length}`, receivedAt: Date.now(), turnId: state.turnId, type: 'userMessage', text: command.text, status: 'completed' }, { id: `answer-${calls.sends.length}`, receivedAt: Date.now(), turnId: state.turnId, type: 'agentMessage', text: '', status: 'inProgress' })
     } else if (command.type === 'approve') { calls.approvals.push(command.decision); state.approvals = [] }
+    else if (command.type === 'answer') {
+      const request = state.questions?.find(row => row.id === command.requestId && row.version === command.version)
+      if (!request) throw new Error('Question expired')
+      request.status = 'submitting'; publish()
+      if (sendGate) await sendGate
+      state.questions = state.questions?.filter(row => row !== request)
+    }
     else if (command.type === 'interrupt') { state.turnId = null; state.backgroundTasks = 0 }
     publish(); return structuredClone(state)
   },
@@ -121,6 +128,23 @@ Object.assign(window.electron.window, { openEditor: async ({ filePath }: { fileP
 Object.assign(window.electron.fileTree, { children: async (_root: string, directory: string) => directory === 'src/' ? [{ name: 'app.ts', path: 'src/app.ts', type: 'file' }] : [{ name: 'src', path: 'src', type: 'directory' }] })
 Object.assign(window.electron.file, { importConversationAttachment: async (name: string) => ({ id: crypto.randomUUID(), name, path: 'C:/attachments/' + name, kind: name.endsWith('.png') ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
 Object.assign(window, { codexFixture: {
+  questions: (kind = 'mixed') => {
+    state.questions = [{ id: 'question', version: state.revision, cancelable: true, status: 'pending', questions: kind === 'text' ? [
+      { id: 'text', text: 'Type something', options: [], allowText: true },
+    ] : [
+      { id: 'confirm', header: 'Confirmation', text: 'Proceed?', options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }] },
+      { id: 'checks', header: 'Checks', text: 'Select checks', multiple: true, allowText: true, options: [{ id: 'unit', label: 'Unit tests', description: 'Run local tests' }, { id: 'browser', label: 'Browser tests', description: 'Verify the interaction' }] },
+      { id: 'text', text: 'Type something', options: [], allowText: true },
+    ] }]; publish()
+  },
+  expireQuestions: () => { state.questions = []; publish() },
+  approvalChoices: () => {
+    state.approvals = [{ id: 'approval', itemId: 'tool', kind: 'command', description: 'npm test', choices: [
+      { id: 'accept', label: 'Allow once' }, { id: 'acceptForSession', label: 'Allow for this session' },
+      { id: 'decline', label: 'Decline' }, { id: 'cancel', label: 'Decline and stop' },
+      { id: 'policy', label: 'Always allow commands matching: npm test --workspace=long-fixture-workspace' },
+    ] }]; publish()
+  },
   historyReads: () => historyReads,
   longHistory: () => {
     state.items = Array.from({ length: 100 }, (_, index) => [

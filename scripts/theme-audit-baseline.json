@@ -84,9 +84,6 @@
     "src/renderer/src/components/AppSettingsModal.module.css": {
       "theme-selector:planche": 23
     },
-    "src/renderer/src/components/GitPanel.module.css": {
-      "theme-selector:planche": 2
-    },
     "src/renderer/src/components/janus/styles/13-janus-planche.css": {
       "theme-selector:planche": 477
     },

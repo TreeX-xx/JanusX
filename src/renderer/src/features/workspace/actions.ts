@@ -36,10 +36,9 @@ let fileTreeLoadGeneration = 0
 // directory updates separately so the older root snapshot cannot erase newly loaded children.
 let fileTreeDirectoryMutationGeneration = 0
 const pendingDirectoryLoads = new Map<string, Promise<void>>()
-// Note: background refreshes must never cancel a pending switch sweep — see .agents/notes/workbench/file-tree-reveal-race.md
-// 未播出的切换扫描：visual load 起飞时登记目标路径，之后任意一次成功提交（visual 或后台刷新）
-// 若命中该路径就播一次 revealing，保证切换扫光一定出现；后台提交永不掐断已在播的 reveal。
-let pendingVisualRevealPath: string | null = null
+// Note: .agents/notes/workbench/file-tree-reveal-race.md — a newer background
+// load inherits the visible load's readiness, including its failure path.
+let pendingVisualLoadPath: string | null = null
 
 export interface FileTreeLoadOptions {
   /** Used when the visible workspace changes; background refreshes keep the current tree in place. */
@@ -60,7 +59,7 @@ export async function loadWorkspaceFileTree(
   const directoryMutationGeneration = fileTreeDirectoryMutationGeneration
   const shouldAnimate = options.visualTransition === true
   if (shouldAnimate && shouldCommit()) {
-    pendingVisualRevealPath = workspacePath
+    pendingVisualLoadPath = workspacePath
     useWorkspaceStore.setState({ fileTreeLoadState: 'loading' })
   }
 
@@ -68,7 +67,8 @@ export async function loadWorkspaceFileTree(
   try {
     rootNodes = await window.electron.fileTree.load(workspacePath)
   } catch (error) {
-    if (shouldAnimate && generation === fileTreeLoadGeneration && shouldCommit()) {
+    if (pendingVisualLoadPath === workspacePath && generation === fileTreeLoadGeneration && shouldCommit()) {
+      pendingVisualLoadPath = null
       useWorkspaceStore.setState({ fileTreeLoadState: 'error' })
     }
     throw error
@@ -95,23 +95,16 @@ export async function loadWorkspaceFileTree(
     }))
   }
 
-  if (
-    generation !== fileTreeLoadGeneration ||
-    directoryMutationGeneration !== fileTreeDirectoryMutationGeneration
-  ) return
-  if (!shouldCommit() || directoryMutationGeneration !== fileTreeDirectoryMutationGeneration) return
-
-  // visual 提交必播；后台提交若命中待播路径也播一次（可视加载可能已被后台代际抢占）。
-  // 非播出提交保持现状：已在播的 reveal 不被后台刷新掐断，error/loading 按原逻辑回到 idle。
-  const playReveal = shouldAnimate || pendingVisualRevealPath === workspacePath
-  if (playReveal) pendingVisualRevealPath = null
-
-  useWorkspaceStore.setState((state) => {
-    const keepRevealing = !playReveal && state.fileTreeLoadState === 'revealing'
-    return {
-      fileTree: applyLoadedChildren(rootNodes, childrenByPath),
-      fileTreeLoadState: playReveal || keepRevealing ? 'revealing' : 'idle',
-    }
+  if (generation !== fileTreeLoadGeneration || !shouldCommit()) return
+  if (directoryMutationGeneration !== fileTreeDirectoryMutationGeneration) {
+    // A directory commit invalidated this root snapshot. Read again so a
+    // visible load cannot be left waiting forever for a discarded response.
+    return loadWorkspaceFileTree(workspacePath, shouldCommit)
+  }
+  if (pendingVisualLoadPath === workspacePath) pendingVisualLoadPath = null
+  useWorkspaceStore.setState({
+    fileTree: applyLoadedChildren(rootNodes, childrenByPath),
+    fileTreeLoadState: 'idle',
   })
 
 }
@@ -173,7 +166,7 @@ export async function chooseAndCreateWorkspace(): Promise<Workspace | null> {
 }
 
 /**
- * Scope 刷新统一入口:清选中、清编辑器缓存、刷 git、带扫描线重拉文件树。
+ * Scope 刷新统一入口:清选中、清编辑器缓存、刷 git、带加载反馈重拉文件树。
  * 调用方只传 scope 根目录;是否提交由 scope 竞态守卫决定。
  */
 export async function refreshScopeFileTree(scopePath: string, visual = true): Promise<void> {
@@ -189,7 +182,7 @@ export async function refreshScopeFileTree(scopePath: string, visual = true): Pr
 }
 
 /**
- * 切换活动 worktree 并走扫描线加载;目标已是当前 scope 时直接返回 false。
+ * 切换活动 worktree 并走可视加载;目标已是当前 scope 时直接返回 false。
  */
 export async function switchActiveWorktree(workspaceId: string, nextPath: string): Promise<boolean> {
   const { workspaces } = useWorkspaceStore.getState()

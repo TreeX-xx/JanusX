@@ -29,7 +29,7 @@ for (const engine of ['codex', 'opencode'] as const) describe(`${engine} edit co
       ])
       if (engine === 'opencode') expect(wire.api).toHaveBeenCalledWith('/api/session/thread/revert/stage', { messageID: 'old', files: false })
       else { expect(wire.call).toHaveBeenCalledWith('thread/revert', { threadId: 'thread', beforeTurnId: 'old' }); expect(c.state.plans).toEqual([]) }
-      await expect(c.command({ ...command, text: 'reused identity' })).rejects.toThrow('Command ID reused')
+      await expect(c.command({ ...command, text: 'reused identity' })).rejects.toThrow('Command identity reused')
     } finally { await c.dispose() }
   })
 

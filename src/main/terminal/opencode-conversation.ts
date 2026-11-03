@@ -8,6 +8,8 @@ import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import type { NativeCatalogEntry } from './conversation-catalog'
 import { NativeConversation, type NativeLaunch } from './native-conversation'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../shared/conversation-display'
+import { openCodeAnswer, openCodeQuestions } from './opencode-questions'
+import { hasBlockingQuestions } from '../../shared/conversation-questions'
 
 type Json = Record<string, any> // Native API boundary; validate actual responses rather than CLI versions.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -47,6 +49,7 @@ export class OpenCodeConversation extends NativeConversation {
   private nativeSelectionRevision = 0
   private nativeSelectionsPending = 0
   private nativeSelectionUncertain = false
+  private interactionRevision = 0
   constructor(id: string, publish: (snapshot: ConversationSnapshot) => void, bind?: (id: string) => void) {
     super(id, 'opencode', publish, bind)
     this.state.capabilities.settings = true
@@ -54,6 +57,7 @@ export class OpenCodeConversation extends NativeConversation {
     this.state.capabilities.liveInput = true
     this.state.capabilities.steer = true
     this.state.capabilities.commands = true
+    this.state.capabilities.questions = true
   }
   start(options: NativeLaunch): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
     if (this.startup || this.disposed) throw new Error('OpenCode session already started')
@@ -96,7 +100,7 @@ export class OpenCodeConversation extends NativeConversation {
       if (selectsSession && (this.state.mode === 'conversation' || this.state.settingsUpdating || this.state.submitting)) {
         response.writeHead(409).end('JanusX conversation view owns input'); return
       }
-      if (['POST', 'DELETE'].includes(request.method ?? '') && /^\/api\/session\/[^/]+\/(model|prompt|command|revert)(?:\/|\?|$)/.test(request.url ?? '')
+      if (['POST', 'DELETE'].includes(request.method ?? '') && /^\/api\/session\/[^/]+\/(model|prompt|command|revert|permission|form)(?:\/|\?|$)/.test(request.url ?? '')
         && (this.state.mode === 'conversation' || this.state.settingsUpdating || this.state.submitting)) {
         response.writeHead(409).end('JanusX conversation view owns input'); return
       }
@@ -155,8 +159,8 @@ export class OpenCodeConversation extends NativeConversation {
     return { command: binary, args: ['--server', `http://127.0.0.1:${proxyAddress.port}`, '--session', info.data.id, options.cwd],
       env: { OPENCODE_SERVER_PASSWORD: this.password, OPENCODE_CLI_CONFIG_CONTENT: terminalConfig } }
   }
-  private async api(path: string, body?: unknown): Promise<Json> {
-    const response = await fetch(this.endpoint + path, { method: body === undefined ? 'GET' : 'POST',
+  private async api(path: string, body?: unknown, method?: string): Promise<Json> {
+    const response = await fetch(this.endpoint + path, { method: method ?? (body === undefined ? 'GET' : 'POST'),
       headers: { Authorization: `Basic ${Buffer.from(`opencode:${this.password}`).toString('base64')}`, 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(5000)]) })
     if (!response.ok) throw new Error(`OpenCode ${response.status}: ${(await response.text()).slice(0, 1000)}`)
@@ -169,6 +173,40 @@ export class OpenCodeConversation extends NativeConversation {
     const effort = key ? ref?.variant ?? 'default' : null
     if (key === this.state.model && effort === this.state.effort) return
     this.state.model = key; this.state.effort = effort; this.changed()
+  }
+  private syncInteractions(permissions: Json[], forms: Json[]): void {
+    const sessionId = this.state.threadId!
+    const base = `/api/session/${encodeURIComponent(sessionId)}`
+    const pending = new Set<string>()
+    let unsupported = false
+    for (const permission of permissions) {
+      if (typeof permission.id !== 'string' || permission.sessionID !== sessionId || typeof permission.action !== 'string') { unsupported = true; continue }
+      const id = `permission:${permission.id}`
+      pending.add(id)
+      const options = [{ id: 'once', label: 'Allow once' }, ...(permission.save?.length ? [{ id: 'always', label: `Always allow: ${permission.save.join(', ')}` }] : []), { id: 'reject', label: 'Reject' }]
+      this.session.questions.ask({ id, itemId: permission.source?.id, cancelable: false, questions: [{ id: 'decision', header: 'Permission', text: permission.message ?? permission.action,
+        detail: Array.isArray(permission.resources) ? permission.resources.join('\n') : undefined, options }] }, async answer => {
+        this.interactionRevision++
+        try { await this.api(`${base}/permission/${encodeURIComponent(permission.id)}/reply`, { decision: answer.answers[0].selected[0] }) }
+        finally { this.interactionRevision++ }
+      })
+    }
+    for (const form of forms) {
+      const questions = openCodeQuestions(form.fields, typeof form.title === 'string' ? form.title : 'Your answer')
+      if (typeof form.id !== 'string' || form.sessionID !== sessionId || !questions) { unsupported = true; continue }
+      const id = `form:${form.id}`
+      pending.add(id)
+      this.session.questions.ask({ id, questions, cancelable: true }, async answer => {
+        this.interactionRevision++
+        const path = `${base}/form/${encodeURIComponent(form.id)}`
+        try {
+          if (answer.cancelled) await this.api(path, undefined, 'DELETE')
+          else await this.api(`${path}/reply`, { answer: openCodeAnswer(form.fields, answer) })
+        } finally { this.interactionRevision++ }
+      })
+    }
+    for (const request of this.state.questions ?? []) if (!pending.has(String(request.id))) this.session.questions.resolve(request.id)
+    this.receive({ type: 'attention', pending: unsupported || !!this.state.questions?.some(request => request.status === 'unknown') })
   }
   private pauseNativeSelection(error: string): void {
     if (this.disposed) return
@@ -195,6 +233,7 @@ export class OpenCodeConversation extends NativeConversation {
       this.rendered.clear(); this.lastUser = ''
       this.state.threadId = null; this.state.turnId = null; this.state.turnStartedAt = undefined
       this.state.items = []; this.state.approvals = []; this.state.truncated = false
+      this.session.questions.clear(); this.interactionRevision++
       this.state.model = null; this.state.effort = null
       this.state.controlEpoch++
       this.receive({ type: 'session', sessionId: id })
@@ -271,7 +310,7 @@ export class OpenCodeConversation extends NativeConversation {
     if (command.type !== 'models' && command.type !== 'settings') return super.command(command)
     this.session.guard(command, this.disposed)
     if (command.type === 'models') { await this.loadModels(); return this.snapshot() }
-    if (this.state.submitting || this.state.turnId || this.state.needsTerminal) throw new Error('Wait until OpenCode is idle before changing settings')
+    if (this.state.submitting || this.state.turnId || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until OpenCode is idle before changing settings')
     const option = this.state.models.find(model => model.model === command.model)
     const ref = this.modelRefs.get(command.model)
     const effort = command.effort ?? 'default'
@@ -342,9 +381,10 @@ export class OpenCodeConversation extends NativeConversation {
             }
           }
           if (!idle && turn && !this.state.turnId) this.receive({ type: 'start', turnId: turn })
+          const interactionRevision = this.interactionRevision
           const [permissions, forms] = await Promise.all([this.api(`/api/session/${session}/permission`), this.api(`/api/session/${session}/form`)])
           if (historyRevision !== this.historyRevision || this.nativeSelectionsPending || this.nativeSelectionUncertain) continue
-          this.receive({ type: 'attention', pending: (permissions.data?.length ?? 0) > 0 || (forms.data?.length ?? 0) > 0 })
+          if (interactionRevision === this.interactionRevision) this.syncInteractions(permissions.data ?? [], forms.data ?? [])
           await delay(250)
         } catch (error) {
           if (historyRevision !== this.historyRevision || this.nativeSelectionsPending || this.nativeSelectionUncertain) continue

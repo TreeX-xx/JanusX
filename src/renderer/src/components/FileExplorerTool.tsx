@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useWorktreeStore } from '@/stores/worktree'
@@ -27,7 +27,7 @@ import type { FileNode, GitFileChange } from '@/types'
 import { warmupEditorRuntime } from '@/lib/editor-warmup'
 import { PromptDialog } from '@/components/common/PromptDialog'
 import { FileTreeItem } from '@/components/file-tree/FileTreeItem'
-import { SCAN_BASE_MS } from '@/components/file-tree/scan-timing'
+import { WorkspaceTransition } from '@/components/shared/WorkspaceTransition'
 import { useI18n } from '@/i18n/useI18n'
 import styles from '@/components/file-tree/file-tree.module.css'
 import {
@@ -189,7 +189,7 @@ export function FileExplorerTool({ active = true }: { active?: boolean }) {
       activeScopePath,
       () => getActiveScopePath() === activeScopePath,
       { visualTransition: true },
-    )
+    ).catch(() => {})
   }, [activeScopePath])
 
   const openWorkspaceInVSCode = useCallback(async () => {
@@ -212,28 +212,6 @@ export function FileExplorerTool({ active = true }: { active?: boolean }) {
     setSearchQuery('')
     if (fileTreeViewportRef.current) fileTreeViewportRef.current.scrollTop = 0
   }, [activeScopePath])
-
-  const finishFileTreeReveal = useCallback(() => {
-    useWorkspaceStore.setState((state) =>
-      state.fileTreeLoadState === 'revealing' ? { fileTreeLoadState: 'idle' } : {},
-    )
-  }, [])
-
-  // overlay 挂在滚动容器 .treeViewport 内，高度即为可见视口高度，与内容长度无关；
-  // 时长固定为 SCAN_BASE_MS，reveal 中途不再改时长，避免重启动画造成扫一半跳回或卡住。
-  useLayoutEffect(() => {
-    if (fileTreeLoadState !== 'revealing') return
-    const viewport = fileTreeViewportRef.current
-    if (viewport && viewport.scrollTop !== 0) viewport.scrollTop = 0
-  }, [fileTreeLoadState, activeScopePath])
-
-  // animationend 是唯一结束路径时，切后台或动画被中断就会卡在遮罩态；按固定时长兜底收尾，
-  // 保证每次切换后工作区文件一定可见。
-  useEffect(() => {
-    if (fileTreeLoadState !== 'revealing') return
-    const timer = window.setTimeout(finishFileTreeReveal, SCAN_BASE_MS + 150)
-    return () => window.clearTimeout(timer)
-  }, [fileTreeLoadState, activeScopePath, finishFileTreeReveal])
 
   // 外部 FS 变更/重命名/删除后,丢弃树上已不存在的展开路径
   useEffect(() => {
@@ -585,10 +563,16 @@ export function FileExplorerTool({ active = true }: { active?: boolean }) {
             <ExternalLink size={14} aria-hidden="true" />
           </button>
         </div>
+        <WorkspaceTransition
+          scopeKey={activeScopePath ? `${activeWorkspaceId}:${activeScopePath}` : null}
+          pending={fileTreeLoadState === 'loading'}
+          active={active}
+          name={workspaces.find(workspace => workspace.id === activeWorkspaceId)?.name}
+        >
         <div
           ref={fileTreeViewportRef}
           data-testid="file-explorer-content"
-          aria-busy={fileTreeLoadState === 'loading' || fileTreeLoadState === 'revealing'}
+          aria-busy={fileTreeLoadState === 'loading'}
           aria-label={t('editor:fileTree.ariaContent')}
           className={`no-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5 text-xs ${styles.treeViewport}`}
           onContextMenu={(event) => {
@@ -641,23 +625,8 @@ export function FileExplorerTool({ active = true }: { active?: boolean }) {
               </div>
             )}
           </div>
-          {/* 遮罩与光线挂在滚动容器 .treeViewport 内：inset:0 即可见视口高度，光线每次完整走完可见区；
-              之前挂在 .tree 内拿的是内容高度，长树后半程跑到折叠线以下，看起来像提前消失。 */}
-          {fileTreeLoadState === 'revealing' && (
-            <div
-              key={activeScopePath ?? 'empty'}
-              className={styles.scanOverlay}
-              style={{ '--scan-duration': `${SCAN_BASE_MS}ms` } as CSSProperties}
-              aria-hidden="true"
-              onAnimationEnd={(event) => {
-                if (event.target === event.currentTarget) finishFileTreeReveal()
-              }}
-            >
-              <div className={styles.scanMask} />
-              <div className={styles.scanBeam} />
-            </div>
-          )}
         </div>
+        </WorkspaceTransition>
       </div>
 
       {active && contextMenu ? (

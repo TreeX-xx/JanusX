@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { join, dirname } from 'node:path'
-import { writeFile, mkdir, copyFile, readFile } from 'node:fs/promises'
+import { writeFile, appendFile, mkdir, copyFile, readFile } from 'node:fs/promises'
 import pty from 'node-pty'
 import { PiConversation } from '../../src/main/terminal/extension-conversation'
 import { nativeConversationFixture } from '../helpers/native-conversation-fixture'
@@ -16,6 +16,15 @@ describe.skipIf(!binary || process.platform !== 'win32')('Pi native dual mode', 
     const extension = join(f.root, 'probe-extension.mjs')
     const marker = join(f.root, 'command.txt')
     await writeFile(extension, 'import {writeFile} from "node:fs/promises";export default pi=>{pi.registerCommand("probe-local",{description:"Local command",handler:async args=>{await writeFile(' + JSON.stringify(marker) + ',args)}});pi.registerTool({name:"fixture_image",label:"Fixture image",description:"Return a local test image",parameters:{type:"object",properties:{}},execute:async()=>({content:[{type:"image",mimeType:"image/png",data:' + JSON.stringify(PNG_PIXEL) + '}],details:{}})})}')
+    // Exercise the installed ExtensionUIContext, including a menu that is not a model tool.
+    const questionExtension = join(f.root, 'question-extension.mjs')
+    await appendFile(questionExtension, `import {writeFile} from 'node:fs/promises';export default pi=>pi.registerCommand('probe-question', {description:'Native questions', handler:async (_args,ctx)=>{
+      const yes=await ctx.ui.confirm('Continue?', 'Apply once');
+      const choice=await ctx.ui.select('Pick one', ['First','Second']);
+      const text=await ctx.ui.input('Type something','Write here');
+      const editor=await ctx.ui.editor('Edit notes','Original');
+      await writeFile(${JSON.stringify(marker + '.json')},JSON.stringify({yes,choice,text,editor}));
+    }})`)
     const snapshots: ReturnType<PiConversation['snapshot']>[] = []
     const c = new PiConversation('pi-test', s => snapshots.push(s))
     let terminal: pty.IPty | undefined, output = ''
@@ -24,7 +33,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('Pi native dual mode', 
       while (!fn()) { if (Date.now() > end) throw new Error(`${label}: ${JSON.stringify(c.snapshot())}\n${output.slice(-3000)}`); await new Promise(r => setTimeout(r, 50)) }
     }
     try {
-      const launch = await c.start({ command: binary!, args: ['--provider', 'fixture', '--model', 'fixture', '--no-skills', '--no-prompt-templates', '--no-themes', '--extension', extension], cwd: f.cwd, env: f.env, assetsDir: join(f.root, 'assets') })
+      const launch = await c.start({ command: binary!, args: ['--provider', 'fixture', '--model', 'fixture', '--no-skills', '--no-prompt-templates', '--no-themes', '--extension', extension, '--extension', questionExtension], cwd: f.cwd, env: f.env, assetsDir: join(f.root, 'assets') })
       // npm's shim is not directly executable by ConPTY; use the same package's entry.
       terminal = pty.spawn(process.execPath, [join(dirname(binary!), 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'), ...launch.args], { cwd: f.cwd, env: f.env as Record<string, string>, cols: 120, rows: 35 })
       terminal.onData(data => { output += data })
@@ -43,6 +52,15 @@ describe.skipIf(!binary || process.platform !== 'win32')('Pi native dual mode', 
       expect(await readFile(marker, 'utf8')).toBe('LOCAL_COMMAND_OK')
       expect(f.requests).toHaveLength(beforeCommand)
       expect(c.state.commandReceipts?.at(-1)).toEqual({ id: 'local-command', status: 'accepted' })
+      const questionCommand = c.state.commands!.find(entry => entry.name === 'probe-question')!
+      await c.command({ type: 'invoke', entryId: questionCommand.id, arguments: '', catalogRevision: c.state.commandsRevision!, commandId: 'questions', controlEpoch: c.state.controlEpoch })
+      for (const [title, selected, text] of [['Continue?', ['1'], undefined], ['Pick one', ['1'], undefined], ['Type something', [], '中文 typed'], ['Edit notes', [], 'Edited\nnotes']] as const) {
+        await wait(() => c.state.questions?.[0]?.questions[0]?.text === title, title)
+        const q = c.state.questions![0]
+        await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'answer', selected: [...selected], ...(text ? { text } : {}) }] } })
+      }
+      expect(JSON.parse(await readFile(marker + '.json', 'utf8'))).toEqual({ yes: false, choice: 'Second', text: '中文 typed', editor: 'Edited\nnotes' })
+      expect(f.requests).toHaveLength(beforeCommand)
       const send = (text: string) => c.command({ type: 'send', text, commandId: text, controlEpoch: c.state.controlEpoch })
       await send('NATIVE_IMAGE')
       await wait(() => c.state.items.some(item => item.images?.[0].status === 'ready'), 'native tool image')

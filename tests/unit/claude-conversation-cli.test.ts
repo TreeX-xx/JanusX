@@ -11,6 +11,47 @@ import { claudeConversationFixture } from '../helpers/claude-conversation-fixtur
 const binary = process.env.JANUSX_TEST_CLAUDE_BIN
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native dialog', () => {
+  it('answers native questions with choices and custom text without an attached terminal', async () => {
+    const fixture = await claudeConversationFixture()
+    const main = new ClaudeConversation('claude-questions', () => {})
+    let setup: pty.IPty | undefined, exited = false, output = ''
+    const until = async (fn: () => boolean, label: string) => {
+      const end = Date.now() + 20000
+      while (!fn()) { if (Date.now() > end) throw new Error(`${label}: ${JSON.stringify(main.snapshot())}\n${output.slice(-1000)}`); await delay(50) }
+    }
+    const clean = () => output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/\s/g, '')
+    try {
+      setup = pty.spawn(binary!, ['--model', 'claude-sonnet-4-6', '--tools', ''], { cwd: fixture.cwd, env: fixture.env as Record<string, string>, cols: 130, rows: 36 })
+      setup.onData(data => { output += data }); setup.onExit(() => { exited = true })
+      await until(() => output.includes('trust'), 'trust'); await delay(1200)
+      setup.write('\x1b[B'); await delay(200); setup.write('\r'); await delay(1500)
+      await until(() => clean().includes('DoyouwanttousethisAPIkey'), 'key')
+      setup.write('\x1b[A'); await delay(200); setup.write('\r')
+      await until(() => clean().includes('Sonnet4.6'), 'ready'); await delay(500)
+      await promisify(execFile)('taskkill', ['/PID', String(setup.pid), '/T', '/F'], { windowsHide: true })
+      await until(() => exited, 'setup exit')
+      await main.start({ command: binary!, args: ['--model', 'claude-sonnet-4-6', '--tools', 'AskUserQuestion', '--permission-mode', 'manual'],
+        cwd: fixture.cwd, env: { ...fixture.env, JANUSX_HOOK_TERMINAL_ID: main.id }, assetsDir: join(fixture.root, 'assets') })
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await main.command({ type: 'send', text: 'CC_QUESTION', commandId: 'question', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.questions?.length === 1, 'question projected')
+      const request = main.state.questions![0]
+      expect(main.state.needsTerminal).toBe(false)
+      await main.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: main.state.controlEpoch,
+        answer: { answers: [{ id: '0', selected: ['1'] }, { id: '1', selected: ['0', '1'] }, { id: '2', selected: [], text: '中文 notes from conversation' }] } })
+      await until(() => !main.state.turnId && main.state.items.some(item => item.type === 'agentMessage' && item.text.includes('CC_QUESTION final')), 'native consumes answers')
+      const result = fixture.requests.filter(r => r.marker === 'CC_QUESTION' && r.stream).at(-1)
+      expect(JSON.stringify(result.messages)).toContain('中文 notes from conversation')
+      expect(JSON.stringify(result.messages)).toContain('Unit, Browser')
+      expect(main.state.questions).toEqual([])
+      expect(main.state.items.filter(item => item.type === 'userMessage')).toHaveLength(1)
+    } finally {
+      await mkdir('artifacts/conversation-interactions', { recursive: true })
+      await writeFile('artifacts/conversation-interactions/claude-native.json', JSON.stringify({ state: main.snapshot(), root: fixture.root, requests: fixture.requests }, null, 2))
+      if (setup && !exited) setup.kill()
+      await main.dispose(); await fixture.close()
+    }
+  })
   it('settles real background work without an attached native transcript', async () => {
     const fixture = await claudeConversationFixture()
     const main = new ClaudeConversation('claude-background', () => {})

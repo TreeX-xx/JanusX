@@ -13,6 +13,7 @@ import type { TerminalPreset } from '@/types'
 import { mergeTranscriptTurns } from '@/lib/session-turn-merge'
 import { EXTERNAL_SESSION_SYNC_MS, startExternalSessionSync } from '@/lib/external-session-sync'
 import styles from './SessionPanel.module.css'
+import { WorkspaceTransition } from './shared/WorkspaceTransition'
 
 /** 会话 engine 与终端 preset 同名；未知 engine 落到 shell 字形（与旧 fallback 一致）。 */
 function sessionEnginePreset(engine: string): TerminalPreset {
@@ -122,6 +123,8 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
     scopePath ? (s.uiByPath[scopePath]?.expandedSessionId ?? null) : null,
   )
   const [scope, setScope] = useState<Scope>('workspace')
+  const expectedScopeKey = scope === 'all' || scope === 'archived' ? scope
+    : scopePath ? `cwd:${scopePath}` : activeWorkspaceId ? `ws:${activeWorkspaceId}` : null
   const [continueTarget, setContinueTarget] = useState<AgentSessionSummary | null>(null)
   const [continuing, setContinuing] = useState(false)
   const [sourceError, setSourceError] = useState('')
@@ -265,6 +268,12 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
         </div>
       </div>
 
+      <WorkspaceTransition
+        scopeKey={expectedScopeKey}
+        pending={loading || (scopeKey !== null && scopeKey !== expectedScopeKey)}
+        active={active}
+        name={scope === 'all' || scope === 'archived' ? undefined : activeWorkspace?.name}
+      >
       <div
         ref={listRef}
         className={`flex-1 flex flex-col ${styles.sessionList}`}
@@ -309,6 +318,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
           />
         ))}
       </div>
+      </WorkspaceTransition>
 
       {detailTarget && createPortal(
         <SessionDetailWindow

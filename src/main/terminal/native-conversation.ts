@@ -2,8 +2,10 @@ import { ConversationCatalog, type NativeCatalogEntry } from './conversation-cat
 import { ConversationSession, conversationState } from './conversation-session'
 import { randomUUID } from 'node:crypto'
 import type { ConversationCommand, ConversationEngine, ConversationItem, ConversationSnapshot } from '../../shared/conversation-display'
+import type { ConversationQuestionAnswer, ConversationQuestionRequest } from '../../shared/conversation-questions'
 
-export type NativeEvent = { type: 'session' | 'start' | 'end' | 'item' | 'attention' | 'error'; sessionId?: string; path?: string; model?: string; turnId?: string; item?: ConversationItem; pending?: boolean; error?: string; outcome?: 'completed' | 'interrupted' | 'failed' }
+export type NativeEvent = { type: 'session' | 'start' | 'end' | 'item' | 'attention' | 'error' | 'question' | 'question-resolved'; sessionId?: string; path?: string; model?: string; turnId?: string; item?: ConversationItem; pending?: boolean; error?: string; outcome?: 'completed' | 'interrupted' | 'failed'; request?: Omit<ConversationQuestionRequest, 'version' | 'status'>; requestId?: string | number }
+export type NativeCommand = { id: string; type: 'send' | 'interrupt' | 'answer'; text?: string; sessionId: string; turnId: string | null; requestId?: string | number; answer?: ConversationQuestionAnswer }
 export type NativeLaunch = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; assetsDir: string; pathDir?: string }
 
 /** Common control fences for native adapters. Execution remains in the provider. */
@@ -49,6 +51,14 @@ export abstract class NativeConversation {
       else this.state.items.push({ ...next, receivedAt: next.receivedAt ?? Date.now() })
       this.session.discoverImages(next.id)
       if (this.state.items.length > 500) { this.state.items.shift(); this.state.truncated = true }
+    } else if (event.type === 'question' && event.request) {
+      const request = event.request
+      const sessionId = this.state.threadId!
+      this.session.questions.ask(request, async answer => {
+        await this.deliver({ id: randomUUID(), type: 'answer', requestId: request.id, answer, sessionId, turnId: this.state.turnId })
+      })
+    } else if (event.type === 'question-resolved' && event.requestId !== undefined) {
+      this.session.questions.resolve(event.requestId)
     } else if (event.type === 'attention') {
       if (this.state.needsTerminal === !!event.pending) return
       this.state.needsTerminal = !!event.pending
@@ -57,12 +67,13 @@ export abstract class NativeConversation {
     this.changed()
   }
   protected async loadCommands(): Promise<NativeCatalogEntry[]> { return [] }
-  protected abstract deliver(command: { id: string; type: 'send' | 'interrupt'; text?: string; sessionId: string; turnId: string | null }): Promise<void>
+  protected abstract deliver(command: NativeCommand): Promise<void>
   protected async editHistory(_item: ConversationItem): Promise<void> { throw new Error('Native history editing is unavailable') }
   async command(command: ConversationCommand): Promise<ConversationSnapshot> {
     if (this.disposed) throw new Error('Session closed')
     if (command.type === 'mode') return this.session.mode(command, this.disposed)
     this.session.guard(command, this.disposed)
+    if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type !== 'send' && command.type !== 'edit' && command.type !== 'interrupt') throw new Error('Use the native terminal for this action')
     if (command.type === 'send' || command.type === 'edit') {

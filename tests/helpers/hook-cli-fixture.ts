@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { PNG_PIXEL } from './image-fixture'
 
 /** Local-only models: no credentials or provider network access in CLI acceptance. */
-export async function hookCliFixture(options: { codexImageProbe?: boolean; codexCommandProbe?: boolean; codexPlanProbe?: boolean; codexLiveProbe?: boolean } = {}) {
+export async function hookCliFixture(options: { codexQuestionProbe?: boolean; codexImageProbe?: boolean; codexCommandProbe?: boolean; codexPlanProbe?: boolean; codexLiveProbe?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'janusx-hook-cli-'))
   const home = join(root, "home space's 中文")
   const cwd = join(root, "workspace space's 中文")
@@ -44,6 +44,18 @@ export async function hookCliFixture(options: { codexImageProbe?: boolean; codex
       responseRequests.push({ model: body.model, effort: body.reasoning?.effort, input: JSON.stringify(body.input) })
       res.writeHead(200, { 'Content-Type': 'text/event-stream' })
       const lastUser = (body.input ?? []).filter((item: any) => item.role === 'user').at(-1)
+      if (options.codexQuestionProbe && body.tools?.some((tool: any) => tool.name === 'request_user_input') && !body.input?.some((item: any) => item.call_id === 'fixture_question')) {
+        const tool = { id: 'question_fixture', type: 'function_call', name: 'request_user_input', call_id: 'fixture_question', status: 'completed',
+          arguments: JSON.stringify({ questions: [
+            { id: 'choice', header: 'Confirm', question: 'Proceed?', options: [{ label: 'Yes', description: 'Proceed once' }, { label: 'No', description: 'Keep current state' }] },
+            { id: 'notes', header: 'Notes', question: 'Type something', options: [{ label: 'None', description: 'No notes' }, { label: 'Later', description: 'Add later' }] },
+          ] }) }
+        const response = { id: 'question_response', object: 'response', status: 'completed', model: body.model, output: [tool] }
+        event('response.created', { response: { ...response, status: 'in_progress', output: [] } })
+        event('response.output_item.added', { output_index: 0, item: tool })
+        event('response.output_item.done', { output_index: 0, item: tool })
+        event('response.completed', { response }); res.end(); return
+      }
       if (options.codexPlanProbe && body.tools?.some((tool: any) => tool.name === 'update_plan')
         && JSON.stringify(lastUser).includes('TERMINAL_FIRST') && body.input?.at(-1)?.type !== 'function_call_output') {
         const tool = { id: 'plan_fixture', type: 'function_call', name: 'update_plan', call_id: 'fixture_plan', status: 'completed',

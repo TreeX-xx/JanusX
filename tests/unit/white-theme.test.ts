@@ -35,7 +35,7 @@ describe('white theme', () => {
   it('keeps small text and semantic feedback readable on white surfaces', () => {
     const { tokens } = getThemeDefinition('white')
     for (const surface of ['shell-canvas', 'shell-chrome', 'shell-pane-chrome', 'tool-canvas', 'popover-background']) {
-      for (const foreground of ['shell-text', 'shell-muted', 'shell-dim', 'shell-accent', 'status-success', 'status-warning', 'status-danger', 'status-info']) {
+      for (const foreground of ['shell-text', 'shell-muted', 'shell-dim', 'shell-accent', 'status-success', 'status-warning', 'status-danger', 'status-info', 'git-lane-blue', 'git-lane-purple', 'git-lane-green', 'git-lane-slate']) {
         expect(contrast(tokens[foreground], tokens[surface]), `${foreground} on ${surface}`).toBeGreaterThanOrEqual(4.5)
       }
     }

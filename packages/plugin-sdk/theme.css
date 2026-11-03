@@ -5,6 +5,10 @@
 :root, [data-theme='dark'] {
   color-scheme: dark;
   --theme-color-scheme: dark;
+  --git-lane-blue: #7d9cac;
+  --git-lane-purple: #a591b5;
+  --git-lane-green: #8b9d78;
+  --git-lane-slate: #869fb2;
   --modal-backdrop: rgba(8, 8, 10, 0.62);
   --usage-claude: #e69a79;
   --usage-codex: #6ac6bd;
@@ -147,6 +151,10 @@
 [data-theme='planche'] {
   color-scheme: light;
   --theme-color-scheme: light;
+  --git-lane-blue: #486b7f;
+  --git-lane-purple: #765d8d;
+  --git-lane-green: #526e42;
+  --git-lane-slate: #526b91;
   --modal-backdrop: rgba(8, 8, 10, 0.62);
   --usage-claude: #c4623d;
   --usage-codex: #247e83;
@@ -297,6 +305,10 @@
 [data-theme='white'] {
   color-scheme: light;
   --theme-color-scheme: light;
+  --git-lane-blue: #486b7f;
+  --git-lane-purple: #765d8d;
+  --git-lane-green: #526e42;
+  --git-lane-slate: #526b91;
   --modal-backdrop: rgba(8, 8, 10, 0.62);
   --usage-claude: #c4623d;
   --usage-codex: #247e83;

@@ -7,6 +7,43 @@ import { nativeConversationFixture } from '../helpers/native-conversation-fixtur
 
 const binary = process.env.JANUSX_TEST_OPENCODE_BIN
 describe.skipIf(!binary || process.platform !== 'win32')('OpenCode native dual mode', () => {
+  it('answers native permissions and typed forms through the owned service', async () => {
+    const f = await nativeConversationFixture()
+    f.env.OPENCODE_TEST_HOME = f.root
+    f.env.OPENCODE_CONFIG_CONTENT = JSON.stringify({ update: 'disable', share: 'disabled', snapshots: false, permissions: [{ action: 'fixture.approval', resource: '*', effect: 'ask' }] })
+    const c = new OpenCodeConversation('oc-questions', () => {})
+    let permissionOutcome: unknown
+    const api = (path: string, body?: unknown) => (c as any).api(path, body)
+    const wait = async (fn: () => boolean) => {
+      const end = Date.now() + 10000
+      while (!fn()) { if (Date.now() > end) throw new Error(JSON.stringify({ state: c.snapshot(), permissionOutcome })); await new Promise(r => setTimeout(r, 50)) }
+    }
+    try {
+      await c.start({ command: binary!, args: [], cwd: f.cwd, env: f.env, assetsDir: join(f.root, 'assets') })
+      await c.command({ type: 'mode', mode: 'conversation' })
+      await c.command({ type: 'models', controlEpoch: c.state.controlEpoch })
+      const base = `/api/session/${c.state.threadId}`
+      const form = await api(`${base}/form`, { title: 'Native form', fields: [
+        { key: 'yes', type: 'boolean', title: 'Continue?', required: true },
+        { key: 'choices', type: 'multiselect', title: 'Checks', required: true, custom: true, options: [{ value: 'unit', label: 'Unit' }, { value: 'browser', label: 'Browser' }] },
+        { key: 'text', type: 'string', title: 'Type something', required: true },
+      ] })
+      await wait(() => c.state.questions?.some(q => q.id === `form:${form.data.id}`) === true)
+      let q = c.state.questions![0]
+      await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [
+        { id: 'yes', selected: ['false'] }, { id: 'choices', selected: ['unit', 'browser'], text: 'custom' }, { id: 'text', selected: [], text: '中文 typed' },
+      ] } })
+      expect((await api(`${base}/form`)).data).toEqual([])
+      const result = await api(`${base}/form/${form.data.id}`)
+      expect(JSON.stringify(result)).toContain('中文 typed')
+      const pending = api(`${base}/permission`, { action: 'fixture.approval', resources: ['fixture'], save: ['fixture'] }).then((value: unknown) => { permissionOutcome = value; return value }, (error: unknown) => { permissionOutcome = String(error); return String(error) })
+      await wait(() => c.state.questions?.some(q => String(q.id).startsWith('permission:')) === true)
+      q = c.state.questions!.find(q => String(q.id).startsWith('permission:'))!
+      await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'decision', selected: ['reject'] }] } })
+      await pending
+      expect((await api(`${base}/permission`)).data).toEqual([])
+    } finally { await c.dispose(); f.close() }
+  })
   it('shares terminal and dialog prompts and cancels through the owned service', async () => {
     const f = await nativeConversationFixture()
     f.env.OPENCODE_TEST_HOME = f.root

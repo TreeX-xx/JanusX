@@ -49,7 +49,7 @@ interface WorkspaceStore {
   focusedTabId: string | null
   fileTree: FileNode[]
   activeFilePath: string | null
-  fileTreeLoadState: 'idle' | 'loading' | 'revealing' | 'error'
+  fileTreeLoadState: 'idle' | 'loading' | 'error'
   /*-- tab 拖拽进行中：拖拽期间隐藏浏览器原生视图，让 pane 落点区恢复为 DOM 可命中 --*/
   tabDragInFlight: boolean
 
@@ -271,6 +271,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     set({
       activeWorkspaceId: id,
       fileTree: [],
+      fileTreeLoadState: 'idle',
       activeFilePath: null,
       terminals: saved?.terminals ?? [],
       activeTerminalId: focus.terminalId,

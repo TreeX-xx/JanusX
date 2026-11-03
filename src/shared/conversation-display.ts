@@ -2,6 +2,7 @@
 export type ConversationEngine = 'codex' | 'claude' | 'opencode' | 'pi' | 'dsh'
 export function supportsConversation(engine: string): engine is ConversationEngine { return ['codex', 'claude', 'opencode', 'pi', 'dsh'].includes(engine) }
 export interface ConversationCapabilities {
+  questions?: boolean
   /** Supports a turn-pinned steer request, distinct from a native input queue. */
   steer?: boolean
   commands?: boolean
@@ -57,6 +58,7 @@ export interface ConversationApproval {
   itemId: string
   kind: 'command' | 'file'
   description: string
+  choices?: Array<{ id: string; label: string; description?: string }>
 }
 export interface ConversationModelOption {
   fastTier?: string
@@ -112,6 +114,7 @@ export interface ConversationSnapshot {
   submitting: boolean
   items: ConversationItem[]
   approvals: ConversationApproval[]
+  questions?: import('./conversation-questions').ConversationQuestionRequest[]
   needsTerminal: boolean
   truncated: boolean
   model: string | null
@@ -138,7 +141,8 @@ export type ConversationCommand =
   | { type: 'models'; controlEpoch: number }
   | { type: 'speed'; fast: boolean; controlEpoch: number }
   | { type: 'settings'; model: string; effort: string | null; controlEpoch: number }
-  | { type: 'approve'; requestId: string | number; decision: 'accept' | 'decline'; controlEpoch: number }
+  | { type: 'approve'; requestId: string | number; decision: string; controlEpoch: number }
+  | { type: 'answer'; requestId: string | number; version: number; answer: import('./conversation-questions').ConversationQuestionAnswer; controlEpoch: number }
 
 export interface ConversationStartup {
   id: number

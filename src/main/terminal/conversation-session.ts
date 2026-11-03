@@ -3,6 +3,8 @@ import { parseConversationSlashCommand, validateConversationDelivery } from '../
 import { storeConversationImage } from './conversation-images'
 import { createHash } from 'node:crypto'
 import { conversationImageLinks } from '../../shared/conversation-images'
+import { hasBlockingQuestions } from '../../shared/conversation-questions'
+import { ConversationQuestions } from './conversation-questions'
 
 // Design: .agents/notes/workbench/terminal-dialog-dual-mode.md
 // Composition only: transports, native events and process ownership stay in adapters.
@@ -14,13 +16,16 @@ export function conversationState(id: string, engine: ConversationEngine, capabi
 }
 
 export class ConversationSession {
+  readonly questions: ConversationQuestions
   private closed = false
   private imageRoot = ''
   private cwd = ''
   private imageJobs = new Map<string, string>()
   private timer?: ReturnType<typeof setTimeout>
   private sent = new Map<string, { identity: string; promise: Promise<void> }>()
-  constructor(readonly state: ConversationSnapshot, private publish: (snapshot: ConversationSnapshot) => void) {}
+  constructor(readonly state: ConversationSnapshot, private publish: (snapshot: ConversationSnapshot) => void) {
+    this.questions = new ConversationQuestions(state, () => this.changed())
+  }
   snapshot(): ConversationSnapshot { return structuredClone(this.state) }
   configureImages(root: string, cwd: string): void { this.imageRoot = root; this.cwd = cwd }
   discoverImages(itemId: string): void {
@@ -56,11 +61,11 @@ export class ConversationSession {
     else this.timer = setTimeout(() => { this.timer = undefined; this.publish(this.snapshot()) }, 32)
   }
   cancelPublish(): void { if (this.timer) clearTimeout(this.timer); this.timer = undefined }
-  stop(): void { this.closed = true; this.cancelPublish() }
+  stop(): void { this.closed = true; this.questions.clear(); this.cancelPublish() }
   mode(command: Extract<ConversationCommand, { type: 'mode' }>, disposed: boolean): ConversationSnapshot {
     if (disposed || this.closed) throw new Error('Session closed')
     if (command.mode !== 'terminal' && command.mode !== 'conversation') throw new Error('Invalid display mode')
-    if (this.state.submitting || this.state.settingsUpdating) throw new Error('Wait for the current delivery or settings update')
+    if (this.state.submitting || this.state.settingsUpdating || this.state.questions?.some(request => request.status === 'submitting')) throw new Error('Wait for the current delivery or settings update')
     if (this.state.mode !== command.mode) { this.state.mode = command.mode; this.state.controlEpoch++; this.changed() }
     return this.snapshot()
   }
@@ -79,7 +84,7 @@ export class ConversationSession {
     validateConversationDelivery(this.state, command)
     if (command.type !== 'invoke' && (typeof command.text !== 'string' || !command.text.trim() || command.text.length > 32000)) throw new Error('Invalid prompt length')
     if (command.type !== 'invoke' && parseConversationSlashCommand(command.text, this.state.commands)) throw new Error('Use the command menu or native terminal for slash commands')
-    if (this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || this.state.needsTerminal
+    if (this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal
       || (this.state.turnId && (command.type !== 'send' || !this.state.capabilities.liveInput))) throw new Error('Conversation is busy or needs terminal input')
     if (this.sent.size >= 2000) throw new Error('Conversation command limit reached; create a new terminal')
     this.state.submitting = true; this.changed()
