@@ -1,4 +1,6 @@
+import { Button as SettingsButton, SettingsLabel, Input as SettingsInput } from '@janusx/ui'
 import { SettingsCheckbox } from '../ui/SettingsCheckbox'
+import { Select } from '../ui/Select'
 import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — host-generated plugin settings.
 import { useEffect, useRef, useState } from 'react'
@@ -90,16 +92,14 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
     <p className={styles.hint}>{t('plugins:configurationHint')}</p>
     {Object.keys(patch).length > 0 && <p role="status">{t('plugins:configurationDraftHint')}</p>}
     {reviewing && <p role="status">{t('plugins:configurationReview')}</p>}
-    {customView && <button type="button" disabled={busy || !record.enabled || Boolean(Object.keys(patch).length)} onClick={() => {
+    {customView && <SettingsButton type="button" disabled={busy || !record.enabled || Boolean(Object.keys(patch).length)} onClick={() => {
       if (openExtensionView(`extension:${record.manifest.id}/${customView}`)) onOpened?.()
       else setFailure('CONTEXT_UNAVAILABLE')
-    }}>{t('plugins:configurationCustom')}</button>}
-    <label className={styles.row}>{t('plugins:configurationScope')}
-      <select aria-label={t('plugins:configurationScope')} value={projectScope ? 'project' : 'application'} disabled={busy} onChange={event => setScope(event.target.value as 'application' | 'project')}>
-        <option value="application">{t('plugins:configurationApplication')}</option>
-        {projectAllowed && <option value="project">{t('plugins:configurationProject')} · {project?.name} · {root}</option>}
-      </select>
-    </label>
+    }}>{t('plugins:configurationCustom')}</SettingsButton>}
+    <SettingsLabel className={styles.row}>{t('plugins:configurationScope')}
+      <Select ariaLabel={t('plugins:configurationScope')} value={projectScope ? 'project' : 'application'} disabled={busy} onChange={value => setScope(value as 'application' | 'project')}
+        options={[{ value: 'application', label: t('plugins:configurationApplication') }, ...(projectAllowed ? [{ value: 'project', label: `${t('plugins:configurationProject')} · ${project?.name} · ${root}` }] : [])]} />
+    </SettingsLabel>
     {configuration && settings.map(setting => {
       const value = valueFor(setting.key)
       const disabled = busy || projectScope && setting.scope !== 'project'
@@ -108,16 +108,15 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
       return <div key={setting.key} className={styles.configurationField}>
         <label>{setting.title}
           {setting.type === 'boolean' ? <SettingsCheckbox aria-label={setting.title} disabled={disabled} checked={Boolean(value)} onChange={event => change(event.target.checked)} />
-            : setting.type === 'enum' ? <select aria-label={setting.title} disabled={disabled} value={String(value)} onChange={event => change(event.target.value)}>
-              {setting.options.map(option => <option key={option} value={option}>{option}</option>)}
-            </select> : <input aria-label={setting.title} disabled={disabled} type={setting.type === 'number' ? 'number' : 'text'} value={String(value ?? '')}
+            : setting.type === 'enum' ? <Select ariaLabel={setting.title} disabled={disabled} value={String(value)} onChange={change}
+              options={setting.options.map(option => ({ value: option, label: option }))} /> : <SettingsInput aria-label={setting.title} disabled={disabled} type={setting.type === 'number' ? 'number' : 'text'} value={String(value ?? '')}
               min={setting.type === 'number' ? setting.minimum : undefined} max={setting.type === 'number' ? setting.maximum : undefined}
               step={setting.type === 'number' && setting.integer ? 1 : 'any'} maxLength={setting.type === 'string' ? setting.maxLength ?? 4096 : undefined}
               onChange={event => change(setting.type === 'number' ? (event.target.value === '' ? '' : Number(event.target.value)) : event.target.value)} />}
         </label>
         <span className={styles.hint}>{disabled && !busy ? t('plugins:configurationApplicationOnly') : overridden ? t('plugins:configurationOverride') : t('plugins:configurationInherited')}</span>
-        <button type="button" aria-label={`${t('plugins:configurationResetField')} ${setting.title}`} disabled={disabled || !overridden}
-          onClick={() => edit(setting.key, null)}>{t('plugins:configurationResetField')}</button>
+        <SettingsButton type="button" aria-label={`${t('plugins:configurationResetField')} ${setting.title}`} disabled={disabled || !overridden}
+          onClick={() => edit(setting.key, null)}>{t('plugins:configurationResetField')}</SettingsButton>
         {setting.description && <p className={styles.hint}>{setting.description}</p>}
       </div>
     })}
@@ -125,22 +124,22 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
     {configuration && configuration.migrations.length > 0 && <section aria-label={t('plugins:configurationMigration')}>
       <p className={styles.hint}>{t('plugins:configurationMigrationHint')}</p>
       <ul>{configuration.migrations.map(item => <li key={item.from}>{item.from} → {item.to} · {t(`plugins:configurationMigrationStatus.${item.status}`)}</li>)}</ul>
-      <button type="button" disabled={busy || Boolean(Object.keys(patch).length) || !configuration.migrations.some(item => item.status === 'ready')}
-        onClick={() => { void submit(false, true) }}>{t('plugins:configurationMigration')}</button>
+      <SettingsButton type="button" disabled={busy || Boolean(Object.keys(patch).length) || !configuration.migrations.some(item => item.status === 'ready')}
+        onClick={() => { void submit(false, true) }}>{t('plugins:configurationMigration')}</SettingsButton>
     </section>}
     {invalid && <p role="alert" className={styles.error}>{t('plugins:configurationInvalid')}</p>}
     {failure && <p role="alert" className={styles.error}>{failure === 'CONFIGURATION_CONFLICT' ? t('plugins:configurationConflict') : failure}</p>}
     {saved && <p role="status">{t('plugins:configurationSaved')}</p>}
     <div className={styles.actions}>
-      <button type="button" disabled={busy || !configuration || !Object.keys(patch).length || invalid} onClick={() => { void submit(false) }}>{t('plugins:configurationSave')}</button>
-      <button type="button" disabled={busy || !configuration} onClick={() => setConfirmDiscard('reset')}>{t('plugins:configurationReset')}</button>
-      <button type="button" disabled={busy} onClick={() => { if (Object.keys(patch).length) setConfirmDiscard('reload'); else void load() }}>{t('plugins:configurationReload')}</button>
+      <SettingsButton type="button" disabled={busy || !configuration || !Object.keys(patch).length || invalid} onClick={() => { void submit(false) }}>{t('plugins:configurationSave')}</SettingsButton>
+      <SettingsButton type="button" disabled={busy || !configuration} onClick={() => setConfirmDiscard('reset')}>{t('plugins:configurationReset')}</SettingsButton>
+      <SettingsButton type="button" disabled={busy} onClick={() => { if (Object.keys(patch).length) setConfirmDiscard('reload'); else void load() }}>{t('plugins:configurationReload')}</SettingsButton>
     </div>
     {confirmDiscard && <section role="alertdialog" aria-label={t('plugins:configurationDiscardTitle')} className={styles.card}>
       <p>{t(confirmDiscard === 'reset' ? 'plugins:configurationResetHint' : 'plugins:configurationDiscardHint')}</p>
       <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => { const action = confirmDiscard; setConfirmDiscard(null); if (action === 'reset') void submit(true); else void load(true) }}>{t('plugins:confirm')}</button>
-        <button type="button" onClick={() => setConfirmDiscard(null)}>{t('plugins:cancel')}</button>
+        <SettingsButton type="button" disabled={busy} onClick={() => { const action = confirmDiscard; setConfirmDiscard(null); if (action === 'reset') void submit(true); else void load(true) }}>{t('plugins:confirm')}</SettingsButton>
+        <SettingsButton type="button" onClick={() => setConfirmDiscard(null)}>{t('plugins:cancel')}</SettingsButton>
       </div>
     </section>}
   </div>

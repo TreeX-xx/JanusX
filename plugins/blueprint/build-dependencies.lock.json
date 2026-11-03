@@ -63,6 +63,13 @@
       "file": "janusx-plugin-sdk-0.1.0.tgz",
       "sha256": "2ff4181d68d486243a8fb76bce2e316e7d28a86df5ba322a29d6405af87a5802",
       "integrity": "sha512-3K1y2pMMMFn+YIcFyoP3acY6BmpzhM60kOEylxAvWRoLNREWmNSTx3295mnM1o2wYhzqKs+a3GgR1MnLQB5CNw=="
+    },
+    {
+      "name": "@janusx/ui",
+      "version": "0.1.0",
+      "file": "janusx-ui-0.1.0.tgz",
+      "sha256": "a9ffc7a49b9c4c4f32d3d5c300723dd9f44117d111a0e560f39f28618d4eeaae",
+      "integrity": "sha512-RBFy1S4AaXoxdz6cHwrr3vS7i4Ii1HaR8C56jB0CBNvg3iwQ/JobGjWHOsgUIYew5VKc0+0/Dk78WN8KcJ1RJg=="
     }
   ]
 }

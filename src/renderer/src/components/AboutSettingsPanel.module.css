@@ -124,30 +124,6 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: var(--so-control-h);
-  padding: 6px 10px;
-  border: 1px solid var(--shell-border);
-  border-radius: var(--so-radius);
-  background: transparent;
-  color: var(--shell-text);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.supportButton:hover {
-  background: var(--shell-chrome);
-  border-color: var(--shell-muted);
-}
-
-.supportButton:focus-visible {
-  outline: 2px solid var(--so-accent);
-  outline-offset: 3px;
-}
-
-.supportButton:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .starIcon {

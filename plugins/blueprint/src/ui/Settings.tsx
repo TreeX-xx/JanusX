@@ -1,4 +1,5 @@
-import checkboxStyles from './SettingsCheckbox.module.css'
+import { InputGroup } from '@janusx/ui'
+import { Input as SettingsInput, SettingsSurface, SettingsFieldset, SettingsRow, SettingsLabel, SettingsCheckbox, Button as SettingsButton } from '@janusx/ui'
 import { t } from './i18n'
 import { useEffect, useId, useRef, useState } from 'react'
 import { z } from 'zod'
@@ -13,7 +14,7 @@ import { settingsText as reviewText } from './settings-text'
 import { Select } from './Select'
 import { Cpu, Eye, EyeOff, Minus, Plus, RefreshCw, Timer } from './SettingsIcons'
 import { NoteMcpSettings } from './NoteMcpSettings'
-import settingsStyles from './SettingsCards.module.css'
+import { settingsStyles } from '@janusx/ui'
 import styles from './BlueprintSettingsPanel.module.css'
 import './settings-surface.css'
 import { Draft } from './draft'
@@ -40,23 +41,17 @@ export function ModelSelect({
     <div className="fields">
       <label>
         {t('模型服务')}
-        <select
-          aria-label={t('模型服务')}
+        <Select
+          ariaLabel={t('模型服务')}
           disabled={disabled}
           value={value.providerId}
-          onChange={(event) => change({ providerId: event.target.value, modelId: '' })}
-        >
-          <option value="">{t('选择服务')}</option>
-          {models.map((provider) => (
-            <option key={provider.id} value={provider.id}>
-              {provider.name}
-            </option>
-          ))}
-        </select>
+          onChange={providerId => change({ providerId, modelId: '' })}
+          options={[{ value: '', label: t('选择服务') }, ...models.map(provider => ({ value: provider.id, label: provider.name }))]}
+        />
       </label>
       <label>
         {t('模型')}
-        <input
+        <SettingsInput
           aria-label={t('模型')}
           disabled={disabled}
           list={list}
@@ -253,7 +248,7 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
     setNotice(t('已载入保存的设置'))
   })
   return (
-    <div className={`blueprint-settings ${settingsStyles.panel} ${styles.panel}`}>
+    <SettingsSurface className={`blueprint-settings ${settingsStyles.panel} ${styles.panel}`}>
       <div className={styles.intro}>
         <h2 className="settings-heading">{t('蓝图设置')}</h2>
         <p className={settingsStyles.hint}>{reviewText('blueprint:review.settingsIntro')}</p>
@@ -262,10 +257,10 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
       {Object.values(migration?.steps ?? {}).some(step => step.state === 'imported') && <p className={settingsStyles.hint} role="status">{t('已导入旧版蓝图数据，原文件已保留。迁移时自动审核保持关闭，请核对设置后自行启用。')}</p>}
       {error && <p className={`${settingsStyles.hint} ${settingsStyles.statusError}`} role="alert">{error}</p>}
       {notice && <p className={settingsStyles.hint} role="status">{notice}</p>}
-      <fieldset className={`${settingsStyles.section} ${styles.section}`} disabled={busy} aria-labelledby={`${id}-models`}>
+      <SettingsFieldset className={`${settingsStyles.section} ${styles.section}`} disabled={busy} aria-labelledby={`${id}-models`}>
         <h3 className={settingsStyles.sectionTitle} id={`${id}-models`}><Cpu size={14} aria-hidden="true" />{reviewText('blueprint:review.models')}</h3>
         <p className={settingsStyles.hint}>{reviewText('blueprint:review.modelRoles')}</p>
-        <div className={styles.fieldRow}>
+        <SettingsRow className={styles.fieldRow}>
           <span className={settingsStyles.labelText}>{reviewText('blueprint:review.generationProvider')}</span>
           <Select
             ariaLabel={reviewText('blueprint:review.generationProvider')}
@@ -278,8 +273,8 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
               ...providers.map(provider => ({ value: provider.id, label: provider.name })),
             ]}
           />
-        </div>
-        <div className={styles.fieldRow}>
+        </SettingsRow>
+        <SettingsRow className={styles.fieldRow}>
           <span className={settingsStyles.labelText}>{reviewText('blueprint:review.generationModel')}</span>
           <Select
             ariaLabel={reviewText('blueprint:review.generationModel')}
@@ -292,31 +287,31 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
               ...(selected?.models.map(model => ({ value: model.id, label: model.name })) ?? []),
             ]}
           />
-        </div>
+        </SettingsRow>
         <div className={styles.jev}>
-          <label className={settingsStyles.row}>
+          <SettingsLabel className={settingsStyles.row}>
             <span className={settingsStyles.labelText}>{reviewText('blueprint:review.enableJev')}</span>
-            <input type="checkbox" className={checkboxStyles.control} checked={settings.jev.enabled} onChange={event => change({ ...settings, jev: { ...settings.jev, enabled: event.target.checked } })} />
-          </label>
+            <SettingsCheckbox checked={settings.jev.enabled} onChange={event => change({ ...settings, jev: { ...settings.jev, enabled: event.target.checked } })} />
+          </SettingsLabel>
           {settings.jev.enabled && <>
-            <label className={styles.fieldRow}>
+            <SettingsLabel className={styles.fieldRow}>
               <span className={settingsStyles.labelText}>{reviewText('blueprint:review.jevEndpoint')}</span>
-              <input className={styles.input} value={settings.jev.endpoint} spellCheck={false} onChange={event => change({ ...settings, jev: { ...settings.jev, endpoint: event.target.value } })} />
-            </label>
-            <label className={styles.fieldRow}>
+              <SettingsInput className={styles.input} value={settings.jev.endpoint} spellCheck={false} onChange={event => change({ ...settings, jev: { ...settings.jev, endpoint: event.target.value } })} />
+            </SettingsLabel>
+            <SettingsLabel className={styles.fieldRow}>
               <span className={settingsStyles.labelText}>{reviewText('blueprint:review.jevModel')}</span>
-              <input className={styles.input} value={settings.jev.model} spellCheck={false} onChange={event => change({ ...settings, jev: { ...settings.jev, model: event.target.value } })} />
-            </label>
-            <div className={styles.fieldRow}>
+              <SettingsInput className={styles.input} value={settings.jev.model} spellCheck={false} onChange={event => change({ ...settings, jev: { ...settings.jev, model: event.target.value } })} />
+            </SettingsLabel>
+            <SettingsRow className={styles.fieldRow}>
               <label className={settingsStyles.labelText} htmlFor={`${id}-jev-key`}>{reviewText('blueprint:review.jevCredential')}</label>
-              <div className={styles.credentialInput}>
-                <input id={`${id}-jev-key`} className={styles.input} type={showKey ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={key} placeholder={reviewText(credentialConfigured ? 'blueprint:review.credentialConfigured' : 'blueprint:review.credentialPlaceholder')} onChange={event => credential(event.target.value)} />
-                <button className={styles.eyeButton} type="button" disabled={saving || !key} aria-label={showKey ? reviewText('blueprint:review.hideCredential') : reviewText('blueprint:review.showCredential')} aria-pressed={showKey} onClick={() => setShowKey(value => !value)}>
+              <InputGroup className={styles.credentialInput}>
+                <SettingsInput id={`${id}-jev-key`} className={styles.input} type={showKey ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={key} placeholder={reviewText(credentialConfigured ? 'blueprint:review.credentialConfigured' : 'blueprint:review.credentialPlaceholder')} onChange={event => credential(event.target.value)} />
+                <SettingsButton variant="ghost" size="icon" className={styles.eyeButton} type="button" disabled={saving || !key} aria-label={showKey ? reviewText('blueprint:review.hideCredential') : reviewText('blueprint:review.showCredential')} aria-pressed={showKey} onClick={() => setShowKey(value => !value)}>
                   {showKey ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
-                </button>
-              </div>
-              {credentialConfigured && <button className={`${settingsStyles.button} credential-clear`} type="button" disabled={credentialSaving} onClick={() => credential('')}>{t('清除凭据')}</button>}
-            </div>
+                </SettingsButton>
+              </InputGroup>
+              {credentialConfigured && <SettingsButton className={`credential-clear`} type="button" disabled={credentialSaving} onClick={() => credential('')}>{t('清除凭据')}</SettingsButton>}
+            </SettingsRow>
           </>}
         </div>
         <div className={styles.feedback}>
@@ -325,40 +320,40 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
             {status?.generation.message && <p className={settingsStyles.hint}>{status.generation.reason ? reviewText(`blueprint:review.connectionFailure.${status.generation.reason}`) : status.generation.message}{status.generation.httpStatus ? ` (HTTP ${status.generation.httpStatus})` : ''}</p>}
             {status?.jev.message && <p className={settingsStyles.hint}>{status.jev.message}</p>}
           </div>
-          <button className={settingsStyles.button} type="button" disabled={testing || saving || dirty} onClick={() => { setNotice(''); setCheckRevision(value => value + 1) }}>
+          <SettingsButton type="button" disabled={testing || saving || dirty} onClick={() => { setNotice(''); setCheckRevision(value => value + 1) }}>
             <RefreshCw size={12} aria-hidden="true" />{reviewText('blueprint:review.retest')}
-          </button>
+          </SettingsButton>
         </div>
-      </fieldset>
-      <fieldset className={`${settingsStyles.section} ${styles.section}`} disabled={busy} aria-labelledby={`${id}-automatic`}>
+      </SettingsFieldset>
+      <SettingsFieldset className={`${settingsStyles.section} ${styles.section}`} disabled={busy} aria-labelledby={`${id}-automatic`}>
         <h3 className={settingsStyles.sectionTitle} id={`${id}-automatic`}><Timer size={14} aria-hidden="true" />{reviewText('blueprint:review.automatic')}</h3>
-        <label className={settingsStyles.row}>
+        <SettingsLabel className={settingsStyles.row}>
           <span className={settingsStyles.labelText}>{reviewText('blueprint:review.automaticEnable')}</span>
-          <input type="checkbox" className={checkboxStyles.control} checked={settings.automatic.enabled} aria-describedby={`${id}-automatic-help`}
+          <SettingsCheckbox checked={settings.automatic.enabled} aria-describedby={`${id}-automatic-help`}
               disabled={!settings.automatic.enabled && (saving || status?.generation.status !== 'ready')}
               onChange={event => change({ ...settings, automatic: { ...settings.automatic, enabled: event.target.checked } })} />
-        </label>
-        <div className={settingsStyles.row}>
+        </SettingsLabel>
+        <SettingsRow className={settingsStyles.row}>
           <label className={settingsStyles.labelText} htmlFor={`${id}-commits`}>{reviewText('blueprint:review.automaticCommits')}</label>
-          <div className={styles.numberControl}>
-            <button className={styles.stepButton} type="button" aria-label={reviewText('blueprint:review.decreaseAutomaticCommits')}
+          <InputGroup className={styles.numberControl}>
+            <SettingsButton variant="ghost" size="icon" className={styles.stepButton} type="button" aria-label={reviewText('blueprint:review.decreaseAutomaticCommits')}
               disabled={settings.automatic.commits <= 1} onClick={() => changeCommits(settings.automatic.commits - 1)}>
               <Minus size={14} aria-hidden="true" />
-            </button>
-            <input id={`${id}-commits`} className={`${styles.input} ${styles.numberInput}`} type="number" inputMode="numeric" min={1} max={10000} step={1} value={settings.automatic.commits}
+            </SettingsButton>
+            <SettingsInput id={`${id}-commits`} className={`${styles.input} ${styles.numberInput}`} type="number" inputMode="numeric" min={1} max={10000} step={1} value={settings.automatic.commits}
               onChange={event => changeCommits(Number(event.target.value))} />
-            <button className={styles.stepButton} type="button" aria-label={reviewText('blueprint:review.increaseAutomaticCommits')}
+            <SettingsButton variant="ghost" size="icon" className={styles.stepButton} type="button" aria-label={reviewText('blueprint:review.increaseAutomaticCommits')}
               disabled={settings.automatic.commits >= 10000} onClick={() => changeCommits(settings.automatic.commits + 1)}>
               <Plus size={14} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+            </SettingsButton>
+          </InputGroup>
+        </SettingsRow>
         <p className={settingsStyles.hint} id={`${id}-automatic-help`}>{reviewText('blueprint:review.automaticHelp')}</p>
-      </fieldset>
+      </SettingsFieldset>
       {dirty && (saveState?.phase === 'failed' || draftStatus === 'failed' || notice) && <div className={settingsStyles.actions}>
-        <button className={settingsStyles.button} type="button" disabled={busy || saving} onClick={reload}>{t('放弃草稿并重新载入')}</button>
+        <SettingsButton type="button" disabled={busy || saving} onClick={reload}>{t('放弃草稿并重新载入')}</SettingsButton>
       </div>}
       <NoteMcpSettings />
-    </div>
+    </SettingsSurface>
   )
 }

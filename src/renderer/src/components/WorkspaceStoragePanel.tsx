@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -27,7 +28,7 @@ function list(): Promise<WorkspaceMigrationView> {
 
 function Location({ label, path }: { label: string; path: string }) {
   const { t } = useI18n('storage')
-  return <div className={styles.location}><span>{label}</span><code>{path}</code><button type="button" onClick={() => { void navigator.clipboard.writeText(path) }}>{t('storage:copy')}</button></div>
+  return <div className={styles.location}><span>{label}</span><code>{path}</code><SettingsButton type="button" onClick={() => { void navigator.clipboard.writeText(path) }}>{t('storage:copy')}</SettingsButton></div>
 }
 
 function MigrationDetails({ item }: { item: WorkspaceMigrationItem }) {
@@ -93,10 +94,10 @@ export function WorkspaceStoragePanel() {
     {view && <Location label={t('storage:destinationRoot')} path={view.root} />}
     <div className={styles.toolbar}>
     <div className={styles.actions}>
-      <button type="button" disabled={busy !== null} onClick={() => { void refresh() }}>{t('storage:check')}</button>
-      <button type="button" disabled={busy !== null || !candidates.length} onClick={() => setSelected(candidates.map(item => item.id))}>{t('storage:selectAll')}</button>
+      <SettingsButton type="button" disabled={busy !== null} onClick={() => { void refresh() }}>{t('storage:check')}</SettingsButton>
+      <SettingsButton type="button" disabled={busy !== null || !candidates.length} onClick={() => setSelected(candidates.map(item => item.id))}>{t('storage:selectAll')}</SettingsButton>
     </div>
-    <button type="button" className={styles.primary} disabled={busy !== null || !selected.length} onClick={() => { void migrate() }}>{t('storage:migrate')}</button>
+    <SettingsButton variant="primary" type="button" className={styles.primary} disabled={busy !== null || !selected.length} onClick={() => { void migrate() }}>{t('storage:migrate')}</SettingsButton>
     </div>
     {error && <p role="alert">{error}</p>}
     {!view && !error && <p role="status">{t('storage:checking')}</p>}
@@ -187,11 +188,11 @@ export function WorkspaceMigrationNotice({ onOpen }: { onOpen(): void }) {
     {progress && <p role="status">{t('storage:bulk.progress', { current: progress.current, total: progress.total, name: view.items.find(item => item.id === progress.id)?.name })}</p>}
     {phase === 'done' && <p role="status">{t('storage:bulk.result', { completed: view.items.filter(item => item.status === 'migrated').length, remaining: view.items.filter(item => ['pending', 'failed', 'cleanup-pending', 'offline', 'unsupported'].includes(item.status)).length })}</p>}
     <div className={styles.actions}>
-      {phase === 'notice' && <button type="button" onClick={() => { void review() }}>{t('storage:bulk.action')}</button>}
-      {phase === 'checking' && <button type="button" disabled>{t('storage:checking')}</button>}
-      {phase === 'review' && <button type="button" disabled={!candidates.length} onClick={() => { void migrateAll() }}>{t('storage:bulk.confirm')}</button>}
-      <button type="button" disabled={busy} onClick={() => { setView(undefined); onOpen() }}>{t('storage:go')}</button>
-      <button type="button" disabled={busy} onClick={() => phase === 'review' ? setPhase('notice') : setView(undefined)}>{phase === 'review' ? t('storage:maintenance.cancel') : phase === 'done' ? t('storage:bulk.close') : t('storage:later')}</button>
+      {phase === 'notice' && <SettingsButton type="button" onClick={() => { void review() }}>{t('storage:bulk.action')}</SettingsButton>}
+      {phase === 'checking' && <SettingsButton type="button" disabled>{t('storage:checking')}</SettingsButton>}
+      {phase === 'review' && <SettingsButton type="button" disabled={!candidates.length} onClick={() => { void migrateAll() }}>{t('storage:bulk.confirm')}</SettingsButton>}
+      <SettingsButton type="button" disabled={busy} onClick={() => { setView(undefined); onOpen() }}>{t('storage:go')}</SettingsButton>
+      <SettingsButton type="button" disabled={busy} onClick={() => phase === 'review' ? setPhase('notice') : setView(undefined)}>{phase === 'review' ? t('storage:maintenance.cancel') : phase === 'done' ? t('storage:bulk.close') : t('storage:later')}</SettingsButton>
     </div>
   </aside>, document.body)
 }

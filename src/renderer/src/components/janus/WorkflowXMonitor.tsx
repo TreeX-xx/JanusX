@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useId, useState } from 'react'
 import { ChevronDown, ExternalLink, RotateCw } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
@@ -33,20 +34,20 @@ export function WorkflowXStatus({ surface = 'island' }: { surface?: 'island' | '
   </span>
   const actions = <div className={styles.actions}>
     {isSettings && <ThemedTooltip label={t('workflowx.sources')}>
-      <button type="button" aria-label={t('workflowx.sources')} aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen(value => !value)}>
+      <SettingsButton variant="ghost" size="icon" type="button" aria-label={t('workflowx.sources')} aria-expanded={open} aria-controls={open ? detailsId : undefined} onClick={() => setOpen(value => !value)}>
         <ChevronDown size={16} aria-hidden="true" />
-      </button>
+      </SettingsButton>
     </ThemedTooltip>}
     <ThemedTooltip label={t(checking ? 'workflowx.status.checking' : 'workflowx.refresh')} disabled={!isSettings}>
-      <button type="button" aria-label={t('workflowx.refresh')} disabled={checking} onClick={() => void check(workspaceId, true)}>
+      <SettingsButton variant="ghost" size="icon" type="button" aria-label={t('workflowx.refresh')} disabled={checking} onClick={() => void check(workspaceId, true)}>
         <RotateCw size={isSettings ? 16 : 12} aria-hidden="true" />{!isSettings && t(checking ? 'workflowx.status.checking' : 'workflowx.refresh')}
-      </button>
+      </SettingsButton>
     </ThemedTooltip>
     <ThemedTooltip label={t('workflowx.repository')} disabled={!isSettings}>
-      <button type="button" aria-label={t('workflowx.repository')} onClick={() => {
+      <SettingsButton variant="ghost" size="icon" type="button" aria-label={t('workflowx.repository')} onClick={() => {
         setLinkFailed(false)
         void window.electron.workflowx.openRepository().then(ok => setLinkFailed(!ok)).catch(() => setLinkFailed(true))
-      }}><ExternalLink size={isSettings ? 16 : 12} aria-hidden="true" />{!isSettings && t('workflowx.repository')}</button>
+      }}><ExternalLink size={isSettings ? 16 : 12} aria-hidden="true" />{!isSettings && t('workflowx.repository')}</SettingsButton>
     </ThemedTooltip>
   </div>
   return (
@@ -64,13 +65,13 @@ export function WorkflowXStatus({ surface = 'island' }: { surface?: 'island' | '
         </p>}
         {hint && <p className={styles.sourceSummary}><span className={styles.summaryValue}>{hint}</span></p>}
         {linkFailed && <p className={styles.feedback} role="alert">{t('workflowx.linkFailed')}</p>}
-      </> : <button type="button" className={styles.summary} aria-expanded={open} aria-controls={detailsId}
+      </> : <SettingsButton variant="plain" type="button" className={styles.summary} aria-expanded={open} aria-controls={detailsId}
         aria-label={t('workflowx.sources')} onClick={() => setOpen(value => !value)}>
         <span>WorkflowX</span>
         <span className={styles.state} data-status={status}>
           <i aria-hidden="true" />{t(`workflowx.status.${status}`)}<ChevronDown size={12} aria-hidden="true" />
         </span>
-      </button>}
+      </SettingsButton>}
       {open && <div id={detailsId} className={styles.details}>
         <p>{t(workspaceId ? 'workflowx.scope' : 'workflowx.globalScope')}</p>
         <p>{t(current?.unavailable ? 'workflowx.unavailable' : status === 'missing' ? 'workflowx.missingHint' : 'workflowx.limits')}</p>

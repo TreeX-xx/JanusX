@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 /** Native top-layer panels keep source/review lists out of the card grid. */
@@ -15,12 +16,12 @@ export function WorkbenchPopover({ label, children, triggerContent, className = 
     return () => { body.removeEventListener('toggle', toggle); window.removeEventListener('resize', close) }
   }, [id])
   return <>
-    <button ref={trigger} type="button" className={`blueprint-btn ${className}`} aria-label={label} title={label} aria-expanded={open} aria-controls={id}
+    <SettingsButton ref={trigger} type="button" className={`blueprint-btn ${className}`} aria-label={label} title={label} aria-expanded={open} aria-controls={id}
       onClick={() => {
         const rect = trigger.current!.getBoundingClientRect(), body = panel.current!
         body.style.top = `${rect.bottom + 6}px`
         body.style.left = `${Math.max(8, Math.min(rect.right - Math.min(560, innerWidth - 32), innerWidth - 576))}px`
-      }}>{triggerContent ?? label}</button>
+      }}>{triggerContent ?? label}</SettingsButton>
     <div ref={panel} id={id} className="blueprint-workbench-popover" role="region" aria-label={label}
       onKeyDown={event => {
         event.stopPropagation()

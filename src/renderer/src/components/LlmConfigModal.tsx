@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
@@ -88,9 +89,9 @@ export function LlmConfigModal({ isOpen = false, onClose, embedded = false }: Ll
               </span>
               {runtimeStatus.connection.error && <small>{runtimeStatus.connection.error}</small>}
             </div>
-            <button type="button" onClick={() => void refreshRuntimeStatus()} disabled={runtimeChecking} title={t('llm:runtime.refreshTitle')}>
+            <SettingsButton variant="ghost" size="icon" type="button" onClick={() => void refreshRuntimeStatus()} disabled={runtimeChecking} aria-label={t('llm:runtime.refreshTitle')} title={t('llm:runtime.refreshTitle')}>
               <RefreshCw size={13} className={runtimeChecking ? styles.spinning : undefined} />
-            </button>
+            </SettingsButton>
           </div>
         )}
 

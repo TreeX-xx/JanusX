@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useCallback, useEffect, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { probeCli } from '@/stores/cli-readiness'
@@ -184,46 +185,46 @@ export function ExternalCliManager({
           </div>
         </div>
         <span className={`${styles.lsToolRowActions} ${cliStyles.actions}`}>
-          <button type="button" className={cliStyles.visibility} aria-label={visibilityLabel}
+          <SettingsButton type="button" className={cliStyles.visibility} aria-label={visibilityLabel}
             aria-pressed={visible} title={visibilityLabel} onClick={() => onVisibleChange(!visible)}>
             {visible ? <Eye size={16} aria-hidden /> : <EyeOff size={16} aria-hidden />}
             <span>{t(visible ? 'settings:cliTools.visibility.shown' : 'settings:cliTools.visibility.notShown')}</span>
-          </button>
+          </SettingsButton>
           {!loading && state === 'not-installed' && !busy && (toolId !== 'opencode' || installOptions) && (
-            <button
+            <SettingsButton variant="primary"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
               onClick={() => void handleInstall(installOptions)}
             >
               {toolId === 'opencode' ? t('settings:cliTools.action.installV2') : t('settings:cliTools.action.install')}
-            </button>
+            </SettingsButton>
           )}
           {!loading && state === 'update-available' && !busy && (
-            <button
+            <SettingsButton variant="primary"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
               onClick={() => void handleInstall(installOptions)}
             >
               {channel ? t('settings:cliTools.action.updateLine', { channel }) : t('settings:cliTools.action.upgrade')}
-            </button>
+            </SettingsButton>
           )}
           {!loading && detect?.installed && v2Version && !busy && (
-            <button
+            <SettingsButton variant="ghost"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonGhost}`}
               onClick={() => void handleInstall({ channel: 'v2', version: v2Version })}
             >
               {t('settings:cliTools.action.upgradeV2', { version: v2Version })}
-            </button>
+            </SettingsButton>
           )}
           {!loading && (state === 'ready' || state === 'broken' || toolId === 'opencode') && !busy && !refreshing && (
-            <button
+            <SettingsButton variant="ghost"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonGhost}`}
               onClick={handleRefresh}
             >
               {t('settings:cliTools.action.refresh')}
-            </button>
+            </SettingsButton>
           )}
           {refreshing && (
             <span className={styles.lsLoadingRow}>

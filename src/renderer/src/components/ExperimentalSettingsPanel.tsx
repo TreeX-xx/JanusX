@@ -1,3 +1,4 @@
+import { SettingsSurface, SettingsSection, Button as SettingsButton, SettingsRow } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -5,7 +6,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { updateExperimentalFeatures } from '@/services/experimental-features'
 import { useExperimentalStore } from '@/stores/experimental'
 import type { ExperimentalFeatures } from '../../../shared/ipc/experimental'
-import styles from './NotificationSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 import confirmationStyles from './ExperimentalSettingsPanel.module.css'
 
 type FeatureKey = keyof ExperimentalFeatures
@@ -63,14 +64,14 @@ export function ExperimentalSettingsPanel() {
   }
 
   return (
-    <div className={styles.panel}>
-      <section className={styles.section}>
+    <SettingsSurface className={styles.panel}>
+      <SettingsSection className={styles.section}>
         <div className={`${styles.status} ${styles.statusError}`} role="note">
           {t('settings:experimental.warning')}
         </div>
-      </section>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('settings:experimental.section.dev')}</h3>
         {apiMissing && (
           <div className={styles.status}>{t('settings:experimental.unavailable')}</div>
@@ -88,7 +89,7 @@ export function ExperimentalSettingsPanel() {
         ))}
         {savingKey && <div className={styles.status}>{t('settings:footer.saving')}</div>}
         {error && <div role="alert" className={`${styles.status} ${styles.statusError}`}>{error}</div>}
-      </section>
+      </SettingsSection>
 
       {pending && <FeatureConfirmation
         title={t(`settings:experimental.confirm.${pending.value ? 'enableTitle' : 'disableTitle'}`, { name: t(`settings:experimental.toggle.${pending.key}.label`) })}
@@ -101,7 +102,7 @@ export function ExperimentalSettingsPanel() {
         onConfirm={() => void doToggle(pending.key, pending.value)}
         onCancel={() => { if (!saving.current) setPending(null) }}
       />}
-    </div>
+    </SettingsSurface>
   )
 }
 
@@ -125,8 +126,8 @@ function FeatureConfirmation({ title, description, hint, note, confirmText, canc
       <p>{hint}</p>
       <p className={confirmationStyles.note}>{note}</p>
       <div className={confirmationStyles.actions}>
-        <button type="button" autoFocus disabled={busy} onClick={onCancel}>{cancelText}</button>
-        <button type="button" disabled={busy} className={confirmationStyles.confirm} onClick={onConfirm}>{confirmText}</button>
+        <SettingsButton type="button" autoFocus disabled={busy} onClick={onCancel}>{cancelText}</SettingsButton>
+        <SettingsButton variant="primary" type="button" disabled={busy} className={confirmationStyles.confirm} onClick={onConfirm}>{confirmText}</SettingsButton>
       </div>
     </dialog>, document.body,
   )
@@ -147,7 +148,7 @@ function SettingSwitch({ label,
   onChange: (checked: boolean) => void
 }) {
   return (
-    <div className={styles.row}>
+    <SettingsRow className={styles.row}>
       <div className={styles.label}>
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
@@ -159,6 +160,6 @@ function SettingSwitch({ label,
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-    </div>
+    </SettingsRow>
   )
 }

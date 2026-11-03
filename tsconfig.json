@@ -18,7 +18,8 @@
       "@janusx/note-tools": ["packages/note-tools/src/index.ts"],
       "@janusx/plugin-sdk": ["packages/plugin-sdk/src/index.ts"],
       "@janusx/plugin-sdk/native": ["packages/plugin-sdk/src/native.ts"],
-      "@janusx/llm-core/model-registry": ["packages/llm-core/src/registry/model-registry.ts"]
+      "@janusx/llm-core/model-registry": ["packages/llm-core/src/registry/model-registry.ts"],
+      "@janusx/ui": ["packages/ui/src/index.tsx"]
     }
   },
   "include": ["src"],

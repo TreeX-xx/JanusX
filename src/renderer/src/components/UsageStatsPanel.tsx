@@ -1,3 +1,4 @@
+import { Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
 // Note: persistent native-session usage — see .agents/notes/terminal/requirements/usage-telemetry-single-source.md
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
@@ -350,9 +351,9 @@ function TrendLines({ series, range, metrics, label, emptyLabel }: {
         {active && <span className={styles.activeDate}>{dateLabel(active)}</span>}
         {metrics.map(({ key, color, label: name }) => {
           const off = hidden.includes(key)
-          return <button key={key} type="button" className={`${styles.chip} ${off ? styles.chipOff : ''}`} aria-pressed={!off} onClick={() => toggle(key)}>
+          return <SettingsButton variant="plain" key={key} type="button" className={`${styles.chip} ${off ? styles.chipOff : ''}`} aria-pressed={!off} onClick={() => toggle(key)}>
             <i style={{ background: color }} />{name}{active && !off && <strong>{formatCount(active[key])}</strong>}
-          </button>
+          </SettingsButton>
         })}
       </div>
     </div>
@@ -457,18 +458,18 @@ export function UsageStatsPanel() {
         </div>
       </div>
       <div className={styles.rangeRow} role="group" aria-label={t('settings:usageStats.timeRange')}>
-        {RANGES.map((candidate) => <button key={candidate} type="button" className={`${styles.tab} ${candidate === range ? styles.tabActive : ''}`} aria-pressed={candidate === range} onClick={() => setRange(candidate)}>{t(`settings:usageStats.${RANGE_KEYS[candidate]}`)}</button>)}
+        {RANGES.map((candidate) => <SettingsButton variant="tab" key={candidate} type="button" className={`${styles.tab} ${candidate === range ? styles.tabActive : ''}`} aria-pressed={candidate === range} onClick={() => setRange(candidate)}>{t(`settings:usageStats.${RANGE_KEYS[candidate]}`)}</SettingsButton>)}
       </div>
       {range === 'custom' && (
         <div className={styles.customBar}>
           <label className={styles.dateField}>
             <span>{t('settings:usageStats.customStart')}</span>
-            <input type="date" value={startInput} max={endInput} onChange={(event) => setStartInput(event.target.value)} aria-label={t('settings:usageStats.customStart')} />
+            <SettingsInput type="date" value={startInput} max={endInput} onChange={(event) => setStartInput(event.target.value)} aria-label={t('settings:usageStats.customStart')} />
           </label>
           <span className={styles.dateSep} aria-hidden="true">–</span>
           <label className={styles.dateField}>
             <span>{t('settings:usageStats.customEnd')}</span>
-            <input type="date" value={endInput} min={startInput} onChange={(event) => setEndInput(event.target.value)} aria-label={t('settings:usageStats.customEnd')} />
+            <SettingsInput type="date" value={endInput} min={startInput} onChange={(event) => setEndInput(event.target.value)} aria-label={t('settings:usageStats.customEnd')} />
           </label>
           {customErrorKey
             ? <p className={styles.error} role="alert">{t(`settings:usageStats.${customErrorKey}`)}</p>
@@ -476,14 +477,14 @@ export function UsageStatsPanel() {
         </div>
       )}
       <div className={styles.tabRow} role="group" aria-label={t('settings:usageStats.terminalType')}>
-        <button type="button" className={`${styles.tab} ${activeType === 'all' ? styles.tabActive : ''}`} aria-pressed={activeType === 'all'} onClick={() => setActiveType('all')}>{t('settings:usageStats.typeAll')}</button>
+        <SettingsButton variant="tab" type="button" className={`${styles.tab} ${activeType === 'all' ? styles.tabActive : ''}`} aria-pressed={activeType === 'all'} onClick={() => setActiveType('all')}>{t('settings:usageStats.typeAll')}</SettingsButton>
         {EXTERNAL_CLI_TOOL_ORDER.map((toolId) => {
           const meta = EXTERNAL_CLI_TOOL_META[toolId]
-          return <button key={toolId} type="button" className={`${styles.tab} ${toolId === activeType ? styles.tabActive : ''}`} aria-pressed={toolId === activeType} onClick={() => setActiveType(toolId)}>
+          return <SettingsButton variant="tab" key={toolId} type="button" className={`${styles.tab} ${toolId === activeType ? styles.tabActive : ''}`} aria-pressed={toolId === activeType} onClick={() => setActiveType(toolId)}>
             {iconFailed[toolId] ? <span className={llmStyles.terminalTabMonogram}>{meta.monogram}</span>
               : <img className={llmStyles.terminalTabIcon} data-tool={toolId} src={EXTERNAL_CLI_TOOL_ICONS[toolId]} alt="" onError={() => setIconFailed((prev) => ({ ...prev, [toolId]: true }))} />}
             {meta.displayName}
-          </button>
+          </SettingsButton>
         })}
       </div>
       <div className={`${styles.summary} ${isEmpty ? styles.summaryEmpty : ''} ${refreshing ? styles.dimmed : ''}`} data-testid="usage-summary" data-refreshing={refreshing ? 'true' : undefined}>

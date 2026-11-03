@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleHelp } from './SettingsIcons'
@@ -58,11 +59,11 @@ export function NoteMcpHelp() {
   useEffect(() => clearTimer, [clearTimer])
 
   return <>
-    <button ref={trigger} type="button" className={styles.helpButton}
+    <SettingsButton variant="ghost" size="icon" ref={trigger} type="button" className={styles.helpButton}
       aria-label={t('blueprint:review.mcpHelp.label')} aria-describedby={open ? id : undefined}
       onMouseEnter={show} onMouseLeave={leave} onFocus={show} onBlur={leave} onClick={show}>
       <CircleHelp size={14} aria-hidden="true" />
-    </button>
+    </SettingsButton>
     {open && createPortal(
       <div ref={tip} id={id} role="tooltip" className={styles.helpTip} style={position}
         onMouseEnter={clearTimer} onMouseLeave={leave}>

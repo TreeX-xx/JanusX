@@ -1,3 +1,4 @@
+import { SettingsSurface, SettingsSection, SettingsRow, Input as SettingsInput, SettingsFooter, Button as SettingsButton } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
@@ -7,7 +8,7 @@ import {
   saveGitlabConfig,
   verifyGitlabConfig,
 } from '@/services/hosted'
-import styles from './NotificationSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 
 type StatusState = 'idle' | 'loading' | 'saving' | 'verifying' | 'saved' | 'error' | 'verified'
 
@@ -142,20 +143,20 @@ export function HostedSettingsPanel() {
               : (message ?? '')
 
   return (
-    <div className={styles.panel}>
-      <section className={styles.section}>
+    <SettingsSurface className={styles.panel}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('common:hosted.githubSection')}</h3>
         <p className={styles.hint}>{t('common:hosted.githubHint')}</p>
-      </section>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('common:hosted.gitlabSection')}</h3>
 
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('common:hosted.urlLabel')}</span>
           </div>
-          <input
+          <SettingsInput
             value={url}
             placeholder={t('common:hosted.urlPlaceholder')}
             onChange={(event) => {
@@ -165,14 +166,14 @@ export function HostedSettingsPanel() {
             disabled={busy}
             className={`${styles.input} ${styles.textInput}`}
           />
-        </div>
+        </SettingsRow>
 
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('common:hosted.tokenLabel')}</span>
             <span className={styles.hint}>{tokenHint}</span>
           </div>
-          <input
+          <SettingsInput
             type="password"
             value={token}
             placeholder={t('common:hosted.tokenPlaceholder')}
@@ -183,14 +184,14 @@ export function HostedSettingsPanel() {
             disabled={busy}
             className={`${styles.input} ${styles.textInput}`}
           />
-        </div>
+        </SettingsRow>
 
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('common:hosted.timeoutLabel')}</span>
           </div>
           <div className={styles.numberControl}>
-            <input
+            <SettingsInput
               value={timeoutSeconds}
               inputMode="numeric"
               type="number"
@@ -206,9 +207,9 @@ export function HostedSettingsPanel() {
             />
             <span className={styles.unit}>s</span>
           </div>
-        </div>
+        </SettingsRow>
 
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('common:hosted.insecureLabel')}</span>
             <span className={styles.hint}>{t('common:hosted.insecureWarn')}</span>
@@ -221,40 +222,40 @@ export function HostedSettingsPanel() {
               }}
               disabled={busy}
             />
-        </div>
-      </section>
+        </SettingsRow>
+      </SettingsSection>
 
-      <div className={styles.footer}>
+      <SettingsFooter className={styles.footer}>
         <div className={statusClass}>{statusText}</div>
         <div className={styles.actions}>
-          <button
+          <SettingsButton variant="ghost"
             type="button"
-            className={`${styles.button} ${styles.ghostButton}`}
+
             onClick={() => void handleVerify()}
             disabled={busy || !url.trim()}
           >
             {t('common:hosted.verify')}
-          </button>
+          </SettingsButton>
           {tokenSource === 'keychain' && (
-            <button
+            <SettingsButton variant="ghost"
               type="button"
-              className={`${styles.button} ${styles.ghostButton}`}
+
               onClick={() => void handleClearToken()}
               disabled={busy}
             >
               {t('common:hosted.clearToken')}
-            </button>
+            </SettingsButton>
           )}
-          <button
+          <SettingsButton variant="primary"
             type="button"
-            className={`${styles.button} ${styles.primaryButton}`}
+
             onClick={() => void handleSave()}
             disabled={busy || !url.trim()}
           >
             {t('common:hosted.save')}
-          </button>
+          </SettingsButton>
         </div>
-      </div>
-    </div>
+      </SettingsFooter>
+    </SettingsSurface>
   )
 }

@@ -1,10 +1,11 @@
+import { SettingsSurface, SettingsSection, SettingsRow, Input as SettingsInput, SettingsFooter, Button as SettingsButton } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { Select } from './ui/Select'
 import { getAgentSettings, normalizeAgentMaxStepsInput, normalizeSafeCompileAutoAllowInput, updateAgentSettings, type AgentSettings } from '@/services/agent-settings'
 import { normalizeAgentApprovalMode, type AgentApprovalMode } from '../../../shared/ipc/agent-runtime'
-import styles from './NotificationSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 
 type StatusState = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 const DEFAULT_SETTINGS: AgentSettings = { approvalMode: 'per-action', agentMaxSteps: 40, safeCompileAutoAllow: true }
@@ -76,10 +77,10 @@ export function AgentSettingsPanel() {
     { value: 'plan', label: t('settings:agent.default.mode.plan') },
   ]
 
-  return <div className={styles.panel}>
-    <section className={styles.section}>
+  return <SettingsSurface className={styles.panel}>
+    <SettingsSection className={styles.section}>
       <h3 className={styles.sectionTitle}>{t('settings:agent.section.permissions')}</h3>
-      <div className={styles.row}>
+      <SettingsRow className={styles.row}>
         <div className={styles.label}>
           <span className={styles.labelText}>{t('settings:agent.default.label')}</span>
           <span className={styles.hint}>{t('settings:agent.default.hint')}</span>
@@ -90,7 +91,7 @@ export function AgentSettingsPanel() {
           options={options}
           ariaLabel={t('settings:agent.default.label')}
         />
-      </div>
+      </SettingsRow>
       <p className={styles.hint}>{t('settings:agent.safety')}</p>
       <SettingSwitch
         label={t('settings:agent.safeCompile.label')}
@@ -99,16 +100,16 @@ export function AgentSettingsPanel() {
         disabled={isBusy}
         onChange={handleSafeCompileChange}
       />
-    </section>
-    <section className={styles.section}>
+    </SettingsSection>
+    <SettingsSection className={styles.section}>
       <h3 className={styles.sectionTitle}>{t('settings:agent.section.limits')}</h3>
-      <div className={styles.row}>
+      <SettingsRow className={styles.row}>
         <div className={styles.label}>
           <span className={styles.labelText}>{t('settings:agent.maxSteps.label')}</span>
           <span className={styles.hint}>{t('settings:agent.maxSteps.hint')}</span>
         </div>
         <div className={styles.numberControl}>
-          <input
+          <SettingsInput
             className={styles.input}
             type="number"
             min={1}
@@ -120,16 +121,16 @@ export function AgentSettingsPanel() {
           />
           <span className={styles.unit}>{t('settings:agent.maxSteps.unit')}</span>
         </div>
-      </div>
-    </section>
-    <div className={styles.footer}>
+      </SettingsRow>
+    </SettingsSection>
+    <SettingsFooter className={styles.footer}>
       <div className={statusClass} role="status">{status === 'loading' && t('settings:footer.loading')}{status === 'saving' && t('settings:footer.saving')}{status === 'saved' && t('settings:footer.saved')}{status === 'idle' && isDirty && t('settings:footer.unsaved')}{status === 'error' && error}</div>
       <div className={styles.actions}>
-        <button type="button" className={`${styles.button} ${styles.ghostButton}`} onClick={() => { setDraft(settings); setStatus('idle'); setError('') }} disabled={isBusy || !isDirty}>{t('settings:footer.reset')}</button>
-        <button type="button" className={`${styles.button} ${styles.primaryButton}`} onClick={() => void handleSave()} disabled={isBusy || !isDirty}>{t('settings:footer.save')}</button>
+        <SettingsButton variant="ghost" type="button"  onClick={() => { setDraft(settings); setStatus('idle'); setError('') }} disabled={isBusy || !isDirty}>{t('settings:footer.reset')}</SettingsButton>
+        <SettingsButton variant="primary" type="button"  onClick={() => void handleSave()} disabled={isBusy || !isDirty}>{t('settings:footer.save')}</SettingsButton>
       </div>
-    </div>
-  </div>
+    </SettingsFooter>
+  </SettingsSurface>
 }
 
 function SettingSwitch({
@@ -146,7 +147,7 @@ function SettingSwitch({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <div className={styles.row}>
+    <SettingsRow className={styles.row}>
       <div className={styles.label}>
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
@@ -157,6 +158,6 @@ function SettingSwitch({
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-    </div>
+    </SettingsRow>
   )
 }

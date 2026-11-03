@@ -1,4 +1,6 @@
+import { SettingsSurface, SettingsSection, SettingsRow, Input as SettingsInput, Button as SettingsButton, SettingsFooter, Textarea as SettingsTextarea } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
+import { Select } from './ui/Select'
 import { useEffect, useState } from 'react'
 import {
   getNotificationSettings,
@@ -16,7 +18,7 @@ import {
 } from '../../../shared/notifications'
 import { RefreshIconButton } from './ui/RefreshIconButton'
 import { useI18n } from '@/i18n/useI18n'
-import styles from './NotificationSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 
 type StatusState = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 type TestStatusState = 'idle' | 'testing' | 'success' | 'error'
@@ -193,8 +195,8 @@ export function NotificationSettingsPanel() {
         : styles.status
 
   return (
-    <div className={styles.panel}>
-      <section className={styles.section}>
+    <SettingsSurface className={styles.panel}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('settings:notification.section.desktop')}</h3>
         <SettingSwitch
           label={t('settings:notification.toggle.desktop.label')}
@@ -217,17 +219,17 @@ export function NotificationSettingsPanel() {
           disabled={isBusy || !draft.desktopEnabled}
           onChange={(checked) => updateDraft('notifyOnFailure', checked)}
         />
-      </section>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('settings:notification.section.runtime')}</h3>
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('settings:notification.row.completeThreshold.label')}</span>
             <span className={styles.hint}>{t('settings:notification.row.completeThreshold.hint')}</span>
           </div>
           <div className={styles.numberControl}>
-            <input
+            <SettingsInput
               className={styles.input}
               type="number"
               min={0}
@@ -239,10 +241,10 @@ export function NotificationSettingsPanel() {
             />
             <span className={styles.unit}>{t('settings:notification.unit.sec')}</span>
           </div>
-        </div>
-      </section>
+        </SettingsRow>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('settings:notification.section.failure')}</h3>
         <SettingSwitch
           label={t('settings:notification.toggle.includeErrorMessage.label')}
@@ -251,13 +253,13 @@ export function NotificationSettingsPanel() {
           disabled={isBusy || !draft.desktopEnabled || !draft.notifyOnFailure}
           onChange={(checked) => updateDraft('includeErrorMessage', checked)}
         />
-        <div className={styles.row}>
+        <SettingsRow className={styles.row}>
           <div className={styles.label}>
             <span className={styles.labelText}>{t('settings:notification.row.errorMessageLength.label')}</span>
             <span className={styles.hint}>{t('settings:notification.row.errorMessageLength.hint')}</span>
           </div>
           <div className={styles.numberControl}>
-            <input
+            <SettingsInput
               className={styles.input}
               type="number"
               min={40}
@@ -274,10 +276,10 @@ export function NotificationSettingsPanel() {
             />
             <span className={styles.unit}>{t('settings:notification.unit.chars')}</span>
           </div>
-        </div>
-      </section>
+        </SettingsRow>
+      </SettingsSection>
 
-      <section className={styles.section}>
+      <SettingsSection className={styles.section}>
         <h3 className={styles.sectionTitle}>{t('settings:notification.section.remote')}</h3>
         <SettingSwitch
           label={t('settings:notification.toggle.remote.label')}
@@ -316,13 +318,13 @@ export function NotificationSettingsPanel() {
               disabled={isBusy || !draft.remote.enabled}
               onChange={(checked) => updateRemoteDraft('notifyOnApproval', checked)}
             />
-            <div className={styles.row}>
+            <SettingsRow className={styles.row}>
               <div className={styles.label}>
                 <span className={styles.labelText}>{t('settings:notification.row.remoteCompleteThreshold.label')}</span>
                 <span className={styles.hint}>{t('settings:notification.row.remoteCompleteThreshold.hint')}</span>
               </div>
               <div className={styles.numberControl}>
-                <input
+                <SettingsInput
                   className={styles.input}
                   type="number"
                   min={0}
@@ -334,17 +336,17 @@ export function NotificationSettingsPanel() {
                 />
                 <span className={styles.unit}>{t('settings:notification.unit.sec')}</span>
               </div>
-            </div>
+            </SettingsRow>
             <details className={styles.advanced}>
               <summary>{t('settings:notification.advanced')}</summary>
               <div className={styles.dependentFields}>
-                <div className={styles.row}>
+                <SettingsRow className={styles.row}>
                   <div className={styles.label}>
                     <span className={styles.labelText}>{t('settings:notification.row.dedupeWindow.label')}</span>
                     <span className={styles.hint}>{t('settings:notification.row.dedupeWindow.hint')}</span>
                   </div>
                   <div className={styles.numberControl}>
-                    <input
+                    <SettingsInput
                       className={styles.input}
                       type="number"
                       min={0}
@@ -356,14 +358,14 @@ export function NotificationSettingsPanel() {
                     />
                     <span className={styles.unit}>{t('settings:notification.unit.sec')}</span>
                   </div>
-                </div>
-                <div className={styles.row}>
+                </SettingsRow>
+                <SettingsRow className={styles.row}>
                   <div className={styles.label}>
                     <span className={styles.labelText}>{t('settings:notification.row.sendTimeout.label')}</span>
                     <span className={styles.hint}>{t('settings:notification.row.sendTimeout.hint')}</span>
                   </div>
                   <div className={styles.numberControl}>
-                    <input
+                    <SettingsInput
                       className={styles.input}
                       type="number"
                       min={1}
@@ -375,15 +377,15 @@ export function NotificationSettingsPanel() {
                     />
                     <span className={styles.unit}>{t('settings:notification.unit.sec')}</span>
                   </div>
-                </div>
+                </SettingsRow>
               </div>
             </details>
           </>
         )}
-      </section>
+      </SettingsSection>
 
       {draft.remote.enabled && (
-        <section className={styles.section}>
+        <SettingsSection className={styles.section}>
           <h3 className={styles.sectionTitle}>{t('settings:notification.section.feishu')}</h3>
           <SettingSwitch
             label={t('settings:notification.toggle.feishu.label')}
@@ -394,21 +396,20 @@ export function NotificationSettingsPanel() {
           />
           {draft.remote.providers.feishu.enabled && (
             <>
-              <div className={styles.row}>
+              <SettingsRow className={styles.row}>
                 <div className={styles.label}>
                   <span className={styles.labelText}>{t('settings:notification.row.feishuMode.label')}</span>
                   <span className={styles.hint}>{t('settings:notification.row.feishuMode.hint')}</span>
                 </div>
-                <select
+                <Select
+                  ariaLabel={t('settings:notification.row.feishuMode.label')}
                   className={styles.select}
                   value={draft.remote.providers.feishu.mode}
                   disabled={isBusy || !draft.remote.enabled || !draft.remote.providers.feishu.enabled}
-                  onChange={(event) => handleFeishuModeChange(event.target.value === 'app' ? 'app' : 'webhook')}
-                >
-                  <option value="webhook">{t('settings:notification.option.webhook')}</option>
-                  <option value="app">{t('settings:notification.option.app')}</option>
-                </select>
-              </div>
+                  onChange={value => handleFeishuModeChange(value === 'app' ? 'app' : 'webhook')}
+                  options={[{ value: 'webhook', label: t('settings:notification.option.webhook') }, { value: 'app', label: t('settings:notification.option.app') }]}
+                />
+              </SettingsRow>
               {draft.remote.providers.feishu.mode === 'webhook' ? (
                 <TextInputRow
                   label={t('settings:notification.row.webhookUrl.label')}
@@ -434,26 +435,25 @@ export function NotificationSettingsPanel() {
                     disabled={isBusy || !draft.remote.enabled || !draft.remote.providers.feishu.enabled}
                     onChange={(value) => updateFeishuDraft('appSecret', value)}
                   />
-                  <div className={styles.row}>
+                  <SettingsRow className={styles.row}>
                     <div className={styles.label}>
                       <span className={styles.labelText}>{t('settings:notification.row.receiveIdType.label')}</span>
                       <span className={styles.hint}>{t('settings:notification.row.receiveIdType.hint')}</span>
                     </div>
-                    <select
+                    <Select
+                      ariaLabel={t('settings:notification.row.receiveIdType.label')}
                       className={styles.select}
                       value={draft.remote.providers.feishu.receiveIdType}
                       disabled={isBusy || !draft.remote.enabled || !draft.remote.providers.feishu.enabled}
-                      onChange={(event) =>
+                      onChange={value =>
                         updateFeishuDraft(
                           'receiveIdType',
-                          event.target.value === 'open_id' ? 'open_id' : 'chat_id',
+                          value === 'open_id' ? 'open_id' : 'chat_id',
                         )
                       }
-                    >
-                      <option value="chat_id">{t('settings:notification.option.chatId')}</option>
-                      <option value="open_id">{t('settings:notification.option.openId')}</option>
-                    </select>
-                  </div>
+                      options={[{ value: 'chat_id', label: t('settings:notification.option.chatId') }, { value: 'open_id', label: t('settings:notification.option.openId') }]}
+                    />
+                  </SettingsRow>
                   <TextInputRow
                     label={t('settings:notification.row.receiveId.label')}
                     hint={t('settings:notification.row.receiveId.hint')}
@@ -548,14 +548,14 @@ export function NotificationSettingsPanel() {
               </>
             )}
             <div className={styles.testRow}>
-              <button
+              <SettingsButton variant="ghost"
                 type="button"
-                className={`${styles.button} ${styles.ghostButton}`}
+
                 onClick={handleTestFeishu}
                 disabled={isBusy || isTesting || !draft.remote.providers.feishu.enabled}
               >
                 {isTesting ? t('settings:notification.action.testing') : t('settings:notification.action.testFeishu')}
-              </button>
+              </SettingsButton>
               <span
                 className={
                   testStatus === 'error'
@@ -570,10 +570,10 @@ export function NotificationSettingsPanel() {
             </div>
             </>
           )}
-        </section>
+        </SettingsSection>
       )}
 
-      <div className={styles.footer}>
+      <SettingsFooter className={styles.footer}>
         <div className={statusClass} role="status">
           {status === 'loading' && t('settings:footer.loading')}
           {status === 'saving' && t('settings:footer.saving')}
@@ -582,25 +582,25 @@ export function NotificationSettingsPanel() {
           {status === 'error' && error}
         </div>
         <div className={styles.actions}>
-          <button
+          <SettingsButton variant="ghost"
             type="button"
-            className={`${styles.button} ${styles.ghostButton}`}
+
             onClick={handleReset}
             disabled={isBusy || !isDirty}
           >
             {t('settings:footer.reset')}
-          </button>
-          <button
+          </SettingsButton>
+          <SettingsButton variant="primary"
             type="button"
-            className={`${styles.button} ${styles.primaryButton}`}
+
             onClick={handleSave}
             disabled={isBusy || !isDirty}
           >
             {t('settings:footer.save')}
-          </button>
+          </SettingsButton>
         </div>
-      </div>
-    </div>
+      </SettingsFooter>
+    </SettingsSurface>
   )
 }
 
@@ -620,12 +620,12 @@ function TextInputRow({
   onChange: (value: string) => void
 }) {
   return (
-    <div className={styles.row}>
+    <SettingsRow className={styles.row}>
       <div className={styles.label}>
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
       </div>
-      <input
+      <SettingsInput
         className={`${styles.input} ${styles.textInput}`}
         type={type}
         aria-label={label}
@@ -633,7 +633,7 @@ function TextInputRow({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
-    </div>
+    </SettingsRow>
   )
 }
 
@@ -651,19 +651,19 @@ function TextAreaRow({
   onChange: (value: string) => void
 }) {
   return (
-    <div className={styles.row}>
+    <SettingsRow className={styles.row}>
       <div className={styles.label}>
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
       </div>
-      <textarea
+      <SettingsTextarea
         className={`${styles.input} ${styles.textArea}`}
         rows={3}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
-    </div>
+    </SettingsRow>
   )
 }
 
@@ -687,13 +687,13 @@ function ControlNumberRow({
   onChange: (value: string) => void
 }) {
   return (
-    <div className={styles.row}>
+    <SettingsRow className={styles.row}>
       <div className={styles.label}>
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
       </div>
       <div className={styles.numberControl}>
-        <input
+        <SettingsInput
           className={styles.input}
           type="number"
           min={min}
@@ -704,7 +704,7 @@ function ControlNumberRow({
         />
         <span className={styles.unit}>{unit}</span>
       </div>
-    </div>
+    </SettingsRow>
   )
 }
 
@@ -722,7 +722,7 @@ function SettingSwitch({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <div className={styles.row}>
+    <SettingsRow className={styles.row}>
       <div className={styles.label}>
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
@@ -733,6 +733,6 @@ function SettingSwitch({
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-    </div>
+    </SettingsRow>
   )
 }

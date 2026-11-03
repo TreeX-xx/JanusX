@@ -279,7 +279,6 @@ describe('planche theme contract', () => {
     for (const mod of [
       'components/LlmConfigModal.module.css',
       'components/ModelCatalogPanel.module.css',
-      'components/NotificationSettingsPanel.module.css',
       'components/ProjectSettings.module.css',
       'components/AppSettingsModal.module.css',
     ]) {
@@ -292,8 +291,8 @@ describe('planche theme contract', () => {
     const catalog = read('components/ModelCatalogPanel.module.css')
     expect(catalog).toContain(":global([data-theme='planche']) .metadata strong")
     expect(catalog).toContain(":global([data-theme='planche']) .empty strong")
-    const notif = read('components/NotificationSettingsPanel.module.css')
-    expect(notif).toContain(":global([data-theme='planche']) .labelText")
+    const notif = readFileSync(resolve(__dirname, '../../packages/ui/src/styles.css'), 'utf8')
+    expect(notif).toContain('.jx-settings-label-text { color: var(--shell-text)')
     const project = read('components/ProjectSettings.module.css')
     expect(project).toContain(":global([data-theme='planche']) .promptBox textarea")
     // 运行配置分体浮岛：错峰入场 + reduced-motion 兜底，卡片层吃 --card-index
@@ -318,15 +317,14 @@ describe('planche theme contract', () => {
     for (const mod of [
       'components/LlmConfigModal.module.css',
       'components/ModelCatalogPanel.module.css',
-      'components/NotificationSettingsPanel.module.css',
       'components/ProjectSettings.module.css',
       'components/AppSettingsModal.module.css',
     ]) {
       const declared = stripCssComments(read(mod))
       expect(declared, mod).not.toMatch(/#151517|rgba\(\s*21\s*,\s*21\s*,\s*23/)
     }
-    expect(notif).toContain("background: color-mix(in srgb, var(--shell-canvas) 90%, transparent);")
-    expect(stripCssComments(notif)).toContain(":global([data-theme='planche']) .footer")
+    expect(notif).toContain('background: var(--shell-canvas); backdrop-filter: none;')
+    expect(stripCssComments(notif)).not.toMatch(/#151517|rgba\(\s*21\s*,\s*21\s*,\s*23/)
     // 文件树 CSS 同样收敛到令牌
     const fileTree = read('components/file-tree/file-tree.module.css')
     expect(fileTree).toContain('color: var(--shell-text)')
@@ -407,16 +405,11 @@ describe('planche theme contract', () => {
     expect(island).toContain("[data-theme='planche'] .janus-run-orb-popover-close,")
     expect(island).toContain("[data-theme='planche'] .janus-run-orb-popover-close:hover")
     // 通用 Select：触发器 + 浮层 + 选项纸面化（:global 加法层，吃令牌）
-    const select = read('components/ui/Select.module.css')
-    for (const selector of [
-      ":global([data-theme='planche']) .trigger",
-      ":global([data-theme='planche']) .dropdown",
-      ":global([data-theme='planche']) .option:hover",
-      ":global([data-theme='planche']) .optionSelected",
-    ]) {
-      expect(select, selector).toContain(selector)
-    }
-    expect(select).not.toMatch(/linear-gradient/)
+    const select = readFileSync(resolve(__dirname, '../../packages/ui/src/styles.css'), 'utf8')
+    expect(select).toContain("[data-jx-control='select']")
+    expect(select).toContain('[data-jx-listbox]')
+    expect(select).toContain('var(--popover-background')
+    expect(select).not.toMatch(/linear-gradient|--planche-red|--janus-order,/)
     // 模型菜单 / 作者行纸面化
     expect(island).toContain("[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu {")
     const chat = read('components/janus/styles/03-janus-chat-core.css')
@@ -487,8 +480,8 @@ describe('planche theme contract', () => {
     expect(footer).not.toMatch(/rgba\(255,\s*255,\s*255,\s*0\.0[345]/)
     expect(footer).not.toMatch(/rgba\(255,\s*120,\s*48/)
     // 设置 team 页复用通知面板样式（已有 planche 层），入口提示走自绘 ThemedTooltip
-    const notif = read('components/NotificationSettingsPanel.module.css')
-    expect(notif).toContain(":global([data-theme='planche']) .labelText")
+    const notif = readFileSync(resolve(__dirname, '../../packages/ui/src/styles.css'), 'utf8')
+    expect(notif).toContain('.jx-settings-label-text { color: var(--shell-text)')
     const teamFooter = read('components/team/TeamFooter.tsx')
     expect(teamFooter).toContain('ThemedTooltip')
   })

@@ -1,3 +1,4 @@
+import { SettingsSurface, SettingsSection, SettingsRow } from '@janusx/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n/config'
@@ -64,8 +65,8 @@ export function GeneralSettingsPanel() {
   }
 
   return (
-    <div className={styles.generalPanel}>
-      <section className={styles.generalSection}>
+    <SettingsSurface className={styles.generalPanel}>
+      <SettingsSection className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.section.preferences')}</h3>
         <div className={`${styles.generalRow} ${styles.themeRow}`}>
           <div className={styles.generalLabelCol}>
@@ -83,7 +84,7 @@ export function GeneralSettingsPanel() {
             />
           </div>
         </div>
-        <div className={styles.generalRow}>
+        <SettingsRow className={styles.generalRow}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.language.label')}</div>
             <div className={styles.generalHelp}>{t('settings:general.language.help')}</div>
@@ -97,13 +98,13 @@ export function GeneralSettingsPanel() {
               ariaLabel={t('settings:general.language.label')}
             />
           </div>
-        </div>
+        </SettingsRow>
         <div className={styles.generalHelp}>{t('settings:general.autoSave')}</div>
-      </section>
+      </SettingsSection>
 
-      <section className={styles.generalSection}>
+      <SettingsSection className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.session.section')}</h3>
-        <div className={styles.generalRow}>
+        <SettingsRow className={styles.generalRow}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.session.label')}</div>
             <div className={styles.generalHelp}>{t('settings:general.session.help')}</div>
@@ -113,12 +114,12 @@ export function GeneralSettingsPanel() {
               options={['terminal', 'conversation'].map(value => ({ value, label: t(`settings:general.session.${value}`) }))}
               className={styles.generalSelect} ariaLabel={t('settings:general.session.label')} />
           </div>
-        </div>
-      </section>
+        </SettingsRow>
+      </SettingsSection>
 
-      <section className={styles.generalSection}>
+      <SettingsSection className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.remote.label')}</h3>
-        <div className={`${styles.generalRow} ${styles.generalToggleRow}`}>
+        <SettingsRow className={`${styles.generalRow} ${styles.generalToggleRow}`}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.remote.enable')}</div>
             <div id="remote-control-help" className={styles.generalHelp}>{t('settings:general.remote.help')}</div>
@@ -126,16 +127,16 @@ export function GeneralSettingsPanel() {
           </div>
           <SettingsCheckbox role="switch" aria-label={t('settings:general.remote.enable')} aria-describedby="remote-control-help"
             checked={remoteEnabled} disabled={!featuresLoaded || remoteSaving} onChange={() => void setRemoteEnabled()} />
-        </div>
-      </section>
+        </SettingsRow>
+      </SettingsSection>
 
-      <section className={styles.generalSection}>
+      <SettingsSection className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.section.environment')}</h3>
         <div className={`${styles.generalRow} ${styles.generalRowWide}`}>
           <WorkflowXStatus surface="settings" />
         </div>
-      </section>
+      </SettingsSection>
       <WorkspaceStoragePanel />
-    </div>
+    </SettingsSurface>
   )
 }

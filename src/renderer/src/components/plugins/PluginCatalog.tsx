@@ -1,3 +1,5 @@
+import { InputGroup } from '@janusx/ui'
+import { Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
 import { useEffect, useRef, useState } from 'react'
 import semver from 'semver'
 import { Check, Download, PackageSearch, RefreshCw, Search } from 'lucide-react'
@@ -47,8 +49,8 @@ export function PluginCatalog({ onUninstall }: { onUninstall?: (id: string) => v
   }
   return <div className={styles.root} data-plugin-catalog>
     <div className={styles.marketToolbar}>
-      <label className={styles.search}><Search size={15} aria-hidden="true" /><input type="search" aria-label={t('plugins:searchCatalog')} placeholder={t('plugins:searchCatalog')} value={query} onChange={event => setQuery(event.target.value)} /></label>
-      <button disabled={busy || Boolean(distribution?.operation) || !distribution?.configured} onClick={() => { void refresh() }}><RefreshCw size={14} aria-hidden="true" />{t('plugins:refreshCatalog')}</button>
+      <InputGroup as="label" className={styles.search}><Search size={15} aria-hidden="true" /><SettingsInput type="search" aria-label={t('plugins:searchCatalog')} placeholder={t('plugins:searchCatalog')} value={query} onChange={event => setQuery(event.target.value)} /></InputGroup>
+      <SettingsButton disabled={busy || Boolean(distribution?.operation) || !distribution?.configured} onClick={() => { void refresh() }}><RefreshCw size={14} aria-hidden="true" />{t('plugins:refreshCatalog')}</SettingsButton>
     </div>
     <div className={styles.collectionHeading}><strong>{t('plugins:catalogCollection')}</strong><span>{entries.length}</span></div>
     <p className={styles.hint}>{t('plugins:catalogHint')}</p>
@@ -74,13 +76,13 @@ export function PluginCatalog({ onUninstall }: { onUninstall?: (id: string) => v
         <p className={styles.description}>{entry.description}</p>
         {!entry.compatible && <p>{t('plugins:incompatible')}</p>}
         {update && installed.enabled && <p>{t('plugins:stopBeforeUpdate')}</p>}
-        <div className={styles.cardFooter}><span className={styles.meta}>v{entry.version} · {(entry.bytes / 1024 / 1024).toFixed(1)} MB</span><div className={styles.actions}><button className={installed && !update ? undefined : styles.primary} disabled={disabled} onClick={() => { void install(entry.id) }}>{installed && !update ? <Check size={13} aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}{installed ? update ? t('plugins:update') : t('plugins:installed') : t('plugins:install')}</button>
-          {installed && onUninstall && <button className={styles.danger} disabled={busy || Boolean(distribution?.operation)} onClick={() => onUninstall(entry.id)}>{t('plugins:uninstall')}</button>}
+        <div className={styles.cardFooter}><span className={styles.meta}>v{entry.version} · {(entry.bytes / 1024 / 1024).toFixed(1)} MB</span><div className={styles.actions}><SettingsButton variant={installed && !update ? "secondary" : "primary"} disabled={disabled} onClick={() => { void install(entry.id) }}>{installed && !update ? <Check size={13} aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}{installed ? update ? t('plugins:update') : t('plugins:installed') : t('plugins:install')}</SettingsButton>
+          {installed && onUninstall && <SettingsButton variant="danger" disabled={busy || Boolean(distribution?.operation)} onClick={() => onUninstall(entry.id)}>{t('plugins:uninstall')}</SettingsButton>}
         </div></div>
         {operation && <div role="status" aria-live="polite">
           <label>{t(operation.phase === 'installing' ? 'plugins:installing' : 'plugins:downloading')} · {operation.percent}%
             <progress max={100} value={operation.percent} /></label>
-          {operation.phase === 'downloading' && <button onClick={() => { void pluginRequest({ type: 'installCancel' }).catch(() => setFailure('INSTALLATION_FAILED')) }}>{t('plugins:cancel')}</button>}
+          {operation.phase === 'downloading' && <SettingsButton onClick={() => { void pluginRequest({ type: 'installCancel' }).catch(() => setFailure('INSTALLATION_FAILED')) }}>{t('plugins:cancel')}</SettingsButton>}
         </div>}
         {installed && !update && <p className={styles.hint}>{t('plugins:installedHint')}</p>}
       </section>

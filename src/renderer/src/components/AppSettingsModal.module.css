@@ -7,9 +7,7 @@
  *
  * 配色纪律（本文件与 NotificationSettingsPanel / LlmConfigModal / ModelCatalogPanel 共用）：
  *   1. 表面只用 globals.css 的 --shell-* 阶梯，不出现新的近黑色值。
- *   2. 橙色是唯一强调色，只允许出现在 1px 边框、2px 选中条和文字上——不做填充色块。
- *      旧版把选中项、provider 卡片、badge、notice 全做成带边框的橙色/白色填充块，
- *      叠在一起就是"大量色块"的来源。
+ *   2. 操作与选中态使用中性明暗；控件外观由 @janusx/ui 维护，页面只负责布局。
  *   3. 分组靠低对比发丝线、轻微底色和留白，弱于外壳与控件边界。
  * Note: 设置内卡采用柔和层级 — see .agents/notes/workbench/run-config-island-cards.md
  *
@@ -36,11 +34,10 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Settings-scoped accent: a lighter amber than the brand orange, so it stays
-     legible as 1px/2px detail on these surfaces. Panels below read these. */
-  --so-accent: #f2934f;
-  --so-accent-ink: #f0a878;
-  --so-accent-hover: #ffbf94;
+  /* Neutral settings tokens; shared controls also work in independent plugins. */
+  --so-accent: var(--shell-text);
+  --so-accent-ink: var(--shell-text);
+  --so-accent-hover: var(--shell-text);
   --janus-order: var(--so-accent);
 
   /* Shared control metrics — every panel uses these instead of ad-hoc numbers. */
@@ -365,7 +362,7 @@
   container: general-settings / inline-size;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   padding: 0;
 }
 
@@ -374,7 +371,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
   gap: 24px;
   align-items: start;
-  padding: 18px 0;
+  padding: 4px 0;
 }
 
 .generalLabelCol {
@@ -385,7 +382,7 @@
 }
 
 .generalSection { display: flex; flex-direction: column; min-width: 0; }
-.generalSection + .generalSection { padding-top: 24px; border-top: 1px solid var(--shell-border); }
+
 .generalSectionTitle { margin: 0 0 18px; color: var(--shell-text); font-size: 14px; font-weight: 600; }
 .generalSection > .generalHelp { margin-top: 10px; }
 .generalRowWide { grid-template-columns: minmax(0, 1fr); gap: 14px; }
@@ -425,25 +422,6 @@
 
 .generalSelect {
   width: 100%;
-  height: var(--so-control-h);
-  padding: 0 10px;
-  border: 1px solid var(--control-border);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--shell-text);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.generalSelect:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.generalSelect:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.16);
-  outline-offset: -1px;
 }
 
 /* Terminal settings cards and controls */
@@ -631,27 +609,6 @@
   cursor: not-allowed;
 }
 
-.lsButtonPrimary {
-  border-color: var(--so-field-border);
-  color: var(--shell-text);
-}
-
-.lsButtonPrimary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--shell-text);
-}
-
-.lsButtonGhost {
-  color: var(--shell-muted);
-}
-
-.lsButtonGhost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--shell-text);
-}
-
 .lsBusyText {
   font-size: 11px;
   color: var(--shell-muted);
@@ -683,10 +640,10 @@
    白字标签与关键悬停逐条点名。 */
 :global([data-theme='planche']) .panel {
   --so-field: var(--paper, #EFE4C5);
-  --so-accent: var(--planche-red, #D43D2A);
-  --so-accent-ink: var(--planche-red, #D43D2A);
-  --so-accent-hover: var(--planche-red, #D43D2A);
-  --janus-order: var(--planche-red, #D43D2A);
+  --so-accent: var(--shell-text);
+  --so-accent-ink: var(--shell-text);
+  --so-accent-hover: var(--shell-text);
+  --janus-order: var(--shell-text);
 }
 
 /* 遮罩刻意不做主题覆写。planche 曾把它换成 0.18 的淡墨罩并去掉模糊，
@@ -714,33 +671,12 @@
   background: var(--ink-faint, rgba(28, 52, 59, 0.38));
 }
 
-:global([data-theme='planche']) .generalSelect {
-  background: var(--paper, #EFE4C5);
-  border: 1px solid var(--line, #1C343B);
-  color: var(--ink, #1C343B);
-}
-
-:global([data-theme='planche']) .generalSelect:hover {
-  border-color: var(--planche-red, #D43D2A);
-}
-
-:global([data-theme='planche']) .generalSelect:focus-visible {
-  outline: 1px solid var(--planche-red, #D43D2A);
-}
-
 :global([data-theme='planche']) .lsStateIdle {
   background: var(--paper-deep, #DCCFA8);
 }
 
 :global([data-theme='planche']) .lsCardHint {
   background: var(--paper-deep, #DCCFA8);
-}
-
-:global([data-theme='planche']) .lsButtonPrimary:hover:not(:disabled),
-:global([data-theme='planche']) .lsButtonGhost:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
 }
 
 :global([data-theme='planche']) .lsSpinner {
@@ -773,24 +709,6 @@
 .lsInput {
   width: 100%;
   min-width: 0;
-  height: var(--so-control-h);
-  padding: 0 8px;
-  border: 1px solid var(--so-field-border);
-  border-radius: var(--so-radius);
-  background: var(--so-field);
-  color: var(--shell-text);
-  font-size: 12px;
-  font-family: inherit;
-  transition: border-color 0.15s ease;
-}
-
-.lsInput:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.lsInput:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.16);
-  outline-offset: -1px;
 }
 
 /* 可执行名缺失：复用错误状态配色。 */
@@ -804,26 +722,7 @@
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 28px;
   flex-shrink: 0;
-  padding: 0;
-  border: 1px solid var(--so-field-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--shell-muted);
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-}
-
-.lsIconButton:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--shell-text);
-}
-
-.lsIconButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .lsEmpty {
@@ -859,22 +758,12 @@
   color: var(--shell-text);
 }
 
-:global([data-theme='planche']) .lsInput {
-  background: var(--paper-deep, #DCCFA8);
-}
-
 :global([data-theme='planche']) .lsInputMissing {
   color: #A4442F;
 }
 
 :global([data-theme='planche']) .lsMissingText {
   color: #A4442F;
-}
-
-:global([data-theme='planche']) .lsIconButton:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
 }
 
 /* 条目名称就是卡片标题：比普通输入框大一号、加粗，压过旁边的勾选控件 */
@@ -901,58 +790,12 @@
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 28px;
   flex-shrink: 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--shell-muted);
-  cursor: pointer;
-  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
-}
-
-.lsIconToggle:hover:not(:disabled) {
-  border-color: var(--so-field-border);
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--shell-text);
-}
-
-.lsIconToggle:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
 }
 
 /* 置灰 = 不显示 / 非默认 */
-.lsIconToggleOff {
-  opacity: 0.5;
-}
-
-.lsIconToggleOff:hover:not(:disabled) {
-  opacity: 1;
-}
 
 /* 默认项：主题强调色实心星，随主题变（纸面朱红 / 深色橙） */
-.lsIconToggleOn {
-  color: var(--shell-accent);
-}
-
-.lsIconToggleOn:hover:not(:disabled) {
-  color: var(--shell-accent);
-}
-
-
-
-:global([data-theme='planche']) .lsIconToggle:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
-}
-
-:global([data-theme='planche']) .lsIconToggleOn,
-:global([data-theme='planche']) .lsIconToggleOn:hover:not(:disabled) {
-  color: var(--planche-red, #D43D2A);
-}
 
 
 /* 条目图标即显隐开关：比普通图标钮大一圈，好点；置灰 = 不进新建入口。
@@ -960,10 +803,6 @@
 .lsIconEntry {
   width: 30px;
   height: 30px;
-}
-
-.lsIconToggleOff.lsIconEntry {
-  filter: grayscale(1);
 }
 
 /* 检测中：图标自顾旋转，替代原来的文字“检测中…” */

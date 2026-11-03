@@ -29,7 +29,8 @@
     "yaml": "^2.9.1",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.2",
-    "@janusx/note-tools": "file:vendor/janusx-note-tools-0.1.0.tgz"
+    "@janusx/note-tools": "file:vendor/janusx-note-tools-0.1.0.tgz",
+    "@janusx/ui": "file:vendor/janusx-ui-0.1.0.tgz"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

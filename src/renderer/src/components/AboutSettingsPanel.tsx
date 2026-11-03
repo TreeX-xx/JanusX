@@ -1,3 +1,4 @@
+import { SettingsSurface, Button as SettingsButton } from '@janusx/ui'
 import { useState } from 'react'
 import { ArrowUpRight, Star } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
@@ -25,7 +26,7 @@ export function AboutSettingsPanel() {
   }
 
   return (
-    <div className={styles.panel}>
+    <SettingsSurface className={styles.panel}>
       <section className={styles.identity} aria-label="JanusX">
         <img className={styles.productIcon} src={appIcon} alt="" width={80} height={80} />
         <h3 className={styles.productName}>JanusX</h3>
@@ -42,13 +43,13 @@ export function AboutSettingsPanel() {
           <h3 className={styles.supportTitle}>{t('settings:about.support.title')}</h3>
           <p className={styles.description}>{t('settings:about.support.description')}</p>
         </div>
-        <button type="button" className={styles.supportButton} disabled={opening} onClick={() => void openRepository()}>
+        <SettingsButton type="button" className={styles.supportButton} disabled={opening} onClick={() => void openRepository()}>
           <Star className={styles.starIcon} size={17} strokeWidth={1.7} aria-hidden="true" />
           {t('settings:about.support.action')}
           <ArrowUpRight size={13} strokeWidth={1.7} aria-hidden="true" />
-        </button>
+        </SettingsButton>
         {linkError && <p className={styles.error} role="alert">{t('settings:about.support.error')}</p>}
       </footer>
-    </div>
+    </SettingsSurface>
   )
 }
