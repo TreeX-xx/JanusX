@@ -3,9 +3,9 @@
 import { endpoint, token } from './connection.mjs'
 import { randomUUID } from 'node:crypto'
 
-export function bridge(execute) {
+export function bridge(execute, setMode = () => {}) {
   const instanceId = randomUUID()
-  let sequence = 0, stopped = false, sessionId, timer, busy = false, overflow = false
+  let sequence = 0, stopped = false, sessionId, timer, busy = false, overflow = false, lastSeen = Date.now()
   const events = [], acks = new Map(), executed = new Set()
   function emit(event) {
     if (stopped) return
@@ -20,8 +20,10 @@ export function bridge(execute) {
     try {
       const response = await fetch(`${endpoint}/exchange`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-JanusX-Token': token },
         body: JSON.stringify({ sessionId, instanceId, overflow, events: events.slice(0, 50), acks: [...acks.values()] }), signal: AbortSignal.timeout(3000) })
-      if (!response.ok) { if ([403, 409, 410].includes(response.status)) stop(); return }
+      if (!response.ok) { if ([403, 409, 410].includes(response.status)) stop(); else if (Date.now() - lastSeen > 6000) setMode('terminal'); return }
       const reply = await response.json()
+      lastSeen = Date.now()
+      if (reply.mode === 'terminal' || reply.mode === 'conversation') setMode(reply.mode)
       while (events[0]?.seq <= reply.seq) events.shift()
       for (const id of reply.acks ?? []) acks.delete(id)
       for (const command of reply.commands ?? []) {
@@ -34,10 +36,14 @@ export function bridge(execute) {
         } catch (error) { acks.set(command.id, { id: command.id, ok: false, error: String(error) }) }
         if (executed.size > 2500) { overflow = true; break }
       }
-    } catch { /* Keep events until acknowledged; never repeat an executed command. */ }
+    } catch {
+      // Release unanswered dialogs if the host disappeared; keep sequenced events
+      // for reconciliation, without replaying a consumed command.
+      if (Date.now() - lastSeen > 6000) setMode('terminal')
+    }
     finally { busy = false }
   }
-  function stop() { stopped = true; clearInterval(timer) }
+  function stop() { setMode('terminal'); stopped = true; clearInterval(timer) }
   timer = setInterval(() => void exchange(), 100)
   timer.unref?.()
   return { emit, stop }

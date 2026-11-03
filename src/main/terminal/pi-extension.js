@@ -1,13 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { setTimeout } from 'node:timers'
 import { bridge } from './native-bridge.mjs'
+import { nativeQuestions } from './native-questions.mjs'
 import { storeConversationImage } from './conversation-images.mjs'
 import { fileURLToPath, URL } from 'node:url'
 
 export default function (pi) {
   let context, turnId = '', assistantId = '', userId = ''
+  const questions = nativeQuestions(event => link.emit(event))
+  const wrapped = new WeakSet()
+  let nativeDialogs = 0
   const link = bridge(async command => {
     if (!context) throw new Error('Pi is starting')
+    if (command.type === 'display-mode') { questions.setMode(command.mode); return }
+    if (command.type === 'answer') { questions.answer(command); return }
     if (command.type === 'catalog') return pi.getCommands().slice(0, 1000).map(({ name, description, source, sourceInfo }) => ({ name, description, source, sourceInfo }))
     if (command.type === 'invoke') {
       if (!context.isIdle() || context.hasPendingMessages()) throw new Error('Pi is busy')
@@ -16,12 +22,46 @@ export default function (pi) {
       pi.sendUserMessage('/' + entry.name + (command.arguments ? ' ' + command.arguments : ''), { expandPromptTemplates: true })
     } else if (command.type === 'interrupt') {
       if (command.turnId !== turnId) throw new Error('Pi turn changed')
+      questions.cancel()
       await context.abort()
     } else {
       if (!context.isIdle() || context.hasPendingMessages()) throw new Error('Pi is busy')
       pi.sendUserMessage(command.text)
     }
-  })
+  }, questions.setMode)
+  function wrapUI(ui) {
+    if (!ui || wrapped.has(ui)) return
+    wrapped.add(ui)
+    if (typeof ui.custom === 'function') {
+      const original = ui.custom.bind(ui)
+      ui.custom = async (...args) => {
+        link.emit({ type: 'attention', pending: ++nativeDialogs > 0 })
+        try { return await original(...args) }
+        finally { link.emit({ type: 'attention', pending: --nativeDialogs > 0 }) }
+      }
+    }
+    for (const kind of ['confirm', 'select', 'input', 'editor']) {
+      const original = ui[kind].bind(ui)
+      ui[kind] = async (title, value, options) => {
+        const choices = kind === 'confirm' ? ['Yes', 'No'] : kind === 'select' ? value : []
+        const reply = await questions.ask({ turnId, questions: [{ id: 'answer', text: title,
+          detail: kind === 'confirm' ? value : undefined,
+          options: choices.map((label, i) => ({ id: String(i), label })),
+          allowText: kind === 'input' || kind === 'editor', multiline: kind === 'editor',
+          placeholder: kind === 'input' ? value : undefined, initialText: kind === 'editor' ? value : undefined,
+          required: kind === 'confirm' || kind === 'select',
+        }] }, options?.signal, options?.timeout)
+        if (reply.native) {
+          link.emit({ type: 'attention', pending: ++nativeDialogs > 0 })
+          try { return await original(title, value, options) }
+          finally { link.emit({ type: 'attention', pending: --nativeDialogs > 0 }) }
+        }
+        if (reply.cancelled) return kind === 'confirm' ? false : undefined
+        const answer = reply.answers[0]
+        return kind === 'confirm' ? answer.selected[0] === '0' : kind === 'select' ? choices[Number(answer.selected[0])] : answer.text ?? ''
+      }
+    }
+  }
   function message(event, done) {
     const msg = event.message
     if (!msg || !['user', 'assistant', 'toolResult'].includes(msg.role)) return
@@ -53,6 +93,7 @@ export default function (pi) {
   }
   pi.on('session_start', (_event, ctx) => {
     context = ctx
+    wrapUI(ctx.ui)
     link.emit({ type: 'session', sessionId: ctx.sessionManager.getSessionId(), path: ctx.sessionManager.getSessionFile(), model: ctx.model?.id })
   })
   pi.on('agent_start', (_event, ctx) => {
@@ -68,5 +109,5 @@ export default function (pi) {
   pi.on('message_update', event => message(event, false))
   pi.on('message_end', event => message(event, true))
   pi.on('agent_settled', () => { link.emit({ type: 'end' }); turnId = '' })
-  pi.on('session_shutdown', () => { link.emit({ type: 'error', error: 'Pi session closed or switched; create a new dual-mode terminal.' }); setTimeout(link.stop, 150) })
+  pi.on('session_shutdown', () => { questions.cancel(); link.emit({ type: 'error', error: 'Pi session closed or switched; create a new dual-mode terminal.' }); setTimeout(link.stop, 150) })
 }

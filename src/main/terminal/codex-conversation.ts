@@ -9,6 +9,8 @@ import WebSocket, { WebSocketServer } from 'ws'
 import { CodexStartup } from './codex-startup'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot, ConversationModelOption } from '../../shared/conversation-display'
 import { CODEX_CONVERSATION_CAPABILITIES } from '../../shared/conversation-display'
+import { codexApprovalChoices, codexQuestions } from './codex-questions'
+import { hasBlockingQuestions } from '../../shared/conversation-questions'
 
 type Json = Record<string, any> // Codex's versioned JSON-RPC boundary; normalized before IPC.
 // Session speed state and icon contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
@@ -57,6 +59,7 @@ export class CodexConversation {
   private pending = new Map<string, { resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
   private nativeThreadRequests = new Set<string | number>()
   private otherRequests = new Set<string | number>()
+  private approvalDecisions = new Map<string | number, Map<string, unknown>>()
   private lastCompletedTurnId?: string
   private endpoint = ''
   private loadingModels?: Promise<void>
@@ -70,7 +73,7 @@ export class CodexConversation {
     private readonly bind: (threadId: string, transcriptPath?: string) => void = () => {}) {
     this.state = conversationState(id, 'codex', CODEX_CONVERSATION_CAPABILITIES)
     this.session = new ConversationSession(this.state, publish)
-    this.state.capabilities = { ...this.state.capabilities, commands: true }
+    this.state.capabilities = { ...this.state.capabilities, commands: true, questions: true }
     this.catalog = new ConversationCatalog(this.session, () => this.loadCommands())
   }
 
@@ -218,6 +221,7 @@ export class CodexConversation {
       this.state.plans = []
       this.state.needsTerminal = false; this.state.truncated = false; this.state.controlEpoch++
       this.otherRequests.clear()
+      this.session.questions.clear(); this.approvalDecisions.clear()
     }
     this.state.threadId = thread.id
     this.state.serviceTier = undefined
@@ -326,6 +330,7 @@ export class CodexConversation {
     // Global announcements can describe title generation or subagents and never select it.
     if (method === 'serverRequest/resolved') {
       this.state.approvals = this.state.approvals.filter(approval => approval.id !== p.requestId)
+      this.approvalDecisions.delete(p.requestId); this.session.questions.resolve(p.requestId)
       this.otherRequests.delete(p.requestId); this.state.needsTerminal = this.otherRequests.size > 0
       this.changed(); return
     }
@@ -355,6 +360,8 @@ export class CodexConversation {
       if (this.state.turnId === p.turn.id) this.state.turnId = null
       for (const item of this.state.items) if (item.turnId === p.turn.id && item.status === 'inProgress') item.status = p.turn.status
       this.state.approvals = []; this.otherRequests.clear(); this.state.needsTerminal = false
+      this.approvalDecisions.clear()
+      for (const request of this.state.questions ?? []) if (request.turnId === p.turn.id && request.blocking !== false) this.session.questions.resolve(request.id)
       if (p.turn.error) this.state.error = String(p.turn.error.message ?? 'Turn failed')
     } else if (method === 'item/started' || method === 'item/completed') this.item(p.item, p.turnId, method === 'item/completed')
     else if (method === 'item/agentMessage/delta') {
@@ -366,7 +373,21 @@ export class CodexConversation {
       this.trimHistory()
       this.changed(false); return
     } else if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') {
-      if (!this.state.approvals.some(approval => approval.id === message.id)) this.state.approvals.push({ id: message.id, itemId: p.itemId, kind: method.includes('fileChange') ? 'file' : 'command', description: String(p.command ?? p.reason ?? '').slice(0, MAX_TEXT) })
+      if (!this.state.approvals.some(approval => approval.id === message.id)) {
+        const file = method.includes('fileChange')
+        const { choices, decisions } = codexApprovalChoices(p, file)
+        this.approvalDecisions.set(message.id, decisions)
+        this.state.approvals.push({ id: message.id, itemId: p.itemId, kind: file ? 'file' : 'command', description: [p.command, p.reason].filter(Boolean).join('\n').slice(0, MAX_TEXT), choices })
+      }
+    } else if (method === 'item/tool/requestUserInput' && message.id !== undefined) {
+      const questions = codexQuestions(p.questions)
+      if (!questions) { this.otherRequests.add(message.id); this.state.needsTerminal = true }
+      else this.session.questions.ask({ id: message.id, itemId: p.itemId, turnId: p.turnId, questions, blocking: p.isBlocking !== false, cancelable: true }, answer => {
+        this.send({ id: message.id, result: { answers: Object.fromEntries(questions.map(question => {
+          const row = answer.answers.find(row => row.id === question.id)
+          return [question.id, { answers: !row || answer.cancelled ? [] : [...row.selected.map(id => question.options.find(option => option.id === id)!.label), ...(row.text?.trim() ? [`user_note: ${row.text}`] : [])] }]
+        })) } })
+      })
     } else if (message.id !== undefined && method) { this.otherRequests.add(message.id); this.state.needsTerminal = true }
     else if (method === 'error') this.state.error = String(p.error?.message ?? 'Codex error')
     else return
@@ -400,10 +421,11 @@ export class CodexConversation {
       return this.snapshot()
     }
     this.session.guard(command, this.disposed)
+    if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'new') {
       if (!this.nativeInput) throw new Error('Native Codex input is unavailable')
-      if (this.state.turnId || this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || this.state.needsTerminal) throw new Error('Wait until Codex is idle before starting a new conversation')
+      if (this.state.turnId || this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until Codex is idle before starting a new conversation')
       this.state.submitting = true; this.state.error = undefined; this.changed()
       let timeout: ReturnType<typeof setTimeout> | undefined
       let enter: ReturnType<typeof setTimeout> | undefined
@@ -478,10 +500,12 @@ export class CodexConversation {
     } else if (command.type === 'interrupt') {
       if (this.state.turnId) await this.call('turn/interrupt', { threadId: this.state.threadId, turnId: this.state.turnId })
     } else if (command.type === 'approve') {
-      if (command.decision !== 'accept' && command.decision !== 'decline') throw new Error('Invalid approval decision')
       const approval = this.state.approvals.find(item => item.id === command.requestId)
       if (!approval) throw new Error('Approval is no longer pending')
-      this.send({ id: approval.id, result: { decision: command.decision } })
+      const decisions = this.approvalDecisions.get(approval.id)
+      if (!decisions?.has(command.decision)) throw new Error('Invalid approval decision')
+      this.send({ id: approval.id, result: { decision: decisions.get(command.decision) } })
+      this.approvalDecisions.delete(approval.id)
       this.state.approvals = this.state.approvals.filter(item => item !== approval); this.changed()
     } else throw new Error('Unknown conversation command')
     return this.snapshot()
@@ -502,7 +526,7 @@ export class CodexConversation {
     if (this.state.mode === 'terminal') return true
     if (['turn/start', 'turn/steer', 'turn/interrupt', 'thread/revert', 'thread/settings/update', 'turn/settings/update'].includes(message.method) && message.params?.threadId === this.state.threadId) return false
     if (this.state.threadId && (message.method === 'thread/resume' || (message.method === 'thread/start' && !message.params?.ephemeral))) return false
-    if (!message.method && (this.state.approvals.some(approval => approval.id === message.id) || this.otherRequests.has(message.id))) return false
+    if (!message.method && (this.state.approvals.some(approval => approval.id === message.id) || this.state.questions?.some(request => request.id === message.id) || this.otherRequests.has(message.id))) return false
     return true // Native subscriptions, device responses and title generation keep working.
   }
 

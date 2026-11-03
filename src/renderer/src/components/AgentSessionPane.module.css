@@ -138,7 +138,8 @@
 .approval strong { display: flex; align-items: center; gap: 9px; font-weight: 500; font-size: 13px; }
 .approval strong svg { color: var(--shell-muted); flex-shrink: 0; }
 .approval pre { padding: 8px 0; color: var(--shell-muted); }
-.approval > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.approval > div { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.approval > div button { max-width: 100%; overflow-wrap: anywhere; }
 .approval button { padding: 7px 12px; background: var(--shell-hover); }
 .approval .primary { color: var(--bg-deep); background: var(--shell-text); }
 .notice { color: var(--shell-muted); font-size: 12px; margin: 12px 0; }

@@ -89,7 +89,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const efforts = [...(model?.efforts ?? [])]
   if (snapshot?.engine !== 'opencode') efforts.sort((a, b) => effortOrder.indexOf(a.effort) - effortOrder.indexOf(b.effort))
   const initializing = !snapshot || snapshot.connection === 'starting'
-  const available = snapshot?.connection === 'ready' && !importing && !busy && !switching && !snapshot.settingsUpdating && !snapshot.submitting
+  const available = snapshot?.connection === 'ready' && !importing && !busy && !switching && !snapshot.settingsUpdating && !snapshot.submitting && !snapshot.questions?.some(request => request.blocking !== false)
   const canConfigure = available && snapshot?.capabilities.settings && !snapshot.modelsLoading && !snapshot.modelsError
     && !(['claude', 'opencode'].includes(snapshot.engine) && (snapshot.turnId || snapshot.approvals.length || snapshot.needsTerminal))
   const close = (restore = false) => {

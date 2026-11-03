@@ -12,10 +12,11 @@ function setup() {
 }
 
 describe('conversation outbox', () => {
-  it.each(['approvals', 'needsTerminal', 'settingsUpdating'] as const)('does not bypass %s for live input', (gate) => {
+  it.each(['approvals', 'questions', 'needsTerminal', 'settingsUpdating'] as const)('does not bypass %s for live input', (gate) => {
     const { state, send } = setup()
     state.turnId = 'active'
     if (gate === 'approvals') state.approvals = [{ id: 1, itemId: 'tool', kind: 'command', description: 'Approve' }]
+    else if (gate === 'questions') state.questions = [{ id: 'q', version: 1, questions: [{ id: 'q', text: 'Answer first', options: [], allowText: true }] }]
     else state[gate] = true
     enqueueConversationMessage(state, 'wait for control')
     expect(send).not.toHaveBeenCalled()

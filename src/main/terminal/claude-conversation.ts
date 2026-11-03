@@ -1,7 +1,7 @@
 import { ConversationCatalog } from './conversation-catalog'
 import { ConversationSession, conversationState } from './conversation-session'
 import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { isDeepStrictEqual, promisify } from 'node:util'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createConnection } from 'node:net'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, dirname, extname, join } from 'node:path'
 import type { ConversationCommand, ConversationSnapshot, ConversationItem } from '../../shared/conversation-display'
+import { hasBlockingQuestions, questionAnswerValues, type ConversationQuestion } from '../../shared/conversation-questions'
 import modSource from './claude-mod.js?raw'
 import { readClaudeCatalog } from './claude-models'
 
@@ -214,7 +215,7 @@ export class ClaudeConversation {
         acked.push(ack.id)
       }
       if (this.state.connection === 'disconnected' && !this.broken) { this.state.connection = 'ready'; this.state.error = undefined; this.changed() }
-      this.json(response, { seq: this.sequence, acks: acked, commands: [...this.pending.values()].map(value => value.command) })
+      this.json(response, { seq: this.sequence, mode: this.state.mode, acks: acked, commands: [...this.pending.values()].map(value => value.command) })
     } catch (error) { this.fail(String(error)); this.json(response, {}, 400) }
   }
 
@@ -228,7 +229,18 @@ export class ClaudeConversation {
   }
   private receive(event: Json): void {
     const e = event.data ?? {}
-    if (event.type === 'session.start') { this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null }
+    if (event.type === 'question' && Array.isArray(e.questions)) {
+      const questions: ConversationQuestion[] = e.questions.map((q: Json, index: number) => ({ id: String(index), header: q.header, text: q.question,
+        options: q.options.map((option: Json, n: number) => ({ id: String(n), label: option.label, description: option.description })), multiple: q.multiSelect === true, allowText: true }))
+      this.state.needsTerminal = false
+      this.session.questions.ask({ id: e.id, itemId: `tool:${e.toolUseId}`, turnId: e.turnId, questions, cancelable: true }, async answer => {
+        const answers = Object.fromEntries(questions.map(question => [question.text, answer.cancelled ? '' : questionAnswerValues(question, answer.answers.find(row => row.id === question.id)!).join(', ')]))
+        if (!answer.cancelled) this.questionReplies.set(e.toolUseId, { questions: e.questions, answers })
+        await this.call({ type: 'answer', requestId: e.id, answer: answer.cancelled ? { cancelled: true } : { answers } })
+      })
+    } else if (event.type === 'question.resolved') this.session.questions.resolve(e.id)
+    else if (event.type === 'question.native') this.state.needsTerminal = true
+    else if (event.type === 'session.start') { this.state.capabilities.questions = true; this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null }
     else if (event.type === 'settings') {
       this.state.model = e.model ?? this.state.model; this.state.effort = e.effort ?? null
       this.state.settingsOverride = Boolean(e.override)
@@ -284,6 +296,8 @@ export class ClaudeConversation {
       if (item) { item.text = `${item.text}\n${e.text ?? ''}`.slice(0, MAX_TEXT); item.status = tool.active ? 'inProgress' : finished === 'killed' || finished === 'missing' ? 'interrupted' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed' }
       if (item) this.session.discoverImages(item.id)
       this.expireToolApproval(e.toolUseId)
+      this.questionReplies.delete(e.toolUseId)
+      this.session.questions.resolve(`question:${e.toolUseId}`)
       if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(tool.name)) this.state.needsTerminal = false
     } else if (event.type === 'task.complete') {
       if (typeof e.taskId !== 'string' || !['completed', 'failed', 'killed', 'missing'].includes(e.status)) return
@@ -306,14 +320,25 @@ export class ClaudeConversation {
       }
       for (const item of this.state.items) if (item.turnId === e.turnId && item.type === 'agentMessage') item.status = e.reason === 'aborted' ? 'interrupted' : e.reason === 'error' ? 'failed' : 'completed'
       for (const item of this.state.items) if (item.turnId === e.turnId) this.session.discoverImages(item.id)
-      for (const [id, tool] of this.tools) if (tool.turnId === e.turnId) this.expireToolApproval(id)
+      for (const [id, tool] of this.tools) if (tool.turnId === e.turnId) { this.expireToolApproval(id); this.questionReplies.delete(id) }
       if (e.reason === 'error') this.state.error = 'Claude turn failed. See the native terminal for details.'
     }
     this.state.backgroundTasks = [...this.tools.values()].filter(value => value.active).length
     this.changed(false)
   }
+  private questionReplies = new Map<string, { questions: Json[]; answers: Record<string, string> }>()
   private async permission(body: Json, response: ServerResponse): Promise<void> {
     if (!this.state.threadId || body.session_id !== this.state.threadId) { this.json(response, {}); return }
+    if (body.tool_name === 'AskUserQuestion') {
+      const matches = [...this.questionReplies].filter(([id, reply]) => this.tools.get(id)?.active &&
+        (!body.tool_use_id || body.tool_use_id === id) && isDeepStrictEqual(body.tool_input?.questions, reply.questions) && isDeepStrictEqual(body.tool_input?.answers, reply.answers))
+      if (matches.length === 1) {
+        const [id, reply] = matches[0]
+        this.questionReplies.delete(id)
+        this.json(response, { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow', updatedInput: { ...body.tool_input, answers: reply.answers } } } })
+        return
+      }
+    }
     // Wait for the sequenced observer to reach tool.start. Only unique, supported
     // native calls are represented here; all other dialogs remain native.
     let matches: Array<[string, { turnId: string; name: string; active: boolean }]> = []
@@ -360,12 +385,17 @@ export class ClaudeConversation {
     })
   }
   async command(command: ConversationCommand): Promise<ConversationSnapshot> {
-    if (command.type === 'mode') return this.session.mode(command, this.disposed)
+    if (command.type === 'mode') {
+      this.session.mode(command, this.disposed)
+      if (this.server && this.state.connection === 'ready' && !this.broken) await this.call({ type: 'display-mode', mode: command.mode })
+      return this.snapshot()
+    }
     this.session.guard(command, this.disposed || this.broken)
+    if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'models') { await this.loadModels() }
     else if (command.type === 'settings') {
-      if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
+      if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
       const model = this.state.models.find(option => option.model === command.model)
       if (!model || this.state.modelsLoading || this.state.modelsError) throw new Error('Claude model is not available; refresh the catalog')
       if (command.effort !== null && !model.efforts.some(option => option.effort === command.effort)) throw new Error('Unsupported Claude effort for this model')
@@ -434,6 +464,7 @@ export class ClaudeConversation {
   dispose(): Promise<void> {
     if (this.stopping) return this.stopping
     this.disposed = true; this.session.stop()
+    this.questionReplies.clear()
     this.catalogAbort.abort()
     this.stopping = (async () => {
       // Wait for any native dispatch and asset creation before cleaning up.

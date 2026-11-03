@@ -21,6 +21,21 @@ let settingsBusy = false
 let planSource = null
 let lastTodos = null
 let planReads = Promise.resolve()
+let displayMode = 'terminal'
+const questions = new Map()
+
+function releaseQuestions(turnId, native = false) {
+  for (const [id, pending] of questions) if (!turnId || pending.turnId === turnId) {
+    questions.delete(id); pending.resolve(native ? { native: true } : { cancelled: true })
+  }
+}
+
+async function askQuestion(e) {
+  const id = `question:${e.tool_use_id}`
+  record('question', { id, toolUseId: e.tool_use_id, turnId: currentTurn, questions: e.questions })
+  try { return await new Promise(resolve => questions.set(id, { turnId: currentTurn, resolve })) }
+  finally { questions.delete(id); record('question.resolved', { id }) }
+}
 
 function recordPlan(turnId, rows, source) {
   if (!turnId || turnId !== currentTurn) return
@@ -99,7 +114,15 @@ function taskMissing(error, taskId) {
 async function execute($, command) {
   try {
     let result
-    if (command.type === 'settings') {
+    if (command.type === 'display-mode') {
+      displayMode = command.mode
+      if (displayMode === 'terminal') releaseQuestions(undefined, true)
+    } else if (command.type === 'answer') {
+      const pending = questions.get(command.requestId)
+      if (!pending) throw new Error('Question expired')
+      questions.delete(command.requestId)
+      pending.resolve(command.answer)
+    } else if (command.type === 'settings') {
       if (currentTurn || settingsBusy) throw new Error('Wait until Claude is idle before changing settings')
       settingsBusy = true
       try {
@@ -127,6 +150,7 @@ async function execute($, command) {
         result = settings
       } finally { settingsBusy = false }
     } else if (command.type === 'stop') {
+      releaseQuestions(command.turnId)
       blocked.add(command.turnId)
       const toolIds = [...new Set([...command.toolIds, ...[...activeTools].filter(([, tool]) => tool.turnId === command.turnId).map(([id]) => id)])]
       try { await $.turn.abort({ turnId: command.turnId }) } catch (error) {
@@ -191,8 +215,12 @@ async function flush($) {
     const response = await $.http.fetch(endpoint + '/exchange', { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-JanusX-Token': token },
       body: JSON.stringify({ terminalId, sessionId, overflow, events: batch, acks: [...executions.values()].filter(Boolean) }) })
-    if (!response.ok) return
+    if (!response.ok) { displayMode = 'terminal'; releaseQuestions(undefined, true); return }
     const reply = JSON.parse(response.text)
+    if (reply.mode === 'terminal' || reply.mode === 'conversation') {
+      displayMode = reply.mode
+      if (displayMode === 'terminal') releaseQuestions(undefined, true)
+    }
     events = events.filter(event => event.seq > reply.seq)
     eventBytes = events.reduce((sum, event) => sum + JSON.stringify(event).length, 0)
     for (const id of reply.acks ?? []) executions.delete(id)
@@ -201,7 +229,11 @@ async function flush($) {
       executions.set(command.id, null)
       void execute($, command)
     }
-  } catch { /* Buffer and retry transport only; never repeat a model submission. */ }
+  } catch {
+    // Let the native UI handle an unanswered question after losing its host.
+    // Buffered events reconcile it on reconnect; consumed answers are never resent.
+    displayMode = 'terminal'; releaseQuestions(undefined, true)
+  }
   finally { flushing = false }
 }
 
@@ -290,6 +322,7 @@ export function register(on) {
   })
   on('turn.complete', async ($, e, next) => {
     if (!e.agentId) {
+      releaseQuestions(e.turnId)
       await planReads
       record('turn.complete', { turnId: e.turnId, reason: e.reason, answer: e.answer?.slice(0, 32000) })
       if (currentTurn === e.turnId) currentTurn = null
@@ -304,7 +337,15 @@ export function register(on) {
     record('tool.start', { turnId, toolUseId: e.tool_use_id, tool: e.tool,
       command: e.command?.slice(0, 16000), path: e.file_path, old: e.old_string?.slice(0, 16000), text: (e.new_string ?? e.content)?.slice(0, 16000) })
     try {
-      const result = await next(e)
+      let input = e
+      let cancelled = false
+      if (e.tool === 'AskUserQuestion' && displayMode === 'conversation' && Array.isArray(e.questions) && e.questions.length > 0 && e.questions.length <= 20 && e.questions.every(q => typeof q.question === 'string' && Array.isArray(q.options) && q.options.every(o => typeof o.label === 'string'))) {
+        const reply = await askQuestion(e)
+        if (reply.native) record('question.native', { toolUseId: e.tool_use_id })
+        else if (reply.cancelled) cancelled = true
+        else input = { ...e, answers: reply.answers }
+      }
+      const result = cancelled ? { deny: 'The user cancelled this question.' } : await next(input)
       if (result.result?.backgroundTaskId && !finishedTasks.has(result.result.backgroundTaskId)) activeTools.set(e.tool_use_id, { turnId, taskId: result.result.backgroundTaskId })
       else activeTools.delete(e.tool_use_id)
       record('tool.complete', { turnId, toolUseId: e.tool_use_id, text: result.text?.slice(0, 24000),

@@ -76,7 +76,7 @@ export function observeConversationOutbox(snapshot: ConversationSnapshot): void 
   // Identical text waits for its predecessor's echo to avoid ambiguous receipts.
   if (next.some(item => item.status === 'accepted' && (first.delivery === 'queue' || !snapshot.capabilities.liveInput || item.text === first.text))) return
   if (snapshot.mode !== 'conversation' || snapshot.connection !== 'ready' || !snapshot.capabilities.submit
-    || (snapshot.turnId && (first.delivery === 'queue' || !snapshot.capabilities.liveInput)) || snapshot.submitting || snapshot.settingsUpdating || snapshot.approvals.length || snapshot.needsTerminal) return
+    || (snapshot.turnId && (first.delivery === 'queue' || !snapshot.capabilities.liveInput)) || snapshot.submitting || snapshot.settingsUpdating || snapshot.approvals.length || snapshot.questions?.some(request => request.blocking !== false) || snapshot.needsTerminal) return
   const runtime = runtimes.get(snapshot.id)
   inFlight.add(snapshot.id)
   update(snapshot.id, next.map(item => item === first ? { ...item, status: 'sending', dispatched: true, baseline: snapshot.items.filter(native => native.type === 'userMessage').map(native => native.id) } : item))

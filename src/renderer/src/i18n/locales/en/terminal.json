@@ -476,6 +476,23 @@
     "activity": "Agent activity",
     "openFile": "Open file or preview",
     "approval": "Pending approval",
+    "approvalChoices": {
+      "accept": "Allow once",
+      "acceptForSession": "Allow for this session",
+      "decline": "Decline",
+      "cancel": "Decline and stop"
+    },
+    "question": {
+      "heading": "Your response is needed",
+      "other": "Type something else",
+      "answer": "Your answer",
+      "customAria": "Answer: {{question}}",
+      "placeholder": "Type something…",
+      "submit": "Submit answer",
+      "submitting": "Submitting…",
+      "cancel": "Cancel request",
+      "unknown": "Delivery is unconfirmed. Check this request in the terminal before answering again."
+    },
     "approveFile": "Allow these file changes?",
     "approveCommand": "Allow this command?",
     "decline": "Decline",
