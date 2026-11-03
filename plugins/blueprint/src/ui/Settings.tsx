@@ -1,3 +1,4 @@
+import checkboxStyles from './SettingsCheckbox.module.css'
 import { t } from './i18n'
 import { useEffect, useId, useRef, useState } from 'react'
 import { z } from 'zod'
@@ -295,10 +296,7 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
         <div className={styles.jev}>
           <label className={settingsStyles.row}>
             <span className={settingsStyles.labelText}>{reviewText('blueprint:review.enableJev')}</span>
-            <span className={settingsStyles.switch}>
-              <input type="checkbox" checked={settings.jev.enabled} onChange={event => change({ ...settings, jev: { ...settings.jev, enabled: event.target.checked } })} />
-              <span className={settingsStyles.switchTrack} />
-            </span>
+            <input type="checkbox" className={checkboxStyles.control} checked={settings.jev.enabled} onChange={event => change({ ...settings, jev: { ...settings.jev, enabled: event.target.checked } })} />
           </label>
           {settings.jev.enabled && <>
             <label className={styles.fieldRow}>
@@ -336,12 +334,9 @@ export function Settings({ models, saved }: { models: Models; saved(): void }) {
         <h3 className={settingsStyles.sectionTitle} id={`${id}-automatic`}><Timer size={14} aria-hidden="true" />{reviewText('blueprint:review.automatic')}</h3>
         <label className={settingsStyles.row}>
           <span className={settingsStyles.labelText}>{reviewText('blueprint:review.automaticEnable')}</span>
-          <span className={settingsStyles.switch}>
-            <input type="checkbox" checked={settings.automatic.enabled} aria-describedby={`${id}-automatic-help`}
+          <input type="checkbox" className={checkboxStyles.control} checked={settings.automatic.enabled} aria-describedby={`${id}-automatic-help`}
               disabled={!settings.automatic.enabled && (saving || status?.generation.status !== 'ready')}
               onChange={event => change({ ...settings, automatic: { ...settings.automatic, enabled: event.target.checked } })} />
-            <span className={settingsStyles.switchTrack} />
-          </span>
         </label>
         <div className={settingsStyles.row}>
           <label className={settingsStyles.labelText} htmlFor={`${id}-commits`}>{reviewText('blueprint:review.automaticCommits')}</label>

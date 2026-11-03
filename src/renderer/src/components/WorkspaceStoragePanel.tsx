@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -101,8 +102,11 @@ export function WorkspaceStoragePanel() {
     {!view && !error && <p role="status">{t('storage:checking')}</p>}
     {view && !candidates.length && <p>{t('storage:noPending')}</p>}
     {view?.items.map(item => <article key={item.id} className={styles.item}>
-      <div className={styles.heading}><label className={styles.itemLabel}><input type="checkbox" disabled={busy !== null || !candidates.some(candidate => candidate.id === item.id)} checked={selected.includes(item.id)} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} /><span className={styles.workspaceName} title={item.name}>{item.name}</span></label>
-      <span className={styles.status} data-status={item.status} title={busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)} role="status">{busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)}</span></div>
+      <div className={styles.heading}><label className={styles.itemLabel}>
+        <span className={styles.workspaceName} title={item.name}>{item.name}</span>
+        <span className={styles.status} data-status={item.status} title={busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)} role="status">{busy === item.id ? t('storage:migrating') : t(`storage:status.${item.status}`)}</span>
+        <SettingsCheckbox aria-label={item.name} disabled={busy !== null || !candidates.some(candidate => candidate.id === item.id)} checked={selected.includes(item.id)} onChange={event => setSelected(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} />
+      </label></div>
       <details className={styles.details} open={selected.includes(item.id) || busy === item.id || !!item.error}>
         <summary>{t('storage:bulk.details')}</summary><MigrationDetails item={item} />
       </details>

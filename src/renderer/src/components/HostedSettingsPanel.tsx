@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import {
@@ -212,9 +213,7 @@ export function HostedSettingsPanel() {
             <span className={styles.labelText}>{t('common:hosted.insecureLabel')}</span>
             <span className={styles.hint}>{t('common:hosted.insecureWarn')}</span>
           </div>
-          <label className={styles.switch}>
-            <input
-              type="checkbox"
+          <SettingsCheckbox aria-label={t('common:hosted.insecureLabel')}
               checked={allowInsecure}
               onChange={(event) => {
                 setAllowInsecure(event.target.checked)
@@ -222,8 +221,6 @@ export function HostedSettingsPanel() {
               }}
               disabled={busy}
             />
-            <span className={styles.switchTrack} />
-          </label>
         </div>
       </section>
 

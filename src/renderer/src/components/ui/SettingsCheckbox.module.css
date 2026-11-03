@@ -1,0 +1,28 @@
+/* Notification settings is the visual reference. Keep official plugin copies in sync. */
+.control.control[type=checkbox] {
+  appearance: none;
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 40px;
+  height: 22px;
+  min-width: 40px;
+  padding: 0;
+  margin: 0 0 0 auto;
+  flex: 0 0 40px;
+  justify-self: end;
+  align-self: center;
+  border: 1px solid var(--so-field-border, var(--control-border));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease;
+}
+.control.control[type=checkbox]::before { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #8b8b91; transition: transform .18s ease, background .18s ease; }
+.control.control[type=checkbox]:checked { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .18); }
+.control.control[type=checkbox]:checked::before { transform: translateX(18px); background: var(--so-accent, var(--shell-accent)); }
+.control.control[type=checkbox]:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+.control.control[type=checkbox]:disabled { opacity: .45; cursor: not-allowed; }
+:global([data-theme='planche']) .control.control[type=checkbox]:checked { background: var(--paper-deep, #DCCFA8); border-color: var(--line-soft, rgba(28, 52, 59, .22)); }
+:global([data-theme='planche']) .control.control[type=checkbox]:checked::before { background: var(--planche-red, #D43D2A); }
+@media (prefers-reduced-motion: reduce) { .control.control[type=checkbox], .control.control[type=checkbox]::before { transition: none; } }

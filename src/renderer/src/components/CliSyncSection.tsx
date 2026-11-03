@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Eye, EyeOff, LogIn, Network, Plug, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { ProviderSettings } from '@janusx/llm-core'
@@ -325,11 +326,11 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
         <label className={styles.field + ' ' + styles.full}><span>{c('endpoint')}</span><input aria-label={c('endpoint')} type="url" required disabled={busy} value={draft.baseURL || ''} placeholder="https://api.example.com/v1" onChange={event => update({ baseURL: event.target.value })} /></label>
         <label className={styles.field + ' ' + styles.full}><span>{c('apiKey')}</span><div className={styles.secret}><input aria-label={c('apiKey')} type={visible ? 'text' : 'password'} autoComplete="new-password" disabled={busy || draft.authType === 'none'} value={draft.apiKey || ''} placeholder="sk-…" onChange={event => update({ apiKey: event.target.value })} />
           <button type="button" className={styles.iconButton} aria-label={c(visible ? 'hideKey' : 'showKey')} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={14} /> : <Eye size={14} />}</button></div></label>
-        {(protocol === 'openai' || protocol === 'responses') && <label className={styles.checkbox}><input type="checkbox" checked={draft.authType === 'none'} disabled={busy} onChange={event => update({ authType: authTypeForProtocol(protocol, event.target.checked) })} />{c('noAuth')}</label>}
+        {(protocol === 'openai' || protocol === 'responses') && <label className={styles.checkbox}><span>{c('noAuth')}</span><SettingsCheckbox checked={draft.authType === 'none'} disabled={busy} onChange={event => update({ authType: authTypeForProtocol(protocol, event.target.checked) })} /></label>}
       </> : <>
         <label className={styles.field}><span>{c('project')}</span><input aria-label={c('project')} disabled={busy} value={draft.vertexAI?.projectId || ''} onChange={event => vertex({ projectId: event.target.value })} /></label>
         <label className={styles.field}><span>{c('region')}</span><input aria-label={c('region')} disabled={busy} value={draft.vertexAI?.region || ''} placeholder="us-central1" onChange={event => vertex({ region: event.target.value })} /></label>
-        <label className={styles.checkbox}><input type="checkbox" disabled={busy} checked={!!draft.vertexAI?.useADC} onChange={event => vertex({ useADC: event.target.checked })} />{c('adc')}</label>
+        <label className={styles.checkbox}><span>{c('adc')}</span><SettingsCheckbox disabled={busy} checked={!!draft.vertexAI?.useADC} onChange={event => vertex({ useADC: event.target.checked })} /></label>
         {!draft.vertexAI?.useADC && <label className={styles.field + ' ' + styles.full}><span>Service Account JSON</span><textarea aria-label="Service Account JSON" disabled={busy} rows={3} value={draft.vertexAI?.serviceAccountJSON || ''} onChange={event => vertex({ serviceAccountJSON: event.target.value })} /></label>}
         <details className={styles.full}><summary>{c('advanced')}</summary><div className={styles.fields}>
           {(['clientEmail', 'privateKey', 'serviceAccountPath', 'proxy'] as const).map(key => <label key={key} className={styles.field + ' ' + styles.full}><span>{key}</span><input aria-label={key} type={key === 'privateKey' ? 'password' : 'text'} disabled={busy} value={draft.vertexAI?.[key] || ''} onChange={event => vertex({ [key]: event.target.value })} /></label>)}
@@ -342,7 +343,7 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
         <label className={styles.field + ' ' + styles.full}><span>{c('protocol')}</span><Select ariaLabel={c('protocol')} disabled={busy} value={protocol} options={Object.entries(PROTOCOL_NAMES).map(([value, label]) => ({ value, label }))} onChange={value => update({
           authType: authTypeForProtocol(value as ChannelProtocol), extra: { ...draft.extra, protocol: value },
         })} /></label>
-        <label className={styles.checkbox}><input type="checkbox" checked={draft.enabled !== false} disabled={busy} onChange={event => update({ enabled: event.target.checked })} />{c('enabled')}</label>
+        <label className={styles.checkbox}><span>{c('enabled')}</span><SettingsCheckbox checked={draft.enabled !== false} disabled={busy} onChange={event => update({ enabled: event.target.checked })} /></label>
       </div></details>
     </div>
     <div className={styles.footer}><button type="button" className={styles.button} disabled={busy} onClick={() => void saveOrTest(true)}>{busy ? c('working') : c('test')}</button><div className={styles.rowActions}><button type="button" className={styles.button} disabled={busy} onClick={onCancel}>{c('cancel')}</button><button className={styles.primary} type="submit" disabled={busy}>{busy ? c('working') : c('save')}</button></div></div>

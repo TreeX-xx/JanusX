@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from '../ui/SettingsCheckbox'
 import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — host-generated plugin settings.
 import { useEffect, useRef, useState } from 'react'
@@ -106,7 +107,7 @@ export function PluginConfigurationForm({ record, initialScope = 'application', 
       const change = (next: PluginSettingValue) => edit(setting.key, next)
       return <div key={setting.key} className={styles.configurationField}>
         <label>{setting.title}
-          {setting.type === 'boolean' ? <input type="checkbox" aria-label={setting.title} disabled={disabled} checked={Boolean(value)} onChange={event => change(event.target.checked)} />
+          {setting.type === 'boolean' ? <SettingsCheckbox aria-label={setting.title} disabled={disabled} checked={Boolean(value)} onChange={event => change(event.target.checked)} />
             : setting.type === 'enum' ? <select aria-label={setting.title} disabled={disabled} value={String(value)} onChange={event => change(event.target.value)}>
               {setting.options.map(option => <option key={option} value={option}>{option}</option>)}
             </select> : <input aria-label={setting.title} disabled={disabled} type={setting.type === 'number' ? 'number' : 'text'} value={String(value ?? '')}

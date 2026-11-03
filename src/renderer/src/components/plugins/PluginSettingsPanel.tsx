@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from '../ui/SettingsCheckbox'
 // Note: .agents/notes/workbench/plugin-contract-v1.md - all-workspace access and entry preferences.
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, Package, Search, Upload } from 'lucide-react'
@@ -167,7 +168,7 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
     <label className={styles.settingRow}>
       <span className={styles.settingText}><span className={styles.label}>{t('plugins:development')}</span>
         <span className={styles.hint}>{t('plugins:developmentHint')}</span></span>
-      <input type="checkbox" className={styles.switch} aria-label={t('plugins:development')} checked={snapshot.developmentMode} disabled={busy}
+      <SettingsCheckbox aria-label={t('plugins:development')} checked={snapshot.developmentMode} disabled={busy}
         onChange={event => { void run({ type: 'development', enabled: event.target.checked }) }} />
     </label>
     <p className={styles.hint}>{t('plugins:hostBoundary')}</p>
@@ -243,7 +244,7 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
               const location = menu.location === 'toolbox' ? t('plugins:showInToolbox') : t('plugins:showInWorkspaceAdd')
               return <label key={id} className={styles.entryPreference}>
                 <span>{location}</span>
-                <input type="checkbox" role="switch" className={styles.switch} aria-label={command.title + ' - ' + location} checked={!preferences.menus[id]?.hidden}
+                <SettingsCheckbox role="switch" aria-label={command.title + ' - ' + location} checked={!preferences.menus[id]?.hidden}
                   onChange={event => preference(() => extensionCommands.setMenuPreference(id, { hidden: !event.target.checked }))} />
               </label>
             })}

@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import { Clock3, MessageSquare, UserRound } from 'lucide-react'
 import type { PersonalMemorySettings } from '../../../shared/personal-memory-settings'
@@ -34,8 +35,8 @@ export function PersonalMemorySettingsPanel() {
         <label key={key} className={styles.row}>
           <span className={styles.label}><span className={styles.labelText}>{t(`knowledge:memorySettings.${key}`)}</span>
             <span className={styles.hint}>{t(`knowledge:memorySettings.${key}Hint`)}</span></span>
-          <span className={styles.switch}><input type="checkbox" checked={settings[key]} disabled={busy}
-            onChange={event => void update({ [key]: event.target.checked })} /><span className={styles.switchTrack} /></span>
+          <SettingsCheckbox checked={settings[key]} disabled={busy}
+            onChange={event => void update({ [key]: event.target.checked })} />
         </label>)}
       </section>)}
       <section className={styles.section} aria-busy={busy}>

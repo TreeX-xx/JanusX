@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { getUpdaterSettings, updateUpdaterSettings } from '@/services/updater-settings'
@@ -255,16 +256,12 @@ function SettingSwitch({ label,
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
       </div>
-      <label className={styles.switch}>
-        <input
-          type="checkbox"
+      <SettingsCheckbox
           aria-label={label}
           checked={checked}
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className={styles.switchTrack} />
-      </label>
     </div>
   )
 }

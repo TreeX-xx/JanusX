@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-15",
-  "updated": "2026-10-31T18:23:45.000Z",
+  "updated": "2026-11-03T10:35:09.000Z",
   "class": "feature",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
@@ -28,11 +28,15 @@ The settings surface states its own rule in the header of `AppSettingsModal.modu
 
 
 ## Decision
+设置页的 checkbox 统一以“通知提醒”为视觉基准：40×22px 轨道、14px 圆点，选中态沿用主题强调色，说明在左、开关固定靠右。宿主复用 `ui/SettingsCheckbox`，保留原生 checkbox 的标签、键盘和禁用语义；已有 switch 角色继续保留，数据保存、确认和迁移选择行为不变。覆盖通知、Agent、托管、实验、个人记忆、关于、CLI 配置、工作区存储、插件管理和插件 manifest 布尔配置；通用页手机远控行单独使用文字弹性列与开关固定列，窄窗口也保持右对齐。
+
+CPA 与蓝图是独立构建的插件，不依赖宿主私有组件。两者各自保存与宿主一致的 `SettingsCheckbox.module.css`，后续调整需同步三份样式。CPA 的主题同步同时写入 `data-theme`，让纸面主题规则在插件中生效。宿主生成的插件布尔配置使用共享组件；第三方插件自行渲染的界面不在此样式控制范围内。
+
 通用页增加“会话启动习惯”，选择新会话默认先显示终端或对话，默认终端并即时保存。该偏好只决定首个可见视图，支持范围内的会话始终具备两种形态，不提供能力启停开关；运行中的会话保持当前视图。具体引擎边界与启动控制归[终端与对话双显示模式](./terminal-dialog-dual-mode.md)。
 
 设置保留左侧分组导航、右侧独立滚动内容和现有功能门控。导航以中性底色表达选中，组间用留白分隔，标题为 18px，关闭入口使用有本地化名称和键盘焦点的中性 ×。通用页分成外观与语言、开发环境，简单设置保持左右对齐，主题预览和复杂配置使用全宽。主题预览仍通过既有 store 即时保存，详见主题预览。通用行、通知共用分区及模型配置去除重复卡片轮廓，以留白和细分隔线组织内容；运行配置的浮岛设计不随本次改动调整。
 
-导航末尾的“关于”集中产品介绍、当前版本与软件更新，复用 `UpdaterSettings` 和主进程更新服务；版本、自动检查、下载进度、更新说明和重启安装语义由[自动更新](../desktop/app-auto-update-win.md)维护。标题栏可用及下载中的更新徽标直达关于页，已下载徽标仍直接触发安装。页面沿用设置主题令牌，以留白、细分隔线和中性按钮组织信息，不添加独立卡片或强调色横幅。关于页采用最大宽度 440px 的居中单列，依次展示应用图标、名称、介绍、更新信息与求赞入口；自动检查开关和操作按钮一并居中。求赞入口顺着内容排列，Star 图标采用黄色实心填充和金色描边，兼顾纸面与深色主题。点击通过固定 URL 的主进程入口打开 JanusX GitHub 仓库，不接入账号授权，不记录或宣称已 Star；打开失败保留重试入口并显示仓库地址。
+导航末尾的“关于”集中产品介绍、当前版本与软件更新，复用 `UpdaterSettings` 和主进程更新服务；版本、自动检查、下载进度、更新说明和重启安装语义由[自动更新](../desktop/app-auto-update-win.md)维护。标题栏可用及下载中的更新徽标直达关于页，已下载徽标仍直接触发安装。页面沿用设置主题令牌，以留白、细分隔线和中性按钮组织信息，不添加独立卡片或强调色横幅。关于页采用最大宽度 440px 的居中单列，依次展示应用图标、名称、介绍、更新信息与求赞入口；自动检查使用左侧说明、右侧开关，操作按钮保持居中。求赞入口顺着内容排列，Star 图标采用黄色实心填充和金色描边，兼顾纸面与深色主题。点击通过固定 URL 的主进程入口打开 JanusX GitHub 仓库，不接入账号授权，不记录或宣称已 Star；打开失败保留重试入口并显示仓库地址。
 
 通知总开关关闭时收起远程字段及飞书分区，飞书关闭时收起其配置。去重与发送超时放入原生 details 的“高级设置”。折叠只改变展示，草稿继续保存在组件状态中，重新展开不清空值。通知与 Agent 权限对比草稿和已保存值，修改后才启用保存与撤销，并显示未保存提示；失败保留草稿供重试，撤销恢复已保存值。模型配置的测试与保存操作移至底部，沿用现有保存语义和按终端的配置服务。
 
@@ -78,6 +82,8 @@ Users can compare both palettes before changing appearance. The preview is a sch
 
 
 ## Verification
+统一 checkbox 后，`npx playwright test tests/e2e/settings-layout.spec.ts tests/e2e/about-settings.spec.ts tests/e2e/mobile-remote-rail.spec.ts tests/e2e/plugin-settings.spec.ts --project=island --workers=1` 的 19 项通过，覆盖通知保存与撤销、关于页更新开关、手机远控、插件入口及窄窗口布局。宿主与 CPA、蓝图类型检查通过；两个插件构建通过，蓝图构建保留 llm-core 既有的 3 条 JSON import assert 兼容警告。变更宿主组件的 ESLint 无错误，通知页保留既有 Hook 依赖警告。加载三处真实模块 CSS 的浏览器 fixture 在深色、纸面主题中验证尺寸、颜色、右对齐和空格键切换一致，并人工复核截图；该 fixture 不证明真实插件运行时或 Electron 重启持久化。
+
 浏览器检查覆盖通知展开、折叠保值、保存、撤销、失败恢复和面板重挂载后的已保存值，Agent 修改状态，以及双主题下 1440/900/640px 的设置外壳。外部 CLI 检查覆盖六类终端、安装、升级、检测、显隐与双主题下 1100/640/390px 布局。既有主题预览与 Shell 交互检查通过，相关主题、语言服务和飞书 UI 测试为 21 项通过、1 项跳过。隔离 fixture 的结果不证明真实 Electron IPC、系统安装器或重启持久化。
 
 最终回归命令 `npx playwright test tests/e2e/external-cli-settings.spec.ts tests/e2e/settings-layout.spec.ts tests/e2e/theme-settings.spec.ts tests/e2e/shell-settings.spec.ts --project=island --workers=1` 共 31 项通过。`npm run typecheck`、`npm run build:app`、`npm run i18n:check` 与 `npm run check:notes` 通过；本次组件范围的 ESLint 无错误，保留通知页已有的 Hook 依赖警告。

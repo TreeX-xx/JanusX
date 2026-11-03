@@ -73,51 +73,9 @@
   max-width: 560px;
 }
 
-.switch {
-  position: relative;
-  width: 40px;
-  height: 22px;
-}
 
-.switch input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
 
-.switchTrack {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--so-field-border);
-  cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease;
-}
 
-.switchTrack::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #8b8b91;
-  transition: transform 0.18s ease, background 0.18s ease;
-}
-
-/* 开关"开"态：轨道保持中性灰，只让滑块保留强调色小点。
-   整条轨道染橙会在长列表里变成一排橙色条，正是要避免的色块堆积。 */
-.switch input:checked + .switchTrack {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-.switch input:checked + .switchTrack::after {
-  transform: translateX(18px);
-  background: var(--so-accent);
-}
 
 .numberControl {
   display: flex;
@@ -300,8 +258,6 @@
 .advanced > summary:hover { color: var(--shell-text); }
 .advanced > summary:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 4px; }
 .dependentFields { display: flex; flex-direction: column; gap: 18px; margin-top: 18px; }
-.switch input:focus-visible + .switchTrack { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.switch input:disabled + .switchTrack { opacity: .45; cursor: not-allowed; }
 @container settings-form (max-width: 500px) {
   .row:has(.textInput, .textArea) { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .textInput, .textArea { width: 100%; }
@@ -347,14 +303,7 @@
   color: var(--ink, #1C343B);
 }
 
-:global([data-theme='planche']) .switch input:checked + .switchTrack {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--line-soft, rgba(28, 52, 59, 0.22));
-}
 
-:global([data-theme='planche']) .switch input:checked + .switchTrack::after {
-  background: var(--planche-red, #D43D2A);
-}
 
 :global([data-theme='planche']) .input,
 :global([data-theme='planche']) .select {

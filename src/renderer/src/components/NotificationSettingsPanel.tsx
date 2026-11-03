@@ -1,3 +1,4 @@
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import {
   getNotificationSettings,
@@ -726,16 +727,12 @@ function SettingSwitch({
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
       </div>
-      <label className={styles.switch}>
-        <input
-          type="checkbox"
+      <SettingsCheckbox
           aria-label={label}
           checked={checked}
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className={styles.switchTrack} />
-      </label>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n/config'
 import { Select } from './ui/Select'
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { WorkflowXStatus } from './janus/WorkflowXMonitor'
 import { useThemeStore } from '@/stores/theme'
 import { ThemePreviewPicker } from './ThemePreviewPicker'
@@ -117,17 +118,14 @@ export function GeneralSettingsPanel() {
 
       <section className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.remote.label')}</h3>
-        <div className={styles.generalRow}>
+        <div className={`${styles.generalRow} ${styles.generalToggleRow}`}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.remote.enable')}</div>
             <div id="remote-control-help" className={styles.generalHelp}>{t('settings:general.remote.help')}</div>
             {remoteError && <div className={styles.generalHelp} role="alert">{t('settings:general.remote.saveError')}</div>}
           </div>
-          <div className={styles.generalControlCol}>
-            <button type="button" role="switch" aria-label={t('settings:general.remote.enable')} aria-describedby="remote-control-help"
-              aria-checked={remoteEnabled} disabled={!featuresLoaded || remoteSaving} className={styles.generalSwitch}
-              onClick={() => void setRemoteEnabled()}><span /></button>
-          </div>
+          <SettingsCheckbox role="switch" aria-label={t('settings:general.remote.enable')} aria-describedby="remote-control-help"
+            checked={remoteEnabled} disabled={!featuresLoaded || remoteSaving} onChange={() => void setRemoteEnabled()} />
         </div>
       </section>
 

@@ -79,8 +79,7 @@
 .editor > .link { margin-bottom: 20px; }
 .secret { display: flex; align-items: center; gap: 4px; }
 .secret input { flex: 1; }
-.checkbox { display: flex; gap: 8px; align-items: center; color: var(--shell-muted); font-size: 12px; }
-.checkbox input { accent-color: var(--so-accent); }
+.checkbox { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; color: var(--shell-muted); font-size: 12px; }
 .root details > summary { color: var(--shell-muted); font-size: 12px; cursor: pointer; margin-bottom: 12px; }
 .editor > .fields > details { border-top: 1px solid var(--shell-border-soft); padding-top: 14px; }
 .error, .notice { display: flex; gap: 7px; align-items: flex-start; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--shell-border); border-radius: 6px; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }

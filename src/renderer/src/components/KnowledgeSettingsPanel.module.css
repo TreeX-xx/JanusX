@@ -26,15 +26,5 @@
 .statusError { color: var(--shell-diff-del); }
 .statusSuccess { color: var(--shell-diff-add); }
 .footer { position: sticky; bottom: calc(-1 * var(--so-body-pad-y, 22px)); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: auto calc(-1 * var(--so-body-pad-x, 22px)) calc(-1 * var(--so-body-pad-y, 22px)); padding: 12px var(--so-body-pad-x, 22px); border-top: 1px solid var(--shell-border); background: var(--shell-canvas); }
-.switch { position: relative; display: inline-flex; width: 32px; height: 28px; flex: 0 0 auto; }
-.switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; z-index: 1; cursor: pointer; }
-.switchTrack { position: absolute; inset: 5px 0; border: 1px solid var(--control-border); border-radius: 999px; background: var(--shell-hover); pointer-events: none; }
-.switchTrack::after { content: ''; position: absolute; top: 3px; left: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--shell-muted); transition: transform 140ms ease, background 140ms ease; }
-.switch input:checked + .switchTrack { border-color: var(--shell-accent-border); }
-.switch input:checked + .switchTrack::after { transform: translateX(14px); background: var(--shell-accent); }
-.switch input:focus-visible + .switchTrack { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.switch input:disabled { cursor: default; }
-.switch input:disabled + .switchTrack { opacity: .4; }
 @media (max-width: 700px) { .row { gap: 8px; } .row > button[aria-haspopup] { width: 145px; } }
 @media (max-width: 480px) { .section { padding: 12px; gap: 12px; } .clientCard { grid-template-columns: minmax(0, 1fr); } .clientCard > button { justify-self: end; } }
-@media (prefers-reduced-motion: reduce) { .switchTrack::after { transition: none; } }

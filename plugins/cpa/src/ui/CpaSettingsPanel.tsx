@@ -1,3 +1,4 @@
+import checkboxStyles from './SettingsCheckbox.module.css'
 // Note: .agents/notes/workbench/service-integrations.md — settings layout and managed CPA lifecycle.
 import { useEffect, useId, useState } from 'react'
 import { Copy, Eye, EyeOff, FileText, Play, RotateCw, Shuffle, Square } from 'lucide-react'
@@ -209,9 +210,6 @@ function SettingToggle({ label, hint, checked, disabled, onChange }: {
       <span className={formStyles.labelText}>{label}</span>
       <p className={formStyles.hint}>{hint}</p>
     </div>
-    <label className={formStyles.switch}>
-      <input type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
-      <span className={formStyles.switchTrack} aria-hidden="true" />
-    </label>
+    <input type="checkbox" className={checkboxStyles.control} aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
   </div>
 }

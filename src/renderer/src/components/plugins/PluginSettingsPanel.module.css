@@ -75,16 +75,8 @@
 .root details details { padding-left: 0; }
 
 /* ── 设置行（开发者模式） ── */
-.settingRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--shell-border-soft); }
+.settingRow { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--shell-border-soft); }
 .settingText { display: grid; gap: 4px; min-width: 0; }
-.switch {
-  appearance: none; flex-shrink: 0; position: relative; width: 32px; height: 18px; margin: 2px 0 0; cursor: pointer;
-  border: 1px solid var(--control-border); border-radius: 999px; background: transparent; transition: border-color 160ms ease;
-}
-.switch::before { content: ''; position: absolute; top: 3px; left: 3px; width: 10px; height: 10px; border-radius: 50%; background: var(--shell-dim); transition: transform 160ms ease, background 160ms ease; }
-.switch:checked { border-color: var(--shell-accent-border); }
-.switch:checked::before { transform: translateX(14px); background: var(--shell-accent); }
-.switch:disabled { opacity: .45; cursor: default; }
 
 /* ── 按钮：发丝框透明；主操作强调色文字+框；危险操作仅文字变色 ── */
 .root button {
@@ -108,7 +100,6 @@
   background: var(--so-field, transparent); color: var(--shell-text); font-family: inherit; font-size: 12px;
 }
 .root textarea { height: auto; min-height: 64px; padding: 7px 9px; font-family: var(--font-mono); font-size: 11px; resize: vertical; width: 100%; }
-.root input[type=checkbox]:not(.switch) { accent-color: var(--shell-accent); }
 .card > label, .root details > label { display: grid; gap: 6px; color: var(--shell-muted); font-size: 11.5px; font-weight: 600; }
 .row > input[type=checkbox] + *, .row { color: var(--shell-text); }
 .root progress { display: block; width: 100%; height: 4px; margin: 8px 0; accent-color: var(--shell-accent); }
@@ -209,3 +200,5 @@
 @media (prefers-reduced-motion: reduce) {
   .marketCard { transition: none; }
 }
+
+.configurationField label:has(input[type=checkbox]) { display: grid; grid-template-columns: minmax(0, 1fr) auto; overflow-wrap: anywhere; }
