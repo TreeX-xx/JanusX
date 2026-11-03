@@ -57,6 +57,7 @@ Object.assign(window, {
     occlusion: () => useBrowserOcclusionStore.getState().count,
   },
 })
+if (params.has('remote')) await import('./remote-control')
 await initI18n()
 await changeLanguage(params.has('en') ? 'en' : 'zh-CN')
 ReactDOM.createRoot(document.getElementById('root')!).render(params.has('editor') ? <StandaloneFileEditor /> : <App />)

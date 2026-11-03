@@ -63,6 +63,12 @@
     }
   },
   "general": {
+    "remote": {
+      "label": "Mobile remote",
+      "enable": "Enable mobile remote",
+      "help": "Show the phone button at the bottom of the right sidebar. Open it to generate a QR code and approve a connection. Turning this off disconnects the phone and stops remote access; desktop terminals keep running.",
+      "saveError": "Could not save mobile remote settings. Please try again."
+    },
     "session": {
       "section": "Session startup",
       "label": "Default view for new sessions",

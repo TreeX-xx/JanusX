@@ -1016,3 +1016,10 @@
   padding: 0;
   overflow: hidden;
 }
+.generalSwitch { width: 40px; height: 22px; padding: 3px; border: 1px solid var(--control-border); border-radius: 12px; background: var(--shell-hover); cursor: pointer; }
+.generalSwitch > span { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--shell-muted); transition: transform 150ms ease; }
+.generalSwitch[aria-checked='true'] > span { transform: translateX(18px); background: var(--shell-text); }
+.generalSwitch[aria-checked='true'] { background: color-mix(in srgb, var(--shell-text) 12%, transparent); }
+.generalSwitch:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: 3px; }
+.generalSwitch:disabled { opacity: .45; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .generalSwitch > span { transition: none; } }

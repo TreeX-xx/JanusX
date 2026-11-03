@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowUpRight, ChevronDown, LoaderCircle, Monitor, Power, QrCode, Settings2, ShieldCheck, Smartphone, Terminal, X } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useAppStore } from '@/stores/app'
@@ -8,9 +9,11 @@ import type { MobileHostStatus } from '../../../shared/ipc/remote'
 import { mobileRemoteSettings } from '@/lib/mobile-remote-settings'
 import remoteDefaults from '../../../shared/remote-defaults.json'
 import { REMOTE_LAN_ONLY, REMOTE_SETTINGS_PREFIX } from '../../../shared/remote-scope'
-import styles from './StatusBar.module.css'
+import { ThemedTooltip } from './ui/ThemedTooltip'
+import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
+import styles from './MobileRemoteControl.module.css'
 // Note: .agents/notes/remote/android-pairing-handshake.md
-export function StatusBar() {
+export function MobileRemoteControl() {
   const { t } = useI18n()
   const [remote, setRemote] = useState<MobileHostStatus | null>(null); const [open, setOpen] = useState(false)
   const secondsLeft = Math.max(0, Math.ceil(((remote?.expiresAt ?? 0) - Date.now()) / 1000))
@@ -21,6 +24,7 @@ export function StatusBar() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const enabled = useExperimentalStore(s => s.loaded && s.remoteControl)
+  useBrowserOcclusion(enabled && open)
   const activeWorkspaceId = useWorkspaceStore(s => s.activeWorkspaceId)
   const [workspaceId, setWorkspaceId] = useState('')
   const [busy, setBusy] = useState(false)
@@ -84,16 +88,21 @@ export function StatusBar() {
     setOpen(false)
   }
   if (!enabled) return null
-  return <footer className="relative flex h-7 items-center justify-end px-3.5 text-[10px]" style={{ background: 'var(--shell-chrome)', borderTop: '1px solid var(--shell-border)', color: 'var(--shell-dim)' }}>
-    <div className={styles.remoteStatus}>
-      {remote?.running && !remote.connectedDeviceId && !remote.pending && <span role="status" className={styles.statusText} title={remote.state}>{remote.state}</span>}
-      {remote?.pending && <span className={styles.pendingText}>{t('common:mobileRemote.pending')}</span>}
-      {remote?.connectedDeviceId && <span>{t('common:mobileRemote.connected', { count: remote.terminals.filter(item => item.alive).length })}</span>}
-      <button ref={triggerRef} type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(v => !v)} className={styles.trigger}>
-        <Smartphone size={13} aria-hidden="true" />{t(remote?.running ? 'common:mobileRemote.running' : 'common:mobileRemote.enable')}
+  const terminalCount = remote?.terminals.filter(item => item.alive).length ?? 0
+  const status = remote?.pending ? t('common:mobileRemote.pending') : remote?.connectedDeviceId
+    ? t('common:mobileRemote.connected', { count: terminalCount })
+    : remote?.running ? `${t('common:mobileRemote.running')} · ${remote.state}` : t('common:mobileRemote.enable')
+  return <div className={styles.railControl}>
+    <ThemedTooltip placement="left" label={status} disabled={open}>
+      <button ref={triggerRef} type="button" aria-label={`${t('common:mobileRemote.title')} · ${status}`} aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? titleId + '-panel' : undefined}
+        data-mobile-remote="" data-running={remote?.running || undefined} onClick={() => setOpen(v => !v)} className={styles.trigger}>
+        <Smartphone size={16} strokeWidth={1.6} aria-hidden="true" />
+        {remote?.pending ? <span className={styles.badge} aria-hidden="true">!</span>
+          : remote?.connectedDeviceId ? <span className={styles.badge} aria-hidden="true">{terminalCount > 99 ? '99+' : terminalCount}</span>
+          : remote?.running && <span className={styles.runningDot} aria-hidden="true" />}
       </button>
-    </div>
-    {open && <div ref={panelRef} role="dialog" aria-labelledby={titleId} tabIndex={-1} className={styles.panel}>
+    </ThemedTooltip>
+    {open && createPortal(<div ref={panelRef} id={titleId + '-panel'} role="dialog" aria-labelledby={titleId} tabIndex={-1} className={styles.panel}>
       <div className={styles.header}>
         <div className={styles.heading}><Smartphone size={18} strokeWidth={1.6} aria-hidden="true" /><h2 id={titleId}>{t('common:mobileRemote.title')}</h2></div>
         <button type="button" className={styles.iconButton} aria-label={t('common:action.close')} onClick={() => { setOpen(false); triggerRef.current?.focus() }}><X size={16} /></button>
@@ -186,6 +195,6 @@ export function StatusBar() {
         <span className={styles.footerHint}><Monitor size={13} aria-hidden="true" />{t('common:mobileRemote.localApproval')}</span>
         {remote?.running && <button type="button" disabled={busy} className={styles.textButton} onClick={() => void act(() => window.electron.remote.stop())}><Power size={13} aria-hidden="true" />{t('common:mobileRemote.stop')}</button>}
       </div>
-    </div>}
-  </footer>
+    </div>, document.body)}
+  </div>
 }

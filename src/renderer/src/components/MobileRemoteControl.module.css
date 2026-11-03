@@ -1,23 +1,24 @@
-.remoteStatus, .trigger, .heading, .header, .connectionStatus, .disclosure,
+.trigger, .heading, .header, .connectionStatus, .disclosure,
 .rowLabel, .listRow, .requestActions, .panelFooter, .footerHint, .textButton {
   display: flex;
   align-items: center;
 }
 
-.remoteStatus { gap: 10px; min-width: 0; }
-.statusText { max-width: 35vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pendingText { color: var(--shell-text); }
-.trigger { gap: 6px; padding: 4px 7px; border-radius: 6px; color: var(--shell-muted); }
+.railControl { margin-top: auto; padding-top: 10px; flex-shrink: 0; }
+.trigger { position: relative; justify-content: center; width: 36px; height: 36px; border-radius: 7px; color: var(--shell-dim); }
 .trigger:hover, .trigger[aria-expanded='true'] { background: var(--popover-hover); color: var(--shell-text); }
+.trigger[data-running='true'] { color: var(--shell-text); }
+.badge { position: absolute; right: 3px; bottom: 2px; font-size: 10px; font-weight: 600; line-height: 1; }
+.runningDot { position: absolute; right: 5px; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 
 .panel {
-  position: absolute;
-  right: 8px;
-  bottom: calc(100% + 8px);
-  z-index: 50;
+  position: fixed;
+  right: 56px;
+  bottom: 8px;
+  z-index: 80;
   display: flex;
   flex-direction: column;
-  width: min(380px, calc(100vw - 24px));
+  width: min(380px, calc(100vw - 72px));
   max-height: min(780px, calc(100dvh - 64px));
   overflow: hidden;
   border: 1px solid var(--shell-border);

@@ -1454,7 +1454,7 @@ export function Sidebar() {
               </>
             )}
           </div>
-          {/* 左下角只留团队卡（ToB M2 pinned footer）；远控已搬到 StatusBar 胶囊 + 独立弹窗 */}
+          {/* 左下角只留团队卡；手机远程位于右侧工具栏底部。 */}
           <TeamFooter />
       </div>
 

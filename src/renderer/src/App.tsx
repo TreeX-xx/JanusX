@@ -22,7 +22,6 @@ import { TerminalSelector } from '@/components/TerminalSelector'
 import { Panel, RightDockLayoutProvider } from '@/components/Panel'
 import { getAuxiliaryWorkspaceLayout, EDITOR_MIN_WIDTH } from '@/lib/auxiliary-layout'
 import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
-import { StatusBar } from '@/components/StatusBar'
 import { FileEditor } from '@/components/FileEditor'
 import { AgentNotificationHost } from '@/components/AgentNotificationHost'
 import { JanusChatProvider } from '@/components/janus/JanusChatProvider'
@@ -255,7 +254,7 @@ export default function App() {
       <Titlebar />
       <div
         ref={appGridRef}
-        className={`flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden ${dockStyles.workbenchGrid}`}
+        className={`flex-1 min-h-0 grid grid-rows-1 overflow-hidden ${dockStyles.workbenchGrid}`}
         data-resizing={rightDockResizing || editorResizing}
         style={{
           // 文件窗口轨道常驻（隐藏时 0px）：双击打开时 workbenchGrid 的 240ms 过渡才能平滑展开
@@ -330,10 +329,6 @@ export default function App() {
         >
           <Panel />
         </RightDockLayoutProvider>
-        {/* Note: .agents/notes/remote/android-pairing-handshake.md — remote-only footer collapses when disabled. */}
-        <div className="col-span-full min-w-0">
-          <StatusBar />
-        </div>
       </div>
       <AgentNotificationHost />
       <LocalCliSetup />
