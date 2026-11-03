@@ -1,5 +1,6 @@
-import { ipcMain, shell, type BrowserWindow } from 'electron'
+import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { z } from 'zod'
 import { LOCAL_INTEGRATION_CHANNELS, LOCAL_INTEGRATION_CLIENTS } from '../../shared/local-integrations'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
@@ -14,7 +15,7 @@ const saveSchema = z.object({ query: querySchema, sourceId: idSchema, entryId: i
 
 // Note: only trusted application windows may manage local native client files — .agents/notes/workbench/local-skills-mcp.md
 export function registerLocalIntegrationHandlers(getAllowedWindows: () => readonly BrowserWindow[], resolveWorkspace: ResolveWorkspaceRoot, getPlugins: () => PluginService | undefined) {
-  const service = new LocalIntegrationService({ home: homedir(), env: process.env, resolveWorkspace, plugins: () => getPlugins()?.snapshot().plugins ?? [] })
+  const service = new LocalIntegrationService({ home: homedir(), env: process.env, resolveWorkspace, plugins: () => getPlugins()?.snapshot().plugins ?? [], trashItem: path => shell.trashItem(path), backupDirectory: join(app.getPath('userData'), 'local-integrations-backups') })
   const handle = (channel: string, operation: (...args: unknown[]) => Promise<unknown>) => ipcMain.handle(channel, (event, ...args) => {
     if (event.senderFrame !== event.sender.mainFrame || !getAllowedWindows().some(window => !window.isDestroyed() && window.webContents === event.sender)) throw new Error('Local integration request is not authorized')
     return operation(...args)
@@ -22,6 +23,9 @@ export function registerLocalIntegrationHandlers(getAllowedWindows: () => readon
   handle(LOCAL_INTEGRATION_CHANNELS.scan, query => service.scan(querySchema.parse(query)))
   handle(LOCAL_INTEGRATION_CHANNELS.read, (query, id) => service.read(querySchema.parse(query), idSchema.parse(id)))
   handle(LOCAL_INTEGRATION_CHANNELS.save, input => service.save(saveSchema.parse(input)))
+  handle(LOCAL_INTEGRATION_CHANNELS.prepareRemoval, (query, id, revision) => service.prepareRemoval(querySchema.parse(query), idSchema.parse(id), revisionSchema.parse(revision)))
+  handle(LOCAL_INTEGRATION_CHANNELS.remove, token => service.remove(z.string().uuid().parse(token)))
+  handle(LOCAL_INTEGRATION_CHANNELS.revealBackup, async id => { shell.showItemInFolder(await service.revealBackupPath(z.string().uuid().parse(id))) })
   handle(LOCAL_INTEGRATION_CHANNELS.reveal, async (query, id) => { shell.showItemInFolder(await service.revealPath(querySchema.parse(query), idSchema.parse(id))) })
   let probing = false
   handle(LOCAL_INTEGRATION_CHANNELS.probe, async (query, id, revision) => {

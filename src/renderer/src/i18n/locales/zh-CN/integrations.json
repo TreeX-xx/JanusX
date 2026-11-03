@@ -54,9 +54,25 @@
   "limited": "扫描已达到目录、深度或条目上限，部分资源未显示。",
   "sourceExists": "已读取",
   "sourceMissing": "尚未创建",
-  "origin": { "user": "用户级", "workspace": "工作区", "private": "工作区 · 个人", "plugin": "插件" },
-  "state": { "discovered": "已发现", "configured": "已配置", "disabled": "已禁用", "invalid": "配置异常", "duplicate": "同名来源" },
-  "probeState": { "passed": "本次检测通过", "needs-auth": "需要认证", "failed": "本次检测失败", "unsupported": "暂不支持检测" },
+  "origin": {
+    "user": "用户级",
+    "workspace": "工作区",
+    "private": "工作区 · 个人",
+    "plugin": "插件"
+  },
+  "state": {
+    "discovered": "已发现",
+    "configured": "已配置",
+    "disabled": "已禁用",
+    "invalid": "配置异常",
+    "duplicate": "同名来源"
+  },
+  "probeState": {
+    "passed": "本次检测通过",
+    "needs-auth": "需要认证",
+    "failed": "本次检测失败",
+    "unsupported": "暂不支持检测"
+  },
   "errors": {
     "invalid-config": "配置无法解析，请检查文件格式。",
     "invalid-server": "服务配置无效，请检查 command、args、url 及客户端要求的字段。",
@@ -80,6 +96,20 @@
     "timeout": "连接检测超时，临时连接已关闭。",
     "needs-auth": "服务要求认证，请补充凭据或在原客户端完成登录。此处不会复用客户端的 OAuth 会话。",
     "disabled": "服务已禁用，请先在配置中启用。",
-    "unknown": "操作失败，请检查配置文件与访问权限后重试。"
-  }
+    "unknown": "操作失败，请检查配置文件与访问权限后重试。",
+    "unsafe-delete": "此目录包含链接、嵌套技能或不是独立技能目录，已拒绝删除。",
+    "delete-limit": "技能目录超过安全检查限额，已拒绝删除。",
+    "delete-expired": "删除确认已失效，请重新检查并确认。",
+    "trash-unavailable": "无法移入系统回收站，未执行永久删除。",
+    "backup-failed": "无法安全备份配置，已取消删除。"
+  },
+  "delete": "删除",
+  "confirmDelete": "确认删除",
+  "deleting": "正在删除…",
+  "deleteSkillHint": "将整个技能目录及其中的 {{count}} 个文件移入系统回收站，可从回收站恢复。",
+  "deleteMcpHint": "先备份原配置文件，再仅删除此 MCP 服务配置，保留其他服务及设置。",
+  "deleteSharedHint": "这是用户级资源，删除会影响所有使用它的工作区及共享该来源的客户端。",
+  "trashed": "已移入回收站，可从系统回收站恢复。",
+  "removedMcp": "已删除 MCP 配置并保存备份。客户端可能需要重新加载。",
+  "showBackup": "查看备份"
 }

@@ -276,6 +276,9 @@ export class ClaudeConversation {
       const item = this.item(`text:${e.turnId}:${e.step}:${e.chunk.index ?? 0}`, e.turnId, 'agentMessage')
       const text = item.text + String(e.chunk.text ?? '')
       item.text = text.slice(0, MAX_TEXT); item.truncated = text.length > MAX_TEXT
+    } else if (event.type === 'step.complete') {
+      const prefix = `text:${e.turnId}:${e.step}:`
+      for (const item of this.state.items) if (item.turnId === e.turnId && item.type === 'agentMessage' && item.id.startsWith(prefix) && item.status === 'inProgress') item.status = 'completed'
     } else if (event.type === 'tool.start') {
       if (typeof e.toolUseId !== 'string' || typeof e.turnId !== 'string') return
       this.tools.set(e.toolUseId, { turnId: e.turnId, name: e.tool, active: true })
@@ -284,6 +287,7 @@ export class ClaudeConversation {
         if (this.tools.size <= 1000) break
       }
       const item = this.item(`tool:${e.toolUseId}`, e.turnId, ['Write', 'Edit'].includes(e.tool) ? 'fileChange' : 'commandExecution')
+      item.activity = String(e.activity ?? e.tool).replace(/\s+/g, ' ').slice(0, 240)
       item.text = String(e.command ?? e.tool).slice(0, MAX_TEXT)
       if (typeof e.path === 'string') item.files = [{ path: e.path, diff: e.old !== undefined ? `- ${e.old}\n+ ${e.text ?? ''}` : String(e.text ?? '') }]
       if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(e.tool)) this.state.needsTerminal = true
@@ -318,7 +322,7 @@ export class ClaudeConversation {
         }
         this.state.turnStartedAt = undefined; this.state.turnId = null; this.state.needsTerminal = false
       }
-      for (const item of this.state.items) if (item.turnId === e.turnId && item.type === 'agentMessage') item.status = e.reason === 'aborted' ? 'interrupted' : e.reason === 'error' ? 'failed' : 'completed'
+      for (const item of this.state.items) if (item.turnId === e.turnId && item.type === 'agentMessage' && item.status === 'inProgress') item.status = e.reason === 'aborted' ? 'interrupted' : e.reason === 'error' ? 'failed' : 'completed'
       for (const item of this.state.items) if (item.turnId === e.turnId) this.session.discoverImages(item.id)
       for (const [id, tool] of this.tools) if (tool.turnId === e.turnId) { this.expireToolApproval(id); this.questionReplies.delete(id) }
       if (e.reason === 'error') this.state.error = 'Claude turn failed. See the native terminal for details.'

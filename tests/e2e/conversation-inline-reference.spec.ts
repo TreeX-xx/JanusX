@@ -54,6 +54,24 @@ test('plain paste stays text and composition does not submit or replace the edit
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
 })
 
+test('newlines around references survive remount with the caret on the restored last line', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('first ')
+  await dropFile(input, 6, 'old.ts')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await input.press('Control+End')
+  await input.press('Control+j')
+  await input.pressSequentially('second')
+  await page.getByRole('button', { name: 'Remount', exact: true }).click()
+  await expect(input.locator('[data-reference-id]')).toHaveCount(1)
+  await input.press('Control+End')
+  await input.press('Control+j')
+  await input.pressSequentially('third')
+  await input.press('Enter')
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['first file: "C:/fixture/old.ts" \nsecond\nthird'])
+})
+
 test('inline references move between text segments and images remain native inputs', async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
   await page.evaluate(base64 => { window.electron.file.readBinary = async () => ({ base64, mimeType: 'image/png', size: 68 }) }, PNG_PIXEL)

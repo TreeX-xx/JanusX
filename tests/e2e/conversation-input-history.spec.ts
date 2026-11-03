@@ -12,7 +12,7 @@ for (const engine of ['claude', 'codex']) {
     await input.fill('unsent draft')
     await input.press('Control+Home')
     await input.press('ArrowUp')
-    await expect(input).toHaveText('Remember this\nsecond line')
+    await expect(input).toHaveText('Remember this\nsecond line', { useInnerText: true })
     await input.press('Control+End')
     await input.press('ArrowDown')
     await expect(input).toHaveText('unsent draft')

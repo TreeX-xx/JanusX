@@ -4,10 +4,11 @@ import { lstat, mkdir, open, readdir, realpath, rename, unlink, writeFile } from
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { SerialQueue } from '../lib/atomic-file'
 import type { InstalledPlugin } from '../../shared/ipc/plugins'
-import type { LocalIntegrationCatalog, LocalIntegrationDocument, LocalIntegrationEntry, LocalIntegrationQuery, LocalIntegrationSave, LocalIntegrationSource } from '../../shared/local-integrations'
+import type { LocalIntegrationCatalog, LocalIntegrationDocument, LocalIntegrationEntry, LocalIntegrationQuery, LocalIntegrationSave, LocalIntegrationSource, LocalIntegrationRemoval, LocalIntegrationRemovalResult } from '../../shared/local-integrations'
 import { LOCAL_INTEGRATION_CLIENTS } from '../../shared/local-integrations'
 import { collection, IntegrationError, mcpTransport, object, parseConfig, updateServer, validateServer } from './config'
 import { parseSkill } from './skills'
+import { snapshotSkillRemoval } from './removal-snapshot'
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
@@ -18,7 +19,10 @@ interface Entry { view: LocalIntegrationEntry; source: Source; content: string; 
 interface Dependencies {
   home: string; env: NodeJS.ProcessEnv; resolveWorkspace: (id: string) => Promise<string | undefined>
   plugins?: () => InstalledPlugin[]
+  trashItem?: (path: string) => Promise<void>
+  backupDirectory?: string
 }
+interface PendingRemoval { preview: LocalIntegrationRemoval; query: LocalIntegrationQuery; revision: string; treeRevision?: string }
 export async function readIntegrationFile(path: string): Promise<string> {
   let file
   try {
@@ -66,6 +70,7 @@ async function writeIntegrationFile(path: string, text: string) {
 
 export class LocalIntegrationService {
   private queue = new SerialQueue()
+  private removals = new Map<string, PendingRemoval>()
   constructor(private readonly deps: Dependencies) {}
 
   private async context(query: LocalIntegrationQuery) {
@@ -212,6 +217,70 @@ export class LocalIntegrationService {
     return { entry: entry.view, content: entry.content, revision: entry.revision }
   }
   async revealPath(query: LocalIntegrationQuery, id: string): Promise<string> { return (await this.entry(query, id)).view.path }
+  async prepareRemoval(query: LocalIntegrationQuery, id: string, revision: string): Promise<LocalIntegrationRemoval> {
+    for (const [token, item] of this.removals) if (item.preview.expiresAt <= Date.now()) this.removals.delete(token)
+    if (this.removals.size >= 32) this.removals.delete(this.removals.keys().next().value!)
+    const entry = await this.entry(query, id)
+    if (!entry.view.writable || !entry.source.writable || entry.view.pluginId) throw new IntegrationError('read-only')
+    if (entry.revision !== revision) throw new IntegrationError('changed')
+    const method = entry.view.kind === 'skill' ? 'trash' : 'config'
+    const targetPath = method === 'trash' ? dirname(entry.view.path) : entry.view.path
+    if (!await writablePath(entry.view.path, entry.source.boundary)) throw new IntegrationError('read-only')
+    let tree: Awaited<ReturnType<typeof snapshotSkillRemoval>> | undefined
+    if (method === 'trash') {
+      if (!this.deps.trashItem) throw new IntegrationError('trash-unavailable')
+      tree = await snapshotSkillRemoval(targetPath, entry.source.path)
+    } else {
+      if (!this.deps.backupDirectory) throw new IntegrationError('backup-failed')
+      updateServer(entry.source.raw, query.client, entry.source.keys, entry.view.name, undefined)
+    }
+    if (hash(await readIntegrationFile(entry.view.path)) !== revision) throw new IntegrationError('changed')
+    const preview: LocalIntegrationRemoval = { token: randomUUID(), entry: entry.view, targetPath, method, expiresAt: Date.now() + 5 * 60_000, ...(tree ? { fileCount: tree.fileCount } : {}) }
+    this.removals.set(preview.token, { preview, query: { ...query }, revision, treeRevision: tree?.revision })
+    return preview
+  }
+  private async backupConfiguration(raw: string) {
+    const directory = this.deps.backupDirectory
+    if (!directory) throw new IntegrationError('backup-failed')
+    const backupId = randomUUID(), backupPath = join(directory, `${backupId}.config.bak`)
+    try {
+      if (!await writablePath(directory, dirname(directory))) throw new Error()
+      await mkdir(directory, { recursive: true, mode: 0o700 })
+      if (!await writablePath(backupPath, dirname(directory))) throw new Error()
+      const file = await open(backupPath, 'wx', 0o600)
+      try { await file.writeFile(raw, 'utf8'); await file.sync() } finally { await file.close() }
+    } catch { throw new IntegrationError('backup-failed') }
+    return { backupId, backupPath }
+  }
+  async revealBackupPath(backupId: string): Promise<string> {
+    if (!this.deps.backupDirectory || !/^[a-f0-9-]{36}$/.test(backupId)) throw new IntegrationError('invalid-request')
+    const path = join(this.deps.backupDirectory, `${backupId}.config.bak`)
+    if (!await writablePath(path, dirname(this.deps.backupDirectory)) || !(await lstat(path)).isFile()) throw new IntegrationError('read-only')
+    return path
+  }
+  remove(token: string): Promise<LocalIntegrationRemovalResult> {
+    return this.queue.run(async () => {
+      const pending = this.removals.get(token)
+      this.removals.delete(token) // Single-use confirmation, including unsuccessful attempts.
+      if (!pending || pending.preview.expiresAt <= Date.now()) throw new IntegrationError('delete-expired')
+      const { preview, query, revision } = pending
+      const entry = await this.entry(query, preview.entry.id)
+      if (!entry.view.writable || !entry.source.writable || entry.view.pluginId || !await writablePath(entry.view.path, entry.source.boundary)) throw new IntegrationError('read-only')
+      if (entry.revision !== revision || entry.view.path !== preview.entry.path) throw new IntegrationError('changed')
+      if (preview.method === 'trash') {
+        if (!this.deps.trashItem) throw new IntegrationError('trash-unavailable')
+        const snapshot = await snapshotSkillRemoval(dirname(entry.view.path), entry.source.path)
+        if (snapshot.revision !== pending.treeRevision || !await writablePath(entry.view.path, entry.source.boundary)) throw new IntegrationError('changed')
+        try { await this.deps.trashItem(preview.targetPath) } catch { throw new IntegrationError('trash-unavailable') }
+        return { method: 'trash' }
+      }
+      const updated = updateServer(entry.source.raw, query.client, entry.source.keys, entry.view.name, undefined)
+      const backup = await this.backupConfiguration(entry.source.raw)
+      if (!await writablePath(entry.view.path, entry.source.boundary) || hash(await readIntegrationFile(entry.view.path)) !== revision) throw new IntegrationError('changed')
+      await writeIntegrationFile(entry.view.path, updated)
+      return { method: 'config', ...backup }
+    })
+  }
   async probeConfiguration(query: LocalIntegrationQuery, id: string, revision: string) {
     const entry = await this.entry(query, id)
     if (entry.revision !== revision) throw new IntegrationError('changed')

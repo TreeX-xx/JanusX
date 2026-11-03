@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
 import { claudeModelOptions } from '../../src/main/terminal/claude-models'
+import { conversationOutputGroups } from '../../src/shared/conversation-output'
 
 function setup() {
   const controller = new ClaudeConversation('claude', vi.fn())
@@ -15,6 +16,31 @@ function setup() {
   return { controller, wire, emit }
 }
 describe('Claude conversation control and projection', () => {
+  it('keeps multi-step prose outside work groups and does not interrupt already completed messages', async () => {
+    const { controller, emit } = setup()
+    try {
+      emit('turn.start', { turnId: 't', text: 'Check files' })
+      const text = (step: number, value: string) => emit('chunk', { turnId: 't', step, chunk: { kind: 'text', index: 0, text: value } })
+      text(0, 'Inspecting '); text(0, 'files.')
+      emit('step.complete', { turnId: 'other', step: 0 })
+      expect(controller.state.items.at(-1)?.status).toBe('inProgress')
+      emit('step.complete', { turnId: 't', step: 0 })
+      emit('tool.start', { turnId: 't', toolUseId: 'read', tool: 'Read', activity: 'Read · src/main.ts' })
+      emit('tool.complete', { toolUseId: 'read', text: 'Source content' })
+      text(1, 'Found the cause.')
+      emit('step.complete', { turnId: 't', step: 1 })
+      emit('tool.start', { turnId: 't', toolUseId: 'test', tool: 'Bash', activity: 'Bash · Run tests', command: 'npm test' })
+      emit('tool.complete', { toolUseId: 'test', text: 'Passed' })
+      text(2, 'Final partial')
+      expect(conversationOutputGroups(controller.state.items, 't').map(g => g.process)).toEqual([false, false, true, false, true, false])
+      expect(controller.state.items.filter(item => item.type === 'agentMessage').map(item => [item.text, item.status])).toEqual([
+        ['Inspecting files.', 'completed'], ['Found the cause.', 'completed'], ['Final partial', 'inProgress'],
+      ])
+      expect(controller.state.items.find(item => item.id === 'tool:read')?.activity).toBe('Read · src/main.ts')
+      emit('turn.complete', { turnId: 't', reason: 'aborted' })
+      expect(controller.state.items.filter(item => item.type === 'agentMessage').map(item => item.status)).toEqual(['completed', 'completed', 'interrupted'])
+    } finally { await controller.dispose() }
+  })
   it('closes stdin for prompt-free control subprocesses instead of waiting for an input timeout', async () => {
     const controller = new ClaudeConversation('control-eof', vi.fn())
     const wire = controller as any

@@ -457,6 +457,7 @@ const gitAPI: GitAPI = {
   log: (cwd, maxCount) => ipcRenderer.invoke(GIT_CHANNELS.log, cwd, maxCount),
   history: (cwd, query) => ipcRenderer.invoke(GIT_CHANNELS.history, cwd, query),
   diff: (cwd, relativePath, staged) => ipcRenderer.invoke(GIT_CHANNELS.diff, cwd, relativePath, staged),
+  commitFileDiff: (cwd, hash, relativePath) => ipcRenderer.invoke(GIT_CHANNELS.commitFileDiff, cwd, hash, relativePath),
   stage: (cwd, paths) => ipcRenderer.invoke(GIT_CHANNELS.stage, cwd, paths),
   unstage: (cwd, paths) => ipcRenderer.invoke(GIT_CHANNELS.unstage, cwd, paths),
   commit: (cwd, message) => ipcRenderer.invoke(GIT_CHANNELS.commit, cwd, message),
@@ -498,6 +499,9 @@ const localIntegrationsAPI: LocalIntegrationsAPI = {
   save: input => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.save, input),
   reveal: (query, id) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.reveal, query, id),
   probe: (query, id, revision) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.probe, query, id, revision),
+  prepareRemoval: (query, id, revision) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.prepareRemoval, query, id, revision),
+  remove: token => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.remove, token),
+  revealBackup: id => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.revealBackup, id),
 }
 
 const experimentalAPI: ExperimentalAPI = {

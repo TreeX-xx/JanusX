@@ -56,14 +56,22 @@ export function validateServer(value: unknown, client: LocalIntegrationClient): 
 }
 
 /** JSONC edits retain comments. TOML edits replace only explicit tables and prove unrelated data stayed intact. */
-export function updateServer(raw: string, client: LocalIntegrationClient, keys: string[], name: string, config: Record<string, unknown>): string {
+export function updateServer(raw: string, client: LocalIntegrationClient, keys: string[], name: string, config: Record<string, unknown> | undefined): string {
   const before = parseConfig(raw, client)
   const existing = collection(before, keys)
+  if (config === undefined && !Object.hasOwn(existing, name)) throw new IntegrationError('entry-missing')
   const bom = raw.startsWith('\uFEFF') ? '\uFEFF' : ''
   const text = raw.replace(/^\uFEFF/, '')
   const eol = text.includes('\r\n') ? '\r\n' : '\n'
   if (client !== 'codex') {
-    return bom + applyEdits(text || '{}', modify(text || '{}', [...keys, name], config, { formattingOptions: { insertSpaces: true, tabSize: 2, eol } }))
+    const result = bom + applyEdits(text || '{}', modify(text || '{}', [...keys, name], config, { formattingOptions: { insertSpaces: true, tabSize: 2, eol } }))
+    if (config === undefined) {
+      const withoutEntry = (data: Record<string, unknown>, path: string[]): Record<string, unknown> => path.length
+        ? { ...data, [path[0]]: withoutEntry(object(data[path[0]]), path.slice(1)) }
+        : Object.fromEntries(Object.entries(data).filter(([key]) => key !== name))
+      if (!isDeepStrictEqual(parseConfig(result, client), withoutEntry(before, keys))) throw new IntegrationError('invalid-config')
+    }
+    return result
   }
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const table = new RegExp('^\\s*\\[mcp_servers\\.(?:' + escaped + '|"' + escaped + '"|\'' + escaped + '\')(?:\\.[^\\]]+)?\\]\\s*(?:#.*)?$')
@@ -73,11 +81,11 @@ export function updateServer(raw: string, client: LocalIntegrationClient, keys: 
     return !owned
   }).join('\n')
   if (existing[name] !== undefined && !found) throw new IntegrationError('toml-layout')
-  const serializedEntry = stringifyToml({ mcp_servers: { [name]: config } })
-  const result = `${kept.trimEnd()}\n\n${serializedEntry}`.replace(/^\n+/, '')
+  const serializedEntry = config === undefined ? '' : stringifyToml({ mcp_servers: { [name]: config } })
+  const result = (config === undefined ? kept : `${kept.trimEnd()}\n\n${serializedEntry}`).replace(/^\n+/, '')
   const after = parseConfig(result, client)
   const withoutEntry = (data: Record<string, unknown>) => ({ ...data, mcp_servers: Object.fromEntries(Object.entries(collection(data, keys)).filter(([key]) => key !== name)) })
-  const expected = collection(parseConfig(serializedEntry, client), keys)[name]
+  const expected = config === undefined ? undefined : collection(parseConfig(serializedEntry, client), keys)[name]
   if (!isDeepStrictEqual(withoutEntry(before), withoutEntry(after)) || !isDeepStrictEqual(collection(after, keys)[name], expected)) throw new IntegrationError('toml-layout')
   return bom + (eol === '\r\n' ? result.replace(/\n/g, '\r\n') : result)
 }

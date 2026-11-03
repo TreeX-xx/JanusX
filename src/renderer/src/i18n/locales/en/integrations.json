@@ -54,9 +54,25 @@
   "limited": "The directory, depth or entry limit was reached. Some resources are not shown.",
   "sourceExists": "Read",
   "sourceMissing": "Not created",
-  "origin": { "user": "User", "workspace": "Workspace", "private": "Workspace · Personal", "plugin": "Plugin" },
-  "state": { "discovered": "Discovered", "configured": "Configured", "disabled": "Disabled", "invalid": "Invalid", "duplicate": "Duplicate name" },
-  "probeState": { "passed": "Test passed", "needs-auth": "Authentication required", "failed": "Test failed", "unsupported": "Test unavailable" },
+  "origin": {
+    "user": "User",
+    "workspace": "Workspace",
+    "private": "Workspace · Personal",
+    "plugin": "Plugin"
+  },
+  "state": {
+    "discovered": "Discovered",
+    "configured": "Configured",
+    "disabled": "Disabled",
+    "invalid": "Invalid",
+    "duplicate": "Duplicate name"
+  },
+  "probeState": {
+    "passed": "Test passed",
+    "needs-auth": "Authentication required",
+    "failed": "Test failed",
+    "unsupported": "Test unavailable"
+  },
   "errors": {
     "invalid-config": "Unable to parse the configuration. Check the file format.",
     "invalid-server": "Invalid server configuration. Check command, args, url and required client fields.",
@@ -80,6 +96,20 @@
     "timeout": "The connection test timed out and its temporary connection was closed.",
     "needs-auth": "This server requires authentication. Supply credentials or sign in using the original client. This test does not reuse the client's OAuth session.",
     "disabled": "This server is disabled. Enable it in the configuration first.",
-    "unknown": "The operation failed. Check the configuration and access permissions, then retry."
-  }
+    "unknown": "The operation failed. Check the configuration and access permissions, then retry.",
+    "unsafe-delete": "This folder contains links, nested skills or is not an individual skill folder. Deletion refused.",
+    "delete-limit": "The skill folder exceeds safe inspection limits. Deletion refused.",
+    "delete-expired": "Deletion confirmation expired. Review and confirm again.",
+    "trash-unavailable": "Unable to move to the system trash. No permanent deletion was attempted.",
+    "backup-failed": "Unable to safely back up the configuration. Deletion canceled."
+  },
+  "delete": "Delete",
+  "confirmDelete": "Confirm deletion",
+  "deleting": "Deleting…",
+  "deleteSkillHint": "Move the entire skill folder and its {{count}} files to the system trash, where it can be restored.",
+  "deleteMcpHint": "Back up the original file, then remove only this MCP server configuration, preserving other servers and settings.",
+  "deleteSharedHint": "This user resource is shared. Deletion affects all workspaces and clients using this source.",
+  "trashed": "Moved to the system trash. You can restore it there.",
+  "removedMcp": "MCP configuration removed and backed up. The client may need a reload.",
+  "showBackup": "Show backup"
 }

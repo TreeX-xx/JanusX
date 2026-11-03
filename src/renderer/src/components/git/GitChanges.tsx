@@ -4,6 +4,7 @@ import type { GitDiff, GitFileChange } from '../../../../shared/ipc/git'
 import { useI18n } from '@/i18n/useI18n'
 import { ToolbarMenu } from '../viewers/ToolbarMenu'
 import type { GitViewState } from './view-state'
+import { GitFilePreview, GitFileStats } from './GitFilePreview'
 import styles from '../GitPanel.module.css'
 
 interface Props {
@@ -95,7 +96,7 @@ export function GitChanges({ cwd, files, loading, visible, state, update, saveSc
                 onClick={() => update({ collapsed: { ...state.collapsed, [`${group}:${row.path}`]: !state.collapsed[`${group}:${row.path}`] } })}>
                 {!query && state.collapsed[`${group}:${row.path}`] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}<Folder size={13} /><span>{row.name}</span><span className={styles.count}>{row.count}</span>
               </button>
-              : <GitFileItem key={row.file.path} file={row.file} depth={row.depth} list={state.fileMode === 'list'} loading={loading}
+              : <GitFileItem key={row.file.path} cwd={cwd} file={row.file} depth={row.depth} list={state.fileMode === 'list'} loading={loading}
                 selected={state.selectedFile === `${row.file.staged}:${row.file.path}`} onSelect={update} onStage={onStage} onOpen={onOpen} onDiscard={onDiscard} />)}
           </div>)}
           {total === 0 && <p className={styles.groupEmpty}>{t(staged ? 'staged.empty' : 'changes.empty')}</p>}
@@ -116,17 +117,18 @@ export function GitChanges({ cwd, files, loading, visible, state, update, saveSc
   </section>
 }
 
-const GitFileItem = memo(function GitFileItem({ file, depth, list, loading, selected, onSelect, onStage, onOpen, onDiscard }: {
-  file: GitFileChange; depth: number; list: boolean; loading: boolean; selected: boolean
+const GitFileItem = memo(function GitFileItem({ cwd, file, depth, list, loading, selected, onSelect, onStage, onOpen, onDiscard }: {
+  cwd: string; file: GitFileChange; depth: number; list: boolean; loading: boolean; selected: boolean
   onSelect: (patch: Partial<GitViewState>) => void; onStage: (file: GitFileChange) => void; onOpen: (file: GitFileChange) => void; onDiscard: (file: GitFileChange) => void
 }) {
   const { t } = useI18n('git')
   const slash = file.path.lastIndexOf('/')
-  return <div className={styles.fileRow} data-selected={selected} style={{ '--depth': depth } as CSSProperties}>
+  return <GitFilePreview cwd={cwd} file={file} enabled={!loading}><div className={styles.fileRow} data-selected={selected} style={{ '--depth': depth } as CSSProperties}>
     <span className={styles.fileStatus} data-status={file.status}>{file.status === '??' ? '?' : file.status}</span>
-    <button type="button" className={styles.fileName} title={file.path} aria-label={file.path} aria-pressed={selected} onClick={() => onSelect({ selectedFile: `${file.staged}:${file.path}` })}>
+    <button type="button" className={styles.fileName} aria-label={file.path} aria-pressed={selected} onClick={() => onSelect({ selectedFile: `${file.staged}:${file.path}` })}>
       <span>{file.path.slice(slash + 1)}</span>{list && slash > -1 && <small>{file.path.slice(0, slash)}</small>}
     </button>
+    <GitFileStats file={file} />
     <div className={styles.fileActions}>
       <button type="button" className={styles.iconButton} disabled={loading} aria-label={t(file.staged ? 'changes.unstage' : 'changes.stage')} title={t(file.staged ? 'changes.unstage' : 'changes.stage')} onClick={() => onStage(file)}>{file.staged ? <Minus size={13} /> : <Plus size={13} />}</button>
       <ToolbarMenu label={t('changes.more', { path: file.path })}>
@@ -134,8 +136,8 @@ const GitFileItem = memo(function GitFileItem({ file, depth, list, loading, sele
         <button type="button" disabled={loading} className={styles.danger} onClick={() => onDiscard(file)}>{t('changes.discard')}</button>
       </ToolbarMenu>
     </div>
-  </div>
-}, (a, b) => a.depth === b.depth && a.list === b.list && a.loading === b.loading && a.selected === b.selected && a.onSelect === b.onSelect && a.onStage === b.onStage && a.onOpen === b.onOpen && a.onDiscard === b.onDiscard && a.file.path === b.file.path && a.file.status === b.file.status && a.file.staged === b.file.staged)
+  </div></GitFilePreview>
+}, (a, b) => a.cwd === b.cwd && a.depth === b.depth && a.list === b.list && a.loading === b.loading && a.selected === b.selected && a.onSelect === b.onSelect && a.onStage === b.onStage && a.onOpen === b.onOpen && a.onDiscard === b.onDiscard && a.file.path === b.file.path && a.file.status === b.file.status && a.file.staged === b.file.staged && a.file.additions === b.file.additions && a.file.deletions === b.file.deletions)
 
 function ChangeDiff({ cwd, file, onClose, onOpen }: { cwd: string; file: GitFileChange; onClose: () => void; onOpen: () => void }) {
   const { t } = useI18n('git')

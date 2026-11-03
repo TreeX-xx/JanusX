@@ -8,6 +8,7 @@ export async function claudeConversationFixture() {
   const cwd = join(root, 'workspace')
   const config = join(root, 'config')
   await mkdir(cwd); await mkdir(config)
+  await writeFile(join(cwd, 'stages.txt'), 'Local staged streaming fixture.\n')
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => ['path', 'systemroot', 'windir', 'comspec', 'temp', 'tmp', 'pathext', 'programfiles', 'programfiles(x86)', 'claude_code_git_bash_path'].includes(key.toLowerCase())))
   Object.assign(env, { HOME: root, USERPROFILE: root, CLAUDE_CONFIG_DIR: config,
     APPDATA: join(root, 'AppData/Roaming'), LOCALAPPDATA: join(root, 'AppData/Local'),
@@ -26,6 +27,27 @@ export async function claudeConversationFixture() {
     const marker = [...JSON.stringify(body.messages).matchAll(/CC_[A-Z_]+/g)].at(-1)?.[0] ?? 'CC_NONE'
     const n = ++number
     const request = { n, marker, model: body.model, effort: body.output_config?.effort, messages: body.messages, stream: body.stream, tools: body.tools?.map((tool: any) => tool.name), startedAt: Date.now(), finishedAt: 0 }; requests.push(request)
+    if (marker === 'CC_STAGES' && body.stream) {
+      const stage = body.messages.flatMap((message: any) => Array.isArray(message.content) ? message.content : [])
+        .filter((block: any) => block.type === 'tool_use' && block.id.startsWith('toolu_stages_')).length
+      const parts = [['Inspecting ', 'the first file.'], ['Found the first result. ', 'Checking again.'], ['Both checks ', 'finished.']][Math.min(stage, 2)]
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      const event = (type: string, value: object) => { if (!res.destroyed) res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`) }
+      event('message_start', { message: { id: `msg_${n}`, type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 8, output_tokens: 1 } } })
+      event('content_block_start', { index: 0, content_block: { type: 'text', text: '' } })
+      event('content_block_delta', { index: 0, delta: { type: 'text_delta', text: parts[0] } })
+      await new Promise(resolve => setTimeout(resolve, 700))
+      event('content_block_delta', { index: 0, delta: { type: 'text_delta', text: parts[1] } })
+      event('content_block_stop', { index: 0 })
+      if (stage < 2) {
+        event('content_block_start', { index: 1, content_block: { type: 'tool_use', id: `toolu_stages_${stage}`, name: 'Read', input: {} } })
+        event('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: JSON.stringify({ file_path: join(cwd, 'stages.txt') }) } })
+        event('content_block_stop', { index: 1 })
+      }
+      event('message_delta', { delta: { stop_reason: stage < 2 ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: 20 } })
+      event('message_stop', {}); res.end(); request.finishedAt = Date.now()
+      return
+    }
     const latest = body.messages.at(-1)?.content
     const hasResult = (Array.isArray(latest) && latest.some((item: any) => item.type === 'tool_result')) || JSON.stringify(latest).includes('<task-notification>')
     const plans: Record<string, { name: string; input: object }> = {

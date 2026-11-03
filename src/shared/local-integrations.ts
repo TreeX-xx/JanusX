@@ -25,9 +25,17 @@ export interface LocalIntegrationSave {
 export interface LocalIntegrationProbe {
   state: 'passed' | 'needs-auth' | 'failed' | 'unsupported'; checkedAt: string; durationMs: number; tools?: number; issue?: string
 }
+export interface LocalIntegrationRemoval {
+  token: string; entry: LocalIntegrationEntry; targetPath: string; method: 'trash' | 'config'
+  expiresAt: number; fileCount?: number
+}
+export interface LocalIntegrationRemovalResult {
+  method: 'trash' | 'config'; backupId?: string; backupPath?: string
+}
 export const LOCAL_INTEGRATION_CHANNELS = {
   scan: 'local-integrations:scan', read: 'local-integrations:read', save: 'local-integrations:save',
   reveal: 'local-integrations:reveal', probe: 'local-integrations:probe',
+  prepareRemoval: 'local-integrations:prepare-removal', remove: 'local-integrations:remove', revealBackup: 'local-integrations:reveal-backup',
 } as const
 export interface LocalIntegrationsAPI {
   scan(query: LocalIntegrationQuery): Promise<LocalIntegrationCatalog>
@@ -35,4 +43,7 @@ export interface LocalIntegrationsAPI {
   save(input: LocalIntegrationSave): Promise<LocalIntegrationDocument>
   reveal(query: LocalIntegrationQuery, entryId: string): Promise<void>
   probe(query: LocalIntegrationQuery, entryId: string, expectedRevision: string): Promise<LocalIntegrationProbe>
+  prepareRemoval(query: LocalIntegrationQuery, entryId: string, expectedRevision: string): Promise<LocalIntegrationRemoval>
+  remove(token: string): Promise<LocalIntegrationRemovalResult>
+  revealBackup(backupId: string): Promise<void>
 }

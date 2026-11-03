@@ -312,7 +312,13 @@ export function register(on) {
     try {
       while (true) {
         const item = await stream.next()
-        if (item.done) { done = true; return item.value }
+        if (item.done) {
+          done = true
+          // Native cancellation also returns normally, but with stopReason:null.
+          // Leave that partial text open for turn.complete to mark interrupted.
+          if (!e.agentId && item.value?.stopReason) record('step.complete', { turnId: e.turnId, step: e.index })
+          return item.value
+        }
         if (!e.agentId && ['text', 'tool'].includes(item.value.kind)) {
           record('chunk', { turnId: e.turnId, step: e.index, chunk: item.value })
         }
@@ -334,7 +340,12 @@ export function register(on) {
     if (blocked.has(currentTurn)) return { deny: 'The user stopped this turn.' }
     const turnId = currentTurn
     activeTools.set(e.tool_use_id, { turnId })
+    // Only display known descriptive fields, never whole tool inputs or child prompts.
+    const target = [e.description, e.file_path ?? e.path, e.pattern ?? e.query, e.command, e.subject]
+      .find(value => typeof value === 'string' && value.trim())
+    const activity = [e.tool, target].filter(Boolean).join(' · ').replace(/\s+/g, ' ').slice(0, 240)
     record('tool.start', { turnId, toolUseId: e.tool_use_id, tool: e.tool,
+      activity,
       command: e.command?.slice(0, 16000), path: e.file_path, old: e.old_string?.slice(0, 16000), text: (e.new_string ?? e.content)?.slice(0, 16000) })
     try {
       let input = e

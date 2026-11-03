@@ -1,5 +1,6 @@
 import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react'
 import { useHistoryDisclosure } from './VirtualHistory'
+import { ConversationDuration } from '../ConversationDuration'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import './conversation-output.css'
@@ -13,8 +14,9 @@ export function WorkDisclosureScope({ children, scopeKey }: { children: ReactNod
   return <WorkState.Provider value={scope.choices}>{children}</WorkState.Provider>
 }
 
-export function WorkDisclosure({ children, summary, settled, stateKey = 'work' }: {
+export function WorkDisclosure({ children, summary, settled, stateKey = 'work', activity }: {
   children: ReactNode | (() => ReactNode); summary: WorkSummary; settled?: boolean; stateKey?: string
+  activity?: { text: string; startedAt?: number }
 }) {
   const { t } = useTranslation('terminal')
   const cache = useContext(WorkState)
@@ -32,6 +34,10 @@ export function WorkDisclosure({ children, summary, settled, stateKey = 'work' }
       {!!summary.interrupted && status !== 'interrupted' && <span>{t('conversation.work.interruptions', { count: summary.interrupted })}</span>}
       {summary.incomplete && status !== 'incomplete' && <span>{t('conversation.work.incomplete')}</span>}
     </button>
+    {activity && <div className="conversation-work-activity">
+      <span title={activity.text}>{activity.text}</span>
+      {activity.startedAt !== undefined && <ConversationDuration startedAt={activity.startedAt} />}
+    </div>}
     <div id={bodyId} className="conversation-work-body" hidden={!open}>{open || visited ? typeof children === 'function' ? children() : children : null}</div>
   </div>
 }

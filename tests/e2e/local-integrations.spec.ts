@@ -81,3 +81,38 @@ for (const theme of ['dark', 'white', 'planche']) {
     await page.screenshot({ path: `artifacts/local-integrations/narrow-${theme}.png`, animations: 'disabled' })
   })
 }
+
+
+test('client icons and confirmed removal with cancellation and MCP backup', async ({ page }) => {
+  await page.goto('/settings.html?tab=integrations&workspace&en')
+  const client = page.getByRole('button', { name: 'Client', exact: true })
+  await expect(client.locator('img')).toBeVisible()
+  await client.click()
+  await expect(page.getByRole('option', { name: 'Claude Code', exact: true }).locator('img')).toBeVisible()
+  await page.getByRole('option', { name: 'Codex', exact: true }).click()
+  await page.getByRole('button', { name: /code-review/ }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.getByRole('group', { name: 'Confirm deletion' })).toContainText('shared')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('button', { name: /code-review/ })).toHaveCount(1)
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'Confirm deletion', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('system trash')
+  await expect(page.getByRole('button', { name: /code-review/ })).toHaveCount(0)
+  await page.getByRole('tab', { name: /MCP/ }).click()
+  await page.getByRole('button', { name: /filesystem/ }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'Confirm deletion', exact: true }).click()
+  await page.getByRole('button', { name: 'Show backup' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-integration-backup', 'backup')
+})
+
+test('failed deletion retains the entry and requires a fresh confirmation', async ({ page }) => {
+  await page.goto('/settings.html?tab=integrations&changed&en')
+  await page.getByRole('button', { name: /code-review/ }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'Confirm deletion', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('changed externally')
+  await expect(page.getByRole('group', { name: 'Confirm deletion' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /code-review/ })).toHaveCount(1)
+})

@@ -335,7 +335,7 @@ export function installElectronApiFallback(): void {
       setAutoMerge: unavailable,
     },
     git: {
-      status: unavailable, log: unavailable, history: unavailable, diff: unavailable, stage: unavailable, unstage: unavailable,
+      status: unavailable, log: unavailable, history: unavailable, diff: unavailable, commitFileDiff: unavailable, stage: unavailable, unstage: unavailable,
       commit: unavailable, push: unavailable, pull: unavailable, discard: unavailable, commitChanges: unavailable, fileBaseline: unavailable,
     },
     notificationSettings: {

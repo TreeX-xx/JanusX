@@ -4,6 +4,16 @@ import { summarizeWork } from '../../src/shared/work-output'
 import type { ConversationItem } from '../../src/shared/conversation-display'
 const item = (id: string, type: string, extra: Partial<ConversationItem> = {}): ConversationItem => ({ id, type, turnId: 'turn', text: id, status: 'completed', ...extra })
 describe('conversation output grouping', () => {
+  it('keeps the running activity visible when another tool finishes, then retains the last target without a timer', () => {
+    const rows = [item('read', 'commandExecution', { activity: 'Read · src/main.ts', receivedAt: 10, status: 'inProgress' }),
+      item('search', 'commandExecution', { activity: 'Grep · message', receivedAt: 20, text: 'Grep\nLarge result', status: 'completed' })]
+    const live = conversationOutputGroups(rows, 'turn')[0]
+    expect(live.activity).toEqual({ text: 'Read · src/main.ts', startedAt: 10 })
+    expect(live.items[0].id).toBe('read')
+    rows[0].status = 'completed'
+    expect(conversationOutputGroups(rows, null)[0].activity).toEqual({ text: 'Grep · message', startedAt: undefined })
+    expect(conversationOutputGroups([item('legacy', 'commandExecution')], null)[0].activity).toBeUndefined()
+  })
   it('keeps chronological process separate from final answer and user input', () => {
     const items = [item('user', 'userMessage'), item('update', 'agentMessage', { phase: 'commentary' }), item('tool', 'commandExecution'), item('answer', 'agentMessage', { phase: 'final_answer' })]
     const groups = conversationOutputGroups(items, null)

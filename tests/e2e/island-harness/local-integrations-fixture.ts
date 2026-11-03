@@ -8,6 +8,7 @@ export function installLocalIntegrationsFixture() {
   const revisions = 'a'.repeat(64)
   const catalogs = new Map<string, LocalIntegrationCatalog>()
   const documents = new Map<string, string>()
+  let pending: { query: LocalIntegrationQuery; id: string } | null = null
   let probes = 0
   const catalog = (query: LocalIntegrationQuery) => {
     const key = query.client + ':' + query.scope
@@ -46,6 +47,20 @@ export function installLocalIntegrationsFixture() {
   window.electron.localIntegrations = {
     scan: async query => structuredClone(catalog(query)),
     read,
+    prepareRemoval: async (query, id) => {
+      pending = { query, id }
+      const entry = (await read(query, id)).entry
+      return { token: 'fixture', entry, targetPath: entry.path, method: entry.kind === 'skill' ? 'trash' : 'config', expiresAt: Date.now() + 300000, fileCount: 2 }
+    },
+    remove: async () => {
+      if (params.has('changed')) throw new Error('changed')
+      const { query, id } = pending!
+      const data = catalog(query), entry = data.entries.find(item => item.id === id)!
+      data.entries = data.entries.filter(item => item.id !== id)
+      pending = null
+      return entry.kind === 'skill' ? { method: 'trash' } : { method: 'config', backupId: 'backup' }
+    },
+    revealBackup: async id => { document.documentElement.dataset.integrationBackup = id },
     save: async input => {
       document.documentElement.dataset.integrationSave = JSON.stringify(input)
       if (params.has('changed')) throw new Error('changed')

@@ -5,6 +5,7 @@ export const GIT_CHANNELS = {
   commitChanges: 'git:commit-changes',
   history: 'git:history',
   diff: 'git:diff',
+  commitFileDiff: 'git:commit-file-diff',
 } as const
 
 export interface GitBranch { name: string; upstream: string | null; ahead: number; behind: number }
@@ -38,6 +39,7 @@ export interface GitAPI {
   log(cwd: string, maxCount?: number): Promise<GitCommit[]>
   history(cwd: string, query: GitHistoryQuery): Promise<GitHistoryPage>
   diff(cwd: string, relativePath: string, staged: boolean): Promise<GitDiff>
+  commitFileDiff(cwd: string, hash: string, relativePath: string): Promise<GitDiff>
   stage(cwd: string, paths: string[]): Promise<GitStatus>
   unstage(cwd: string, paths: string[]): Promise<GitStatus>
   commit(cwd: string, message: string): Promise<GitStatus>

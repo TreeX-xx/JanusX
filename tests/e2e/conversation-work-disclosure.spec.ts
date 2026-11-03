@@ -1,6 +1,28 @@
 import { expect, test } from '@playwright/test'
 
 for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) {
+  test(`${engine}: thinking duration persists across work updates and disclosure toggles`, async ({ page }) => {
+    await page.clock.install()
+    await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)
+    const preview = (stage: string) => page.evaluate(stage => (window as any).codexFixture.workPreview(stage), stage)
+    await preview('start')
+    const thinking = page.getByRole('status').filter({ hasText: 'Thinking…' })
+    const duration = thinking.getByLabel(/^Run duration /)
+    await expect(duration).toHaveText('0:00')
+    const original = await duration.elementHandle()
+    const toggle = page.locator('.conversation-work-toggle')
+    for (const [index, stage] of ['update', 'idle', 'update'].entries()) {
+      await preview(stage)
+      await toggle.click()
+      await expect(duration).toBeVisible()
+      expect(await duration.evaluate((node, previous) => node === previous, original)).toBe(true)
+      await page.clock.runFor(1000)
+      await expect(duration).toHaveText(`0:0${index + 1}`)
+    }
+    await preview('finish')
+    await expect(thinking).toHaveCount(0)
+  })
+
   test(`${engine}: live work stays compact, preserves choices and exposes failures`, async ({ page }) => {
     await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)
     const preview = (stage: string) => page.evaluate(stage => (window as any).codexFixture.workPreview(stage), stage)

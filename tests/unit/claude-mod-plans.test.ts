@@ -41,6 +41,36 @@ it('captures batched prompts before downstream starts the turn and removes rejec
   expect((await readAll()).find(event => event.type === 'turn.start' && event.data.turnId === 'later')?.data.inputs).toEqual([])
 })
 
+it('forwards step chunks and return values intact, completing only finished root steps', async () => {
+  const { $, hooks, readAll } = await fixture()
+  const chunks = [{ kind: 'text', index: 0, text: 'Inspecting' }, { kind: 'tool', id: 'read', name: 'Read' }]
+  const result = { stopReason: 'tool_use' }
+  async function* source() { yield* chunks; return result }
+  const stream = hooks.get('turn.step')($, { turnId: 't', index: 0 }, source)
+  expect((await stream.next()).value).toBe(chunks[0])
+  expect((await readAll()).some(event => event.type === 'step.complete')).toBe(false)
+  expect((await stream.next()).value).toBe(chunks[1])
+  expect(await stream.next()).toEqual({ done: true, value: result })
+  const child = hooks.get('turn.step')($, { turnId: 'child', index: 0, agentId: 'child' }, source)
+  for await (const _chunk of child) { /* native stream is still consumed */ }
+  const interrupted = hooks.get('turn.step')($, { turnId: 't', index: 1 }, source)
+  await interrupted.next(); await interrupted.return()
+  async function* abortedSource() { yield chunks[0]; return { stopReason: null } }
+  const aborted = hooks.get('turn.step')($, { turnId: 't', index: 2 }, abortedSource)
+  await aborted.next(); await aborted.next()
+  expect((await readAll()).filter(event => event.type === 'step.complete').map(event => event.data)).toEqual([{ turnId: 't', step: 0 }])
+})
+
+it('captures bounded native activity descriptions without copying child prompts or output', async () => {
+  const { emit, readAll } = await fixture()
+  await emit('tool.call', { tool: 'Read', tool_use_id: 'read', file_path: 'src/main.ts' }, { text: 'Large file result' })
+  await emit('tool.call', { tool: 'Agent', tool_use_id: 'agent', description: 'Inspect\nfrontend', prompt: 'Do not project child instructions' })
+  await emit('tool.call', { tool: 'Bash', tool_use_id: 'long', command: 'x'.repeat(400) })
+  const starts = (await readAll()).filter(event => event.type === 'tool.start')
+  expect(starts.map(event => event.data.activity)).toEqual(['Read · src/main.ts', 'Agent · Inspect frontend', ('Bash · ' + 'x'.repeat(400)).slice(0, 240)])
+  expect(JSON.stringify(starts)).not.toContain('Do not project child instructions')
+})
+
 it('reads native tasks only after successful root mutations and preserves last confirmed state on read failure', async () => {
   const { $, emit, read } = await fixture()
   await emit('tool.call', { tool: 'TaskUpdate', tool_use_id: 'failed' }, { result: { success: false } })

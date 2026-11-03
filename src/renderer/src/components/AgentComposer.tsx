@@ -183,7 +183,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     }
     if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !currentPanel && event.target === inputRef.current?.element && !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
       const input = inputRef.current!
-      const text = historyCursor.current.move(event.key, draft, input.selectionStart, input.selectionEnd, mergeInputHistory(localHistory ?? [], nativeHistory))
+      const text = input.isHistoryBoundary(event.key)
+        ? historyCursor.current.move(event.key, draft, input.selectionStart, input.selectionEnd, mergeInputHistory(localHistory ?? [], nativeHistory))
+        : undefined
       if (text !== undefined) {
         event.preventDefault(); event.stopPropagation(); setDraft(text); setDismissed(text)
         requestAnimationFrame(() => { if (input.isConnected) { const position = event.key === 'ArrowUp' ? 0 : text.length; input.setSelectionRange(position, position) } })

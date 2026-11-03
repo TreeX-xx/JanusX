@@ -15,13 +15,15 @@ export interface ConversationInputHandle {
   form: HTMLFormElement | null
   focus(): void
   setSelectionRange(start: number, end: number): void
+  isHistoryBoundary(key: 'ArrowUp' | 'ArrowDown'): boolean
   insertReferences(refs: ConversationReference[], range?: [number, number]): void
   setDropPoint(x: number, y: number): void
 }
 
 // The editable DOM owns selection and native undo. Drafts serialize tokens, never HTML.
 function read(node: Node): string {
-  if (node instanceof HTMLElement && node.hasAttribute('data-conversation-input') && node.innerHTML === '<br>') return ''
+  // A lone BR holds the caret in an empty block; it is not another newline.
+  if (node instanceof HTMLElement && /^(DIV|P)$/.test(node.nodeName) && node.innerHTML === '<br>') return ''
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
   if (node instanceof HTMLElement && node.dataset.referenceToken) return node.dataset.referenceToken
   if (node.nodeName === 'BR') return '\n'
@@ -38,6 +40,33 @@ function offsets(root: HTMLElement): [number, number] | null {
   const start = read(prefix.cloneContents()).length
   prefix.setEnd(range.endContainer, range.endOffset)
   return [start, read(prefix.cloneContents()).length]
+}
+function isHistoryBoundary(root: HTMLElement, key: 'ArrowUp' | 'ArrowDown'): boolean {
+  const selection = window.getSelection()
+  if (!selection?.rangeCount || !selection.isCollapsed) return false
+  const caret = selection.getRangeAt(0).cloneRange()
+  if (!root.contains(caret.startContainer)) return false
+  if (!read(root)) return true
+  let rects = Array.from(caret.getClientRects())
+  if (!rects.length && caret.startContainer.nodeType === Node.ELEMENT_NODE) {
+    const child = caret.startContainer.childNodes[caret.startOffset]
+    if (child) {
+      caret.selectNodeContents(child); caret.collapse(true)
+      rects = Array.from(caret.getClientRects())
+      if (!rects.length && (child.nodeName === 'BR' || child instanceof HTMLElement && child.contentEditable === 'false')) {
+        caret.selectNode(child); rects = Array.from(caret.getClientRects())
+      }
+    }
+  }
+  // If the browser cannot locate the caret, leave its editing keys alone.
+  if (!rects.length) return false
+  const contents = document.createRange(); contents.selectNodeContents(root)
+  const bounds = contents.getBoundingClientRect()
+  const tolerance = parseFloat(getComputedStyle(root).lineHeight) / 2
+  // A wrap boundary can have two caret rects. Prefer editing over history there.
+  return key === 'ArrowUp'
+    ? Math.max(...rects.map(rect => rect.top)) <= bounds.top + tolerance
+    : Math.min(...rects.map(rect => rect.bottom)) >= bounds.bottom - tolerance
 }
 function select(root: HTMLElement, start: number, end: number) {
   const point = (offset: number): [Node, number] => {
@@ -100,11 +129,19 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     }
     return result
   }
+  const restore = (editor: HTMLElement, text: string) => {
+    const lines = text.split('\n')
+    editor.replaceChildren(...(lines.length === 1 ? Array.from(fragment(text).childNodes) : lines.map(line => {
+      const block = fragment(line)
+      if (!line) block.replaceChildren(document.createElement('br'))
+      return block
+    })))
+  }
   const publish = () => {
     if (!root.current || composing.current) return
     remember()
     const text = read(root.current)
-    if (text.length > 32000) { root.current.replaceChildren(...Array.from(fragment(latest.current.value).childNodes)); select(root.current, latest.current.value.length, latest.current.value.length); return }
+    if (text.length > 32000) { restore(root.current, latest.current.value); select(root.current, latest.current.value.length, latest.current.value.length); return }
     latest.current.value = text
     latest.current.onChange(text)
   }
@@ -121,6 +158,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     get selectionStart() { remember(); return caret.current[0] }, get selectionEnd() { remember(); return caret.current[1] },
     focus() { root.current?.focus() },
     setSelectionRange(start, end) { caret.current = [start, end]; if (root.current) select(root.current, start, end) },
+    isHistoryBoundary(key) { return !!root.current && isHistoryBoundary(root.current, key) },
     insertReferences(refs, range) { insert(refs.map(referenceToken).join(' ') + ' ', [...latest.current.references, ...refs], range) },
     setDropPoint(x, y) {
       const range = document.caretRangeFromPoint(x, y)
@@ -132,7 +170,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     if (!editor || composing.current || read(editor) === value) return
     const focused = editor.contains(document.activeElement)
     const position = offsets(editor) ?? caret.current
-    editor.replaceChildren(...Array.from(fragment(value).childNodes))
+    restore(editor, value)
     if (focused) select(editor, Math.min(position[0], value.length), Math.min(position[1], value.length))
   })
   useLayoutEffect(() => {
@@ -159,8 +197,10 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
       onInput={publish} onBlur={remember} onKeyUp={remember} onMouseUp={remember}
       onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false; publish() }}
       onKeyDown={event => {
-        if (!event.nativeEvent.isComposing && !composing.current && (event.key === 'Enter' && event.shiftKey || event.key.toLowerCase() === 'j' && event.ctrlKey && !event.altKey && !event.metaKey)) {
-          event.preventDefault(); remember(); insert('\n'); return
+        if (!disabled && !event.nativeEvent.isComposing && !composing.current && event.keyCode !== 229 && (event.key === 'Enter' && event.shiftKey || event.key.toLowerCase() === 'j' && event.ctrlKey && !event.altKey && !event.metaKey)) {
+          event.preventDefault(); event.stopPropagation()
+          // Native paragraphs create a visible empty line and preserve undo/caret.
+          document.execCommand('insertParagraph'); publish(); return
         }
         onKeyDown(event)
       }}

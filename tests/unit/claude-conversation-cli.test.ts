@@ -7,10 +7,70 @@ import { join } from 'node:path'
 import pty from 'node-pty'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
 import { claudeConversationFixture } from '../helpers/claude-conversation-fixture'
+import type { ConversationSnapshot } from '../../src/shared/conversation-display'
+import { conversationOutputGroups } from '../../src/shared/conversation-output'
 
 const binary = process.env.JANUSX_TEST_CLAUDE_BIN
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native dialog', () => {
+  it('streams interleaved commentary and tools through the native Mods bridge before the final answer', async () => {
+    const fixture = await claudeConversationFixture()
+    const snapshots: ConversationSnapshot[] = []
+    const main = new ClaudeConversation('claude-stages', snapshot => snapshots.push(snapshot))
+    const stepEvents: unknown[] = []
+    const wire = main as any
+    const receive = wire.receive.bind(main)
+    wire.receive = (event: any) => { if (event.type === 'step.complete') stepEvents.push(event.data); receive(event) }
+    let stagedState: ConversationSnapshot | undefined
+    let setup: pty.IPty | undefined, exited = false, output = ''
+    const until = async (fn: () => boolean, label: string) => {
+      const end = Date.now() + 20000
+      while (!fn()) { if (Date.now() > end) throw new Error(`${label}: ${JSON.stringify(main.snapshot())}\n${output.slice(-1000)}`); await delay(50) }
+    }
+    const clean = () => output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/\s/g, '')
+    try {
+      setup = pty.spawn(binary!, ['--model', 'claude-sonnet-4-6', '--tools', ''], { cwd: fixture.cwd, env: fixture.env as Record<string, string>, cols: 130, rows: 36 })
+      setup.onData(data => { output += data }); setup.onExit(() => { exited = true })
+      await until(() => output.includes('trust'), 'trust'); await delay(1200)
+      setup.write('\x1b[B'); await delay(200); setup.write('\r'); await delay(1500)
+      await until(() => clean().includes('DoyouwanttousethisAPIkey'), 'key')
+      setup.write('\x1b[A'); await delay(200); setup.write('\r')
+      await until(() => clean().includes('Sonnet4.6'), 'ready'); await delay(500)
+      await promisify(execFile)('taskkill', ['/PID', String(setup.pid), '/T', '/F'], { windowsHide: true })
+      await until(() => exited, 'setup exit')
+      await main.start({ command: binary!, args: ['--model', 'claude-sonnet-4-6', '--tools', 'Read', '--allowedTools', 'Read', '--permission-mode', 'manual'],
+        cwd: fixture.cwd, env: fixture.env, assetsDir: join(fixture.root, 'assets') })
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await main.command({ type: 'send', text: 'CC_STAGES', commandId: 'stages', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId && main.state.items.some(item => item.text === 'Both checks finished.'), 'staged answer')
+      expect(fixture.requests.filter(request => request.stream)).toHaveLength(3)
+      expect(main.state.items.map(item => item.type)).toEqual(['userMessage', 'agentMessage', 'commandExecution', 'agentMessage', 'commandExecution', 'agentMessage'])
+      expect(main.state.items.filter(item => item.type === 'agentMessage').map(item => item.text)).toEqual(['Inspecting the first file.', 'Found the first result. Checking again.', 'Both checks finished.'])
+      expect(main.state.items.filter(item => item.type === 'commandExecution').every(item => item.activity?.includes('stages.txt') && item.status === 'completed')).toBe(true)
+      for (const partial of ['Inspecting ', 'Found the first result. ', 'Both checks ']) {
+        expect(snapshots.some(snapshot => snapshot.turnId && snapshot.items.some(item => item.text === partial && item.status === 'inProgress'))).toBe(true)
+      }
+      expect(snapshots.some(snapshot => snapshot.turnId && snapshot.items.some(item => item.text === 'Found the first result. ') && snapshot.items.some(item => item.text === 'Inspecting the first file.' && item.status === 'completed'))).toBe(true)
+      expect(conversationOutputGroups(main.state.items, null).map(group => group.process)).toEqual([false, false, true, false, true, false])
+      stagedState = main.snapshot()
+      await main.command({ type: 'send', text: 'CC_CANCEL', commandId: 'cancel-stage', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.items.some(item => item.text === 'First CC_CANCEL'), 'partial before interrupt')
+      await main.command({ type: 'interrupt', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId, 'interrupted turn ends')
+      expect(main.state.items.find(item => item.text === 'First CC_CANCEL')?.status).toBe('interrupted')
+      expect(main.state.items.filter(item => item.turnId === stagedState!.items[0].turnId).every(item => item.status === 'completed')).toBe(true)
+      await main.command({ type: 'send', text: 'CC_AFTER_STOP', commandId: 'after-stop', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId && main.state.items.some(item => item.text === 'First CC_AFTER_STOP final'), 'continues after interruption')
+      expect(main.state.threadId).toBe(stagedState.threadId)
+    } finally {
+      await mkdir('artifacts/claude-progress', { recursive: true })
+      await writeFile('artifacts/claude-progress/native.json', JSON.stringify({ binary, stepEvents, state: stagedState ?? main.snapshot(), interruptedState: main.snapshot(), snapshots, requests: fixture.requests }, null, 2))
+      await main.dispose()
+      if (setup && !exited) await promisify(execFile)('taskkill', ['/PID', String(setup.pid), '/T', '/F'], { windowsHide: true }).catch(() => {})
+      await promisify(execFile)(binary!, ['daemon', 'stop', '--any'], { env: fixture.env, cwd: fixture.cwd, windowsHide: true, timeout: 10000 }).catch(() => {})
+      await fixture.close()
+    }
+  }, 90000)
   it('answers native questions with choices and custom text without an attached terminal', async () => {
     const fixture = await claudeConversationFixture()
     const main = new ClaudeConversation('claude-questions', () => {})

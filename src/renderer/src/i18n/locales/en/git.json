@@ -36,6 +36,14 @@
     "noDiff": "No text diff. Only file attributes may have changed.",
     "truncated": "Showing the first 256 KiB of the diff. Open the file for its full content."
   },
+  "filePreview": {
+    "stats": "{{additions}} lines added, {{deletions}} lines deleted",
+    "loading": "Loading diff…",
+    "failed": "Diff unavailable. Hover again to retry.",
+    "binary": "Binary file. No text diff to preview.",
+    "excerpt": "Showing a diff excerpt",
+    "status": { "M": "Modified", "A": "Added", "D": "Deleted", "R": "Renamed", "??": "Untracked", "UU": "Conflicted" }
+  },
   "discard": {
     "title": "Discard changes?",
     "description": "Discard all local changes in {{path}}? This cannot be undone.",

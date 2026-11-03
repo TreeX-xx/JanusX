@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { Select } from '../ui/Select'
 import { layoutCommitGraph, type GraphRow } from './graph'
 import type { GitViewState } from './view-state'
+import { GitFilePreview, GitFileStats } from './GitFilePreview'
 import styles from '../GitPanel.module.css'
 
 interface Props {
@@ -124,10 +125,10 @@ export function GitHistory({ cwd, commits, loading, moreLoading, hasMore, error,
       {hasMore && <button type="button" className={styles.loadMore} disabled={loading || moreLoading} onClick={onMore}>{moreLoading ? t('history.loading') : t('history.loadMore')}</button>}
       {!hasMore && commits.length > 0 && <p className={styles.historyEnd}>{t('history.end')}</p>}
     </div>
-    {selected && <CommitDetail key={selected.hash} commit={selected} loadFiles={loadFiles} onClose={() => update({ selectedCommit: null })} />}
+    {selected && <CommitDetail key={selected.hash} cwd={cwd} active={visible && active} commit={selected} loadFiles={loadFiles} onClose={() => update({ selectedCommit: null })} />}
     {preview && visible && active && createPortal(<div role="tooltip" className={styles.commitPreview} style={{ top: preview.top, left: preview.left }}>
       <strong>{preview.commit.message}</strong><p>{preview.commit.shortHash} · {preview.commit.author}</p>
-      {preview.files ? <><p>{t('history.filesCount', { count: preview.files.length })}</p>{preview.files.slice(0, 5).map(file => <div className={styles.previewFile} key={file.path}>{file.path}</div>)}</> : <p>{t('history.previewHint')}</p>}
+      {preview.files ? <><p>{t('history.filesCount', { count: preview.files.length })}</p>{preview.files.slice(0, 5).map(file => <div className={styles.previewFile} key={file.path}><span>{file.path}</span><GitFileStats file={file} /></div>)}</> : <p>{t('history.previewHint')}</p>}
     </div>, document.body)}
   </section>
 }
@@ -146,7 +147,7 @@ function GraphLane({ row, width, head }: { row: GraphRow; width: number; head: b
   </svg>
 }
 
-function CommitDetail({ commit, loadFiles, onClose }: { commit: GitHistoryCommit; loadFiles: (hash: string) => Promise<GitCommitChange[]>; onClose: () => void }) {
+function CommitDetail({ cwd, active, commit, loadFiles, onClose }: { cwd: string; active: boolean; commit: GitHistoryCommit; loadFiles: (hash: string) => Promise<GitCommitChange[]>; onClose: () => void }) {
   const { t, currentLanguage } = useI18n('git')
   const [files, setFiles] = useState<GitCommitChange[] | null>(null)
   const [error, setError] = useState('')
@@ -169,7 +170,9 @@ function CommitDetail({ commit, loadFiles, onClose }: { commit: GitHistoryCommit
       {error && <div className={styles.error} role="alert">{error}<button type="button" onClick={() => setRetry(value => value + 1)}>{t('retry')}</button></div>}
       {!files && !error && <p className={styles.message}>{t('history.loadingChanges')}</p>}
       {files && <><div className={styles.detailTotals}><span>{t('history.filesCount', { count: files.length })}</span><span className={styles.add}>+{files.reduce((sum, file) => sum + (file.additions ?? 0), 0)}</span><span className={styles.del}>−{files.reduce((sum, file) => sum + (file.deletions ?? 0), 0)}</span></div>
-        {files.map(file => <div key={file.path} className={styles.commitFile}><span className={styles.fileStatus} data-status={file.status}>{file.status}</span><span title={file.path}>{file.path}</span><span className={styles.add}>{file.additions === null ? '—' : `+${file.additions}`}</span><span className={styles.del}>{file.deletions === null ? '—' : `−${file.deletions}`}</span></div>)}</>}
+        {files.map(file => <GitFilePreview key={file.path} cwd={cwd} file={file} commit={commit.hash} enabled={active}>
+          <div className={styles.commitFile} tabIndex={0} aria-label={file.path}><span className={styles.fileStatus} data-status={file.status}>{file.status}</span><span>{file.path}</span><GitFileStats file={file} /></div>
+        </GitFilePreview>)}</>}
     </div>
   </section>
 }

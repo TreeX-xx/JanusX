@@ -62,15 +62,14 @@ async function remoteGit(cwd: string, args: string[], signal?: AbortSignal): Pro
   return (await runGit(cwd, args, REMOTE_GIT_TIMEOUT_MS, DEFAULT_GIT_OUTPUT_BYTES, signal)).trim()
 }
 
-type StatusProbes = [string, string, string, string, boolean]
+type StatusProbes = [string, string, string, string]
 
 export async function getStatus(cwd: string): Promise<GitStatus> {
-  const probes: [Promise<string>, Promise<string>, Promise<string>, Promise<string>, Promise<boolean>] = [
+  const probes: [Promise<string>, Promise<string>, Promise<string>, Promise<string>] = [
     git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD').catch(() => git(cwd, 'symbolic-ref', '--short', 'HEAD')),
     git(cwd, 'rev-parse', '--abbrev-ref', '@{upstream}').catch(() => ''),
     git(cwd, 'rev-list', '--left-right', '--count', 'HEAD...@{upstream}').catch(() => '0\t0'),
     rawGit(cwd, 'status', '--porcelain=v1', '-z', '--untracked-files=all'),
-    git(cwd, 'rev-parse', '--verify', 'HEAD').then(() => true, () => false),
   ]
 
   // 等全部探针退出再判断：Promise.all 提前 reject 会留下仍在运行的 git 子进程（Windows 下会锁住目录）。
@@ -82,19 +81,19 @@ export async function getStatus(cwd: string): Promise<GitStatus> {
     throw rejected.reason
   }
 
-  const [branchLine, upstreamLine, aheadBehind, rawStatus, hasHead] = settled.map(
+  const [branchLine, upstreamLine, aheadBehind, rawStatus] = settled.map(
     (result) => (result as PromiseFulfilledResult<StatusProbes[number]>).value,
   ) as StatusProbes
   const [ahead, behind] = aheadBehind.split('\t').map(Number)
   const changes = parsePorcelainStatus(rawStatus)
-  const rawNumstat = hasHead
-    ? await rawGit(cwd, 'diff', '--numstat', '-z', 'HEAD', '--').catch(() => '')
-    : await rawGit(cwd, 'diff', '--cached', '--numstat', '-z', '--').catch(() => '')
-  const lineStats = parseNumstat(rawNumstat)
+  const [stagedStats, workingStats] = await Promise.all([
+    rawGit(cwd, 'diff', '--cached', '--numstat', '-z', '--').then(parseNumstat).catch(() => new Map<string, LineStats>()),
+    rawGit(cwd, 'diff', '--numstat', '-z', '--').then(parseNumstat).catch(() => new Map<string, LineStats>()),
+  ])
 
   for (let offset = 0; offset < changes.length; offset += 32) {
     await Promise.all(changes.slice(offset, offset + 32).map(async (change) => {
-      const stats = lineStats.get(change.path)
+      const stats = (change.staged ? stagedStats : workingStats).get(change.path)
         ?? (change.status === '??' ? await getUntrackedLineStats(cwd, change.path) : null)
       change.additions = stats?.additions ?? null
       change.deletions = stats?.deletions ?? null
@@ -290,13 +289,22 @@ export async function getHistory(cwd: string, query: GitHistoryQuery): Promise<G
 }
 
 export async function getChangeDiff(cwd: string, path: string, staged: boolean) {
-  const status = await getStatus(cwd)
-  const file = status.changes.find(change => change.path === path && change.staged === staged)
+  if (!path || path.includes('\0') || isAbsolute(path) || path.split(/[\\/]/).includes('..')) throw new Error('Invalid Git file path')
+  // Hover previews only need this path's status, not every untracked file's line count.
+  const changes = parsePorcelainStatus(await rawGit(cwd, '--literal-pathspecs', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', path))
+  const file = changes.find(change => change.path === path && change.staged === staged)
   if (!file) throw new Error('File is no longer changed. Refresh changes to continue.')
   const args = ['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv']
   if (file.status === '??') args.push('--no-index', '--', '/dev/null', path)
   else args.push(...(staged ? ['--cached'] : []), '--', path)
   return runBoundedGit(cwd, args, 256 * 1024, undefined, file.status === '??')
+}
+
+export async function getCommitFileDiff(cwd: string, hash: string, path: string) {
+  if (!/^[0-9a-f]{7,64}$/i.test(hash)) throw new Error('Invalid commit hash')
+  if (!path || path.includes('\0') || isAbsolute(path) || path.split(/[\\/]/).includes('..')) throw new Error('Invalid Git file path')
+  return runBoundedGit(cwd, ['--literal-pathspecs', 'show', '--format=', '--no-color', '--no-ext-diff', '--no-textconv',
+    '--diff-merges=first-parent', '--find-renames', '--follow', hash, '--', path], 256 * 1024)
 }
 
 export async function stage(cwd: string, paths: string[]) {

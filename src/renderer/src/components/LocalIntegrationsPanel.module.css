@@ -66,3 +66,5 @@
 @media (max-width: 1050px) { .browser.hasDetail { grid-template-columns: 1fr; } .hasDetail .list { display: none; } .detail { padding-left: 0; margin-left: 0; border-left: 0; } }
 @media (max-width: 620px) { .context { grid-template-columns: 1fr 1fr; gap: 10px; } .environment { grid-column: 1 / -1; padding: 0; } .toolbar { flex-wrap: wrap; } .search { flex-basis: 60%; } .sources > div { flex-direction: column; gap: 2px; } }
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
+
+.removal { padding: 12px; border: 1px solid var(--status-danger, var(--shell-diff-del)); border-radius: 7px; font-size: 12px; line-height: 1.7; }

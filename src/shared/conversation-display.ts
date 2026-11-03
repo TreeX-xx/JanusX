@@ -30,6 +30,8 @@ export interface ConversationPlan {
   outcome: 'running' | 'completed' | 'interrupted' | 'failed'
 }
 export interface ConversationItem {
+  /** Bounded native tool label/target, separate from growing tool output. */
+  activity?: string
   images?: ConversationImage[]
   phase?: 'commentary' | 'final_answer'
   /** False when the text projection cannot faithfully reproduce the native input. */

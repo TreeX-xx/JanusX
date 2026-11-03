@@ -232,12 +232,17 @@ Object.assign(window, { codexFixture: {
   workApproval: () => {
     state.approvals = [{ id: 42, itemId: 'work-read', kind: 'command', description: 'Allow workspace inspection' }]; publish()
   },
-  workPreview: (stage: 'start' | 'update' | 'finish') => {
+  progressSnapshot: (snapshot: Pick<ConversationSnapshot, 'items' | 'turnId' | 'turnStartedAt'>) => {
+    state.items = structuredClone(snapshot.items); state.turnId = snapshot.turnId; state.turnStartedAt = snapshot.turnStartedAt
+    state.approvals = []; state.plans = []; state.connection = 'ready'; publish()
+  },
+  workPreview: (stage: 'start' | 'update' | 'idle' | 'finish') => {
+    if (stage === 'start') state.turnStartedAt = Date.now()
     state.items = [
       { id: 'work-user', turnId: 'work', type: 'userMessage', text: 'Check the workspace', status: 'completed' },
       { id: 'work-prose', turnId: 'work', type: 'agentMessage', phase: 'commentary', text: 'I will inspect the workspace.', status: 'completed' },
       { id: 'work-read', turnId: 'work', type: 'commandExecution', text: 'read workspace\nRaw command output', status: stage === 'start' ? 'inProgress' : 'failed' },
-      ...(stage === 'start' ? [] : [{ id: 'work-check', turnId: 'work', type: 'commandExecution', text: 'check workspace', status: stage === 'finish' ? 'completed' : 'inProgress' }]),
+      ...(stage === 'start' ? [] : [{ id: 'work-check', turnId: 'work', type: 'commandExecution', text: 'check workspace', status: stage === 'finish' || stage === 'idle' ? 'completed' : 'inProgress' }]),
       ...(stage === 'finish' ? [{ id: 'work-answer', turnId: 'work', type: 'agentMessage', text: 'The check finished with a read error.', status: 'completed' }] : []),
     ]
     state.turnId = stage === 'finish' ? null : 'work'

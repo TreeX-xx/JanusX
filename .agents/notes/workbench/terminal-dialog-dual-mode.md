@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-03T13:21:16Z",
+  "updated": "2026-11-03T16:46:11Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -89,9 +89,11 @@ Claude、Codex、OpenCode、Pi 与 DSH 的双模式启动不再以 CLI 或 DSH T
 
 CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相邻活动分组和“工作过程”折叠组件。助手公开正文（包括 commentary）和最终回答直接显示；连续工具／公开推理从执行中起默认收起。正文、用户消息及图片结果中断分组，过程不跨轮次；不依赖 final_answer 或文本猜测，因此 Codex、Claude、OpenCode、Pi、DSH 使用相同规则。
 
-摘要显示活动数、执行／等待／完成状态及失败、中断、记录不完整提示。展开先查看活动列表，再展开参数、输出或 diff。新事件和完成不重置用户选择；运行中的工具已有摘要时，不再另显示重复的 Thinking 行。审批、提问、阻断错误、图片、文件变更汇总以及 JanusX 的 Note／配置业务结果继续直接可见。状态保存与业务结果边界见 [Chat 工作时间线](../agent/requirements/chat-work-timeline.md)。
+摘要显示活动数、执行／等待／完成状态及失败、中断、记录不完整提示。展开先查看活动列表，再展开参数、输出或 diff。新事件和完成不重置用户选择。CLI 对话的 Thinking 行与整轮耗时保持显示，工具运行、步骤更新及展开／收起工作过程均不卸载计时组件；审批、提问或必须回终端处理时仍由对应提示接管。审批、提问、阻断错误、图片、文件变更汇总以及 JanusX 的 Note／配置业务结果继续直接可见。状态保存与业务结果边界见 [Chat 工作时间线](../agent/requirements/chat-work-timeline.md)。
 
 正文沿用共享 Markdown 排版。原生阶段、工具事件和模型上下文保持原协议语义；本节的展示规则更新下文旧版“公开推理完成后始终直接展开”的描述。
+
+2026-11-03 计时闪烁回归：`npx playwright test tests/e2e/conversation-work-disclosure.spec.ts --project=island --workers=1 --output artifacts/thinking-duration-check` 共 10 项通过，覆盖 Codex、Claude、OpenCode、Pi、DSH 的步骤运行／间歇切换、展开／收起后同一计时节点持续递增及轮次结束移除，同时回归默认折叠、失败提示和审批入口。`npm run typecheck` 与 `npx eslint src/renderer/src/components/AgentSessionPane.tsx` 通过；本轮为浏览器夹具验证，未重新打包或进行真实桌面会话验收。
 
 ## 对话上下文、发送意图与差异反馈
 
@@ -105,7 +107,7 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 
 工程对话提供附件入口、截图粘贴、文件拖入和 `@` 文件/目录选择。“+”固定在输入区底部工具栏最左侧，与模型、强度及发送操作同排；添加菜单向上浮出，不占正文布局。文件与图片引用作为不可拆分的小标签嵌入正文，不再挂在正文上方；右侧文件拖入按鼠标落点插入，可拖动到其他文字之间。图片提供内联缩略图与预览，加载失败仍可删除。菜单支持 Esc 返回触发按钮、点击外部或焦点离开时关闭，选择引用后聚焦输入框。草稿及引用跨 pane 重建保留，发送失败可显式恢复。每条消息最多 8 个引用，单附件不超过 10 MB，合成提示词上限 32000 字符。附件由主进程保存至 userData/conversation-attachments 的独立 UUID 目录，不覆盖工作区文件。引用按正文顺序展开路径与选区内容，Codex 图片另按首次出现顺序以原生 localImage 输入发送；其他引擎按文件引用处理，是否能查看图片取决于引擎工具能力。附件为历史引用保留在本机，尚未自动清理；长期磁盘增长需要后续存储管理接入。
 
-内联编辑器由浏览器保存选区与原生撤销栈；草稿仅存文本及引用标记，不存 HTML。引用元数据在草稿生命周期内保留以支持撤销，发送只采用正文仍存在的引用；全选覆盖或删除不会附带隐藏附件。同一编辑器复制／剪切粘贴保留已知引用，跨会话粘贴回退为可读路径文本。普通富文本粘贴只接收纯文本。IME、Ctrl+J／Shift+Enter 换行、输入历史、失败恢复与 pane 重建沿用原交互。
+内联编辑器由浏览器保存选区与原生撤销栈；草稿仅存文本及引用标记，不存 HTML。引用元数据在草稿生命周期内保留以支持撤销，发送只采用正文仍存在的引用；全选覆盖或删除不会附带隐藏附件。同一编辑器复制／剪切粘贴保留已知引用，跨会话粘贴回退为可读路径文本。普通富文本粘贴只接收纯文本。Ctrl+J／Shift+Enter 使用原生换行操作，一次按键即将光标移入下一行；序列化忽略空行占位，草稿恢复保留首尾空行。IME、撤销／重做、输入历史、失败恢复与 pane 重建保持原有交互。
 
 验证（2026-11-03）：17 项上下文、队列及输入历史单元测试通过；3 项内联编辑专项浏览器测试覆盖落点、退格／按钮删除与撤销、重排、重挂载、纯文本粘贴、合成输入事件和图片原生发送。既有附件预览／缺失图片、失败恢复、命令、历史编辑、启动、设置、输入历史及窄窗布局相关回归通过，类型检查与变更组件 ESLint 通过。截图见 artifacts/conversation-inline-reference/editor.png。浏览器夹具不代表真实供应商对引用内容的理解效果；真实中文输入法仍需用户实际使用确认。
 
@@ -234,6 +236,16 @@ ACP adapter 是 Claude 完整结构化对话的一条候选路线，复用公共
 产品 Bridge 在取消 Hook 之外定时发送有序批次，按 seq 确认与去重；传输失败只重发事件，不重发模型请求。缓冲上限 4000 事件／约 200 万字符，溢出、序号缺口或会话变更即关闭对话控制并提示使用终端。短暂失联可恢复同一事件流，进程重启与持久重放未实现。发送按 commandId 去重，除 daemon ack 外必须观察到新原生 turn；未知送达锁住再次发送，保留终端核查入口。显示最多 500 项，单项文本约 32000 字符；尚无长会话性能验收。
 
 Write/Edit/Bash 的 HTTP 审批只在能唯一关联当前工具时展示“允许一次／拒绝”；AskUserQuestion 已接入[对话内问答](#对话内审批选项和文字回答)，并发歧义及计划模式确认仍交还原生终端。原生批准或工具结束会使旧审批失效。模型与强度已接入公共选择器和 `/model`、`/effort` 预览，修改当前会话后续主对话请求；其它未适配指令仍提示去终端。设置只在空闲时提交，等待原生事件更新显示；提交期间阻止新发送及终端输入，失败保留原选择，超时标记结果未知并关闭对话控制。
+
+#### Claude 执行过程摘要与阶段回复
+
+Claude 的工作过程保持默认折叠，折叠外增加当前工具及目标的单行摘要，例如 `Read · src/main.ts`、`Bash · Run tests`。摘要来自原生工具名称和明确的描述、路径、搜索词或命令字段，压缩空白并限制为 240 字符，独立于持续增长的工具输出；不复制完整参数或子代理 prompt。优先显示组内仍运行的最近活动，并从本地接收时间计时；全部结束后保留最后一项摘要，撤下计时。用户展开选择保持，失败、审批、中断等提示仍使用原有状态统计。老快照及未提供摘要的其它引擎沿用原展示。
+
+正文按原生 turn／step／block 身份追加，在工具分组外直接显示；后续正文自然中断连续工具分组。Mods 仅在步骤生成器返回非空 `stopReason` 时发出 `step.complete`，主进程完成该步骤的正文，不等待整个 turn。真实 2.1.317 的取消会让生成器正常返回但 `stopReason:null`，因此不能把 `done:true` 单独作为正文完成证据；未完成段留给 `turn.complete` 标为中断或失败，早先完成段保持完成。首版不改模型交流指令、不额外生成过程说明；Agent 工具可展示父调用描述，子代理内部事件与公开 thinking 尚未接入。
+
+2026-11-04（北京时间），定向 Vitest 五个文件共 43 项通过：claude-conversation、claude-mod-plans、claude-task-completion、conversation-output、conversation-turns。`npm run typecheck`、相关实现 ESLint 通过。Windows Claude Code 2.1.317 的原生专项 `npx vitest run tests/unit/claude-conversation-cli.test.ts -t 'streams interleaved commentary' --maxWorkers=1` 通过（设置 `JANUSX_TEST_CLAUDE_BIN` 指向该版本）；使用隔离配置、假 key 与 localhost 模型，确认三段正文各自在结束前流式到达、两次真实 Read 的顺序及目标投影、阶段结束状态、取消半段与同 session 后续恢复。新增取消断言曾暴露误标完成，按上述 stopReason 约束修复后复测通过。原始快照保存在忽略目录 `artifacts/claude-progress/native.json`。
+
+浏览器运行 `npx playwright test tests/e2e/claude-progress.spec.ts tests/e2e/conversation-work-disclosure.spec.ts --project=island --workers=1`，设置 `JANUSX_TEST_CLAUDE_PROGRESS=artifacts/claude-progress/native.json`，共 13 项通过，包含真实原生快照回放、深浅主题、380px 窄窗、摘要切换与计时停止、正文交错、展开选择及五引擎折叠回归。主 Agent 检查 `activity-dark.png`／`activity-light.png` 截图，长目标省略、计时不挤出容器。原生进程与浏览器回放分开验证，不等同于真实供应商或打包 Electron 端到端验收；其它原生 CLI 集成用例本轮未运行，不把专项结果推广为完整版本兼容矩阵。
 
 #### Claude 会话模型与强度
 
@@ -745,7 +757,9 @@ DSH ??? TUI 0.12.0 ??????????? profile???????????? runtime/???????????/global TU
 
 ## 跨会话输入历史
 
-公共 AgentComposer 支持首行 ↑ 回填上一条、末行 ↓ 前进，并在退出浏览时恢复原草稿；历史浏览采用固定快照，不被新记录移动游标。选区、组合输入、带修饰键的方向键、命令菜单与 @ 文件选择保持原行为，回填不自动提交或附加历史附件。多行边界按换行符判断。
+公共 AgentComposer 支持首行 ↑ 回填上一条、末行 ↓ 前进，并在退出浏览时恢复原草稿；历史浏览采用固定快照，不被新记录移动游标。选区、组合输入、带修饰键的方向键、命令菜单与 @ 文件选择保持原行为，回填不自动提交或附加历史附件。历史切换还须通过实际光标与内容排版的可视行检查：显式换行和自动折行后的中间行保留原生方向键编辑；光标在可视首行／末行时才可回填／前进，无法确定光标位置或处于折行交界时优先保留编辑。
+
+2026-11-03 换行与方向键回归：新增浏览器用例在修复前复现第一次换行光标未下移、空行草稿恢复错误及自动折行误触历史。最终 `npx playwright test tests/e2e/conversation-input-editing.spec.ts tests/e2e/conversation-input-history.spec.ts tests/e2e/conversation-inline-reference.spec.ts tests/e2e/codex-conversation.spec.ts --project=island --workers=1 --output artifacts/input-editing/verified` 共 25 项通过，覆盖实际光标移动、连续空行、选区替换、撤销／重做、草稿重建、多行引用、历史回填及原草稿恢复；实际发送文本逐字符核对，不以 DOM textContent 代替换行语义。输入历史单测 4 项、`npm run typecheck` 与两处改动组件的 ESLint 通过。本轮使用 Chromium 浏览器夹具，未重新打包、进行真实桌面会话或中文输入法人工验收。
 
 JanusX 在消息进入待发队列时保存用户原始文本，不保存包装后的文件上下文；记录代表用户输入，不代表模型已接收。历史按 workspaceId、cwd、engine 隔离，独立于 terminalId/threadId，在新会话及应用重启后保留。每范围最多 200 条，全局最多 30 个范围、500000 个文本字符；相邻重复输入不新增，合并浏览按文本去重。存储失败保留内存行为，不阻断发送。附件仅保留当前草稿引用，不从历史重新加载。
 

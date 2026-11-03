@@ -353,7 +353,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               const changes = turn.changes
               const lastGroup = turn.groups[groupIndex + 1]?.items[0].turnId !== turnId
               return <div key={group.items[0].id}>
-                {group.process ? <WorkDisclosure stateKey={group.items[0].id} summary={{ ...group.summary,
+                {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
                   waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
                   incomplete: group.summary.incomplete || !!snapshot.truncated }} settled={group.settled && !snapshot.truncated}>{renderNodes}</WorkDisclosure> : renderNodes()}
                 {lastGroup && changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
@@ -375,7 +375,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               {item.error && <p className={styles.error} role="alert">{item.error}</p>}
             </div>)}
             {editing && !snapshot?.items.some(item => item.id === editing.item.id) && <div className={styles.userMessage}>{editor}</div>}
-            {working && !turns.some(turn => turn.active && turn.groups.some(group => group.process && (group.summary.running || group.summary.waiting))) && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
+            {working && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
             {pastPlans.length > 0 && <details className={styles.planHistory}><summary>{t('conversation.planHistory')}</summary>{pastPlans.map(plan => <ConversationPlanPanel key={`${snapshot?.threadId}:${plan.turnId}:${plan.version}`} plan={plan} connection={snapshot!.connection} historical />)}</details>}
             {snapshot?.approvals.map(approval => <div className={styles.approval} key={approval.id} role="group" aria-label={t('conversation.approval')}>
               <strong><ShieldCheck size={17} aria-hidden="true" />{t(approval.kind === 'file' ? 'conversation.approveFile' : 'conversation.approveCommand')}</strong>

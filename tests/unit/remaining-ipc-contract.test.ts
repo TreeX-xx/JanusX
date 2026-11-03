@@ -73,6 +73,7 @@ describe('remaining typed IPC contracts', () => {
     await api.git.fileBaseline('C:\\repo', 'README.md')
     await api.git.history('C:\\repo', { scope: 'all', limit: 60 })
     await api.git.diff('C:\\repo', 'README.md', true)
+    await api.git.commitFileDiff('C:\\repo', 'abcdef0', 'README.md')
     await api.llm.getTerminalProviders('janus')
     await api.llm.getNativeLoginStatus('claude')
     await api.llm.startNativeLogin('claude')
@@ -95,6 +96,7 @@ describe('remaining typed IPC contracts', () => {
       [GIT_CHANNELS.fileBaseline, 'C:\\repo', 'README.md'],
       [GIT_CHANNELS.history, 'C:\\repo', { scope: 'all', limit: 60 }],
       [GIT_CHANNELS.diff, 'C:\\repo', 'README.md', true],
+      [GIT_CHANNELS.commitFileDiff, 'C:\\repo', 'abcdef0', 'README.md'],
       [LLM_CHANNELS.getTerminalProviders, 'janus'],
       [LLM_CHANNELS.getNativeLoginStatus, 'claude'],
       [LLM_CHANNELS.startNativeLogin, 'claude'],

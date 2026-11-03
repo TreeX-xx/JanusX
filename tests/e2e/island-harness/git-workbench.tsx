@@ -22,6 +22,8 @@ const getFiles = (cwd: string) => {
 const operations: Array<{ action: string; cwd: string; value?: unknown }> = []
 let failCommit = false
 let failDetail = false
+let failDiff = false
+let diffDelay = 0
 Object.assign(window.electron.git, {
   status: async (cwd: string) => ({ isRepo: true, branch: { name: cwd.endsWith('other') ? 'feature/other' : 'main', upstream: 'origin/main', ahead: 3, behind: 2 }, clean: !getFiles(cwd).length, changes: getFiles(cwd) }),
   history: async (cwd, query) => {
@@ -54,7 +56,15 @@ Object.assign(window.electron.git, {
   },
   diff: async (cwd, path, staged) => {
     operations.push({ action: 'diff', cwd, value: { path, staged } })
+    if (diffDelay) await new Promise(resolve => setTimeout(resolve, diffDelay))
+    if (failDiff) throw new Error('Diff unavailable')
+    if (path.endsWith('file-004.tsx')) return { content: 'Binary files /dev/null and image differ', truncated: false }
+    if (path.endsWith('file-005.tsx')) return { content: '', truncated: false }
     return { content: `diff --git a/${path} b/${path}\n@@ -1,2 +1,3 @@\n-export const view = 'stacked'\n+export const view = 'tabs'\n+// ${staged ? 'staged' : 'working'} changes\n keepContext()`, truncated: false }
+  },
+  commitFileDiff: async (cwd, hash, path) => {
+    operations.push({ action: 'commitFileDiff', cwd, value: { hash, path } })
+    return { content: `diff --git a/${path} b/${path}\n@@ -1,1 +1,20 @@\n-old history\n+selected commit ${hash.slice(0, 7)}\n${'+historical change\n'.repeat(20)}`, truncated: false }
   },
   commitChanges: async () => {
     if (failDetail) throw new Error('Commit detail unavailable')
@@ -67,6 +77,12 @@ Object.assign(window, { gitWorkbenchFixture: {
   operations: () => operations,
   failCommit: (value: boolean) => { failCommit = value },
   failDetail: (value: boolean) => { failDetail = value },
+  failDiff: (value: boolean) => { failDiff = value },
+  diffDelay: (value: number) => { diffDelay = value },
+  updateStats: async (path: string, additions: number | null, deletions: number | null) => {
+    files.set('C:/palette', getFiles('C:/palette').map(file => file.path === path ? { ...file, additions, deletions } : file))
+    await useGitStore.getState().fetchStatus('C:/palette')
+  },
   selectWorkspace: (id: string) => (window as any).builtinExtensionFixture.selectProject(id),
 } })
 await useGitStore.getState().fetchStatus('C:/palette')

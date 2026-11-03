@@ -132,3 +132,88 @@ describe('native MCP configuration edits', () => {
     expect(() => validateServer({ url: 'file:///tmp/mcp' }, 'claude')).toThrow('invalid-server')
   })
 })
+
+
+describe('safe removal', () => {
+  const setup = (trashItem?: (path: string) => Promise<void>) => new LocalIntegrationService({ home, env: {}, resolveWorkspace: async () => workspace, trashItem, backupDirectory: join(temporary, 'backups') })
+  it('trashes only the confirmed skill folder and rejects token reuse', async () => {
+    const folder = join(workspace, '.agents/skills/review')
+    await put(join(folder, 'SKILL.md'), skill('review'))
+    await put(join(folder, 'scripts/check.js'), 'resource')
+    const trashed: string[] = []
+    service = setup(async path => { trashed.push(path) })
+    const entry = (await service.scan(query)).entries[0], doc = await service.read(query, entry.id)
+    const preview = await service.prepareRemoval(query, entry.id, doc.revision)
+    expect(preview).toMatchObject({ targetPath: folder, method: 'trash', fileCount: 2 })
+    expect(trashed).toEqual([])
+    await service.remove(preview.token)
+    expect(trashed).toEqual([folder])
+    await expect(service.remove(preview.token)).rejects.toThrow('delete-expired')
+  })
+  it('rejects changed resources and a failing trash operation without permanent deletion', async () => {
+    const folder = join(workspace, '.agents/skills/review')
+    await put(join(folder, 'SKILL.md'), skill('review'))
+    await put(join(folder, 'asset.txt'), 'before')
+    let calls = 0
+    service = setup(async () => { calls++; throw new Error('unavailable') })
+    const entry = (await service.scan(query)).entries[0], doc = await service.read(query, entry.id)
+    const preview = await service.prepareRemoval(query, entry.id, doc.revision)
+    await put(join(folder, 'asset.txt'), 'after')
+    await expect(service.remove(preview.token)).rejects.toThrow('changed')
+    expect(calls).toBe(0)
+    const next = await service.prepareRemoval(query, entry.id, doc.revision)
+    await expect(service.remove(next.token)).rejects.toThrow('trash-unavailable')
+    expect(await readFile(join(folder, 'SKILL.md'), 'utf8')).toBe(skill('review'))
+  })
+  it('rejects nested skills, linked resources and collection roots', async () => {
+    const folder = join(workspace, '.agents/skills/review')
+    await put(join(folder, 'SKILL.md'), skill('review'))
+    await put(join(folder, 'nested/SKILL.md'), skill('nested'))
+    service = setup(async () => { throw new Error('must not run') })
+    const entry = (await service.scan(query)).entries[0], doc = await service.read(query, entry.id)
+    await expect(service.prepareRemoval(query, entry.id, doc.revision)).rejects.toThrow('unsafe-delete')
+    await rm(join(folder, 'nested'), { recursive: true })
+    const external = join(temporary, 'external'); await mkdir(external)
+    await symlink(external, join(folder, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    await expect(service.prepareRemoval(query, entry.id, doc.revision)).rejects.toThrow('unsafe-delete')
+    await put(join(workspace, '.agents/skills/SKILL.md'), skill('collection'))
+    const root = (await service.scan(query)).entries[0], rootDoc = await service.read(query, root.id)
+    await expect(service.prepareRemoval(query, root.id, rootDoc.revision)).rejects.toThrow('unsafe-delete')
+  })
+  it.each(['codex', 'claude', 'opencode'] as const)('backs up %s and preserves unrelated configuration', async client => {
+    const q = { ...query, client }
+    const raw = client === 'codex' ? '# keep\r\nmodel="keep"\r\n[mcp_servers.target]\r\ncommand="node"\r\n[mcp_servers.other]\r\ncommand="stay"\r\n' : client === 'claude' ? '// keep\n{"setting":true,"mcpServers":{"target":{"command":"node"},"other":{"command":"stay"}}}' : '// keep\n{"setting":true,"mcp":{"target":{"type":"local","command":["node"]},"other":{"type":"local","command":["stay"]}}}'
+    const path = join(workspace, client === 'codex' ? '.codex/config.toml' : client === 'claude' ? '.mcp.json' : 'opencode.jsonc')
+    await put(path, raw); service = setup()
+    const entry = (await service.scan(q)).entries.find(item => item.name === 'target')!, doc = await service.read(q, entry.id)
+    const preview = await service.prepareRemoval(q, entry.id, doc.revision)
+    const result = await service.remove(preview.token)
+    expect(await readFile(result.backupPath!, 'utf8')).toBe(raw)
+    expect(await service.revealBackupPath(result.backupId!)).toBe(result.backupPath)
+    const text = await readFile(path, 'utf8'); expect(text).toContain('keep')
+    const parsed = parseConfig(text, client), key = client === 'codex' ? 'mcp_servers' : client === 'claude' ? 'mcpServers' : 'mcp'
+    expect(Object.keys(parsed[key] as object)).toEqual(['other'])
+    await expect(service.revealBackupPath('../outside')).rejects.toThrow('invalid-request')
+  })
+  it('preserves an externally changed MCP file', async () => {
+    const path = join(workspace, '.codex/config.toml')
+    await put(path, '[mcp_servers.target]\ncommand="node"\n'); service = setup()
+    const entry = (await service.scan(query)).entries[0], doc = await service.read(query, entry.id)
+    const preview = await service.prepareRemoval(query, entry.id, doc.revision)
+    await put(path, '[mcp_servers.target]\ncommand="changed"\n')
+    await expect(service.remove(preview.token)).rejects.toThrow('changed')
+    expect(await readFile(path, 'utf8')).toContain('changed')
+  })
+})
+
+
+it('cancels MCP removal when a backup cannot be written', async () => {
+  const path = join(workspace, '.codex/config.toml'), raw = '[mcp_servers.target]\ncommand="node"\n'
+  await put(path, raw)
+  const blocked = join(temporary, 'not-a-directory'); await put(blocked, 'keep')
+  service = new LocalIntegrationService({ home, env: {}, resolveWorkspace: async () => workspace, backupDirectory: blocked })
+  const entry = (await service.scan(query)).entries[0], doc = await service.read(query, entry.id)
+  const preview = await service.prepareRemoval(query, entry.id, doc.revision)
+  await expect(service.remove(preview.token)).rejects.toThrow('backup-failed')
+  expect(await readFile(path, 'utf8')).toBe(raw)
+})

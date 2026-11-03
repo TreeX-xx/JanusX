@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { getChangeDiff, getCommitChanges, getHistory } from '../../src/main/git/service'
+import { getChangeDiff, getCommitChanges, getCommitFileDiff, getHistory, getStatus } from '../../src/main/git/service'
 const exec = promisify(execFile)
 let cwd = ''
 async function git(...args: string[]) { return (await exec('git', args, { cwd })).stdout.trim() }
@@ -47,6 +47,7 @@ describe('real Git history and diffs', () => {
     expect(feature.refs).toEqual(expect.arrayContaining([{ kind: 'tag', name: 'v1' }, { kind: 'remote', name: 'origin/feature/ui' }]))
     const changes = await getCommitChanges(cwd, first.commits[0].hash)
     expect(changes).toEqual([expect.objectContaining({ path: 'topic.txt', status: 'A' })])
+    expect((await getCommitFileDiff(cwd, first.commits[0].hash, 'topic.txt')).content).toContain('+topic | 中文')
   }, 30000)
   it('separates all branches from HEAD ancestry, including an unborn checkout', async () => {
     await commit('base.txt', 'root')
@@ -84,7 +85,7 @@ describe('real Git history and diffs', () => {
     expect((await getChangeDiff(cwd, 'new.txt', false)).content).toContain('+untracked')
     await rm(join(cwd, 'tracked.txt'))
     expect((await getChangeDiff(cwd, 'tracked.txt', false)).content).toContain('-staged')
-    await expect(getChangeDiff(cwd, '../outside', false)).rejects.toThrow('no longer changed')
+    await expect(getChangeDiff(cwd, '../outside', false)).rejects.toThrow('Invalid Git file path')
     await writeFile(join(cwd, 'large.txt'), 'line\n'.repeat(60000))
     const large = await getChangeDiff(cwd, 'large.txt', false)
     expect(large.truncated).toBe(true)
@@ -95,9 +96,41 @@ describe('real Git history and diffs', () => {
     await git('mv', '原始.txt', '新的文件.txt')
     await git('commit', '-m', 'rename')
     expect(await getCommitChanges(cwd, await git('rev-parse', 'HEAD'))).toEqual([{ path: '新的文件.txt', status: 'R', additions: 0, deletions: 0 }])
+    const rename = await getCommitFileDiff(cwd, await git('rev-parse', 'HEAD'), '新的文件.txt')
+    expect(rename.content).toContain('similarity index 100%')
+    expect(rename.content).not.toContain('+first')
     await commit('新的文件.txt', 'first\nextra\n')
     expect(await getCommitChanges(cwd, await git('rev-parse', 'HEAD'))).toEqual([expect.objectContaining({ status: 'M', additions: 1, deletions: 0 })])
   }, 30000)
+  it('previews only the selected historical file, including roots, deletions, binaries and bounds', async () => {
+    const root = await commit('[literal].txt', 'root content\n')
+    expect((await getCommitFileDiff(cwd, root, '[literal].txt')).content).toContain('+root content')
+    const other = await commit('unrelated.txt', 'other content\n')
+    expect((await getCommitFileDiff(cwd, other, '[literal].txt')).content).toBe('')
+    await git('rm', '[literal].txt')
+    await git('commit', '-m', 'delete')
+    expect((await getCommitFileDiff(cwd, await git('rev-parse', 'HEAD'), '[literal].txt')).content).toContain('-root content')
+    await writeFile(join(cwd, 'image.bin'), Buffer.from([0, 1, 2]))
+    await writeFile(join(cwd, 'large.txt'), 'line\n'.repeat(60000))
+    await git('add', '.')
+    await git('commit', '-m', 'binary and large')
+    const hash = await git('rev-parse', 'HEAD')
+    expect((await getCommitFileDiff(cwd, hash, 'image.bin')).content).toContain('Binary files')
+    const large = await getCommitFileDiff(cwd, hash, 'large.txt')
+    expect(large.truncated).toBe(true)
+    expect(Buffer.byteLength(large.content)).toBeLessThanOrEqual(256 * 1024)
+    await expect(getCommitFileDiff(cwd, '--all', 'large.txt')).rejects.toThrow('Invalid commit hash')
+    await expect(getCommitFileDiff(cwd, hash, '../outside')).rejects.toThrow('Invalid Git file path')
+  }, 30000)
+  it('separates index and worktree counts before the first commit', async () => {
+    await writeFile(join(cwd, 'new.txt'), 'staged\n')
+    await git('add', 'new.txt')
+    await writeFile(join(cwd, 'new.txt'), 'staged\nworking\n')
+    expect((await getStatus(cwd)).changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'new.txt', staged: true, additions: 1, deletions: 0 }),
+      expect.objectContaining({ path: 'new.txt', staged: false, additions: 1, deletions: 0 }),
+    ]))
+  })
   it('returns empty history in a new repository and validates page bounds', async () => {
     expect((await getHistory(cwd, { scope: 'all' })).commits).toEqual([])
     await expect(getHistory(cwd, { scope: 'all', limit: Number.NaN })).rejects.toThrow('Invalid history page')

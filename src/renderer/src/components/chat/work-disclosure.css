@@ -1,6 +1,9 @@
 .conversation-work-toggle { flex-wrap: wrap; text-align: start; }
 .conversation-work-toggle > svg { flex-shrink: 0; }
 .conversation-work-status { color: var(--shell-muted); }
+.conversation-work-activity { display: flex; align-items: baseline; gap: 8px; min-width: 0; margin: 0 0 4px 20px; color: var(--shell-muted); font-size: 12px; }
+.conversation-work-activity > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-work-activity > :last-child:not(:first-child) { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .conversation-work[data-status="running"] .conversation-work-status,
 .conversation-work[data-status="waiting"] .conversation-work-status { color: var(--shell-accent); }
 .conversation-work[data-status="failed"] .conversation-work-status { color: var(--shell-text); font-weight: 600; }

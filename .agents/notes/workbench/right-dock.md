@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-11-03T10:03:13Z",
+  "updated": "2026-11-03T16:33:18Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -64,6 +64,8 @@ The dock maps its local shell canvas, chrome, card and hover roles to tool-canva
 While expanded, right-rail icon hints prefer the left side and align with their own button, keeping the vertical control column clear. ThemedTooltip measures its rendered size before choosing a flipped position and clamping to an 8px viewport margin. Pointer input passes through all hints; pointerdown/click cancels visible and pending hints, while keyboard focus still explains controls. Scroll, resize and Escape also cancel pending timers. Git commit previews now follow the same non-blocking policy: leaving the row dismisses immediately, the preview does not capture pointer input or scroll, and clicking a commit opens a separate detail region below the graph without expanding its row. Changing the active tool or workspace dismisses Git previews. The trade-off is that hover previews are bounded summaries; longer content is read in the independently scrollable detail region. These behaviors are covered in tests/e2e/right-tool-tooltips.spec.ts with actual rail controls, long edge hints, keyboard focus and a clickable control underneath the Git preview in planche/dark. Verification: 4 browser cases pass across the tooltip and palette files, along with typecheck, scoped ESLint, theme:check, 47 planche/right-tool-state/theme-audit unit cases and check:notes (0 errors; 17 existing external-link diagnostics). Browser IPC uses fallbacks; live Electron behavior was not tested.
 
 ThemedTooltip subscribes to global scroll, resize, pointerdown and Escape only while a hint is pending or visible, then removes those listeners on dismissal. This preserves cancellation during the delay without installing four global listeners for every idle instance. Both theme cases in `tests/e2e/right-tool-tooltips.spec.ts` pass after this lifecycle change; packaged long-session latency remains unmeasured.
+
+Visible hints also observe their own rendered size. Asynchronous content such as [Git file previews](./git-workbench.md) can grow or shrink after loading without retaining empty space or moving beyond the viewport; the observer disconnects on dismissal.
 
 ## Click-switch layout and persistence verification, 2026-10-24
 
