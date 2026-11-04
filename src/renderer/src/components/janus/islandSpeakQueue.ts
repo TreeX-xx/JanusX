@@ -1,100 +1,146 @@
-// Note: 胶囊传话队列（串行播报 / 收起续播 / 面板清队 / 看过即焚）—
-// 设计定稿见 .agents/notes/workbench/tasks/island-behavior-system.md（P3）。
-// 纯逻辑、时间由调用方注入；实验台修过的三个语义在这里固化：
-// 收起当前条队列必须续播、打开面板=已读清队、历史与计数一致。
+// Notification delivery and reading are independent. Closing a surface never deletes history.
+import type { IslandNotification } from './islandNotifications'
 
 export interface IslandSpeakEntry {
   id: string
   body: string
   at: number
-  /** 小标签（kicker 已解析文本，如 NOTICE / CODER） */
+  title?: string
   kicker?: string
+  groupKey?: string
+  notification?: IslandNotification
+}
+
+export interface IslandNoticeRecord extends IslandSpeakEntry {
+  key: string
+  count: number
+  read: boolean
 }
 
 export interface IslandSpeakSnapshot {
-  /** 正在传话的条目；无则 null */
-  speaking: IslandSpeakEntry | null
-  /** 历史条数（= 左上角计数；看过即焚由 burnHistory 清零） */
+  speaking: IslandNoticeRecord | null
   historyCount: number
-  /** 历史列表（通知中心数据源，时间正序） */
-  history: readonly IslandSpeakEntry[]
-  /** 含当前在内的待播总数 */
+  unreadCount: number
+  /** Stable chronological order: arrivals never move the row being read. */
+  history: readonly IslandNoticeRecord[]
   pendingCount: number
-  /** 下一个必然变化的时刻（毫秒时间戳；空闲时为远期哨兵） */
   nextEventAt: number
 }
 
 export class IslandSpeakQueue {
-  private pending: IslandSpeakEntry[] = []
-  private history: IslandSpeakEntry[] = []
-  private current: IslandSpeakEntry | null = null
+  private pending: IslandNoticeRecord[] = []
+  private history: IslandNoticeRecord[] = []
+  private seen = new Set<string>()
+  private current: IslandNoticeRecord | null = null
   private speakUntil = 0
   private resumeAt = 0
+  private paused = false
+  private pausedAt: number | null = null
   private readonly soloHoldMs: number
   private readonly queuedHoldMs: number
   private readonly gapMs: number
+  private readonly historyLimit: number
 
-  constructor(opts: { soloHoldMs?: number; queuedHoldMs?: number; gapMs?: number } = {}) {
-    this.soloHoldMs = opts.soloHoldMs ?? 2600
-    this.queuedHoldMs = opts.queuedHoldMs ?? 1900
+  constructor(opts: { soloHoldMs?: number; queuedHoldMs?: number; gapMs?: number; historyLimit?: number } = {}) {
+    this.soloHoldMs = opts.soloHoldMs ?? 6000
+    this.queuedHoldMs = opts.queuedHoldMs ?? 6000
     this.gapMs = opts.gapMs ?? 420
+    this.historyLimit = opts.historyLimit ?? 50
   }
 
-  /** 通知到达：入历史与待播队列。 */
-  enqueue(entry: IslandSpeakEntry, now: number): void {
-    this.history.push(entry)
-    this.pending.push(entry)
-    this.pump(now)
+  enqueue(entry: IslandSpeakEntry, now: number, present = true): void {
+    const key = entry.groupKey ?? entry.id
+    const previous = this.history.find(item => item.key === key)
+    if (this.seen.has(entry.id)) {
+      // Live plugin progress may update an existing notice; a cleared notice stays cleared.
+      if (previous?.id === entry.id) {
+        const updated = { ...previous, ...entry, at: previous.at }
+        this.history = this.history.map(item => item.key === key ? updated : item)
+        this.pending = this.pending.map(item => item.key === key ? updated : item)
+        if (this.current?.key === key) this.current = updated
+      }
+      return
+    }
+    this.seen.add(entry.id)
+    const record: IslandNoticeRecord = { ...entry, key, count: (previous?.count ?? 0) + 1, read: false }
+    this.history = previous
+      ? this.history.map(item => item.key === key ? record : item)
+      : [...this.history, record].slice(-this.historyLimit)
+    const retained = new Set(this.history.map(item => item.key))
+    this.pending = this.pending.filter(item => retained.has(item.key) && item.key !== key)
+    if (this.current && !retained.has(this.current.key)) this.current = null
+    if (!present) return
+    if (this.current?.key === key) {
+      this.current = record
+      this.speakUntil = now + this.soloHoldMs
+      if (this.paused) this.pausedAt = now
+    } else {
+      this.pending.push(record)
+      this.pump(now)
+    }
   }
 
-  /** 收起当前条（keepQueue：队列续播，不连坐清定时器）。 */
   dismiss(now: number): boolean {
     if (!this.current) return false
     this.current = null
+    this.pausedAt = null
     this.resumeAt = now + this.gapMs
     return true
   }
 
-  /** 打开通知中心 = 已读：中断当前、清空待播；历史保留给面板展示。 */
-  markSeen(): void {
+  /** Reading/Chat suppresses presentation, preserving unread records. */
+  silence(): void {
     this.pending = []
     this.current = null
+    this.pausedAt = null
   }
 
-  /** 看过即焚：收起面板时清空历史，返回清掉的条数。 */
-  burnHistory(): number {
-    const n = this.history.length
-    this.history = []
-    return n
+  setPaused(paused: boolean, now: number): void {
+    if (this.paused === paused) return
+    this.paused = paused
+    if (paused && this.current) this.pausedAt = now
+    else if (!paused && this.pausedAt !== null) {
+      this.speakUntil += now - this.pausedAt
+      this.pausedAt = null
+    }
   }
 
-  historyList(): readonly IslandSpeakEntry[] {
-    return this.history
+  markRead(key: string): void {
+    this.history = this.history.map(item => item.key === key ? { ...item, read: true } : item)
+  }
+
+  clear(readOnly = false): void {
+    this.history = readOnly ? this.history.filter(item => !item.read) : []
+    const retained = new Set(this.history.map(item => item.key))
+    this.pending = this.pending.filter(item => retained.has(item.key))
+    if (this.current && !retained.has(this.current.key)) this.current = null
+  }
+
+  removeAutomation(id: string): void {
+    this.history = this.history.filter(item => item.notification?.automation?.definitionId !== id)
+    this.pending = this.pending.filter(item => item.notification?.automation?.definitionId !== id)
+    if (this.current?.notification?.automation?.definitionId === id) { this.current = null; this.pausedAt = null }
   }
 
   step(now: number): IslandSpeakSnapshot {
-    if (this.current && now >= this.speakUntil) {
-      this.current = null
-      this.resumeAt = now + this.gapMs
-    }
+    if (this.current && !this.paused && now >= this.speakUntil) this.dismiss(now)
     this.pump(now)
     return {
       speaking: this.current,
       historyCount: this.history.length,
+      unreadCount: this.history.filter(item => !item.read).length,
       history: this.history,
       pendingCount: this.pending.length + (this.current ? 1 : 0),
       nextEventAt: this.current
-        ? this.speakUntil
-        : this.pending.length
-          ? Math.max(this.resumeAt, now)
-          : now + 600_000,
+        ? this.paused ? Number.POSITIVE_INFINITY : this.speakUntil
+        : this.pending.length ? Math.max(this.resumeAt, now) : Number.POSITIVE_INFINITY,
     }
   }
 
   private pump(now: number): void {
     if (this.current || !this.pending.length || now < this.resumeAt) return
     this.current = this.pending.shift()!
-    // 还有排队时略赶一点（lab 定稿节奏）
     this.speakUntil = now + (this.pending.length ? this.queuedHoldMs : this.soloHoldMs)
+    if (this.paused) this.pausedAt = now
   }
 }

@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron'
+import { registerAutomationHandlers } from '../automations/host'
 import type { OfficeArtifactIndex } from '../office/office-artifact-index'
 import type { OfficeWatchPool } from '../office/office-watch-pool'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
@@ -120,6 +121,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerLocalIntegrationHandlers(options.getAllowedWindows, options.resolveWorkspaceRoot, () => pluginService)
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
+  registerAutomationHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
   registerCheckpointHandlers()
   registerSessionHandlers(getCurrentMainWindow)
   registerWorktreeHandlers(getCurrentMainWindow)

@@ -33,6 +33,8 @@ import type { RemoteAPI } from '../../../shared/ipc/remote'
 
 interface ElectronAPI {
   localIntegrations?: import('../../../shared/local-integrations').LocalIntegrationsAPI
+
+  automations?: import('../../../shared/automations').AutomationsAPI
   workspaceStorage?: import('../../../shared/ipc/workspace-storage').WorkspaceStorageAPI
   /*-- 同步平台信息，构造 xterm windowsPty 用 --*/
   platform: NodeJS.Platform

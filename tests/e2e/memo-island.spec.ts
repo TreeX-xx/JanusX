@@ -2,8 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function openMemo(page: Page) {
   await page.goto('/memo.html?island=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Memo title' })).toHaveValue('A')
 }
@@ -32,8 +31,8 @@ test('joint cluster fits ordinary and minimum windows with readable memo and usa
     await page.setViewportSize({ width, height })
     await expect(page.locator('.memo-panel')).toHaveAttribute('data-layout', mode)
     const { main, memo } = await checkBounds(page, width, height)
-    expect(main.x - memo.x - memo.width).toBe(12)
-    expect((memo.x + main.x + main.width) / 2).toBe(width / 2)
+    expect(memo.x - main.x - main.width).toBe(56)
+    expect((main.x + memo.x + memo.width) / 2).toBe(width / 2)
     const content = (await page.locator('.memo-content').boundingBox())!
     expect(content.width).toBeGreaterThanOrEqual(250)
     if (width <= 1024) {
@@ -114,10 +113,10 @@ test('dirty conflict draft and caret survive resize, view hiding and recovery', 
   expect(await title.evaluate((input: HTMLInputElement) => [input.selectionStart, input.selectionEnd])).toEqual([3, 7])
   expect(await page.evaluate(() => (window as any).memoFixture.memos[0].title)).toBe('Model title')
   await page.setViewportSize({ width: 1280, height: 720 })
-  await page.getByRole('tab', { name: 'Monitor', exact: true }).click()
+  await page.locator('textarea.janus-chat-input').press('Escape')
   await expect(page.locator('.memo-panel')).toBeHidden()
   await expect(page.locator('.janus-island-shell')).not.toHaveAttribute('data-memo-layout', /.+/)
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
+  await page.getByTestId('reopen').click()
   await expect(title).toHaveValue('My unsaved draft')
   await expect(page.locator('.memo-panel')).toBeVisible()
 })
@@ -134,10 +133,10 @@ test('memo dialogs and keyboard navigation stay with the companion, leaving rest
   await page.getByRole('dialog').press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'expanded')
-  await page.getByRole('button', { name: 'Leave memo' }).click()
+  await page.locator('.memo-shell-header').getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.locator('.memo-panel')).toHaveCount(0)
   await expect(page.locator('.janus-island-cluster')).not.toHaveAttribute('data-memo-layout', /.+/)
-  await expect.poll(async () => (await page.locator('.janus-island-shell').boundingBox())?.width).toBe(880)
+  await expect.poll(async () => (await page.locator('.janus-island-shell').boundingBox())?.width).toBe(860)
   const main = (await page.locator('.janus-island-shell').boundingBox())!
   expect(main.x + main.width / 2).toBe(640)
 })
@@ -150,4 +149,23 @@ test('entering focus mode keeps an active chat editor visible', async ({ page })
   await expect(page.getByRole('group', { name: 'Chat and memo views' }).getByRole('button', { name: 'Chat', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(input).toBeFocused()
   await expect(input).toHaveValue('Continue my draft')
+})
+
+test('closing the right companion keeps binding and draft; leaving is explicit', async ({ page }) => {
+  await openMemo(page)
+  const title = page.getByRole('textbox', { name: 'Memo title' })
+  await title.fill('Unsaved title')
+  await expect(page.locator('.memo-panel')).toHaveAttribute('data-side', 'right')
+  await page.locator('.memo-shell-header').getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.locator('.memo-panel')).toHaveCount(0)
+  const binding = () => page.evaluate(() => {
+    const f = (window as any).memoFixture
+    return f.sessions.find((s: any) => s.id === f.activeId)?.memoId
+  })
+  expect(await binding()).toBe('00000000-0000-4000-8000-000000000001')
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
+  await expect(title).toHaveValue('Unsaved title')
+  await page.getByRole('button', { name: 'Leave memo', exact: true }).click()
+  await expect.poll(binding).toBeUndefined()
+  await expect(page.locator('.memo-panel')).toBeVisible()
 })

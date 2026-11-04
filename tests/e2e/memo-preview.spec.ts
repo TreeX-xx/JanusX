@@ -8,7 +8,7 @@ test('provides memo by default with retired controls off and removes preview set
   await expect(settings.getByRole('checkbox', { name: 'Memo', exact: true })).toHaveCount(0)
   await expect(settings.getByRole('checkbox', { name: 'Session management', exact: true })).toHaveCount(0)
   await expect(settings.getByRole('heading', { name: 'Preview · Preview Features' })).toHaveCount(0)
-  const trigger = page.getByRole('button', { name: 'Open memo on the left' })
+  const trigger = page.getByRole('button', { name: 'Open memo on the right' })
   await expect(trigger).toBeVisible()
 
   const memoId = '00000000-0000-4000-8000-000000000001'

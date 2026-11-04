@@ -87,7 +87,7 @@
 .imagePlaceholder { display: block; padding: 8px; border: 1px dashed var(--shell-border); border-radius: 4px; color: var(--shell-muted); font-size: 11px; overflow-wrap: anywhere; }
 .imagePlaceholder button { padding: 3px 6px; min-height: 24px; font-size: 11px; }
 .imageDialog { margin: auto; max-width: 94vw; max-height: 94vh; padding: 12px; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-canvas); color: var(--shell-text); overflow: auto; }
-.imageDialog::backdrop { background: rgb(0 0 0 / 65%); }
+.imageDialog::backdrop { background: var(--modal-backdrop); }
 .imageDialogToolbar { position: sticky; top: 0; display: flex; justify-content: flex-end; gap: 8px; padding-bottom: 8px; background: var(--shell-canvas); }
 .imageDialog > img { display: block; max-width: 88vw; height: auto; margin: auto; }
 .loginPanel { width: min(700px, calc(100vw - 40px)); padding: 18px; max-height: calc(100vh - 40px); overflow: auto; background: var(--shell-canvas); color: var(--shell-text); border: 1px solid var(--shell-border); border-radius: 12px; font-size: 13px; }

@@ -21,10 +21,6 @@ function harness(page: Page) {
   return page.getByTestId('harness')
 }
 
-function islandExpandedChatButton(page: Page) {
-  return page.locator('.janus-island .janus-expanded-view-button[data-view="chat"]')
-}
-
 function islandExpandedRoundtableButton(page: Page) {
   return page.locator('.janus-island .janus-expanded-view-button[data-view="roundtable"]')
 }
@@ -37,7 +33,6 @@ test.beforeEach(async ({ page }) => {
 test('approval panel is distinct, compact, and exposes explicit decisions', async ({ page }) => {
   await page.goto('/?approval=1')
   await page.getByTestId('reopen-island').click()
-  await islandExpandedChatButton(page).click()
 
   const approval = page.getByRole('region', { name: 'Workspace edit approval' })
   const reject = approval.getByRole('button', { name: 'Reject workspace action' })
@@ -48,14 +43,11 @@ test('approval panel is distinct, compact, and exposes explicit decisions', asyn
   await expect(reject).toBeVisible()
   await expect(approve).toBeVisible()
 
-  const approvalBox = await approval.boundingBox()
-  const rejectBox = await reject.boundingBox()
-  const approveBox = await approve.boundingBox()
-  expect(approvalBox).not.toBeNull()
-  expect(rejectBox).not.toBeNull()
-  expect(approveBox).not.toBeNull()
-  expect(rejectBox!.x + rejectBox!.width).toBeLessThanOrEqual(approveBox!.x)
-  expect(approveBox!.x + approveBox!.width).toBeLessThanOrEqual(approvalBox!.x + approvalBox!.width)
+  await expect.poll(() => approval.evaluate(element => {
+    const frame = element.getBoundingClientRect()
+    const [reject, approve] = Array.from(element.querySelectorAll('.janus-runtime-approval-actions button')).map(button => button.getBoundingClientRect())
+    return !!reject && !!approve && reject.right <= approve.left && approve.right <= frame.right
+  })).toBe(true)
   await page.screenshot({ path: test.info().outputPath('approval-panel-desktop.png') })
 
   await page.setViewportSize({ width: 720, height: 720 })
@@ -80,11 +72,11 @@ test('single activation opens the notification center sheet on the capsule', asy
   await expect(harness(page)).toHaveAttribute('data-single-count', '0')
   await expect(page.getByText('No notice history')).toBeVisible()
 
-  // 点空白处 = 看过即焚收起（lab「点舞台空白」语义）。
+  // 点空白处只收起；记录保留由通知专项回归覆盖。
   await page.mouse.click(30, 500)
   await expect(shell).toHaveAttribute('data-notif', 'false', { timeout: 2_000 })
 
-  // 再开再单击 = 看过即焚收起（stagger 溶解后清史）。
+  // 再开再单击 = 收起，不再触发延迟清史。
   await tap(island)
   await expect(shell).toHaveAttribute('data-notif', 'true', { timeout: 1_000 })
   await tap(island)
@@ -184,7 +176,7 @@ test('expanded Chat remains clickable while Island background double activation 
   await page.evaluate(() => {
     document.addEventListener('pointerdown', (event) => {
       const target = event.target as Element | null
-      if (!target?.closest('.janus-expanded-view-button')) return
+      if (!target?.closest('.janus-chat-input')) return
       const islandElement = target.closest('.janus-island')
       ;(window as typeof window & { chatPointerState?: unknown }).chatPointerState = {
         defaultPrevented: event.defaultPrevented,
@@ -193,9 +185,9 @@ test('expanded Chat remains clickable while Island background double activation 
     }, { once: true })
   })
 
-  await islandExpandedChatButton(page).click()
   await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-view', 'chat')
   await expect(page.locator('.janus-chat')).toBeVisible()
+  await page.locator('.janus-chat-input').click()
   await expect.poll(() => page.evaluate(() => (
     window as typeof window & { chatPointerState?: unknown }
   ).chatPointerState)).toEqual({ defaultPrevented: false, pointerCaptured: false })
@@ -209,7 +201,8 @@ test('expanded Chat remains clickable while Island background double activation 
   await expect(harness(page)).toHaveAttribute('data-double-count', '2')
 })
 
-test('Roundtable keeps parchment above a discussion-only Chat', async ({ page }) => {
+// Other view implementations remain dormant while Island is Chat-only.
+test.skip('Roundtable keeps parchment above a discussion-only Chat', async ({ page }) => {
   const island = page.locator('.janus-island')
   await tap(island)
   await page.waitForTimeout(50)
@@ -244,7 +237,7 @@ test('Roundtable keeps parchment above a discussion-only Chat', async ({ page })
   }
 })
 
-test('Roundtable parchment opens a modular auxiliary Island and returns to stacked layout', async ({ page }) => {
+test.skip('Roundtable parchment opens a modular auxiliary Island and returns to stacked layout', async ({ page }) => {
   const island = page.locator('.janus-island')
   await tap(island)
   await page.waitForTimeout(50)
@@ -291,16 +284,16 @@ test('Island Chat action docks the shared presentation', async ({ page }) => {
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
   await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-  await islandExpandedChatButton(page).click()
 
   const islandChat = page.locator('.janus-island .janus-chat')
   await expect(islandChat.getByText('Shared controller message')).toBeVisible()
   await expect(islandChat.getByText('Shared pending stream')).toBeVisible()
-  await expect(islandChat.getByRole('button', { name: 'Attach workspace' })).toHaveCount(0)
+  await expect(islandChat.getByRole('button', { name: 'Attach workspace' })).toBeVisible()
   await expect(islandChat.getByRole('button', { name: /Embed Chat in / })).toHaveCount(0)
   await expect(page.locator('.janus-chat')).toHaveCount(1)
 
   await page.getByTestId('toggle-streaming').click()
+  await page.getByTestId('reopen-island').click()
   await islandChat.locator('textarea').click()
   await expect(islandChat.locator('textarea')).toBeFocused()
 
@@ -324,7 +317,6 @@ test('Chat input recalls sent prompts and restores the current draft', async ({ 
   await page.waitForTimeout(50)
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
-  await islandExpandedChatButton(page).click()
 
   const input = page.locator('.janus-island .janus-chat').locator('textarea')
   await input.fill('Unsent draft')
@@ -341,7 +333,6 @@ test('Chat input recalls sent prompts and restores the current draft', async ({ 
 test('Chat rewrites a previous turn in place, removes its reply, and clears the visible conversation', async ({ page }) => {
   await page.getByTestId('toggle-streaming').click()
   await page.getByTestId('reopen-island').click()
-  await islandExpandedChatButton(page).click()
 
   const chat = page.locator('.janus-island .janus-chat')
   const composer = chat.locator('.janus-chat-input')
@@ -374,7 +365,6 @@ test('model menu stays visible and keyboard-operable while Chat is streaming', a
   await page.waitForTimeout(50)
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
-  await islandExpandedChatButton(page).click()
 
   const chat = page.locator('.janus-island .janus-chat')
   await expect(chat).toBeFocused()
@@ -400,27 +390,14 @@ test('Island Chat switches conversations while the current thread is streaming',
   await page.waitForTimeout(50)
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
-  await islandExpandedChatButton(page).click()
 
   const chat = page.locator('.janus-island .janus-chat')
-  const threadTrigger = chat.getByRole('button', { name: 'Select conversation' })
-  await expect(threadTrigger).toBeEnabled()
-  await threadTrigger.click()
-  const threadMenu = chat.getByRole('menu', { name: 'Conversations' })
-  await expect(threadMenu).toBeVisible()
-  await expect(threadMenu.getByText('Streaming thread', { exact: true })).toBeVisible()
-  await expect(threadMenu.getByText('Other thread', { exact: true })).toBeVisible()
-  await expect(threadMenu.getByLabel('Generating')).toBeVisible()
-  await expect(threadMenu.getByLabel('Conversation error')).toBeVisible()
-  // Click the messages area centre: (8,8) sits under the open dropdown.
-  await chat.locator('.janus-chat-messages').click()
-  await expect(threadMenu).toHaveCount(0)
-  await threadTrigger.click()
-  await threadMenu.locator('.janus-chat-thread-row', { hasText: 'Other thread' }).locator('.janus-chat-thread-main').click()
-
-  await expect(threadTrigger).toContainText('Other thread')
-  await threadTrigger.click()
-  await expect(chat.getByRole('menu', { name: 'Conversations' }).getByLabel('Generating')).toBeVisible()
+  const sidebar = chat.locator('.janus-chat-sidebar')
+  await expect(sidebar.getByRole('button', { name: /^Streaming thread.*messages$/ })).toBeVisible()
+  await sidebar.getByRole('button', { name: /^Other thread.*messages$/ }).click()
+  await expect(chat.locator('.janus-chat-messages')).not.toContainText('Provider pending stream')
+  await sidebar.getByRole('button', { name: /^Streaming thread.*messages$/ }).click()
+  await expect(chat.locator('.janus-chat-messages')).toContainText('Provider pending stream')
   await expect(harness(page)).toHaveAttribute('data-provider-streaming', 'true')
   await expect(harness(page)).toHaveAttribute('data-provider-abort-count', '0')
 })
@@ -432,7 +409,6 @@ test('Tab and Ctrl+P menus respond to every arrow key', async ({ page }) => {
   await page.waitForTimeout(50)
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
-  await islandExpandedChatButton(page).click()
 
   const chat = page.locator('.janus-island .janus-chat')
   const input = chat.locator('textarea')
@@ -470,7 +446,6 @@ test('Tab and Ctrl+P menus respond to every arrow key', async ({ page }) => {
 test('Tab and Ctrl+P menus work before any conversation exists', async ({ page }) => {
   await page.goto('/?providerStream=1')
   await page.getByTestId('reopen-island').click()
-  await islandExpandedChatButton(page).click()
 
   const chat = page.locator('.janus-island .janus-chat')
   await expect(chat).toHaveClass(/janus-chat--empty/)
@@ -491,7 +466,6 @@ test('typing while the Chat root is focused does not outline the whole Chat', as
   await page.waitForTimeout(50)
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
-  await islandExpandedChatButton(page).click()
 
   const chat = page.locator('.janus-island .janus-chat')
   const input = chat.locator('textarea')
@@ -573,36 +547,7 @@ test('dragging does not leave a stale single activation', async ({ page }) => {
   await expect(harness(page)).toHaveAttribute('data-double-count', '0')
 })
 
-test('pinned chat survives outside click and still collapses explicitly', async ({ page }) => {
-  const island = page.locator('.janus-island')
-  const shell = page.locator('.janus-island-shell')
-  await tap(island)
-  await page.waitForTimeout(50)
-  await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
-  await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
-  await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-  await islandExpandedChatButton(page).click()
-  await expect(shell).toHaveAttribute('data-view', 'chat')
-
-  await island.getByRole('button', { name: 'Pin', exact: true }).click()
-  await expect(shell).toHaveAttribute('data-pinned', 'true')
-
-  // Implicit dismiss is suppressed while pinned.
-  await page.mouse.click(30, 500)
-  await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-  await page.keyboard.press('Escape')
-  await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-
-  // Explicit double activation still returns to the capsule and drops the pin.
-  await tap(island, { x: 110, y: 25 })
-  await page.waitForTimeout(50)
-  await pointer(island, 'pointerdown', { x: 114, y: 27, pointerId: 3 })
-  await pointer(island, 'pointerup', { x: 114, y: 27, pointerId: 3 })
-  await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
-  await expect(shell).toHaveAttribute('data-pinned', 'false')
-})
-
-test('chat topbar drag moves the expanded panel without moving the capsule', async ({ page }) => {
+test('chat header drag keeps the panel and capsule centered', async ({ page }) => {
   const island = page.locator('.janus-island')
   const shell = page.locator('.janus-island-shell')
   // The harness boots streaming: the collapsed capsule must already expose
@@ -615,25 +560,20 @@ test('chat topbar drag moves the expanded panel without moving the capsule', asy
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
   await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-  await islandExpandedChatButton(page).click()
 
   const topbar = island.locator('.janus-expanded-topbar')
   const anchor = await topbar.boundingBox()
   expect(anchor).not.toBeNull()
-  // Grab the brand text just right of the top-left pin control: buttons and
-  // inputs opt out of the drag handle by design.
-  const pinGrabBox = await island.getByRole('button', { name: 'Pin', exact: true }).boundingBox()
-  expect(pinGrabBox).not.toBeNull()
-  const startX = pinGrabBox!.x + pinGrabBox!.width + 10
-  const startY = pinGrabBox!.y + pinGrabBox!.height / 2
+  const brandBox = (await island.locator('.janus-expanded-brand').boundingBox())!
+  const startX = brandBox.x + brandBox.width / 2
+  const startY = brandBox.y + brandBox.height / 2
   await page.mouse.move(startX, startY)
   await page.mouse.down()
   await page.mouse.move(startX + 120, startY + 80, { steps: 8 })
   await page.mouse.up()
 
   const transform = await shell.evaluate((element) => (element as HTMLElement).style.transform)
-  expect(transform).toContain('120px')
-  expect(transform).toContain('80px')
+  expect(transform).toBe('')
 
   // Expanded corners paint nothing outside the rounded panel and never
   // intercept clicks: the outer island body is fully pass-through.
@@ -654,7 +594,7 @@ test('chat topbar drag moves the expanded panel without moving the capsule', asy
   })
 })
 
-test('island pin covers every view and the session rail collapses', async ({ page }) => {
+test('Chat session rail collapses and expands', async ({ page }) => {
   const island = page.locator('.janus-island')
   const shell = page.locator('.janus-island-shell')
   await tap(island)
@@ -662,24 +602,8 @@ test('island pin covers every view and the session rail collapses', async ({ pag
   await pointer(island, 'pointerdown', { x: 104, y: 22, pointerId: 2 })
   await pointer(island, 'pointerup', { x: 104, y: 22, pointerId: 2 })
   await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-  // Default view is monitor: the pin control is present without entering chat.
-  await expect(shell).toHaveAttribute('data-view', 'monitor')
-  const pinButton = island.getByRole('button', { name: 'Pin', exact: true })
-  const brandBox = await island.locator('.janus-expanded-brand').boundingBox()
-  const pinBox = await pinButton.boundingBox()
-  expect(brandBox).not.toBeNull()
-  expect(pinBox).not.toBeNull()
-  // Pin lives top-left, ahead of the brand mark.
-  expect(pinBox!.x + pinBox!.width).toBeLessThanOrEqual(brandBox!.x + 1)
-  await pinButton.click()
-  await expect(shell).toHaveAttribute('data-pinned', 'true')
-  await page.keyboard.press('Escape')
-  await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-  await island.getByRole('button', { name: 'Unpin', exact: true }).click()
-  await expect(shell).toHaveAttribute('data-pinned', 'false')
-
+  await expect(shell).toHaveAttribute('data-view', 'chat')
   // Session rail collapse frees the discussion width and restores on expand.
-  await islandExpandedChatButton(page).click()
   const chat = island.locator('.janus-chat')
   await expect(chat).toHaveClass(/janus-chat--with-sidebar/)
   await expect.poll(async () => chat.evaluate((element) => getComputedStyle(element).transitionProperty))
@@ -864,7 +788,7 @@ test.describe('run-orb budding', () => {
     await expect(shell).toHaveAttribute('data-stage', 'expanded')
     for (const theme of ['dark', 'planche']) {
       await page.evaluate(theme => (window as any).__applyRunTheme(theme), theme)
-      for (const target of [run, page.getByRole('status'), page.locator('[data-id="tool-menu"]')]) {
+      for (const target of [run, page.getByRole('status').filter({ hasText: 'already running' }), page.locator('[data-id="tool-menu"]')]) {
         await expect.poll(() => target.evaluate(element => {
           const rect = element.getBoundingClientRect()
           const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)

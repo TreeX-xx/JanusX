@@ -429,13 +429,13 @@ body.is-running {
   }
 }
 
-.janus-island[data-stage="collapsed"]:hover:not(.is-dragging):not(.switching),
-.janus-island[data-stage="collapsed"]:focus-visible:not(.is-dragging):not(.switching) {
+.janus-island-shell:not([data-speaking="true"]):not([data-notif="true"]) .janus-island[data-stage="collapsed"]:hover:not(.is-dragging):not(.switching),
+.janus-island-shell:not([data-speaking="true"]):not([data-notif="true"]) .janus-island[data-stage="collapsed"]:focus-visible:not(.is-dragging):not(.switching) {
   animation: island-hover-breathe 1.6s ease-in-out infinite;
 }
 
 /* hifi: running-state hover - centripetal lift + brighter border */
-.janus-island[data-mode="running"][data-stage="collapsed"]:hover:not(.is-dragging):not(.switching) {
+.janus-island-shell:not([data-speaking="true"]):not([data-notif="true"]) .janus-island[data-mode="running"][data-stage="collapsed"]:hover:not(.is-dragging):not(.switching) {
   animation: none;
   transform: translateY(-1px) scale(1.03);
   border-color: color-mix(in srgb, var(--surface-tint) 20%, transparent);
@@ -572,191 +572,6 @@ body.is-running {
 }
 .janus-island[data-mode="order"][data-stage="collapsed"] .janus-collapsed-core {
   animation: janus-idle-breath 3.8s ease-in-out infinite;
-}
-
-/* Capsule speech (P3): the island widens to speak, face inset glides left. */
-.janus-island-shell[data-speaking="true"] {
-  width: 272px;
-  transition: width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
-}
-.janus-island-shell[data-speaking="true"] .janus-island {
-  width: 272px;
-}
-.janus-island-shell[data-speaking="true"] .janus-collapsed-core {
-  right: 216px;
-  transition: inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
-}
-.janus-speak-strip {
-  position: absolute;
-  left: 50px;
-  right: 14px;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  opacity: 0;
-  transform: translateX(10px);
-  transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  pointer-events: none;
-}
-.janus-island-shell[data-speaking="true"] .janus-speak-strip {
-  opacity: 1;
-  transform: translateX(0);
-  transition-delay: 0.15s;
-}
-.janus-speak-kicker {
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 8.5px;
-  letter-spacing: 0.14em;
-  color: var(--shell-muted);
-  flex-shrink: 0;
-}
-.janus-speak-body {
-  font-size: 11px;
-  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* History count: small gray text at the window top-left, never on the island.
-   Clicking it opens the notification center (P4 entry). */
-.janus-history-count {
-  position: fixed;
-  left: 16px;
-  top: 44px;
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--shell-muted);
-  z-index: 2001;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  user-select: none;
-  -webkit-app-region: no-drag;
-}
-.janus-history-count:hover {
-  color: var(--shell-text, var(--shell-dim));
-}
-
-/* Notification center (P4): the island grows into the sheet (eyes stay top-left).
-   Seen-and-burn: closing staggers rows out then clears history. */
-.janus-island-shell[data-notif="true"] {
-  width: 302px;
-  border-radius: 20px;
-}
-.janus-island-shell[data-notif="true"] .janus-island {
-  /* 尺寸 100% 跟随壳的形变（lab「同一个物体生长」观感）；圆角随行 */
-  border-radius: 20px;
-}
-.janus-island-shell[data-notif="true"] .janus-collapsed-core {
-  /* 眼睛落到左上（lab：face left 15 / top 18 的同位） */
-  inset: 10px auto auto 2px;
-  width: 46px;
-  height: 26px;
-}
-/* 形变过渡：lab 定稿 420ms cubic-bezier(0.32, 0.72, 0.24, 1)，开/合同一条节奏、
-   同一物体生长（宽/高/圆角/眼位同一拍）。CSS 过渡取「后态」时序——收起的后态是
-   基础壳/岛规则（另一套节奏），故 JS 在开合两向都打 data-notif-anim 供给同款过渡；
-   限定 collapsed，阶段形变（peek/expanded）仍走各自节奏。 */
-.janus-island-shell[data-notif="true"],
-.janus-island-shell[data-notif-anim][data-stage="collapsed"] {
-  transition:
-    width 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
-    height 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
-    top 0.42s cubic-bezier(0.32, 0.72, 0.24, 1);
-}
-.janus-island-shell[data-notif="true"] .janus-island,
-.janus-island-shell[data-notif-anim][data-stage="collapsed"] .janus-island {
-  transition:
-    border-radius 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
-    box-shadow 0.26s ease,
-    border-color 0.26s ease,
-    background 0.26s ease,
-    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
-    padding 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.janus-island-shell[data-notif="true"] .janus-collapsed-core,
-.janus-island-shell[data-notif-anim][data-stage="collapsed"] .janus-collapsed-core {
-  transition:
-    opacity 0.12s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
-    inset 0.42s cubic-bezier(0.32, 0.72, 0.24, 1),
-    visibility 0s linear 0.38s;
-}
-.janus-notif-sheet {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  display: none;
-  flex-direction: column;
-  padding: 8px 12px 6px;
-}
-.janus-island-shell[data-notif="true"] .janus-notif-sheet {
-  display: flex;
-}
-.janus-notif-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  height: 22px;
-  padding-left: 34px; /* 给左上角的眼睛让位（lab 同宽） */
-  margin-bottom: 4px;
-}
-.janus-notif-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
-}
-.janus-notif-hint {
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  color: var(--shell-dim);
-}
-.janus-notif-list {
-  min-height: 0;
-  overflow: hidden;
-}
-.janus-notif-row {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  padding: 7px 0;
-  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
-  transition: opacity 0.26s ease, transform 0.26s ease;
-}
-.janus-notif-row.gone {
-  opacity: 0;
-  transform: translateY(-5px);
-}
-.janus-notif-time {
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 9px;
-  color: var(--shell-dim);
-  flex-shrink: 0;
-}
-.janus-notif-body {
-  font-size: 11px;
-  color: color-mix(in srgb, var(--shell-text) 85%, transparent);
-  line-height: 1.5;
-  min-width: 0;
-  /* lab 同款：正文折行不截断（高度按最终内容宽测量，防折行量高） */
-  overflow-wrap: anywhere;
-}
-.janus-notif-empty {
-  font-size: 11px;
-  color: var(--shell-dim);
-  text-align: center;
-  padding: 12px 0 8px;
-}
-.janus-island-shell[data-speaking="true"] .janus-speak-strip {
-  pointer-events: auto;
-  cursor: pointer;
 }
 
 /* 浼戠湢锛氬崟鐐瑰懠鍚?*/

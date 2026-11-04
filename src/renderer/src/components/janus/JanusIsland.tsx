@@ -1,12 +1,13 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Download } from 'lucide-react'
+import { Download, X } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
 import { JanusEye } from './JanusEye'
 import { useIslandGesture } from './useIslandGesture'
 import { useJanusGaze, type JanusGazeControls } from './useJanusGaze'
 import { useIslandSpeak, type IslandSpeakControls } from './useIslandSpeak'
+import { IslandNotificationCenter, notificationClock } from './IslandNotificationCenter'
 import { useJanusState } from './useJanusState'
 import { formatKnowledgeMatch } from './islandKnowledgePeek'
 import {
@@ -15,8 +16,8 @@ import {
   EMPTY_CAPSULE_NOTIFICATION_ID,
   isEmptyCapsuleRequested,
   knowledgeNotification,
-  mayAutoBanner,
   memoryNotification,
+  notificationActionLabelKey,
   notificationKickerKey,
   productNotification,
   topNotification,
@@ -29,6 +30,9 @@ import '@/extensions/plugin-surfaces.css'
 import { useExtensionViews } from '@/extensions/react'
 import { openPluginManager } from '@/extensions/plugin-configuration-navigation'
 import { useIslandStore } from '@/stores/island'
+import { useAutomationIslandLayout } from '../automations/useAutomationIslandLayout'
+import { useAutomationsStore, subscribeAutomations, openAutomationRun } from '@/stores/automations'
+import { automationNotification } from './islandNotifications'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
 import {
   JanusAuxiliaryIsland,
@@ -50,17 +54,8 @@ const ROUNDTABLE_CARD_STATUS_KEYS: Record<AgentWorkState, string> = {
   cancelled: 'janus:roundtable.cardDetail.status.cancelled',
 }
 import { faceClass } from './janusIslandRuntime'
-import { shouldSuppressIslandDismiss } from './islandInteraction'
+import { ISLAND_CHAT_ONLY } from './janusIslandTypes'
 
-const ISLAND_PINNED_STORAGE_KEY = 'janus:island-chat-pinned'
-
-function loadIslandPinned(): boolean {
-  try {
-    return window.localStorage.getItem(ISLAND_PINNED_STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
 import { useRightToolStore } from '@/stores/right-tools'
 import { useExperimentalStore } from '@/stores/experimental'
 import { getUserMemoryOverview } from '@/services/knowledge'
@@ -76,16 +71,6 @@ import { useAuxiliaryIslandLayout } from './useAuxiliaryIslandLayout'
    JanusIsland �?52×26px 折叠态胶�?
    状态由 useJanusState 统一管理，视觉由 data-mode 属性驱�?
    ════════════════════════════════════════════════════════════ */
-
-/** useProjectRunning �?管理项目运行状�?*/
-
-
-/** 通知中心行内时钟（HH:MM:SS）。 */
-function formatSpeakClock(at: number): string {
-  const d = new Date(at)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
 
 export function JanusIsland({
   stage = 'collapsed',
@@ -113,13 +98,18 @@ export function JanusIsland({
   knowledgePeekEmpty = false,
   productNotice = null,
   onOpenProductFile,
-  onIslandPinnedChange,
 }: JanusIslandProps) {
   const { t } = useI18n('janus')
+  const automationNotices = useAutomationsStore(state => state.notices)
+  const removedAutomations = useAutomationsStore(state => state.removedIds)
+  useEffect(subscribeAutomations, [])
   const { mode, isSwitching, activeWorkspace, eyeContainerRef, hasRunning } = useJanusState()
   const { janusRunning } = useProjectRunning(activeWorkspace)
   const shellRef = useRef<HTMLDivElement | null>(null)
-  const [view, setView] = useState<JanusExpandedView>('monitor')
+  const companionToolId = useIslandStore(state => state.companionToolId)
+  const [view, setStoredView] = useState<JanusExpandedView>('chat')
+  const companionVeil = useAutomationIslandLayout(shellRef, stage === 'expanded' && view === 'chat' && companionToolId === 'automations')
+  const setView = useCallback((next: JanusExpandedView) => setStoredView(ISLAND_CHAT_ONLY ? 'chat' : next), [])
   const pluginSnapshot = usePluginSnapshot()
   const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
   const pluginViews = useExtensionViews()
@@ -130,43 +120,27 @@ export function JanusIsland({
     if (pluginViewRequest && pluginViewRequest.sequence !== lastPluginRequest.current && pluginViews.some(view => view.id === pluginViewRequest.viewId && view.location === 'island')) {
       lastPluginRequest.current = pluginViewRequest.sequence; setView(pluginViewRequest.viewId)
     }
-  }, [pluginViewRequest, pluginViews])
+  }, [pluginViewRequest, pluginViews, setView])
   useEffect(() => {
     useIslandStore.setState({ activePluginViewId: stage === 'expanded' && view.startsWith('extension:') ? view as `extension:${string}/${string}` : null })
   }, [stage, view])
   useEffect(() => {
     if (view.startsWith('extension:') && !pluginViews.some(item => item.id === view && item.location === 'island')) setView('monitor')
-  }, [view, pluginViews])
+  }, [view, pluginViews, setView])
 
-  /* Island window pin (expanded stage, all views).
-   * Pin survives implicit dismiss (outside click / Esc / terminal switch);
-   * explicit double-activate still collapses back to the capsule. The
-   * expanded panel keeps its fixed centered position — it never drags — and
-   * streaming never blocks the collapse. */
-  const [islandPinned, setIslandPinned] = useState<boolean>(() => loadIslandPinned())
   const chatLoading = isStreaming || pendingContent.length > 0
   // P4 通知中心展开态（island 整体纵向变大；非 stage）
   const [notifOpen, setNotifOpen] = useState(false)
-
-  const updateIslandPinned = useCallback((next: boolean) => {
-    setIslandPinned(next)
-    try {
-      window.localStorage.setItem(ISLAND_PINNED_STORAGE_KEY, next ? '1' : '0')
-    } catch {
-      /* persistence is best-effort */
-    }
-    onIslandPinnedChange?.(next)
-  }, [onIslandPinnedChange])
-
-  const toggleIslandPinned = useCallback(() => {
-    updateIslandPinned(!islandPinned)
-  }, [islandPinned, updateIslandPinned])
+  const [trayOpen, setTrayOpen] = useState(false)
+  const [selectedNoticeKey, setSelectedNoticeKey] = useState<string | null>(null)
+  const notificationOpenerRef = useRef<HTMLElement | null>(null)
 
   // Legacy: the expanded island no longer drags, so a persisted offset from an
   // earlier build is dead state. Drop it once instead of leaving it behind.
   useEffect(() => {
     try {
       window.localStorage.removeItem('janus:island-drag-offset')
+      window.localStorage.removeItem('janus:island-chat-pinned')
     } catch {
       /* persistence is best-effort */
     }
@@ -243,8 +217,8 @@ export function JanusIsland({
 
   // 创新开关关闭圆桌时，若正停在圆桌视图则退回聊天，避免悬空态。
   useEffect(() => {
-    if (!roundtableEnabled) setView((current) => (current === 'roundtable' ? 'chat' : current))
-  }, [roundtableEnabled])
+    if (!roundtableEnabled && view === 'roundtable') setView('chat')
+  }, [roundtableEnabled, view, setView])
 
   // User memory M4: quiet badge for habit candidates awaiting review. Mount
   // plus recall-turn refresh; failures stay silent (no badge, no banner).
@@ -264,66 +238,47 @@ export function JanusIsland({
     }
   }, [knowledgeTraceRequestId, personaEnabled])
 
-  // P2/P3/P4 伴随控件 refs：经 ref 取控件，避免手势 hook 与 gaze/speak hook 的循环依赖。
   const janusGazeRef = useRef<JanusGazeControls | null>(null)
   const islandSpeakRef = useRef<IslandSpeakControls | null>(null)
-  // 传话中轻点已被 quickTap 消费为「收起当前条续播」时置位，
-  // 随后的单击仲裁不再连带开/合通知中心。
-  const speakTapConsumedRef = useRef(false)
 
-  // P4 通知中心：入口=下滑/岛体单击/灰字计数/传话条点击；看过即焚=收起时 stagger 溶解后清史。
-  const notifSheetRef = useRef<HTMLDivElement | null>(null)
-  const notifBurnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const notifMorphTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // lab 同款形变时序（420ms cubic-bezier(0.32, 0.72, 0.24, 1)）由 CSS [data-notif-anim]
-  // 在开/合两向供给（过渡取后态时序，收起后态是基础壳规则，故 JS 补打属性对齐节奏）。
-  const markNotifMorph = useCallback(() => {
-    const shell = shellRef.current
-    if (shell) shell.setAttribute('data-notif-anim', 'true')
-    if (notifMorphTimerRef.current) clearTimeout(notifMorphTimerRef.current)
-    notifMorphTimerRef.current = setTimeout(() => {
-      notifMorphTimerRef.current = null
-      shellRef.current?.removeAttribute('data-notif-anim')
-    }, 450)
+  const selectNotice = useCallback((key: string | null) => {
+    setSelectedNoticeKey(key)
+    if (key) islandSpeakRef.current?.markRead(key)
   }, [])
-  const openNotifCenter = useCallback(() => {
-    markNotifMorph()
-    islandSpeakRef.current?.markSeen()
+  const prepareNoticeReader = useCallback((key?: string) => {
+    notificationOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const speak = islandSpeakRef.current
+    const history = speak?.snapshot.history ?? []
+    selectNotice(key ?? speak?.snapshot.speaking?.key ?? [...history].reverse().find(item => !item.read)?.key ?? history.at(-1)?.key ?? null)
+    speak?.silence()
+  }, [selectNotice])
+  const openNotifCenter = useCallback((key?: string) => {
+    prepareNoticeReader(key)
     setNotifOpen(true)
-  }, [markNotifMorph])
-  const closeNotifCenter = useCallback(() => {
-    const sheet = notifSheetRef.current
-    const rows = sheet
-      ? Array.from(sheet.querySelectorAll<HTMLElement>('.janus-notif-row'))
-      : []
-    rows.forEach((el, i) => {
-      el.style.transitionDelay = `${i * 45}ms`
-      el.classList.add('gone')
-    })
-    if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
-    notifBurnTimerRef.current = setTimeout(() => {
-      notifBurnTimerRef.current = null
-      islandSpeakRef.current?.burnHistory()
-      markNotifMorph()
-      setNotifOpen(false)
-    }, rows.length * 45 + 280)
-  }, [markNotifMorph])
-
-  const handleDoubleTap = useCallback(() => {
-    // Explicit collapse always wins: a pinned island window still returns to
-    // the capsule in one gesture and drops the pin on the way.
-    speakTapConsumedRef.current = false
-    if (islandPinned) updateIslandPinned(false)
-    onDoubleActivate()
-  }, [islandPinned, onDoubleActivate, updateIslandPinned])
-  const handleSingleTap = useCallback(() => {
-    // 传话中轻点 = 收起当前条（队列续播，quickTap 已处理）：单击仲裁到点后不再动作。
-    if (speakTapConsumedRef.current) {
-      speakTapConsumedRef.current = false
-      return
+  }, [prepareNoticeReader])
+  const closeNotifications = useCallback((restoreFocus = true) => {
+    setNotifOpen(false)
+    setTrayOpen(false)
+    if (restoreFocus) {
+      // The opener may be hidden until the reader has actually unmounted.
+      requestAnimationFrame(() => {
+        const opener = notificationOpenerRef.current
+        const target = opener?.isConnected && opener.getClientRects().length ? opener
+          : shellRef.current?.querySelector<HTMLElement>('.janus-island')
+        target?.focus({ preventScroll: true })
+      })
     }
-    // 折叠态单击 = 开/合通知中心（2026-10-24 用户修订：单击直达新的通知面）。
-    // peek 态单击维持收起语义；expanded 不劫持。
+  }, [])
+  const closeNotifCenter = useCallback(() => closeNotifications(), [closeNotifications])
+  const toggleTray = useCallback(() => {
+    if (trayOpen) closeNotifications()
+    else { prepareNoticeReader(); setTrayOpen(true) }
+  }, [trayOpen, closeNotifications, prepareNoticeReader])
+  const handleDoubleTap = useCallback(() => {
+    closeNotifications(false)
+    onDoubleActivate()
+  }, [closeNotifications, onDoubleActivate])
+  const handleSingleTap = useCallback(() => {
     if (stage === 'collapsed') {
       if (notifOpen) closeNotifCenter()
       else openNotifCenter()
@@ -333,7 +288,7 @@ export function JanusIsland({
   }, [stage, notifOpen, closeNotifCenter, openNotifCenter, onSingleActivate])
 
   const handleIslandKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.repeat) return
+    if (event.repeat || event.target !== event.currentTarget) return
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     event.stopPropagation()
@@ -351,13 +306,8 @@ export function JanusIsland({
     openPluginManager()
   }, [onDismiss])
 
-  // P2 事件原语：flinch/惊醒=轻点伴随（420ms 单击仲裁期内播放，胶囊仍可见）。
-  // P3：传话中轻点 = 收起当前条（队列续播），叠加 flinch；此消费同时抑制
-  // 单击仲裁开通知中心（保留「收起续播」语义，开口在传话条/灰字计数）。
-  const handleQuickTap = useCallback(() => {
-    if (islandSpeakRef.current?.dismiss()) speakTapConsumedRef.current = true
-    janusGazeRef.current?.react('flinch')
-  }, [])
+  // Eye gestures keep their companion animation; only explicit controls dismiss a notice.
+  const handleQuickTap = useCallback(() => { janusGazeRef.current?.react('flinch') }, [])
 
   const {
     islandRef,
@@ -399,65 +349,41 @@ export function JanusIsland({
   })
   janusGazeRef.current = janusGaze
 
-  // P3 胶囊传话：通知到达串行播报（收起续播 / 面板清队 / 看过即焚 语义在队列里）。
   const islandSpeak = useIslandSpeak()
   islandSpeakRef.current = islandSpeak
   speakBusyRef.current = islandSpeak.snapshot.speaking !== null
+  const { enqueue, silence, setPaused, removeAutomation } = islandSpeak
+  useEffect(() => { removedAutomations.forEach(removeAutomation) }, [removedAutomations, removeAutomation])
+  const speaking = stage === 'collapsed' && !notifOpen ? islandSpeak.snapshot.speaking : null
 
-  // 打开后按最终内容宽测高再动画：宽度过渡中途测会因文案折行量虚高（lab 283px 坑）。
-  // 302 壳宽 − 2 边框 = 300 border-box → 内容宽 276（与 lab 定稿同宽），正文折行点一致。
-  // lab 同款起跳（openPanel）：先钉 26px 强制回流再落目标高，保证高度过渡从胶囊高
-  // 起跑；layout effect 保证与 data-notif 同帧生效，无「先画全高再收」的闪帧。
-  // 高度只驱动壳（内岛 100% 随行），避免两层各画各的高度错位。
-  // 面板开中补行（historyCount 变）只重落目标高——从当前高平滑长到新高，不回跳26px。
-  useLayoutEffect(() => {
-    const sheet = notifSheetRef.current
-    const shell = shellRef.current
-    if (!notifOpen) {
-      if (shell) shell.style.height = ''
-      return
-    }
-    if (!sheet || !shell) return
-    sheet.style.width = '300px'
-    const h = sheet.offsetHeight
-    sheet.style.width = ''
-    if (!shell.style.height) {
-      shell.style.height = '26px'
-      void shell.offsetHeight
-    }
-    shell.style.height = `${h}px`
-  }, [notifOpen, islandSpeak.snapshot.historyCount])
-  // 点空白处 = 看过即焚收起（lab「点舞台空白」语义；壳内点击不算）。
   useEffect(() => {
-    if (!notifOpen) return
+    if (stage !== 'collapsed' || notifOpen || trayOpen) silence()
+  }, [stage, notifOpen, trayOpen, silence])
+  useEffect(() => {
+    if (!notifOpen && !trayOpen) return
     const handleOutsideDown = (event: PointerEvent) => {
-      const shell = shellRef.current
       const target = event.target
-      if (shell && target instanceof Node && shell.contains(target)) return
-      closeNotifCenter()
+      const surface = trayOpen ? shellRef.current?.querySelector('.janus-notify-anchor') : shellRef.current
+      if (target instanceof Node && surface?.contains(target)) return
+      closeNotifications(false)
     }
-    document.addEventListener('pointerdown', handleOutsideDown, true)
-    return () => document.removeEventListener('pointerdown', handleOutsideDown, true)
-  }, [notifOpen, closeNotifCenter])
-  useEffect(() => {
-    if (!notifOpen) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      closeNotifCenter()
+      event.stopImmediatePropagation()
+      closeNotifications()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [notifOpen, closeNotifCenter])
-  useEffect(() => {
-    if (stage !== 'collapsed' && notifOpen) closeNotifCenter()
-  }, [stage, notifOpen, closeNotifCenter])
-  useEffect(() => {
+    document.addEventListener('pointerdown', handleOutsideDown, true)
+    window.addEventListener('keydown', onKey, true)
     return () => {
-      if (notifBurnTimerRef.current) clearTimeout(notifBurnTimerRef.current)
-      if (notifMorphTimerRef.current) clearTimeout(notifMorphTimerRef.current)
+      document.removeEventListener('pointerdown', handleOutsideDown, true)
+      window.removeEventListener('keydown', onKey, true)
     }
-  }, [])
+  }, [notifOpen, trayOpen, closeNotifications])
+  useEffect(() => {
+    if (stage !== 'collapsed') setNotifOpen(false)
+    if (stage !== 'expanded') setTrayOpen(false)
+  }, [stage])
 
   // P2 真实事件 → 原语：nod=回合完成（流式下降沿且无错误）、fail=出错、greet=工作区落定。
   const prevStreamingRef = useRef(isStreaming)
@@ -479,11 +405,16 @@ export function JanusIsland({
     janusGazeRef.current?.react('greet')
   }, [activeWorkspace])
 
-  /** Executes a notification action then gets the island out of the way; the
-   * product path owns its own dismiss/consume flow in Titlebar. */
   const runNotificationAction = useCallback((notificationId: string, actionId: IslandNotificationActionId, commandId?: string) => {
-    if (actionId === 'open-plugin') {
-      const notification = pluginIslandNotifications(pluginSnapshot).find(item => item.id === notificationId)
+    const record = islandSpeakRef.current?.snapshot.history.find(item => item.id === notificationId)
+    const notification = record?.notification
+    if (record) islandSpeakRef.current?.markRead(record.key)
+    closeNotifications(false)
+    if (actionId === 'open-automation') {
+      const run = notification?.automation ?? useAutomationsStore.getState().notices.find(item => 'automation:' + item.id === notificationId)
+      if (run) openAutomationRun(run)
+      onDismiss()
+    } else if (actionId === 'open-plugin') {
       const entry = notification?.plugin
       const command = commandId ?? notification?.actions[0]?.command
       if (entry && command) {
@@ -491,23 +422,18 @@ export function JanusIsland({
         void pluginRequest({ type: 'islandAction', pluginId: entry.pluginId, id: entry.id, instanceId: entry.instanceId, command })
           .catch(cause => setPluginActionFailure(cause instanceof Error ? cause.message : 'INTERNAL_ERROR'))
       }
-      return
-    }
-    if (actionId === 'open-knowledge') {
+    } else if (actionId === 'open-knowledge') {
       if (useExperimentalStore.getState().persona) setActiveWorkbench('knowledge')
       onDismiss()
     } else if (actionId === 'open-memory') {
       if (useExperimentalStore.getState().persona) useRightToolStore.getState().openTool('persona')
       onDismiss()
     } else if (actionId === 'open-blueprint' || actionId === 'open-maintenance') {
-      // Note: legacy actions lead to installation — see .agents/notes/planning/blueprint-official-plugin.md
       handleOpenPlugins()
-    } else if (actionId === 'open-product' && productNotice) {
-      onOpenProductFile?.(productNotice.relPath)
+    } else if (actionId === 'open-product' && notification?.productPath) {
+      onOpenProductFile?.(notification.productPath)
     }
-    setClearedIds((ids) => (ids.includes(notificationId) ? ids : [...ids, notificationId]))
-    setBannerId(null)
-  }, [handleOpenPlugins, onDismiss, onOpenProductFile, productNotice, setActiveWorkbench, pluginSnapshot])
+  }, [closeNotifications, handleOpenPlugins, onDismiss, onOpenProductFile, setActiveWorkbench])
 
   // Minimal stage-B tool trace for the agent-result detail: the pane owns the
   // full work projection, the Island only mirrors tool calls so the detail can
@@ -545,6 +471,7 @@ export function JanusIsland({
   // peek/expanded surfaces render from IslandNotification only; the former
   // per-kind title/subtitle/status chains live in islandNotifications.ts.
   const notifications = useMemo(() => assembleNotifications([
+    ...automationNotices.map(automationNotification),
     productNotification(productNotice),
     knowledgeNotification({
       active: knowledgePeekActive,
@@ -554,12 +481,11 @@ export function JanusIsland({
     }),
     personaEnabled ? memoryNotification({ pendingHabitCount: memoryPending }) : null,
     ...pluginIslandNotifications(pluginSnapshot),
-  ]), [knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, productNotice, personaEnabled, t, pluginSnapshot])
-  const [clearedIds, setClearedIds] = useState<string[]>([])
-  const visibleNotifications = useMemo(
-    () => notifications.filter((notification) => !clearedIds.includes(notification.id)),
-    [notifications, clearedIds],
-  )
+  ]), [automationNotices, knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, productNotice, personaEnabled, t, pluginSnapshot])
+  const visibleNotifications = useMemo(() => {
+    const retained = new Set(islandSpeak.snapshot.history.map(entry => entry.id))
+    return notifications.filter(notification => retained.has(notification.id))
+  }, [notifications, islandSpeak.snapshot.history])
   const topNotificationItem = topNotification(visibleNotifications)
   // The knowledge surface (recall result or empty capsule) owns the peek
   // capsule while it presents; a sticky product notice yields to it and stays
@@ -588,63 +514,25 @@ export function JanusIsland({
     ? t(topNotificationItem.copy.metaKey, topNotificationItem.copy.metaValues)
     : modeStatusFallback
 
-  // Expanded-stage notification surface state (tray / banner / badge pulse).
-  const [trayOpen, setTrayOpen] = useState(false)
-  const [bannerId, setBannerId] = useState<string | null>(null)
-  const [notifyPulse, setNotifyPulse] = useState(false)
-  const prevStageRef = useRef(stage)
-  const prevNotifyCountRef = useRef(0)
-
-  // T1 carry-over: expanding from peek pins the visible notification as banner.
+  // Every source feeds the same history, including arrivals while Chat is active.
+  // Baseline notices are retained silently. Only the idle capsule auto-presents new occurrences.
+  const notificationsInitialized = useRef(false)
   useEffect(() => {
-    if (stage === 'expanded' && prevStageRef.current === 'peek' && topNotificationItem) setBannerId(topNotificationItem.id)
-    prevStageRef.current = stage
-  }, [stage, topNotificationItem])
-
-  // T2 arrival: attention/failed raise the banner; info only pulses the badge.
-  useEffect(() => {
-    if (stage !== 'expanded' || !topNotificationItem) return
-    if (topNotificationItem.kind !== 'plugin' && mayAutoBanner(topNotificationItem.severity)) setBannerId(topNotificationItem.id)
-  }, [stage, topNotificationItem])
-
-  useEffect(() => {
-    if (stage !== 'expanded') {
-      setTrayOpen(false)
-      prevNotifyCountRef.current = visibleNotifications.length
-      return
+    const present = notificationsInitialized.current && stage === 'collapsed' && !notifOpen && !trayOpen
+    notificationsInitialized.current = true
+    for (const notification of [...notifications].sort((a, b) => a.createdAt - b.createdAt)) {
+      enqueue({
+        id: notification.id,
+        title: notification.copy.titleText ?? t(notification.copy.titleKey),
+        body: notification.copy.subtitleKey ? t(notification.copy.subtitleKey, notification.copy.subtitleValues)
+          : notification.copy.subtitleText || notification.copy.titleText || t(notification.copy.titleKey),
+        kicker: notification.plugin?.pluginId ?? t(notificationKickerKey(notification.kind)),
+        at: notification.createdAt,
+        groupKey: notification.groupKey,
+        notification,
+      }, present)
     }
-    if (visibleNotifications.length > prevNotifyCountRef.current) {
-      setNotifyPulse(true)
-      prevNotifyCountRef.current = visibleNotifications.length
-      const timer = window.setTimeout(() => setNotifyPulse(false), 900)
-      return () => window.clearTimeout(timer)
-    }
-    prevNotifyCountRef.current = visibleNotifications.length
-  }, [stage, visibleNotifications])
-
-  // P3 到达 → 传话：折叠态入队播报；P4「到达即入史」：peek 到达也进史
-  // （知识召回一到就上台 peek，旧门控会让通知中心历史缺这类条目）。
-  // peek/面板呈现 = 用户在看：进史不播（markSeen 清队，防传话条叠画 peek 胶囊）。
-  // expanded 表面（托盘）自呈现，不进传话链。首次挂载只登记基线不播报。
-  const speakSeenIdsRef = useRef<Set<string> | null>(null)
-  useEffect(() => {
-    if (!speakSeenIdsRef.current) {
-      speakSeenIdsRef.current = new Set(visibleNotifications.map((n) => n.id))
-      return
-    }
-    for (const n of visibleNotifications) {
-      if (speakSeenIdsRef.current.has(n.id)) continue
-      speakSeenIdsRef.current.add(n.id)
-      if (stage === 'expanded') continue
-      islandSpeak.enqueue({
-        id: n.id,
-        body: n.copy.titleText ?? t(n.copy.titleKey),
-        kicker: n.plugin?.pluginId ?? t(notificationKickerKey(n.kind)),
-        at: Date.now(),
-      })
-      if (stage === 'peek' || notifOpen) islandSpeak.markSeen()
-    }
-  }, [visibleNotifications, stage, islandSpeak, notifOpen, t])
+  }, [notifications, stage, notifOpen, trayOpen, enqueue, t])
 
   // P3 念词伴随：开讲时眼神扫向文字侧。
   const prevSpeakIdRef = useRef<string | null>(null)
@@ -656,7 +544,6 @@ export function JanusIsland({
     prevSpeakIdRef.current = id
   }, [islandSpeak.snapshot.speaking])
 
-  const bannerNotification = bannerId && topNotificationItem?.id === bannerId ? topNotificationItem : null
   const modeLabel = mode === 'analytics' ? t('janus:island.modeLabel.analytics') : mode === 'running' ? t('janus:island.modeLabel.running') : t('janus:island.modeLabel.order')
   const modeColor = mode === 'running' ? 'var(--status-success)' : 'var(--primary)'
   const workspaceLabel = activeWorkspace?.name ?? t('janus:island.workspaceFallback')
@@ -665,7 +552,7 @@ export function JanusIsland({
 
   useEffect(() => {
     if (stage === 'peek') setView('monitor')
-  }, [stage])
+  }, [stage, setView])
 
   useEffect(() => {
     if (stage === 'expanded' && view === 'roundtable') return
@@ -708,17 +595,12 @@ export function JanusIsland({
     if (stage === 'expanded' && view === 'monitor') {
       setView('chat')
     }
-  }, [messageCount, stage, view])
+  }, [messageCount, stage, view, setView])
 
-  // Implicit dismiss is suppressed while the island window is pinned; the
-  // stream lifecycle lives in useJanusChat, so collapsing mid-stream is
-  // always safe and the capsule keeps a loading dot until it settles.
-  const islandDismissSuppressed = shouldSuppressIslandDismiss({ stage, islandPinned })
-
+  // Collapsing does not stop the conversation stream.
   useEffect(() => {
     if (stage === 'collapsed') return
     const handlePointerDown = (event: PointerEvent) => {
-      if (islandDismissSuppressed) return
       const target = event.target as Node | null
       const targetElement = target instanceof Element ? target : target?.parentElement
       const shell = shellRef.current
@@ -731,7 +613,6 @@ export function JanusIsland({
         setTrayOpen(false)
         return
       }
-      if (islandDismissSuppressed) return
       onDismiss()
     }
     document.addEventListener('pointerdown', handlePointerDown, true)
@@ -740,7 +621,7 @@ export function JanusIsland({
       document.removeEventListener('pointerdown', handlePointerDown, true)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [islandDismissSuppressed, onDismiss, stage, trayOpen])
+  }, [onDismiss, stage, trayOpen])
 
   const auxiliaryDescriptor: JanusAuxiliaryModuleDescriptor | null = displayedAuxiliary === 'roundtable-parchment'
     ? {
@@ -776,7 +657,7 @@ export function JanusIsland({
   // painting above the panel instead of a full-viewport dim below it.
   const veil = stage === 'expanded' && !hostCovered && typeof document !== 'undefined'
     ? createPortal(
-      <div className="janus-veil" aria-hidden="true" style={{ zIndex: 1999 }} />,
+      <div className="janus-veil" aria-hidden="true" style={{ zIndex: 1999, ...(companionVeil ?? {}) }} />,
       document.body,
     )
     : null
@@ -797,34 +678,25 @@ export function JanusIsland({
       data-peek-kind={splitCapsule ? 'split' : capsuleTopNotification?.kind ?? 'empty'}
       data-peek-layout={splitCapsule ? 'split' : 'single'}
       data-capsule-tier={capsuleTierValue}
-      data-pinned={islandPinned ? 'true' : 'false'}
       data-loading={chatLoading ? 'true' : 'false'}
-      data-speaking={islandSpeak.snapshot.speaking ? 'true' : 'false'}
+      data-speaking={speaking ? 'true' : 'false'}
       data-notif={notifOpen ? 'true' : 'false'}
+      data-notif-empty={islandSpeak.snapshot.historyCount === 0}
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
       {stage === 'collapsed' && (pluginSnapshot.island?.length ?? 0) > 0 && <button type="button" className="plugin-island-count"
         data-plugin-island-count aria-label={t('plugins:islandStatusCount', { count: pluginSnapshot.island!.length })}
         onClick={() => useIslandStore.getState().dispatch({ type: 'plugin-peek' })}>{pluginSnapshot.island!.length}</button>}
-      {stage === 'collapsed' && (islandSpeak.snapshot.historyCount > 0 || notifOpen) && (
-        <button
-          type="button"
-          className="janus-history-count"
-          aria-label={t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}
-          onClick={() => (notifOpen ? closeNotifCenter() : openNotifCenter())}
-        >
-          {t('janus:island.historyCount', { count: islandSpeak.snapshot.historyCount })}
-        </button>
-      )}
       <div ref={pullHintRef} className="pull-hint" />
       <div
         ref={islandRef}
         data-mode={mode}
         data-stage={stage}
         className={`janus-island${isSwitching ? ' switching' : ''}`}
-        role={stage !== 'expanded' && !splitCapsule ? 'button' : undefined}
+        role={stage !== 'expanded' && !splitCapsule && !speaking && !notifOpen ? 'button' : undefined}
         tabIndex={stage !== 'expanded' && !splitCapsule ? 0 : undefined}
+        aria-expanded={stage === 'collapsed' && !speaking ? notifOpen : undefined}
         aria-label={stage !== 'expanded' && !splitCapsule
           ? capsuleTopNotification?.kind === 'product' && productNotice
             ? t('janus:island.aria.openProductPreview', { path: productNotice.relPath })
@@ -832,9 +704,15 @@ export function JanusIsland({
               ? t('janus:island.aria.closeKnowledgePeek')
               : notifOpen
                 ? t('janus:island.aria.closeNotif')
-                : t('janus:island.aria.openNotif')
+                : islandSpeak.snapshot.historyCount > 0
+                  ? t('janus:island.notif.badgeAria', { count: islandSpeak.snapshot.unreadCount })
+                  : t('janus:island.aria.openNotif')
           : undefined}
         onKeyDown={stage !== 'expanded' ? handleIslandKeyDown : undefined}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={event => setPaused(event.currentTarget.contains(document.activeElement))}
+        onFocusCapture={() => setPaused(true)}
+        onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(event.currentTarget.matches(':hover')) }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -842,41 +720,31 @@ export function JanusIsland({
       >
         <div className="janus-collapsed-core">
           <div ref={(el) => { eyeContainerRef.current = el }} className="janus-face-mini">
-            <JanusEye mode={mode} className="janus-eye-group" />
+            <JanusEye mode={stage === 'expanded' && mode === 'sleep' ? 'order' : mode} className="janus-eye-group" />
           </div>
         </div>
 
-        <div
-          className="janus-speak-strip"
-          aria-hidden="true"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation()
-            openNotifCenter()
-          }}
-        >
-          <span className="janus-speak-kicker">{islandSpeak.snapshot.speaking?.kicker ?? ''}</span>
-          <span className="janus-speak-body">{islandSpeak.snapshot.speaking?.body ?? ''}</span>
-        </div>
+        {speaking && <div className="janus-speak-strip" onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+          <button type="button" className="janus-speak-read" onClick={() => openNotifCenter(speaking.key)} aria-label={t('janus:island.notif.readNotice', { title: speaking.title })}>
+            <span className="janus-speak-kicker">{speaking.kicker}<time>{notificationClock(speaking.at)}</time>{speaking.count > 1 && <span>×{speaking.count}</span>}</span>
+            <span className="janus-speak-body" role="status">{speaking.body}</span>
+          </button>
+          <button type="button" className="janus-speak-close" aria-label={t('janus:island.notif.collapse')} onClick={() => islandSpeak.dismiss()}><X size={13} /></button>
+          <div className="janus-speak-actions">
+            <button type="button" onClick={() => openNotifCenter(speaking.key)}>{t('janus:island.notif.read')}</button>
+            {speaking.notification?.actions[0] && <button type="button" className="janus-notif-action" onClick={() => {
+              const action = speaking.notification!.actions[0]
+              runNotificationAction(speaking.id, action.id, action.command)
+              islandSpeak.silence()
+            }}>{speaking.notification.actions[0].label ?? t(notificationActionLabelKey(speaking.notification.actions[0].id))}</button>}
+          </div>
+        </div>}
 
-        <div className="janus-notif-sheet" ref={notifSheetRef} aria-hidden={!notifOpen}>
-          <div className="janus-notif-head">
-            <span className="janus-notif-title">{t('janus:island.notif.title')}</span>
-            <span className="janus-notif-hint">{t('janus:island.notif.hint')}</span>
-          </div>
-          <div className="janus-notif-list">
-            {islandSpeak.snapshot.history.length === 0 ? (
-              <div className="janus-notif-empty">{t('janus:island.notif.empty')}</div>
-            ) : (
-              islandSpeak.snapshot.history.map((entry) => (
-                <div className="janus-notif-row" key={entry.id}>
-                  <span className="janus-notif-time">{formatSpeakClock(entry.at)}</span>
-                  <span className="janus-notif-body">{entry.body}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        {notifOpen && <div className="janus-notif-sheet">
+          <IslandNotificationCenter entries={islandSpeak.snapshot.history} unreadCount={islandSpeak.snapshot.unreadCount}
+            selectedKey={selectedNoticeKey} onSelect={selectNotice} onClose={closeNotifCenter}
+            onClear={islandSpeak.clear} onAction={runNotificationAction} />
+        </div>}
 
         <div className="janus-peek-shell">
           <div className="janus-peek-core">
@@ -901,7 +769,8 @@ export function JanusIsland({
                     title={notification.copy.titleText ?? t(notification.copy.titleKey)}
                     onClick={(event) => {
                       event.stopPropagation()
-                      if (notification.actions[0]) runNotificationAction(notification.id, notification.actions[0].id)
+                      onDismiss()
+                      openNotifCenter(notification.groupKey ?? notification.id)
                     }}
                   >
                     <span className={`janus-capsule-led sev-${notification.severity}`} aria-hidden="true" />
@@ -965,14 +834,11 @@ export function JanusIsland({
           modeColor={modeColor}
           statusText={statusText}
           onOpenPlugins={handleOpenPlugins}
-          notifications={visibleNotifications}
-          bannerNotification={bannerNotification}
+          notificationCenter={{ entries: islandSpeak.snapshot.history, unreadCount: islandSpeak.snapshot.unreadCount,
+            selectedKey: selectedNoticeKey, onSelect: selectNotice, onClose: closeNotifCenter,
+            onClear: islandSpeak.clear, onAction: runNotificationAction }}
           trayOpen={trayOpen}
-          notifyPulse={notifyPulse}
-          onToggleTray={() => setTrayOpen((open) => !open)}
-          onNotificationAction={runNotificationAction}
-          onBannerDismiss={() => setBannerId(null)}
-          onTrayClear={() => { setClearedIds((ids) => [...ids, ...visibleNotifications.filter((n) => !ids.includes(n.id)).map((n) => n.id)]); setBannerId(null) }}
+          onToggleTray={toggleTray}
           messages={messages}
           pendingContent={pendingContent}
           isStreaming={isStreaming}
@@ -989,8 +855,6 @@ export function JanusIsland({
           conversationController={conversationController}
           resourceController={resourceController}
           toolTraces={toolTraces}
-          islandPinned={islandPinned}
-          onToggleIslandPin={toggleIslandPinned}
         />
       </div>
       {stage === 'expanded' && auxiliaryDescriptor && auxiliaryLayout ? (

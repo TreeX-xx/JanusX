@@ -9,8 +9,7 @@ async function seed(page: Page, count = 2) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/memo.html?island=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
 })
 
@@ -78,7 +77,7 @@ test('rapid hide and reopen cancels exit, preserves drafts and clears geometry a
   await expect(page.locator('.memo-panel')).toHaveAttribute('data-phase', 'open')
   await expect(title).toHaveValue('Unsaved title')
   expect(await page.evaluate(() => (window as any).memoFixture.sessions.length)).toBe(1)
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await expect(page.locator('.memo-panel')).toHaveCount(0)
   await expect(page.locator('.janus-island-cluster')).not.toHaveAttribute('data-memo-layout', /.+/)
 })

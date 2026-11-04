@@ -26,8 +26,7 @@ test('real Titlebar keeps memo usable at native minimum size and renderer zoom',
       await window.electron.memo!.edit(memo.id, { expectedRevision: node.revision, operations: [{ op: 'addPoint', nodeId: node.nodes[0].id, text: 'Editable native record' }] })
     })
     await page.locator('.janus-island').dblclick()
-    await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-    await page.getByRole('button', { name: 'Open memo on the left' }).click()
+    await page.getByRole('button', { name: 'Open memo on the right' }).click()
     await page.getByRole('button', { name: 'Native layout', exact: true }).click()
     await page.getByRole('tab', { name: 'Native milestone', exact: true }).click()
     await expect(page.getByRole('textbox', { name: 'Point text' })).toHaveValue('Editable native record')
@@ -44,7 +43,7 @@ test('real Titlebar keeps memo usable at native minimum size and renderer zoom',
       const geometry = await page.evaluate(() => {
         const main = document.querySelector('.janus-island-shell')!.getBoundingClientRect()
         const memo = document.querySelector('.memo-panel')!.getBoundingClientRect()
-        return { gap: main.left - memo.right, left: memo.left, right: main.right, bottom: memo.bottom, content: document.querySelector('.memo-content')!.clientWidth }
+        return { gap: memo.left - main.right, left: main.left, right: memo.right, bottom: memo.bottom, content: document.querySelector('.memo-content')!.clientWidth }
       })
       expect(geometry.gap).toBe(12)
       expect(geometry.left).toBeGreaterThanOrEqual(12)

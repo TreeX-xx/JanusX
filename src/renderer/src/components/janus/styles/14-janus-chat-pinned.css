@@ -110,40 +110,16 @@
   }
 }
 
-/* Island window persistence + capsule loading indicator.
+/* Capsule loading indicator.
  * Rules here are additive only: no layout property may key on
  * data-loading, so streaming visuals can never shift the capsule morph. */
 
-/* Top-left cluster: pin control ahead of the brand mark. */
+/* Top-left identity cluster. */
 .janus-expanded-left {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-/* Pin toggle: quiet by default, accent-tinted while pinned. */
-.janus-pin-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.janus-pin-button[data-pinned="true"] {
-  border-color: color-mix(in srgb, var(--primary) 42%, transparent);
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  color: var(--shell-accent-strong);
-}
-
-.janus-pin-button[data-pinned="true"]:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
-  background: color-mix(in srgb, var(--primary) 16%, transparent);
-  color: var(--shell-accent);
-}
-
-.janus-island-shell[data-pinned="true"] .janus-expanded-topbar {
-  border-bottom: 1px dashed color-mix(in srgb, var(--primary) 22%, transparent);
-  border-radius: 6px 6px 0 0;
 }
 
 /* Capsule loading dot: absolute overlay on the collapsed face, zero layout

@@ -167,6 +167,10 @@ test('preview cancels on Escape, outside click, workspace switch and disabled co
   await page.evaluate(() => (window as any).builtinExtensionFixture.disable('sessions'))
   await expect(shell).toHaveAttribute('data-visible', 'false')
   await expect(sessions).toHaveCount(0)
+  // The next entry moves under the pointer; only a new pointer movement previews it.
+  await page.mouse.move(400, 40)
+  await page.locator('#right-tool-rail-automations').hover()
+  await expect(page.locator('#right-tool-panel-automations')).toBeVisible()
 })
 
 test('narrow layout uses a bounded click overlay and hover does not open closed tools', async ({ page }) => {

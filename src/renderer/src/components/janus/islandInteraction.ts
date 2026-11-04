@@ -77,20 +77,3 @@ export function isDoubleTapWithinTolerance(
   if (!isDoubleTap(previousTapTime, now, delay) || !previousPoint) return false
   return Math.hypot(currentPoint.x - previousPoint.x, currentPoint.y - previousPoint.y) <= tolerance
 }
-
-/* ════════════════════════════════════════════════════════════
-   Island window dismissal policy.
-   Pure helpers so the policy stays unit-testable; the components
-   own DOM + localStorage side effects.
-   ════════════════════════════════════════════════════════════ */
-
-/** Implicit dismiss (outside click / Esc / terminal switch) is suppressed
- *  while the island window is pinned, whatever view it shows. Explicit
- *  collapse (double-activate) always goes through, so a pinned window can
- *  still return to the capsule in one gesture. */
-export function shouldSuppressIslandDismiss(input: {
-  stage: IslandStage
-  islandPinned: boolean
-}): boolean {
-  return input.stage === 'expanded' && input.islandPinned
-}

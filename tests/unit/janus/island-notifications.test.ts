@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { KnowledgeRecallTrace } from '../../../src/shared/knowledge'
 import type { ProductFileEntry } from '../../../src/shared/product'
+import { reminderTemplate, dailyReviewTemplate, type AutomationRun } from '../../../src/shared/automations'
 import {
   assembleNotifications,
+  automationNotification,
   capsuleTier,
   EMPTY_CAPSULE_NOTIFICATION_ID,
   isEmptyCapsuleRequested,
   knowledgeNotification,
   maintenanceNotification,
-  mayAutoBanner,
   memoryNotification,
   notificationActionLabelKey,
   notificationKickerKey,
@@ -56,6 +57,14 @@ function maintenanceTask(overrides: Partial<Record<'id' | 'status' | 'blueprintN
 }
 
 describe('island notification capsule model', () => {
+  it('groups reminders by definition while retaining the latest run target and full message', () => {
+    const run: AutomationRun = { id: 'run', definitionId: 'phone', occurrenceKey: 'minute', trigger: 'scheduled',
+      state: 'succeeded', startedAt: '2026-11-03T00:00:00Z', message: 'Check your phone', tasks: [],
+      cursor: { commit: '', epoch: 0, partialCount: 0, attention: false },
+      snapshot: { ...reminderTemplate('Check your phone'), id: 'phone', revision: 1, root: '', createdAt: '', nextRunAt: null } }
+    expect(automationNotification(run)).toMatchObject({ groupKey: 'reminder:phone', automation: { definitionId: 'phone', id: 'run' }, copy: { subtitleText: 'Check your phone' } })
+    expect(automationNotification({ ...run, snapshot: { ...run.snapshot, ...dailyReviewTemplate('project') } }).groupKey).toBeUndefined()
+  })
   it('ranks severities in the documented order', () => {
     expect(notifySeverityRank('failed')).toBeGreaterThan(notifySeverityRank('attention'))
     expect(notifySeverityRank('attention')).toBeGreaterThan(notifySeverityRank('success'))
@@ -134,12 +143,6 @@ describe('island notification capsule model', () => {
     expect(capsuleTier({ ...knowledge, copy: { ...knowledge.copy, subtitleKey: undefined } }, false)).toBe('single')
   })
 
-  it('auto-banners only attention and above while expanded', () => {
-    expect(mayAutoBanner('info')).toBe(false)
-    expect(mayAutoBanner('success')).toBe(false)
-    expect(mayAutoBanner('attention')).toBe(true)
-    expect(mayAutoBanner('failed')).toBe(true)
-  })
 
   it('requests the empty launcher only when nothing else is on the tray', () => {
     const knowledge = knowledgeNotification({ active: true, empty: false, trace: recalledTrace('a') })!
@@ -161,7 +164,6 @@ describe('island notification capsule model', () => {
     expect(notification.copy.titleKey).toBe('janus:island.peek.title.memoryHabits')
     expect(notification.copy.subtitleValues).toMatchObject({ count: 2 })
     expect(notification.actions).toEqual([{ id: 'open-memory', primary: true }])
-    expect(mayAutoBanner(notification.severity)).toBe(false)
     expect(notificationKickerKey('memory')).toBe('janus:island.capsule.kicker.memory')
     expect(notificationActionLabelKey('open-memory')).toBe('janus:island.capsule.action.openMemory')
     const assembled = assembleNotifications([notification, knowledgeNotification({ active: true, empty: false, trace: recalledTrace('a'), now: 10 })])

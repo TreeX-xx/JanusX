@@ -44,16 +44,31 @@
       "denied": "已拒绝"
     },
     "context": {
-      "usage": "上下文 ≈ {{used}} / {{limit}} tokens", "configured": "手动配置", "catalog": "模型目录", "registry": "模型资料", "estimated": "窗口为估算值",
-      "compacting": "正在压缩早期对话…", "compacted": "已压缩，原始记录保留", "failed": "压缩失败，原始记录保留",
-      "configure": "模型上下文窗口（tokens）", "save": "保存", "compact": "立即压缩", "older": "查看更早消息",
+      "usage": "上下文 ≈ {{used}} / {{limit}} tokens",
+      "configured": "手动配置",
+      "catalog": "模型目录",
+      "registry": "模型资料",
+      "estimated": "窗口为估算值",
+      "compacting": "正在压缩早期对话…",
+      "compacted": "已压缩，原始记录保留",
+      "failed": "压缩失败，原始记录保留",
+      "configure": "模型上下文窗口（tokens）",
+      "save": "保存",
+      "compact": "立即压缩",
+      "older": "查看更早消息",
       "hint": "默认自动识别上下文与最大输出额度；手动填写仅用于无法识别的模型，下一次请求生效。",
-      "output": "最大输出 {{tokens}} tokens", "configureOutput": "最大输出（tokens）",
-      "detecting": "正在读取模型额度…", "unmatched": "模型额度尚未识别",
+      "output": "最大输出 {{tokens}} tokens",
+      "configureOutput": "最大输出（tokens）",
+      "detecting": "正在读取模型额度…",
+      "unmatched": "模型额度尚未识别",
       "updateHint": "未找到完整模型资料，请先更新模型目录。",
       "manualHint": "更新后仍未找到完整资料，可填写上下文和最大输出；最大输出需小于上下文。",
-      "refresh": "更新模型目录", "refreshing": "正在更新…", "refreshFailed": "模型目录更新失败",
-      "saving": "保存中…", "saved": "已保存，下一次请求使用新容量。", "automatic": "恢复自动识别"
+      "refresh": "更新模型目录",
+      "refreshing": "正在更新…",
+      "refreshFailed": "模型目录更新失败",
+      "saving": "保存中…",
+      "saved": "已保存，下一次请求使用新容量。",
+      "automatic": "恢复自动识别"
     },
     "recoveringTools": "工具上下文异常，正在重试（1/1）…",
     "author": {
@@ -243,8 +258,17 @@
     "historyCount": "通知 {{count}}",
     "notif": {
       "title": "通知",
-      "hint": "看过即焚 · 收起自动清空",
-      "empty": "没有历史通知"
+      "hint": "收起后仍可查阅",
+      "empty": "暂无通知记录",
+      "unread": "未读",
+      "unreadCount": "{{count}} 条未读",
+      "badgeAria": "通知，{{count}} 条未读",
+      "repeated": "已提醒 {{count}} 次",
+      "clearRead": "清除已读",
+      "collapse": "收起通知",
+      "read": "查阅",
+      "readNotice": "查阅通知：{{title}}",
+      "openTask": "查看任务"
     },
     "aria": {
       "openIsland": "打开 Janus Island",
@@ -277,7 +301,8 @@
         "memory": "MEMORY",
         "product": "PRODUCT",
         "maintenance": "BLUEPRINT",
-        "agent": "AGENT"
+        "agent": "AGENT",
+        "automation": "自动化"
       },
       "empty": {
         "title": "一切就绪",
@@ -318,6 +343,7 @@
       "order": "ORDER"
     },
     "expanded": {
+      "tools": "Island 工具",
       "brand": "JANUS",
       "viewSwitchAria": "Janus 展开视图",
       "view": {
@@ -779,7 +805,7 @@
     "nodeCount": "{{count}} 个节点",
     "pointCount": "{{count}} 条记录",
     "title": "备忘录",
-    "open": "打开左侧备忘录",
+    "open": "打开右侧备忘录",
     "panel": "里程碑备忘录",
     "close": "退出备忘录",
     "files": "备忘录文件",
@@ -836,6 +862,11 @@
     "empty": "新建或选中一份备忘录，开始记录。",
     "required": "请输入内容",
     "conflict": "内容已经变化。已刷新最新版本，你的输入仍保留，请核对后重试。",
-    "time": { "now": "刚刚", "minutesAgo": "{{count}} 分钟前", "hoursAgo": "{{count}} 小时前", "daysAgo": "{{count}} 天前" }
+    "time": {
+      "now": "刚刚",
+      "minutesAgo": "{{count}} 分钟前",
+      "hoursAgo": "{{count}} 小时前",
+      "daysAgo": "{{count}} 天前"
+    }
   }
 }

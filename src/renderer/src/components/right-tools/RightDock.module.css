@@ -235,3 +235,8 @@
 /* Keep every tool reachable in short windows or with additional plugin tools. */
 .rail { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .railTools, .auxiliaryTools { flex-shrink: 0; }
+
+.panel[data-island-companion='automations'] {
+  top: var(--island-companion-offset, 0px);
+  transition: none;
+}

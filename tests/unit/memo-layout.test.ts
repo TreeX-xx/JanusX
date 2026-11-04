@@ -32,17 +32,17 @@ describe('memo panel layout', () => {
     const host = islandAt(viewportWidth)
     const { box, shift } = layoutMemoPanel({ ...host, viewportWidth, viewportHeight: 720 })
     expect(shift).toBe(0)
-    expect(box.left + box.width).toBeLessThanOrEqual(host.hostLeft)
+    expect(box.left).toBeGreaterThanOrEqual(host.hostLeft + host.hostWidth)
   })
 
   it('slides the host exactly as far as the panel reaches into it', () => {
     const viewportWidth = 1400
     const host = islandAt(viewportWidth)
     const { box, shift } = layoutMemoPanel({ ...host, viewportWidth, viewportHeight: 720 })
-    // 260px of panel beside a 250px left margin cannot fit side by side, so the
-    // host slides right until the 12px gap is restored.
-    expect(shift).toBe(box.left + box.width + 12 - host.hostLeft)
-    expect(box.left + box.width).toBeLessThan(host.hostLeft + shift)
+    // 260px of panel beside a 250px right margin cannot fit side by side, so the
+    // host slides left until the 12px gap is restored.
+    expect(shift).toBe(box.left - 12 - host.hostLeft - host.hostWidth)
+    expect(host.hostLeft + shift + host.hostWidth).toBeLessThan(box.left)
   })
 
   it('never pushes the host off the right edge, even at the narrowest width', () => {
@@ -68,7 +68,7 @@ describe('memo panel layout', () => {
 
 describe('joint memo and main island layout', () => {
   it('keeps both islands within bounds and separated across window sizes', () => {
-    for (const [viewportWidth, viewportHeight] of [[1920, 900], [1400, 900], [1280, 720], [1024, 600], [1000, 600], [916, 500], [800, 900], [600, 676]]) {
+    for (const [viewportWidth, viewportHeight] of [[1920, 900], [1400, 900], [1280, 720], [1024, 600], [1000, 600], [960, 500], [800, 900], [600, 676]]) {
       const layout = layoutMemoIslands({ viewportWidth, viewportHeight })
       for (const box of [layout.main, layout.memo]) {
         expect(box.left).toBeGreaterThanOrEqual(12)
@@ -78,8 +78,8 @@ describe('joint memo and main island layout', () => {
       }
       if (layout.mode === 'stacked') expect(layout.main.top + layout.main.height + 12).toBe(layout.memo.top)
       else {
-        expect(layout.memo.left + layout.memo.width + 12).toBe(layout.main.left)
-        expect((layout.memo.left + layout.main.left + layout.main.width) / 2).toBe(viewportWidth / 2)
+        expect(layout.main.left + layout.main.width + 56).toBe(layout.memo.left)
+        expect((layout.main.left + layout.memo.left + layout.memo.width) / 2).toBe(viewportWidth / 2)
         expect(layout.main.width).toBeGreaterThanOrEqual(560)
       }
     }
@@ -89,7 +89,7 @@ describe('joint memo and main island layout', () => {
     const full = layoutMemoIslands({ viewportWidth: 1280, viewportHeight: 720 })
     expect(full.mode).toBe('parallel')
     expect(full.memo.width).toBe(460)
-    expect(full.main.width).toBe(784)
+    expect(full.main.width).toBe(740)
     const compact = layoutMemoIslands({ viewportWidth: 1000, viewportHeight: 600 })
     expect(compact.mode).toBe('compact')
     expect(compact.compactFiles).toBe(true)
@@ -108,7 +108,7 @@ describe('joint memo and main island layout', () => {
   it('degrades before clipping and uses recovery room at mode boundaries', () => {
     expect(layoutMemoIslands({ viewportWidth: 1055, viewportHeight: 720, previousMode: 'parallel' }).mode).toBe('compact')
     expect(layoutMemoIslands({ viewportWidth: 1060, viewportHeight: 720, previousMode: 'compact' }).mode).toBe('compact')
-    expect(layoutMemoIslands({ viewportWidth: 1088, viewportHeight: 720, previousMode: 'compact' }).mode).toBe('parallel')
+    expect(layoutMemoIslands({ viewportWidth: 1132, viewportHeight: 720, previousMode: 'compact' }).mode).toBe('parallel')
     expect(layoutMemoIslands({ viewportWidth: 800, viewportHeight: 700, previousMode: 'focus' }).mode).toBe('focus')
     expect(layoutMemoIslands({ viewportWidth: 800, viewportHeight: 708, previousMode: 'focus' }).mode).toBe('stacked')
   })

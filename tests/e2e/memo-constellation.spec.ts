@@ -2,8 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function open(page: Page) {
   await page.goto('/memo.html?island=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
 }
 async function seed(page: Page, records = false) {
@@ -378,9 +377,9 @@ test('star captions and leaders select without creating and layout survives hide
   await page.getByRole('button', { name: 'B', exact: true }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await checkPositions()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await expect(page.locator('.memo-panel')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await checkPositions()
 })
 
@@ -397,10 +396,10 @@ test('closing during creation clears provisional overlays before the delayed sav
   await page.getByRole('button', { name: 'Add star', exact: true }).click()
   await page.getByRole('dialog').getByRole('textbox').fill('Late star')
   await page.getByRole('dialog').getByRole('button', { name: 'OK', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.evaluate(() => (window as any).releaseMemoSave())
   await expect(page.locator('.memo-panel')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.locator('.memo-star-ghost[data-pending="true"]')).toHaveCount(0)
   expect(await page.evaluate(() => (window as any).memoFixture.memos[0].nodes.map((node: any) => node.title))).toContain('Late star')

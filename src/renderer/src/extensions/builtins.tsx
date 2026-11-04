@@ -1,6 +1,6 @@
 // Note: built-in view ownership and compatibility — see .agents/notes/workbench/service-integrations.md
 import { lazy, Suspense, type ComponentType } from 'react'
-import { Files, GitBranch, MessagesSquare } from 'lucide-react'
+import { Files, GitBranch, MessagesSquare, Clock3 } from 'lucide-react'
 import { RepositoryIcon } from '@/components/ui/RepositoryIcon'
 import type { RightToolDefinition } from '@/right-tools/types'
 import type { ExtensionDefinition, ExtensionViewProps } from './types'
@@ -42,6 +42,11 @@ function builtinRightExtension(
 // Application-scoped shells preserve existing local UI state across project switches.
 // The tools retain their existing project/worktree subscriptions and host services.
 export const BUILTIN_RIGHT_EXTENSIONS: readonly BuiltinRightExtension[] = [
+  builtinRightExtension({
+    id: 'automations', title: 'Automations', titleKey: 'common:automations.title',
+    iconComponent: Clock3, order: 6, instancePolicy: 'single', mountPolicy: 'while-open',
+    panelWidth: { min: 360, default: 420, max: 620 },
+  }, () => import('@/components/automations/AutomationPanel').then(({ AutomationPanel }) => ({ default: AutomationPanel }))),
   builtinRightExtension({
     id: 'files', title: 'Files',
     titleKey: 'common:rightTool.tool.files.title',

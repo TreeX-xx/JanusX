@@ -44,16 +44,31 @@
       "denied": "Denied"
     },
     "context": {
-      "usage": "Context ≈ {{used}} / {{limit}} tokens", "configured": "Configured", "catalog": "Model catalog", "registry": "Model registry", "estimated": "Estimated window",
-      "compacting": "Summarizing earlier conversation…", "compacted": "Summarized; original history retained", "failed": "Summary failed; history retained",
-      "configure": "Model context window (tokens)", "save": "Save", "compact": "Compact now", "older": "Show earlier messages",
+      "usage": "Context ≈ {{used}} / {{limit}} tokens",
+      "configured": "Configured",
+      "catalog": "Model catalog",
+      "registry": "Model registry",
+      "estimated": "Estimated window",
+      "compacting": "Summarizing earlier conversation…",
+      "compacted": "Summarized; original history retained",
+      "failed": "Summary failed; history retained",
+      "configure": "Model context window (tokens)",
+      "save": "Save",
+      "compact": "Compact now",
+      "older": "Show earlier messages",
       "hint": "Context and maximum output are detected automatically. Manual limits apply only to unrecognized models, starting with the next request.",
-      "output": "Maximum output {{tokens}} tokens", "configureOutput": "Maximum output (tokens)",
-      "detecting": "Reading model limits…", "unmatched": "Model limits unavailable",
+      "output": "Maximum output {{tokens}} tokens",
+      "configureOutput": "Maximum output (tokens)",
+      "detecting": "Reading model limits…",
+      "unmatched": "Model limits unavailable",
       "updateHint": "Complete model metadata was not found. Update the model catalog first.",
       "manualHint": "Metadata is still unavailable after updating. Enter context and maximum output; output must be smaller than context.",
-      "refresh": "Update model catalog", "refreshing": "Updating…", "refreshFailed": "Model catalog update failed",
-      "saving": "Saving…", "saved": "Saved. The next request uses the new capacity.", "automatic": "Use automatic capacity"
+      "refresh": "Update model catalog",
+      "refreshing": "Updating…",
+      "refreshFailed": "Model catalog update failed",
+      "saving": "Saving…",
+      "saved": "Saved. The next request uses the new capacity.",
+      "automatic": "Use automatic capacity"
     },
     "recoveringTools": "Tool context error. Retrying once (1/1)…",
     "author": {
@@ -242,9 +257,18 @@
     },
     "historyCount": "Notices {{count}}",
     "notif": {
-      "title": "Notices",
-      "hint": "SEEN ONCE - CLEARS ON CLOSE",
-      "empty": "No notice history"
+      "title": "Notifications",
+      "hint": "Closing keeps your history",
+      "empty": "No notice history",
+      "unread": "Unread",
+      "unreadCount": "{{count}} unread",
+      "badgeAria": "Notifications, {{count}} unread",
+      "repeated": "{{count}} times",
+      "clearRead": "Clear read",
+      "collapse": "Collapse notification",
+      "read": "Read",
+      "readNotice": "Read notification: {{title}}",
+      "openTask": "View task"
     },
     "aria": {
       "openIsland": "Open Janus Island",
@@ -277,7 +301,8 @@
         "memory": "MEMORY",
         "product": "PRODUCT",
         "maintenance": "BLUEPRINT",
-        "agent": "AGENT"
+        "agent": "AGENT",
+        "automation": "Automations"
       },
       "empty": {
         "title": "All clear",
@@ -318,6 +343,7 @@
       "order": "ORDER"
     },
     "expanded": {
+      "tools": "Island tools",
       "brand": "JANUS",
       "viewSwitchAria": "Janus expanded view",
       "view": {
@@ -779,7 +805,7 @@
     "nodeCount": "{{count}} nodes",
     "pointCount": "{{count}} points",
     "title": "Memo",
-    "open": "Open memo on the left",
+    "open": "Open memo on the right",
     "panel": "Milestone memo",
     "close": "Leave memo",
     "files": "Memo files",
@@ -836,6 +862,11 @@
     "empty": "Create or select a memo to start recording.",
     "required": "Enter some content",
     "conflict": "Content changed. The latest version was loaded and your input is kept; check and retry.",
-    "time": { "now": "just now", "minutesAgo": "{{count}} min ago", "hoursAgo": "{{count}} h ago", "daysAgo": "{{count}} d ago" }
+    "time": {
+      "now": "just now",
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}} h ago",
+      "daysAgo": "{{count}} d ago"
+    }
   }
 }

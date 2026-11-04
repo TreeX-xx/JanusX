@@ -1,0 +1,207 @@
+/* Chat-first Island: one quiet frame, with the same eyes as the notice sheet. */
+.janus-island-shell[data-view="chat"]:not([data-memo-layout]):not([data-stage="peek"]):not([data-notif="true"]):not([data-notif-anim]):not([data-speaking="true"]) {
+  transition:
+    width 360ms cubic-bezier(0.32, 0.72, 0.24, 1),
+    height 360ms cubic-bezier(0.32, 0.72, 0.24, 1),
+    top 360ms cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+
+/* Numeric endpoints let the original eyes travel with the frame in both directions. */
+.janus-island-shell[data-view="chat"][data-stage="collapsed"]:not([data-notif="true"]):not([data-notif-anim]):not([data-speaking="true"]) .janus-collapsed-core {
+  inset: -2px auto auto 5px;
+  width: 40px;
+  height: 28px;
+}
+
+.janus-island-shell[data-view="chat"]:not([data-memo-layout]):not([data-stage="peek"]):not([data-notif="true"]):not([data-notif-anim]):not([data-speaking="true"]) .janus-collapsed-core {
+  transition:
+    inset 360ms cubic-bezier(0.32, 0.72, 0.24, 1),
+    opacity 100ms ease,
+    transform 360ms cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+
+.janus-island-shell[data-view="chat"] .janus-expanded-shell {
+  inset: 0;
+  transform: none;
+  transition: opacity 90ms ease, visibility 0s linear 90ms;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-shell {
+  transition: opacity 180ms ease 70ms, visibility 0s;
+}
+
+.janus-island-shell[data-view="chat"] .janus-expanded-topbar,
+.janus-island-shell[data-view="chat"] .janus-expanded-body {
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 80ms ease, transform 80ms ease;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-topbar,
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-body {
+  opacity: 1;
+  transform: none;
+  transition: opacity 180ms ease 110ms, transform 220ms cubic-bezier(0.32, 0.72, 0.24, 1) 90ms;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] {
+  width: min(860px, calc(100vw - 32px));
+  height: min(640px, calc(100dvh - 80px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .janus-island-shell[data-view="chat"]:not([data-memo-layout]):not([data-stage="peek"]):not([data-notif="true"]):not([data-notif-anim]):not([data-speaking="true"]),
+  .janus-island-shell[data-view="chat"]:not([data-memo-layout]):not([data-stage="peek"]):not([data-notif="true"]):not([data-notif-anim]):not([data-speaking="true"]) .janus-collapsed-core,
+  .janus-island-shell[data-view="chat"] .janus-expanded-shell,
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-shell,
+  .janus-island-shell[data-view="chat"] .janus-expanded-topbar,
+  .janus-island-shell[data-view="chat"] .janus-expanded-body,
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-topbar,
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-body {
+    transition: none;
+  }
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-shell {
+  padding: 0;
+  gap: 0;
+  border-color: var(--island-panel-border);
+  border-radius: 20px;
+  background: var(--island-panel-background);
+  box-shadow: var(--island-panel-shadow);
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-collapsed-core {
+  inset: 12px auto auto 12px;
+  width: 40px;
+  height: 28px;
+  z-index: 2;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+  pointer-events: none;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-topbar {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 52px;
+  gap: 12px;
+  padding: 10px 18px 10px 60px;
+  border-bottom: 1px solid var(--shell-border);
+}
+
+/* Opening a conversation wakes the idle dot into the familiar pair of eyes. */
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-island[data-mode="sleep"] .janus-eye-mini {
+  width: 8px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--shell-text);
+  box-shadow: none;
+  animation: none;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-left {
+  flex: 1;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-brand {
+  color: var(--shell-text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-meta-text {
+  color: var(--shell-muted);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-body {
+  display: flex;
+  gap: 0;
+  border-radius: 0 0 20px 20px;
+  overflow: hidden;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat--docked {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar {
+  background: color-mix(in srgb, var(--shell-text) 3%, transparent);
+  border-right: 1px solid var(--shell-border);
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-main {
+  min-width: 0;
+  padding: 8px 14px 14px;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-notify-banner {
+  margin: 8px 14px 0;
+}
+
+/* A quiet conversation surface: navigation recedes, writing stays legible. */
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar-header {
+  padding: 14px 12px 10px;
+  border-bottom: 0;
+}
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar-list {
+  padding: 4px 8px 12px;
+}
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar-row {
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar-row[data-active="true"] {
+  background: var(--shell-hover);
+  border-color: var(--shell-border);
+  box-shadow: none;
+}
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar-main strong {
+  color: var(--shell-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-sidebar-main span {
+  color: var(--shell-muted);
+  font-size: 10px;
+}
+[data-theme] .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat .janus-chat-input-wrapper {
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  background: var(--shell-pane);
+  box-shadow: none;
+  padding: 10px 12px;
+}
+[data-theme] .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat .janus-chat-input-wrapper:focus-within {
+  border-color: color-mix(in srgb, var(--shell-text) 28%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--shell-text) 4%, transparent);
+}
+
+@media (max-width: 640px) {
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 64px);
+  }
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat--with-sidebar:not(.janus-chat--sidebar-collapsed) {
+    grid-template-columns: 130px minmax(0, 1fr) !important;
+  }
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-expanded-meta {
+    display: none;
+  }
+  .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-main {
+    padding: 6px 8px 8px;
+  }
+}
+
+[data-theme] .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-input-wrapper::before { display: none; }
