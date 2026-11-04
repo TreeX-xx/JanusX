@@ -13,6 +13,61 @@ const { AgentHookConfigManager } = await import('../../src/main/notifications/ag
 
 const bin = process.env.JANUSX_TEST_CODEX_BIN
 describe.skipIf(!bin || process.platform !== 'win32')('managed Codex native TUI integration (local model only)', () => {
+  it('clears a real native retry after recovery without another user message', async () => {
+    const fixture = await hookCliFixture({ codexRetryProbe: true })
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      'request_max_retries=0', 'stream_max_retries=2',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const publish = vi.fn()
+    const c = new CodexConversation('retry-test', publish)
+    let terminal: pty.IPty | undefined
+    try {
+      const launch = await c.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(c.state.connection).toBe('ready'), { timeout: 15000 })
+      const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
+      await c.command({ type: 'send', commandId: 'retry', text: 'Recover from a temporary outage', controlEpoch })
+      await vi.waitFor(() => expect(publish.mock.calls.some(([snapshot]) => snapshot.retry)).toBe(true), { timeout: 15000 })
+      await vi.waitFor(() => expect(c.state.items.some(item => item.type === 'agentMessage' && item.text === 'OK')).toBe(true), { timeout: 15000 })
+      await vi.waitFor(() => expect(c.state.turnId).toBeNull(), { timeout: 15000 })
+      expect(c.state.retry).toBeUndefined()
+      expect(c.state.error).toBeUndefined()
+      expect(c.state.items.some(item => item.type === 'turnError')).toBe(false)
+      expect(c.state.items.filter(item => item.type === 'userMessage')).toHaveLength(1)
+      expect(fixture.responseRequests.length).toBeGreaterThan(1)
+    } finally { terminal?.kill(); await c.dispose(); await fixture.close() }
+  })
+  it('answers asynchronous agentMessage questions after the native turn completes', async () => {
+    const fixture = await hookCliFixture({ codexAsyncQuestionProbe: true })
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="gpt-6-astra"', 'model_provider="local"', 'check_for_update_on_startup=false', 'tools.experimental_request_user_input.enabled=true',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const c = new CodexConversation('async-question-test', () => {})
+    let terminal: pty.IPty | undefined
+    try {
+      const launch = await c.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(c.state.connection).toBe('ready'), { timeout: 15000 })
+      const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
+      await c.command({ type: 'send', commandId: 'async-question', text: 'Ask asynchronously', controlEpoch })
+      await vi.waitFor(() => expect(c.state.questions).toHaveLength(1), { timeout: 15000 })
+      await vi.waitFor(() => expect(c.state.turnId).toBeNull(), { timeout: 15000 })
+      const request = c.state.questions![0]
+      expect(request.blocking).toBe(false)
+      await c.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch, answer: { answers: [
+        { id: '0', selected: ['1'] }, { id: '1', selected: [], text: '异步回答' },
+      ] } })
+      await vi.waitFor(() => expect(fixture.responseRequests.some(row => row.input.includes('send_user_message_question_reply') && row.input.includes('异步回答'))).toBe(true), { timeout: 15000 })
+      expect(c.state.questions).toEqual([])
+    } finally { terminal?.kill(); await c.dispose(); await fixture.close() }
+  })
   it('answers native request_user_input with a selection and custom text', async () => {
     const fixture = await hookCliFixture({ codexQuestionProbe: true })
     await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [

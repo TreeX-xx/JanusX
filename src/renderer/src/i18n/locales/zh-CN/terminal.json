@@ -424,6 +424,16 @@
     "copiedMessage": "已复制",
     "editMessage": "重新编辑",
     "thinking": "Thinking…",
+    "notice": {
+      "retry": "正在重试连接",
+      "failure": "本次回复未完成",
+      "failureHint": "你可以发送消息继续，或展开查看详情。",
+      "connection": "会话连接已断开",
+      "connectionHint": "请先在终端中检查会话状态。",
+      "error": "操作未完成",
+      "errorHint": "请查看详情后再决定下一步操作。",
+      "details": "查看详情"
+    },
     "delivery": {
       "queued": "等待发送",
       "sending": "发送中…",

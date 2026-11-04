@@ -19,6 +19,7 @@ import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TurnChangeIsland } from './TurnChangeIsland'
 import { AgentComposer } from './AgentComposer'
 import { ConversationQuestions } from './ConversationQuestions'
+import { ConversationNotice } from './ConversationNotice'
 import { hasBlockingQuestions } from '../../../shared/conversation-questions'
 import { ConversationPlanPanel } from './ConversationPlanPanel'
 import { ConversationDuration } from './ConversationDuration'
@@ -287,7 +288,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
         <button type="button" aria-pressed={conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (snapshot.engine === 'codex' && snapshot.connection === 'starting')} onClick={() => void changeMode('conversation')}><MessageSquare size={14} aria-hidden="true" />{t('conversation.dialog')}</button>
       </div>
     </header>
-    {!conversation && (error || snapshot?.error) && <p className={styles.error} role="alert">{error || snapshot?.error}</p>}
+    {!conversation && error && <ConversationNotice kind="error" message={error} />}
     <div className={styles.body}>
       <div ref={terminalHost} className={`${styles.terminal} ${modeTransition === 'terminal' ? styles.viewEntering : ''}`} style={{ visibility: terminalVisible ? 'visible' : 'hidden', pointerEvents: !terminalVisible || transitioning ? 'none' : 'auto' }} aria-hidden={!terminalVisible}>
         <CLITerminal terminalId={terminalId} visible={visible && terminalVisible} focused={focused && terminalVisible && !transitioning} workspaceVisible={workspaceVisible} />
@@ -337,6 +338,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
                 <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
               </article>
+              : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
                 : <LazyDetails stateKey={item.id} className={styles.activity} key={item.id} data-state={item.status} summary={
                   <summary><ChevronRight size={14} className={styles.chevron} aria-hidden="true" /><span>{t(`conversation.kind.${item.type}`, { defaultValue: t('conversation.activity') })}</span>
                     <span className={styles.activityPreview}>{item.files?.length ? item.files.map(file => file.path.split(/[\\/]/).pop()).join(', ') : item.text.split('\n')[0]}</span>
@@ -375,7 +377,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               {item.error && <p className={styles.error} role="alert">{item.error}</p>}
             </div>)}
             {editing && !snapshot?.items.some(item => item.id === editing.item.id) && <div className={styles.userMessage}>{editor}</div>}
-            {working && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
+            {snapshot?.retry && snapshot.retry.turnId === snapshot.turnId && <ConversationNotice kind="retry" message={snapshot.retry.message} />}
+            {working && !snapshot?.retry && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
             {pastPlans.length > 0 && <details className={styles.planHistory}><summary>{t('conversation.planHistory')}</summary>{pastPlans.map(plan => <ConversationPlanPanel key={`${snapshot?.threadId}:${plan.turnId}:${plan.version}`} plan={plan} connection={snapshot!.connection} historical />)}</details>}
             {snapshot?.approvals.map(approval => <div className={styles.approval} key={approval.id} role="group" aria-label={t('conversation.approval')}>
               <strong><ShieldCheck size={17} aria-hidden="true" />{t(approval.kind === 'file' ? 'conversation.approveFile' : 'conversation.approveCommand')}</strong>
@@ -386,7 +389,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               answer={answer => void action({ type: 'answer', requestId: request.id, version: request.version, answer, controlEpoch: snapshot.controlEpoch })} />)}
             {startup?.status === 'cancelled' && <p className={styles.notice}>{t('conversation.startupPaused')} <button type="button" disabled={busy} onClick={() => void action({ type: 'startup', startupId: startup.id, action: 'resume', controlEpoch: snapshot!.controlEpoch })}>{t('conversation.startupResume')}</button></p>}
             {snapshot?.needsTerminal && <p className={styles.notice}>{t('conversation.useTerminal')} <button type="button" onClick={() => void changeMode('terminal')}>{t('conversation.terminal')}</button></p>}
-            {!editing && (error || snapshot?.error) && <p className={styles.error} role="alert">{error || snapshot?.error}</p>}
+            {!editing && (error || snapshot?.error) && <ConversationNotice kind={!error && snapshot?.connection === 'disconnected' ? 'connection' : 'error'} message={error || snapshot?.error || ''} />}
           </div>
         </div>
         <div className={styles.latestAnchor}>{showLatest && <button type="button" className={styles.latest} aria-label={t('conversation.latest')} title={t('conversation.latest')} onClick={() => {
