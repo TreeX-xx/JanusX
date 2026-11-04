@@ -66,6 +66,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('DSH native dual mode',
       let q = c.state.questions![0]
       await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'decision', selected: ['no'] }] } })
       await wait(() => c.state.questions?.[0]?.questions[0]?.id === 'checks', 'native questions')
+      await new Promise(resolve => setTimeout(resolve, 12000))
       q = c.state.questions![0]
       await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'checks', selected: ['0', '1'], text: 'Extra' }, { id: 'text', selected: [], text: '中文 typed' }] } })
       await done('NATIVE_QUESTIONS')

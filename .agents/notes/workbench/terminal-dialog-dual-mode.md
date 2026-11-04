@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-03T17:48:02Z",
+  "updated": "2026-11-04T03:55:42Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -24,7 +24,7 @@
 | 引擎 | 当前对话内处理范围 | 原生答复路径 |
 | --- | --- | --- |
 | Codex | 命令／文件审批的允许一次、会话允许、拒绝、拒绝并停止；原生提议的命令／网络持久规则；request_user_input 多题、单选、Other、无选项文字及密码遮罩 | JSON-RPC request ID；文字按原生 user_note 前缀编码 |
-| Claude | Write／Edit／Bash 允许一次或拒绝；AskUserQuestion 多题、单选、多选及自定义文字 | Mods 暂存原生工具调用，用户回答后继续；PermissionRequest 只消费问题内容和答案都相符的唯一待答回执 |
+| Claude | Write／Edit／Bash 允许一次或拒绝；AskUserQuestion 多题、单选、多选及自定义文字 | Mods API 长轮询等待人工回答，原生工具完成确认；PermissionRequest 只消费问题内容和答案都相符的唯一待答回执 |
 | OpenCode | 权限 once／always／reject；简单字符串、单选、多选、自定义文字、布尔和数值表单 | 原生 session permission/form reply；表单取消使用 DELETE，选项值与标签分开保存 |
 | Pi | 扩展 UI confirm、select、input、editor | 原 ExtensionUIContext 回调的布尔值、选项文字、输入文字或取消值 |
 | DSH | 当前根 Agent 的 approval/request 和无计时 user-questions/request；多选可附加自定义文字 | 原生 approval 结果词汇及结构化 selected/custom 答案 |
@@ -42,6 +42,18 @@ Claude／Pi／DSH 的新请求按已同步的显示模式选择一个回答方�
 浏览器测试 conversation-questions、codex-conversation、conversation-work-disclosure 共 24 个不同用例通过；包含批量回答、IME、取消／过期、模式切换保留输入、普通草稿不变、多种授权范围与窄窗换行。已查看 artifacts/conversation-interactions/questions-{dark,light}.png，提交按钮与底部输入区不重叠。复现入口为 npx vitest run 加上述测试文件、按引擎设置 JANUSX_TEST_*_BIN；界面使用 JANUS_E2E_PORT 指定独立端口后运行 npx playwright test tests/e2e/conversation-questions.spec.ts tests/e2e/codex-conversation.spec.ts tests/e2e/conversation-work-disclosure.spec.ts --project=island --workers=1 --timeout=60000。本轮未覆盖真实供应商账户、跨平台、任意上游版本或长时间故障恢复。
 
 静态验证：本次生产文件定向 ESLint、i18n 检查与 Notes 校验通过。以 e7108583 加本次改动建立临时检出，npm run typecheck:strict-unused 和 npm run build:app 均通过；验证隔离于工作区同时进行的文件树、Git 与切换界面改动。构建仍有既有 theme 模块同时静态／动态导入提示，Notes 校验保留 17 项既有外部链接诊断、无错误。
+
+### 长时间等待与原生提交确认
+
+Claude Code 2.1.318 的旧实现已实测复现：问题出现后等待 12 秒再提交，触发 `HooksError: janusx-conversation: next() after it settled`；原生仍在等待，而卡片已清除、终端提示也被错误复位。原因是 tool.call 内等待本地 Promise 消耗 Hook 的 10 秒执行预算。该证据不证明问题由 2.1.318 首次引入。
+
+当前 Claude 通过 `$.http.fetch` 调用会话私有、token 校验的 `/question-wait`；每 20 秒续期，单次低于原生 HTTP 的 30 秒限制。人工等待没有闲置超时。依据官方 [Mods 等待规则](https://code.claude.com/docs/en/plugins/mods/events.md#hold-a-tool-call-until-the-user-decides)与[限制](https://code.claude.com/docs/en/plugins/mods/reference.md#limits)，Mods API 内等待不计入 Hook 自身预算，本地 Promise 和 clock.sleep 则计入。控制回执唤醒长轮询；已经消费的答案在等待连接失败时仍继续处理一次。next.signal 取消后不再调用失效 next；失联或切回终端时撤销对话卡并交还原生。原生错误保留终端入口，不伪造工具结果。
+
+公共层区分原生接口回调确认与异步事件确认。Claude 等待 tool.complete，Codex 等待 serverRequest/resolved，Pi／DSH 等待原生问答路由的 question-resolved；OpenCode 仍以原生 HTTP reply 成功作为确认并同步待处理列表。单纯桥 ack／socket.send 不再清卡。事件确认路径在投递后等待 15 秒，缺少确认或提交中断线则保留 unknown、禁止重发并允许切终端；该时限不作用于用户阅读时间。迟到的原生确认仍可清除对应请求。Pi／DSH 保留调用方显式 signal／timeout 语义，DSH timed questions 仍在原生处理。
+
+验证（2026-11-04）：五引擎已安装 Windows CLI、隔离配置和 localhost fixture 的问答用例通过。Claude 等待 25 秒跨过一次续期后正确收到单选、多选、中文文字，另验证等待中停止、切回终端与旧卡片拒绝；Codex、OpenCode、Pi、DSH 各等待 12 秒后答复通过。入口为 tests/unit/{claude,codex,opencode,pi,dsh}-conversation-cli.test.ts，使用 JANUSX_TEST_*_BIN，Claude 选择 `answers native questions` 用例。公共及原生路由用假时钟验证 8 小时无操作、确认超时、断线、迟到确认和重复提交；Mods 单测验证 API 续期、取消及等待连接失败时不丢已消费答案。真实数小时闲置、系统休眠恢复、真实供应商与跨平台仍未验收；进程退出或原生请求取消不会被当作可继续的旧问题。
+
+本轮 11 个相关单测文件共 90 项通过；TypeScript（含 strict-unused）、生产文件定向 ESLint 与 Notes 校验通过。Notes 保留 17 项既有外部引用诊断、无错误。验证不包含打包发布；新的会话私有 Mod 随新建终端加载，已运行 worker 不热替换。
 
 ## 对话直接启动的加载反馈
 

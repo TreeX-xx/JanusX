@@ -10,6 +10,49 @@ const request: ConversationQuestionRequest = { id: 'request', version: 1, cancel
 const answer = { answers: [{ id: 'q', selected: ['a'] }] }
 
 describe('native question lifetime', () => {
+  it('allows hours of human idle time, but keeps a sent answer until native confirmation', async () => {
+    vi.useFakeTimers()
+    const session = new ConversationSession(conversationState('test', 'codex'), () => {})
+    try {
+      const reply = vi.fn()
+      session.questions.ask(request, reply, 'event')
+      await vi.advanceTimersByTimeAsync(8 * 60 * 60 * 1000)
+      expect(session.state.questions![0].status).toBe('pending')
+      await session.questions.answer('request', 1, answer)
+      expect(session.state.questions![0].status).toBe('submitting')
+      await expect(session.questions.answer('request', 1, answer)).rejects.toThrow('already answered')
+      session.questions.resolve('request')
+      await vi.advanceTimersByTimeAsync(15000)
+      expect(session.state.questions).toEqual([])
+      expect(session.state.error).toBeUndefined()
+      expect(reply).toHaveBeenCalledTimes(1)
+    } finally { session.stop(); vi.useRealTimers() }
+  })
+
+  it('retains uncertain submissions on missing confirmation or disconnect without replaying', async () => {
+    vi.useFakeTimers()
+    const session = new ConversationSession(conversationState('test', 'codex'), () => {})
+    try {
+      const reply = vi.fn()
+      session.questions.ask(request, reply, 'event')
+      await session.questions.answer('request', 1, answer)
+      await vi.advanceTimersByTimeAsync(15000)
+      expect(session.state.questions![0].status).toBe('unknown')
+      expect(session.state.needsTerminal).toBe(true)
+      session.questions.ask(request, reply, 'event')
+      await expect(session.questions.answer('request', 1, answer)).rejects.toThrow('already answered')
+      session.questions.resolve('request')
+      session.questions.ask(request, reply, 'event')
+      await session.questions.answer('request', 2, answer)
+      session.questions.disconnected('Socket closed')
+      expect(session.state.questions![0].status).toBe('unknown')
+      session.questions.resolve('request') // Late authoritative confirmation is still accepted.
+      expect(session.state.questions).toEqual([])
+      expect(session.state.error).toBeUndefined()
+      expect(reply).toHaveBeenCalledTimes(2)
+    } finally { session.stop(); vi.useRealTimers() }
+  })
+
   it('validates complete batches, explicit choices, custom input and limits', () => {
     for (const value of [answer, { answers: [{ id: 'q', selected: [], text: '中文 text' }] }, { cancelled: true, answers: [] }]) expect(() => validateConversationAnswer(request, value)).not.toThrow()
     for (const value of [
@@ -73,6 +116,7 @@ describe('provider question protocols', () => {
     wire.receive({ type: 'question', data: { id: 'question:tool', toolUseId: 'tool', turnId: 't', questions } })
     await c.command({ type: 'answer', requestId: 'question:tool', version: 1, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: '0', selected: ['1'] }] } })
     expect(call).toHaveBeenLastCalledWith({ type: 'answer', requestId: 'question:tool', answer: { answers: { 'Proceed?': 'No' } } })
+    expect(c.state.questions![0].status).toBe('submitting')
     const input = { questions: [{ question: 'Proceed?', header: 'Confirm', multiSelect: false, options: questions[0].options }], answers: { 'Proceed?': 'No' } }
     const json = vi.spyOn(wire, 'json').mockImplementation(() => {})
     await wire.permission({ session_id: 's', tool_name: 'AskUserQuestion', tool_input: input }, {})
@@ -82,6 +126,9 @@ describe('provider question protocols', () => {
     await wire.permission({ session_id: 's', tool_name: 'AskUserQuestion', tool_input: { ...input, answers: { 'Proceed?': 'Yes' } } }, {})
     expect(json).toHaveBeenLastCalledWith({}, {})
     expect(wire.questionReplies.size).toBe(1)
+    wire.receive({ type: 'tool.error', data: { toolUseId: 'tool', text: 'Native rejected the answer' } })
+    expect(c.state.questions![0].status).toBe('unknown')
+    expect(c.state.needsTerminal).toBe(true)
     await c.dispose()
   })
   it('returns Codex request IDs and native answer labels; native resolution invalidates stale replies', async () => {
@@ -96,6 +143,9 @@ describe('provider question protocols', () => {
     expect(c.state.needsTerminal).toBe(false)
     await c.command({ type: 'answer', requestId: 52, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'q', selected: [], text: 'custom 原文' }] } })
     expect(send).toHaveBeenLastCalledWith({ id: 52, result: { answers: { q: { answers: ['user_note: custom 原文'] } } } })
+    expect(c.state.questions![0].status).toBe('submitting')
+    wire.receive({ method: 'serverRequest/resolved', params: { threadId: 's', requestId: 52 } })
+    expect(c.state.questions).toEqual([])
     wire.receive({ id: 'late', method: 'item/tool/requestUserInput', params: { threadId: 's', questions: [{ id: 'q', question: 'Secret', isSecret: true }] } })
     expect(c.state.questions![0].questions[0]).toMatchObject({ allowText: true, secret: true })
     wire.receive({ method: 'serverRequest/resolved', params: { threadId: 's', requestId: 'late' } })

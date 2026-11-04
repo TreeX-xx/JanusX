@@ -49,6 +49,7 @@ export class ClaudeConversation {
   private broken = false
   private heartbeat?: ReturnType<typeof setInterval>
   private pending = new Map<string, { command: Json; resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
+  private questionWaiters = new Map<string, () => void>()
   private tools = new Map<string, { turnId: string; name: string; taskId?: string; active: boolean }>()
   private finishedTasks = new Map<string, string>()
   private catalogSettings = ''
@@ -70,6 +71,7 @@ export class ClaudeConversation {
 
   private fail(message: string): void {
     if (this.disposed) return
+    this.session.questions.disconnected(message)
     this.state.connection = 'disconnected'; this.state.error = message; this.changed()
   }
 
@@ -199,6 +201,28 @@ export class ClaudeConversation {
       const body = JSON.parse(text) as Json
       if (this.disposed) { this.json(response, {}, 410); return }
       if (request.url === '/permission') { await this.permission(body, response); return }
+      if (request.url === '/question-wait') {
+        if (body.terminalId !== this.id || typeof body.sessionId !== 'string' ||
+          (this.state.threadId && body.sessionId !== this.state.threadId) || typeof body.requestId !== 'string' || this.broken) {
+          this.json(response, {}, 409); return
+        }
+        // This request keeps the native Mods API wait active, not a JS Promise
+        // inside tool.call. Answer acknowledgements wake it without a polling lag.
+        this.questionWaiters.get(body.requestId)?.()
+        const finish = () => {
+          clearTimeout(timer)
+          response.removeListener('close', finish)
+          if (this.questionWaiters.get(body.requestId) === finish) this.questionWaiters.delete(body.requestId)
+          this.json(response, {})
+        }
+        const timer = setTimeout(finish, 20000) // $.http.fetch's native limit is 30s.
+        this.questionWaiters.set(body.requestId, finish)
+        response.on('close', finish)
+        // The answer may have been acknowledged just before this wait arrived.
+        const question = this.state.questions?.find(q => q.id === body.requestId)
+        if (this.state.mode === 'terminal' || (question && question.status !== 'pending')) finish()
+        return
+      }
       if (request.url !== '/exchange' || body.terminalId !== this.id || typeof body.sessionId !== 'string') { this.json(response, {}, 400); return }
       if (this.state.threadId && body.sessionId !== this.state.threadId) { this.broken = true; this.fail('Claude session changed. Open a new conversation to bind it safely.'); this.json(response, {}, 409); return }
       this.state.threadId = body.sessionId; this.lastSeen = Date.now()
@@ -214,6 +238,7 @@ export class ClaudeConversation {
         if (pending) { clearTimeout(pending.timer); this.pending.delete(ack.id); if (ack.ok) pending.resolve(ack.result ?? {}); else pending.reject(new Error(String(ack.error))) }
         acked.push(ack.id)
       }
+      if (acked.length) for (const finish of this.questionWaiters.values()) finish()
       if (this.state.connection === 'disconnected' && !this.broken) { this.state.connection = 'ready'; this.state.error = undefined; this.changed() }
       this.json(response, { seq: this.sequence, mode: this.state.mode, acks: acked, commands: [...this.pending.values()].map(value => value.command) })
     } catch (error) { this.fail(String(error)); this.json(response, {}, 400) }
@@ -237,9 +262,13 @@ export class ClaudeConversation {
         const answers = Object.fromEntries(questions.map(question => [question.text, answer.cancelled ? '' : questionAnswerValues(question, answer.answers.find(row => row.id === question.id)!).join(', ')]))
         if (!answer.cancelled) this.questionReplies.set(e.toolUseId, { questions: e.questions, answers })
         await this.call({ type: 'answer', requestId: e.id, answer: answer.cancelled ? { cancelled: true } : { answers } })
-      })
+      }, 'event')
     } else if (event.type === 'question.resolved') this.session.questions.resolve(e.id)
-    else if (event.type === 'question.native') this.state.needsTerminal = true
+    else if (event.type === 'question.native') {
+      this.session.questions.resolve(`question:${e.toolUseId}`)
+      this.questionReplies.delete(e.toolUseId)
+      this.state.needsTerminal = true
+    }
     else if (event.type === 'session.start') { this.state.capabilities.questions = true; this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null }
     else if (event.type === 'settings') {
       this.state.model = e.model ?? this.state.model; this.state.effort = e.effort ?? null
@@ -301,8 +330,9 @@ export class ClaudeConversation {
       if (item) this.session.discoverImages(item.id)
       this.expireToolApproval(e.toolUseId)
       this.questionReplies.delete(e.toolUseId)
-      this.session.questions.resolve(`question:${e.toolUseId}`)
-      if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(tool.name)) this.state.needsTerminal = false
+      if (event.type === 'tool.error') this.session.questions.uncertain(`question:${e.toolUseId}`, String(e.text ?? 'Native question failed'))
+      else this.session.questions.resolve(`question:${e.toolUseId}`)
+      if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(tool.name)) this.state.needsTerminal = event.type === 'tool.error'
     } else if (event.type === 'task.complete') {
       if (typeof e.taskId !== 'string' || !['completed', 'failed', 'killed', 'missing'].includes(e.status)) return
       this.finishedTasks.set(e.taskId, e.status)
@@ -313,6 +343,7 @@ export class ClaudeConversation {
         if (item) item.status = e.status === 'killed' || e.status === 'missing' ? 'interrupted' : e.status
       }
     } else if (event.type === 'turn.complete') {
+      for (const request of this.state.questions ?? []) if (request.turnId === e.turnId) this.session.questions.resolve(request.id)
       const outcome = e.reason === 'aborted' ? 'interrupted' : e.reason === 'error' ? 'failed' : 'completed'
       this.state.plans = this.state.plans?.map(plan => plan.turnId === e.turnId ? { ...plan, outcome } : plan)
       if (this.state.turnId === e.turnId) {
@@ -468,6 +499,7 @@ export class ClaudeConversation {
   dispose(): Promise<void> {
     if (this.stopping) return this.stopping
     this.disposed = true; this.session.stop()
+    for (const finish of this.questionWaiters.values()) finish()
     this.questionReplies.clear()
     this.catalogAbort.abort()
     this.stopping = (async () => {

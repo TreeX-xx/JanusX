@@ -14,6 +14,29 @@ class Fixture extends NativeConversation {
   async dispose() { this.close() }
 }
 describe('native conversation controls', () => {
+  it('waits for native resolution and preserves unrelated terminal attention after a late confirmation', async () => {
+    vi.useFakeTimers()
+    const c = new Fixture()
+    try {
+      c.emit({ type: 'session', sessionId: 's' })
+      await c.command({ type: 'mode', mode: 'conversation' })
+      c.emit({ type: 'question', request: { id: 'q', questions: [{ id: 'choice', text: 'Choose', options: [{ id: 'yes', label: 'Yes' }] }] } })
+      await c.command({ type: 'answer', requestId: 'q', version: c.state.questions![0].version, controlEpoch: c.state.controlEpoch,
+        answer: { answers: [{ id: 'choice', selected: ['yes'] }] } })
+      expect(c.state.questions![0].status).toBe('submitting')
+      await vi.advanceTimersByTimeAsync(15000)
+      c.emit({ type: 'attention', pending: false })
+      expect(c.state.needsTerminal).toBe(true)
+      c.emit({ type: 'attention', pending: true })
+      c.emit({ type: 'question-resolved', requestId: 'q' })
+      expect(c.state.questions).toEqual([])
+      expect(c.state.error).toBeUndefined()
+      expect(c.state.needsTerminal).toBe(true)
+      c.emit({ type: 'attention', pending: false })
+      expect(c.state.needsTerminal).toBe(false)
+    } finally { await c.dispose(); vi.useRealTimers() }
+  })
+
   it('keeps active-turn submission blocked for adapters without liveInput', async () => {
     const c = new Fixture()
     try {

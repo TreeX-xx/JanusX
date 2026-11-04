@@ -29,6 +29,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('OpenCode native dual m
         { key: 'text', type: 'string', title: 'Type something', required: true },
       ] })
       await wait(() => c.state.questions?.some(q => q.id === `form:${form.data.id}`) === true)
+      await new Promise(resolve => setTimeout(resolve, 12000))
       let q = c.state.questions![0]
       await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [
         { id: 'yes', selected: ['false'] }, { id: 'choices', selected: ['unit', 'browser'], text: 'custom' }, { id: 'text', selected: [], text: '中文 typed' },

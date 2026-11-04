@@ -42,3 +42,23 @@ it('releases unanswered requests to the terminal on a mode switch and cancels ab
   expect(await router.ask(request, abort.signal)).toEqual({ cancelled: true, answers: [] })
   expect(emit).toHaveBeenCalledTimes(count)
 })
+
+it('keeps Pi and DSH untimed questions answerable after hours without replaying an expired request', async () => {
+  vi.useFakeTimers()
+  try {
+    const { router, emit } = fixture()
+    router.setMode('conversation')
+    const pending = router.ask(request)
+    const id = emit.mock.calls[0][0].request.id
+    await vi.advanceTimersByTimeAsync(8 * 60 * 60 * 1000)
+    const answer = { answers: [{ id: 'q', selected: ['yes'] }] }
+    router.answer({ requestId: id, answer })
+    expect(await pending).toEqual(answer)
+    const abandoned = router.ask(request)
+    const oldId = emit.mock.calls.at(-1)![0].request.id
+    router.setMode('terminal')
+    expect(await abandoned).toEqual({ native: true })
+    router.setMode('conversation')
+    expect(() => router.answer({ requestId: oldId, answer })).toThrow('expired')
+  } finally { vi.useRealTimers() }
+})

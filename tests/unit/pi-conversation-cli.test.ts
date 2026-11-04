@@ -56,6 +56,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('Pi native dual mode', 
       await c.command({ type: 'invoke', entryId: questionCommand.id, arguments: '', catalogRevision: c.state.commandsRevision!, commandId: 'questions', controlEpoch: c.state.controlEpoch })
       for (const [title, selected, text] of [['Continue?', ['1'], undefined], ['Pick one', ['1'], undefined], ['Type something', [], '中文 typed'], ['Edit notes', [], 'Edited\nnotes']] as const) {
         await wait(() => c.state.questions?.[0]?.questions[0]?.text === title, title)
+        if (title === 'Pick one') await new Promise(resolve => setTimeout(resolve, 12000))
         const q = c.state.questions![0]
         await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'answer', selected: [...selected], ...(text ? { text } : {}) }] } })
       }

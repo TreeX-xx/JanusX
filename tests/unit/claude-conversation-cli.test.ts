@@ -95,6 +95,9 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await main.command({ type: 'mode', mode: 'conversation' })
       await main.command({ type: 'send', text: 'CC_QUESTION', commandId: 'question', controlEpoch: main.state.controlEpoch })
       await until(() => main.state.questions?.length === 1, 'question projected')
+      // Human idle time must outlive both the 10s Mods budget and one 20s
+      // long-poll renewal, without handing the unanswered request to the TUI.
+      await delay(25000)
       const request = main.state.questions![0]
       expect(main.state.needsTerminal).toBe(false)
       await main.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: main.state.controlEpoch,
@@ -105,13 +108,29 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       expect(JSON.stringify(result.messages)).toContain('Unit, Browser')
       expect(main.state.questions).toEqual([])
       expect(main.state.items.filter(item => item.type === 'userMessage')).toHaveLength(1)
+      // Cancelling a later request must not reuse the first answer or leave a
+      // wait in the Mod alive after the native turn is interrupted.
+      await main.command({ type: 'send', text: 'CC_QUESTION', commandId: 'question-cancel', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.questions?.length === 1, 'cancel question projected')
+      await main.command({ type: 'interrupt', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId && !main.state.questions?.length, 'question interrupted')
+      await main.command({ type: 'send', text: 'CC_QUESTION', commandId: 'question-native', controlEpoch: main.state.controlEpoch })
+      await until(() => main.state.questions?.length === 1, 'native handoff question projected')
+      const stale = main.state.questions![0]
+      await main.command({ type: 'mode', mode: 'terminal' })
+      await until(() => !main.state.questions?.length && main.state.needsTerminal, 'native owns question')
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await expect(main.command({ type: 'answer', requestId: stale.id, version: stale.version, controlEpoch: main.state.controlEpoch,
+        answer: { cancelled: true, answers: [] } })).rejects.toThrow('expired')
+      await main.command({ type: 'interrupt', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId, 'native question interrupted')
     } finally {
       await mkdir('artifacts/conversation-interactions', { recursive: true })
       await writeFile('artifacts/conversation-interactions/claude-native.json', JSON.stringify({ state: main.snapshot(), root: fixture.root, requests: fixture.requests }, null, 2))
       if (setup && !exited) setup.kill()
       await main.dispose(); await fixture.close()
     }
-  })
+  }, 90000)
   it('settles real background work without an attached native transcript', async () => {
     const fixture = await claudeConversationFixture()
     const main = new ClaudeConversation('claude-background', () => {})

@@ -25,16 +25,34 @@ let displayMode = 'terminal'
 const questions = new Map()
 
 function releaseQuestions(turnId, native = false) {
-  for (const [id, pending] of questions) if (!turnId || pending.turnId === turnId) {
-    questions.delete(id); pending.resolve(native ? { native: true } : { cancelled: true })
+  for (const pending of questions.values()) if (!turnId || pending.turnId === turnId) {
+    if (!pending.reply) pending.reply = native ? { native: true } : { cancelled: true }
   }
 }
 
-async function askQuestion(e) {
+async function askQuestion($, e, signal) {
   const id = `question:${e.tool_use_id}`
+  const pending = { turnId: currentTurn, reply: null }
+  questions.set(id, pending)
   record('question', { id, toolUseId: e.tool_use_id, turnId: currentTurn, questions: e.questions })
-  try { return await new Promise(resolve => questions.set(id, { turnId: currentTurn, resolve })) }
-  finally { questions.delete(id); record('question.resolved', { id }) }
+  try {
+    // Mods API waits do not spend the Hook's own execution budget. A local
+    // Promise (or clock.sleep) does, and expires while a human reads the question.
+    // Each HTTP wait is bounded; the question itself has no idle timeout.
+    while (!pending.reply && !signal?.aborted) {
+      const response = await $.http.fetch(endpoint + '/question-wait', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-JanusX-Token': token },
+        body: JSON.stringify({ terminalId, sessionId, requestId: id }) })
+      if (!response.ok) return pending.reply ?? { native: true }
+    }
+    return signal?.aborted ? { cancelled: true } : pending.reply
+  } catch {
+    return signal?.aborted ? { cancelled: true } : pending.reply ?? { native: true }
+  } finally {
+    questions.delete(id)
+    // An answer is resolved by tool.complete, not by the bridge accepting it.
+    if (signal?.aborted) record('question.resolved', { id })
+  }
 }
 
 function recordPlan(turnId, rows, source) {
@@ -119,9 +137,8 @@ async function execute($, command) {
       if (displayMode === 'terminal') releaseQuestions(undefined, true)
     } else if (command.type === 'answer') {
       const pending = questions.get(command.requestId)
-      if (!pending) throw new Error('Question expired')
-      questions.delete(command.requestId)
-      pending.resolve(command.answer)
+      if (!pending || pending.reply) throw new Error('Question expired')
+      pending.reply = command.answer
     } else if (command.type === 'settings') {
       if (currentTurn || settingsBusy) throw new Error('Wait until Claude is idle before changing settings')
       settingsBusy = true
@@ -351,7 +368,8 @@ export function register(on) {
       let input = e
       let cancelled = false
       if (e.tool === 'AskUserQuestion' && displayMode === 'conversation' && Array.isArray(e.questions) && e.questions.length > 0 && e.questions.length <= 20 && e.questions.every(q => typeof q.question === 'string' && Array.isArray(q.options) && q.options.every(o => typeof o.label === 'string'))) {
-        const reply = await askQuestion(e)
+        const reply = await askQuestion($, e, next.signal)
+        if (next.signal?.aborted) return { deny: 'The question was interrupted.' }
         if (reply.native) record('question.native', { toolUseId: e.tool_use_id })
         else if (reply.cancelled) cancelled = true
         else input = { ...e, answers: reply.answers }

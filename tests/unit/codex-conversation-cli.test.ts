@@ -30,6 +30,7 @@ describe.skipIf(!bin || process.platform !== 'win32')('managed Codex native TUI 
       const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
       await c.command({ type: 'send', commandId: 'question', text: 'Ask a question', controlEpoch })
       await vi.waitFor(() => expect(c.state.questions).toHaveLength(1), { timeout: 15000 })
+      await new Promise(resolve => setTimeout(resolve, 12000))
       const q = c.state.questions![0]
       expect(q.questions.every(question => question.allowText)).toBe(true)
       await c.command({ type: 'answer', requestId: q.id, version: q.version, controlEpoch, answer: { answers: [

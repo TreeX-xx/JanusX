@@ -210,6 +210,7 @@ export class CodexConversation {
   }
   private fail(error: string): void {
     if (this.disposed) return
+    this.session.questions.disconnected(error)
     this.newThread?.reject(new Error(error))
     this.startup.dispose(); this.state.startup = undefined
     this.state.connection = 'disconnected'; this.state.error = error.slice(0, 4000); this.changed()
@@ -387,7 +388,7 @@ export class CodexConversation {
           const row = answer.answers.find(row => row.id === question.id)
           return [question.id, { answers: !row || answer.cancelled ? [] : [...row.selected.map(id => question.options.find(option => option.id === id)!.label), ...(row.text?.trim() ? [`user_note: ${row.text}`] : [])] }]
         })) } })
-      })
+      }, 'event')
     } else if (message.id !== undefined && method) { this.otherRequests.add(message.id); this.state.needsTerminal = true }
     else if (method === 'error') this.state.error = String(p.error?.message ?? 'Codex error')
     else return

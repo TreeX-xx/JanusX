@@ -15,6 +15,7 @@ export abstract class NativeConversation {
   private catalog: ConversationCatalog
   protected disposed = false
   private broken = false
+  private nativeAttention = false
   constructor(readonly id: string, engine: ConversationEngine, publish: (value: ConversationSnapshot) => void,
     private readonly bind: (sessionId: string, path?: string) => void = () => {}) {
     this.state = conversationState(id, engine)
@@ -26,6 +27,7 @@ export abstract class NativeConversation {
 
   protected fail(error: string): void {
     if (this.disposed) return
+    this.session.questions.disconnected(error)
     this.broken = true; this.state.connection = 'disconnected'; this.state.error = error; this.changed()
   }
   protected receive(event: NativeEvent): void {
@@ -43,7 +45,7 @@ export abstract class NativeConversation {
         this.session.discoverImages(item.id)
         if (item.type === 'agentMessage' && this.state.turnStartedAt) item.durationMs = Date.now() - this.state.turnStartedAt
       }
-      this.state.turnId = null; this.state.turnStartedAt = undefined; this.state.needsTerminal = false
+      this.state.turnId = null; this.state.turnStartedAt = undefined; this.state.needsTerminal = false; this.nativeAttention = false
     } else if (event.type === 'item' && event.item) {
       const next = { ...event.item, text: event.item.text.slice(0, 32000), truncated: event.item.text.length > 32000 || event.item.truncated }
       const existing = this.state.items.find(item => item.id === next.id)
@@ -56,12 +58,15 @@ export abstract class NativeConversation {
       const sessionId = this.state.threadId!
       this.session.questions.ask(request, async answer => {
         await this.deliver({ id: randomUUID(), type: 'answer', requestId: request.id, answer, sessionId, turnId: this.state.turnId })
-      })
+      }, 'event')
     } else if (event.type === 'question-resolved' && event.requestId !== undefined) {
       this.session.questions.resolve(event.requestId)
+      this.state.needsTerminal = this.nativeAttention || !!this.state.questions?.some(q => q.status === 'unknown')
     } else if (event.type === 'attention') {
-      if (this.state.needsTerminal === !!event.pending) return
-      this.state.needsTerminal = !!event.pending
+      this.nativeAttention = !!event.pending
+      const needsTerminal = this.nativeAttention || !!this.state.questions?.some(q => q.status === 'unknown')
+      if (this.state.needsTerminal === needsTerminal) return
+      this.state.needsTerminal = needsTerminal
     }
     else if (event.type === 'error') { this.fail(event.error ?? 'Native bridge failed'); return }
     this.changed()
