@@ -3,7 +3,7 @@
  *
  * 空终端（无 pane / 无终端）下的 6 张类型卡片。
  * 规则：底色吃 --shell-card，与侧栏/TeamFooter 同阶梯；
- * 悬浮只做“暖色微抬 + 橙边 + 轻浮起”，不用纯灰 --shell-active（#333336 太跳）。
+ * 悬浮使用主题交互色微抬、细边与轻浮起，避免主强调色的橙色反馈。
  * 注意：边框/背景必须写在这里，内联 style 会盖掉 :hover（见 TeamFooter.module.css）。
  *
  * 布局：全部显示、不折叠，但列数只取 6 的约数（6 / 3 / 2），避免
@@ -70,14 +70,14 @@
 
 .card:hover,
 .card:focus-visible {
-  border-color: var(--shell-accent-border);
+  border-color: color-mix(in srgb, var(--interaction-accent) 60%, transparent);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--primary) 7%, transparent), color-mix(in srgb, var(--primary) 2%, transparent)),
+    linear-gradient(180deg, color-mix(in srgb, var(--interaction-accent) 7%, transparent), color-mix(in srgb, var(--interaction-accent) 2%, transparent)),
     var(--shell-chrome-raised);
   transform: translateY(-2px);
   box-shadow:
     0 8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--interaction-accent) 8%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 6%, transparent);
   outline: none;
 }
@@ -87,14 +87,14 @@
 }
 
 .card:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--primary) 64%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--interaction-accent) 64%, transparent);
   outline-offset: 2px;
 }
 
 .cardBusy {
   cursor: wait;
   opacity: 0.72;
-  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  border-color: color-mix(in srgb, var(--interaction-accent) 35%, transparent);
 }
 
 .cardBusy:hover,
@@ -209,7 +209,7 @@
 .shellPick:hover,
 .shellPickOpen {
   background: color-mix(in srgb, var(--surface-tint) 7%, transparent);
-  color: var(--shell-accent-strong);
+  color: var(--interaction-accent);
 }
 
 .shellPick:disabled {
@@ -228,7 +228,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--interaction-accent) 28%, transparent);
   border-radius: 10px;
   background: var(--shell-chrome-raised);
   box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-color) 34%, transparent), inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 8%, transparent);
@@ -250,8 +250,8 @@
 }
 
 .shellMenuItem:hover {
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--interaction-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--interaction-accent) 8%, transparent);
 }
 
 .shellMenuItemHead {
@@ -285,12 +285,12 @@
   flex-shrink: 0;
   padding: 1px 4px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--primary) 16%, transparent);
-  color: var(--shell-accent-strong);
+  background: color-mix(in srgb, var(--interaction-accent) 16%, transparent);
+  color: var(--interaction-accent);
   font-size: 9px;
 }
 
-/* ── planche：纸卡 + 墨线，悬浮只换底 + 朱红边 + 套印偏移影 ──
+/* ── planche：纸卡 + 墨线，悬浮只换底 + 墨灰边 + 套印偏移影 ──
    硬黑投影在纸面上发脏，改用风格文档的 misprint 偏移影 */
 :global([data-theme='planche']) .card {
   border-radius: 6px;
@@ -299,10 +299,10 @@
 
 :global([data-theme='planche']) .card:hover,
 :global([data-theme='planche']) .card:focus-visible {
-  border-color: var(--shell-accent);
+  border-color: var(--interaction-accent);
   background: var(--shell-hover);
   transform: none;
-  box-shadow: 3px 3px 0 var(--shell-accent);
+  box-shadow: 3px 3px 0 var(--interaction-accent);
   outline: none;
 }
 
@@ -316,7 +316,7 @@
 }
 
 :global([data-theme='planche']) .card:focus-visible {
-  outline: 2px solid var(--shell-accent);
+  outline: 2px solid var(--interaction-accent);
   outline-offset: 2px;
 }
 
@@ -352,7 +352,7 @@
 :global([data-theme='planche']) .shellPick:hover,
 :global([data-theme='planche']) .shellPickOpen {
   background: var(--shell-hover);
-  color: var(--shell-accent);
+  color: var(--interaction-accent);
 }
 
 :global([data-theme='planche']) .shellMenuItemCommand {
@@ -362,7 +362,7 @@
 :global([data-theme='planche']) .shellMenu {
   border-color: var(--shell-text);
   background: var(--shell-canvas);
-  box-shadow: 3px 3px 0 var(--shell-accent);
+  box-shadow: 3px 3px 0 var(--interaction-accent);
 }
 
 :global([data-theme='planche']) .shellMenuItem,
@@ -371,7 +371,7 @@
 }
 
 :global([data-theme='planche']) .shellMenuItem:hover {
-  border-color: var(--shell-accent);
+  border-color: var(--interaction-accent);
   background: var(--shell-hover);
 }
 

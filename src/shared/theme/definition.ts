@@ -131,6 +131,7 @@ const SHARED_UI_TOKENS = {
 }
 
 const DARK_TOKENS = {
+  'interaction-accent': '#a1a1aa',
   ...SHARED_UI_TOKENS,
   'glow-core': '#ffffff',
   'glow-strength': '1',
@@ -304,6 +305,7 @@ export const DARK_THEME_DEFINITION: ThemeDefinition = {
    来源 design/pelican-lithograph-style.md：纸 #EFE4C5 / 墨 #1C343B / 朱红 #D43D2A。 */
 
 const PLANCHE_TOKENS = {
+  'interaction-accent': '#69665f',
   ...SHARED_UI_TOKENS,
   'effort-minimal-color': '#516679',
   'effort-minimal-glow': '#516679',
@@ -508,6 +510,7 @@ export const PLANCHE_THEME_DEFINITION: ThemeDefinition = {
 
 /** Neutral white surfaces, dark ink and a restrained orange accent. */
 const WHITE_TOKENS = {
+  'interaction-accent': '#71717a',
   ...SHARED_UI_TOKENS,
   'effort-minimal-color': '#516679',
   'effort-minimal-glow': '#516679',

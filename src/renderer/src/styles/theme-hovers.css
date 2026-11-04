@@ -7,9 +7,9 @@
 [data-theme='planche'] .tbtn-accent:not(:disabled):hover { background: var(--accent-mid); border-color: var(--shell-accent-border); }
 .tbtn-danger:hover { background: color-mix(in srgb, var(--status-danger) 22%, transparent); border-color: color-mix(in srgb, var(--status-danger) 50%, transparent); }
 [data-theme='planche'] .tbtn-danger:hover { background: color-mix(in srgb, var(--shell-accent) 16%, transparent); border-color: var(--shell-accent); }
-.terminal-preset-item:hover { border-color: color-mix(in srgb, var(--primary) 46%, transparent); background: var(--shell-pane); }
-[data-theme='planche'] .terminal-preset-item:hover { border-color: color-mix(in srgb, var(--shell-accent) 50%, transparent); background: var(--shell-hover); }
-.terminal-empty-new:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.terminal-preset-item:hover { border-color: color-mix(in srgb, var(--interaction-accent) 46%, transparent); background: var(--shell-pane); }
+[data-theme='planche'] .terminal-preset-item:hover { border-color: color-mix(in srgb, var(--interaction-accent) 50%, transparent); background: var(--shell-hover); }
+.terminal-empty-new:hover { background: color-mix(in srgb, var(--interaction-accent) 8%, transparent); }
 [data-theme='planche'] .terminal-empty-new:hover { background: var(--shell-hover); }
 /* 预览器分栏条：悬浮点睛（拖拽中保持由 JS 的 isDragging 语义退化为纯 CSS，接受拖拽中也高亮） */
 .viewer-divider:hover { background: var(--primary); }

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-11-03",
-  "updated": "2026-11-03T12:05:47.716Z",
+  "updated": "2026-11-04T10:45:06.982Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -53,3 +53,5 @@ SDK 额外携带一份生成 CSS，因此主题变动需要更新 SDK 生成物�
 共享设置控件迁入 `@janusx/ui` 后，主题审计同时覆盖 `packages/ui/src`；公共控件、菜单阴影与图标底板只读取宿主／SDK 的主题变量，不另设暗色兜底。蓝图的中性图标及 Codex 滤镜由图标组件管理，避免控件样式迁移后丢失。推理强度保持 dev 的六档色相与原生设置确认行为，文字、辉光、高光和彩色装饰统一归入 `effort-*` 令牌，浅色使用更深的文字与边界色。手机远控沿用新增右栏入口；二维码的固定白色扫描底板属于既有例外，随文件迁移更新审计路径。
 
 本轮与 dev 的共享设置、模型用量、手机远控和推理强度改动整合后，7 个单测文件共 91 项通过；`white-theme`、`settings-controls`、`settings-layout`、`conversation-settings`、`usage-stats` 和 `mobile-remote-rail` 共 49 项浏览器回归通过。签名蓝图插件的 Electron 综合场景再次通过，包含主题切换、MCP 图标、设置、讨论与重装数据保留。类型检查、应用生产构建、主题及 i18n 检查、蓝图独立类型检查和 CPA／Docker 构建通过；lint 仍为 0 错误、51 条既有警告。新截图与日志在 `artifacts/white-theme/dev-adapt-*`，真实插件及推理强度截图在保留资料的 `final-integration/artifacts/` 下。已复核纯白 MCP、推理强度与共享设置界面。SDK 与公共 UI 归档锁随本次修改更新；未重跑外部 janus-agentX 归档的严格复现或完整安装包验收。
+
+终端类型卡片、类型菜单及工具／对话滚动条使用独立的中性 `interaction-accent`：经典黑为银灰、纸色为暖墨灰、纯白为石墨灰。悬浮与键盘焦点均不再引用橙色主强调色，插件主题继承基底主题的交互色。

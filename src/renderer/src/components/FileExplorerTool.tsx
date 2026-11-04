@@ -574,7 +574,7 @@ export function FileExplorerTool({ active = true }: { active?: boolean }) {
           data-testid="file-explorer-content"
           aria-busy={fileTreeLoadState === 'loading'}
           aria-label={t('editor:fileTree.ariaContent')}
-          className={`no-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5 text-xs ${styles.treeViewport}`}
+          className={`min-h-0 flex-1 overflow-y-auto p-1.5 text-xs ${styles.treeViewport}`}
           onContextMenu={(event) => {
             event.preventDefault()
             // 空白区菜单:item 已 stopPropagation;这里再 stop 防冒泡到外层容器

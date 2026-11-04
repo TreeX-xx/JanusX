@@ -32,7 +32,7 @@
 .modeSpinner { width: 12px; height: 12px; border: 1.5px solid var(--shell-border); border-top-color: var(--shell-muted); border-radius: 50%; animation: modeSpin 700ms linear infinite; }
 .root[data-view-transition] .modeLoading { animation: loadingLeave 220ms ease-out both; }
 .terminal { position: absolute; inset: 0; }
-.conversation { height: 100%; display: flex; flex-direction: column; }
+.conversation { composes: scope from '../styles/native-scrollbars.module.css'; height: 100%; display: flex; flex-direction: column; }
 .conversation[hidden] { display: none; }
 .planDock { flex-shrink: 0; width: calc(100% - 48px); max-width: 744px; margin: 0 auto; }
 .plan { border: 1px solid var(--shell-border); background: color-mix(in srgb, var(--shell-chrome-raised) 35%, var(--bg-deep)); border-radius: 12px; color: var(--shell-muted); font-size: 12px; overflow: hidden; }

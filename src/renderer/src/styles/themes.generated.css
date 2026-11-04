@@ -5,6 +5,7 @@
 :root, [data-theme='dark'] {
   color-scheme: dark;
   --theme-color-scheme: dark;
+  --interaction-accent: #a1a1aa;
   --effort-minimal-color: #a3b4c4;
   --effort-minimal-glow: #a3b4c4;
   --effort-minimal-highlight: #d5e2ed;
@@ -175,6 +176,7 @@
 [data-theme='planche'] {
   color-scheme: light;
   --theme-color-scheme: light;
+  --interaction-accent: #69665f;
   --effort-minimal-color: #516679;
   --effort-minimal-glow: #516679;
   --effort-minimal-highlight: #a3b4c4;
@@ -353,6 +355,7 @@
 [data-theme='white'] {
   color-scheme: light;
   --theme-color-scheme: light;
+  --interaction-accent: #71717a;
   --effort-minimal-color: #516679;
   --effort-minimal-glow: #516679;
   --effort-minimal-highlight: #a3b4c4;

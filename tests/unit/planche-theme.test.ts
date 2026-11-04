@@ -117,7 +117,7 @@ describe('planche theme contract', () => {
     const selector = read('components/TerminalSelector.module.css')
     expect(selector).toContain(":global([data-theme='planche']) .card:hover")
     // 选择器悬浮用套印影，不用黑硬影
-    expect(selector).toContain('3px 3px 0 var(--shell-accent)')
+    expect(selector).toContain('3px 3px 0 var(--interaction-accent)')
     expect(selector).not.toContain('3px 3px 0 #1C343B')
     const switcher = read('components/WorkbenchSwitcher.module.css')
     expect(switcher).toContain(":global([data-theme='planche']) .button:hover")

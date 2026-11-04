@@ -31,6 +31,7 @@ export const SEMANTIC_TOKENS = [
   'effort-spectrum-cyan',
   'effort-spectrum-gold',
   'on-accent',
+  'interaction-accent',
   'glow-core',
   'glow-strength',
   'surface-tint',

@@ -7,6 +7,7 @@
 }
 
 .dock {
+  composes: scope from '../../styles/native-scrollbars.module.css';
   /* Note: .agents/notes/workbench/right-dock.md — neutral tool surfaces. */
   --shell-canvas: var(--tool-canvas);
   --shell-chrome: var(--tool-canvas);
@@ -115,7 +116,7 @@
   bottom: 0;
   left: 50%;
   width: 2px;
-  background: var(--shell-accent);
+  background: var(--interaction-accent);
   opacity: 0;
   transform: translateX(-50%);
   transition: opacity 150ms ease;
@@ -230,3 +231,7 @@
   width: calc(min(var(--right-tool-content-width), calc(100vw - 70px)) - 2px);
 }
 .panel[data-transient='true'] .resizeHandle { display: none; }
+
+/* Keep every tool reachable in short windows or with additional plugin tools. */
+.rail { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.railTools, .auxiliaryTools { flex-shrink: 0; }

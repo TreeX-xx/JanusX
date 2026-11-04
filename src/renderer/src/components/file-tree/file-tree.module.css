@@ -159,6 +159,7 @@
 }
 
 .treeViewport {
+  scrollbar-gutter: stable;
   position: relative;
 }
 
