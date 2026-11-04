@@ -48,7 +48,7 @@ if (preview) {
   initial[0].updatedAt = Date.now()
   initial[0].nodes = [
     { id: fixtureId(10), title: '双岛协作布局', label: '第一版 · 10 / 13', points: [
-      { id: fixtureId(20), text: '让备忘录与对话共享可用空间。打开左侧备忘录时，主体自动让出位置，两个岛作为整体居中。' },
+      { id: fixtureId(20), text: '让备忘录与对话共享可用空间。打开右侧备忘录时，主体自动让出位置，两个岛作为整体居中。' },
       { id: fixtureId(21), text: '缩小窗口时先收起文件栏，保持记录正文可读；继续缩小时切换排列方式。' },
     ] },
     { id: fixtureId(11), title: '下一步体验确认', label: '待确认', points: [
@@ -90,7 +90,7 @@ Object.assign(window.electron.llm, {
 window.electron.janusChat = {
   load: async () => ({ version: 1, activeConversationId: 'memo-chat', conversations: [{ id: 'memo-chat', title: 'Memo chat', createdAt: 1, updatedAt: 1, messages: preview ? [
     { id: 'preview-user', role: 'user', timestamp: Date.now() - 60000, content: '我希望备忘录打开时，主体 island 能主动调整位置。窗口缩小也不要截断记录内容。' },
-    { id: 'preview-assistant', role: 'assistant', timestamp: Date.now(), content: '已整理为第一版布局：\n\n- 两个岛并排，作为整体居中。\n- 空间变小时先收起文件栏。\n- 高度足够时上下排列；宽高都不足时切换对话与备忘录。\n\n左侧可以继续记录节点和想法。' },
+    { id: 'preview-assistant', role: 'assistant', timestamp: Date.now(), content: '已整理为第一版布局：\n\n- 两个岛并排，作为整体居中。\n- 空间变小时先收起文件栏。\n- 高度足够时上下排列；宽高都不足时切换对话与备忘录。\n\n右侧可以继续记录节点和想法。' },
   ] : [], attachedWorkspaceIds: preview ? [workspaces[0].id] : [], toolTraces: [] }] }),
   save: async () => undefined,
 }
@@ -119,9 +119,8 @@ function Harness() {
   useEffect(() => {
     if (!preview || !integratedIsland || controller.conversationId !== 'memo-chat' || previewOpened.current) return
     previewOpened.current = true
-    document.querySelector<HTMLElement>('.janus-expanded-view-button[data-view="chat"]')?.click()
     const frame = requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('.janus-chat-view .memo-trigger')?.click()
+      document.querySelector<HTMLElement>('.janus-island-actions .memo-trigger')?.click()
       controller.bindMemo(initial[0].id)
     })
     return () => cancelAnimationFrame(frame)

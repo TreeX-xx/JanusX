@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, ChevronDown, ChevronUp, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { BookOpen, Unlink, ChevronDown, ChevronUp, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { selectedMemoNodeId, useMemoStore } from '@/stores/memo'
+import { useIslandStore } from '@/stores/island'
 import { useI18n } from '@/i18n/useI18n'
 import { PromptDialog } from '../common/PromptDialog'
 import { Select } from '../ui/Select'
@@ -45,6 +46,15 @@ export function MemoPanel({ onBindMemo, compactTrigger = false }: MemoPanelProps
   const [deleteTarget, setDeleteTarget] = useState<Memo | null>(null)
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  const actionAnchor = useRef<HTMLSpanElement>(null)
+  const [actionHost, setActionHost] = useState<HTMLElement | null>(null)
+  const automationCompanion = useIslandStore(state => state.companionToolId === 'automations')
+  useLayoutEffect(() => {
+    setActionHost(actionAnchor.current?.closest<HTMLElement>('.janus-island-shell') ?? null)
+  }, [])
+  // Both companions own the same Island geometry. Switching surfaces only
+  // closes the memo view; its conversation binding and editing drafts survive.
+  useLayoutEffect(() => { if (automationCompanion && actionHost) setOpen(false) }, [automationCompanion, actionHost])
   const { present, phase } = useIslandPresence(open)
   const { placement, active, pane, setPane } = useMemoIslandLayout(trigger, present, collapsed, !open)
   const constrainedFiles = Boolean(placement && placement.memo.width < 460)
@@ -125,17 +135,24 @@ export function MemoPanel({ onBindMemo, compactTrigger = false }: MemoPanelProps
   const deleteNode = () => { setDialogMemo(selected ?? null); setTargetNodeId(selectedNodeId); setDialog('deleteNode') }
   const clearDialog = () => { setDialog(null); setDialogMemo(null); setDeleteTarget(null) }
   const deletingNode = dialogMemo?.nodes.find(node => node.id === targetNodeId)
+  const memoTrigger = <button ref={trigger} type="button" className="memo-trigger" data-compact={compactTrigger || undefined} title={t('janus:memo.open')} aria-label={t('janus:memo.open')} aria-expanded={open} onClick={() => { if (!open && actionHost) useIslandStore.getState().releaseCompanion(); setOpen(value => !value) }}><BookOpen size={18} /><span className="memo-trigger-label">{t('janus:memo.title')}</span>{state.changedIds.some(id => id !== selected?.id) && <span className="memo-update-dot" />}</button>
   return <>
-    <button ref={trigger} type="button" className="memo-trigger" data-compact={compactTrigger || undefined} title={t('janus:memo.open')} aria-label={t('janus:memo.open')} aria-expanded={open} onClick={() => setOpen(value => !value)}><BookOpen size={14} /><span className="memo-trigger-label">{t('janus:memo.title')}</span>{state.changedIds.some(id => id !== selected?.id) && <span className="memo-update-dot" />}</button>
+    <span ref={actionAnchor} hidden />
+    {actionHost ? createPortal(
+      <div className="janus-island-actions" role="group" aria-label={t('janus:island.expanded.tools')} onPointerDown={event => event.stopPropagation()}>
+        {memoTrigger}
+      </div>, actionHost,
+    ) : memoTrigger}
     {open && active && placement?.switcher && createPortal(<div className="memo-view-switch" data-island-companion onPointerDown={event => event.stopPropagation()} role="group" aria-label={t('janus:memo.layoutViews')} style={{ left: placement.switcher.left, top: placement.switcher.top, width: placement.switcher.width, height: placement.switcher.height }}>
       <button type="button" aria-pressed={pane === 'chat'} onClick={() => setPane('chat')}>{t('janus:island.expanded.view.chat')}</button>
       <button type="button" aria-pressed={pane === 'memo'} onClick={() => setPane('memo')}>{t('janus:memo.title')}</button>
     </div>, document.body)}
-    {present && placement && createPortal(<aside ref={element => { if (element) element.inert = !open }} className="memo-panel island-surface" data-island-companion data-side="left" data-layout={placement.mode} data-phase={phase} hidden={panelHidden} onPointerDown={event => event.stopPropagation()} aria-label={t('janus:memo.panel')} style={{ ...islandMotionStyle, left: placement.memo.left, top: placement.memo.top, height: placement.memo.height, width: placement.memo.width }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') { if (filesDrawer) setFilesDrawer(false); else setOpen(false) } }}>
+    {present && placement && createPortal(<aside ref={element => { if (element) element.inert = !open }} className="memo-panel island-surface" data-island-companion data-side="right" data-layout={placement.mode} data-phase={phase} hidden={panelHidden} onPointerDown={event => event.stopPropagation()} aria-label={t('janus:memo.panel')} style={{ ...islandMotionStyle, left: placement.memo.left, top: placement.memo.top, height: placement.memo.height, width: placement.memo.width }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') { if (filesDrawer) setFilesDrawer(false); else setOpen(false) } }}>
       <header className="memo-shell-header">
         <span><BookOpen size={14} />{t('janus:memo.title')}</span>
-        {/* Explicit leave ends the session; automatic layout changes only change visibility. */}
-        <button type="button" aria-label={t('janus:memo.close')} title={t('janus:memo.close')} onClick={() => { setOpen(false); setFilesDrawer(false); onBindMemo(null) }}><X size={15} /></button>
+        {selected && <button type="button" aria-label={t('janus:memo.close')} title={t('janus:memo.close')} onClick={() => onBindMemo(null)}><Unlink size={14} /></button>}
+        {/* Closing the companion preserves the current conversation binding. */}
+        <button type="button" aria-label={t('common:action.close')} title={t('common:action.close')} onClick={() => { setOpen(false); setFilesDrawer(false) }}><X size={15} /></button>
       </header>
       <div className="memo-canvas">
       <div className="memo-upper">
@@ -191,7 +208,7 @@ export function MemoPanel({ onBindMemo, compactTrigger = false }: MemoPanelProps
       </div>
       {error && <div className="memo-error" role="alert">{error}<button type="button" onClick={() => { void run(() => state.refresh()).catch(() => undefined) }}>{t('janus:memo.retry')}</button></div>}
     </aside>, document.body)}
-    {createPortal(<div data-island-companion hidden={!open || !active} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><PromptDialog open={dialog !== null} title={dialog === 'deleteNode' ? t('janus:memo.removeNode') : dialog === 'delete' ? t('janus:memo.delete') : t('janus:memo.new')} confirmOnly={dialog === 'delete' || dialog === 'deleteNode'} description={dialog === 'deleteNode' ? t('janus:memo.deleteStarConfirm', { title: deletingNode?.title ?? '', count: deletingNode?.points.length ?? 0 }) : dialog === 'delete' ? t('janus:memo.deleteConfirm') : undefined} tone={dialog === 'delete' || dialog === 'deleteNode' ? 'danger' : 'primary'} onCancel={clearDialog} onConfirm={value => {
+    {createPortal(<div data-island-companion hidden={!open || !active} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><PromptDialog open={dialog !== null && open && active} title={dialog === 'deleteNode' ? t('janus:memo.removeNode') : dialog === 'delete' ? t('janus:memo.delete') : t('janus:memo.new')} confirmOnly={dialog === 'delete' || dialog === 'deleteNode'} description={dialog === 'deleteNode' ? t('janus:memo.deleteStarConfirm', { title: deletingNode?.title ?? '', count: deletingNode?.points.length ?? 0 }) : dialog === 'delete' ? t('janus:memo.deleteConfirm') : undefined} tone={dialog === 'delete' || dialog === 'deleteNode' ? 'danger' : 'primary'} onCancel={clearDialog} onConfirm={value => {
       if (dialogBusy.current) return
       const target = deleteTarget ?? dialogMemo ?? selected
       if (dialog !== 'create' && !target) return

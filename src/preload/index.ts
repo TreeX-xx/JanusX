@@ -1,4 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { AUTOMATIONS_CHANNELS as automationChannels, type AutomationsAPI } from '../shared/automations'
+
+const automationsAPI: AutomationsAPI = {
+  listCards: () => ipcRenderer.invoke(automationChannels.listCards),
+  saveCard: (...args) => ipcRenderer.invoke(automationChannels.saveCard, ...args),
+  removeCard: (...args) => ipcRenderer.invoke(automationChannels.removeCard, ...args),
+  list: () => ipcRenderer.invoke(automationChannels.list),
+  save: (...args) => ipcRenderer.invoke(automationChannels.save, ...args),
+  preview: (...args) => ipcRenderer.invoke(automationChannels.preview, ...args),
+  run: (...args) => ipcRenderer.invoke(automationChannels.run, ...args),
+  cancel: id => ipcRenderer.invoke(automationChannels.cancel, id),
+  remove: (...args) => ipcRenderer.invoke(automationChannels.remove, ...args),
+  history: id => ipcRenderer.invoke(automationChannels.history, id),
+  onChanged: callback => subscribeIpcEvent(automationChannels.changed, callback),
+  onRemoved: callback => subscribeIpcEvent(automationChannels.removed, callback),
+  onDraft: callback => subscribeIpcEvent(automationChannels.draft, callback),
+  onCompleted: callback => subscribeIpcEvent(automationChannels.completed, callback),
+  onFocus: callback => subscribeIpcEvent(automationChannels.focus, callback),
+}
 import { WORKSPACE_STORAGE_CHANNELS, type WorkspaceStorageAPI } from '../shared/ipc/workspace-storage'
 import { WORKSPACE_RUNTIME_CHANNELS, type WorkspaceRuntimeAPI } from '../shared/workspace-runtime'
 import { BLUEPRINT_REVIEW_CHANNELS } from '../shared/ipc/legacy-review-channels'
@@ -660,6 +679,7 @@ const pluginAPI: PluginHostAPI = {
 }
 
 contextBridge.exposeInMainWorld('electron', {
+  automations: automationsAPI,
   workspaceStorage: {
     retireHooks: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.retireHooks),
     data: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.data),

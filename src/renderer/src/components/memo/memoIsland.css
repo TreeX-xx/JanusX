@@ -279,3 +279,23 @@
 @keyframes memo-saving { to { transform: rotate(360deg); } }
 .memo-saving { animation: memo-saving .9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .memo-saving { animation: none; } }
+
+/* The memo is a right-hand companion of the Chat surface. */
+.memo-panel { border-radius: 20px; padding: 14px; gap: 10px; }
+.memo-shell-header { min-height: 30px; padding-bottom: 8px; border-bottom: 1px solid var(--shell-border); }
+.memo-shell-header > span { flex: 1; }
+.memo-canvas { border-radius: 8px; }
+[data-theme='planche'] .memo-panel { border-radius: var(--island-panel-radius); }
+.memo-panel[data-layout="compact"] .memo-scroll { padding-inline: 8px; }
+.janus-island-shell[data-stage="expanded"][data-view="chat"][data-memo-layout] {
+  width: var(--memo-main-width);
+  height: var(--memo-main-height);
+}
+
+/* Island actions stay outside the chat frame, between companion islands. */
+.janus-island-actions { pointer-events: auto; position: absolute; left: calc(100% + 8px); top: 10px; z-index: 3; display: flex; flex-direction: column; gap: 6px; padding: 4px; border: 1px solid var(--shell-border); border-radius: 13px; background: var(--island-panel-background, var(--shell-canvas)); box-shadow: 0 4px 16px #00000014; }
+.janus-island-actions .memo-trigger[data-compact] { width: 30px; height: 32px; flex-basis: 32px; border-radius: 8px; }
+.janus-island-actions .memo-trigger:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+.janus-island-shell:not([data-stage="expanded"]) > .janus-island-actions,
+.janus-island-shell:not([data-view="chat"]) > .janus-island-actions { display: none; }
+.janus-island-shell[data-stage="expanded"][data-view="chat"]:not([data-memo-layout]) { width: min(860px, calc(100vw - 128px)); }

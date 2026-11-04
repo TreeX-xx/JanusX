@@ -558,6 +558,18 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     // 运行配置专属工具族（照 attachNoteChatTools 端口拦截样板，只挂助手轮次）：
     // get/edit/apply 自处理，config_change 照 note_change 事件桥回表单 — see
     // .agents/notes/agent/run-config-assistant-edit-tools.md
+    if (sourceTag === 'janus-chat' && !request.compact) {
+      const { attachReminderChatTools, REMINDER_CHAT_PROMPT } = await import('../automations/reminder-chat-tools')
+      attachReminderChatTools(ports, controller.signal, draft => { if (!event.sender?.isDestroyed?.()) event.reply('automations:draft', draft) })
+      projectContext = [projectContext, REMINDER_CHAT_PROMPT].filter(Boolean).join('\n\n')
+    }
+    if (sourceTag === 'janus-chat' && !request.compact && workspaceResources?.length) {
+      const { attachAutomationTools } = await import('../automations/chat-tools')
+      attachAutomationTools(ports, { workspaceId: workspaceId ?? workspaceResources[0].workspaceId,
+        providerId, modelId: modelId ?? '', sessionIds: workspaceResources.map(resource => resource.agentSessionId), signal: controller.signal,
+        onDraft: draft => { if (!event.sender?.isDestroyed?.()) event.reply('automations:draft', draft) },
+      })
+    }
     if (sourceTag === 'launch-assistant' && launchDraft) {
       const { attachLaunchConfigTools } = await import('../harness/launch-config-chat')
       attachLaunchConfigTools(ports, {

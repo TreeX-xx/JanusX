@@ -7,13 +7,9 @@ async function sessions(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/memo.html?island=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-pinned', 'false')
 })
 
-for (const pinned of [false, true]) {
-  test(`deleting an inactive conversation keeps the island and active stream open (pinned=${pinned})`, async ({ page }) => {
-    if (pinned) await page.getByRole('button', { name: 'Pin', exact: true }).click()
+test('deleting an inactive conversation keeps the island and active stream open', async ({ page }) => {
     await page.locator('.janus-chat-sidebar').getByRole('button', { name: 'New conversation', exact: true }).click()
     const activeId = await page.evaluate(() => (window as any).memoFixture.activeId)
     await page.evaluate(() => (window as any).memoFixture.send('Keep this active reply'))
@@ -30,7 +26,6 @@ for (const pinned of [false, true]) {
     expect(await page.evaluate(() => (window as any).memoFixture.aborted)).toBe(0)
     await expect(page.getByTestId('reopen')).toBeHidden()
   })
-}
 
 test('cancel button, Escape and backdrop dismiss only the conversation confirmation', async ({ page }) => {
   const initial = await sessions(page)

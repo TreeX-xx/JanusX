@@ -13,6 +13,7 @@ import { useExtensionViews } from '@/extensions/react'
 import { useExperimentalStore } from '@/stores/experimental'
 import { useRightToolStore } from '@/stores/right-tools'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useIslandStore } from '@/stores/island'
 import { useI18n } from '@/i18n/useI18n'
 import {
   clampRightToolPanelWidth,
@@ -70,8 +71,10 @@ export function RightDock({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const focusPreviewRef = useRef(false)
   const [previewToolId, setPreviewToolId] = useState<RightToolId | null>(null)
+  const companionToolId = useIslandStore(state => state.companionToolId)
   const railOnly = !contentVisible
-  const previewId = railOnly && previewToolId && isRightToolEnabled(previewToolId, features) ? previewToolId : null
+  const previewTarget = companionToolId ?? previewToolId
+  const previewId = railOnly && previewTarget && isRightToolEnabled(previewTarget, features) ? previewTarget : null
   const panelVisible = contentVisible || previewId !== null
   const motion = useAnimatedOpen(panelVisible, 320)
   const lastVisibleToolRef = useRef<RightToolId | null>(null)
@@ -240,6 +243,7 @@ export function RightDock({
   }
 
   const handleRailTool = (toolId: RightToolId) => {
+    useIslandStore.getState().releaseCompanion()
     cancelPreviewTimer()
     if (forcedCollapsed) {
       setPreviewToolId(previewId === toolId ? null : toolId)

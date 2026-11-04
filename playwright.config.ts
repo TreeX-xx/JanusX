@@ -8,6 +8,7 @@ const desktopTestFiles = [
   'pdf-preview-desktop.spec.ts',
   'desktop-claude-conversation.spec.ts',
   'desktop-codex-conversation.spec.ts',
+  'desktop-automations.spec.ts',
   'blueprint-plugin.spec.ts', 'desktop-workspace-runtime.spec.ts', 'desktop-workspace-storage.spec.ts', 'desktop-plugins.spec.ts',
   'unified-file-window.spec.ts', 'desktop-global-tools.spec.ts', 'desktop-smoke.spec.ts',
   'desktop-harness-runtime.spec.ts', 'desktop-session-continue.spec.ts', 'editor-definition.spec.ts',

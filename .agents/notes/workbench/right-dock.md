@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-24T17:01:29.510Z",
+  "updated": "2026-11-02T17:09:24Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -34,6 +34,14 @@
 The right side freezes four singleton tabs in a fixed strip while the file tree speaks no visual language. Adding a tool squeezes the tab row, tool state drifts across stores, and file kinds, selection, and version-control states collide in one channel.
 
 ## Decision
+
+Explicit automation topics submitted from Island Chat and returned automation drafts open the automation tool through one shared companion activation function. The layout waits for the lazy view to become visible before measuring it; switching away or dismissing still clears the association. This automatic navigation does not save, enable or execute an automation. Opening Island also attaches the currently selected workspace to its conversation; context and routing details belong to [automation UI](./ideas/automation-platform.md#承载方式与界面).
+
+Automation's eye control temporarily links its panel to expanded Chat. A pair of Janus eyes replaces the text/icon entry; an inverted neutral eye button, a distinct header band and a fine double outline distinguish the companion state. The panel remains interactive and visible, including as a floating preview during responsive collapse; its companion marker exempts its controls from Island outside-click dismissal. Island reserves the panel's measured bounds and its own action rail, stacking above the panel when horizontal space is insufficient. The panel's temporary top offset takes precedence over preview positioning. Dismissal or leaving the linked tool clears geometry and the association; widths and stored display preferences retain their usual ownership. Details and verification belong to [automation UI](./ideas/automation-platform.md#承载方式与界面).
+
+Automation now registers as the trusted `janusx.automations` right-hand extension, with a 420px default width (360–620px). A sequence-numbered, consume-once focus request opens a tool and selects its card/run; only layout preferences are persisted in the rail store. Automation drafts and reports use the panel, while execution remains in the independent host service. Scope and verification are owned by [automation](./ideas/automation-platform.md#当前实现与验证).
+
+2026-11-02: The experimental memo rail entry has been removed. Memo now opens as a companion to the right of the Chat Island; it is not a main-workbench tool. See [memo layout](../knowledge/user-todo-janus.md#右侧功能岛与联合布局).
 
 Files, Git and sessions now register as trusted bundled extensions through `extensions/builtins.tsx`. The adapter keeps their original tool IDs, translated labels, icons, order, gates and saved widths; the rail and content host no longer branch on these three tools. Disabling removes an entry and unmounts its view, while re-enabling retains its width and leaves it closed. Application-scoped shells preserve existing local state across project switches while the original stores own project/worktree context. Host services remain independent of the view lifecycle. The container supplies the same retry/close boundary for every right-hand contribution. Migration verification and limits are recorded in the [plugin delivery plan](../planning/plugin-platform-roadmap.md).
 

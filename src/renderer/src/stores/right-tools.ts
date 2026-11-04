@@ -26,8 +26,12 @@ import type {
 
 export const RIGHT_TOOL_STORAGE_KEY = 'janusx:right-tools:v1'
 export const RIGHT_TOOL_PERSIST_VERSION = RIGHT_TOOL_SCHEMA_VERSION
+let focusSequence = 0
 
 interface RightToolStore extends RightToolPreferencesV1 {
+  focusRequest: { toolId: RightToolId; itemId: string; runId?: string; sequence: number } | null
+  requestFocus: (toolId: RightToolId, itemId: string, runId?: string) => void
+  consumeFocus: (sequence: number) => void
   openTool: (toolId: RightToolId) => void
   activateTool: (toolId: RightToolId) => void
   closeTool: (toolId: RightToolId) => void
@@ -108,6 +112,9 @@ export const useRightToolStore = create<RightToolStore>()(
 
       return {
         ...defaults,
+        focusRequest: null,
+        requestFocus: (toolId, itemId, runId) => { get().openTool(toolId); set({ focusRequest: { toolId, itemId, runId, sequence: ++focusSequence } }) },
+        consumeFocus: sequence => { if (get().focusRequest?.sequence === sequence) set({ focusRequest: null }) },
         openTool: (toolId) => route(toolId, openRightTool),
         activateTool: (toolId) => route(toolId, activateRightTool),
         closeTool: (toolId) => applyTransition(closeRightTool(get(), toolId)),

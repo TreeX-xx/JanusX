@@ -42,11 +42,6 @@ export function Titlebar() {
   // Stable wrapper: the store dispatch is created once, and a useCallback keeps
   // the effect/callback dependency arrays honest.
   const dispatchIsland = useCallback((action: IslandControllerAction) => useIslandStore.getState().dispatch(action), [])
-  // Pinned island window (owned by JanusIsland): while pinned, a terminal
-  // switch must not collapse the conversation back to the capsule.
-  const [islandPinned, setIslandPinned] = useState(false)
-  const islandPinnedRef = useRef(islandPinned)
-  islandPinnedRef.current = islandPinned
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
   const [pluginConfiguration, setPluginConfiguration] = useState<PluginConfigurationTarget | null>(null)
@@ -174,7 +169,6 @@ export function Titlebar() {
   useEffect(() => {
     if (previousActiveTerminalId.current !== activeTerminalId) {
       previousActiveTerminalId.current = activeTerminalId
-      if (islandPinnedRef.current) return
       dispatchIsland({ type: 'terminal-changed' })
     }
   }, [dispatchIsland, activeTerminalId])
@@ -325,7 +319,6 @@ export function Titlebar() {
           knowledgeTrace={knowledgePeek.trace}
           knowledgePeekActive={knowledgePeek.presentation !== 'hidden'}
           knowledgePeekEmpty={knowledgePeek.presentation === 'empty'}
-          onIslandPinnedChange={setIslandPinned}
         />
         <JanusRunOrbs />
       </div>

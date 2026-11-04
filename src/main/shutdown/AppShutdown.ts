@@ -3,6 +3,7 @@ import { app } from 'electron'
 export type ShutdownStep = () => void | Promise<void>
 
 export interface AppShutdownDeps {
+  stopAutomations?: ShutdownStep
   stopPlugins?: ShutdownStep
   stopNoteReview?: ShutdownStep
   stopKnowledge?: ShutdownStep
@@ -92,6 +93,7 @@ export class AppShutdown {
     // 1) kill keep-alive windows first (toast/editor)
     // 2) stop terminals before flushing the session ledger.
     const ordered: Array<[keyof AppShutdownDeps, ShutdownStep | undefined]> = [
+      ['stopAutomations', this.deps.stopAutomations],
       ['stopPlugins', this.deps.stopPlugins],
       ['stopNoteReview', this.deps.stopNoteReview],
       ['stopKnowledge', this.deps.stopKnowledge],

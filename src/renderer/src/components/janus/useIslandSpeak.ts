@@ -1,82 +1,41 @@
-// Note: 胶囊传话驱动 — IslandSpeakQueue 的 React 桥（P3）。
-// 定时器只在有活干时运转（speaking/排队），空闲即停；对齐 nextEventAt 唤醒。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  IslandSpeakQueue,
-  type IslandSpeakEntry,
-  type IslandSpeakSnapshot,
-} from './islandSpeakQueue'
-
-const IDLE_SNAPSHOT: IslandSpeakSnapshot = {
-  speaking: null,
-  historyCount: 0,
-  history: [],
-  pendingCount: 0,
-  nextEventAt: Number.POSITIVE_INFINITY,
-}
+import { IslandSpeakQueue, type IslandSpeakEntry, type IslandSpeakSnapshot } from './islandSpeakQueue'
 
 export interface IslandSpeakControls {
   snapshot: IslandSpeakSnapshot
-  enqueue: (entry: IslandSpeakEntry) => void
-  /** 收起当前传话条（队列续播）；返回是否确实有条目被收起 */
+  enqueue: (entry: IslandSpeakEntry, present?: boolean) => void
   dismiss: () => boolean
-  markSeen: () => void
-  burnHistory: () => number
+  silence: () => void
+  setPaused: (paused: boolean) => void
+  markRead: (key: string) => void
+  clear: (readOnly?: boolean) => void
+  removeAutomation: (id: string) => void
 }
 
 export function useIslandSpeak(): IslandSpeakControls {
-  const queueRef = useRef<IslandSpeakQueue | null>(null)
-  if (!queueRef.current) queueRef.current = new IslandSpeakQueue()
-  const queue = queueRef.current
-  const [snapshot, setSnapshot] = useState<IslandSpeakSnapshot>(IDLE_SNAPSHOT)
+  const [queue] = useState(() => new IslandSpeakQueue())
+  const [snapshot, setSnapshot] = useState(() => queue.step(Date.now()))
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const tick = useCallback(() => {
+  const refresh = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = null
-    const snap = queue.step(Date.now())
-    setSnapshot(snap)
-    if (snap.pendingCount > 0) {
-      const delay = Math.max(40, Math.min(240, snap.nextEventAt - Date.now()))
-      timerRef.current = setTimeout(tick, delay)
+    const next = queue.step(Date.now())
+    setSnapshot(next)
+    if (Number.isFinite(next.nextEventAt)) {
+      timerRef.current = setTimeout(refresh, Math.max(16, next.nextEventAt - Date.now()))
     }
   }, [queue])
-
-  const kick = useCallback(() => {
-    if (timerRef.current) return
-    tick()
-  }, [tick])
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [])
-
-  const enqueue = useCallback((entry: IslandSpeakEntry) => {
-    queue.enqueue(entry, Date.now())
-    kick()
-  }, [queue, kick])
-
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const enqueue = useCallback((entry: IslandSpeakEntry, present = true) => {
+    queue.enqueue(entry, Date.now(), present); refresh()
+  }, [queue, refresh])
   const dismiss = useCallback(() => {
-    const dismissed = queue.dismiss(Date.now())
-    kick()
-    return dismissed
-  }, [queue, kick])
-
-  const markSeen = useCallback(() => {
-    queue.markSeen()
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-    setSnapshot(queue.step(Date.now()))
-  }, [queue])
-
-  const burnHistory = useCallback(() => {
-    const n = queue.burnHistory()
-    setSnapshot(queue.step(Date.now()))
-    return n
-  }, [queue])
-
-  return { snapshot, enqueue, dismiss, markSeen, burnHistory }
+    const dismissed = queue.dismiss(Date.now()); refresh(); return dismissed
+  }, [queue, refresh])
+  const silence = useCallback(() => { queue.silence(); refresh() }, [queue, refresh])
+  const setPaused = useCallback((paused: boolean) => { queue.setPaused(paused, Date.now()); refresh() }, [queue, refresh])
+  const markRead = useCallback((key: string) => { queue.markRead(key); refresh() }, [queue, refresh])
+  const clear = useCallback((readOnly = false) => { queue.clear(readOnly); refresh() }, [queue, refresh])
+  const removeAutomation = useCallback((id: string) => { queue.removeAutomation(id); refresh() }, [queue, refresh])
+  return { snapshot, enqueue, dismiss, silence, setPaused, markRead, clear, removeAutomation }
 }

@@ -230,3 +230,8 @@
   width: calc(min(var(--right-tool-content-width), calc(100vw - 70px)) - 2px);
 }
 .panel[data-transient='true'] .resizeHandle { display: none; }
+
+.panel[data-island-companion='automations'] {
+  top: var(--island-companion-offset, 0px);
+  transition: none;
+}

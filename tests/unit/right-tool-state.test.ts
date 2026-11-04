@@ -30,8 +30,8 @@ function preferences(
 }
 
 describe('right tool registry', () => {
-  it('defines the four single-instance while-open tools in stable order', () => {
-    expect(RIGHT_TOOL_IDS).toEqual(['files', 'git', 'assist', 'sessions'])
+  it('defines the five single-instance while-open tools in stable order', () => {
+    expect(RIGHT_TOOL_IDS).toEqual(['files', 'git', 'assist', 'sessions', 'automations'])
     expect(RIGHT_TOOL_REGISTRY.every(({ instancePolicy }) => instancePolicy === 'single')).toBe(true)
     expect(RIGHT_TOOL_REGISTRY.every(({ mountPolicy }) => mountPolicy === 'while-open')).toBe(true)
     expect(RIGHT_TOOL_REGISTRY.some(({ id }) => (id as string) === 'office')).toBe(false)

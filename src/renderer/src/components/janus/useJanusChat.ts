@@ -12,6 +12,9 @@ import {
   type ChatMessage,
 } from '@/services/llm'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useIslandStore } from '@/stores/island'
+import { activateAutomationCompanion } from '@/stores/automations'
+import { isAutomationRequest } from '../automations/automationIntent'
 import { memoBinding, useMemoStore } from '@/stores/memo'
 import type { MemoBinding } from '../../../../shared/memo'
 import { useNoteChatStore } from '@/stores/note-chat'
@@ -268,6 +271,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   const [conversations, setConversations] = useState(initialRef.current.conversations)
   const [islandConversationId, setIslandConversationId] = useState(initialRef.current.activeConversationId)
+  const islandOpenSequence = useIslandStore(state => state.openSequence)
+  const appliedIslandOpen = useRef(0)
   const [runtimeStates, setRuntimeStates] = useState<Record<string, ConversationRuntime>>({})
   const [modelOptions, setModelOptions] = useState<ChatModelOption[]>([])
   const [persistenceReady, setPersistenceReady] = useState(false)
@@ -314,6 +319,31 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     updateConversations((current) => current.map((conversation) =>
       conversation.id === id ? update(conversation) : conversation))
   }, [updateConversations])
+
+  const loadOpeningWorkspace = useCallback(() => {
+    const sequence = useIslandStore.getState().openSequence
+    if (!persistenceReady || sequence === appliedIslandOpen.current) return
+    const { activeWorkspaceId, workspaces } = useWorkspaceStore.getState()
+    if (activeWorkspaceId && !workspaces.some(workspace => workspace.id === activeWorkspaceId)) return
+    const conversation = conversationsRef.current.find(item => item.id === islandConversationId)
+      ?? conversationsRef.current.find(item => !ephemeralIdsRef.current.has(item.id))
+    if (!conversation) return
+    if (conversation.id !== islandConversationId) setIslandConversationId(conversation.id)
+    appliedIslandOpen.current = sequence
+    if (!activeWorkspaceId) return
+    updateConversation(conversation.id, conversation => conversation.attachedWorkspaceIds[0] === activeWorkspaceId
+      ? conversation
+      : { ...conversation, attachedWorkspaceIds: [activeWorkspaceId, ...conversation.attachedWorkspaceIds.filter(id => id !== activeWorkspaceId)], updatedAt: Date.now() })
+  }, [islandConversationId, persistenceReady, updateConversation])
+  useEffect(loadOpeningWorkspace, [islandOpenSequence, availableWorkspaces, loadOpeningWorkspace])
+
+  const routeIslandRequest = useCallback((id: string, text: string) => {
+    const active = conversationsRef.current.find(item => item.id === islandConversationId)
+      ?? conversationsRef.current.find(item => !ephemeralIdsRef.current.has(item.id))
+    if (id !== active?.id) return
+    if (isAutomationRequest(text)) activateAutomationCompanion()
+    loadOpeningWorkspace()
+  }, [islandConversationId, loadOpeningWorkspace])
 
   const getHandles = useCallback((id: string) => {
     let handles = handlesRef.current.get(id)
@@ -604,6 +634,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   // Note: bounded recovery preserves evidence and avoids replaying writes — see .agents/notes/blueprint/tasks/blueprint-dialog-separation.md
   const startRequest = useCallback((id: string, history: Message[], userMessage: Message, recovery?: { startedAt: number; error: string }, compact?: { keepRecentUnits: number }, boundMemo?: { binding?: MemoBinding }) => {
+    if (!compact) routeIslandRequest(id, userMessage.content)
     const runtime = runtimesRef.current[id]
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
@@ -822,7 +853,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         pendingSteerIds: [],
       }))
     })
-  }, [appendPending, appendReasoning, clearFlushTimer, commitAssistant, ensureAgentSessions, flushPending, getHandles, scheduleFlush, setRuntime, snapshotReasoning, updateConversation])
+  }, [appendPending, appendReasoning, clearFlushTimer, commitAssistant, ensureAgentSessions, flushPending, getHandles, routeIslandRequest, scheduleFlush, setRuntime, snapshotReasoning, updateConversation])
 
   const stop = useCallback((id: string) => {
     const runtime = runtimesRef.current[id]
@@ -847,6 +878,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   const send = useCallback((id: string, text: string) => {
     const trimmed = text.trim()
+    if (trimmed) routeIslandRequest(id, trimmed)
     const conversation = conversationsRef.current.find((item) => item.id === id)
     if (!trimmed || !conversation) return
     // Manual compaction uses the host summary checkpoint and preserves the transcript.
@@ -928,7 +960,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       content: trimmed,
       timestamp: Date.now(),
     })
-  }, [getHandles, setRuntime, startRequest, updateConversation])
+  }, [getHandles, routeIslandRequest, setRuntime, startRequest, updateConversation])
 
   const cancelSteeredMessage = useCallback((id: string, queueId: string) => {
     // 已消费则撤销失败（消息保留）；未消费则从主侧队列与本地历史同时撤回。
@@ -1089,6 +1121,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   const createConversation = useCallback(() => {
     const conversation = createJanusConversation()
+    const { activeWorkspaceId, workspaces } = useWorkspaceStore.getState()
+    if (activeWorkspaceId && workspaces.some(workspace => workspace.id === activeWorkspaceId)) conversation.attachedWorkspaceIds = [activeWorkspaceId]
     updateConversations((current) => [conversation, ...current])
     setIslandConversationId(conversation.id)
     return conversation.id
@@ -1190,10 +1224,10 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   })).sort((a, b) => b.updatedAt - a.updatedAt), [conversations, runtimeStates])
 
   const getController = useCallback((requestedId?: string): UseJanusChatReturn => {
-    const id = requestedId && conversations.some((conversation) => conversation.id === requestedId)
-      ? requestedId
-      : islandConversationId
-    const conversation = conversations.find((item) => item.id === id) ?? conversations[0]
+    const conversation = conversations.find(item => item.id === (requestedId ?? islandConversationId))
+      ?? conversations.find(item => item.id === islandConversationId)
+      ?? conversations.find(item => !ephemeralIdsRef.current.has(item.id))
+    const id = conversation?.id ?? islandConversationId
     const runtime = runtimeStates[id] ?? emptyRuntime(defaultApprovalMode)
     const resources = conversation ? workspaceResources(conversation, availableWorkspaces) : []
     const activeModel = modelOptions.find((option) =>
