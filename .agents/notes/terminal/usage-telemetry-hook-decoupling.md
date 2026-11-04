@@ -7,7 +7,7 @@
   "created": "2026-10-14",
   "class": "architecture",
   "tags": ["telemetry", "usage-stats", "terminal", "session-files", "hooks"],
-  "updated": "2026-10-29T11:24:13.898Z",
+  "updated": "2026-11-04T16:41:08.732Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -24,14 +24,20 @@
 
 ## Decision
 
-采用用户选定的选项 A：**统计链路完全移除 hook**，用量账本与终端归属都改为会话文件扫描，hook 只保留与统计无关的回合状态/通知职责。
+采用用户选定的选项 A：**统计链路完全移除 hook**，用量账本与上下文数值读取原生会话存储；终端归属使用独立证据，Hook 只保留与统计无关的回合状态／通知职责。
+
+2026-11-05 并发修复将“会话身份”和“数值采集”分开：数值与账本仍只读取原生会话存储；JanusX 自有 Codex 双视图连接通过原生 `thread/start` / `thread/resume` 成功响应确认当前 thread ID，作为主进程 `native` 归属证据，对 renderer 投影为 `exact`。默认本地 Codex 即使显示终端视图也使用该连接。身份无需根据 cwd、分支或时间猜测，也不来自 Hook。启动回调早于终端登记时，登记完成后读取适配器当前身份补接；后续新建、恢复由同一回调更新。
+
+受管 Codex 等待自身连接确认，不参与日志猜测。绑定前检查终端仍注册且属于自有 Codex 连接；退出后的迟到回调被拒绝。准确身份可以纠正已有相关性绑定，但不能抢占另一个准确连接；同一原生会话发生准确身份冲突时保留未知。换绑使缓存与旧异步读取失效，新会话文件尚未落盘时先发布空的新身份，清除旧上下文，再由周期读取补齐。`native` 持久记录不能在新进程中自行恢复，必须经新连接确认；同进程 renderer 重载沿用主进程状态。
+
+未受管终端保留保守相关性兜底：先排除其他终端已经拥有的会话，再检查唯一候选和跨终端竞争。Codex 从完整头记录取身份，从完整尾记录取最新原生事件时间，避免 Windows 打开文件时 mtime 长期不变导致永远错过归属；缓存键同时包含文件身份、大小和时间，内容增长会重读。读取有界（头最多 1 MiB、尾 256 KiB、缓存最多 4096 项），半写尾行不提供身份活动证据，子代理记录不参与终端归属。缺少可验证身份、真实并发歧义或文件损坏时继续未知，绝不取“同目录最新日志”冒充当前会话。准确绑定的历史读取同时覆盖 sessions 与 archived_sessions。
 
 - **L1 用量账本纯扫描**：启动全量扫描 + 定时增量（持久字节游标），账本键 `(engine, namespace, sessionId)` 本就与终端无关，扫描覆盖所有会话文件，包括从未打开过的。hook 未装、失效或引擎升级改契约都不影响账本。
 - **Codex 升级为事件模式**：本机实测一个 13 回合会话，13 个 `token_count` 事件的 `last_token_usage` 之和精确等于最终 `total_token_usage`，且事件带稳定 `ordinal` 可作身份——每个事件的 `last_token_usage` 即该轮消耗，可按事件时间逐轮归桶，历史可完整重放。Claude/Pi 本就支持事件导入；OpenCode 的 sqlite 累计值无法还原区间，只能建基线并标覆盖起点。
-- **L2 归属改为会话"诞生/被激活"时刻定性**：歧义来自回合级并发（两个终端可能同时有后台 turn），但会话创建/resume 是用户驱动的单一事件。会话文件首次出现（或旧文件 mtime 跳变=被 resume）时，取该窗口内 pty 活跃的终端归属，定下终身有效（sessionId 在文件内稳定，一个会话只属于创建它的 TUI 进程）。信号：pty 活跃时间戳（`terminal-handlers.ts` 的 `lastDataAt` 已声明未接线，启用即得）× 文件首现/mtime 跳变 × cwd（Claude 按 project 目录键、Codex 在 `session_meta.cwd`、OpenCode 在 DB 行、Pi 在 header，均可精确恢复）。脚本并发等非人类速度场景歧义时标 `estimated` 并在 UI 明示。
-- **L3 每终端私有 home 暂缓**：唯一 100% 精确的方案，但与 hook 信任机制冲突——`hooks.json` 住在 `CODEX_HOME` 内，每个私有 home 都要单独装 hook 并单独信任（要么每次弹信任提示，要么静默 `bypass_hook_trust`，安全 posture 更差），另有 auth 硬链复制与 resume 列表分裂的代价。重启条件：L2 歧义率实测不可接受（如多终端自动化编排成为常规用法），且届时把状态信号也改扫描制（transcript 哨兵已有基础）。
+- **L2 身份优先、相关性兜底**：受管 Codex 的独立原生连接确认当前线程；旧终端使用原生会话活动时间、PTY 活跃窗口和 cwd 相关性。创建／恢复不假定串行；多个候选或多终端竞争保持未知，不输出 estimated 数字冒充归属。原先仅依赖文件 mtime 和“人类启动足够慢”的假设不足以覆盖同目录多开。
+- **L3 每终端私有 home 暂缓**：受管 Codex 已有准确原生身份，不需要分裂 home；私有 home 仍有 Hook 信任、auth 复制和 resume 列表分裂的代价。其他未受管引擎若无法提供原生身份且歧义率不可接受，再评估独立存储隔离。
 - **hook 保留范围**：回合状态/通知（running/等审批/降级）、turn 记录、知识沉淀等与统计无关的职责原样不动。
-- **代码触点**：`refreshRuntimeTelemetry` 的 `payload.sessionId` 触发点不再驱动统计；`coordinator.readSnapshot` 的无绑定回落从 bootstrap 改为参与扫描；`history.ts` 的 `sessionId` 缺失分支从"只读 config.toml"改为"按 cwd 找该终端活跃会话，标 estimated"；10 秒轮询保留（上下文档条实时性）但账本记录不再挂在它身上。
+- **代码触点**：终端启动接入受管 Codex 的身份回调，coordinator 管理独占、换绑及生命周期；session-attribution 只负责旧终端相关性兜底。history 没有绑定时只提供配置声明，不按 cwd 猜数；10 秒上下文轮询与全语料账本扫描独立运行。
 
 ## Alternatives considered
 
@@ -45,7 +51,7 @@
 - hook 故障/未装/引擎升级改契约不影响统计归属和账本，只影响非统计生命周期消费者；终端统计的故障形态从"全空"变为"降级并标注"。
 - 全局统计覆盖全部历史：Claude/Codex/Pi 和新导入的 OpenCode 会话按事件时间回放；已有累计基线会话保留原覆盖起点，不重放其历史。
 - 读放大需要基础设施：持久字节游标、64MB 单文件上限、启动扫描与低峰增量的调度；当前账本无持久游标，属新增件。
-- 同 workspace 并发归属依赖"诞生时刻单一性"，人类交互速度下成立；脚本并发场景退化 `estimated`。
+- 受管 Codex 同 workspace 并发归属不依赖启动先后；未受管终端只有唯一可验证候选才绑定，真实歧义保持未知。
 - Codex 切事件模式后，旧账本中的累计基线如何处理尚未决定，见待定项。
 
 ## 待定（已由实现解决）
@@ -57,12 +63,18 @@ Codex 事件模式的迁移政策：**一次性重放全历史**（数字最全�
 ## 实施状态
 
 - **L1 已落地**（2026-10-14）：`corpus-scan.ts` 全语料扫描（Claude projects、Codex sessions+archived_sessions、Pi 全局 sessionDir；OpenCode 为 sqlite 单库暂未枚举）；codex 事件模式 `collectCodexEvents`（身份=ordinal、时间=事件时间戳）；`readJsonlLinesWithCursor` 提供完整字节回游标，未变化文件只 stat 不读；coordinator 启动 20 秒后首扫、之后 5 分钟周期，零终端时仍运行；ledger 增模式锁与 `sessionState` 查询。
-- **L2 已落地**（2026-10-14）：`session-attribution.ts` 按"会话诞生/激活时刻"归属——候选必须位于该终端工作区（Claude project 键、Codex `session_meta.cwd`、Pi header `cwd`）且末次写入落在终端 pty 活跃窗口（15s）内；唯一候选才绑定，零或多个候选保持未绑定（显示未知，不猜）。pty 活跃度经 `noteTerminalActivity`（1 秒节流）采集；`bindSession` 仅保留 correlated 来源；P3 已移除 Hook 优先／升级路径，快照只标 correlated。终端创建及独立轮询继续执行归属，不依赖 Hook。
+- **L2 已落地并完善**：受管 Codex 使用上述原生连接身份，快照标 exact；其他终端按工作区及活动时间做相关性兜底，标 correlated。PTY 活跃窗口为 15s，输入采集按 1 秒节流；唯一候选才绑定，多个终端竞争同一候选时全部保持未知。准确身份回调与独立轮询均不依赖 Hook。
 - **L3 未实施**：每终端私有 home 暂缓，重启条件不变。
 
 2026-10-17 补齐 OpenCode：L1 全语料扫描读取 v1/v2 SQLite 消息用量并沿用原生身份去重，L2 使用同库工作区与会话活动时间关联 pty，唯一候选才绑定；旧累计模式不迁移。费用从既有账本与模型目录计算，不引入另一路采集。当前行为与 545 会话真实只读核验见[会话源单源化](./requirements/usage-telemetry-single-source.md)的 OpenCode 全历史与费用估算章节。
 
 ## Verification
+
+2026-11-05 本机只读诊断确认 Codex rollout 的 mtime 停在 21:18，而文件已有次日 00:18 的 token 事件；单候选、同 cwd 双候选、陈旧 mtime 三种隔离复现分别为成功、未绑定、未绑定。修复的真实 CLI 验证由 `tests/unit/codex-context-cli.test.ts` 启动两个独立后台与同目录 TUI，使用隔离 CODEX_HOME、本地 HTTP 模型、无 Hook；两者并发创建身份和请求后各自读取 9 token，第二个追加请求不改变第一个累计量，第二个新建会话后清除旧量并读取新会话。首次尝试遇到 Codex 新 home 的 SQLite 并发初始化失败；fixture 改为先顺序初始化两个后台，再并发启动 TUI 和创建线程，覆盖已有用户 home 的实际并发场景。证据为 `artifacts/codex-context-native.log` 与 `artifacts/codex-context/native-clients.json`。
+
+定向测试覆盖原生 start/resume 响应与后台通知隔离、同目录多实例、占用候选排除、未知态保留、持久身份重新确认、迟到回调与换绑、无文件新会话、归档历史、mtime 不变的增长、长头记录、半写尾行、复制旧日志和子代理排除。Hook IPC 回归明确断言既不调用相关性绑定也不调用原生绑定；数值单源和全语料扫描维持独立。
+
+最终定向验证九文件 125 项通过（含真实双 Codex 用例），日志为 `artifacts/codex-context-final-tests.log`。renderer 同步保存 exact/correlated 身份，换会话时清除旧上下文、累计量、模型与压缩次数，避免空新会话沿用旧数字；恢复后的 active rollout 优先于遗留 archived 副本。本机真实日志的有界读取也取得了新事件时间，未改动用户日志或运行实例，证据为 `artifacts/codex-context/live-log-identity.json`。严格 unused 类型检查、定向 ESLint、应用构建与 Notes 校验通过；真实 CLI 使用本地模型，不宣称真实云端计费或其他 CLI 的并发验收。
 
 ### 当前实现与纯后台边界的差距
 
