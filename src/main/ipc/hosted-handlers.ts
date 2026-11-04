@@ -1,10 +1,36 @@
 import { ipcMain } from 'electron'
-import { HOSTED_CHANNELS, type CreateReviewInput, type GitlabSaveInput } from '../../shared/ipc/hosted'
-import { detectProvider, getProvider } from '../hosted/github'
-import { gitlabConfigStore } from '../hosted/gitlab-config'
+import { HOSTED_CHANNELS, type CreateReviewInput, type HostedTarget, type HostedQuery, type HostedItemKind, type HostedMutation } from '../../shared/ipc/hosted'
+import { detectProvider, hostedConnection } from '../hosted/github'
 import { worktreeMetaStore } from '../git/worktree-meta'
+import { resolveHostedRepository, repositoryOverview, repositoryImage, browseRepository, repositoryDetail, repositoryDiscussion, mutateRepository } from '../hosted/repository'
+import { startHostedLogin, readHostedLogin, inputHostedLogin, stopHostedLogin, stopHostedLoginsForOwner } from '../hosted/login'
 
 export function registerHostedHandlers(): void {
+  ipcMain.handle(HOSTED_CHANNELS.repository, (_event, workspacePath: string) => resolveHostedRepository(workspacePath))
+  ipcMain.handle(HOSTED_CHANNELS.overview, (_event, target: HostedTarget) => repositoryOverview(target))
+  ipcMain.handle(HOSTED_CHANNELS.image, (_event, target: HostedTarget, path: string, ref: string) => repositoryImage(target, path, ref))
+  ipcMain.handle(HOSTED_CHANNELS.browse, (_event, target: HostedTarget, query: HostedQuery) => browseRepository(target, query))
+  ipcMain.handle(HOSTED_CHANNELS.detail, (_event, target: HostedTarget, kind: HostedItemKind, number: number) => repositoryDetail(target, kind, number))
+  ipcMain.handle(HOSTED_CHANNELS.discussion, (_event, target: HostedTarget, kind: HostedItemKind, number: number, page: number) => repositoryDiscussion(target, kind, number, page))
+  ipcMain.handle(HOSTED_CHANNELS.mutate, (_event, target: HostedTarget, mutation: HostedMutation) => mutateRepository(target, mutation))
+  const loginOwners = new Set<number>()
+  ipcMain.handle(HOSTED_CHANNELS.loginStart, async (event, workspacePath: string) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Sign-in requires the application frame')
+    const owner = event.sender.id
+    if (!loginOwners.has(owner)) {
+      loginOwners.add(owner)
+      event.sender.once('destroyed', () => { stopHostedLoginsForOwner(owner); loginOwners.delete(owner) })
+    }
+    const session = await startHostedLogin(workspacePath, owner)
+    if (event.sender.isDestroyed()) stopHostedLoginsForOwner(owner)
+    return session
+  })
+  ipcMain.handle(HOSTED_CHANNELS.loginRead, (event, id: string) => readHostedLogin(id, event.sender.id))
+  ipcMain.handle(HOSTED_CHANNELS.loginInput, (event, id: string, data: string) => inputHostedLogin(id, data, event.sender.id))
+  ipcMain.handle(HOSTED_CHANNELS.loginStop, (event, id: string) => stopHostedLogin(id, event.sender.id))
+  ipcMain.handle(HOSTED_CHANNELS.connection, async (_event, { workspacePath }: { workspacePath: string }) => {
+    return hostedConnection(workspacePath)
+  })
   ipcMain.handle(HOSTED_CHANNELS.detect, async (_event, { workspacePath }: { workspacePath: string }) => {
     const provider = await detectProvider(workspacePath)
     return provider?.id ?? null
@@ -75,30 +101,11 @@ export function registerHostedHandlers(): void {
         method,
       }: { workspacePath: string; number: number; method?: 'squash' | 'merge' | 'rebase' },
     ) => {
-      const provider = getProvider('github')
-      if (!provider) throw new Error('GitHub 提供方不可用')
+      const provider = await detectProvider(workspacePath)
+      if (!provider) throw new Error('当前仓库未接入托管平台')
       return provider.mergeReview(workspacePath, number, method)
     },
   )
-
-  ipcMain.handle(HOSTED_CHANNELS.gitlabGet, async () => {
-    return gitlabConfigStore.getConfig()
-  })
-
-  ipcMain.handle(HOSTED_CHANNELS.gitlabSave, async (_event, input: GitlabSaveInput) => {
-    return gitlabConfigStore.saveConfig(input)
-  })
-
-  ipcMain.handle(
-    HOSTED_CHANNELS.gitlabVerify,
-    async (_event, input?: Partial<GitlabSaveInput>) => {
-      return gitlabConfigStore.verify(input)
-    },
-  )
-
-  ipcMain.handle(HOSTED_CHANNELS.gitlabClearToken, async () => {
-    return gitlabConfigStore.clearToken()
-  })
 
   ipcMain.handle(
     HOSTED_CHANNELS.listIssues,

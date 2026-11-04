@@ -1,6 +1,7 @@
 // Note: fast feedback and complete acceptance — see .agents/notes/desktop/reproducible-verification.md
 // All new tests enter the unit project unless explicitly assigned here.
 export const browserTestFiles = [
+  'tests/unit/hosted-connection-ui.test.ts',
   'tests/unit/workspace-storage-ui.test.ts',
   'tests/unit/desktop-toast-ui.test.ts',
   'tests/unit/assistant-ui.test.ts',

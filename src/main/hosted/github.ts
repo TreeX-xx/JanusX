@@ -1,7 +1,5 @@
 // Note: hosted platform abstraction with GitHub over gh CLI — see
 // .agents/notes/remote/hosted-github-reviews.md
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import type {
   FailedCheckLog,
   HostedCapability,
@@ -12,9 +10,8 @@ import type {
   HostedReview,
 } from '../../shared/ipc/hosted'
 import { gitRemoteUrl, parseGitRemote } from '../git/worktrees'
+import { checkHostedConnection, runHostedCli } from './cli'
 
-const execFileAsync = promisify(execFile)
-const HOSTED_TIMEOUT_MS = 30000
 const FAILED_LOG_BYTES = 6 * 1024
 
 export interface HostedProvider {
@@ -33,14 +30,10 @@ export interface HostedProvider {
 }
 
 async function runGh(cwd: string, args: string[]): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('gh', args, { cwd, timeout: HOSTED_TIMEOUT_MS })
-    return stdout
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    const stderr = (err as { stderr?: string })?.stderr?.trim()
-    throw new Error(stderr || message || 'gh 调用失败')
-  }
+  const remote = await gitRemoteUrl(cwd, 'origin')
+  const parsed = remote ? parseGitRemote(remote) : null
+  if (!parsed || parsed.host !== 'github.com') throw new Error('当前仓库不是 GitHub.com 仓库')
+  return runHostedCli('github', [...args, '--repo', 'github.com/' + parsed.owner + '/' + parsed.repo])
 }
 
 function safeJson<T>(text: string): T | null {
@@ -129,21 +122,6 @@ export function truncateLog(log: string, maxBytes = FAILED_LOG_BYTES): { log: st
   return { log: `…[truncated]\n${buffer.subarray(buffer.byteLength - maxBytes).toString()}`, truncated: true }
 }
 
-let authCache: { at: number; ok: boolean } | null = null
-const AUTH_CACHE_MS = 5 * 60 * 1000
-
-async function ghAuthenticated(cwd: string): Promise<boolean> {
-  if (authCache && Date.now() - authCache.at < AUTH_CACHE_MS) return authCache.ok
-  try {
-    await runGh(cwd, ['auth', 'status'])
-    authCache = { at: Date.now(), ok: true }
-    return true
-  } catch {
-    authCache = { at: Date.now(), ok: false }
-    return false
-  }
-}
-
 async function githubRemote(cwd: string): Promise<boolean> {
   const url = await gitRemoteUrl(cwd, 'origin').catch(() => null)
   return !!url && parseGitRemote(url)?.host === 'github.com'
@@ -154,8 +132,7 @@ class GitHubProvider implements HostedProvider {
   readonly capabilities: HostedCapability[] = ['reviews', 'checks', 'comments']
 
   async detect(cwd: string): Promise<boolean> {
-    const [remote, auth] = await Promise.all([githubRemote(cwd), ghAuthenticated(cwd)])
-    return remote && auth
+    return githubRemote(cwd)
   }
 
   async listReviews(cwd: string, branch: string): Promise<HostedReview[]> {
@@ -353,7 +330,8 @@ export function getProvider(id: HostedProviderId): HostedProvider | null {
   return providers.find((provider) => provider.id === id) ?? null
 }
 
-/** Test hook: reset the cached gh auth verdict. */
-export function resetAuthCache(): void {
-  authCache = null
+/** Identify the checkout independently of the CLI's installation or authorization. */
+export async function hostedConnection(cwd: string) {
+  const provider = await detectProvider(cwd)
+  return provider ? checkHostedConnection(provider.id) : null
 }

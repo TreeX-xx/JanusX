@@ -1,6 +1,7 @@
 // Note: built-in view ownership and compatibility — see .agents/notes/workbench/service-integrations.md
 import { lazy, Suspense, type ComponentType } from 'react'
 import { Files, GitBranch, MessagesSquare } from 'lucide-react'
+import { RepositoryIcon } from '@/components/ui/RepositoryIcon'
 import type { RightToolDefinition } from '@/right-tools/types'
 import type { ExtensionDefinition, ExtensionViewProps } from './types'
 
@@ -57,6 +58,14 @@ export const BUILTIN_RIGHT_EXTENSIONS: readonly BuiltinRightExtension[] = [
     iconComponent: GitBranch, order: 1, instancePolicy: 'single', mountPolicy: 'while-open',
     panelWidth: { min: 340, default: 360, max: 520 },
   }, () => import('@/components/GitPanel').then(({ GitPanel }) => ({ default: GitPanel }))),
+  builtinRightExtension({
+    id: 'repository', title: 'Repository',
+    titleKey: 'common:rightTool.tool.repository.title',
+    shortTitleKey: 'common:rightTool.tool.repository.shortTitle',
+    ariaLabelKey: 'common:rightTool.tool.repository.ariaLabel',
+    iconComponent: RepositoryIcon, order: 2, instancePolicy: 'single', mountPolicy: 'while-open',
+    panelWidth: { min: 340, default: 380, max: 520 },
+  }, () => import('@/components/RepositoryPanel').then(({ RepositoryPanel }) => ({ default: RepositoryPanel }))),
   builtinRightExtension({
     id: 'sessions', title: 'Sessions',
     titleKey: 'common:rightTool.tool.sessions.title',

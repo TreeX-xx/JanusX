@@ -1,41 +1,16 @@
-import { createServer, type Server } from 'node:http'
-import { execFile, execFileSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { promisify } from 'node:util'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { GitlabConfigStore } from '../../src/main/hosted/gitlab-config'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GitlabProvider, parseGitlabIssues, parseGitlabNotes, parseJobs, parseMrs, projectPath } from '../../src/main/hosted/gitlab'
+import { gitRemoteUrl, parseGitRemote } from '../../src/main/git/worktrees'
+import { runHostedCli } from '../../src/main/hosted/cli'
 
-const execFileAsync = promisify(execFile)
-const roots: string[] = []
-const servers: Server[] = []
-
-function gitAvailable(): boolean {
-  try {
-    execFileSync('git', ['--version'], { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-afterEach(async () => {
-  for (const server of servers.splice(0)) await new Promise<void>((resolve) => server.close(() => resolve()))
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
-  delete process.env.GITLAB_TOKEN
-})
+vi.mock('../../src/main/git/worktrees', () => ({ gitRemoteUrl: vi.fn(), parseGitRemote: vi.fn() }))
+vi.mock('../../src/main/hosted/cli', () => ({ runHostedCli: vi.fn() }))
 
 beforeEach(() => {
-  delete process.env.GITLAB_TOKEN
+  vi.resetAllMocks()
+  vi.mocked(gitRemoteUrl).mockResolvedValue('git@gitlab.com:group/sub/app.git')
+  vi.mocked(parseGitRemote).mockReturnValue({ host: 'gitlab.com', owner: 'group/sub', repo: 'app' })
 })
-
-async function userDataDir() {
-  const path = await mkdtemp(join(tmpdir(), 'gitlab-provider-'))
-  roots.push(path)
-  return path
-}
 
 describe('parseMrs', () => {
   it('maps states including legacy WIP drafts', () => {
@@ -115,141 +90,123 @@ describe('parseGitlabNotes', () => {
   })
 })
 
-describe.skipIf(!gitAvailable())('GitlabProvider against a stub instance', () => {
-  async function stub() {
-    const calls: Array<{ method: string; url: string; body: string }> = []
-    let origin = ''
-    const server = createServer((req, res) => {
-      let raw = ''
-      req.on('data', (chunk: Buffer) => {
-        raw += chunk.toString()
-      })
-      req.on('end', () => {
-        calls.push({ method: req.method ?? '', url: req.url ?? '', body: raw })
-        const url = req.url ?? ''
-        const json = (status: number, body: unknown) => {
-          res.writeHead(status, { 'content-type': 'application/json' })
-          res.end(JSON.stringify(body))
-        }
-        if (url === '/api/v4/user') return json(200, { username: 'zhangsan' })
-        if (/\/merge_requests\/7\/notes/.test(url) && req.method === 'GET') {
-          return json(200, [
-            { id: 1, body: 'lgtm', created_at: 't1', author: { username: 'reviewer' } },
-          ])
-        }
-        if (/\/merge_requests\/7\/notes/.test(url) && req.method === 'POST') {
-          const parsed = JSON.parse(raw || '{}') as { body?: string }
-          if (!parsed.body) return json(400, { message: 'empty' })
-          return json(201, { id: 2 })
-        }
-        if (url.startsWith('/api/v4/projects/team%2Fapp/merge_requests') && req.method === 'GET') {
-          return json(200, [
-            { iid: 7, title: 'Auth', state: 'opened', target_branch: 'main', source_branch: 'feat', web_url: `${origin}/team/app/-/merge_requests/7` },
-          ])
-        }
-        if (url.startsWith('/api/v4/projects/team%2Fapp/issues') && req.method === 'GET') {
-          return json(200, [
-            { iid: 5, title: 'Bug', state: 'opened', web_url: `${origin}/team/app/-/issues/5`, labels: ['bug'] },
-          ])
-        }
-        if (url.startsWith('/api/v4/projects/team%2Fapp/merge_requests') && req.method === 'POST') {
-          return json(201, { iid: 8, title: 'New', web_url: `${origin}/team/app/-/merge_requests/8` })
-        }
-        if (/\/merge_requests\/8\/merge/.test(url)) return json(200, { state: 'merged' })
-        if (url.includes('/pipelines?')) return json(200, [{ id: 100, status: 'failed' }])
-        if (/\/pipelines\/100\/jobs/.test(url)) {
-          return json(200, [
-            { id: 1001, name: 'test', status: 'failed' },
-            { id: 1002, name: 'build', status: 'success' },
-          ])
-        }
-        if (/\/jobs\/1001\/trace/.test(url)) {
-          res.writeHead(200, { 'content-type': 'text/plain' })
-          res.end('FAILED specs\n')
-          return
-        }
-        return json(404, {})
-      })
-    })
-    servers.push(server)
-    const base = await new Promise<string>((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address()
-        resolve(`http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`)
-      })
-    })
-    origin = base
-    return { base, calls }
-  }
+describe('GitLab.com over glab', () => {
+  const provider = new GitlabProvider()
+  const cwd = 'runtime://remote-workspace/repo'
+  const mr = { iid: 7, title: 'Auth', state: 'opened', target_branch: 'main', source_branch: 'feat',
+    web_url: 'https://gitlab.com/group/sub/app/-/merge_requests/7' }
 
-  async function repoWithRemote(remote: string) {
-    const dir = await mkdtemp(join(tmpdir(), 'gl-repo-'))
-    roots.push(dir)
-    const git = (args: string[]) =>
-      execFileAsync('git', ['-c', 'user.email=t@l', '-c', 'user.name=t', ...args], { cwd: dir })
-    await git(['init', '-b', 'main'])
-    await writeFile(join(dir, 'README.md'), '# r\n')
-    await git(['add', '-A'])
-    await git(['commit', '-m', 'init'])
-    await git(['remote', 'add', 'origin', remote])
-    return dir
-  }
-
-  it('detects only matching instances with a token', async () => {
-    const { base } = await stub()
-    const dir = await userDataDir()
-    const store = new GitlabConfigStore(dir)
-    await store.saveConfig({ url: base })
-    const provider = new GitlabProvider(store)
-    const repo = await repoWithRemote(`${base}/team/app.git`)
-    expect(await provider.detect(repo)).toBe(false)
-    process.env.GITLAB_TOKEN = 'stub-token'
-    expect(await provider.detect(repo)).toBe(true)
-    const foreign = await repoWithRemote('https://github.com/o/r.git')
-    expect(await provider.detect(foreign)).toBe(false)
+  it('recognizes GitLab.com before authorization and rejects self-managed hosts', async () => {
+    expect(await provider.detect(cwd)).toBe(true)
+    expect(gitRemoteUrl).toHaveBeenCalledWith(cwd, 'origin')
+    expect(runHostedCli).not.toHaveBeenCalled()
+    vi.mocked(parseGitRemote).mockReturnValue({ host: 'git.company.com', owner: 'team', repo: 'app' })
+    expect(await provider.detect(cwd)).toBe(false)
+    await expect(provider.listIssues(cwd)).rejects.toThrow('GitLab.com')
+    expect(runHostedCli).not.toHaveBeenCalled()
   })
 
-  it('lists reviews, checks, logs, creates and merges', async () => {
-    const { base } = await stub()
-    const dir = await userDataDir()
-    const store = new GitlabConfigStore(dir)
-    await store.saveConfig({ url: base })
-    process.env.GITLAB_TOKEN = 'stub-token'
-    const provider = new GitlabProvider(store)
-    const repo = await repoWithRemote(`${base}/team/app.git`)
+  it('pins the host and encoded project without passing a remote workspace as local cwd', async () => {
+    vi.mocked(runHostedCli).mockResolvedValue(JSON.stringify([mr, { ...mr, iid: 8, source_branch: 'other' }]))
+    expect(await provider.listReviews(cwd, 'feat')).toMatchObject([{ number: 7, head: 'feat' }])
+    expect(runHostedCli).toHaveBeenCalledWith('gitlab', [
+      'api', 'projects/group%2Fsub%2Fapp/merge_requests?source_branch=feat&state=all&per_page=10',
+      '--hostname', 'gitlab.com', '--method', 'GET',
+    ], undefined)
+  })
 
-    const reviews = await provider.listReviews(repo, 'feat')
-    expect(reviews).toMatchObject([{ number: 7, state: 'open', head: 'feat' }])
+  it('keeps search parameters encoded and returns issue labels', async () => {
+    vi.mocked(runHostedCli).mockResolvedValue(JSON.stringify([{ iid: 5, title: 'Bug', state: 'opened', labels: ['bug'] }]))
+    expect(await provider.listIssues(cwd, 'bug & state=closed')).toMatchObject([{ number: 5, state: 'open', labels: ['bug'] }])
+    expect(vi.mocked(runHostedCli).mock.calls[0][1][1]).toContain('search=bug+%26+state%3Dclosed')
+  })
 
-    const checks = await provider.getChecks(repo, 'feat')
-    expect(checks).toEqual([
-      { name: 'test', state: 'fail' },
-      { name: 'build', state: 'pass' },
-    ])
+  it('propagates authorization, transport and invalid response failures', async () => {
+    vi.mocked(runHostedCli).mockRejectedValueOnce(new Error('glab auth login'))
+    await expect(provider.listReviews(cwd, 'feat')).rejects.toThrow('glab auth login')
+    vi.mocked(runHostedCli).mockRejectedValueOnce(new Error('HTTP 403'))
+    await expect(provider.listIssues(cwd)).rejects.toThrow('HTTP 403')
+    vi.mocked(runHostedCli).mockResolvedValueOnce('<html>proxy error</html>')
+    await expect(provider.listIssues(cwd)).rejects.toThrow('JSON')
+  })
 
-    const logs = await provider.getFailedLogs(repo, 'feat')
-    expect(logs).toHaveLength(1)
-    expect(logs[0]).toMatchObject({ name: 'test', truncated: false })
-    expect(logs[0].log).toContain('FAILED specs')
-
-    const created = await provider.createReview(repo, {
-      title: 'New',
-      base: 'main',
-      head: 'feat',
-      draft: true,
+  it('reads checks and failed traces through the same CLI identity', async () => {
+    const jobs = [{ id: 1001, name: 'test', status: 'failed' }, { id: 1002, name: 'build', status: 'success' }]
+    vi.mocked(runHostedCli).mockImplementation(async (_provider, args) => {
+      if (args[1].includes('/pipelines?')) return JSON.stringify([{ id: 100 }])
+      if (args[1].includes('/jobs?')) return JSON.stringify(jobs)
+      if (args[1].endsWith('/trace')) return 'FAILED\n' + 'x'.repeat(8000) + '\nTAIL'
+      throw new Error('Unexpected request')
     })
-    expect(created).toMatchObject({ number: 8, state: 'draft' })
+    expect(await provider.getChecks(cwd, 'feat')).toEqual([{ name: 'test', state: 'fail' }, { name: 'build', state: 'pass' }])
+    const logs = await provider.getFailedLogs(cwd, 'feat')
+    expect(logs).toMatchObject([{ name: 'test', truncated: true }])
+    expect(logs[0].log.endsWith('TAIL')).toBe(true)
+    expect(runHostedCli).toHaveBeenCalledWith('gitlab', expect.arrayContaining([
+      'projects/group%2Fsub%2Fapp/jobs/1001/trace', '--hostname', 'gitlab.com',
+    ]), undefined)
+  })
 
-    await expect(provider.mergeReview(repo, 8)).resolves.toEqual({ merged: true })
-
-    const issues = await provider.listIssues(repo, 'bug')
-    expect(issues).toMatchObject([{ number: 5, state: 'open' }])
-
-    const comments = await provider.listComments(repo, 7)
-    expect(comments).toEqual([
-      { id: 'gl-1', author: 'reviewer', body: 'lgtm', createdAt: 't1' },
+  it('finds failed jobs even when newer successful jobs fill the first page', async () => {
+    vi.mocked(runHostedCli).mockImplementation(async (_provider, args) => {
+      const path = args[1]
+      if (path.includes('/pipelines?')) return JSON.stringify([{ id: 100 }])
+      if (path.includes('/jobs?')) {
+        const query = new URLSearchParams(path.split('?')[1])
+        return JSON.stringify(query.get('scope[]') === 'failed'
+          ? [{ id: 1, name: 'early failure', status: 'failed' }]
+          : Array.from({ length: 50 }, (_, index) => ({ id: index + 2, name: 'success', status: 'success' })))
+      }
+      if (path.endsWith('/jobs/1/trace')) return 'failure details'
+      throw new Error('Unexpected request')
+    })
+    expect(await provider.getFailedLogs(cwd, 'feat')).toEqual([
+      { name: 'early failure', log: 'failure details', truncated: false },
     ])
-    await expect(provider.postComment(repo, 7, 'ack')).resolves.toEqual({ posted: true })
-    await expect(provider.postComment(repo, 7, '  ')).rejects.toThrow('不能为空')
+  })
+
+  it('passes multiline bodies literally on stdin and creates an actual draft MR', async () => {
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify({ ...mr, title: 'Draft: New', draft: true }))
+    const text = 'first line\n$(not-a-command)\n@not-a-file'
+    expect(await provider.createReview(cwd, { title: 'New', body: text, base: 'main', head: 'feat', draft: true }))
+      .toMatchObject({ number: 7, state: 'draft' })
+    const [, args, input] = vi.mocked(runHostedCli).mock.calls[0]
+    expect(args).toContain('--input')
+    expect(args).not.toContain(text)
+    expect(JSON.parse(input!)).toEqual({
+      title: 'Draft: New', description: text, source_branch: 'feat', target_branch: 'main', remove_source_branch: true,
+    })
+    vi.mocked(runHostedCli).mockResolvedValueOnce('{}')
+    await expect(provider.postComment(cwd, 7, text)).resolves.toEqual({ posted: true })
+    expect(JSON.parse(vi.mocked(runHostedCli).mock.calls[1][2]!)).toEqual({ body: text })
+  })
+
+  it('reads MR comments and verifies merge outcomes', async () => {
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify([{ id: 1, body: 'ack', author: { username: 'reviewer' } }]))
+    expect(await provider.listComments(cwd, 7)).toMatchObject([{ id: 'gl-1', body: 'ack' }])
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify({ state: 'merged' }))
+    await expect(provider.mergeReview(cwd, 7)).resolves.toEqual({ merged: true })
+    expect(JSON.parse(vi.mocked(runHostedCli).mock.calls[1][2]!)).toEqual({ squash: true })
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify({ state: 'opened' }))
+    await expect(provider.mergeReview(cwd, 7)).rejects.toThrow('尚未确认')
+    await expect(provider.mergeReview(cwd, 7, 'rebase')).rejects.toThrow('rebase')
+  })
+
+  it('sets auto_merge and checks cancellation status instead of trusting HTTP success', async () => {
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify({ merge_when_pipeline_succeeds: true }))
+    await expect(provider.setAutoMerge(cwd, 7, true)).resolves.toEqual({ autoMerge: true })
+    expect(JSON.parse(vi.mocked(runHostedCli).mock.calls[0][2]!)).toEqual({ auto_merge: true, squash: true })
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify({ status: 'success' }))
+    await expect(provider.setAutoMerge(cwd, 7, false)).resolves.toEqual({ autoMerge: false })
+    expect(vi.mocked(runHostedCli).mock.calls[1][1][1]).toMatch(/\/cancel_merge_when_pipeline_succeeds$/)
+    vi.mocked(runHostedCli).mockResolvedValueOnce(JSON.stringify({ status: 'error' }))
+    await expect(provider.setAutoMerge(cwd, 7, false)).rejects.toThrow('取消')
+  })
+
+  it('rejects invalid writes before running the CLI', async () => {
+    await expect(provider.postComment(cwd, 7, '  ')).rejects.toThrow('不能为空')
+    await expect(provider.mergeReview(cwd, -1)).rejects.toThrow('编号')
+    await expect(provider.listComments(cwd, 1.5)).rejects.toThrow('编号')
+    expect(runHostedCli).not.toHaveBeenCalled()
   })
 })

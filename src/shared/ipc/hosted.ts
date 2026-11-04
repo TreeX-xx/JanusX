@@ -1,14 +1,22 @@
 export const HOSTED_CHANNELS = {
   detect: 'hosted:detect',
+  connection: 'hosted:connection',
+  repository: 'hosted:repository',
+  overview: 'hosted:overview',
+  image: 'hosted:image',
+  browse: 'hosted:browse',
+  detail: 'hosted:detail',
+  discussion: 'hosted:discussion',
+  mutate: 'hosted:mutate',
+  loginStart: 'hosted:login-start',
+  loginRead: 'hosted:login-read',
+  loginInput: 'hosted:login-input',
+  loginStop: 'hosted:login-stop',
   listReviews: 'hosted:list-reviews',
   checks: 'hosted:checks',
   failedLogs: 'hosted:failed-logs',
   createReview: 'hosted:create-review',
   mergeReview: 'hosted:merge-review',
-  gitlabGet: 'hosted:gitlab-get',
-  gitlabSave: 'hosted:gitlab-save',
-  gitlabVerify: 'hosted:gitlab-verify',
-  gitlabClearToken: 'hosted:gitlab-clear-token',
   listIssues: 'hosted:list-issues',
   listComments: 'hosted:list-comments',
   postComment: 'hosted:post-comment',
@@ -78,29 +86,26 @@ export interface CreateReviewInput {
   worktreePath?: string
 }
 
-export interface GitlabInstanceConfig {
-  url: string
-  allowInsecure: boolean
-  timeoutMs: number
-  tokenSource: 'keychain' | 'env' | 'none'
-}
-
-export interface GitlabSaveInput {
-  url: string
-  allowInsecure?: boolean
-  timeoutMs?: number
-  token?: string
-}
-
-export interface GitlabVerifyResult {
-  ok: boolean
-  username?: string
+export interface HostedConnection {
+  provider: HostedProviderId
+  status: 'ready' | 'cli-missing' | 'unauthenticated' | 'error'
   error?: string
-  code?: 'network' | 'auth' | 'cert' | 'config' | 'token'
 }
 
 export interface HostedAPI {
+  image(target: HostedTarget, path: string, ref: string): Promise<string>
+  overview(target: HostedTarget): Promise<HostedOverview>
+  repository(workspacePath: string): Promise<HostedRepository | null>
+  browse(target: HostedTarget, query: HostedQuery): Promise<HostedPage<HostedItem>>
+  detail(target: HostedTarget, kind: HostedItemKind, number: number): Promise<HostedDetail>
+  discussion(target: HostedTarget, kind: HostedItemKind, number: number, page: number): Promise<HostedPage<HostedComment>>
+  mutate(target: HostedTarget, mutation: HostedMutation): Promise<{ number: number }>
+  loginStart(workspacePath: string): Promise<HostedLoginSession>
+  loginRead(id: string): Promise<HostedLoginSession>
+  loginInput(id: string, data: string): Promise<void>
+  loginStop(id: string): Promise<void>
   detect(workspacePath: string): Promise<HostedProviderId | null>
+  connection(workspacePath: string): Promise<HostedConnection | null>
   listReviews(workspacePath: string, branch: string): Promise<HostedReview[]>
   checks(workspacePath: string, branch: string): Promise<HostedCheck[]>
   failedLogs(workspacePath: string, branch: string): Promise<FailedCheckLog[]>
@@ -110,12 +115,65 @@ export interface HostedAPI {
     number: number,
     method?: 'squash' | 'merge' | 'rebase',
   ): Promise<{ merged: boolean }>
-  gitlabGet(): Promise<GitlabInstanceConfig>
-  gitlabSave(input: GitlabSaveInput): Promise<GitlabInstanceConfig>
-  gitlabVerify(input?: Partial<GitlabSaveInput>): Promise<GitlabVerifyResult>
-  gitlabClearToken(): Promise<GitlabInstanceConfig>
   listIssues(workspacePath: string, query?: string): Promise<HostedIssue[]>
   listComments(workspacePath: string, number: number): Promise<HostedComment[]>
   postComment(workspacePath: string, number: number, body: string): Promise<{ posted: boolean }>
   setAutoMerge(workspacePath: string, number: number, enable: boolean): Promise<{ autoMerge: boolean }>
+}
+
+export type HostedItemKind = 'issue' | 'review'
+export interface HostedRepository {
+  key: string
+  provider: HostedProviderId
+  fullName: string
+  url: string
+  remote: 'origin'
+}
+export interface HostedTarget { workspacePath: string; repositoryKey: string }
+export interface HostedOverview {
+  description: string
+  defaultBranch: string | null
+  visibility: 'public' | 'private' | 'internal'
+  readme: { text: string; path: string; url: string } | null
+  readmeError?: string
+}
+export interface HostedQuery {
+  kind: HostedItemKind
+  state: 'open' | 'closed' | 'merged' | 'all'
+  filter: 'all' | 'created' | 'assigned'
+  search: string
+  page: number
+}
+export interface HostedPage<T> { items: T[]; nextPage: number | null; truncated?: boolean }
+export interface HostedItem {
+  kind: HostedItemKind
+  number: number
+  title: string
+  state: HostedReviewState
+  url: string
+  author: string
+  updatedAt: string
+  labels: string[]
+}
+export interface HostedDetail extends HostedItem {
+  body: string
+  assignees: string[]
+  head?: string
+  base?: string
+  sha?: string
+  checks: HostedCheck[]
+  checksError?: string
+}
+export type HostedMutation =
+  | { action: 'create'; kind: HostedItemKind; title: string; body: string; head?: string; base?: string; draft?: boolean }
+  | { action: 'edit'; kind: HostedItemKind; number: number; title: string; body: string }
+  | { action: 'comment'; kind: HostedItemKind; number: number; body: string }
+  | { action: 'close' | 'reopen'; kind: HostedItemKind; number: number }
+  | { action: 'merge'; kind: 'review'; number: number; sha: string }
+export interface HostedLoginSession {
+  id: string
+  provider: HostedProviderId
+  output: string
+  finished: boolean
+  exitCode?: number
 }

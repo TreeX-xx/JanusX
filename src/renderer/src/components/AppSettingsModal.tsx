@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
+import { Bell, Brain, ChartNoAxesCombined, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
 import { ModalFrame } from '@/components/shared/ModalFrame'
 import { GeneralSettingsPanel } from './GeneralSettingsPanel'
 import { AboutSettingsPanel } from './AboutSettingsPanel'
@@ -10,7 +10,6 @@ import { LlmConfigModal } from './LlmConfigModal'
 import { ModelCatalogPanel } from './ModelCatalogPanel'
 import { AgentSettingsPanel } from './AgentSettingsPanel'
 import { UsageStatsPanel } from './UsageStatsPanel'
-import { HostedSettingsPanel } from './HostedSettingsPanel'
 import { TeamSettingsPanel } from './team/TeamSettingsPanel'
 import { PluginSettingsPanel } from './plugins/PluginSettingsPanel'
 import { PluginSettingsView } from './plugins/PluginSettingsView'
@@ -25,7 +24,7 @@ import styles from './AppSettingsModal.module.css'
 import { LearningButton } from './onboarding/LearningButton'
 import { SettingsSurface, Button as SettingsButton } from '@janusx/ui'
 
-type BuiltinSettingsTab = 'general' | 'terminal' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
+type BuiltinSettingsTab = 'general' | 'terminal' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'about'
 export type SettingsTab = BuiltinSettingsTab | ExtensionViewId
 
 interface AppSettingsModalProps {
@@ -42,14 +41,14 @@ const TAB_GROUPS: { id: string; tabs: SettingsTab[] }[] = [
   { id: 'application', tabs: ['general', 'terminal', 'plugins', 'notifications'] },
   { id: 'memory', tabs: ['personal'] },
   { id: 'models', tabs: ['llm', 'models', 'usage'] },
-  { id: 'collaboration', tabs: ['agent', 'team', 'hosted'] },
+  { id: 'collaboration', tabs: ['agent', 'team'] },
   { id: 'about', tabs: ['about'] },
 ]
 const TAB_ICONS: Record<BuiltinSettingsTab, LucideIcon> = {
   general: Settings, terminal: SquareTerminal, notifications: Bell,
   personal: Brain, llm: SlidersHorizontal,
   models: ListFilter, usage: ChartNoAxesCombined, agent: ShieldCheck,
-  team: Users, hosted: Cloud, about: Info,
+  team: Users, about: Info,
   plugins: Puzzle,
 }
 
@@ -116,22 +115,17 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
   if (!isOpen) return null
 
   // team 页文案走 team 命名空间（settings.json 存在历史编码损坏，不再追加 key）。
-  // hosted 页同理走 common 命名空间。
   const builtinTabNav = (tab: BuiltinSettingsTab) =>
     tab === 'plugins' ? tPlugins('plugins:nav') : tab === 'personal' ? tKnowledge('knowledge:memorySettings.title') : tab === 'team'
       ? tTeam('team:settingsTab.nav')
       : tab === 'terminal'
         ? tTerminal('terminal:shellSettings.nav')
-        : tab === 'hosted'
-        ? tCommon('common:hosted.nav')
         : t(`settings:tab.${tab}.nav`)
   const tabNav = (tab: SettingsTab) => pluginPages.find(page => page.id === tab)?.title ?? builtinTabNav(tab as BuiltinSettingsTab)
   const meta = pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
     ? { title: tTeam('team:settingsTab.title'), subtitle: tTeam('team:settingsTab.subtitle') }
     : activeTab === 'terminal'
       ? { title: tTerminal('terminal:shellSettings.title'), subtitle: tTerminal('terminal:shellSettings.subtitle') }
-      : activeTab === 'hosted'
-      ? { title: tCommon('common:hosted.title'), subtitle: tCommon('common:hosted.subtitle') }
       : {
         title: t(`settings:tab.${activeTab}.title`),
         subtitle: t(`settings:tab.${activeTab}.subtitle`),
@@ -155,7 +149,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
             </div>
             <nav className={styles.navigation} aria-label={t('settings:brand')}>
               {groups.map((group) => (
-                <section key={group.id} className={styles.navGroup} aria-label={group.id === 'about' ? tabNav('about') : group.id === 'extensions' ? tPlugins('plugins:settingsPages') : t(`settings:groups.${group.id}`)}>
+                <section key={group.id} className={`${styles.navGroup} ${group.id === 'about' ? styles.aboutGroup : ''}`} aria-label={group.id === 'about' ? tabNav('about') : group.id === 'extensions' ? tPlugins('plugins:settingsPages') : t(`settings:groups.${group.id}`)}>
                   {group.id !== 'about' && <h3 className={styles.groupTitle}>{group.id === 'extensions' ? tPlugins('plugins:settingsPages') : t(`settings:groups.${group.id}`)}</h3>}
                   <div className={styles.groupItems}>
                     {group.tabs.map((tab) => {
@@ -208,7 +202,6 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'usage' && <UsageStatsPanel />}
               {activeTab === 'models' && <ModelCatalogPanel />}
               {activeTab === 'team' && <TeamSettingsPanel />}
-              {activeTab === 'hosted' && <HostedSettingsPanel />}
             </SettingsSurface>
           </section>
         </>

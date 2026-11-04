@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-15",
-  "updated": "2026-11-03T11:14:00.000Z",
+  "updated": "2026-11-03T17:06:50.881Z",
   "class": "feature",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
@@ -27,7 +27,9 @@
 
 共享 Select 保留原有浮层定位算法及 Arrow、Home、End、Enter、Space、Escape 操作，跳过禁用选项，跟随滚动和窗口尺寸变化重新定位。Escape 只关闭当前菜单。数据为空、加载、选择及保存的行为继续由调用方决定。它同时供宿主其他既有 Select 使用方消费，因此 Git 等既有调用方也获得一致的中性下拉样式。
 
-应用设置保留左侧分组导航、右侧独立滚动内容及现有功能门控。通用、终端、插件管理及声明式配置、通知、个人记忆、模型与用量、Agent、团队、托管、实验和关于均接入相应公共控件。蓝图模型配置、自动审阅、MCP 接入及旧数据导入，CPA 连接配置也使用同一包。第三方自行绘制的插件界面需要主动采用公共包，宿主不强制改写隔离页面。
+应用设置保留左侧分组导航、右侧独立滚动内容及现有功能门控。通用、终端、插件管理及声明式配置、通知、个人记忆、模型与用量、Agent、团队、实验和关于均接入相应公共控件。托管平台设置页已随自建 GitLab 配置移除，GitHub.com/GitLab.com 的登录入口位于工作区三个点菜单，右侧仓库未登录时也提供可点击提示，协作浏览和更多操作集中在右侧仓库面板；现有 Issue composer 与 Ship 仍保留连接指引，具体约束由[GitLab 专题](../remote/gitlab-provider-reviews.md)维护。蓝图模型配置、自动审阅、MCP 接入及旧数据导入，CPA 连接配置也使用同一包。第三方自行绘制的插件界面需要主动采用公共包，宿主不强制改写隔离页面。
+
+桌面导航中，有标题的分组之间保留 20px 留白；无标题的“关于”与前一页签使用相同的 2px 行间距，团队页隐藏时仍保持连续。窄窗口继续使用横向分组与分隔线。
 
 ### Plugin build boundary
 
@@ -64,6 +66,8 @@
 控件调整只需维护公共实现，官方插件通过公共依赖获得同样的交互与样式；发布插件时需同步构建和归档。简单设置易于扫读，复杂配置有全宽编辑空间。完整页面仍可能需要纵向滚动，未提交草稿不承诺跨页恢复，也未新增关闭确认流程。
 
 ## Verification
+
+2026-11-04：移除托管页后的导航间距通过 `npm run test:e2e -- tests/e2e/settings-layout.spec.ts --grep "settings fit"` 的 9 项既有布局回归，覆盖三种主题与 1440／900／640px 宽度。Chromium 实测“关于”前间距从 20px 收紧为 2px，团队开关关闭后仍为 2px；深色和纸面截图已人工复核，截图与测量位于 `artifacts/settings-hosted-removal/`。
 
 2026-11-03：`settings-layout`、`about-settings`、`mobile-remote-rail`、`plugin-settings`、`llm-configuration`、`model-catalog`、`theme-settings`、`shell-settings`、`external-cli-settings` 和新增 `settings-controls` 的 Playwright island 回归共 **73 项通过**。覆盖保存／撤销／失败保值、远控与更新开关、CLI 操作、主题切换、模型渠道、下拉键盘和 Escape，以及宿主和插件的深浅主题与窄窗口。最终截图位于 `artifacts/settings-system-final/`，人工复核通用、LLM、蓝图与 CPA 页面。
 

@@ -69,6 +69,20 @@ describe('remaining typed IPC contracts', () => {
     await api.session.list({ workspaceId: 'ws-1' })
     await api.worktree.identity('C:\\repo')
     await api.hosted.checks('C:\\repo', 'feat')
+    await api.hosted.connection('C:\\repo')
+    const hostedTarget = { workspacePath: 'C:\\repo', repositoryKey: 'github:team/app' }
+    const hostedQuery = { kind: 'issue' as const, state: 'open' as const, filter: 'all' as const, search: 'test', page: 2 }
+    await api.hosted.repository('C:\\repo')
+    await api.hosted.browse(hostedTarget, hostedQuery)
+    await api.hosted.overview(hostedTarget)
+    await api.hosted.image(hostedTarget, 'docs/screen.png', 'main')
+    await api.hosted.detail(hostedTarget, 'review', 7)
+    await api.hosted.discussion(hostedTarget, 'issue', 7, 2)
+    await api.hosted.mutate(hostedTarget, { action: 'comment', kind: 'issue', number: 7, body: 'literal\nbody' })
+    await api.hosted.loginStart('C:\\repo')
+    await api.hosted.loginRead('login-id')
+    await api.hosted.loginInput('login-id', '\r')
+    await api.hosted.loginStop('login-id')
     await api.git.status('C:\\repo')
     await api.git.fileBaseline('C:\\repo', 'README.md')
     await api.git.history('C:\\repo', { scope: 'all', limit: 60 })
@@ -91,6 +105,18 @@ describe('remaining typed IPC contracts', () => {
       [SESSION_CHANNELS.list, { workspaceId: 'ws-1' }],
       [WORKTREE_CHANNELS.identity, { workspacePath: 'C:\\repo' }],
       [HOSTED_CHANNELS.checks, { workspacePath: 'C:\\repo', branch: 'feat' }],
+      [HOSTED_CHANNELS.connection, { workspacePath: 'C:\\repo' }],
+      [HOSTED_CHANNELS.repository, 'C:\\repo'],
+      [HOSTED_CHANNELS.browse, hostedTarget, hostedQuery],
+      [HOSTED_CHANNELS.overview, hostedTarget],
+      [HOSTED_CHANNELS.image, hostedTarget, 'docs/screen.png', 'main'],
+      [HOSTED_CHANNELS.detail, hostedTarget, 'review', 7],
+      [HOSTED_CHANNELS.discussion, hostedTarget, 'issue', 7, 2],
+      [HOSTED_CHANNELS.mutate, hostedTarget, { action: 'comment', kind: 'issue', number: 7, body: 'literal\nbody' }],
+      [HOSTED_CHANNELS.loginStart, 'C:\\repo'],
+      [HOSTED_CHANNELS.loginRead, 'login-id'],
+      [HOSTED_CHANNELS.loginInput, 'login-id', '\r'],
+      [HOSTED_CHANNELS.loginStop, 'login-id'],
       [GIT_CHANNELS.status, 'C:\\repo'],
       [GIT_CHANNELS.fileBaseline, 'C:\\repo', 'README.md'],
       [GIT_CHANNELS.history, 'C:\\repo', { scope: 'all', limit: 60 }],
