@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-04T15:14:49.142Z",
+  "updated": "2026-11-04T16:06:21.937Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -23,6 +23,8 @@ A live Electron process retains hashed chunk paths from its startup build. If de
 On Windows, libuv's short-path directory watcher assertion terminates the worker before Vitest can report all failures. The native failure reproduces under Node 24.20.0/libuv 1.52.1 when a short directory alias and a short file alias are used together. The same probe completes under Node 24.15.0/libuv 1.51.0, or with the watched directory expanded by `realpathSync.native`. Upstream [libuv issue 5010](https://github.com/libuv/libuv/issues/5010) documents the same assertion and GitHub runner temporary paths.
 
 ## Decision
+
+Windows worktree cleanup must inspect dependency junctions recursively, including workspace-package links, before removing the checkout. A clean Git status and a normal top-level directory do not prove that nested dependencies are isolated. During the repository/automation integration cleanup on 2026-11-05, removal also emptied the primary checkout's dependencies and four shared package directories. The previously clean tracked package files were restored from the index; `npm ci --include=dev` restored dependencies without changing the lockfile. Application and SDK builds, strict unused typecheck, the development environment check and one real desktop automation IPC persistence test passed after recovery. Preserve ignored evidence first, detach links to other checkouts without traversing their targets, and verify the surviving checkout after removal. Recovery evidence is recorded under `artifacts/worktree-merge-dependencies-restore.log`, `artifacts/worktree-merge-recovery-*` and `artifacts/worktree-integration-20261104/manifest.json`.
 
 The v0.9.8 release candidate includes committed JanusX development through `f3132afa`. The maintainer explicitly included the previously uncommitted theme and scrollbar edits; they are committed intact and integrated before tagging. It uses an isolated checkout, Node 24.20.0, agentX `4df4c4457269e46a52b7ed430db379e194fac175` and WorkFlowX `efaf5ae7aac24362286251dc931487d5cfd2e2a5`. The Blueprint publication lock is refreshed for the SDK bytes produced by this clean source; only the SDK digest and matching npm integrity change, retaining the existing third-party dependency versions. Published Android 0.1.13 and optional signed plugin assets are reused byte-for-byte from v0.9.7; this does not publish newer plugin source changes. User-facing release notes follow the existing headings and download table in `docs/releases/v0.9.8.md`.
 
