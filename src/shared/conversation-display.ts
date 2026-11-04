@@ -63,6 +63,8 @@ export interface ConversationApproval {
   choices?: Array<{ id: string; label: string; description?: string }>
 }
 export interface ConversationModelOption {
+  /** Display metadata only; model remains the complete native selection identity. */
+  provider?: { id: string; name: string }
   fastTier?: string
   model: string
   displayName: string

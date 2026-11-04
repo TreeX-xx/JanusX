@@ -185,6 +185,16 @@
 .commandHeader span + span { color: var(--shell-muted); font-size: 10px; font-weight: 400; }
 .pickerSearch { display: flex; align-items: center; gap: 6px; margin: 0 12px 8px; padding: 7px 0; color: var(--shell-muted); border-bottom: 1px solid var(--shell-border); }
 .pickerSearch input { width: 100%; min-width: 0; background: transparent; color: var(--shell-text); outline: none; font-size: 12px; }
+.modelProviderFilter { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; min-width: 0; flex-shrink: 0; font-size: 11px; color: var(--shell-muted); }
+.modelProviderFilter > span, .modelProviderFilter > svg { flex-shrink: 0; }
+.modelProviderFilter select { flex: 1; min-width: 0; appearance: none; padding: 4px 6px; border-radius: 4px; background: var(--shell-hover); color: var(--shell-text); font: inherit; text-overflow: ellipsis; cursor: pointer; }
+.modelProviderFilter select:focus-visible { outline: 1px solid var(--shell-text); outline-offset: 2px; }
+.modelProviderFilter option { background: var(--shell-chrome-raised); color: var(--shell-text); }
+.modelGroupLabel { padding: 9px 8px 4px; color: var(--shell-muted); font-size: 10px; font-weight: 500; overflow-wrap: anywhere; }
+.modelRefresh { display: inline-flex; align-items: center; gap: 4px; color: var(--shell-muted); border-radius: 4px; }
+.modelRefresh:hover:not(:disabled), .modelRefresh:focus-visible { color: var(--shell-text); background: var(--shell-hover); }
+.modelRefresh:disabled { opacity: .5; cursor: default; }
+.modelControls .modelProviderTag { max-width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; border-right: 1px solid var(--shell-border); font-size: 10px; }
 .commandList { min-height: 0; overflow: auto; padding: 0 6px 6px; }
 .commandList .commandOption { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 8px; text-align: left; border-radius: 7px; font-size: 12px; }
 .commandOption > span { flex: 1; min-width: 0; }

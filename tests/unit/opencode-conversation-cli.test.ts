@@ -54,7 +54,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('OpenCode native dual m
     await mkdir(join(f.cwd, '.opencode/skills/native-skill'), { recursive: true })
     await writeFile(join(f.cwd, '.opencode/skills/native-skill/SKILL.md'), ['---', 'name: native-skill', 'description: Test skill', '---', 'OPENCODE_SKILL_BODY_MARKER'].join('\n'))
     f.env.OPENCODE_CONFIG_CONTENT = JSON.stringify({ model: 'fixture/fixture', update: 'disable', share: 'disabled', snapshots: false,
-      providers: { fixture: { package: '@ai-sdk/openai-compatible', settings: { baseURL: f.url, apiKey: 'fixture' }, models: {
+      providers: { fixture: { name: 'Team gateway', package: '@ai-sdk/openai-compatible', settings: { baseURL: f.url, apiKey: 'fixture' }, models: {
         fixture: { limit: { context: 32000, output: 1000 }, capabilities: { input: ['text'], output: ['text'], tools: false } },
         deep: { name: 'Fixture Deep', limit: { context: 32000, output: 1000 }, capabilities: { input: ['text'], output: ['text'], tools: false },
           variants: [{ id: 'careful', settings: { reasoningEffort: 'high' }, body: { reasoning_effort: 'high' } }] },
@@ -79,6 +79,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('OpenCode native dual m
       await c.command({ type: 'mode', mode: 'conversation' })
       await c.command({ type: 'models', controlEpoch: c.state.controlEpoch })
       expect(c.state.models.find(m => m.model === 'fixture/deep')?.efforts.map(v => v.effort)).toEqual(['default', 'careful'])
+      expect(c.state.models.find(m => m.model === 'fixture/deep')).toMatchObject({ displayName: 'Fixture Deep', provider: { id: 'fixture', name: 'Team gateway' } })
       const count = f.requests.length
       await c.command({ type: 'settings', model: 'fixture/deep', effort: 'careful', controlEpoch: c.state.controlEpoch })
       expect(c.state).toMatchObject({ model: 'fixture/deep', effort: 'careful', threadId: session })

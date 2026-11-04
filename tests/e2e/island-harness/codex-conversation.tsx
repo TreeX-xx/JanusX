@@ -45,8 +45,8 @@ if (extraEngine === 'opencode' || extraEngine === 'pi' || extraEngine === 'dsh')
   if (extraEngine === 'opencode') {
     state.model = 'fixture/fast'; state.effort = 'default'
     state.models = [
-      { model: 'fixture/fast', displayName: 'Fast · fixture', description: 'fixture/fast', defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }] },
-      { model: 'fixture/deep', displayName: 'Deep · fixture', description: 'fixture/deep', defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }, { effort: 'careful', description: '' }] },
+      { model: 'fixture/fast', displayName: 'Fast', provider: { id: 'fixture', name: 'fixture' }, description: 'fixture/fast', defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }] },
+      { model: 'fixture/deep', displayName: 'Deep', provider: { id: 'fixture', name: 'fixture' }, description: 'fixture/deep', defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }, { effort: 'careful', description: '' }] },
     ]
   }
 }
@@ -131,6 +131,18 @@ Object.assign(window.electron.window, { openEditor: async ({ filePath }: { fileP
 Object.assign(window.electron.fileTree, { children: async (_root: string, directory: string) => directory === 'src/' ? [{ name: 'app.ts', path: 'src/app.ts', type: 'file' }] : [{ name: 'src', path: 'src', type: 'directory' }] })
 Object.assign(window.electron.file, { importConversationAttachment: async (name: string) => ({ id: crypto.randomUUID(), name, path: 'C:/attachments/' + name, kind: name.endsWith('.png') ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
 Object.assign(window, { codexFixture: {
+  providerModels: () => {
+    state.models = [
+      ['opencode-go', 'OpenCode Go', 'shared', 'Shared model'],
+      ['opencode', 'OpenCode Zen', 'shared', 'Shared model'],
+      ['team', 'Team gateway', 'shared', 'Shared model'],
+      ['opencode-go', 'OpenCode Go', 'fast', 'Fast model'],
+      ['team', 'Team gateway', 'local/special', 'Local model'],
+      ['edge', 'Company gateway with a very long provider name', 'local', 'Long custom model display name for small panes'],
+    ].map(([id, name, model, displayName]) => ({ model: `${id}/${model}`, provider: { id, name }, displayName, description: `${id}/${model}`,
+      defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }, ...(id === 'team' ? [{ effort: 'careful', description: '' }] : [])] }))
+    state.model = 'opencode-go/shared'; state.effort = 'default'; publish()
+  },
   questions: (kind = 'mixed') => {
     state.questions = [{ id: 'question', version: state.revision, cancelable: true, status: 'pending', questions: kind === 'text' ? [
       { id: 'text', text: 'Type something', options: [], allowText: true },

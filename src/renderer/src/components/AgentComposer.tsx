@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ArrowUp, Check, ChevronDown, Search, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap, type LucideIcon } from 'lucide-react'
@@ -13,7 +13,7 @@ import { EffortActivation, EffortGlyph, effortToneClass, effortVisualLevel } fro
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort'
-interface Choice { icon?: LucideIcon; source?: string; completion?: string; id: string; label: string; description: string; selected?: boolean; disabled?: boolean; run(): void }
+interface Choice { icon?: LucideIcon; source?: string; completion?: string; provider?: { id: string; name: string }; title?: string; id: string; label: string; description: string; selected?: boolean; disabled?: boolean; run(): void }
 const effortOrder = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
 
 export function AgentComposer({ terminalId, historyScope, workspacePath, references, snapshot, setDraft, inputRef, canSend, hasOutgoing, busy, switching, send, action, changeMode }: {
@@ -51,6 +51,8 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const [contextOpen, setContextOpen] = useState(false)
   const [panel, setPanel] = useState<Panel | null>(null)
   const [search, setSearch] = useState('')
+  const [modelProvider, setModelProvider] = useState('')
+  const [pickerHeight, setPickerHeight] = useState<number>()
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [active, setActive] = useState(0)
   const [selectionFailed, setSelectionFailed] = useState(false)
@@ -75,8 +77,21 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   }, [action, commandQuery, busy, switching, terminalId, snapshot?.threadId, snapshot?.capabilities.commands, snapshot?.connection, snapshot?.mode, snapshot?.commands, snapshot?.commandsLoading, snapshot?.commandsError, snapshot?.controlEpoch])
   const slashPanel: Panel = snapshot?.capabilities.settings && slash?.name === 'model' ? 'model' : snapshot?.capabilities.settings && slash?.name === 'effort' ? 'effort' : 'commands'
   const currentPanel = contextOpen ? null : panel ?? (slash && dismissed !== draft ? slashPanel : null)
+  useLayoutEffect(() => {
+    const composer = root.current, body = composer?.closest(`.${styles.conversation}`)
+    if (!currentPanel || !composer || !body) return
+    const measure = () => setPickerHeight(Math.min(360, Math.max(0, composer.getBoundingClientRect().top - body.getBoundingClientRect().top - 12)))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(body); observer.observe(composer)
+    return () => observer.disconnect()
+  }, [currentPanel])
   const query = panel ? search : slashPanel === 'commands' ? slash?.name ?? '' : slash?.query ?? ''
   const model = snapshot?.models.find(option => option.model === snapshot.model)
+  const groupedModels = snapshot?.engine === 'opencode' && snapshot.models.some(option => option.provider)
+  const modelProviders = groupedModels ? [...new Map(snapshot.models.flatMap(option => option.provider ? [[option.provider.id, option.provider] as const] : [])).values()] : []
+  const providerFilter = modelProviders.some(provider => provider.id === modelProvider) ? modelProvider : ''
+  useEffect(() => { setModelProvider('') }, [terminalId, snapshot?.threadId, currentPanel])
   const fastEnabled = snapshot?.serviceTier === 'fast' || snapshot?.serviceTier === 'priority'
   const speedKnown = snapshot?.serviceTier !== undefined
   const speedTitle = t(!speedKnown ? 'conversation.speedUnknown' : fastEnabled ? 'conversation.speedOn' : !model?.fastTier ? 'conversation.speedUnavailable' : 'conversation.speedOff')
@@ -175,17 +190,30 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
         })
       },
     }] : []
-  const choices: Choice[] = (currentPanel === 'model' ? (snapshot?.models ?? []).map(option => ({
-    id: option.model, label: option.displayName, description: option.description || (option.model === option.displayName ? '' : option.model), selected: option.model === snapshot?.model, disabled: !canConfigure,
-    run: () => void selectSettings(option.model, option.efforts.some(value => value.effort === snapshot?.effort) ? snapshot!.effort : option.defaultEffort),
-  })) : currentPanel === 'effort' ? efforts.map(option => ({
+  // Preserve native identities while grouping only the OpenCode presentation.
+  // All engines retain the same option rows and keyboard navigation.
+  const orderedModels = groupedModels ? [...modelProviders.flatMap(provider => (snapshot?.models ?? []).filter(option => option.provider?.id === provider.id)), ...snapshot.models.filter(option => !option.provider)] : snapshot?.models ?? []
+  const modelNameCounts = new Map<string, number>()
+  if (groupedModels) for (const option of orderedModels) {
+    const key = JSON.stringify([option.provider?.id, option.displayName])
+    modelNameCounts.set(key, (modelNameCounts.get(key) ?? 0) + 1)
+  }
+  const choices: Choice[] = (currentPanel === 'model' ? orderedModels.filter(option => !groupedModels || !providerFilter || option.provider?.id === providerFilter).map<Choice>(option => {
+    const repeatedName = (modelNameCounts.get(JSON.stringify([option.provider?.id, option.displayName])) ?? 0) > 1
+    return {
+      id: option.model, label: option.displayName, provider: groupedModels ? option.provider : undefined, title: groupedModels ? option.model : undefined,
+      description: groupedModels ? (repeatedName ? option.model : '') : option.description || (option.model === option.displayName ? '' : option.model),
+      selected: option.model === snapshot?.model, disabled: !canConfigure,
+      run: () => void selectSettings(option.model, option.efforts.some(value => value.effort === snapshot?.effort) ? snapshot!.effort : option.defaultEffort),
+    }
+  }) : currentPanel === 'effort' ? efforts.map<Choice>(option => ({
     id: option.effort, label: option.effort === 'default' ? t('conversation.defaultEffort') : t(`conversation.efforts.${option.effort}`, { defaultValue: option.effort }), description: '',
     selected: option.effort === snapshot?.effort, disabled: !canConfigure,
     run: () => void selectSettings(model!.model, option.effort),
-  })) : [...commands, ...nativeChoices, ...terminalChoice]).filter(option => `${currentPanel === 'commands' ? '' : option.id} ${option.label} ${option.description}`.toLowerCase().includes(query.toLowerCase()))
+  })) : [...commands, ...nativeChoices, ...terminalChoice]).filter(option => `${currentPanel === 'commands' ? '' : option.id} ${option.label} ${option.description} ${option.provider?.name ?? ''} ${option.provider?.id === 'opencode' ? 'zen' : ''}`.toLowerCase().includes(query.toLowerCase()))
   const activeChoice = choices[Math.min(active, choices.length - 1)]
   const selectedIndex = currentPanel !== 'commands' && !query ? choices.findIndex(option => option.selected) : -1
-  useEffect(() => { setActive(Math.max(0, selectedIndex)); setSelectionFailed(false) }, [query, currentPanel, selectedIndex])
+  useEffect(() => { setActive(Math.max(0, selectedIndex)); setSelectionFailed(false) }, [query, currentPanel, selectedIndex, providerFilter])
   const submit = () => {
     if (slash) {
       setDismissed(null)
@@ -237,21 +265,30 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     {effortFeedback.id > 0 && <EffortActivation key={effortFeedback.id} effort={effortFeedback.effort} suppressed={Boolean(currentPanel)}
       label={effortFeedback.effort && effortFeedback.effort !== 'default' ? t(`conversation.efforts.${effortFeedback.effort}`, { defaultValue: effortFeedback.effort }) : t('conversation.defaultEffort')}
       status={t('conversation.effortActivated')} />}
-    {currentPanel && <div className={styles.commandPanel} data-panel={currentPanel}>
+    {currentPanel && <div className={styles.commandPanel} data-panel={currentPanel} style={{ maxHeight: pickerHeight }}>
       <div className={styles.commandHeader}>{!panel && currentPanel !== 'commands' && <button type="button" aria-label={t('conversation.picker.commands')} onClick={() => { setDraft('/'); inputRef.current?.focus() }}><ArrowLeft size={15} /></button>}<span>{t(`conversation.picker.${currentPanel}`)}</span>{currentPanel !== 'effort' && <span title={t('conversation.commandKeys')}>{t('conversation.compactCommandKeys')}</span>}</div>
       {(currentPanel === 'model' || panel === 'commands') && <label className={styles.pickerSearch}><Search size={14} aria-hidden="true" /><input ref={searchRef} value={query} onChange={event => panel ? setSearch(event.target.value) : setDraft('/model ' + event.target.value)} onKeyDown={keyboard}
-        role="combobox" aria-label={t('conversation.searchOptions')} aria-expanded aria-controls={listId} aria-activedescendant={activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined} placeholder={t('conversation.searchOptions')} /></label>}
+        role="combobox" aria-label={t('conversation.searchOptions')} aria-expanded aria-controls={listId} aria-activedescendant={activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined} placeholder={t(groupedModels && currentPanel === 'model' ? 'conversation.searchModels' : 'conversation.searchOptions')} /></label>}
+      {currentPanel === 'model' && groupedModels && <label className={styles.modelProviderFilter}>
+        <span>{t('conversation.modelProvider')}</span>
+        <select aria-label={t('conversation.modelProvider')} value={providerFilter} onChange={event => { setModelProvider(event.target.value); searchRef.current?.focus() }}>
+          <option value="">{t('conversation.allProviders')}</option>
+          {modelProviders.map(provider => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+        </select><ChevronDown size={12} aria-hidden="true" />
+      </label>}
       <div className={currentPanel === 'effort' ? styles.effortScale : styles.commandList} role="listbox" id={listId} aria-label={t(`conversation.picker.${currentPanel}`)}
         ref={currentPanel === 'effort' ? effortRef : undefined} tabIndex={panel === 'effort' ? 0 : undefined} onKeyDown={panel === 'effort' ? keyboard : undefined}
         aria-orientation={currentPanel === 'effort' ? 'horizontal' : 'vertical'} aria-activedescendant={panel === 'effort' && activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined}>
         <div className={currentPanel === 'effort' ? styles.effortTrack : undefined} style={currentPanel === 'effort' ? { '--effort-count': Math.max(1, choices.length), '--effort-active': Math.min(active, Math.max(0, choices.length - 1)) } as CSSProperties : undefined}>
         {currentPanel === 'effort' && choices.length > 0 && <span className={styles.effortIndicator} aria-hidden="true" />}
-        {choices.map((option, index) => <button key={option.id} id={`${listId}-${index}`} type="button" role="option" aria-selected={Boolean(option.selected)} aria-disabled={option.disabled || undefined}
+        {choices.map((option, index) => <Fragment key={option.id}>
+          {option.provider && option.provider.id !== choices[index - 1]?.provider?.id && <div className={styles.modelGroupLabel} aria-hidden="true" data-provider={option.provider.id}>{option.provider.name}</div>}
+          <button id={`${listId}-${index}`} type="button" role="option" aria-selected={Boolean(option.selected)} aria-disabled={option.disabled || undefined}
           className={currentPanel === 'effort' ? `${styles.effortOption} ${effortToneClass(option.id)}` : styles.commandOption} data-active={index === Math.min(active, choices.length - 1)} tabIndex={-1} onMouseEnter={() => setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
-          title={currentPanel === 'effort' ? undefined : option.description} aria-label={currentPanel === 'effort' ? option.label : undefined}>
+          title={currentPanel === 'effort' ? undefined : option.title ?? option.description} aria-label={option.provider ? `${option.label} · ${option.provider.name}` : currentPanel === 'effort' ? option.label : undefined}>
           {currentPanel === 'effort' ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + (effortVisualLevel(option.id) ?? 0) * 3 }} data-filled={index === active} /></span><span>{option.label}</span><i className={styles.effortSelected} aria-hidden="true" /></>
             : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}{option.selected && <Check size={14} aria-hidden="true" />}</>}
-        </button>)}
+        </button></Fragment>)}
         </div>
       </div>
       {currentPanel === 'commands' && snapshot?.capabilities.commands && <div className={styles.pickerMessage}>
@@ -262,7 +299,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       {currentPanel !== 'commands' && snapshot?.modelsError && <div className={styles.pickerMessage} role="alert">{t('conversation.modelsFailed')}<button type="button" disabled={!available} onClick={() => snapshot && void action({ type: 'models', controlEpoch: snapshot.controlEpoch })}>{t('conversation.retryModels')}</button></div>}
       {!choices.length && (currentPanel === 'commands' || (!snapshot?.modelsLoading && !snapshot?.modelsError)) && <p className={styles.pickerMessage}>{t(currentPanel === 'commands' ? 'conversation.unsupportedCommand' : currentPanel === 'effort' && !model ? 'conversation.effortUnavailable' : 'conversation.noOptions')}</p>}
       {currentPanel === 'commands' && !choices.length && <button className={styles.terminalCommand} type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button>}
-      {currentPanel !== 'commands' && <p className={styles.pickerFootnote} title={t(snapshot?.engine === 'claude' ? 'conversation.claudeSessionSettings' : 'conversation.nextTurnSettings')}><span>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}</p>}
+      {currentPanel !== 'commands' && <div className={styles.pickerFootnote} title={t(snapshot?.engine === 'claude' ? 'conversation.claudeSessionSettings' : 'conversation.nextTurnSettings')}><span>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}
+        {currentPanel === 'model' && snapshot?.engine === 'opencode' && <button className={styles.modelRefresh} type="button" disabled={!available || snapshot.modelsLoading} title={t('conversation.refreshModels')} onClick={() => void action({ type: 'models', controlEpoch: snapshot.controlEpoch })}><RefreshCw size={12} aria-hidden="true" />{t('conversation.refreshModels')}</button>}
+      </div>}
       {selectionFailed && currentPanel !== 'commands' && <p className={styles.pickerMessage} role="status">{t('conversation.settingsFailed')}</p>}
     </div>}
     {acceptedCommand && !draft && !snapshot?.turnId && <p className={styles.pickerMessage} role="status">{t('conversation.catalog.accepted', { command: acceptedCommand })}</p>}
@@ -281,6 +320,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
           onClick={() => void action({ type: 'speed', fast: !fastEnabled, controlEpoch: snapshot.controlEpoch })}>
           <Zap size={12} strokeWidth={1.75} aria-hidden="true" /></button>}
         {(!snapshot || snapshot.capabilities.settings) ? <><button type="button" ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-haspopup="listbox" aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
+          {groupedModels && model?.provider && <small className={styles.modelProviderTag} title={model.provider.name}>{model.provider.name}</small>}
           <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></button>
         <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={`${styles.modelControl} ${styles.effortControl} ${effortToneClass(snapshot?.effort)}`} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
           <EffortGlyph effort={snapshot?.effort} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>

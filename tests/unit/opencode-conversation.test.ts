@@ -15,7 +15,7 @@ async function setup() {
       { providerID: 'one', id: 'disabled', enabled: false, variants: [] },
       { providerID: 'unavailable', id: 'hidden', enabled: true, variants: [] },
     ] }
-    if (path.startsWith('/api/provider?')) return { data: [{ id: 'one', activation: 'enabled' }, { id: 'two', activation: 'auto' }, { id: 'unavailable', activation: 'disabled' }] }
+    if (path.startsWith('/api/provider?')) return { data: [{ id: 'one', name: 'Team gateway', activation: 'enabled', settings: { apiKey: 'never-publish' } }, { id: 'two', activation: 'auto' }, { id: 'unavailable', activation: 'disabled' }] }
     if (path.endsWith('/model')) { model = { ...body.model, variant: body.model.variant ?? 'default' }; return {} }
     if (path === '/api/session/session') return { data: { id: 'session', model } }
     throw new Error(`Unexpected endpoint: ${path}`)
@@ -30,6 +30,20 @@ async function setup() {
 }
 
 describe('OpenCode session settings', () => {
+  it('provides readable Go and Zen labels when the native catalog omits provider names', async () => {
+    const { controller, wire } = await setup()
+    wire.api = vi.fn(async (path: string) => {
+      if (path.startsWith('/api/provider?')) return { data: [{ id: 'opencode-go' }, { id: 'opencode' }] }
+      if (path.startsWith('/api/model?')) return { data: ['opencode-go', 'opencode'].map(providerID => ({ providerID, id: 'same', name: 'Shared', enabled: true })) }
+      return { data: {} }
+    })
+    try {
+      await controller.command({ type: 'models', controlEpoch: controller.state.controlEpoch })
+      expect(controller.state.models.map(m => [m.model, m.provider?.name])).toEqual([
+        ['opencode-go/same', 'OpenCode Go'], ['opencode/same', 'OpenCode Zen'],
+      ])
+    } finally { await controller.dispose() }
+  })
   it('admits live inputs with steer without waiting for history projection, while keeping control fences', async () => {
     const { controller, api } = await setup()
     try {
@@ -54,6 +68,10 @@ describe('OpenCode session settings', () => {
     const { controller, api } = await setup()
     try {
       expect(controller.state.models.map(m => m.model)).toEqual(['one/shared', 'two/shared'])
+      expect(controller.state.models.map(m => ({ name: m.displayName, provider: m.provider }))).toEqual([
+        { name: 'Same name', provider: { id: 'one', name: 'Team gateway' } },
+        { name: 'Same name', provider: { id: 'two', name: 'two' } },
+      ])
       expect(controller.state.models[0].efforts.map(v => v.effort)).toEqual(['default', 'careful', 'low'])
       expect(controller.state.models[1].efforts.map(v => v.effort)).toEqual(['default'])
       expect(controller.state).toMatchObject({ model: 'one/shared', effort: 'default', capabilities: { settings: true } })

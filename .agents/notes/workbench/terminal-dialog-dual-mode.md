@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-04T07:44:51Z",
+  "updated": "2026-11-04T08:21:59Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -764,6 +764,12 @@ OpenCode 2.1.4 支持执行中的连续输入：适配器声明 liveInput，发�
 2026-11-01 在 Windows OpenCode 2.1.4 的隔离服务确认原生支持会话设置：`GET /api/model`、`/api/provider`、`/api/model/default` 按 `location[directory]` 返回当前工作目录的目录与默认模型；`POST /api/session/{id}/model` 接收 `{ model: { providerID, id, variant? } }`，`GET /api/session/{id}` 返回确认后的选择。未传 variant 时原生读回 `default`。在线[模型说明](https://opencode.ai/v2/docs/models/)与[API 文档](https://dev.opencode.ai/v2/docs/api)用于核对概念，兼容依据是本机固定版本实测；其它版本不再被版本门控拦截，实际兼容性由协议行为决定。
 
 OpenCode adapter 独立开启 settings 能力，不修改 Pi/DSH 的基类默认能力。模型以 provider/id 区分，筛除未启用模型及不可用 provider，IPC 仅发布名称、身份和 variants，不传含凭据的原生 settings。强度选择保留原生 variant 名称和顺序并提供默认值；variant 也可能代表供应商自定义参数组合，不承诺所有模型具备相同思考档位。无 variants 的模型只显示默认值。设置只影响当前会话，不改全局配置，不提交模型提示词。
+
+OpenCode 模型选择沿用公共弹层、字体、主题令牌、选中标记和键盘交互，在同一单列列表中增加供应商筛选与分组标题。保留完整 provider/model 调用身份，同时通过 `ConversationModelOption.provider` 单独传递供应商 id/name；显示优先采用原生名称，缺少名称的 `opencode-go`／`opencode` 回退为 OpenCode Go／OpenCode Zen，自定义供应商按各自身份显示。搜索匹配模型名、完整 ID 和供应商名称，并支持 Zen 别名。同一供应商下名称冲突时显示完整 ID，否则模型行不重复显示供应商；悬停可查原始身份，读屏选项名称包含供应商。
+
+供应商筛选默认全部，关闭／切换会话后复位；筛选不修改模型。底部当前选择将供应商与模型分开显示，长名称省略但保留完整悬停提示。原生连接或配置变化后可使用“刷新模型”重读目录，不包含登录、购买或配置写入。为保持各引擎 UI 一致，不增加独立双栏窗口或另一套模型卡片；代价是长列表仍需要筛选或滚动。公共弹层按输入框上方的实际可用高度限高，避免窄窗空态中被模式切换栏遮挡。旧会话缺少 provider 元数据时保留原有列表，不猜测任意第三方来源。
+
+2026-11-04 供应商展示验证：`opencode-conversation.test.ts` 8 项通过，覆盖自定义名称、Go／Zen 缺省名称、同名模型的独立身份和凭据不进入快照；OpenCode 2.2.5 的真实 `opencode-conversation-cli.test.ts -t 'shares terminal and dialog'` 1 项通过，确认配置中的 Team gateway 名称进入目录，模型／variant 的实际请求、原生设置及会话切换保持正确，模型服务为隔离 localhost。`opencode-model-picker.spec.ts`、`conversation-settings.spec.ts` 和 codex-conversation 中 3 项 OpenCode 用例共 18 个不同浏览器用例分轮通过；覆盖供应商筛选与搜索、深浅主题、380px 窄窗、键盘、失败保留选择／草稿、刷新入口及其他引擎设置回归。主 Agent 查看 `artifacts/opencode-model-picker/{dark,light}-grouped.png`，修复弹层标题遮挡后复验。Go／Zen 账户和付费模型未实际调用，不将浏览器目录夹具视为供应商服务可用性验收。
 
 空闲且无待处理审批时允许修改；过期控制代次、重复并行设置、设置期间发送或切换视图均拒绝。确认来自原生会话读回；请求失败仅读回一次，不重发修改，无法确认时停用对话控制。已有 250ms 轮询增加会话设置读取，原生 TUI 修改可同步回来；修复前从历史 assistant 消息更新模型的逻辑已移除，设置代次屏蔽修改前发出的迟到轮询结果。终端代理在对话拥有输入或设置进行中拒绝原生 model/prompt 写入。额外轮询有本机请求成本，后续如统一事件订阅，应保持相同确认和过期结果边界。
 

@@ -248,7 +248,8 @@ export class OpenCodeConversation extends NativeConversation {
           this.api(`/api/model${query}`), this.api(`/api/provider${query}`), this.api(`/api/model/default${query}`),
         ])
         if (!Array.isArray(catalog.data) || !Array.isArray(providers.data)) throw new Error('Invalid OpenCode model catalog')
-        const available = new Set(providers.data.filter((p: Json) => p.activation !== 'disabled').map((p: Json) => p.id))
+        const available = new Map<string, string>(providers.data.filter((p: Json) => p.activation !== 'disabled' && typeof p.id === 'string')
+          .map((p: Json) => [p.id, typeof p.name === 'string' && p.name.trim() ? p.name : p.id === 'opencode-go' ? 'OpenCode Go' : p.id === 'opencode' ? 'OpenCode Zen' : p.id]))
         const refs = new Map<string, { id: string; providerID: string }>()
         const models: ConversationSnapshot['models'] = []
         for (const raw of catalog.data) {
@@ -258,7 +259,7 @@ export class OpenCodeConversation extends NativeConversation {
           refs.set(model, { id: raw.id, providerID: raw.providerID })
           const variants = [...new Set<string>((Array.isArray(raw.variants) ? raw.variants : [])
             .map((v: Json) => v.id).filter((id: unknown): id is string => typeof id === 'string' && !!id && id !== 'default'))]
-          models.push({ model, displayName: `${raw.name || raw.id} · ${raw.providerID}`, description: model,
+          models.push({ model, displayName: raw.name || raw.id, description: model, provider: { id: raw.providerID, name: available.get(raw.providerID)! },
             defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }, ...variants.map(effort => ({ effort, description: '' }))] })
         }
         if (this.disposed) return
