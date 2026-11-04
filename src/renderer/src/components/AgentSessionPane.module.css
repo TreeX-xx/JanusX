@@ -10,6 +10,17 @@
 .toggle[data-switching=true] button:disabled { opacity: 1; }
 .toggle button:hover:not(:disabled) { color: var(--shell-text); }
 .toggle button[aria-pressed=true] { color: var(--shell-text); }
+/* Keep the mode switch quiet while reading; its nearby hit area never changes layout. */
+@media (hover: hover) and (pointer: fine) {
+  .toggle[data-mode=conversation] { transition: background 200ms ease; }
+  .toggle[data-mode=conversation]::before { content: ''; position: absolute; inset: -8px; border-radius: 14px; }
+  .toggle[data-mode=conversation] .toggleIndicator { transition: transform 220ms cubic-bezier(.22, 1, .36, 1), opacity 200ms ease; }
+  .toggle[data-mode=conversation] button { transition: background 140ms, color 200ms ease; }
+  .toggle[data-mode=conversation]:not(:hover):not(:focus-within):not([data-switching=true]) { background: transparent; transition-delay: 400ms; }
+  .toggle[data-mode=conversation]:not(:hover):not(:focus-within):not([data-switching=true]) .toggleIndicator { opacity: .18; transition-delay: 0ms, 400ms; }
+  .toggle[data-mode=conversation]:not(:hover):not(:focus-within):not([data-switching=true]) button { color: var(--shell-muted); transition-delay: 0ms, 400ms; }
+  .toggle[data-mode=conversation]:not(:hover):not(:focus-within):not([data-switching=true]) button[aria-pressed=true] { color: color-mix(in srgb, var(--shell-text) 22%, var(--shell-muted)); }
+}
 .status { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; color: var(--shell-muted); }
 .statusDot { flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .55; }
 .status[data-working=true] .statusDot { animation: breathe 1.6s ease-in-out infinite; }
@@ -46,8 +57,12 @@
 .planHistory .plan { margin-top: 8px; }
 .readOnly { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--shell-muted); font-size: 12px; }
 .readOnly button { padding: 6px 10px; background: var(--shell-hover); color: var(--shell-text); }
-.scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; }
+.scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; outline: none; }
+.scroll:focus-visible { outline: 1px solid color-mix(in srgb, var(--shell-muted) 35%, var(--bg-deep)); outline-offset: -1px; }
 .content { width: min(100%, 800px); margin: 0 auto; padding: 28px 28px 24px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.75; }
+/* Reading width and keyboard focus: .agents/notes/workbench/terminal-dialog-dual-mode.md. */
+.conversation[data-empty=false] .content { width: min(100%, 936px); }
+.conversation[data-empty=false] .composer, .conversation[data-empty=false] .planDock { max-width: 800px; }
 .conversation[data-empty=true] { justify-content: center; padding-bottom: min(12vh, 96px); }
 .conversation[data-empty=true] .scroll { flex: 0 1 auto; }
 .empty { text-align: left; padding: 16px 0 18px; }
