@@ -21,9 +21,9 @@
   justify-self: center;
   gap: 2px;
   padding: 3px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 999px;
-  background: rgba(255,255,255,0.035);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 .janus-expanded-view-button {
@@ -32,7 +32,7 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: rgba(255,255,255,0.54);
+  color: var(--shell-muted);
   font-family: inherit;
   font-size: 10px;
   cursor: pointer;
@@ -40,14 +40,14 @@
 }
 
 .janus-expanded-view-button[data-active="true"] {
-  background: rgba(255,255,255,0.1);
-  color: #f4f4f5;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 14px var(--janus-hover-glow-soft);
+  background: color-mix(in srgb, var(--surface-tint) 10%, transparent);
+  color: var(--shell-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 6%, transparent), 0 0 14px var(--janus-hover-glow-soft);
 }
 
 .janus-expanded-view-button:hover {
-  color: #fff;
-  background: rgba(255,255,255,0.075);
+  color: var(--shell-text);
+  background: color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-expanded-meta {
@@ -68,11 +68,11 @@
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)),
-    rgba(0,0,0,0.5);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 3.5%, transparent), color-mix(in srgb, var(--surface-tint) 1.2%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 50%, transparent);
   overflow: hidden;
 }
 
@@ -91,7 +91,7 @@
 .janus-feedback-eyebrow {
   display: block;
   margin-bottom: 3px;
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -99,7 +99,7 @@
 
 .janus-feedback-header strong {
   display: block;
-  color: rgba(255,255,255,0.88);
+  color: color-mix(in srgb, var(--shell-text) 88%, transparent);
   font-size: 13px;
   font-weight: 650;
   line-height: 1.25;
@@ -129,10 +129,10 @@
   align-items: center;
   max-width: 220px;
   padding: 0 8px;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border-radius: 999px;
-  background: rgba(255,255,255,0.035);
-  color: rgba(255,255,255,0.66);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 66%, transparent);
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -162,7 +162,7 @@
 }
 
 .janus-feedback-footer span {
-  color: rgba(255,255,255,0.38);
+  color: var(--shell-dim);
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -170,7 +170,7 @@
 
 .janus-feedback-footer p {
   margin: 0;
-  color: rgba(255,255,255,0.58);
+  color: var(--shell-muted);
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,11 +222,11 @@
   max-width: none;
   min-height: 0;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.032), rgba(255,255,255,0.012)),
-    rgba(0,0,0,0.48);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 3.2%, transparent), color-mix(in srgb, var(--surface-tint) 1.2%, transparent)),
+    color-mix(in srgb, var(--surface-shade) 48%, transparent);
 }
 
 .janus-chat-toolbar {
@@ -236,7 +236,7 @@
   gap: 12px;
   flex: 0 0 auto;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 6%, transparent);
 }
 
 .janus-chat-toolbar > div:first-child {
@@ -284,10 +284,10 @@
   width: min(300px, calc(100vw - 48px));
   max-height: 320px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 12%, transparent);
   border-radius: 6px;
-  background: rgba(17,18,20,0.98);
-  box-shadow: 0 16px 36px rgba(0,0,0,0.42);
+  background: color-mix(in srgb, var(--shell-canvas) 98%, transparent);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--shadow-color) 42%, transparent);
 }
 
 .janus-chat-thread-menu-header,
@@ -300,8 +300,8 @@
   justify-content: space-between;
   height: 34px;
   padding: 0 8px 0 11px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.52);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
+  color: var(--shell-muted);
   font-size: 10px;
   text-transform: uppercase;
 }
@@ -317,18 +317,18 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: rgba(255,255,255,0.55);
+  color: var(--shell-muted);
   cursor: pointer;
 }
 
 .janus-chat-thread-menu-header button:hover,
 .janus-chat-thread-action:hover {
-  background: rgba(255,255,255,0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--surface-tint) 8%, transparent);
+  color: var(--shell-text);
 }
 
 .janus-chat-thread-action.danger:hover {
-  color: #ff8b8b;
+  color: var(--status-danger);
 }
 
 .janus-chat-thread-list {
@@ -380,7 +380,7 @@
 }
 
 .janus-chat-thread-main span {
-  color: rgba(255,255,255,0.38);
+  color: var(--shell-dim);
   font-size: 9px;
 }
 
@@ -389,25 +389,25 @@
   min-width: 0;
   height: 28px;
   padding: 0 7px;
-  border: 1px solid rgba(255,120,48,0.4);
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
   border-radius: 4px;
   outline: none;
-  background: rgba(0,0,0,0.4);
-  color: #fff;
+  background: color-mix(in srgb, var(--surface-shade) 40%, transparent);
+  color: var(--shell-text);
   font: inherit;
 }
 
 .janus-chat-toolbar-kicker {
   display: block;
   margin-bottom: 2px;
-  color: rgba(255,255,255,0.4);
+  color: var(--shell-muted);
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .janus-chat-toolbar strong {
-  color: rgba(255,255,255,0.9);
+  color: color-mix(in srgb, var(--shell-text) 90%, transparent);
   font-size: 13px;
   font-weight: 650;
 }
@@ -423,9 +423,9 @@
   height: 26px;
   padding: 0 9px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.09);
-  background: rgba(255,255,255,0.045);
-  color: rgba(255,255,255,0.68);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 68%, transparent);
   font-family: inherit;
   font-size: 10px;
   cursor: pointer;
@@ -433,14 +433,14 @@
 }
 
 .janus-chat-tool-button:hover:not(:disabled) {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.16);
-  color: #fff;
+  background: color-mix(in srgb, var(--surface-tint) 8%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent);
+  color: var(--shell-text);
 }
 
 .janus-chat-tool-button.danger:hover:not(:disabled) {
-  border-color: rgba(255,100,100,0.32);
-  color: #ff8b8b;
+  border-color: color-mix(in srgb, var(--status-danger) 32%, transparent);
+  color: var(--status-danger);
 }
 
 .janus-chat-tool-button:disabled {
@@ -456,7 +456,7 @@
   gap: 7px;
   min-height: 32px;
   padding: 5px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.055);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
 }
 
@@ -479,10 +479,10 @@
   height: 23px;
   flex: 0 0 auto;
   align-items: center;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 4px;
-  background: rgba(255,255,255,0.025);
-  color: rgba(255,255,255,0.54);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
+  color: var(--shell-muted);
 }
 
 .janus-resource-label {
@@ -506,12 +506,12 @@
   height: 20px;
   flex: 0 0 20px;
   place-items: center;
-  color: rgba(255,255,255,0.34);
+  color: var(--shell-dim);
 }
 
 .janus-resource-remove:hover {
-  color: #ff8b8b;
-  background: rgba(255,88,88,0.08);
+  color: var(--status-danger);
+  background: color-mix(in srgb, var(--status-danger) 8%, transparent);
 }
 
 .janus-resource-attach {
@@ -519,7 +519,7 @@
   height: 23px;
   flex: 0 0 auto;
   align-items: center;
-  color: rgba(255,255,255,0.48);
+  color: var(--shell-muted);
 }
 
 .janus-resource-attach-select {
@@ -528,8 +528,8 @@
   gap: 5px;
   padding: 0 6px;
   border-radius: 4px;
-  background: rgba(255,255,255,0.025);
-  color: rgba(255,255,255,0.58);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
+  color: var(--shell-muted);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   font-size: 9px;
 }
@@ -542,8 +542,8 @@
 .janus-island-shell .janus-resource-attach-select[aria-expanded="true"] {
   border: none;
   box-shadow: none;
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.82);
+  background: color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 82%, transparent);
 }
 
 .janus-resource-attach-dropdown {
@@ -563,22 +563,22 @@
   align-items: center;
   gap: 6px;
   padding: 3px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.045);
-  color: rgba(255,255,255,0.46);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  color: var(--shell-muted);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   font-size: 9px;
 }
 
 .janus-runtime-tool-name {
   overflow: hidden;
-  color: rgba(255,255,255,0.7);
+  color: color-mix(in srgb, var(--shell-text) 70%, transparent);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .janus-runtime-tool-state {
   margin-right: auto;
-  color: rgba(255,255,255,0.34);
+  color: var(--shell-dim);
 }
 
 .janus-runtime-activity button {
@@ -586,15 +586,15 @@
   width: 21px;
   height: 21px;
   place-items: center;
-  border: 1px solid rgba(255,255,255,0.09);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   border-radius: 4px;
-  color: rgba(255,255,255,0.66);
+  color: color-mix(in srgb, var(--shell-text) 66%, transparent);
   background: transparent;
 }
 
 .janus-runtime-activity button:hover {
-  border-color: rgba(255,120,48,0.35);
-  color: #ff985f;
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--shell-accent);
 }
 
 .janus-runtime-approval {
@@ -605,10 +605,10 @@
   flex-direction: column;
   margin: 8px 0 10px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.13);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 13%, transparent);
   border-radius: 6px;
-  background: rgba(20,21,23,0.96);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+  background: color-mix(in srgb, var(--shell-canvas) 96%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow-color) 20%, transparent);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
 }
 
@@ -619,8 +619,8 @@
   justify-content: space-between;
   gap: 12px;
   padding: 9px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.075);
-  background: rgba(255,255,255,0.025);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
 }
 
 .janus-runtime-approval-heading {
@@ -631,14 +631,14 @@
 }
 
 .janus-runtime-approval-heading > span {
-  color: rgba(255,255,255,0.4);
+  color: var(--shell-muted);
   font-size: 8px;
   letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .janus-runtime-approval-heading > strong {
-  color: rgba(255,255,255,0.92);
+  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
@@ -648,10 +648,10 @@
   max-width: 52%;
   overflow: hidden;
   padding: 4px 6px;
-  border: 1px solid rgba(255,255,255,0.09);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   border-radius: 4px;
-  background: rgba(255,255,255,0.025);
-  color: rgba(255,255,255,0.52);
+  background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
+  color: var(--shell-muted);
   font-size: 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -662,14 +662,14 @@
   flex: 1 1 auto;
   overflow: auto;
   padding: 11px 12px 12px;
-  color: rgba(255,255,255,0.76);
+  color: color-mix(in srgb, var(--shell-text) 76%, transparent);
   font-size: 10px;
   line-height: 1.5;
 }
 
 .janus-runtime-approval-preview > strong {
   display: block;
-  color: rgba(255,255,255,0.86);
+  color: color-mix(in srgb, var(--shell-text) 86%, transparent);
   font-size: 11px;
   font-weight: 550;
   text-wrap: pretty;
@@ -678,7 +678,7 @@
 .janus-runtime-approval-preview > span {
   display: block;
   margin-top: 4px;
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   font-size: 9px;
   overflow-wrap: anywhere;
 }
@@ -688,9 +688,9 @@
   margin: 10px -12px -12px;
   overflow: auto;
   padding: 9px 12px 10px;
-  border-top: 1px solid rgba(255,255,255,0.065);
-  background: rgba(0,0,0,0.16);
-  color: rgba(255,255,255,0.64);
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 6.5%, transparent);
+  background: color-mix(in srgb, var(--surface-shade) 16%, transparent);
+  color: var(--shell-muted);
   font: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -704,7 +704,7 @@
   justify-content: flex-end;
   gap: 7px;
   padding: 7px 9px;
-  border-top: 1px solid rgba(255,255,255,0.075);
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 7.5%, transparent);
 }
 
 .janus-runtime-approval-actions button {
@@ -714,10 +714,10 @@
   justify-content: center;
   gap: 6px;
   padding: 0 11px;
-  border: 1px solid rgba(255,255,255,0.11);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 11%, transparent);
   border-radius: 5px;
-  background: rgba(255,255,255,0.035);
-  color: rgba(255,255,255,0.68);
+  background: color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 68%, transparent);
   font: inherit;
   font-size: 9px;
   cursor: pointer;
@@ -726,23 +726,23 @@
 
 .janus-runtime-approval-actions button:hover,
 .janus-runtime-approval-actions button:focus-visible {
-  border-color: rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.065);
-  color: rgba(255,255,255,0.92);
+  border-color: color-mix(in srgb, var(--surface-tint) 20%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 6.5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
   outline: none;
 }
 
 .janus-runtime-approval-actions .janus-runtime-approval-approve {
-  border-color: rgba(255,120,48,0.28);
-  background: rgba(255,120,48,0.105);
-  color: #efad84;
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  background: color-mix(in srgb, var(--primary) 10.5%, transparent);
+  color: var(--shell-accent);
 }
 
 .janus-runtime-approval-actions .janus-runtime-approval-approve:hover,
 .janus-runtime-approval-actions .janus-runtime-approval-approve:focus-visible {
-  border-color: rgba(255,120,48,0.42);
-  background: rgba(255,120,48,0.15);
-  color: #ffd1b5;
+  border-color: color-mix(in srgb, var(--primary) 42%, transparent);
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--shell-accent);
 }
 
 @media (max-width: 520px) {
@@ -807,9 +807,9 @@
   height: 30px;
   padding: 0 11px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.09);
-  background: rgba(255,255,255,0.045);
-  color: rgba(255,255,255,0.68);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 68%, transparent);
   font-family: inherit;
   font-size: 11px;
   cursor: pointer;
@@ -817,9 +817,9 @@
 }
 
 .janus-chat-suggestions button:hover:not(:disabled) {
-  background: rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-color: var(--accent-color, var(--janus-current));
-  color: #fff;
+  color: var(--shell-text);
 }
 
 .janus-chat-suggestions button:disabled {
@@ -833,17 +833,17 @@
   flex-direction: column;
   gap: 7px;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,0.09);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   border-radius: 16px;
-  background: rgba(255,255,255,0.045);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.035);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 3.5%, transparent);
 }
 
 .janus-chat-composer-meta {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   font-size: 10px;
 }
 
@@ -861,7 +861,7 @@
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.45;
-  background: rgba(0,0,0,0.34);
+  background: color-mix(in srgb, var(--surface-shade) 34%, transparent);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-send,
@@ -877,14 +877,14 @@
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-send:not(:disabled) {
-  color: #0b0b0c;
+  color: var(--shell-dim);
   background: var(--accent-color, var(--janus-current));
   border-color: transparent;
   box-shadow: 0 0 18px var(--janus-hover-glow-soft);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-stop {
-  color: #ff9a9a;
+  color: var(--status-danger);
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-code-block code {
@@ -907,12 +907,12 @@
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-empty-text {
-  color: rgba(255,255,255,0.78);
+  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
   font-size: 13px;
 }
 
 .janus-island-shell[data-stage="expanded"] .janus-chat-empty-hint {
-  color: rgba(255,255,255,0.45);
+  color: var(--shell-muted);
   font-size: 11px;
 }
 

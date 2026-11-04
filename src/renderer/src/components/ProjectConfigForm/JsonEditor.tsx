@@ -29,9 +29,9 @@ const handleBeforeMount = (monaco: any) => {
 function LoadingIndicator() {
   const { t } = useI18n('editor')
   return (
-    <div className={styles.loading} style={{ background: '#151517' }}>
+    <div className={styles.loading} style={{ background: 'var(--shell-canvas)' }}>
       <div className={styles.loadingInner}>
-        <span style={{ color: '#555', fontSize: 12 }}>{t('editor:config.loading')}</span>
+        <span style={{ color: 'var(--shell-dim)', fontSize: 12 }}>{t('editor:config.loading')}</span>
         <span className={styles.loadingDot} />
       </div>
     </div>

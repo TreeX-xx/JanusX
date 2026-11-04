@@ -1,3 +1,4 @@
+import { Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
 // Note: persistent native-session usage — see .agents/notes/terminal/requirements/usage-telemetry-single-source.md
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
@@ -7,6 +8,8 @@ import { useThemeStore } from '@/stores/theme'
 import {
   aggregateUsageStats,
   cacheSplitFor,
+  formatUsageCount as formatCount,
+  formatUsageRate,
   customBucketModeFor,
   normalizeCustomRange,
   parseDateInput,
@@ -19,25 +22,20 @@ import {
 } from '@/lib/usage-stats'
 import type { TerminalPreset } from '@/types'
 import { EXTERNAL_CLI_TOOL_META, EXTERNAL_CLI_TOOL_ORDER, type ExternalCliToolId } from '../../../shared/ipc/external-cli'
-import { EXTERNAL_CLI_TOOL_ICONS } from '@/lib/cli-tool-icons'
+import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { getThemeDefinition } from '../../../shared/theme/registry'
 import llmStyles from './LlmConfigModal.module.css'
 import styles from './UsageStatsPanel.module.css'
 import { UsageHeatmap } from './UsageHeatmap'
 import { UsageCostPanel } from './UsageCostPanel'
+import { UsageModelBreakdown } from './UsageModelBreakdown'
+import { ThemedTooltip } from './ui/ThemedTooltip'
 
 const RANGES: UsageRange[] = ['today', 'week', 'month', 'custom']
 const RANGE_KEYS = { today: 'rangeToday', week: 'rangeWeek', month: 'rangeMonth', custom: 'rangeCustom' } as const
 const DAY_MS = 86_400_000
 
 type TypeFilter = 'all' | ExternalCliToolId
-
-function formatCount(value: number): string {
-  const rounded = Math.round(value)
-  if (rounded >= 1_000_000) return `${(rounded / 1_000_000).toFixed(1)}M`
-  if (rounded >= 1000) return `${(rounded / 1000).toFixed(rounded >= 10_000 ? 0 : 1)}k`
-  return String(rounded)
-}
 
 function formatRate(rate: number | undefined): string {
   return rate === undefined ? '–' : `${Math.round(rate * 100)}%`
@@ -353,9 +351,9 @@ function TrendLines({ series, range, metrics, label, emptyLabel }: {
         {active && <span className={styles.activeDate}>{dateLabel(active)}</span>}
         {metrics.map(({ key, color, label: name }) => {
           const off = hidden.includes(key)
-          return <button key={key} type="button" className={`${styles.chip} ${off ? styles.chipOff : ''}`} aria-pressed={!off} onClick={() => toggle(key)}>
+          return <SettingsButton variant="plain" key={key} type="button" className={`${styles.chip} ${off ? styles.chipOff : ''}`} aria-pressed={!off} onClick={() => toggle(key)}>
             <i style={{ background: color }} />{name}{active && !off && <strong>{formatCount(active[key])}</strong>}
-          </button>
+          </SettingsButton>
         })}
       </div>
     </div>
@@ -460,18 +458,18 @@ export function UsageStatsPanel() {
         </div>
       </div>
       <div className={styles.rangeRow} role="group" aria-label={t('settings:usageStats.timeRange')}>
-        {RANGES.map((candidate) => <button key={candidate} type="button" className={`${styles.tab} ${candidate === range ? styles.tabActive : ''}`} aria-pressed={candidate === range} onClick={() => setRange(candidate)}>{t(`settings:usageStats.${RANGE_KEYS[candidate]}`)}</button>)}
+        {RANGES.map((candidate) => <SettingsButton variant="tab" key={candidate} type="button" className={`${styles.tab} ${candidate === range ? styles.tabActive : ''}`} aria-pressed={candidate === range} onClick={() => setRange(candidate)}>{t(`settings:usageStats.${RANGE_KEYS[candidate]}`)}</SettingsButton>)}
       </div>
       {range === 'custom' && (
         <div className={styles.customBar}>
           <label className={styles.dateField}>
             <span>{t('settings:usageStats.customStart')}</span>
-            <input type="date" value={startInput} max={endInput} onChange={(event) => setStartInput(event.target.value)} aria-label={t('settings:usageStats.customStart')} />
+            <SettingsInput type="date" value={startInput} max={endInput} onChange={(event) => setStartInput(event.target.value)} aria-label={t('settings:usageStats.customStart')} />
           </label>
           <span className={styles.dateSep} aria-hidden="true">–</span>
           <label className={styles.dateField}>
             <span>{t('settings:usageStats.customEnd')}</span>
-            <input type="date" value={endInput} min={startInput} onChange={(event) => setEndInput(event.target.value)} aria-label={t('settings:usageStats.customEnd')} />
+            <SettingsInput type="date" value={endInput} min={startInput} onChange={(event) => setEndInput(event.target.value)} aria-label={t('settings:usageStats.customEnd')} />
           </label>
           {customErrorKey
             ? <p className={styles.error} role="alert">{t(`settings:usageStats.${customErrorKey}`)}</p>
@@ -479,14 +477,14 @@ export function UsageStatsPanel() {
         </div>
       )}
       <div className={styles.tabRow} role="group" aria-label={t('settings:usageStats.terminalType')}>
-        <button type="button" className={`${styles.tab} ${activeType === 'all' ? styles.tabActive : ''}`} aria-pressed={activeType === 'all'} onClick={() => setActiveType('all')}>{t('settings:usageStats.typeAll')}</button>
+        <SettingsButton variant="tab" type="button" className={`${styles.tab} ${activeType === 'all' ? styles.tabActive : ''}`} aria-pressed={activeType === 'all'} onClick={() => setActiveType('all')}>{t('settings:usageStats.typeAll')}</SettingsButton>
         {EXTERNAL_CLI_TOOL_ORDER.map((toolId) => {
           const meta = EXTERNAL_CLI_TOOL_META[toolId]
-          return <button key={toolId} type="button" className={`${styles.tab} ${toolId === activeType ? styles.tabActive : ''}`} aria-pressed={toolId === activeType} onClick={() => setActiveType(toolId)}>
+          return <SettingsButton variant="tab" key={toolId} type="button" className={`${styles.tab} ${toolId === activeType ? styles.tabActive : ''}`} aria-pressed={toolId === activeType} onClick={() => setActiveType(toolId)}>
             {iconFailed[toolId] ? <span className={llmStyles.terminalTabMonogram}>{meta.monogram}</span>
-              : <img className={llmStyles.terminalTabIcon} data-tool={toolId} src={EXTERNAL_CLI_TOOL_ICONS[toolId]} alt="" onError={() => setIconFailed((prev) => ({ ...prev, [toolId]: true }))} />}
+              : <TerminalPresetIcon className={llmStyles.terminalTabIcon} preset={toolId} onError={() => setIconFailed((prev) => ({ ...prev, [toolId]: true }))} />}
             {meta.displayName}
-          </button>
+          </SettingsButton>
         })}
       </div>
       <div className={`${styles.summary} ${isEmpty ? styles.summaryEmpty : ''} ${refreshing ? styles.dimmed : ''}`} data-testid="usage-summary" data-refreshing={refreshing ? 'true' : undefined}>
@@ -518,10 +516,12 @@ export function UsageStatsPanel() {
             <CacheDonut hits={cache.hits} misses={cache.misses} hasData={cache.hasData} hitColor={hitColor} missColor={missColor} trackColor={trackColor} label={t('settings:usageStats.hitRate')} />
             <div className={styles.summaryInfo}>
               <span className={styles.label}>{t('settings:usageStats.hitRate')}</span>
-              <div className={styles.value} data-testid="usage-cache-rate">{formatRate(cache.hasData ? cache.rate : undefined)}</div>
+              <ThemedTooltip label={`${formatUsageRate(cache.rate, 2)} · ${t('settings:usageStats.cacheFormula')}`}>
+                <div className={styles.value} data-testid="usage-cache-rate" tabIndex={0}>{formatUsageRate(cache.rate)}</div>
+              </ThemedTooltip>
             </div>
           </div>
-          <div className={styles.legend}>{cache.hasData ? <><span><i style={{ background: hitColor }} />{t('settings:usageStats.hit')} <strong>{formatCount(cache.hits)}</strong></span><span><i style={{ background: missColor }} />{t('settings:usageStats.miss')} <strong>{formatCount(cache.misses)}</strong></span></> : t('settings:usageStats.noCacheData')}</div>
+          <div className={styles.legend}>{cache.hasData ? <><span><i style={{ background: hitColor }} />{t('settings:usageStats.hit')} <strong>{formatCount(cache.hits)}</strong></span><span><i style={{ background: missColor }} />{t('settings:usageStats.miss')} <strong>{formatCount(cache.misses)}</strong></span></> : t(view.cacheReported ? 'settings:usageStats.incompleteCacheData' : 'settings:usageStats.noCacheData')}</div>
         </div>
       </div>
       <UsageHeatmap engine={activeType === 'all' ? undefined : activeType} />
@@ -543,22 +543,7 @@ export function UsageStatsPanel() {
           emptyLabel={view.terminals === 0 ? t('settings:usageStats.empty') : undefined}
         />
       </div>
-      {view.rows.length > 0 && <div className={styles.breakdown}>
-        <h4 className={styles.title}>{t('settings:usageStats.breakdown')}</h4>
-        {view.rows.map((row) => {
-          const split = cacheSplitFor(row.cacheReadTokens, row.inputTokens, row.cacheWriteTokens, row.cacheKnown)
-          return <article className={styles.modelRow} key={row.preset}>
-            <div className={styles.modelInfo}>
-              <div className={styles.modelName}><i style={{ background: presetColor(row.preset) }} />{presetName(row.preset)}<span>{row.terminals} {t('settings:usageStats.terminals')}</span></div>
-              <div className={styles.models}>{row.models.length ? row.models.map((model) => <span key={model} title={model}>{model}</span>) : <span>{t('settings:usageStats.unknownModel')}</span>}</div>
-            </div>
-            <div className={styles.modelTotal}><span className={styles.label}>{t('settings:usageStats.total')}</span><strong>{formatCount(row.totalTokens)}</strong><small>tokens</small></div>
-            <div className={`${styles.modelIo} ${styles.inputMetric}`}><span className={styles.label}>{t('settings:usageStats.input')}</span><strong>{formatCount(row.inputTokens)}</strong></div>
-            <div className={`${styles.modelIo} ${styles.outputMetric}`}><span className={styles.label}>{t('settings:usageStats.output')}</span><strong>{formatCount(row.outputTokens)}</strong></div>
-            <div className={styles.modelRate}><span className={styles.label}>{t('settings:usageStats.hitRate')}</span><strong>{formatRate(split.hasData ? split.rate : undefined)}</strong></div>
-          </article>
-        })}
-      </div>}
+      <UsageModelBreakdown rows={view.modelRows} total={view.totalTokens} refreshing={refreshing} />
     </section>
   )
 }

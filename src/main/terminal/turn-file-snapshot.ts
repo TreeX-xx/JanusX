@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstat, opendir } from 'node:fs/promises'
+import { lstat, open, opendir } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { diffLines } from 'diff'
@@ -20,6 +20,27 @@ interface FileSnapshot {
   text?: string
 }
 export type TurnFileSnapshot = Map<string, FileSnapshot>
+
+// Foreground groups own the I/O lane until every read settles. Calling
+// readIoFile concurrently would yield the same scheduler transaction twice.
+async function readLaunchFile(path: string, signal?: AbortSignal): Promise<Buffer> {
+  signal?.throwIfAborted()
+  const handle = await open(path, 'r')
+  try {
+    const chunks: Buffer[] = []
+    let total = 0
+    for (;;) {
+      signal?.throwIfAborted()
+      const buffer = Buffer.allocUnsafe(64 * 1024)
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, null)
+      if (!bytesRead) break
+      total += bytesRead
+      if (total > MAX_FILE_BYTES) throw new Error(`File grew beyond capture limit: ${path}`)
+      chunks.push(buffer.subarray(0, bytesRead))
+    }
+    return Buffer.concat(chunks)
+  } finally { await handle.close() }
+}
 
 async function walk(cwd: string, dir = cwd): Promise<string[]> {
   const paths: string[] = []
@@ -47,7 +68,7 @@ async function filePaths(cwd: string): Promise<string[]> {
   }
 }
 
-async function captureFile(root: string, path: string): Promise<[string, FileSnapshot] | undefined> {
+async function captureFile(root: string, path: string, read = readIoFile): Promise<[string, FileSnapshot] | undefined> {
   const normalized = path.replace(/\\/g, '/')
   if (normalized.split('/').some(part => SKIP.has(part))) return
   const absolute = resolve(root, path)
@@ -59,7 +80,7 @@ async function captureFile(root: string, path: string): Promise<[string, FileSna
     if (stats.size >= MAX_FILE_BYTES) {
       return [normalized, { hash: `${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`, size: stats.size, binary: false, oversized: true }]
     }
-    const content = await readIoFile(absolute, MAX_FILE_BYTES)
+    const content = await read(absolute, MAX_FILE_BYTES)
     const after = await lstat(absolute)
     if (content.length !== stats.size || after.mtimeMs !== stats.mtimeMs || after.ctimeMs !== stats.ctimeMs) {
       throw new Error(`File changed during turn snapshot: ${normalized}`)
@@ -75,7 +96,11 @@ async function captureFile(root: string, path: string): Promise<[string, FileSna
   }
 }
 
-export async function captureTurnFiles(cwd: string, signal?: AbortSignal): Promise<TurnFileSnapshot> {
+export async function captureTurnFiles(
+  cwd: string,
+  signal?: AbortSignal,
+  options: { background?: boolean } = {},
+): Promise<TurnFileSnapshot> {
   return workspaceIo.run(cwd, async batch => {
     const root = resolve(cwd)
     const snapshot: TurnFileSnapshot = new Map()
@@ -83,8 +108,7 @@ export async function captureTurnFiles(cwd: string, signal?: AbortSignal): Promi
     let textBytes = 0
     // Note: one shared lane across terminals and checkpoints; see
     // .agents/notes/planning/workspace-data-contract-baseline.md.
-    await batch.each(paths, async candidate => {
-      const entry = await captureFile(root, candidate)
+    const retain = (entry: [string, FileSnapshot] | undefined) => {
       if (!entry) return
       const [path, file] = entry
       if (file.text !== undefined) {
@@ -92,9 +116,25 @@ export async function captureTurnFiles(cwd: string, signal?: AbortSignal): Promi
         else delete file.text
       }
       snapshot.set(path, file)
-    })
+    }
+    if (options.background === false) {
+      for (let offset = 0; offset < paths.length; offset += 8) {
+        batch.check()
+        const results = await Promise.allSettled(paths.slice(offset, offset + 8).map(path =>
+          captureFile(root, path, absolute => readLaunchFile(absolute, signal))))
+        // Drain all reads before releasing the lane on failure or cancellation.
+        batch.check()
+        for (const result of results) {
+          if (result.status === 'rejected') throw result.reason
+          retain(result.value)
+        }
+        await batch.yield()
+      }
+    } else {
+      await batch.each(paths, async candidate => retain(await captureFile(root, candidate)))
+    }
     return snapshot
-  }, { signal, background: true })
+  }, { signal, background: options.background ?? true })
 }
 
 export function compareTurnFiles(before: TurnFileSnapshot, after: TurnFileSnapshot): TurnChangedFile[] {

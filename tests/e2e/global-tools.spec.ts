@@ -224,6 +224,47 @@ test('right dock resize constrains the split without overwriting its preferred r
 })
 
 for (const [theme, language] of [['planche', 'zh-CN'], ['dark', 'en']]) {
+  test(`${theme} auxiliary collapse controls share appearance and keyboard behavior`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1800, height: 900 })
+    await page.goto(`/global-tools.html?dock&theme=${theme}&lang=${language}`)
+    await page.getByRole('button', { name: 'Project A', exact: true }).waitFor()
+    await page.evaluate(() => (window as any).toolsFixture.openEditor())
+    const editor = page.locator('[data-editor-host="embedded"]')
+    const toolsButton = region(page, 'tools').locator('[data-auxiliary-collapse]')
+    const editorButton = editor.locator('[data-auxiliary-collapse]')
+    await expect(editorButton).toBeVisible()
+    const appearance = (button: typeof toolsButton) => button.evaluate(el => {
+      const style = getComputedStyle(el)
+      return { width: style.width, height: style.height, radius: style.borderRadius,
+        color: style.color, background: style.backgroundColor,
+        icon: el.querySelector('svg')?.getAttribute('width') }
+    })
+    expect(await appearance(toolsButton)).toEqual(await appearance(editorButton))
+    expect(await appearance(toolsButton)).toMatchObject({ width: '28px', height: '28px', background: 'rgba(0, 0, 0, 0)', icon: '16' })
+    for (const [button, toggle, content] of [
+      [toolsButton, page.locator('[data-tools-toggle]'), region(page, 'tools')],
+      [editorButton, page.locator('[data-editor-toggle]'), editor],
+    ]) {
+      await button.hover()
+      await expect(page.getByRole('tooltip')).toHaveText((await button.getAttribute('aria-label'))!)
+      await button.focus()
+      await button.press('Enter')
+      await expect(content).toBeHidden()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.press('Enter')
+      await expect(content).toBeVisible()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    }
+    await page.mouse.move(0, 0)
+    await editorButton.blur()
+    await page.screenshot({ path: testInfo.outputPath(`${theme}-collapse-controls.png`) })
+    await page.setViewportSize({ width: 800, height: 900 })
+    await expect(region(page, 'tools')).toBeHidden()
+    expect(await page.locator('[data-global-tools-layout]').evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.24s')
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(await page.locator('[data-global-tools-layout]').evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s')
+  })
+
   test(`${theme} auxiliary panels preserve drafts and compact usage at the actual project width`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1800, height: 900 })
     await page.goto(`/global-tools.html?dock&stressUsage&theme=${theme}&lang=${language}`)

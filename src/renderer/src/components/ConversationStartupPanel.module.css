@@ -1,0 +1,26 @@
+.panel { width: 100%; padding: 8px 0 12px; color: var(--shell-text); animation: appear 220ms ease-out both; }
+.identity { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--shell-muted); font-size: 12px; }
+.panel h2 { margin: 0 0 8px; font-size: clamp(20px, 3cqi, 26px); font-weight: 550; letter-spacing: -.025em; line-height: 1.4; }
+.panel p { max-width: 58ch; margin: 8px 0; color: var(--shell-muted); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.directory { display: block; padding: 10px 12px; margin: 16px 0; background: color-mix(in srgb, var(--shell-text) 5%, transparent); border-radius: 7px; font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.panel button { padding: 7px 12px; border-radius: 7px; color: var(--shell-muted); font-size: 12px; cursor: pointer; }
+.panel button:hover:not(:disabled) { background: var(--shell-hover); color: var(--shell-text); }
+.panel button:disabled { opacity: .45; cursor: default; }
+.panel .primary { background: var(--shell-text); color: var(--bg-deep); }
+.panel .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--shell-text) 85%, var(--bg-deep)); color: var(--bg-deep); }
+.panel button:focus-visible, .panel input:focus-visible, .panel summary:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: 3px; }
+.actions { display: flex; justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.actions .primary { order: -1; }
+.keyDetails { margin-top: 14px; color: var(--shell-muted); font-size: 12px; }
+.keyDetails summary { cursor: pointer; width: fit-content; }
+.keyRow { display: flex; gap: 8px; margin-top: 10px; max-width: 400px; }
+.keyRow input { min-width: 0; width: 100%; background: transparent; border: 1px solid var(--shell-border); border-radius: 7px; padding: 8px; color: var(--shell-text); }
+.keyRow button { flex-shrink: 0; }
+.panel .error { color: var(--status-danger); }
+.hooks { max-height: 200px; overflow: auto; margin-top: 14px; border-block: 1px solid var(--shell-border); }
+.hooks details { padding: 8px 0; font-size: 12px; }
+.hooks details + details { border-top: 1px solid var(--shell-border); }
+.hooks summary { cursor: pointer; color: var(--shell-muted); }
+.hooks pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.6; }
+@keyframes appear { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } }

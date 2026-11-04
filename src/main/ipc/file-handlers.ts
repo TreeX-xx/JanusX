@@ -1,4 +1,6 @@
-import { ipcMain, shell } from 'electron'
+import { app, ipcMain, shell } from 'electron'
+import { join } from 'node:path'
+import { saveConversationAttachment } from '../lib/conversation-attachment'
 import { workspaceFileIpc } from '../workspace/runtime-ipc'
 import { extname } from 'node:path'
 import { FILE_CHANNELS } from '../../shared/ipc/workspace'
@@ -20,6 +22,10 @@ const MIME_MAP: Record<string, string> = {
 }
 
 export function registerFileHandlers(authorize: RendererActionAuthorizer = authorizeRendererAction): void {
+  ipcMain.handle(FILE_CHANNELS.importConversationAttachment, async (event, name: string, bytes: Uint8Array) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid attachment frame')
+    return saveConversationAttachment(join(app.getPath('userData'), 'conversation-attachments'), name, bytes)
+  })
   ipcMain.handle(FILE_CHANNELS.openPreviewLink, async (_event, value: string) => {
     const url = new URL(value)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Invalid preview link')

@@ -19,6 +19,16 @@ export const browserTestFiles = [
 // These retain real Git, subprocess, repository-corpus and build integration.
 // The list uses observed cost, not a filename rule that would hide new tests.
 export const integrationTestFiles = [
+  'tests/unit/local-integrations-probe.test.ts',
+  'tests/unit/turn-file-capture.test.ts',
+  'tests/unit/conversation-edit-cli.test.ts',
+  'tests/unit/dsh-conversation-cli.test.ts',
+  'tests/unit/opencode-conversation-cli.test.ts',
+  'tests/unit/opencode-session-startup.test.ts',
+  'tests/unit/opencode-tabs-cli.test.ts',
+  'tests/unit/pi-conversation-cli.test.ts',
+  'tests/unit/codex-conversation-cli.test.ts',
+  'tests/unit/claude-conversation-cli.test.ts',
   'tests/unit/agent-hook-shell.test.ts',
   'tests/unit/agent-hook-cli.test.ts',
   'tests/unit/blueprint-native.test.ts',
@@ -28,6 +38,7 @@ export const integrationTestFiles = [
   'tests/unit/blueprint-workspace-init.test.ts',
   'tests/unit/electron-build-isolation.test.ts',
   'tests/unit/git-service.test.ts',
+  'tests/unit/git-history-service.test.ts',
   'tests/unit/harness-desktop-executor.test.ts',
   'tests/unit/harness-independent-review.test.ts',
   'tests/unit/harness-service.test.ts',

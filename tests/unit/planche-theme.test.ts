@@ -110,20 +110,20 @@ describe('planche theme contract', () => {
       expect(island, selector).toContain(selector)
     }
     // 折叠态纸面无黑块：纸底 + 墨眼 + 零阴影
-    expect(island).toContain('[data-theme=\'planche\'] .janus-island {\n  background: #EFE4C5;')
+    expect(island).toContain('[data-theme=\'planche\'] .janus-island {\n  background: var(--shell-canvas);')
     // 无大模糊/渐变残留（扫描条纹用的 repeating 硬阶梯除外，非渐变洗色）
     expect(island).not.toMatch(/backdrop-filter:\s*blur/)
     expect(island.replaceAll('repeating-linear-gradient', '')).not.toMatch(/linear-gradient/)
     const selector = read('components/TerminalSelector.module.css')
     expect(selector).toContain(":global([data-theme='planche']) .card:hover")
     // 选择器悬浮用套印影，不用黑硬影
-    expect(selector).toContain('3px 3px 0 #E8A08A')
+    expect(selector).toContain('3px 3px 0 var(--interaction-accent)')
     expect(selector).not.toContain('3px 3px 0 #1C343B')
     const switcher = read('components/WorkbenchSwitcher.module.css')
     expect(switcher).toContain(":global([data-theme='planche']) .button:hover")
-    expect(switcher).toContain('#D43D2A')
+    expect(switcher).toContain('var(--shell-accent)')
     const area = read('components/TerminalArea.tsx')
-    expect(area).toContain('plancheMenu')
+    expect(area).not.toContain('plancheMenu')
     expect(area).not.toContain("style.background = 'rgb(36, 27, 21)'")
     // M2c：悬浮改色走 CSS 类，JS 不再直接写 style
     const hovers = readFileSync(resolve(root, 'styles/theme-hovers.css'), 'utf8')
@@ -134,8 +134,7 @@ describe('planche theme contract', () => {
     expect(area).toContain('terminal-empty-new')
     expect(area).not.toContain('onMouseEnter={(event) => {')
     const gitPanel = read('components/GitPanel.tsx')
-    expect(gitPanel).toContain('tbtn-ghost')
-    expect(gitPanel).toContain('tbtn-accent')
+    // Git's shared neutral controls are exercised in git-workbench.spec.ts.
     expect(gitPanel).not.toContain('currentTarget.style.background')
     const sidebar = read('components/Sidebar.tsx')
     expect(sidebar).toContain('tbtn-ghost')
@@ -181,7 +180,7 @@ describe('planche theme contract', () => {
       expect(bp, selector).toContain(selector)
     }
     const canvas = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/Graph.tsx'), 'utf8')
-    expect(canvas).toContain("colorMode={planche ? 'light' : 'dark'}")
+    expect(canvas).toContain("colorMode={theme === 'light' ? 'light' : 'dark'}")
     expect(canvas).toContain('getBlueprintStatusVisual(')
     expect(canvas).not.toContain('STATUS_VISUALS[')
     const edgeLabel = bp.slice(bp.indexOf('.bp-edge-label {'), bp.indexOf('.bp-edge-label__leader {'))
@@ -222,7 +221,7 @@ describe('planche theme contract', () => {
     // 右 Dock 面板 + 左栏：文字走 shell 令牌，不再硬编码白/灰字
     for (const panel of [
       'components/SessionPanel.tsx',
-      'components/GitPanel.tsx',
+      'components/GitPanel.module.css',
       'components/FileExplorerTool.tsx',
       'components/TurnChangeIsland.tsx',
       'components/Sidebar.tsx',
@@ -260,7 +259,7 @@ describe('planche theme contract', () => {
     expect(sessionMod).not.toContain('#E8E6E2')
     expect(sessionMod).toContain('--session-card-surface: var(--shell-canvas)')
     expect(sessionMod).toContain('background: var(--session-card-surface)')
-    expect(sessionMod).toContain('color-mix(in srgb, var(--session-card-surface) var(--session-sheet-base-weight), white)')
+    expect(sessionMod).toContain('color-mix(in srgb, var(--session-card-surface) var(--session-sheet-base-weight), var(--shell-text))')
     expect(sessionMod).not.toContain(":global([data-theme='dark']) .sheet")
     expect(getThemeDefinition('planche').tokens['session-sheet-base-weight']).toBe('84%')
     expect(getThemeDefinition('dark').tokens['session-sheet-base-weight']).toBe('96%')
@@ -279,7 +278,6 @@ describe('planche theme contract', () => {
     for (const mod of [
       'components/LlmConfigModal.module.css',
       'components/ModelCatalogPanel.module.css',
-      'components/NotificationSettingsPanel.module.css',
       'components/ProjectSettings.module.css',
       'components/AppSettingsModal.module.css',
     ]) {
@@ -292,8 +290,8 @@ describe('planche theme contract', () => {
     const catalog = read('components/ModelCatalogPanel.module.css')
     expect(catalog).toContain(":global([data-theme='planche']) .metadata strong")
     expect(catalog).toContain(":global([data-theme='planche']) .empty strong")
-    const notif = read('components/NotificationSettingsPanel.module.css')
-    expect(notif).toContain(":global([data-theme='planche']) .labelText")
+    const notif = readFileSync(resolve(__dirname, '../../packages/ui/src/styles.css'), 'utf8')
+    expect(notif).toContain('.jx-settings-label-text { color: var(--shell-text)')
     const project = read('components/ProjectSettings.module.css')
     expect(project).toContain(":global([data-theme='planche']) .promptBox textarea")
     // 运行配置分体浮岛：错峰入场 + reduced-motion 兜底，卡片层吃 --card-index
@@ -318,15 +316,14 @@ describe('planche theme contract', () => {
     for (const mod of [
       'components/LlmConfigModal.module.css',
       'components/ModelCatalogPanel.module.css',
-      'components/NotificationSettingsPanel.module.css',
       'components/ProjectSettings.module.css',
       'components/AppSettingsModal.module.css',
     ]) {
       const declared = stripCssComments(read(mod))
       expect(declared, mod).not.toMatch(/#151517|rgba\(\s*21\s*,\s*21\s*,\s*23/)
     }
-    expect(notif).toContain("background: color-mix(in srgb, var(--shell-canvas) 90%, transparent);")
-    expect(stripCssComments(notif)).toContain(":global([data-theme='planche']) .footer")
+    expect(notif).toContain('background: var(--shell-canvas); backdrop-filter: none;')
+    expect(stripCssComments(notif)).not.toMatch(/#151517|rgba\(\s*21\s*,\s*21\s*,\s*23/)
     // 文件树 CSS 同样收敛到令牌
     const fileTree = read('components/file-tree/file-tree.module.css')
     expect(fileTree).toContain('color: var(--shell-text)')
@@ -382,7 +379,7 @@ describe('planche theme contract', () => {
       expect(island, selector).toContain(selector)
     }
     // 辅助岛深色 !important 用同等回敬（仅换色），文件仍无黑底面与毛玻璃
-    expect(island).toContain('.janus-auxiliary-island {\n  background: var(--paper, #EFE4C5) !important;')
+    expect(island).toContain('.janus-auxiliary-island {\n  background: var(--paper, var(--shell-canvas)) !important;')
     expect(island).not.toMatch(/backdrop-filter:\s*blur/)
     expect(island.replaceAll('repeating-linear-gradient', '')).not.toMatch(/linear-gradient/)
   })
@@ -407,16 +404,11 @@ describe('planche theme contract', () => {
     expect(island).toContain("[data-theme='planche'] .janus-run-orb-popover-close,")
     expect(island).toContain("[data-theme='planche'] .janus-run-orb-popover-close:hover")
     // 通用 Select：触发器 + 浮层 + 选项纸面化（:global 加法层，吃令牌）
-    const select = read('components/ui/Select.module.css')
-    for (const selector of [
-      ":global([data-theme='planche']) .trigger",
-      ":global([data-theme='planche']) .dropdown",
-      ":global([data-theme='planche']) .option:hover",
-      ":global([data-theme='planche']) .optionSelected",
-    ]) {
-      expect(select, selector).toContain(selector)
-    }
-    expect(select).not.toMatch(/linear-gradient/)
+    const select = readFileSync(resolve(__dirname, '../../packages/ui/src/styles.css'), 'utf8')
+    expect(select).toContain("[data-jx-control='select']")
+    expect(select).toContain('[data-jx-listbox]')
+    expect(select).toContain('var(--popover-background')
+    expect(select).not.toMatch(/linear-gradient|--planche-red|--janus-order,/)
     // 模型菜单 / 作者行纸面化
     expect(island).toContain("[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu {")
     const chat = read('components/janus/styles/03-janus-chat-core.css')
@@ -487,8 +479,8 @@ describe('planche theme contract', () => {
     expect(footer).not.toMatch(/rgba\(255,\s*255,\s*255,\s*0\.0[345]/)
     expect(footer).not.toMatch(/rgba\(255,\s*120,\s*48/)
     // 设置 team 页复用通知面板样式（已有 planche 层），入口提示走自绘 ThemedTooltip
-    const notif = read('components/NotificationSettingsPanel.module.css')
-    expect(notif).toContain(":global([data-theme='planche']) .labelText")
+    const notif = readFileSync(resolve(__dirname, '../../packages/ui/src/styles.css'), 'utf8')
+    expect(notif).toContain('.jx-settings-label-text { color: var(--shell-text)')
     const teamFooter = read('components/team/TeamFooter.tsx')
     expect(teamFooter).toContain('ThemedTooltip')
   })
@@ -500,7 +492,7 @@ describe('planche theme contract', () => {
     // rgba(8,8,10,0.62) + blur(10px)。设置中心、蓝图、知识库等曾各自把遮罩翻成
     // 0.18 淡墨罩 + backdrop-filter:none，纸面主题下等于全透明，工作台直接透
     // 出来——同一层遮罩两种结果。这里锁死共享。
-    const SHARED_SCRIM = 'rgba(8, 8, 10, 0.62)'
+    const SHARED_SCRIM = 'var(--modal-backdrop)'
     const frame = read('components/shared/ModalFrame.css')
     expect(frame).toContain(`background: ${SHARED_SCRIM};`)
     expect(frame).toContain('backdrop-filter: blur(10px)')
@@ -527,13 +519,13 @@ describe('planche theme contract', () => {
     // 次级弹窗，浓度本就该比父层轻，不在此约束内。
     const blueprint = readFileSync(resolve(__dirname, '../../plugins/blueprint/src/ui/blueprint.css'), 'utf8')
     expect(blueprint).toMatch(
-      /\.blueprint-workbench-backdrop \{[^}]*background: rgba\(8, 8, 10, 0\.62\);[^}]*backdrop-filter: blur\(10px\);/,
+      /\.blueprint-workbench-backdrop \{[^}]*background: var\(--modal-backdrop\);[^}]*backdrop-filter: blur\(10px\);/,
     )
     expect(blueprint).not.toMatch(/\[data-theme='planche'\] \.blueprint-workbench-backdrop/)
     expect(blueprint).not.toContain('modal-frame-backdrop')
     const knowledge = read('components/knowledge/KnowledgeWorkbench.module.css')
     expect(knowledge).toMatch(
-      /\.backdrop \{[^}]*background: rgba\(8, 8, 10, 0\.62\);[^}]*backdrop-filter: blur\(10px\);/,
+      /\.backdrop \{[^}]*background: var\(--modal-backdrop\);[^}]*backdrop-filter: blur\(10px\);/,
     )
     expect(knowledge).not.toMatch(/:global\(\[data-theme='planche'\]\) \.backdrop/)
     expect(knowledge).not.toContain('modal-frame-backdrop')

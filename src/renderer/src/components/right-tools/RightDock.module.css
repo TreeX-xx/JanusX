@@ -7,6 +7,7 @@
 }
 
 .dock {
+  composes: scope from '../../styles/native-scrollbars.module.css';
   /* Note: .agents/notes/workbench/right-dock.md — neutral tool surfaces. */
   --shell-canvas: var(--tool-canvas);
   --shell-chrome: var(--tool-canvas);
@@ -89,13 +90,13 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--shell-muted);
   font-size: 12px;
 }
 
 .toolError div { display: flex; gap: 8px; }
 .toolError button { padding: 4px 9px; border: 1px solid var(--border); border-radius: 4px; }
-.toolError button:hover { color: #ff7830; border-color: rgba(255, 120, 48, 0.35); }
+.toolError button:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
 
 .resizeHandle {
   position: absolute;
@@ -115,7 +116,7 @@
   bottom: 0;
   left: 50%;
   width: 2px;
-  background: var(--shell-accent);
+  background: var(--interaction-accent);
   opacity: 0;
   transform: translateX(-50%);
   transition: opacity 150ms ease;
@@ -188,6 +189,9 @@
 .railButton:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: 1px; }
 .railButton:disabled { opacity: 0.25; }
 .railButton[data-visual-active='true'] { color: var(--shell-text); }
+.auxiliaryTools .railButton[data-visual-active='true'] {
+  background: color-mix(in srgb, var(--shell-text) 8%, var(--shell-canvas));
+}
 
 .railIcon { display: block; }
 
@@ -227,3 +231,7 @@
   width: calc(min(var(--right-tool-content-width), calc(100vw - 70px)) - 2px);
 }
 .panel[data-transient='true'] .resizeHandle { display: none; }
+
+/* Keep every tool reachable in short windows or with additional plugin tools. */
+.rail { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.railTools, .auxiliaryTools { flex-shrink: 0; }

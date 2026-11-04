@@ -107,7 +107,14 @@ async function loadFileSnapshot(absolutePath: string, viewType: FileViewType): P
   if (pending) return pending
 
   const request = (async () => {
-    if (viewType === 'image') {
+    if (viewType === 'image' || viewType === 'pdf') {
+      // Keep PDF IPC payloads within the existing local binary reader's 16 MiB limit.
+      if (viewType === 'pdf') {
+        const info = await window.electron.file.stat(absolutePath)
+        const error = readResultError(info)
+        if (error) throw new Error(error)
+        if ((info.size ?? 0) > 16 * 1024 * 1024) throw new Error('PDF preview limit: 16 MiB')
+      }
       const result = await window.electron.file.readBinary(absolutePath)
       const error = readResultError(result)
       if (error) throw new Error(error)
@@ -382,7 +389,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   saveFile: async (id) => {
     const file = get().openFiles.find(f => f.id === id)
-    if (!file) return false
+    if (!file || ['pdf', 'image', 'binary'].includes(file.viewType)) return false
     try {
       const result = file.saveVersion
         ? await window.electron.file.save(file.absolutePath, file.content, file.saveVersion)

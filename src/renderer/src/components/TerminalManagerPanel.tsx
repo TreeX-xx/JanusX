@@ -1,3 +1,4 @@
+import { SettingsSurface, Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { ChevronDown, Eye, EyeOff, Plus, RefreshCw, SquareTerminal, Star, Trash2 } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
@@ -120,7 +121,7 @@ export function TerminalManagerPanel() {
   }
 
   return (
-    <div className={styles.generalPanel}>
+    <SettingsSurface className={styles.generalPanel}>
       {/* ── 已配置 shell 条目 ── */}
       <section className={shellStyles.configured} aria-labelledby="configured-shells-heading">
         <div className={shellStyles.sectionHeader}>
@@ -130,10 +131,10 @@ export function TerminalManagerPanel() {
             </h3>
             <div className={styles.generalHelp}>{t('terminal:shellSettings.configured.help')}</div>
           </div>
-          <button type="button" className={shellStyles.addButton} onClick={addEntry}>
+          <SettingsButton type="button" className={shellStyles.addButton} onClick={addEntry}>
             <Plus size={14} strokeWidth={1.8} aria-hidden="true" />
             {t('terminal:shellSettings.configured.add')}
-          </button>
+          </SettingsButton>
         </div>
         <div className={shellStyles.entryList}>
           {settings.entries.length === 0 && (
@@ -200,7 +201,7 @@ export function TerminalManagerPanel() {
               </div>
               <div className={styles.lsCardActions}>
                 {/* 只留图标：文字在 label 栏与 aria-label 里都有了 */}
-                <button
+                <SettingsButton variant="ghost" size="icon"
                   type="button"
                   className={`${styles.lsIconButton}${scanning ? ` ${styles.lsIconSpin}` : ''}`}
                   aria-label={t('terminal:shellSettings.candidates.scan')}
@@ -209,7 +210,7 @@ export function TerminalManagerPanel() {
                   onClick={() => void scanCandidates()}
                 >
                   <RefreshCw size={14} strokeWidth={1.8} aria-hidden="true" />
-                </button>
+                </SettingsButton>
               </div>
             </div>
 
@@ -233,13 +234,13 @@ export function TerminalManagerPanel() {
                     </span>
                   ) : (
                     <span className={styles.lsToolRowActions}>
-                      <button
+                      <SettingsButton variant="primary"
                         type="button"
                         className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
                         onClick={() => addCandidate(candidate)}
                       >
                         {t('terminal:shellSettings.candidates.add')}
-                      </button>
+                      </SettingsButton>
                     </span>
                   )}
                 </div>
@@ -250,7 +251,7 @@ export function TerminalManagerPanel() {
       </div>
 
       {saveError && <div className={styles.lsCardError}>{saveError}</div>}
-    </div>
+    </SettingsSurface>
   )
 }
 
@@ -277,7 +278,7 @@ function ShellEntryCard({
   return (
     <div className={shellStyles.entry} data-shell-entry={entry.id}>
       <div className={shellStyles.entryHeader}>
-        <button
+        <SettingsButton variant="plain"
           type="button"
           className={shellStyles.summary}
           aria-expanded={expanded}
@@ -292,9 +293,9 @@ function ShellEntryCard({
             </span>
           </span>
           <ChevronDown className={shellStyles.chevron} size={14} aria-hidden="true" />
-        </button>
+        </SettingsButton>
         <div className={shellStyles.entryActions}>
-          <button
+          <SettingsButton
             type="button"
             className={shellStyles.stateButton}
             aria-label={t('terminal:shellSettings.visibility.default')}
@@ -304,8 +305,8 @@ function ShellEntryCard({
           >
             <Star size={13} strokeWidth={1.8} fill={entry.isDefault ? 'currentColor' : 'none'} aria-hidden="true" />
             {t(entry.isDefault ? 'terminal:shellSettings.configured.default' : 'terminal:shellSettings.configured.makeDefault')}
-          </button>
-          <button
+          </SettingsButton>
+          <SettingsButton
             type="button"
             className={shellStyles.visibilityButton}
             aria-label={t(entry.visible ? 'terminal:shellSettings.visibility.visible' : 'terminal:shellSettings.visibility.hidden')}
@@ -314,14 +315,14 @@ function ShellEntryCard({
           >
             {entry.visible ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
             {t(entry.visible ? 'terminal:shellSettings.configured.visible' : 'terminal:shellSettings.configured.hidden')}
-          </button>
+          </SettingsButton>
         </div>
       </div>
 
       <div id={detailsId} className={shellStyles.editor} hidden={!expanded}>
         <label className={styles.lsField}>
           <span className={styles.lsFieldLabel}>{t('terminal:shellSettings.configured.name')}</span>
-          <input
+          <SettingsInput
             className={styles.lsInput}
             value={entry.name}
             placeholder={t('terminal:shellSettings.configured.newName')}
@@ -331,7 +332,7 @@ function ShellEntryCard({
         </label>
         <label className={styles.lsField}>
           <span className={styles.lsFieldLabel}>{t('terminal:shellSettings.configured.command')}</span>
-          <input
+          <SettingsInput
             className={`${styles.lsInput}${missing ? ` ${styles.lsInputMissing}` : ''}`}
             value={entry.command}
             placeholder="bash --login -i"
@@ -344,7 +345,7 @@ function ShellEntryCard({
             {t('terminal:shellSettings.configured.suffix')}
             <span className={shellStyles.optional}>{t('terminal:shellSettings.configured.optional')}</span>
           </span>
-          <input
+          <SettingsInput
             className={`${styles.lsInput}`}
             value={entry.suffix ?? ''}
             placeholder="--login -i"
@@ -354,10 +355,10 @@ function ShellEntryCard({
         </label>
         <div className={shellStyles.editorFooter}>
           <span className={styles.generalHelp}>{t('terminal:shellSettings.configured.launchHelp')}</span>
-          <button type="button" className={shellStyles.removeButton} onClick={() => onRemove(entry.id)}>
+          <SettingsButton variant="danger" type="button" className={shellStyles.removeButton} onClick={() => onRemove(entry.id)}>
             <Trash2 size={13} aria-hidden="true" />
             {t('terminal:shellSettings.configured.remove')}
-          </button>
+          </SettingsButton>
         </div>
       </div>
       {missing && (
@@ -365,16 +366,16 @@ function ShellEntryCard({
           <span className={styles.lsMissingText}>
             {t('terminal:shellSettings.configured.missing', { executable: executableOf(entry) })}
           </span>
-          <button type="button" className={styles.lsLinkButton} onClick={onRedetect}>
+          <SettingsButton type="button" className={styles.lsLinkButton} onClick={onRedetect}>
             {t('terminal:shellSettings.configured.redetect')}
-          </button>
-          <button
+          </SettingsButton>
+          <SettingsButton
             type="button"
             className={styles.lsLinkButton}
             onClick={() => onPatch(entry.id, { visible: false })}
           >
             {t('terminal:shellSettings.configured.hide')}
-          </button>
+          </SettingsButton>
         </div>
       )}
     </div>

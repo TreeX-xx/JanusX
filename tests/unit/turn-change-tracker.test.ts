@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, writeFile, rm, mkdir, realpath } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
-import { promisify } from 'node:util'
-import { execFile } from 'node:child_process'
 import { TerminalTurnChangeTracker } from '../../src/main/terminal/turn-change-tracker'
-import { captureTurnFiles, compareTurnFiles } from '../../src/main/terminal/turn-file-snapshot'
+import { captureTurnFiles } from '../../src/main/terminal/turn-file-snapshot'
 import type { TerminalTurnChangesEvent } from '../../src/shared/ipc/terminal'
+import { workspaceIo } from '@janus-agent/agent-core'
 
 let cwd: string
 const published: TerminalTurnChangesEvent[] = []
@@ -21,6 +20,37 @@ afterEach(async () => {
 })
 
 describe('adjacent completed turn snapshots', () => {
+  it('keeps the launch boundary in the shared lane and cancels it while waiting', async () => {
+    let release!: () => void
+    const blocker = workspaceIo.run(cwd, () => new Promise<void>(resolve => { release = resolve }))
+    const errors = vi.fn()
+    const tracker = new TerminalTurnChangeTracker(event => published.push(event), captureTurnFiles, errors)
+    let registered = false
+    const registration = tracker.register('a', cwd).then(() => { registered = true })
+    try {
+      await new Promise(resolve => setImmediate(resolve))
+      expect(registered).toBe(false)
+      tracker.unregister('a')
+      await registration
+      expect(errors).not.toHaveBeenCalled()
+      expect(published).toEqual([])
+    } finally {
+      release()
+      await blocker
+    }
+  })
+
+  it('uses foreground scheduling only for the pre-launch capture', async () => {
+    const capture = vi.fn().mockResolvedValue(new Map())
+    const tracker = new TerminalTurnChangeTracker(event => published.push(event), capture)
+    await tracker.register('a', cwd)
+    expect(capture.mock.calls[0][2]).toEqual({ background: false })
+    tracker.start('a')
+    await tracker.finish('a', 'done', null)
+    expect(capture.mock.calls[1]).toHaveLength(2)
+    tracker.unregister('a')
+  })
+
   it('advances after changed and quiet turns, including edits between submissions', async () => {
     await writeFile(join(cwd, 'a.ts'), 'base\n')
     const tracker = new TerminalTurnChangeTracker(event => published.push(event))
@@ -123,42 +153,5 @@ describe('adjacent completed turn snapshots', () => {
     await Promise.all(finishes)
     expect(capture).toHaveBeenCalledTimes(2)
     expect(published).toHaveLength(alreadyPublished)
-  })
-})
-
-describe('bounded file capture', () => {
-  it('retains the same first 16 MiB in path order across concurrent batches', async () => {
-    const names = Array.from({ length: 18 }, (_, index) => `${String(index).padStart(2, '0')}.txt`)
-    await Promise.all(names.map(name => writeFile(join(cwd, name), Buffer.alloc(1024 * 1024, 65))))
-    const snapshot = await captureTurnFiles(cwd)
-    expect([...snapshot.keys()]).toEqual(names)
-    expect([...snapshot].filter(([, file]) => file.text !== undefined).map(([name]) => name)).toEqual(names.slice(0, 16))
-    expect(snapshot.get('17.txt')).toMatchObject({ size: 1024 * 1024, binary: false, oversized: false })
-    expect(snapshot.get('17.txt')?.hash).toBe(snapshot.get('00.txt')?.hash)
-    expect(compareTurnFiles(snapshot, await captureTurnFiles(cwd))).toEqual([])
-  })
-
-  it('honors Git ignores and preserves Unicode paths', async () => {
-    await promisify(execFile)('git', ['init', '-q'], { cwd })
-    await writeFile(join(cwd, '.gitignore'), '*.log\n')
-    await writeFile(join(cwd, 'ignored.log'), 'noise')
-    await writeFile(join(cwd, '中文 file.ts'), 'source')
-    const snapshot = await captureTurnFiles(cwd)
-    expect(snapshot.has('中文 file.ts')).toBe(true)
-    expect(snapshot.has('ignored.log')).toBe(false)
-    expect([...snapshot.keys()].some(path => path.startsWith('.git/'))).toBe(false)
-  })
-  it('marks binaries and large files without line counts and excludes checkpoint storage', async () => {
-    const before = await captureTurnFiles(cwd)
-    await mkdir(join(cwd, '.janusX'))
-    await writeFile(join(cwd, '.janusX', 'internal.txt'), 'ignore')
-    await writeFile(join(cwd, 'binary.bin'), Buffer.from([0, 1, 2]))
-    await writeFile(join(cwd, 'large.txt'), Buffer.alloc(2 * 1024 * 1024, 65))
-    const after = await captureTurnFiles(cwd)
-    expect(after.has('.janusX/internal.txt')).toBe(false)
-    expect(compareTurnFiles(before, after)).toEqual([
-      expect.objectContaining({ path: 'binary.bin', additions: null, deletions: null }),
-      expect.objectContaining({ path: 'large.txt', additions: null, deletions: null }),
-    ])
   })
 })

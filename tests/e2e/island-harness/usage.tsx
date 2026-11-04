@@ -10,8 +10,8 @@ import '../../../src/renderer/src/styles/themes.generated.css'
 
 installElectronApiFallback()
 await initI18n()
-await changeLanguage('zh-CN')
-useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'planche')
+await changeLanguage(new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'zh-CN')
+useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') ?? 'planche')
 document.body.style.background = 'var(--shell-canvas)'
 const now = new Date()
 const records: UsageRecord[] = [
@@ -30,6 +30,15 @@ if (new URLSearchParams(location.search).get('history') === 'yes') {
     { id: 'history-claude', engine: 'claude', sessionId: 'history-claude', at: historical.getTime(), timeBasis: 'event', totalTokens: 60000, inputTokens: 50000, outputTokens: 10000 },
   )
 }
+if (new URLSearchParams(location.search).get('detail') === 'yes') records.push(
+  { id: 'detail-same', engine: 'codex', sessionId: 'codex', at: now.getTime(), timeBasis: 'event', model: 'gpt-5.4', totalTokens: 1000, inputTokens: 300, outputTokens: 100, cacheReadTokens: 600, cacheWriteTokens: 0 },
+  { id: 'detail-switch', engine: 'codex', sessionId: 'codex', at: now.getTime(), timeBasis: 'event', model: 'provider/model-with-a-long-name-and-version-2026-11-03', totalTokens: 2000, inputTokens: 500, outputTokens: 300, cacheReadTokens: 1200, cacheWriteTokens: 0 },
+  { id: 'detail-other', engine: 'claude', sessionId: 'claude', at: now.getTime(), timeBasis: 'event', model: 'gpt-5.4', totalTokens: 500, inputTokens: 400, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  { id: 'detail-unknown', engine: 'codex', sessionId: 'codex', at: now.getTime(), timeBasis: 'event', totalTokens: 100, inputTokens: 100, outputTokens: 0 },
+)
+if (new URLSearchParams(location.search).get('cache') === 'partial') records.push(
+  { id: 'partial', engine: 'codex', sessionId: 'codex', at: now.getTime(), timeBasis: 'event', model: 'gpt-5.4', totalTokens: 100, inputTokens: 100, outputTokens: 0 },
+)
 window.electron.system.listUsageLedger = async query => ({ records: records.filter(record => record.at >= query.start && record.at <= query.end && (!query.engine || record.engine === query.engine)), sessions: [], throughId: 2 })
 const priceCatalog = {
   source: 'cache' as const, updatedAt: now.toISOString(), isStale: false,

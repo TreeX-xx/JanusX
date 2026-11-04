@@ -14,6 +14,7 @@ import {
 import { useStreamingPrinter } from '@/hooks/useStreamingPrinter'
 import { MarkdownContent } from './chat/ChatContent'
 import { ChatTimeline } from './janus/ChatTimeline'
+import { WorkDisclosureScope } from './chat/WorkDisclosure'
 import { emptyChatTimeline, settleChatTimeline } from '../../../shared/chat-timeline'
 import { normalizeLaunchAssistantHistory, serializeLaunchAssistantHistory, type LaunchAssistantMessage as Message } from '../../../shared/launch-assistant-history'
 import { formatThinkingDuration } from './janus/janusReasoning'
@@ -211,6 +212,7 @@ function ProjectLaunchAssistantSession({
   const workspaceNames = new Map(workspaceResources.map((resource) => [resource.workspaceId, resource.workspaceName]))
 
   return (
+    <WorkDisclosureScope scopeKey={historyKey}>
     <aside className={styles.assistant} style={style} aria-label="Janus workspace launch assistant">
       <div className={styles.assistantHeader}>
         <div className={styles.assistantIdentity}>
@@ -274,6 +276,7 @@ function ProjectLaunchAssistantSession({
         </div>
       </div>
     </aside>
+    </WorkDisclosureScope>
   )
 }
 

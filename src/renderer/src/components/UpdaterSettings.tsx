@@ -1,9 +1,11 @@
+import { Button as SettingsButton } from '@janusx/ui'
+import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { getUpdaterSettings, updateUpdaterSettings } from '@/services/updater-settings'
 import { DEFAULT_UPDATER_SETTINGS, type UpdaterState } from '../../../shared/ipc/updater'
 import { applyUpdaterEvent } from '@/lib/updater-badge'
-import styles from './NotificationSettingsPanel.module.css'
+import { settingsStyles as styles } from '@janusx/ui'
 import aboutStyles from './AboutSettingsPanel.module.css'
 
 const UNSUPPORTED_KEY: Record<string, string> = {
@@ -139,13 +141,13 @@ export function UpdaterSettings() {
           <>
             <div className={styles.status}>{t(unsupportedKey)}</div>
             <div className={`${styles.testRow} ${aboutStyles.updaterActions}`}>
-              <button
+              <SettingsButton variant="ghost"
                 type="button"
-                className={`${styles.button} ${styles.ghostButton}`}
+
                 onClick={() => void openReleases()}
               >
                 {t('settings:updater.openReleases')}
-              </button>
+              </SettingsButton>
             </div>
           </>
         )
@@ -153,33 +155,33 @@ export function UpdaterSettings() {
           <>
             <StatusLine state={state} />
             <div className={`${styles.testRow} ${aboutStyles.updaterActions}`}>
-              <button
+              <SettingsButton variant="ghost"
                 type="button"
-                className={`${styles.button} ${styles.ghostButton}`}
+
                 onClick={() => void check()}
                 disabled={busy || state?.phase === 'checking' || state?.phase === 'downloading'}
               >
                 {state?.phase === 'checking' ? t('settings:updater.checking') : t('settings:updater.check')}
-              </button>
+              </SettingsButton>
               {state?.availableVersion && (state.phase === 'available' || state.phase === 'error') && (
-                <button
+                <SettingsButton variant="primary"
                   type="button"
-                  className={`${styles.button} ${styles.primaryButton}`}
+
                   onClick={() => void download()}
                   disabled={busy}
                 >
                   {state.phase === 'error' ? t('settings:updater.retryDownload') : t('settings:updater.download')}
-                </button>
+                </SettingsButton>
               )}
               {state?.phase === 'downloaded' && (
-                <button
+                <SettingsButton variant="primary"
                   type="button"
-                  className={`${styles.button} ${styles.primaryButton}`}
+
                   onClick={() => void install()}
                   disabled={busy}
                 >
                   {t('settings:updater.restart')}
-                </button>
+                </SettingsButton>
               )}
             </div>
           </>
@@ -255,16 +257,12 @@ function SettingSwitch({ label,
         <span className={styles.labelText}>{label}</span>
         <span className={styles.hint}>{hint}</span>
       </div>
-      <label className={styles.switch}>
-        <input
-          type="checkbox"
+      <SettingsCheckbox
           aria-label={label}
           checked={checked}
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className={styles.switchTrack} />
-      </label>
     </div>
   )
 }

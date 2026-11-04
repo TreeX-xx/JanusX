@@ -16,12 +16,12 @@ import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { Titlebar } from '@/components/Titlebar'
 import { Sidebar } from '@/components/Sidebar'
 import { TerminalArea } from '@/components/TerminalArea'
+import { LocalCliSetup } from '@/components/LocalCliSetup'
 import { WorkbenchErrorBoundary } from '@/components/WorkbenchErrorBoundary'
 import { TerminalSelector } from '@/components/TerminalSelector'
 import { Panel, RightDockLayoutProvider } from '@/components/Panel'
 import { getAuxiliaryWorkspaceLayout, EDITOR_MIN_WIDTH } from '@/lib/auxiliary-layout'
 import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
-import { StatusBar } from '@/components/StatusBar'
 import { FileEditor } from '@/components/FileEditor'
 import { AgentNotificationHost } from '@/components/AgentNotificationHost'
 import { JanusChatProvider } from '@/components/janus/JanusChatProvider'
@@ -72,7 +72,7 @@ export default function App() {
   useTerminalLifecycle()
   // ToB M2：启动即恢复团队会话（refresh 静默续期），失败即 guest 由挡板接管。
   useEffect(() => { void useTeamStore.getState().bootstrap() }, [])
-  // 主题：首屏加载持久化值并挂载 [data-theme]（石板色默认、经典黑第二，两边都显式挂载）。
+  // 主题：首屏加载持久化值，并显式挂载活动主题。
   useEffect(() => {
     void import('@/stores/theme').then(({ useThemeStore }) => useThemeStore.getState().load())
   }, [])
@@ -254,7 +254,7 @@ export default function App() {
       <Titlebar />
       <div
         ref={appGridRef}
-        className={`flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)_28px] overflow-hidden ${dockStyles.workbenchGrid}`}
+        className={`flex-1 min-h-0 grid grid-rows-1 overflow-hidden ${dockStyles.workbenchGrid}`}
         data-resizing={rightDockResizing || editorResizing}
         style={{
           // 文件窗口轨道常驻（隐藏时 0px）：双击打开时 workbenchGrid 的 240ms 过渡才能平滑展开
@@ -292,7 +292,7 @@ export default function App() {
         {/*-- 槽位常驻：关闭时留 0px 空壳占位，网格自动排布才不会把右侧 Panel 挤错轨道 --*/}
         <section
           ref={editorWorkspaceRef}
-          className={`relative min-w-0 overflow-hidden${showEmbeddedEditor ? ' border-l border-white/[0.07]' : ''}`}
+          className={`relative min-w-0 overflow-hidden${showEmbeddedEditor ? ' border-l border-[var(--shell-border)]' : ''}`}
           aria-label="Embedded file editor"
           aria-hidden={!showEmbeddedEditor}
           {...(showEmbeddedEditor ? {} : { inert: '' })}
@@ -329,11 +329,9 @@ export default function App() {
         >
           <Panel />
         </RightDockLayoutProvider>
-        <div className="col-span-full min-w-0 [&>footer]:h-full">
-          <StatusBar />
-        </div>
       </div>
       <AgentNotificationHost />
+      <LocalCliSetup />
       {/* ToB M2：未登录/无组织时全屏挡板 */}
       <TeamSetupGate />
       <OnboardingHost workspaceReady={workspaceReady} />

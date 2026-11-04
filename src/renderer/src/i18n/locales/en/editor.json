@@ -1,4 +1,20 @@
 {
+  "pdf": {
+    "previous": "Previous page",
+    "next": "Next page",
+    "page": "Page number",
+    "zoom": "PDF zoom",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "fitWidth": "Fit width",
+    "fitPage": "Fit page",
+    "document": "PDF document",
+    "error": "Unable to display this PDF. The file may be damaged or unsupported.",
+    "password": "PDF password",
+    "incorrectPassword": "Incorrect password. Try again.",
+    "unlock": "Open PDF",
+    "loading": "Loading PDF…"
+  },
   "fileTree": {
     "searchPlaceholder": "Search files...",
     "ariaContent": "File explorer content",

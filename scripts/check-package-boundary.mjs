@@ -114,6 +114,8 @@ export function validateFilePatterns(patterns) {
   const allowedExclusion = (pattern) =>
     REQUIRED_TREE_EXCLUSIONS.includes(pattern) ||
     pattern.startsWith('node_modules/') ||
+    pattern === '**/node_modules/@napi-rs/canvas' ||
+    pattern === '**/node_modules/@napi-rs/canvas-*' ||
     EXTENSION_EXCLUSION.test(pattern) ||
     !pattern.includes('/')
   const unexpected = [...exclusionTargets].filter((pattern) => !allowedExclusion(pattern))

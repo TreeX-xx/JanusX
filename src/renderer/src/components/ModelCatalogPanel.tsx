@@ -1,3 +1,5 @@
+import { InputGroup } from '@janusx/ui'
+import { Input as SettingsInput, Button as SettingsButton } from '@janusx/ui'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, RefreshCw, Search } from 'lucide-react'
 import type { AiModelRegistryEntry, ModelCatalogSnapshot } from '@janusx/llm-core'
@@ -61,18 +63,18 @@ export function ModelCatalogPanel() {
   return (
     <section className={styles.root} aria-busy={loading || refreshing}>
       <div className={styles.toolbar}>
-        <label className={styles.searchField}>
+        <InputGroup as="label" className={styles.searchField}>
           <span className={styles.srOnly}>{t('model:search.label')}</span>
           <Search className={styles.searchIcon} size={15} aria-hidden="true" />
-          <input
+          <SettingsInput
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('model:search.placeholder')}
             className={styles.searchInput}
           />
-        </label>
-        <button
+        </InputGroup>
+        <SettingsButton
           type="button"
           className={styles.refreshButton}
           onClick={handleRefresh}
@@ -80,7 +82,7 @@ export function ModelCatalogPanel() {
         >
           <RefreshCw size={14} className={refreshing ? styles.spinning : ''} aria-hidden="true" />
           {refreshing ? t('model:refresh.updating') : loadError ? t('model:refresh.retry') : t('model:refresh.updateCatalog')}
-        </button>
+        </SettingsButton>
       </div>
 
       <div className={styles.summary} aria-live="polite">
@@ -103,9 +105,9 @@ export function ModelCatalogPanel() {
         <div className={styles.empty} role="alert">
           <strong>{t('model:error.loadFailedTitle')}</strong>
           <span>{loadError}</span>
-          <button type="button" className={styles.inlineButton} onClick={handleRefresh} disabled={refreshing}>
+          <SettingsButton type="button" className={styles.inlineButton} onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? t('model:refresh.updating') : t('model:refresh.retryUpdate')}
-          </button>
+          </SettingsButton>
         </div>
       )}
 

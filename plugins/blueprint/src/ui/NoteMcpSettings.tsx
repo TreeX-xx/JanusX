@@ -1,10 +1,11 @@
+import { SettingsFieldset, Button as SettingsButton } from '@janusx/ui'
 import { useEffect, useId, useState } from 'react'
 import { Plug, RefreshCw } from './SettingsIcons'
 import { settingsText as t } from './settings-text'
 import { call } from './client'
-import { EXTERNAL_CLI_TOOL_ICONS } from './cli-icons'
+import { CliIcon } from './CliIcon'
 import type { NoteMcpChange, NoteMcpProbe, NoteMcpStatus } from '../shared/note-mcp'
-import settingsStyles from './SettingsCards.module.css'
+import { settingsStyles as settingsStyles } from '@janusx/ui'
 import styles from './BlueprintSettingsPanel.module.css'
 import { NoteMcpHelp } from './NoteMcpHelp'
 
@@ -36,7 +37,7 @@ export function NoteMcpSettings() {
     finally { setBusy(false) }
   }
   return (
-    <fieldset className={`${settingsStyles.section} ${styles.section}`} disabled={busy} aria-labelledby={`${id}-mcp`} aria-busy={busy}>
+    <SettingsFieldset className={`${settingsStyles.section} ${styles.section}`} disabled={busy} aria-labelledby={`${id}-mcp`} aria-busy={busy}>
       <div className={settingsStyles.sectionTitle}>
         <h3 className={styles.mcpTitle} id={`${id}-mcp`}><Plug size={14} aria-hidden="true" />{t('blueprint:review.mcp')}</h3>
         <NoteMcpHelp />
@@ -49,7 +50,7 @@ export function NoteMcpSettings() {
           <div key={client.id} className={styles.client} role="group" aria-label={client.label}>
             <div className={settingsStyles.clientIdentity}>
               <span className={settingsStyles.clientIcon} data-client={client.id} aria-hidden="true">
-                <img src={EXTERNAL_CLI_TOOL_ICONS[client.id === 'claude-code' ? 'claude' : client.id]} alt="" draggable={false} />
+                <CliIcon client={client.id} />
               </span>
               <div className={styles.clientInfo}>
                 <div className={styles.clientHeading}>
@@ -62,8 +63,8 @@ export function NoteMcpSettings() {
               </div>
             </div>
             {['absent', 'outdated', 'current'].includes(client.state) && <div className={`${settingsStyles.actions} ${styles.clientActions}`}>
-              <button className={`${settingsStyles.button} ${settingsStyles.primaryButton}`} type="button" disabled={!status.available || client.state === 'current'} onClick={() => void change({ client: client.id, expectedHash: client.hash, action: 'import' })}>{t(client.state === 'absent' ? 'blueprint:review.mcpImport' : 'blueprint:review.mcpUpdate')}</button>
-              {client.state !== 'absent' && <button className={`${settingsStyles.button} ${settingsStyles.ghostButton}`} type="button" onClick={() => void change({ client: client.id, expectedHash: client.hash, action: 'remove' })}>{t('blueprint:review.mcpRemove')}</button>}
+              <SettingsButton variant="primary"  type="button" disabled={!status.available || client.state === 'current'} onClick={() => void change({ client: client.id, expectedHash: client.hash, action: 'import' })}>{t(client.state === 'absent' ? 'blueprint:review.mcpImport' : 'blueprint:review.mcpUpdate')}</SettingsButton>
+              {client.state !== 'absent' && <SettingsButton variant="ghost"  type="button" onClick={() => void change({ client: client.id, expectedHash: client.hash, action: 'remove' })}>{t('blueprint:review.mcpRemove')}</SettingsButton>}
             </div>}
           </div>
         ))}
@@ -72,10 +73,10 @@ export function NoteMcpSettings() {
         <div className={styles.feedbackText}>
           {probe && <p className={`${settingsStyles.hint} ${probe.ok ? settingsStyles.statusSuccess : settingsStyles.statusError}`} role="status">{t(probe.ok ? 'blueprint:review.mcpProbePassed' : 'blueprint:review.mcpProbeFailed')}</p>}
         </div>
-        <button className={settingsStyles.button} type="button" disabled={!status?.available} onClick={() => void test()}>
+        <SettingsButton type="button" disabled={!status?.available} onClick={() => void test()}>
           <RefreshCw size={12} aria-hidden="true" />{t('blueprint:review.mcpTest')}
-        </button>
+        </SettingsButton>
       </div>
-    </fieldset>
+    </SettingsFieldset>
   )
 }

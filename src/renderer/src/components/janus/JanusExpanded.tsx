@@ -117,7 +117,7 @@ export function JanusExpanded({
         : t('janus:expanded.status.orderIdle')
 
   /*-- 模式颜色 --*/
-  const modeColor = mode === 'running' ? '#00ff88' : '#ff7830'
+  const modeColor = mode === 'running' ? 'var(--status-success)' : 'var(--primary)'
   const peekTitle = useMemo(() => {
     if (isRunning) return t('janus:expanded.peek.running')
     if (mode === 'analytics') return t('janus:expanded.peek.analyzing')
@@ -225,7 +225,7 @@ export function JanusExpanded({
           <div
             className="flex justify-between items-center pb-1.5"
             style={{
-              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+              borderBottom: '1px solid color-mix(in srgb, var(--surface-tint) 5%, transparent)',
             }}
           >
             <div
@@ -233,7 +233,7 @@ export function JanusExpanded({
             >
               <span>◎</span> {t('janus:expanded.engineBrand')}
             </div>
-            <div className="text-[9px] text-[#52525b]">{t('janus:expanded.dismissHint')}</div>
+            <div className="text-[9px] text-[var(--shell-dim)]">{t('janus:expanded.dismissHint')}</div>
           </div>
 
           <div
@@ -296,8 +296,8 @@ export function JanusExpanded({
           <div
             className="flex justify-between items-center pt-1.5 text-[10px]"
             style={{
-              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-              color: '#71717a',
+              borderTop: '1px solid color-mix(in srgb, var(--surface-tint) 5%, transparent)',
+              color: 'var(--shell-dim)',
             }}
           >
             <span className="flex items-center gap-2">

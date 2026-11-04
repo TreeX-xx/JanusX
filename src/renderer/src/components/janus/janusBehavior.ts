@@ -5,7 +5,7 @@
 export type JanusBehaviorMode = 'sleep' | 'order' | 'analytics' | 'running'
 
 /** 待机动作（2026-10-24 lab 定稿移植；事件反应仍走真实事件，不进此池）。 */
-export type JanusActKind = 'stretch' | 'tilt' | 'lookaround' | 'hop' | 'doze' | 'breathe'
+export type JanusActKind = 'stretch' | 'lookaround' | 'hop' | 'doze' | 'breathe'
 
 export type JanusGazeState =
   | 'static'      // reduced-motion 降级
@@ -103,7 +103,7 @@ export interface JanusGazeFrame {
   /** 惊跳压扁 */
   sx: number
   sy: number
-  /** 头部旋转（度，歪头等动作） */
+  /** 头部旋转（度） */
   rot: number
   /** 进行中的待机动作 */
   act: JanusActKind | null
@@ -145,9 +145,6 @@ interface ActDef {
   pose(p: number, dir: number): ActPose
 }
 
-const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
-
 const JANUS_ACTS: Record<JanusActKind, ActDef> = {
   stretch: {
     // 伸懒腰：蹲下蓄力 → 拉长 → 回位
@@ -171,31 +168,6 @@ const JANUS_ACTS: Record<JanusActKind, ActDef> = {
         sx = lerpNum(0.92, 1, q)
       }
       return { sx, sy, fy: 0, rot: 0 }
-    },
-  },
-  tilt: {
-    // 歪头好奇：视线抢先 → 回弹入倾（冲过 12.5° 回落 10°，微颤）→ 第二感缩回再倾 12° → 回正
-    dur: 2900,
-    blinks: [0, 2450],
-    aim: (p, dir, amp) => {
-      let k: number
-      if (p < 0.12) k = easeOut(p / 0.12) * 0.95
-      else if (p < 0.42) k = 0.95 + 0.05 * Math.sin((p - 0.12) * 26)
-      else if (p < 0.52) k = lerpNum(0.95, 0.78, easeInOut((p - 0.42) / 0.1))
-      else if (p < 0.8) k = lerpNum(0.82, 1.15, easeOut((p - 0.52) / 0.28))
-      else k = lerpNum(1.15, 0, easeInOut((p - 0.8) / 0.2))
-      return { gaze: { x: dir * amp * 0.72 * k, y: -amp * 0.24 * k } }
-    },
-    pose: (p, dir) => {
-      let deg: number
-      if (p < 0.12) deg = lerpNum(0, 12.5, easeOut(p / 0.12))
-      else if (p < 0.22) deg = lerpNum(12.5, 10, easeInOut((p - 0.12) / 0.1))
-      else if (p < 0.42) deg = 10 + 0.4 * Math.sin((p - 0.22) * 34)
-      else if (p < 0.52) deg = lerpNum(10, 5, easeInOut((p - 0.42) / 0.1))
-      else if (p < 0.64) deg = lerpNum(5, 12, easeOut((p - 0.52) / 0.12))
-      else if (p < 0.8) deg = 12 + 0.35 * Math.sin((p - 0.64) * 30)
-      else deg = lerpNum(12, 0, easeInOut((p - 0.8) / 0.2))
-      return { sx: 1, sy: 1, fy: 0, rot: dir * deg }
     },
   },
   lookaround: {
@@ -270,10 +242,9 @@ const JANUS_ACTS: Record<JanusActKind, ActDef> = {
   },
 }
 
-/** 生产池只含待机动作（权重同 lab）；事件反应由真实事件驱动，不自发。 */
+/** 生产池只含待机动作；当前动作范围见 .agents/notes/workbench/module.md。事件反应由真实事件驱动，不自发。 */
 const JANUS_ACT_POOL: { kind: JanusActKind; weight: number }[] = [
   { kind: 'stretch', weight: 3 },
-  { kind: 'tilt', weight: 3 },
   { kind: 'lookaround', weight: 3 },
   { kind: 'breathe', weight: 2 },
   { kind: 'hop', weight: 2 },

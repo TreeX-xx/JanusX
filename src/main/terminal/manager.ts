@@ -189,6 +189,7 @@ export class TerminalManager {
     const existing = this.instances.get(config.id)
     if (existing) {
       if (existing.remote) throw new Error('A remote terminal cannot be replaced by a local process')
+      this.releaseRuntime(existing)
       try {
         existing.pty.kill()
       } catch {
@@ -289,6 +290,7 @@ export class TerminalManager {
         return
       }
       const pid = instance.pty.pid
+      this.releaseRuntime(instance)
       try {
         instance.pty.kill()
       } catch {
@@ -302,6 +304,16 @@ export class TerminalManager {
 
   /** 在途的 taskkill 兜底进程；killAll 等待它们全部退出（audit C7）。 */
   private pendingKillers = new Set<Promise<void>>()
+
+  private releaseRuntime(instance: TerminalInstance): void {
+    const stopped = instance.disposeRuntime?.()
+    instance.disposeRuntime = undefined
+    if (stopped) {
+      const pending = stopped.catch(error => logTerminalDiagnostic('owned runtime cleanup failed', { id: instance.id, error: String(error) }))
+      this.pendingKillers.add(pending)
+      void pending.finally(() => this.pendingKillers.delete(pending))
+    }
+  }
 
   /**
    * Windows 进程树兜底：pty.kill() 不保证回收子进程，taskkill /T 强制清理。

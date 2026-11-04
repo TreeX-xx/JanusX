@@ -16,12 +16,12 @@
 .bp-note-repair p[role='alert'] { color: var(--shell-accent); }
 .bp-note-repair__spinner { animation: bp-repair-spin .85s linear infinite; }
 .bp-note-repair[data-transferring='true'] .bp-note-repair__content { opacity: 0; }
-.bp-note-repair--flying { position: fixed; z-index: 11000; pointer-events: none; margin: 0; transform-origin: top left; box-shadow: 0 12px 40px #0003; overflow: hidden; max-height: none; }
+.bp-note-repair--flying { position: fixed; z-index: 11000; pointer-events: none; margin: 0; transform-origin: top left; box-shadow: 0 12px 40px color-mix(in srgb, var(--shadow-color) 20%, transparent); overflow: hidden; max-height: none; }
 .bp-note-repair__diff { margin-top: 10px; }
 .bp-note-repair__diff summary { overflow-wrap: anywhere; cursor: pointer; }
 .bp-note-repair__diff pre { font: 10px/1.5 monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
-.bp-note-repair__diff [data-change='add'] { display: block; background: #3aa56820; }
-.bp-note-repair__diff [data-change='remove'] { display: block; background: #d96b6b20; text-decoration: line-through; }
+.bp-note-repair__diff [data-change='add'] { display: block; background: color-mix(in srgb, var(--status-success) 12.549%, transparent); }
+.bp-note-repair__diff [data-change='remove'] { display: block; background: color-mix(in srgb, var(--status-danger) 12.549%, transparent); text-decoration: line-through; }
 .bp-repair-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0; }
 .bp-repair-actions button { font-size: 11px; padding: 4px 7px; border: 1px solid var(--shell-border); background: transparent; color: var(--shell-muted); border-radius: 6px; cursor: pointer; }
 .bp-repair-actions button:first-child { color: var(--shell-accent); }

@@ -97,7 +97,10 @@ void app.whenReady().then(async () => {
   await service.installOfficial(archive, config.signed)
   const startsAfterInstall = nativeStarts
   await service.enable('official.blueprint', ['project'])
-  await service.setContext('project', root, 'zh-CN', { id: 'dark', tokens: {} })
+  let locale = 'zh-CN'
+  let theme: { id: string; tokens: Record<string, string> } = { id: 'dark', tokens: {} }
+  const updateContext = () => service.setContext('project', root, locale, theme)
+  await updateContext()
   const open = async (view = 'blueprint') => {
     if (mount) service.close(mount.instanceId, mount.binding)
     mount = await service.mount('official.blueprint', view, view === 'blueprint' ? 'project' : null, view === 'blueprint' ? root : null)
@@ -111,7 +114,8 @@ void app.whenReady().then(async () => {
     lifecycle: () => ({ startsBeforeInstall, startsAfterInstall, nativeStarts, processes: nativeProcesses.size, modelCalls }),
     editDiscussionDraft: async (value: string) => new PluginStorage(join(pluginHome, 'data')).mutate('official.blueprint',
       `project:${createHash('sha256').update(root).digest('hex')}`, 'blueprint-discussion-draft', value, undefined, () => {}),
-    locale: (locale: string) => service.setContext('project', root, locale, { id: 'dark', tokens: {} }),
+    locale: (value: string) => { locale = value; return updateContext() },
+    theme: (value: typeof theme) => { theme = value; return updateContext() },
     continueDiscussion: () => { continueDiscussion?.(); continueDiscussion = undefined },
     snapshot: () => service.snapshot(),
     async settings(value: unknown, expectedRevision: string) { return service.nativeCall('official.blueprint', 'settings.update', JSON.parse(JSON.stringify({ value, expectedRevision })), null, null, new AbortController().signal) },

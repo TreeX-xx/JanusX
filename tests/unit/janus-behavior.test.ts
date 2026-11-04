@@ -291,17 +291,6 @@ describe('待机动作（2026-10-24 lab 移植）', () => {
     expect(end.act).toBeNull()
   })
 
-  it('tilt：中段约 ±10°，方向随机，视线随头同侧', () => {
-    const s = makeScheduler(() => 0.2) // random < 0.5 → dir = -1
-    s.startAct('tilt', T0)
-    const mid = s.step(baseInput({ now: T0 + 1000 })) // p≈0.35 微颤稳态段
-    expect(mid.act).toBe('tilt')
-    expect(mid.rot).toBeLessThan(-5)
-    expect(mid.rot).toBeGreaterThan(-12)
-    expect(mid.gazeX).toBeLessThan(0)
-    expect(mid.settled).toBe(false)
-  })
-
   it('hop：腾空段 faceY 上移', () => {
     const s = makeScheduler()
     s.startAct('hop', T0)
@@ -349,7 +338,7 @@ describe('待机动作（2026-10-24 lab 移植）', () => {
     expect(s.step(baseInput({ now: T0 + 4640 })).act).toBeNull()
 
     const s2 = makeScheduler()
-    s2.startAct('tilt', T0)
+    s2.startAct('stretch', T0)
     const frame = s2.step(baseInput({ now: T0 + 1000, reducedMotion: true }))
     expect(frame.act).toBeNull()
     expect(frame.rot).toBe(0)

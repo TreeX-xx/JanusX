@@ -2,7 +2,8 @@ import { execFile, spawn } from 'node:child_process'
 import { lstat, readFile, rm } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep, posix } from 'node:path'
 import { promisify } from 'node:util'
-import type { GitFileChange, GitStatus } from '../../shared/ipc/git'
+import { createHash } from 'node:crypto'
+import type { GitFileChange, GitStatus, GitHistoryQuery, GitHistoryPage, GitRef } from '../../shared/ipc/git'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { runWorkspaceProcess } from '../workspace/runtime-process'
@@ -61,15 +62,14 @@ async function remoteGit(cwd: string, args: string[], signal?: AbortSignal): Pro
   return (await runGit(cwd, args, REMOTE_GIT_TIMEOUT_MS, DEFAULT_GIT_OUTPUT_BYTES, signal)).trim()
 }
 
-type StatusProbes = [string, string, string, string, boolean]
+type StatusProbes = [string, string, string, string]
 
 export async function getStatus(cwd: string): Promise<GitStatus> {
-  const probes: [Promise<string>, Promise<string>, Promise<string>, Promise<string>, Promise<boolean>] = [
+  const probes: [Promise<string>, Promise<string>, Promise<string>, Promise<string>] = [
     git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD').catch(() => git(cwd, 'symbolic-ref', '--short', 'HEAD')),
     git(cwd, 'rev-parse', '--abbrev-ref', '@{upstream}').catch(() => ''),
     git(cwd, 'rev-list', '--left-right', '--count', 'HEAD...@{upstream}').catch(() => '0\t0'),
     rawGit(cwd, 'status', '--porcelain=v1', '-z', '--untracked-files=all'),
-    git(cwd, 'rev-parse', '--verify', 'HEAD').then(() => true, () => false),
   ]
 
   // 等全部探针退出再判断：Promise.all 提前 reject 会留下仍在运行的 git 子进程（Windows 下会锁住目录）。
@@ -81,19 +81,19 @@ export async function getStatus(cwd: string): Promise<GitStatus> {
     throw rejected.reason
   }
 
-  const [branchLine, upstreamLine, aheadBehind, rawStatus, hasHead] = settled.map(
+  const [branchLine, upstreamLine, aheadBehind, rawStatus] = settled.map(
     (result) => (result as PromiseFulfilledResult<StatusProbes[number]>).value,
   ) as StatusProbes
   const [ahead, behind] = aheadBehind.split('\t').map(Number)
   const changes = parsePorcelainStatus(rawStatus)
-  const rawNumstat = hasHead
-    ? await rawGit(cwd, 'diff', '--numstat', '-z', 'HEAD', '--').catch(() => '')
-    : await rawGit(cwd, 'diff', '--cached', '--numstat', '-z', '--').catch(() => '')
-  const lineStats = parseNumstat(rawNumstat)
+  const [stagedStats, workingStats] = await Promise.all([
+    rawGit(cwd, 'diff', '--cached', '--numstat', '-z', '--').then(parseNumstat).catch(() => new Map<string, LineStats>()),
+    rawGit(cwd, 'diff', '--numstat', '-z', '--').then(parseNumstat).catch(() => new Map<string, LineStats>()),
+  ])
 
   for (let offset = 0; offset < changes.length; offset += 32) {
     await Promise.all(changes.slice(offset, offset + 32).map(async (change) => {
-      const stats = lineStats.get(change.path)
+      const stats = (change.staged ? stagedStats : workingStats).get(change.path)
         ?? (change.status === '??' ? await getUntrackedLineStats(cwd, change.path) : null)
       change.additions = stats?.additions ?? null
       change.deletions = stats?.deletions ?? null
@@ -246,6 +246,67 @@ export async function getLog(cwd: string, maxCount = 50) {
   })
 }
 
+// Note: .agents/notes/workbench/git-workbench.md — graph pages use real parents
+// and refuse to append across a changed set of refs.
+export async function getHistory(cwd: string, query: GitHistoryQuery): Promise<GitHistoryPage> {
+  if (!query || !['current', 'all'].includes(query.scope)) throw new Error('Invalid history scope')
+  const limit = Math.max(1, Math.min(200, Math.trunc(query.limit ?? 60)))
+  const offset = query.cursor?.offset ?? 0
+  if (!Number.isFinite(limit) || !Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid history page')
+  const readSnapshot = async () => {
+    const [head, refs] = await Promise.all([
+      git(cwd, 'rev-parse', '--verify', 'HEAD').catch(() => ''),
+      git(cwd, 'for-each-ref', '--format=%(objectname)%00%(*objectname)%00%(refname)', 'refs/heads', 'refs/remotes', 'refs/tags'),
+    ])
+    const id = createHash('sha256').update(`${query.scope}\0${head}\0${refs}`).digest('hex')
+    return { head, refs, id }
+  }
+  const snapshot = await readSnapshot()
+  if (query.cursor && query.cursor.snapshot !== snapshot.id) throw new Error('Git history changed. Refresh history to continue.')
+  if (!snapshot.head && (query.scope === 'current' || !snapshot.refs)) return { commits: [], cursor: null, snapshot: snapshot.id }
+  const refsByHash = new Map<string, GitRef[]>()
+  const addRef = (hash: string, ref: GitRef) => refsByHash.set(hash, [...(refsByHash.get(hash) ?? []), ref])
+  if (snapshot.head) addRef(snapshot.head, { name: 'HEAD', kind: 'head' })
+  for (const line of snapshot.refs.split('\n').filter(Boolean)) {
+    const [hash, peeled, fullName] = line.split('\0')
+    const kind = fullName.startsWith('refs/heads/') ? 'local' : fullName.startsWith('refs/remotes/') ? 'remote' : 'tag'
+    addRef(peeled || hash, { name: fullName.replace(/^refs\/(heads|remotes|tags)\//, ''), kind })
+  }
+  const raw = await rawGit(cwd, 'log', '--topo-order', '--no-show-signature', '--no-decorate', '--no-patch', '--encoding=UTF-8', `--max-count=${limit + 1}`, `--skip=${offset}`,
+    '--format=%H%x00%h%x00%P%x00%s%x00%an%x00%aI%x00%b%x00',
+    ...(query.scope === 'all' ? ['--branches', '--remotes', '--tags'] : []), ...(snapshot.head ? ['HEAD'] : []), '--')
+  // Fixed NUL-delimited fields also preserve pipes and non-ASCII subjects/authors.
+  const fields = raw.split('\0')
+  const commits: GitHistoryPage['commits'] = []
+  for (let i = 0; i + 6 < fields.length; i += 7) {
+    const hash = fields[i].trim()
+    if (!hash) continue
+    commits.push({ hash, shortHash: fields[i + 1], parents: fields[i + 2].split(' ').filter(Boolean),
+      message: fields[i + 3], author: fields[i + 4], date: fields[i + 5], body: fields[i + 6].trimEnd(), refs: refsByHash.get(hash) ?? [] })
+  }
+  if ((await readSnapshot()).id !== snapshot.id) throw new Error('Git history changed. Refresh history to continue.')
+  return { commits: commits.slice(0, limit), cursor: commits.length > limit ? { offset: offset + limit, snapshot: snapshot.id } : null, snapshot: snapshot.id }
+}
+
+export async function getChangeDiff(cwd: string, path: string, staged: boolean) {
+  if (!path || path.includes('\0') || isAbsolute(path) || path.split(/[\\/]/).includes('..')) throw new Error('Invalid Git file path')
+  // Hover previews only need this path's status, not every untracked file's line count.
+  const changes = parsePorcelainStatus(await rawGit(cwd, '--literal-pathspecs', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', path))
+  const file = changes.find(change => change.path === path && change.staged === staged)
+  if (!file) throw new Error('File is no longer changed. Refresh changes to continue.')
+  const args = ['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv']
+  if (file.status === '??') args.push('--no-index', '--', '/dev/null', path)
+  else args.push(...(staged ? ['--cached'] : []), '--', path)
+  return runBoundedGit(cwd, args, 256 * 1024, undefined, file.status === '??')
+}
+
+export async function getCommitFileDiff(cwd: string, hash: string, path: string) {
+  if (!/^[0-9a-f]{7,64}$/i.test(hash)) throw new Error('Invalid commit hash')
+  if (!path || path.includes('\0') || isAbsolute(path) || path.split(/[\\/]/).includes('..')) throw new Error('Invalid Git file path')
+  return runBoundedGit(cwd, ['--literal-pathspecs', 'show', '--format=', '--no-color', '--no-ext-diff', '--no-textconv',
+    '--diff-merges=first-parent', '--find-renames', '--follow', hash, '--', path], 256 * 1024)
+}
+
 export async function stage(cwd: string, paths: string[]) {
   await git(cwd, 'add', '--', ...paths)
 }
@@ -312,9 +373,9 @@ export async function getWorkingDiff(
   return runBoundedGit(cwd, args, options.maxBytes, options.signal)
 }
 
-function runBoundedGit(cwd: string, args: string[], maxBytes: number, signal?: AbortSignal): Promise<{ content: string; truncated: boolean }> {
+function runBoundedGit(cwd: string, args: string[], maxBytes: number, signal?: AbortSignal, allowDiffExit = false): Promise<{ content: string; truncated: boolean }> {
   if (parseRuntimeResource(cwd)) return runWorkspaceProcess(cwd, ['git', ...args], { timeout: LOCAL_GIT_TIMEOUT_MS, maxBytes, truncate: true, signal }).then(result => {
-    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git exited with code ${result.exitCode}`)
+    if (result.exitCode !== 0 && !(allowDiffExit && result.exitCode === 1)) throw new Error(result.stderr.trim() || `Git exited with code ${result.exitCode}`)
     return { content: result.stdout, truncated: result.truncated }
   })
   return new Promise((resolveResult, reject) => {
@@ -356,7 +417,7 @@ function runBoundedGit(cwd: string, args: string[], maxBytes: number, signal?: A
         reject(new Error('Git command timed out'))
         return
       }
-      if (code !== 0) {
+      if (code !== 0 && !(allowDiffExit && code === 1)) {
         reject(new Error(Buffer.concat(errors).toString('utf-8').trim() || `Git exited with code ${code}`))
         return
       }
@@ -438,13 +499,19 @@ export async function getCommitDiff(cwd: string, hash: string): Promise<string> 
 }
 
 export async function getCommitChanges(cwd: string, hash: string) {
-  if (!/^[0-9a-f]{7,40}$/i.test(hash)) throw new Error('Invalid commit hash')
-  const raw = await git(cwd, 'show', '--format=', '--numstat', '--find-renames', hash)
-  if (!raw) return []
-  return raw.split(/\r?\n/).filter(Boolean).map((line) => {
-    const [add, del, ...pathParts] = line.split('\t')
-    const path = pathParts.join('\t')
-    const status = add === '0' && del !== '0' ? 'D' : add !== '0' && del === '0' ? 'A' : 'M'
-    return { path, status, additions: add === '-' ? null : Number(add), deletions: del === '-' ? null : Number(del) }
-  })
+  if (!/^[0-9a-f]{7,64}$/i.test(hash)) throw new Error('Invalid commit hash')
+  const args = ['show', '--format=', '--no-color', '--no-ext-diff', '--no-textconv', '--diff-merges=first-parent', '-z', '--find-renames']
+  const [rawStats, rawNames] = await Promise.all([
+    rawGit(cwd, ...args, '--numstat', hash, '--'), rawGit(cwd, ...args, '--name-status', hash, '--'),
+  ])
+  const stats = parseNumstat(rawStats)
+  const names = rawNames.split('\0')
+  const files = []
+  for (let i = 0; i + 1 < names.length;) {
+    const status = mapStatus(names[i++][0]) as 'M' | 'A' | 'D' | 'R'
+    if (status === 'R') i++
+    const path = names[i++]
+    if (path) files.push({ path, status, additions: stats.get(path)?.additions ?? null, deletions: stats.get(path)?.deletions ?? null })
+  }
+  return files
 }

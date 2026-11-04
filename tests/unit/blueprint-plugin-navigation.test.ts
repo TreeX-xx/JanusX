@@ -102,7 +102,7 @@ it('restores the original canvas chrome, theme, context menu and empty-module hi
     expect(Number(await pattern.getAttribute('width'))).toBeCloseTo(before * 24, 2)
     await page.evaluate(() => { document.documentElement.dataset.theme = 'planche' })
     await expect.poll(() => page.locator('.react-flow.light').count()).toBe(1)
-    expect(await page.locator('.react-flow__background circle').evaluate(element => getComputedStyle(element).fill)).toBe('rgba(28, 52, 59, 0.16)')
+    expect(await page.locator('.react-flow__background circle').evaluate(element => getComputedStyle(element).fill)).toBe('rgba(28, 52, 59, 0.14)')
     await page.locator(`.react-flow__node[data-id="${id(2)}"]`).click({ button: 'right' })
     const detail = page.locator('.bp-context-menu').getByRole('button', { name: 'Node Detail', exact: true })
     await detail.click()

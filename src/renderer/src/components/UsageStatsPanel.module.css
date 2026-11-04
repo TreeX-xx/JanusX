@@ -1,5 +1,4 @@
-.panel { --usage-claude: #c4623d; --usage-codex: #247e83; --usage-opencode: #8562b6; --usage-pi: #a87c24; --usage-janus: #587b35; --usage-dsh: #416ac4; --usage-input: #28769a; --usage-output: #a9672e; container-type: inline-size; display: flex; flex-direction: column; gap: 22px; color: var(--shell-text); }
-.panel[data-theme-base='dark'] { --usage-claude: #e69a79; --usage-codex: #6ac6bd; --usage-opencode: #bba2eb; --usage-pi: #e2c06a; --usage-janus: #a6c97e; --usage-dsh: #7fa6f1; --usage-input: #7bb8dc; --usage-output: #e5b67e; }
+.panel { container-type: inline-size; display: flex; flex-direction: column; gap: 22px; color: var(--shell-text); }
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .headInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .headInfo > .title { font-size: 20px; letter-spacing: -0.5px; }
@@ -19,12 +18,11 @@
 .tabActive { color: var(--shell-text); border-bottom-color: var(--so-accent, var(--shell-accent)); }
 .customBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-card); }
 .dateField { display: inline-flex; align-items: center; gap: 8px; color: var(--shell-muted); font-size: 11px; }
-.dateField input { min-height: var(--control-h, 30px); background: var(--shell-canvas); border: 1px solid var(--control-border, var(--shell-border)); padding: 6px 10px; border-radius: 6px; color: var(--shell-text); font: inherit; font-size: 12px; color-scheme: dark light; transition: border-color 0.18s ease, background 0.18s ease; }
-.dateField input:hover { border-color: rgba(255, 255, 255, 0.16); }
+.dateField input { min-height: var(--control-h, 30px); background: var(--shell-canvas); border: 1px solid var(--control-border, var(--shell-border)); padding: 6px 10px; border-radius: 6px; color: var(--shell-text); font: inherit; font-size: 12px; color-scheme: inherit; transition: border-color 0.18s ease, background 0.18s ease; }
+.dateField input:hover { border-color: color-mix(in srgb, var(--surface-tint) 16%, transparent); }
 .dateSep { color: var(--shell-dim); }
-.error { margin: 0; width: 100%; color: #d78b92; font-size: 11px; line-height: 1.55; }
+.error { margin: 0; width: 100%; color: var(--status-danger); font-size: 11px; line-height: 1.55; }
 .customMeta { margin: 0; color: var(--shell-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-:global([data-theme='dark']) .tabRow img[data-tool='codex'] { filter: invert(1); }
 /* 查询进行中：旧数据降透明度表示即将被替换，不产生布局位移 */
 .dimmed { opacity: 0.55; transition: opacity 160ms ease; }
 /* 汇总卡顶部 2px 不定进度发丝线，复用输入色，不引入新色块 */
@@ -42,14 +40,14 @@
 .totalCell > svg { flex-shrink: 0; width: 38px; height: 38px; }
 .summaryInfo { min-width: 0; }
 .value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; margin: 2px 0 6px; font-size: 32px; font-weight: 600; letter-spacing: -1px; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.value small, .modelTotal small { font-size: 10px; color: var(--shell-muted); font-weight: 400; letter-spacing: 0; }
+.value small { font-size: 10px; color: var(--shell-muted); font-weight: 400; letter-spacing: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--shell-muted); font-size: 10px; line-height: 1.6; min-height: 20px; }
 .legend > span { display: inline-flex; align-items: center; gap: 5px; }
 .legend strong { color: var(--shell-text); font-weight: 500; font-variant-numeric: tabular-nums; }
-.legend i, .modelName i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.legend i, .modelMeta i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 /* 图例即筛选器：点击显隐对应曲线，关闭态降透明度。 */
 .chip { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 4px; background: transparent; color: var(--shell-muted); font: inherit; font-size: 10px; line-height: 1.6; cursor: pointer; padding: 2px 6px; margin: -2px -6px; transition: background 120ms, color 120ms, opacity 120ms; }
-.chip:hover { color: var(--shell-text); background: rgba(255, 255, 255, 0.045); }
+.chip:hover { color: var(--shell-text); background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent); }
 .chipOff { opacity: 0.4; }
 .ioCell, .cacheCell { flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; }
 .ioNumbers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -85,16 +83,35 @@
 .summaryEmpty .legend { min-height: 0; }
 .emptyWatermark { fill: var(--shell-muted); font-size: 12px; opacity: 0.8; }
 .breakdown { display: flex; flex-direction: column; gap: 0; padding: 0 0 8px; border-top: 1px solid var(--shell-border-soft, var(--shell-border)); }
-.breakdown > .title { margin: 0; padding: 12px 0 10px; }
-.modelRow { display: grid; grid-template-columns: minmax(0, 1fr) 80px 64px 64px 70px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--shell-border-soft, var(--shell-border)); }
-.modelInfo { min-width: 0; }
-.modelName { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 12px; font-weight: 600; }
-.modelName > span { font-size: 10px; color: var(--shell-muted); font-weight: 400; margin-left: 3px; }
-.models { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; color: var(--shell-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.modelTotal, .modelRate, .modelIo { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; font-variant-numeric: tabular-nums; }
-.modelTotal > .label, .modelRate > .label, .modelIo > .label { width: 100%; }
-.modelTotal strong { font-size: 22px; font-weight: 550; line-height: 1.3; letter-spacing: -0.6px; }
-.modelRate strong, .modelIo strong { font-size: 17px; font-weight: 550; line-height: 1.3; }
+.breakdownHeading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 16px 0 12px; }
+.modelTable { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.modelTable th, .modelTable td { padding: 12px 10px; text-align: right; vertical-align: middle; }
+.modelTable th:first-child { padding-left: 0; text-align: left; }
+.modelTable th:last-child, .modelTable td:last-child { padding-right: 0; }
+.modelTable thead th { color: var(--shell-muted); font-size: 10px; font-weight: 400; padding-top: 0; padding-bottom: 8px; }
+.modelTable .totalColumn { width: 100px; }
+.modelTable .modelIo { width: 80px; }
+.modelTable .rateColumn { width: 100px; }
+.modelRow { border-top: 1px solid var(--shell-border-soft, var(--shell-border)); }
+.modelRow:hover, .modelRow[data-expanded] { background: var(--shell-hover); }
+.modelToggle { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.modelToggle:focus-visible, .modelRate span:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; border-radius: 2px; }
+.modelChevron { flex-shrink: 0; color: var(--shell-muted); }
+.modelToggle[aria-expanded='true'] .modelChevron { transform: rotate(90deg); }
+.modelInfo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.modelName { font-size: 12px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.modelMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; color: var(--shell-muted); font-size: 10px; font-weight: 400; }
+.modelTotal strong { font-size: 15px; font-weight: 600; }
+.modelIo strong { font-size: 12px; font-weight: 500; }
+.modelRate { font-size: 13px; }
+.modelShare { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; color: var(--shell-muted); font-size: 10px; }
+.modelShareTrack { width: 28px; height: 3px; overflow: hidden; background: var(--shell-border-soft, var(--shell-border)); }
+.modelShareTrack i { display: block; height: 100%; }
+.modelDetail td { background: var(--shell-hover); padding: 4px 12px 14px 22px !important; text-align: left; }
+.modelDetail dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; margin: 8px 0 12px; }
+.modelDetail dt, .modelDetail p { color: var(--shell-muted); font-size: 10px; line-height: 1.6; }
+.modelDetail dd { margin: 3px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.modelDetail p { margin: 3px 0 0; }
 @container (max-width: 680px) {
   .summary { grid-template-columns: 1fr 1fr; }
   .totalCell { grid-column: 1 / -1; border-bottom: 1px solid var(--shell-border-soft, var(--shell-border)); }
@@ -102,14 +119,19 @@
   .totalCell .summaryInfo > .label, .totalCell .legend { grid-column: 1 / -1; }
   .totalCell .costInline { justify-self: start; }
   .summary .ioCell { border-left: 0; }
-  .modelRow { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .modelInfo { grid-column: 1 / -1; }
+  .modelTable .modelIo { display: none; }
+  /* Hidden table columns plus a spanning detail cell otherwise leave phantom columns. */
+  .modelTable, .modelTable thead, .modelTable tbody { display: block; }
+  .modelTable tr:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) 100px 100px; align-items: center; }
+  .modelTable .totalColumn, .modelTable .rateColumn { width: auto; }
+  .modelDetail td { grid-column: 1 / -1; }
 }
 @container (max-width: 560px) {
   .summaryCell { padding: 12px; gap: 8px; }
   .ioCell .legend { gap: 2px 10px; }
-  .modelTotal strong { font-size: 21px; }
-  .modelIo strong, .modelRate strong { font-size: 16px; }
+  .modelTable tr:not([hidden]) { grid-template-columns: minmax(0, 1fr) 82px 85px; }
+  .modelTable th, .modelTable td { padding-left: 6px; padding-right: 6px; }
+  .modelDetail dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trendSection { padding: 12px; }
   .axis text, .dateLabel { font-size: 17px; }
 }
@@ -117,7 +139,8 @@
   .summary { grid-template-columns: 1fr; }
   .summaryCell + .summaryCell { border-left: 0; }
   .cacheCell { border-top: 1px solid var(--shell-border-soft, var(--shell-border)); }
-  .modelRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modelShareTrack { display: none; }
+  .breakdownHeading { flex-wrap: wrap; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .panel button, .donutArc, .ioFillIn, .ioFillOut, .chip { transition: none; }

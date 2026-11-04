@@ -6,7 +6,8 @@ import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { DiffCounts } from '@/components/shared/DiffCounts'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
-import { GitCompareArrows, Dock, ExternalLink, PanelRightClose, X, Pin, PinOff, RefreshCw, Save, Search } from 'lucide-react'
+import { GitCompareArrows, Dock, ExternalLink, X, Pin, PinOff, RefreshCw, Save, Search } from 'lucide-react'
+import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { isEditorFindShortcut, isMonacoKeyboardEvent, openEditorFind, watchFindWidgetControls, type FindableEditor } from '@/lib/editor-find'
 import { attachWheelScrollX, revealStripItem } from '@/lib/wheel-scroll-x'
 import { useI18n } from '@/i18n/useI18n'
@@ -218,7 +219,7 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
   const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties
   const diffEnabled = Boolean(activeFile && diffFileId === activeFile.id)
   const activeBaselineContent = diffEnabled && baselineFileId === activeFile?.id ? baselineContent : undefined
-  const canSave = Boolean(!pluginReadOnly && activeFile && activeFile.viewType !== 'image' && activeFile.viewType !== 'binary')
+  const canSave = Boolean(!pluginReadOnly && activeFile && !['image', 'binary', 'pdf'].includes(activeFile.viewType))
   const canFind = !pluginReadOnly && (activeFile?.viewType === 'code' || activeFile?.viewType === 'markdown' || activeFile?.viewType === 'html')
 
   return (
@@ -311,8 +312,8 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
               {isPinned ? <PinOff size={15} /> : <Pin size={15} />}{t(isPinned ? 'editor:fileEditor.unpinWindow' : 'editor:fileEditor.pinWindow')}
             </button>}
           </ToolbarMenu>
-          {embedded && <button type="button" aria-label={t('editor:fileEditor.collapsePanel')} title={t('editor:fileEditor.collapsePanel')}
-            onClick={() => useEditorStore.getState().hidePanel()} className="shell-icon-btn viewer-icon"><PanelRightClose size={15} aria-hidden="true" /></button>}
+          {embedded && <AuxiliaryPanelCollapseButton label={t('editor:fileEditor.collapsePanel')}
+            onCollapse={() => useEditorStore.getState().hidePanel()} />}
         </div>
       </div>
       {(canFind || canSave) && <div className="editor-toolbar" {...(transferring ? { inert: '' } : {})}>

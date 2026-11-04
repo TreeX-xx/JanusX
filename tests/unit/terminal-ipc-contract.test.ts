@@ -41,7 +41,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../src/main/terminal/manager', () => ({
-  terminalManager: { appendOutput: vi.fn(), create: vi.fn(() => ({ pty: { pid: 42, onData: vi.fn(), onExit: vi.fn() } })), getOutputReplay: vi.fn(), kill: vi.fn(), killAll: vi.fn(), resize: vi.fn(), write: vi.fn() },
+  terminalManager: { appendOutput: vi.fn(), create: vi.fn(() => ({ pty: { pid: 42, onData: vi.fn(), onExit: vi.fn() } })), getInstance: vi.fn(), endRemote: vi.fn(async () => false), getOutputReplay: vi.fn(), kill: vi.fn(), killAll: vi.fn(), resize: vi.fn(), write: vi.fn() },
 }))
 vi.mock('@janus-agent/agent-core', async (importOriginal) => ({ ...(await importOriginal()), checkpointManager: { initialize: vi.fn(async () => {}) } }))
 vi.mock('../../src/main/janus/analyzer', () => ({ analyzer: {} }))
@@ -63,6 +63,67 @@ beforeAll(async () => {
   await import('../../src/preload/index')
   const { registerTerminalHandlers } = await import('../../src/main/ipc/terminal-handlers')
   registerTerminalHandlers(() => null)
+})
+
+describe('overlapping launch preparation', () => {
+  it('starts capture during CLI resolution and waits for both before spawning', async () => {
+    const { TerminalTurnChangeTracker } = await import('../../src/main/terminal/turn-change-tracker')
+    const { resolveCLIPath } = await import('../../src/main/janus-runner/cli-resolver')
+    const { terminalManager } = await import('../../src/main/terminal/manager')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    let finishCapture!: () => void, finishResolve!: (value: null) => void
+    const capture = vi.spyOn(TerminalTurnChangeTracker.prototype, 'register').mockImplementation(() => new Promise(resolve => { finishCapture = resolve }))
+    vi.mocked(resolveCLIPath).mockImplementationOnce(() => new Promise(resolve => { finishResolve = resolve }))
+    const spawn = vi.mocked(terminalManager.create).mockImplementationOnce(() => { throw new Error('probe spawn boundary') })
+    const previous = spawn.mock.calls.length
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const result = create({}, { id: 'parallel-prepare', cwd: process.cwd(), preset: 'codex' }).then(() => null, (error: Error) => error)
+    try {
+      expect(capture).toHaveBeenCalledWith('parallel-prepare', process.cwd())
+      expect(finishResolve).toBeTypeOf('function')
+      finishResolve(null)
+      await new Promise(resolve => setImmediate(resolve))
+      expect(spawn.mock.calls.length).toBe(previous)
+      finishCapture()
+      expect((await result)?.message).toBe('probe spawn boundary')
+      expect(spawn.mock.calls.length).toBe(previous + 1)
+    } finally { finishResolve(null); finishCapture(); await result; capture.mockRestore(); errors.mockRestore() }
+  })
+
+  it.each(['shutdown', 'close'])('drains cancelled capture and never spawns after %s during preparation', async cause => {
+    const { TerminalTurnChangeTracker } = await import('../../src/main/terminal/turn-change-tracker')
+    const { resolveCLIPath } = await import('../../src/main/janus-runner/cli-resolver')
+    const { terminalManager } = await import('../../src/main/terminal/manager')
+    const { appShutdown } = await import('../../src/main/shutdown/AppShutdown')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    const kill = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.kill)![1]
+    let finishCapture!: () => void, finishResolve!: (value: null) => void, settled = false
+    const capture = vi.spyOn(TerminalTurnChangeTracker.prototype, 'register').mockImplementation(() => new Promise(resolve => { finishCapture = resolve }))
+    const unregister = vi.spyOn(TerminalTurnChangeTracker.prototype, 'unregister')
+    vi.mocked(resolveCLIPath).mockImplementationOnce(() => new Promise(resolve => { finishResolve = resolve }))
+    const previous = vi.mocked(terminalManager.create).mock.calls.length
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const result = create({}, { id: 'cancel-prepare', cwd: process.cwd(), preset: 'codex' }).then(() => null, (error: Error) => error).finally(() => { settled = true })
+    try {
+      if (cause === 'shutdown') appShutdown.isQuitting = true
+      else await kill({}, { id: 'cancel-prepare' })
+      finishResolve(null)
+      await vi.waitFor(() => expect(unregister).toHaveBeenCalledWith('cancel-prepare'))
+      expect(settled).toBe(false)
+      finishCapture()
+      expect((await result)?.message).toBe('Terminal launch cancelled')
+      expect(vi.mocked(terminalManager.create).mock.calls.length).toBe(previous)
+    } finally { finishResolve(null); finishCapture(); await result; appShutdown.isQuitting = false; capture.mockRestore(); unregister.mockRestore(); errors.mockRestore() }
+  })
+
+  it('releases the creation lock after a rejected shell preparation so retry can succeed', async () => {
+    const { resolveShellProfileLaunch } = await import('../../src/main/terminal/shell-profiles')
+    const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
+    const config = { id: 'retry-preparation', cwd: process.cwd(), preset: 'shell' }
+    vi.mocked(resolveShellProfileLaunch).mockRejectedValueOnce(new Error('profile unavailable'))
+    await expect(create({}, config)).rejects.toThrow('profile unavailable')
+    await expect(create({}, config)).resolves.toEqual({ pid: 42 })
+  })
 })
 
 describe('Terminal IPC contract', () => {

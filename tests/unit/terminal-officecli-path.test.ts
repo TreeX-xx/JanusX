@@ -15,6 +15,25 @@ vi.mock('node-pty', () => ({ spawn }))
 describe('TerminalManager OfficeCLI PATH integration', () => {
   beforeEach(() => spawn.mockClear())
 
+  it('waits for owned runtime cleanup on shutdown and invokes it once', async () => {
+    const { TerminalManager } = await import('../../src/main/terminal/manager')
+    const manager = new TerminalManager()
+    vi.spyOn(manager as any, 'killProcessTree').mockResolvedValue(undefined)
+    const instance = manager.create({ id: 'owned', workspaceId: 'workspace', cwd: process.cwd(), shell: 'powershell.exe' })
+    let release!: () => void
+    instance.disposeRuntime = vi.fn(() => new Promise<void>(resolve => { release = resolve }))
+    const dispose = instance.disposeRuntime
+    let finished = false
+    const stopped = manager.killAll().then(() => { finished = true })
+    await Promise.resolve()
+    expect(finished).toBe(false)
+    manager.kill('owned')
+    expect(dispose).toHaveBeenCalledTimes(1)
+    release(); await stopped
+    expect(finished).toBe(true)
+    expect(manager.getInstance('owned')).toBeUndefined()
+  })
+
   it('prepends only new PTY environments without mutating the process or existing PTYs', async () => {
     const { TerminalManager } = await import('../../src/main/terminal/manager')
     const manager = new TerminalManager()

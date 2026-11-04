@@ -1,7 +1,8 @@
 import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronDown, ChevronRight, Globe, Minimize2, PanelRightClose, Puzzle, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Globe, Minimize2, Puzzle, X } from 'lucide-react'
+import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { GlobalToolsLayout } from './GlobalToolsLayout'
 import { TerminalSelector } from './TerminalSelector'
@@ -29,6 +30,7 @@ import {
   getDrawerPanelId,
 } from './note/quick-note-behavior'
 import { CLITerminal } from './CLITerminal'
+import { AgentSessionPane } from './AgentSessionPane'
 import { TurnChangeIsland } from './TurnChangeIsland'
 import { HoldToConfirm } from './ui/HoldToConfirm'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
@@ -83,11 +85,11 @@ import {
 // App via useTerminalLifecycle — mounting them here dropped main-side launches
 // whenever this area was unmounted (empty pane tree).
 import { useTurnChangesStore } from '@/stores/turn-changes'
-import { useThemeStore } from '@/stores/theme'
 import { ThemedTooltip } from '@/components/ui/ThemedTooltip'
 import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { TerminalStatusLight } from '@/components/ui/TerminalStatusLight'
 import { TerminalPresetIcon } from '@/components/ui/TerminalPresetIcon'
+import { TerminalInstallBadge } from '@/components/ui/TerminalInstallBadge'
 import styles from './TerminalArea.module.css'
 import {
   buildWorkspaceTerminalSurfaces,
@@ -414,8 +416,6 @@ function TerminalPresetCapsule({
   // WebContentsView 永远在 DOM 之上。按既有对话框/工具箱同一套让位规则持租约，
   // 覆盖整个 renderPanel 生命周期（含收回动画），原生视图让位后菜单可点。
   useBrowserOcclusion(renderPanel)
-  // planche 下预设菜单走纸面 + 朱红，悬浮不再是深棕黑底
-  const plancheMenu = useThemeStore((s) => s.theme) === 'planche'
   const { t } = useI18n('terminal')
 
   useEffect(() => {
@@ -584,11 +584,11 @@ function TerminalPresetCapsule({
                     type="button"
                     role="menuitem"
                     aria-label={`New ${defaultShell?.name ?? 'shell'} terminal`}
-                    className={`terminal-preset-item terminal-preset-item-wide flex min-w-0 items-center gap-2 rounded-md border px-2 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 ${plancheMenu ? 'focus-visible:ring-[rgba(212,61,42,0.5)]' : 'focus-visible:ring-[rgba(255,120,48,0.35)]'}`}
+                    className={`terminal-preset-item terminal-preset-item-wide flex min-w-0 items-center gap-2 rounded-md border px-2 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--shell-accent-border)]`}
                     style={{
                       borderColor: 'transparent',
                       background: 'transparent',
-                      color: plancheMenu ? '#1C343B' : '#d4d4d4',
+                      color: 'var(--shell-text)',
                     }}
                     onClick={(event) => {
                       event.stopPropagation()
@@ -604,8 +604,8 @@ function TerminalPresetCapsule({
                         aria-hidden="true"
                         className="shrink-0 rounded-[3px] px-1 text-[9px] leading-[14px]"
                         style={{
-                          background: plancheMenu ? 'rgba(212,61,42,0.14)' : 'rgba(255,120,48,0.16)',
-                          color: plancheMenu ? '#D43D2A' : '#ffb27d',
+                          background: 'var(--accent-mid)',
+                          color: 'var(--shell-accent-strong)',
                         }}
                       >
                         {t('terminal:shellMenu.default')}
@@ -618,11 +618,11 @@ function TerminalPresetCapsule({
                     <ThemedTooltip label={t('terminal:shellMenu.pickShell')}>
                     <button
                       type="button"
-                      className={`terminal-preset-item terminal-menu-shell-toggle flex items-center justify-center rounded-md border transition-[background,border-color] focus:outline-none focus-visible:ring-1 ${plancheMenu ? 'focus-visible:ring-[rgba(212,61,42,0.5)]' : 'focus-visible:ring-[rgba(255,120,48,0.35)]'}`}
+                      className={`terminal-preset-item terminal-menu-shell-toggle flex items-center justify-center rounded-md border transition-[background,border-color] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--shell-accent-border)]`}
                       style={{
                         borderColor: 'transparent',
                         background: 'transparent',
-                        color: plancheMenu ? '#1C343B' : '#d4d4d4',
+                        color: 'var(--shell-text)',
                       }}
                       aria-expanded={shellOpen}
                       aria-label={t('terminal:shellMenu.pickShell')}
@@ -653,11 +653,11 @@ function TerminalPresetCapsule({
                         type="button"
                         role="menuitem"
                         aria-label={`New ${item.name} terminal`}
-                        className={`terminal-preset-item terminal-preset-item-wide terminal-preset-item-nested flex min-w-0 items-center gap-2 rounded-md border px-2 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 ${plancheMenu ? 'focus-visible:ring-[rgba(212,61,42,0.5)]' : 'focus-visible:ring-[rgba(255,120,48,0.35)]'}`}
+                        className={`terminal-preset-item terminal-preset-item-wide terminal-preset-item-nested flex min-w-0 items-center gap-2 rounded-md border px-2 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--shell-accent-border)]`}
                         style={{
                           borderColor: 'transparent',
                           background: 'transparent',
-                          color: plancheMenu ? '#1C343B' : '#d4d4d4',
+                          color: 'var(--shell-text)',
                         }}
                         onClick={(event) => {
                           event.stopPropagation()
@@ -671,8 +671,8 @@ function TerminalPresetCapsule({
                             aria-hidden="true"
                             className="shrink-0 rounded-[3px] px-1 text-[9px] leading-[14px]"
                             style={{
-                              background: plancheMenu ? 'rgba(212,61,42,0.14)' : 'rgba(255,120,48,0.16)',
-                              color: plancheMenu ? '#D43D2A' : '#ffb27d',
+                              background: 'var(--accent-mid)',
+                              color: 'var(--shell-accent-strong)',
                             }}
                           >
                             {t('terminal:shellMenu.default')}
@@ -704,11 +704,11 @@ function TerminalPresetCapsule({
                       type="button"
                       role="menuitem"
                       aria-label={`New ${item.name} terminal`}
-                      className={`terminal-preset-item flex min-w-0 items-center gap-2 rounded-md border px-2 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 ${plancheMenu ? 'focus-visible:ring-[rgba(212,61,42,0.5)]' : 'focus-visible:ring-[rgba(255,120,48,0.35)]'}`}
+                      className={`terminal-preset-item relative flex min-w-0 items-center gap-2 rounded-md border pl-2 pr-5 py-[7px] text-left text-[12px] leading-none transition-[background,border-color] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--shell-accent-border)]`}
                       style={{
                         borderColor: 'transparent',
                         background: 'transparent',
-                        color: plancheMenu ? '#1C343B' : '#d4d4d4',
+                        color: 'var(--shell-text)',
                       }}
                       onClick={(event) => {
                         event.stopPropagation()
@@ -717,6 +717,7 @@ function TerminalPresetCapsule({
                     >
                       <TerminalPresetIcon preset={item.type} className="h-4 w-4 shrink-0" />
                       <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                      <TerminalInstallBadge preset={item.type} compact />
                     </button>
                     </ThemedTooltip>
                   ))}
@@ -771,7 +772,6 @@ function LeafPane({
 }: PaneTreeViewProps & { leaf: WorkspacePaneLeaf }) {
   const { t } = useI18n('terminal')
   useExtensionViews()
-  const plancheEmpty = useThemeStore((s) => s.theme) === 'planche'
   const [dragHint, setDragHint] = useState<{ zone: PaneDropHint; ratio: number } | null>(null)
   /*-- tab 条排序占位：插入位是摘除拖拽 tab 后的数组下标，与 reorderPaneTab 语义一致 --*/
   const [tabInsertIndex, setTabInsertIndex] = useState<number | null>(null)
@@ -1028,13 +1028,8 @@ function LeafPane({
           <div data-tab-drag-slot="" aria-hidden="true" className={styles.slot} />
         </div>
         <div className={styles.controls}>
-          {toolsRegion && <ThemedTooltip label={t('common:toolGroup.collapseTools')}>
-            <button type="button" className={styles.action} aria-expanded={true}
-              aria-label={t('common:toolGroup.collapseTools')}
-              onClick={() => useGlobalToolsStore.getState().setCollapsed(true)}>
-              <PanelRightClose size={14} aria-hidden="true" />
-            </button>
-          </ThemedTooltip>}
+          {toolsRegion && <AuxiliaryPanelCollapseButton label={t('common:toolGroup.collapseTools')}
+            onCollapse={() => useGlobalToolsStore.getState().setCollapsed(true)} />}
           {showFocusChrome && (
             <HoldToConfirm label={t('terminal:tab.collapseLayout')} onConfirm={onCollapseLayout} className={styles.action}>
               <Minimize2 size={13} strokeWidth={1.6} aria-hidden="true" />
@@ -1134,26 +1129,31 @@ function LeafPane({
               }}
               aria-hidden={!isActive}
             >
-              <CLITerminal
+              {terminal.conversationEnabled ? <AgentSessionPane
                 terminalId={terminal.id}
                 visible={workspaceVisible && isActive}
                 focused={workspaceVisible && isFocused && isActive}
                 workspaceVisible={workspaceVisible}
-              />
+              /> : <CLITerminal
+                terminalId={terminal.id}
+                visible={workspaceVisible && isActive}
+                focused={workspaceVisible && isFocused && isActive}
+                workspaceVisible={workspaceVisible}
+              />}
               {/* 仅 PTY 真死才弹模态遮罩：创建失败（errorMessage）或非零退出（exitCode）。
                   Turn 级失败（429/5xx）主进程上报 'degraded' 保持可用，此处再加一道兜底，
                   避免无 message 的裸 'error'（历史残留/误报）锁死输入。 */}
               {(terminal.status === 'error' && (terminal.errorMessage || terminal.exitCode !== undefined)) && (
                 <div
                   className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
-                  style={{ background: 'rgba(10, 10, 10, 0.72)' }}
+                  style={{ background: 'var(--modal-backdrop)' }}
                 >
                   <div
                     className="pointer-events-auto flex max-w-[320px] flex-col items-center gap-3 rounded-lg border px-5 py-4 text-center font-mono"
                     style={{
-                      borderColor: 'rgba(255, 88, 88, 0.28)',
+                      borderColor: 'color-mix(in srgb, var(--status-danger) 28%, transparent)',
                       background: 'var(--shell-chrome-raised)',
-                      boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+                      boxShadow: '0 12px 32px color-mix(in srgb, var(--shadow-color) 35%, transparent)',
                     }}
                   >
                     <div className="text-[12px]" style={{ color: 'var(--shell-diff-del)' }}>
@@ -1164,8 +1164,8 @@ function LeafPane({
                     </div>
                     <button
                       type="button"
-                      className="rounded border px-3 py-1.5 text-[11px] transition-colors hover:bg-[rgba(255,120,48,0.08)]"
-                      style={{ borderColor: 'rgba(255,120,48,0.28)', color: 'var(--shell-accent)' }}
+                      className="rounded border px-3 py-1.5 text-[11px] transition-colors hover:bg-[color-mix(in_srgb,_var(--primary)_8%,_transparent)]"
+                      style={{ borderColor: 'color-mix(in srgb, var(--primary) 28%, transparent)', color: 'var(--shell-accent)' }}
                       onClick={() => {
                         void retryTerminalCreate(terminal.id)
                       }}
@@ -1175,17 +1175,17 @@ function LeafPane({
                   </div>
                 </div>
               )}
-              <TurnChangeIsland
+              {!terminal.conversationEnabled && <TurnChangeIsland
                 terminalId={terminal.id}
                 focused={workspaceVisible && isFocused && isActive}
-              />
+              />}
             </div>
           )
         })}
         {leaf.tabs.length === 0 && (
           <div
             className="flex h-full flex-col items-center justify-center gap-3 text-center font-mono text-[12px]"
-            style={{ color: plancheEmpty ? 'rgba(28,52,59,0.62)' : '#666' }}
+            style={{ color: 'var(--shell-dim)' }}
           >
             <div>Empty pane</div>
             <button
@@ -1193,8 +1193,8 @@ function LeafPane({
               onClick={openMenu}
               className="terminal-empty-new rounded border px-3 py-1.5 text-[11px] transition-colors"
               style={{
-                borderColor: plancheEmpty ? '#1C343B' : 'rgba(255,120,48,0.22)',
-                color: plancheEmpty ? '#D43D2A' : '#ffb27d',
+                borderColor: 'var(--shell-accent-border)',
+                color: 'var(--shell-accent-strong)',
                 background: 'transparent',
               }}
             >
@@ -1791,7 +1791,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
                 <span
                   className={`${styles.contextBadge} group font-mono`}
                   style={{
-                    background: `${contextRatioColor(contextRatio(activeTerminal))}12`,
+                    background: `color-mix(in srgb, ${contextRatioColor(contextRatio(activeTerminal))} 7%, transparent)`,
                     color: contextRatioColor(contextRatio(activeTerminal)),
                   }}
                 >

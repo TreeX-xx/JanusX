@@ -220,9 +220,10 @@ describe('Release trigger boundaries', () => {
     expect(steps.some((step: { uses?: string }) => step.uses?.startsWith('actions/upload-artifact@'))).toBe(true)
     expect(steps.some((step: { env?: object }) => step.env && 'GH_TOKEN' in step.env)).toBe(false)
   })
-  it('retains required PR checks without duplicate branch-push runs', () => {
+  it('keeps verification manual without automatic PR or branch-push runs', () => {
     const verify = workflow('verify')
-    expect(verify.on.pull_request.branches).toEqual(['main', 'dev'])
+    expect(verify.on.workflow_dispatch).toBeDefined()
+    expect(verify.on.pull_request).toBeUndefined()
     expect(verify.on.push).toBeUndefined()
     expect(verify.jobs.verify).toBeDefined()
   })

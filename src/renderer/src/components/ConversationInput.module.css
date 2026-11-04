@@ -1,0 +1,12 @@
+.editor { display: block; width: 100%; min-height: 52px; max-height: 200px; overflow-y: auto; outline: none; color: var(--shell-text); font-size: 14px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.editor[data-input-empty="true"]::before { content: attr(data-placeholder); color: var(--shell-muted); pointer-events: none; }
+.reference { display: inline-flex; align-items: center; vertical-align: baseline; gap: 5px; max-width: 100%; margin: 0 2px; padding: 0 6px; border: 1px solid var(--shell-border); border-radius: 6px; background: var(--shell-hover); font-size: 12px; line-height: 24px; white-space: nowrap; cursor: grab; user-select: all; }
+.reference > span { overflow: hidden; text-overflow: ellipsis; }
+.reference button { color: var(--shell-muted); padding: 0 2px; background: none; line-height: 22px; }
+.reference button[data-preview] { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
+.reference button[data-preview] > span { overflow: hidden; text-overflow: ellipsis; }
+.reference img { width: 28px; height: 24px; object-fit: cover; border-radius: 3px; }
+.preview { max-width: 90vw; max-height: 90vh; padding: 30px 12px 12px; background: var(--shell-chrome); color: var(--shell-text); border: 1px solid var(--shell-border); border-radius: 10px; }
+.preview img { display: block; max-width: 85vw; max-height: 80vh; object-fit: contain; }
+.preview button { position: absolute; right: 8px; top: 4px; }
+.preview::backdrop { background: color-mix(in srgb, var(--surface-shade) 60%, transparent); }

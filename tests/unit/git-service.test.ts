@@ -50,7 +50,7 @@ describe('Git service push', () => {
     await expect(push(repository)).rejects.toThrow('No Git remote is configured')
   })
 
-  it('reports working-tree line totals across staged, unstaged and untracked changes', async () => {
+  it('reports independent staged, unstaged and untracked line counts', async () => {
     await writeFile(join(repository, 'README.md'), '# staged\n')
     await git(repository, 'add', 'README.md')
     await writeFile(join(repository, 'README.md'), '# working\nextra\n')
@@ -62,7 +62,7 @@ describe('Git service push', () => {
 
     expect(readmeChanges).toHaveLength(2)
     expect(readmeChanges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ staged: true, additions: 2, deletions: 1 }),
+      expect.objectContaining({ staged: true, additions: 1, deletions: 1 }),
       expect.objectContaining({ staged: false, additions: 2, deletions: 1 }),
     ]))
     expect(newFile).toMatchObject({ status: '??', additions: 2, deletions: 0 })

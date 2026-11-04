@@ -78,7 +78,7 @@
   justify-content: center;
 }
 .janus-chat[data-minimal-composer] .janus-chat-send:not(:disabled) {
-  color: var(--shell-void);
+  color: var(--on-accent);
   background: var(--shell-accent);
   border-color: var(--shell-accent-border);
 }

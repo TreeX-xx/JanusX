@@ -5,39 +5,39 @@
 
 /* 鈹€鈹€ CSS 鍙橀噺 鈹€鈹€ */
 :root {
-  --janus-sleep: #ff7830;
-  --janus-sleep-glow: rgba(255,120,48,0.6);
-  --janus-order: #ff7830;
-  --janus-order-glow: rgba(255,120,48,0.6);
-  --janus-analytics: #ff7830;
-  --janus-analytics-glow: rgba(255,120,48,0.6);
-  --janus-running: #00ff88;
-  --janus-running-glow: rgba(0,255,136,0.6);
-  --janus-failed: #ff4a4a;
-  --janus-failed-glow: rgba(255,74,74,0.6);
-  --janus-done: #ff7830;
-  --janus-done-glow: rgba(255,120,48,0.6);
-  --janus-role-main: #ff7830;
-  --janus-role-main-glow: rgba(255,120,48,0.6);
-  --janus-role-coder: #38bdf8;
-  --janus-role-coder-glow: rgba(56,189,248,0.6);
-  --janus-role-evaluator: #a78bfa;
-  --janus-role-evaluator-glow: rgba(167,139,250,0.6);
-  --janus-role-abstracter: #fbbf24;
-  --janus-role-abstracter-glow: rgba(251,191,36,0.6);
-  --janus-role-prompter: #f472b6;
-  --janus-role-prompter-glow: rgba(244,114,182,0.6);
-  --janus-role-teammate: #94a3b8;
-  --janus-role-teammate-glow: rgba(148,163,184,0.5);
-  --janus-role-subagent: #a9805a;
-  --janus-role-subagent-glow: rgba(169,128,90,0.55);
-  --janus-hover-glow-soft: rgba(255,120,48,0.12);
+  --janus-sleep: var(--primary);
+  --janus-sleep-glow: color-mix(in srgb, var(--primary) 60%, transparent);
+  --janus-order: var(--primary);
+  --janus-order-glow: color-mix(in srgb, var(--primary) 60%, transparent);
+  --janus-analytics: var(--primary);
+  --janus-analytics-glow: color-mix(in srgb, var(--primary) 60%, transparent);
+  --janus-running: var(--status-success);
+  --janus-running-glow: color-mix(in srgb, var(--status-success) 60%, transparent);
+  --janus-failed: var(--status-danger);
+  --janus-failed-glow: color-mix(in srgb, var(--status-danger) 60%, transparent);
+  --janus-done: var(--primary);
+  --janus-done-glow: color-mix(in srgb, var(--primary) 60%, transparent);
+  --janus-role-main: var(--primary);
+  --janus-role-main-glow: color-mix(in srgb, var(--primary) 60%, transparent);
+  --janus-role-coder: var(--role-coder);
+  --janus-role-coder-glow: color-mix(in srgb, var(--role-coder) 60%, transparent);
+  --janus-role-evaluator: var(--role-evaluator);
+  --janus-role-evaluator-glow: color-mix(in srgb, var(--role-evaluator) 60%, transparent);
+  --janus-role-abstracter: var(--role-abstracter);
+  --janus-role-abstracter-glow: color-mix(in srgb, var(--role-abstracter) 60%, transparent);
+  --janus-role-prompter: var(--role-prompter);
+  --janus-role-prompter-glow: color-mix(in srgb, var(--role-prompter) 60%, transparent);
+  --janus-role-teammate: var(--role-teammate);
+  --janus-role-teammate-glow: color-mix(in srgb, var(--role-teammate) 50%, transparent);
+  --janus-role-subagent: var(--role-subagent);
+  --janus-role-subagent-glow: color-mix(in srgb, var(--role-subagent) 55%, transparent);
+  --janus-hover-glow-soft: color-mix(in srgb, var(--primary) 12%, transparent);
   /* 鈹€鈹€ 宀涗綋澶栧３锛氫互杩戦粦涓轰富浣擄紝鍙繚鐣欒冻澶熻鲸璁よ疆寤撶殑琛ㄩ潰灞傛銆?*/
-  --janus-skin-top: #161619;
-  --janus-skin-bottom: #08080a;
-  --janus-panel-bg: rgba(12, 12, 15, 0.97);
-  --janus-panel-bg-expanded: rgba(9, 9, 12, 0.985);
-  --janus-panel-inset: #101012;
+  --janus-skin-top: var(--shell-pane);
+  --janus-skin-bottom: var(--shell-void);
+  --janus-panel-bg: color-mix(in srgb, var(--shell-void) 97%, transparent);
+  --janus-panel-bg-expanded: color-mix(in srgb, var(--shell-void) 98.5%, transparent);
+  --janus-panel-inset: var(--shell-canvas);
   /* 鍏ㄥ眬褰撳墠鑹诧紙灞曞紑闈㈡澘 portal 缁ф壙鑷?body.is-running 瑕嗙洊锛?*/
   --janus-current: var(--janus-order);
   --janus-current-glow: var(--janus-order-glow);
@@ -46,7 +46,7 @@
 body.is-running {
   --janus-current: var(--janus-running);
   --janus-current-glow: var(--janus-running-glow);
-  --janus-hover-glow-soft: rgba(0,255,136,0.12);
+  --janus-hover-glow-soft: color-mix(in srgb, var(--status-success) 12%, transparent);
 }
 
 /* Janus identity library: shared SubAgent visual primitives */
@@ -59,10 +59,10 @@ body.is-running {
   justify-content: center;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: radial-gradient(circle at center, #111 0%, #000 100%);
+  background: radial-gradient(circle at center, var(--shell-canvas) 0%, var(--surface-shade) 100%);
   box-shadow:
-    inset 0 0 24px rgba(0,0,0,0.94),
-    inset 0 1px 0 rgba(255,255,255,0.05);
+    inset 0 0 24px color-mix(in srgb, var(--shadow-color) 94%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 5%, transparent);
   overflow: visible;
 }
 
@@ -102,7 +102,7 @@ body.is-running {
   z-index: 6;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.38) 51%);
+  background: linear-gradient(to bottom, transparent 50%, color-mix(in srgb, var(--surface-shade) 38%, transparent) 51%);
   background-size: 100% 3px;
   opacity: 0.22;
   animation: scan-crt 8s linear infinite;
@@ -154,14 +154,14 @@ body.is-running {
   width: 11px;
   height: 16px;
   border-radius: 0;
-  background: #fff;
-  box-shadow: 0 0 6px #fff, 0 0 16px var(--c), 0 0 30px var(--cg);
+  background: var(--shell-text);
+  box-shadow: 0 0 6px var(--glow-core), 0 0 16px color-mix(in srgb, var(--c) calc(100% * var(--glow-strength)), transparent), 0 0 30px color-mix(in srgb, var(--cg) calc(100% * var(--glow-strength)), transparent);
 }
 
 .janus-identity-core[data-size="lg"] .janus-identity-eye {
   width: 34px;
   height: 48px;
-  box-shadow: 0 0 10px #fff, 0 0 30px var(--c), 0 0 60px var(--cg);
+  box-shadow: 0 0 10px var(--glow-core), 0 0 30px color-mix(in srgb, var(--c) calc(100% * var(--glow-strength)), transparent), 0 0 60px color-mix(in srgb, var(--cg) calc(100% * var(--glow-strength)), transparent);
 }
 
 .janus-identity-core[data-role="coder"] .janus-identity-eye {
@@ -169,11 +169,11 @@ body.is-running {
   height: 18px;
   border-radius: 2px;
   background:
-    #06060a 0/100% 2px no-repeat,
-    #06060a 0/100% 100% no-repeat,
-    #06060a 50% 100%/2px 100% no-repeat,
-    linear-gradient(color-mix(in srgb, var(--c) 40%, #fff), color-mix(in srgb, var(--c) 40%, #fff));
-  box-shadow: 0 0 12px var(--c), inset 0 0 0 1px rgba(0,0,0,0.35);
+    var(--shell-void) 0/100% 2px no-repeat,
+    var(--shell-void) 0/100% 100% no-repeat,
+    var(--shell-void) 50% 100%/2px 100% no-repeat,
+    linear-gradient(color-mix(in srgb, var(--c) 40%, var(--shell-text)), color-mix(in srgb, var(--c) 40%, var(--shell-text)));
+  box-shadow: 0 0 12px var(--c), inset 0 0 0 1px color-mix(in srgb, var(--shadow-color) 35%, transparent);
   filter: drop-shadow(0 0 4px var(--c));
 }
 
@@ -196,8 +196,8 @@ body.is-running {
   border-radius: 0;
   background: repeating-linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--c) 40%, #fff) 0,
-    color-mix(in srgb, var(--c) 40%, #fff) 3px,
+    color-mix(in srgb, var(--c) 40%, var(--shell-text)) 0,
+    color-mix(in srgb, var(--c) 40%, var(--shell-text)) 3px,
     transparent 3px,
     transparent 5px
   );
@@ -219,7 +219,7 @@ body.is-running {
 .janus-identity-core[data-role="abstracter"] .janus-identity-eye {
   width: 17px;
   height: 17px;
-  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c) 30%, #fff) 0 32%, var(--c) 36%, color-mix(in srgb, var(--c) 25%, #000) 64%, #08070a 100%);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c) 30%, var(--shell-text)) 0 32%, var(--c) 36%, color-mix(in srgb, var(--c) 25%, var(--surface-shade)) 64%, var(--shell-void) 100%);
   clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
   box-shadow: 0 0 14px var(--c), 0 0 30px var(--cg);
   animation: janus-identity-breathe 3.2s ease-in-out infinite;
@@ -283,7 +283,7 @@ body.is-running {
   border: 1.5px solid var(--c);
   border-radius: 50%;
   background: transparent;
-  box-shadow: 0 0 10px var(--c), 0 0 22px var(--cg), inset 0 0 6px rgba(0,0,0,0.6);
+  box-shadow: 0 0 10px var(--c), 0 0 22px var(--cg), inset 0 0 6px color-mix(in srgb, var(--shadow-color) 60%, transparent);
   animation: janus-identity-breathe 3.2s ease-in-out infinite;
 }
 
@@ -302,9 +302,9 @@ body.is-running {
   height: 4px;
   border: 0;
   border-radius: 3px;
-  background: #fff;
+  background: var(--shell-text);
   clip-path: none;
-  box-shadow: 0 0 10px #fff, 0 0 20px var(--janus-running);
+  box-shadow: 0 0 10px var(--glow-core), 0 0 20px color-mix(in srgb, var(--janus-running) calc(100% * var(--glow-strength)), transparent);
   filter: none;
   animation: janus-identity-eq-bounce 0.25s ease-in-out infinite alternate;
 }
@@ -317,7 +317,7 @@ body.is-running {
   width: 16px;
   height: 16px;
   border-radius: 8px;
-  box-shadow: 0 0 30px #fff, 0 0 60px var(--janus-running);
+  box-shadow: 0 0 30px var(--glow-core), 0 0 60px color-mix(in srgb, var(--janus-running) calc(100% * var(--glow-strength)), transparent);
   animation: janus-identity-eq-bounce-lg 0.2s ease-in-out infinite alternate;
 }
 
@@ -367,11 +367,11 @@ body.is-running {
   height: 26px;
   border-radius: 13px;
   background: linear-gradient(180deg, var(--janus-skin-top) 0%, var(--janus-skin-bottom) 100%);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 4px 14px rgba(0,0,0,0.42),
-    0 0 12px rgba(255,255,255,0.02);
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 6%, transparent),
+    0 4px 14px color-mix(in srgb, var(--shadow-color) 42%, transparent),
+    0 0 12px color-mix(in srgb, var(--surface-tint) 2%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -411,20 +411,20 @@ body.is-running {
 @keyframes island-hover-breathe {
   0%, 100% {
     transform: translateY(-0.5px) scale(1.018);
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: color-mix(in srgb, var(--surface-tint) 12%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.045),
-      0 7px 16px rgba(0, 0, 0, 0.52),
-      0 0 6px rgba(255,255,255,0.028),
+      inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 4.5%, transparent),
+      0 7px 16px color-mix(in srgb, var(--shadow-color) 52%, transparent),
+      0 0 6px color-mix(in srgb, var(--surface-tint) 2.8%, transparent),
       0 0 7px var(--janus-hover-glow-soft, transparent);
   }
   50% {
     transform: translateY(-0.5px) scale(1.032);
-    border-color: rgba(255, 255, 255, 0.18);
+    border-color: color-mix(in srgb, var(--surface-tint) 18%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.055),
-      0 8px 18px rgba(0, 0, 0, 0.54),
-      0 0 8px rgba(255,255,255,0.035),
+      inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 5.5%, transparent),
+      0 8px 18px color-mix(in srgb, var(--shadow-color) 54%, transparent),
+      0 0 8px color-mix(in srgb, var(--surface-tint) 3.5%, transparent),
       0 0 10px var(--janus-hover-glow-soft, transparent);
   }
 }
@@ -438,31 +438,31 @@ body.is-running {
 .janus-island[data-mode="running"][data-stage="collapsed"]:hover:not(.is-dragging):not(.switching) {
   animation: none;
   transform: translateY(-1px) scale(1.03);
-  border-color: rgba(255,255,255,0.2);
+  border-color: color-mix(in srgb, var(--surface-tint) 20%, transparent);
 }
 
 .janus-island[data-stage="collapsed"]:focus-visible {
-  outline: 1px solid rgba(255,255,255,0.28);
+  outline: 1px solid color-mix(in srgb, var(--surface-tint) 28%, transparent);
   outline-offset: 3px;
 }
 
 .janus-island[data-stage="collapsed"]:hover .janus-face-mini,
 .janus-island[data-stage="collapsed"]:focus-visible .janus-face-mini {
   transform: scale(1.06);
-  filter: drop-shadow(0 0 4px var(--janus-hover-glow-soft, rgba(255,255,255,0.16)));
+  filter: drop-shadow(0 0 4px var(--janus-hover-glow-soft, color-mix(in srgb, var(--surface-tint) 16%, transparent)));
 }
 
 /* 杩愯浆鎬?鈥?缁胯壊杈规 */
 .janus-island[data-mode="running"] {
-  border-color: rgba(255,255,255,0.09);
+  border-color: color-mix(in srgb, var(--surface-tint) 9%, transparent);
   /*-- 缁垮厜鍙犲湪宀涗綋鐨偆涔嬩笂锛岃€屼笉鏄妸鐨偆鏁村眰鏇挎崲鎺夛紙background 绠€鍐欎細娓呮帀搴曡壊锛夈€?--*/
   background:
-    radial-gradient(ellipse at center, rgba(0,255,136,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--status-success) 12%, transparent) 0%, transparent 60%),
     linear-gradient(180deg, var(--janus-skin-top) 0%, var(--janus-skin-bottom) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    0 4px 14px rgba(0,0,0,0.42),
-    0 0 14px rgba(0,255,136,0.08);
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 5%, transparent),
+    0 4px 14px color-mix(in srgb, var(--shadow-color) 42%, transparent),
+    0 0 14px color-mix(in srgb, var(--status-success) 8%, transparent);
 }
 
 /* 钃勫姏鏃舵殏鍋?CSS 寰呮満鍔ㄧ敾 */
@@ -474,9 +474,9 @@ body.is-running {
   border-radius: inherit;
   padding: 1.5px;
   background: conic-gradient(from 0deg, transparent, transparent, transparent);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(var(--shell-text) 0 0) content-box, linear-gradient(var(--shell-text) 0 0);
   -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(var(--shell-text) 0 0) content-box, linear-gradient(var(--shell-text) 0 0);
   mask-composite: exclude;
   pointer-events: none;
   opacity: 0;
@@ -484,16 +484,16 @@ body.is-running {
 }
 
 .janus-island[data-mode="running"][data-stage="collapsed"] {
-  border-color: rgba(0,255,136,0.25);
+  border-color: color-mix(in srgb, var(--status-success) 25%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 0 12px rgba(0,255,136,0.15),
-    0 4px 16px rgba(0,0,0,0.5);
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 8%, transparent),
+    0 0 12px color-mix(in srgb, var(--status-success) 15%, transparent),
+    0 4px 16px color-mix(in srgb, var(--shadow-color) 50%, transparent);
 }
 
 .janus-island[data-mode="running"][data-stage="collapsed"]::before {
   opacity: 1;
-  background: conic-gradient(from 0deg, transparent, #00ff88, transparent 40%, transparent);
+  background: conic-gradient(from 0deg, transparent, var(--status-success), transparent 40%, transparent);
   animation: janus-run-glow 2.8s linear infinite;
 }
 
@@ -504,8 +504,8 @@ body.is-running {
 
 /* 宸ヤ綔鍖哄垏鎹㈤棯鐑?*/
 .janus-island.switching {
-  border-color: rgba(255,255,255,0.08);
-  box-shadow: 0 0 10px rgba(255,255,255,0.12), 0 0 20px rgba(255,255,255,0.06);
+  border-color: color-mix(in srgb, var(--surface-tint) 8%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--surface-tint) 12%, transparent), 0 0 20px color-mix(in srgb, var(--surface-tint) 6%, transparent);
   transform: scale(1.05);
   transition: box-shadow 0.3s ease-out, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -517,15 +517,15 @@ body.is-running {
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px;
-  color: #888;
+  color: var(--shell-muted);
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none;
   z-index: 1000;
-  background: rgba(0,0,0,0.6);
+  background: color-mix(in srgb, var(--surface-shade) 60%, transparent);
   padding: 4px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 10%, transparent);
 }
 
 /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
@@ -610,12 +610,12 @@ body.is-running {
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 8.5px;
   letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--shell-muted);
   flex-shrink: 0;
 }
 .janus-speak-body {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.92);
+  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -629,7 +629,7 @@ body.is-running {
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 10px;
   letter-spacing: 0.08em;
-  color: var(--shell-muted, #9aa1aa);
+  color: var(--shell-muted);
   z-index: 2001;
   background: none;
   border: none;
@@ -639,7 +639,7 @@ body.is-running {
   -webkit-app-region: no-drag;
 }
 .janus-history-count:hover {
-  color: var(--shell-text, #6b727c);
+  color: var(--shell-text, var(--shell-dim));
 }
 
 /* Notification center (P4): the island grows into the sheet (eyes stay top-left).
@@ -710,13 +710,13 @@ body.is-running {
 .janus-notif-title {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: color-mix(in srgb, var(--shell-text) 92%, transparent);
 }
 .janus-notif-hint {
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 8.5px;
   letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--shell-dim);
 }
 .janus-notif-list {
   min-height: 0;
@@ -727,7 +727,7 @@ body.is-running {
   gap: 10px;
   align-items: baseline;
   padding: 7px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 7%, transparent);
   transition: opacity 0.26s ease, transform 0.26s ease;
 }
 .janus-notif-row.gone {
@@ -737,12 +737,12 @@ body.is-running {
 .janus-notif-time {
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--shell-dim);
   flex-shrink: 0;
 }
 .janus-notif-body {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.85);
+  color: color-mix(in srgb, var(--shell-text) 85%, transparent);
   line-height: 1.5;
   min-width: 0;
   /* lab 同款：正文折行不截断（高度按最终内容宽测量，防折行量高） */
@@ -750,7 +750,7 @@ body.is-running {
 }
 .janus-notif-empty {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--shell-dim);
   text-align: center;
   padding: 12px 0 8px;
 }
@@ -774,8 +774,8 @@ body.is-running {
   width: 8px;
   height: 10px;
   border-radius: 0;
-  background: #fff;
-  box-shadow: 0 0 4px #fff, 0 0 8px var(--janus-order), 0 0 16px var(--janus-order-glow);
+  background: var(--shell-text);
+  box-shadow: 0 0 4px var(--glow-core), 0 0 8px color-mix(in srgb, var(--janus-order) calc(100% * var(--glow-strength)), transparent), 0 0 16px color-mix(in srgb, var(--janus-order-glow) calc(100% * var(--glow-strength)), transparent);
 }
 
 /* 瑙ｆ瀽锛氭壂鎻忕嚎 + 鏁版嵁鏍兼爡 */
@@ -790,7 +790,7 @@ body.is-running {
 .janus-island[data-mode="analytics"] .right-eye-mini {
   width: 8px;
   height: 10px;
-  background: repeating-linear-gradient(to bottom, #fff 0, #fff 2px, transparent 2px, transparent 4px);
+  background: repeating-linear-gradient(to bottom, var(--shell-text) 0, var(--shell-text) 2px, transparent 2px, transparent 4px);
   background-size: 100% 200%;
   box-shadow: 0 0 10px var(--janus-analytics);
   animation: data-crunching 0.3s linear infinite;
@@ -800,8 +800,8 @@ body.is-running {
 .janus-island[data-mode="running"] .janus-eye-mini {
   width: 4.5px;
   border-radius: 2px;
-  background: #00ff88;
-  box-shadow: 0 0 4px rgba(0,255,136,0.9), 0 0 8px rgba(0,255,136,0.35);
+  background: var(--status-success);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--status-success) 90%, transparent), 0 0 8px color-mix(in srgb, var(--status-success) 35%, transparent);
 }
 
 .janus-island[data-mode="running"] .left-eye-mini {
@@ -858,8 +858,8 @@ body.is-running {
   height: 74px;
   border-radius: 28px;
   background: var(--janus-panel-bg);
-  border: 1px solid rgba(255,255,255,0.11);
-  box-shadow: 0 14px 40px rgba(0,0,0,0.5), 0 0 18px rgba(255,255,255,0.03);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 11%, transparent);
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--shadow-color) 50%, transparent), 0 0 18px color-mix(in srgb, var(--surface-tint) 3%, transparent);
   padding: 10px 14px;
   display: flex;
   flex-direction: column;
@@ -894,17 +894,17 @@ body.is-running {
 
 .janus-expanded.mode-running {
   border-color: var(--janus-running);
-  box-shadow: 0 18px 44px rgba(0,0,0,0.62), 0 0 20px rgba(0,255,136,0.24);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--shadow-color) 62%, transparent), 0 0 20px color-mix(in srgb, var(--status-success) 24%, transparent);
 }
 
 .janus-expanded.mode-analytics {
   border-color: var(--janus-analytics);
-  box-shadow: 0 18px 44px rgba(0,0,0,0.62), 0 0 18px rgba(255,120,48,0.18);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--shadow-color) 62%, transparent), 0 0 18px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .janus-expanded.mode-order {
   border-color: var(--janus-order);
-  box-shadow: 0 18px 44px rgba(0,0,0,0.62), 0 0 18px rgba(255,120,48,0.18);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--shadow-color) 62%, transparent), 0 0 18px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .janus-expanded[data-stage="expanded"] {
@@ -975,7 +975,7 @@ body.is-running {
 .janus-veil {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at top center, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.12) 28%, rgba(0, 0, 0, 0.02) 55%, transparent 70%);
+  background: radial-gradient(circle at top center, color-mix(in srgb, var(--surface-tint) 3%, transparent), color-mix(in srgb, var(--surface-shade) 12%, transparent) 28%, color-mix(in srgb, var(--surface-shade) 2%, transparent) 55%, transparent 70%);
   pointer-events: none;
   z-index: 2000;
 }

@@ -82,9 +82,13 @@
     {
       "type": "governed-by",
       "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/47c7be36-5a48-4a27-aa86-d4f9dffb641c"
+    },
+    {
+      "type": "related-to",
+      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/41a64d3c-2811-4dc8-a1ab-2c5c541ec123"
     }
   ],
-  "updated": "2026-10-26T16:23:44Z",
+  "updated": "2026-11-03T08:04:01Z",
   "moduleState": "partial"
 }
 ---
@@ -106,6 +110,8 @@ Janus 负责产品投影和交互；agentX 的共享 harness 包拥有解析、�
 宿主 HarnessNoteService 直接消费共享 NoteService。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码；旧 CRUD、画布编辑、图投影和转换 IPC 返回插件必需提示。黑板使用通用插件入口，聊天证据和圆桌结果通过共享 Note API 读写。公共作者工具与工作区初始化归 @janusx/note-tools，公共聊天／提示组件移出蓝图目录；图身份、布局和旧 JSON 转换归插件。原始旧数据保留，转换必须先预览再确认。清理后的 Windows 安装器和便携包已验证仓库外启动，主包排除 React Flow；三态资源已有代表证据，新版本完整功能和故障矩阵仍未验收。
 
 应用设置不再内置蓝图页或“创新功能”蓝图开关。安装官方插件后，由包内 settings 贡献加入设置导航，授权启用后加载隔离页面；卸载撤下入口和页面，保留数据。旧设置快捷入口转到插件管理，生产目录仍未发布。`npm run dev:blueprint` 可用独立 profile 本地签名安装和测试，不需要 Release；设置自动保存及模块导航补齐的边界、命令与证据归[官方插件专项](../planning/blueprint-official-plugin.md)。
+
+插件界面通过公开 SDK 样式和上下文订阅跟随宿主主题。画布、阅读区、讨论区使用内容表面令牌；辅助文字和强调按钮直接使用语义文字色；MCP 客户端图标的中性笔画随主题调整。主题职责与验证边界归[主题机制](../workbench/theme-system.md)。
 
 [接入计划](workflowx-v2-adoption.md)与跨子模块的交付、性能专题保留在本层。它们引用各职责的实现和验收，不复制子模块正文。目录与旧文档的归属依据见[职责目录整理](module-responsibilities.md)。
 

@@ -11,7 +11,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/b3704d91-c17d-4492-ae71-a44cfec8bbd7"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/908d675a-aec9-4791-8c8b-05f1e4c923ca"}
   ],
-  "updated": "2026-10-28T06:07:03.626Z",
+  "updated": "2026-11-03T10:03:13Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -20,13 +20,13 @@
 
 ## Problem
 
-创新功能通过设置中心表达成熟度并控制实验入口。会话管理和备忘录现为默认功能，不再需要实验开关。
+设置中心不再提供“创新功能”页面，用户不能再通过该页启用实验能力。会话管理和备忘录现为默认功能，不受此次入口移除影响。
 
 ## Decision
 
-机制契约：`ExperimentalFeatures` 逐路布尔开关，`experimental:get/update` IPC 持久化到工作区配置，`normalizeExperimentalFeatures` 对缺席/非法一律回落默认值（默认全关），无 IPC 环境以 `EXPERIMENTAL_ENABLED_ALL` 全开降级。设置中心显示「开发」分区，每个开/关走逐项确认弹窗；知识库开关有键与文案但暂不在面板列表中。右坞实验入口经 `isRightToolEnabled(toolId, features)` 门控，`RightDock` 对被禁工具隐藏并关闭，`RightToolRail` 不渲染被禁工具。
+机制契约：`ExperimentalFeatures` 逐路布尔开关，`experimental:get/update` IPC 持久化到工作区配置，`normalizeExperimentalFeatures` 对缺席/非法一律回落默认值（默认全关），无 IPC 环境以 `EXPERIMENTAL_ENABLED_ALL` 全开降级。设置中心已移除实验页导航、徽标及面板挂载；旧 experimental 页请求回退常规设置。保留已保存配置、数据和底层门控，不强制关闭已启用能力。右坞实验入口经 `isRightToolEnabled(toolId, features)` 门控，`RightDock` 对被禁工具隐藏并关闭，`RightToolRail` 不渲染被禁工具。
 
-会话管理和备忘录默认可用，旧配置中的 `sessions` 与 `memo` 字段被忽略。会话管理提供对话详情与续接，不显示还原点、文件变更、diff 和文件恢复操作，底层检查点仍由[检查点模块](../sessions/checkpoints/module.md)独立维护。个人画像、圆桌、远程协作与团队协作归「开发」分区。蓝图由[官方插件安装与设置入口](../planning/blueprint-official-plugin.md)管理；旧 blueprint 持久字段暂留给兼容消费者。
+会话管理和备忘录默认可用，旧配置中的 `sessions` 与 `memo` 字段被忽略。会话管理提供对话详情与续接，不显示还原点、文件变更、diff 和文件恢复操作，底层检查点仍由[检查点模块](../sessions/checkpoints/module.md)独立维护。个人画像、圆桌与团队协作不再提供设置页启用开关；手机远程在通用设置独立启用，沿用 `remoteControl` 持久字段，入口位于右侧工具栏底部，详见[配对握手](../remote/android-pairing-handshake.md)。蓝图由[官方插件安装与设置入口](../planning/blueprint-official-plugin.md)管理；旧 blueprint 持久字段暂留给兼容消费者。
 
 会话转录解析和原生续接因终端不同而有差异；备忘录 Chat 联动需支持工具调用的模型。圆桌需可用的全局默认模型；Android 远控需要电脑批准设备，使用 UDP 直连且不提供业务中继；团队跨设备项目和文档同步尚未完成。来源见[会话记录模块](../sessions/records/module.md)、[备忘录专题](../knowledge/user-todo-janus.md)与[远程协作模块](../remote/module.md)。
 

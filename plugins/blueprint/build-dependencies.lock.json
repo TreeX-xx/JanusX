@@ -61,8 +61,15 @@
       "name": "@janusx/plugin-sdk",
       "version": "0.1.0",
       "file": "janusx-plugin-sdk-0.1.0.tgz",
-      "sha256": "2ff4181d68d486243a8fb76bce2e316e7d28a86df5ba322a29d6405af87a5802",
-      "integrity": "sha512-3K1y2pMMMFn+YIcFyoP3acY6BmpzhM60kOEylxAvWRoLNREWmNSTx3295mnM1o2wYhzqKs+a3GgR1MnLQB5CNw=="
+      "sha256": "6a55aa2e64c719e18770889ba0c13a7db117b7442e3122b66748c588c39e7036",
+      "integrity": "sha512-3uKRskZcD6dVjWcXhh1CRnL3dHc65xSGYX2k6xmZvNNqmcnzT8+5Ln4MUmK2uVGs0mHeygbPtM3VrGnrhhfnkA=="
+    },
+    {
+      "name": "@janusx/ui",
+      "version": "0.1.0",
+      "file": "janusx-ui-0.1.0.tgz",
+      "sha256": "2a8d6039a9041d5c7b3fd883ecbec1035e15df5404a7e74cd9188eb2851ac93d",
+      "integrity": "sha512-8hdmKx7ynKP//n/0Y9Ts+biLKj1711fc0sPlESXg+xRYrJZbZ0gtq7QdVCsqQcGL8a66N+6ju3Nhwdqt+e6Qdw=="
     }
   ]
 }

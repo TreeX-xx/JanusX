@@ -48,15 +48,15 @@
   top: 22%;
   bottom: 22%;
   width: 1px;
-  background: rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--surface-tint) 9%, transparent);
 }
 
 .janus-capsule-cell:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
 }
 
 .janus-capsule-cell:active {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface-tint) 8%, transparent);
 }
 
 .janus-capsule-cell-copy {
@@ -74,7 +74,7 @@
 .janus-capsule-cell-title {
   font-size: 12px;
   font-weight: 650;
-  color: #f4f4f5;
+  color: var(--shell-text);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -94,14 +94,14 @@
 
 .janus-island-shell[data-stage="peek"] .janus-island {
   border-radius: 24px;
-  background: rgba(22, 22, 27, 0.82);
+  background: color-mix(in srgb, var(--shell-pane) 82%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-color: rgba(255, 255, 255, 0.11);
+  border-color: color-mix(in srgb, var(--surface-tint) 11%, transparent);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.08),
-    0 12px 36px rgba(0, 0, 0, 0.5),
-    0 2px 8px rgba(0, 0, 0, 0.3);
+    inset 0 1.5px 0 color-mix(in srgb, var(--surface-tint) 8%, transparent),
+    0 12px 36px color-mix(in srgb, var(--shadow-color) 50%, transparent),
+    0 2px 8px color-mix(in srgb, var(--shadow-color) 30%, transparent);
 }
 
 /* ── 胶囊内容结构 ──────────────────────────────────────────── */
@@ -154,7 +154,7 @@
   font-weight: 800;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #ff9159;
+  color: var(--shell-accent-strong);
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -162,7 +162,7 @@
 .janus-capsule-title {
   font-size: 13.5px;
   font-weight: 700;
-  color: #f8f9fa;
+  color: var(--shell-text);
   line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
@@ -173,7 +173,7 @@
 .janus-capsule-subtitle {
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 10.5px;
-  color: #9fa0a6;
+  color: var(--shell-muted);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -184,7 +184,7 @@
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 9px;
   letter-spacing: 0.5px;
-  color: #6b6d73;
+  color: var(--shell-dim);
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -202,13 +202,13 @@
   height: 7px;
   border-radius: 999px;
   flex: 0 0 auto;
-  background: rgba(255, 255, 255, 0.35);
+  background: color-mix(in srgb, var(--surface-tint) 35%, transparent);
 }
 
-.janus-capsule-led.sev-info { background: #a1a1a6; }
-.janus-capsule-led.sev-success { background: #00ff88; }
-.janus-capsule-led.sev-attention { background: #ff9159; animation: capsule-led-breathe 1.5s ease-in-out infinite; }
-.janus-capsule-led.sev-failed { background: #ff4a4a; animation: capsule-led-breathe 1s ease-in-out infinite; }
+.janus-capsule-led.sev-info { background: var(--shell-muted); }
+.janus-capsule-led.sev-success { background: var(--status-success); }
+.janus-capsule-led.sev-attention { background: var(--shell-accent-strong); animation: capsule-led-breathe 1.5s ease-in-out infinite; }
+.janus-capsule-led.sev-failed { background: var(--status-danger); animation: capsule-led-breathe 1s ease-in-out infinite; }
 
 /* 缩放呼吸：缩放 + 透明度脉动 */
 @keyframes capsule-led-breathe {
@@ -229,9 +229,9 @@
   height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #9fa0a6;
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 12%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 4%, transparent);
+  color: var(--shell-muted);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -244,14 +244,14 @@
     border-color 150ms ease,
     background 150ms ease,
     transform 150ms ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--shadow-color) 20%, transparent);
 }
 
 .janus-notify-badge:hover,
 .janus-notify-badge[data-active="true"] {
-  color: #f8f9fa;
-  border-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--shell-text);
+  border-color: color-mix(in srgb, var(--surface-tint) 22%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 8%, transparent);
   transform: scale(1.04);
 }
 
@@ -263,7 +263,7 @@
 
 @keyframes capsule-badge-pop {
   0% { transform: scale(1); }
-  50% { transform: scale(1.22); box-shadow: 0 0 10px rgba(255, 255, 255, 0.14); }
+  50% { transform: scale(1.22); box-shadow: 0 0 10px color-mix(in srgb, var(--surface-tint) 14%, transparent); }
   100% { transform: scale(1); }
 }
 
@@ -275,15 +275,15 @@
   max-height: 360px;
   overflow-y: auto;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.008)),
-    rgba(10, 10, 13, 0.95);
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-tint) 3%, transparent), color-mix(in srgb, var(--surface-tint) 0.8%, transparent)),
+    color-mix(in srgb, var(--shell-void) 95%, transparent);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.8),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 24px 60px color-mix(in srgb, var(--shadow-color) 80%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 5%, transparent);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -301,7 +301,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 10px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-tint) 5%, transparent);
 }
 
 .janus-notify-tray-title {
@@ -309,16 +309,16 @@
   font-weight: 900;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #ff9159;
+  color: var(--shell-accent-strong);
 }
 
 .janus-notify-tray-clear {
   height: 22px;
   padding: 0 10px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
-  color: #9fa0a6;
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 2%, transparent);
+  color: var(--shell-muted);
   font-size: 9.5px;
   font-weight: 600;
   cursor: pointer;
@@ -326,9 +326,9 @@
 }
 
 .janus-notify-tray-clear:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--shell-text);
+  border-color: color-mix(in srgb, var(--surface-tint) 15%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 6%, transparent);
 }
 
 /* 托盘通知行：卡片级优先度细线（左缘 3px severity 指示）+ 中性悬停 */
@@ -339,7 +339,7 @@
   padding: 12px;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.01);
+  background: color-mix(in srgb, var(--surface-tint) 1%, transparent);
   text-align: left;
   cursor: default;
   position: relative;
@@ -355,22 +355,22 @@
   bottom: 12px;
   width: 2px;
   border-radius: 0 2px 2px 0;
-  background: #6b6d73;
+  background: var(--shell-muted);
   opacity: 0.3;
   transition: opacity 0.2s ease;
   pointer-events: none;
 }
 
 .janus-notify-row:hover {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--surface-tint) 3%, transparent);
+  border-color: color-mix(in srgb, var(--surface-tint) 6%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow-color) 20%, transparent);
 }
 
 .janus-notify-row:hover::before { opacity: 1; }
-.janus-notify-row[data-severity="failed"]::before { background: #ff4a4a; opacity: 0.8; }
-.janus-notify-row[data-severity="attention"]::before { background: #ff9159; opacity: 0.8; }
-.janus-notify-row[data-severity="success"]::before { background: #00ff88; opacity: 0.8; }
+.janus-notify-row[data-severity="failed"]::before { background: var(--status-danger); opacity: 0.8; }
+.janus-notify-row[data-severity="attention"]::before { background: var(--shell-accent-strong); opacity: 0.8; }
+.janus-notify-row[data-severity="success"]::before { background: var(--status-success); opacity: 0.8; }
 
 .janus-notify-row-copy {
   display: flex;
@@ -388,13 +388,13 @@
   font-weight: 900;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: #ff9159;
+  color: var(--shell-accent-strong);
 }
 
 .janus-notify-row-time {
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 8px;
-  color: #6b6d73;
+  color: var(--shell-dim);
   letter-spacing: 0;
   text-transform: none;
   font-weight: 500;
@@ -403,7 +403,7 @@
 .janus-notify-row-title {
   font-size: 12.5px;
   font-weight: 700;
-  color: #f8f9fa;
+  color: var(--shell-text);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -413,7 +413,7 @@
 .janus-notify-row-subtitle {
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 9.5px;
-  color: #9fa0a6;
+  color: var(--shell-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -424,7 +424,7 @@
   width: 100%;
   height: 2px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
   margin-top: 5px;
   overflow: hidden;
 }
@@ -432,7 +432,7 @@
 .janus-notify-row-progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #ff7830, #ff9159);
+  background: linear-gradient(90deg, var(--primary), var(--shell-accent-strong));
   animation: capsule-progress-pulse 1.5s ease-in-out infinite;
 }
 
@@ -446,7 +446,7 @@
   padding: 18px 6px;
   text-align: center;
   font-size: 10px;
-  color: #555;
+  color: var(--shell-dim);
 }
 
 /* 托盘/banner 行动按钮：与 .janus-expanded-action-button 同调（黑橙灰） */
@@ -454,10 +454,10 @@
 .janus-notify-banner .janus-capsule-action {
   height: 24px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 120, 48, 0.24);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
   border-radius: 6px;
-  background: rgba(255, 120, 48, 0.08);
-  color: #ffb27d;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--shell-accent-strong);
   cursor: pointer;
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   font-size: 9px;
@@ -475,9 +475,9 @@
 
 .janus-notify-row .janus-capsule-action:hover,
 .janus-notify-banner .janus-capsule-action:hover {
-  color: #fff1e7;
-  border-color: rgba(255, 120, 48, 0.4);
-  background: rgba(255, 120, 48, 0.18);
+  color: var(--shell-text);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
   transform: translateY(-1px);
 }
 
@@ -498,14 +498,14 @@
   padding: 10px 14px;
   margin-bottom: 10px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 120, 48, 0.15);
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 120, 48, 0.06), rgba(0, 0, 0, 0)),
-    rgba(10, 10, 13, 0.92);
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 6%, transparent), color-mix(in srgb, var(--surface-shade) 0%, transparent)),
+    color-mix(in srgb, var(--shell-void) 92%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   min-width: 0;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--shadow-color) 25%, transparent);
   animation: capsule-banner-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
 }
 
@@ -525,7 +525,7 @@
 .janus-notify-banner-title {
   font-size: 12.5px;
   font-weight: 700;
-  color: #f8f9fa;
+  color: var(--shell-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -534,13 +534,13 @@
 .janus-notify-banner-subtitle {
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 9.5px;
-  color: #9fa0a6;
+  color: var(--shell-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.janus-notify-banner .janus-notify-row-kicker { color: #ff9159; }
+.janus-notify-banner .janus-notify-row-kicker { color: var(--shell-accent-strong); }
 
 .janus-notify-banner-close {
   width: 20px;
@@ -548,7 +548,7 @@
   border-radius: 999px;
   border: none;
   background: transparent;
-  color: #737373;
+  color: var(--shell-dim);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -558,8 +558,8 @@
 }
 
 .janus-notify-banner-close:hover {
-  color: #ffb27d;
-  background: rgba(255, 120, 48, 0.08);
+  color: var(--shell-accent-strong);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 /* ── 可访问性：动画降级 ────────────────────────────────────── */

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+const preference = vi.hoisted(() => ({ initialView: 'terminal' as 'terminal' | 'conversation' }))
+vi.mock('@/stores/conversation-preferences', () => ({ useConversationPreferences: { getState: () => preference } }))
 
 const { addTerminal, updateTerminal, setLoadState, workspaceTerminals } = vi.hoisted(() => ({
   addTerminal: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@/lib/terminal-geometry', () => ({
 
 describe('terminal-launch', () => {
   beforeEach(() => {
+    preference.initialView = 'terminal'
     vi.resetModules()
     addTerminal.mockReset()
     updateTerminal.mockReset()
@@ -77,6 +80,38 @@ describe('terminal-launch', () => {
         return 0
       },
     )
+  })
+
+  it('gives every supported new local session both surfaces without an opt-in', async () => {
+    vi.mocked(window.electron.system.getDefaultShell).mockResolvedValue('powershell.exe')
+    vi.mocked(window.electron.terminal.create).mockResolvedValue({ pid: 123 })
+    const { launchTerminalPreset } = await import('../../src/renderer/src/lib/terminal-launch')
+    for (const preset of ['codex', 'claude', 'opencode', 'pi', 'dsh'] as const) {
+      await launchTerminalPreset({ preset, workspaceId: 'ws', workspacePath: 'C:/repo' })
+      expect(window.electron.terminal.create).toHaveBeenLastCalledWith(expect.objectContaining({ preset, conversationEnabled: true, initialView: 'terminal' }))
+    }
+    await launchTerminalPreset({ preset: 'janus', workspaceId: 'ws', workspacePath: 'C:/repo' })
+    expect(vi.mocked(window.electron.terminal.create).mock.calls.at(-1)?.[0].conversationEnabled).toBeUndefined()
+    await launchTerminalPreset({ preset: 'codex', workspaceId: 'ws', workspacePath: 'C:/repo', attachOnly: true })
+    expect(vi.mocked(window.electron.terminal.create).mock.calls.at(-1)?.[0].conversationEnabled).toBeUndefined()
+  })
+
+  it('opens the preferred view, prefills its draft without hidden PTY input, and retains the choice on retry', async () => {
+    preference.initialView = 'conversation'
+    vi.mocked(window.electron.system.getDefaultShell).mockResolvedValue('powershell.exe')
+    vi.mocked(window.electron.terminal.create).mockResolvedValue({ pid: 123 })
+    const input = vi.fn()
+    Object.assign(window.electron.terminal, { input })
+    const { launchTerminalPreset, retryTerminalCreate } = await import('../../src/renderer/src/lib/terminal-launch')
+    const result = await launchTerminalPreset({ preset: 'codex', workspaceId: 'ws', workspacePath: 'C:/repo', initialInput: 'Review this before sending' })
+    expect(result).toMatchObject({ ok: true, prefilled: true })
+    expect(addTerminal.mock.calls[0][0]).toMatchObject({ conversationEnabled: true, conversationInitialView: 'conversation', conversationDraft: 'Review this before sending' })
+    expect(window.electron.terminal.create).toHaveBeenCalledWith(expect.objectContaining({ conversationEnabled: true, initialView: 'conversation' }))
+    expect(input).not.toHaveBeenCalled()
+    workspaceTerminals.push(addTerminal.mock.calls[0][0])
+    preference.initialView = 'terminal'
+    await retryTerminalCreate(result!.terminalId)
+    expect(window.electron.terminal.create).toHaveBeenLastCalledWith(expect.objectContaining({ initialView: 'conversation' }))
   })
 
   it('caches default shell after ensureDefaultShell', async () => {

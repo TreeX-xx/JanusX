@@ -4,6 +4,7 @@ test('large Git worktrees keep offscreen file actions reachable after switching'
   await page.goto('/tool-palette.html')
   await page.evaluate(() => (window as any).builtinExtensionFixture.largeGit())
   await page.locator('#right-tool-rail-git').click()
+  await expect(page.locator('#right-tool-panel-git [data-workspace-transition]')).toHaveAttribute('aria-busy', 'false')
   const lastFile = page.getByRole('button', { name: 'src/large/file-499.tsx', exact: true })
   await lastFile.scrollIntoViewIfNeeded()
   await expect(lastFile).toBeVisible()

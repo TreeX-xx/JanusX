@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 // Note: .agents/notes/planning/blueprint-official-plugin.md - the package supplies the settings UI through the isolated carrier.
 import { PluginViewShell } from '@/extensions/plugin-runtime'
 import type { PluginSettingsPage } from '@/extensions/plugin-settings'
@@ -9,6 +10,6 @@ export function PluginSettingsView({ page, active, onManage }: { page: PluginSet
     {page.enabled ? <PluginViewShell key={`${page.id}:${page.digest}`} pluginId={page.pluginId} localViewId={page.viewId}
       viewId={page.id} location="settings" workspaceId={null} workspacePath={null} active={active} />
       : <div className="p-4"><p role="status">{t('plugins:settingsEnableRequired')}</p>
-        <button type="button" onClick={onManage}>{t('plugins:managePlugin')}</button></div>}
+        <SettingsButton type="button" onClick={onManage}>{t('plugins:managePlugin')}</SettingsButton></div>}
   </section>
 }

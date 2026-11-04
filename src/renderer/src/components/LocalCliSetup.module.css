@@ -1,0 +1,20 @@
+.dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; margin: auto; padding: 28px; border: 1px solid var(--shell-border-soft); border-radius: 14px; background: var(--shell-canvas); color: var(--shell-text); box-shadow: 0 16px 64px color-mix(in srgb, var(--shadow-color) 20%, transparent); }
+.dialog::backdrop { background: color-mix(in srgb, var(--surface-shade) 40%, transparent); }
+.dialog h2 { margin: 16px 0 10px; font-size: 19px; font-weight: 600; }
+.dialog p { font-size: 13px; line-height: 1.7; color: var(--shell-muted); margin: 10px 0; }
+.environment { padding: 12px; background: var(--shell-chrome); border-radius: 8px; font-size: 12px; line-height: 1.7; }
+.actions { display: flex; gap: 8px; margin-top: 20px; }
+.dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 8px 14px; border: 1px solid var(--shell-border-soft); border-radius: 7px; color: var(--shell-text); background: transparent; cursor: pointer; font-size: 13px; }
+.dialog button:disabled { opacity: .5; cursor: default; }
+.dialog button:focus-visible, .dialog a:focus-visible, .dialog summary:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+.dialog .primary { background: var(--shell-text); color: var(--shell-canvas); }
+.dialog .recheck { padding-left: 0; border: 0; margin-top: 8px; color: var(--shell-muted); }
+.manual { margin-top: 12px; font-size: 12px; }
+.manual summary, .error summary { cursor: pointer; }
+.manual a { text-decoration: underline; }
+.error { margin-top: 12px; color: var(--shell-diff-del); font-size: 12px; }
+.error pre { max-height: 120px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dialog small { display: block; margin-top: 12px; color: var(--shell-muted); font-size: 11px; }
+.spinner { display: inline; animation: cli-spin 1s linear infinite; }
+@keyframes cli-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

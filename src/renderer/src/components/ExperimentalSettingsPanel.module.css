@@ -15,11 +15,11 @@
   border-radius: 12px;
   background: var(--shell-card);
   color: var(--shell-text);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--shadow-color) 55%, transparent);
   font-family: inherit;
 }
 
-.dialog::backdrop { background: #08080aa6; backdrop-filter: blur(4px); }
+.dialog::backdrop { background: color-mix(in srgb, var(--shell-void) 65.098%, transparent); backdrop-filter: blur(4px); }
 .dialog h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; line-height: 1.5; }
 .dialog p { margin: 8px 0; font-size: 12px; line-height: 1.6; color: var(--shell-muted); }
 .dialog .note { padding: 8px 10px; border: 1px solid var(--shell-border); border-radius: 6px; font-size: 12px; }

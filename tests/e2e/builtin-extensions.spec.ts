@@ -11,7 +11,7 @@ test('built-ins use extension lifecycle while preserving file search, Git action
   await files.getByRole('textbox').fill('README')
   await page.locator('#right-tool-rail-git').click()
   const git = page.locator('#right-tool-panel-git')
-  await expect(git.getByText('src/renderer/RightDock.tsx', { exact: true })).toBeVisible()
+  await expect(git.getByRole('button', { name: 'src/renderer/RightDock.tsx', exact: true })).toBeVisible()
   await git.getByRole('button', { name: '暂存更改', exact: true }).click()
   await expect.poll(async () => (await state(page)).stagedPaths).toEqual([['src/renderer/RightDock.tsx']])
   await page.locator('#right-tool-rail-files').click()

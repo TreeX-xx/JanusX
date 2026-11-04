@@ -32,7 +32,7 @@
   border: 1px solid var(--shell-border);
   border-radius: 6px;
   background: var(--shell-card);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--shadow-color) 40%, transparent);
   animation: projectIslandRise 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: calc(var(--card-index, 0) * 180ms);
   transform-origin: center;
@@ -387,7 +387,7 @@
 }
 
 .sendButton[data-mode='send']:not(:disabled) {
-  color: var(--shell-void);
+  color: var(--on-accent);
   background: var(--shell-accent);
   border-color: var(--shell-accent-border);
 }
@@ -412,7 +412,7 @@
   background: var(--shell-card);
   border: 1px solid var(--shell-border);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--shadow-color) 40%, transparent);
 }
 .spinner { width: 16px; height: 16px; border: 1px solid var(--shell-border); border-top-color: var(--shell-accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 .spinIcon { animation: spin 0.8s linear infinite; }
@@ -429,35 +429,35 @@
 :global([data-theme='planche']) .main,
 :global([data-theme='planche']) .assistant,
 :global([data-theme='planche']) .loading {
-  border-color: var(--line, #1C343B);
+  border-color: var(--line, var(--shell-text));
   box-shadow: none;
 }
 
 :global([data-theme='planche']) .commandBar button:hover:not(:disabled),
 :global([data-theme='planche']) .approvalBar button:hover {
-  border-color: var(--planche-red, #D43D2A);
-  background: var(--paper-deep, #DCCFA8);
-  color: var(--planche-red, #D43D2A);
+  border-color: var(--planche-red, var(--shell-accent));
+  background: var(--paper-deep, var(--shell-hover));
+  color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .assistantMessage {
-  border-left: 1px solid var(--planche-red, #D43D2A);
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  border-left: 1px solid var(--planche-red, var(--shell-accent));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .userMessage {
-  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
-  background: var(--paper-deep, #DCCFA8);
-  color: var(--ink, #1C343B);
+  border: 1px solid var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
+  background: var(--paper-deep, var(--shell-hover));
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .streamingMessage {
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .promptBox {
-  border: 1px solid var(--line, #1C343B);
-  background: var(--paper, #EFE4C5);
+  border: 1px solid var(--line, var(--shell-text));
+  background: var(--paper, var(--shell-canvas));
   box-shadow: none;
 }
 
@@ -466,43 +466,43 @@
 }
 
 :global([data-theme='planche']) .promptBox:focus-within {
-  border-color: var(--planche-red, #D43D2A);
+  border-color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .promptPrefix {
-  border-right-color: var(--line-soft, rgba(28, 52, 59, 0.22));
-  color: var(--planche-red, #D43D2A);
+  border-right-color: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
+  color: var(--planche-red, var(--shell-accent));
 }
 
 :global([data-theme='planche']) .promptBox textarea {
-  color: var(--ink, #1C343B);
+  color: var(--ink, var(--shell-text));
 }
 
 :global([data-theme='planche']) .promptBox textarea::placeholder {
-  color: var(--ink-faint, rgba(28, 52, 59, 0.38));
+  color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .sendButton {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--line-soft, rgba(28, 52, 59, 0.22));
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  background: var(--paper-deep, var(--shell-hover));
+  border-color: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .sendButton[data-mode='send']:not(:disabled) {
-  background: var(--planche-red, #D43D2A);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--paper, #EFE4C5);
+  background: var(--planche-red, var(--shell-accent));
+  border-color: var(--planche-red, var(--shell-accent));
+  color: var(--paper, var(--shell-canvas));
 }
 
 :global([data-theme='planche']) .sendButton[data-mode='stop'] {
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .loading {
-  color: var(--ink-soft, rgba(28, 52, 59, 0.62));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
 :global([data-theme='planche']) .spinner {
-  border: 1px solid var(--line-soft, rgba(28, 52, 59, 0.22));
-  border-top-color: var(--planche-red, #D43D2A);
+  border: 1px solid var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
+  border-top-color: var(--planche-red, var(--shell-accent));
 }

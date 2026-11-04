@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { build, type BuildOptions } from 'esbuild'
 import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 
 // Note: downloadable Blueprint code must leave the host bundle — see .agents/notes/planning/blueprint-official-plugin.md
 
@@ -12,7 +13,7 @@ const RENDERER: BuildOptions = {
   entryPoints: ['src/renderer/src/main.tsx'],
   outdir: 'artifacts/host-boundary-renderer',
   platform: 'browser',
-  loader: { '.css': 'empty', '.module.css': 'empty', '.svg': 'dataurl', '.png': 'dataurl' },
+  loader: { '.css': 'empty', '.module.css': 'empty', '.svg': 'dataurl', '.png': 'dataurl', '.jpg': 'dataurl' },
 }
 
 /** Bundle inputs actually compiled into an entry, normalized to repository-relative POSIX paths. */
@@ -25,6 +26,10 @@ async function bundleInputs(options: BuildOptions): Promise<string[]> {
     packages: 'external',
     format: 'esm',
     logLevel: 'silent',
+    plugins: [{ name: 'vite-raw-imports', setup(builder) {
+      builder.onResolve({ filter: /\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.slice(0, -4)), namespace: 'raw-text' }))
+      builder.onLoad({ filter: /.*/, namespace: 'raw-text' }, args => ({ contents: readFileSync(args.path, 'utf8'), loader: 'text' }))
+    } }],
     ...options,
   })
   return Object.keys(result.metafile!.inputs).map(input => input.replaceAll('\\', '/')).sort()
@@ -32,7 +37,7 @@ async function bundleInputs(options: BuildOptions): Promise<string[]> {
 
 const pluginSources = (inputs: string[]) => inputs.filter(input => input.startsWith('plugins/blueprint/'))
 const hostBlueprintSources = (inputs: string[]) =>
-  inputs.filter(input => /^src\/(?:main|renderer\/src)\/.*blueprint/i.test(input))
+  inputs.filter(input => /^src\/(?:main|renderer\/src)\/.*blueprint/i.test(input) && /\.[cm]?[jt]sx?$/.test(input))
 
 /*
  * Ratchet: the residual Blueprint sources each host entry still compiles in (2026-10-26 baseline).

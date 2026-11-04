@@ -1,7 +1,7 @@
 import { memo, useRef, useEffect, useLayoutEffect, useCallback, useState, type DragEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { LoaderCircle } from 'lucide-react'
+import startupStyles from './TerminalStartup.module.css'
 import { RemoteAgentSetup } from './RemoteAgentSetup'
 import { useTranslation } from 'react-i18next'
 import '@xterm/xterm/css/xterm.css'
@@ -638,18 +638,26 @@ export const CLITerminal = memo(function CLITerminal({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         style={{
-          boxShadow: fileDragOver ? 'inset 0 0 0 1px rgba(255, 120, 48, 0.45)' : 'none',
-          background: fileDragOver ? 'rgba(255, 120, 48, 0.035)' : 'transparent',
+          // Opacity keeps xterm parsing, sizing and rendering, so capability
+          // replies and the first-render signal still work while its cursor is hidden.
+          opacity: hasRenderedOutput ? 1 : 0,
+          boxShadow: fileDragOver ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent)' : 'none',
+          background: fileDragOver ? 'color-mix(in srgb, var(--primary) 3.5%, transparent)' : 'transparent',
         }}
       />
       {agentSetup && <RemoteAgentSetup terminalId={terminalId} />}
       {!hasRenderedOutput && !exited && !agentSetup && (
         <div
           role="status"
-          className="pointer-events-none absolute left-5 top-4 flex items-center gap-2 text-[12px] text-[var(--shell-muted)]"
+          className={startupStyles.panel}
+          data-stage={pid ? 'output' : 'process'}
         >
-          <LoaderCircle size={14} aria-hidden="true" className="motion-safe:animate-spin" />
-          <span>{t(pid ? 'startup.waitingForOutput' : 'startup.starting')}</span>
+          <div className={startupStyles.preview} aria-hidden="true">
+            <div className={startupStyles.prompt}><i /><b /></div>
+            <div className={startupStyles.lines}><i /><i /><i /></div>
+          </div>
+          <span className={startupStyles.label}>{t(pid ? 'startup.waitingForOutput' : 'startup.starting')}</span>
+          <div className={startupStyles.track} aria-hidden="true"><i /></div>
         </div>
       )}
     </>

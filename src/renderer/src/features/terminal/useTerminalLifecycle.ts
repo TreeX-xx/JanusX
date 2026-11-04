@@ -47,6 +47,7 @@ export function useTerminalLifecycle(): void {
     const store = useWorkspaceStore.getState()
     if (store.terminals.some((terminal) => terminal.id === event.id)) return
     store.addTerminalForWorkspace({
+      ...(event.conversationEnabled ? { conversationEnabled: true, conversationInitialView: event.initialView ?? 'terminal' } : {}),
       id: event.id, workspaceId: event.workspaceId, cwd: event.cwd, preset: event.preset,
       shell: event.shell, name: `${event.preset} terminal`, autoCommand: event.preset,
       pid: event.pid, status: 'wait', updatedAt: Date.now(),

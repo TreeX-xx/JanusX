@@ -7,6 +7,8 @@ import { getMonacoLanguage } from '@/lib/file-utils'
 import type { FindableEditor } from '@/lib/editor-find'
 import type { OpenFile } from '@/types'
 import { DocumentViewerHost } from '@/extensions/DocumentViewerHost'
+import { lazy, Suspense } from 'react'
+const PdfViewer = lazy(() => import('./viewers/PdfViewer'))
 
 interface FileViewerContentProps {
   pluginViewers?: boolean
@@ -20,7 +22,7 @@ interface FileViewerContentProps {
 
 export function FileViewerContent(props: FileViewerContentProps) {
   const builtin = <BuiltinFileViewerContent {...props} />
-  if (!props.pluginViewers || props.file.isLoading || props.file.error || ['image', 'binary'].includes(props.file.viewType)
+  if (!props.pluginViewers || props.file.isLoading || props.file.error || ['image', 'binary', 'pdf'].includes(props.file.viewType)
     || productKindForPath(props.file.absolutePath) === 'office') return builtin
   return <DocumentViewerHost file={props.file} workspacePath={props.workspacePath}
     onReadOnlyChange={props.onReadOnlyChange}
@@ -67,6 +69,8 @@ function BuiltinFileViewerContent({ file, onContentChange, onEditorMount, diffOr
     language={getMonacoLanguage(file.path)} modelPath={file.absolutePath} onChange={onContentChange} onEditorMount={onEditorMount} />
 
   switch (file.viewType) {
+    case 'pdf':
+      return <Suspense fallback={<div role="status">Loading PDF…</div>}><PdfViewer key={file.id} file={file} /></Suspense>
     case 'code':
       return (
         <MonacoViewer

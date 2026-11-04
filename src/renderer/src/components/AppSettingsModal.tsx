@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
+import { Bell, BookOpen, Brain, ChartNoAxesCombined, Cloud, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
 import { ModalFrame } from '@/components/shared/ModalFrame'
 import { GeneralSettingsPanel } from './GeneralSettingsPanel'
 import { AboutSettingsPanel } from './AboutSettingsPanel'
 import { TerminalManagerPanel } from './TerminalManagerPanel'
-import { ExperimentalSettingsPanel } from './ExperimentalSettingsPanel'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import { PersonalMemorySettingsPanel } from './PersonalMemorySettingsPanel'
 import { LlmConfigModal } from './LlmConfigModal'
@@ -24,43 +23,48 @@ import { useExperimentalStore } from '@/stores/experimental'
 import { useI18n } from '@/i18n/useI18n'
 import styles from './AppSettingsModal.module.css'
 import { LearningButton } from './onboarding/LearningButton'
+import { SettingsSurface, Button as SettingsButton } from '@janusx/ui'
+import { LocalIntegrationsPanel } from './LocalIntegrationsPanel'
 
-type BuiltinSettingsTab = 'general' | 'terminal' | 'plugins' | 'experimental' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
+type BuiltinSettingsTab = 'general' | 'terminal' | 'integrations' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'hosted' | 'about'
 export type SettingsTab = BuiltinSettingsTab | ExtensionViewId
 
 interface AppSettingsModalProps {
   isOpen: boolean
   onClose: () => void
   initialTab?: SettingsTab
+  initialIntegrationWorkspaceId?: string
   pluginConfiguration?: PluginConfigurationTarget | null
   pluginAuthorization?: PluginAuthorizationTarget | null
 }
 
 // Note: grouped navigation preserves independent feature gates — see .agents/notes/knowledge/assistant-persona-layout.md
 const TAB_GROUPS: { id: string; tabs: SettingsTab[] }[] = [
-  { id: 'application', tabs: ['general', 'terminal', 'plugins', 'notifications', 'experimental'] },
+  // Experimental opt-in retired: .agents/notes/workbench/experimental-preview-features.md
+  { id: 'application', tabs: ['general', 'terminal', 'integrations', 'plugins', 'notifications'] },
   { id: 'memory', tabs: ['personal'] },
   { id: 'models', tabs: ['llm', 'models', 'usage'] },
   { id: 'collaboration', tabs: ['agent', 'team', 'hosted'] },
   { id: 'about', tabs: ['about'] },
 ]
 const TAB_ICONS: Record<BuiltinSettingsTab, LucideIcon> = {
-  general: Settings, terminal: SquareTerminal, notifications: Bell, experimental: Sparkles,
+  general: Settings, terminal: SquareTerminal, notifications: Bell,
   personal: Brain, llm: SlidersHorizontal,
   models: ListFilter, usage: ChartNoAxesCombined, agent: ShieldCheck,
   team: Users, hosted: Cloud, about: Info,
-  plugins: Puzzle,
+  plugins: Puzzle, integrations: BookOpen,
 }
 
 // Note: the modal mounts only while open, so ModalFrame owns the whole
 // open/closing/hidden lifecycle — see shared/ModalFrame.css and
 // .agents/notes/terminal/settings-workbench-transition.md
-export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', pluginConfiguration, pluginAuthorization }: AppSettingsModalProps) {
+export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', initialIntegrationWorkspaceId, pluginConfiguration, pluginAuthorization }: AppSettingsModalProps) {
   const { t } = useI18n('settings')
   const { t: tTeam } = useI18n('team')
   const { t: tKnowledge } = useI18n('knowledge')
   const { t: tCommon } = useI18n('common')
   const { t: tPlugins } = useI18n('plugins')
+  const { t: tIntegrations } = useI18n('integrations')
   // 「终端管理」文案走 terminal 命名空间：settings.json 有历史编码损坏，不再追加 key。
   const { t: tTerminal } = useI18n('terminal')
   const [selectedTab, setActiveTab] = useState<SettingsTab>(initialTab)
@@ -117,7 +121,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
   // team 页文案走 team 命名空间（settings.json 存在历史编码损坏，不再追加 key）。
   // hosted 页同理走 common 命名空间。
   const builtinTabNav = (tab: BuiltinSettingsTab) =>
-    tab === 'plugins' ? tPlugins('plugins:nav') : tab === 'personal' ? tKnowledge('knowledge:memorySettings.title') : tab === 'team'
+    tab === 'integrations' ? tIntegrations('title') : tab === 'plugins' ? tPlugins('plugins:nav') : tab === 'personal' ? tKnowledge('knowledge:memorySettings.title') : tab === 'team'
       ? tTeam('team:settingsTab.nav')
       : tab === 'terminal'
         ? tTerminal('terminal:shellSettings.nav')
@@ -125,7 +129,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
         ? tCommon('common:hosted.nav')
         : t(`settings:tab.${tab}.nav`)
   const tabNav = (tab: SettingsTab) => pluginPages.find(page => page.id === tab)?.title ?? builtinTabNav(tab as BuiltinSettingsTab)
-  const meta = pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
+  const meta = activeTab === 'integrations' ? { title: tIntegrations('title'), subtitle: tIntegrations('subtitle') } : pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
     ? { title: tTeam('team:settingsTab.title'), subtitle: tTeam('team:settingsTab.subtitle') }
     : activeTab === 'terminal'
       ? { title: tTerminal('terminal:shellSettings.title'), subtitle: tTerminal('terminal:shellSettings.subtitle') }
@@ -160,7 +164,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                     {group.tabs.map((tab) => {
                       const Icon = TAB_ICONS[tab as BuiltinSettingsTab] ?? Puzzle
                       return (
-                        <button
+                        <SettingsButton variant="plain"
                           key={tab}
                           type="button"
                           data-tab={tab}
@@ -169,8 +173,8 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                           onClick={() => setActiveTab(tab)}
                         >
                           <Icon size={16} strokeWidth={1.7} aria-hidden="true" className={styles.tabIcon} />
-                          <span className={styles.tabLabel}>{tabNav(tab)}{tab === 'experimental' && <span className={styles.tabBadge}>{t('settings:experimental.badge')}</span>}</span>
-                        </button>
+                          <span className={styles.tabLabel}>{tabNav(tab)}</span>
+                        </SettingsButton>
                       )
                     })}
                   </div>
@@ -189,18 +193,18 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
                 <h2 className={styles.title}>{meta.title}</h2>
                 <div className={styles.subtitle}>{meta.subtitle}</div>
               </div>
-              <button type="button" className={styles.closeButton} aria-label={tCommon('common:action.close')} onClick={requestClose}>
+              <SettingsButton variant="ghost" size="icon" type="button" className={styles.closeButton} aria-label={tCommon('common:action.close')} onClick={requestClose}>
                 <X size={18} strokeWidth={1.7} aria-hidden="true" />
-              </button>
+              </SettingsButton>
             </header>
 
-            <main className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
+            <SettingsSurface as="main" className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
               {pluginPage && <PluginSettingsView page={pluginPage} active={contentVisible} onManage={() => setActiveTab('plugins')} />}
               {activeTab === 'general' && <GeneralSettingsPanel />}
+              {activeTab === 'integrations' && <LocalIntegrationsPanel key={initialIntegrationWorkspaceId ?? 'user'} initialWorkspaceId={initialIntegrationWorkspaceId} onManagePlugins={() => setActiveTab('plugins')} />}
               {activeTab === 'about' && <AboutSettingsPanel />}
               {activeTab === 'terminal' && <TerminalManagerPanel />}
               {activeTab === 'plugins' && <PluginSettingsPanel configurationTarget={pluginConfiguration} authorizationTarget={pluginAuthorization} onOpened={requestClose} />}
-              {activeTab === 'experimental' && <ExperimentalSettingsPanel />}
               {activeTab === 'notifications' && <NotificationSettingsPanel />}
               {activeTab === 'personal' && <PersonalMemorySettingsPanel />}
               {activeTab === 'agent' && <AgentSettingsPanel />}
@@ -209,7 +213,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', plug
               {activeTab === 'models' && <ModelCatalogPanel />}
               {activeTab === 'team' && <TeamSettingsPanel />}
               {activeTab === 'hosted' && <HostedSettingsPanel />}
-            </main>
+            </SettingsSurface>
           </section>
         </>
       )}

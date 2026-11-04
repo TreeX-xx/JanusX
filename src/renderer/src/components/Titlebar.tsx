@@ -26,6 +26,7 @@ import { useWorkflowXDetection } from './janus/useWorkflowXDetection'
 import { useI18n } from '@/i18n/useI18n'
 import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginAuthorizationTarget, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { extensionRegistry, isExtensionViewId } from '@/extensions/registry'
+import { LOCAL_INTEGRATIONS_EVENT } from './local-integrations-navigation'
 
 /* ════════════════════════════════════════════════════════════
    Titlebar �?标题栏（简化版�?
@@ -49,6 +50,16 @@ export function Titlebar() {
   islandPinnedRef.current = islandPinned
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
+  const [integrationWorkspaceId, setIntegrationWorkspaceId] = useState<string>()
+  useEffect(() => {
+    const open = (event: Event) => {
+      const id: unknown = (event as CustomEvent).detail
+      if (typeof id !== 'string' || !useWorkspaceStore.getState().workspaces.some(workspace => workspace.id === id)) return
+      setIntegrationWorkspaceId(id); setSettingsInitialTab('integrations'); setSettingsModalOpen(true)
+    }
+    window.addEventListener(LOCAL_INTEGRATIONS_EVENT, open)
+    return () => window.removeEventListener(LOCAL_INTEGRATIONS_EVENT, open)
+  }, [])
   const [pluginConfiguration, setPluginConfiguration] = useState<PluginConfigurationTarget | null>(null)
   const [pluginAuthorization, setPluginAuthorization] = useState<PluginAuthorizationTarget | null>(null)
   useEffect(() => {
@@ -216,12 +227,11 @@ export function Titlebar() {
       {/* Platform window controls */}
       <WindowControls onClose={handleCloseClick} />
 
-      {/* Logo + 隐藏�?LLM 配置触发�?*/}
-      <div
-        className="relative flex shrink-0 items-center gap-2 titlebar-no-drag cursor-pointer group"
-        onClick={handleSettingsTriggerClick}
-        title={t('common:titlebar.settings')}
-      >
+      {/* Settings discovery: .agents/notes/workbench/first-run-learning.md */}
+      <div className="relative flex shrink-0 items-center gap-2 titlebar-no-drag">
+        <button type="button" className="titlebar-settings-trigger flex items-center gap-2 cursor-pointer group"
+          onClick={handleSettingsTriggerClick} title={t('common:titlebar.settings')}
+          aria-label={t('common:titlebar.settings')} aria-haspopup="dialog">
         {/* X 形图标（悬浮时变成两个横杠） */}
         <div className="relative w-4 h-4">
           <div
@@ -241,28 +251,21 @@ export function Titlebar() {
         </div>
 
         {/* 文字 */}
-        <span className="text-[13px] font-medium tracking-[0.5px] transition-all duration-[400ms] group-hover:text-[var(--shell-text)] group-hover:drop-shadow-[0_0_10px_rgba(255,120,48,0.4)]" style={{ color: 'var(--shell-muted)' }}>
+        <span className="text-[13px] font-medium tracking-[0.5px] transition-all duration-[400ms] group-hover:text-[var(--shell-text)]" style={{ color: 'var(--shell-muted)' }}>
           JanusX
         </span>
 
-        {/* 更新状态入口：点击关于页查看进度、重试或选择安装。 */}
+          <span aria-hidden="true">&middot;</span>
+          <span className="text-[12px]">{t('common:titlebar.settings')}</span>
+        </button>
         <UpdaterBadge onOpenSettings={handleUpdaterBadgeClick} />
-
-        {/* 隐藏的后缀代码（悬浮时滑出�?*/}
-        <span
-          className="llm-trigger-reveal font-mono text-[9px] font-semibold text-[var(--shell-accent)] tracking-[1px] opacity-0 transition-all duration-[400ms] ease-[cubic-bezier(0.175,0.885,0.32,1.275)]"
-          style={{
-            transform: 'translateX(-8px) scale(0.9)',
-          }}
-        >
-          {t('common:titlebar.settingsReveal')}
-        </span>
       </div>
 
       <AppSettingsModal
         isOpen={settingsModalOpen}
         onClose={() => { setSettingsModalOpen(false); setPluginConfiguration(null); setPluginAuthorization(null) }}
         initialTab={settingsInitialTab}
+        initialIntegrationWorkspaceId={settingsInitialTab === 'integrations' ? integrationWorkspaceId : undefined}
         pluginConfiguration={pluginConfiguration}
         pluginAuthorization={pluginAuthorization}
       />

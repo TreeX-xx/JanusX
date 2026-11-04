@@ -172,6 +172,10 @@ test('run-config assistant edits via launch-config tools and applies through the
     // 布局 bug 回归：输出/审批期间 composer 仍在（不被下沿撑开挤没），且思考工具链 + 加载计时可见。
     await expect(composer).toBeVisible()
     await expect(launchModal.locator('[data-turn-elapsed]').first()).toBeVisible()
+    for (const toggle of await launchModal.locator('.conversation-work-toggle').all()) {
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+    }
     await expect(launchModal.locator('.janus-tool-card').first()).toBeVisible()
     await expect(launchModal.locator('.janus-chat-thinking')).toHaveCount(3)
     await expect(launchModal.locator('.janus-chat-thinking[data-streaming="true"]')).toHaveCount(0)

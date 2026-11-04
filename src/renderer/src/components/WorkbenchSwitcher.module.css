@@ -22,18 +22,18 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.34);
+  color: var(--shell-dim);
   cursor: pointer;
   transition: color 140ms ease, background 140ms ease;
 }
 
 .button:hover {
-  color: rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.05);
+  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
 }
 
 .button:focus-visible {
-  outline: 1px solid rgba(255, 120, 48, 0.65);
+  outline: 1px solid color-mix(in srgb, var(--primary) 65%, transparent);
   outline-offset: 1px;
 }
 
@@ -49,16 +49,16 @@
    结构对应 rail 的 data-state='active'（accent 前景 + 微弱同色底） */
 .button[data-id='blueprint'][aria-pressed='true'],
 .button[data-status='attention'] {
-  color: #ff7830;
+  color: var(--primary);
 }
 
 .button[data-id='blueprint'][aria-pressed='true'] {
-  background: rgba(255, 120, 48, 0.09);
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
 }
 
 .button[data-id='knowledge'][aria-pressed='true'] {
-  color: #6ba6ff;
-  background: rgba(59, 130, 246, 0.1);
+  color: var(--status-info);
+  background: color-mix(in srgb, var(--status-info) 10%, transparent);
 }
 
 /* 状态指示（对应 rail 的 .railState，横向语境移到底部）：
@@ -86,7 +86,7 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  box-shadow: 0 0 8px rgba(255, 120, 48, 0.6);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 
 /* 待审角标 */
@@ -101,28 +101,28 @@
   justify-content: center;
   padding: 0 3px;
   border-radius: 999px;
-  background: #ff7830;
-  color: #1a0f07;
+  background: var(--primary);
+  color: var(--shell-muted);
   font-family: 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   font-size: 8px;
   font-weight: 800;
-  box-shadow: 0 0 8px rgba(255, 120, 48, 0.5);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 50%, transparent);
 }
 
 /* ── planche：纸面标题栏上的墨线图标，单朱红点睛 ──
    idle 灰墨 / hover 墨 + 纸深底；激活与注意态统一朱红（knowledge 不再用蓝）；
    LED 只留形状不发光；角标朱红底纸字。 */
 :global([data-theme='planche']) .button {
-  color: rgba(28, 52, 59, 0.45);
+  color: color-mix(in srgb, var(--shell-text) 45%, transparent);
 }
 
 :global([data-theme='planche']) .button:hover {
-  color: #1C343B;
-  background: #DCCFA8;
+  color: var(--shell-text);
+  background: var(--shell-hover);
 }
 
 :global([data-theme='planche']) .button:focus-visible {
-  outline: 2px solid #D43D2A;
+  outline: 2px solid var(--shell-accent);
 }
 
 :global([data-theme='planche']) .button:active {
@@ -131,16 +131,16 @@
 
 :global([data-theme='planche']) .button[data-id='blueprint'][aria-pressed='true'],
 :global([data-theme='planche']) .button[data-status='attention'] {
-  color: #D43D2A;
+  color: var(--shell-accent);
 }
 
 :global([data-theme='planche']) .button[data-id='blueprint'][aria-pressed='true'] {
-  background: rgba(212, 61, 42, 0.1);
+  background: color-mix(in srgb, var(--shell-accent) 10%, transparent);
 }
 
 :global([data-theme='planche']) .button[data-id='knowledge'][aria-pressed='true'] {
-  color: #D43D2A;
-  background: rgba(212, 61, 42, 0.1);
+  color: var(--shell-accent);
+  background: color-mix(in srgb, var(--shell-accent) 10%, transparent);
 }
 
 :global([data-theme='planche']) .button[data-status='attention'] .led {
@@ -148,7 +148,7 @@
 }
 
 :global([data-theme='planche']) .badge {
-  background: #D43D2A;
-  color: #EFE4C5;
+  background: var(--shell-accent);
+  color: var(--shell-canvas);
   box-shadow: none;
 }

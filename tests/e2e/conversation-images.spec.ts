@@ -1,0 +1,32 @@
+import { test, expect } from '@playwright/test'
+
+test('image stays visible, previews, saves and becomes a reference on the next Codex turn', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await page.evaluate(() => (window as any).codexFixture.generatedImage())
+  const preview = page.getByRole('button', { name: 'Preview image', exact: true })
+  await expect(preview).toBeVisible()
+  await expect(preview.locator('img')).toBeVisible()
+  await preview.click()
+  await expect(page.getByRole('dialog', { name: 'Preview image' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Preview image' })).not.toBeVisible()
+  await page.getByRole('button', { name: 'Save image', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.opens)).toContain('image:image-item:image-file')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('Keep this draft')
+  await page.getByRole('button', { name: 'Use as reference', exact: true }).click()
+  await expect(input).toContainText('Keep this draft')
+  await input.press('Control+End')
+  await input.pressSequentially(' Make the background blue')
+  await input.press('Enter')
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.commands.find((c: any) => c.type === 'send')?.imagePaths)).toEqual(['C:/fixture/generated.png'])
+})
+
+test('missing image leaves readable history and disables invalid actions', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await page.evaluate(() => (window as any).codexFixture.generatedImage(true))
+  await expect(page.getByText('Image unavailable', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save image', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Use as reference', exact: true })).toBeDisabled()
+  await expect(page.getByText('Image ready', { exact: true })).toBeVisible()
+})

@@ -14,7 +14,7 @@ describe('side panel collapse UI', () => {
     expect(app).toContain('${dockStyles.workbenchGrid}')
     expect(rightDockStyles).toContain('transition: grid-template-columns 240ms')
     expect(sidebar).toContain('className="workspace-sidebar__expanded"')
-    expect(sidebar).toContain('className="workspace-sidebar__collapsed')
+    expect(sidebar).toMatch(/className=(?:"|\{`)workspace-sidebar__collapsed/)
     expect(sidebar).not.toContain('{!sidebarCollapsed && (')
     expect(sidebar).not.toContain('{sidebarCollapsed && (')
     expect(globals).toContain(".workspace-sidebar[data-collapsed='true'] .workspace-sidebar__expanded")

@@ -32,10 +32,10 @@ interface JanusRoundtablePaneProps {
 }
 
 const stageParticipants: RoundtableStageParticipant[] = [
-  { id: 'user', name: '用户', label: '提议人', identity: 'teammate', color: '#94a3b8' },
-  { id: 'host', name: 'JanusX', label: '主持人', identity: 'main', color: '#ff7830' },
-  { id: 'agent-1', name: 'Agent-1', label: '议题解决者', identity: 'coder', color: '#67d8ff' },
-  { id: 'agent-2', name: 'Agent-2', label: '议题完善者', identity: 'evaluator', color: '#b79cff' },
+  { id: 'user', name: '用户', label: '提议人', identity: 'teammate', color: 'var(--role-teammate)' },
+  { id: 'host', name: 'JanusX', label: '主持人', identity: 'main', color: 'var(--primary)' },
+  { id: 'agent-1', name: 'Agent-1', label: '议题解决者', identity: 'coder', color: 'var(--role-coder)' },
+  { id: 'agent-2', name: 'Agent-2', label: '议题完善者', identity: 'evaluator', color: 'var(--role-evaluator)' },
 ]
 
 /** Map a runtime agent id to its dialog display name and card role. The host

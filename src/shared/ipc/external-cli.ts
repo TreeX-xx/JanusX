@@ -50,6 +50,8 @@ export interface ExternalCliDetectResult {
   source?: ExternalCliBinarySource
   /** 未安装时给出可复制的手动安装命令；跑不起来时给出诊断摘要。 */
   hint?: string
+  /** Detection failed; do not label an unknown result as a missing installation. */
+  error?: string
   existingTerminalNotice?: string
 }
 

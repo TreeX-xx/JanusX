@@ -24,7 +24,6 @@
 
 .row[data-git-ignored='true'] {
   color: var(--shell-dim);
-  opacity: 0.68;
 }
 
 .row[data-git-ignored='true']:hover {
@@ -160,6 +159,7 @@
 }
 
 .treeViewport {
+  scrollbar-gutter: stable;
   position: relative;
 }
 
@@ -176,49 +176,6 @@
   font-size: 11px;
 }
 
-/* 扫描 reveal。遮罩与光线挂在滚动容器 .treeViewport 内，inset:0 即可见视口高度，
-   光线每次都完整走完可见区自上而下；挂在 .tree 内时会拿到内容高度，长树后半程跑到
-   折叠线以下，看起来像提前消失。时长固定 1100ms linear，保证每次切换扫速一致。 */
-.scanOverlay {
-  position: absolute;
-  z-index: 3;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  animation: scan-lifecycle var(--scan-duration, 1100ms) linear both;
-}
-
-.scanMask {
-  position: absolute;
-  inset: 0;
-  background: var(--shell-canvas);
-  animation: scan-mask-reveal var(--scan-duration, 1100ms) linear both;
-}
-
-/* 扫描线：底部是扫过的前沿(1px 亮线 + 短拖尾)，向上淡成一条尾迹。原来居中的对称光斑在长树上高速
-   掠过时只是一团糊，前沿亮线让"扫到哪里"始终可读，且与遮罩的揭示前沿保持同一方向。
-   配色沿用软件主橙 #ff7830 同色相，只把峰值透明度压到 0.38/0.70 做柔光，避免暗底过曝发黄。 */
-.scanBeam {
-  position: absolute;
-  right: 0;
-  left: 0;
-  top: -36px;
-  height: 36px;
-  background: linear-gradient(180deg, transparent, rgba(255, 120, 48, 0.02) 26%, rgba(255, 120, 48, 0.06) 60%, rgba(255, 120, 48, 0.14) 86%, rgba(255, 120, 48, 0.38));
-  animation: scan-beam-travel var(--scan-duration, 1100ms) linear both;
-  will-change: top;
-}
-
-.scanBeam::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  left: 0;
-  bottom: 0;
-  height: 1px;
-  background: rgba(255, 120, 48, 0.7);
-}
-
 .loadError {
   display: flex;
   min-height: 120px;
@@ -233,29 +190,6 @@
 .loadError button {
   color: var(--shell-accent);
   font-size: 12px;
-}
-
-@keyframes scan-lifecycle {
-  from { opacity: 1; }
-  to { opacity: 1; }
-}
-
-@keyframes scan-mask-reveal {
-  from { clip-path: inset(0); }
-  to { clip-path: inset(100% 0 0 0); }
-}
-
-@keyframes scan-beam-travel {
-  from { top: -36px; }
-  to { top: 100%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scanOverlay,
-  .scanMask,
-  .scanBeam {
-    animation-duration: 1ms;
-  }
 }
 
 .menu {

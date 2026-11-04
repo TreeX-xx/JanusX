@@ -83,12 +83,17 @@
   },
   "workspace": {
     "label": "工作区",
+    "switching": "正在切换到 {{name}}…",
     "ariaLabel": "工作区侧栏",
     "add": "添加工作区",
     "collapse": "收起侧栏",
     "collapseAria": "收起工作区侧栏",
     "expand": "展开侧栏",
     "expandAria": "展开工作区侧栏",
+    "quickTerminals": "查看 {{name}} 的终端",
+    "closeQuickTerminals": "关闭终端快捷列表",
+    "activitySummary": "{{total}} 个终端 · {{running}} 运行中 · {{needsApproval}} 待审批 · {{needsInput}} 待回复 · {{degraded}} 受限 · {{errors}} 异常",
+    "railHint": "单击切换工作区 · → 查看终端",
     "empty": "暂无工作区",
     "delete": {
       "title": "删除工作区",
@@ -151,17 +156,8 @@
   "chat": {
     "copy": "复制"
   },
-  "statusBar": {
-    "waitingWorkspace": "等待加载工作区",
-    "workspaceLoaded": "已加载工作区",
-    "waitingTerminal": "等待选择终端",
-    "terminalActiveFocused": "{{name}} · {{status}}",
-    "terminalActiveNoFocus": "{{count}} 个终端 · 未聚焦",
-    "blueprintRunning": "蓝图画布引擎运行中",
-    "ready": "就绪"
-  },
   "titlebar": {
-    "settings": "Settings",
+    "settings": "设置",
     "settingsReveal": ":: SETTINGS",
     "closeConfirmTitle": "确认关闭",
     "closeConfirmDesc": "确定要退出 JanusX 吗？未保存的内容可能丢失。",

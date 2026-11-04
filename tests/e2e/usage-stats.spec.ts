@@ -1,5 +1,64 @@
 import { test, expect } from '@playwright/test'
 
+test('model details distinguish engines, switched models, missing cache and precise counters', async ({ page }) => {
+  await page.goto('/usage.html?detail=yes')
+  const table = page.getByRole('table', { name: '模型使用明细' })
+  const rows = table.getByTestId('usage-model-row')
+  await expect(rows).toHaveCount(5)
+  await expect(rows.first()).toContainText('gpt-5.4')
+  await expect(rows.first()).toContainText('13k')
+  await expect(rows.first()).toContainText('72.3%')
+  await expect(rows.first()).toContainText('1 个会话')
+  await expect(rows.nth(3)).toContainText('Claude Code')
+  await expect(rows.nth(3)).toContainText('0.0%')
+  await expect(rows.last()).toContainText('未报告模型')
+  await expect(page.getByTestId('usage-cache-rate')).toHaveText('–')
+  await expect(page.getByText('缓存数据不完整，暂不计算命中率。', { exact: true })).toBeVisible()
+  const toggle = rows.first().getByRole('button')
+  await toggle.focus()
+  await page.keyboard.press('Enter')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  const detail = page.locator(`[id="${await toggle.getAttribute('aria-controls')}"]`)
+  await expect(detail).toContainText('13,000')
+  await expect(detail).toContainText('8,600')
+  await expect(detail).toContainText('72.27%')
+  await page.screenshot({ path: 'artifacts/usage-model-details-wide.png', fullPage: true })
+  await page.keyboard.press('Enter')
+  await expect(detail).toBeHidden()
+  await page.getByRole('button', { name: 'Codex', exact: true }).click()
+  await expect(rows).toHaveCount(3)
+  await page.getByRole('button', { name: 'OpenCode', exact: true }).click()
+  await expect(table).toHaveCount(0)
+  await page.goto('/usage.html?cache=partial')
+  await expect(rows.first()).toContainText('–')
+  await rows.first().getByRole('button').click()
+  await expect(table.getByText('缓存数据不完整，暂不计算命中率。', { exact: false })).toBeVisible()
+  const partial = page.locator(`[id="${await rows.first().getByRole('button').getAttribute('aria-controls')}"]`)
+  await expect(partial.locator('dd').nth(3)).toHaveText('–')
+})
+
+test('model details fit narrow panes and English labels in both themes', async ({ page }) => {
+  for (const theme of ['planche', 'dark', 'white']) {
+    await page.setViewportSize({ width: 480, height: 900 })
+    await page.goto(`/usage.html?detail=yes&theme=${theme}&lang=en`)
+    const table = page.getByRole('table', { name: 'Model usage breakdown' })
+    await expect(table.getByTestId('usage-model-row')).toHaveCount(5)
+    await expect(table.getByRole('columnheader', { name: 'Fresh input' })).toBeHidden()
+    const toggle = table.getByTestId('usage-model-row').nth(1).getByRole('button')
+    await toggle.click()
+    const detail = page.locator(`[id="${await toggle.getAttribute('aria-controls')}"]`)
+    await expect(detail).toContainText('Some records do not report cache writes')
+    await expect(detail.locator('dd').nth(4)).toHaveText('–')
+    const tableBox = await table.boundingBox()
+    const lastCell = await table.getByTestId('usage-model-row').first().locator('td').last().boundingBox()
+    expect(Math.abs(lastCell!.x + lastCell!.width - tableBox!.x - tableBox!.width)).toBeLessThan(2)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: `artifacts/usage-model-details-narrow-${theme}.png`, fullPage: true })
+    await page.setViewportSize({ width: 360, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  }
+})
+
 test('annual activity follows terminal filters independently of summary dates', async ({ page }) => {
   await page.goto('/usage.html?history=yes')
   const heatmap = page.getByTestId('usage-heatmap')
@@ -30,11 +89,11 @@ test('annual activity follows terminal filters independently of summary dates', 
 test('usage filters update both donuts, curves and model groups', async ({ page }) => {
   await page.goto('/usage.html')
   await expect(page.getByTestId('usage-total')).toHaveText('16ktokens')
-  await expect(page.getByTestId('usage-cache-rate')).toHaveText('71%')
+  await expect(page.getByTestId('usage-cache-rate')).toHaveText('71.4%')
   await expect(page.locator('[data-series]')).toHaveCount(2)
   await page.getByRole('button', { name: 'Codex', exact: true }).click()
   await expect(page.getByTestId('usage-total')).toHaveText('12ktokens')
-  await expect(page.getByTestId('usage-cache-rate')).toHaveText('73%')
+  await expect(page.getByTestId('usage-cache-rate')).toHaveText('72.7%')
   await expect(page.getByText('claude-sonnet-4-6')).toHaveCount(0)
   await expect(page.getByText('gpt-5.4')).toBeVisible()
   await page.locator('svg rect').nth(8).focus()
@@ -98,7 +157,7 @@ test('usage layout fits a narrow settings pane', async ({ page }) => {
 
 test('usage categories stay distinct and input/output colors match their ratio bar', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 850 })
-  for (const theme of ['planche', 'dark']) {
+  for (const theme of ['planche', 'dark', 'white']) {
     await page.goto(`/usage.html?theme=${theme}&mix=all`)
     await expect(page.getByTestId('usage-total')).toHaveText('25ktokens')
     const colors = await page.getByTestId('usage-summary').locator('svg').first().locator('circle').evaluateAll(circles => circles.slice(1).map(circle => getComputedStyle(circle).stroke))

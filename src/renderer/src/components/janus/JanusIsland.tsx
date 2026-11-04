@@ -658,7 +658,7 @@ export function JanusIsland({
 
   const bannerNotification = bannerId && topNotificationItem?.id === bannerId ? topNotificationItem : null
   const modeLabel = mode === 'analytics' ? t('janus:island.modeLabel.analytics') : mode === 'running' ? t('janus:island.modeLabel.running') : t('janus:island.modeLabel.order')
-  const modeColor = mode === 'running' ? '#00ff88' : '#ff7830'
+  const modeColor = mode === 'running' ? 'var(--status-success)' : 'var(--primary)'
   const workspaceLabel = activeWorkspace?.name ?? t('janus:island.workspaceFallback')
   const messageCount = messages.length
   const prevMessageCountRef = useRef(messageCount)

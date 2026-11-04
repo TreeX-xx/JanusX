@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest'
 import { chromium, type Browser } from 'playwright'
 import { build } from 'esbuild'
 
-let browser: Browser, script: string
+let browser: Browser, script: string, css: string
 beforeAll(async () => {
   browser = await chromium.launch({ headless: true })
   const result = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
@@ -24,8 +24,9 @@ beforeAll(async () => {
         throw Error(method);
       }
     ` }))
-  } }], bundle: true, write: false, jsx: 'automatic', format: 'iife' })
-  script = result.outputFiles[0].text
+  } }], bundle: true, write: false, outfile: 'legacy-import-ui.js', jsx: 'automatic', format: 'iife' })
+  script = result.outputFiles.find(file => file.path.endsWith('.js'))!.text
+  css = result.outputFiles.find(file => file.path.endsWith('.css'))!.text
 }, 30_000)
 afterAll(async () => { await browser?.close() })
 
@@ -33,6 +34,7 @@ it('requires an exact preview before importing and consumes a failed confirmatio
   const page = await browser.newPage()
   try {
     await page.setContent('<div id="root"></div>')
+    await page.addStyleTag({ content: css })
     await page.addScriptTag({ content: script })
     const count = (method: string) => page.evaluate(method => (window as any).fixture.calls.filter((item: any) => item.method === method).length, method)
     await page.getByRole('button', { name: 'Import legacy Blueprint', exact: true }).click()

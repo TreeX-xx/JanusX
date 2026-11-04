@@ -29,6 +29,7 @@ const PANEL_REF = { ownerRepoId: repoId, viewId: 'shared-chat-fixture' }
 const events = new Set<(event: ChatAgentEvent) => void>()
 const runtimeEvents = new Set<(event: any) => void>()
 const fixture = {
+  undoConflict: false, undoApplies: 0,
   catalogMatch: false, catalogUpdateMatches: false, catalogUpdates: 0,
   savedProvider: new URLSearchParams(location.search).has('model-limits-manual')
     ? { terminal: 'janus', settings: { id: 'p', name: 'Fixture', extra: { chatModelLimits: { 'model-a': { contextWindow: 1000000, maxOutputTokens: 12000 } } } } } as any
@@ -83,7 +84,11 @@ Object.assign(window.electron.llm, {
   steerChat: async () => { fixture.steers++; return { accepted: true } },
   answerQuestion: async ({ requestId, callId }: { requestId: string; callId: string }) => { fixture.answers++; emit({ type: 'question_resolved', requestId, callId, status: 'answered' }); return { accepted: true } },
 })
-Object.assign(window.electron.harness, { noteChatChanges: async () => structuredClone(fixture.noteChanges) })
+Object.assign(window.electron.harness, {
+  noteChatChanges: async () => structuredClone(fixture.noteChanges),
+  undoPreview: async () => ({ reversible: !fixture.undoConflict }),
+  undoApply: async () => { if (fixture.undoConflict) throw new Error('Conflict'); fixture.undoApplies++; return {} },
+})
 
 Object.assign(fixture, { emitAgentEvent: emit,
   switchWorkspace: (id: string) => useWorkspaceStore.getState().setActiveWorkspace(id),

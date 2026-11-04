@@ -40,7 +40,6 @@
   background: var(--shell-canvas);
 }
 
-:global([data-theme='dark']) .codexIcon { filter: invert(1); }
 
 .toolbar { flex-shrink: 0; padding: 8px 12px 10px; }
 .searchInput {
@@ -51,7 +50,7 @@
 }
 .scopeFilters { display: flex; align-items: center; gap: 4px; margin-top: 8px; min-width: 0; }
 .scopeContext { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--shell-dim); }
-.sessionList { min-height: 0; padding: 0 12px 12px; overflow-y: auto; }
+.sessionList { min-height: 0; padding: 0 12px 12px; overflow-y: auto; scrollbar-gutter: stable; }
 .promptPreview { margin: 5px 0 0 21px; font-size: 12px; line-height: 1.5; color: var(--shell-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sessionMeta { display: flex; gap: 8px; margin: 5px 0 0 21px; font-size: 11px; color: var(--shell-dim); line-height: 1.6; }
 
@@ -155,7 +154,7 @@
 
 /* First prompt and recent turns: a small lift from the parent card. */
 .sheet {
-  background: color-mix(in srgb, var(--session-card-surface) var(--session-sheet-base-weight), white);
+  background: color-mix(in srgb, var(--session-card-surface) var(--session-sheet-base-weight), var(--shell-text));
   border: 0;
   border-radius: 6px;
 }

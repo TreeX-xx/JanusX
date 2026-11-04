@@ -54,6 +54,7 @@ export function installElectronApiFallback(): void {
       onChanged: () => () => {},
     },
     file: {
+      importConversationAttachment: () => Promise.reject(new Error('Electron attachment API is unavailable')),
       openHtmlPreview: unavailable,
       openPreviewLink: async (url) => { window.open(url, '_blank', 'noopener,noreferrer') },
       updateHtmlPreview: unavailable,
@@ -64,6 +65,9 @@ export function installElectronApiFallback(): void {
       stat: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
     },
     terminal: {
+      conversation: () => Promise.resolve(null),
+      conversationCommand: () => Promise.reject(new Error('Electron conversation API is unavailable')),
+      onConversation: () => () => {},
       warmup: () => Promise.resolve({ ok: true }),
       create: () => Promise.reject(new Error('Electron terminal API is unavailable')),
       replay: () => Promise.resolve({ data: '', seq: 0 }),
@@ -331,7 +335,7 @@ export function installElectronApiFallback(): void {
       setAutoMerge: unavailable,
     },
     git: {
-      status: unavailable, log: unavailable, stage: unavailable, unstage: unavailable,
+      status: unavailable, log: unavailable, history: unavailable, diff: unavailable, commitFileDiff: unavailable, stage: unavailable, unstage: unavailable,
       commit: unavailable, push: unavailable, pull: unavailable, discard: unavailable, commitChanges: unavailable, fileBaseline: unavailable,
     },
     notificationSettings: {

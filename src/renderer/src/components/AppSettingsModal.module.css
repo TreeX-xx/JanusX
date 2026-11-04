@@ -7,9 +7,7 @@
  *
  * 配色纪律（本文件与 NotificationSettingsPanel / LlmConfigModal / ModelCatalogPanel 共用）：
  *   1. 表面只用 globals.css 的 --shell-* 阶梯，不出现新的近黑色值。
- *   2. 橙色是唯一强调色，只允许出现在 1px 边框、2px 选中条和文字上——不做填充色块。
- *      旧版把选中项、provider 卡片、badge、notice 全做成带边框的橙色/白色填充块，
- *      叠在一起就是"大量色块"的来源。
+ *   2. 操作与选中态使用中性明暗；控件外观由 @janusx/ui 维护，页面只负责布局。
  *   3. 分组靠低对比发丝线、轻微底色和留白，弱于外壳与控件边界。
  * Note: 设置内卡采用柔和层级 — see .agents/notes/workbench/run-config-island-cards.md
  *
@@ -30,24 +28,23 @@
   background: var(--shell-canvas);
   border: 1px solid var(--shell-border);
   border-radius: 14px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--shadow-color) 55%, transparent);
   overflow: hidden;
   color: var(--shell-text);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Settings-scoped accent: a lighter amber than the brand orange, so it stays
-     legible as 1px/2px detail on these surfaces. Panels below read these. */
-  --so-accent: #f2934f;
-  --so-accent-ink: #f0a878;
-  --so-accent-hover: #ffbf94;
+  /* Neutral settings tokens; shared controls also work in independent plugins. */
+  --so-accent: var(--shell-text);
+  --so-accent-ink: var(--shell-text);
+  --so-accent-hover: var(--shell-text);
   --janus-order: var(--so-accent);
 
   /* Shared control metrics — every panel uses these instead of ad-hoc numbers. */
   --so-rule: var(--shell-border);
   --so-rule-soft: var(--shell-border-soft);
   /* 输入类控件下沉黑：卡片已经偏黑，输入框要比卡更黑一档，形成“嵌进去”的层级 */
-  --so-field: rgba(0, 0, 0, 0.28);
+  --so-field: color-mix(in srgb, var(--surface-shade) 28%, transparent);
   --so-field-border: var(--control-border);
   --so-control-h: var(--control-h);
   --so-radius: 6px;
@@ -186,7 +183,7 @@
 }
 
 .tabButton:hover {
-  background: rgba(255, 255, 255, 0.045);
+  background: color-mix(in srgb, var(--surface-tint) 4.5%, transparent);
   color: var(--shell-text);
 }
 
@@ -275,12 +272,12 @@
 }
 
 .body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--surface-tint) 10%, transparent);
   border-radius: 3px;
 }
 
 .body::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--surface-tint) 16%, transparent);
 }
 
 @media (max-width: 720px) {
@@ -365,7 +362,7 @@
   container: general-settings / inline-size;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   padding: 0;
 }
 
@@ -374,7 +371,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
   gap: 24px;
   align-items: start;
-  padding: 18px 0;
+  padding: 4px 0;
 }
 
 .generalLabelCol {
@@ -385,7 +382,7 @@
 }
 
 .generalSection { display: flex; flex-direction: column; min-width: 0; }
-.generalSection + .generalSection { padding-top: 24px; border-top: 1px solid var(--shell-border); }
+
 .generalSectionTitle { margin: 0 0 18px; color: var(--shell-text); font-size: 14px; font-weight: 600; }
 .generalSection > .generalHelp { margin-top: 10px; }
 .generalRowWide { grid-template-columns: minmax(0, 1fr); gap: 14px; }
@@ -425,25 +422,6 @@
 
 .generalSelect {
   width: 100%;
-  height: var(--so-control-h);
-  padding: 0 10px;
-  border: 1px solid var(--control-border);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--shell-text);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.generalSelect:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.generalSelect:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.16);
-  outline-offset: -1px;
 }
 
 /* Terminal settings cards and controls */
@@ -557,15 +535,15 @@
 }
 
 .lsStateIdle {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
   border: 1px solid var(--so-field-border);
   color: var(--shell-muted);
 }
 
 .lsStateUpdate {
-  background: rgba(216, 164, 90, 0.12);
-  border: 1px solid rgba(216, 164, 90, 0.35);
-  color: #d8a45a;
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 35%, transparent);
+  color: var(--status-warning);
 }
 
 .lsCardMeta {
@@ -586,11 +564,11 @@
 
 .lsCardError {
   font-size: 11px;
-  color: #d78b92;
+  color: var(--status-danger);
   line-height: 1.5;
   padding: 6px 8px;
   border-radius: 4px;
-  background: rgba(215, 139, 146, 0.06);
+  background: color-mix(in srgb, var(--status-danger) 6%, transparent);
 }
 
 .lsCardHint {
@@ -599,7 +577,7 @@
   line-height: 1.5;
   padding: 6px 8px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -631,27 +609,6 @@
   cursor: not-allowed;
 }
 
-.lsButtonPrimary {
-  border-color: var(--so-field-border);
-  color: var(--shell-text);
-}
-
-.lsButtonPrimary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--shell-text);
-}
-
-.lsButtonGhost {
-  color: var(--shell-muted);
-}
-
-.lsButtonGhost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--shell-text);
-}
-
 .lsBusyText {
   font-size: 11px;
   color: var(--shell-muted);
@@ -662,7 +619,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.16);
+  border: 2px solid color-mix(in srgb, var(--surface-tint) 16%, transparent);
   border-top-color: var(--shell-text);
   animation: ls-spin 0.8s linear infinite;
 }
@@ -682,11 +639,11 @@
    下游面板（Llm/ModelCatalog/Notification/ProjectSettings）自动跟随；
    白字标签与关键悬停逐条点名。 */
 :global([data-theme='planche']) .panel {
-  --so-field: var(--paper, #EFE4C5);
-  --so-accent: var(--planche-red, #D43D2A);
-  --so-accent-ink: var(--planche-red, #D43D2A);
-  --so-accent-hover: var(--planche-red, #D43D2A);
-  --janus-order: var(--planche-red, #D43D2A);
+  --so-field: var(--paper, var(--shell-canvas));
+  --so-accent: var(--shell-text);
+  --so-accent-ink: var(--shell-text);
+  --so-accent-hover: var(--shell-text);
+  --janus-order: var(--shell-text);
 }
 
 /* 遮罩刻意不做主题覆写。planche 曾把它换成 0.18 的淡墨罩并去掉模糊，
@@ -694,58 +651,37 @@
    走的是 shared/ModalFrame.css 的 rgba(8,8,10,0.62)+blur(10px)，两者一比就露馅。
    现在设置中心与所有同源弹窗共用这一层近黑压暗，主题只翻面板自己的表面。 */
 :global([data-theme='planche']) .panel {
-  box-shadow: 3px 3px 0 var(--line, #1C343B);
+  box-shadow: 3px 3px 0 var(--line, var(--shell-text));
 }
 
 :global([data-theme='planche']) .tabButton:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .tabButtonActive,
 :global([data-theme='planche']) .tabButtonActive:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .body::-webkit-scrollbar-thumb {
-  background: var(--line-soft, rgba(28, 52, 59, 0.22));
+  background: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
 }
 
 :global([data-theme='planche']) .body::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-faint, rgba(28, 52, 59, 0.38));
-}
-
-:global([data-theme='planche']) .generalSelect {
-  background: var(--paper, #EFE4C5);
-  border: 1px solid var(--line, #1C343B);
-  color: var(--ink, #1C343B);
-}
-
-:global([data-theme='planche']) .generalSelect:hover {
-  border-color: var(--planche-red, #D43D2A);
-}
-
-:global([data-theme='planche']) .generalSelect:focus-visible {
-  outline: 1px solid var(--planche-red, #D43D2A);
+  background: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .lsStateIdle {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .lsCardHint {
-  background: var(--paper-deep, #DCCFA8);
-}
-
-:global([data-theme='planche']) .lsButtonPrimary:hover:not(:disabled),
-:global([data-theme='planche']) .lsButtonGhost:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
+  background: var(--paper-deep, var(--shell-hover));
 }
 
 :global([data-theme='planche']) .lsSpinner {
-  border: 2px solid var(--line-soft, rgba(28, 52, 59, 0.22));
-  border-top-color: var(--ink, #1C343B);
+  border: 2px solid var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
+  border-top-color: var(--ink, var(--shell-text));
 }
 
 /* ── 终端管理：条目编辑控件 ───────────────────────────────────────────
@@ -773,30 +709,12 @@
 .lsInput {
   width: 100%;
   min-width: 0;
-  height: var(--so-control-h);
-  padding: 0 8px;
-  border: 1px solid var(--so-field-border);
-  border-radius: var(--so-radius);
-  background: var(--so-field);
-  color: var(--shell-text);
-  font-size: 12px;
-  font-family: inherit;
-  transition: border-color 0.15s ease;
-}
-
-.lsInput:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.lsInput:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.16);
-  outline-offset: -1px;
 }
 
 /* 可执行名缺失：复用错误状态配色。 */
 .lsInputMissing {
-  border-color: rgba(215, 139, 146, 0.7);
-  color: #d78b92;
+  border-color: color-mix(in srgb, var(--status-danger) 70%, transparent);
+  color: var(--status-danger);
 }
 
 .lsIconButton {
@@ -804,26 +722,7 @@
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 28px;
   flex-shrink: 0;
-  padding: 0;
-  border: 1px solid var(--so-field-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--shell-muted);
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-}
-
-.lsIconButton:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--shell-text);
-}
-
-.lsIconButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .lsEmpty {
@@ -841,7 +740,7 @@
 
 .lsMissingText {
   font-size: 11px;
-  color: #d78b92;
+  color: var(--status-danger);
 }
 
 .lsLinkButton {
@@ -859,22 +758,12 @@
   color: var(--shell-text);
 }
 
-:global([data-theme='planche']) .lsInput {
-  background: var(--paper-deep, #DCCFA8);
-}
-
 :global([data-theme='planche']) .lsInputMissing {
-  color: #A4442F;
+  color: var(--status-danger);
 }
 
 :global([data-theme='planche']) .lsMissingText {
-  color: #A4442F;
-}
-
-:global([data-theme='planche']) .lsIconButton:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
+  color: var(--status-danger);
 }
 
 /* 条目名称就是卡片标题：比普通输入框大一号、加粗，压过旁边的勾选控件 */
@@ -901,58 +790,12 @@
   align-items: center;
   justify-content: center;
   width: 28px;
-  height: 28px;
   flex-shrink: 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--shell-muted);
-  cursor: pointer;
-  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
-}
-
-.lsIconToggle:hover:not(:disabled) {
-  border-color: var(--so-field-border);
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--shell-text);
-}
-
-.lsIconToggle:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
 }
 
 /* 置灰 = 不显示 / 非默认 */
-.lsIconToggleOff {
-  opacity: 0.5;
-}
-
-.lsIconToggleOff:hover:not(:disabled) {
-  opacity: 1;
-}
 
 /* 默认项：主题强调色实心星，随主题变（纸面朱红 / 深色橙） */
-.lsIconToggleOn {
-  color: var(--shell-accent);
-}
-
-.lsIconToggleOn:hover:not(:disabled) {
-  color: var(--shell-accent);
-}
-
-
-
-:global([data-theme='planche']) .lsIconToggle:hover:not(:disabled) {
-  background: var(--paper-deep, #DCCFA8);
-  border-color: var(--planche-red, #D43D2A);
-  color: var(--planche-red, #D43D2A);
-}
-
-:global([data-theme='planche']) .lsIconToggleOn,
-:global([data-theme='planche']) .lsIconToggleOn:hover:not(:disabled) {
-  color: var(--planche-red, #D43D2A);
-}
 
 
 /* 条目图标即显隐开关：比普通图标钮大一圈，好点；置灰 = 不进新建入口。
@@ -960,10 +803,6 @@
 .lsIconEntry {
   width: 30px;
   height: 30px;
-}
-
-.lsIconToggleOff.lsIconEntry {
-  filter: grayscale(1);
 }
 
 /* 检测中：图标自顾旋转，替代原来的文字“检测中…” */
@@ -998,7 +837,7 @@
 
 .lsAddRow:hover {
   border-color: var(--shell-accent-border);
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--surface-tint) 3%, transparent);
   color: var(--shell-text);
 }
 
@@ -1008,7 +847,7 @@
 }
 
 :global([data-theme='planche']) .lsAddRow:hover {
-  background: var(--paper-deep, #DCCFA8);
+  background: var(--paper-deep, var(--shell-hover));
 }
 .body.pluginBody {
   display: flex;
@@ -1016,3 +855,5 @@
   padding: 0;
   overflow: hidden;
 }
+
+.generalRow.generalToggleRow { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }

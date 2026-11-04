@@ -27,6 +27,7 @@ import { registerOfficeHandlers } from './office-handlers'
 import { registerProjectHandlers } from './project-handlers'
 import { registerRuntimeTelemetryHandlers } from './runtime-telemetry-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
+import { registerLocalIntegrationHandlers } from './local-integrations-handlers'
 import { registerSubAgentRunHandlers } from './subagent-run-handlers'
 import { registerTeamHandlers } from './team-handlers'
 import { registerUpdaterHandlers } from './updater-handlers'
@@ -116,6 +117,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
   pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
+  registerLocalIntegrationHandlers(options.getAllowedWindows, options.resolveWorkspaceRoot, () => pluginService)
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
   registerCheckpointHandlers()

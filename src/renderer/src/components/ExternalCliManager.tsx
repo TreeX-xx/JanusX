@@ -1,4 +1,7 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useCallback, useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { probeCli } from '@/stores/cli-readiness'
 import { useI18n } from '@/i18n/useI18n'
 import {
   EXTERNAL_CLI_TOOL_META,
@@ -10,7 +13,7 @@ import {
   type ExternalCliToolId,
 } from '../../../shared/ipc/external-cli'
 import { externalCliService } from '@/services/external-cli'
-import { EXTERNAL_CLI_TOOL_ICONS } from '@/lib/cli-tool-icons'
+import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import styles from './AppSettingsModal.module.css'
 import cliStyles from './ExternalCliManager.module.css'
 
@@ -56,7 +59,7 @@ export function ExternalCliManager({
   // 否则安装失败信息会被随后一次重探洗掉。
   // 最新版查询独立于本地探测：注册表往返可达 15 秒，行内先按本地结果首绘。
   const refreshDetect = useCallback(async () => {
-    const detectResult = await externalCliService.detect(toolId)
+    const detectResult = await probeCli(toolId, undefined, true)
     setDetect(detectResult)
     setLoading(false)
   }, [toolId])
@@ -135,21 +138,19 @@ export function ExternalCliManager({
   const visibilityLabel =
     !visible ? t('settings:cliTools.visibility.hidden') : t('settings:cliTools.visibility.visible')
 
-  // 品牌图标即显隐开关：点了置灰就不从新建入口显示（已有终端照常运行）。
+  // Brand is decorative; visibility has an explicit eye control.
   const brandIcon = iconFailed ? (
     <span
       className={styles.lsToolIcon}
-      style={{ background: `${meta.color}22`, borderColor: `${meta.color}55`, color: meta.color }}
+      style={{ background: 'var(--shell-hover)', borderColor: 'var(--shell-border)', color: 'var(--shell-text)' }}
       aria-hidden="true"
     >
       {meta.monogram}
     </span>
   ) : (
-    <img
+    <TerminalPresetIcon
       className={cliStyles.logo}
-      src={EXTERNAL_CLI_TOOL_ICONS[toolId]}
-      alt=""
-      draggable={false}
+      preset={toolId}
       onError={() => setIconFailed(true)}
     />
   )
@@ -158,17 +159,12 @@ export function ExternalCliManager({
     <div className={cliStyles.client} role="group" aria-label={meta.displayName} data-cli-tool={toolId}>
       <div className={cliStyles.main}>
         <div className={cliStyles.identity}>
-          <button
-            type="button"
+          <span
             className={cliStyles.icon}
             data-tool={toolId}
-            aria-label={visibilityLabel}
-            aria-pressed={visible}
-            title={visibilityLabel}
-            onClick={() => onVisibleChange(!visible)}
           >
             {brandIcon}
-          </button>
+          </span>
           <div className={cliStyles.info}>
             <div className={cliStyles.heading}>
               <span>{meta.displayName}</span>
@@ -187,41 +183,46 @@ export function ExternalCliManager({
           </div>
         </div>
         <span className={`${styles.lsToolRowActions} ${cliStyles.actions}`}>
+          <SettingsButton type="button" className={cliStyles.visibility} aria-label={visibilityLabel}
+            aria-pressed={visible} title={visibilityLabel} onClick={() => onVisibleChange(!visible)}>
+            {visible ? <Eye size={16} aria-hidden /> : <EyeOff size={16} aria-hidden />}
+            <span>{t(visible ? 'settings:cliTools.visibility.shown' : 'settings:cliTools.visibility.notShown')}</span>
+          </SettingsButton>
           {!loading && state === 'not-installed' && !busy && (toolId !== 'opencode' || installOptions) && (
-            <button
+            <SettingsButton variant="primary"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
               onClick={() => void handleInstall(installOptions)}
             >
               {toolId === 'opencode' ? t('settings:cliTools.action.installV2') : t('settings:cliTools.action.install')}
-            </button>
+            </SettingsButton>
           )}
           {!loading && state === 'update-available' && !busy && (
-            <button
+            <SettingsButton variant="primary"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonPrimary}`}
               onClick={() => void handleInstall(installOptions)}
             >
               {channel ? t('settings:cliTools.action.updateLine', { channel }) : t('settings:cliTools.action.upgrade')}
-            </button>
+            </SettingsButton>
           )}
           {!loading && detect?.installed && v2Version && !busy && (
-            <button
+            <SettingsButton variant="ghost"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonGhost}`}
               onClick={() => void handleInstall({ channel: 'v2', version: v2Version })}
             >
               {t('settings:cliTools.action.upgradeV2', { version: v2Version })}
-            </button>
+            </SettingsButton>
           )}
           {!loading && (state === 'ready' || state === 'broken' || toolId === 'opencode') && !busy && !refreshing && (
-            <button
+            <SettingsButton variant="ghost"
               type="button"
               className={`${styles.lsButton} ${styles.lsButtonGhost}`}
               onClick={handleRefresh}
             >
               {t('settings:cliTools.action.refresh')}
-            </button>
+            </SettingsButton>
           )}
           {refreshing && (
             <span className={styles.lsLoadingRow}>
@@ -245,7 +246,12 @@ export function ExternalCliManager({
           <span className={styles.lsMetaItem}>{notice}</span>
         </div>
       )}
-      {error && <div className={`${styles.lsCardError} ${cliStyles.feedback}`} role="alert">{error}</div>}
+      {error && <div className={`${styles.lsCardError} ${cliStyles.feedback}`} role="alert">{error}
+        <div><a href="https://nodejs.org/en/download" target="_blank" rel="noreferrer" onClick={event => {
+          event.preventDefault()
+          void window.electron.file.openPreviewLink('https://nodejs.org/en/download').catch(reason => setError(String(reason)))
+        }}>{t('settings:cliTools.action.manualRuntime')}</a></div>
+      </div>}
       {justInstalled && state === 'ready' && (
         <div className={`${styles.lsCardMeta} ${cliStyles.feedback}`}>
           <span className={styles.lsMetaItem}>{t('settings:cliTools.notice.existingTerminal')}</span>

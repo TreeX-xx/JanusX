@@ -5,8 +5,11 @@
  */
 import { DEFAULT_APP_THEME } from '../ipc/theme'
 import { listThemeDefinitions } from './registry'
+import { assertThemeCompleteness } from './tokens'
 
 export function renderThemeCss(): string {
+  const missing = assertThemeCompleteness()
+  if (missing.length) throw new Error(`Incomplete themes: ${missing.join(', ')}`)
   const definitions = listThemeDefinitions()
   const defaultDefinition = definitions.find((d) => d.id === DEFAULT_APP_THEME) ?? definitions[0]
   const lines: string[] = [
@@ -17,14 +20,17 @@ export function renderThemeCss(): string {
   if (defaultDefinition.notes) {
     lines.push(`/* Default (${defaultDefinition.id}): ${defaultDefinition.notes} */`)
   }
-  lines.push(':root {')
+  lines.push(`:root, [data-theme='${defaultDefinition.id}'] {`)
+  lines.push(`  color-scheme: ${defaultDefinition.base};`)
+  lines.push(`  --theme-color-scheme: ${defaultDefinition.base};`)
   for (const [key, value] of Object.entries(defaultDefinition.tokens)) {
-    lines.push(`  --${key}: ${value};`)
+    lines.push(`  --${key}: ${key === 'selection-background' ? defaultDefinition.selection : value};`)
   }
+  for (const [key, value] of Object.entries(defaultDefinition.xterm)) lines.push(`  --terminal-${key}: ${value};`)
   lines.push('}')
   lines.push('')
-  lines.push(`:root::selection {`)
-  lines.push(`  background: ${defaultDefinition.selection};`)
+  lines.push(`::selection {`)
+  lines.push(`  background: var(--selection-background);`)
   lines.push('}')
   for (const definition of definitions) {
     if (definition.id === defaultDefinition.id) continue
@@ -33,13 +39,12 @@ export function renderThemeCss(): string {
       lines.push(`/* ${definition.id}: ${definition.notes} */`)
     }
     lines.push(`[data-theme='${definition.id}'] {`)
+    lines.push(`  color-scheme: ${definition.base};`)
+    lines.push(`  --theme-color-scheme: ${definition.base};`)
     for (const [key, value] of Object.entries(definition.tokens)) {
-      lines.push(`  --${key}: ${value};`)
+      lines.push(`  --${key}: ${key === 'selection-background' ? definition.selection : value};`)
     }
-    lines.push('}')
-    lines.push('')
-    lines.push(`[data-theme='${definition.id}'] ::selection {`)
-    lines.push(`  background: ${definition.selection};`)
+    for (const [key, value] of Object.entries(definition.xterm)) lines.push(`  --terminal-${key}: ${value};`)
     lines.push('}')
   }
   lines.push('')

@@ -63,6 +63,19 @@
     }
   },
   "general": {
+    "remote": {
+      "label": "Mobile remote",
+      "enable": "Enable mobile remote",
+      "help": "Show the phone button at the bottom of the right sidebar. Open it to generate a QR code and approve a connection. Turning this off disconnects the phone and stops remote access; desktop terminals keep running.",
+      "saveError": "Could not save mobile remote settings. Please try again."
+    },
+    "session": {
+      "section": "Session startup",
+      "label": "Default view for new sessions",
+      "help": "Choose which view opens first. Supported sessions always include terminal and conversation views; switch at any time. Existing sessions keep their current view.",
+      "terminal": "Terminal",
+      "conversation": "Conversation"
+    },
     "section": {
       "preferences": "Appearance & language",
       "environment": "Development environment",
@@ -79,6 +92,7 @@
       "help": "Choose the interface appearance. Running terminal apps may need a redraw or restart.",
       "dark": "Classic Black (default)",
       "planche": "Slate",
+      "white": "Pure White",
       "saveError": "Failed to save theme"
     }
   },
@@ -467,6 +481,7 @@
       "upgrade": "Upgrade",
       "updateLine": "Update {{channel}}",
       "installV2": "Install v2",
+      "manualRuntime": "Install Node.js LTS manually, then retry",
       "upgradeV2": "Upgrade to v2 · {{version}}",
       "refresh": "Re-detect",
       "refreshing": "Detecting...",
@@ -477,6 +492,8 @@
       "installed": "Install finished. Restart terminals to take effect."
     },
     "visibility": {
+      "shown": "Shown",
+      "notShown": "Hidden",
       "visible": "Shown at the new-terminal entries",
       "hidden": "Hidden from the new-terminal entries"
     }
@@ -502,7 +519,19 @@
     "ledgerUnavailable": "Janus / DSH session usage is unavailable. Existing cumulative sessions establish a baseline on first collection.",
     "ledgerPaused": "Some session sources are missing or their counters are inconsistent. Usage is incomplete; confirmed history is retained.",
     "ledgerError": "Usage history could not be read or saved. Check the application data directory and available disk space.",
-    "breakdown": "Terminal & model usage",
+    "breakdown": "Model usage breakdown",
+    "model": "Model / terminal",
+    "totalTokens": "Total tokens",
+    "freshInput": "Fresh input",
+    "cacheRead": "Cache read",
+    "cacheWrite": "Cache write",
+    "sortedByUsage": "Highest usage first · Expand for details",
+    "expandModel": "Expand usage details for {{engine}} · {{model}}",
+    "collapseModel": "Collapse usage details for {{engine}} · {{model}}",
+    "cacheFormula": "Hit rate = cache read ÷ (cache read + fresh input + cache write), excluding output.",
+    "tokenComposition": "Total tokens include fresh input, output, cache read and cache write. Missing components are shown as –.",
+    "incompleteCacheData": "Cache data is incomplete; hit rate is unavailable.",
+    "missingCacheWrite": "Some records do not report cache writes; the rate uses the recorded input-side counts.",
     "unknownModel": "Model not reported",
     "title": "Usage statistics",
     "subtitle": "Track consumption, cache efficiency and daily activity",

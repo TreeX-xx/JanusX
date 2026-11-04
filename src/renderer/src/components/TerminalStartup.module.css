@@ -1,0 +1,34 @@
+.panel {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  width: min(260px, calc(100% - 48px));
+  pointer-events: none;
+  color: var(--shell-muted);
+}
+
+.preview { padding: 4px 0 18px; }
+.prompt { display: flex; align-items: center; gap: 12px; height: 20px; }
+.prompt > i {
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.prompt > b { width: 7px; height: 14px; background: currentColor; opacity: .55; }
+.lines { display: grid; gap: 9px; margin: 14px 0 0 22px; opacity: .13; }
+.lines > i { height: 4px; width: 74%; border-radius: 2px; background: currentColor; }
+.lines > i:nth-child(2) { width: 48%; }
+.lines > i:nth-child(3) { width: 61%; }
+.label { display: block; font-size: 12px; line-height: 20px; }
+.track { height: 1px; margin-top: 12px; overflow: hidden; background: color-mix(in srgb, currentColor 12%, transparent); }
+.track > i { display: block; width: 32%; height: 100%; background: currentColor; opacity: .4; }
+.panel[data-stage='output'] .lines { opacity: .22; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .prompt > b { animation: breathe 1.6s ease-in-out infinite; }
+  .track > i { animation: travel 2.2s ease-in-out infinite; }
+}
+@keyframes breathe { 50% { opacity: .15; } }
+@keyframes travel { from { transform: translateX(-105%); } to { transform: translateX(320%); } }

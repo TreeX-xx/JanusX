@@ -54,6 +54,7 @@ for (const entry of entries) {
     await emit(page, { type: 'text_delta', delta: 'Visible answer to copy' })
     await emit(page, { type: 'stream_end', cancelled: false })
 
+    await host.locator('.conversation-work-toggle').click()
     for (const text of ['Copy this prompt', 'Visible reasoning to copy', 'Visible answer to copy']) {
       const target = host.getByText(text, { exact: true }).last()
       await target.scrollIntoViewIfNeeded()
@@ -86,6 +87,8 @@ for (const entry of entries) {
     await host.locator('textarea').press('Enter')
     await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(1)
     await emit(page, { type: 'reasoning_delta', delta: 'First reasoning summary.\nChecking the entry.' })
+    await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
+    await host.locator('.conversation-work-toggle').click()
     const thinking = host.locator('.janus-chat-thinking-toggle').first()
     await expect(thinking).toHaveAttribute('aria-expanded', 'true')
     await expect(host.locator('.janus-chat-thinking-body')).toContainText('Checking the entry.')
@@ -103,11 +106,17 @@ for (const entry of entries) {
     await emit(page, { type: 'tool_execution_end', callId: 'read-2', toolName: 'workspace.read', status: 'completed' })
     await emit(page, { type: 'tool_execution_end', callId: 'read-1', toolName: 'workspace.read', status: 'completed' })
     await emit(page, { type: 'text_delta', delta: '**Final answer.**' })
+    await expect(host.getByText('I will read the entry.', { exact: true })).toBeVisible()
+    await expect(host.getByText('I will verify the result.', { exact: true })).toBeVisible()
+    await expect(host.locator('.conversation-work-toggle')).toHaveCount(3)
+    for (const toggle of await host.locator('.conversation-work-toggle').all()) {
+      if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click()
+    }
     const expected = ['reasoning', 'text', 'tool', 'reasoning', 'text', 'tool', 'text']
     await expect.poll(() => order(host)).toEqual(expected)
     await expect(host.locator('.janus-chat-thinking-body')).toHaveCount(2)
-    await expect(host.locator('[data-phase="process"]')).toHaveCount(2)
-    await expect(host.locator('[data-phase="answer"]')).toContainText('Final answer.')
+    await expect(host.locator('[data-phase="process"]')).toHaveCount(0)
+    await expect(host.locator('[data-phase="answer"]').last()).toContainText('Final answer.')
     await expect(thinking).toHaveText(settledHeader)
     await expect(host.locator('.janus-tool-card')).toHaveCount(2)
     for (const theme of ['planche', 'dark']) {
@@ -117,14 +126,16 @@ for (const entry of entries) {
         const color = (selector: string) => getComputedStyle(element.querySelector(selector)!).color
         return {
           reasoning: color('.janus-chat-thinking-body pre'),
-          process: color('[data-phase="process"] .markdown-preview'),
-          answer: color('[data-phase="answer"]'),
+          process: color('[data-phase="answer"] .markdown-preview'),
+          answer: getComputedStyle(element.querySelectorAll('[data-phase="answer"] .markdown-preview')[2]).color,
         }
       })
-      expect(colors.process).toBe(colors.reasoning)
-      expect(colors.answer).not.toBe(colors.process)
+      expect(colors.process).not.toBe(colors.reasoning)
+      expect(colors.answer).toBe(colors.process)
     }
     await emit(page, { type: 'stream_end', cancelled: false })
+    await expect(host.locator('.conversation-work-toggle[aria-expanded="true"]')).toHaveCount(3)
+    await expect(host.locator('[data-phase="answer"]').last()).toBeVisible()
     await expect.poll(() => order(host)).toEqual(expected)
     await expect(host.locator('.janus-chat-thinking[data-streaming="true"]')).toHaveCount(0)
     await expect(host.locator('.janus-chat-thinking-body')).toHaveCount(2)
@@ -136,6 +147,11 @@ for (const entry of entries) {
       await page.locator('.fixture-project-toggle').click()
       await page.locator('.fixture-project-toggle').click()
     } else await page.reload()
+    const reopenedWork = host.locator('.conversation-work-toggle')
+    await expect(reopenedWork).toHaveCount(3)
+    for (const toggle of await reopenedWork.all()) {
+      if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click()
+    }
     await expect.poll(() => order(host)).toEqual(expected)
     await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(entry.name === 'Project panel' ? 1 : 0)
     await expect(host.locator('.janus-chat-thinking-toggle').first()).toHaveAttribute('aria-expanded', 'true')
@@ -152,6 +168,9 @@ for (const entry of entries) {
     await emit(page, { type: 'reasoning_delta', delta: 'An unfinished analysis.' })
     await emit(page, { type: 'tool_execution_start', callId: 'pending', toolName: 'workspace.read' })
     await host.locator(entry.name === 'Launch' ? 'button[data-mode="stop"]' : '.janus-chat-stop').click()
+    await expect(host.locator('.conversation-work')).toHaveAttribute('data-status', 'interrupted')
+    await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
+    await host.locator('.conversation-work-toggle').click()
     await expect(host.locator('.janus-tool-card--cancelled')).toHaveCount(1)
     await emit(page, { type: 'text_delta', delta: 'Late output must be ignored' })
     await expect(host).not.toContainText('Late output must be ignored')
@@ -171,7 +190,7 @@ test('Launch: early business result stays on its call and is not applied on relo
     validation: { valid: false, errors: [{ field: 'program', message: 'Missing entry' }], warnings: [] } } })
   await expect(host.locator('[data-config-state="draft"]')).toContainText('Missing entry')
   await emit(page, { type: 'tool_execution_end', callId: 'edit', toolName: 'launch-config.edit', status: 'completed' })
-  await expect(host.locator('.janus-tool-card')).toHaveCount(1)
+  await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
   await expect(host.locator('[data-config-state="applied"]')).toHaveCount(0)
   await emit(page, { type: 'stream_end', cancelled: false })
   await expect.poll(() => page.evaluate(() => (window as any).projectFixture.configChanges)).toBe(1)
@@ -202,17 +221,21 @@ test('Project panel: Note business evidence stays inline, and undo checks curren
     fixture.noteChanges.push(change)
     fixture.emitAgentEvent({ type: 'note_change', requestId: request.requestId, callId: 'note-edit', change })
   })
-  const call = host.locator('.janus-chat-timeline-block[data-call-id="note-edit"]')
+  const call = host.locator('.janus-chat-tool-evidence[data-call-id="note-edit"]')
   await expect(call).toContainText('Updated the target Note')
   await expect(call.locator('.bp-note-access')).toHaveCount(1)
   await emit(page, { type: 'tool_execution_end', callId: 'note-edit', toolName: 'note.write', status: 'completed' })
   await emit(page, { type: 'text_delta', delta: 'Finished editing.' })
   await emit(page, { type: 'stream_end', cancelled: false })
+  await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
+  await expect(call).toBeVisible()
+  await host.locator('.conversation-work-toggle').click()
   await expect(host.getByText('Updated the target Note', { exact: true })).toHaveCount(1)
-  await expect(call.locator('.janus-tool-card')).toHaveCount(1)
+  await expect(host.locator('.janus-tool-card')).toHaveCount(1)
   await page.locator('.fixture-project-toggle').click()
   await page.locator('.fixture-project-toggle').click()
   expect(await page.evaluate(() => (window as any).projectFixture.undoApplies)).toBe(0)
+  if (await host.locator('.conversation-work-toggle').getAttribute('aria-expanded') === 'false') await host.locator('.conversation-work-toggle').click()
   await page.evaluate(() => { (window as any).projectFixture.undoConflict = true })
   await call.getByRole('button', { name: /Undo|撤销/ }).click()
   await expect(call.getByRole('alert')).toBeVisible()
@@ -240,8 +263,11 @@ for (const entry of entries) {
     await container.evaluate(element => { element!.scrollTop = 0; element!.dispatchEvent(new Event('scroll')) })
     await emit(page, { type: 'reasoning_delta', delta: 'Later reasoning.\n' + 'r'.repeat(6000) })
     await emit(page, { type: 'tool_execution_start', callId: 'last', toolName: 'workspace.read' })
-    await expect(host.locator('.janus-chat-thinking-toggle')).toContainText('Later reasoning.')
+    await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
+    await expect(host.locator('.conversation-work-toggle')).toContainText(/不完整|Incomplete/i)
     expect(await container.evaluate(element => element!.scrollTop)).toBeLessThan(5)
+    await host.locator('.conversation-work-toggle').evaluate(element => (element as HTMLButtonElement).click())
+    await expect(host.locator('.janus-chat-thinking-toggle')).toContainText('Later reasoning.')
     await expect(host.locator('.janus-chat-thinking-body')).toContainText(/截断|truncat|latest|最新|保留/i)
     await emit(page, { type: 'stream_end', cancelled: true })
   })

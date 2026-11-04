@@ -3,7 +3,7 @@
  *
  * 空终端（无 pane / 无终端）下的 6 张类型卡片。
  * 规则：底色吃 --shell-card，与侧栏/TeamFooter 同阶梯；
- * 悬浮只做“暖色微抬 + 橙边 + 轻浮起”，不用纯灰 --shell-active（#333336 太跳）。
+ * 悬浮使用主题交互色微抬、细边与轻浮起，避免主强调色的橙色反馈。
  * 注意：边框/背景必须写在这里，内联 style 会盖掉 :hover（见 TeamFooter.module.css）。
  *
  * 布局：全部显示、不折叠，但列数只取 6 的约数（6 / 3 / 2），避免
@@ -45,6 +45,7 @@
 }
 
 .card {
+  position: relative;
   width: 100%;
   min-width: 0;
   min-height: 108px;
@@ -57,7 +58,7 @@
   border: 1px solid var(--shell-border);
   border-radius: 8px;
   background: var(--shell-card);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 2%, transparent);
   cursor: pointer;
   font: inherit;
   transition:
@@ -69,15 +70,15 @@
 
 .card:hover,
 .card:focus-visible {
-  border-color: var(--shell-accent-border);
+  border-color: color-mix(in srgb, var(--interaction-accent) 60%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 120, 48, 0.07), rgba(255, 120, 48, 0.02)),
-    #1e1e22;
+    linear-gradient(180deg, color-mix(in srgb, var(--interaction-accent) 7%, transparent), color-mix(in srgb, var(--interaction-accent) 2%, transparent)),
+    var(--shell-chrome-raised);
   transform: translateY(-2px);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 120, 48, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--interaction-accent) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 6%, transparent);
   outline: none;
 }
 
@@ -86,20 +87,20 @@
 }
 
 .card:focus-visible {
-  outline: 1px solid rgba(255, 120, 48, 0.64);
+  outline: 1px solid color-mix(in srgb, var(--interaction-accent) 64%, transparent);
   outline-offset: 2px;
 }
 
 .cardBusy {
   cursor: wait;
   opacity: 0.72;
-  border-color: rgba(255, 120, 48, 0.35);
+  border-color: color-mix(in srgb, var(--interaction-accent) 35%, transparent);
 }
 
 .cardBusy:hover,
 .cardBusy:focus-visible {
   transform: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 2%, transparent);
   background: var(--shell-card);
 }
 
@@ -134,7 +135,7 @@
   text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: #d4d4d4;
+  color: var(--shell-text);
   transition: color 180ms ease;
 }
 
@@ -169,7 +170,7 @@
 
 .card:hover .label,
 .card:focus-visible .label {
-  color: #fff;
+  color: var(--shell-text);
 }
 
 /* ── Shell 卡片：与其他 preset 卡片同构，只在右下角多一枚安静的临时选择箭头 ── */
@@ -195,20 +196,20 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: #7d7d82;
+  color: var(--shell-muted);
   cursor: pointer;
   transition: color 160ms ease, background-color 160ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .shellCard:hover .shellPick {
-  color: #b9b9bf;
+  color: var(--shell-text);
   transform: translateY(-2px);
 }
 
 .shellPick:hover,
 .shellPickOpen {
-  background: rgba(255, 255, 255, 0.07);
-  color: #ffb27d;
+  background: color-mix(in srgb, var(--surface-tint) 7%, transparent);
+  color: var(--interaction-accent);
 }
 
 .shellPick:disabled {
@@ -227,10 +228,10 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border: 1px solid rgba(255, 120, 48, 0.28);
+  border: 1px solid color-mix(in srgb, var(--interaction-accent) 28%, transparent);
   border-radius: 10px;
   background: var(--shell-chrome-raised);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-color) 34%, transparent), inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 8%, transparent);
 }
 
 /* 名称 + 默认标记一行，启动行单独一行：长路径不再和名字连成一串 */
@@ -242,15 +243,15 @@
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--shell-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .shellMenuItem:hover {
-  border-color: rgba(255, 120, 48, 0.3);
-  background: rgba(255, 120, 48, 0.08);
+  border-color: color-mix(in srgb, var(--interaction-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--interaction-accent) 8%, transparent);
 }
 
 .shellMenuItemHead {
@@ -266,7 +267,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: #fff;
+  color: var(--shell-text);
 }
 
 .shellMenuItemCommand {
@@ -284,12 +285,12 @@
   flex-shrink: 0;
   padding: 1px 4px;
   border-radius: 3px;
-  background: rgba(255, 120, 48, 0.16);
-  color: #ffb27d;
+  background: color-mix(in srgb, var(--interaction-accent) 16%, transparent);
+  color: var(--interaction-accent);
   font-size: 9px;
 }
 
-/* ── planche：纸卡 + 墨线，悬浮只换底 + 朱红边 + 套印偏移影 ──
+/* ── planche：纸卡 + 墨线，悬浮只换底 + 墨灰边 + 套印偏移影 ──
    硬黑投影在纸面上发脏，改用风格文档的 misprint 偏移影 */
 :global([data-theme='planche']) .card {
   border-radius: 6px;
@@ -298,10 +299,10 @@
 
 :global([data-theme='planche']) .card:hover,
 :global([data-theme='planche']) .card:focus-visible {
-  border-color: #D43D2A;
-  background: #DCCFA8;
+  border-color: var(--interaction-accent);
+  background: var(--shell-hover);
   transform: none;
-  box-shadow: 3px 3px 0 #E8A08A;
+  box-shadow: 3px 3px 0 var(--interaction-accent);
   outline: none;
 }
 
@@ -315,7 +316,7 @@
 }
 
 :global([data-theme='planche']) .card:focus-visible {
-  outline: 2px solid #D43D2A;
+  outline: 2px solid var(--interaction-accent);
   outline-offset: 2px;
 }
 
@@ -325,12 +326,12 @@
 }
 
 :global([data-theme='planche']) .label {
-  color: #1C343B;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .card:hover .label,
 :global([data-theme='planche']) .card:focus-visible .label {
-  color: #1C343B;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .cardBusy:hover,
@@ -341,37 +342,37 @@
 }
 
 :global([data-theme='planche']) .shellPick {
-  color: #5b6c73;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .shellCard:hover .shellPick {
-  color: #1C343B;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .shellPick:hover,
 :global([data-theme='planche']) .shellPickOpen {
-  background: #DCCFA8;
-  color: #D43D2A;
+  background: var(--shell-hover);
+  color: var(--interaction-accent);
 }
 
 :global([data-theme='planche']) .shellMenuItemCommand {
-  color: #4A5A60;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .shellMenu {
-  border-color: #1C343B;
-  background: #EFE4C5;
-  box-shadow: 3px 3px 0 #E8A08A;
+  border-color: var(--shell-text);
+  background: var(--shell-canvas);
+  box-shadow: 3px 3px 0 var(--interaction-accent);
 }
 
 :global([data-theme='planche']) .shellMenuItem,
 :global([data-theme='planche']) .shellMenuItemName {
-  color: #1C343B;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .shellMenuItem:hover {
-  border-color: #D43D2A;
-  background: #DCCFA8;
+  border-color: var(--interaction-accent);
+  background: var(--shell-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {

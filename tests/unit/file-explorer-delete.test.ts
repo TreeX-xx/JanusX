@@ -221,15 +221,16 @@ describe('file explorer delete confirmation', () => {
       hasChildren: true,
       children: [],
     }] as FileNode[]
+    const loadRoot = vi.fn().mockResolvedValue(rootTree)
+      .mockReturnValueOnce(firstRootLoad.promise)
+      .mockReturnValueOnce(secondRootLoad.promise)
 
     await withMockWindowEnv(
       {
         electron: {
           fileTree: {
             children: loadChildren,
-            load: vi.fn()
-              .mockReturnValueOnce(firstRootLoad.promise)
-              .mockReturnValueOnce(secondRootLoad.promise),
+            load: loadRoot,
           },
         },
       },
@@ -252,6 +253,9 @@ describe('file explorer delete confirmation', () => {
         firstRootLoad.resolve(rootTree)
         secondRootLoad.resolve(rootTree)
         await Promise.all([firstRootRefresh, secondRootRefresh])
+
+        expect(loadRoot).toHaveBeenCalledTimes(3) // Directory mutation requires a fresh root snapshot.
+        expect(useWorkspaceStore.getState().fileTreeLoadState).toBe('idle')
 
         expect(useWorkspaceStore.getState().fileTree[0]).toMatchObject({
           path: 'src',

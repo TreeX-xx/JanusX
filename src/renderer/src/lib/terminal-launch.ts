@@ -1,8 +1,11 @@
+import { supportsConversation } from '../../../shared/conversation-display'
 import type { Terminal, TerminalPreset } from '@/types'
 import { ensureRemoteAgent } from './remote-agent-setup'
+import { ensureLocalCli } from '@/stores/cli-readiness'
 import { parseRuntimeResource } from '../../../shared/workspace-runtime'
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useConversationPreferences } from '@/stores/conversation-preferences'
 import {
   requestTerminalForceFit,
   waitForTerminalGeometry,
@@ -147,9 +150,8 @@ export interface LaunchTerminalPresetOptions {
   /** Defaults true — enter terminal UI immediately after addTerminal. */
   enterTerminalUi?: boolean
   /**
-   * Prefill text written to the PTY after spawn WITHOUT submitting (no trailing
-   * newline is appended): the user reviews and sends it manually. Blueprint
-   * "implement in terminal" passes the Goal/AC prompt here.
+   * Prefill the initial view's draft without submitting: the user reviews and
+   * sends it manually. Blueprint "implement in terminal" passes Goal/AC here.
    */
   initialInput?: string
   /** Shell profile id for an ordinary shell terminal; the default entry when omitted. */
@@ -200,6 +202,10 @@ export async function launchTerminalPreset(
 
   const cwd = cwdOverride ?? workspacePath
   const remote = Boolean(parseRuntimeResource(cwd))
+  if (!remote && preset !== 'shell' && !options.attachOnly && !await ensureLocalCli(preset)) return null
+  const conversationEnabled = supportsConversation(preset) && !remote && !options.attachOnly
+  const initialView = conversationEnabled ? useConversationPreferences.getState().initialView : 'terminal'
+  const nativeInput = initialView === 'terminal' ? initialInput : undefined
 
   // Enter UI immediately with a warm cache or instant platform fallback.
   // Resolve the real default shell in parallel so create still gets the correct value.
@@ -210,12 +216,14 @@ export async function launchTerminalPreset(
 
   const terminalId = options.terminalId ?? crypto.randomUUID()
   // Subscribe before spawn: the created event may arrive before create resolves.
-  let createdPromise = initialInput && (!remote || preset === 'shell' || options.attachOnly) ? waitForTerminalCreated(terminalId) : null
+  let createdPromise = nativeInput && (!remote || preset === 'shell' || options.attachOnly) ? waitForTerminalCreated(terminalId) : null
   const presetMeta = getTerminalPresetMeta(preset)
   const autoCommand = resolveTerminalLaunchCommand(preset)
   const telemetryStartedAt = Date.now()
 
   const terminal: Terminal = {
+    ...(conversationEnabled ? { conversationEnabled: true, conversationInitialView: initialView } : {}),
+    ...(initialView === 'conversation' && initialInput ? { conversationDraft: initialInput } : {}),
     id: terminalId,
     workspaceId,
     name: name ?? presetMeta.name,
@@ -253,9 +261,10 @@ export async function launchTerminalPreset(
 
   try {
     if (remote && preset !== 'shell' && !options.attachOnly && !await ensureRemoteAgent(terminal)) return null
-    if (initialInput && !createdPromise) createdPromise = waitForTerminalCreated(terminalId)
+    if (nativeInput && !createdPromise) createdPromise = waitForTerminalCreated(terminalId)
     const launchProgram = resolveTerminalLaunchProgram(preset)
     const result = await window.electron.terminal.create({
+      ...(conversationEnabled ? { conversationEnabled: true, initialView } : {}),
       attachOnly: options.attachOnly,
       id: terminalId,
       workspaceId,
@@ -279,9 +288,9 @@ export async function launchTerminalPreset(
     // Correct any residual mismatch after PTY spawn (TUI reflow via resize).
     requestTerminalForceFit(terminalId)
 
-    let prefilled = false
-    if (initialInput && createdPromise && (await createdPromise)) {
-      window.electron.terminal.input(terminalId, initialInput)
+    let prefilled = Boolean(initialView === 'conversation' && initialInput)
+    if (nativeInput && createdPromise && (await createdPromise)) {
+      window.electron.terminal.input(terminalId, nativeInput)
       prefilled = true
     }
     return { ok: true, terminalId, pid: result.pid, prefilled }
@@ -315,6 +324,7 @@ export async function retryTerminalCreate(terminalId: string): Promise<boolean> 
 async function runRetryTerminalCreate(terminalId: string): Promise<boolean> {
   const terminal = useWorkspaceStore.getState().terminals.find((item) => item.id === terminalId)
   if (!terminal) return false
+  if (!parseRuntimeResource(terminal.cwd) && terminal.preset !== 'shell' && !await ensureLocalCli(terminal.preset)) return false
 
   useWorkspaceStore.getState().updateTerminal(terminalId, {
     status: 'wait',
@@ -331,6 +341,7 @@ async function runRetryTerminalCreate(terminalId: string): Promise<boolean> {
     if (parseRuntimeResource(terminal.cwd) && terminal.preset !== 'shell' && !await ensureRemoteAgent(terminal)) return false
     const launchProgram = resolveTerminalLaunchProgram(terminal.preset)
     const result = await window.electron.terminal.create({
+      ...(terminal.conversationEnabled ? { conversationEnabled: true, initialView: terminal.conversationInitialView ?? 'terminal' } : {}),
       id: terminalId,
       workspaceId: terminal.workspaceId,
       cwd: terminal.cwd,

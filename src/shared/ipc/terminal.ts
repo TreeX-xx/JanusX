@@ -1,10 +1,15 @@
 import type { RuntimeTelemetrySnapshot } from './system'
+import type { ConversationCommand, ConversationSnapshot } from '../conversation-display'
 
 export const TERMINAL_INVOKE_CHANNELS = {
   warmup: 'terminal:warmup',
   create: 'terminal:create',
   replay: 'terminal:replay',
   kill: 'terminal:kill',
+  conversation: 'terminal:conversation-snapshot',
+  conversationCommand: 'terminal:conversation-command',
+  inputHistory: 'terminal:input-history',
+  saveConversationImage: 'terminal:save-conversation-image',
 } as const
 
 export const TERMINAL_SEND_CHANNELS = {
@@ -21,6 +26,7 @@ export const TERMINAL_EVENT_CHANNELS = {
   status: 'terminal:status',
   telemetry: 'terminal:telemetry',
   turnChanges: 'terminal:turn-changes',
+  conversation: 'terminal:conversation',
 } as const
 
 export type TerminalAgentEngine = 'claude' | 'codex' | 'opencode' | 'janus' | 'pi' | 'dsh'
@@ -40,6 +46,10 @@ export interface TerminalWarmupRequest {
 }
 
 export interface TerminalCreateRequest {
+  /** Enable the common conversation surface for a supported new local session. */
+  conversationEnabled?: boolean
+  /** Initial view for this new dual-surface session; does not disable either surface. */
+  initialView?: 'terminal' | 'conversation'
   /** Reattach only; never spawn if the remote process no longer exists. */
   attachOnly?: boolean
   id: string
@@ -102,6 +112,8 @@ export interface TerminalFocusEvent {
   id: string
 }
 export interface TerminalCreatedEvent {
+  conversationEnabled?: boolean
+  initialView?: 'terminal' | 'conversation'
   id: string
   workspaceId: string
   cwd: string
@@ -155,6 +167,11 @@ export interface TerminalReplayResult {
 }
 
 export interface TerminalAPI {
+  saveConversationImage?(id: string, itemId: string, imageId: string): Promise<{ canceled: boolean }>
+  inputHistory?(id: string): Promise<Array<{ text: string; time: number }>>
+  conversation(id: string): Promise<ConversationSnapshot | null>
+  conversationCommand(id: string, command: ConversationCommand): Promise<ConversationSnapshot>
+  onConversation(callback: (snapshot: ConversationSnapshot) => void): () => void
   warmup(request?: TerminalWarmupRequest): Promise<{ ok: true }>
   create(request: TerminalCreateRequest): Promise<TerminalCreateResult>
   replay(id: string): Promise<TerminalReplayResult>

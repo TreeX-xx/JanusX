@@ -16,6 +16,8 @@ export interface TerminalConfig {
 }
 
 export interface TerminalInstance {
+  /** Backend owned by this terminal, released on explicit close/replacement/shutdown. */
+  disposeRuntime?: () => void | Promise<void>
   id: string
   pty: Pick<IPty, 'pid' | 'write' | 'resize' | 'kill' | 'onData' | 'onExit'>
   /** Remote processes outlive the desktop. Detach never signals the process. */

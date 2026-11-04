@@ -33,19 +33,19 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.34);
+  color: var(--shell-dim);
   cursor: pointer;
   transition: color 140ms ease, background 140ms ease;
 }
 
 .trigger:hover,
 .triggerOpen {
-  color: rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.05);
+  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
 }
 
 .trigger:focus-visible {
-  outline: 1px solid rgba(255, 120, 48, 0.65);
+  outline: 1px solid color-mix(in srgb, var(--primary) 65%, transparent);
   outline-offset: 1px;
 }
 
@@ -82,10 +82,10 @@
   flex-direction: column;
   gap: 2px;
   padding: 5px;
-  border: 1px solid rgba(255, 120, 48, 0.28);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
   border-radius: 10px;
   background: var(--shell-chrome-raised);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-color) 34%, transparent), inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 8%, transparent);
 }
 
 .menuItem {
@@ -96,26 +96,26 @@
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--shell-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .menuItem:hover:not(:disabled) {
-  border-color: rgba(255, 120, 48, 0.3);
-  background: rgba(255, 120, 48, 0.08);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .menuItem:focus-visible {
-  outline: 1px solid rgba(255, 120, 48, 0.65);
+  outline: 1px solid color-mix(in srgb, var(--primary) 65%, transparent);
   outline-offset: -1px;
 }
 
 /* 已开着：置灰且不吃指针事件，但不隐去图标与名称——位置稳定，关闭后才恢复 */
 .menuItem:disabled {
   cursor: default;
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--shell-dim);
 }
 
 .menuIcon {
@@ -136,7 +136,7 @@
 .menuBadge {
   flex: 0 0 auto;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.34);
+  color: var(--shell-dim);
 }
 
 /* ── 组间竖分隔线：工具组与工作台分组之间的短竖线，无可见工作台时收起 ── */
@@ -144,22 +144,22 @@
   width: 1px;
   height: 14px;
   flex: 0 0 auto;
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--surface-tint) 12%, transparent);
 }
 
 /* ── planche：纸面标题栏上的墨线图标，单朱红点睛 ── */
 :global([data-theme='planche']) .trigger {
-  color: rgba(28, 52, 59, 0.45);
+  color: color-mix(in srgb, var(--shell-text) 45%, transparent);
 }
 
 :global([data-theme='planche']) .trigger:hover,
 :global([data-theme='planche']) .triggerOpen {
-  color: #1C343B;
-  background: #DCCFA8;
+  color: var(--shell-text);
+  background: var(--shell-hover);
 }
 
 :global([data-theme='planche']) .trigger:focus-visible {
-  outline: 2px solid #D43D2A;
+  outline: 2px solid var(--shell-accent);
 }
 
 :global([data-theme='planche']) .trigger:active {
@@ -167,28 +167,28 @@
 }
 
 :global([data-theme='planche']) .menu {
-  border-color: #1C343B;
-  background: #EFE4C5;
-  box-shadow: 3px 3px 0 #E8A08A;
+  border-color: var(--shell-text);
+  background: var(--shell-canvas);
+  box-shadow: 3px 3px 0 var(--shell-accent);
 }
 
 :global([data-theme='planche']) .menuItem {
-  color: #1C343B;
+  color: var(--shell-text);
 }
 
 :global([data-theme='planche']) .menuItem:hover:not(:disabled) {
-  border-color: #D43D2A;
-  background: #DCCFA8;
+  border-color: var(--shell-accent);
+  background: var(--shell-hover);
 }
 
 :global([data-theme='planche']) .menuItem:disabled {
-  color: rgba(28, 52, 59, 0.28);
+  color: color-mix(in srgb, var(--shell-text) 28%, transparent);
 }
 
 :global([data-theme='planche']) .menuBadge {
-  color: rgba(28, 52, 59, 0.4);
+  color: color-mix(in srgb, var(--shell-text) 40%, transparent);
 }
 
 :global([data-theme='planche']) .separator {
-  background: rgba(28, 52, 59, 0.18);
+  background: color-mix(in srgb, var(--shell-text) 18%, transparent);
 }

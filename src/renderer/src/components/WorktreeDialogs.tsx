@@ -229,7 +229,7 @@ export function WorktreeComposer({ workspace, onClose }: { workspace: Workspace;
             <button
               onClick={requestClose}
               className="rounded cursor-pointer"
-              style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid var(--control-border)', background: 'rgba(255,255,255,0.03)', color: 'var(--shell-muted)' }}
+              style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid var(--control-border)', background: 'color-mix(in srgb, var(--surface-tint) 3%, transparent)', color: 'var(--shell-muted)' }}
             >
               {t('terminal:worktree.cancel')}
             </button>
@@ -297,7 +297,7 @@ export function WorktreeDeleteDialog({  workspaceId,
   return createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'rgba(8,8,10,0.62)', backdropFilter: 'blur(10px)', zIndex: 1000 }}
+      style={{ background: 'var(--modal-backdrop)', backdropFilter: 'blur(10px)', zIndex: 1000 }}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget && !busy) onClose()
       }}
@@ -336,7 +336,7 @@ export function WorktreeDeleteDialog({  workspaceId,
             onClick={() => onClose()}
             disabled={busy}
             className="rounded cursor-pointer"
-            style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid var(--control-border)', background: 'rgba(255,255,255,0.03)', color: 'var(--shell-muted)' }}
+            style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid var(--control-border)', background: 'color-mix(in srgb, var(--surface-tint) 3%, transparent)', color: 'var(--shell-muted)' }}
           >
             {t('terminal:worktree.cancel')}
           </button>
@@ -345,7 +345,7 @@ export function WorktreeDeleteDialog({  workspaceId,
               onClick={() => void runDelete(true)}
               disabled={busy}
               className="rounded cursor-pointer"
-              style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid rgba(224,108,117,0.35)', background: 'transparent', color: 'var(--shell-diff-del)' }}
+              style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid color-mix(in srgb, var(--shell-diff-del) 35%, transparent)', background: 'transparent', color: 'var(--shell-diff-del)' }}
             >
               {t('terminal:worktree.forceDelete')}
             </button>
@@ -506,7 +506,7 @@ export function WorktreeShipDialog({
   return createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'rgba(8,8,10,0.62)', backdropFilter: 'blur(10px)', zIndex: 1000 }}
+      style={{ background: 'var(--modal-backdrop)', backdropFilter: 'blur(10px)', zIndex: 1000 }}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget && !busy) onClose()
       }}
@@ -643,7 +643,7 @@ export function WorktreeShipDialog({
             onClick={onClose}
             disabled={busy}
             className="rounded cursor-pointer"
-            style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid var(--control-border)', background: 'rgba(255,255,255,0.03)', color: 'var(--shell-muted)' }}
+            style={{ height: 28, padding: '0 16px', fontSize: 11, border: '1px solid var(--control-border)', background: 'color-mix(in srgb, var(--surface-tint) 3%, transparent)', color: 'var(--shell-muted)' }}
           >
             {t('terminal:worktree.cancel')}
           </button>
@@ -964,7 +964,7 @@ function HostedReviewSection({
       {open && (
         <div className="flex flex-col" style={{ gap: 8 }}>
           <div className="flex items-center" style={{ gap: 7, fontSize: 11.5, color: 'var(--shell-text)' }}>
-            <span style={{ color: '#8ab4ff' }}>#{open.number}</span>
+            <span style={{ color: 'var(--status-info)' }}>#{open.number}</span>
             <span className="flex-1 min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap">{open.title}</span>
             <span style={{ fontSize: 10, color: 'var(--shell-dim)' }}>{reviewStateLabel(open.state, t)}</span>
           </div>

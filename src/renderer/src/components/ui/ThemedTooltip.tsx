@@ -76,24 +76,31 @@ export function ThemedTooltip({
   useLayoutEffect(() => {
     const tip = tipRef.current
     if (!anchorRect || !tip) return
-    const { width, height } = tip.getBoundingClientRect()
-    const centeredLeft = anchorRect.left + (anchorRect.width - width) / 2
-    let left = centeredLeft
-    let top = anchorRect.top - height - 8
-    if (placement === 'left') {
-      left = anchorRect.left - width - 8
-      if (left < 8 && anchorRect.right + width + 16 <= window.innerWidth) left = anchorRect.right + 8
-      top = anchorRect.top + (anchorRect.height - height) / 2
-    } else if (placement === 'bottom') {
-      top = anchorRect.bottom + 8
-      if (top + height > window.innerHeight - 8) top = anchorRect.top - height - 8
-    } else if (top < 8) {
-      top = anchorRect.bottom + 8
+    const position = () => {
+      const { width, height } = tip.getBoundingClientRect()
+      const centeredLeft = anchorRect.left + (anchorRect.width - width) / 2
+      let left = centeredLeft
+      let top = anchorRect.top - height - 8
+      if (placement === 'left') {
+        left = anchorRect.left - width - 8
+        if (left < 8 && anchorRect.right + width + 16 <= window.innerWidth) left = anchorRect.right + 8
+        top = anchorRect.top + (anchorRect.height - height) / 2
+      } else if (placement === 'bottom') {
+        top = anchorRect.bottom + 8
+        if (top + height > window.innerHeight - 8) top = anchorRect.top - height - 8
+      } else if (top < 8) {
+        top = anchorRect.bottom + 8
+      }
+      setGeometry({
+        left: Math.max(8, Math.min(left, window.innerWidth - width - 8)),
+        top: Math.max(8, Math.min(top, window.innerHeight - height - 8)),
+      })
     }
-    setGeometry({
-      left: Math.max(8, Math.min(left, window.innerWidth - width - 8)),
-      top: Math.max(8, Math.min(top, window.innerHeight - height - 8)),
-    })
+    position()
+    // Async previews can grow after mounting; keep the final content inside the viewport.
+    const observer = new ResizeObserver(position)
+    observer.observe(tip)
+    return () => observer.disconnect()
   }, [anchorRect, placement, label])
 
   useEffect(() => {

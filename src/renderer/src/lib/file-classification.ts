@@ -1,4 +1,5 @@
-export type FileViewType = 'code' | 'markdown' | 'html' | 'image' | 'binary'
+export type { FileViewType } from '../../../shared/editor'
+import type { FileViewType } from '../../../shared/editor'
 
 export type FileSemanticKind =
   | 'folder'
@@ -69,7 +70,7 @@ const EXTENSION_RULES: Record<string, FileRule> = {
   '.toml': ['config', 'code', 'toml'],
   '.txt': ['document', 'code', 'plaintext'],
   '.log': ['document', 'code', 'plaintext'],
-  '.pdf': ['document', 'binary', null],
+  '.pdf': ['document', 'pdf', null],
   '.doc': ['document', 'binary', null],
   '.docx': ['document', 'binary', null],
   '.xls': ['document', 'binary', null],

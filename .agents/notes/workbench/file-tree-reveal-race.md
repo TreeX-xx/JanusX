@@ -22,36 +22,47 @@
       }
     }
   },
-  "updated": "2026-10-16T01:49:51Z",
+  "updated": "2026-11-03T08:27:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
-# Workspace switch sweep survives background file-tree refreshes
-
+# Workspace context blur and loading readiness
 
 ## Problem
 
-`loadWorkspaceFileTree` in `src/renderer/src/features/workspace/actions.ts` is the single entry for full tree loads, and every load shares one generation counter plus one `fileTreeLoadState` (`loading`/`revealing`/`idle`/`error`). A workspace switch starts a visual load that is supposed to play a full top-to-bottom sweep (`revealing`), but the file watcher in `useWorkspaceBootstrap.ts` can overlap a background load with the switch load. The commit path writes state unconditionally, so two failure shapes exist. When the background load commits after the visual load, it overwrites `revealing` with `idle` and the overlay unmounts mid-sweep: the first rows sweep, the rest appear instantly. When the background load commits first, the visual load hits the generation guard and returns without committing, so no sweep plays at all and the tree swaps instantly. The sweep is therefore flaky in exactly the situation switches create: fresh file events for the incoming workspace.
+The file-tree scan expressed only one part of a workspace change, while Git and Sessions updated separately. It also coupled a fixed visual reveal to asynchronous refresh ordering. The workspace needs one transition language with a reliable end tied to the current panel's data.
 
 ## Decision
 
-A module-level `pendingVisualRevealPath` records the target path when a visual load starts. Any successful commit for that path plays `revealing` exactly once and clears the flag, whether the committing load is the visual one or a background refresh that won the generation race; the sweep always runs over freshly loaded data. Commits that play no reveal use a functional update that preserves an in-flight `revealing` instead of overwriting it with `idle`, so background refreshes update the tree under a running sweep without interrupting it. `error` and `loading` exits keep their previous transitions. The flag is only consumed on a commit whose `shouldCommit` guard passes for the same path, so a stale registration from a superseded switch can never start a sweep over another workspace's tree.
+Workspace and worktree changes use the same `WorkspaceTransition` content boundary in Files, Git and Sessions. The visible content defocuses through a theme-tinted 5px glass layer for 120ms, holds until that panel's data settles, then refocuses over 220ms. The previous rendered content remains beneath the glass until replacement data or an error is ready. There is no fixed loading delay beyond the short entry motion. Loading lasting 600ms shows a clear target-workspace label above the glass. Tool navigation, the Files/Sessions search controls and the Git repository header stay readable; the transitioning content is inert for both pointer and keyboard input.
+
+Only the visible panel waits for its own data. Files follow the full-tree load, Git follows status and history for the active worktree, and Sessions follows its selected filter. Global/all-session scopes keep their own identity. Hidden panels do not run motion. Returning to a hidden panel with unfinished data starts the same feedback; background updates in an already visible scope do not replay it. Reduced-motion mode removes blur and entry/exit delays while keeping loading feedback and interaction protection. The glass is disabled at rest, avoiding a permanent filtered surface.
+
+## Data ordering and failure recovery
+
+File-tree state describes data only: `idle`, `loading`, or `error`. The retired scan overlay, scan timing utility and store-owned `revealing` phase have been removed. `pendingVisualLoadPath` records the requested scope so a newer background load inherits its completion or failure. Generation and scope guards reject stale responses. If a directory mutation invalidates the latest root snapshot, the loader reads again rather than leaving the visible load waiting without a future commit.
+
+Git status exposes its pending state; history additionally tracks its scope and request generation, and keeps its own error so a later status success cannot erase a history failure. A late history response cannot replace the current scope, including A → B → A navigation. The Git panel reads and acts on the same active worktree as Files and Sessions. Failed session switches clear the previous scope's cards before revealing the error; same-scope background failures retain current data. Retry and subsequent switches remain available after failures.
+
+The presentation timer belongs to each content boundary and is canceled on scope changes, hiding and unmount. Background store commits cannot cut a transition short or restart it. Rendering the old content briefly is a visual bridge only: `inert` prevents its captured actions from targeting the previous workspace.
 
 ## Alternatives considered
 
-- Do nothing and keep last-writer-wins commits: zero new state, but the sweep stays flaky on every switch that coincides with file events, which is the defect reported against the sweep.
-- Track the animation locally in `FileExplorerTool` instead of the store: strongest case is that rendering state stays near the renderer, but the component cannot see commit ordering across concurrent loads, so it cannot distinguish a preempted visual load from a completed one and replays or skips sweeps on stale data.
-- Debounce watcher reloads during switches: strongest case is fewer overlapping loads with no new commit logic, but it delays fresh file data reaching the tree and narrows rather than removes the race window.
+A shared content boundary keeps the existing panel and navigation layouts while expressing that all three tools belong to the workspace. A full-window blur would also obscure the workspace picker; independent scan animations would preserve the fragmented loading feedback. Holding the previous React content adds a short presentation lifetime and does not duplicate the underlying stores. A view that replaces its own subscribed content outside this boundary will need to expose readiness before joining this transition. Browser tests cover the current three built-in tools; remote connection timeouts remain owned by their existing IPC services.
 
 ## Consequences
 
-- **Gains**: every workspace switch plays one complete sweep at a fixed speed over the newest committed tree, regardless of how many background refreshes land during it; data freshness still follows latest-commit-wins.
-- **Costs and limits**: one module-level nullable string plus a functional setState on the commit path; reviewers of this file keep the flag and the generation guard consistent. When two overlapping loads both abort through the directory-mutation guard, the state can rest on `loading` with no commit arriving, which predates this change and is left untouched.
-- **Verification**: `npx tsc --noEmit` passes; `npx eslint` on `actions.ts` reports no errors; `tests/unit/file-tree-scan.test.ts`, `workspace-source-files.test.ts`, `workspace-sidebar.test.ts` and `workspace-pane.test.ts` pass (34 tests).
+The three built-in tools share one visual lifecycle without serializing their data loads. The boundary retains one rendered subtree while waiting and uses a viewport-sized backdrop filter only during motion. Revisit the blur radius or use a tint-only fallback if packaged-app profiling identifies a GPU cost on large panels; current browser coverage does not establish packaged-app performance.
+
+## Verification
+
+The focused Git/session/file-tree/workspace checks pass 63 unit cases across the initial five-file run and the final Git-store rerun. Nine workspace-transition browser cases pass across focused runs, covering both themes, pending data, rapid switches, errors/retry, independent visible-panel readiness, worktree scope, quiet background refresh, reduced motion and global session filters without an active workspace. Eight existing right-workspace-design and right-tool-switch-performance browser cases also pass, including keyboard actions, scrolling a 500-file Git list and cached tool activation. Typecheck and locale parity pass; scoped ESLint has no errors and retains two pre-existing hook warnings in FileExplorerTool. Note validation has no errors and reports 17 pre-existing external-link diagnostics. The planche/dark blur and clear screenshots were visually inspected and copied to `artifacts/workspace-transition/`.
+
+Commands: `npx vitest run tests/unit/git-store.test.ts tests/unit/session-store.test.ts tests/unit/file-tree-load-pressure.test.ts tests/unit/workspace-pane.test.ts tests/unit/workspace-sidebar.test.ts`, then `npx vitest run tests/unit/git-store.test.ts`; `npx playwright test tests/e2e/workspace-transition.spec.ts tests/e2e/right-workspace-design.spec.ts tests/e2e/right-tool-switch-performance.spec.ts --project=island --workers=2`, followed by the corrected workspace-transition suite and focused `--grep 'git waits'` / `--grep 'global session'` reruns; `npm run typecheck`; scoped `npx eslint`; `npm run i18n:check`; `npm run check:notes`. The initial browser fixtures needed to await the rail's existing deferred activation before testing a content boundary; the corrected tests await visible, ready panels. One isolated rerun exceeded the 20-second page-navigation budget; its 60-second retry passed. Browser IPC is controlled to exercise pending, failure and late responses; this does not establish packaged-app GPU or remote-network performance.
 
 ## Background refresh pressure
 
-File watcher refreshes run one active pass and keep at most one merged trailing pass. Multiple changed paths invalidate all open editors instead of retaining only the final filename. A workspace switch discards obsolete root responses before directory expansion; expanded-directory reads use at most four workers and stop scheduling when superseded. The reveal handoff described above still applies.
+File watcher refreshes run one active pass and keep at most one merged trailing pass. Multiple changed paths invalidate all open editors instead of retaining only the final filename. A workspace switch discards obsolete root responses before directory expansion; expanded-directory reads use at most four workers and stop scheduling when superseded. The loading-readiness handoff described above still applies.
 
 `src/main/ipc/file-tree-ignore.ts` batches queued directory candidates by workspace root and runs at most two Git ignore checks across roots. Each check has a three-second timeout; Windows cleanup targets the process tree because Git may launch a second executable. Failed checks leave ignore decoration unavailable for that pass and retry on the next refresh. There is no persistent ignore cache to invalidate after `.gitignore` changes.
 

@@ -407,7 +407,7 @@ export function deriveBlueprintFlow(
   const interfaceEdges: Edge[] = (blueprint.composition?.interfaces ?? [])
     .filter(port => port.direction === 'needs' && port.providerNodeId && !hidden.has(port.nodeId) && !hidden.has(port.providerNodeId))
     .map(port => ({ id: 'e-interface-' + port.id, source: port.providerNodeId!, target: port.nodeId, type: 'blueprintAdaptive', className: 'bp-flow-edge--interface', data: { kind: 'interface' }, label: port.name, interactionWidth: 16,
-      style: { stroke: port.status === 'stale' ? '#eab15f' : '#e78b63', strokeWidth: 1.6, strokeDasharray: '6 3' } }))
+      style: { stroke: port.status === 'stale' ? 'var(--status-warning)' : 'var(--shell-accent)', strokeWidth: 1.6, strokeDasharray: '6 3' } }))
   return { nodes, edges: [...edges, ...relationEdges, ...interfaceEdges] }
 }
 

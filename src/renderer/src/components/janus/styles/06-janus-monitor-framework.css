@@ -39,10 +39,10 @@
 }
 
 .janus-monitor-panel {
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 8px;
-  background: #08080a;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
+  background: var(--shell-void);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
 }
 
 .janus-monitor-core-panel,
@@ -62,7 +62,7 @@
   min-height: 18px;
   padding: 0 6px;
   margin-bottom: 12px;
-  color: rgba(255,255,255,0.5);
+  color: var(--shell-muted);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 11px;
   letter-spacing: 0.1em;
@@ -71,7 +71,7 @@
 }
 
 .janus-monitor-section-title em {
-  color: rgba(255,255,255,0.26);
+  color: var(--shell-dim);
   font-style: normal;
 }
 
@@ -79,14 +79,14 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 180px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 8px;
-  background: #020203;
+  background: var(--surface-shade);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+  box-shadow: inset 0 0 40px color-mix(in srgb, var(--shadow-color) 80%, transparent);
 }
 
 .janus-monitor-crt::after {
@@ -96,8 +96,8 @@
   z-index: 28;
   pointer-events: none;
   background:
-    linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%),
-    linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06));
+    linear-gradient(color-mix(in srgb, var(--shell-canvas) 0%, transparent) 50%, color-mix(in srgb, var(--surface-shade) 25%, transparent) 50%),
+    linear-gradient(90deg, color-mix(in srgb, var(--status-danger) 6%, transparent), color-mix(in srgb, var(--status-success) 2%, transparent), color-mix(in srgb, var(--status-info) 6%, transparent));
   background-size: 100% 4px, 6px 100%;
 }
 
@@ -112,8 +112,8 @@
   inset: 0;
   opacity: 0.58;
   background-image:
-    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--surface-tint) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-tint) 3.5%, transparent) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
@@ -127,7 +127,7 @@
   inset: 0;
   z-index: 23;
   opacity: 0.18;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1.4px);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--surface-tint) 12%, transparent) 1px, transparent 1.4px);
   background-size: 6px 6px;
 }
 
@@ -142,7 +142,7 @@
   right: 14px;
   bottom: 14px;
   z-index: 31;
-  color: rgba(255,255,255,0.36);
+  color: var(--shell-dim);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-align: center;
@@ -158,14 +158,14 @@
 .janus-monitor-stat {
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 6px;
-  background: rgba(255,255,255,0.02);
+  background: color-mix(in srgb, var(--surface-tint) 2%, transparent);
 }
 
 .janus-monitor-stat span {
   display: block;
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
   line-height: 1;
@@ -175,7 +175,7 @@
   display: block;
   min-width: 0;
   margin-top: 7px;
-  color: rgba(255,255,255,0.9);
+  color: color-mix(in srgb, var(--shell-text) 90%, transparent);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 16px;
   font-weight: 650;
@@ -219,15 +219,15 @@
   justify-content: space-between;
   gap: 12px;
   padding: 4px 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
+  border-top: 1px solid color-mix(in srgb, var(--surface-tint) 5%, transparent);
+  color: color-mix(in srgb, var(--shell-text) 70%, transparent);
   font: 10px/1.3 var(--font-mono, monospace);
   text-align: left;
 }
 
 .janus-office-artifact-list button:hover {
-  background: rgba(255, 120, 48, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--shell-text);
 }
 
 .janus-office-artifact-list button span {
@@ -238,7 +238,7 @@
 
 .janus-office-artifact-list button em {
   flex: 0 0 auto;
-  color: #ff7830;
+  color: var(--primary);
   font-style: normal;
   text-transform: uppercase;
 }
@@ -250,9 +250,9 @@
   gap: 14px;
   min-height: 54px;
   padding: 10px 16px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 8%, transparent);
   border-radius: 8px;
-  background: rgba(255,255,255,0.018);
+  background: color-mix(in srgb, var(--surface-tint) 1.8%, transparent);
   overflow: hidden;
 }
 
@@ -263,7 +263,7 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #71717a;
+  background: var(--shell-muted);
 }
 
 .janus-runtime-core {
@@ -274,7 +274,7 @@
   flex: 0 0 auto;
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(255,255,255,0.09);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 9%, transparent);
   border-radius: 50%;
   background: var(--janus-panel-inset);
 }
@@ -283,8 +283,8 @@
   width: 5px;
   height: 8px;
   border-radius: 1px;
-  background: rgba(255,255,255,0.78);
-  box-shadow: 0 0 8px rgba(255,120,48,0.28);
+  background: color-mix(in srgb, var(--surface-tint) 78%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 .janus-runtime-meta {
@@ -295,30 +295,30 @@
 }
 
 .janus-runtime-meta strong {
-  color: rgba(255,255,255,0.82);
+  color: color-mix(in srgb, var(--shell-text) 82%, transparent);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 12px;
   font-weight: 650;
 }
 
 .janus-runtime-meta span {
-  color: rgba(255,255,255,0.38);
+  color: var(--shell-dim);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
 }
 
 .janus-runtime-slot {
   height: 54px;
-  border: 1px dashed rgba(255,255,255,0.07);
+  border: 1px dashed color-mix(in srgb, var(--surface-tint) 7%, transparent);
   border-radius: 8px;
   background:
-    linear-gradient(90deg, rgba(255,255,255,0.022), transparent 42%),
-    rgba(255,255,255,0.01);
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-tint) 2.2%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface-tint) 1%, transparent);
 }
 
 .janus-runtime-run {
-  --janus-runtime-role-color: rgba(255,255,255,0.42);
-  --janus-runtime-role-glow: rgba(255,255,255,0.16);
+  --janus-runtime-role-color: color-mix(in srgb, var(--surface-tint) 42%, transparent);
+  --janus-runtime-role-glow: color-mix(in srgb, var(--surface-tint) 16%, transparent);
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -326,29 +326,29 @@
   gap: 10px;
   min-height: 58px;
   padding: 9px 10px;
-  border: 1px solid color-mix(in srgb, var(--janus-runtime-role-color) 22%, rgba(255,255,255,0.08));
+  border: 1px solid color-mix(in srgb, var(--janus-runtime-role-color) 22%, color-mix(in srgb, var(--surface-tint) 8%, transparent));
   border-radius: 8px;
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--janus-runtime-role-color) 10%, transparent) 0%, transparent 34%),
-    rgba(255,255,255,0.018);
+    color-mix(in srgb, var(--surface-tint) 1.8%, transparent);
   cursor: pointer;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 2.5%, transparent);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .janus-runtime-run:hover {
-  border-color: color-mix(in srgb, var(--janus-runtime-role-color) 30%, rgba(255,255,255,0.08));
+  border-color: color-mix(in srgb, var(--janus-runtime-role-color) 30%, color-mix(in srgb, var(--surface-tint) 8%, transparent));
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--janus-runtime-role-color) 13%, transparent) 0%, transparent 38%),
-    rgba(255,255,255,0.026);
+    color-mix(in srgb, var(--surface-tint) 2.6%, transparent);
 }
 
 .janus-runtime-run[data-selected="true"] {
-  border-color: color-mix(in srgb, var(--janus-runtime-role-color) 42%, rgba(255,255,255,0.08));
+  border-color: color-mix(in srgb, var(--janus-runtime-role-color) 42%, color-mix(in srgb, var(--surface-tint) 8%, transparent));
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--janus-runtime-role-color) 16%, transparent) 0%, transparent 40%),
-    rgba(255,255,255,0.032);
+    color-mix(in srgb, var(--surface-tint) 3.2%, transparent);
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--janus-runtime-role-color) 14%, transparent),
     0 0 16px color-mix(in srgb, var(--janus-runtime-role-glow) 22%, transparent);
@@ -356,7 +356,7 @@
 
 .janus-runtime-run[data-status="failed"],
 .janus-runtime-run[data-status="cancelled"] {
-  border-color: rgba(255,74,74,0.26);
+  border-color: color-mix(in srgb, var(--status-danger) 26%, transparent);
 }
 
 .janus-runtime-run-main {
@@ -377,7 +377,7 @@
 .janus-runtime-run-title strong {
   min-width: 0;
   overflow: hidden;
-  color: rgba(255,255,255,0.86);
+  color: color-mix(in srgb, var(--shell-text) 86%, transparent);
   font-size: 11px;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -386,14 +386,14 @@
 
 .janus-runtime-run-title span {
   flex: 0 0 auto;
-  color: rgba(255,255,255,0.36);
+  color: var(--shell-dim);
   font-size: 9px;
   text-transform: uppercase;
 }
 
 .janus-runtime-run-event {
   overflow: hidden;
-  color: rgba(255,255,255,0.42);
+  color: var(--shell-muted);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
   text-overflow: ellipsis;
@@ -405,34 +405,34 @@
   align-items: flex-end;
   flex-direction: column;
   gap: 4px;
-  color: rgba(255,255,255,0.32);
+  color: var(--shell-dim);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 9px;
 }
 
 .janus-runtime-run-status {
-  color: rgba(255,255,255,0.68);
+  color: color-mix(in srgb, var(--shell-text) 68%, transparent);
 }
 
 .janus-runtime-run-side button {
   height: 20px;
   padding: 0 7px;
-  border: 1px solid rgba(255,120,48,0.24);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
   border-radius: 5px;
-  background: rgba(255,120,48,0.08);
-  color: #ffb27d;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--shell-accent-strong);
   cursor: pointer;
   font: inherit;
 }
 
 .janus-runtime-run-side button:hover {
-  border-color: rgba(255,120,48,0.42);
-  background: rgba(255,120,48,0.14);
+  border-color: color-mix(in srgb, var(--primary) 42%, transparent);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .janus-runtime-overflow {
   padding: 2px 4px;
-  color: rgba(255,255,255,0.34);
+  color: var(--shell-dim);
   font-family: 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
   text-align: right;

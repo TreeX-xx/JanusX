@@ -149,8 +149,8 @@
   padding: 4px;
   border: 1px solid var(--shell-border);
   border-radius: 8px;
-  background: var(--shell-chrome-raised, #252527);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  background: var(--shell-chrome-raised);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow-color) 50%, transparent);
   animation: team-pop-in 120ms ease-out;
 }
 
@@ -381,5 +381,5 @@
 /* ── planche：纸面团队行（加法层，dark 原样不动）──
     悬浮底已由 --shell-hover 自动换成纸深；黑硬影换套印偏移影。 */
 :global([data-theme='planche']) .popover {
-  box-shadow: 3px 3px 0 var(--line, #1C343B);
+  box-shadow: 3px 3px 0 var(--line, var(--shell-text));
 }

@@ -14,7 +14,7 @@ function contrast(a: string, b: string): number {
 export const pluginThemeSchema = z.object({
   id: z.string().min(1).max(64).regex(/^[a-z][a-z0-9-]*$/),
   title: z.string().min(1).max(80).refine(value => Boolean(value.trim())),
-  base: z.enum(['planche', 'dark']),
+  base: z.enum(['planche', 'dark', 'white']),
   colors: z.object({ canvas: color, text: color, muted: color, card: color, border: color, accent: color }).strict(),
 }).strict().superRefine(({ colors }, context) => {
   if (contrast(colors.text, colors.canvas) < 4.5 || contrast(colors.text, colors.card) < 4.5

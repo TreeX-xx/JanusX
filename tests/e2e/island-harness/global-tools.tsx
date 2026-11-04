@@ -25,7 +25,7 @@ import '../../../src/renderer/src/styles/theme-hovers.css'
 installElectronApiFallback()
 const language = new URLSearchParams(location.search).get('lang') === 'zh-CN' ? 'zh-CN' : 'en'
 Object.assign(window.electron.system, { getLanguage: async () => language, setLanguage: async () => undefined })
-useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'planche')
+useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') ?? 'planche')
 const surface: BrowserSurfaceState = {
   surfaceId: 'browser', carrier: 'pane', tabs: [{ tabId: 'page', url: 'https://example.com/',
     title: 'Reference browser', isLoading: false, canGoBack: false, canGoForward: false }],

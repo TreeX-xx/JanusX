@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { scanThemeSources, classifyFindings } from '../../scripts/theme-audit.mjs'
 
 describe('theme audit', () => {
+  it('scans plugin declarations while treating SVG selector attributes as identities', () => {
+    const findings = scanThemeSources([
+      { path: 'packages/plugin-sdk/theme.css', source: ':root { --shell-text: #fff; }' },
+      { path: 'plugins/example/style.css', source: '[fill="#abc"] { fill: var(--shell-text); color: #123456; }' },
+    ])
+    expect(findings).toEqual([expect.objectContaining({ path: 'plugins/example/style.css', value: '#123456' })])
+  })
   it('finds CSS, JSX and dynamic template colors with source locations, skipping comments', () => {
     const findings = scanThemeSources([
       { path: 'panel.css', source: '/* #fff */\n.p { background: #123456; color: rgba(0, 0, 0, .2); }\n[data-theme="custom"] .p {}' },

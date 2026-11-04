@@ -44,6 +44,7 @@ import { MEMO_CHANNELS, type MemoAPI } from '../shared/ipc/memo'
 import { HARNESS_COMMAND_CHANNELS, HARNESS_EVENT_CHANNELS, type HarnessAPI } from '../shared/ipc/harness'
 import { ROUNDTABLE_CHANNELS, type RoundtableAPI } from '../shared/ipc/roundtable'
 import { AGENT_SETTINGS_CHANNELS, NOTIFICATION_SETTINGS_CHANNELS, type AgentSettingsAPI, type NotificationSettingsAPI } from '../shared/ipc/settings'
+import { LOCAL_INTEGRATION_CHANNELS, type LocalIntegrationsAPI } from '../shared/local-integrations'
 import { EXPERIMENTAL_CHANNELS, type ExperimentalAPI } from '../shared/ipc/experimental'
 import { THEME_CHANNELS, type AppTheme, type ThemeAPI } from '../shared/ipc/theme'
 import { SYSTEM_CHANNELS, type DesktopToastAPI, type DialogAPI, type SystemAPI, type WindowAPI } from '../shared/ipc/system'
@@ -119,6 +120,7 @@ const fileTreeAPI: FileTreeAPI = {
 }
 
 const fileAPI: FileAPI = {
+  importConversationAttachment: (name, bytes) => ipcRenderer.invoke(FILE_CHANNELS.importConversationAttachment, name, bytes),
   read: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.read, filePath),
     save: (filePath, content, expectedVersion) => expectedVersion === undefined
       ? ipcRenderer.invoke(FILE_CHANNELS.save, filePath, content)
@@ -138,6 +140,11 @@ function subscribeIpcEvent<T>(channel: string, callback: (event: T) => void): ()
 }
 
 const terminalAPI: TerminalAPI = {
+  conversation: (id) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.conversation, { id }),
+  saveConversationImage: (id, itemId, imageId) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.saveConversationImage, { id, itemId, imageId }),
+  inputHistory: (id) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.inputHistory, { id }),
+  conversationCommand: (id, command) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.conversationCommand, { id, command }),
+  onConversation: (callback) => subscribeIpcEvent(TERMINAL_EVENT_CHANNELS.conversation, callback),
   warmup: (request) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.warmup, request),
   create: (request) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.create, request),
   replay: (id) => ipcRenderer.invoke(TERMINAL_INVOKE_CHANNELS.replay, { id }),
@@ -448,6 +455,9 @@ const checkpointAPI: CheckpointAPI = {
 const gitAPI: GitAPI = {
   status: (cwd) => ipcRenderer.invoke(GIT_CHANNELS.status, cwd),
   log: (cwd, maxCount) => ipcRenderer.invoke(GIT_CHANNELS.log, cwd, maxCount),
+  history: (cwd, query) => ipcRenderer.invoke(GIT_CHANNELS.history, cwd, query),
+  diff: (cwd, relativePath, staged) => ipcRenderer.invoke(GIT_CHANNELS.diff, cwd, relativePath, staged),
+  commitFileDiff: (cwd, hash, relativePath) => ipcRenderer.invoke(GIT_CHANNELS.commitFileDiff, cwd, hash, relativePath),
   stage: (cwd, paths) => ipcRenderer.invoke(GIT_CHANNELS.stage, cwd, paths),
   unstage: (cwd, paths) => ipcRenderer.invoke(GIT_CHANNELS.unstage, cwd, paths),
   commit: (cwd, message) => ipcRenderer.invoke(GIT_CHANNELS.commit, cwd, message),
@@ -481,6 +491,17 @@ const notificationSettingsAPI: NotificationSettingsAPI = {
 const agentSettingsAPI: AgentSettingsAPI = {
   get: () => ipcRenderer.invoke(AGENT_SETTINGS_CHANNELS.get),
   update: (settings) => ipcRenderer.invoke(AGENT_SETTINGS_CHANNELS.update, settings),
+}
+
+const localIntegrationsAPI: LocalIntegrationsAPI = {
+  scan: query => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.scan, query),
+  read: (query, id) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.read, query, id),
+  save: input => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.save, input),
+  reveal: (query, id) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.reveal, query, id),
+  probe: (query, id, revision) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.probe, query, id, revision),
+  prepareRemoval: (query, id, revision) => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.prepareRemoval, query, id, revision),
+  remove: token => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.remove, token),
+  revealBackup: id => ipcRenderer.invoke(LOCAL_INTEGRATION_CHANNELS.revealBackup, id),
 }
 
 const experimentalAPI: ExperimentalAPI = {
@@ -701,6 +722,7 @@ contextBridge.exposeInMainWorld('electron', {
   git: gitAPI,
   notificationSettings: notificationSettingsAPI,
   agentSettings: agentSettingsAPI,
+  localIntegrations: localIntegrationsAPI,
   experimental: experimentalAPI,
   theme: themeAPI,
   updater: updaterAPI,

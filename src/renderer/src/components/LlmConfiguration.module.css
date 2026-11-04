@@ -9,10 +9,10 @@
 .agentList { display: flex; flex-direction: column; gap: 3px; }
 .agentRow { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr) 14px; align-items: center; gap: 6px 8px; min-height: 60px; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--shell-text); font: inherit; text-align: left; cursor: pointer; }
 .agentRow[aria-pressed="true"], .agentRow:hover { background: var(--shell-active); }
-.agentRow img { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.agentRow > [data-preset] { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
 .agentName { font-weight: 500; min-width: 0; }
 .summary { grid-column: 2 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--shell-muted); font-size: 11px; }
-.agentRow > svg { grid-column: 3; grid-row: 1; color: var(--shell-muted); }
+.agentRow > svg:last-child { grid-column: 3; grid-row: 1; color: var(--shell-muted); }
 .agentRow > .pending { grid-column: 2 / -1; }
 .pending { color: var(--so-accent-ink, var(--shell-text)); font-size: 10px; white-space: nowrap; }
 .bindingPanel { padding: 3px 0 4px; min-width: 0; }
@@ -24,7 +24,6 @@
 .field > span { font-size: 12px; font-weight: 500; }
 .fieldHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .fieldHeader > span { font-size: 12px; font-weight: 500; }
-.fieldHeader .link { font-size: 11px; }
 .presetGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .presetButton { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 38px; padding: 8px 10px; border: 1px solid var(--shell-border); border-radius: 7px; background: transparent; color: var(--shell-muted); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .presetIcon { display: inline-block; flex: 0 0 18px; width: 18px; height: 18px; object-fit: contain; }
@@ -36,23 +35,16 @@
 .modelChoices button { max-width: 100%; padding: 4px 8px; border: 1px solid var(--shell-border); border-radius: 6px; background: transparent; color: var(--shell-muted); font: inherit; font-size: 11px; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .modelChoices button:hover, .modelChoices button[aria-pressed="true"] { background: var(--shell-active); color: var(--shell-text); }
 .full, .checkbox { grid-column: 1 / -1; }
-.root input:not([type="checkbox"]), .root textarea { width: 100%; box-sizing: border-box; min-width: 0; padding: 8px 10px; background: var(--so-field, var(--shell-canvas)); color: var(--shell-text); border: 1px solid var(--control-border); border-radius: 6px; font: inherit; line-height: 1.5; }
-.root input::placeholder, .root textarea::placeholder { color: var(--shell-muted); opacity: .7; }
-.root textarea { resize: vertical; min-height: 80px; font-size: 12px; }
-.root input:focus-visible, .root textarea:focus-visible, .root button:focus-visible, .root summary:focus-visible { outline: 2px solid var(--so-accent, var(--shell-text)); outline-offset: 2px; }
+.root input:not([type="checkbox"]), .root textarea { width: 100%; min-width: 0; }
 .field small, .hint, .footnote { color: var(--shell-muted); font-size: 11px; line-height: 1.7; }
 .hint { margin: 12px 0; }
 .footnote { grid-column: 1 / -1; margin: 18px 0 0; }
 .footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--shell-border-soft); }
 .footer > span { font-size: 11px; line-height: 1.6; color: var(--shell-muted); }
-.button, .primary, .iconButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 11px; border: 1px solid var(--control-border); border-radius: 6px; color: var(--shell-text); background: transparent; font: inherit; font-size: 12px; cursor: pointer; flex-shrink: 0; }
-.primary { background: var(--shell-text); border-color: var(--shell-text); color: var(--shell-canvas); font-weight: 600; }
-.button:hover, .iconButton:hover { background: var(--shell-hover, var(--shell-active)); }
-.primary:hover { background: color-mix(in srgb, var(--shell-text) 85%, var(--shell-canvas)); border-color: transparent; }
+.button, .primary, .iconButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; }
 .root button:disabled { opacity: .45; cursor: default; }
-.iconButton { width: 30px; padding: 4px; border-color: transparent; color: var(--shell-muted); }
-.link { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; color: var(--shell-muted); font: inherit; font-size: 12px; cursor: pointer; }
-.link:hover { color: var(--shell-text); }
+.iconButton { width: 30px; }
+.link { display: inline-flex; align-items: center; gap: 5px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
 .toolbar input { max-width: 260px; }
 .empty { padding: 40px 24px; border: 1px dashed var(--shell-border); border-radius: 8px; text-align: center; }
@@ -69,8 +61,7 @@
 .loginStatus { display: flex; align-items: center; gap: 8px; margin: 14px 0 -2px; }
 .loginStatus .badge[data-state="logged-in"] { color: var(--status-success); border-color: var(--status-success); }
 .loginStatus .badge[data-state="logged-out"] { color: var(--status-warning); border-color: var(--status-warning); }
-.loginStatus .button { min-height: 26px; padding: 3px 10px; font-size: 11px; }
-.loginStatus .iconButton { width: 26px; min-height: 26px; }
+.loginStatus .iconButton { width: 26px; }
 /* One-shot launch diagnosis: inline under the status row, auto-dismissed. */
 .loginFailure { margin: 4px 0 0; color: var(--status-danger); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .spinning { animation: login-refresh-spin 900ms linear infinite; }
@@ -79,8 +70,7 @@
 .editor > .link { margin-bottom: 20px; }
 .secret { display: flex; align-items: center; gap: 4px; }
 .secret input { flex: 1; }
-.checkbox { display: flex; gap: 8px; align-items: center; color: var(--shell-muted); font-size: 12px; }
-.checkbox input { accent-color: var(--so-accent); }
+.checkbox { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; color: var(--shell-muted); font-size: 12px; }
 .root details > summary { color: var(--shell-muted); font-size: 12px; cursor: pointer; margin-bottom: 12px; }
 .editor > .fields > details { border-top: 1px solid var(--shell-border-soft); padding-top: 14px; }
 .error, .notice { display: flex; gap: 7px; align-items: flex-start; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--shell-border); border-radius: 6px; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
@@ -93,7 +83,7 @@
   .agentPage { grid-template-columns: minmax(0, 1fr); }
   .agentRow { grid-template-columns: 20px 95px minmax(0, 1fr) 14px; min-height: 48px; }
   .summary { grid-column: 3; grid-row: 1; }
-  .agentRow > svg { grid-column: 4; }
+  .agentRow > svg:last-child { grid-column: 4; }
   .bindingPanel { padding-top: 20px; }
 }
 @container (max-width: 460px) {

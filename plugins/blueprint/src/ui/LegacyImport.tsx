@@ -1,3 +1,4 @@
+import { Button as SettingsButton } from '@janusx/ui'
 import { useState } from 'react'
 import { call } from './client'
 import { t } from './i18n'
@@ -15,14 +16,14 @@ export function LegacyImport({ changed }: { changed(): void }) {
     try { await work() } catch (cause) { setError(String(cause)) } finally { setBusy(false) }
   }
   return <WorkbenchPopover label={t('导入旧蓝图')}>
-    <button type="button" className="blueprint-btn" disabled={busy} onClick={() => {
+    <SettingsButton type="button" className="blueprint-btn" disabled={busy} onClick={() => {
       void run(async () => { setPreview(undefined); setSources(await call('legacy.list')); setLoaded(true) })
-    }}>{t('读取旧蓝图')}</button>
+    }}>{t('读取旧蓝图')}</SettingsButton>
     <div>
       <p>{t('预览后确认转换为当前项目的 Notes。原始旧数据保留，不自动执行历史任务。')}</p>
       {loaded && !busy && !sources.length && <p>{t('没有待导入的旧蓝图。')}</p>}
       {sources.map(source => <div key={source.id}>
-        <button type="button" className="blueprint-btn" disabled={busy || !!source.error} onClick={() => void run(async () => setPreview(await call('legacy.preview', source.id)))}>{source.name} · {source.nodes ?? 0}</button>
+        <SettingsButton type="button" className="blueprint-btn" disabled={busy || !!source.error} onClick={() => void run(async () => setPreview(await call('legacy.preview', source.id)))}>{source.name} · {source.nodes ?? 0}</SettingsButton>
         {source.error && <p role="alert">{source.error}</p>}
       </div>)}
       {preview && <div>
@@ -32,11 +33,11 @@ export function LegacyImport({ changed }: { changed(): void }) {
           <pre>{document.markdown}</pre>
         </details>)}
         {preview.warnings.map((warning, index) => <p key={index}>{warning}</p>)}
-        <button type="button" className="blueprint-btn" disabled={busy} onClick={() => {
+        <SettingsButton type="button" className="blueprint-btn" disabled={busy} onClick={() => {
           const token = preview.token
           setPreview(undefined)
           void run(async () => { await call('legacy.apply', token); setSources(await call('legacy.list')); changed() })
-        }}>{t('确认导入')}</button>
+        }}>{t('确认导入')}</SettingsButton>
       </div>}
       {error && <p role="alert">{error}</p>}
       {busy && <p role="status">{t('正在处理…')}</p>}

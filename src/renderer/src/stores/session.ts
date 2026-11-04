@@ -128,7 +128,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set((state) => ({ sessions: reconcileSessions(state.sessions, sessions), loading: false, lastFetchedAt: Date.now() }))
     } catch (err) {
       if (isCurrentScope()) {
-        set({ error: (err as Error).message, loading: false })
+        // A failed scope switch must reveal the error, never actionable cards
+        // from the previous workspace. Background failures keep current data.
+        set({ error: (err as Error).message, loading: false, ...(!sameScope ? { sessions: [] } : {}) })
       }
     }
   },

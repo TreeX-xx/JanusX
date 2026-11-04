@@ -1,0 +1,8 @@
+{
+  "publisher": "JanusX",
+  "host": ">=0.9.5 <1.0.0",
+  "platforms": [
+    "win32-x64"
+  ],
+  "url": "https://github.com/TreeX-xx/JanusX/releases/download/v0.9.6/official.cpa-1.0.0.jxp"
+}

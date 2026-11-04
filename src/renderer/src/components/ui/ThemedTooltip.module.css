@@ -13,10 +13,10 @@
   overflow: hidden;
   padding: 5px 9px;
   border-radius: 6px;
-  background: rgba(20, 20, 20, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  color: var(--shell-text, #e8e8e8);
+  background: color-mix(in srgb, var(--shell-canvas) 98%, transparent);
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 10%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 50%, transparent);
+  color: var(--shell-text);
   font-size: 11px;
   line-height: 1.45;
   pointer-events: none;
@@ -60,8 +60,8 @@
 /* ── planche：提示纸面化（加法层，dark 原样不动）── */
 :global([data-theme='planche']) .tip,
 :global([data-theme='planche']) .tipPanel {
-  background: var(--paper, #EFE4C5);
-  border: 1px solid var(--line, #1C343B);
-  box-shadow: 3px 3px 0 var(--line, #1C343B);
-  color: var(--ink, #1C343B);
+  background: var(--paper, var(--shell-canvas));
+  border: 1px solid var(--line, var(--shell-text));
+  box-shadow: 3px 3px 0 var(--line, var(--shell-text));
+  color: var(--ink, var(--shell-text));
 }

@@ -1,6 +1,15 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app, dialog } from 'electron'
+import { exportConversationImage } from '../terminal/conversation-image-export'
 import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
+import { readNativeInputHistory } from '../terminal/input-history'
+import { CodexConversation } from '../terminal/codex-conversation'
+import { ClaudeConversation } from '../terminal/claude-conversation'
+import { PiConversation, DshConversation } from '../terminal/extension-conversation'
+import { OpenCodeConversation } from '../terminal/opencode-conversation'
+import { supportsConversation } from '../../shared/conversation-display'
+import { conversations, type ConversationController } from '../terminal/conversations'
+import type { ConversationCommand } from '../../shared/conversation-display'
 import { createRemoteTerminal } from '../terminal/remote-pty'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
@@ -15,6 +24,7 @@ import { deliverHandoff, type HandoffTransport } from '../sessions/handoff-deliv
 import { prepareSessionRecovery, type SessionRecoveryEnvironment } from '../sessions/session-recovery'
 import { isTerminalPreset, resolveTerminalLaunchProgram } from '../../shared/terminalLaunch'
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
+import { managedCliEnv } from '../external-cli/managed-paths'
 import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import type { SubAgentRunEngine } from '../../shared/subAgentRun'
 import { AgentHookBridge } from '../notifications/agent-hook-bridge'
@@ -40,7 +50,7 @@ import { readAssistantExcerpt } from '../sessions/transcript-excerpt'
 import { appShutdown } from '../shutdown/AppShutdown'
 import { officecliManager } from '../office/officecli-manager'
 import { existsSync } from 'node:fs'
-import { extname, resolve } from 'node:path'
+import { extname, isAbsolute, resolve, win32 } from 'node:path'
 import { buildOfficeAgentSession, mergeOfficeAgentEnv } from '../office/office-agent-policy'
 import {
   TERMINAL_EVENT_CHANNELS,
@@ -91,6 +101,16 @@ let companionTerminalCreator: ((config: TerminalCreateRequest) => Promise<{ pid:
 
 /** 直启程序；shell 条目解析失败时用 error 占位，错误在调用方已有 try 内抛出。 */
 type ResolvedLaunchProgram = { command: string; args: string[] } | { error: string } | undefined
+
+/** Absolute registeredCLIs command, when the user pointed Claude at a real binary. */
+function configuredClaudeCommand(command: string): string {
+  if (command !== 'claude') return command
+  const entry = configService.getRegisteredCLIs().find((item) => item.id === 'claude-code')
+  const configured = entry?.command?.trim()
+  if (!configured) return command
+  if (isAbsolute(configured) || win32.isAbsolute(configured)) return configured
+  return command
+}
 
 export type ContinueSessionOptions = {
   engine?: string
@@ -500,7 +520,9 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     stopRuntimeTelemetry: () => terminalContextCoordinator.shutdown(),
     flushAgentSessions: () => agentSessionRegistry.flush(),
     stopHookBridge: () => hookBridge.stop(),
-    disposeTerminalSession: () => {
+    disposeTerminalSession: async () => {
+      await Promise.all([...conversations.values()].map(conversation => conversation.dispose()))
+      conversations.clear()
       for (const id of [...pendingTerminalData.keys()]) dropPendingTerminalData(id)
       terminalStates.clear()
       serviceErrorDetectors.clear()
@@ -611,6 +633,9 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   }
 
   const createTerminalLifecycle = async (config: TerminalCreateRequest, recoveryEnv?: SessionRecoveryEnvironment) => {
+    if (config.conversationEnabled && (!supportsConversation(config.preset ?? '') || parseRuntimeResource(config.cwd) || config.extraArgs?.length || recoveryEnv)) {
+      throw new Error('Dual mode requires a new local supported agent session')
+    }
     if (parseRuntimeResource(config.cwd)) return createRemoteLifecycle(config)
     assertHookCleanupIdle()
     const launchStartedAt = performance.now()
@@ -680,109 +705,117 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       hookStatus: undefined,
     })
 
-    const launchProgram = resolveTerminalLaunchProgram(
-      isTerminalPreset(preset) ? preset : { command, args },
-    )
-
-    // 普通终端按用户自建 shell 条目直启（默认条目或本次临时选择），CLI 预设仍走上面解析。
-    // shell 条目解析失败时返回 error 而不 reject：Promise.all 位于 pre-stub 之后，
-    // reject 会漏掉 creationLocked（与 officePromise 的守卫同一理由），错误改在下面
-    // 已有 try 内抛出，走完整的 rollback。
-    const resolveProgramPromise = (async (): Promise<ResolvedLaunchProgram> => {
-      if (engine === 'shell') {
-        const shellLaunch = await resolveShellProfileLaunch({
-          ...(shellProfileId ? { id: shellProfileId } : {}),
-          ...(shellCommand ? { commandLine: shellCommand } : {}),
-        })
-        if (shellLaunch.error) return { error: shellLaunch.error }
-        return shellLaunch.program
-      }
-      if (!launchProgram) return undefined
-      try {
-        const resolved = await resolveCLIPath(launchProgram.command)
-        // Never pass a non-existent or extensionless Windows path to node-pty.
-        // Fall back to the bare command so CreateProcess can still search PATHEXT.
-        if (
-          resolved &&
-          (process.platform !== 'win32' ||
-            (existsSync(resolved) && Boolean(extname(resolved))))
-        ) {
-          return { command: resolved, args: launchProgram.args }
-        }
-      } catch {
-        // Fall back to bare command; PATH-based spawn may still succeed.
-      }
-      return launchProgram
-    })()
-
-    let hookLaunchArgs: string[] = []
-    const hookEnvPromise = (async (): Promise<Record<string, string> | undefined> => {
-      // shell spawns no agent and needs no hook env.
-      if (engine === 'shell') return undefined
-      try {
-        await hookBridge.start()
-        await ensureHooksInstalled(engine, launchHookManager)
-        const program = await resolveProgramPromise
-        if (engine === 'codex' && program && 'command' in program) await launchHookManager.checkCodexLaunchVersion(program.command)
-        const openCodeMajor = engine === 'opencode' && program && 'command' in program
-          ? await launchHookManager.getOpenCodeMajor(program.command) : undefined
-        hookLaunchArgs = await launchHookManager.getLaunchArgs(engine, openCodeMajor)
-        return launchHookManager.buildTerminalEnv(
-          {
-            terminalId: id,
-            workspaceId,
-            engine,
-            openCodeMajor,
-          },
-          hookBridge.getEnv(),
-        )
-      } catch (err) {
-        hookLaunchArgs = []
-        const message = err instanceof Error ? err.message : String(err)
-        console.error('Agent hook setup failed:', err)
-        const event = {
-          type: 'ignored',
-          terminalId: id,
-          engine,
-          source: engine,
-          hookEvent: 'setup',
-          reason: message,
-          delivered: false,
-        } as const
-        hookDiagnostics.record(summarizeCoordinatorEvent(event))
-        sendToRenderer(getMainWindow(), AGENT_CHANNELS.hookEvent, event)
-        return undefined
-      }
-    })()
-
-    const [resolvedProgram, hookEnvBase] = await Promise.all([
-      resolveProgramPromise,
-      hookEnvPromise,
-    ])
-
-    const launchProgramError = resolvedProgram && 'error' in resolvedProgram ? resolvedProgram.error : undefined
-    const launchProgramResolved = resolvedProgram && 'command' in resolvedProgram ? resolvedProgram : undefined
-
-    const programArgs = [...(launchProgramResolved?.args ?? []), ...hookLaunchArgs, ...(extraArgs ?? [])]
-    const preparationMs = Math.round(performance.now() - launchStartedAt)
-
-    logTerminalDiagnostic('terminal create requested', {
-      id,
-      workspaceId,
-      cwd,
-      shell,
-      preset,
-      engine,
-      program: launchProgramResolved?.command,
-      programArgs,
-    })
-
     let instance
+    let conversation: ConversationController | undefined
+    let baselinePromise: Promise<void> | undefined
+    let baselineMs = 0
     try {
-      if (launchProgramError) throw new Error(launchProgramError)
+      // Both preparations are read-only with respect to the working tree. Keep
+      // the creation lock until they settle, and never start an agent early.
       const baselineStartedAt = performance.now()
-      if (engine !== 'shell') await turnChangeTracker.register(id, cwd)
-      const baselineMs = Math.round(performance.now() - baselineStartedAt)
+      baselinePromise = (engine !== 'shell' ? turnChangeTracker.register(id, cwd) : Promise.resolve()).then(() => {
+        baselineMs = Math.round(performance.now() - baselineStartedAt)
+      })
+      const launchProgram = resolveTerminalLaunchProgram(
+        isTerminalPreset(preset) ? preset : { command, args },
+      )
+
+      // 普通终端按用户自建 shell 条目直启（默认条目或本次临时选择），CLI 预设仍走上面解析。
+      // Shell errors and rejected preparation both use the same rollback below.
+      const resolveProgramPromise = (async (): Promise<ResolvedLaunchProgram> => {
+        if (engine === 'shell') {
+          const shellLaunch = await resolveShellProfileLaunch({
+            ...(shellProfileId ? { id: shellProfileId } : {}),
+            ...(shellCommand ? { commandLine: shellCommand } : {}),
+          })
+          if (shellLaunch.error) return { error: shellLaunch.error }
+          return shellLaunch.program
+        }
+        if (!launchProgram) return undefined
+        try {
+          const resolved = await resolveCLIPath(configuredClaudeCommand(launchProgram.command))
+          // Never pass a non-existent or extensionless Windows path to node-pty.
+          // Fall back to the bare command so CreateProcess can still search PATHEXT.
+          if (
+            resolved &&
+            (process.platform !== 'win32' ||
+              (existsSync(resolved) && Boolean(extname(resolved))))
+          ) {
+            return { command: resolved, args: launchProgram.args }
+          }
+        } catch (error) {
+          if (error instanceof Error && error.name === 'ClaudeNativeBinaryError') throw error
+          // Fall back to bare command; PATH-based spawn may still succeed.
+        }
+        return launchProgram
+      })()
+
+      let hookLaunchArgs: string[] = []
+      const hookEnvPromise = (async (): Promise<Record<string, string> | undefined> => {
+        // shell spawns no agent and needs no hook env.
+        if (engine === 'shell') return undefined
+        try {
+          await hookBridge.start()
+          await ensureHooksInstalled(engine, launchHookManager)
+          const program = await resolveProgramPromise
+          if (engine === 'codex' && program && 'command' in program) await launchHookManager.checkCodexLaunchVersion(program.command)
+          const openCodeMajor = engine === 'opencode' && program && 'command' in program
+            ? await launchHookManager.getOpenCodeMajor(program.command) : undefined
+          hookLaunchArgs = await launchHookManager.getLaunchArgs(engine, openCodeMajor)
+          return launchHookManager.buildTerminalEnv(
+            {
+              terminalId: id,
+              workspaceId,
+              engine,
+              openCodeMajor,
+            },
+            hookBridge.getEnv(),
+          )
+        } catch (err) {
+          hookLaunchArgs = []
+          const message = err instanceof Error ? err.message : String(err)
+          console.error('Agent hook setup failed:', err)
+          const event = {
+            type: 'ignored',
+            terminalId: id,
+            engine,
+            source: engine,
+            hookEvent: 'setup',
+            reason: message,
+            delivered: false,
+          } as const
+          hookDiagnostics.record(summarizeCoordinatorEvent(event))
+          sendToRenderer(getMainWindow(), AGENT_CHANNELS.hookEvent, event)
+          return undefined
+        }
+      })()
+
+      const [resolvedProgram, hookEnvBase] = await Promise.all([
+        resolveProgramPromise,
+        hookEnvPromise,
+      ])
+
+      const launchProgramError = resolvedProgram && 'error' in resolvedProgram ? resolvedProgram.error : undefined
+      const launchProgramResolved = resolvedProgram && 'command' in resolvedProgram ? resolvedProgram : undefined
+
+      const programArgs = [...(launchProgramResolved?.args ?? []), ...hookLaunchArgs, ...(extraArgs ?? [])]
+      const preparationMs = Math.round(performance.now() - launchStartedAt)
+
+      logTerminalDiagnostic('terminal create requested', {
+        id,
+        workspaceId,
+        cwd,
+        shell,
+        preset,
+        engine,
+        program: launchProgramResolved?.command,
+        programArgs,
+      })
+
+      if (terminalStates.get(id)?.userKillRequested || appShutdown.isQuitting) throw new Error('Terminal launch cancelled')
+      if (launchProgramError) throw new Error(launchProgramError)
+      await baselinePromise
+      if (terminalStates.get(id)?.userKillRequested || appShutdown.isQuitting) throw new Error('Terminal launch cancelled')
       const office = resolveOfficecliLaunchAssets()
       const officeMcpEntry = resolve(__dirname, '..', 'office-mcp.js')
       const officeSession = buildOfficeAgentSession(engine, cwd, office.binaryPath, officeMcpEntry)
@@ -790,25 +823,66 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         logTerminalDiagnostic('Office automation policy-only mode', { engine, limitation: officeSession.limitation })
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
+      const launchEnv = {
+        ...(engine !== 'shell' ? { PATH: managedCliEnv().PATH ?? managedCliEnv().Path ?? '' } : {}),
+        ...hookEnv,
+        ...(recoveryEnv?.claudeConfigDir ? { CLAUDE_CONFIG_DIR: recoveryEnv.claudeConfigDir } : {}),
+        ...(recoveryEnv?.codexHome ? { CODEX_HOME: recoveryEnv.codexHome } : {}),
+      }
+      let runtimeProgram = launchProgramResolved?.command
+      let runtimeArgs = programArgs
+      const runtimeStartedAt = performance.now()
+      if (config.conversationEnabled) {
+        if (!runtimeProgram || !hookEnvBase || (engine === 'claude' && !hookLaunchArgs.includes('--settings')) || (engine === 'codex' && !hookLaunchArgs.includes('--no-daemon')) || (engine === 'pi' && !hookLaunchArgs.includes('--extension'))) throw new Error('Dual mode requires working isolated launch hooks')
+        if (!supportsConversation(engine)) throw new Error('Unsupported conversation engine')
+        const adapter = { claude: ClaudeConversation, codex: CodexConversation, pi: PiConversation, opencode: OpenCodeConversation, dsh: DshConversation }[engine]
+        let readyRecorded = false
+        const managed = new adapter(id,
+          snapshot => {
+            if (!readyRecorded && snapshot.connection === 'ready') {
+              readyRecorded = true
+              logTerminalDiagnostic('terminal conversation ready', { id, engine, totalMs: Math.round(performance.now() - launchStartedAt) })
+            }
+            sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.conversation, snapshot)
+          },
+          (threadId, transcriptPath) => agentSessionRegistry.noteProviderSession(id, threadId, transcriptPath))
+        conversation = managed
+        conversations.set(id, conversation)
+        if (config.initialView === 'conversation') await managed.command({ type: 'mode', mode: 'conversation' })
+        const remote = await managed.start({ command: runtimeProgram, args: programArgs, cwd,
+          env: { ...process.env, ...launchEnv }, pathDir: office.pathDir, assetsDir: resolve(app.getPath('userData'), 'janusx', 'conversations') })
+        runtimeProgram = remote.command; runtimeArgs = remote.args
+        if ('env' in remote) Object.assign(launchEnv, remote.env)
+      }
+      if (terminalStates.get(id)?.userKillRequested || appShutdown.isQuitting) throw new Error('Terminal launch cancelled')
+      const runtimeMs = Math.round(performance.now() - runtimeStartedAt)
       terminalStorageReleases.set(id, acquireWorkspaceStorage(cwd))
       assertHookCleanupIdle()
+      const ptyStartedAt = performance.now()
       instance = terminalManager.create({
         id,
         workspaceId,
         cwd,
         shell,
-        program: launchProgramResolved?.command,
-        programArgs,
+        program: runtimeProgram,
+        programArgs: runtimeArgs,
         cols: typeof cols === 'number' ? cols : undefined,
         rows: typeof rows === 'number' ? rows : undefined,
-        env: {
-          ...hookEnv,
-          ...(recoveryEnv?.claudeConfigDir ? { CLAUDE_CONFIG_DIR: recoveryEnv.claudeConfigDir } : {}),
-          ...(recoveryEnv?.codexHome ? { CODEX_HOME: recoveryEnv.codexHome } : {}),
-        },
+        env: launchEnv,
       }, office.pathDir)
+      const ptyMs = Math.round(performance.now() - ptyStartedAt)
+      if (conversation) {
+        const owned = conversation
+        const nativePty = instance.pty
+        owned.setNativeInput(text => nativePty.write(text))
+        instance.disposeRuntime = () => {
+          const stopped = owned.dispose()
+          if (conversations.get(id) === owned) conversations.delete(id)
+          return stopped
+        }
+      }
       logTerminalDiagnostic('terminal launch timing', {
-        id, engine, preparationMs, baselineMs,
+        id, engine, preparationMs, baselineMs, runtimeMs, ptyMs,
         totalMs: Math.round(performance.now() - launchStartedAt),
       })
       if (engine === 'codex') {
@@ -817,6 +891,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         serviceErrorDetectors.delete(id)
       }
     } catch (err) {
+      turnChangeTracker.unregister(id)
+      await baselinePromise?.catch(() => {})
+      await conversation?.dispose()
+      if (conversations.get(id) === conversation) conversations.delete(id)
       logTerminalDiagnostic('terminal create failed', {
         id,
         workspaceId,
@@ -827,7 +905,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         stack: err instanceof Error ? err.stack : undefined,
       })
       // Release the creation lock stub so a later retry is not blocked.
-      turnChangeTracker.unregister(id)
       forgetTerminalState(id)
       throw err
     }
@@ -1054,6 +1131,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     // as its first pty output lands, without waiting for the poll cadence.
     void terminalContextCoordinator.runAttributionPass().catch(() => undefined)
     sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.created, {
+      ...(config.conversationEnabled ? { conversationEnabled: true, initialView: conversation?.snapshot().mode } : {}),
       id, workspaceId, cwd, preset: engine, shell, pid: instance.pty.pid,
     })
     return { pid: instance.pty.pid }
@@ -1235,9 +1313,27 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.create, async (_event, config: TerminalCreateRequest) => (
     createTerminalLifecycle(config)
   ))
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversation, (_event, { id }: { id: string }) => conversations.get(id)?.snapshot() ?? null)
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.saveConversationImage, async (event, { id, itemId, imageId }: { id: string; itemId: string; imageId: string }) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid image export frame')
+    return exportConversationImage(conversations.get(id)?.state, itemId, imageId, extension =>
+      dialog.showSaveDialog({ defaultPath: 'generated-image.' + extension, filters: [{ name: 'Image', extensions: [extension] }] }))
+  })
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.inputHistory, (_event, { id }: { id: string }) => {
+    const terminal = terminalManager.getInstance(id)
+    const state = terminalStates.get(id)
+    if (!terminal || terminal.remote || !state) return []
+    return readNativeInputHistory(state.engine, terminal.config.cwd, { ...process.env, ...terminal.config.env })
+  })
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: ConversationCommand }) => {
+    const conversation = conversations.get(id)
+    if (!conversation) throw new Error('No managed conversation for this terminal')
+    return conversation.command(command)
+  })
 
   // Ctrl+C ends the active turn without exiting the interactive CLI process.
   ipcMain.on(TERMINAL_SEND_CHANNELS.input, (_event, { id, data }: TerminalInputPayload) => {
+    if (conversations.get(id)?.acceptsTerminalInput(data) === false) return
     const state = terminalStates.get(id)
     if (state && state.engine !== 'shell' && isTerminalInterrupt(data) && hookCoordinator.hasActiveTurn(id)) {
       ingestHookPayload({
@@ -1252,6 +1348,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
   // Submit-line handler: renderer sends one complete user input transaction.
   ipcMain.on(TERMINAL_SEND_CHANNELS.submitLine, (_event, { id, text }: TerminalSubmitLinePayload) => {
+    if (conversations.get(id)?.state.mode === 'conversation') return
     recordSubmittedPrompt(id, text)
   })
 
@@ -1277,6 +1374,10 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         clearTimeout(st.flowTimer)
         st.flowTimer = null
       }
+    }
+    if (!terminalManager.getInstance(id)) {
+      await conversations.get(id)?.dispose()
+      conversations.delete(id)
     }
     dropPendingTerminalData(id)
     clearHandoffDeliveryForTerminal(id)

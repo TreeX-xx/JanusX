@@ -24,23 +24,23 @@ export type JanusEyePattern =
 
 export const JANUS_IDENTITY_COLORS = {
   mode: {
-    sleep: { color: '#ff7830', glow: 'rgba(255,120,48,0.6)' },
-    order: { color: '#ff7830', glow: 'rgba(255,120,48,0.6)' },
-    analytics: { color: '#ff7830', glow: 'rgba(255,120,48,0.6)' },
-    running: { color: '#00ff88', glow: 'rgba(0,255,136,0.6)' },
+    sleep: { color: 'var(--primary)', glow: 'color-mix(in srgb, var(--primary) 60%, transparent)' },
+    order: { color: 'var(--primary)', glow: 'color-mix(in srgb, var(--primary) 60%, transparent)' },
+    analytics: { color: 'var(--primary)', glow: 'color-mix(in srgb, var(--primary) 60%, transparent)' },
+    running: { color: 'var(--status-success)', glow: 'color-mix(in srgb, var(--status-success) 60%, transparent)' },
   },
   state: {
-    done: { color: '#ff7830', glow: 'rgba(255,120,48,0.6)' },
-    failed: { color: '#ff4a4a', glow: 'rgba(255,74,74,0.6)' },
+    done: { color: 'var(--primary)', glow: 'color-mix(in srgb, var(--primary) 60%, transparent)' },
+    failed: { color: 'var(--status-danger)', glow: 'color-mix(in srgb, var(--status-danger) 60%, transparent)' },
   },
   role: {
-    main: { color: '#ff7830', glow: 'rgba(255,120,48,0.6)' },
-    coder: { color: '#38bdf8', glow: 'rgba(56,189,248,0.6)' },
-    evaluator: { color: '#a78bfa', glow: 'rgba(167,139,250,0.6)' },
-    abstracter: { color: '#fbbf24', glow: 'rgba(251,191,36,0.6)' },
-    prompter: { color: '#f472b6', glow: 'rgba(244,114,182,0.6)' },
-    teammate: { color: '#94a3b8', glow: 'rgba(148,163,184,0.5)' },
-    subagent: { color: '#a9805a', glow: 'rgba(169,128,90,0.55)' },
+    main: { color: 'var(--primary)', glow: 'color-mix(in srgb, var(--primary) 60%, transparent)' },
+    coder: { color: 'var(--role-coder)', glow: 'color-mix(in srgb, var(--role-coder) 60%, transparent)' },
+    evaluator: { color: 'var(--role-evaluator)', glow: 'color-mix(in srgb, var(--role-evaluator) 60%, transparent)' },
+    abstracter: { color: 'var(--role-abstracter)', glow: 'color-mix(in srgb, var(--role-abstracter) 60%, transparent)' },
+    prompter: { color: 'var(--role-prompter)', glow: 'color-mix(in srgb, var(--role-prompter) 60%, transparent)' },
+    teammate: { color: 'var(--role-teammate)', glow: 'color-mix(in srgb, var(--role-teammate) 50%, transparent)' },
+    subagent: { color: 'var(--role-subagent)', glow: 'color-mix(in srgb, var(--role-subagent) 55%, transparent)' },
   },
 } as const
 
