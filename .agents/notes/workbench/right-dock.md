@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-11-04T15:14:49.145Z",
+  "updated": "2026-11-04T15:46:52.364Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -39,7 +39,9 @@ Mobile remote is an application action pinned to the bottom of the right rail, s
 
 Workspace and worktree changes share a glass transition in the Files, Git and Sessions content areas. The visible panel defocuses in 120ms, waits for its own data and refocuses in 220ms; navigation remains readable and background refreshes do not replay motion. Loading, failure and late-response handling are owned by [workspace context readiness](./file-tree-reveal-race.md).
 
-Files, Git and sessions now register as trusted bundled extensions through `extensions/builtins.tsx`. The adapter keeps their original tool IDs, translated labels, icons, order, gates and saved widths; the rail and content host no longer branch on these three tools. Disabling removes an entry and unmounts its view, while re-enabling retains its width and leaves it closed. Application-scoped shells preserve existing local state across project switches while the original stores own project/worktree context. Host services remain independent of the view lifecycle. The container supplies the same retry/close boundary for every right-hand contribution. Migration verification and limits are recorded in the [plugin delivery plan](../planning/plugin-platform-roadmap.md).
+Files, Git, repository collaboration and sessions register as trusted bundled extensions through `extensions/builtins.tsx`. The adapter owns their tool IDs, translated labels, icons, order, gates and saved widths; the rail and content host do not branch on individual built-ins. Disabling removes an entry and unmounts its view, while re-enabling retains its width and leaves it closed. Application-scoped shells preserve existing local state across project switches while the original stores own project/worktree context. Host services remain independent of the view lifecycle. The container supplies the same retry/close boundary for every right-hand contribution. Migration verification and limits are recorded in the [plugin delivery plan](../planning/plugin-platform-roadmap.md).
+
+The [repository panel](./ideas/repository-sidebar.md) follows Git in the rail, with a 380px default and 340–520px width range. Sign-in is available from the workspace three-dot menu and the repository panel's unauthenticated state; workspace rows retain their existing navigation layout. Collaboration browsing and writes live in the right panel. Hidden repository views stop starting requests, and responses are guarded by workspace/repository and request generation.
 
 The right side composes a fixed tool rail, floating previews and a docked persistent panel. The rail icons are the only navigation and collapse controls: clicking another tool selects and keeps its card open; clicking the active tool collapses or expands it. There is no top tab row or separate collapse button. Multiple opened tools retain mounted state with exactly one visible, and each tool runs as a singleton. Collapse keeps a single source of truth and tool business state follows existing stores per workspace. File icons lead with semantic shape plus low-saturation color inside the monochrome-plus-accent language, and file kind, selection, and version-control states travel three independent visual channels. Icon taxonomy shares one source with the file viewer classification. Office preview stays a transient middle workspace outside the rail.
 

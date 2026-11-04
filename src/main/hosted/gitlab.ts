@@ -1,10 +1,5 @@
-// Note: GitLab self-hosted provider over instance v4 API — see
+// Note: GitLab.com provider over the user's glab CLI — see
 // .agents/notes/remote/gitlab-provider-reviews.md
-import { execFile } from 'node:child_process'
-import { request as httpRequest } from 'node:http'
-import { request as httpsRequest } from 'node:https'
-import { URL } from 'node:url'
-import { promisify } from 'node:util'
 import type {
   FailedCheckLog,
   HostedCheck,
@@ -13,10 +8,9 @@ import type {
   HostedReview,
 } from '../../shared/ipc/hosted'
 import type { HostedProvider } from './github'
-import { parseGitRemote } from '../git/worktrees'
-import { GitlabConfigStore, apiRequestJson } from './gitlab-config'
+import { gitRemoteUrl, parseGitRemote } from '../git/worktrees'
+import { runHostedCli } from './cli'
 
-const execFileAsync = promisify(execFile)
 const FAILED_LOG_BYTES = 6 * 1024
 
 interface GitlabMr {
@@ -135,153 +129,77 @@ export function projectPath(owner: string, repo: string): string | null {
   return encodeURIComponent(`${owner}/${repo}`)
 }
 
-interface ResolvedInstance {
-  baseUrl: string
-  token: string
-  timeoutMs: number
-  allowInsecure: boolean
-  project: string
-}
-
-async function originRemote(cwd: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd, timeout: 10000 })
-    return stdout.trim() || null
-  } catch {
-    return null
-  }
-}
-
 export class GitlabProvider implements HostedProvider {
   readonly id = 'gitlab' as const
-  readonly capabilities = ['reviews', 'checks'] as HostedProvider['capabilities']
-
-  constructor(private readonly configStore = new GitlabConfigStore()) {}
-
-  private async resolve(cwd: string): Promise<ResolvedInstance | null> {
-    const config = await this.configStore.getConfig().catch(() => null)
-    if (!config?.url) return null
-    const remote = await originRemote(cwd)
-    const parsed = remote ? parseGitRemote(remote) : null
-    if (!parsed) return null
-    let instanceHost = ''
-    try {
-      instanceHost = new URL(config.url).hostname.toLowerCase()
-    } catch {
-      return null
-    }
-    if (parsed.host !== instanceHost) return null
-    const token = await this.configStore.resolveToken().catch(() => null)
-    if (!token) return null
-    const project = projectPath(parsed.owner, parsed.repo)
-    if (!project) return null
-    return { baseUrl: config.url, token, timeoutMs: config.timeoutMs, allowInsecure: config.allowInsecure, project }
-  }
-
-  private options(resolved: ResolvedInstance) {
-    return { timeoutMs: resolved.timeoutMs, allowInsecure: resolved.allowInsecure, token: resolved.token }
-  }
+  readonly capabilities: HostedProvider['capabilities'] = ['reviews', 'checks', 'comments', 'autoMerge']
 
   async detect(cwd: string): Promise<boolean> {
-    const resolved = await this.resolve(cwd).catch(() => null)
-    return !!resolved
+    const remote = await gitRemoteUrl(cwd, 'origin')
+    return !!remote && parseGitRemote(remote)?.host === 'gitlab.com'
+  }
+
+  private async project(cwd: string): Promise<string> {
+    const remote = await gitRemoteUrl(cwd, 'origin')
+    const parsed = remote ? parseGitRemote(remote) : null
+    if (!parsed || parsed.host !== 'gitlab.com') throw new Error('当前仓库不是 GitLab.com 仓库')
+    const project = projectPath(parsed.owner, parsed.repo)
+    if (!project) throw new Error('GitLab 项目路径无效')
+    return project
+  }
+
+  private async request(project: string, path: string, method = 'GET', payload?: unknown): Promise<string> {
+    const args = ['api', 'projects/' + project + path, '--hostname', 'gitlab.com', '--method', method]
+    if (payload !== undefined) args.push('--input', '-')
+    return runHostedCli('gitlab', args, payload === undefined ? undefined : JSON.stringify(payload))
+  }
+
+  private async json<T>(project: string, path: string, method = 'GET', payload?: unknown): Promise<T> {
+    const raw = await this.request(project, path, method, payload)
+    try {
+      return JSON.parse(raw) as T
+    } catch {
+      throw new Error('GitLab 返回了无效的 JSON 响应')
+    }
   }
 
   async listReviews(cwd: string, branch: string): Promise<HostedReview[]> {
-    const resolved = await this.resolve(cwd)
-    if (!resolved) return []
-    const { status, body } = await apiRequestJson<unknown>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/merge_requests?source_branch=${encodeURIComponent(branch)}&state=all&per_page=10`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as unknown }))
-    if (status !== 200) return []
-    return parseMrs(body).filter((review) => review.head === branch)
+    const project = await this.project(cwd)
+    const body = await this.json<unknown>(project,
+      '/merge_requests?source_branch=' + encodeURIComponent(branch) + '&state=all&per_page=10')
+    return parseMrs(body).filter(review => review.head === branch)
+  }
+
+  private async jobs(project: string, branch: string, failedOnly = false): Promise<GitlabJob[]> {
+    const pipelines = await this.json<Array<{ id?: number }>>(project,
+      '/pipelines?ref=' + encodeURIComponent(branch) + '&per_page=1&order_by=id&sort=desc')
+    if (!Array.isArray(pipelines)) throw new Error('GitLab 流水线响应无效')
+    const latest = pipelines[0]
+    if (!latest || typeof latest.id !== 'number') return []
+    const jobs = await this.json<GitlabJob[]>(project,
+      '/pipelines/' + latest.id + '/jobs?per_page=50' + (failedOnly ? '&scope[]=failed' : ''))
+    if (!Array.isArray(jobs)) throw new Error('GitLab 任务响应无效')
+    return jobs
   }
 
   async getChecks(cwd: string, branch: string): Promise<HostedCheck[]> {
-    const resolved = await this.resolve(cwd)
-    if (!resolved) return []
-    const pipelines = await apiRequestJson<Array<{ id?: number }>>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/pipelines?ref=${encodeURIComponent(branch)}&per_page=3&order_by=id&sort=desc`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as Array<{ id?: number }> }))
-    if (pipelines.status !== 200 || pipelines.body.length === 0) return []
-    const latest = pipelines.body[0]
-    if (typeof latest.id !== 'number') return []
-    const jobs = await apiRequestJson<unknown>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/pipelines/${latest.id}/jobs?per_page=50`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as unknown }))
-    if (jobs.status !== 200) return []
-    return parseJobs(jobs.body)
-  }
-
-  private async jobTrace(resolved: ResolvedInstance, jobId: number): Promise<string> {
-    const target = new URL(`${resolved.baseUrl}/api/v4/projects/${resolved.project}/jobs/${jobId}/trace`)
-    const requestImpl = target.protocol === 'http:' ? httpRequest : httpsRequest
-    return new Promise((resolvePromise, rejectPromise) => {
-      const request = requestImpl(
-        target,
-        {
-          method: 'GET',
-          headers: { 'PRIVATE-TOKEN': resolved.token },
-          rejectUnauthorized: !resolved.allowInsecure,
-          timeout: resolved.timeoutMs,
-        },
-        (response) => {
-          if ((response.statusCode ?? 0) !== 200) {
-            rejectPromise(new Error(`trace ${response.statusCode}`))
-            return
-          }
-          const chunks: Buffer[] = []
-          response.on('data', (chunk: Buffer) => chunks.push(chunk))
-          response.on('end', () => resolvePromise(Buffer.concat(chunks).toString('utf8')))
-          response.on('error', rejectPromise)
-        },
-      )
-      request.on('timeout', () => request.destroy(new Error('ETIMEDOUT')))
-      request.on('error', rejectPromise)
-      request.end()
-    })
+    return parseJobs(await this.jobs(await this.project(cwd), branch))
   }
 
   async getFailedLogs(cwd: string, branch: string): Promise<FailedCheckLog[]> {
-    const resolved = await this.resolve(cwd)
-    if (!resolved) return []
-    const pipelines = await apiRequestJson<Array<{ id?: number }>>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/pipelines?ref=${encodeURIComponent(branch)}&per_page=3&order_by=id&sort=desc`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as Array<{ id?: number }> }))
-    if (pipelines.status !== 200) return []
+    const project = await this.project(cwd)
+    const jobs = (await this.jobs(project, branch, true)).filter(job => job.status === 'failed').slice(0, 3)
     const logs: FailedCheckLog[] = []
-    const latest = pipelines.body[0]
-    if (!latest || typeof latest.id !== 'number') return logs
-    const jobs = await apiRequestJson<Array<{ id?: number; name?: string; status?: string }>>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/pipelines/${latest.id}/jobs?per_page=50&scope[]=failed`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as Array<{ id?: number; name?: string; status?: string }> }))
-    if (jobs.status !== 200) return logs
-    for (const job of jobs.body.slice(0, 3)) {
+    let failure: unknown
+    for (const job of jobs) {
       if (typeof job.id !== 'number') continue
       try {
-        const raw = await this.jobTrace(resolved, job.id)
-        if (!raw) continue
-        const { log, truncated } = truncateLog(raw)
-        logs.push({ name: String(job.name ?? `job-${job.id}`), log, truncated })
-      } catch {
-        // One unreadable job must not hide the others.
+        const raw = await this.request(project, '/jobs/' + job.id + '/trace')
+        if (raw) logs.push({ name: String(job.name ?? 'job-' + job.id), ...truncateLog(raw) })
+      } catch (error) {
+        failure = error
       }
     }
+    if (failure && logs.length === 0) throw failure
     return logs
   }
 
@@ -290,133 +208,71 @@ export class GitlabProvider implements HostedProvider {
     input: { title: string; body?: string; base: string; head: string; draft?: boolean },
   ): Promise<HostedReview> {
     if (!input.title.trim()) throw new Error('MR 标题不能为空')
-    const resolved = await this.resolve(cwd)
-    if (!resolved) throw new Error('当前仓库未接入已配置的 GitLab 实例')
-    const { status, body } = await apiRequestJson<{
-      iid?: number
-      title?: string
-      web_url?: string
-      message?: unknown
-    }>(
-      'POST',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/merge_requests`,
-      this.options(resolved),
-      {
-        source_branch: input.head,
-        target_branch: input.base,
-        title: input.title.trim(),
-        ...(input.body?.trim() ? { description: input.body.trim() } : {}),
-        ...(input.draft ? { draft: true } : {}),
-        remove_source_branch: true,
-      },
-    ).catch((err: unknown) => {
-      throw new Error(err instanceof Error ? err.message : String(err))
+    const project = await this.project(cwd)
+    const title = input.draft && !/^draft:/i.test(input.title.trim()) ? 'Draft: ' + input.title.trim() : input.title.trim()
+    const body = await this.json<unknown>(project, '/merge_requests', 'POST', {
+      source_branch: input.head,
+      target_branch: input.base,
+      title,
+      ...(input.body?.trim() ? { description: input.body.trim() } : {}),
+      remove_source_branch: true,
     })
-    if (status < 200 || status >= 300 || typeof body.iid !== 'number') {
-      const message = typeof body.message === 'string' ? body.message : `创建 MR 失败（${status}）`
-      throw new Error(message)
-    }
-    return {
-      number: body.iid,
-      title: String(body.title ?? input.title.trim()),
-      state: input.draft ? 'draft' : 'open',
-      base: input.base,
-      head: input.head,
-      url: String(body.web_url ?? ''),
-      checksState: 'none',
-    }
+    const created = parseMrs([body])[0]
+    if (!created) throw new Error('GitLab 未返回创建的 MR')
+    return created
   }
 
   async mergeReview(cwd: string, number: number, method: 'squash' | 'merge' | 'rebase' = 'squash'): Promise<{ merged: boolean }> {
-    if (!Number.isFinite(number)) throw new Error(`MR 编号无效：${number}`)
-    const resolved = await this.resolve(cwd)
-    if (!resolved) throw new Error('当前仓库未接入已配置的 GitLab 实例')
-    const { status, body } = await apiRequestJson<{ state?: string; message?: unknown }>(
-      'PUT',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/merge_requests/${number}/merge?squash=${method === 'squash'}`,
-      this.options(resolved),
-    ).catch((err: unknown) => {
-      throw new Error(err instanceof Error ? err.message : String(err))
-    })
-    if (status >= 200 && status < 300) return { merged: true }
-    const message = typeof body?.message === 'string' ? body.message : `合并 MR 失败（${status}）`
-    throw new Error(message)
+    this.validateNumber(number)
+    if (method === 'rebase') throw new Error('GitLab 合并方式由项目设置控制，请在 GitLab 中执行 rebase')
+    const project = await this.project(cwd)
+    const body = await this.json<{ state?: string }>(project, '/merge_requests/' + number + '/merge', 'PUT',
+      { squash: method === 'squash' })
+    if (body.state !== 'merged') throw new Error('GitLab 尚未确认 MR 已合并，请刷新查看状态')
+    return { merged: true }
   }
 
   async listIssues(cwd: string, query?: string): Promise<HostedIssue[]> {
-    const resolved = await this.resolve(cwd)
-    if (!resolved) return []
+    const project = await this.project(cwd)
     const params = new URLSearchParams({ state: 'opened', per_page: '20', order_by: 'updated_at', sort: 'desc' })
     if (query?.trim()) params.set('search', query.trim())
-    const { status, body } = await apiRequestJson<unknown>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/issues?${params.toString()}`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as unknown }))
-    if (status !== 200) return []
-    return parseGitlabIssues(body)
+    return parseGitlabIssues(await this.json<unknown>(project, '/issues?' + params.toString()))
   }
 
   async listComments(cwd: string, number: number): Promise<HostedComment[]> {
-    if (!Number.isFinite(number)) throw new Error(`MR 编号无效：${number}`)
-    const resolved = await this.resolve(cwd)
-    if (!resolved) return []
-    const { status, body } = await apiRequestJson<unknown>(
-      'GET',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/merge_requests/${number}/notes?per_page=50&sort=asc&order_by=created_at`,
-      this.options(resolved),
-    ).catch(() => ({ status: 0, body: [] as unknown }))
-    if (status !== 200) return []
-    return parseGitlabNotes(body)
+    this.validateNumber(number)
+    const project = await this.project(cwd)
+    return parseGitlabNotes(await this.json<unknown>(project,
+      '/merge_requests/' + number + '/notes?per_page=50&sort=asc&order_by=created_at'))
   }
 
   async postComment(cwd: string, number: number, comment: string): Promise<{ posted: boolean }> {
-    if (!Number.isFinite(number)) throw new Error(`MR 编号无效：${number}`)
+    this.validateNumber(number)
     if (!comment.trim()) throw new Error('评论内容不能为空')
-    const resolved = await this.resolve(cwd)
-    if (!resolved) throw new Error('当前仓库未接入已配置的 GitLab 实例')
-    const { status } = await apiRequestJson<unknown>(
-      'POST',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/merge_requests/${number}/notes`,
-      this.options(resolved),
-      { body: comment.trim() },
-    ).catch((err: unknown) => {
-      throw new Error(err instanceof Error ? err.message : String(err))
-    })
-    if (status < 200 || status >= 300) throw new Error(`发表评论失败（${status}）`)
+    const project = await this.project(cwd)
+    await this.request(project, '/merge_requests/' + number + '/notes', 'POST', { body: comment.trim() })
     return { posted: true }
   }
 
   async setAutoMerge(cwd: string, number: number, enable: boolean): Promise<{ autoMerge: boolean }> {
-    if (!Number.isFinite(number)) throw new Error(`MR 编号无效：${number}`)
-    const resolved = await this.resolve(cwd)
-    if (!resolved) throw new Error('当前仓库未接入已配置的 GitLab 实例')
+    this.validateNumber(number)
+    const project = await this.project(cwd)
     if (enable) {
-      const { status } = await apiRequestJson<unknown>(
-        'PUT',
-        resolved.baseUrl,
-        `/projects/${resolved.project}/merge_requests/${number}/merge?merge_when_pipeline_succeeds=true`,
-        this.options(resolved),
-      ).catch((err: unknown) => {
-        throw new Error(err instanceof Error ? err.message : String(err))
-      })
-      if (status < 200 || status >= 300) throw new Error(`设置自动合并失败（${status}）`)
-      return { autoMerge: true }
+      const body = await this.json<{ auto_merge_enabled?: boolean; merge_when_pipeline_succeeds?: boolean; state?: string }>(
+        project, '/merge_requests/' + number + '/merge', 'PUT', { auto_merge: true, squash: true })
+      if (body.state !== 'merged' && !body.auto_merge_enabled && !body.merge_when_pipeline_succeeds) {
+        throw new Error('GitLab 未确认自动合并已启用')
+      }
+      return { autoMerge: body.state !== 'merged' }
     }
-    const { status } = await apiRequestJson<unknown>(
-      'POST',
-      resolved.baseUrl,
-      `/projects/${resolved.project}/merge_requests/${number}/cancel_auto_merge_when_pipeline_succeeds`,
-      this.options(resolved),
-    ).catch((err: unknown) => {
-      throw new Error(err instanceof Error ? err.message : String(err))
-    })
-    if (status < 200 || status >= 300) throw new Error(`取消自动合并失败（${status}）`)
+    // The older endpoint remains available on GitLab.com and returns a status hash.
+    const body = await this.json<{ status?: string }>(project,
+      '/merge_requests/' + number + '/cancel_merge_when_pipeline_succeeds', 'POST')
+    if (body.status !== 'success') throw new Error('GitLab 未能取消自动合并')
     return { autoMerge: false }
+  }
+
+  private validateNumber(number: number): void {
+    if (!Number.isSafeInteger(number) || number <= 0) throw new Error('MR 编号无效：' + number)
   }
 }

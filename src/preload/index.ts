@@ -640,6 +640,17 @@ const worktreeAPI: WorktreeAPI = {
 }
 
 const hostedAPI: HostedAPI = {
+  repository: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.repository, workspacePath),
+  overview: (target) => ipcRenderer.invoke(HOSTED_CHANNELS.overview, target),
+  image: (target, path, ref) => ipcRenderer.invoke(HOSTED_CHANNELS.image, target, path, ref),
+  browse: (target, query) => ipcRenderer.invoke(HOSTED_CHANNELS.browse, target, query),
+  detail: (target, kind, number) => ipcRenderer.invoke(HOSTED_CHANNELS.detail, target, kind, number),
+  discussion: (target, kind, number, page) => ipcRenderer.invoke(HOSTED_CHANNELS.discussion, target, kind, number, page),
+  mutate: (target, mutation) => ipcRenderer.invoke(HOSTED_CHANNELS.mutate, target, mutation),
+  loginStart: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.loginStart, workspacePath),
+  loginRead: (id) => ipcRenderer.invoke(HOSTED_CHANNELS.loginRead, id),
+  loginInput: (id, data) => ipcRenderer.invoke(HOSTED_CHANNELS.loginInput, id, data),
+  loginStop: (id) => ipcRenderer.invoke(HOSTED_CHANNELS.loginStop, id),
   detect: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.detect, { workspacePath }),
   listReviews: (workspacePath, branch) => ipcRenderer.invoke(HOSTED_CHANNELS.listReviews, { workspacePath, branch }),
   checks: (workspacePath, branch) => ipcRenderer.invoke(HOSTED_CHANNELS.checks, { workspacePath, branch }),
@@ -647,10 +658,7 @@ const hostedAPI: HostedAPI = {
   createReview: (input) => ipcRenderer.invoke(HOSTED_CHANNELS.createReview, input),
   mergeReview: (workspacePath, number, method) =>
     ipcRenderer.invoke(HOSTED_CHANNELS.mergeReview, { workspacePath, number, method }),
-  gitlabGet: () => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabGet),
-  gitlabSave: (input) => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabSave, input),
-  gitlabVerify: (input) => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabVerify, input),
-  gitlabClearToken: () => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabClearToken),
+  connection: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.connection, { workspacePath }),
   listIssues: (workspacePath, query) => ipcRenderer.invoke(HOSTED_CHANNELS.listIssues, { workspacePath, query }),
   listComments: (workspacePath, number) => ipcRenderer.invoke(HOSTED_CHANNELS.listComments, { workspacePath, number }),
   postComment: (workspacePath, number, body) =>
