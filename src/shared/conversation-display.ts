@@ -99,7 +99,7 @@ export interface ConversationSnapshot {
   commandsLoading?: boolean
   commandsError?: string
   /** Native acceptance is not model completion; uncertain deliveries must not be retried. */
-  commandReceipts?: Array<{ id: string; status: 'accepted' | 'unknown' }>
+  commandReceipts?: Array<{ id: string; status: 'accepted' | 'handedOff' | 'unknown' }>
   startup?: ConversationStartup
   /** Bounded, immutable plan revisions observed during this runtime. */
   plans?: ConversationPlan[]
@@ -134,6 +134,7 @@ export interface ConversationSnapshot {
 export type ConversationCommand =
   | { type: 'commands'; controlEpoch: number }
   | { type: 'invoke'; entryId: string; catalogRevision: number; arguments: string; commandId: string; controlEpoch: number }
+  | { type: 'terminal-command'; name: string; arguments: string; commandId: string; controlEpoch: number }
   | { type: 'startup'; startupId: number; action: 'trust' | 'login' | 'apiKey' | 'cancel' | 'resume' | 'check'; apiKey?: string; controlEpoch: number }
   | { type: 'mode'; mode: ConversationDisplayMode }
   | { type: 'send'; text: string; commandId: string; controlEpoch: number; delivery?: 'queue' | 'steer'; expectedTurnId?: string; imagePaths?: string[] }

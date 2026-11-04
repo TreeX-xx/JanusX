@@ -67,7 +67,7 @@ export class CodexConversation {
   private newThread?: { allowStart: boolean; resolve(): void; reject(error: Error): void }
   private startup = new CodexStartup((method, params) => this.call(method, params), startup => { this.state.startup = startup; this.changed() })
 
-  setNativeInput(write: (text: string) => void): void { this.nativeInput = write }
+  setNativeInput(write: (text: string) => void): void { this.nativeInput = write; this.session.setNativeInput(write) }
 
   constructor(readonly id: string, publish: (state: ConversationSnapshot) => void,
     private readonly bind: (threadId: string, transcriptPath?: string) => void = () => {}) {
@@ -422,6 +422,7 @@ export class CodexConversation {
       return this.snapshot()
     }
     this.session.guard(command, this.disposed)
+    if (command.type === 'terminal-command') { await this.session.terminalCommand(command); return this.snapshot() }
     if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'new') {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { CodexConversation } from '../../src/main/terminal/codex-conversation'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
 import { OpenCodeConversation } from '../../src/main/terminal/opencode-conversation'
-import { PiConversation } from '../../src/main/terminal/extension-conversation'
+import { PiConversation, DshConversation } from '../../src/main/terminal/extension-conversation'
 import { parseConversationSlashCommand, type ConversationCommand } from '../../src/shared/conversation-display'
 
 const factories = {
@@ -10,9 +10,29 @@ const factories = {
   claude: () => new ClaudeConversation('test', () => {}),
   opencode: () => new OpenCodeConversation('test', () => {}),
   pi: () => new PiConversation('test', () => {}),
+  dsh: () => new DshConversation('test', () => {}),
 }
 describe('shared conversation controls', () => {
   for (const [engine, factory] of Object.entries(factories)) {
+    it(`${engine}: hands a native command off once, rejects control injection and stale controls`, async () => {
+      const c = factory(), write = vi.fn()
+      c.state.connection = 'ready'; c.state.threadId = 'native'; c.setNativeInput(write)
+      try {
+        const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
+        const command = { type: 'terminal-command' as const, name: 'status', arguments: '', commandId: 'terminal', controlEpoch }
+        await expect(c.command({ ...command, arguments: '\r/new' })).rejects.toThrow(/control characters/)
+        c.state.turnId = 'running'
+        await expect(c.command(command)).rejects.toThrow(/busy/)
+        c.state.turnId = null
+        const first = c.command(command), second = c.command(command)
+        await Promise.all([first, second])
+        expect(write).toHaveBeenCalledTimes(2)
+        expect(write.mock.calls[0][0]).toContain('/status')
+        expect(c.state.commandReceipts).toEqual([{ id: 'terminal', status: 'handedOff' }])
+        await expect(c.command(command)).rejects.toThrow(/control/)
+        expect(write).toHaveBeenCalledTimes(2)
+      } finally { await c.dispose() }
+    })
     it(`${engine}: revokes queued dispatch immediately when disposed`, async () => {
       const c = factory(), wire = c as any
       c.state.connection = 'ready'; c.state.threadId = 'native'
@@ -84,16 +104,21 @@ describe('provider command intents and acceptance receipts', () => {
       expect(c.state.commandReceipts?.at(-1)).toEqual({ id: 'unknown', status: 'unknown' })
     } finally { await c.dispose() }
   })
-  it('Claude exposes SDK commands as terminal-only and never routes a skill through daemon reply', async () => {
+  it('Claude hands SDK commands to the terminal without routing a skill through daemon reply', async () => {
     const c = factories.claude(), wire = c as any
     c.state.connection = 'ready'; c.state.threadId = 'native'
     wire.nativeCommands = [{ id: 'command:review', name: 'review', label: 'review', description: 'Inspect', kind: 'command', source: 'claude', execution: 'terminal' }]
     vi.spyOn(wire, 'loadModels').mockResolvedValue(undefined)
     const reply = vi.spyOn(wire, 'reply')
+    const write = vi.fn()
+    c.setNativeInput(write)
     try {
       const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
       await c.command({ type: 'commands', controlEpoch })
-      await expect(c.command({ type: 'invoke', entryId: 'command:review', catalogRevision: c.state.commandsRevision!, arguments: '', commandId: 'blocked', controlEpoch })).rejects.toThrow(/terminal/)
+      await c.command({ type: 'invoke', entryId: 'command:review', catalogRevision: c.state.commandsRevision!, arguments: '中文 args', commandId: 'handoff', controlEpoch })
+      expect(write.mock.calls).toEqual([['\x15\x0b\x1b[200~/review 中文 args\x1b[201~'], ['\r']])
+      expect(c.state.mode).toBe('terminal')
+      expect(c.state.commandReceipts?.at(-1)).toEqual({ id: 'handoff', status: 'handedOff' })
       expect(reply).not.toHaveBeenCalled()
     } finally { await c.dispose() }
   })

@@ -51,6 +51,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('DSH native dual mode',
       const launch = await c.start({ command: binary!, args: ['--profile', 'dsh-tui'], cwd: f.cwd, env: f.env, assetsDir: join(f.root, 'assets') })
       terminal = pty.spawn(process.execPath, [join(dirname(binary!), 'node_modules/@deepseek-ai/dsh/lib/bin.js'), ...launch.args], { cwd: f.cwd, env: f.env as Record<string, string>, cols: 120, rows: 35 })
       terminal.onData(data => { output += data })
+      c.setNativeInput(text => terminal!.write(text))
       terminal.onExit(event => { output += `\nExit: ${JSON.stringify(event)}` })
       await wait(() => c.state.connection === 'ready', 'ready')
       await new Promise(r => setTimeout(r, 1000))
@@ -81,6 +82,18 @@ describe.skipIf(!binary || process.platform !== 'win32')('DSH native dual mode',
       await send('NATIVE_CANCEL'); await wait(() => c.state.items.some(i => i.type === 'agentMessage' && i.text.includes('NATIVE_CANCEL')), 'cancel started')
       await c.command({ type: 'interrupt', controlEpoch: c.state.controlEpoch }); await wait(() => !c.state.turnId, 'cancel settled')
       expect(c.state.items.some(i => i.status === 'interrupted')).toBe(true)
-    } finally { terminal?.kill(); await c.dispose(); f.close() }
-  })
+      await c.command({ type: 'commands', controlEpoch: c.state.controlEpoch })
+      const entry = c.state.commands!.find(entry => entry.name === 'new')!
+      expect(entry.execution).toBe('terminal')
+      await c.command({ type: 'invoke', entryId: entry.id, catalogRevision: c.state.commandsRevision!, arguments: '', commandId: 'native-new', controlEpoch: c.state.controlEpoch })
+      await wait(() => c.state.threadId !== session && c.state.connection === 'ready', 'new session rebound')
+      expect(c.state.items).toEqual([])
+      await c.command({ type: 'mode', mode: 'conversation' })
+      await send('NATIVE_AFTER'); await done('NATIVE_AFTER')
+    } finally {
+      await mkdir('artifacts/conversation-interactions', { recursive: true })
+      await writeFile('artifacts/conversation-interactions/dsh-command.json', JSON.stringify({ state: c.snapshot(), root: f.root, output }, null, 2))
+      terminal?.kill(); await c.dispose(); f.close()
+    }
+  }, 120000)
 })

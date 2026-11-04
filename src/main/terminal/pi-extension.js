@@ -14,7 +14,13 @@ export default function (pi) {
     if (!context) throw new Error('Pi is starting')
     if (command.type === 'display-mode') { questions.setMode(command.mode); return }
     if (command.type === 'answer') { questions.answer(command); return }
-    if (command.type === 'catalog') return pi.getCommands().slice(0, 1000).map(({ name, description, source, sourceInfo }) => ({ name, description, source, sourceInfo }))
+    if (command.type === 'catalog') {
+      // Builtin menu discovery is optional across CLI layouts; explicit native
+      // commands still work when the installed version moves this module.
+      const { BUILTIN_SLASH_COMMANDS = [] } = await import('__PI_COMMANDS_URL__').catch(() => ({}))
+      return [...BUILTIN_SLASH_COMMANDS.map(row => ({ ...row, source: 'builtin' })),
+        ...pi.getCommands().slice(0, 1000).map(({ name, description, source, sourceInfo }) => ({ name, description, source, sourceInfo }))]
+    }
     if (command.type === 'invoke') {
       if (!context.isIdle() || context.hasPendingMessages()) throw new Error('Pi is busy')
       const entry = pi.getCommands().find(row => row.name === command.name && row.source === command.source)
@@ -109,5 +115,5 @@ export default function (pi) {
   pi.on('message_update', event => message(event, false))
   pi.on('message_end', event => message(event, true))
   pi.on('agent_settled', () => { link.emit({ type: 'end' }); turnId = '' })
-  pi.on('session_shutdown', () => { questions.cancel(); link.emit({ type: 'error', error: 'Pi session closed or switched; create a new dual-mode terminal.' }); setTimeout(link.stop, 150) })
+  pi.on('session_shutdown', event => { questions.cancel(); if (event.reason === 'quit') link.emit({ type: 'error', error: 'Pi session closed.' }); setTimeout(link.stop, 150) })
 }

@@ -18,6 +18,7 @@ export function conversationState(id: string, engine: ConversationEngine, capabi
 export class ConversationSession {
   readonly questions: ConversationQuestions
   private closed = false
+  private nativeInput?: (text: string) => void
   private imageRoot = ''
   private cwd = ''
   private imageJobs = new Map<string, string>()
@@ -27,6 +28,34 @@ export class ConversationSession {
     this.questions = new ConversationQuestions(state, () => this.changed())
   }
   snapshot(): ConversationSnapshot { return structuredClone(this.state) }
+  setNativeInput(write: (text: string) => void): void { this.nativeInput = write }
+  resetThread(): void {
+    this.questions.clear()
+    Object.assign(this.state, { threadId: null, turnId: null, turnStartedAt: undefined, items: [], approvals: [], plans: [],
+      needsTerminal: false, truncated: false, error: undefined, commands: undefined, commandsRevision: (this.state.commandsRevision ?? 0) + 1 })
+    this.state.controlEpoch++
+  }
+  async terminalCommand(command: Extract<ConversationCommand, { type: 'terminal-command' }>): Promise<void> {
+    if (!/^[a-zA-Z][\w:.-]*(?:\/[\w.-]+)*$/.test(command.name) || command.name.length > 200 ||
+      typeof command.arguments !== 'string' || command.arguments.length > 32000 || /[\x00-\x1f\x7f]/.test(command.arguments)) throw new Error('Enter a single native command without control characters')
+    if (!this.nativeInput) throw new Error('Native terminal is unavailable')
+    // Reuse the command ledger: handoff is never silently replayed after an
+    // uncertain write, and it is never presented as native command completion.
+    await this.submit({ type: 'invoke', entryId: 'terminal:' + command.name, catalogRevision: 0,
+      arguments: command.arguments, commandId: command.commandId, controlEpoch: command.controlEpoch }, async () => {
+      this.state.mode = 'terminal'; this.state.controlEpoch++; this.changed()
+      try {
+        this.nativeInput!('\x15\x0b\x1b[200~/' + command.name + (command.arguments ? ' ' + command.arguments : '') + '\x1b[201~')
+        await new Promise(resolve => setTimeout(resolve, 150))
+        if (this.closed) throw new Error('Session closed before command submission')
+        this.nativeInput!('\r')
+        this.state.commandReceipts = [...(this.state.commandReceipts ?? []), { id: command.commandId, status: 'handedOff' as const }].slice(-100)
+      } catch (error) {
+        this.state.commandReceipts = [...(this.state.commandReceipts ?? []), { id: command.commandId, status: 'unknown' as const }].slice(-100)
+        throw error
+      }
+    })
+  }
   configureImages(root: string, cwd: string): void { this.imageRoot = root; this.cwd = cwd }
   discoverImages(itemId: string): void {
     const item = this.state.items.find(row => row.id === itemId)

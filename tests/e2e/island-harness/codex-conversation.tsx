@@ -91,6 +91,9 @@ Object.assign(window.electron.terminal, {
         state.startup = undefined; state.connection = 'ready'; state.threadId = 'native-thread'; state.model = 'fixture-fast'; state.effort = 'high'
       }
     }
+    else if (command.type === 'terminal-command' || command.type === 'invoke' && state.commands?.find(entry => entry.id === command.entryId)?.execution === 'terminal') {
+      state.mode = 'terminal'; state.controlEpoch++
+    }
     else if (command.type === 'speed') {
       if (settingsFailure) throw new Error('Fixture settings update failed')
       state.serviceTier = command.fast ? 'fast' : null

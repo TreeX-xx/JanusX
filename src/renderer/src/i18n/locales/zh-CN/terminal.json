@@ -605,7 +605,7 @@
       "loading": "正在读取原生命令…",
       "refresh": "刷新命令",
       "failed": "命令目录读取失败，请刷新重试。",
-      "terminalManual": "{{command}} 尚未执行。请切换到终端后，手动输入该命令并回车。",
+      "terminalRun": "切换到原生终端并执行，后续交互在终端完成",
       "accepted": "原生已接受：{{command}}"
     }
   }

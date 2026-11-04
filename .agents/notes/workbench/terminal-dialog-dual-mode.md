@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-04T03:55:42Z",
+  "updated": "2026-11-04T07:44:51Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -16,6 +16,26 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## 原生指令执行与会话切换
+
+受管本地 Claude、Codex、OpenCode、Pi、DSH 共用指令执行入口。已适配的结构化命令保持原生接口调用；需要 TUI 的命令通过所属 PTY 执行，自动切换终端并保留参数，不再要求用户重新输入。目录外的明确斜杠指令提供同一入口，不作为普通聊天消息送给模型。普通绝对路径继续按文本处理。应用的模型／强度选择和 Codex 新建会话入口保留；`/help` 交给原生帮助，OpenCode 的 `/terminal` 保留原生命令语义。
+
+| 引擎 | 本轮接入与会话同步 |
+| --- | --- |
+| Claude 2.1.318 | `/clear` 在同一 worker 用 Mods `command.run` 执行，读取真实 session ID 变化后清空投影并更新绑定，随后可直接继续对话。其余指令自动提交给终端。原生 clear/resume/branch 不保证发出 session.start，桥在交换前读取真实 ID，通过带认证的会话切换握手同步 |
+| Codex 0.166.0 | 既有结构化 skill、设置和 `/new` 保持；其他原生命令走终端。`/new` 等待原生 thread 创建，`/status` 的终端输出与当前 thread 一致 |
+| OpenCode 2.2.5 | API command/skill 保持结构化执行；TUI 指令交给终端。`/new` 与 `/clear` 先进入原生首页，首条原生消息才创建新 session；此期间禁止对话回到旧会话，成功 create/view 并读回后恢复 |
+| Pi 0.85.1 | 合并安装包 BUILTIN_SLASH_COMMANDS 与运行中扩展／skill／模板目录；内置命令交给 TUI。终端新会话允许新扩展实例握手，旧实例退休后拒绝回流，待确认调用不重放 |
+| DSH / dsh-tui 0.12.0 | 合并原生 LOCAL_COMMANDS 与运行中 command registry，交给 TUI。新根 Agent 可能先创建、旧根后释放；旧根释放后只绑定唯一存活根，多个候选时保留终端处理，不猜前台身份 |
+
+公共提交校验空闲状态、controlEpoch、问题／审批和 commandId。终端路径拒绝换行与控制字符，清除原生未提交输入，再以 bracketed paste 写入完整指令，间隔 150ms 提交回车；操作会替换终端输入框中未发送的草稿。回执 handedOff 只表示已交给终端，不表示原生命令成功或交互完成；异常标为 unknown，不自动重试。新会话重置旧消息、问题、计划和目录版本，旧控制不能继续操作。Claude 无法确认重置时停止对话控制。
+
+选择 TUI 交接是因为各家的登录、帮助、插件和交互命令并不都暴露在服务 API 中。成本是部分指令仍需在终端完成后续交互；原生接口提供同会话调用及结果确认时，可逐项升级为对话内执行。命令是否存在、参数和权限要求以安装的 CLI 为准，不为原生不存在的指令伪造成功。已有会话的完整历史重建、DSH 多根前台切换、远端与其他版本未在本轮验收。安装包目录模块为可选发现能力，布局变化不会使整个扩展启动失败。
+
+验证使用 Windows 实际安装 CLI 和隔离配置／localhost 模型：Claude `/clear` 后继续问答与终端模型指令；Codex `/new`、`/status`；OpenCode 自定义 command/skill、新建首页到新会话后继续对话；Pi 扩展命令／问答与 `/new`；DSH 问答与 `/new`。复现文件为 `tests/unit/{claude,codex,opencode,pi,dsh}-conversation-cli.test.ts`，需设置对应 JANUSX_TEST_*_BIN；未设置时跳过，不能作为真实 CLI 通过证据。原生规范见 [Claude Mods API](https://code.claude.com/docs/en/mods-api-reference) 与 [OpenCode TUI](https://docs.opencode.ai/docs/tui/)。
+
+本轮验收：9 个相关单元文件 95 项通过；命令、设置和输入历史浏览器用例共 25 项分轮通过；上述 5 个真实 CLI 文件中 6 个代表性集成用例通过。Claude 完整流程 86.8 秒通过，额外覆盖终端模型指令、审批、原生 Esc、Bash 停止和 worker 隔离；其既有连续输入测试改为等待目标回复完成，避免把上一轮结束误当作后续投影已就绪。类型检查、相关 ESLint、双语键检查、diff 空白检查通过；Notes 校验 324 篇、0 errors、17 条既有外部链接诊断。主 Agent 自检，没有独立子 Agent 审阅。未逐条执行登录／登出、删除或发布类命令，不宣称所有参数、账户服务、CLI 版本均已验收。
 
 ## 对话内审批、选项和文字回答
 
@@ -647,7 +667,7 @@ Claude 同一原生轮可合并多条输入；Mods 在 prompt.submit 进入下�
 | 原生目录中的技能、模板及命令 | 按引擎展示类型图标；Codex/OpenCode/Pi 走结构化调用，Claude 标记终端执行。支持冒号命名空间和目录中的嵌套名称 |
 | 目录外的斜杠指令 | 显示尚未适配与终端入口；未命中原生目录的绝对路径继续作为正文 |
 
-预览支持上下键定位、Enter 执行、Tab 仅补全、Esc 关闭及点击外部收起；输入法组合期间不提交。原生命令首次选择补入名称，用户可继续输入参数，再 Enter 调用；终端降级项切换视图但不注入或发送草稿。模型当前选项显示勾选，effort 用横向强度控件表达。切换模型时优先保留兼容的 effort，否则采用该模型的目录默认值；未知自定义模型仍显示真实模型名，但不猜测 effort 列表。目录失败可重试且不打断会话，设置失败保持草稿并显示反馈。模型与 effort 标签使用中英文文案；模型描述保留后端返回文本，effort 不显示描述或描述悬停提示。
+预览支持上下键定位、Enter 执行、Tab 仅补全、Esc 关闭及点击外部收起；输入法组合期间不提交。原生命令首次选择补入名称，用户可继续输入参数，再 Enter 调用；终端执行项在确认完整名称后切换视图，并将单条指令提交给所属原生终端，后续弹窗在终端处理。模型当前选项显示勾选，effort 用横向强度控件表达。切换模型时优先保留兼容的 effort，否则采用该模型的目录默认值；未知自定义模型仍显示真实模型名，但不猜测 effort 列表。目录失败可重试且不打断会话，设置失败保持草稿并显示反馈。模型与 effort 标签使用中英文文案；模型描述保留后端返回文本，effort 不显示描述或描述悬停提示。
 
 Codex `/new` 由主进程向所属原生 TUI 发出固定命令，仅放行一次非临时 thread/start；沿用原生客户端的选择与订阅，不另建一个终端未绑定的 thread。操作期间锁定提交，15 秒内没有原生新 thread 确认则显示失败并停用对话控制，可转终端检查；不自动重试。`codex-conversation-cli.test.ts` 的 `starts /new` 用例在 Windows/Codex 0.166.0 与 localhost 模型实测通过：新建本身没有模型请求，新建后的对话输入与终端输入投影到同一新 thread。该用例单独运行，真实供应商、其它版本和跨平台未验收。
 
@@ -835,11 +855,11 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 | Codex | `skills/list` 刷新；显示名/说明采用原生 interface；`turn/start` 携带 text 与 skill 对象 | `codex-conversation-cli.test.ts` 的 structured skill 用例通过，localhost 请求同时含技能正文和参数，thread 不变 |
 | OpenCode | `/api/command`、`/api/skill`；嵌套命令走 `/command`，skill 走 `/prompt.skills`；空目录有界重读并允许手动刷新 | `opencode-conversation-cli.test.ts` 通过，`team/review` 参数和自建 skill 正文均进入本地模型；既有发送、设置、取消和原生终端互通回归通过 |
 | Pi | 通过现有认证桥读取运行中 `pi.getCommands()`；显式 invoke 才设置 `expandPromptTemplates: true`，原生侧再次检查名称/source | `pi-conversation-cli.test.ts` 通过，本地扩展命令写入标记且没有模型请求，普通发送与取消回归通过 |
-| Claude | 复用只读 SDK initialize 同时取得模型与 commands；目录全部标为终端执行，主进程拒绝 invoke；选择后提示尚未执行，保留草稿并提供显式切换按钮，需在终端手动输入命令并回车 | `claude-conversation-cli.test.ts` 90.1 秒通过：实际发现自建技能、目录读取不触发模型请求，并覆盖既有流式输入、审批、原生 Esc、Bash 停止和只关闭所属 worker；没有放开 daemon 原始斜杠发送 |
+| Claude | 复用只读 SDK initialize 取得模型与 commands；`/clear` 用同 worker Mods command.run 执行并确认新 session，其余条目切换并提交给所属原生终端 | 早期 `claude-conversation-cli.test.ts` 90.1 秒验证目录、流式输入、审批、原生 Esc、Bash 停止和只关闭所属 worker；本轮实际指令执行验证见“原生指令执行与会话切换” |
 
 命令回执表示 native API/扩展已接受调用，不表示模型完成任务。Pi 的 `pi.sendUserMessage` 是 void API，因此其 accepted 表示交给原生调度，不是扩展 handler 已完成；真实测试另检查 handler 的文件结果。请求异常保守记为 unknown，保留草稿及错误供用户检查，绝不自动重试。普通消息仍使用原生 user item 正文回显确认，不用技能展开正文去匹配原始斜杠文本。
 
-菜单保留适配过的会话操作，并加入各家原生目录、类型图标、类型/终端执行标识、名称和说明搜索、参数提示、加载/失败与刷新入口。Tab 补全不执行，Esc 保留草稿；冒号命名和已知嵌套路径可识别，普通绝对路径保留文本语义。原生已接受时清空未被用户修改的草稿，保存原始命令到输入历史，并展示接受反馈。采用统一类型图标；原生自带图片图标、参数候选值、目录变更推送及完整 TUI 内置命令仍未接入。Claude 的终端降级只切换同一终端，不自动粘贴或执行命令。
+菜单保留适配过的会话操作，并加入各家原生目录、类型图标、类型/终端执行标识、名称和说明搜索、参数提示、加载/失败与刷新入口。Tab 补全不执行，Esc 保留草稿；冒号命名和已知嵌套路径可识别，普通绝对路径保留文本语义。原生已接受时清空未被用户修改的草稿，保存原始命令到输入历史，并展示接受反馈。采用统一类型图标；原生自带图片图标、参数候选值和目录变更推送未接入。Pi、DSH 增加安装包内置目录，目录外单段指令也可明确选择原生终端执行；终端交接使用独立 handedOff 回执，不显示为原生命令成功。
 
 验证记录：`npx vitest run --project=unit` 对 conversation-commands、native-conversation、codex-conversation、claude-conversation、opencode-conversation、conversation-outbox、conversation-input-history 七个测试文件共 66 项通过，包含四家“调用后立即 dispose，原生派发不得发生”的竞态断言。命令菜单/输入历史浏览器用例最终 7 项通过。浏览器首轮完整 43 项中 42 项通过，发现 effort 搜索遗漏原始 id，修复后该用例及相邻强度选择用例复测 2 项通过。`npm run typecheck`、相关实现 ESLint、`npm run i18n:check` 通过；`npm run check:notes` 为 321 篇、0 errors、17 条既有外部链接诊断。
 

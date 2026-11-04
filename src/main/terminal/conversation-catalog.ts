@@ -14,6 +14,12 @@ export class ConversationCatalog {
     if (command.type === 'commands') { await this.refresh(); return true }
     if (command.type !== 'invoke') return false
     const { state } = this.session
+    const selected = this.entries.get(command.entryId)
+    if (selected?.execution === 'terminal') {
+      if (state.commandsLoading || state.commandsError || command.catalogRevision !== state.commandsRevision) throw new Error('Command catalog changed; select the command again')
+      await this.session.terminalCommand({ ...command, type: 'terminal-command', name: selected.name })
+      return true
+    }
     await this.session.submit(command, async () => {
       if (typeof command.arguments !== 'string' || command.arguments.length > 32000) throw new Error('Invalid command arguments')
       if (state.commandsLoading || state.commandsError || command.catalogRevision !== state.commandsRevision) throw new Error('Command catalog changed; select the command again')

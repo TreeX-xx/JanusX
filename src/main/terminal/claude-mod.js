@@ -132,7 +132,12 @@ function taskMissing(error, taskId) {
 async function execute($, command) {
   try {
     let result
-    if (command.type === 'display-mode') {
+    if (command.type === 'invoke') {
+      if (command.name !== 'clear' || command.arguments) throw new Error('Use the native terminal for this command')
+      if (currentTurn || settingsBusy) throw new Error('Wait until Claude is idle')
+      await resetSettings($)
+      result = await $.command.run({ command: command.name, args: command.arguments })
+    } else if (command.type === 'display-mode') {
       displayMode = command.mode
       if (displayMode === 'terminal') releaseQuestions(undefined, true)
     } else if (command.type === 'answer') {
@@ -228,6 +233,18 @@ async function flush($) {
   if (flushing) return
   flushing = true
   try {
+    const nativeSessionId = await $.session.id()
+    if (nativeSessionId !== sessionId) {
+      const changed = await $.http.fetch(endpoint + '/session', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-JanusX-Token': token },
+        body: JSON.stringify({ terminalId, previousSessionId: sessionId, sessionId: nativeSessionId, seq: sequence }) })
+      if (!changed.ok) { displayMode = 'terminal'; releaseQuestions(undefined, true); return }
+      sessionId = nativeSessionId
+      events = []; eventBytes = 0; overflow = false; currentTurn = null
+      releaseQuestions(); activeTools.clear(); finishedTasks.clear(); blocked.clear()
+      userPrompts = []; metaPrompts.clear(); planSource = null; lastTodos = null
+      record('session.start', { model: await $.session.model() })
+    }
     const batch = events.slice(0, 48)
     const response = await $.http.fetch(endpoint + '/exchange', { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-JanusX-Token': token },

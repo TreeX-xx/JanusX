@@ -124,6 +124,15 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
         answer: { cancelled: true, answers: [] } })).rejects.toThrow('expired')
       await main.command({ type: 'interrupt', controlEpoch: main.state.controlEpoch })
       await until(() => !main.state.turnId, 'native question interrupted')
+      await main.command({ type: 'commands', controlEpoch: main.state.controlEpoch })
+      const clear = main.state.commands!.find(entry => entry.name === 'clear')!
+      expect(clear.execution).toBe('native')
+      const oldSession = main.state.threadId
+      await main.command({ type: 'invoke', entryId: clear.id, catalogRevision: main.state.commandsRevision!, arguments: '', commandId: 'clear', controlEpoch: main.state.controlEpoch })
+      expect(main.state.threadId).not.toBe(oldSession)
+      expect(main.state.items).toEqual([])
+      await main.command({ type: 'send', text: 'CC_AFTER_CLEAR', commandId: 'after-clear', controlEpoch: main.state.controlEpoch })
+      await until(() => !main.state.turnId && main.state.items.some(item => item.text.includes('CC_AFTER_CLEAR final')), 'after clear')
     } finally {
       await mkdir('artifacts/conversation-interactions', { recursive: true })
       await writeFile('artifacts/conversation-interactions/claude-native.json', JSON.stringify({ state: main.snapshot(), root: fixture.root, requests: fixture.requests }, null, 2))
@@ -227,6 +236,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       const session = main.state.threadId
       output = ''
       const terminal = spawn(launch.args)
+      main.setNativeInput(text => terminal.write(text))
       await until(() => clean().includes('forshortcuts'), 'attach ready'); await delay(700)
       await sendNative(terminal, 'CC_FIRST'); await done('CC_FIRST')
       expect(snapshots.some(state => state.items.some((item: any) => item.text === 'First CC_FIRST' && item.status === 'inProgress'))).toBe(true)
@@ -250,7 +260,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await send('CC_LIVE_FIRST'); await send('CC_LIVE_SECOND')
       expect(fixture.requests.find(request => request.marker === 'CC_CANCEL' && request.stream)?.finishedAt).toBe(0)
       await until(() => fixture.requests.some(request => request.stream && JSON.stringify(request.messages).includes('CC_LIVE_SECOND')), 'live input consumed', 20000)
-      await until(() => !main.state.turnId, 'live input done', 20000)
+      await done('CC_LIVE_SECOND')
       expect(main.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(expect.arrayContaining(['CC_LIVE_FIRST', 'CC_LIVE_SECOND']))
       expect(main.state.threadId).toBe(session)
       await until(() => main.state.models.length > 0, 'native model catalog')
@@ -271,7 +281,8 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await main.command({ type: 'mode', mode: 'terminal' })
       await sendNative(terminal, 'CC_MODEL_NATIVE'); await done('CC_MODEL_NATIVE')
       expect(fixture.requests.find(r => r.marker === 'CC_MODEL_NATIVE' && r.stream)).toMatchObject({ model: main.state.model, effort: 'max' })
-      await sendNative(terminal, '/model claude-sonnet-4-6')
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await main.command({ type: 'terminal-command', name: 'model', arguments: 'claude-sonnet-4-6', commandId: 'native-model', controlEpoch: main.state.controlEpoch })
       await until(() => !main.state.settingsOverride, 'native model takes control')
       await until(() => clean().includes('SetmodeltoSonnet4.6'), 'native model command completed'); await delay(1000)
       await sendNative(terminal, '/effort low')

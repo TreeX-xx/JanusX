@@ -2,13 +2,19 @@ import { createUserMessage } from '__DSH_LLM_URL__'
 import { bridge } from './native-bridge.mjs'
 import { nativeQuestions } from './native-questions.mjs'
 
-export const inject = ['agents']
+export const inject = ['agents', 'commands']
 export function apply(ctx) {
   let active, turnId = '', step = 0, text = '', reasoning = ''
   let nativeDialogs = 0
   const questions = nativeQuestions(event => link.emit(event))
   const link = bridge(async command => {
     if (!active || String(active.session.id) !== command.sessionId) throw new Error('DSH session changed')
+    if (command.type === 'catalog') {
+      const { LOCAL_COMMANDS = [] } = await import('__DSH_COMMANDS_URL__').catch(() => ({}))
+      const entries = new Map(LOCAL_COMMANDS.map(row => [row.name, { ...row, source: 'builtin' }]))
+      for (const row of ctx.commands.list(active)) entries.set(row.name, { name: row.name, description: row.description, source: 'extension' })
+      return [...entries.values()]
+    }
     if (command.type === 'display-mode') { questions.setMode(command.mode); return }
     if (command.type === 'answer') { questions.answer(command); return }
     if (command.type === 'interrupt') {
@@ -22,14 +28,22 @@ export function apply(ctx) {
   }, questions.setMode)
   const bind = agent => {
     if (agent.session.header.origin === 'subagent') return
-    if (active && active !== agent) { link.emit({ type: 'error', error: 'DSH native session changed. Create a new dual-mode terminal.' }); return }
+    if (active && active !== agent) return
     active = agent
     link.emit({ type: 'session', sessionId: String(agent.session.id), model: agent.options?.model })
   }
   const item = (id, type, value, status = 'inProgress') => link.emit({ type: 'item', item: { id, turnId, type, text: value, status } })
   ctx.on('agent/created', ({ agent }) => bind(agent))
   for (const agent of ctx.agents.list()) bind(agent)
-  ctx.on('agent/disposed', ({ agent }) => { if (agent === active) link.emit({ type: 'error', error: 'DSH native session closed or switched.' }) })
+  ctx.on('agent/disposed', ({ agent }) => {
+    if (agent !== active) return
+    questions.cancel(); active = null; turnId = ''
+    // The TUI prepares the replacement before disposing the previous root.
+    // Select only an unambiguous surviving root, never an arbitrary background agent.
+    const roots = ctx.agents.list().filter(candidate => candidate !== agent && candidate.session.header.origin !== 'subagent')
+    if (roots.length === 1) bind(roots[0])
+    else link.emit({ type: 'attention', pending: true })
+  })
   ctx.on('session/event', (session, event) => {
     if (!active || session !== active.session) return
     const d = event.data

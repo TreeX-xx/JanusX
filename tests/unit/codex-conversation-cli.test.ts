@@ -210,6 +210,13 @@ describe.skipIf(!bin || process.platform !== 'win32')('managed Codex native TUI 
       await new Promise(resolve => setTimeout(resolve, 300)); terminal.write('\r')
       await vi.waitFor(() => expect(controller.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(['NEW_THREAD_DIALOG', 'NEW_THREAD_NATIVE']), { timeout: 15000 })
       expect(controller.state.threadId).toBe(fresh.threadId)
+      await vi.waitFor(() => expect(controller.state.turnId).toBeNull(), { timeout: 10000 })
+      await controller.command({ type: 'mode', mode: 'conversation' })
+      const outputOffset = output.length, requestCount = fixture.responseRequests.length
+      await controller.command({ type: 'terminal-command', name: 'status', arguments: '', commandId: 'native-status', controlEpoch: controller.state.controlEpoch })
+      await vi.waitFor(() => expect(output.slice(outputOffset)).toContain(fresh.threadId!), { timeout: 10000 })
+      expect(JSON.stringify(fixture.responseRequests.slice(requestCount))).not.toContain('/status')
+      expect(controller.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(['NEW_THREAD_DIALOG', 'NEW_THREAD_NATIVE'])
     } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
   }, 60000)
   it('bypasses an inherited proxy for the loopback bridge while preserving proxy configuration', async () => {

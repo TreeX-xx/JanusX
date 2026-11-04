@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ArrowUp, Check, ChevronDown, Search, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, CircleHelp, RefreshCw, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, ArrowUp, Check, ChevronDown, Search, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap, type LucideIcon } from 'lucide-react'
 import { parseConversationSlashCommand, type ConversationCommand, type ConversationSnapshot } from '../../../shared/conversation-display'
 import styles from './AgentSessionPane.module.css'
 import { ConversationContext } from './ConversationContext'
@@ -56,8 +56,6 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const [selectionFailed, setSelectionFailed] = useState(false)
   const [effortFeedback, setEffortFeedback] = useState<{ id: number; effort: string | null }>({ id: 0, effort: null })
   const [acceptedCommand, setAcceptedCommand] = useState<string | null>(null)
-  const [terminalCommand, setTerminalCommand] = useState<string | null>(null)
-  useEffect(() => { setTerminalCommand(null) }, [draft, terminalId, snapshot?.threadId])
   useEffect(() => { setAcceptedCommand(null) }, [terminalId, snapshot?.threadId])
   const root = useRef<HTMLFormElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -69,15 +67,15 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const commandQuery = Boolean(slash)
   const catalogRequested = useRef<string>()
   useEffect(() => {
-    if (!commandQuery || busy || switching || !snapshot?.capabilities.commands || snapshot.connection !== 'ready' || snapshot.mode !== 'conversation' || snapshot.commandsRevision || snapshot.commandsLoading || snapshot.commandsError) return
+    if (!commandQuery || busy || switching || !snapshot?.capabilities.commands || snapshot.connection !== 'ready' || snapshot.mode !== 'conversation' || snapshot.commands !== undefined || snapshot.commandsLoading || snapshot.commandsError) return
     const key = `${terminalId}:${snapshot.threadId}:${snapshot.controlEpoch}`
     if (catalogRequested.current === key) return
     catalogRequested.current = key
     void action({ type: 'commands', controlEpoch: snapshot.controlEpoch }).then(ok => { if (!ok) catalogRequested.current = undefined })
-  }, [action, commandQuery, busy, switching, terminalId, snapshot?.threadId, snapshot?.capabilities.commands, snapshot?.connection, snapshot?.mode, snapshot?.commandsRevision, snapshot?.commandsLoading, snapshot?.commandsError, snapshot?.controlEpoch])
+  }, [action, commandQuery, busy, switching, terminalId, snapshot?.threadId, snapshot?.capabilities.commands, snapshot?.connection, snapshot?.mode, snapshot?.commands, snapshot?.commandsLoading, snapshot?.commandsError, snapshot?.controlEpoch])
   const slashPanel: Panel = snapshot?.capabilities.settings && slash?.name === 'model' ? 'model' : snapshot?.capabilities.settings && slash?.name === 'effort' ? 'effort' : 'commands'
   const currentPanel = contextOpen ? null : panel ?? (slash && dismissed !== draft ? slashPanel : null)
-  const query = panel ? search : slashPanel === 'commands' ? (slash?.name === 'help' ? '' : slash?.name ?? '') : slash?.query ?? ''
+  const query = panel ? search : slashPanel === 'commands' ? slash?.name ?? '' : slash?.query ?? ''
   const model = snapshot?.models.find(option => option.model === snapshot.model)
   const fastEnabled = snapshot?.serviceTier === 'fast' || snapshot?.serviceTier === 'priority'
   const speedKnown = snapshot?.serviceTier !== undefined
@@ -132,9 +130,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     { id: 'stop', icon: Square, label: '/stop', description: t('conversation.commands.stop'), disabled: !(snapshot?.turnId || snapshot?.backgroundTasks) || !available, run: () => {
       if (snapshot) void action({ type: 'interrupt', controlEpoch: snapshot.controlEpoch }).then(ok => { if (ok && inputRef.current?.value === draft) setDraft('') })
     } },
-    { id: 'help', icon: CircleHelp, label: '/help', description: t('conversation.commands.help'), run: () => { setDraft('/'); setDismissed(null) } },
   ].filter(option => (option.id !== 'model' && option.id !== 'effort' || snapshot?.capabilities.settings)
     && (option.id !== 'stop' || snapshot?.capabilities.cancel)
+    && (option.id !== 'terminal' || snapshot?.engine !== 'opencode')
     && (option.id !== 'new' || snapshot?.capabilities.newThread))
   const nativeChoices: Choice[] = (snapshot?.commands ?? []).map(entry => ({
     id: entry.id, label: '/' + entry.name, completion: '/' + entry.name + ' ',
@@ -145,12 +143,11 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     run: () => {
       if (!snapshot) return
       if (slash?.name !== entry.name) { setDraft('/' + entry.name + ' '); setPanel(null); setDismissed(null); inputRef.current?.focus(); return }
-      if (entry.execution === 'terminal') { setTerminalCommand('/' + entry.name); return }
       const original = draft
       void action({ type: 'invoke', entryId: entry.id, catalogRevision: snapshot.commandsRevision!, arguments: slash.query,
         commandId: crypto.randomUUID(), controlEpoch: snapshot.controlEpoch }).then(ok => {
         if (ok) {
-          setAcceptedCommand(entry.label)
+          if (entry.execution === 'native') setAcceptedCommand(entry.label)
           rememberConversationInput(historyScope, original)
           if (inputRef.current?.value === original) setDraft('')
           setPanel(null); setDismissed(null); inputRef.current?.focus()
@@ -158,6 +155,26 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       })
     },
   }))
+  // A CLI's interactive commands are not necessarily in its service catalog.
+  // Hand an explicitly typed command to that CLI instead of sending it as chat.
+  const terminalChoice: Choice[] = slash?.name && !commands.some(option => option.label === '/' + slash.name)
+    && !(snapshot?.commands ?? []).some(entry => entry.name === slash.name) ? [{
+      id: 'terminal:' + slash.name, label: '/' + slash.name, icon: Terminal,
+      description: t('conversation.catalog.terminalRun'),
+      disabled: !available || hasOutgoing || !!activeReferences.length || !!snapshot?.turnId || !!snapshot?.needsTerminal || !!snapshot?.approvals.length,
+      run: () => {
+        if (!snapshot) return
+        const original = draft
+        void action({ type: 'terminal-command', name: slash.name, arguments: slash.query,
+          commandId: crypto.randomUUID(), controlEpoch: snapshot.controlEpoch }).then(ok => {
+          if (ok) {
+            rememberConversationInput(historyScope, original)
+            if (inputRef.current?.value === original) setDraft('')
+            setPanel(null); setDismissed(null)
+          }
+        })
+      },
+    }] : []
   const choices: Choice[] = (currentPanel === 'model' ? (snapshot?.models ?? []).map(option => ({
     id: option.model, label: option.displayName, description: option.description || (option.model === option.displayName ? '' : option.model), selected: option.model === snapshot?.model, disabled: !canConfigure,
     run: () => void selectSettings(option.model, option.efforts.some(value => value.effort === snapshot?.effort) ? snapshot!.effort : option.defaultEffort),
@@ -165,7 +182,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     id: option.effort, label: option.effort === 'default' ? t('conversation.defaultEffort') : t(`conversation.efforts.${option.effort}`, { defaultValue: option.effort }), description: '',
     selected: option.effort === snapshot?.effort, disabled: !canConfigure,
     run: () => void selectSettings(model!.model, option.effort),
-  })) : [...commands, ...nativeChoices]).filter(option => `${currentPanel === 'commands' ? '' : option.id} ${option.label} ${option.description}`.toLowerCase().includes(query.toLowerCase()))
+  })) : [...commands, ...nativeChoices, ...terminalChoice]).filter(option => `${currentPanel === 'commands' ? '' : option.id} ${option.label} ${option.description}`.toLowerCase().includes(query.toLowerCase()))
   const activeChoice = choices[Math.min(active, choices.length - 1)]
   const selectedIndex = currentPanel !== 'commands' && !query ? choices.findIndex(option => option.selected) : -1
   useEffect(() => { setActive(Math.max(0, selectedIndex)); setSelectionFailed(false) }, [query, currentPanel, selectedIndex])
@@ -248,7 +265,6 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       {currentPanel !== 'commands' && <p className={styles.pickerFootnote} title={t(snapshot?.engine === 'claude' ? 'conversation.claudeSessionSettings' : 'conversation.nextTurnSettings')}><span>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}</p>}
       {selectionFailed && currentPanel !== 'commands' && <p className={styles.pickerMessage} role="status">{t('conversation.settingsFailed')}</p>}
     </div>}
-    {terminalCommand && <p className={styles.pickerMessage} role="status">{t('conversation.catalog.terminalManual', { command: terminalCommand })} <button type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button></p>}
     {acceptedCommand && !draft && !snapshot?.turnId && <p className={styles.pickerMessage} role="status">{t('conversation.catalog.accepted', { command: acceptedCommand })}</p>}
     <ConversationContext inputRef={inputRef} terminalId={terminalId} workspacePath={workspacePath} references={references} draft={draft} setDraft={setDraft} disabled={busy || switching} onImporting={setImporting} open={contextOpen} onOpenChange={changeContextOpen} pickerActive={Boolean(currentPanel)}>
     {addControl => <>

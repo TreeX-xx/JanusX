@@ -104,7 +104,13 @@ describe('native conversation controls', () => {
       expect((await post(body)).status).toBe(200)
       const revision = c.state.revision
       await post(body); expect(c.state.revision).toBe(revision)
-      expect((await post({ sessionId: 'real', instanceId: 'runtime', events: [{ seq: 3, event: { type: 'start' } }] })).status).toBe(409)
+      expect((await post({ sessionId: 'new', instanceId: 'replacement', events: [{ seq: 1, event: { type: 'session', sessionId: 'new' } }] })).status).toBe(200)
+      expect(c.state.threadId).toBe('new')
+      expect((await post(body)).status).toBe(410)
+      expect(c.state.threadId).toBe('new')
+      expect((await post({ sessionId: 'resumed', instanceId: 'replacement', events: [{ seq: 2, event: { type: 'session', sessionId: 'resumed' } }] })).status).toBe(200)
+      expect(c.state.threadId).toBe('resumed')
+      expect((await post({ sessionId: 'resumed', instanceId: 'replacement', events: [{ seq: 4, event: { type: 'start' } }] })).status).toBe(409)
       expect(c.state.connection).toBe('disconnected')
     } finally { await c.dispose(); await rm(root, { recursive: true, force: true }) }
   })

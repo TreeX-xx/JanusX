@@ -231,11 +231,8 @@ export class OpenCodeConversation extends NativeConversation {
     this.historyRevision++; this.settingsRevision++
     if (id !== this.state.threadId) {
       this.rendered.clear(); this.lastUser = ''
-      this.state.threadId = null; this.state.turnId = null; this.state.turnStartedAt = undefined
-      this.state.items = []; this.state.approvals = []; this.state.truncated = false
-      this.session.questions.clear(); this.interactionRevision++
+      this.session.resetThread(); this.interactionRevision++
       this.state.model = null; this.state.effort = null
-      this.state.controlEpoch++
       this.receive({ type: 'session', sessionId: id })
     }
     this.state.error = undefined; this.state.needsTerminal = false
@@ -307,6 +304,15 @@ export class OpenCodeConversation extends NativeConversation {
       throw new Error('OpenCode is selecting a session. Finish selecting it in the terminal before using the conversation view.')
     }
     if (this.state.settingsUpdating) throw new Error('Wait for OpenCode settings to finish updating')
+    if (command.type === 'terminal-command' && ['new', 'clear'].includes(command.name)) {
+      const previous = this.state.threadId
+      await super.command(command)
+      // /new opens the native home screen; the CLI allocates its session only
+      // when the user submits the first prompt. Never send dialog text to the
+      // previously selected session during that interval.
+      if (this.state.threadId === previous) this.pauseNativeSelection('OpenCode opened a new session. Send its first message in the terminal, then return to conversation view.')
+      return this.snapshot()
+    }
     if (command.type !== 'models' && command.type !== 'settings') return super.command(command)
     this.session.guard(command, this.disposed)
     if (command.type === 'models') { await this.loadModels(); return this.snapshot() }

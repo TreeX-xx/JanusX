@@ -58,15 +58,36 @@ export class ClaudeConversation {
   private approvals = new Map<string, { response: ServerResponse; toolId: string; timer: ReturnType<typeof setTimeout> }>()
   private lastTurn?: string
   private lastTurnSequence = 0
+  private changingSession = false
 
   constructor(readonly id: string, publish: (snapshot: ConversationSnapshot) => void,
     private readonly bind: (sessionId: string, transcriptPath?: string) => void = () => {}) {
     this.state = conversationState(id, 'claude', caps)
     this.session = new ConversationSession(this.state, publish)
     this.state.capabilities.commands = true
-    this.catalog = new ConversationCatalog(this.session, async () => { await this.loadModels(); if (this.state.modelsError) throw new Error(this.state.modelsError); return this.nativeCommands ?? [] })
+    this.catalog = new ConversationCatalog(this.session, async () => {
+      await this.loadModels()
+      if (this.state.modelsError) throw new Error(this.state.modelsError)
+      const commands = [...(this.nativeCommands ?? [])]
+      if (!commands.some(entry => entry.name === 'clear')) commands.push({ id: 'command:clear', name: 'clear', label: 'clear', description: 'Clear the native conversation', kind: 'command', source: 'claude', execution: 'native' })
+      return commands.map(entry => entry.name !== 'clear' ? entry : { ...entry, execution: 'native' as const,
+        invoke: async (args: string) => {
+          if (args.trim()) throw new Error('/clear does not accept arguments')
+          const previous = this.state.threadId
+          this.changingSession = true
+          try {
+            await this.call({ type: 'invoke', name: 'clear', arguments: '' })
+            for (let i = 0; i < 100 && this.state.threadId === previous; i++) await pause(100)
+            if (this.state.threadId === previous) {
+              this.fail('Native session reset was not confirmed; check the terminal before retrying')
+              throw new Error(this.state.error)
+            }
+          } finally { this.changingSession = false }
+        } })
+    })
   }
   snapshot(): ConversationSnapshot { return this.session.snapshot() }
+  setNativeInput(write: (text: string) => void): void { this.session.setNativeInput(write) }
   private changed(immediate = true): void { this.session.changed(immediate) }
 
   private fail(message: string): void {
@@ -201,6 +222,21 @@ export class ClaudeConversation {
       const body = JSON.parse(text) as Json
       if (this.disposed) { this.json(response, {}, 410); return }
       if (request.url === '/permission') { await this.permission(body, response); return }
+      if (request.url === '/session') {
+        if (body.terminalId !== this.id || typeof body.sessionId !== 'string' || !body.sessionId ||
+          !Number.isSafeInteger(body.seq) || body.seq < this.sequence ||
+          (body.sessionId !== this.state.threadId && (body.previousSessionId !== this.state.threadId || (!this.changingSession && this.state.mode !== 'terminal')))) {
+          this.json(response, {}, 409); return
+        }
+        if (body.sessionId !== this.state.threadId) {
+          this.session.resetThread(); this.tools.clear(); this.finishedTasks.clear(); this.questionReplies.clear()
+          this.state.backgroundTasks = 0; this.state.settingsOverride = false
+          this.state.threadId = body.sessionId; this.sequence = body.seq; this.lastTurn = undefined; this.lastTurnSequence = 0
+          for (const id of this.approvals.keys()) this.finishApproval(id, {})
+          this.bind(body.sessionId); this.changed()
+        }
+        this.json(response, {}); return
+      }
       if (request.url === '/question-wait') {
         if (body.terminalId !== this.id || typeof body.sessionId !== 'string' ||
           (this.state.threadId && body.sessionId !== this.state.threadId) || typeof body.requestId !== 'string' || this.broken) {
@@ -426,6 +462,7 @@ export class ClaudeConversation {
       return this.snapshot()
     }
     this.session.guard(command, this.disposed || this.broken)
+    if (command.type === 'terminal-command') { await this.session.terminalCommand(command); return this.snapshot() }
     if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'models') { await this.loadModels() }

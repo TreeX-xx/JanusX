@@ -23,6 +23,7 @@ export abstract class NativeConversation {
     this.catalog = new ConversationCatalog(this.session, () => this.loadCommands())
   }
   snapshot(): ConversationSnapshot { return this.session.snapshot() }
+  setNativeInput(write: (text: string) => void): void { this.session.setNativeInput(write) }
   protected changed(immediate = false): void { this.session.changed(immediate) }
 
   protected fail(error: string): void {
@@ -33,7 +34,10 @@ export abstract class NativeConversation {
   protected receive(event: NativeEvent): void {
     if (this.disposed || this.broken) return
     if (event.type === 'session' && event.sessionId) {
-      if (this.state.threadId && this.state.threadId !== event.sessionId) { this.fail('Native session changed. Create a new dual-mode terminal.'); return }
+      if (this.state.threadId && this.state.threadId !== event.sessionId) {
+        if (this.state.mode !== 'terminal') { this.fail('Native session changed. Create a new dual-mode terminal.'); return }
+        this.session.resetThread(); this.nativeAttention = false
+      }
       if (!this.state.threadId) { this.state.threadId = event.sessionId; this.bind(event.sessionId, event.path) }
       this.state.model = event.model ?? this.state.model; this.state.connection = 'ready'
     } else if (event.type === 'start') {
@@ -78,6 +82,7 @@ export abstract class NativeConversation {
     if (this.disposed) throw new Error('Session closed')
     if (command.type === 'mode') return this.session.mode(command, this.disposed)
     this.session.guard(command, this.disposed)
+    if (command.type === 'terminal-command') { await this.session.terminalCommand(command); return this.snapshot() }
     if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type !== 'send' && command.type !== 'edit' && command.type !== 'interrupt') throw new Error('Use the native terminal for this action')

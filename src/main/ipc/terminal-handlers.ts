@@ -874,7 +874,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       if (conversation) {
         const owned = conversation
         const nativePty = instance.pty
-        if (owned instanceof CodexConversation) owned.setNativeInput(text => nativePty.write(text))
+        owned.setNativeInput(text => nativePty.write(text))
         instance.disposeRuntime = () => {
           const stopped = owned.dispose()
           if (conversations.get(id) === owned) conversations.delete(id)

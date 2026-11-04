@@ -4083,7 +4083,7 @@ export type TypedI18nKey =
   | 'terminal:conversation.catalog.refresh'
   | 'terminal:conversation.catalog.skill'
   | 'terminal:conversation.catalog.terminal'
-  | 'terminal:conversation.catalog.terminalManual'
+  | 'terminal:conversation.catalog.terminalRun'
   | 'terminal:conversation.changeScope'
   | 'terminal:conversation.changedFiles'
   | 'terminal:conversation.chooseEffort'

@@ -23,16 +23,38 @@ for (const [engine, name] of [['codex', 'review'], ['opencode', 'team/review'], 
   })
 }
 
-test('Claude command fallback keeps the draft and does not dispatch a raw prompt', async ({ page }) => {
+test('native /help does not accidentally activate the first session command', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.locator('[data-conversation-input]')
+  await input.fill('/help'); await input.press('Enter')
+  const calls = await page.evaluate(() => (window as any).codexFixture.calls.commands)
+  expect(calls.some((c: any) => c.type === 'new')).toBe(false)
+  expect(calls).toContainEqual(expect.objectContaining({ type: 'terminal-command', name: 'help' }))
+})
+
+test('Claude terminal command submits the selected native command without a raw chat prompt', async ({ page }) => {
   await page.goto('/codex-conversation.html?engine=claude&initialView=conversation')
   await page.evaluate(() => (window as any).codexFixture.catalog())
   const input = page.locator('[data-conversation-input]')
   await input.fill('/review args')
   await expect(page.getByRole('option').filter({ hasText: '/review' })).toContainText('Terminal')
   await input.press('Enter')
-  await page.getByRole('button', { name: 'Switch to terminal', exact: true }).click()
-  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.commands.some((c: any) => c.type === 'mode' && c.mode === 'terminal'))).toBe(true)
+  await expect(input).not.toBeVisible()
   const calls = await page.evaluate(() => (window as any).codexFixture.calls)
   expect(calls.sends).toEqual([])
-  expect(calls.commands.some((c: any) => c.type === 'invoke')).toBe(false)
+  expect(calls.commands.filter((c: any) => c.type === 'invoke')).toEqual([expect.objectContaining({ entryId: 'native-review', arguments: 'args' })])
 })
+
+for (const engine of ['claude', 'codex', 'opencode', 'pi', 'dsh']) {
+  test(`${engine}: a typed native command executes even outside the API catalog`, async ({ page }) => {
+    await page.goto(`/codex-conversation.html?engine=${engine}&initialView=conversation`)
+    const input = page.locator('[data-conversation-input]')
+    await input.fill('/native-extra 中文 args')
+    await expect(page.getByRole('option').filter({ hasText: '/native-extra' })).toContainText('Run in the native terminal')
+    await input.press('Enter')
+    await expect(input).not.toBeVisible()
+    const calls = await page.evaluate(() => (window as any).codexFixture.calls)
+    expect(calls.sends).toEqual([])
+    expect(calls.commands.filter((c: any) => c.type === 'terminal-command')).toEqual([expect.objectContaining({ name: 'native-extra', arguments: '中文 args' })])
+  })
+}

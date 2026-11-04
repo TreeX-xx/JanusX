@@ -332,15 +332,16 @@ test('previews slash commands, changes session settings without sending a prompt
   await expect(page.getByTitle('C:/fixture', { exact: true })).toHaveCount(0)
 })
 
-test('blocks unsupported commands and failed settings, retries catalog loading, and fits the narrow light pane', async ({ page }) => {
+test('hands native commands off, preserves failed settings and fits the narrow light pane', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 700 })
   await page.goto('/codex-conversation.html?theme=light')
   await page.getByRole('button', { name: 'Conversation', exact: true }).click()
   const input = page.getByRole('combobox', { name: 'Message Codex' })
   await input.fill('/review')
   await input.press('Enter')
-  await expect(page.getByText('This command is not available in conversation view. Use it in the terminal.')).toBeVisible()
+  await expect(input).not.toBeVisible()
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click()
   await input.fill('/model deep')
   await page.evaluate(() => (window as any).codexFixture.settingsFail(true))
   await input.press('Enter')

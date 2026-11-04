@@ -37,6 +37,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('Pi native dual mode', 
       // npm's shim is not directly executable by ConPTY; use the same package's entry.
       terminal = pty.spawn(process.execPath, [join(dirname(binary!), 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'), ...launch.args], { cwd: f.cwd, env: f.env as Record<string, string>, cols: 120, rows: 35 })
       terminal.onData(data => { output += data })
+      c.setNativeInput(text => terminal!.write(text))
       await wait(() => c.state.connection === 'ready', 'ready')
       await new Promise(r => setTimeout(r, 700))
       terminal.write('NATIVE_FIRST'); await new Promise(r => setTimeout(r, 100)); terminal.write('\r')
@@ -79,6 +80,15 @@ describe.skipIf(!binary || process.platform !== 'win32')('Pi native dual mode', 
       await c.command({ type: 'mode', mode: 'terminal' })
       terminal.write('NATIVE_RETURN'); await new Promise(r => setTimeout(r, 100)); terminal.write('\r')
       await done('NATIVE_RETURN')
+      await c.command({ type: 'mode', mode: 'conversation' })
+      await c.command({ type: 'commands', controlEpoch: c.state.controlEpoch })
+      const newCommand = c.state.commands!.find(entry => entry.name === 'new')!
+      await c.command({ type: 'invoke', entryId: newCommand.id, catalogRevision: c.state.commandsRevision!, arguments: '', commandId: 'native-new', controlEpoch: c.state.controlEpoch })
+      expect(c.state.mode).toBe('terminal')
+      await wait(() => c.state.threadId !== session && c.state.connection === 'ready', 'new session rebound')
+      expect(c.state.items).toEqual([])
+      await c.command({ type: 'mode', mode: 'conversation' })
+      await send('NATIVE_AFTER'); await done('NATIVE_AFTER')
     } finally { terminal?.kill(); await c.dispose(); f.close() }
   })
 })

@@ -18,12 +18,13 @@ class ExtensionConversation extends NativeConversation {
   private token = randomBytes(32).toString('hex')
   private seq = 0
   private instanceId?: string
+  private retiredInstances = new Set<string>()
   private heartbeat?: ReturnType<typeof setInterval>
   private lastSeen = Date.now()
   private startup?: Promise<{ command: string; args: string[] }>
   private stopping?: Promise<void>
   private pending = new Map<string, { command: unknown; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
-  constructor(id: string, engine: 'pi' | 'dsh', publish: (value: ConversationSnapshot) => void, bind?: (id: string, path?: string) => void) { super(id, engine, publish, bind); this.state.capabilities.commands = engine === 'pi'; this.state.capabilities.questions = true }
+  constructor(id: string, engine: 'pi' | 'dsh', publish: (value: ConversationSnapshot) => void, bind?: (id: string, path?: string) => void) { super(id, engine, publish, bind); this.state.capabilities.commands = true; this.state.capabilities.questions = true }
   start(options: NativeLaunch): Promise<{ command: string; args: string[] }> {
     if (this.startup || this.disposed) throw new Error('Native session already started')
     this.startup = this.launch(options)
@@ -52,9 +53,19 @@ class ExtensionConversation extends NativeConversation {
         const body = JSON.parse(raw)
         if (this.disposed) { reply(410, {}); return }
         if (this.state.connection === 'disconnected') { reply(409, {}); return }
-        if (typeof body.instanceId !== 'string' || !body.instanceId || (this.instanceId && this.instanceId !== body.instanceId)) throw new Error('Native extension reloaded; create a new dual-mode terminal')
+        if (typeof body.instanceId !== 'string' || !body.instanceId) throw new Error('Invalid native extension identity')
+        if (this.retiredInstances.has(body.instanceId)) { reply(410, {}); return }
+        if (this.instanceId && this.instanceId !== body.instanceId) {
+          if (this.state.mode !== 'terminal' || !body.events?.some((entry: any) => entry.seq === 1 && entry.event?.type === 'session')) throw new Error('Native extension reloaded outside terminal control')
+          this.seq = 0
+          this.retiredInstances.add(this.instanceId)
+          for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('Native session reloaded; command will not be replayed')) }
+          this.pending.clear()
+        }
         this.instanceId = body.instanceId
-        if (typeof body.sessionId !== 'string' || !body.sessionId || (this.state.threadId && this.state.threadId !== body.sessionId) || body.overflow) throw new Error('Native session changed or bridge overflowed')
+        if (typeof body.sessionId !== 'string' || !body.sessionId || body.overflow) throw new Error('Native session changed or bridge overflowed')
+        if (this.state.threadId && this.state.threadId !== body.sessionId && (this.state.mode !== 'terminal' ||
+          !body.events?.some((entry: any) => entry.seq > this.seq && entry.event?.type === 'session' && entry.event.sessionId === body.sessionId))) throw new Error('Unconfirmed native session change')
         this.lastSeen = Date.now()
         for (const entry of body.events ?? []) {
           if (entry.seq <= this.seq) continue
@@ -79,7 +90,10 @@ class ExtensionConversation extends NativeConversation {
     await writeFile(join(this.directory, 'native-questions.mjs'), questionSource)
     await writeFile(join(this.directory, 'conversation-images.mjs'), imageSource)
     const extension = join(this.directory, 'extension.mjs')
-    await writeFile(extension, dsh ? dshSource.replace('__DSH_LLM_URL__', pathToFileURL(join(packageRoot, 'node_modules/@deepseek-ai/dsh-llm/lib/index.js')).href) : piSource)
+    await writeFile(extension, dsh ? dshSource
+      .replace('__DSH_LLM_URL__', pathToFileURL(join(packageRoot, 'node_modules/@deepseek-ai/dsh-llm/lib/index.js')).href)
+      .replace('__DSH_COMMANDS_URL__', pathToFileURL(join(dirname(options.command), 'node_modules/@deepseek-harness-tui/dsh-tui/lib/types/commands.js')).href)
+      : piSource.replace('__PI_COMMANDS_URL__', pathToFileURL(join(packageRoot, 'dist/core/slash-commands.js')).href))
     if (this.disposed) throw new Error('Native launch cancelled')
     this.lastSeen = Date.now()
     this.heartbeat = setInterval(() => { if (Date.now() - this.lastSeen > (this.state.connection === 'starting' ? 60000 : 6000)) this.fail('Native bridge unavailable. Use the terminal; commands will not be resent.') }, 1000)
@@ -91,13 +105,12 @@ class ExtensionConversation extends NativeConversation {
     return { command: options.command, args: [...options.args, '--extension', extension] }
   }
   protected override async loadCommands(): Promise<NativeCatalogEntry[]> {
-    if (this.state.engine !== 'pi') return []
     const rows = await this.request({ id: randomUUID(), type: 'catalog', sessionId: this.state.threadId })
-    if (!Array.isArray(rows)) throw new Error('Invalid Pi command catalog')
-    return rows.filter(row => row && typeof row.name === 'string' && ['skill', 'prompt', 'extension'].includes(row.source)).slice(0, 1000).map(row => ({
+    if (!Array.isArray(rows)) throw new Error('Invalid native command catalog')
+    return rows.filter(row => row && typeof row.name === 'string' && ['skill', 'prompt', 'extension', 'builtin'].includes(row.source)).slice(0, 1000).map(row => ({
       id: JSON.stringify([row.source, row.name]), name: row.name, label: row.name,
       description: String(row.description ?? '').slice(0, 2000), kind: row.source === 'skill' ? 'skill' : row.source === 'prompt' ? 'prompt' : 'command',
-      source: String(row.sourceInfo?.scope ?? row.source), execution: 'native',
+      source: String(row.sourceInfo?.scope ?? row.source), execution: row.source === 'builtin' || this.state.engine === 'dsh' ? 'terminal' : 'native',
       invoke: async (args: string) => { await this.request({ id: randomUUID(), type: 'invoke', name: row.name, source: row.source, arguments: args, sessionId: this.state.threadId }) },
     }))
   }

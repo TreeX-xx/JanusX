@@ -605,7 +605,7 @@
       "loading": "Loading native commands...",
       "refresh": "Refresh commands",
       "failed": "Command discovery failed. Refresh to retry.",
-      "terminalManual": "{{command}} has not run. Switch to the terminal, then type the command and press Enter.",
+      "terminalRun": "Run in the native terminal and continue any interaction there",
       "accepted": "Native accepted: {{command}}"
     }
   }

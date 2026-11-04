@@ -12,6 +12,21 @@ function fixture() {
   return { c, wire, bind }
 }
 
+it('keeps /new on the terminal until its first native prompt creates a confirmed session', async () => {
+  const { c, wire } = fixture()
+  const write = vi.fn()
+  c.setNativeInput(write)
+  try {
+    await c.command({ type: 'mode', mode: 'conversation' })
+    await c.command({ type: 'terminal-command', name: 'new', arguments: '', commandId: 'new', controlEpoch: c.state.controlEpoch })
+    expect(c.state).toMatchObject({ mode: 'terminal', needsTerminal: true, threadId: 'old' })
+    await expect(c.command({ type: 'mode', mode: 'conversation' })).rejects.toThrow(/selecting/)
+    await wire.confirmNativeSelection('new', wire.nativeSelectionRevision)
+    await c.command({ type: 'mode', mode: 'conversation' })
+    expect(c.state).toMatchObject({ threadId: 'new', needsTerminal: false })
+  } finally { await c.dispose() }
+})
+
 it('rebinds confirmed selection, clears the old transcript and invalidates old control', async () => {
   const { c, wire, bind } = fixture()
   try {
