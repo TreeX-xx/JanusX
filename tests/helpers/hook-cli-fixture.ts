@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { PNG_PIXEL } from './image-fixture'
 
 /** Local-only models: no credentials or provider network access in CLI acceptance. */
-export async function hookCliFixture(options: { codexQuestionProbe?: boolean; codexImageProbe?: boolean; codexCommandProbe?: boolean; codexPlanProbe?: boolean; codexLiveProbe?: boolean } = {}) {
+export async function hookCliFixture(options: { codexRetryProbe?: boolean; codexAsyncQuestionProbe?: boolean; codexQuestionProbe?: boolean; codexImageProbe?: boolean; codexCommandProbe?: boolean; codexPlanProbe?: boolean; codexLiveProbe?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'janusx-hook-cli-'))
   const home = join(root, "home space's 中文")
   const cwd = join(root, "workspace space's 中文")
@@ -42,11 +42,16 @@ export async function hookCliFixture(options: { codexQuestionProbe?: boolean; co
       } else { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(msg)) }
     } else if (req.url?.includes('responses')) {
       responseRequests.push({ model: body.model, effort: body.reasoning?.effort, input: JSON.stringify(body.input) })
+      if (options.codexRetryProbe && responseRequests.length === 1) {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'Temporary fixture outage', type: 'server_error' } }))
+        return
+      }
       res.writeHead(200, { 'Content-Type': 'text/event-stream' })
       const lastUser = (body.input ?? []).filter((item: any) => item.role === 'user').at(-1)
-      if (options.codexQuestionProbe && body.tools?.some((tool: any) => tool.name === 'request_user_input') && !body.input?.some((item: any) => item.call_id === 'fixture_question')) {
-        const tool = { id: 'question_fixture', type: 'function_call', name: 'request_user_input', call_id: 'fixture_question', status: 'completed',
-          arguments: JSON.stringify({ questions: [
+      if ((options.codexAsyncQuestionProbe || options.codexQuestionProbe && body.tools?.some((tool: any) => tool.name === 'request_user_input')) && !body.input?.some((item: any) => item.call_id === 'fixture_question')) {
+        const tool = { id: 'question_fixture', type: 'function_call', name: options.codexAsyncQuestionProbe ? 'request_user_input_async' : 'request_user_input', call_id: 'fixture_question', status: 'completed',
+          arguments: JSON.stringify({ questions: options.codexAsyncQuestionProbe ? [{ title: 'Choose async', options: ['First', 'Second'] }, { title: 'Async notes' }] : [
             { id: 'choice', header: 'Confirm', question: 'Proceed?', options: [{ label: 'Yes', description: 'Proceed once' }, { label: 'No', description: 'Keep current state' }] },
             { id: 'notes', header: 'Notes', question: 'Type something', options: [{ label: 'None', description: 'No notes' }, { label: 'Later', description: 'Add later' }] },
           ] }) }

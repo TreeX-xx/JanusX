@@ -41,7 +41,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-04T14:11:38Z",
+  "updated": "2026-11-04T15:57:59Z",
   "moduleState": "partial"
 }
 ---
@@ -191,6 +191,10 @@ Docker 环境选择不跟随代码工作区。独立发行版隔离文件、依�
 运行与测试目标探索：[按当前 worktree 运行与测试项目](./worktree-run-test-target.md)记录现有快捷启动使用工作区根目录的限制，以及目标跟随、进程归属和测试结果标识的建议，作为 0.9.2 候选，尚未实现。
 
 渲染与编辑器：[emphasis](./markdown-emphasis-orange-text.md)（强调色去填充块）、[standalone-refresh](./standalone-editor-auto-refresh.md)（独立编辑器外部变更自刷新）。[文件编辑窗口与预览体验](./file-editor-experience.md)记录普通编辑默认、按需 HEAD 对比、自定义关闭确认、Markdown 单向同步滚动与安全 HTML 图片预览，以及 HTML 虚拟视口、缩放和工作区只读资源服务。
+
+Codex 对话模式已接入 `agentMessage.questions` 异步问答：工作进行中或回合结束后可选择／填写回答，答案携带原生问题身份，底部草稿保留；终端回答可同步移除对应选项。协议、去重、失败及历史边界见[问答专题](./terminal-dialog-dual-mode.md#对话内审批选项和文字回答)。
+
+Codex 连接重试提示随当前回合恢复或结束自动清除；最终失败留在所属回合，终端不再重复叠加原生错误。对话视图区分轻量重试状态、回合失败卡和宿主连接故障，原始详情可展开；状态边界和验证见[连接提示专题](./terminal-dialog-dual-mode.md#连接重试和失败提示)。
 
 ## Acceptance criteria
 

@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test'
 
+for (const completed of [false, true]) test(`async choices remain interactive with completed=${completed} and preserve the composer`, async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await page.getByRole('combobox').fill('Keep my draft')
+  await page.evaluate(() => (window as any).codexFixture.questions('async'))
+  if (completed) await page.evaluate(() => (window as any).codexFixture.finishAsyncTurn())
+  const form = page.getByRole('form', { name: 'Your response is needed' })
+  await form.getByRole('radio', { name: 'Second', exact: true }).check()
+  if (completed) await form.getByRole('textbox', { name: 'Answer: Choose async' }).fill('自定义回答')
+  await form.getByRole('button', { name: 'Submit answer', exact: true }).click()
+  await expect(form).toHaveCount(0)
+  await expect(page.getByRole('combobox')).toHaveText('Keep my draft')
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.find((c: any) => c.type === 'answer').answer)).toEqual({
+    answers: [{ id: 'choice', selected: completed ? [] : ['1'], ...(completed ? { text: '自定义回答' } : {}) }],
+  })
+})
+
 test('preserves multiple approval scopes and wraps them in a narrow pane', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 })
   await page.goto('/codex-conversation.html?initialView=conversation')

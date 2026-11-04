@@ -14,6 +14,81 @@ function setup() {
   return { controller, wire, emit, publish }
 }
 
+describe('Codex retry and turn failure lifecycle', () => {
+  it('updates one retry status and clears it on model recovery without requiring new input', () => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 'active' } })
+    controller.state.error = 'Answer delivery is unconfirmed'
+    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
+    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 2/5' } })
+    expect(controller.state.retry).toEqual({ turnId: 'active', message: 'Reconnecting... 2/5' })
+    expect(controller.state.items).toEqual([])
+    emit('item/agentMessage/delta', { turnId: 'active', itemId: 'answer', delta: 'Recovered' })
+    expect(controller.state.retry).toBeUndefined()
+    expect(controller.state.error).toBe('Answer delivery is unconfirmed')
+    expect(controller.state.turnId).toBe('active')
+  })
+  it('does not treat tool output, empty text, replay or other turns as recovery', () => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 'active' } })
+    const item = { type: 'agentMessage', id: 'old', text: 'Previous output' }
+    emit('item/completed', { turnId: 'active', item })
+    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
+    emit('item/completed', { turnId: 'active', item })
+    emit('item/completed', { turnId: 'active', item: { type: 'commandExecution', id: 'tool', aggregatedOutput: 'done' } })
+    emit('item/agentMessage/delta', { turnId: 'other', itemId: 'other', delta: 'Unrelated' })
+    emit('item/agentMessage/delta', { turnId: 'active', itemId: 'empty', delta: '' })
+    emit('thread/settings/updated', { threadSettings: { model: 'probe' } })
+    expect(controller.state.retry).toBeDefined()
+    emit('item/reasoning/summaryTextDelta', { turnId: 'active', itemId: 'reasoning', delta: 'Thinking again' })
+    expect(controller.state.retry).toBeUndefined()
+  })
+  it.each(['completed', 'interrupted'])('clears retry when the turn is %s and ignores late retry events', status => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 'active' } })
+    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
+    emit('turn/completed', { turn: { id: 'active', status } })
+    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Late retry' } })
+    expect(controller.state.retry).toBeUndefined()
+    expect(controller.state.error).toBeUndefined()
+    expect(controller.state.items.some(item => item.type === 'turnError')).toBe(false)
+  })
+  it('keeps one final error in its own turn and does not contaminate the next turn', () => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 'failed' } })
+    emit('error', { turnId: 'failed', willRetry: true, error: { message: 'Reconnecting... 5/5' } })
+    emit('error', { turnId: 'failed', willRetry: false, error: { message: 'Connection failed' } })
+    emit('turn/completed', { turn: { id: 'failed', status: 'failed', error: { message: 'Retry limit reached' } } })
+    expect(controller.state.retry).toBeUndefined()
+    expect(controller.state.error).toBeUndefined()
+    expect(controller.state.items).toEqual([expect.objectContaining({ type: 'turnError', turnId: 'failed', text: 'Retry limit reached' })])
+    emit('turn/started', { turn: { id: 'next' } })
+    emit('error', { turnId: 'failed', willRetry: true, error: { message: 'Late retry' } })
+    expect(controller.state.retry).toBeUndefined()
+    expect(controller.state.items).toHaveLength(1)
+    expect(controller.state.turnId).toBe('next')
+  })
+  it('preserves the last retry reason when a failed completion has no error payload', () => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 'failed' } })
+    emit('error', { turnId: 'failed', willRetry: true, error: { message: 'Rate limit exceeded' } })
+    emit('turn/completed', { turn: { id: 'failed', status: 'failed' } })
+    expect(controller.state.items[0]).toMatchObject({ type: 'turnError', text: 'Rate limit exceeded' })
+    expect(controller.state.retry).toBeUndefined()
+  })
+  it('separates host disconnection and clears retry on thread switch', () => {
+    const { controller, wire, emit } = setup()
+    emit('turn/started', { turn: { id: 'active' } })
+    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
+    wire.fail('Local bridge closed')
+    expect(controller.state).toMatchObject({ connection: 'disconnected', error: 'Local bridge closed' })
+    expect(controller.state.retry).toBeUndefined()
+    wire.attach({ id: 'next', turns: [{ id: 'past', status: 'failed', items: [], error: { message: 'Past failure' } }] })
+    expect(controller.state.error).toBeUndefined()
+    expect(controller.state.items[0]).toMatchObject({ type: 'turnError', turnId: 'past', text: 'Past failure' })
+  })
+})
+
 describe('Codex conversation ownership and event projection', () => {
   it('starts new sessions at standard speed while preserving resumes and explicit toggles', async () => {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
