@@ -350,7 +350,7 @@ test('built desktop exposes typed Workspace, Terminal, and Project critical path
     await expect(page.getByRole('button', { name: '新建文件', exact: true })).toBeVisible()
     await page.getByRole('button', { name: /打开 Git 工具/ }).click()
     await expect(page.getByRole('button', { name: '新建文件', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Push', exact: true }).click()
+    await page.getByRole('button', { name: '推送', exact: true }).click()
     await expect(page.getByRole('button', { name: '取消', exact: true })).toBeVisible()
     await page.getByRole('button', { name: /打开文件工具/ }).evaluate((element: HTMLElement) => element.click())
     await expect(page.getByRole('button', { name: '取消', exact: true })).toHaveCount(0)

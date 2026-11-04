@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-11-04T10:45:06.986Z",
+  "updated": "2026-11-04T15:14:49.145Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -139,3 +139,5 @@ The new rail test first fails in both themes against immediate activation, confi
 Across the targeted runs, 55 distinct browser cases pass: rail/top-tab feedback, pane feedback/dragging, width motion, extension lifecycle, session reuse and workspace surfaces. The five dock/state/theme/pane/drop-hint unit files pass 98 cases. Typecheck, scoped implementation ESLint, diff whitespace and Note validation pass (322 Notes, zero errors, 17 existing external-link diagnostics). Rail planche and pane dark screenshots were visually inspected. These tests use real components with fixture IPC; the user's existing dev process remains available for real workload testing.
 
 Tool panels and conversations compose `native-scrollbars.module.css`: a neutral rounded 4px thumb inside a 12px drag target, widening to 6px on thumb hover and 8px while pressed. Container hover and keyboard focus brighten the thumb; tracks stay transparent and arrow buttons are removed. The file tree no longer hides its scrollbar; file and session lists reserve a stable gutter. The rail scrolls in short windows so all tools remain reachable. Scroll thumbs appear only when content overflows; custom preview viewports retain their own controls. History, composer and expanded output share this style.
+
+Keyboard entry into a preview selects the visible direct child section of the tool host. A descendant-wide section selector also matched nested Git sections inside the hidden, inert Git panel, causing ArrowLeft to leave focus on the rail instead of entering Sessions. The existing Escape/outside-click/workspace-switch browser scenario reproduces this failure and retains the hidden Git panel while checking input focus.

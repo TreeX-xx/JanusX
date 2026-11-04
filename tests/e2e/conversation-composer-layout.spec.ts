@@ -55,7 +55,7 @@ test('context control stays on the bottom toolbar and its popup does not move th
   await expect(input).toHaveText('Keep this draft')
 })
 
-for (const engine of ['claude', 'opencode']) test(`${engine} accepts more input while working and queues it immediately`, async ({ page }) => {
+for (const engine of ['claude', 'opencode']) test(`${engine} delivers live input while working without sending it twice after completion`, async ({ page }) => {
   await page.goto(`/codex-conversation.html?engine=${engine}&initialView=conversation`)
   const input = page.getByRole('combobox', { name: engine === 'claude' ? 'Message Claude' : 'Message OpenCode' })
   await input.fill('First task'); await input.press('Enter')
@@ -64,7 +64,7 @@ for (const engine of ['claude', 'opencode']) test(`${engine} accepts more input 
   await input.fill('Next task'); await input.press('Enter')
   await expect(input).toHaveText('')
   await expect(page.getByText('Next task', { exact: true })).toBeVisible()
-  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task'])
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task', 'Next task'])
   await page.evaluate(() => (window as any).codexFixture.finish())
   await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['First task', 'Next task'])
 })

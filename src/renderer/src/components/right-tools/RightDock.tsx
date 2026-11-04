@@ -130,7 +130,7 @@ export function RightDock({
   useEffect(() => {
     if (!focusPreviewRef.current || !panelVisible) return
     focusPreviewRef.current = false
-    dockRef.current?.querySelector<HTMLElement>('#right-tool-panel section:not([hidden]) input, #right-tool-panel section:not([hidden]) button')?.focus()
+    dockRef.current?.querySelector<HTMLElement>('#right-tool-panel > div > section:not([hidden]) input, #right-tool-panel > div > section:not([hidden]) button')?.focus()
   }, [previewId, panelVisible])
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
@@ -257,10 +257,10 @@ export function RightDock({
         event.preventDefault()
         cancelPreviewTimer()
         if (contentVisible) {
-          dockRef.current?.querySelector<HTMLElement>('#right-tool-panel section:not([hidden]) input, #right-tool-panel section:not([hidden]) button')?.focus()
+          dockRef.current?.querySelector<HTMLElement>('#right-tool-panel > div > section:not([hidden]) input, #right-tool-panel > div > section:not([hidden]) button')?.focus()
         } else {
           if (previewId === toolId) {
-            dockRef.current?.querySelector<HTMLElement>('#right-tool-panel section:not([hidden]) input, #right-tool-panel section:not([hidden]) button')?.focus()
+            dockRef.current?.querySelector<HTMLElement>('#right-tool-panel > div > section:not([hidden]) input, #right-tool-panel > div > section:not([hidden]) button')?.focus()
             return
           }
           focusPreviewRef.current = true

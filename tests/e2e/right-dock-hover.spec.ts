@@ -8,8 +8,9 @@ test('an open hover card follows rail targets without another dwell delay', asyn
   await page.mouse.move(400, 40)
   // Fully release the original docked panel before testing the initial dwell.
   await page.waitForTimeout(350)
-  await page.clock.install()
-  await page.clock.pauseAt(new Date())
+  const clockStart = new Date('2026-01-01T00:00:00Z')
+  await page.clock.install({ time: clockStart })
+  await page.clock.pauseAt(new Date(clockStart.getTime() + 60_000))
 
   await page.locator('#right-tool-rail-sessions').hover()
   await page.clock.runFor(200)
@@ -145,6 +146,8 @@ test('preview cancels on Escape, outside click, workspace switch and disabled co
   await expect(shell).toHaveAttribute('data-visible', 'false')
   await sessions.focus()
   await expect(shell).toHaveAttribute('data-preview', 'true')
+  // Hidden Git sections stay mounted; keyboard entry must target the active host panel.
+  await expect(page.locator('#right-tool-panel-git')).toHaveAttribute('inert', '')
   await page.keyboard.press('ArrowLeft')
   await expect(page.locator('#right-tool-panel-sessions').getByRole('textbox')).toBeFocused()
   await page.keyboard.press('Escape')

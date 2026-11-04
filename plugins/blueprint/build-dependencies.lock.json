@@ -61,8 +61,8 @@
       "name": "@janusx/plugin-sdk",
       "version": "0.1.0",
       "file": "janusx-plugin-sdk-0.1.0.tgz",
-      "sha256": "29e67697603fc5589dce5a407d5b729a5af21e2703c81357c693048f49939de1",
-      "integrity": "sha512-u+mZyc+ClK+QjqinEEkIZFLpJUesTgeY3apNZt/89YJ8iL5tMkJj0ynNLyUGsd7FRNYPlDX2Pz5gTkenS6jbsQ=="
+      "sha256": "6a55aa2e64c719e18770889ba0c13a7db117b7442e3122b66748c588c39e7036",
+      "integrity": "sha512-3uKRskZcD6dVjWcXhh1CRnL3dHc65xSGYX2k6xmZvNNqmcnzT8+5Ln4MUmK2uVGs0mHeygbPtM3VrGnrhhfnkA=="
     },
     {
       "name": "@janusx/ui",
