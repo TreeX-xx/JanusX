@@ -24,6 +24,7 @@ import { ConversationPlanPanel } from './ConversationPlanPanel'
 import { ConversationDuration } from './ConversationDuration'
 import { ConversationMessageActions } from './ConversationMessageActions'
 import { ConversationMessageEditor } from './ConversationMessageEditor'
+import { ConversationPrompt } from './ConversationPrompt'
 import styles from './AgentSessionPane.module.css'
 import { conversationPrompt, activeConversationReferences, MAX_CONVERSATION_ATTACHMENTS, type ConversationReference } from '../../../shared/conversation-context'
 import type { ConversationInputHandle } from './ConversationInput'
@@ -316,7 +317,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             </div>}
             {snapshot?.truncated && <p className={styles.notice}>{t('conversation.truncated')}</p>}
             {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
-              const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}>{item.text}</div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
+              const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
               onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                 if (!canSend || working || outgoing.length || busyRef.current) return
                 follow.current = false; setError('')
@@ -360,7 +361,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </div>
             })} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
-              <div className={styles.user}>{item.text}</div>
+              <div className={styles.user}><ConversationPrompt text={item.text} /></div>
               <div className={styles.delivery} role="status">
                 <span title={t(`conversation.delivery.${item.status}`)} aria-label={t(`conversation.delivery.${item.status}`)} role="img">{item.status === 'queued' ? <Clock size={14} /> : item.status === 'sending' ? <LoaderCircle size={14} /> : item.status === 'accepted' ? <Check size={14} /> : <CircleAlert size={14} />}</span>
                 {(item.status === 'queued' || item.status === 'failed') && <button type="button" title={t('conversation.delivery.restore')} aria-label={t('conversation.delivery.restore')} onClick={() => {
