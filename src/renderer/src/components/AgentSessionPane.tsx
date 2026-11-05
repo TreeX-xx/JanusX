@@ -336,7 +336,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </article>
               : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
                 {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
-                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
+                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
               </article>
                 : <LazyDetails stateKey={item.id} className={styles.activity} key={item.id} data-state={item.status} summary={
                   <summary><ChevronRight size={14} className={styles.chevron} aria-hidden="true" /><span>{t(`conversation.kind.${item.type}`, { defaultValue: t('conversation.activity') })}</span>

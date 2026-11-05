@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { MARKDOWN_COMPONENTS } from '@/components/viewers/markdown-components'
 import { MarkdownAssetContext } from '@/components/viewers/local-asset'
 import { conversationLink } from '@/lib/conversation-link'
+import { conversationCitationMarkdown } from '@/lib/conversation-citations'
 
 const CHAT_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
   ...MARKDOWN_COMPONENTS,
@@ -20,7 +21,7 @@ const CHAT_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
         setError('')
       } catch (error) { setError(String(error)) }
     }
-    return <><a href={href} title={title} style={{ color: 'var(--shell-accent-strong)', overflowWrap: 'break-word' }}
+    return <><a href={href} title={title} className={href?.startsWith('file:') ? 'conversation-file-link' : undefined} style={{ color: 'var(--shell-accent-strong)', overflowWrap: 'break-word' }}
       onClick={event => { event.preventDefault(); void open() }}
       onAuxClick={event => { event.preventDefault(); if (event.button === 1) void open() }}>{children}</a>
       {error && <span role="alert">{error}</span>}</>
@@ -46,7 +47,7 @@ const CONVERSATION_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
  * 历史消息 content 不变时跳过 react-markdown 的整段重解析（audit P1）。
  * 表格/代码块/引用等样式复用共享 MARKDOWN_COMPONENTS，与预览区保持全量统一。
  */
-export const MarkdownContent = memo(function MarkdownContent({ content, variant, workspacePath }: { content: string; variant?: 'conversation'; workspacePath?: string }) {
+export const MarkdownContent = memo(function MarkdownContent({ content, variant, workspacePath, streaming = false }: { content: string; variant?: 'conversation'; workspacePath?: string; streaming?: boolean }) {
   const context = useContext(MarkdownAssetContext)
   return (
     <MarkdownAssetContext.Provider value={workspacePath ? { workspacePath } : context}>
@@ -56,7 +57,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, variant,
         urlTransform={(url, key) => key === 'href' && (/^(?:file:\/\/|[a-z]:[\\/])/i.test(url) || /^[^:/]+\.[^/:]+:\d+(?::\d+)?$/.test(url)) ? url : defaultUrlTransform(url)}
         components={variant === 'conversation' ? CONVERSATION_COMPONENTS : CHAT_COMPONENTS}
       >
-        {content}
+        {conversationCitationMarkdown(content, streaming)}
       </ReactMarkdown>
     </div>
     </MarkdownAssetContext.Provider>
@@ -66,7 +67,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, variant,
 export function StreamingText({ content }: { content: string }) {
   return (
     <div className="janus-chat-streaming-text">
-      <MarkdownContent content={content} variant="conversation" />
+      <MarkdownContent content={content} variant="conversation" streaming />
       <span className="janus-chat-streaming-cursor" aria-hidden="true" />
     </div>
   )

@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-05T02:32:09Z",
+  "updated": "2026-11-05T03:41:14Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -154,6 +154,12 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 文件导入开始时保存原生 live Range，拖入使用鼠标落点，粘贴／文件选择使用当前选区；导入期间移动光标不会改变目标，在目标前继续输入会让目标随正文移动。多文件按选择顺序批量插入，一次撤销即可移除整批；部分导入失败仍插入已成功文件并显示错误。原编辑器已卸载时不向另一个输入框写入。标签最大宽度 240px，并受输入区宽度约束；长名称省略，完整路径保留在悬停提示，缩略图与移除按钮不被名称挤出。短标签与文字同行，空间不足时自然换行。
 
 待发送与原生历史消息通过 `ConversationPrompt` 把 `file/directory/image/diff: JSON引号绝对路径` 显示为正文内文件名标签，原始消息及复制／编辑操作仍使用完整文本；相对路径示例保持原文。历史没有编辑器引用身份，因此这是路径语法投影：用户手写同样的绝对路径语法也会显示为标签，不能据此判断供应商是否读过文件。历史标签提供完整路径提示，不承担编辑器图片预览操作。
+
+助手回复中的 `:codex-file-citation{path="..." purpose="source"}` 在共享 `MarkdownContent` 展示前转换为文件名链接，完整路径保留为悬停提示；文件链接使用轻边框、单行截断，点击沿用既有 `conversationLink`／`openEditor`，打开失败在链接旁显示错误。来源标记不代表文件已经读取、修改或验证；未提供行号时不补造位置。原始消息、流式事件和复制结果保持原文，不更改提供方协议或历史存储。
+
+转换器只对包含 `:codex` 的回复额外解析一次 Markdown，以原始源码偏移跳过代码块、行内代码、已有链接、图片、定义和 HTML，再把完整标记转换为经过转义的 Markdown 链接；这样路径中的 Markdown 符号、空格及 `#/?` 不会改变打开目标。不支持的协议、缺失路径或畸形属性保留原文；相对路径沿用当前工作目录解析。流式输出暂时隐藏末尾未完成标记，完成后转成链接；回复结束仍不完整时恢复原文，避免永久丢失输出。额外解析只用于带标记的回复，长回复若出现渲染性能问题再考虑专用 Markdown 语法扩展。
+
+助手文件引用验证（2026-11-05）：新增 `conversation-file-citations.spec.ts` 三项用例修复前均失败，修复后与 `codex-conversation.spec.ts` 共 21 项通过，文件链接样式调整后专项三项再次通过；覆盖用户提供的五个引用、逐项打开原路径、流式分段、代码示例保留、未完成回复和打开错误。`vitest run tests/unit/conversation-citations.test.ts tests/unit/conversation-link.test.ts` 11 项通过，覆盖 Windows／POSIX／UNC／相对路径、路径转义及畸形标记；类型检查与三个变更 TypeScript 组件／模块 ESLint 通过。主 Agent 查看 `artifacts/conversation-citations/file-sources-narrow.png`；这是当前 JanusX 工作区的浏览器夹具及主 Agent 自检，未运行真实供应商会话或验证另一个 worktree 的已安装应用。
 
 内嵌引用优化验证（2026-11-05）：`conversation-inline-reference.spec.ts` 新增用例先复现导入期间移动光标导致附件落到末尾，以及长名称占满窄窗的问题，修复后通过。Playwright 分两轮运行 inline-reference、attachment-preview、attachment-recovery、composer-layout、input-editing、input-history、context 七个文件，共 30 个不同用例通过；覆盖拖入／粘贴／文件选择期间继续输入、目标前编辑、多文件顺序与批量撤销、发送后的标签和转义路径、窄窗、图片预览及失败恢复。`vitest run tests/unit/conversation-context.test.ts tests/unit/conversation-outbox.test.ts` 14 项通过；类型检查及四个变更组件 ESLint 通过。主 Agent 查看 `artifacts/conversation-inline-reference/{inline-composer,inline-message,compact-narrow}.png`。这是浏览器夹具及主 Agent 自检，未验证真实桌面文件拖拽或供应商读取附件。
 
