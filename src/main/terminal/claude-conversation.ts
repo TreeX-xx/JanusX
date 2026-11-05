@@ -13,6 +13,7 @@ import type { ConversationCommand, ConversationSnapshot, ConversationItem } from
 import { hasBlockingQuestions, questionAnswerValues, type ConversationQuestion } from '../../shared/conversation-questions'
 import modSource from './claude-mod.js?raw'
 import { readClaudeCatalog } from './claude-models'
+import { acceptClaudeWorkspaceTrust, claudeTrustDirectory } from './claude-trust'
 
 type Json = Record<string, any> // Native versioned Mods/daemon boundary; normalized before IPC.
 const exec = promisify(execFile)
@@ -59,6 +60,8 @@ export class ClaudeConversation {
   private lastTurn?: string
   private lastTurnSequence = 0
   private changingSession = false
+  private trustSequence = 0
+  private trustWaiter?: { resolve(): void; reject(error: Error): void }
 
   constructor(readonly id: string, publish: (snapshot: ConversationSnapshot) => void,
     private readonly bind: (sessionId: string, transcriptPath?: string) => void = () => {}) {
@@ -150,7 +153,29 @@ export class ClaudeConversation {
     this.catalogSettings = join(this.directory, 'catalog-settings.json')
     await writeFile(this.catalogSettings, JSON.stringify({ ...settings, disableAllHooks: true }), { mode: 0o600 })
     if (this.disposed) throw new Error('Claude launch cancelled')
-    const dispatch = await this.cli([...args, '--settings', settingsPath, '--plugin-dir', plugin, '--bg'], 20000)
+    const dispatchArgs = [...args, '--settings', settingsPath, '--plugin-dir', plugin, '--bg']
+    let dispatch
+    for (;;) {
+      try { dispatch = await this.cli(dispatchArgs, 20000); break }
+      catch (error) {
+        // Native --bg is authoritative. Never infer consent from a UI setting,
+        // automatically trust a folder, or retry an uncertain dispatch.
+        const stderr = (error as { stderr?: unknown }).stderr
+        if (this.disposed || this.state.mode !== 'conversation' || typeof stderr !== 'string' ||
+          !stderr.trim().startsWith('Workspace not trusted. Run `claude` in ')) throw error
+        const directory = claudeTrustDirectory(this.cwd)
+        const target = stderr.trim().match(/^Workspace not trusted\. Run `claude` in (.+) once and accept the trust prompt, then retry\.$/)?.[1]
+        if (!target || claudeTrustDirectory(target) !== directory) throw error
+        await new Promise<void>((resolve, reject) => {
+          this.trustWaiter = { resolve, reject }
+          this.state.startup = { id: ++this.trustSequence, kind: 'trust', status: 'pending', directory,
+            ...(this.trustSequence > 1 ? { error: 'Claude still reports this folder as untrusted. Check its configuration before retrying.' } : {}) }
+          this.changed()
+        })
+        if (this.disposed) throw new Error('Claude launch cancelled')
+      }
+    }
+    this.state.startup = undefined; this.changed()
     this.short = /backgrounded\s*·\s*([a-f0-9]+)/.exec(dispatch.stdout)?.[1]
     if (!this.short) throw new Error(`Claude did not create a background session. ${dispatch.stderr || dispatch.stdout}`)
     if (this.disposed) throw new Error('Claude launch cancelled')
@@ -456,7 +481,25 @@ export class ClaudeConversation {
     })
   }
   async command(command: ConversationCommand): Promise<ConversationSnapshot> {
+    if (command.type === 'startup') {
+      const startup = this.state.startup
+      if (this.disposed || !this.trustWaiter || !startup || startup.id !== command.startupId ||
+        this.state.connection !== 'starting' || this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Startup control changed; action rejected')
+      if (startup.status === 'busy') throw new Error('Startup confirmation is busy')
+      if (command.action === 'cancel') startup.status = 'cancelled'
+      else if (command.action === 'resume' && startup.status === 'cancelled') { startup.status = 'pending'; startup.error = undefined }
+      else if (command.action === 'trust' && startup.status === 'pending') {
+        startup.status = 'busy'; startup.error = undefined; this.changed()
+        try {
+          acceptClaudeWorkspaceTrust(startup.directory!, this.env)
+          const waiter = this.trustWaiter; this.trustWaiter = undefined
+          waiter.resolve()
+        } catch (error) { startup.status = 'pending'; startup.error = String(error).slice(0, 500) }
+      } else throw new Error('Invalid startup action')
+      this.changed(); return this.snapshot()
+    }
     if (command.type === 'mode') {
+      if (this.startup && this.state.connection === 'starting' && command.mode !== this.state.mode) throw new Error('Complete startup before switching views')
       this.session.mode(command, this.disposed)
       if (this.server && this.state.connection === 'ready' && !this.broken) await this.call({ type: 'display-mode', mode: command.mode })
       return this.snapshot()
@@ -536,6 +579,8 @@ export class ClaudeConversation {
   dispose(): Promise<void> {
     if (this.stopping) return this.stopping
     this.disposed = true; this.session.stop()
+    this.trustWaiter?.reject(new Error('Claude launch cancelled')); this.trustWaiter = undefined
+    this.state.startup = undefined
     for (const finish of this.questionWaiters.values()) finish()
     this.questionReplies.clear()
     this.catalogAbort.abort()

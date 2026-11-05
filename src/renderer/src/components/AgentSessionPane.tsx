@@ -284,8 +284,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     <header className={styles.header}>
       <div className={styles.toggle} data-mode={requestedMode ?? (conversation ? 'conversation' : 'terminal')} data-switching={transitioning || undefined} role="group" aria-label={t('conversation.display')}>
         <span className={styles.toggleIndicator} aria-hidden="true" />
-        <button type="button" aria-pressed={!conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (snapshot.engine === 'codex' && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
-        <button type="button" aria-pressed={conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (snapshot.engine === 'codex' && snapshot.connection === 'starting')} onClick={() => void changeMode('conversation')}><MessageSquare size={14} aria-hidden="true" />{t('conversation.dialog')}</button>
+        <button type="button" aria-pressed={!conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
+        <button type="button" aria-pressed={conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('conversation')}><MessageSquare size={14} aria-hidden="true" />{t('conversation.dialog')}</button>
       </div>
     </header>
     {!conversation && (error || snapshot?.error) && <p className={styles.error} role="alert">{error || snapshot?.error}</p>}
@@ -304,7 +304,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           if (scrollRef.current) useWorkspaceStore.getState().updateTerminal(terminalId, { conversationScrollTop: scrollRef.current.scrollTop })
         }}>
           <div className={styles.content}>
-            {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} />}
+            {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} engine={snapshot?.engine === 'claude' ? 'Claude' : 'Codex'} />}
             {(starting || (empty && !startupActive)) && <div className={styles.welcome} data-conversation-welcome data-loading={starting} data-animate={starting && visible && conversation}>
               <div className={styles.startingIdentity}><span className={styles.startingMark} aria-hidden="true"><TerminalPresetIcon preset={identityPreset} style={{ width: 20, height: 20 }} /><span className={styles.startingRing} /></span><span>{t(`provider.${identityPreset}`)}</span></div>
               <div className={styles.welcomeLayers}>

@@ -443,7 +443,7 @@
     "startupActionError": "未能完成此步骤，请重试。",
     "startupHooksTitle": "允许这些启动钩子？",
     "startupHooksHint": "这些钩子是新增的或已发生变化，可能在 Codex 会话期间执行命令。请展开各项查看来源和命令，确认可信后继续。",
-    "startupTrustHint": "信任后，Codex 可以加载此项目的配置并处理其中的文件。请确认你信任此文件夹中的内容。",
+    "startupTrustHint": "信任后，{{engine}} 可以加载此项目的配置并处理其中的文件。请确认你信任此文件夹中的内容。",
     "startupTrust": "信任并继续",
     "startupCancel": "取消",
     "startupLoginTitle": "登录 Codex",

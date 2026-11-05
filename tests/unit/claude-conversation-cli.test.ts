@@ -13,6 +13,38 @@ import { conversationOutputGroups } from '../../src/shared/conversation-output'
 const binary = process.env.JANUSX_TEST_CLAUDE_BIN
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native dialog', () => {
+  it('confirms workspace trust in conversation mode without native terminal input', async () => {
+    const fixture = await claudeConversationFixture()
+    const main = new ClaudeConversation('claude-trust', () => {})
+    const file = join(fixture.config, '.claude.json')
+    // API key onboarding is separate from directory consent. No real credentials.
+    await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, 'utf8')),
+      customApiKeyResponses: { approved: ['local-fixture-only'], rejected: [] } }))
+    await main.command({ type: 'mode', mode: 'conversation' })
+    const starting = main.start({ command: binary!, args: ['--model', 'claude-sonnet-4-6', '--tools', ''],
+      cwd: fixture.cwd, env: fixture.env, assetsDir: join(fixture.root, 'assets') })
+    // Observe failure immediately as well as on the final await.
+    void starting.catch(() => {})
+    try {
+      await expect.poll(() => main.state.startup?.status, { timeout: 25000 }).toBe('pending')
+      expect(main.state.connection).toBe('starting')
+      expect(Object.keys(JSON.parse(await readFile(file, 'utf8')).projects ?? {})).toHaveLength(0)
+      const command = (action: 'trust' | 'cancel' | 'resume') => main.command({ type: 'startup', action,
+        startupId: main.state.startup!.id, controlEpoch: main.state.controlEpoch })
+      await command('cancel'); expect(main.state.startup?.status).toBe('cancelled')
+      await command('resume'); await command('trust')
+      await starting
+      expect(main.state.connection).toBe('ready')
+      expect(main.state.threadId).toBeTruthy()
+      expect(main.state.startup).toBeUndefined()
+      expect(fixture.requests).toHaveLength(0)
+      expect(JSON.parse(await readFile(file, 'utf8')).projects[fixture.cwd.replaceAll('\\', '/')].hasTrustDialogAccepted).toBe(true)
+    } finally {
+      await main.dispose(); await starting.catch(() => {})
+      await promisify(execFile)(binary!, ['daemon', 'stop', '--any'], { env: fixture.env, cwd: fixture.cwd, windowsHide: true, timeout: 10000 }).catch(() => {})
+      await fixture.close()
+    }
+  }, 70000)
   it('streams interleaved commentary and tools through the native Mods bridge before the final answer', async () => {
     const fixture = await claudeConversationFixture()
     const snapshots: ConversationSnapshot[] = []

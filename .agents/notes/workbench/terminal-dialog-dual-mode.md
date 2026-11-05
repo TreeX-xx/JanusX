@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-05T03:41:14Z",
+  "updated": "2026-11-05T15:24:12Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -16,6 +16,16 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## Claude 对话启动目录信任
+
+Claude 对话优先启动时，原生 `--bg` 返回明确的目录未信任错误后，适配器保持 starting，在现有 ConversationStartupPanel 展示 Claude 标识、解析到磁盘真实位置的完整目录与「信任并继续／取消」。取消暂停启动并保留草稿，可从同一页面继续。确认期间禁止切换显示模式；过期步骤、重复确认与控制权变化不能触发写入。关闭尚未创建 PTY 的会话会唤醒并终止等待，避免挂住创建与清理。
+
+用户明确确认后，claude-trust 仅更新当前目录的原生 `projects[path].hasTrustDialogAccepted`。自定义 CLAUDE_CONFIG_DIR 使用其下 `.claude.json`，默认使用用户主目录的 `.claude.json`；Windows 等价斜杠与大小写键一起更新，其他项目和字段保留。写入前校验 JSON 与对象结构，局部修改、同步冲突检查和临时文件原子替换用于防止损坏或覆盖已检测的并发变更；格式错误保留原文并允许重试。原生 CLI 再次成功启动、桥接 session 与后台任务身份一致后才进入 ready。再次返回未信任则产生新确认步骤；其它失败不自动重发后台启动。
+
+这是针对本机 Claude Code 2.1.318 实测的内部存储适配，没有声称存在公开的 trust RPC。其它 Claude 进程不受 JanusX 写入检查约束，检查与替换之间仍有跨进程竞争窗口；原生配置格式、有效信任策略或并发写入行为变化时应重新验证，优先迁移到官方结构化授权接口。仅接受原生明确报告的当前真实目录，不自动扩大到父目录。登录、API key 确认与其它原生 onboarding 不属于此流程。
+
+验证入口：`npx vitest run tests/unit/claude-startup.test.ts tests/unit/claude-conversation.test.ts tests/unit/codex-startup.test.ts --project=unit` 共 30 项通过；包含确认前不写入、取消／继续、过期与重复控制、损坏配置保留、原生再次拒绝及关闭等待。设置 JANUSX_TEST_CLAUDE_BIN 后，`npx vitest run tests/unit/claude-conversation-cli.test.ts -t 'confirms workspace trust' --project=integration` 在真实 2.1.318、隔离配置和假 API key 下通过，确认到 ready 全程没有 PTY 授权按键和模型请求。`npx playwright test tests/e2e/conversation-startup.spec.ts --project=island --workers=1` 七项通过，包含 Claude 与 Codex 信任卡片、取消继续、草稿和终端隐藏。生产构建后，`npx playwright test tests/e2e/desktop-claude-conversation.spec.ts --config playwright.desktop.config.ts -g 'confirms native folder trust' --workers=1` 一项通过，验证真实 preload／IPC、原生目录确认、取消继续、后台会话启动及首条消息收到 localhost 测试服务回复，全程不切换终端。截图在 `artifacts/claude-startup/`；主 Agent 已查看浏览器与桌面截图。类型检查、相关实现 ESLint、中英文检查和 `npm run build:app` 通过；Note 校验 326 篇、0 errors、17 条既有外部链接诊断。主 Agent 自检，无独立子 Agent 审阅。
 
 ## 对话模式切换控件
 

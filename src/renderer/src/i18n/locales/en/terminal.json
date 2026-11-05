@@ -443,7 +443,7 @@
     "startupActionError": "Could not complete this step. Please try again.",
     "startupHooksTitle": "Allow these startup hooks?",
     "startupHooksHint": "These hooks are new or have changed. They can run commands during your Codex session. Expand each entry to review its source and command before trusting it.",
-    "startupTrustHint": "Trusting this folder allows Codex to load its project configuration and work with its files. Continue only if you trust its contents.",
+    "startupTrustHint": "Trusting this folder allows {{engine}} to load its project configuration and work with its files. Continue only if you trust its contents.",
     "startupTrust": "Trust and continue",
     "startupCancel": "Cancel",
     "startupLoginTitle": "Sign in to Codex",
