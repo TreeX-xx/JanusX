@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-05T15:24:12Z",
+  "updated": "2026-11-06T03:48:33Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -917,7 +917,7 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 | --- | --- |
 | Codex 0.166.0 | 本机 `app-server generate-json-schema` 确认 `imageGeneration` 的 savedPath/result/fileId、failure 等字段。转换器支持 savedPath 与内联 result，保留生成中/失败状态。只有 fileId 而无可读取数据时明确显示不可用，不猜测附件 payload。该事件投影有单元覆盖；真实生图服务未调用 |
 | Pi 0.85.1 | 原生扩展观察 assistant/toolResult 的结构化 image 内容，落盘后才经认证桥发送引用。真实 CLI + localhost 模型调用测试工具，返回 PNG 并显示为 ready，快照无图片字节；普通发送、去重与取消回归通过 |
-| Claude/OpenCode/Codex/其他 NativeConversation | 已完成结果中的显式本地 Markdown 图片链接进入同一缓存与卡片。只识别 `![说明](路径)`，不扫描任意日志、目录或普通文件名。Claude/OpenCode 事件投影有单元覆盖；Codex 真实 CLI 验证同一 skill 会话返回本地图片后形成 ready 产物 |
+| Claude/OpenCode/Codex/其他 NativeConversation | 仅已完成的 `agentMessage` 正文中的显式本地 Markdown 图片进入同一缓存与卡片；命令、工具、推理和文件变更等记录不自动扫描。使用 Markdown 语法树识别图片，排除围栏代码、缩进代码、行内代码和转义示例；正文转普通文件链接时只修改实际图片节点，保留代码原文。工具若返回结构化图片仍沿用原生附件链路；纯文本工具输出中的图片链接需由助手在正文引用后才生成卡片。Claude/OpenCode 事件投影有单元覆盖；Codex 真实 CLI 验证同一 skill 会话返回本地图片后形成 ready 产物 |
 
 原生探针有两个明确边界：在 localhost Responses 夹具直接注入 `image_generation_call`，Codex 本轮未发出对应会话图片事件，不能把这一模拟载荷当作真实生图服务验收；Pi 的 `sendMessage` 自定义展示消息未经过当前扩展的 message 事件回调，因此不把 custom message 图片列为支持。改用可观察的文件结果和真实工具返回进行端到端验证，不新开旁路会话冒充原生结果。
 
