@@ -417,6 +417,8 @@
     "editMessageHint": "Edit this message in place",
     "editText": "Edit message text",
     "editHint": "Restart from here and replace later messages. File changes are kept.",
+    "editSendAsNew": "Send as new message",
+    "editSendAsNewHint": "History editing is unavailable. Sending as a new message keeps the original conversation history.",
     "editCancel": "Cancel",
     "editSubmit": "Save and resend",
     "editSubmitting": "Resending…",

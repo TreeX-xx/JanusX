@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-06T03:56:34Z",
+  "updated": "2026-11-06T06:04:23Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -656,7 +656,13 @@ Windows 真实 Electron 验收 `tests/e2e/desktop-codex-conversation.spec.ts` �
 
 原位编辑真实替换该消息起的会话历史，再从这里生成回答，不撤销工作区文件。Codex 0.166.0 使用本机生成 schema 确认的 `thread/revert {threadId,beforeTurnId}`，原生 TUI 同步接收 `thread/reverted`；旧 `thread/rollback` 已移除。OpenCode 2.1.4 使用 `revert/stage {messageID,files:false}`、`revert/commit` 并读回消息确认，轮询代次隔离编辑前的在途响应。确认后才移除本地后续项，Codex 同时移除对应计划，再发送修改后的文本。空闲、控制代次、消息身份、截断与非纯文本内容均有门禁；原生操作结果不明时禁用对话控制，不自动重试，编辑文字仍可选取复制。Claude、Pi、DSH 尚未接入可靠历史编辑，隐藏编辑入口，不能以追加提示词代替。
 
-验证：`tests/unit/conversation-edit-cli.test.ts` 两项真实本地模型测试通过，覆盖三个回合后编辑中间回合、重复 commandId、模型实际上下文不含旧后续、会话身份保持、工作区文件保留及切回原生终端续聊。设置 `JANUSX_TEST_CODEX_BIN` / `JANUSX_TEST_OPENCODE_BIN` 后运行 `npx vitest run tests/unit/conversation-edit-cli.test.ts --project=integration --maxWorkers=1`；未配置时跳过不算通过。相关 unit 28 项通过；`codex-conversation.spec.ts` 与 `conversation-edit.spec.ts` 浏览器 35 项通过，包含取消、失败前后历史状态、底部草稿、重复提交与深浅色/窄窗。截图在 `artifacts/conversation-design/inline-edit-{dark,light,narrow}.png`。以上真实 CLI 是本地确定性模型证据，不代表真实供应商或桌面完整端到端验收。
+Codex 历史库读取失败与投递结果未知分别处理。仅当 `thread/revert` 收到原生 JSON-RPC `-32603`，且错误为 `failed to list thread history: thread-store internal error: failed to open thread history database:` 前缀时，确认失败发生在历史回退前：保留历史及计划，不重发编辑内容，不将连接标记为 disconnected；暂停该线程的历史编辑，普通发送仍可用。请求错误保留来源方法和代码，普通 Error 或其它方法中的同名错误不能解除保护。超时、断连、其它回退异常及回退成功后的发送异常仍停用对话控制，不自动重试。该分类依据 Codex 0.166.0 的实际错误与回退行为；上游改变错误格式时默认走保守分支。
+
+上述可恢复失败保留原位编辑文本与底部独立草稿。用户可取消编辑后继续普通发送，也可点击明确标注的“作为新消息发送”，将修改后的文本追加到原历史末尾；不伪装成原位替换，不自动回退为追加，Ctrl/Cmd+Enter 不触发这种替代操作。不明结果不提供该恢复入口。切换到另一个线程重新开放编辑探测；不修复、删除或重建 Codex 的数据库。
+
+原有验证：`tests/unit/conversation-edit-cli.test.ts` 的 Codex／OpenCode 两项真实本地模型测试通过，覆盖三个回合后编辑中间回合、重复 commandId、模型实际上下文不含旧后续、会话身份保持、工作区文件保留及切回原生终端续聊。设置 `JANUSX_TEST_CODEX_BIN` / `JANUSX_TEST_OPENCODE_BIN` 后运行 `npx vitest run tests/unit/conversation-edit-cli.test.ts --project=integration --maxWorkers=1`；未配置时跳过不算通过。相关 unit 28 项通过；`codex-conversation.spec.ts` 与 `conversation-edit.spec.ts` 浏览器 35 项通过，包含取消、失败前后历史状态、底部草稿、重复提交与深浅色/窄窗。截图在 `artifacts/conversation-design/inline-edit-{dark,light,narrow}.png`。以上真实 CLI 是本地确定性模型证据，不代表真实供应商或桌面完整端到端验收。
+
+历史库异常恢复验证：`conversation-edit.test.ts` 与 `codex-conversation.test.ts` 共 28 项单测通过，真实 WebSocket 错误响应覆盖已确认前置失败、其它错误代码与回退成功后失败；原有结果未知用例继续通过。`conversation-edit.spec.ts` 的 10 项浏览器测试通过，覆盖明确追加、原历史／底部草稿保留、快捷键不误发送、不明结果禁用恢复及窄窗。真实 Codex 0.166.0 的 `conversation-edit-cli.test.ts` 两项用例通过：正常历史编辑，以及隔离 CODEX_HOME 预置无效 SQLite 后，发送、中断、编辑被拒绝、同线程继续发送；模型上下文保留原输入，修改内容仅在显式发送后出现一次，无效数据库文件保持原样。本轮未配置 OpenCode binary，其真实 CLI 用例跳过。主 Agent 查看 `artifacts/conversation-edit/history-unavailable.png` 的 380px 布局；主 Agent 自检，无独立子 Agent 审阅。
 
 运行时长由主进程在轮次开始、结束事件间记录墙钟耗时，包含该轮等待审批的时间。Thinking 旁每秒更新分钟:秒；结束后回答工具栏显示固定耗时。视图切换不重置计时，缺少开始事件的历史轮次不补造耗时，后台工具任务不计入已完成的回答耗时。
 

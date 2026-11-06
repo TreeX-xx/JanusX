@@ -254,21 +254,26 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
       else inputRef.current?.focus()
     })
   }
-  const submitEdit = async () => {
+  const submitEdit = async (asNew = false) => {
     if (!editing || !canSend || outgoing.length || !editing.text.trim() || !snapshot || busyRef.current || switchLocked.current) return
+    if (!asNew && !snapshot.capabilities.edit) return
     const commandId = crypto.randomUUID()
     setPendingSend(commandId)
     // Retain the editing position while the native history is replaced.
     follow.current = false
     try {
-      if (await action({ type: 'edit', itemId: editing.item.id, text: editing.text, commandId, controlEpoch: editing.epoch })) {
+      const command: ConversationCommand = asNew
+        ? { type: 'send', text: editing.text, commandId, controlEpoch: editing.epoch }
+        : { type: 'edit', itemId: editing.item.id, text: editing.text, commandId, controlEpoch: editing.epoch }
+      if (await action(command)) {
         setEditing(null); follow.current = true; setShowLatest(false)
         requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight })
       }
     } finally { setPendingSend(current => current === commandId ? null : current) }
   }
   const editor = editing && <ConversationMessageEditor text={editing.text} setText={text => setEditing(current => current && { ...current, text })}
-    busy={Boolean(pendingSend)} disabled={!canSend} error={error || snapshot?.error || ''} cancel={cancelEdit} submit={submitEdit} />
+    busy={Boolean(pendingSend)} disabled={!canSend} error={error || snapshot?.error || ''} cancel={cancelEdit} submit={() => submitEdit()}
+    sendAsNew={snapshot?.engine === 'codex' && snapshot.capabilities.edit === false ? () => submitEdit(true) : undefined} />
   const openFile = async (filePath: string) => {
     if (!terminal) return
     const resolvedPath = /^(?:[a-z]:[\\/]|[\\/])/i.test(filePath) ? filePath : `${terminal.cwd.replace(/[\\/]+$/, '')}/${filePath}`

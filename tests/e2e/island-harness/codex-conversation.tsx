@@ -55,6 +55,7 @@ const calls = { commands: [] as ConversationCommand[], create: 0, kill: 0, sends
 const startupCalls: string[] = []
 let settingsFailure = false
 let editAfterRevertFailure = false
+let editHistoryFailure = false
 let sendGate: Promise<void> | null = null
 let settleSend: ((fail: boolean) => void) | null = null
 let modeGate: Promise<void> | null = null
@@ -113,6 +114,10 @@ Object.assign(window.electron.terminal, {
       calls.sends.push(command.text)
       if (sendGate) await sendGate
       if (command.type === 'edit') {
+        if (editHistoryFailure) {
+          state.capabilities = { ...state.capabilities, edit: false }; publish()
+          throw new Error('Codex could not read thread history. Your edited message was not sent and the original history was kept.')
+        }
         const target = state.items.findIndex(item => item.id === command.itemId)
         if (target < 0) throw new Error('Message no longer exists')
         state.items = state.items.slice(0, target); state.plans = []
@@ -209,6 +214,7 @@ Object.assign(window, { codexFixture: {
   },
   readOnly: () => { state.capabilities = { ...state.capabilities, submit: false }; publish() },
   editFailure: () => { editAfterRevertFailure = true },
+  editHistoryFailure: () => { editHistoryFailure = true },
   editPreview: () => {
     state.items = ['Earlier question', 'Original question', 'Later question'].flatMap((text, index) => [
       { id: `user-${index}`, turnId: `turn-${index}`, type: 'userMessage', text, status: 'completed' },

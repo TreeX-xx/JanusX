@@ -4424,6 +4424,8 @@ export type TypedI18nKey =
   | 'terminal:conversation.editHint'
   | 'terminal:conversation.editMessage'
   | 'terminal:conversation.editMessageHint'
+  | 'terminal:conversation.editSendAsNew'
+  | 'terminal:conversation.editSendAsNewHint'
   | 'terminal:conversation.editSubmit'
   | 'terminal:conversation.editSubmitting'
   | 'terminal:conversation.editText'

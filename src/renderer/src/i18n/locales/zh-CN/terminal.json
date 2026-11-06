@@ -417,6 +417,8 @@
     "editMessageHint": "在原消息位置编辑",
     "editText": "编辑消息内容",
     "editHint": "修改后将从这里重新回答，替换后续对话。文件改动保留。",
+    "editSendAsNew": "作为新消息发送",
+    "editSendAsNewHint": "历史编辑暂不可用。作为新消息发送会保留原有对话历史。",
     "editCancel": "取消",
     "editSubmit": "保存并重新发送",
     "editSubmitting": "正在重新发送…",
