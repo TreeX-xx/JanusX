@@ -330,12 +330,16 @@ export class ClaudeConversation {
       this.questionReplies.delete(e.toolUseId)
       this.state.needsTerminal = true
     }
-    else if (event.type === 'session.start') { this.state.capabilities.questions = true; this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null }
+    else if (event.type === 'session.start') { this.state.capabilities.questions = true; this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null; this.state.ultracode = undefined }
     else if (event.type === 'settings') {
       this.state.model = e.model ?? this.state.model; this.state.effort = e.effort ?? null
       this.state.settingsOverride = Boolean(e.override)
     }
-    else if (event.type === 'native.settings') { this.state.needsTerminal = Boolean(e.pending) }
+    else if (event.type === 'ultracode') {
+      this.state.ultracode = typeof e.enabled === 'boolean' && typeof e.available === 'boolean' && typeof e.model === 'string'
+        ? { enabled: e.enabled, available: e.available, model: e.model } : undefined
+    }
+    else if (event.type === 'native.settings') { this.state.needsTerminal = Boolean(e.pending); this.state.ultracode = undefined }
     else if (event.type === 'turn.start') {
       this.state.turnStartedAt = Date.now(); this.state.turnId = e.turnId; this.lastTurn = e.turnId
       this.lastTurnSequence = event.seq
@@ -509,6 +513,15 @@ export class ClaudeConversation {
     if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'models') { await this.loadModels() }
+    else if (command.type === 'ultracode') {
+      if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
+      if (typeof command.enabled !== 'boolean') throw new Error('Invalid Ultracode setting')
+      const state = this.state.ultracode
+      if (!state || command.enabled && (!state.available || this.state.model !== state.model)) throw new Error('Ultracode is unavailable for the native session model')
+      this.state.settingsUpdating = true; this.changed()
+      try { await this.call({ type: 'ultracode', enabled: command.enabled }) }
+      finally { this.state.settingsUpdating = false; this.changed() }
+    }
     else if (command.type === 'settings') {
       if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
       const model = this.state.models.find(option => option.model === command.model)

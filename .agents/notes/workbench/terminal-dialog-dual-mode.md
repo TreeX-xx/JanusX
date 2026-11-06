@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-06T03:48:33Z",
+  "updated": "2026-11-06T03:56:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -326,6 +326,18 @@ Claude 的工作过程保持默认折叠，折叠外增加当前工具及目标�
 验证探针为 `node scripts/claude-dual-mode/mods-probe.mjs --hybrid-settings --hybrid-empty --env-effort`，首次证据在 `artifacts/claude-dual-mode/2.1.316/mods-1793451370717/`，补强逐项 effort 断言后的复验为 `mods-1793452562246/`。Haiku/low、Sonnet/high、Opus/max、重复切换和原生输入均核对实际请求；`mods-1793451370722/` 的 `--flag-settings` 负对照证实运行中改附加 settings 文件不生效。动态目录证据为版本目录下的 `settings-catalog.json`。产品真实 CLI 回归进一步断言三组模型／强度传值、零额外请求、用户 settings 不变、原生命令接管和另一个 worker 的 high 上限拒绝 max。
 
 该路径按 Windows 2.1.316 验证。模型目录不保证真实账户有调用权限，复杂第三方别名／策略组合未全覆盖；局部 env 会被后续子进程继承，虽然 turn.step 的模型改写排除子代理，仍不能承诺子代理强度完全不受影响。子代理、真实 provider 与长期资源测试是后续验证项；原生版本改变必须复验目录协议、Mods 行为和 env 优先级。
+
+#### Ultracode 会话开关
+
+Claude 的 Ultracode 是自动编排动态工作流的会话开关，与模型 effort 分开。输入区显示独立开关；开启与关闭保留当前 effort、会话 ID 和 JanusX 请求覆盖，不写用户默认设置。未取得原生确认、工作流未启用或原生模型不支持时禁止开启；任务执行、审批、阻塞问题与其它设置变更期间同样禁止切换。界面只采用 worker 确认的状态，失败不乐观翻转；切换已派发但回读失败时清除旧状态，要求检查原生终端。
+
+当前桥接以 Claude Code 2.1.318 的公开 Mods `command.run` 执行 `/effort ultracode on/off`，不向 `CLAUDE_CODE_EFFORT_LEVEL` 填入 ultracode。Mods 没有运行时 getSettings 调用，状态读取通过同 worker 的 `/effort help` 与 `/effort status`，仅匹配本次命令之后成对的原生 command-name/command-args 与 local-command-stdout 结构化记录；不解析 ANSI，不接受助手正文作为确认。内部命令跳过 JanusX 原生设置接管 Hook，防止撤销 effort 覆盖。进入对话视图、原生模型／强度／配置命令结束及会话切换后重读；不在每个轮询周期执行查询。查询会在原生记录中增加本地命令，读取依赖该版本的英文输出与信封格式，格式不匹配时保留未知状态。未来 Mods 提供结构化运行时设置读取时，应替换这层兼容读取。
+
+JanusX 的 turn.step 模型覆盖不改变原生会话模型，因此开关能力以原生模型为准。只有所选模型与原生模型一致时才允许从 JanusX 开启；不同模型时提示用户先在终端通过 `/model` 选择。已开启仍可关闭。该限制避免将单个请求模型的能力误报为工作流编排器的能力，代价是部分模型切换需要原生终端。Claude 2.1.284 起支持在较低 effort／上限下保留 Ultracode；不将它加入模型 effort 列表或排序。
+
+验证入口：`tests/unit/claude-mod-ultracode.test.ts` 验证内部命令保留 medium 覆盖、拒绝不可用状态与助手伪确认；`tests/unit/claude-conversation.test.ts` 验证确认事件、失败状态、空闲与模型边界。`tests/e2e/conversation-settings.spec.ts` 的 Ultracode 用例验证独立开关、effort 切换、草稿、失败、未知／不可用状态及 380px 布局，截图在 `artifacts/ultracode/`。真实 2.1.318 的 `claude-conversation-cli.test.ts -t 'toggles Ultracode'` 使用隔离配置与 localhost 模型，核对同 worker 开关、用户 settings 不变、原生终端切换回读及不支持模型拒绝；不代表真实供应商的大规模工作流验收。原生 `/model` 可能发起非流式模型校验请求，不能与开关本身的零模型请求混为一谈。主 Agent 自检，无独立子 Agent 审阅。
+
+本轮验证结果：相关单元测试 26 项、浏览器测试 2 项、真实 CLI 的 Ultracode 与既有流式／Esc／审批／设置回归各 1 项通过。类型检查、相关实现 ESLint、中英文一致性检查通过；Note 校验 327 篇、0 errors、17 条既有外部链接诊断。主 Agent 查看正常与 380px 截图，无横向溢出。
 
 #### 停止与产品验证
 

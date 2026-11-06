@@ -502,6 +502,12 @@
     "placeholder": "Ask anything, or / for commands",
     "chooseModel": "Choose model",
     "chooseEffort": "Choose reasoning effort",
+    "ultracode": {
+      "label": "Automatic workflows (Ultracode)",
+      "unknown": "Ultracode status is unconfirmed. Check /effort in the native terminal.",
+      "unavailable": "Ultracode needs dynamic workflows and a supported native session model. Select the model in the terminal with /model.",
+      "hint": "Automatically orchestrate workflows for substantive tasks. Uses more tokens; leaves reasoning effort unchanged."
+    },
     "speedOn": "Fast mode enabled · Click to disable · Higher usage",
     "speedOff": "Enable fast mode · Higher usage",
     "speedUnknown": "Fast mode status unavailable",

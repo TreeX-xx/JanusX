@@ -18,6 +18,40 @@ let userPrompts = []
 let settings = null
 let originalEffort
 let settingsBusy = false
+let ultracodeDirty = true
+let internalEffortArgs = null
+
+// Native Mods has no runtime getSettings API. Read only the local command's
+// paired transcript output, never assistant text or terminal escape sequences.
+// Pinned native protocol and limits: .agents/notes/workbench/terminal-dialog-dual-mode.md
+async function effortCommand($, args) {
+  const before = (await $.session.messages()).length
+  internalEffortArgs = args
+  try {
+    await $.command.run({ command: 'effort', args })
+    const rows = (await $.session.messages()).slice(before)
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (rows[i].role !== 'user' || !rows[i].text.includes('<command-name>/effort</command-name>') ||
+        !rows[i].text.includes(`<command-args>${args}</command-args>`)) continue
+      const output = rows[i + 1]
+      const match = output.role === 'user' && output.text.match(/^<local-command-stdout>([\s\S]*)<\/local-command-stdout>$/)
+      if (match) return match[1]
+    }
+    throw new Error('Claude did not confirm the native effort command; check the terminal before retrying')
+  } finally { internalEffortArgs = null }
+}
+
+async function readUltracode($) {
+  const help = await effortCommand($, 'help')
+  const status = await effortCommand($, 'status')
+  if (!help.startsWith('Usage: /effort [') || !/^(?:Effort level: auto(?: \(currently (?:low|medium|high|xhigh|max)(?:, set by your organization)?\))?|Current effort level: (?:low|medium|high|xhigh|max) \([^\n]*\))(?: · Ultracode on)?$/.test(status)) {
+    throw new Error('Unsupported native Claude effort status')
+  }
+  const value = { enabled: status.endsWith(' · Ultracode on'),
+    available: help.split('\n')[0].includes('|ultracode [on|off]'), model: await $.session.model() }
+  record('ultracode', value)
+  return value
+}
 let planSource = null
 let lastTodos = null
 let planReads = Promise.resolve()
@@ -139,6 +173,7 @@ async function execute($, command) {
       result = await $.command.run({ command: command.name, args: command.arguments })
     } else if (command.type === 'display-mode') {
       displayMode = command.mode
+      if (displayMode === 'conversation') ultracodeDirty = true
       if (displayMode === 'terminal') releaseQuestions(undefined, true)
     } else if (command.type === 'answer') {
       const pending = questions.get(command.requestId)
@@ -170,6 +205,26 @@ async function execute($, command) {
         record('settings', { ...settings, override: true })
         $.ui.invalidate('ui.render')
         result = settings
+      } finally { settingsBusy = false }
+    } else if (command.type === 'ultracode') {
+      if (currentTurn || settingsBusy) throw new Error('Wait until Claude is idle before changing settings')
+      if (typeof command.enabled !== 'boolean') throw new Error('Invalid Ultracode setting')
+      settingsBusy = true
+      let pending = false
+      try {
+        const state = await readUltracode($)
+        if (command.enabled && (!state.available || settings && settings.model !== state.model)) {
+          throw new Error('Ultracode requires a supported native session model; select it with /model in the terminal')
+        }
+        pending = true
+        const output = await effortCommand($, command.enabled ? 'ultracode on' : 'ultracode off')
+        result = await readUltracode($)
+        pending = false
+        if (result.enabled !== command.enabled) throw new Error(output.slice(0, 1000))
+        ultracodeDirty = false
+      } catch (error) {
+        if (pending) record('ultracode', {})
+        throw error
       } finally { settingsBusy = false }
     } else if (command.type === 'stop') {
       releaseQuestions(command.turnId)
@@ -243,6 +298,7 @@ async function flush($) {
       events = []; eventBytes = 0; overflow = false; currentTurn = null
       releaseQuestions(); activeTools.clear(); finishedTasks.clear(); blocked.clear()
       userPrompts = []; metaPrompts.clear(); planSource = null; lastTodos = null
+      ultracodeDirty = true
       record('session.start', { model: await $.session.model() })
     }
     const batch = events.slice(0, 48)
@@ -263,6 +319,13 @@ async function flush($) {
       executions.set(command.id, null)
       void execute($, command)
     }
+    if (ultracodeDirty && !currentTurn && !settingsBusy && displayMode === 'conversation') {
+      ultracodeDirty = false
+      settingsBusy = true
+      // Read outside lifecycle hooks: command.run cannot run under a held turn.
+      try { await readUltracode($) } catch { record('ultracode', {}) }
+      finally { settingsBusy = false }
+    }
   } catch {
     // Let the native UI handle an unanswered question after losing its host.
     // Buffered events reconcile it on reconnect; consumed answers are never resent.
@@ -273,6 +336,7 @@ async function flush($) {
 
 export function register(on) {
   on('command.run', async ($, e, next) => {
+    if (e.command === 'effort' && e.args === internalEffortArgs) return next(e)
     if (!['model', 'effort', 'config'].includes(e.command)) return next(e)
     while (settingsBusy) await $.clock.sleep(20)
     settingsBusy = true
@@ -282,10 +346,10 @@ export function register(on) {
       const result = await next(e)
       record('settings', { model: await $.session.model(), effort: null, override: false })
       return result
-    } finally { settingsBusy = false; record('native.settings', { pending: false }) }
+    } finally { ultracodeDirty = true; settingsBusy = false; record('native.settings', { pending: false }) }
   })
   on('classic.PostModelSwitch', async ($, e, next) => {
-    if (!e.agent_id) await resetSettings($)
+    if (!e.agent_id) { await resetSettings($); ultracodeDirty = true }
     return next(e)
   })
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

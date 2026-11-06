@@ -13,6 +13,53 @@ import { conversationOutputGroups } from '../../src/shared/conversation-output'
 const binary = process.env.JANUSX_TEST_CLAUDE_BIN
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native dialog', () => {
+  it('toggles Ultracode in the same worker without changing effort or saved defaults', async () => {
+    const fixture = await claudeConversationFixture()
+    const main = new ClaudeConversation('claude-ultracode', () => {})
+    let terminal: pty.IPty | undefined
+    await writeFile(join(fixture.config, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true,
+      customApiKeyResponses: { approved: ['local-fixture-only'], rejected: [] },
+      projects: { [fixture.cwd.replaceAll('\\', '/')]: { hasTrustDialogAccepted: true } } }))
+    const saved = await readFile(join(fixture.config, 'settings.json'), 'utf8')
+    try {
+      const launch = await main.start({ command: binary!, args: ['--model', 'opus', '--tools', '', '--settings', JSON.stringify({ maxEffortLevel: 'high' })],
+        cwd: fixture.cwd, env: fixture.env, assetsDir: join(fixture.root, 'assets') })
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await expect.poll(() => main.state.ultracode, { timeout: 15000 }).toMatchObject({ enabled: false, available: true })
+      await expect.poll(() => main.state.models.length, { timeout: 15000 }).toBeGreaterThan(0)
+      await main.command({ type: 'settings', model: main.state.ultracode!.model, effort: 'medium', controlEpoch: main.state.controlEpoch })
+      const thread = main.state.threadId
+      for (const enabled of [true, false]) {
+        await main.command({ type: 'ultracode', enabled, controlEpoch: main.state.controlEpoch })
+        expect(main.state).toMatchObject({ threadId: thread, effort: 'medium', settingsOverride: true, ultracode: { enabled, available: true } })
+        expect(await readFile(join(fixture.config, 'settings.json'), 'utf8')).toBe(saved)
+      }
+      let output = ''
+      terminal = pty.spawn(binary!, launch.args, { cwd: fixture.cwd, env: fixture.env as Record<string, string>, cols: 130, rows: 36 })
+      terminal.onData(data => { output += data })
+      main.setNativeInput(text => terminal!.write(text))
+      await expect.poll(() => output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/\s/g, ''), { timeout: 15000 }).toContain('forshortcuts')
+      await main.command({ type: 'terminal-command', name: 'effort', arguments: 'ultracode on', commandId: 'native-ultracode', controlEpoch: main.state.controlEpoch })
+      await expect.poll(() => output, { timeout: 15000 }).toContain('Ultracode on (this session only)')
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await expect.poll(() => main.state.ultracode?.enabled, { timeout: 15000 }).toBe(true)
+      await main.command({ type: 'ultracode', enabled: false, controlEpoch: main.state.controlEpoch })
+      expect(fixture.requests).toHaveLength(0)
+      output = ''
+      await main.command({ type: 'terminal-command', name: 'model', arguments: 'claude-sonnet-4-6', commandId: 'native-sonnet', controlEpoch: main.state.controlEpoch })
+      await expect.poll(() => output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/\s/g, ''), { timeout: 15000 }).toContain('SetmodeltoSonnet4.6')
+      await main.command({ type: 'mode', mode: 'conversation' })
+      await expect.poll(() => main.state.ultracode?.available, { timeout: 15000 }).toBe(false)
+      await expect(main.command({ type: 'ultracode', enabled: true, controlEpoch: main.state.controlEpoch })).rejects.toThrow('unavailable')
+      // Native /model can verify its target with a non-streaming provider call.
+      expect(fixture.requests.every(request => !request.stream)).toBe(true)
+    } finally {
+      if (terminal) await promisify(execFile)('taskkill', ['/PID', String(terminal.pid), '/T', '/F'], { windowsHide: true }).catch(() => {})
+      await main.dispose()
+      await promisify(execFile)(binary!, ['daemon', 'stop', '--any'], { env: fixture.env, windowsHide: true, timeout: 10000 }).catch(() => {})
+      await fixture.close()
+    }
+  }, 70000)
   it('confirms workspace trust in conversation mode without native terminal input', async () => {
     const fixture = await claudeConversationFixture()
     const main = new ClaudeConversation('claude-trust', () => {})

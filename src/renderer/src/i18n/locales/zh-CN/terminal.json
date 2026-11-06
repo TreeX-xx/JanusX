@@ -502,6 +502,12 @@
     "placeholder": "描述你的任务，或输入 / 查看指令",
     "chooseModel": "选择模型",
     "chooseEffort": "选择推理强度",
+    "ultracode": {
+      "label": "自动工作流（Ultracode）",
+      "unknown": "尚未确认 Ultracode 状态，请在原生终端通过 /effort 检查。",
+      "unavailable": "Ultracode 需要动态工作流和受支持的原生会话模型。请在终端通过 /model 选择模型。",
+      "hint": "为实质性任务自动编排工作流，会增加 token 用量；保留当前推理强度。"
+    },
     "speedOn": "快速模式已开启 · 点击关闭 · 用量消耗更高",
     "speedOff": "开启快速模式 · 用量消耗更高",
     "speedUnknown": "尚未获取快速模式状态",
