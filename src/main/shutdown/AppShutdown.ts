@@ -11,6 +11,7 @@ export interface AppShutdownDeps {
   cancelAnalyzer?: ShutdownStep
   cancelBlueprintMaintenance?: ShutdownStep
   flushAgentSessions?: ShutdownStep
+  flushSuperAgentRecords?: ShutdownStep
   stopHookBridge?: ShutdownStep
   stopCompanion?: ShutdownStep
   killTerminals?: ShutdownStep
@@ -93,14 +94,15 @@ export class AppShutdown {
     // 1) kill keep-alive windows first (toast/editor)
     // 2) stop terminals before flushing the session ledger.
     const ordered: Array<[keyof AppShutdownDeps, ShutdownStep | undefined]> = [
+      ['destroyToast', this.deps.destroyToast],
+      ['closeEditors', this.deps.closeEditors],
+      ['abortChatStreams', this.deps.abortChatStreams],
+      ['flushSuperAgentRecords', this.deps.flushSuperAgentRecords],
       ['stopAutomations', this.deps.stopAutomations],
       ['stopPlugins', this.deps.stopPlugins],
       ['stopNoteReview', this.deps.stopNoteReview],
       ['stopKnowledge', this.deps.stopKnowledge],
-      ['destroyToast', this.deps.destroyToast],
-      ['closeEditors', this.deps.closeEditors],
       ['destroyBrowserSurfaces', this.deps.destroyBrowserSurfaces],
-      ['abortChatStreams', this.deps.abortChatStreams],
       ['cancelAnalyzer', this.deps.cancelAnalyzer],
       ['cancelBlueprintMaintenance', this.deps.cancelBlueprintMaintenance],
       ['stopHookBridge', this.deps.stopHookBridge],
@@ -129,7 +131,7 @@ export class AppShutdown {
       await Promise.race([
         Promise.resolve().then(step),
         new Promise<void>((_, reject) => {
-          stepTimer = setTimeout(() => reject(new Error(`step timeout: ${name}`)), STEP_TIMEOUT_MS)
+          stepTimer = setTimeout(() => reject(new Error(`step timeout: ${name}`)), name === 'flushSuperAgentRecords' ? 12_000 : STEP_TIMEOUT_MS)
           stepTimer.unref?.()
         }),
       ])

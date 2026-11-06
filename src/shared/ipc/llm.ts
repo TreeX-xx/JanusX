@@ -38,6 +38,7 @@ export interface ChatWorkspaceResource {
   agentSessionId: string
 }
 export interface ChatRequest {
+  inputEventId?: string
   memoBinding?: MemoBinding
   /** Originating user message, including turns with no bound memo yet. */
   memoMessageId?: string
@@ -147,6 +148,7 @@ export type ChatAgentEvent =
 
 /** R6-full：流式中 steering 投递（主侧排队 + 抢占）与撤销。 */
 export interface ChatSteerInput {
+  workspaceId?: string
   conversationId?: string
   entryId: string
   text: string

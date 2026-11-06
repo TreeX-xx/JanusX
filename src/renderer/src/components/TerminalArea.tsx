@@ -2,6 +2,9 @@ import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { ChevronDown, ChevronRight, Globe, Minimize2, Puzzle, X } from 'lucide-react'
+import { SuperAgentWorkspace } from './janus/SuperAgentWorkspace'
+import { JanusIcon } from './ui/JanusIcon'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { GlobalToolsLayout } from './GlobalToolsLayout'
@@ -212,6 +215,7 @@ const PaneTab = memo(function PaneTab({ tab, terminal, isActive, paneId, tabNode
           ? `${providerLabel(terminal.preset, t)} · ${tabStatusLabel} · ${terminal.cwd}`
           : tab.type === 'browser'
             ? 'Browser'
+            : tab.type === 'superagent' ? 'Janus SuperAgent'
             : tab.type === 'markdown'
               ? t('terminal:tab.view.note')
               : tab.type === 'extension'
@@ -260,6 +264,8 @@ const PaneTab = memo(function PaneTab({ tab, terminal, isActive, paneId, tabNode
             {t('terminal:tab.view.note')}
           </span>
         </span>
+      ) : tab.type === 'superagent' ? (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5"><JanusIcon size={16} />Janus</span>
       ) : tab.type === 'extension' ? (
         <span className="min-w-0 flex-1 truncate">
           {extensionRegistry.getView(tab.viewId)?.title ?? tab.viewId}
@@ -773,6 +779,7 @@ function LeafPane({
   const { t } = useI18n('terminal')
   useExtensionViews()
   const [dragHint, setDragHint] = useState<{ zone: PaneDropHint; ratio: number } | null>(null)
+  const [superAgentToolbar, setSuperAgentToolbar] = useState<HTMLDivElement | null>(null)
   /*-- tab 条排序占位：插入位是摘除拖拽 tab 后的数组下标，与 reorderPaneTab 语义一致 --*/
   const [tabInsertIndex, setTabInsertIndex] = useState<number | null>(null)
   const tabNodeRefs = useRef(new Map<string, HTMLDivElement>())
@@ -1028,6 +1035,7 @@ function LeafPane({
           <div data-tab-drag-slot="" aria-hidden="true" className={styles.slot} />
         </div>
         <div className={styles.controls}>
+          {activeTab?.type === 'superagent' && <div ref={setSuperAgentToolbar} />}
           {toolsRegion && <AuxiliaryPanelCollapseButton label={t('common:toolGroup.collapseTools')}
             onCollapse={() => useGlobalToolsStore.getState().setCollapsed(true)} />}
           {showFocusChrome && (
@@ -1113,6 +1121,13 @@ function LeafPane({
             )
           }
 
+          if (tab.type === 'superagent') {
+            const isActive = tab.id === activeTabId
+            return <div key={tab.id} className="absolute inset-0" hidden={!isActive}
+              aria-hidden={!isActive} {...(!isActive ? { inert: '' } : {})}>
+              <SuperAgentWorkspace visible={workspaceVisible && isActive} focused={workspaceVisible && isActive && isFocused} toolbarHost={superAgentToolbar} />
+            </div>
+          }
           if (tab.type !== 'terminal') return null
           const terminal = terminalsById.get(tab.terminalId)
           if (!terminal) return null
@@ -1208,11 +1223,12 @@ function LeafPane({
 }
 
 export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?: boolean }) {
+  const terminalLauncher = useSuperAgentUIStore(state => state.terminalLauncher)
   const { t } = useI18n('terminal')
   // Geometry and collapse are owned by GlobalToolsLayout. Subscribing to them
   // here rerenders every terminal/editor on each outer splitter movement.
   const globalTools = useGlobalToolsStore(useShallow((s) => ({
-    paneTree: s.paneTree, focused: s.focused, focusedPaneId: s.focusedPaneId,
+    paneTree: s.paneTree, focused: s.focused, focusedPaneId: s.focusedPaneId, collapsed: s.collapsed,
     collapsePaneLayout: s.collapsePaneLayout, setFocusedPane: s.setFocusedPane,
     setPaneTab: s.setPaneTab, reorderPaneTab: s.reorderPaneTab,
     movePaneTabToIndex: s.movePaneTabToIndex, dropContent: s.dropContent, resizePane: s.resizePane,
@@ -1641,7 +1657,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
         ref={terminalAreaRef}
         className={styles.area}
     >
-      <GlobalToolsLayout hasProject={activeWorkspaceId !== null || paneTree !== null} projectTree={paneTree} externalControls={auxiliaryControls}
+      <GlobalToolsLayout hasProject={paneTree !== null || (activeWorkspaceId !== null && (terminalLauncher || globalTools.collapsed || !getLeafPanes(globalTools.paneTree).some(leaf => leaf.tabs.some(tab => tab.type === 'superagent'))))} projectTree={paneTree} externalControls={auxiliaryControls}
         tools={(visible) => <PaneTreeView
           toolsRegion node={globalTools.paneTree} workspaceVisible={visible}
           terminalsById={terminalsById} focusedPaneId={globalTools.focused ? globalTools.focusedPaneId : null}

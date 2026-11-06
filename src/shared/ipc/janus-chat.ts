@@ -7,6 +7,8 @@ export const JANUS_CHAT_CHANNELS = {
 } as const
 
 export interface JanusChatMessage {
+  /** Captured when sent; later workspace navigation never retargets this input. */
+  workspaceId?: string | null
   timeline?: ChatTimelineSnapshot
   id: string
   role: 'user' | 'assistant'
@@ -177,7 +179,8 @@ function normalizeConversation(value: unknown): PersistedJanusConversation | nul
     if (!messageId || content === null || timestamp === null) return []
     if (message.role !== 'user' && message.role !== 'assistant') return []
     const timeline = message.role === 'assistant' ? normalizeChatTimeline(message.timeline) : undefined
-    return [{ id: messageId, role: message.role, content, timestamp, ...(timeline && (timeline.blocks.length || timeline.truncated) ? { timeline } : {}) }]
+    const workspaceId = message.workspaceId === null ? null : boundedString(message.workspaceId, MAX_ID_LENGTH) ?? undefined
+    return [{ id: messageId, role: message.role, content, timestamp, ...(workspaceId !== undefined ? { workspaceId } : {}), ...(timeline && (timeline.blocks.length || timeline.truncated) ? { timeline } : {}) }]
   })
 
   const attachedWorkspaceIds = Array.isArray(source.attachedWorkspaceIds)

@@ -15,6 +15,7 @@ import { worktreeMetaStore } from './worktree-meta'
 import { parseRuntimeResource, runtimeResource } from '../../shared/workspace-runtime'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { runWorkspaceProcess } from '../workspace/runtime-process'
+import { createControlledWorktree, removeControlledWorktree } from './controlled-worktree'
 
 const commandRoot = (value: string) => parseRuntimeResource(value) ? value : resolve(value)
 const remoteCreations = new Map<string, { workspacePath: string; operationId: string }>()
@@ -471,7 +472,18 @@ export async function createWorktree(
   workspacePath: string,
   input: CreateWorktreeInput,
   creationId?: string,
+  policy?: { mode: 'isolated'; targetPath: string },
 ): Promise<CreateWorktreeResult> {
+  if (policy) {
+    if (parseRuntimeResource(workspacePath)) throw new Error('Controlled worktrees currently require a local repository')
+    if (!input.branch || !input.startFrom) throw new Error('Controlled creation requires an explicit branch and pinned commit')
+    const checkout = await createControlledWorktree(workspacePath, policy.targetPath, input.branch, input.startFrom)
+    await worktreeMetaStore.set(safeNormalizeFsPath(checkout.path), {
+      startFrom: input.startFrom, branch: input.branch, createdAt: new Date().toISOString(),
+    }).catch(() => undefined)
+    return { worktree: { id: checkout.path, workspaceId: '', path: checkout.path, branch: checkout.branch,
+      detached: false, isMain: false, external: false, startFrom: input.startFrom }, shared: [], copied: [] }
+  }
   const resource = await resolveRuntimeResource(workspacePath)
   if (resource) {
     const operationId = randomUUID()
@@ -617,7 +629,15 @@ export async function removeWorktree(
   worktreePath: string,
   force = false,
   branchHint?: string | null,
+  policy?: { mode: 'worktree-only' },
 ): Promise<RemoveWorktreeResult> {
+  if (policy) {
+    if (parseRuntimeResource(workspacePath)) throw new Error('Controlled worktrees currently require a local repository')
+    if (force) throw new Error('Controlled removal does not discard uncommitted files')
+    const result = await removeControlledWorktree(workspacePath, worktreePath)
+    await removeMetaKeys(metaKeysFor(result.path, worktreePath))
+    return result
+  }
   const resource = await resolveRuntimeResource(workspacePath)
   if (resource) {
     const target = parseRuntimeResource(worktreePath)

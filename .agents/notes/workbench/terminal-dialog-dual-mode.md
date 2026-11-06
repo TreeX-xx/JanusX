@@ -5,10 +5,12 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-04T13:52:48Z",
+  "updated": "2026-11-06T04:04:27.258Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e1bdfc5f-a4ff-4dea-b7e3-965ab2ffe161" },
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e546b79c-cdf2-49e5-8efd-8dcf5c11b017" },
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10" },
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/0cb931e1-e33c-4e38-a9d9-9d652796d935" }
   ]
@@ -16,6 +18,12 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## SuperAgent 的独立受管 Codex 通路
+
+SuperAgent 复用 CodexConversation 的原生事件／请求投影，通过独立 stdio 传输直接拥有 App Server 进程，无需 TUI。工作、执行与环境 lease 归 Agent 模块，原生权限、审批／问答及验证由[Worker 决策](../agent/superagent-workers.md)维护。P4 起现有 JanusChat 的正常输入由同一 Janus 分派工作，卡片按可变数量呈现并提供容量、停止和关闭；[分派与调度决策](../agent/superagent-scheduling.md)维护队列、输入归属及报告交付。
+
+该通路只允许当前工作 profile 内的原生决定，补充经过持久输入队列，未知请求明确显示阻塞并可停止，不提供终端兜底。原有终端双模式的启动、命令、回答和切换规则继续适用于下文范围，不因复用协议处理而改变。
 
 ## 对话模式切换控件
 

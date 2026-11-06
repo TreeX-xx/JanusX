@@ -2,9 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 test.setTimeout(60_000)
 
 type FixtureWindow = Window & { automationChatFixture: {
-  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; activeTool: string | null; saveCount: number };
-  selectWorkspace(id: string): void; showGit(): void; draft(): void; queuePreviousRunFocus(): void;
-  requests: Array<{ workspaceResources: Array<{ workspaceId: string; agentSessionId: string }> }>;
+  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; isStreaming: boolean; activeTool: string | null; saveCount: number };
+  selectWorkspace(id: string | null): void; showGit(): void; draft(): void; queuePreviousRunFocus(): void;
+  enableSuperAgent(): void; send(text: string): void; finish(): void;
+  requests: Array<{ workspaceId?: string; workspaceResources: Array<{ workspaceId: string; agentSessionId: string }> }>;
 } }
 const state = (page: Page) => page.evaluate(() => (window as FixtureWindow).automationChatFixture.state())
 async function open(page: Page, query = '') {
@@ -78,4 +79,37 @@ test('opening without a selected workspace does not invent a project', async ({ 
   await expect(page.locator('.automation-panel')).toHaveAttribute('data-island-linked', 'true')
   await expect.poll(async () => page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.length)).toBe(1)
   expect(await page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests[0].workspaceResources)).toEqual([])
+})
+
+test('SuperAgent fixes each message and its tool scope to the selected workspace without manual attachment', async ({ page }) => {
+  await open(page)
+  const initial = await state(page)
+  expect(initial.resources).toEqual(['workspace-1'])
+  await page.evaluate(() => {
+    const fixture = (window as FixtureWindow).automationChatFixture
+    fixture.enableSuperAgent()
+    fixture.selectWorkspace('workspace-2')
+    fixture.send('Review this project')
+    // Switch before the asynchronous agent session has finished opening.
+    fixture.selectWorkspace('workspace-1')
+  })
+  await expect.poll(() => page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.length)).toBe(1)
+  expect(await page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests[0])).toMatchObject({
+    workspaceId: 'workspace-2',
+    workspaceResources: [{ workspaceId: 'workspace-2', agentSessionId: 'agent-workspace-2' }],
+  })
+  for (const [workspaceId, count] of [['workspace-1', 2], [null, 3]] as const) {
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.finish())
+    await expect.poll(async () => (await state(page)).isStreaming).toBe(false)
+    await page.evaluate(id => {
+      const fixture = (window as FixtureWindow).automationChatFixture
+      fixture.selectWorkspace(id)
+      fixture.send('Explain the current context')
+    }, workspaceId)
+    await expect.poll(() => page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.length)).toBe(count)
+    const request = await page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.at(-1)!)
+    expect(request.workspaceId).toBe(workspaceId ?? undefined)
+    expect(request.workspaceResources.map(resource => resource.workspaceId)).toEqual(workspaceId ? [workspaceId] : [])
+  }
+  expect(await state(page)).toMatchObject({ conversationId: initial.conversationId, resources: initial.resources })
 })

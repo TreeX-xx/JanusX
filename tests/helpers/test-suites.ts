@@ -1,6 +1,7 @@
 // Note: fast feedback and complete acceptance — see .agents/notes/desktop/reproducible-verification.md
 // All new tests enter the unit project unless explicitly assigned here.
 export const browserTestFiles = [
+  'tests/unit/superagent-work-ui.test.ts',
   'tests/unit/hosted-connection-ui.test.ts',
   'tests/unit/workspace-storage-ui.test.ts',
   'tests/unit/desktop-toast-ui.test.ts',
@@ -20,6 +21,11 @@ export const browserTestFiles = [
 // These retain real Git, subprocess, repository-corpus and build integration.
 // The list uses observed cost, not a filename rule that would hide new tests.
 export const integrationTestFiles = [
+  'tests/unit/superagent-context-environment.test.ts',
+  'tests/unit/superagent-routing.test.ts',
+  'tests/unit/superagent-workers.test.ts',
+  'tests/unit/superagent-native.test.ts',
+  'tests/unit/superagent-commit.test.ts',
   'tests/unit/local-integrations-probe.test.ts',
   'tests/unit/turn-file-capture.test.ts',
   'tests/unit/conversation-edit-cli.test.ts',
@@ -47,4 +53,6 @@ export const integrationTestFiles = [
   'tests/unit/prepare-package.test.ts',
   'tests/unit/workflowx-v2.test.ts',
   'tests/unit/worktree-git.test.ts',
+  'tests/unit/superagent-environments.test.ts',
+  'tests/unit/superagent-worker-permissions.test.ts',
 ]

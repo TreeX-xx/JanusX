@@ -8,6 +8,7 @@ import { createSocket } from 'node:dgram'
 import { build } from 'esbuild'
 import { createServer as createTcpServer } from 'node:net'
 import { createDesktopTestEnv, seedIntroducedLearning } from './desktop-test-env'
+import { ISLAND_CHAT_ONLY } from '../../src/renderer/src/components/janus/janusIslandTypes'
 
 const pluginId = 'example.project-reference'
 async function chooseSetting(page: Page, control: Locator, label: string | RegExp) {
@@ -1300,15 +1301,27 @@ test('P3 four surfaces preserve panes, return focus, shield approvals and revoke
     await expect.poll(async () => (await attached()).length).toBe(0)
     await page.locator('.janus-island').dblclick({ position: { x: 8, y: 8 } })
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'expanded')
-    await page.locator(`button[data-view="extension:${pluginId}/island"]`).click()
-    const island = await guest(app, '/dist/summary.html', summary.url())
-    await expect(island.locator('#content')).toHaveText('project-a')
-    await expect.poll(async () => (await attached()).map(child => child.url)).toEqual([island.url()])
-    const nativeBounds = (await attached())[0].bounds
-    expect(nativeBounds.width).toBeGreaterThan(100); expect(nativeBounds.height).toBeGreaterThan(50)
+    const islandTab = page.locator(`button[data-view="extension:${pluginId}/island"]`)
+    if (ISLAND_CHAT_ONLY) {
+      await expect(islandTab).toHaveCount(0)
+      await expect.poll(async () => (await attached()).length).toBe(0)
+    } else {
+      await islandTab.click()
+      const island = await guest(app, '/dist/summary.html', summary.url())
+      await expect(island.locator('#content')).toHaveText('project-a')
+      await expect.poll(async () => (await attached()).map(child => child.url)).toEqual([island.url()])
+      const nativeBounds = (await attached())[0].bounds
+      expect(nativeBounds.width).toBeGreaterThan(100); expect(nativeBounds.height).toBeGreaterThan(50)
+    }
     await page.locator('.janus-notify-badge').click()
     await expect.poll(async () => (await attached()).length).toBe(0)
-    await expect(page.locator('[data-plugin-island-preview]').filter({ visible: true })).toContainText('<script>safe text</script>')
+    // Opening chat refreshes project context and the fixture may publish a new
+    // README preview. Assert escaping against the explicitly latest update.
+    await rawCall(details, 'island.update', { id: 'reference', status: { title: 'P3 ready', state: 'running', progress: 42, badge: '42%', preview: { text: '<script>safe text</script>', rows: [{ label: 'Project', value: 'A' }] } } })
+    const notice = page.locator('.janus-notify-tray .janus-notif-row').filter({ hasText: 'P3 ready' }).first()
+    await expect(notice).toBeVisible()
+    if (await notice.getAttribute('data-selected') !== 'true') await notice.locator('.janus-notif-summary').click()
+    await expect(notice.locator('[data-plugin-island-preview]')).toContainText('<script>safe text</script>')
     expect(await page.locator('[data-plugin-island-preview] script').count()).toBe(0)
     await page.locator('.janus-notify-tray').getByRole('button', { name: 'Open reference desk', exact: true }).click()
     await expect(workbench).toBeVisible()

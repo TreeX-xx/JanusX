@@ -1,0 +1,19 @@
+.work { display: grid; gap: 12px; padding: 12px; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.empty { padding: 16px; color: var(--text-secondary); font-size: 12px; }
+.preview { color: var(--text-secondary); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.facts { display: grid; gap: 4px; font-size: 11px; }
+.facts dt { color: var(--text-secondary); }
+.facts dd { margin: 0 0 8px; font-family: monospace; }
+.work summary { cursor: pointer; color: var(--text-secondary); }
+.heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.heading span, .work small { color: var(--text-secondary); }
+.input { white-space: pre-wrap; padding: 10px 12px; background: var(--surface-elevated); border-radius: 8px; }
+.decision { padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.work pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; margin: 8px 0; }
+.work button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-elevated); color: inherit; cursor: pointer; }
+.work button:disabled { opacity: .5; cursor: default; }
+.work button:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.decision button + button { margin-left: 8px; }
+.card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.work input { width: 90px; padding: 6px 10px; color: var(--text); background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; }

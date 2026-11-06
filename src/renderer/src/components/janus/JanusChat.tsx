@@ -5,7 +5,8 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, CircleCheck, CircleX, Copy, LoaderCircle, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Send, ShieldX, Trash2, X } from 'lucide-react'
+import { ArrowUp, Check, ChevronDown, CircleCheck, CircleX, Copy, LoaderCircle, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Send, ShieldX, Trash2, X } from 'lucide-react'
+import { JanusIcon } from '../ui/JanusIcon'
 import type { ChatModelOption, JanusResourceController, Message, UseJanusChatReturn } from './useJanusChat'
 import type { ChatQuestionAnswer, ChatTodoItem, ChatToolTraceEntry } from '../../../../shared/ipc/llm'
 import type { AgentApprovalMode } from '../../../../shared/ipc/agent-runtime'
@@ -80,6 +81,11 @@ interface JanusChatProps {
   /** 停靠态：作为右侧 flex 列，而非绝对浮层 */
   docked?: boolean
   compactNavigation?: boolean
+  /** Hosts such as SuperAgent own their context and omit manual navigation. */
+  showConversationNavigation?: boolean
+  showWorkspaceScope?: boolean
+  /** Shared Island/SuperAgent appearance based on the native conversation view. */
+  conversationStyle?: boolean
   /** Embed only the discussion and composer (workspace scope stays in the main chat view). */
   discussionOnly?: boolean
   /**
@@ -394,6 +400,9 @@ export function JanusChat({
   visible,
   docked = false,
   compactNavigation = false,
+  showConversationNavigation = true,
+  showWorkspaceScope = true,
+  conversationStyle = false,
   discussionOnly = false,
   minimalComposer = false,
   discussionFooter,
@@ -440,10 +449,10 @@ export function JanusChat({
   const [input, setInput] = useState('')
   const chatRequest = useIslandStore(state => state.chatRequest)
   useEffect(() => {
-    if (!chatRequest) return
+    if (!chatRequest || !visible) return
     if (chatRequest.prefill) setInput(chatRequest.prefill)
     useIslandStore.getState().consumeChat(chatRequest.sequence)
-  }, [chatRequest])
+  }, [chatRequest, visible])
   const [historyPageSize, setHistoryPageSize] = useState(100)
   const historyEntries = useMemo(() => [...messages.slice(-historyPageSize).map((msg) => ({ kind: 'message' as const, timestamp: msg.timestamp, msg })), ...roundtableCards.map((card) => ({ kind: 'card' as const, timestamp: Date.parse(card.updatedAt || card.createdAt) || 0, card })), ...roundtableQuestions.map((block) => ({ kind: 'questions' as const, timestamp: block.timestamp, block}))]
           .sort((a, b) => a.timestamp - b.timestamp), [messages, historyPageSize, roundtableCards, roundtableQuestions])
@@ -518,7 +527,7 @@ export function JanusChat({
     })
   }, [])
 
-  const showConversationSidebar = !!docked && !!conversations && !discussionOnly && !compactNavigation
+  const showConversationSidebar = showConversationNavigation && !!docked && !!conversations && !discussionOnly && !compactNavigation
   const copyMessage = useCallback((content: string) => {
     if (!navigator.clipboard) return
     void navigator.clipboard.writeText(content).catch(() => undefined)
@@ -1075,6 +1084,19 @@ export function JanusChat({
   const canClear = messages.length > 0 || !!pendingContent || !!error
   const hasConversation = messages.length > 0 || !!pendingContent || isStreaming || !!error
   const activeModelLabel = activeModel?.modelId ?? t('janus:chat.model.noneConfigured')
+  const sendControls = <>
+    {isStreaming && <button
+      className="janus-chat-stop" onClick={handleStop}
+      style={{ '--accent-color': modeColor } as React.CSSProperties}
+      title={t('janus:chat.stop.title')} aria-label={t('janus:chat.stop.aria')} type="button"
+    ><StopIcon /></button>}
+    <button className="janus-chat-send" onClick={() => handleSend()} disabled={!input.trim()}
+      title={t(isStreaming ? 'janus:chat.queue.sendTitle' : 'janus:chat.send.title')}
+      aria-label={t(isStreaming ? 'janus:chat.queue.sendAria' : 'janus:chat.send.aria')} type="button">
+      {minimalComposer ? <span aria-hidden="true">↑</span>
+        : conversationStyle ? <ArrowUp size={18} aria-hidden="true" /> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
+    </button>
+  </>
 
   return (
     <WorkDisclosureScope scopeKey={conversations?.conversationId ?? 'chat'}>
@@ -1083,6 +1105,7 @@ export function JanusChat({
         hidden={!visible}
         data-compact-navigation={compactNavigation || undefined}
         data-minimal-composer={minimalComposer || undefined}
+        data-conversation-style={conversationStyle || undefined}
       tabIndex={-1}
       className={visible ? `janus-chat${docked ? ' janus-chat--docked' : ''}${discussionOnly ? ' janus-chat--discussion-only' : ''}${showConversationSidebar ? ' janus-chat--with-sidebar' : ''}${showConversationSidebar && sidebarCollapsed ? ' janus-chat--sidebar-collapsed' : ''}${hasConversation ? ' janus-chat--active' : ' janus-chat--empty'}${isRestoringScroll ? ' janus-chat--restoring-scroll' : ''}` : undefined}
       onKeyDownCapture={handleChatKeyDownCapture}
@@ -1208,7 +1231,7 @@ export function JanusChat({
         </aside>
       ))}
       <div className="janus-chat-main">
-      {!discussionOnly && !minimalComposer && <div className="janus-chat-toolbar">
+      {showConversationNavigation && !discussionOnly && !minimalComposer && <div className="janus-chat-toolbar">
         <div ref={threadSelectorRef} className="janus-chat-thread-selector">
           <button
             type="button"
@@ -1315,7 +1338,7 @@ export function JanusChat({
         </div>
       </div>}
 
-      {resourceController && (resourceController.resources.length > 0 || attachableWorkspaces.length > 0) && !discussionOnly && !minimalComposer && (
+      {showWorkspaceScope && resourceController && (resourceController.resources.length > 0 || attachableWorkspaces.length > 0) && !discussionOnly && !minimalComposer && (
         <div className="janus-resource-scope" aria-label={t('janus:chat.resource.scopeAria')}>
           <div className="janus-resource-list">
             {resourceController.resources.map((resource) => (
@@ -1435,7 +1458,7 @@ export function JanusChat({
       >
         {messages.length === 0 && (emptyState ?? (
           <div className="janus-chat-empty">
-            <JanusXTerminalBanner />
+            {!conversationStyle && <JanusXTerminalBanner />}
           </div>
         ))}
 
@@ -1462,8 +1485,11 @@ export function JanusChat({
             key={msg.id}
             className={`janus-chat-message ${msg.role}`}
           >
+            {conversationStyle && msg.role === 'assistant' && <div className="janus-chat-message-author">
+              <JanusIcon size={14} />{t('janus:chat.author.assistant')}
+            </div>}
             <div className="janus-chat-message-meta">
-              {msg.role === 'assistant' && (
+              {!conversationStyle && msg.role === 'assistant' && (
                 <div className="janus-chat-message-author">
                   {t('janus:chat.author.assistant')}
                 </div>
@@ -1583,7 +1609,7 @@ export function JanusChat({
 
         {(isStreaming || pendingContent || (error && liveToolTraces.length > 0)) && (
           <div className="janus-chat-message assistant streaming">
-            <div className="janus-chat-message-author">{t('janus:chat.author.assistant')}</div>
+            <div className="janus-chat-message-author">{conversationStyle && <JanusIcon size={14} />}{t('janus:chat.author.assistant')}</div>
             <div className="janus-chat-message-content">
               {isStreaming && <TurnStatusRow status={activeTurnStatus} startedAt={activeTurnStartedAt} />}
               {(activeTimeline?.blocks.length || activeTimeline?.truncated) ? <ChatTimeline snapshot={activeTimeline} streaming={isStreaming} workspaceNames={workspaceNames} renderToolDetails={renderToolDetails} /> : <>
@@ -1659,52 +1685,21 @@ export function JanusChat({
             onKeyDown={handleKeyDown}
             style={{ '--accent-color': modeColor } as React.CSSProperties}
           />
-          {isStreaming ? (
-            <>
-              <button
-                className="janus-chat-stop"
-                onClick={handleStop}
-                style={{ '--accent-color': modeColor } as React.CSSProperties}
-                title={t('janus:chat.stop.title')}
-                aria-label={t('janus:chat.stop.aria')}
-                type="button"
-              >
-                <StopIcon />
-              </button>
-              <button
-                className="janus-chat-send"
-                onClick={() => handleSend()}
-                disabled={!input.trim()}
-                title={t('janus:chat.queue.sendTitle')}
-                aria-label={t('janus:chat.queue.sendAria')}
-                type="button"
-              >
-                {minimalComposer ? <span aria-hidden="true">↑</span> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
-              </button>
-            </>
-          ) : (
-            <button
-              className="janus-chat-send"
-              onClick={() => handleSend()}
-              disabled={!input.trim()}
-              title={t('janus:chat.send.title')}
-              aria-label={t('janus:chat.send.aria')}
-              type="button"
-            >
-              {minimalComposer ? <span aria-hidden="true">↑</span> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
-            </button>
-          )}
+          {!conversationStyle && sendControls}
         </div>
         {!discussionOnly && !minimalComposer && <div className="janus-chat-status-bar">
           <button
             type="button"
             className="janus-chat-model-tag"
+            data-selection-trigger={conversationStyle ? 'model' : undefined}
+            aria-label={conversationStyle ? t('janus:chat.selectionMenu.aria', { kind: 'model' }) : undefined}
             onPointerDown={(event) => handleSelectionTriggerPointerDown(event, 'model')}
             onClick={() => openSelectionMenu('model')}
             title={t('janus:chat.model.menuShortcutTitle')}
           >
             <span>{t('janus:chat.model.tagLabel')}</span>
             <strong>{activeModelLabel}</strong>
+            {conversationStyle && <ChevronDown size={12} aria-hidden="true" />}
           </button>
           <div className="janus-chat-status-actions">
             {conversations && <MemoPanel compactTrigger onBindMemo={conversations.bindMemo} />}
@@ -1718,7 +1713,7 @@ export function JanusChat({
               >
                 <kbd>tab</kbd> {t('janus:chat.shortcuts.providers')}
               </button>
-              <button
+              {!conversationStyle && <button
                 type="button"
                 data-selection-trigger="model"
                 aria-label={t('janus:chat.selectionMenu.aria', { kind: 'model' })}
@@ -1726,7 +1721,7 @@ export function JanusChat({
                 onClick={() => openSelectionMenu('model')}
               >
                 <kbd>ctrl+p</kbd> {t('janus:chat.shortcuts.models')}
-              </button>
+              </button>}
               <button
                 type="button"
                 className="janus-chat-permission-select"
@@ -1749,6 +1744,7 @@ export function JanusChat({
               <Trash2 size={14} strokeWidth={1.8} aria-hidden="true" />
             </button>
           </div>
+          {conversationStyle && <div className="janus-chat-composer-submit">{sendControls}</div>}
           {selectionMenu && (
             <div
               ref={selectionMenuRef}

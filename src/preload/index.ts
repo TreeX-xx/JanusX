@@ -59,6 +59,7 @@ import { LLM_CHANNELS, type LlmAPI } from '../shared/ipc/llm'
 import { EXTERNAL_CLI_CHANNELS, type ExternalCliAPI } from '../shared/ipc/external-cli'
 import { WORKFLOWX_CHANNELS, type WorkflowXAPI } from '../shared/ipc/workflowx'
 import { JANUS_CHAT_CHANNELS, type JanusChatAPI } from '../shared/ipc/janus-chat'
+import { SUPERAGENT_CHANNELS, type SuperAgentAPI } from '../shared/ipc/superagent'
 import { MEMO_CHANNELS, type MemoAPI } from '../shared/ipc/memo'
 import { HARNESS_COMMAND_CHANNELS, HARNESS_EVENT_CHANNELS, type HarnessAPI } from '../shared/ipc/harness'
 import { ROUNDTABLE_CHANNELS, type RoundtableAPI } from '../shared/ipc/roundtable'
@@ -500,6 +501,29 @@ const janusChatAPI: JanusChatAPI = {
   save: (snapshot) => ipcRenderer.invoke(JANUS_CHAT_CHANNELS.save, snapshot).then(() => undefined),
 }
 
+const superAgentAPI: SuperAgentAPI = {
+  submitInput: input => ipcRenderer.invoke(SUPERAGENT_CHANNELS.submitInput, input),
+  snapshot: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.snapshot, workspaceId),
+  workDetail: (workspaceId, workId) => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workDetail, workspaceId, workId),
+  readResource: (workspaceId, resourceId) => ipcRenderer.invoke(SUPERAGENT_CHANNELS.readResource, workspaceId, resourceId),
+  onChanged: callback => subscribeIpcEvent(SUPERAGENT_CHANNELS.changed, callback),
+  environments: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.environments, workspaceId),
+  decideEnvironmentOperation: decision => ipcRenderer.invoke(SUPERAGENT_CHANNELS.decideEnvironmentOperation, decision),
+  onEnvironmentsChanged: callback => subscribeIpcEvent(SUPERAGENT_CHANNELS.environmentsChanged, callback),
+  prepareWorker: input => ipcRenderer.invoke(SUPERAGENT_CHANNELS.prepareWorker, input),
+  startWorker: (workspaceId, workId) => ipcRenderer.invoke(SUPERAGENT_CHANNELS.startWorker, workspaceId, workId),
+  appendWorker: input => ipcRenderer.invoke(SUPERAGENT_CHANNELS.appendWorker, input),
+  continueWorker: input => ipcRenderer.invoke(SUPERAGENT_CHANNELS.continueWorker, input),
+  workers: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workers, workspaceId),
+  controlWorker: control => ipcRenderer.invoke(SUPERAGENT_CHANNELS.controlWorker, control),
+  onWorkerChanged: callback => subscribeIpcEvent(SUPERAGENT_CHANNELS.workerChanged, callback),
+  workerLog: (workspaceId, executionId) => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerLog, workspaceId, executionId),
+  schedule: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.schedule, workspaceId),
+  configureCapacity: value => ipcRenderer.invoke(SUPERAGENT_CHANNELS.configureCapacity, value),
+  controlWork: control => ipcRenderer.invoke(SUPERAGENT_CHANNELS.controlWork, control),
+  onScheduleChanged: callback => subscribeIpcEvent(SUPERAGENT_CHANNELS.scheduleChanged, callback),
+}
+
 const notificationSettingsAPI: NotificationSettingsAPI = {
   get: () => ipcRenderer.invoke(NOTIFICATION_SETTINGS_CHANNELS.get),
   update: (settings) => ipcRenderer.invoke(NOTIFICATION_SETTINGS_CHANNELS.update, settings),
@@ -739,6 +763,7 @@ contextBridge.exposeInMainWorld('electron', {
   externalCli: externalCliAPI,
   workflowx: workflowxAPI,
   janusChat: janusChatAPI,
+  superAgent: superAgentAPI,
   memo: memoAPI,
   roundtable: roundtableAPI,
   agent: agentAPI,

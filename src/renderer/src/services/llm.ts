@@ -136,6 +136,7 @@ export function chatStream(
   onDone: () => void,
   onError: (error: string) => void,
   options?: {
+    inputEventId?: string
     memoBinding?: import('../../../shared/memo').MemoBinding
     memoMessageId?: string
     providerId?: string
@@ -270,6 +271,7 @@ export function chatStream(
       }
       window.electron.llm.startChatStream({
         requestId,
+        inputEventId: options?.inputEventId,
         messages,
         providerId: def.providerId,
         modelId: def.modelId,

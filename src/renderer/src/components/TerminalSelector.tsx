@@ -21,6 +21,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TerminalInstallBadge } from './ui/TerminalInstallBadge'
 import styles from './TerminalSelector.module.css'
+import { SuperAgentLaunch } from './janus/SuperAgentLaunch'
 
 interface TerminalOptionProps {
   preset: TerminalPreset
@@ -203,6 +204,7 @@ export function TerminalSelector() {
           {t('terminal:selector.hint')}
         </div>
       </div>
+      <SuperAgentLaunch />
       <div className={styles.grid}>
         <ShellCard busyKey={launchingKey} onLaunch={launchShellEntry} />
         {cliPresets.map((preset) => (

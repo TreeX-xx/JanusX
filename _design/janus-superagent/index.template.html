@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JanusX · 持续协作架构实验室</title>
+<!-- Design study 04. Dual launch entry; notification-only Island; workspace-scoped conversations.
+     Every model, filesystem, branch, verification and recovery action below is simulated.
+     Built as one offline HTML file. No remote scripts, fonts, requests or production connections. -->
+<style>/* DEMO_CSS */</style></head>
+<body>
+<header class="topbar"><a class="brand" href="#" aria-label="JanusX 架构实验室"><img src="__LOGO__" alt="JanusX"><b>JanusX</b><span>/ 架构实验室</span></a><nav aria-label="演示页面"><button data-view="architecture">整体框架</button><button data-view="lab">交互体验</button><button data-view="mechanisms">机制剖面</button><button data-view="roadmap">实施路线</button></nav><button id="theme" class="small">深色模式</button></header>
+<main>
+<section class="page" id="architecture-view">
+ <div class="intro"><div><div class="eyebrow">DESIGN STUDY 04 / JANUS IS THE SUPERAGENT</div><h1>同一个 Janus，<br>工作可以持续。</h1><p>从初始界面或 Island 启动，以工作区为单位持续协作。分支由 Janus 管理，右侧呈现 Worker 运行，Island 专注通知。</p></div><div class="intro-aside"><span class="tag">详细设计提案 · 未接入生产</span><p>双入口启动 / 工作区对话 / Worker 状态<br>持久会话 / 自动分支 / 通知 Island</p><button class="primary" data-view="lab">体验启动与协作 →</button></div></div>
+ <div class="system-layout"><div class="system"><div class="section-label"><b>JANUS 全局中心</b><span>Router 是内部职责 · SuperAgent 就是 Janus</span></div>
+ <div class="entry"><span class="eyes"><i></i><i></i></span><div><b>你直接向 Janus 发消息</b><small>提出功能、补充、询问、停止；无需选择 Worker 或跟进事项</small></div></div>
+ <div class="flow-arrow">↓ 接收输入，固定工作区；关联工作后由 Janus 解析或准备代码环境</div>
+ <div class="node-grid"><button data-node="intake"><em>01 / INTAKE</em><b>异步输入与程序处理</b><span>持久接收 · 事件去重 · 环境快照</span></button><button data-node="router"><em>02 / UNDERSTAND</em><b>语义判断与软件控制</b><span>回答 · 续接 · 新工作 · 必要澄清</span></button></div>
+ <div class="flow-arrow">↓ 已知关联直通；需要判断的输入交给 Janus</div>
+ <div class="scope-grid"><button data-node="workspace"><em>WORKSPACE A</em><b>项目上下文 A</b><span>对话 / 摘要 / 分支 / 活动</span></button><button data-node="workspace"><em>WORKSPACE B</em><b>项目上下文 B</b><span>切换前台焦点，后台归属不变</span></button></div>
+ <div class="node-grid three"><button data-node="session"><em>03 / SESSION</em><b>持久 Worker 会话</b><span>运行 ⇄ 空闲 ⇄ 原会话续接</span></button><button data-node="execution"><em>04 / EXECUTION</em><b>执行与分支环境</b><span>目录 / worktree / 槽位 / 版本</span></button><button data-node="result"><em>05 / DELIVERY</em><b>证据与结果交付</b><span>实现 / 验证 / 验收 / 集成</span></button></div>
+ <div class="support"><button data-node="recall">Inline / Spill + 链式召回</button><button data-node="subscription">订阅与事件投递</button><button data-node="watchdog">Watchdog 与异常恢复</button><button data-node="native">仓库 / 自动化 / 原生 UI</button></div>
+ <div class="flow-arrow bottom">↑ 进展和结果回到所属工作区；Janus 仍能查询全局状态</div></div><aside class="inspector" id="inspector" aria-live="polite"></aside></div>
+ <div class="walkthrough"><div><div class="eyebrow">一条消息的路径</div><h3 id="flow-title"></h3><p id="flow-description"></p></div><div class="row"><span id="flow-count" class="mono"></span><button id="flow-next" class="primary">下一步 →</button></div></div>
+ <div class="section-heading"><h2>边界先说清楚。</h2><p>这些对象相关，但生命周期不同。</p></div>
+ <div class="table-wrap"><table><thead><tr><th>对象</th><th>保留什么</th><th>什么不会随它变化</th></tr></thead><tbody>
+ <tr><td>Janus 身份</td><td>全局软件能力、统一沟通、通用偏好</td><td>切换工作区不会变成另一个 Agent</td></tr>
+ <tr><td>工作区上下文</td><td>该项目的对话、摘要、工作与资源</td><td>前台切走不停止后台执行</td></tr>
+ <tr><td>内部工作记录</td><td>稳定目标、输入关联、版本及证据</td><td>不要求用户选择 Ticket 才能发消息</td></tr>
+ <tr><td>Worker Session</td><td>持续的执行历史与身份</td><td>交付、空闲、释放槽位都不等于删除会话</td></tr>
+ <tr><td>执行目录与分支</td><td>代码位置、分支、起始及验证快照</td><td>不同分支名不等于不同写入目录</td></tr>
+ <tr><td>一次执行</td><td>本轮输入、进度、调用和结果</td><td>一轮结束不等于目标达成或代码已合并</td></tr>
+ </tbody></table></div>
+</section>
+
+<section class="page" id="lab-view" hidden>
+ <div class="page-heading"><div><div class="eyebrow">INTERACTION LAB / 完整交互预演</div><h1>你说下去，Janus 接着做。</h1><p>下方是规则模拟。输入不锁定；右侧只查看活动，不决定你的下一条消息发给谁。</p></div><button id="reset" class="small">重置演示</button></div>
+ <div class="lab-guide"><b>推荐体验</b><span>启动 SuperAgent → 提出两个功能 → 看右侧运行与排队 → 完成后看 Island 通知 → 反馈旧功能 bug。</span><button id="guide" class="small">填入下一句</button></div>
+ <div class="app"><div class="app-bar"><div class="brand"><img src="__LOGO__" alt=""><b>JanusX</b></div><button id="island" aria-label="从 Island 启动 SuperAgent"><span id="island-symbol" class="eyes"><i></i><i></i></span><small id="island-count"></small></button><button id="global" class="small">全局活动</button></div>
+ <div class="native-toolbar"><span>软件能力联动示意</span><button data-native="repo">仓库 / Diff</button><button data-native="automation">自动化</button><small>也可以直接向 Janus 说“打开仓库差异”</small></div>
+ <div class="app-grid"><aside class="workspace-nav"><div class="eyebrow">工作区</div><div id="workspace-buttons"></div><div class="workspace-help">切换左侧工作区，<br>Janus 注意力随之切换。<br><br>已发送消息和后台工作<br>保持原归属。</div></aside>
+ <div class="conversation"><div class="workspace-header"><div><b id="workspace-title"></b><small id="directory"></small></div><span class="managed-badge">分支由 Janus 管理</span></div>
+ <div id="launch-screen" class="launch-screen"><div class="launch-eyes eyes"><i></i><i></i></div><div class="eyebrow">JANUS / SUPERAGENT</div><h2>把想做的事，<br>交给 Janus。</h2><p>在当前工作区持续讨论与开发。<br>Janus 安排 Worker，并准备对应的分支环境。</p><button id="start-superagent" class="primary">启动 SuperAgent <span>↗</span></button><small>也可点击顶部 Island 启动 · 两处进入同一界面</small><div class="launch-preview"><span>01 直接说需求</span><span>02 Worker 持续执行</span><span>03 结果通过通知到达</span></div></div>
+ <div id="notification" class="notification" hidden></div>
+ <div class="chat" id="chat"><div class="chat-head"><span class="eyes"><i></i><i></i></span><b>Janus</b><span class="muted">随时可以继续说</span></div><div id="messages" role="log" aria-live="polite"></div><form id="composer"><div class="context-line" id="context-label"></div><textarea id="prompt" rows="3" maxlength="800" aria-label="向 Janus 发送消息" placeholder="开发登录功能；或直接补充刚才的问题…"></textarea><div class="row spread"><small id="draft-hint">Enter 发送 · Shift + Enter 换行</small><button class="primary" type="submit">发送 ↑</button></div></form></div>
+ <div class="suggestions" id="suggestions"><button data-say="开发登录功能">开发登录功能</button><button data-say="开发配置保存功能">开发配置功能</button><button data-say="登录功能刷新后还有 bug，请修复">登录测试有 bug</button><button data-say="目前进度怎么样">询问进度</button></div>
+ </div><aside class="activity" aria-label="当前工作区 Worker 运行情况"><div class="row spread"><b>Worker 运行</b><small id="job-count"></small></div><p class="hint">当前工作区 · 实时状态示意</p><div id="worker-summary" class="worker-summary"></div><div id="jobs"></div><div id="job-detail"></div></aside></div></div>
+ <section class="developer-console"><div><div class="eyebrow">演示控制 / 以下不是产品操作</div><div class="controls"><button id="advance" class="primary">推进当前执行 →</button><label><input id="auto-route" type="checkbox" checked> 自动处理输入</label><button id="route-next">处理一条输入</button><button id="duplicate">重投最近事件</button></div><div class="controls secondary"><label>新会话引擎 <select id="engine"><option>agentX</option><option>Codex</option><option>Claude Code</option></select></label><button id="fault">注入停滞</button><button id="watchdog">监督检查</button><button id="restart">模拟宿主重启</button><button id="recover">核对异常恢复</button></div><p class="hint" id="runtime-hint"></p><p class="hint">全部分支环境为独立 worktree 的示意；不执行真实 checkout。全局仅 1 个运行槽位，Worker 会话可有多个。</p></div><div><div class="eyebrow">机制观察 / 接收 → 判断 → 投递</div><div id="events" role="log"></div></div></section>
+</section>
+
+<section class="page" id="mechanisms-view" hidden>
+ <div class="page-heading"><div><div class="eyebrow">MECHANISM ATLAS</div><h1>把连续性拆成可验证的机制。</h1><p>这些独立样本用于解释设计，不修改工作台中的演示数据。</p></div></div>
+ <nav class="subnav" aria-label="机制选择"><button data-mechanism="lifecycle">会话生命周期</button><button data-mechanism="filter">两级过滤</button><button data-mechanism="recall">链式召回</button><button data-mechanism="completion">完成与分支</button></nav>
+ <div id="mechanism-content"></div>
+</section>
+
+<section class="page" id="roadmap-view" hidden>
+ <div class="page-heading"><div><div class="eyebrow">IMPLEMENTATION / 建议阶段，尚未排期</div><h1>先证明能接着做，再扩大范围。</h1><p>异步输入、基本归属与旧功能续接进入 MVP。多工作区、并发和外部来源分别验证。</p></div></div>
+ <div class="roadmap" id="roadmap"></div>
+ <div class="section-heading"><h2>验收看实际行为。</h2><p>演示通过不代表真实模型与桌面执行已通过。</p></div>
+ <div class="table-wrap"><table><thead><tr><th>场景</th><th>必须观察到的结果</th><th>阶段</th></tr></thead><tbody>
+ <tr><td>执行中继续输入</td><td>及时收到；已收到与已纳入执行分别可见</td><td>MVP</td></tr>
+ <tr><td>完成 A，再做 B，再测出 A 的 bug</td><td>A 原 Session 继续；无需恢复按钮或重复完整背景</td><td>MVP</td></tr>
+ <tr><td>Janus 当前上下文已不含 A 的细节</td><td>通过关联引用找到 A、报告与证据；不凭空猜测</td><td>MVP</td></tr>
+ <tr><td>同一事件重复投递 / 用户重复说一句话</td><td>前者去重，后者仍按新输入处理</td><td>MVP</td></tr>
+ <tr><td>初始界面与 Island 启动</td><td>进入同一个 Janus 工作界面；启动后 Island 只承载通知</td><td>MVP</td></tr>
+ <tr><td>工作区输入与分支自动管理</td><td>无需手动选择分支；Janus 准备或复用执行环境，详情可追溯</td><td>MVP → 二期</td></tr>
+ <tr><td>切换工作区</td><td>新输入跟随焦点；旧消息与 Worker 环境不漂移，右侧状态随工作区切换</td><td>二期</td></tr>
+ <tr><td>实现通过检查但尚未合并</td><td>分别呈现可交付与未集成，不自动推送或合并</td><td>MVP → 二期</td></tr>
+ <tr><td>重复停滞、进程中断、用户明确停止</td><td>有界重试；恢复前核对；停止工作不自动复活</td><td>三期</td></tr>
+ </tbody></table></div>
+ <div class="source-panel"><h3>参考与边界</h3><p>DSH 公开研究原型面向单 GitHub 仓库；持久 Worker Session、订阅、执行槽位与可读取资源可以参考。Janus 的工作区焦点、自然对话归属和原生 UI 联动，是此处的设计提案。</p><div class="row wrap"><a href="https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/docs/003-execution.md" target="_blank" rel="noreferrer">DSH 执行规则 ↗</a><a href="https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/docs/002-authorization.md" target="_blank" rel="noreferrer">准入与订阅 ↗</a><a href="../../.agents/notes/agent/ideas/janus-superagent.md">本地设计 Note ↗</a></div><p class="hint">PR / IM / CI 事件、自动化触发、跨设备常驻及存算分离后置。首版先接一种 Worker 引擎，其他引擎按能力适配。</p></div>
+</section>
+<footer><span>JanusX / Design Study 04</span><span>离线交互模拟 · 无模型请求 · 无真实代码修改</span><span>实现与效果均待验证</span></footer>
+</main>
+<dialog id="modal"><div class="row spread"><h2 id="modal-title"></h2><button id="close-modal" aria-label="关闭详情">关闭 ×</button></div><div id="modal-body"></div></dialog><div id="toast" role="status" hidden></div>
+<script>/* DEMO_JS */</script></body></html>

@@ -94,6 +94,19 @@ describe('AppShutdown', () => {
     expect(appExit).toHaveBeenCalledTimes(1)
   })
 
+  it('waits beyond the ordinary step timeout for owned Worker process-tree settlement', async () => {
+    vi.useFakeTimers()
+    try {
+      const killTerminals = vi.fn(), shutdown = new AppShutdown()
+      shutdown.configure({ flushSuperAgentRecords: () => new Promise<void>(resolve => setTimeout(resolve, 8000)), killTerminals })
+      const quitting = shutdown.beginQuit()
+      await vi.advanceTimersByTimeAsync(4500)
+      expect(killTerminals).not.toHaveBeenCalled(); expect(appExit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(3500); await quitting
+      expect(killTerminals).toHaveBeenCalledTimes(1); expect(appExit).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+
   it('continues after a step failure', async () => {
     const failing = vi.fn(async () => {
       throw new Error('boom')
@@ -128,12 +141,14 @@ describe('AppShutdown', () => {
     const disposeOfficeArtifactIndexes = track('disposeOfficeArtifactIndexes')
     const disposeTerminalSession = track('disposeTerminalSession')
     const abortChatStreams = track('abortChatStreams')
+    const flushSuperAgentRecords = track('flushSuperAgentRecords')
 
     const shutdown = new AppShutdown()
     shutdown.configure({
       destroyToast,
       closeEditors,
       abortChatStreams,
+      flushSuperAgentRecords,
       flushAgentSessions,
       stopOfficeWatches,
       killTerminals,
@@ -146,6 +161,9 @@ describe('AppShutdown', () => {
 
     expect(order.indexOf('destroyToast')).toBeLessThan(order.indexOf('abortChatStreams'))
     expect(order.indexOf('closeEditors')).toBeLessThan(order.indexOf('abortChatStreams'))
+    expect(flushSuperAgentRecords).toHaveBeenCalledTimes(1)
+    expect(order.indexOf('abortChatStreams')).toBeLessThan(order.indexOf('flushSuperAgentRecords'))
+    expect(order.indexOf('flushSuperAgentRecords')).toBeLessThan(order.indexOf('killTerminals'))
     // AC9: kill terminals before finalizing checkpoints so no native pty
     // callback can fire sendToRenderer into a torn-down window during finalize.
     expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('flushAgentSessions'))

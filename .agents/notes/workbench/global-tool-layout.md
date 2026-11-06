@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-18",
-  "updated": "2026-10-23T15:27:38.390Z",
+  "updated": "2026-11-06T08:53:57.053Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -33,6 +33,8 @@
 Markdown 全局界面不合并文稿归属。首次打开选择当前项目或全局，此后切项目和关闭重开保持所选归属；通过“文稿归属”显式选择全局、项目或遗留文稿。关闭面板不删除草稿。CPA 关闭页面释放网页呈现，托管服务继续运行；切项目不卸载 CPA。禁用或注销扩展清除全局标签和项目快照中的对应视图。
 
 App 的文件窗口与 RightDock 几何协调由 [辅助面板需求](./requirements/auxiliary-panels-preview-controls.md)约束，工具实例和分屏树仍归本宿主。右侧入口取代旧恢复条，显式打开／恢复及内容指针操作确定辅助区域优先级，不通过悬停改写选择。
+
+2026-11-06 SuperAgent 作为单例全局工具加入同一规则，复用现有 JanusChat，不另建工作台。其内部 Worker 面板可独立收起和调宽；窄 pane 在内部切换 Worker 列表，不能覆盖项目终端。“显示终端”恢复空项目的终端启动区，已有项目树及终端继续保留。SuperAgent 的已启动、内部收起和宽度偏好可恢复，工具树本身仍不持久化；执行及工作记录独立于这些呈现状态。入口、通知及边界归[SuperAgent 界面](../agent/superagent-interface.md)。
 
 ## Alternatives considered
 

@@ -40,12 +40,17 @@ test('real Titlebar keeps memo usable at native minimum size and renderer zoom',
         const box = (await page.locator('.memo-panel').boundingBox())!
         return box.y + box.height
       }).toBeLessThanOrEqual(viewport.height - 12)
-      const geometry = await page.evaluate(() => {
+      const readGeometry = () => page.evaluate(() => {
         const main = document.querySelector('.janus-island-shell')!.getBoundingClientRect()
         const memo = document.querySelector('.memo-panel')!.getBoundingClientRect()
         return { gap: memo.left - main.right, left: main.left, right: memo.right, bottom: memo.bottom, content: document.querySelector('.memo-content')!.clientWidth }
       })
-      expect(geometry.gap).toBe(12)
+      // Native resize and ResizeObserver layout settle on different frames even
+      // when both widths use the same `parallel` layout mode.
+      // Joint Island layout reserves the 48 px auxiliary rail plus 8 px clearance.
+      await expect.poll(async () => (await readGeometry()).gap).toBe(56)
+      const geometry = await readGeometry()
+      expect(geometry.gap).toBe(56)
       expect(geometry.left).toBeGreaterThanOrEqual(12)
       expect(geometry.right).toBeLessThanOrEqual(viewport.width - 12)
       expect(geometry.bottom).toBeLessThanOrEqual(viewport.height - 12)

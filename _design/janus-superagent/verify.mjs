@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+const { chromium } = process.env.PLAYWRIGHT_MODULE ? await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href) : await import('playwright');
+const output = new URL('../../artifacts/janus-superagent-demo/', import.meta.url);
+await mkdir(output,{recursive:true});
+const browser=await chromium.launch({headless:true});
+const checks=[],errors=[],external=[];
+try {
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(/^https?:/.test(r.url()))external.push(r.url());});
+ await page.goto(new URL('./index.html',import.meta.url).href);
+ await page.evaluate(()=>localStorage.clear());await page.reload();
+ const click=s=>page.locator(s).click(), text=s=>page.locator(s).innerText();
+ const state=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('janus-superagent-design-04')));
+ const view=v=>click(`.topbar [data-view="${v}"]`);
+ const shot=async(name,fullPage=true)=>{await page.mouse.move(0,0);await page.locator('#toast').evaluate(e=>e.hidden=true);await page.screenshot({path:fileURLToPath(new URL(`${name}.png`,output)),fullPage});};
+ const submit=async value=>{await page.locator('#prompt').fill(value);await click('#composer button');};
+ const route=async value=>{await submit(value);await click('#route-next');};
+ const advance=async(n=4)=>{for(let i=0;i<n;i++)await click('#advance');};
+ assert.equal((await state()).started,false);assert(await page.locator('#launch-screen').isVisible());assert(await page.locator('#chat').isHidden());assert(await page.locator('#guide').isDisabled());
+ assert.equal(await page.locator('#branch,#target,#project-select').count(),0);await shot('launch');
+ await click('#start-superagent');assert.equal((await state()).startedVia,'initial');assert(await page.locator('#chat').isVisible());assert(await page.locator('#launch-screen').isHidden());
+ await click('#island');assert.equal(await text('#modal-title'),'通知');assert.match(await text('#modal-body'),/暂无通知/);assert.equal((await state()).jobs.length,0);assert(await page.locator('#chat').isVisible());await click('#close-modal');
+ await click('#reset');await click('#island');assert.equal((await state()).startedVia,'island');await page.reload();assert.equal((await state()).started,true);assert.match(await text('#island-count'),/^通知/);
+ checks.push('both launch entries share one activation; persisted activation; active Island is notification-only');
+ await page.locator('#auto-route').uncheck();await submit('开发登录功能');assert.equal((await state()).jobs.length,0);assert.match(await text('[data-receipt="E-1"]'),/已收到/);
+ await click('[data-workspace="Website"]');await click('#route-next');let data=await state();assert.equal(data.jobs[0].workspace,'JanusX');assert.equal(data.jobs[0].branch,'janus/login-01');assert.equal(data.inputs[0].branch,undefined);assert.equal(await page.locator('.worker-card').count(),0);
+ await advance();assert.equal((await state()).workspace,'Website');assert.match(await text('#island-count'),/1/);await click('#island');assert.match(await text('#modal-body'),/登录功能可交付/);assert.equal((await state()).workspace,'Website');assert(await page.locator('#chat').isVisible());assert.equal((await state()).notices.filter(n=>!n.read).length,0);await shot('notification',false);await click('[data-go="JanusX"]');
+ assert.equal((await state()).workspace,'JanusX');assert.match(await text('#job-detail'),/S-01/);assert.match(await text('#runtime-hint'),/槽位 0\/1/);
+ checks.push('workspace-only sent scope; Janus creates branch; background delivery notification preserves focus; explicit notice navigation');
+ await page.locator('#prompt').fill('待补充的草稿');await click('[data-workspace="Website"]');assert.equal(await page.locator('#prompt').inputValue(),'');assert.equal((await state()).started,true);assert(await page.locator('#launch-screen').isHidden());await click('[data-workspace="JanusX"]');assert.equal(await page.locator('#prompt').inputValue(),'待补充的草稿');
+ await route('开发配置保存功能');await route('登录功能刷新后还有 bug，请修复');data=await state();assert.equal(data.jobs.length,2);assert.equal(data.jobs[0].session,'S-01');assert.equal(data.jobs[0].branch,'janus/login-01');assert.equal(data.jobs[0].round,2);assert.equal(data.jobs[0].status,'queued');assert.equal(data.jobs[1].status,'running');assert.equal(data.jobs[1].branch,'janus/settings-02');assert.notEqual(data.jobs[0].directory,data.jobs[1].directory);
+ assert.equal(await page.locator('.worker-card.running').count(),1);assert.equal(await page.locator('.worker-card.queued').count(),1);await shot('workers-running-queued');
+ await advance();assert.equal((await state()).jobs[0].status,'running');assert.equal((await state()).jobs[1].status,'idle');await click('[data-job="J-01"]');await page.locator('.managed-environment summary').click();assert.match(await text('.managed-environment'),/janus\/login-01/);await shot('managed-branch');
+ await click('[data-job="J-02"]');await route('登录再补充错误提示');assert.equal((await state()).inputs.at(-1).job,'J-01');assert.equal((await state()).inputs.at(-1).status,'delivered');await advance(1);assert.equal((await state()).inputs.at(-1).status,'applied');await shot('workers-running-idle');
+ checks.push('workspace drafts; two distinct auto branches; same-session A continuation; live running/queued/idle states; detail selection never changes routing');
+ const inputs=(await state()).inputs.length;await click('#duplicate');assert.equal((await state()).inputs.length,inputs);await route('登录再补充错误提示');assert.equal((await state()).inputs.length,inputs+1);assert.equal((await state()).jobs.length,2);
+ await route('目前进度怎么样');assert.equal((await state()).jobs.length,2);await route('那个先别改');assert.equal((await state()).inputs.at(-1).status,'clarify');assert.match(await text('#island-count'),/通知/);await click('[data-clarify="J-01"]');assert.equal((await state()).jobs[0].status,'stopped');await route('登录还有 bug');assert.equal((await state()).jobs[0].status,'stopped');await click('#watchdog');assert.equal((await state()).jobs[0].status,'stopped');
+ await route('继续登录功能');await click('#fault');assert.equal(await page.locator('.worker-card.stalled').count(),1);await click('#watchdog');await click('#fault');await click('#watchdog');assert.equal((await state()).jobs[0].status,'blocked');await shot('workers-blocked');
+ checks.push('dedup versus repeat text; clarification notice; explicit stop; bounded watchdog and visible blocked card');
+ await route('配置增加导入能力');const session=(await state()).jobs[1].session,branch=(await state()).jobs[1].branch;await click('#restart');await page.reload();assert.equal((await state()).jobs[1].status,'recovering');await click('#recover');assert.equal((await state()).jobs[1].status,'running');assert.equal((await state()).jobs[1].session,session);assert.equal((await state()).jobs[1].branch,branch);await advance();
+ await click('[data-job="J-02"]');await click('[data-evidence="J-02"]');assert.match(await text('#modal-body'),/未集成/);await click('[data-integrate="J-02"]');assert.equal((await state()).jobs[1].integrated,true);
+ await route('打开仓库差异');assert.match(await text('#modal-body'),/Janus 管理分支/);assert.equal((await state()).jobs.length,2);await click('#close-modal');await click('[data-native="automation"]');assert.match(await text('#modal-body'),/未触发/);await click('#close-modal');
+ await page.locator('#auto-route').check();await submit('开发导出功能');await page.waitForFunction(()=>JSON.parse(localStorage.getItem('janus-superagent-design-04')).inputs.at(-1).status!=='received');assert.equal((await state()).jobs.length,3);
+ checks.push('restart reuses managed environment; separate integration; software control without Worker; automatic async routing');
+ await view('architecture');for(const id of ['intake','router','workspace','session','execution','result','recall','subscription','watchdog','native']){await page.locator(`[data-node="${id}"]`).first().click();assert.match(await text('#inspector'),/设计约束/);}for(let i=0;i<6;i++)await click('#flow-next');assert.match(await text('#flow-title'),/发送时/);await shot('architecture');
+ await view('mechanisms');for(let i=0;i<5;i++){assert.equal(await text('#life-session'),'S-01');await click('#life-next');}await click('[data-mechanism="filter"]');for(const v of ['human','duplicate','known','external']){await page.locator('#filter-case').selectOption(v);await click('#filter-next');await click('#filter-next');assert.equal(await page.locator('.pipeline article.active').count(),3);}
+ await click('[data-mechanism="recall"]');for(const ref of ['J-01','S-01','R-02','P-02'])await click(`[data-ref="${ref}"]`);await click('#spill');assert.match(await text('.resource pre'),/J-01:r2/);await click('[data-mechanism="completion"]');assert.match(await text('#verdict'),/本轮可交付/);await page.locator('[data-check]').nth(2).uncheck();assert.match(await text('#verdict'),/尚不可交付/);
+ await view('roadmap');assert.equal(await page.locator('.milestone').count(),3);assert.match(await text('#roadmap'),/双入口/);await shot('roadmap');checks.push('framework and mechanism samples remain functional; updated phased roadmap');
+ await view('lab');await click('#theme');await shot('dark');await click('#theme');
+ for(const width of [1440,1024,768,390]){await page.setViewportSize({width,height:1000});for(const v of ['architecture','lab','mechanisms','roadmap']){await view(v);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`overflow ${v} ${width}`);if(width===390)await shot(`mobile-${v}`);}}
+ await view('lab');await click('#reset');await shot('mobile-launch');assert(await page.locator('#launch-screen').isVisible());await click('#start-superagent');assert(await page.locator('#chat').isVisible());
+ checks.push('four pages responsive at 1440/1024/768/390; mobile launch; dark theme; no horizontal overflow');
+ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);checks.push('no page errors or remote requests');
+ await writeFile(new URL('verification.json',output),JSON.stringify({at:new Date().toISOString(),version:4,checks,errors,external},null,2));console.log(JSON.stringify({passed:checks.length,checks},null,2));
+}finally{await browser.close();}

@@ -20,6 +20,7 @@ import type { LlmAPI } from '../../../shared/ipc/llm'
 import type { ExternalCliAPI } from '../../../shared/ipc/external-cli'
 import type { WorkflowXAPI } from '../../../shared/ipc/workflowx'
 import type { JanusChatAPI } from '../../../shared/ipc/janus-chat'
+import type { SuperAgentAPI } from '../../../shared/ipc/superagent'
 import type { MemoAPI } from '../../../shared/ipc/memo'
 import type { RoundtableAPI } from '../../../shared/ipc/roundtable'
 import type { AgentSettingsAPI, NotificationSettingsAPI } from '../../../shared/ipc/settings'
@@ -56,6 +57,7 @@ interface ElectronAPI {
   externalCli: ExternalCliAPI
   workflowx: WorkflowXAPI
   janusChat?: JanusChatAPI
+  superAgent?: SuperAgentAPI
   memo?: MemoAPI
   roundtable: RoundtableAPI
   agent: AgentAPI

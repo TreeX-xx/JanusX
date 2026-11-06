@@ -11,6 +11,8 @@ import type { ConversationCommand, ConversationItem, ConversationSnapshot, Conve
 import { CODEX_CONVERSATION_CAPABILITIES } from '../../shared/conversation-display'
 import { codexApprovalChoices, codexQuestions } from './codex-questions'
 import { hasBlockingQuestions } from '../../shared/conversation-questions'
+import { CodexManagedTransport, CodexManagedRpcError, type CodexRpc } from './codex-managed-transport'
+import { codexElicitation } from './codex-elicitation'
 
 type Json = Record<string, any> // Codex's versioned JSON-RPC boundary; normalized before IPC.
 // Session speed state and icon contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
@@ -44,6 +46,13 @@ export function resolveCodexServerBinary(command: string): string {
   return binary
 }
 
+/** A local preflight refusal: no native RPC was sent, so the durable outbox may remain pending. */
+export class ManagedInputDeferred extends Error {
+  constructor(readonly reason: 'waiting' | 'turn-changed') {
+    super(reason === 'waiting' ? 'Codex is waiting for a native decision' : 'Native turn changed before input delivery')
+  }
+}
+
 export class CodexConversation {
   readonly state: ConversationSnapshot
   private session: ConversationSession
@@ -64,6 +73,9 @@ export class CodexConversation {
   private endpoint = ''
   private loadingModels?: Promise<void>
   private nativeInput?: (text: string) => void
+  private managed?: CodexManagedTransport
+  private managedEvent?: (message: CodexRpc) => void
+  private managedAnswers = new Map<string | number, ReturnType<typeof codexElicitation>>()
   private newThread?: { allowStart: boolean; resolve(): void; reject(error: Error): void }
   private startup = new CodexStartup((method, params) => this.call(method, params), startup => { this.state.startup = startup; this.changed() })
 
@@ -79,6 +91,70 @@ export class CodexConversation {
 
   snapshot(): ConversationSnapshot { return this.session.snapshot() }
   private changed(immediate = true): void { this.session.changed(immediate) }
+
+  /** Host-owned Worker path. Existing TUI/proxy startup remains independent. */
+  async startManaged(options: { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv;
+    threadId?: string; configure(config: Json): Promise<Json> | Json; onEvent?: (message: CodexRpc) => void;
+    onMissingThread?: () => Promise<void> }): Promise<void> {
+    if (this.managed || this.child || this.disposed) throw new Error('Codex session already started or closed')
+    this.cwd = options.cwd
+    this.state.mode = 'conversation'
+    this.managedEvent = options.onEvent
+    this.managed = new CodexManagedTransport(message => {
+      if (message.id !== undefined && message.method && (!this.state.threadId || message.params?.threadId !== this.state.threadId)) {
+        this.state.needsTerminal = true
+        this.state.error = `Unsupported native request: ${message.method}. Stop this worker to cancel it.`
+        this.changed()
+      } else this.receive(message)
+      this.managedEvent?.(message)
+    }, message => this.fail(message))
+    try {
+      await this.managed.start({ ...options, command: resolveCodexServerBinary(options.command), env: codexLoopbackEnv(options.env) })
+      const config = await this.call('config/read', { cwd: options.cwd, includeLayers: true })
+      const params = await options.configure(config)
+      const environment = await this.call('environment/status', { environmentId: 'local' })
+      if (environment.status !== 'ready') throw new Error('Codex local execution environment is unavailable; managed Workers cannot use a remote or unrestricted fallback.')
+      const account = await this.call('account/read', { refreshToken: false })
+      if (account.requiresOpenaiAuth && !account.account) throw new Error('Codex sign-in is required. Use the existing native CLI account setup, then explicitly try again.')
+      let result: Json, rebuilt = false
+      try {
+        result = await this.call(options.threadId ? 'thread/resume' : 'thread/start', {
+          ...params, cwd: options.cwd, ...(options.threadId ? { threadId: options.threadId, excludeTurns: true } : {}),
+        })
+      } catch (error) {
+        // Verified native absence only. Auth, provider mismatch, corruption and unknown RPC outcomes are not retries.
+        if (!options.threadId || !options.onMissingThread || !(error instanceof CodexManagedRpcError)
+          || error.code !== -32600 || error.message !== `no rollout found for thread id ${options.threadId}`) throw error
+        await options.onMissingThread()
+        result = await this.call('thread/start', { ...params, cwd: options.cwd }); rebuilt = true
+      }
+      if (!result.thread?.id || (options.threadId && !rebuilt && result.thread.id !== options.threadId)) throw new Error('Codex did not bind the requested thread')
+      this.attach(result.thread, result)
+    } catch (error) { this.fail(String(error)); throw error }
+  }
+
+  async managedCall(method: 'mcpServerStatus/list', params: Json): Promise<Json> {
+    if (!this.managed) throw new Error('Not a managed Codex session')
+    return this.call(method, { ...params, threadId: this.state.threadId })
+  }
+
+  /** The durable host outbox owns deduplication; no in-memory command-count or text truncation here. */
+  async managedInput(text: string, expectedTurnId: string | null): Promise<{ turnId: string }> {
+    if (!this.managed || this.disposed || this.state.connection !== 'ready' || !this.state.threadId) throw new Error('Codex worker is unavailable')
+    if (!text.trim()) throw new Error('Worker input is empty')
+    if (this.state.turnId !== expectedTurnId) throw new ManagedInputDeferred('turn-changed')
+    if (this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new ManagedInputDeferred('waiting')
+    const input = [{ type: 'text', text, text_elements: [] }]
+    if (expectedTurnId) {
+      await this.call('turn/steer', { threadId: this.state.threadId, expectedTurnId, input })
+      return { turnId: expectedTurnId }
+    }
+    const result = await this.call('turn/start', { threadId: this.state.threadId, input })
+    if (typeof result.turn?.id !== 'string') throw new Error('Codex input receipt has no turn identity')
+    if (this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
+    this.changed()
+    return { turnId: result.turn.id }
+  }
 
   async start(options: { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string; assetsDir?: string }): Promise<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> {
     this.cwd = options.cwd
@@ -197,10 +273,12 @@ export class CodexConversation {
   }
 
   private send(message: Json): void {
+    if (this.managed) { this.managed.send(message); return }
     if (this.disposed || this.socket?.readyState !== WebSocket.OPEN) throw new Error('Codex connection is unavailable')
     this.socket.send(JSON.stringify(message))
   }
   private call(method: string, params: Json): Promise<Json> {
+    if (this.managed) return this.managed.call(method, params)
     const id = `janusx:${++this.requestId}`
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} timed out; delivery may be unknown. Do not automatically resend.`)) }, 15000)
@@ -332,6 +410,7 @@ export class CodexConversation {
     if (method === 'serverRequest/resolved') {
       this.state.approvals = this.state.approvals.filter(approval => approval.id !== p.requestId)
       this.approvalDecisions.delete(p.requestId); this.session.questions.resolve(p.requestId)
+      this.managedAnswers.delete(p.requestId)
       this.otherRequests.delete(p.requestId); this.state.needsTerminal = this.otherRequests.size > 0
       this.changed(); return
     }
@@ -362,6 +441,7 @@ export class CodexConversation {
       for (const item of this.state.items) if (item.turnId === p.turn.id && item.status === 'inProgress') item.status = p.turn.status
       this.state.approvals = []; this.otherRequests.clear(); this.state.needsTerminal = false
       this.approvalDecisions.clear()
+      this.managedAnswers.clear()
       for (const request of this.state.questions ?? []) if (request.turnId === p.turn.id && request.blocking !== false) this.session.questions.resolve(request.id)
       if (p.turn.error) this.state.error = String(p.turn.error.message ?? 'Turn failed')
     } else if (method === 'item/started' || method === 'item/completed') this.item(p.item, p.turnId, method === 'item/completed')
@@ -377,6 +457,13 @@ export class CodexConversation {
       if (!this.state.approvals.some(approval => approval.id === message.id)) {
         const file = method.includes('fileChange')
         const { choices, decisions } = codexApprovalChoices(p, file)
+        if (this.managed) {
+          // Managed policy cannot acquire wider filesystem/network access or persist native rule changes.
+          const widening = p.additionalPermissions || p.grantRoot || p.networkApprovalContext
+          for (const choice of [...choices]) if (!['decline', 'cancel', ...(!widening ? ['accept', 'acceptForSession'] : [])].includes(choice.id)) {
+            choices.splice(choices.indexOf(choice), 1); decisions.delete(choice.id)
+          }
+        }
         this.approvalDecisions.set(message.id, decisions)
         this.state.approvals.push({ id: message.id, itemId: p.itemId, kind: file ? 'file' : 'command', description: [p.command, p.reason].filter(Boolean).join('\n').slice(0, MAX_TEXT), choices })
       }
@@ -389,7 +476,18 @@ export class CodexConversation {
           return [question.id, { answers: !row || answer.cancelled ? [] : [...row.selected.map(id => question.options.find(option => option.id === id)!.label), ...(row.text?.trim() ? [`user_note: ${row.text}`] : [])] }]
         })) } })
       }, 'event')
-    } else if (message.id !== undefined && method) { this.otherRequests.add(message.id); this.state.needsTerminal = true }
+    } else if (this.managed && method === 'mcpServer/elicitation/request' && message.id !== undefined) {
+      const elicitation = codexElicitation(p)
+      if (elicitation) {
+        this.managedAnswers.set(message.id, elicitation)
+        this.session.questions.ask({ id: message.id, turnId: p.turnId ?? undefined, questions: elicitation.questions,
+          blocking: true, cancelable: true }, answer => this.send({ id: message.id, result: elicitation.result(answer) }), 'event')
+      }
+      else { this.otherRequests.add(message.id); this.state.needsTerminal = true; this.state.error = 'Unsupported MCP request. Stop this worker to cancel it.' }
+    } else if (message.id !== undefined && method) {
+      this.otherRequests.add(message.id); this.state.needsTerminal = true
+      if (this.managed) this.state.error = `Unsupported native request: ${method}. Stop this worker to cancel it.`
+    }
     else if (method === 'error') this.state.error = String(p.error?.message ?? 'Codex error')
     else return
     this.changed()
@@ -423,7 +521,11 @@ export class CodexConversation {
     }
     this.session.guard(command, this.disposed)
     if (command.type === 'terminal-command') { await this.session.terminalCommand(command); return this.snapshot() }
-    if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
+    if (command.type === 'answer') {
+      // Reject local form errors before consuming a native callback or marking delivery uncertain.
+      this.managedAnswers.get(command.requestId)?.result(command.answer)
+      await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot()
+    }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'new') {
       if (!this.nativeInput) throw new Error('Native Codex input is unavailable')
@@ -533,6 +635,14 @@ export class CodexConversation {
   }
 
   dispose(): Promise<void> {
+    if (this.managed) {
+      if (this.stopping) return this.stopping
+      this.stopping = this.managed.stop().then(() => {
+        this.disposed = true; this.session.stop()
+        this.state.connection = 'closed'; this.state.turnId = null; this.state.approvals = []; this.changed()
+      }).catch(error => { this.stopping = undefined; this.fail(String(error)); throw error })
+      return this.stopping
+    }
     if (this.disposed) return this.stopping ?? Promise.resolve()
     this.disposed = true; this.session.stop()
     this.startup.dispose(); this.state.startup = undefined

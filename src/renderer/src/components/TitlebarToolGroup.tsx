@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 // Note: .agents/notes/workbench/service-integrations.md — declared CPA launcher in the global tools menu.
 import { ChevronDown, Globe, Puzzle } from 'lucide-react'
+import { openSuperAgent } from '@/lib/superagent-navigation'
 import { ThemedTooltip } from './ui/ThemedTooltip'
 import { MarkdownIcon } from './ui/MarkdownIcon'
+import { JanusIcon } from './ui/JanusIcon'
 import { ToolboxIcon } from './ui/ToolboxIcon'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -81,6 +83,12 @@ export function TitlebarToolGroup() {
     workbench?: boolean
     open: () => void | Promise<void>
   }> = [
+    {
+      id: 'superagent', icon: <JanusIcon className={styles.menuIcon} size={16} />,
+      label: 'Janus SuperAgent', actionLabel: t('janus:superagent.open'),
+      opened: getLeafPanes(paneTree).some(leaf => leaf.tabs.some(tab => tab.type === 'superagent')),
+      open: openSuperAgent,
+    },
     {
       id: 'browser',
       icon: <Globe className={styles.menuIcon} size={14} strokeWidth={1.5} aria-hidden="true" />,

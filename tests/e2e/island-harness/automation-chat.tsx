@@ -9,6 +9,7 @@ import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useRightToolStore } from '../../../src/renderer/src/stores/right-tools'
 import { useAppStore } from '../../../src/renderer/src/stores/app'
 import { useIslandStore } from '../../../src/renderer/src/stores/island'
+import { useSuperAgentUIStore } from '../../../src/renderer/src/stores/superagent-ui'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
 import { dailyReviewTemplate, reminderTemplate, type AutomationCard, type AutomationRun, type AutomationDefinition, type AutomationDraft, type AutomationsAPI } from '../../../src/shared/automations'
@@ -105,8 +106,9 @@ Object.assign(window, { automationChatFixture: {
   collapse: () => useIslandStore.getState().dispatch({ type: 'dismiss' }),
   focus: () => useRightToolStore.getState().focusRequest,
   state: () => ({ loaded, resources: controller?.resourceController?.resources.map(resource => resource.workspaceId), conversationId: controller?.conversationId,
-    messages: controller?.messages.map(message => message.content), activeTool: useRightToolStore.getState().activeToolId, saveCount }),
+    messages: controller?.messages.map(message => message.content), isStreaming: controller?.isStreaming, activeTool: useRightToolStore.getState().activeToolId, saveCount }),
   selectWorkspace: (id: string | null) => useWorkspaceStore.setState({ activeWorkspaceId: id }),
+  enableSuperAgent: () => useSuperAgentUIStore.getState().start(),
   showGit: () => useRightToolStore.getState().openTool('git'),
   queuePreviousRunFocus: () => useRightToolStore.setState({ focusRequest: { toolId: 'automations', itemId: 'previous-card', runId: 'previous-run', sequence: 1 } }),
   send: (text: string) => controller.send(text),
