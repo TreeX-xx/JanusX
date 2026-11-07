@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-16",
-  "updated": "2026-11-02T11:12:13Z",
+  "updated": "2026-11-07T12:46:03.452Z",
   "class": "feature",
   "tags": ["chat", "timeline", "agentX-parity", "blueprint", "launch-assistant"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
@@ -29,7 +29,7 @@
 
 完成后保留同样的段落顺序，不把全部推理重新聚到顶部、全部工具移到末尾，也不再追加一份合并正文造成重复。工具结果在原位更新，最终回答正常渲染 Markdown。过程应以紧凑的文本段和工具行呈现，不把每个 token、阶段切换或心跳都渲染成独立卡片；“时间线”描述有序过程，不要求时间轴装饰或另开日志面板。
 
-助手公开正文和最终回答始终直接可见，使用正常正文颜色。连续工具与公开推理合并为“工作过程”，从执行中起默认收起，不等待最终答案；正文、用户消息和图片结果中断分组，分组不跨轮次。摘要显示活动数与实际状态，同时保留失败、中断及截断提示；执行失败不自动展开长日志。第一次展开显示有序活动，工具参数与输出可再次展开。审批、提问、阻断错误及 Note／配置业务结果保持在折叠区外。
+助手公开正文和最终回答始终直接可见，使用正常正文颜色。连续工具与公开推理从执行中起默认收起，不等待最终答案；正文、用户消息、阻断错误和图片结果中断分组，分组不跨轮次。折叠行以最近仍运行的操作为主，全部结束后保留最后一项操作；纯推理执行时显示“正在分析”，无可用预览时显示“执行记录”。状态、计时和活动数作为辅助信息，并行活动显示额外运行数。失败工具以“含 N 项失败”保留，不把局部失败概括为整轮失败；拒绝、中断和未知状态分别显示，单项截断显示“输出已截断”。会话历史裁剪仅由顶部提示表达，不污染完整活动组。第一次展开显示有序活动，工具参数与输出可再次展开。审批、提问、阻断错误及 Note／配置业务结果保持在折叠区外。
 
 分组使用首条活动的稳定身份，后续增量和完成事件不改变用户的展开选择。JanusChat 与运行配置助手在流式回复进入历史时保存该选择，会话切换时重置。推理正文在工作过程内部使用较浅主题文字和最大 240px 的滚动区；单段手动折叠时保留实时尾行，结束后停止光标及计时。摘要沿用模型公开返回的首个有效行，不额外生成推理内容。
 
@@ -100,6 +100,8 @@ agent-event 是过程增量的唯一来源；legacy delta 仅在未使用 agent-
 - [x] AC-12: 新过程数据验证真实模型适配链路，三个入口分别验证完整流式与结束后的界面。仅向 renderer 注入 `reasoning_delta` 的测试不能作为模型事件已打通的证据。
 
 ## Verification
+
+2026-11-07 操作摘要与状态归属调整：Main 直接 xdo 自检，`conversation-output`、`native-conversation`、`codex-conversation`、`claude-conversation`、`opencode-conversation` 单测 61 项通过，`conversation-turns`、`chat-timeline` 另 8 项通过。浏览器命令 `npx playwright test tests/e2e/conversation-work-disclosure.spec.ts tests/e2e/claude-progress.spec.ts tests/e2e/chat-work-timeline.spec.ts --project=island --workers=1 --timeout=60000` 覆盖五类 CLI、三个 Chat 入口、截断与未知状态分离、局部失败、展开选择、计时和长过程滚动。计时夹具先等待会话就绪，再暂停时钟并精确推进，避免冷启动丢事件与真实时间漂移。类型、双语和相关源码 ESLint 检查通过；Notes 为 0 errors、17 条既有外部链接诊断。已检查 `artifacts/claude-progress/activity-dark.png` 与 `activity-light.png` 的 380px 布局。未配置真实 CLI 证据的集成测试及原生快照回放跳过；未执行 Electron 打包或真实供应商验收。
 
 2026-11-02 过程摘要调整：`npx vitest run tests/unit/conversation-output.test.ts tests/unit/conversation-turns.test.ts tests/unit/chat-timeline.test.ts` 的 17 项通过。浏览器按文件与 grep 分轮运行 `npx playwright test ... --project=island --workers=1 --timeout=60000`，覆盖 `chat-work-timeline` 14 项、`conversation-work-disclosure` 5 项、`conversation-virtual-history` 2 项、`janus-chat-theme` 6 项以及 `codex-conversation` 的 completed work disclosure 2 项，共 29 个不同用例通过。覆盖五类 CLI、三个 JanusX 入口、失败／中断摘要、Note 撤销、配置结果、复制、两种主题、窄窗和历史滚动。运行配置助手曾在转入历史时丢失手动展开选择，补上作用域保存后该用例连续三次通过。
 

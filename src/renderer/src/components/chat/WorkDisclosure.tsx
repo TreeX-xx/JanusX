@@ -23,21 +23,22 @@ export function WorkDisclosure({ children, summary, settled, stateKey = 'work', 
   const [open, setExpanded] = useHistoryDisclosure(`work:${stateKey}`, cache?.get(stateKey) ?? false)
   const [visited, setVisited] = useState(open)
   const bodyId = useId()
-  const status = summary.waiting ? 'waiting' : summary.running ? 'running' : summary.failed ? 'failed' : summary.interrupted ? 'interrupted' : summary.incomplete ? 'incomplete' : 'completed'
+  const status = summary.waiting ? 'waiting' : summary.running ? 'running' : summary.unknown ? 'unknown' : summary.interrupted ? 'interrupted' : 'completed'
   return <div className="conversation-work" data-settled={settled} data-status={status}>
     <button type="button" className="conversation-work-toggle" aria-expanded={open} aria-controls={bodyId}
       onClick={() => { cache?.set(stateKey, !open); setVisited(true); setExpanded(!open) }}>
       <ChevronRight size={14} aria-hidden="true" />
-      <span>{t('conversation.workLog')} · {t('conversation.work.count', { count: summary.count })}</span>
+      <span className="conversation-work-preview" title={activity?.text}>{activity?.text || t(summary.running ? 'conversation.work.analyzing' : 'conversation.workLog')}</span>
+      {activity?.startedAt !== undefined && <ConversationDuration startedAt={activity.startedAt} />}
       <span className="conversation-work-status">{t(`conversation.work.${status}`)}</span>
-      {!!summary.failed && status !== 'failed' && <span>{t('conversation.work.failures', { count: summary.failed })}</span>}
+      <span className="conversation-work-count">{t('conversation.work.count', { count: summary.count })}</span>
+      {summary.running > 1 && <span>{t('conversation.work.parallel', { count: summary.running - 1 })}</span>}
+      {!!summary.failed && <span>{t('conversation.work.failures', { count: summary.failed })}</span>}
+      {!!summary.rejected && <span>{t('conversation.work.rejections', { count: summary.rejected })}</span>}
+      {!!summary.unknown && status !== 'unknown' && <span>{t('conversation.work.unknown')}</span>}
       {!!summary.interrupted && status !== 'interrupted' && <span>{t('conversation.work.interruptions', { count: summary.interrupted })}</span>}
-      {summary.incomplete && status !== 'incomplete' && <span>{t('conversation.work.incomplete')}</span>}
+      {summary.incomplete && <span>{t('conversation.work.incomplete')}</span>}
     </button>
-    {activity && <div className="conversation-work-activity">
-      <span title={activity.text}>{activity.text}</span>
-      {activity.startedAt !== undefined && <ConversationDuration startedAt={activity.startedAt} />}
-    </div>}
     <div id={bodyId} className="conversation-work-body" hidden={!open}>{open || visited ? typeof children === 'function' ? children() : children : null}</div>
   </div>
 }

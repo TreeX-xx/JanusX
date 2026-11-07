@@ -439,7 +439,7 @@ export function register(on) {
     const turnId = currentTurn
     activeTools.set(e.tool_use_id, { turnId })
     // Only display known descriptive fields, never whole tool inputs or child prompts.
-    const target = [e.description, e.file_path ?? e.path, e.pattern ?? e.query, e.command, e.subject]
+    const target = [e.command, e.file_path ?? e.path, e.pattern ?? e.query, e.description, e.subject]
       .find(value => typeof value === 'string' && value.trim())
     const activity = [e.tool, target].filter(Boolean).join(' · ').replace(/\s+/g, ' ').slice(0, 240)
     record('tool.start', { turnId, toolUseId: e.tool_use_id, tool: e.tool,
@@ -458,8 +458,8 @@ export function register(on) {
       const result = cancelled ? { deny: 'The user cancelled this question.' } : await next(input)
       if (result.result?.backgroundTaskId && !finishedTasks.has(result.result.backgroundTaskId)) activeTools.set(e.tool_use_id, { turnId, taskId: result.result.backgroundTaskId })
       else activeTools.delete(e.tool_use_id)
-      record('tool.complete', { turnId, toolUseId: e.tool_use_id, text: result.text?.slice(0, 24000),
-        taskId: result.result?.backgroundTaskId, failed: Boolean(result.deny || result.isError) })
+      record('tool.complete', { turnId, toolUseId: e.tool_use_id, text: result.text?.slice(0, 24000), truncated: (result.text?.length ?? 0) > 24000,
+        taskId: result.result?.backgroundTaskId, denied: Boolean(result.deny), failed: Boolean(result.isError) })
       if (!result.deny && !result.isError) {
         if (e.tool === 'TodoWrite') recordPlan(turnId, result.result?.newTodos, 'todos')
         else if ((e.tool === 'TaskCreate' && result.result?.task?.id) || (e.tool === 'TaskUpdate' && result.result?.success === true)) await refreshTasks($, turnId)

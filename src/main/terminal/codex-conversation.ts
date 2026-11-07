@@ -1,3 +1,4 @@
+import { toolActivity } from '../../shared/work-output'
 import { createHash } from 'node:crypto'
 import { ConversationCatalog, type NativeCatalogEntry } from './conversation-catalog'
 import { ConversationSession, conversationState } from './conversation-session'
@@ -314,6 +315,9 @@ export class CodexConversation {
       })
       normalized.truncated ||= (raw.changes?.length ?? 0) > 100
     }
+    if (raw.type === 'commandExecution') normalized.activity = toolActivity('', { command: raw.command }) || previous?.activity
+    else if (raw.type === 'fileChange') normalized.activity = toolActivity('Edit', { path: normalized.files?.map(file => file.path).join(', ') })
+    else if (raw.type === 'mcpToolCall' || raw.type === 'dynamicToolCall') normalized.activity = toolActivity(String(raw.tool ?? raw.type), raw.arguments && typeof raw.arguments === 'object' ? raw.arguments : {})
     if (previous) Object.assign(previous, normalized)
     else this.state.items.push(normalized)
     this.trimHistory()

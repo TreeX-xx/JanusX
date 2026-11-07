@@ -263,6 +263,12 @@ Object.assign(window, { codexFixture: {
     state.items = structuredClone(snapshot.items); state.turnId = snapshot.turnId; state.turnStartedAt = snapshot.turnStartedAt
     state.approvals = []; state.plans = []; state.connection = 'ready'; publish()
   },
+  workTruncated: (kind: 'history' | 'output' | 'unknown') => {
+    state.truncated = kind === 'history'
+    state.items = [{ id: 'bounded', turnId: 'bounded', type: 'commandExecution', text: 'npm test\nPassed',
+      status: kind === 'unknown' ? 'unrecognized' : 'completed', truncated: kind === 'output' }]
+    state.turnId = null; publish()
+  },
   workPreview: (stage: 'start' | 'update' | 'idle' | 'finish') => {
     if (stage === 'start') state.turnStartedAt = Date.now()
     state.items = [

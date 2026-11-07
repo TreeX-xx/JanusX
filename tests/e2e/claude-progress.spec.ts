@@ -6,6 +6,8 @@ for (const theme of ['dark', 'light']) {
   test(`Claude activity changes while collapsed and preserves interleaved prose (${theme})`, async ({ page }) => {
     await page.clock.install()
     await page.goto(`/codex-conversation.html?initialView=conversation&engine=claude&theme=${theme}`)
+    await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10_000))
     const startedAt = await page.evaluate(() => Date.now())
     const items: ConversationItem[] = [
       { id: 'user', turnId: 't', type: 'userMessage', text: 'Check progress reporting', status: 'completed' },
@@ -15,7 +17,7 @@ for (const theme of ['dark', 'light']) {
     const show = (done = false) => page.evaluate(snapshot => (window as any).codexFixture.progressSnapshot(snapshot), { items, turnId: done ? null : 't', turnStartedAt: startedAt })
     await show()
     const toggle = page.locator('.conversation-work-toggle').first()
-    const activity = page.locator('.conversation-work-activity').first()
+    const activity = page.locator('.conversation-work-toggle').first()
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await expect(activity).toContainText('Read · src/main/terminal/claude-conversation.ts')
     await page.clock.runFor(3000)
@@ -39,8 +41,8 @@ for (const theme of ['dark', 'light']) {
     await expect(page.locator('.conversation-work-toggle')).toHaveCount(2)
     await expect(activity.getByLabel(/^Run duration/)).toHaveCount(0)
     await page.setViewportSize({ width: 380, height: 780 })
-    await expect(page.locator('.conversation-work-activity').last()).toContainText('Agent · Inspect frontend')
-    for (const row of await page.locator('.conversation-work-activity').all()) {
+    await expect(page.locator('.conversation-work-toggle').last()).toContainText('Agent · Inspect frontend')
+    for (const row of await page.locator('.conversation-work-toggle').all()) {
       expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
     }
     await page.screenshot({ path: `artifacts/claude-progress/activity-${theme}.png` })
@@ -48,7 +50,7 @@ for (const theme of ['dark', 'light']) {
     items.push({ id: 'final', turnId: 't', type: 'agentMessage', text: 'Both checks finished.', status: 'completed' })
     await show(true)
     await expect(page.getByText('Both checks finished.', { exact: true })).toBeVisible()
-    await expect(page.locator('.conversation-work-activity').getByLabel(/^Run duration/)).toHaveCount(0)
+    await expect(page.locator('.conversation-work-toggle').getByLabel(/^Run duration/)).toHaveCount(0)
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 }

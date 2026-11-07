@@ -381,7 +381,7 @@ export class ClaudeConversation {
         if (this.tools.size <= 1000) break
       }
       const item = this.item(`tool:${e.toolUseId}`, e.turnId, ['Write', 'Edit'].includes(e.tool) ? 'fileChange' : 'commandExecution')
-      item.activity = String(e.activity ?? e.tool).replace(/\s+/g, ' ').slice(0, 240)
+      item.activity = String(e.command ? `${e.tool} · ${e.command}` : e.activity ?? e.tool).replace(/\s+/g, ' ').slice(0, 240)
       item.text = String(e.command ?? e.tool).slice(0, MAX_TEXT)
       if (typeof e.path === 'string') item.files = [{ path: e.path, diff: e.old !== undefined ? `- ${e.old}\n+ ${e.text ?? ''}` : String(e.text ?? '') }]
       if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(e.tool)) this.state.needsTerminal = true
@@ -391,7 +391,11 @@ export class ClaudeConversation {
       tool.taskId = e.taskId; tool.active = (Boolean(e.taskId) && !this.finishedTasks.has(e.taskId)) || (event.type === 'tool.error' && tool.name === 'Bash')
       const item = this.state.items.find(value => value.id === `tool:${e.toolUseId}`)
       const finished = this.finishedTasks.get(e.taskId)
-      if (item) { item.text = `${item.text}\n${e.text ?? ''}`.slice(0, MAX_TEXT); item.status = tool.active ? 'inProgress' : finished === 'killed' || finished === 'missing' ? 'interrupted' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed' }
+      if (item) {
+        const text = `${item.text}\n${e.text ?? ''}`
+        item.text = text.slice(0, MAX_TEXT); item.truncated ||= text.length > MAX_TEXT || !!e.truncated
+        item.status = tool.active ? 'inProgress' : finished === 'killed' || finished === 'missing' ? 'interrupted' : e.denied ? 'denied' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed'
+      }
       if (item) this.session.discoverImages(item.id)
       this.expireToolApproval(e.toolUseId)
       this.questionReplies.delete(e.toolUseId)

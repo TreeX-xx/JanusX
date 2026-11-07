@@ -14,6 +14,14 @@ class Fixture extends NativeConversation {
   async dispose() { this.close() }
 }
 describe('native conversation controls', () => {
+  it('keeps a tool target after the result replaces its parameters', async () => {
+    const c = new Fixture()
+    c.emit({ type: 'item', item: { id: 'tool', turnId: 't', type: 'commandExecution', text: 'Bash\n{"command":"npm test","prompt":"private"}', status: 'inProgress' } })
+    expect(c.state.items[0].activity).toBe('Bash · npm test')
+    c.emit({ type: 'item', item: { id: 'tool', turnId: 't', type: 'commandExecution', text: 'Tests passed', status: 'completed' } })
+    expect(c.state.items[0].activity).toBe('Bash · npm test')
+    await c.dispose()
+  })
   it('waits for native resolution and preserves unrelated terminal attention after a late confirmation', async () => {
     vi.useFakeTimers()
     const c = new Fixture()

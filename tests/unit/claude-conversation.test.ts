@@ -16,6 +16,16 @@ function setup() {
   return { controller, wire, emit }
 }
 describe('Claude conversation control and projection', () => {
+  it('keeps denied tools distinct from errors and preserves bounded output metadata', async () => {
+    const { controller, emit } = setup()
+    emit('tool.start', { turnId: 't', toolUseId: 'denied', tool: 'Read' })
+    emit('tool.complete', { toolUseId: 'denied', denied: true, text: 'User denied' })
+    expect(controller.state.items.find(item => item.id === 'tool:denied')?.status).toBe('denied')
+    emit('tool.start', { turnId: 't', toolUseId: 'large', tool: 'Read' })
+    emit('tool.complete', { toolUseId: 'large', truncated: true, text: 'Partial output' })
+    expect(controller.state.items.find(item => item.id === 'tool:large')).toMatchObject({ status: 'completed', truncated: true })
+    await controller.dispose()
+  })
   it('keeps Ultracode separate from effort and confirms native events before updating', async () => {
     const { controller, wire, emit } = setup()
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })

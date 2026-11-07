@@ -328,6 +328,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 follow.current = false; setError('')
                 setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
               } : undefined} /></>}</div>
+              : item.type === 'error' ? <p className={styles.error} key={item.id} role="alert">{item.text}</p>
               : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
                 <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
                   <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
@@ -361,7 +362,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               return <div key={group.items[0].id}>
                 {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
                   waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
-                  incomplete: group.summary.incomplete || !!snapshot.truncated }} settled={group.settled && !snapshot.truncated}>{renderNodes}</WorkDisclosure> : renderNodes()}
+                  }} settled={group.settled}>{renderNodes}</WorkDisclosure> : renderNodes()}
                 {lastGroup && changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
               </div>
             })} />}

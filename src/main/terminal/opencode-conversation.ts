@@ -1,3 +1,4 @@
+import { toolActivity } from '../../shared/work-output'
 import { spawn, execFile, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes } from 'node:crypto'
@@ -380,6 +381,7 @@ export class OpenCodeConversation extends NativeConversation {
                 const isTool = part.type === 'tool'
                 const text = isTool ? `${part.name}\n${JSON.stringify(part.state.input ?? {})}\n${(part.state.content ?? []).filter((c: Json) => c.type === 'text').map((c: Json) => c.text).join('\n')}` : part.text ?? ''
                 this.receive({ type: 'item', item: { id: `${msg.id}:${index}`, turnId: turn, type: isTool ? 'commandExecution' : part.type === 'reasoning' ? 'reasoning' : 'agentMessage', text,
+                  activity: isTool ? toolActivity(part.name, part.state.input ?? {}) : undefined,
                   status: isTool ? part.state.status === 'completed' ? 'completed' : part.state.status === 'error' ? 'failed' : 'inProgress' : msg.error ? 'failed' : msg.time.completed ? 'completed' : 'inProgress', receivedAt: msg.time.created } })
               }
             } else if (msg.type === 'idle') {
