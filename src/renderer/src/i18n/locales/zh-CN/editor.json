@@ -188,6 +188,7 @@
     "collapsePanel": "收起文件面板",
     "expandPanel": "显示文件预览",
     "moreActions": "更多文件操作",
+    "pathCopied": "已复制文件路径",
     "detachToFloat": "返回独立浮窗",
     "save": "保存",
     "closeTab": "关闭 {{name}}",

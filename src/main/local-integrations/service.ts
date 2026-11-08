@@ -21,6 +21,7 @@ interface Dependencies {
   plugins?: () => InstalledPlugin[]
   trashItem?: (path: string) => Promise<void>
   backupDirectory?: string
+  onMcpChange?: (client: LocalIntegrationQuery['client'], name: string) => Promise<void>
 }
 interface PendingRemoval { preview: LocalIntegrationRemoval; query: LocalIntegrationQuery; revision: string; treeRevision?: string }
 export async function readIntegrationFile(path: string): Promise<string> {
@@ -44,7 +45,7 @@ export async function readIntegrationFile(path: string): Promise<string> {
 }
 
 /** Discovery follows linked skills, but writes never follow a link outside the selected source. */
-async function writablePath(path: string, boundary: string): Promise<boolean> {
+export async function writablePath(path: string, boundary: string): Promise<boolean> {
   if (outside(relative(boundary, path))) return false
   let cursor = resolve(path)
   while (true) {
@@ -59,7 +60,7 @@ async function writablePath(path: string, boundary: string): Promise<boolean> {
 const issue = (error: unknown) => error instanceof IntegrationError ? error.code : 'read-failed'
 
 // Native config can contain credentials. Preserve its mode and keep new files private.
-async function writeIntegrationFile(path: string, text: string) {
+export async function writeIntegrationFile(path: string, text: string) {
   const previous = await lstat(path).catch(error => { if (missing(error)) return undefined; throw error })
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
   try {
@@ -183,6 +184,7 @@ export class LocalIntegrationService {
       }
       if (env.OPENCODE_CONFIG) await source(resolve(env.OPENCODE_CONFIG), 'mcp', 'user', dirname(resolve(env.OPENCODE_CONFIG)), ['mcp'])
     } else {
+      await source(join(home, '.janus', 'mcp.json'), 'mcp', 'user', home, ['mcpServers'])
       for (const plugin of this.deps.plugins?.() ?? []) {
         for (const skill of plugin.manifest.contributes.skills ?? []) {
           if (skill.scope === 'project' && !root) continue
@@ -278,6 +280,7 @@ export class LocalIntegrationService {
       const backup = await this.backupConfiguration(entry.source.raw)
       if (!await writablePath(entry.view.path, entry.source.boundary) || hash(await readIntegrationFile(entry.view.path)) !== revision) throw new IntegrationError('changed')
       await writeIntegrationFile(entry.view.path, updated)
+      await this.deps.onMcpChange?.(query.client, entry.view.name)
       return { method: 'config', ...backup }
     })
   }
@@ -324,6 +327,7 @@ export class LocalIntegrationService {
       await mkdir(dirname(path), { recursive: true })
       if (!await writablePath(path, source.boundary) || hash(await readIntegrationFile(path)) !== expected) throw new IntegrationError('changed')
       await writeIntegrationFile(path, text)
+      if (source.kind === 'mcp') await this.deps.onMcpChange?.(input.query.client, input.name)
       return this.read(input.query, id)
     })
   }

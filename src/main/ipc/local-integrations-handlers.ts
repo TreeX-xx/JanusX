@@ -7,6 +7,7 @@ import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
 import type { PluginService } from '../plugins/service'
 import { LocalIntegrationService } from '../local-integrations/service'
 import { probeMcp } from '../local-integrations/probe'
+import { disconnectBrowserTerminalClient } from '../browser/terminal-service'
 
 const querySchema = z.object({ client: z.enum(LOCAL_INTEGRATION_CLIENTS), scope: z.enum(['user', 'workspace']), workspaceId: z.string().regex(/^[\w-]{1,128}$/).optional() }).strict()
 const idSchema = z.string().min(1).max(256)
@@ -15,7 +16,7 @@ const saveSchema = z.object({ query: querySchema, sourceId: idSchema, entryId: i
 
 // Note: only trusted application windows may manage local native client files — .agents/notes/workbench/local-skills-mcp.md
 export function registerLocalIntegrationHandlers(getAllowedWindows: () => readonly BrowserWindow[], resolveWorkspace: ResolveWorkspaceRoot, getPlugins: () => PluginService | undefined) {
-  const service = new LocalIntegrationService({ home: homedir(), env: process.env, resolveWorkspace, plugins: () => getPlugins()?.snapshot().plugins ?? [], trashItem: path => shell.trashItem(path), backupDirectory: join(app.getPath('userData'), 'local-integrations-backups') })
+  const service = new LocalIntegrationService({ home: homedir(), env: process.env, resolveWorkspace, plugins: () => getPlugins()?.snapshot().plugins ?? [], trashItem: path => shell.trashItem(path), backupDirectory: join(app.getPath('userData'), 'local-integrations-backups'), onMcpChange: disconnectBrowserTerminalClient })
   const handle = (channel: string, operation: (...args: unknown[]) => Promise<unknown>) => ipcMain.handle(channel, (event, ...args) => {
     if (event.senderFrame !== event.sender.mainFrame || !getAllowedWindows().some(window => !window.isDestroyed() && window.webContents === event.sender)) throw new Error('Local integration request is not authorized')
     return operation(...args)
@@ -36,4 +37,5 @@ export function registerLocalIntegrationHandlers(getAllowedWindows: () => readon
       return await probeMcp(config, cwd)
     } finally { probing = false }
   })
+  return service
 }

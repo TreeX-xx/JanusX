@@ -5,6 +5,9 @@ const h = vi.hoisted(() => {
   type Handler = (...args: unknown[]) => void
 
   class MockWebContents {
+    static nextId = 1
+    id = MockWebContents.nextId++
+    isDestroyed = vi.fn(() => false)
     handlers: Record<string, Handler[]> = {}
     loadURL = vi.fn(() => Promise.resolve())
     reload = vi.fn()
@@ -149,6 +152,21 @@ describe('BrowserSurfaceManager', () => {
   it('rejects duplicate surface ids', () => {
     manager.createSurface({ surfaceId: 's1', carrier: 'pane' })
     expect(manager.createSurface({ surfaceId: 's1', carrier: 'pane' }).success).toBe(false)
+  })
+
+  it('reuses an empty ordinary surface and excludes service and destroyed guests from control', () => {
+    manager.createSurface({ surfaceId: 'browser', carrier: 'pane' })
+    manager.closeTab('browser', manager.getState('browser')!.activeTabId!)
+    manager.createSurface({ surfaceId: 'cpa', carrier: 'pane' }, { partition: 'persist:cpa', httpOnly: true })
+    const id = manager.automationNewTab('https://example.com/')
+    expect(manager.automationTabs().map(tab => [tab.surfaceId, tab.contents.id])).toEqual([['browser', id]])
+    const listener = vi.fn()
+    const unsubscribe = manager.onShowRequested(listener)
+    manager.automationShow('browser', manager.getState('browser')!.activeTabId!)
+    expect(listener).toHaveBeenCalledWith('browser')
+    unsubscribe()
+    h.MockWebContentsView.instances.at(-1)!.webContents.isDestroyed.mockReturnValue(true)
+    expect(manager.automationTabs()).toEqual([])
   })
 
   it('keeps blank native tabs detached so the host start page remains usable', () => {

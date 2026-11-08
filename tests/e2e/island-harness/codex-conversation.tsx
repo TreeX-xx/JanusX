@@ -162,6 +162,15 @@ Object.assign(window, { codexFixture: {
       { id: 'text', text: 'Type something', options: [], allowText: true },
     ] }]; publish()
   },
+  asyncQuestions: () => {
+    state.turnId = 'active-turn'
+    state.turnStartedAt = Date.now()
+    state.items = [{ id: 'active-turn:ask', turnId: 'active-turn', type: 'agentMessage', text: 'Which direction?\n- First\n- Second', status: 'completed' }]
+    state.questions = [{ id: 'async:active-turn:ask', version: state.revision, blocking: false, cancelable: false, status: 'pending', questions: [
+      { id: '0', text: 'Which direction?', allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] },
+      { id: '1', text: 'Notes', allowText: true, options: [] },
+    ] }]; publish()
+  },
   expireQuestions: () => { state.questions = []; publish() },
   approvalChoices: () => {
     state.approvals = [{ id: 'approval', itemId: 'tool', kind: 'command', description: 'npm test', choices: [

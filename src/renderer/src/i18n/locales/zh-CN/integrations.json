@@ -12,7 +12,7 @@
   "addMcp": "添加 MCP",
   "userHint": "用户级资源可供多个工作区使用。选择工作区，可同时查看该项目与继承的用户级资源。",
   "workspaceHint": "同时展示项目资源与继承的用户级资源；编辑继承项会影响其他使用它的工作区。",
-  "janusHint": "Janus 技能由插件提供，此处可查看内容与来源。MCP 尚未接入 Janus 的独立配置。",
+  "janusHint": "Janus 技能由插件提供；Janus CLI 的用户级 MCP 配置读取自 ~/.janus/mcp.json。",
   "managePlugins": "管理插件",
   "saved": "已保存。客户端可能需要重新加载或开启新会话后生效。",
   "list": "资源列表",

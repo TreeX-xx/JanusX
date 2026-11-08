@@ -5,6 +5,7 @@ import { migrateLegacyPortableProfile } from './bootstrap/profile-migration'
 import { configureStartupDiagnostics, logStartupFailure } from './bootstrap/startup-diagnostics'
 import { join } from 'node:path'
 import { registerPluginScheme } from './plugins/scheme'
+import { configureBrowserDebugging } from './browser/devtools-runtime'
 
 registerPluginScheme()
 
@@ -16,6 +17,7 @@ const isSmokeTest = isLlmRuntimeSmoke || isModuleGraphSmoke
 configureApplicationProfile(isHookClient || isSmokeTest)
 if (!isHookClient && !isSmokeTest) configureStartupDiagnostics()
 configureChromiumSessionPaths(isHookClient || isSmokeTest)
+if (!isHookClient && !isSmokeTest) configureBrowserDebugging()
 
 // AC1 / AC4: process-level exception fences.
 // - Fatal exceptions during bootstrap (before app services are up) exit the
@@ -226,7 +228,8 @@ async function bootstrapApp(): Promise<void> {
     killTerminals: () => terminalManager.killAll(),
     killAgents: () => agentStreamManager.killAll(),
     stopProjects: async () => {
-      await Promise.all([stopAllProjects(), import('./ipc/agent-runtime-handlers').then(module => module.closeAgentMcp())])
+      await Promise.all([stopAllProjects(), import('./ipc/agent-runtime-handlers').then(module => module.closeAgentMcp()),
+        import('./browser/control-service').then(module => module.stopBrowserControl())])
     },
     stopOfficeWatches: () => officeWatchPool.stopAll(),
     disposeOfficeArtifactIndexes: () => officeArtifactIndex.disposeAll(),

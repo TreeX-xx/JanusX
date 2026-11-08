@@ -32,6 +32,7 @@ export const useBrowserStore = create<BrowserStore>((set) => ({
 
 /*-- 订阅主进程 browser 事件，窗口级一次性安装（main.tsx）；窗口生命周期即订阅生命周期 --*/
 export function initBrowserEventSubscriptions(): () => void {
+  const offShow = window.electron.browser.onShowRequested?.(surfaceId => useGlobalToolsStore.getState().attachBrowser(surfaceId))
   const offState = window.electron.browser.onStateChanged((state) => {
     const prev = useBrowserStore.getState().surfaces[state.surfaceId]
     useBrowserStore.getState().applySurfaceState(state)
@@ -48,6 +49,7 @@ export function initBrowserEventSubscriptions(): () => void {
     useBrowserStore.getState().applySurfaceState({ ...current, agentControlled: active })
   })
   return () => {
+    offShow?.()
     offState()
     offAgentControl()
   }

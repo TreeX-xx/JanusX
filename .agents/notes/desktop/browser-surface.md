@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-27T15:52:43.428Z",
+  "updated": "2026-11-05T17:51:55Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -35,7 +35,7 @@ Agents manipulate code and files but never touch the live web runtimes their cha
 
 ## Decision
 
-The workspace embeds a real browsing panel on isolated per-tab views with a persistent partition. Entry points span dedicated tabs, sidebar shortcuts, running-project links, editor handoff, and terminal URL recognition. Sandboxed local preview keeps serving static artifacts while the full surface handles scripted pages, routing, and dev servers. Agent operation of the surface stays out: no page scripting from agents, no host interface exposure, and no main-side client integration in this scope.
+The workspace embeds a real browsing panel on isolated per-tab views with a persistent partition. Entry points span dedicated tabs, sidebar shortcuts, running-project links, editor handoff, and terminal URL recognition. Sandboxed local preview keeps serving static artifacts while the full surface handles scripted pages, routing, and dev servers. Agent operation now uses the separate [Chrome DevTools MCP adapter](./browser-control.md); it shares ordinary native tabs while preserving the sandbox and excluding service surfaces. Arbitrary agent JavaScript and page access to host interfaces remain unavailable.
 
 ## Alternatives considered
 
@@ -46,9 +46,9 @@ The workspace embeds a real browsing panel on isolated per-tab views with a pers
 ## Consequences
 
 - **Gains**: Dev servers, local previews, and documentation resolve inside the workspace beside the code that serves them.
-- **Costs and limits**: Each tab carries a full view process, so tab count needs bounding; agent-driven operation awaits its own protocol, switch, and audit pass.
+- **Costs and limits**: Each tab carries a full view process, so tab count needs bounding. Agent control has separate settings, target ownership and approval rules maintained by its adapter.
 
-Agent-driven operation is explored separately in [browser and computer use](./browser-computer-use.md), including codeg/Orca references, shared CLI/MCP access and runtime delivery. That draft does not change the implemented scope or the separate [user-driven element picker](./requirements/element-picker-ai-edit.md) requirements.
+Implemented agent control and its real Electron verification belong to [browser control](./browser-control.md). Broader desktop control, external CLI/MCP access and runtime delivery remain in [browser and computer use](./browser-computer-use.md). The [user-driven element picker](./requirements/element-picker-ai-edit.md) remains a separate requirement.
 
 ## Global tool ownership
 

@@ -54,6 +54,7 @@ export interface UpdateWorkspaceDto {
 }
 
 export interface GlobalConfig {
+  controlSettings?: import('../../shared/ipc/control').ControlSettings
   cpaSettings?: unknown // Only read by the official CPA plugin's one-time legacy migration.
   theme: AppTheme
   /** 历史石板色迁移标记，仅兼容旧配置；不再用于改写用户主题。 */

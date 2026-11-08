@@ -1,5 +1,8 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { configService } from '../config/service'
+import { BROWSER_CLIENTS, CONTROL_CHANNELS } from '../../shared/ipc/control'
+import { browserTerminalClients } from '../browser/terminal-service'
+import { controlStatus, stopBrowserControl, checkComputerRuntime } from '../browser/control-service'
 import { remoteNotificationDispatcher } from '../remote-notifications/dispatcher'
 import { redactErrorText } from '../remote-notifications/secret-redaction'
 import type { KnowledgeSettings } from '../../shared/knowledge-settings'
@@ -15,7 +18,33 @@ import { AGENT_SETTINGS_CHANNELS, NOTIFICATION_SETTINGS_CHANNELS } from '../../s
 import { EXPERIMENTAL_CHANNELS, type ExperimentalFeatures } from '../../shared/ipc/experimental'
 import { THEME_CHANNELS, type AppTheme } from '../../shared/ipc/theme'
 
-export function registerSettingsHandlers(): void {
+export function registerSettingsHandlers(getAllowedWindows: () => readonly BrowserWindow[] = () => []): void {
+  const controlHandle = (channel: string, operation: (...args: any[]) => unknown) => ipcMain.handle(channel, (event, ...args) => {
+    if (event.senderFrame !== event.sender.mainFrame || !getAllowedWindows().some(window => !window.isDestroyed() && window.webContents === event.sender)) throw new Error('Control settings request is not authorized')
+    return operation(...args)
+  })
+  controlHandle(CONTROL_CHANNELS.clients, () => browserTerminalClients().status())
+  controlHandle(CONTROL_CHANNELS.changeClient, async (input: unknown) => {
+    const { z } = await import('zod')
+    const parsed = z.object({ client: z.enum(BROWSER_CLIENTS), expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), action: z.enum(['import', 'remove']) }).strict().parse(input)
+    await browserTerminalClients().change(parsed)
+  })
+  controlHandle(CONTROL_CHANNELS.probeClient, async (client: unknown, revision: unknown) => {
+    const { z } = await import('zod')
+    return browserTerminalClients().probe(z.enum(BROWSER_CLIENTS).parse(client), z.string().regex(/^[a-f0-9]{64}$/).parse(revision))
+  })
+  controlHandle(CONTROL_CHANNELS.get, () => configService.getControlSettings())
+  controlHandle(CONTROL_CHANNELS.status, () => controlStatus())
+  controlHandle(CONTROL_CHANNELS.stop, () => stopBrowserControl())
+  controlHandle(CONTROL_CHANNELS.checkComputer, () => checkComputerRuntime())
+  controlHandle(CONTROL_CHANNELS.update, async (input: unknown) => {
+    const { z } = await import('zod')
+    const settings = z.object({ browser: z.object({ enabled: z.boolean(), timeoutMs: z.number().int().min(3000).max(60000) }).strict().optional(),
+      computer: z.object({ executable: z.string().max(4096) }).strict().optional() }).strict().parse(input)
+    const next = await configService.updateControlSettings(settings)
+    if (!next.browser.enabled) await stopBrowserControl()
+    return next
+  })
   ipcMain.handle(AGENT_SETTINGS_CHANNELS.get, async () => ({
     approvalMode: await configService.getAgentApprovalMode(),
     agentMaxSteps: await configService.getAgentMaxSteps(),

@@ -24,6 +24,7 @@ import type { SuperAgentAPI } from '../../../shared/ipc/superagent'
 import type { MemoAPI } from '../../../shared/ipc/memo'
 import type { RoundtableAPI } from '../../../shared/ipc/roundtable'
 import type { AgentSettingsAPI, NotificationSettingsAPI } from '../../../shared/ipc/settings'
+import type { ControlAPI } from '../../../shared/ipc/control'
 import type { ExperimentalAPI } from '../../../shared/ipc/experimental'
 import type { ThemeAPI } from '../../../shared/ipc/theme'
 import type { DesktopToastAPI, DialogAPI, SystemAPI, WindowAPI } from '../../../shared/ipc/system'
@@ -47,6 +48,7 @@ interface ElectronAPI {
   terminal: TerminalAPI
   project: ProjectAPI
   browser: BrowserAPI
+  controls: ControlAPI
   plugins?: PluginHostAPI
   knowledge: KnowledgeAPI
   janus: JanusAPI

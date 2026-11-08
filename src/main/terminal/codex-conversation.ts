@@ -10,8 +10,8 @@ import WebSocket, { WebSocketServer } from 'ws'
 import { CodexStartup } from './codex-startup'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot, ConversationModelOption } from '../../shared/conversation-display'
 import { CODEX_CONVERSATION_CAPABILITIES } from '../../shared/conversation-display'
-import { codexApprovalChoices, codexQuestions } from './codex-questions'
-import { hasBlockingQuestions } from '../../shared/conversation-questions'
+import { codexApprovalChoices, codexAsyncQuestions, codexAsyncReplyText, codexQuestions } from './codex-questions'
+import { hasBlockingQuestions, questionAnswerValues } from '../../shared/conversation-questions'
 import { CodexManagedTransport, CodexManagedRpcError, type CodexRpc } from './codex-managed-transport'
 import { codexElicitation } from './codex-elicitation'
 
@@ -72,6 +72,7 @@ export class CodexConversation {
   private pending = new Map<string, { method: string; resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
   private nativeThreadRequests = new Set<string | number>()
   private otherRequests = new Set<string | number>()
+  private asyncQuestionsSeen = new Set<string>()
   private approvalDecisions = new Map<string | number, Map<string, unknown>>()
   private lastCompletedTurnId?: string
   private endpoint = ''
@@ -306,13 +307,14 @@ export class CodexConversation {
       this.state.needsTerminal = false; this.state.truncated = false; this.state.controlEpoch++
       this.otherRequests.clear()
       this.session.questions.clear(); this.approvalDecisions.clear()
+      this.asyncQuestionsSeen.clear()
     }
     this.state.threadId = thread.id
     this.state.serviceTier = undefined
     this.updateSettings(settings)
     this.bind(thread.id, thread.path ?? undefined)
     for (const turn of thread.turns ?? []) {
-      for (const item of turn.items ?? []) this.item(item, turn.id, turn.status !== 'inProgress')
+      for (const item of turn.items ?? []) this.item(item, turn.id, turn.status !== 'inProgress', true)
       if (turn.status === 'inProgress') this.state.turnId = turn.id
     }
     this.state.connection = 'ready'; this.changed()
@@ -361,7 +363,7 @@ export class CodexConversation {
     return this.loadingModels
   }
 
-  private item(raw: Json, turnId: string, done: boolean): void {
+  private item(raw: Json, turnId: string, done: boolean, history = false): void {
     if (typeof raw.id !== 'string' || typeof raw.type !== 'string') return
     const key = `${turnId}:${raw.id}`
     const previous = this.state.items.find(item => item.id === key)
@@ -373,6 +375,10 @@ export class CodexConversation {
       editable: raw.type === 'userMessage' ? raw.content?.every((part: Json) => part.type === 'text') : undefined,
       text: typeof text === 'string' ? text.slice(0, MAX_TEXT) : '', status: raw.status ?? (done ? 'completed' : 'inProgress'),
       truncated: typeof text === 'string' && text.length > MAX_TEXT }
+    if (raw.type === 'userMessage') {
+      const reply = typeof text === 'string' ? codexAsyncReplyText(text) : undefined
+      if (reply !== undefined) { normalized.text = reply.slice(0, MAX_TEXT); normalized.truncated = reply.length > MAX_TEXT; normalized.editable = false }
+    }
     if (raw.type === 'imageGeneration') {
       normalized.text = String(raw.revisedPrompt ?? '').slice(0, MAX_TEXT)
       normalized.status = raw.failure || raw.status === 'failed' ? 'failed' : raw.status === 'interrupted' ? 'interrupted' : done ? 'completed' : 'inProgress'
@@ -398,6 +404,29 @@ export class CodexConversation {
     else if (raw.type === 'mcpToolCall' || raw.type === 'dynamicToolCall') normalized.activity = toolActivity(String(raw.tool ?? raw.type), raw.arguments && typeof raw.arguments === 'object' ? raw.arguments : {})
     if (previous) Object.assign(previous, normalized)
     else this.state.items.push(normalized)
+    if (raw.type === 'agentMessage' && (done || history)) {
+      const questions = codexAsyncQuestions(raw.questions)
+      const id = `async:${key}`
+      if (questions && history) this.asyncQuestionsSeen.add(id)
+      if (questions && !this.asyncQuestionsSeen.has(id)) {
+        this.asyncQuestionsSeen.add(id)
+        this.session.questions.ask({ id, itemId: raw.id, turnId, questions, blocking: false, cancelable: false }, async answer => {
+          const replies = questions.map(question => ({ questionItemId: JSON.stringify(['request_user_input_async', raw.id, Number(question.id)]),
+            question: question.text, answer: questionAnswerValues(question, answer.answers.find(row => row.id === question.id)!).join('\n') }))
+          // The native desktop envelope also dismisses these questions in the
+          // attached TUI; plain prose would leave its question editor stale.
+          const text = `<send_user_message_question_reply>${JSON.stringify(replies)}</send_user_message_question_reply>`
+          const input = [{ type: 'text', text, text_elements: [] }]
+          // Native async answers are ordinary user input. Pin an active turn;
+          // never retry a failed steer as a new turn after a completion race.
+          if (this.state.turnId) await this.call('turn/steer', { threadId: this.state.threadId, expectedTurnId: this.state.turnId, input })
+          else {
+            const result = await this.call('turn/start', { threadId: this.state.threadId, input })
+            if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
+          }
+        })
+      }
+    }
     this.trimHistory()
     if (raw.type === 'imageGeneration' && done && normalized.status === 'completed') this.session.attachImages(key, [{ path: raw.savedPath ?? undefined, data: raw.result || undefined }])
     else if (done) this.session.discoverImages(key)
@@ -530,9 +559,15 @@ export class CodexConversation {
     this.session.guard(command, this.disposed)
     if (command.type === 'terminal-command') { await this.session.terminalCommand(command); return this.snapshot() }
     if (command.type === 'answer') {
+      const asynchronous = typeof command.requestId === 'string' && this.asyncQuestionsSeen.has(command.requestId)
+      if (asynchronous
+        && (this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal)) throw new Error('Conversation is busy or needs terminal input')
       // Reject local form errors before consuming a native callback or marking delivery uncertain.
       this.managedAnswers.get(command.requestId)?.result(command.answer)
-      await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot()
+      if (asynchronous) { this.state.submitting = true; this.changed() }
+      try { await this.session.questions.answer(command.requestId, command.version, command.answer) }
+      finally { if (asynchronous) { this.state.submitting = false; this.changed() } }
+      return this.snapshot()
     }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'new') {
@@ -606,6 +641,7 @@ export class CodexConversation {
             this.state.items = this.state.items.slice(0, index)
             const retained = new Set(this.state.items.map(item => item.turnId))
             this.state.plans = this.state.plans?.filter(plan => retained.has(plan.turnId))
+            for (const request of this.state.questions ?? []) if (request.blocking === false && request.turnId && !retained.has(request.turnId)) this.session.questions.resolve(request.id)
             this.changed()
           }
           const imagePaths = command.type === 'send' ? command.imagePaths ?? [] : []

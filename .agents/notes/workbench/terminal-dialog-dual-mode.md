@@ -25,6 +25,18 @@ SuperAgent 复用 CodexConversation 的原生事件／请求投影，通过独�
 
 该通路只允许当前工作 profile 内的原生决定，补充经过持久输入队列，未知请求明确显示阻塞并可停止，不提供终端兜底。原有终端双模式的启动、命令、回答和切换规则继续适用于下文范围，不因复用协议处理而改变。
 
+## Codex 异步提问
+
+`request_user_input_async` 通过 `item/completed` 的 `agentMessage.questions` 下发 `title` 与字符串选项；它不是等待答案的 `item/tool/requestUserInput` RPC。此前归一化只保留消息正文，造成选项显示为文字。适配器现在把实时完成消息中的问题投影到公共问答卡，支持单选及自定义文字；问题不阻塞普通输入，也不会随原轮次完成而消失。重复事件不会重新打开已提交的卡片。
+
+答案使用 Codex 原生 `<send_user_message_question_reply>` 格式，包含 `questionItemId`、题目与答案；问题身份为序列化的 `["request_user_input_async", messageId, index]`。运行中通过固定目标的 `turn/steer` 发送，空闲时通过 `turn/start` 发送；失败不自动改用另一通道重发。投递期间串行化输入，成功后清卡；不确定投递保留 unknown 状态并交还终端核查。用户消息回显转换为可读题目和答案，避免显示协议包装。原生依据为本机 0.166.0 生成的 app-server schema，以及官方 [异步回答解析](https://github.com/openai/codex/blob/main/codex-rs/tui/src/async_question_reply.rs) 和 [问题身份](https://github.com/openai/codex/blob/main/codex-rs/tui/src/bottom_pane/async_questions/state.rs)。
+
+恢复线程时只展示历史消息，不把历史问题重新标记为待答：历史消息没有可靠的未回答状态。此修复面向本次连接收到的实时异步提问；不解析普通正文猜测选项，不更改用户全局实验开关。此前 `default_mode_request_user_input` 测试仅覆盖同步问答，不能证明异步链路可用。
+
+验证（2026-11-06）：`codex-async-questions`、`conversation-questions`、`codex-conversation` 单测覆盖实时投影、跨轮回答、回复格式、重复／畸形／外线程事件及投递失败；真实 Windows Codex 0.166.0、隔离配置和 localhost Responses 夹具验证运行中／空闲异步回答及同步问答回归，入口为设置 `JANUSX_TEST_CODEX_BIN` 后运行 `npx vitest run tests/unit/codex-conversation-cli.test.ts -t 'asynchronous|answers native request'`。夹具使用原生模型目录中的模型身份以取得异步工具能力，所有模型请求仍发往本地服务。`conversation-questions.spec.ts` 七项浏览器用例通过，包含运行中可点击、结束后保留、中文答案、保留主输入草稿与窄窗主题回归；未用真实供应商账户或安装包人工验收。
+
+补充检查：相关单测 30 项、真实 CLI 3 项、浏览器 7 项通过；`npm run typecheck`、相关源码 ESLint、`npm run build:check` 与 `npm run check:notes` 通过。Notes 检查仍报告仓库已有的 17 项显式外部链接诊断，0 errors。
+
 ## Claude 对话启动目录信任
 
 Claude 对话优先启动时，原生 `--bg` 返回明确的目录未信任错误后，适配器保持 starting，在现有 ConversationStartupPanel 展示 Claude 标识、解析到磁盘真实位置的完整目录与「信任并继续／取消」。取消暂停启动并保留草稿，可从同一页面继续。确认期间禁止切换显示模式；过期步骤、重复确认与控制权变化不能触发写入。关闭尚未创建 PTY 的会话会唤醒并终止等待，避免挂住创建与清理。
