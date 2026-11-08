@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-11-06",
-  "updated": "2026-11-06T10:18:14Z",
+  "updated": "2026-11-07T12:27:09Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -42,7 +42,7 @@
 
 ## Scope
 
-P7、P8 于 2026-11-06 按用户 xdo 授权一并实施，Main Agent 直接执行。界面复用现有 JanusChat、全局工具树、项目终端树和通知阅读器；右侧 Worker 独立收起与调宽，窄窗仍保留终端使用空间。离线 HTML 是历史探索，本轮不要求更新。产品实现与布局边界归[界面决策](superagent-interface.md)，固定编号归[需求](requirements/janus-superagent.md)。
+P7、P8 于 2026-11-06 按用户 xdo 授权一并实施，Main Agent 直接执行。界面复用现有 JanusChat、全局工具树、项目终端树和通知阅读器；右侧 Worker 独立收起与调宽，窄窗仍保留终端使用空间。原离线 HTML 保留为历史探索；用户后续要求的当前界面演示另行交付，使用明确标识的模拟数据。产品实现与布局边界归[界面决策](superagent-interface.md)，固定编号归[需求](requirements/janus-superagent.md)。
 
 ## Evidence
 
@@ -83,6 +83,24 @@ Island／全局分屏回归首轮 45 项通过、2 项跳过、2 项失败，两
 同轮严格类型检查、主题检查和应用构建通过，定向 ESLint 0 错误、4 条既有警告；日志位于 `artifacts/janus-conversation-{typecheck,theme,lint,build-final,browser,browser-final,desktop}.log`。人工目视核对 Island 的深色、浅色、Planche 和窄窗截图，以及真实 Electron 中 SuperAgent 深浅色截图，保存在 `artifacts/janus-conversation/`；520 px 视口中聊天区宽度与滚动宽度均为 388 px，无横向溢出。该轮桌面场景使用受控模型夹具，没有重跑付费真实模型验收。
 
 2026-11-06 开合控件与入口命名复核：Worker 使用唯一的文字开关，与工具区总开关分组，移除面板标题中的重复按钮；首页及 Island 启动入口显示「Super Agent」。`npm run test:e2e:desktop -- tests/e2e/desktop-superagent.spec.ts --workers=1` 最终 2 项通过，覆盖两层开合互不影响、恢复 Worker 状态、终端输入、窄窗草稿与输入焦点，以及原有原生执行和重启恢复。首轮为 1 项通过、1 项失败，原因是新增断言错误要求窄窗返回对话后焦点留在开关；现有对话行为会自动聚焦输入框，断言对齐后最终通过，产品焦点逻辑未改。严格类型检查、定向 ESLint、主题、双语翻译检查及最终应用构建通过。日志为 `artifacts/superagent-controls-{typecheck,lint,theme,i18n,build-final,desktop,desktop-final}.log`；人工目视核对的深浅主题、展开／收起与窄窗截图位于 `artifacts/superagent-controls/`。本轮未重跑付费真实模型验收。
+
+2026-11-06 选项样式与当前界面演示复核：模型、供应商、权限菜单及提问卡片统一为中性对话主题；Worker 数字输入样式不再影响问答控件。`island-interaction.spec.ts` 与 `janus-chat-theme.spec.ts` 以 `--grep 'menus|model menu|shared|compact composer'` 运行，13 项通过；主题检查及最终应用构建通过。浏览器夹具直接挂载生产 JanusChat，4 组检查通过，覆盖深色、浅色、Planche 的选项色值与截图、520 px 下的模型选择和问答提交，无横向溢出。结果与截图位于 `artifacts/superagent-options/`，日志为 `artifacts/superagent-options-{browser,theme,build-final,preview-check}.log`。本轮没有重跑完整 Electron 或付费真实模型验收。
+
+单文件 `_design/superagent-current/SuperAgent.html` 的 8 组交互检查通过，覆盖五个 Worker 状态、容量与排队、回答后继续同一工作、两层开合、详情、菜单、草稿保留、窄窗终端回显与首页入口。页面没有脚本错误或外部 HTTP 请求；深浅色、问答、多 Worker、窄窗和极窄浏览器截图已目视核对，位于 `artifacts/superagent-current-demo/`。演示使用模拟执行和终端回显，不代替产品原生执行证据；极窄浏览器适配只便于查看演示，不构成桌面应用的移动端支持。
+
+2026-11-06 滚动条与 Worker 状态边框复核：直接复用原生对话滚动条，边框颜色使用现有工作阶段和语义主题变量。聊天浏览器回归使用前述两个文件及 `--grep 'menus|model menu|shared|compact composer|session rail'`，14 项通过；`npx vitest run tests/unit/superagent-work-ui.test.ts` 2 项通过。浏览器视觉夹具挂载生产 JanusChat、原始侧栏／工作卡样式和模拟阶段，4 组检查通过：三主题下两种聊天宿主、侧栏与原生对话滚动条样式一致，八种阶段的边框色正确，消息／侧栏滚轮互不影响，滑块实际拖动成功。初次拖动检查因 Playwright 默认 `--hide-scrollbars` 隐藏滚动条而失败；移除此测试启动参数后复测通过，未为测试修改产品滚动行为。截图与结果位于 `artifacts/superagent-scroll/`。
+
+当前 HTML 已重新嵌入共用滚动条与状态边框，`node _design/superagent-current/verify.mjs` 8 组交互复测通过，截图包含可见滚动条。严格未使用类型检查、主题检查和应用构建通过；定向 ESLint 0 错误、4 条既有警告。日志位于 `artifacts/superagent-scroll-{browser,worker,visual-final,demo-final,typecheck,theme,build,lint}.log`。本轮不重跑完整 Electron 或付费真实模型验收。
+
+2026-11-06 Worker 列表呈现复核：按用户反馈将右侧独立卡片改为连续列表，去掉彩色外框与圆角，颜色保留在状态圆点和文字中。详情原地展开，停止／关闭常显，Codex 移入详情。生产 Worker 组件 2 项通过，HTML 的 8 组交互复测通过；280 px 侧栏、展开详情和长标题均无横向溢出。目视核对生产组件截图与 HTML 的深浅主题、窄窗截图，证据位于 `artifacts/superagent-p7/worker-chat.png`、`artifacts/superagent-current-demo/` 及 `artifacts/superagent-list/`。严格未使用类型检查、主题检查、定向 ESLint 和应用构建通过，日志为 `artifacts/superagent-list-{worker,demo,preview,typecheck,theme,lint,build}.log`。该轮未重跑完整 Electron 或真实模型验收。
+
+2026-11-07 Worker 卡片恢复复核：按用户最新选择恢复紧凑独立卡片，采用中性边框、小圆角、底色与间距，保留状态圆点、文字操作和原地详情。变更限样式，HTML 从生产 CSS 重新生成；8 组演示交互通过，280 px 侧栏、展开详情与长标题无横向溢出，深浅主题截图已目视核对。主题检查和应用构建通过，日志为 `artifacts/superagent-cards-{demo,layout,theme,build}.log`；最新截图保存在 `artifacts/superagent-current-demo/` 与 `artifacts/superagent-list/`。该轮未新增测试，也未重跑完整 Electron 或真实模型验收。
+
+2026-11-07 SuperAgent 用量面板精简复核：通过 JanusChat 呈现选项关闭该宿主的用量、上下文容量及刷新模型信息面板，保留模型选择。`janus-context.spec.ts` 中 `both chat entries send|catalog update recognizes` 两项最终通过，确认其他对话入口继续保留用量和目录刷新；长对话用例首轮超过默认 20 秒，将该次执行的 `--timeout` 调为 60000 后以 26.4 秒完成，没有修改产品逻辑。严格未使用类型检查、应用构建通过，定向 ESLint 0 错误、4 条既有警告；日志为 `artifacts/superagent-usage-{context,context-retry,typecheck,build,lint}.log`。HTML 已同步去掉用量行。
+
+2026-11-07 终端启动界面开合复核：当前项目没有 pane 时，终端入口可以反复展开／隐藏启动界面，提示和展开状态同步变化。扩展现有 `desktop-superagent.spec.ts` 的 `Island starts` 桌面场景，覆盖显示、隐藏、恢复对话焦点及草稿、再次显示，以及 Worker 与外层工具区开合；首轮发现焦点停在按钮，补上收起后的输入框聚焦，最终真实 Electron 1 项通过。最终应用构建、严格未使用类型检查、翻译与主题检查通过，Workspace 定向 ESLint 无问题。日志为 `artifacts/superagent-terminal-toggle-{build-final,desktop-final,typecheck-final,lint-final,i18n,theme}.log`。
+
+同轮 HTML 增加「未打开终端」场景，9 组交互检查通过，包含启动界面反复开合、草稿与焦点恢复，以及选择模拟 PowerShell 后继续显示终端。首次串联检查因上一场景留在终端区域而无法填写小屏对话，在进入下一场景前显式切回对话后通过；没有为该问题修改产品。截图 `artifacts/superagent-current-demo/terminal-launcher-light.png` 与真实桌面 `artifacts/superagent-controls/light-expanded.png` 已核对，演示记录为 `artifacts/superagent-terminal-toggle-demo-final.log`。该轮没有重跑原生 Worker 或付费真实模型验收。
 
 ## Reproduction
 

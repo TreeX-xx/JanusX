@@ -4,14 +4,14 @@
 .toolbar button:hover { color: var(--text); background: var(--surface-elevated); }
 .toolbar button:disabled { opacity: .4; cursor: default; }
 .toolbar .workersToggle { width: auto; gap: 5px; padding: 0 7px; border: 1px solid var(--border); font-size: 11px; font-weight: 500; white-space: nowrap; }
-.toolbar .workersToggle[aria-expanded='true'] { color: var(--text); background: var(--surface-elevated); }
+.toolbar button[aria-expanded='true'] { color: var(--text); background: var(--surface-elevated); }
 .workersToggle svg { flex-shrink: 0; color: var(--text-secondary); }
 .workspace button:focus-visible, .toolbar button:focus-visible, .launch:focus-visible, .launchCompact:focus-visible, .divider:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: -2px; }
 .body { display: grid; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 .chat { grid-column: 1; grid-row: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; container-type: inline-size; }
 .chat[hidden] { display: none; }
 .chat > :global(.janus-chat) { flex: 1; width: 100%; min-width: 0; min-height: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.sidebar { grid-column: 3; grid-row: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--surface); }
+.sidebar { composes: scope from '../../styles/native-scrollbars.module.css'; grid-column: 3; grid-row: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; background: var(--surface); }
 .sidebar[data-visible='false'] { visibility: hidden; overflow: hidden; }
 .sidebarHeader { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 12px; }
 .divider { grid-column: 2; grid-row: 1; cursor: col-resize; touch-action: none; position: relative; }

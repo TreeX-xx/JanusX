@@ -15,5 +15,26 @@
 .work button:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: 2px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .decision button + button { margin-left: 8px; }
-.card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
-.work input { width: 90px; padding: 6px 10px; color: var(--text); background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; }
+.card { --work-state-color: var(--shell-muted); display: grid; gap: 10px; padding: 12px; border: 1px solid color-mix(in srgb, var(--work-state-color) 60%, var(--border)); border-left: 3px solid var(--work-state-color); border-radius: 8px; }
+.card:is([data-phase='starting'], [data-phase='running']) { --work-state-color: var(--status-success); }
+.card:is([data-phase='waiting'], [data-phase='awaiting-approval'], [data-phase='stopping'], [data-phase='interrupted']) { --work-state-color: var(--status-warning); }
+.card[data-phase='failed'] { --work-state-color: var(--status-danger); }
+.card[data-phase='ready'] { --work-state-color: var(--status-info); }
+.card > .heading > [role='status'] { display: inline-flex; align-items: center; gap: 5px; color: var(--work-state-color); font-size: 11px; }
+.card > .heading > [role='status']::before { content: ''; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.workList { display: grid; gap: 10px; min-width: 0; }
+.card[data-presentation='status'] { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px; border: 1px solid var(--shell-border); border-radius: 6px; background: var(--shell-chrome-raised); }
+.card[data-presentation='status']:is(:hover, :focus-within) { border-color: color-mix(in srgb, var(--shell-muted) 40%, var(--shell-border)); }
+.card[data-presentation='status'] > :not(details):not(.actions) { grid-column: 1 / -1; }
+.card[data-presentation='status'] > .heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 10px; }
+.card[data-presentation='status'] > .heading strong { font-weight: 500; line-height: 1.5; }
+.card[data-presentation='status'] > .heading > [role='status'] { white-space: nowrap; }
+.card[data-presentation='status'] > .preview { margin: 0; line-height: 1.6; -webkit-line-clamp: 2; }
+.card[data-presentation='status'] > details { min-width: 0; }
+.card[data-presentation='status'] > details[open] { grid-column: 1 / -1; }
+.card[data-presentation='status'] > details > summary { min-height: 24px; font-size: 11px; line-height: 24px; }
+.card[data-presentation='status'] > details[open] > summary { margin-bottom: 8px; }
+.card[data-presentation='status'] > .actions { grid-column: 2; gap: 10px; align-items: start; justify-content: flex-end; }
+.card[data-presentation='status'] > .actions button { min-height: 24px; padding: 2px 0; border: 0; border-radius: 0; color: var(--shell-muted); background: transparent; font-size: 11px; }
+.card[data-presentation='status'] > .actions button:hover:not(:disabled) { color: var(--shell-text); text-decoration: underline; text-underline-offset: 3px; }
+.work input[type='number'] { width: 90px; padding: 6px 10px; color: var(--text); background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; }

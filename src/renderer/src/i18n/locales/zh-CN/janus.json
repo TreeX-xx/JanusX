@@ -6,6 +6,7 @@
     "noWorkspace": "尚未选择项目",
     "chooseWorkspace": "选择项目后即可安排和查看开发工作。",
     "showTerminal": "显示终端",
+    "hideTerminal": "隐藏终端界面",
     "showWorkers": "展开 Worker",
     "hideWorkers": "收起 Worker",
     "workers": "Workers",

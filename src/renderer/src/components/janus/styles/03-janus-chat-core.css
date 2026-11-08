@@ -101,7 +101,7 @@
   animation: none;
 }
 
-.janus-chat-messages::-webkit-scrollbar {
+.janus-chat:not([data-conversation-style]) .janus-chat-messages::-webkit-scrollbar {
   display: none;
 }
 

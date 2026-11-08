@@ -30,6 +30,7 @@ import { ChatContextIndicator } from './ChatContextIndicator'
 import { MemoPanel } from '../memo/MemoPanel'
 import { useMemoStore } from '@/stores/memo'
 import { useIslandStore } from '@/stores/island'
+import nativeScrollbars from '../../styles/native-scrollbars.module.css'
 
 type SelectionMenu = 'provider' | 'model' | 'permission'
 type PermissionOption = { value: AgentApprovalMode; label: string }
@@ -84,6 +85,7 @@ interface JanusChatProps {
   /** Hosts such as SuperAgent own their context and omit manual navigation. */
   showConversationNavigation?: boolean
   showWorkspaceScope?: boolean
+  showContextIndicator?: boolean
   /** Shared Island/SuperAgent appearance based on the native conversation view. */
   conversationStyle?: boolean
   /** Embed only the discussion and composer (workspace scope stays in the main chat view). */
@@ -402,6 +404,7 @@ export function JanusChat({
   compactNavigation = false,
   showConversationNavigation = true,
   showWorkspaceScope = true,
+  showContextIndicator = true,
   conversationStyle = false,
   discussionOnly = false,
   minimalComposer = false,
@@ -1107,7 +1110,7 @@ export function JanusChat({
         data-minimal-composer={minimalComposer || undefined}
         data-conversation-style={conversationStyle || undefined}
       tabIndex={-1}
-      className={visible ? `janus-chat${docked ? ' janus-chat--docked' : ''}${discussionOnly ? ' janus-chat--discussion-only' : ''}${showConversationSidebar ? ' janus-chat--with-sidebar' : ''}${showConversationSidebar && sidebarCollapsed ? ' janus-chat--sidebar-collapsed' : ''}${hasConversation ? ' janus-chat--active' : ' janus-chat--empty'}${isRestoringScroll ? ' janus-chat--restoring-scroll' : ''}` : undefined}
+      className={visible ? `janus-chat${conversationStyle ? ` ${nativeScrollbars.scope}` : ''}${docked ? ' janus-chat--docked' : ''}${discussionOnly ? ' janus-chat--discussion-only' : ''}${showConversationSidebar ? ' janus-chat--with-sidebar' : ''}${showConversationSidebar && sidebarCollapsed ? ' janus-chat--sidebar-collapsed' : ''}${hasConversation ? ' janus-chat--active' : ' janus-chat--empty'}${isRestoringScroll ? ' janus-chat--restoring-scroll' : ''}` : undefined}
       onKeyDownCapture={handleChatKeyDownCapture}
       onPointerDownCapture={handleChatPointerDownCapture}
       onDoubleClick={(e) => e.stopPropagation()}
@@ -1668,7 +1671,7 @@ export function JanusChat({
       ))}
 
       {aboveComposer}
-      <ChatContextIndicator controller={conversations} />
+      {showContextIndicator && <ChatContextIndicator controller={conversations} />}
 
       {/* 输入区域：opencode 风格方框 composer；minimal 下加 › 前缀（对齐蓝图高保真） */}
       <div className="janus-chat-input-wrapper" data-has-input={input.length > 0}>

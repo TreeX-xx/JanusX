@@ -6,6 +6,7 @@
     "noWorkspace": "No project selected",
     "chooseWorkspace": "Select a project to arrange and view development work.",
     "showTerminal": "Show terminals",
+    "hideTerminal": "Hide terminal launcher",
     "showWorkers": "Show Workers",
     "hideWorkers": "Hide Workers",
     "workers": "Workers",

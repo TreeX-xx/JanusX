@@ -16,6 +16,8 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   const { t } = useTranslation('janus')
   const chat = useJanusChatController()
   const workspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
+  const hasProjectPanes = useWorkspaceStore(state => state.paneTree !== null)
+  const terminalLauncher = useSuperAgentUIStore(state => state.terminalLauncher)
   const collapsed = useSuperAgentUIStore(state => state.workersCollapsed)
   const preferredWidth = useSuperAgentUIStore(state => state.workersWidth)
   const setCollapsed = useSuperAgentUIStore(state => state.setWorkersCollapsed)
@@ -39,6 +41,7 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   const expanded = compact ? narrowOpen : !collapsed
   const sidebarWidth = Math.max(280, Math.min(preferredWidth, width - 369))
   const maxWidth = Math.max(280, Math.min(440, width - 369))
+  const hideTerminalLauncher = !hasProjectPanes && terminalLauncher
   const changeSidebar = () => {
     if (compact) setNarrowOpen(value => !value)
     else setCollapsed(!collapsed)
@@ -46,10 +49,12 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   return <SuperAgentWorkProvider onViewChanges={openSuperAgentChanges}>
     <section ref={root} className={styles.workspace} data-superagent-workspace="" data-compact={compact} aria-label={t('superagent.workspace')}>
       {visible && toolbarHost && createPortal(<div className={styles.toolbar} data-superagent-toolbar="">
-        <button type="button" disabled={!workspaceId} aria-label={t('superagent.showTerminal')} title={t('superagent.showTerminal')}
+        <button type="button" disabled={!workspaceId} aria-label={t(hideTerminalLauncher ? 'superagent.hideTerminal' : 'superagent.showTerminal')}
+          title={t(hideTerminalLauncher ? 'superagent.hideTerminal' : 'superagent.showTerminal')} aria-expanded={hasProjectPanes ? undefined : terminalLauncher}
           onClick={() => {
-            useSuperAgentUIStore.setState({ terminalLauncher: true })
-            useGlobalToolsStore.getState().setFocused(false)
+            useSuperAgentUIStore.setState({ terminalLauncher: !hideTerminalLauncher })
+            useGlobalToolsStore.getState().setFocused(hideTerminalLauncher)
+            if (hideTerminalLauncher) window.requestAnimationFrame(() => root.current?.querySelector<HTMLTextAreaElement>('.janus-chat-input')?.focus({ preventScroll: true }))
           }}><TerminalSquare size={15} aria-hidden="true" /></button>
         <button className={styles.workersToggle} type="button" aria-label={expanded ? t('superagent.hideWorkers') : t('superagent.showWorkers')}
           title={compact && expanded ? t('superagent.backToChat') : expanded ? t('superagent.hideWorkers') : t('superagent.showWorkers')} aria-expanded={expanded}
@@ -62,7 +67,7 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
         ? `${narrowOpen ? '0px' : 'minmax(0, 1fr)'} 0px ${narrowOpen ? 'minmax(0, 1fr)' : '0px'}`
         : `minmax(0, 1fr) ${expanded ? 9 : 0}px ${expanded ? sidebarWidth : 0}px` }}>
         <div className={styles.chat} hidden={compact && narrowOpen}>
-          <JanusChat docked conversationStyle emptyState={false} showConversationNavigation={false} showWorkspaceScope={false}
+          <JanusChat docked conversationStyle emptyState={false} showConversationNavigation={false} showWorkspaceScope={false} showContextIndicator={false}
             visible={visible && !(compact && narrowOpen)} focused={focused && !(compact && narrowOpen)} modeColor="var(--interaction-accent)"
             messages={chat.messages} pendingContent={chat.pendingContent} isStreaming={chat.isStreaming} error={chat.error}
             modelOptions={chat.modelOptions} activeModel={chat.activeModel} modelNotice={chat.modelNotice}

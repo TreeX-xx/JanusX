@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-11-06",
-  "updated": "2026-11-06T06:13:35.294Z",
+  "updated": "2026-11-07T03:06:27Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -52,6 +52,8 @@ P1 的工作记录和 P2 的受控目录需要接入真实执行。既有 Codex 
 [启动配置](../../../src/main/janus/superagent/worker-launch.ts)保留可用原生配置及 developer instructions，追加本次协作约定。继承 MCP 逐项禁用，本次只启用宿主桥；插件、apps、hooks、原生多 Agent、JS／code-mode 等额外执行通道在本次进程内关闭，并在界面披露。原生命令／文件审批只允许当前 profile 范围内的决定，拒绝扩权、持久网络／命令规则等旁路。配置叠加与能力名称以 [Codex 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)和实际版本为准；能力不足明确失败，不降级为 full access。
 
 停止先撤销桥接能力并阻止待续接，立即请求原生中断并停止所拥有的进程树；随后拒绝未决提交，排空已开始的输入、报告和受控提交，确认后才释放 lease。Windows 路径使用进程树终止，并验证受管后台子进程不会在停止后继续写入。异常退出或无法确认进程树结束时，保留失败状态、停止入口及环境占用；不伪造 stopConfirmed，也不自动重试。P6 将未确认停止与环境隔离持久保存，跨重启恢复只读实例事实，不猜测旧进程身份。
+
+2026-11-07 用户明确当前禁止 Worker 再委托：不得创建子 Agent、另启执行器分派任务或自行向其他 Worker 转派，工作分派仍由 Janus 负责。现有原生多 Agent 关闭约束继续保留；DSH 的子 Agent 能力不构成本项目的实现授权。相关讨论订阅已认可为后续方向，但尚未实施，边界见[架构设计记录](ideas/janus-superagent.md)。
 
 ### MCP 与受控提交
 

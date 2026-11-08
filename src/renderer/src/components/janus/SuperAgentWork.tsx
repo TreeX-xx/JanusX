@@ -120,8 +120,8 @@ export function SuperAgentWork({ conversationId }: { conversationId: string }) {
     </form></details>
     {!views.length && <p>{t('superagent.startHint')}</p>}
     {(error || schedule?.diagnostic) && <p role="alert">{error || schedule?.diagnostic}</p>}
-    {views.map(view => <WorkCard key={workspaceId + ':' + view.detail.work.id} view={view} mode="status"
-      conversationId={conversationId} worker={workers.find(row => row.workId === view.detail.work.id)} refresh={refresh} />)}
+    <div className={styles.workList}>{views.map(view => <WorkCard key={workspaceId + ':' + view.detail.work.id} view={view} mode="status"
+      conversationId={conversationId} worker={workers.find(row => row.workId === view.detail.work.id)} refresh={refresh} />)}</div>
     {total > views.length && <button onClick={() => setLimit(value => value + 10)}>{t('superagent.more')}</button>}
   </section>
 }
@@ -168,13 +168,13 @@ function WorkCard({ view, worker, conversationId, refresh, mode }: { view: WorkV
   const phase = worker && !worker.stopConfirmed && (work.closedAt !== null || worker.phase === 'failed' || worker.restored)
     ? worker.phase === 'failed' || worker.restored ? worker.phase : 'stopping'
     : work.closedAt !== null ? 'closed' : schedule?.status ?? worker?.phase
-  return <article ref={card} role={mode === 'decisions' ? 'group' : undefined} className={styles.card} aria-label={work.title} data-work-id={work.id} data-phase={phase}>
+  return <article ref={card} role={mode === 'decisions' ? 'group' : undefined} className={styles.card} aria-label={work.title} data-work-id={work.id} data-phase={phase} data-presentation={mode}>
     <div className={styles.heading}><strong>{work.title}</strong><span role="status">{phase ? t(`superagent.phase.${phase}`) : t('superagent.history')}</span></div>
     {mode === 'status' && <>
-    <small>Codex</small>
     {report && <div><small>{t('superagent.report')}</small><MarkdownContent content={report} variant="conversation" /></div>}
     {active && !report && preview && <p className={styles.preview}>{preview.slice(0, 500)}</p>}
     <details open={focusedWorkId === work.id || undefined}><summary>{t('superagent.details')}</summary>
+      <small>Codex</small>
       <p>{work.goal}</p><dl className={styles.facts}>
         {view.environment && <><dt>{t('superagent.directory')}</dt><dd>{view.environment.checkout.path}</dd>
           <dt>{t('superagent.branch')}</dt><dd>{view.environment.checkout.branch}</dd></>}

@@ -2508,6 +2508,7 @@ export type TypedI18nKey =
   | 'janus:superagent.gitOperation.merge'
   | 'janus:superagent.gitOperation.remove'
   | 'janus:superagent.heading'
+  | 'janus:superagent.hideTerminal'
   | 'janus:superagent.hideWorkers'
   | 'janus:superagent.history'
   | 'janus:superagent.launchHint'

@@ -841,17 +841,20 @@
   padding: 0 4px 8px;
   gap: 6px;
   opacity: 0.94;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--surface-tint) 16%, transparent) transparent;
   mask-image: linear-gradient(to bottom, transparent 0, var(--surface-shade) 14px, var(--surface-shade) calc(100% - 8px), transparent 100%);
 }
 
-.janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-messages::-webkit-scrollbar {
+.janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat:not([data-conversation-style]) .janus-chat-messages {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--surface-tint) 16%, transparent) transparent;
+}
+
+.janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat:not([data-conversation-style]) .janus-chat-messages::-webkit-scrollbar {
   display: block;
   width: 5px;
 }
 
-.janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat-messages::-webkit-scrollbar-thumb {
+.janus-island-shell[data-stage="expanded"][data-view="monitor"] .janus-chat:not([data-conversation-style]) .janus-chat-messages::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-tint) 14%, transparent);
 }
