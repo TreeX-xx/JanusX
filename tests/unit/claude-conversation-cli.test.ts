@@ -60,6 +60,32 @@ describe.skipIf(!binary || process.platform !== 'win32')('managed Claude native 
       await fixture.close()
     }
   }, 70000)
+  it('starts a trusted workspace supplied in lowercase without changing native consent', async () => {
+    const fixture = await claudeConversationFixture()
+    const main = new ClaudeConversation('claude-cwd-case', () => {})
+    const file = join(fixture.config, '.claude.json')
+    const { realpathSync } = await import('node:fs')
+    const directory = realpathSync.native(fixture.cwd).replaceAll('\\', '/')
+    const source = JSON.stringify({ hasCompletedOnboarding: true,
+      customApiKeyResponses: { approved: ['local-fixture-only'], rejected: [] },
+      projects: { [directory]: { hasTrustDialogAccepted: true }, [directory.toLowerCase()]: { hasTrustDialogAccepted: false } } })
+    await writeFile(file, source)
+    await main.command({ type: 'mode', mode: 'conversation' })
+    try {
+      await main.start({ command: binary!, args: ['--model', 'claude-sonnet-4-6', '--tools', ''],
+        cwd: fixture.cwd.toLowerCase(), env: fixture.env, assetsDir: join(fixture.root, 'assets') })
+      expect(main.state.connection).toBe('ready')
+      expect(main.state.threadId).toBeTruthy()
+      expect(fixture.requests).toHaveLength(0)
+      const projects = JSON.parse(await readFile(file, 'utf8')).projects
+      expect(projects[directory].hasTrustDialogAccepted).toBe(true)
+      expect(projects[directory.toLowerCase()].hasTrustDialogAccepted).toBe(false)
+    } finally {
+      await main.dispose()
+      await promisify(execFile)(binary!, ['daemon', 'stop', '--any'], { env: fixture.env, cwd: fixture.cwd, windowsHide: true, timeout: 10000 }).catch(() => {})
+      await fixture.close()
+    }
+  }, 70000)
   it('confirms workspace trust in conversation mode without native terminal input', async () => {
     const fixture = await claudeConversationFixture()
     const main = new ClaudeConversation('claude-trust', () => {})

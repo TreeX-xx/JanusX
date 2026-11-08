@@ -109,8 +109,11 @@ export class ClaudeConversation {
   }
   private async launch(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
     if (process.platform !== 'win32') throw new Error('Claude dual mode is currently validated on Windows only.')
-    this.session.configureImages(join(options.assetsDir, 'images'), options.cwd)
-    this.binary = resolveClaudeBinary(options.command); this.env = { ...options.env }; this.cwd = options.cwd
+    // Keep native startup, catalog discovery and trust confirmation on the same
+    // on-disk path. See .agents/notes/workbench/terminal-dialog-dual-mode.md.
+    this.cwd = claudeTrustDirectory(options.cwd)
+    this.session.configureImages(join(options.assetsDir, 'images'), this.cwd)
+    this.binary = resolveClaudeBinary(options.command); this.env = { ...options.env }
     const pathKey = Object.keys(this.env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) this.env[pathKey] = `${options.pathDir}${delimiter}${this.env[pathKey] ?? ''}`
     this.configDir = this.env.CLAUDE_CONFIG_DIR || join(this.env.USERPROFILE || this.env.HOME || homedir(), '.claude')

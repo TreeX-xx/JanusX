@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { realpathSync } from 'node:fs'
 import { acceptClaudeWorkspaceTrust, claudeTrustDirectory } from '../../src/main/terminal/claude-trust'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
 
@@ -44,6 +45,25 @@ describe('Claude native workspace consent storage', () => {
 })
 
 describe.skipIf(process.platform !== 'win32')('Claude conversation startup trust', () => {
+  it('uses the on-disk directory spelling for native launch without changing consent', async () => {
+    const f = await fixture()
+    const cwd = join(f.root, 'MixedCaseWorkspace'); await mkdir(cwd)
+    const directory = realpathSync.native(cwd).replaceAll('\\', '/')
+    const source = JSON.stringify({ projects: { [directory]: { hasTrustDialogAccepted: true } } })
+    await writeFile(f.file, source)
+    const controller = new ClaudeConversation('case-sensitive-trust', vi.fn())
+    const cli = vi.spyOn(controller as any, 'cli').mockImplementation(async () => {
+      expect((controller as any).cwd).toBe(directory)
+      throw new Error('canonical launch reached')
+    })
+    try {
+      expect(claudeTrustDirectory(cwd.toLowerCase())).toBe(directory)
+      await expect(controller.start({ command: 'C:/fixture/claude.exe', args: [], cwd: cwd.toLowerCase(), env: f.env, assetsDir: join(f.root, 'assets') })).rejects.toThrow('canonical launch reached')
+      expect(cli).toHaveBeenCalledTimes(1)
+      expect(await readFile(f.file, 'utf8')).toBe(source)
+    } finally { await controller.dispose(); await f.close() }
+  })
+
   async function launch() {
     const f = await fixture()
     const controller = new ClaudeConversation('trust', vi.fn())
