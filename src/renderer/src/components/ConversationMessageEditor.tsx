@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next'
 import styles from './AgentSessionPane.module.css'
 import { insertConversationNewline } from '../lib/conversation-input'
 
-export function ConversationMessageEditor({ text, setText, busy, disabled, error, cancel, submit }: {
+export function ConversationMessageEditor({ text, setText, busy, disabled, error, cancel, submit, sendAsNew }: {
   text: string; setText(text: string): void; busy: boolean; disabled: boolean; error: string
   cancel(): void; submit(): Promise<void>
+  sendAsNew?(): Promise<void>
 }) {
   const { t } = useTranslation('terminal')
   const input = useRef<HTMLTextAreaElement>(null)
@@ -30,7 +31,7 @@ export function ConversationMessageEditor({ text, setText, busy, disabled, error
   }, [text])
   return <form className={styles.messageEditor} aria-label={t('conversation.editMessage')} aria-busy={busy} onSubmit={event => {
     event.preventDefault()
-    if (!disabled && !busy && text.trim()) void submit()
+    if (!disabled && !busy && !sendAsNew && text.trim()) void submit()
   }} onKeyDown={event => {
     if (event.nativeEvent.isComposing || busy) return
     if (insertConversationNewline(event, setText)) return
@@ -41,10 +42,12 @@ export function ConversationMessageEditor({ text, setText, busy, disabled, error
       <textarea ref={input} value={text} spellCheck={false} autoCorrect="off" autoCapitalize="off" onChange={event => setText(event.target.value)} aria-label={t('conversation.editText')} aria-describedby={hintId} readOnly={busy} maxLength={32000} rows={2} />
     </label>
     <div className={styles.editFooter}>
-      <p id={hintId}>{t('conversation.editHint')}</p>
+      <p id={hintId}>{t(sendAsNew ? 'conversation.editSendAsNewHint' : 'conversation.editHint')}</p>
       <div className={styles.editButtons}>
         <button type="button" disabled={busy} onClick={cancel}>{t('conversation.editCancel')}</button>
-        <button type="submit" className={styles.editSubmit} disabled={disabled || busy || !text.trim()}>{busy && <span className={styles.modeSpinner} aria-hidden="true" />}{t(busy ? 'conversation.editSubmitting' : 'conversation.editSubmit')}</button>
+        {sendAsNew ? <button type="button" className={styles.editSubmit} disabled={disabled || busy || !text.trim()} onClick={() => void sendAsNew()}>
+          {busy && <span className={styles.modeSpinner} aria-hidden="true" />}{t('conversation.editSendAsNew')}</button>
+          : <button type="submit" className={styles.editSubmit} disabled={disabled || busy || !text.trim()}>{busy && <span className={styles.modeSpinner} aria-hidden="true" />}{t(busy ? 'conversation.editSubmitting' : 'conversation.editSubmit')}</button>}
       </div>
     </div>
     {error && <p className={styles.error} role="alert">{error}</p>}

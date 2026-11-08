@@ -6,6 +6,7 @@ import { listJsonlFiles, listJsonlFilesRecursive, parseJsonObject, readJsonConfi
 import type { UsageEngine } from '../../shared/usage'
 import { OpenCodeUsageSource } from './opencode-source'
 import { resolveOpencodeDbPath } from '../sessions/opencode-store-path'
+import { readCodexSessionIdentity } from './codex-session-identity'
 
 /**
  * How close a session file's last write must be to the terminal's last pty
@@ -19,7 +20,7 @@ export interface CorrelatedSession {
   sessionId: string
   namespace: string
   filePath: string
-  /** File mtime at match time: when this session last grew. */
+  /** Native event time (Codex), otherwise the session store's update time. */
   activatedAt: number
 }
 
@@ -31,6 +32,7 @@ export interface AttributionQuery {
   /** When this terminal's pty last produced output. */
   lastActivityAt: number
   codexHome?: string
+  excludedSessionIds?: ReadonlySet<string>
 }
 
 function isCorrelatable(engine: UsageEngine): engine is 'claude' | 'codex' | 'pi' | 'opencode' {
@@ -40,7 +42,7 @@ function isCorrelatable(engine: UsageEngine): engine is 'claude' | 'codex' | 'pi
 /**
  * Finds the native session that belongs to one terminal without hooks. A
  * candidate must live in this terminal's workspace (Claude project key, Codex
- * `session_meta.cwd`, Pi header `cwd`) and its last write must fall inside the
+ * `session_meta.cwd`, Pi header `cwd`) and its activity must fall inside the
  * terminal's pty activity window.
  *
  * Attribution resolves at session birth or resume — user-driven singular
@@ -64,6 +66,7 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
     if (read.lines.length === 0) return
     const identity = readIdentity(read.lines)
     if (!identity.sessionId || !identity.cwd) return
+    if (query.excludedSessionIds?.has(identity.sessionId)) return
     if (!pathsEqual(identity.cwd, cwd)) return
     candidates.push({ sessionId: identity.sessionId, namespace, filePath, activatedAt: info.mtimeMs })
   }
@@ -82,11 +85,10 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
     const codexHome = query.codexHome?.trim() || process.env.CODEX_HOME?.trim() || join(os.homedir(), '.codex')
     for (const root of [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')]) {
       for (const file of await listJsonlFilesRecursive(root, name => name.startsWith('rollout-') && name.endsWith('.jsonl'))) {
-        await consider(file.path, codexHome, lines => {
-          const meta = lines.map(parseJsonObject).find(value => value?.type === 'session_meta')
-          const payload = meta?.payload as Record<string, unknown> | undefined
-          return { sessionId: readString(payload?.id), cwd: readString(payload?.cwd) }
-        })
+        const identity = await readCodexSessionIdentity(file.path)
+        if (!identity || query.excludedSessionIds?.has(identity.sessionId) || !pathsEqual(identity.cwd, cwd)
+          || identity.activatedAt < earliest || Math.abs(identity.activatedAt - lastActivityAt) > CORRELATION_WINDOW_MS) continue
+        candidates.push({ sessionId: identity.sessionId, namespace: codexHome, filePath: file.path, activatedAt: identity.activatedAt })
       }
     }
   } else if (query.engine === 'opencode') {
@@ -95,7 +97,7 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
     try {
       source = new OpenCodeUsageSource(databasePath)
       for (const session of source.sessions()) {
-        if (!pathsEqual(session.directory, cwd) || session.time_updated < earliest
+        if (query.excludedSessionIds?.has(session.id) || !pathsEqual(session.directory, cwd) || session.time_updated < earliest
           || Math.abs(session.time_updated - lastActivityAt) > CORRELATION_WINDOW_MS) continue
         candidates.push({ sessionId: session.id, namespace: databasePath, filePath: databasePath, activatedAt: session.time_updated })
       }
@@ -115,7 +117,8 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
   }
 
   // Exactly one candidate is the only unambiguous answer.
-  return candidates.length === 1 ? candidates[0] : undefined
+  const unique = [...new Map(candidates.map(candidate => [candidate.sessionId, candidate])).values()]
+  return unique.length === 1 ? unique[0] : undefined
 }
 
 async function piSessionRoots(): Promise<string[]> {

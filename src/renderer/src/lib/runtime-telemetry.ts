@@ -233,7 +233,7 @@ export function mergeRuntimeTelemetrySnapshot(
   }
 
   if (sessionChanged) {
-    for (const field of ['contextTokens', 'contextWindowTokens', ...cumulativeFields] as const) {
+    for (const field of ['contextTokens', 'contextWindowTokens', 'detectedModel', 'modelChangedAt', 'compactionCount', 'compactionCountConfidence', ...cumulativeFields] as const) {
       if (telemetry[field] === undefined && current[field] !== undefined) patch[field] = undefined
     }
   }
@@ -241,11 +241,12 @@ export function mergeRuntimeTelemetrySnapshot(
     patch.contextWindowTokens = undefined
   }
 
-  // A history scan may find a session in the same cwd as another terminal. Only
-  // a hook/adapter assertion may bind that session to this terminal instance.
-  if (telemetry.sessionBinding === 'exact' && telemetry.sessionId && telemetry.sessionId !== current.telemetrySessionId) {
+  // Only main-process ownership evidence may update terminal identity. See
+  // .agents/notes/terminal/usage-telemetry-hook-decoupling.md.
+  if (isTerminalBound(telemetry.sessionBinding) && telemetry.sessionId
+    && (telemetry.sessionId !== current.telemetrySessionId || telemetry.sessionBinding !== current.telemetrySessionBinding)) {
     patch.telemetrySessionId = telemetry.sessionId
-    patch.telemetrySessionBinding = 'exact'
+    patch.telemetrySessionBinding = telemetry.sessionBinding
   }
 
   if (telemetry.compactionCountConfidence === 'exact' && telemetry.compactionCount !== undefined) {

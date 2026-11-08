@@ -8,6 +8,65 @@ import { seedIntroducedLearning } from './desktop-test-env'
 
 const binary = process.env.JANUSX_TEST_CLAUDE_BIN
 test.skip(!binary || process.platform !== 'win32', 'Requires the explicitly selected native Claude binary')
+
+test('Claude conversation-first startup confirms native folder trust entirely inline', async () => {
+  const fixture = await claudeConversationFixture()
+  let application: ElectronApplication | undefined
+  try {
+    const file = join(fixture.config, '.claude.json')
+    await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, 'utf8')),
+      customApiKeyResponses: { approved: ['local-fixture-only'], rejected: [] } }))
+    const env = { ...fixture.env, ANTHROPIC_MODEL: 'claude-sonnet-4-6', NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(fixture.root, 'knowledge') }
+    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
+    env[pathKey] = `${dirname(binary!)};${env[pathKey] ?? ''}`
+    application = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${join(fixture.root, 'profile')}`], env })
+    const page = await application.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await seedIntroducedLearning(page)
+    await page.evaluate(async cwd => {
+      const api = (window as any).electron
+      await api.system.setLanguage('en')
+      const workspace = await api.workspace.create({ name: 'Claude trust fixture', path: cwd })
+      await api.workspace.load(workspace.id)
+    }, fixture.cwd)
+    await page.reload()
+    await page.locator('.ws').filter({ hasText: 'Claude trust fixture' }).first().click()
+    await page.getByTitle('Settings', { exact: true }).click()
+    await page.getByRole('button', { name: 'Default view for new sessions', exact: true }).click()
+    await page.getByRole('option', { name: 'Conversation', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
+    await page.getByRole('button', { name: 'Claude', exact: true }).click()
+    const host = page.locator('[data-agent-session]')
+    const card = host.getByRole('region', { name: 'Trust this folder?' })
+    await expect(card).toBeVisible({ timeout: 30000 })
+    await expect(card.getByText('Claude', { exact: true })).toBeVisible()
+    await expect(card.getByText(fixture.cwd.replaceAll('\\', '/'), { exact: true })).toBeVisible()
+    expect(Object.keys(JSON.parse(await readFile(file, 'utf8')).projects ?? {})).toHaveLength(0)
+    await expect(host.locator('.xterm')).toBeHidden()
+    await card.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(host.getByText('Conversation startup is paused.')).toBeVisible()
+    await host.getByRole('button', { name: 'Continue setup', exact: true }).click()
+    await expect(card).toBeVisible()
+    await expect(card).toHaveCSS('opacity', '1')
+    await mkdir('artifacts/claude-startup', { recursive: true })
+    await page.screenshot({ path: 'artifacts/claude-startup/desktop-trust-inline.png' })
+    await card.getByRole('button', { name: 'Trust and continue', exact: true }).click()
+    await expect(card).toHaveCount(0)
+    await expect(host.getByRole('button', { name: 'Terminal', exact: true })).toBeEnabled({ timeout: 30000 })
+    await expect(host.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
+    const input = host.locator('[data-conversation-input]')
+    await input.fill('CC_AFTER_TRUST')
+    await expect(host.getByRole('button', { name: 'Send', exact: true })).toBeEnabled()
+    await input.press('Enter')
+    await expect(host.getByRole('region', { name: 'Conversation history', exact: true }).getByText('First CC_AFTER_TRUST final', { exact: true })).toBeVisible({ timeout: 30000 })
+    await expect(host.locator('.xterm')).toBeHidden()
+    expect(JSON.parse(await readFile(file, 'utf8')).projects[fixture.cwd.replaceAll('\\', '/')].hasTrustDialogAccepted).toBe(true)
+  } finally {
+    await application?.close()
+    await promisify(execFile)(binary!, ['daemon', 'stop', '--any'], { env: fixture.env, cwd: fixture.cwd, windowsHide: true, timeout: 10000 }).catch(() => {})
+    await fixture.close()
+  }
+})
 test('Claude launches with both views by default and keeps one native session across both views', async () => {
   const fixture = await claudeConversationFixture()
   let application: ElectronApplication | undefined

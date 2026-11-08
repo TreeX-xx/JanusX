@@ -59,7 +59,7 @@ export class ConversationSession {
   configureImages(root: string, cwd: string): void { this.imageRoot = root; this.cwd = cwd }
   discoverImages(itemId: string): void {
     const item = this.state.items.find(row => row.id === itemId)
-    if (item?.status === 'completed' && item.type !== 'userMessage' && !item.images?.length) {
+    if (item?.status === 'completed' && item.type === 'agentMessage' && !item.images?.length) {
       this.attachImages(itemId, conversationImageLinks(item.text).map(path => ({ path })))
     }
   }

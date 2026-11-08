@@ -42,11 +42,16 @@ export function ChatTimeline({ snapshot, streaming = false, workspaceNames, rend
       </div>
   return <div className="janus-chat-timeline">
     {snapshot.truncated && <p role="status">{t('janus:chat.timeline.truncated')}</p>}
-    {groups.map(group => <Fragment key={group.items[0].id}>
-      {group.process ? <WorkDisclosure stateKey={group.items[0].id} summary={summarizeWork(group.items.map(block =>
+    {groups.map(group => {
+      const tools = group.items.filter((block): block is ChatToolBlock => block.kind === 'tool')
+      const latest = [...tools].reverse().find(block => ['running', 'requested', 'approval'].includes(block.entry.status)) ?? tools.at(-1)
+      const activity = latest ? { text: [latest.entry.toolName, latest.entry.argsDigest].filter(Boolean).join(' · ').replace(/\s+/g, ' ').slice(0, 240),
+        startedAt: ['running', 'requested'].includes(latest.entry.status) ? latest.entry.startedAt : undefined } : undefined
+      return <Fragment key={group.items[0].id}>
+      {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={activity} summary={summarizeWork(group.items.map(block =>
         block.kind === 'tool' ? block.entry : { status: streaming && block.endedAt === undefined ? 'running' : 'completed', truncated: block.truncated }
       ))}>{() => renderNodes(group.items)}</WorkDisclosure> : renderNodes(group.items)}
       {group.items.filter((block): block is ChatToolBlock => block.kind === 'tool').map(renderEvidence)}
-    </Fragment>)}
+    </Fragment>})}
   </div>
 }

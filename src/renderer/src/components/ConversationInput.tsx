@@ -17,6 +17,7 @@ export interface ConversationInputHandle {
   setSelectionRange(start: number, end: number): void
   isHistoryBoundary(key: 'ArrowUp' | 'ArrowDown'): boolean
   insertReferences(refs: ConversationReference[], range?: [number, number]): void
+  captureInsertionRange(): () => [number, number]
   setDropPoint(x: number, y: number): void
 }
 
@@ -30,10 +31,10 @@ function read(node: Node): string {
   return Array.from(node.childNodes).map((child, index) =>
     (index > 0 && /^(DIV|P)$/.test(child.nodeName) ? '\n' : '') + read(child)).join('')
 }
-function offsets(root: HTMLElement): [number, number] | null {
+function offsets(root: HTMLElement, savedRange?: Range): [number, number] | null {
   const selection = window.getSelection()
-  if (!selection?.rangeCount) return null
-  const range = selection.getRangeAt(0)
+  const range = savedRange ?? (selection?.rangeCount ? selection.getRangeAt(0) : null)
+  if (!range) return null
   if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null
   const prefix = document.createRange(); prefix.selectNodeContents(root)
   prefix.setEnd(range.startContainer, range.startOffset)
@@ -164,6 +165,15 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     setSelectionRange(start, end) { caret.current = [start, end]; if (root.current) select(root.current, start, end) },
     isHistoryBoundary(key) { return !!root.current && isHistoryBoundary(root.current, key) },
     insertReferences(refs, range) { insert(refs.map(referenceToken).join(' ') + ' ', [...latest.current.references, ...refs], range) },
+    captureInsertionRange() {
+      const editor = root.current!
+      remember()
+      select(editor, ...caret.current)
+      // A live DOM Range follows edits before the drop point without following
+      // subsequent caret moves while the attachment is being imported.
+      const range = window.getSelection()!.getRangeAt(0).cloneRange()
+      return () => offsets(editor, range) ?? [read(editor).length, read(editor).length]
+    },
     setDropPoint(x, y) {
       const range = document.caretRangeFromPoint(x, y)
       if (range && root.current?.contains(range.startContainer)) { root.current.focus({ preventScroll: true }); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(range); remember() }

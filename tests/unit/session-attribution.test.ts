@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'fs/promises'
+import { appendFile, mkdir, mkdtemp, rm, utimes, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { DatabaseSync } from 'node:sqlite'
@@ -42,7 +42,7 @@ async function writeCodexSession(sessionId: string, cwd: string, at: number, opt
   const file = join(dir, `rollout-2026-10-14T06-00-00-${sessionId}.jsonl`)
   await writeFile(file, [
     JSON.stringify({ timestamp: '2026-10-14T06:00:00Z', ordinal: 0, type: 'session_meta', payload: { id: sessionId, cwd } }),
-    JSON.stringify({ timestamp: '2026-10-14T06:04:00Z', ordinal: 1, type: 'turn_context', payload: { model: 'gpt-6-astra', cwd } }),
+    JSON.stringify({ timestamp: new Date(at).toISOString(), ordinal: 1, type: 'turn_context', payload: { model: 'gpt-6-astra', cwd } }),
   ].join('\n'))
   await touch(file, at)
   return file
@@ -58,6 +58,43 @@ async function writePiSession(sessionId: string, cwd: string, at: string) {
 }
 
 describe('session attribution', () => {
+  it('excludes already owned Codex sessions before resolving same-directory ambiguity', async () => {
+    await writeCodexSession('first', CWD, ACTIVITY_AT)
+    await writeCodexSession('second', CWD, ACTIVITY_AT)
+    const query = { engine: 'codex' as const, cwd: CWD, terminalStartedAt: STARTED_AT, lastActivityAt: ACTIVITY_AT }
+    expect(await findCorrelatedSession(query)).toBeUndefined()
+    expect(await findCorrelatedSession({ ...query, excludedSessionIds: new Set(['first']) })).toMatchObject({ sessionId: 'second' })
+  })
+
+  it('retries preserved-mtime growth and ignores incomplete trailing events', async () => {
+    const stale = STARTED_AT - 60_000
+    const file = await writeCodexSession('growing', CWD, stale)
+    const query = { engine: 'codex' as const, cwd: CWD, terminalStartedAt: STARTED_AT, lastActivityAt: ACTIVITY_AT }
+    expect(await findCorrelatedSession(query)).toBeUndefined()
+    await appendFile(file, '\n' + JSON.stringify({ type: 'event_msg', timestamp: new Date(ACTIVITY_AT).toISOString(), payload: { type: 'token_count' } }) + '\n{"type":')
+    await touch(file, stale)
+    expect(await findCorrelatedSession(query)).toMatchObject({ sessionId: 'growing', activatedAt: ACTIVITY_AT })
+  })
+
+  it('does not confuse freshly copied old logs or child-agent logs with an active terminal', async () => {
+    const file = await writeCodexSession('copied', CWD, STARTED_AT - 60_000)
+    await touch(file, ACTIVITY_AT)
+    const child = await writeCodexSession('child', CWD, ACTIVITY_AT)
+    await writeFile(child, JSON.stringify({ type: 'session_meta', timestamp: new Date(ACTIVITY_AT).toISOString(), payload: { id: 'child', cwd: CWD, source: { subagent: { parent_thread_id: 'parent' } } } }))
+    const query = { engine: 'codex' as const, cwd: CWD, terminalStartedAt: STARTED_AT, lastActivityAt: ACTIVITY_AT }
+    expect(await findCorrelatedSession(query)).toBeUndefined()
+  })
+
+  it('reads large Codex identity headers and complete tail records without reading message bodies in full', async () => {
+    const file = await writeCodexSession('large', CWD, ACTIVITY_AT)
+    await writeFile(file, [
+      JSON.stringify({ type: 'session_meta', timestamp: new Date(STARTED_AT).toISOString(), payload: { id: 'large', cwd: CWD, base_instructions: 'x'.repeat(100_000) } }),
+      JSON.stringify({ type: 'response_item', payload: { text: 'x'.repeat(400_000) } }),
+      JSON.stringify({ type: 'event_msg', timestamp: new Date(ACTIVITY_AT).toISOString(), payload: { type: 'token_count' } }),
+    ].join('\n'))
+    await touch(file, STARTED_AT)
+    expect(await findCorrelatedSession({ engine: 'codex', cwd: CWD, terminalStartedAt: STARTED_AT, lastActivityAt: ACTIVITY_AT })).toMatchObject({ sessionId: 'large' })
+  })
   it('correlates OpenCode by workspace and session activity, rejecting concurrent ambiguity', async () => {
     const root = join(testContext.homeDir, '.local', 'share', 'opencode')
     await mkdir(root, { recursive: true })

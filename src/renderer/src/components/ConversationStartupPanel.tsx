@@ -4,8 +4,8 @@ import { ShieldCheck, LogIn } from 'lucide-react'
 import type { ConversationCommand, ConversationStartup } from '../../../shared/conversation-display'
 import styles from './ConversationStartupPanel.module.css'
 
-export function ConversationStartupPanel({ startup, epoch, busy, action }: {
-  startup: ConversationStartup; epoch: number; busy: boolean; action: (command: ConversationCommand) => Promise<boolean>
+export function ConversationStartupPanel({ startup, epoch, busy, action, engine = 'Codex' }: {
+  startup: ConversationStartup; epoch: number; busy: boolean; action: (command: ConversationCommand) => Promise<boolean>; engine?: string
 }) {
   const { t } = useTranslation('terminal')
   const [apiKey, setApiKey] = useState('')
@@ -32,9 +32,9 @@ export function ConversationStartupPanel({ startup, epoch, busy, action }: {
     if (startup.authUrl && openRequested.current) { openRequested.current = false; void openLogin() }
   }, [startup.authUrl, openLogin])
   return <section className={styles.panel} aria-labelledby={titleId} aria-busy={disabled} data-conversation-startup={startup.kind}>
-      <div className={styles.identity}>{trust ? <ShieldCheck size={16} aria-hidden="true" /> : <LogIn size={16} aria-hidden="true" />}<span>Codex</span></div>
+      <div className={styles.identity}>{trust ? <ShieldCheck size={16} aria-hidden="true" /> : <LogIn size={16} aria-hidden="true" />}<span>{engine}</span></div>
       <h2 id={titleId}>{title}</h2>
-      <p>{t(hooks ? 'conversation.startupHooksHint' : trust ? 'conversation.startupTrustHint' : waiting ? 'conversation.startupWaitingHint' : 'conversation.startupLoginHint')}</p>
+      <p>{t(hooks ? 'conversation.startupHooksHint' : trust ? 'conversation.startupTrustHint' : waiting ? 'conversation.startupWaitingHint' : 'conversation.startupLoginHint', { engine })}</p>
       {startup.directory && <code className={styles.directory}>{startup.directory}</code>}
       {hooks && <div className={styles.hooks}>{startup.hooks?.map(hook => <details key={hook.key}><summary>{hook.event}</summary><p>{hook.source}</p><pre>{hook.command}</pre></details>)}</div>}
       {!trust && !waiting && <details className={styles.keyDetails}><summary>{t('conversation.startupApiKey')}</summary><form onSubmit={event => { event.preventDefault(); if (!disabled && apiKey.trim()) void send('apiKey') }}>

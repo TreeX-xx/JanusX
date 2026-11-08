@@ -264,7 +264,7 @@ for (const entry of entries) {
     await emit(page, { type: 'reasoning_delta', delta: 'Later reasoning.\n' + 'r'.repeat(6000) })
     await emit(page, { type: 'tool_execution_start', callId: 'last', toolName: 'workspace.read' })
     await expect(host.locator('.conversation-work-toggle')).toHaveAttribute('aria-expanded', 'false')
-    await expect(host.locator('.conversation-work-toggle')).toContainText(/不完整|Incomplete/i)
+    await expect(host.locator('.conversation-work-toggle')).toContainText(/truncated|截断/i)
     expect(await container.evaluate(element => element!.scrollTop)).toBeLessThan(5)
     await host.locator('.conversation-work-toggle').evaluate(element => (element as HTMLButtonElement).click())
     await expect(host.locator('.janus-chat-thinking-toggle')).toContainText('Later reasoning.')

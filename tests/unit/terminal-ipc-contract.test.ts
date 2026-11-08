@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   hookOptions: undefined as any,
   trackTelemetry: vi.fn(),
   bindTelemetry: vi.fn(),
+  bindNativeTelemetry: vi.fn(),
   snapshotTelemetry: vi.fn(),
   officeProbe: vi.fn(() => new Promise(() => {})),
 }))
@@ -48,7 +49,7 @@ vi.mock('../../src/main/janus/analyzer', () => ({ analyzer: {} }))
 vi.mock('../../src/main/janus-runner/cli-resolver', () => ({ resolveCLIPath: vi.fn(async () => null) }))
 vi.mock('../../src/main/janus-runner/subagent-run-registry', () => ({ subAgentRunRegistry: {} }))
 vi.mock('../../src/main/terminal/shell-profiles', () => ({ resolveShellProfileLaunch: vi.fn(async () => ({ program: { command: 'powershell.exe', args: [] } })) }))
-vi.mock('../../src/main/runtime-telemetry/coordinator', () => ({ terminalContextCoordinator: { startCorpusScan: vi.fn(), trackTerminal: mocks.trackTelemetry, bindSession: mocks.bindTelemetry, getSnapshot: mocks.snapshotTelemetry, runAttributionPass: vi.fn(async () => {}), releaseTerminal: vi.fn(async () => {}) } }))
+vi.mock('../../src/main/runtime-telemetry/coordinator', () => ({ terminalContextCoordinator: { startCorpusScan: vi.fn(), trackTerminal: mocks.trackTelemetry, bindSession: mocks.bindTelemetry, bindNativeSession: mocks.bindNativeTelemetry, getSnapshot: mocks.snapshotTelemetry, runAttributionPass: vi.fn(async () => {}), releaseTerminal: vi.fn(async () => {}) } }))
 vi.mock('../../src/main/notifications/agent-hook-bridge', () => ({ AgentHookBridge: class { start = vi.fn(async () => {}); stop = vi.fn(); getEnv = vi.fn(() => ({})) } }))
 vi.mock('../../src/main/notifications/agent-hook-config', () => ({ AgentHookConfigManager: class {} }))
 vi.mock('../../src/main/notifications/agent-hook-coordinator', () => ({ getRawString: (raw: Record<string, unknown> | undefined, keys: string[]) => keys.map(key => raw?.[key]).find(value => typeof value === 'string'), AgentHookCoordinator: class { constructor(_window: unknown, options: unknown) { mocks.hookOptions = options }; dispose = vi.fn() } }))
@@ -165,7 +166,7 @@ describe('Terminal IPC contract', () => {
     await create({}, { id: 'hook-boundary', cwd: process.cwd(), shell: 'powershell.exe', preset: 'shell' })
     const { normalizeHookLifecycle } = await import('../../src/main/notifications/agent-hook-lifecycle')
     const { agentTurnRecorder } = await import('../../src/main/knowledge/agent-turn-recorder')
-    mocks.trackTelemetry.mockClear(); mocks.bindTelemetry.mockClear(); mocks.snapshotTelemetry.mockClear()
+    mocks.trackTelemetry.mockClear(); mocks.bindTelemetry.mockClear(); mocks.bindNativeTelemetry.mockClear(); mocks.snapshotTelemetry.mockClear()
     const timeout = vi.spyOn(globalThis, 'setTimeout')
     try {
       for (const event of ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'Stop', 'Stop', 'SessionEnd']) {
@@ -174,6 +175,7 @@ describe('Terminal IPC contract', () => {
       }
       expect(mocks.trackTelemetry).not.toHaveBeenCalled()
       expect(mocks.bindTelemetry).not.toHaveBeenCalled()
+      expect(mocks.bindNativeTelemetry).not.toHaveBeenCalled()
       expect(mocks.snapshotTelemetry).not.toHaveBeenCalled()
       expect(timeout).not.toHaveBeenCalled()
       expect(agentTurnRecorder.handleHookPayload).not.toHaveBeenCalled()

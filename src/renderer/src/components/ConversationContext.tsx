@@ -66,24 +66,39 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     }).catch(e => { if (active) setError(String(e)) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [browsing, workspacePath, directory])
-  const add = (ref: ConversationReference, range?: [number, number]) => {
-    let inline = { ...ref, inline: true }
+  const addReferences = (refs: ConversationReference[], range?: [number, number]) => {
+    const inline: ConversationReference[] = []
     setConversationReferences(terminalId, current => {
-      const existing = current.find(item => item.path === ref.path && item.quote === ref.quote)
-      if (existing) { inline = { ...existing, inline: true }; return current.map(item => item.id === existing.id ? inline : item) }
-      return [...current, inline]
+      const next = [...current]
+      for (const ref of refs) {
+        const index = next.findIndex(item => item.path === ref.path && item.quote === ref.quote)
+        const item = { ...(index < 0 ? ref : next[index]), inline: true }
+        inline.push(item)
+        if (index < 0) next.push(item)
+        else next[index] = item
+      }
+      return next
     })
-    inputRef.current?.insertReferences([inline], range)
+    inputRef.current?.insertReferences(inline, range)
   }
+  const add = (ref: ConversationReference, range?: [number, number]) => addReferences([ref], range)
   const importFiles = async (files: File[]) => {
     if (disabled || importLock.current || !files.length) return
     if (activeReferences.length + files.length > MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
     if (files.some(file => !file.size || file.size > MAX_CONVERSATION_ATTACHMENT_BYTES)) { setError(t('conversation.context.size')); return }
+    const editor = inputRef.current
+    if (!editor) return
+    const element = editor.element
+    const insertionRange = editor.captureInsertionRange()
+    const imported: ConversationReference[] = []
     importLock.current = true; setImporting(true); onImporting(true); setError('')
     try {
-      for (const file of files) add(await window.electron.file.importConversationAttachment(file.name, new Uint8Array(await file.arrayBuffer())))
+      for (const file of files) imported.push(await window.electron.file.importConversationAttachment(file.name, new Uint8Array(await file.arrayBuffer())))
     } catch (e) { setError(String(e)) }
-    finally { importLock.current = false; setImporting(false); onImporting(false) }
+    finally {
+      if (imported.length && element?.isConnected && inputRef.current?.element === element) addReferences(imported, insertionRange())
+      importLock.current = false; setImporting(false); onImporting(false)
+    }
   }
   const attachNode = (node: FileNode) => {
     if (activeReferences.length >= MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }

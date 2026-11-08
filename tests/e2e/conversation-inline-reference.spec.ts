@@ -12,6 +12,103 @@ async function dropFile(input: Locator, offset: number, name: string) {
   }, { offset, name })
 }
 
+for (const method of ['paste', 'drop', 'picker']) test(`${method} imports keep their insertion point while typing continues elsewhere`, async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('Compare  then explain.')
+  await input.evaluate((el, method) => {
+    const original = window.electron.file.importConversationAttachment
+    window.electron.file.importConversationAttachment = async (...args) => {
+      await new Promise<void>(resolve => { (window as any).finishImport = resolve })
+      return original(...args)
+    }
+    const range = document.createRange(); range.setStart(el.firstChild!, 8); range.collapse(true)
+    const selection = getSelection()!; selection.removeAllRanges(); selection.addRange(range)
+    const data = new DataTransfer(); data.items.add(new File(['context'], 'old.ts', { type: 'text/plain' }))
+    if (method === 'paste') el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    if (method === 'drop') {
+      const box = range.getBoundingClientRect()
+      el.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true, clientX: box.x, clientY: box.y + 5 }))
+    }
+  }, method)
+  if (method === 'picker') await page.locator('input[type=file]').setInputFiles({ name: 'old.ts', mimeType: 'text/plain', buffer: Buffer.from('context') })
+  await expect.poll(() => page.evaluate(() => typeof (window as any).finishImport)).toBe('function')
+  await input.press('Control+End')
+  await input.pressSequentially(' More detail.')
+  await page.evaluate(() => (window as any).finishImport())
+  await expect(input).toHaveText('Compare old.ts×  then explain. More detail.')
+  const chip = input.locator('[data-reference-id]')
+  const chipBox = (await chip.boundingBox())!
+  const textTop = await input.evaluate(el => {
+    const range = document.createRange(); range.setStart(el.firstChild!, 0); range.setEnd(el.firstChild!, 7)
+    return range.getBoundingClientRect().top
+  })
+  expect(Math.abs(chipBox.y - textTop)).toBeLessThan(8)
+  if (method === 'drop') await page.screenshot({ path: 'artifacts/conversation-inline-reference/inline-composer.png' })
+  await input.press('Enter')
+  await expect(page.locator('[data-user-message] [data-prompt-reference]')).toHaveText('old.ts')
+  await expect(page.locator('[data-user-message]')).toContainText('Compare old.ts  then explain. More detail.')
+  if (method === 'drop') await page.screenshot({ path: 'artifacts/conversation-inline-reference/inline-message.png' })
+})
+
+test('multiple imports keep file order and follow edits before the insertion point', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('Compare  then explain.')
+  await input.evaluate(el => {
+    const original = window.electron.file.importConversationAttachment
+    window.electron.file.importConversationAttachment = async (...args) => {
+      if (args[0] === 'old.ts') await new Promise<void>(resolve => { (window as any).finishImport = resolve })
+      return original(...args)
+    }
+    const range = document.createRange(); range.setStart(el.firstChild!, 8); range.collapse(true)
+    const selection = getSelection()!; selection.removeAllRanges(); selection.addRange(range)
+    const data = new DataTransfer()
+    for (const name of ['old.ts', 'new.ts']) data.items.add(new File(['context'], name, { type: 'text/plain' }))
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+  })
+  await expect.poll(() => page.evaluate(() => typeof (window as any).finishImport)).toBe('function')
+  await input.press('Control+Home')
+  await input.pressSequentially('Please ')
+  await page.evaluate(() => (window as any).finishImport())
+  await expect(input).toHaveText('Please Compare old.ts× new.ts×  then explain.')
+  await input.press('Control+z')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(0)
+  await input.press('Control+y')
+  await expect(input.locator('[data-reference-id]')).toHaveCount(2)
+})
+
+test('message references handle quoted Windows paths and preserve literal examples', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  const path = 'C:\\workspace\\quoted "name".ts'
+  const prompt = `Compare file: ${JSON.stringify(path)} with directory: "/workspace/src/". Example file: "relative.ts".`
+  await input.fill(prompt)
+  await input.press('Enter')
+  const message = page.locator('[data-user-message]')
+  await expect(message.locator('[data-prompt-reference]')).toHaveText(['quoted "name".ts', 'src'])
+  await expect(message).toContainText('Example file: "relative.ts".')
+  await expect(message.locator('[data-prompt-reference]').first()).toHaveAttribute('title', path)
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([prompt])
+})
+
+test('long reference names stay compact and removable in a narrow composer', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 720 })
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.fill('Review ')
+  const name = 'long-file-name-'.repeat(12) + '.ts'
+  await dropFile(input, 7, name)
+  const chip = input.locator('[data-reference-id]')
+  expect((await chip.boundingBox())!.width).toBeLessThanOrEqual(242)
+  const remove = input.getByRole('button', { name: `Remove ${name}`, exact: true })
+  await expect(remove).toBeInViewport()
+  expect(await input.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await page.screenshot({ path: 'artifacts/conversation-inline-reference/compact-narrow.png' })
+  await remove.click()
+  await expect(input).toHaveText('Review  ')
+})
+
 test('inserts references at the drop caret, supports undo and preserves order after remount and send', async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
   const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })

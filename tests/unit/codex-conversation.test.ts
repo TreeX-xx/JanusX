@@ -15,6 +15,34 @@ function setup() {
 }
 
 describe('Codex conversation ownership and event projection', () => {
+  it('selects identity only from owned native start/resume responses, ignoring other thread notifications', async () => {
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+    await new Promise<void>(resolve => server.once('listening', resolve))
+    const bind = vi.fn()
+    const controller = new CodexConversation('identity', () => {}, bind)
+    const downstream = Object.assign(new EventEmitter(), { readyState: WebSocket.OPEN, send: vi.fn(), close: vi.fn() })
+    server.on('connection', socket => socket.on('message', bytes => {
+      const request = JSON.parse(bytes.toString())
+      if (request.method === 'thread/start' || request.method === 'thread/resume') {
+        socket.send(JSON.stringify({ method: 'thread/started', params: { thread: { id: 'background' } } }))
+        socket.send(JSON.stringify({ id: request.id, result: { thread: { id: request.method === 'thread/start' ? 'created' : 'resumed', turns: [] } } }))
+      } else socket.send(JSON.stringify({ id: request.id, result: {} }))
+    }))
+    try {
+      const wire = controller as any
+      wire.endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
+      wire.connect(downstream)
+      downstream.emit('message', Buffer.from(JSON.stringify({ id: 1, method: 'thread/start', params: { cwd: 'C:/repo' } })))
+      await vi.waitFor(() => expect(bind).toHaveBeenLastCalledWith('created', undefined))
+      downstream.emit('message', Buffer.from(JSON.stringify({ id: 2, method: 'thread/resume', params: { threadId: 'resumed' } })))
+      await vi.waitFor(() => expect(bind).toHaveBeenLastCalledWith('resumed', undefined))
+      expect(bind).toHaveBeenCalledTimes(2)
+    } finally {
+      await controller.dispose()
+      for (const client of server.clients) client.terminate()
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
+  })
   it('starts new sessions at standard speed while preserving resumes and explicit toggles', async () => {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
     await new Promise<void>(resolve => server.once('listening', resolve))

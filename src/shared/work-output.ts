@@ -6,6 +6,8 @@ export interface WorkSummary {
   waiting: number
   interrupted: number
   incomplete: boolean
+  unknown: number
+  rejected: number
 }
 
 export function summarizeWork(items: { status: string; truncated?: boolean }[]): WorkSummary {
@@ -15,9 +17,18 @@ export function summarizeWork(items: { status: string; truncated?: boolean }[]):
     running: count(['inProgress', 'running', 'requested']),
     failed: count(['failed']),
     waiting: count(['approval']),
-    interrupted: count(['cancelled', 'declined', 'denied', 'interrupted']),
-    incomplete: items.some(item => item.truncated || !['completed', 'inProgress', 'running', 'requested', 'failed', 'approval', 'cancelled', 'declined', 'denied', 'interrupted'].includes(item.status)),
+    interrupted: count(['cancelled', 'interrupted']),
+    rejected: count(['declined', 'denied']),
+    unknown: items.filter(item => !['completed', 'inProgress', 'running', 'requested', 'failed', 'approval', 'cancelled', 'declined', 'denied', 'interrupted'].includes(item.status)).length,
+    incomplete: items.some(item => item.truncated),
   }
+}
+
+/** Only explicit display targets; never stringify arbitrary tool inputs or prompts. */
+export function toolActivity(name: string, input: Record<string, unknown> = {}): string {
+  const target = [input.command, input.cmd, input.file_path, input.filePath, input.path, input.pattern, input.query, input.description]
+    .find(value => typeof value === 'string' && value.trim())
+  return [name, target].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim().slice(0, 240)
 }
 
 /** Public content breaks a process run; updates never change its first-item identity. */

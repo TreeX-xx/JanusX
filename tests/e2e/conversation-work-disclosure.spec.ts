@@ -1,9 +1,25 @@
 import { expect, test } from '@playwright/test'
 
 for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) {
+  test(`${engine}: history limits, output limits and unknown states stay distinct`, async ({ page }) => {
+    await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)
+    await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
+    const show = (kind: string) => page.evaluate(kind => (window as any).codexFixture.workTruncated(kind), kind)
+    const toggle = page.locator('.conversation-work-toggle')
+    await show('history')
+    await expect(toggle).toContainText('npm test')
+    await expect(toggle).not.toContainText('truncated')
+    await show('output')
+    await expect(toggle).toContainText('Output truncated')
+    await show('unknown')
+    await expect(toggle).toContainText('Status unconfirmed')
+    await expect(toggle).not.toContainText('truncated')
+  })
   test(`${engine}: thinking duration persists across work updates and disclosure toggles`, async ({ page }) => {
     await page.clock.install()
     await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)
+    await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 10_000))
     const preview = (stage: string) => page.evaluate(stage => (window as any).codexFixture.workPreview(stage), stage)
     await preview('start')
     const thinking = page.getByRole('status').filter({ hasText: 'Thinking…' })
@@ -25,6 +41,7 @@ for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) {
 
   test(`${engine}: live work stays compact, preserves choices and exposes failures`, async ({ page }) => {
     await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)
+    await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
     const preview = (stage: string) => page.evaluate(stage => (window as any).codexFixture.workPreview(stage), stage)
     await preview('start')
     const toggle = page.locator('.conversation-work-toggle')
@@ -51,7 +68,10 @@ for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) {
     await toggle.click()
     await preview('finish')
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await expect(toggle).toContainText('Failed')
+    await expect(toggle).toContainText('1 failed')
+    await expect(toggle).toContainText('Finished')
+    await expect(toggle).toContainText('check workspace')
+    await expect(toggle).not.toContainText('Incomplete record')
     await expect(page.getByText('The check finished with a read error.', { exact: true })).toBeVisible()
     await toggle.click()
     await expect(detail).toHaveAttribute('open', '')

@@ -6,10 +6,53 @@ import { CodexConversation } from '../../src/main/terminal/codex-conversation'
 import { OpenCodeConversation } from '../../src/main/terminal/opencode-conversation'
 import { hookCliFixture } from '../helpers/hook-cli-fixture'
 import { nativeConversationFixture } from '../helpers/native-conversation-fixture'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 for (const engine of ['codex', 'opencode'] as const) {
   const binary = process.env[engine === 'codex' ? 'JANUSX_TEST_CODEX_BIN' : 'JANUSX_TEST_OPENCODE_BIN']
   describe.skipIf(!binary || process.platform !== 'win32')(`${engine} native history editing`, () => {
+    if (engine === 'codex') it('keeps sending available after interrupt and a native history database rejection', async () => {
+      const f = await hookCliFixture({ codexLiveProbe: true })
+      await writeFile(join(f.env.CODEX_HOME!, 'config.toml'), [
+        'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+        '[model_providers.local]', 'name="Local fixture"', `base_url="${f.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+        `[projects.${JSON.stringify(f.cwd)}]`, 'trust_level="trusted"',
+      ].join('\n'))
+      const db = join(f.env.CODEX_HOME!, 'thread_history_1.sqlite')
+      const invalidDb = 'isolated test fixture: not a SQLite database\n'
+      await writeFile(db, invalidDb)
+      const c = new CodexConversation('invalid-history', () => {})
+      let terminal: pty.IPty | undefined
+      try {
+        const launch = await c.start({ command: binary!, args: [], cwd: f.cwd, env: f.env, assetsDir: join(f.root, 'assets') })
+        terminal = pty.spawn(launch.command, launch.args, { cwd: f.cwd, env: { ...f.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+        terminal.onData(data => { if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+        await expect.poll(() => c.state.connection, { timeout: 20000 }).toBe('ready')
+        await c.command({ type: 'mode', mode: 'conversation' })
+        const controlEpoch = c.state.controlEpoch, threadId = c.state.threadId
+        await c.command({ type: 'send', text: 'ORIGINAL_INPUT', commandId: 'original', controlEpoch })
+        await expect.poll(() => f.responseRequests.some(request => request.input.includes('ORIGINAL_INPUT')), { timeout: 15000 }).toBe(true)
+        await c.command({ type: 'interrupt', controlEpoch })
+        await expect.poll(() => c.state.turnId, { timeout: 15000 }).toBeNull()
+        const target = c.state.items.find(item => item.type === 'userMessage')!
+        const previous = structuredClone(c.state.items)
+        await expect(c.command({ type: 'edit', itemId: target.id, text: 'CORRECTED_INPUT', commandId: 'edit', controlEpoch })).rejects.toThrow('Your edited message was not sent')
+        expect(c.state).toMatchObject({ connection: 'ready', threadId, capabilities: { edit: false }, submitting: false })
+        expect(c.state.items).toEqual(previous)
+        expect(f.responseRequests.some(request => request.input.includes('CORRECTED_INPUT'))).toBe(false)
+        await c.command({ type: 'send', text: 'CORRECTED_INPUT', commandId: 'append', controlEpoch })
+        await expect.poll(() => f.responseRequests.some(request => request.input.includes('CORRECTED_INPUT')), { timeout: 15000 }).toBe(true)
+        await expect.poll(() => c.state.turnId, { timeout: 15000 }).toBeNull()
+        const corrected = f.responseRequests.filter(request => request.input.includes('CORRECTED_INPUT'))
+        expect(corrected).toHaveLength(1)
+        expect(corrected[0].input).toContain('ORIGINAL_INPUT')
+        expect(await readFile(db, 'utf8')).toBe(invalidDb)
+      } finally {
+        if (terminal) await promisify(execFile)('taskkill', ['/PID', String(terminal.pid), '/T', '/F'], { windowsHide: true }).catch(() => {})
+        await c.dispose(); await f.close()
+      }
+    }, 60000)
     it('replaces a historical turn in the same session and model context while preserving workspace files', async () => {
       const f = engine === 'codex' ? await hookCliFixture() : await nativeConversationFixture()
       if (engine === 'codex') await writeFile(join(f.env.CODEX_HOME!, 'config.toml'), [

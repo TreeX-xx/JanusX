@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-06T04:04:27.258Z",
+  "updated": "2026-11-07T12:46:03.456Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -24,6 +24,16 @@
 SuperAgent 复用 CodexConversation 的原生事件／请求投影，通过独立 stdio 传输直接拥有 App Server 进程，无需 TUI。工作、执行与环境 lease 归 Agent 模块，原生权限、审批／问答及验证由[Worker 决策](../agent/superagent-workers.md)维护。P4 起现有 JanusChat 的正常输入由同一 Janus 分派工作，卡片按可变数量呈现并提供容量、停止和关闭；[分派与调度决策](../agent/superagent-scheduling.md)维护队列、输入归属及报告交付。
 
 该通路只允许当前工作 profile 内的原生决定，补充经过持久输入队列，未知请求明确显示阻塞并可停止，不提供终端兜底。原有终端双模式的启动、命令、回答和切换规则继续适用于下文范围，不因复用协议处理而改变。
+
+## Claude 对话启动目录信任
+
+Claude 对话优先启动时，原生 `--bg` 返回明确的目录未信任错误后，适配器保持 starting，在现有 ConversationStartupPanel 展示 Claude 标识、解析到磁盘真实位置的完整目录与「信任并继续／取消」。取消暂停启动并保留草稿，可从同一页面继续。确认期间禁止切换显示模式；过期步骤、重复确认与控制权变化不能触发写入。关闭尚未创建 PTY 的会话会唤醒并终止等待，避免挂住创建与清理。
+
+用户明确确认后，claude-trust 仅更新当前目录的原生 `projects[path].hasTrustDialogAccepted`。自定义 CLAUDE_CONFIG_DIR 使用其下 `.claude.json`，默认使用用户主目录的 `.claude.json`；Windows 等价斜杠与大小写键一起更新，其他项目和字段保留。写入前校验 JSON 与对象结构，局部修改、同步冲突检查和临时文件原子替换用于防止损坏或覆盖已检测的并发变更；格式错误保留原文并允许重试。原生 CLI 再次成功启动、桥接 session 与后台任务身份一致后才进入 ready。再次返回未信任则产生新确认步骤；其它失败不自动重发后台启动。
+
+这是针对本机 Claude Code 2.1.318 实测的内部存储适配，没有声称存在公开的 trust RPC。其它 Claude 进程不受 JanusX 写入检查约束，检查与替换之间仍有跨进程竞争窗口；原生配置格式、有效信任策略或并发写入行为变化时应重新验证，优先迁移到官方结构化授权接口。仅接受原生明确报告的当前真实目录，不自动扩大到父目录。登录、API key 确认与其它原生 onboarding 不属于此流程。
+
+验证入口：`npx vitest run tests/unit/claude-startup.test.ts tests/unit/claude-conversation.test.ts tests/unit/codex-startup.test.ts --project=unit` 共 30 项通过；包含确认前不写入、取消／继续、过期与重复控制、损坏配置保留、原生再次拒绝及关闭等待。设置 JANUSX_TEST_CLAUDE_BIN 后，`npx vitest run tests/unit/claude-conversation-cli.test.ts -t 'confirms workspace trust' --project=integration` 在真实 2.1.318、隔离配置和假 API key 下通过，确认到 ready 全程没有 PTY 授权按键和模型请求。`npx playwright test tests/e2e/conversation-startup.spec.ts --project=island --workers=1` 七项通过，包含 Claude 与 Codex 信任卡片、取消继续、草稿和终端隐藏。生产构建后，`npx playwright test tests/e2e/desktop-claude-conversation.spec.ts --config playwright.desktop.config.ts -g 'confirms native folder trust' --workers=1` 一项通过，验证真实 preload／IPC、原生目录确认、取消继续、后台会话启动及首条消息收到 localhost 测试服务回复，全程不切换终端。截图在 `artifacts/claude-startup/`；主 Agent 已查看浏览器与桌面截图。类型检查、相关实现 ESLint、中英文检查和 `npm run build:app` 通过；Note 校验 326 篇、0 errors、17 条既有外部链接诊断。主 Agent 自检，无独立子 Agent 审阅。
 
 ## 对话模式切换控件
 
@@ -137,9 +147,9 @@ Claude、Codex、OpenCode、Pi 与 DSH 的双模式启动不再以 CLI 或 DSH T
 
 ## 对话正文与工作过程
 
-CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相邻活动分组和“工作过程”折叠组件。助手公开正文（包括 commentary）和最终回答直接显示；连续工具／公开推理从执行中起默认收起。正文、用户消息及图片结果中断分组，过程不跨轮次；不依赖 final_answer 或文本猜测，因此 Codex、Claude、OpenCode、Pi、DSH 使用相同规则。
+CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相邻活动分组和操作摘要折叠组件。助手公开正文（包括 commentary）和最终回答直接显示；连续工具／公开推理从执行中起默认收起。正文、用户消息、阻断错误及图片结果中断分组，过程不跨轮次；不依赖 final_answer 或文本猜测，因此 Codex、Claude、OpenCode、Pi、DSH 使用相同规则。
 
-摘要显示活动数、执行／等待／完成状态及失败、中断、记录不完整提示。展开先查看活动列表，再展开参数、输出或 diff。新事件和完成不重置用户选择。CLI 对话的 Thinking 行与整轮耗时保持显示，工具运行、步骤更新及展开／收起工作过程均不卸载计时组件；审批、提问或必须回终端处理时仍由对应提示接管。审批、提问、阻断错误、图片、文件变更汇总以及 JanusX 的 Note／配置业务结果继续直接可见。状态保存与业务结果边界见 [Chat 工作时间线](../agent/requirements/chat-work-timeline.md)。
+折叠行优先展示最近仍运行的命令或工具目标，全部结束后保留最后一项操作；后续推理不覆盖工具预览。辅助信息显示活动数、计时、执行／等待／结束状态及局部失败、拒绝、中断和未知状态。单条输出截断显示“输出已截断”，会话历史裁剪仅在顶部提示，不向完整活动组传播。展开先查看活动列表，再展开参数、输出或 diff。新事件和完成不重置用户选择。CLI 对话的 Thinking 行与整轮耗时保持显示，工具运行、步骤更新及展开／收起均不卸载计时组件；审批、提问或必须回终端处理时仍由对应提示接管。审批、提问、阻断错误、图片、文件变更汇总以及 JanusX 的 Note／配置业务结果继续直接可见。状态保存与业务结果边界见 [Chat 工作时间线](../agent/requirements/chat-work-timeline.md)。
 
 正文沿用共享 Markdown 排版。原生阶段、工具事件和模型上下文保持原协议语义；本节的展示规则更新下文旧版“公开推理完成后始终直接展开”的描述。
 
@@ -158,6 +168,18 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 工程对话提供附件入口、截图粘贴、文件拖入和 `@` 文件/目录选择。“+”固定在输入区底部工具栏最左侧，与模型、强度及发送操作同排；添加菜单向上浮出，不占正文布局。文件与图片引用作为不可拆分的小标签嵌入正文，不再挂在正文上方；右侧文件拖入按鼠标落点插入，可拖动到其他文字之间。图片提供内联缩略图与预览，加载失败仍可删除。菜单支持 Esc 返回触发按钮、点击外部或焦点离开时关闭，选择引用后聚焦输入框。草稿及引用跨 pane 重建保留，发送失败可显式恢复。每条消息最多 8 个引用，单附件不超过 10 MB，合成提示词上限 32000 字符。附件由主进程保存至 userData/conversation-attachments 的独立 UUID 目录，不覆盖工作区文件。引用按正文顺序展开路径与选区内容，Codex 图片另按首次出现顺序以原生 localImage 输入发送；其他引擎按文件引用处理，是否能查看图片取决于引擎工具能力。附件为历史引用保留在本机，尚未自动清理；长期磁盘增长需要后续存储管理接入。
 
 内联编辑器由浏览器保存选区与原生撤销栈；草稿仅存文本及引用标记，不存 HTML。引用元数据在草稿生命周期内保留以支持撤销，发送只采用正文仍存在的引用；全选覆盖或删除不会附带隐藏附件。同一编辑器复制／剪切粘贴保留已知引用，跨会话粘贴回退为可读路径文本。普通富文本粘贴只接收纯文本。Ctrl+J／Shift+Enter 使用原生换行操作，一次按键即将光标移入下一行；序列化忽略空行占位，草稿恢复保留首尾空行。IME、撤销／重做、输入历史、失败恢复与 pane 重建保持原有交互。
+
+文件导入开始时保存原生 live Range，拖入使用鼠标落点，粘贴／文件选择使用当前选区；导入期间移动光标不会改变目标，在目标前继续输入会让目标随正文移动。多文件按选择顺序批量插入，一次撤销即可移除整批；部分导入失败仍插入已成功文件并显示错误。原编辑器已卸载时不向另一个输入框写入。标签最大宽度 240px，并受输入区宽度约束；长名称省略，完整路径保留在悬停提示，缩略图与移除按钮不被名称挤出。短标签与文字同行，空间不足时自然换行。
+
+待发送与原生历史消息通过 `ConversationPrompt` 把 `file/directory/image/diff: JSON引号绝对路径` 显示为正文内文件名标签，原始消息及复制／编辑操作仍使用完整文本；相对路径示例保持原文。历史没有编辑器引用身份，因此这是路径语法投影：用户手写同样的绝对路径语法也会显示为标签，不能据此判断供应商是否读过文件。历史标签提供完整路径提示，不承担编辑器图片预览操作。
+
+助手回复中的 `:codex-file-citation{path="..." purpose="source"}` 在共享 `MarkdownContent` 展示前转换为文件名链接，完整路径保留为悬停提示；文件链接使用轻边框、单行截断，点击沿用既有 `conversationLink`／`openEditor`，打开失败在链接旁显示错误。来源标记不代表文件已经读取、修改或验证；未提供行号时不补造位置。原始消息、流式事件和复制结果保持原文，不更改提供方协议或历史存储。
+
+转换器只对包含 `:codex` 的回复额外解析一次 Markdown，以原始源码偏移跳过代码块、行内代码、已有链接、图片、定义和 HTML，再把完整标记转换为经过转义的 Markdown 链接；这样路径中的 Markdown 符号、空格及 `#/?` 不会改变打开目标。不支持的协议、缺失路径或畸形属性保留原文；相对路径沿用当前工作目录解析。流式输出暂时隐藏末尾未完成标记，完成后转成链接；回复结束仍不完整时恢复原文，避免永久丢失输出。额外解析只用于带标记的回复，长回复若出现渲染性能问题再考虑专用 Markdown 语法扩展。
+
+助手文件引用验证（2026-11-05）：新增 `conversation-file-citations.spec.ts` 三项用例修复前均失败，修复后与 `codex-conversation.spec.ts` 共 21 项通过，文件链接样式调整后专项三项再次通过；覆盖用户提供的五个引用、逐项打开原路径、流式分段、代码示例保留、未完成回复和打开错误。`vitest run tests/unit/conversation-citations.test.ts tests/unit/conversation-link.test.ts` 11 项通过，覆盖 Windows／POSIX／UNC／相对路径、路径转义及畸形标记；类型检查与三个变更 TypeScript 组件／模块 ESLint 通过。主 Agent 查看 `artifacts/conversation-citations/file-sources-narrow.png`；这是当前 JanusX 工作区的浏览器夹具及主 Agent 自检，未运行真实供应商会话或验证另一个 worktree 的已安装应用。
+
+内嵌引用优化验证（2026-11-05）：`conversation-inline-reference.spec.ts` 新增用例先复现导入期间移动光标导致附件落到末尾，以及长名称占满窄窗的问题，修复后通过。Playwright 分两轮运行 inline-reference、attachment-preview、attachment-recovery、composer-layout、input-editing、input-history、context 七个文件，共 30 个不同用例通过；覆盖拖入／粘贴／文件选择期间继续输入、目标前编辑、多文件顺序与批量撤销、发送后的标签和转义路径、窄窗、图片预览及失败恢复。`vitest run tests/unit/conversation-context.test.ts tests/unit/conversation-outbox.test.ts` 14 项通过；类型检查及四个变更组件 ESLint 通过。主 Agent 查看 `artifacts/conversation-inline-reference/{inline-composer,inline-message,compact-narrow}.png`。这是浏览器夹具及主 Agent 自检，未验证真实桌面文件拖拽或供应商读取附件。
 
 占位提示按整个编辑器序列化后的内容是否为空判断，包含文字、引用和输入法尚未提交的组合文本；键入、删除、撤销与草稿恢复同步更新显示。CSS 的 `:only-child` 只统计元素节点，文字后仅剩一个换行元素时仍会命中，因此不再按这一 DOM 形状判空。编辑器仅剩浏览器维持光标的空占位时显示提示；实际换行和空格继续作为草稿内容保留。
 
@@ -293,7 +315,7 @@ Write/Edit/Bash 的 HTTP 审批只在能唯一关联当前工具时展示“允�
 
 #### Claude 执行过程摘要与阶段回复
 
-Claude 的工作过程保持默认折叠，折叠外增加当前工具及目标的单行摘要，例如 `Read · src/main.ts`、`Bash · Run tests`。摘要来自原生工具名称和明确的描述、路径、搜索词或命令字段，压缩空白并限制为 240 字符，独立于持续增长的工具输出；不复制完整参数或子代理 prompt。优先显示组内仍运行的最近活动，并从本地接收时间计时；全部结束后保留最后一项摘要，撤下计时。用户展开选择保持，失败、审批、中断等提示仍使用原有状态统计。老快照及未提供摘要的其它引擎沿用原展示。
+各 CLI 引擎共用折叠行内的工具及目标摘要，例如 `Read · src/main.ts`、`Bash · npm test`。命令优先于描述，路径及搜索词按明确字段选取，压缩空白并限制为 240 字符，独立于持续增长的工具输出；不复制完整参数或子代理 prompt。Codex 和 OpenCode 从原生结构化字段投影；Pi、DSH 从工具开始记录的名称与参数提取允许的目标字段，结果覆盖正文时保留原摘要。旧记录可回退到命令首行或文件路径。优先显示组内仍运行的最近操作，并从本地接收时间计时；全部结束后保留最后一项摘要，撤下计时。用户展开选择保持。Claude 的拒绝与执行错误分开记录，输出在桥接或展示层截断均保留截断标记。
 
 正文按原生 turn／step／block 身份追加，在工具分组外直接显示；后续正文自然中断连续工具分组。Mods 仅在步骤生成器返回非空 `stopReason` 时发出 `step.complete`，主进程完成该步骤的正文，不等待整个 turn。真实 2.1.317 的取消会让生成器正常返回但 `stopReason:null`，因此不能把 `done:true` 单独作为正文完成证据；未完成段留给 `turn.complete` 标为中断或失败，早先完成段保持完成。首版不改模型交流指令、不额外生成过程说明；Agent 工具可展示父调用描述，子代理内部事件与公开 thinking 尚未接入。
 
@@ -312,6 +334,18 @@ Claude 的工作过程保持默认折叠，折叠外增加当前工具及目标�
 验证探针为 `node scripts/claude-dual-mode/mods-probe.mjs --hybrid-settings --hybrid-empty --env-effort`，首次证据在 `artifacts/claude-dual-mode/2.1.316/mods-1793451370717/`，补强逐项 effort 断言后的复验为 `mods-1793452562246/`。Haiku/low、Sonnet/high、Opus/max、重复切换和原生输入均核对实际请求；`mods-1793451370722/` 的 `--flag-settings` 负对照证实运行中改附加 settings 文件不生效。动态目录证据为版本目录下的 `settings-catalog.json`。产品真实 CLI 回归进一步断言三组模型／强度传值、零额外请求、用户 settings 不变、原生命令接管和另一个 worker 的 high 上限拒绝 max。
 
 该路径按 Windows 2.1.316 验证。模型目录不保证真实账户有调用权限，复杂第三方别名／策略组合未全覆盖；局部 env 会被后续子进程继承，虽然 turn.step 的模型改写排除子代理，仍不能承诺子代理强度完全不受影响。子代理、真实 provider 与长期资源测试是后续验证项；原生版本改变必须复验目录协议、Mods 行为和 env 优先级。
+
+#### Ultracode 会话开关
+
+Claude 的 Ultracode 是自动编排动态工作流的会话开关，与模型 effort 分开。输入区显示独立开关；开启与关闭保留当前 effort、会话 ID 和 JanusX 请求覆盖，不写用户默认设置。未取得原生确认、工作流未启用或原生模型不支持时禁止开启；任务执行、审批、阻塞问题与其它设置变更期间同样禁止切换。界面只采用 worker 确认的状态，失败不乐观翻转；切换已派发但回读失败时清除旧状态，要求检查原生终端。
+
+当前桥接以 Claude Code 2.1.318 的公开 Mods `command.run` 执行 `/effort ultracode on/off`，不向 `CLAUDE_CODE_EFFORT_LEVEL` 填入 ultracode。Mods 没有运行时 getSettings 调用，状态读取通过同 worker 的 `/effort help` 与 `/effort status`，仅匹配本次命令之后成对的原生 command-name/command-args 与 local-command-stdout 结构化记录；不解析 ANSI，不接受助手正文作为确认。内部命令跳过 JanusX 原生设置接管 Hook，防止撤销 effort 覆盖。进入对话视图、原生模型／强度／配置命令结束及会话切换后重读；不在每个轮询周期执行查询。查询会在原生记录中增加本地命令，读取依赖该版本的英文输出与信封格式，格式不匹配时保留未知状态。未来 Mods 提供结构化运行时设置读取时，应替换这层兼容读取。
+
+JanusX 的 turn.step 模型覆盖不改变原生会话模型，因此开关能力以原生模型为准。只有所选模型与原生模型一致时才允许从 JanusX 开启；不同模型时提示用户先在终端通过 `/model` 选择。已开启仍可关闭。该限制避免将单个请求模型的能力误报为工作流编排器的能力，代价是部分模型切换需要原生终端。Claude 2.1.284 起支持在较低 effort／上限下保留 Ultracode；不将它加入模型 effort 列表或排序。
+
+验证入口：`tests/unit/claude-mod-ultracode.test.ts` 验证内部命令保留 medium 覆盖、拒绝不可用状态与助手伪确认；`tests/unit/claude-conversation.test.ts` 验证确认事件、失败状态、空闲与模型边界。`tests/e2e/conversation-settings.spec.ts` 的 Ultracode 用例验证独立开关、effort 切换、草稿、失败、未知／不可用状态及 380px 布局，截图在 `artifacts/ultracode/`。真实 2.1.318 的 `claude-conversation-cli.test.ts -t 'toggles Ultracode'` 使用隔离配置与 localhost 模型，核对同 worker 开关、用户 settings 不变、原生终端切换回读及不支持模型拒绝；不代表真实供应商的大规模工作流验收。原生 `/model` 可能发起非流式模型校验请求，不能与开关本身的零模型请求混为一谈。主 Agent 自检，无独立子 Agent 审阅。
+
+本轮验证结果：相关单元测试 26 项、浏览器测试 2 项、真实 CLI 的 Ultracode 与既有流式／Esc／审批／设置回归各 1 项通过。类型检查、相关实现 ESLint、中英文一致性检查通过；Note 校验 327 篇、0 errors、17 条既有外部链接诊断。主 Agent 查看正常与 380px 截图，无横向溢出。
 
 #### 停止与产品验证
 
@@ -630,7 +664,13 @@ Windows 真实 Electron 验收 `tests/e2e/desktop-codex-conversation.spec.ts` �
 
 原位编辑真实替换该消息起的会话历史，再从这里生成回答，不撤销工作区文件。Codex 0.166.0 使用本机生成 schema 确认的 `thread/revert {threadId,beforeTurnId}`，原生 TUI 同步接收 `thread/reverted`；旧 `thread/rollback` 已移除。OpenCode 2.1.4 使用 `revert/stage {messageID,files:false}`、`revert/commit` 并读回消息确认，轮询代次隔离编辑前的在途响应。确认后才移除本地后续项，Codex 同时移除对应计划，再发送修改后的文本。空闲、控制代次、消息身份、截断与非纯文本内容均有门禁；原生操作结果不明时禁用对话控制，不自动重试，编辑文字仍可选取复制。Claude、Pi、DSH 尚未接入可靠历史编辑，隐藏编辑入口，不能以追加提示词代替。
 
-验证：`tests/unit/conversation-edit-cli.test.ts` 两项真实本地模型测试通过，覆盖三个回合后编辑中间回合、重复 commandId、模型实际上下文不含旧后续、会话身份保持、工作区文件保留及切回原生终端续聊。设置 `JANUSX_TEST_CODEX_BIN` / `JANUSX_TEST_OPENCODE_BIN` 后运行 `npx vitest run tests/unit/conversation-edit-cli.test.ts --project=integration --maxWorkers=1`；未配置时跳过不算通过。相关 unit 28 项通过；`codex-conversation.spec.ts` 与 `conversation-edit.spec.ts` 浏览器 35 项通过，包含取消、失败前后历史状态、底部草稿、重复提交与深浅色/窄窗。截图在 `artifacts/conversation-design/inline-edit-{dark,light,narrow}.png`。以上真实 CLI 是本地确定性模型证据，不代表真实供应商或桌面完整端到端验收。
+Codex 历史库读取失败与投递结果未知分别处理。仅当 `thread/revert` 收到原生 JSON-RPC `-32603`，且错误为 `failed to list thread history: thread-store internal error: failed to open thread history database:` 前缀时，确认失败发生在历史回退前：保留历史及计划，不重发编辑内容，不将连接标记为 disconnected；暂停该线程的历史编辑，普通发送仍可用。请求错误保留来源方法和代码，普通 Error 或其它方法中的同名错误不能解除保护。超时、断连、其它回退异常及回退成功后的发送异常仍停用对话控制，不自动重试。该分类依据 Codex 0.166.0 的实际错误与回退行为；上游改变错误格式时默认走保守分支。
+
+上述可恢复失败保留原位编辑文本与底部独立草稿。用户可取消编辑后继续普通发送，也可点击明确标注的“作为新消息发送”，将修改后的文本追加到原历史末尾；不伪装成原位替换，不自动回退为追加，Ctrl/Cmd+Enter 不触发这种替代操作。不明结果不提供该恢复入口。切换到另一个线程重新开放编辑探测；不修复、删除或重建 Codex 的数据库。
+
+原有验证：`tests/unit/conversation-edit-cli.test.ts` 的 Codex／OpenCode 两项真实本地模型测试通过，覆盖三个回合后编辑中间回合、重复 commandId、模型实际上下文不含旧后续、会话身份保持、工作区文件保留及切回原生终端续聊。设置 `JANUSX_TEST_CODEX_BIN` / `JANUSX_TEST_OPENCODE_BIN` 后运行 `npx vitest run tests/unit/conversation-edit-cli.test.ts --project=integration --maxWorkers=1`；未配置时跳过不算通过。相关 unit 28 项通过；`codex-conversation.spec.ts` 与 `conversation-edit.spec.ts` 浏览器 35 项通过，包含取消、失败前后历史状态、底部草稿、重复提交与深浅色/窄窗。截图在 `artifacts/conversation-design/inline-edit-{dark,light,narrow}.png`。以上真实 CLI 是本地确定性模型证据，不代表真实供应商或桌面完整端到端验收。
+
+历史库异常恢复验证：`conversation-edit.test.ts` 与 `codex-conversation.test.ts` 共 28 项单测通过，真实 WebSocket 错误响应覆盖已确认前置失败、其它错误代码与回退成功后失败；原有结果未知用例继续通过。`conversation-edit.spec.ts` 的 10 项浏览器测试通过，覆盖明确追加、原历史／底部草稿保留、快捷键不误发送、不明结果禁用恢复及窄窗。真实 Codex 0.166.0 的 `conversation-edit-cli.test.ts` 两项用例通过：正常历史编辑，以及隔离 CODEX_HOME 预置无效 SQLite 后，发送、中断、编辑被拒绝、同线程继续发送；模型上下文保留原输入，修改内容仅在显式发送后出现一次，无效数据库文件保持原样。本轮未配置 OpenCode binary，其真实 CLI 用例跳过。主 Agent 查看 `artifacts/conversation-edit/history-unavailable.png` 的 380px 布局；主 Agent 自检，无独立子 Agent 审阅。
 
 运行时长由主进程在轮次开始、结束事件间记录墙钟耗时，包含该轮等待审批的时间。Thinking 旁每秒更新分钟:秒；结束后回答工具栏显示固定耗时。视图切换不重置计时，缺少开始事件的历史轮次不补造耗时，后台工具任务不计入已完成的回答耗时。
 
@@ -903,7 +943,7 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 | --- | --- |
 | Codex 0.166.0 | 本机 `app-server generate-json-schema` 确认 `imageGeneration` 的 savedPath/result/fileId、failure 等字段。转换器支持 savedPath 与内联 result，保留生成中/失败状态。只有 fileId 而无可读取数据时明确显示不可用，不猜测附件 payload。该事件投影有单元覆盖；真实生图服务未调用 |
 | Pi 0.85.1 | 原生扩展观察 assistant/toolResult 的结构化 image 内容，落盘后才经认证桥发送引用。真实 CLI + localhost 模型调用测试工具，返回 PNG 并显示为 ready，快照无图片字节；普通发送、去重与取消回归通过 |
-| Claude/OpenCode/Codex/其他 NativeConversation | 已完成结果中的显式本地 Markdown 图片链接进入同一缓存与卡片。只识别 `![说明](路径)`，不扫描任意日志、目录或普通文件名。Claude/OpenCode 事件投影有单元覆盖；Codex 真实 CLI 验证同一 skill 会话返回本地图片后形成 ready 产物 |
+| Claude/OpenCode/Codex/其他 NativeConversation | 仅已完成的 `agentMessage` 正文中的显式本地 Markdown 图片进入同一缓存与卡片；命令、工具、推理和文件变更等记录不自动扫描。使用 Markdown 语法树识别图片，排除围栏代码、缩进代码、行内代码和转义示例；正文转普通文件链接时只修改实际图片节点，保留代码原文。工具若返回结构化图片仍沿用原生附件链路；纯文本工具输出中的图片链接需由助手在正文引用后才生成卡片。Claude/OpenCode 事件投影有单元覆盖；Codex 真实 CLI 验证同一 skill 会话返回本地图片后形成 ready 产物 |
 
 原生探针有两个明确边界：在 localhost Responses 夹具直接注入 `image_generation_call`，Codex 本轮未发出对应会话图片事件，不能把这一模拟载荷当作真实生图服务验收；Pi 的 `sendMessage` 自定义展示消息未经过当前扩展的 message 事件回调，因此不把 custom message 图片列为支持。改用可观察的文件结果和真实工具返回进行端到端验证，不新开旁路会话冒充原生结果。
 

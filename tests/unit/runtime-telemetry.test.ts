@@ -190,9 +190,7 @@ describe('runtime telemetry model context lookup', () => {
     )).toEqual({})
   })
 
-  it('clears stale cumulative totals on an exact session switch', () => {
-    // Only a hook/adapter assertion (non-history source) may rebind an
-    // exact-bound terminal; a history scan with a different session is dropped.
+  it.each(['exact', 'correlated'] as const)('clears all session-scoped data on a confirmed %s switch', binding => {
     expect(mergeRuntimeTelemetrySnapshot(
       {
         preset: 'codex',
@@ -202,15 +200,24 @@ describe('runtime telemetry model context lookup', () => {
         totalTokens: 80_000,
         inputTokens: 50_000,
         outputTokens: 30_000,
+        contextTokens: 55_000,
+        contextWindowTokens: 258_400,
+        compactionCount: 4,
+        compactionCountConfidence: 'exact',
+        detectedModel: 'old-model',
+        modelChangedAt: 900,
       },
       {
         sessionId: 'new-session',
-        sessionBinding: 'exact',
+        sessionBinding: binding,
         observedAt: 2_000,
         source: 'history',
         confidence: 'authoritative',
       },
-    )).toMatchObject({ telemetrySessionId: 'new-session', totalTokens: undefined, inputTokens: undefined, outputTokens: undefined })
+    )).toMatchObject({ telemetrySessionId: 'new-session', telemetrySessionBinding: binding,
+      totalTokens: undefined, inputTokens: undefined, outputTokens: undefined, contextTokens: undefined,
+      contextWindowTokens: undefined, compactionCount: undefined, compactionCountConfidence: undefined,
+      detectedModel: undefined, modelChangedAt: undefined })
     expect(mergeRuntimeTelemetrySnapshot(
       {
         preset: 'codex',

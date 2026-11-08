@@ -31,6 +31,67 @@ const { getRuntimeTelemetrySnapshot } = await import('../../src/main/runtime-tel
 const defaultReader = vi.mocked(getRuntimeTelemetrySnapshot).getMockImplementation()!
 
 describe('TerminalContextCoordinator', () => {
+  it('binds concurrent owned Codex backends independently of cwd, output timing and renderer claims', async () => {
+    const coordinator = createCoordinator()
+    for (const id of ['a', 'b']) coordinator.trackTerminal(id, 'codex', 'C:/repo', undefined, undefined, true)
+    expect(coordinator.bindNativeSession('a', 'native-a')).toBe(true)
+    expect(coordinator.bindNativeSession('b', 'native-b')).toBe(true)
+    expect(coordinator.bindSession('b', 'codex', 'native-a')).toBe(false)
+    const a = await coordinator.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo', sessionId: 'native-b' })
+    const b = await coordinator.getSnapshot({ terminalId: 'b', preset: 'codex', cwd: 'C:/repo' })
+    expect(a).toMatchObject({ sessionId: 'native-a', sessionBinding: 'exact', contextTokens: 100 })
+    expect(b).toMatchObject({ sessionId: 'native-b', sessionBinding: 'exact', contextTokens: 100 })
+  })
+
+  it('accepts native identity only for a registered owned Codex backend and rejects late callbacks', async () => {
+    const coordinator = createCoordinator()
+    expect(coordinator.bindNativeSession('a', 'native-a')).toBe(false)
+    coordinator.trackTerminal('a', 'codex', 'C:/repo')
+    expect(coordinator.bindNativeSession('a', 'native-a')).toBe(false)
+    coordinator.trackTerminal('a', 'codex', 'C:/repo', undefined, undefined, true)
+    expect(coordinator.bindNativeSession('a', 'native-a')).toBe(true)
+    await coordinator.releaseTerminal('a')
+    expect(coordinator.bindNativeSession('a', 'native-a')).toBe(false)
+  })
+
+  it('corrects a heuristic owner without stealing another native connection', async () => {
+    const coordinator = createCoordinator()
+    coordinator.trackTerminal('heuristic', 'codex', 'C:/repo')
+    coordinator.bindSession('heuristic', 'codex', 'session')
+    for (const id of ['a', 'b']) coordinator.trackTerminal(id, 'codex', 'C:/repo', undefined, undefined, true)
+    expect(coordinator.bindNativeSession('a', 'session')).toBe(true)
+    expect(await coordinator.getSnapshot({ terminalId: 'heuristic', preset: 'codex', cwd: 'C:/repo' })).toMatchObject({ source: 'configuration' })
+    expect(coordinator.bindNativeSession('b', 'previous')).toBe(true)
+    expect(coordinator.bindNativeSession('b', 'session')).toBe(false)
+    expect(await coordinator.getSnapshot({ terminalId: 'b', preset: 'codex', cwd: 'C:/repo' })).toMatchObject({ source: 'configuration' })
+    expect(await coordinator.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo' })).toMatchObject({ sessionId: 'session', sessionBinding: 'exact' })
+  })
+
+  it('requires native reconfirmation after restart rather than trusting a persisted process identity', async () => {
+    const first = createCoordinator()
+    first.trackTerminal('a', 'codex', 'C:/repo', undefined, undefined, true)
+    first.bindNativeSession('a', 'old')
+    await first.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo' })
+    const restored = createCoordinator()
+    restored.trackTerminal('a', 'codex', 'C:/repo', undefined, undefined, true)
+    expect(await restored.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo' })).toMatchObject({ source: 'configuration' })
+    restored.bindNativeSession('a', 'resumed')
+    expect(await restored.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo' })).toMatchObject({ sessionId: 'resumed', sessionBinding: 'exact' })
+  })
+
+  it('publishes empty new-thread identity before its first rollout exists', async () => {
+    const coordinator = createCoordinator()
+    const notify = vi.fn()
+    coordinator.trackTerminal('a', 'codex', 'C:/repo', notify, undefined, true)
+    coordinator.bindNativeSession('a', 'old')
+    await coordinator.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo' })
+    vi.mocked(getRuntimeTelemetrySnapshot).mockResolvedValue(null)
+    coordinator.bindNativeSession('a', 'new')
+    expect(await coordinator.getSnapshot({ terminalId: 'a', preset: 'codex', cwd: 'C:/repo' })).toMatchObject({ sessionId: 'new', sessionBinding: 'exact', source: 'history' })
+    expect(notify.mock.calls.at(-1)?.[0]).toMatchObject({ sessionId: 'new' })
+    expect(notify.mock.calls.at(-1)?.[0].contextTokens).toBeUndefined()
+  })
+
   beforeEach(async () => {
     testContext.userData = await mkdtemp(join(tmpdir(), 'janusx-context-ledger-'))
     testContext.snapshots = []

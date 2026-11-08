@@ -30,19 +30,43 @@ const CWD = 'C:/repo'
 const NOW = Date.now()
 const SESSION_ID = '01a11111-1111-4111-8111-111111111111'
 
-async function writeCodexSession(cwd: string, mtime: number) {
+async function writeCodexSession(cwd: string, mtime: number, sessionId = SESSION_ID) {
   const dir = join(testContext.homeDir, '.codex', 'sessions', '2026', '10', '14')
   await mkdir(dir, { recursive: true })
-  const file = join(dir, `rollout-2026-10-14T06-00-00-${SESSION_ID}.jsonl`)
+  const file = join(dir, `rollout-2026-10-14T06-00-00-${sessionId}.jsonl`)
   await writeFile(file, [
-    JSON.stringify({ timestamp: '2026-10-14T06:00:00Z', ordinal: 0, type: 'session_meta', payload: { id: SESSION_ID, cwd } }),
-    JSON.stringify({ timestamp: '2026-10-14T06:04:00Z', ordinal: 1, type: 'turn_context', payload: { model: 'gpt-6-astra', cwd } }),
+    JSON.stringify({ timestamp: '2026-10-14T06:00:00Z', ordinal: 0, type: 'session_meta', payload: { id: sessionId, cwd } }),
+    JSON.stringify({ timestamp: new Date(mtime).toISOString(), ordinal: 1, type: 'turn_context', payload: { model: 'gpt-6-astra', cwd } }),
   ].join('\n'))
   await utimes(file, new Date(mtime), new Date(mtime))
   return file
 }
 
 describe('terminal attribution without hooks', () => {
+  it('binds the second fallback terminal while the first session remains active', async () => {
+    await writeCodexSession(CWD, NOW)
+    const coordinator = createCoordinator()
+    coordinator.trackTerminal('first', 'codex', CWD)
+    coordinator.noteTerminalActivity('first', NOW)
+    await coordinator.runAttributionPass()
+    await writeCodexSession(CWD, NOW, 'second-session')
+    coordinator.trackTerminal('second', 'codex', CWD)
+    coordinator.noteTerminalActivity('second', NOW)
+    await coordinator.runAttributionPass()
+    expect(await coordinator.getSnapshot({ terminalId: 'first', preset: 'codex', cwd: CWD })).toMatchObject({ sessionId: SESSION_ID })
+    expect(await coordinator.getSnapshot({ terminalId: 'second', preset: 'codex', cwd: CWD })).toMatchObject({ sessionId: 'second-session' })
+  })
+
+  it('never guesses for an owned native client before its protocol selection arrives', async () => {
+    await writeCodexSession(CWD, NOW)
+    const coordinator = createCoordinator()
+    coordinator.trackTerminal('native', 'codex', CWD, undefined, undefined, true)
+    coordinator.noteTerminalActivity('native', NOW)
+    await coordinator.runAttributionPass()
+    expect((await coordinator.getSnapshot({ terminalId: 'native', preset: 'codex', cwd: CWD }))?.sessionId).toBeUndefined()
+    coordinator.bindNativeSession('native', SESSION_ID)
+    expect(await coordinator.getSnapshot({ terminalId: 'native', preset: 'codex', cwd: CWD })).toMatchObject({ sessionId: SESSION_ID, sessionBinding: 'exact' })
+  })
   beforeEach(async () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW)
     vi.stubEnv('CODEX_HOME', '')
