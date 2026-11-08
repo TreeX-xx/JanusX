@@ -102,7 +102,7 @@ export const MemoConstellation = forwardRef<MemoConstellationHandle, Props>(func
     const index = memo.nodes.findIndex(node => node.id === afterId)
     const before = screenStars[index]?.point
     const after = screenStars[index + 1]?.point
-    const point = before && after ? { x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 } : before ? { x: before.x + 70, y: before.y + 24 } : { x: size.width / 2 - 36, y: size.height / 2 }
+    const point = before && after ? { x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 } : before ? { x: before.x + 70, y: before.y } : { x: size.width / 2 - 36, y: size.height / 2 }
     begin({ x: clamp(point.x, 32, size.width - 40), y: clamp(point.y, 36, size.height - 28) }, afterId)
   }
   useImperativeHandle(ref, () => ({ insert: insertAt }))

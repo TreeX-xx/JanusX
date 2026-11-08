@@ -1,63 +1,24 @@
-import { annotationClearance, clearConnection, type ConstellationPoint as Point, type ConstellationRect as Rect, type ConstellationSegment as Segment } from './constellationGeometry'
+// Note: .agents/notes/knowledge/user-todo-janus.md
+import { annotationClearance, starPosition, clearConnection, type ConstellationPoint as Point, type ConstellationRect as Rect, type ConstellationSegment as Segment } from './constellationGeometry'
 
 export interface StarLayout { order: string[]; points: Record<string, Point> }
 export type LabelSide = 'ne' | 'se' | 'nw' | 'sw'
-const seed = (id: string) => { let value = 2166136261; for (const char of id) value = Math.imul(value ^ char.charCodeAt(0), 16777619); return (value >>> 0) / 4294967295 }
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
 
-/** A stable, irregular walk: changes of direction follow available space, not a fixed row count. */
-function appendPosition(id: string, previous: Point, before?: Point): Point {
-  const variation = seed(id)
-  const direction = before && previous.x < before.x ? -1 : 1
-  const x = previous.x + direction * (108 + variation * 50)
-  if (x > 570 || x < 44) return { x: previous.x - direction * (24 + variation * 38), y: previous.y + 126 + variation * 45 }
-  return { x, y: Math.max(64, previous.y + (variation - .43) * 92) }
-}
-
+/** Ordered milestones share one horizontal baseline, including after insert/delete/reorder. */
 export function reconcileStars(ids: string[], previous?: StarLayout): StarLayout {
   const points: Record<string, Point> = {}
-  const surviving = previous?.order.filter(id => ids.includes(id)) ?? []
-  const nextSurviving = ids.filter(id => previous?.points[id])
-  // Reordering permutes occupied places; renaming and selection do not change geometry.
-  nextSurviving.forEach((id, index) => { points[id] = previous!.points[surviving[index]] })
-  for (let index = 0; index < ids.length; index++) {
-    const id = ids[index]
-    if (points[id]) continue
-    const before = points[ids[index - 1]]
-    const after = ids.slice(index + 1).map(key => points[key]).find(Boolean)
-    if (!before && !after) points[id] = { x: 52, y: 92 }
-    else if (!after) points[id] = appendPosition(id, before, points[ids[index - 2]])
-    else if (!before) points[id] = { x: after.x - 114, y: after.y + 34 + seed(id) * 28 }
-    else {
-      const length = distance(before, after) || 1
-      const normal = { x: -(after.y - before.y) / length, y: (after.x - before.x) / length }
-      const midpoint = { x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 }
-      const candidates = [54, -54, 88, -88, 124, -124].map(offset => ({ x: midpoint.x + normal.x * offset, y: midpoint.y + normal.y * offset }))
-      points[id] = candidates.reduce((best, candidate) => {
-        const score = (point: Point) => Object.values(points).reduce((sum, other) => sum + Math.max(0, 74 - distance(point, other)) ** 2, 0) + distance(point, midpoint) * .05
-        return score(candidate) < score(best) ? candidate : best
-      })
-      // Make a little breathing room locally; distant identities retain their exact positions.
-      const push = Math.max(0, Math.min(18, (150 - length) / 2))
-      points[ids[index - 1]] = { x: before.x - (after.x - before.x) / length * push, y: before.y - (after.y - before.y) / length * push }
-      const afterId = ids.slice(index + 1).find(key => points[key])!
-      points[afterId] = { x: after.x + (after.x - before.x) / length * push, y: after.y + (after.y - before.y) / length * push }
-    }
-  }
+  ids.forEach((id, index) => {
+    const position = starPosition(index)
+    const cached = previous?.points[id]
+    points[id] = cached?.x === position.x && cached.y === position.y ? cached : position
+  })
   return { order: [...ids], points }
 }
 
-/** Sample one shallow quadratic; drawing, insertion and clipping all consume this geometry. */
-export function starConnection(start: Point, end: Point, id: string): Segment[] {
-  const length = distance(start, end)
-  if (!length) return []
-  const bend = (seed(id) - .5) * Math.min(30, length * .18)
-  const control = { x: (start.x + end.x) / 2 - (end.y - start.y) / length * bend, y: (start.y + end.y) / 2 + (end.x - start.x) / length * bend }
-  const points = Array.from({ length: 17 }, (_, index) => {
-    const t = index / 16, s = 1 - t
-    return { x: s * s * start.x + 2 * s * t * control.x + t * t * end.x, y: s * s * start.y + 2 * s * t * control.y + t * t * end.y }
-  })
-  return points.slice(1).map((end, index) => ({ start: points[index], end }))
+/** Drawing, insertion and clipping share the same straight flow connection. */
+export function starConnection(start: Point, end: Point, _id: string): Segment[] {
+  return distance(start, end) ? [{ start, end }] : []
 }
 
 export function clipStarConnection(segments: Segment[], obstacles: Rect[]): Segment[] {
