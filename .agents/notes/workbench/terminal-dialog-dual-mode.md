@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-07T12:46:03.456Z",
+  "updated": "2026-11-08T15:04:26.005Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -18,6 +18,10 @@
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
 
 ## Claude 对话启动目录信任
+
+Windows 启动目录统一通过 `realpathSync.native` 还原磁盘上的真实大小写，再交给 Claude 后台启动、模型目录查询、图片路径及信任确认。普通 `realpathSync` 会保留调用方大小写；本机 2.1.319 在全小写的 superAgent 工作目录下成功创建后台进程，却将会话视为未信任并跳过 `janusx-conversation`，最终触发约 20 秒的桥接握手超时；同目录真实大小写约 3 秒即 ready。该规范化不写入原生信任记录，不修改工作区保存路径；真正未信任的目录继续走下述明确确认流程。
+
+大小写回归由 `claude-startup.test.ts` 验证原生启动使用真实目录且配置不变，旧实现已实测失败。`claude-conversation-cli.test.ts` 的 `supplied in lowercase` 和 `confirms workspace trust` 在真实 Windows Claude 2.1.319、隔离配置与假 key 下共两项通过：全小写输入可建立桥接，既有大小写信任键保持各自原值，未发出模型请求。相关 startup、conversation、launch-version 单测共 29 项通过。安装版仍需重新构建才能使用此修复。
 
 Claude 对话优先启动时，原生 `--bg` 返回明确的目录未信任错误后，适配器保持 starting，在现有 ConversationStartupPanel 展示 Claude 标识、解析到磁盘真实位置的完整目录与「信任并继续／取消」。取消暂停启动并保留草稿，可从同一页面继续。确认期间禁止切换显示模式；过期步骤、重复确认与控制权变化不能触发写入。关闭尚未创建 PTY 的会话会唤醒并终止等待，避免挂住创建与清理。
 

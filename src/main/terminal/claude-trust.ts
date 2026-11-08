@@ -7,7 +7,9 @@ import { applyEdits, modify } from 'jsonc-parser'
 // Native Claude 2.1.318 project consent storage; see
 // .agents/notes/workbench/terminal-dialog-dual-mode.md (Claude startup trust).
 export function claudeTrustDirectory(cwd: string): string {
-  return realpathSync(cwd).replaceAll('\\', '/')
+  // Windows realpathSync preserves the caller's casing; native restores the
+  // on-disk spelling used by Claude's case-sensitive workspace consent lookup.
+  return (process.platform === 'win32' ? realpathSync.native(cwd) : realpathSync(cwd)).replaceAll('\\', '/')
 }
 
 /** Called only after explicit consent for this exact, resolved directory. */
