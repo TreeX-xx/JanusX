@@ -43,9 +43,13 @@ test('real Titlebar keeps memo usable at native minimum size and renderer zoom',
       const geometry = await page.evaluate(() => {
         const main = document.querySelector('.janus-island-shell')!.getBoundingClientRect()
         const memo = document.querySelector('.memo-panel')!.getBoundingClientRect()
-        return { gap: memo.left - main.right, left: main.left, right: memo.right, bottom: memo.bottom, content: document.querySelector('.memo-content')!.clientWidth }
+        const actions = document.querySelector('.janus-island-actions')!.getBoundingClientRect()
+        return { gap: memo.left - main.right, mainRight: main.right, memoLeft: memo.left, actionsLeft: actions.left, actionsRight: actions.right,
+          left: main.left, right: memo.right, bottom: memo.bottom, content: document.querySelector('.memo-content')!.clientWidth }
       })
-      expect(geometry.gap).toBe(12)
+      expect(geometry.gap).toBeGreaterThanOrEqual(12)
+      expect(geometry.actionsLeft).toBeGreaterThanOrEqual(geometry.mainRight)
+      expect(geometry.actionsRight).toBeLessThanOrEqual(geometry.memoLeft)
       expect(geometry.left).toBeGreaterThanOrEqual(12)
       expect(geometry.right).toBeLessThanOrEqual(viewport.width - 12)
       expect(geometry.bottom).toBeLessThanOrEqual(viewport.height - 12)
