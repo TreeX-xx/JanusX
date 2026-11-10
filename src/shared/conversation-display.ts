@@ -133,6 +133,8 @@ export interface ConversationSnapshot {
   settingsOverride?: boolean
   /** Native tasks still running after the response, when the adapter can track them. */
   backgroundTasks?: number
+  /** Recoverable provider errors belong to the active turn, not the session error. */
+  retry?: { turnId: string; message: string }
   error?: string
 }
 export type ConversationCommand =

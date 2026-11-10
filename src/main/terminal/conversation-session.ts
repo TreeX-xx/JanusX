@@ -32,7 +32,7 @@ export class ConversationSession {
   resetThread(): void {
     this.questions.clear()
     Object.assign(this.state, { threadId: null, turnId: null, turnStartedAt: undefined, items: [], approvals: [], plans: [],
-      needsTerminal: false, truncated: false, error: undefined, commands: undefined, commandsRevision: (this.state.commandsRevision ?? 0) + 1 })
+      needsTerminal: false, truncated: false, retry: undefined, error: undefined, commands: undefined, commandsRevision: (this.state.commandsRevision ?? 0) + 1 })
     this.state.controlEpoch++
   }
   async terminalCommand(command: Extract<ConversationCommand, { type: 'terminal-command' }>): Promise<void> {

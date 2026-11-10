@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-09T15:45:00.463Z",
+  "updated": "2026-11-10T02:18:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -19,11 +19,15 @@
 
 ## Codex 重连提示恢复
 
+2026-11-10 发布集成保留 main 的结构化状态：临时重试写入 `snapshot.retry`，最终失败保存在所属轮次的 `turnError` 条目，宿主断连继续使用 `snapshot.error`。dev 的历史数据库恢复、操作预览与这套状态并存；折叠过程同时排除旧 `error` 和 `turnError`。合并后四组相关单测共 60 项通过。
+
 Codex 的 `error` 通知以 `willRetry` 区分重试提示与最终错误。对话适配器记录重试提示所属轮次；只有同一活动轮次的新模型正文／推理输出，或该轮正常结束才清除提示。工具活动、空增量、重复条目、其他线程及设置通知不能证明恢复；旧轮次的延迟错误不能覆盖当前状态。最终失败与传输错误保留，失败结束即使没有附带错误详情也不能被当成恢复。切换原生线程会清除上个线程的错误。依据为本机 `codex app-server generate-json-schema` 的 `ErrorNotification`。
 
 验证：`npx vitest run tests/unit/codex-conversation.test.ts tests/unit/codex-retry-recovery.test.ts` 共 37 项通过，覆盖恢复、工具活动隔离、重复输出、旧轮次延迟错误、线程切换及最终失败保留。恢复规则同步至 SuperAgent 引擎源及固定制品；未模拟真实供应商断网重连。
 
 ## Codex 异步提问
+
+发布集成沿用 main 的原生回复解析与局部问题状态同步；异步卡片可本地取消，取消不发送原生 RPC。回复协议保留包装换行和题目长度限制，回显仍转为可读问答。
 
 `request_user_input_async` 通过 `item/completed` 的 `agentMessage.questions` 下发 `title` 与字符串选项；它不是等待答案的 `item/tool/requestUserInput` RPC。此前归一化只保留消息正文，造成选项显示为文字。适配器现在把实时完成消息中的问题投影到公共问答卡，支持单选及自定义文字；问题不阻塞普通输入，也不会随原轮次完成而消失。重复事件不会重新打开已提交的卡片。
 

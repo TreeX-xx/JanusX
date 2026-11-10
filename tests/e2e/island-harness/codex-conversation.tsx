@@ -154,7 +154,10 @@ Object.assign(window, { codexFixture: {
     state.model = 'opencode-go/shared'; state.effort = 'default'; publish()
   },
   questions: (kind = 'mixed') => {
-    state.questions = [{ id: 'question', version: state.revision, cancelable: true, status: 'pending', questions: kind === 'text' ? [
+    if (kind === 'async') state.turnId = 'async-turn'
+    state.questions = [{ id: 'question', version: state.revision, cancelable: true, blocking: kind !== 'async', status: 'pending', questions: kind === 'async' ? [
+      { id: 'choice', text: 'Choose async', allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] },
+    ] : kind === 'text' ? [
       { id: 'text', text: 'Type something', options: [], allowText: true },
     ] : [
       { id: 'confirm', header: 'Confirmation', text: 'Proceed?', options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }] },
@@ -172,6 +175,7 @@ Object.assign(window, { codexFixture: {
     ] }]; publish()
   },
   expireQuestions: () => { state.questions = []; publish() },
+  finishAsyncTurn: () => { state.turnId = null; publish() },
   approvalChoices: () => {
     state.approvals = [{ id: 'approval', itemId: 'tool', kind: 'command', description: 'npm test', choices: [
       { id: 'accept', label: 'Allow once' }, { id: 'acceptForSession', label: 'Allow for this session' },
@@ -259,6 +263,16 @@ Object.assign(window, { codexFixture: {
     state.approvals = [{ id: 7, itemId: 'file', kind: 'file', description: 'Create report.html' }]; publish()
   },
   fail: () => { state.connection = 'disconnected'; state.error = 'Fixture connection lost'; publish() },
+  retryStatus: (stage = 'retry', message = 'Reconnecting... 1/5\nThe connection to the model was interrupted.') => {
+    state.error = undefined
+    state.connection = 'ready'
+    state.turnId = stage === 'retry' ? 'retry-turn' : null
+    state.items = [{ id: 'retry-user', turnId: 'retry-turn', type: 'userMessage', text: 'Review the current changes', status: 'completed' }]
+    state.retry = stage === 'retry' ? { turnId: 'retry-turn', message } : undefined
+    if (stage === 'recovered') state.items.push({ id: 'retry-answer', turnId: 'retry-turn', type: 'agentMessage', text: 'Connection recovered. Review complete.', status: 'completed' })
+    if (stage === 'failed') state.items.push({ id: 'retry-failure', turnId: 'retry-turn', type: 'turnError', text: message, status: 'failed' })
+    publish()
+  },
   settingsFail: (value: boolean) => { settingsFailure = value },
   ultracode: (value?: ConversationSnapshot['ultracode']) => { state.ultracode = value; publish() },
   catalogFail: () => { state.modelsError = 'Fixture catalog failed'; publish() },

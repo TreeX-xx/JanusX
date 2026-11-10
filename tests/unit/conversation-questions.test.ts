@@ -2,12 +2,116 @@ import { describe, expect, it, vi } from 'vitest'
 import { ConversationSession, conversationState } from '../../src/main/terminal/conversation-session'
 import { validateConversationAnswer, type ConversationQuestionRequest } from '../../src/shared/conversation-questions'
 import { CodexConversation } from '../../src/main/terminal/codex-conversation'
+import { codexAsyncQuestions, codexAsyncReplies } from '../../src/main/terminal/codex-questions'
 import { OpenCodeConversation } from '../../src/main/terminal/opencode-conversation'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
 
 const question = { id: 'q', text: 'Choose', options: [{ id: 'a', label: 'First' }, { id: 'b', label: 'Second' }], allowText: true }
 const request: ConversationQuestionRequest = { id: 'request', version: 1, cancelable: true, questions: [question] }
 const answer = { answers: [{ id: 'q', selected: ['a'] }] }
+
+describe('Codex asynchronous questions', () => {
+  const item = { id: 'async-message', type: 'agentMessage', text: 'Choose a direction', questions: [
+    { title: 'Choose', options: ['First', 'Second'] }, { title: 'Notes' },
+  ] }
+  async function setup() {
+    const c = new CodexConversation('test', () => {})
+    const wire = c as any
+    wire.attach({ id: 's', turns: [] })
+    await c.command({ type: 'mode', mode: 'conversation' })
+    wire.receive({ method: 'turn/started', params: { threadId: 's', turn: { id: 't' } } })
+    const emit = (method = 'item/completed', value = item) => wire.receive({ method, params: { threadId: 's', turnId: 't', item: value } })
+    const reply = () => {
+      const request = c.state.questions![0]
+      return c.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: c.state.controlEpoch,
+        answer: { answers: [{ id: '0', selected: ['1'] }, { id: '1', selected: [], text: '中文说明' }] } })
+    }
+    return { c, wire, emit, reply }
+  }
+  it('validates the native async shape without guessing questions from prose', () => {
+    expect(codexAsyncQuestions(item.questions)?.[0]).toMatchObject({ allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] })
+    for (const value of [undefined, [], [{ title: 'Choose', options: [{ label: 'Wrong schema' }] }], [{ title: 4 }]]) expect(codexAsyncQuestions(value)).toBeNull()
+  })
+  it('steers a running turn once, accepts custom text and deduplicates started/completed events', async () => {
+    const { c, wire, emit, reply } = await setup()
+    try {
+      const call = vi.spyOn(wire, 'call').mockResolvedValue({})
+      emit('item/started'); const version = c.state.questions![0].version
+      emit(); expect(c.state.questions).toHaveLength(1)
+      expect(c.state.questions![0]).toMatchObject({ version, blocking: false })
+      await reply()
+      expect(call).toHaveBeenCalledExactlyOnceWith('turn/steer', { threadId: 's', expectedTurnId: 't', input: [{ type: 'text', text: expect.any(String), text_elements: [] }] })
+      expect(codexAsyncReplies((call.mock.calls[0][1] as any).input[0].text)).toEqual([
+        { questionItemId: JSON.stringify(['request_user_input_async', item.id, 0]), question: 'Choose', answer: 'Second' },
+        { questionItemId: JSON.stringify(['request_user_input_async', item.id, 1]), question: 'Notes', answer: '中文说明' },
+      ])
+      expect(c.state.questions).toEqual([])
+      emit(); expect(c.state.questions).toEqual([])
+    } finally { await c.dispose() }
+  })
+  it('retains unanswered questions after completion and starts a new turn when idle', async () => {
+    const { c, wire, emit, reply } = await setup()
+    try {
+      emit()
+      wire.receive({ method: 'turn/completed', params: { threadId: 's', turn: { id: 't', status: 'completed' } } })
+      expect(c.state.questions).toHaveLength(1)
+      await c.command({ type: 'mode', mode: 'terminal' })
+      await c.command({ type: 'mode', mode: 'conversation' })
+      const call = vi.spyOn(wire, 'call').mockResolvedValue({ turn: { id: 'next' } })
+      await reply()
+      expect(call).toHaveBeenCalledWith('turn/start', expect.objectContaining({ threadId: 's' }))
+      expect(c.state.turnId).toBe('next')
+      expect(c.state.questions).toEqual([])
+    } finally { await c.dispose() }
+  })
+  it('keeps failed delivery unknown and never retries a steer into a new turn', async () => {
+    const { c, wire, emit, reply } = await setup()
+    try {
+      emit()
+      const call = vi.spyOn(wire, 'call').mockRejectedValue(new Error('Turn already completed'))
+      await expect(reply()).rejects.toThrow('Turn already completed')
+      expect(c.state.questions![0].status).toBe('unknown')
+      await expect(reply()).rejects.toThrow()
+      expect(call).toHaveBeenCalledTimes(1)
+    } finally { await c.dispose() }
+  })
+  it('does not revive historical questions; switching thread expires live requests', async () => {
+    const { c, wire, emit } = await setup()
+    try {
+      wire.attach({ id: 's', turns: [{ id: 'old', status: 'completed', items: [item] }] })
+      expect(c.state.questions ?? []).toEqual([])
+      emit(); expect(c.state.questions).toHaveLength(1)
+      wire.attach({ id: 'other', turns: [] })
+      expect(c.state.questions).toEqual([])
+    } finally { await c.dispose() }
+  })
+  it('dismisses locally without sending input and preserves pending questions while busy', async () => {
+    const { c, wire, emit, reply } = await setup()
+    try {
+      emit(); const call = vi.spyOn(wire, 'call')
+      c.state.submitting = true
+      await expect(reply()).rejects.toThrow('busy')
+      expect(c.state.questions![0].status).toBe('pending')
+      c.state.submitting = false
+      const request = c.state.questions![0]
+      await c.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: c.state.controlEpoch, answer: { cancelled: true, answers: [] } })
+      expect(call).not.toHaveBeenCalled()
+      emit(); expect(c.state.questions).toEqual([])
+    } finally { await c.dispose() }
+  })
+  it('consumes native terminal replies by question identity and displays readable answer text', async () => {
+    const { c, wire, emit } = await setup()
+    try {
+      emit(); const version = c.state.questions![0].version
+      const text = '<send_user_message_question_reply>\n' + JSON.stringify([{ questionItemId: JSON.stringify(['request_user_input_async', item.id, 0]), question: 'Choose', answer: 'First' }]) + '\n</send_user_message_question_reply>'
+      wire.receive({ method: 'item/completed', params: { threadId: 's', turnId: 't', item: { type: 'userMessage', id: 'native-answer', content: [{ type: 'text', text }] } } })
+      expect(c.state.questions![0].questions.map(q => q.id)).toEqual(['1'])
+      expect(c.state.questions![0].version).toBeGreaterThan(version)
+      expect(c.state.items.at(-1)).toMatchObject({ text: '> Choose\n\nFirst', editable: false })
+      emit(); expect(c.state.questions![0].questions.map(q => q.id)).toEqual(['1'])
+    } finally { await c.dispose() }
+  })
+})
 
 describe('native question lifetime', () => {
   it('allows hours of human idle time, but keeps a sent answer until native confirmation', async () => {

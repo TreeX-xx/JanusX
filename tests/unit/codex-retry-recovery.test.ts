@@ -38,7 +38,7 @@ describe('Codex transient error recovery', () => {
       ] as const
       for (const [method, params] of events) {
         emit(method, params)
-        expect(controller.state.error, method).toBe('Temporary network failure')
+        expect(controller.state.retry?.message, method).toBe('Temporary network failure')
       }
     } finally { await controller.dispose() }
   })
@@ -47,9 +47,9 @@ describe('Codex transient error recovery', () => {
     const { controller, emit } = setup()
     try {
       emit('turn/completed', { turn: { id: 'active', status: 'failed', ...(explicit ? { error: { message: 'Retry exhausted' } } : {}) } })
-      expect(controller.state.error).toBe(explicit ? 'Retry exhausted' : 'Temporary network failure')
+      expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe(explicit ? 'Retry exhausted' : 'Temporary network failure')
       emit('item/agentMessage/delta', { turnId: 'active', itemId: 'answer', delta: 'Late output' })
-      expect(controller.state.error).toBe(explicit ? 'Retry exhausted' : 'Temporary network failure')
+      expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe(explicit ? 'Retry exhausted' : 'Temporary network failure')
     } finally { await controller.dispose() }
   })
 
@@ -59,7 +59,7 @@ describe('Codex transient error recovery', () => {
       emit('error', { turnId: 'active', willRetry: false, error: { message: 'Permanent failure' } })
       emit('item/agentMessage/delta', { turnId: 'active', itemId: 'answer', delta: 'Late output' })
       emit('turn/completed', { turn: { id: 'active', status: 'completed' } })
-      expect(controller.state.error).toBe('Permanent failure')
+      expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe('Permanent failure')
     } finally { await controller.dispose() }
   })
 

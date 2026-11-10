@@ -21,7 +21,7 @@ describe('Codex asynchronous message questions', () => {
     ask()
     expect(c.state.questions).toHaveLength(1)
     const q = c.state.questions![0]
-    expect(q).toMatchObject({ blocking: false, cancelable: false })
+    expect(q).toMatchObject({ blocking: false, cancelable: true })
     expect(q.questions[0]).toMatchObject({ allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] })
     if (!active) emit('turn/completed', { turn: { id: 'turn', status: 'completed' } })
     expect(c.state.questions).toHaveLength(1)
@@ -30,10 +30,10 @@ describe('Codex asynchronous message questions', () => {
     await c.command(command)
     expect(call).toHaveBeenCalledExactlyOnceWith(active ? 'turn/steer' : 'turn/start', expect.objectContaining({
       threadId: 'thread', ...(active ? { expectedTurnId: 'turn' } : {}),
-      input: [{ type: 'text', text: `<send_user_message_question_reply>${JSON.stringify([
+      input: [{ type: 'text', text: `<send_user_message_question_reply>\n${JSON.stringify([
         { questionItemId: JSON.stringify(['request_user_input_async', 'ask', 0]), question: 'Which direction?', answer: 'Second' },
         { questionItemId: JSON.stringify(['request_user_input_async', 'ask', 1]), question: 'Notes', answer: '中文回答' },
-      ])}</send_user_message_question_reply>`, text_elements: [] }],
+      ])}\n</send_user_message_question_reply>`, text_elements: [] }],
     }))
     expect(c.state.questions).toEqual([])
     const input = (call.mock.calls[0][1] as any).input
