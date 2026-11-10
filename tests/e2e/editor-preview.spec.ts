@@ -6,6 +6,47 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 })
 
+for (const embedded of [false, true]) {
+  test(`file path actions follow the active tab in ${embedded ? 'embedded' : 'floating'} previews`, async ({ page }) => {
+    if (embedded) await page.goto('/editor-preview.html?embedded')
+    const more = page.getByRole('button', { name: '更多文件操作' })
+    await more.click()
+    await page.getByRole('button', { name: '复制绝对路径', exact: true }).click()
+    await expect(page.getByRole('status')).toHaveText('已复制文件路径')
+    expect(await page.evaluate(() => (window as any).previewHarness.copiedPaths)).toEqual(['C:/fixture/notes.md'])
+    await page.evaluate(() => (window as any).previewHarness.open('中文 空格.bin', ''))
+    await expect(page.getByRole('status')).toHaveCount(0)
+    await page.setViewportSize({ width: 360, height: 640 })
+    await more.click()
+    await page.getByRole('button', { name: '复制绝对路径', exact: true }).click()
+    expect(await page.evaluate(() => (window as any).previewHarness.copiedPaths)).toEqual(['C:/fixture/notes.md', 'C:/fixture/中文 空格.bin'])
+    await more.click()
+    await page.getByRole('button', { name: '在资源管理器中显示', exact: true }).click()
+    expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths)).toEqual([['C:/fixture', '中文 空格.bin']])
+    await page.locator('[data-editor-tab]').filter({ hasText: 'notes.md' }).click()
+    await more.click()
+    await page.getByRole('button', { name: '在资源管理器中显示', exact: true }).click()
+    expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths)).toEqual([['C:/fixture', '中文 空格.bin'], ['C:/fixture', 'notes.md']])
+  })
+}
+
+test('file path failures are visible and can be retried without changing the document', async ({ page }) => {
+  await page.evaluate(() => { (window as any).previewHarness.failPathAction = true })
+  const more = page.getByRole('button', { name: '更多文件操作' })
+  for (const name of ['复制绝对路径', '在资源管理器中显示']) {
+    await more.click()
+    await page.getByRole('button', { name, exact: true }).click()
+    await expect(page.getByRole('alert').filter({ hasText: '文件操作失败' })).toBeVisible()
+    await expect(page.locator('[data-editor-tab]')).toHaveCount(1)
+  }
+  await page.evaluate(() => { (window as any).previewHarness.failPathAction = false })
+  await more.click()
+  await page.getByRole('button', { name: '复制绝对路径', exact: true }).click()
+  await expect(page.getByRole('alert').filter({ hasText: '文件操作失败' })).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveText('已复制文件路径')
+  expect(await page.evaluate(() => (window as any).previewHarness.state().openFiles[0].isDirty)).toBe(false)
+})
+
 test('editing is the default; opt-in HEAD comparison preserves edits and cursor', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).previewHarness.baselineCalls)).toBe(0)
   await expect(page.locator('.monaco-diff-editor')).toHaveCount(0)

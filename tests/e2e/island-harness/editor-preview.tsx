@@ -25,6 +25,7 @@ const files: Record<string, string> = { 'C:/fixture/notes.md': markdown, 'C:/fix
 const harness = {
   baselines: {} as Record<string, string>,
   baselineCalls: 0, saves: [] as string[], links: [] as string[], closed: 0, failSave: false,
+  copiedPaths: [] as string[], revealedPaths: [] as string[][], failPathAction: false,
   editors: () => monaco.editor.getEditors(),
   diffEditors: () => monaco.editor.getDiffEditors(),
   state: () => useEditorStore.getState(),
@@ -38,6 +39,18 @@ const harness = {
 }
 ;(window as any).previewHarness = harness
 installElectronApiFallback()
+Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+  writeText: async (value: string) => {
+    if (harness.failPathAction) throw new Error('Fixture: clipboard unavailable')
+    harness.copiedPaths.push(value)
+  },
+} })
+Object.assign(window.electron.fileTree, {
+  reveal: async (root: string, path: string) => {
+    harness.revealedPaths.push([root, path])
+    return harness.failPathAction ? { success: false, error: 'Fixture: reveal failed' } : { success: true }
+  },
+})
 Object.assign(window.electron.theme, { get: async () => params.get('theme') ?? 'dark' })
 Object.assign(window.electron.file, {
   openPreviewLink: async (url: string) => { harness.links.push(url) },
@@ -66,4 +79,4 @@ applyThemeToDocument(params.get('theme') ?? 'dark')
 await initI18n()
 await changeLanguage('zh-CN')
 await harness.open('notes.md')
-ReactDOM.createRoot(document.getElementById('root')!).render(<StandaloneFileEditor />)
+ReactDOM.createRoot(document.getElementById('root')!).render(<StandaloneFileEditor embedded={params.has('embedded')} />)

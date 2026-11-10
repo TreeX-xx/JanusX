@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-08T15:04:26.005Z",
+  "updated": "2026-11-09T15:45:00.463Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -16,6 +16,24 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## Codex 重连提示恢复
+
+Codex 的 `error` 通知以 `willRetry` 区分重试提示与最终错误。对话适配器记录重试提示所属轮次；只有同一活动轮次的新模型正文／推理输出，或该轮正常结束才清除提示。工具活动、空增量、重复条目、其他线程及设置通知不能证明恢复；旧轮次的延迟错误不能覆盖当前状态。最终失败与传输错误保留，失败结束即使没有附带错误详情也不能被当成恢复。切换原生线程会清除上个线程的错误。依据为本机 `codex app-server generate-json-schema` 的 `ErrorNotification`。
+
+验证：`npx vitest run tests/unit/codex-conversation.test.ts tests/unit/codex-retry-recovery.test.ts` 共 37 项通过，覆盖恢复、工具活动隔离、重复输出、旧轮次延迟错误、线程切换及最终失败保留。恢复规则同步至 SuperAgent 引擎源及固定制品；未模拟真实供应商断网重连。
+
+## Codex 异步提问
+
+`request_user_input_async` 通过 `item/completed` 的 `agentMessage.questions` 下发 `title` 与字符串选项；它不是等待答案的 `item/tool/requestUserInput` RPC。此前归一化只保留消息正文，造成选项显示为文字。适配器现在把实时完成消息中的问题投影到公共问答卡，支持单选及自定义文字；问题不阻塞普通输入，也不会随原轮次完成而消失。重复事件不会重新打开已提交的卡片。
+
+答案使用 Codex 原生 `<send_user_message_question_reply>` 格式，包含 `questionItemId`、题目与答案；问题身份为序列化的 `["request_user_input_async", messageId, index]`。运行中通过固定目标的 `turn/steer` 发送，空闲时通过 `turn/start` 发送；失败不自动改用另一通道重发。投递期间串行化输入，成功后清卡；不确定投递保留 unknown 状态并交还终端核查。用户消息回显转换为可读题目和答案，避免显示协议包装。原生依据为本机 0.166.0 生成的 app-server schema，以及官方 [异步回答解析](https://github.com/openai/codex/blob/main/codex-rs/tui/src/async_question_reply.rs) 和 [问题身份](https://github.com/openai/codex/blob/main/codex-rs/tui/src/bottom_pane/async_questions/state.rs)。
+
+恢复线程时只展示历史消息，不把历史问题重新标记为待答：历史消息没有可靠的未回答状态。此修复面向本次连接收到的实时异步提问；不解析普通正文猜测选项，不更改用户全局实验开关。此前 `default_mode_request_user_input` 测试仅覆盖同步问答，不能证明异步链路可用。
+
+验证（2026-11-06）：`codex-async-questions`、`conversation-questions`、`codex-conversation` 单测覆盖实时投影、跨轮回答、回复格式、重复／畸形／外线程事件及投递失败；真实 Windows Codex 0.166.0、隔离配置和 localhost Responses 夹具验证运行中／空闲异步回答及同步问答回归，入口为设置 `JANUSX_TEST_CODEX_BIN` 后运行 `npx vitest run tests/unit/codex-conversation-cli.test.ts -t 'asynchronous|answers native request'`。夹具使用原生模型目录中的模型身份以取得异步工具能力，所有模型请求仍发往本地服务。`conversation-questions.spec.ts` 七项浏览器用例通过，包含运行中可点击、结束后保留、中文答案、保留主输入草稿与窄窗主题回归；未用真实供应商账户或安装包人工验收。
+
+补充检查：相关单测 30 项、真实 CLI 3 项、浏览器 7 项通过；`npm run typecheck`、相关源码 ESLint、`npm run build:check` 与 `npm run check:notes` 通过。Notes 检查仍报告仓库已有的 17 项显式外部链接诊断，0 errors。
 
 ## Claude 对话启动目录信任
 

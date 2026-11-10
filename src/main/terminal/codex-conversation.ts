@@ -10,8 +10,8 @@ import WebSocket, { WebSocketServer } from 'ws'
 import { CodexStartup } from './codex-startup'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot, ConversationModelOption } from '../../shared/conversation-display'
 import { CODEX_CONVERSATION_CAPABILITIES } from '../../shared/conversation-display'
-import { codexApprovalChoices, codexQuestions } from './codex-questions'
-import { hasBlockingQuestions } from '../../shared/conversation-questions'
+import { codexApprovalChoices, codexAsyncQuestions, codexAsyncReplyText, codexQuestions } from './codex-questions'
+import { hasBlockingQuestions, questionAnswerValues } from '../../shared/conversation-questions'
 
 type Json = Record<string, any> // Codex's versioned JSON-RPC boundary; normalized before IPC.
 class CodexRequestError extends Error {
@@ -63,8 +63,10 @@ export class CodexConversation {
   private pending = new Map<string, { method: string; resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
   private nativeThreadRequests = new Set<string | number>()
   private otherRequests = new Set<string | number>()
+  private asyncQuestionsSeen = new Set<string>()
   private approvalDecisions = new Map<string | number, Map<string, unknown>>()
   private lastCompletedTurnId?: string
+  private retryError?: { turnId: string; message: string }
   private endpoint = ''
   private loadingModels?: Promise<void>
   private nativeInput?: (text: string) => void
@@ -217,6 +219,7 @@ export class CodexConversation {
     this.session.questions.disconnected(error)
     this.newThread?.reject(new Error(error))
     this.startup.dispose(); this.state.startup = undefined
+    this.retryError = undefined
     this.state.connection = 'disconnected'; this.state.error = error.slice(0, 4000); this.changed()
   }
 
@@ -225,16 +228,18 @@ export class CodexConversation {
     if (this.state.threadId && this.state.threadId !== thread.id) {
       this.state.items = []; this.state.approvals = []; this.state.turnId = null; this.state.turnStartedAt = undefined
       this.state.plans = []
+      this.retryError = undefined; this.state.error = undefined
       this.state.needsTerminal = false; this.state.truncated = false; this.state.controlEpoch++
       this.otherRequests.clear()
       this.session.questions.clear(); this.approvalDecisions.clear()
+      this.asyncQuestionsSeen.clear()
     }
     this.state.threadId = thread.id
     this.state.serviceTier = undefined
     this.updateSettings(settings)
     this.bind(thread.id, thread.path ?? undefined)
     for (const turn of thread.turns ?? []) {
-      for (const item of turn.items ?? []) this.item(item, turn.id, turn.status !== 'inProgress')
+      for (const item of turn.items ?? []) this.item(item, turn.id, turn.status !== 'inProgress', true)
       if (turn.status === 'inProgress') this.state.turnId = turn.id
     }
     this.state.connection = 'ready'; this.changed()
@@ -283,7 +288,7 @@ export class CodexConversation {
     return this.loadingModels
   }
 
-  private item(raw: Json, turnId: string, done: boolean): void {
+  private item(raw: Json, turnId: string, done: boolean, history = false): void {
     if (typeof raw.id !== 'string' || typeof raw.type !== 'string') return
     const key = `${turnId}:${raw.id}`
     const previous = this.state.items.find(item => item.id === key)
@@ -295,6 +300,10 @@ export class CodexConversation {
       editable: raw.type === 'userMessage' ? raw.content?.every((part: Json) => part.type === 'text') : undefined,
       text: typeof text === 'string' ? text.slice(0, MAX_TEXT) : '', status: raw.status ?? (done ? 'completed' : 'inProgress'),
       truncated: typeof text === 'string' && text.length > MAX_TEXT }
+    if (raw.type === 'userMessage') {
+      const reply = typeof text === 'string' ? codexAsyncReplyText(text) : undefined
+      if (reply !== undefined) { normalized.text = reply.slice(0, MAX_TEXT); normalized.truncated = reply.length > MAX_TEXT; normalized.editable = false }
+    }
     if (raw.type === 'imageGeneration') {
       normalized.text = String(raw.revisedPrompt ?? '').slice(0, MAX_TEXT)
       normalized.status = raw.failure || raw.status === 'failed' ? 'failed' : raw.status === 'interrupted' ? 'interrupted' : done ? 'completed' : 'inProgress'
@@ -320,6 +329,29 @@ export class CodexConversation {
     else if (raw.type === 'mcpToolCall' || raw.type === 'dynamicToolCall') normalized.activity = toolActivity(String(raw.tool ?? raw.type), raw.arguments && typeof raw.arguments === 'object' ? raw.arguments : {})
     if (previous) Object.assign(previous, normalized)
     else this.state.items.push(normalized)
+    if (raw.type === 'agentMessage' && (done || history)) {
+      const questions = codexAsyncQuestions(raw.questions)
+      const id = `async:${key}`
+      if (questions && history) this.asyncQuestionsSeen.add(id)
+      if (questions && !this.asyncQuestionsSeen.has(id)) {
+        this.asyncQuestionsSeen.add(id)
+        this.session.questions.ask({ id, itemId: raw.id, turnId, questions, blocking: false, cancelable: false }, async answer => {
+          const replies = questions.map(question => ({ questionItemId: JSON.stringify(['request_user_input_async', raw.id, Number(question.id)]),
+            question: question.text, answer: questionAnswerValues(question, answer.answers.find(row => row.id === question.id)!).join('\n') }))
+          // The native desktop envelope also dismisses these questions in the
+          // attached TUI; plain prose would leave its question editor stale.
+          const text = `<send_user_message_question_reply>${JSON.stringify(replies)}</send_user_message_question_reply>`
+          const input = [{ type: 'text', text, text_elements: [] }]
+          // Native async answers are ordinary user input. Pin an active turn;
+          // never retry a failed steer as a new turn after a completion race.
+          if (this.state.turnId) await this.call('turn/steer', { threadId: this.state.threadId, expectedTurnId: this.state.turnId, input })
+          else {
+            const result = await this.call('turn/start', { threadId: this.state.threadId, input })
+            if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
+          }
+        })
+      }
+    }
     this.trimHistory()
     if (raw.type === 'imageGeneration' && done && normalized.status === 'completed') this.session.attachImages(key, [{ path: raw.savedPath ?? undefined, data: raw.result || undefined }])
     else if (done) this.session.discoverImages(key)
@@ -344,6 +376,17 @@ export class CodexConversation {
       this.changed(); return
     }
     if (!this.state.threadId || p.threadId !== this.state.threadId) return
+    // Tool activity and replayed items do not prove the model stream recovered.
+    const recovered = this.retryError && this.retryError.turnId === this.state.turnId && p.turnId === this.retryError.turnId && (
+      (['item/agentMessage/delta', 'item/reasoning/textDelta', 'item/reasoning/summaryTextDelta'].includes(method) && typeof p.delta === 'string' && p.delta.length > 0)
+      || (['item/started', 'item/completed'].includes(method) && p.item?.type === 'agentMessage' && !p.item.questions
+        && typeof p.item.text === 'string' && p.item.text.length > 0
+        && this.state.items.find(item => item.id === p.turnId + ':' + p.item.id)?.text !== p.item.text))
+    if (recovered) {
+      if (this.state.error === this.retryError!.message) this.state.error = undefined
+      this.retryError = undefined
+      this.changed()
+    }
     if (method === 'thread/settings/updated') this.updateSettings(p.threadSettings ?? {})
     else if (method === 'turn/plan/updated') {
       // Only the active turn may publish a new revision; never revive an old plan.
@@ -356,8 +399,13 @@ export class CodexConversation {
       if (previous && JSON.stringify(previous.steps) === JSON.stringify(steps) && previous.explanation === explanation) return
       this.state.plans = [...plans, { turnId: p.turnId, version: (previous?.version ?? 0) + 1, steps, explanation, outcome: 'running' as const }].slice(-100)
     }
-    else if (method === 'turn/started') { this.state.turnStartedAt = Date.now(); this.state.turnId = p.turn.id; this.state.error = undefined }
+    else if (method === 'turn/started') { this.state.turnStartedAt = Date.now(); this.state.turnId = p.turn.id; this.state.error = undefined; this.retryError = undefined }
     else if (method === 'turn/completed') {
+      const currentTurn = this.state.turnId === p.turn.id
+      if (currentTurn && this.retryError && this.retryError.turnId === p.turn.id) {
+        if (!p.turn.error && p.turn.status !== 'failed' && this.state.error === this.retryError.message) this.state.error = undefined
+        this.retryError = undefined
+      }
       const outcome = ['completed', 'interrupted', 'failed'].includes(p.turn.status) ? p.turn.status : 'failed'
       this.state.plans = this.state.plans?.map(plan => plan.turnId === p.turn.id ? { ...plan, outcome } : plan)
       if (this.state.turnId === p.turn.id && this.state.turnStartedAt !== undefined) {
@@ -371,7 +419,7 @@ export class CodexConversation {
       this.state.approvals = []; this.otherRequests.clear(); this.state.needsTerminal = false
       this.approvalDecisions.clear()
       for (const request of this.state.questions ?? []) if (request.turnId === p.turn.id && request.blocking !== false) this.session.questions.resolve(request.id)
-      if (p.turn.error) this.state.error = String(p.turn.error.message ?? 'Turn failed')
+      if (currentTurn && (p.turn.error || outcome === 'failed')) this.state.error = String(p.turn.error?.message ?? this.state.error ?? 'Turn failed')
     } else if (method === 'item/started' || method === 'item/completed') this.item(p.item, p.turnId, method === 'item/completed')
     else if (method === 'item/agentMessage/delta') {
       const key = `${p.turnId}:${p.itemId}`
@@ -398,7 +446,12 @@ export class CodexConversation {
         })) } })
       }, 'event')
     } else if (message.id !== undefined && method) { this.otherRequests.add(message.id); this.state.needsTerminal = true }
-    else if (method === 'error') this.state.error = String(p.error?.message ?? 'Codex error')
+    else if (method === 'error') {
+      if (typeof p.turnId === 'string' && p.turnId !== this.state.turnId) return
+      this.state.error = String(p.error?.message ?? 'Codex error')
+      this.retryError = p.willRetry === true && typeof p.turnId === 'string' && p.turnId === this.state.turnId
+        ? { turnId: p.turnId, message: this.state.error } : undefined
+    }
     else return
     this.changed()
   }
@@ -431,7 +484,15 @@ export class CodexConversation {
     }
     this.session.guard(command, this.disposed)
     if (command.type === 'terminal-command') { await this.session.terminalCommand(command); return this.snapshot() }
-    if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
+    if (command.type === 'answer') {
+      const asynchronous = typeof command.requestId === 'string' && this.asyncQuestionsSeen.has(command.requestId)
+      if (asynchronous
+        && (this.state.submitting || this.state.settingsUpdating || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal)) throw new Error('Conversation is busy or needs terminal input')
+      if (asynchronous) { this.state.submitting = true; this.changed() }
+      try { await this.session.questions.answer(command.requestId, command.version, command.answer) }
+      finally { if (asynchronous) { this.state.submitting = false; this.changed() } }
+      return this.snapshot()
+    }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'new') {
       if (!this.nativeInput) throw new Error('Native Codex input is unavailable')
@@ -504,6 +565,7 @@ export class CodexConversation {
             this.state.items = this.state.items.slice(0, index)
             const retained = new Set(this.state.items.map(item => item.turnId))
             this.state.plans = this.state.plans?.filter(plan => retained.has(plan.turnId))
+            for (const request of this.state.questions ?? []) if (request.blocking === false && request.turnId && !retained.has(request.turnId)) this.session.questions.resolve(request.id)
             this.changed()
           }
           const imagePaths = command.type === 'send' ? command.imagePaths ?? [] : []
@@ -580,7 +642,7 @@ export class CodexConversation {
         })
       }
     }
-    this.state.connection = 'closed'; this.state.turnId = null; this.state.approvals = []; this.changed()
+    this.state.connection = 'closed'; this.state.turnId = null; this.retryError = undefined; this.state.approvals = []; this.changed()
     return this.stopping ?? Promise.resolve()
   }
 }

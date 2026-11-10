@@ -37,6 +37,7 @@ beforeAll(async () => {
   await import('../../src/preload/index')
   const { registerBrowserHandlers } = await import('../../src/main/ipc/browser-handlers')
   const surfaces = {
+    onShowRequested: vi.fn(() => () => {}),
     onStateChanged: vi.fn(() => () => {}),
     onAgentControlChanged: vi.fn(() => () => {}),
     createSurface: vi.fn(),
@@ -132,6 +133,10 @@ describe('Browser IPC contract', () => {
     const agentHandler = mocks.on.mock.calls.find(([channel]) => channel === BROWSER_EVENT_CHANNELS.agentControl)?.[1]
     unsubscribeAgent()
     expect(mocks.removeListener).toHaveBeenCalledWith(BROWSER_EVENT_CHANNELS.agentControl, agentHandler)
+    const offShow = browserApi.onShowRequested(() => {})
+    const showHandler = mocks.on.mock.calls.find(([channel]) => channel === BROWSER_EVENT_CHANNELS.show)?.[1]
+    offShow()
+    expect(mocks.removeListener).toHaveBeenCalledWith(BROWSER_EVENT_CHANNELS.show, showHandler)
   })
 
   it('keeps surface state DTOs structured-clone safe', () => {

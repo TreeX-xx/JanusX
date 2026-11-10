@@ -63,6 +63,7 @@ import { MEMO_CHANNELS, type MemoAPI } from '../shared/ipc/memo'
 import { HARNESS_COMMAND_CHANNELS, HARNESS_EVENT_CHANNELS, type HarnessAPI } from '../shared/ipc/harness'
 import { ROUNDTABLE_CHANNELS, type RoundtableAPI } from '../shared/ipc/roundtable'
 import { AGENT_SETTINGS_CHANNELS, NOTIFICATION_SETTINGS_CHANNELS, type AgentSettingsAPI, type NotificationSettingsAPI } from '../shared/ipc/settings'
+import { CONTROL_CHANNELS, type ControlAPI } from '../shared/ipc/control'
 import { LOCAL_INTEGRATION_CHANNELS, type LocalIntegrationsAPI } from '../shared/local-integrations'
 import { EXPERIMENTAL_CHANNELS, type ExperimentalAPI } from '../shared/ipc/experimental'
 import { THEME_CHANNELS, type AppTheme, type ThemeAPI } from '../shared/ipc/theme'
@@ -197,6 +198,7 @@ const projectAPI: ProjectAPI = {
 }
 
 const browserAPI: BrowserAPI = {
+  onShowRequested: callback => subscribeIpcEvent(BROWSER_EVENT_CHANNELS.show, callback),
   createSurface: (request) => ipcRenderer.invoke(BROWSER_INVOKE_CHANNELS.createSurface, request),
   destroySurface: (surfaceId) => ipcRenderer.invoke(BROWSER_INVOKE_CHANNELS.destroySurface, surfaceId),
   popOut: (surfaceId) => ipcRenderer.invoke(BROWSER_INVOKE_CHANNELS.popOut, surfaceId),
@@ -702,6 +704,16 @@ const pluginAPI: PluginHostAPI = {
 }
 
 contextBridge.exposeInMainWorld('electron', {
+  controls: {
+    clients: () => ipcRenderer.invoke(CONTROL_CHANNELS.clients),
+    changeClient: input => ipcRenderer.invoke(CONTROL_CHANNELS.changeClient, input),
+    probeClient: (client, revision) => ipcRenderer.invoke(CONTROL_CHANNELS.probeClient, client, revision),
+    get: () => ipcRenderer.invoke(CONTROL_CHANNELS.get),
+    update: settings => ipcRenderer.invoke(CONTROL_CHANNELS.update, settings),
+    status: () => ipcRenderer.invoke(CONTROL_CHANNELS.status),
+    stop: () => ipcRenderer.invoke(CONTROL_CHANNELS.stop),
+    checkComputer: () => ipcRenderer.invoke(CONTROL_CHANNELS.checkComputer),
+  } satisfies ControlAPI,
   automations: automationsAPI,
   workspaceStorage: {
     retireHooks: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.retireHooks),

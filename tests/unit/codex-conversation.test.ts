@@ -15,6 +15,32 @@ function setup() {
 }
 
 describe('Codex conversation ownership and event projection', () => {
+  it.each(['item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/started', 'item/completed', 'turn/completed'])('clears a retry warning when the same turn recovers through %s', method => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 't' } })
+    emit('error', { turnId: 't', willRetry: true, error: { message: 'Reconnecting... 2/5' } })
+    expect(controller.state.error).toBe('Reconnecting... 2/5')
+    emit('thread/settings/updated', { threadSettings: {} })
+    emit('item/agentMessage/delta', { threadId: 'child', turnId: 't', itemId: 'm', delta: 'child' })
+    emit('item/agentMessage/delta', { turnId: 'old', itemId: 'm', delta: 'old' })
+    expect(controller.state.error).toBe('Reconnecting... 2/5')
+    emit(method, { turnId: 't', itemId: 'm', delta: 'resumed', item: { id: 'm', type: 'agentMessage', text: 'resumed' }, turn: { id: 't', status: 'completed' } })
+    expect(controller.state.error).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('preserves terminal failures after a retry and subsequent activity', () => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 't' } })
+    emit('error', { turnId: 't', willRetry: true, error: { message: 'Reconnecting... 2/5' } })
+    emit('error', { turnId: 't', willRetry: false, error: { message: 'Retry exhausted' } })
+    emit('item/agentMessage/delta', { turnId: 't', itemId: 'm', delta: 'late' })
+    expect(controller.state.error).toBe('Retry exhausted')
+    emit('turn/completed', { turn: { id: 't', status: 'failed', error: { message: 'Turn failed' } } })
+    expect(controller.state.error).toBe('Turn failed')
+    controller.dispose()
+  })
+
   it('selects identity only from owned native start/resume responses, ignoring other thread notifications', async () => {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
     await new Promise<void>(resolve => server.once('listening', resolve))

@@ -1,4 +1,4 @@
-// Note: embedded browsing without agent operation — see .agents/notes/desktop/browser-surface.md
+// Note: native browsing and control targets — see .agents/notes/desktop/browser-surface.md
 import { BrowserWindow, WebContentsView, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
 import {
@@ -53,7 +53,7 @@ import { isBrowserStartPageUrl, normalizeBrowserUrl } from '../../shared/browser
 export { normalizeBrowserUrl }
 
 /**
- * 浏览器 surface 管理器（P1 纯用户功能）。
+ * 浏览器 surface 管理器；用户浏览和 Agent 工具共用同一组原生标签。
  * 每 tab 一个 WebContentsView（主进程持有），仅活动 tab attach 到宿主窗口，其余 detach 保活；
  * popOut/embed 通过跨窗口 re-parent 切换载体，webContents 不销毁、导航历史保留。
  */
@@ -61,6 +61,41 @@ export class BrowserSurfaceManager {
   private surfaces = new Map<string, BrowserSurface>()
   private stateListeners = new Set<StateListener>()
   private agentControlListeners = new Set<AgentControlListener>()
+  private showListeners = new Set<(surfaceId: string) => void>()
+
+  onShowRequested(listener: (surfaceId: string) => void): () => void {
+    this.showListeners.add(listener)
+    return () => this.showListeners.delete(listener)
+  }
+
+  // Only ordinary browser guests are eligible; service partitions and the shell never enter this list.
+  automationTabs(): Array<{ surfaceId: string; tabId: string; contents: Electron.WebContents; visible: boolean }> {
+    return [...this.surfaces.values()].filter(surface => !surface.options.partition && !surface.options.httpOnly && !surface.options.externalPopups)
+      .flatMap(surface => [...surface.tabs.values()].filter(tab => !tab.view.webContents.isDestroyed()).map(tab => ({
+        surfaceId: surface.surfaceId, tabId: tab.tabId, contents: tab.view.webContents,
+        visible: surface.activeTabId === tab.tabId && !!surface.bounds && surface.bounds.width > 0 && surface.bounds.height > 0 && !tab.loadError,
+      })))
+  }
+
+  automationNewTab(url: string): number {
+    const existing = [...this.surfaces.values()].find(surface => !surface.options.partition && !surface.options.httpOnly && !surface.options.externalPopups)
+    if (existing) {
+      const result = this.openTab(existing.surfaceId, url)
+      if (!result.success) throw new Error(result.error)
+      return this.getTab(existing.surfaceId, result.data.tabId)!.view.webContents.id
+    }
+    const surfaceId = randomUUID()
+    const result = this.createSurface({ surfaceId, carrier: 'pane', url })
+    if (!result.success) throw new Error(result.error)
+    return this.automationTabs().find(tab => tab.surfaceId === surfaceId)!.contents.id
+  }
+
+  automationShow(surfaceId: string, tabId: string): void {
+    this.activateTab(surfaceId, tabId)
+    const standalone = this.surfaces.get(surfaceId)?.standaloneWindow
+    if (standalone && !standalone.isDestroyed()) { standalone.show(); standalone.focus() }
+    else for (const listener of this.showListeners) listener(surfaceId)
+  }
 
   constructor(private deps: BrowserSurfaceManagerDeps) {}
 
@@ -276,7 +311,7 @@ export class BrowserSurfaceManager {
     }
   }
 
-  /*-- P2 预留：Agent 控制指示；P1 无 IPC 触发源 --*/
+  /*-- 主进程控制服务管理 Agent 控制指示，网页不接收此能力 --*/
   setAgentControlled(surfaceId: string, active: boolean): void {
     const surface = this.surfaces.get(surfaceId)
     if (!surface || surface.agentControlled === active) return

@@ -37,6 +37,7 @@ export function withSynchronousHooks<T>(render: () => T): T {
     }
   }).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
   const previous = internals.ReactCurrentDispatcher.current
+  let nextId = 0
 
   internals.ReactCurrentDispatcher.current = {
     useCallback: <V,>(callback: V) => callback,
@@ -45,6 +46,7 @@ export function withSynchronousHooks<T>(render: () => T): T {
       return undefined
     },
     useEffect: () => undefined,
+    useId: () => `test-id-${nextId++}`,
     useLayoutEffect: () => undefined,
     useMemo: <V,>(factory: () => V) => factory(),
     useReducer: <V,>(initial: V) => [initial, vi.fn()],

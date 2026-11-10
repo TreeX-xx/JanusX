@@ -16,6 +16,7 @@ export const BROWSER_INVOKE_CHANNELS = {
 } as const
 
 export const BROWSER_EVENT_CHANNELS = {
+  show: 'browser:event:show',
   state: 'browser:event:state',
   agentControl: 'browser:event:agent-control',
 } as const
@@ -65,6 +66,7 @@ export interface CreateBrowserSurfaceRequest {
 export type BrowserResult<T> = { success: true; data: T } | { success: false; error: string }
 
 export interface BrowserAPI {
+  onShowRequested(callback: (surfaceId: string) => void): () => void
   createSurface(request: CreateBrowserSurfaceRequest): Promise<BrowserResult<{ surfaceId: string }>>
   destroySurface(surfaceId: string): Promise<void>
   popOut(surfaceId: string): Promise<BrowserResult<{ surfaceId: string }>>

@@ -12,7 +12,7 @@
   "addMcp": "Add MCP",
   "userHint": "User resources are shared across workspaces. Select a workspace to see its project resources alongside inherited user resources.",
   "workspaceHint": "Shows project and inherited user resources. Editing an inherited entry affects other workspaces that use it.",
-  "janusHint": "Janus skills come from plugins. Inspect their content and sources here. Separate MCP configuration is not yet available for Janus.",
+  "janusHint": "Janus skills come from plugins. User-level Janus CLI MCP servers are read from ~/.janus/mcp.json.",
   "managePlugins": "Manage plugins",
   "saved": "Saved. The client may need a reload or a new session to apply the changes.",
   "list": "Resources",

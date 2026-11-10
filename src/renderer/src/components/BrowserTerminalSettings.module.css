@@ -1,0 +1,5 @@
+.clientRow { padding-block: 8px; }
+@container settings-form (max-width: 650px) {
+  .clientRow[data-jx-row][data-jx-row] { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .clientRow[data-jx-row] > :last-child { justify-self: start; justify-content: flex-start; }
+}

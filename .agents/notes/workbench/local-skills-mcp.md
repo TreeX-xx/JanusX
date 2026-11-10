@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-11-03",
-  "updated": "2026-11-03T15:49:47Z",
+  "updated": "2026-11-06T01:48:46Z",
   "class": "feature",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
@@ -28,9 +28,9 @@
 | Codex | 用户与项目 `.agents/skills`，兼容 `.codex/skills` | 用户与项目 `.codex/config.toml` 的 `mcp_servers` |
 | Claude Code | 用户与项目 `.claude/skills` | 用户 `.claude.json:mcpServers`、项目 `.mcp.json`、用户文件 `projects[项目绝对路径].mcpServers` 的项目个人配置 |
 | OpenCode | 用户 `.config/opencode/skills`、项目 `.opencode/skills`，兼容 `.claude/skills` 与 `.agents/skills` | 用户 `.config/opencode/opencode.json/jsonc`、项目 `opencode.json/jsonc` 的 `mcp` |
-| Janus | 已安装插件清单声明的技能，只读展示 | 尚未接入独立配置 |
+| Janus | 已安装插件清单声明的技能，只读展示 | 用户 ~/.janus/mcp.json 的 mcpServers |
 
-Codex 用户目录识别 `CODEX_HOME`；Claude 用户目录及 `.claude.json` 识别 `CLAUDE_CONFIG_DIR`；OpenCode 识别 `XDG_CONFIG_HOME` 与额外的 `OPENCODE_CONFIG` 文件。Claude 的自定义目录行为依据[官方目录说明](https://code.claude.com/docs/en/claude-directory)。扫描不等于原生客户端完整有效配置解析，不枚举全部祖先目录、第三方插件缓存、企业策略、临时 CLI 参数及远端环境；OpenCode 的额外目录和资源路径配置尚未覆盖。实际信任和加载仍由原客户端决定。
+Codex 用户目录识别 `CODEX_HOME`；Claude 用户目录及 `.claude.json` 识别 `CLAUDE_CONFIG_DIR`；OpenCode 识别 `XDG_CONFIG_HOME` 与额外的 `OPENCODE_CONFIG` 文件。Claude 的自定义目录行为依据[官方目录说明](https://code.claude.com/docs/en/claude-directory)。扫描不等于原生客户端完整有效配置解析，不枚举全部祖先目录、第三方插件缓存、企业策略、临时 CLI 参数及远端环境；OpenCode 的额外目录和资源路径配置尚未覆盖。实际信任和加载仍由原客户端决定。[浏览器控制](../desktop/browser-control.md)的终端接入页复用同一服务管理 janusx-browser，配置状态每次重新读取；在本页修改或移除该项会断开对应浏览器连接。Pi 与 DSH 的浏览器接入由浏览器设置页单独管理，不纳入本页的通用客户端清单。
 
 新增技能创建独立目录中的 `SKILL.md`，编辑保留完整文本；新建名称要求小写字母、数字和短横线，并与 YAML name 一致。MCP 编辑器只接受当前服务的 JSON，保存到原生格式：JSONC 使用局部修改保留其他字段与注释；TOML 只替换明确的目标表，并重新解析确认其他配置没有变化，内联等不安全布局拒绝写入。未解析文件、链接来源和 Janus 插件技能不直接写入，插件技能提供管理入口。
 

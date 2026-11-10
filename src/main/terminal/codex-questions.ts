@@ -1,6 +1,27 @@
 import type { ConversationQuestion } from '../../shared/conversation-questions'
 import type { ConversationApproval } from '../../shared/conversation-display'
 
+/** agentMessage.questions is a notification, not a waiting request_user_input RPC. */
+export function codexAsyncQuestions(value: unknown): ConversationQuestion[] | null {
+  if (!Array.isArray(value) || !value.length || value.length > 20) return null
+  if (value.some(q => !q || typeof q.title !== 'string' || !q.title.trim() || q.title.length > 32000
+    || (q.options != null && (!Array.isArray(q.options) || q.options.length > 100
+      || q.options.some((option: unknown) => typeof option !== 'string' || option.length > 32000))))) return null
+  return value.map((q, index) => ({ id: String(index), text: q.title, allowText: true,
+    options: (q.options ?? []).map((label: string, index: number) => ({ id: String(index), label })) }))
+}
+
+export function codexAsyncReplyText(text: string): string | undefined {
+  const match = /^<send_user_message_question_reply>([\s\S]*)<\/send_user_message_question_reply>$/.exec(text.trim())
+  if (!match) return
+  try {
+    const value = JSON.parse(match[1])
+    const replies = Array.isArray(value) ? value : [value]
+    if (!replies.length || replies.some(row => !row || typeof row.questionItemId !== 'string' || typeof row.question !== 'string' || typeof row.answer !== 'string')) return
+    return replies.map(row => `> ${row.question}\n\n${row.answer}`).join('\n\n')
+  } catch { return }
+}
+
 // Native schema: app-server generate-json-schema. Keep opaque policy values on the main side.
 export function codexQuestions(value: unknown): ConversationQuestion[] | null {
   if (!Array.isArray(value) || !value.length || value.length > 20) return null
