@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-10T02:32:00Z",
+  "updated": "2026-11-10T02:41:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -17,6 +17,8 @@
 ## Problem
 
 Blueprint source tests can resolve dependencies from an ignored plugin-local installation, while the test itself imports the root installation. This caused old JSON import syntax to fail before collection and split `ChatSessionRuntime` and `NoteService` constructor identity, so test spies did not reach the runtimes under test. Vitest now resolves the registry to current workspace source and the six public agent package entry points to root materialized packages. Exact-name matching preserves package subpath exports. The independent Blueprint build remains the separate check of the actual published dependency closure.
+
+An outdated ignored `plugins/blueprint/node_modules` also hid the current SDK theme export and bundled a second React into browser fixtures. Move that stale installation aside before repository verification rather than editing installed package files or treating UI timeouts as product failures. The November 10 local backup is `.cache/blueprint-node-modules-pre-v099`; the affected five native/browser files then passed 33 cases, with the Note lock regression passing separately. Independent plugin validation continues installing its own locked archives outside the repository.
 
 Blueprint lock refresh seeds npm with the existing lock and removes only changed local archive entries before installation. It retains unrelated registry versions while updating archive integrity and any newly required dependencies. Normal verification still rejects archive drift and uses npm ci; updating a lock does not count as a runtime pass. The November 10 refresh includes six changed public archives, identified by SHA256 and npm integrity in `plugins/blueprint/build-dependencies.lock.json`, and preserves the sibling checkout's unrelated edits.
 
