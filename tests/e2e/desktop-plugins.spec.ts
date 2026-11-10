@@ -1253,7 +1253,7 @@ test('P4 document viewers bind files, persist defaults, shield dialogs and fall 
   } finally { await close(app); await rm(f.root, { recursive: true, force: true }) }
 })
 
-test('P3 four surfaces preserve panes, return focus, shield approvals and revoke on project switch/disable', async () => {
+test('P3 surfaces preserve panes, chat-only Island notifications, focus and project revocation', async () => {
   const f = await fixture(); let app: ElectronApplication | undefined
   try {
     const booted = await boot(f.root); app = booted.app; const page = booted.page
@@ -1300,17 +1300,18 @@ test('P3 four surfaces preserve panes, return focus, shield approvals and revoke
     await expect.poll(async () => (await attached()).length).toBe(0)
     await page.locator('.janus-island').dblclick({ position: { x: 8, y: 8 } })
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'expanded')
-    await page.locator(`button[data-view="extension:${pluginId}/island"]`).click()
-    const island = await guest(app, '/dist/summary.html', summary.url())
-    await expect(island.locator('#content')).toHaveText('project-a')
-    await expect.poll(async () => (await attached()).map(child => child.url)).toEqual([island.url()])
-    const nativeBounds = (await attached())[0].bounds
-    expect(nativeBounds.width).toBeGreaterThan(100); expect(nativeBounds.height).toBeGreaterThan(50)
+    // The current product scope exposes Chat only; plugin status actions remain available.
+    await expect(page.locator(`button[data-view="extension:${pluginId}/island"]`)).toHaveCount(0)
+    await expect(page.locator('[data-plugin-island-tool]')).toHaveCount(0)
+    await expect(page.locator('.janus-chat')).toBeVisible()
+    await expect.poll(async () => (await attached()).length).toBe(0)
     await page.locator('.janus-notify-badge').click()
+    const notifications = page.locator('.janus-notification-center')
+    await notifications.locator('.janus-notif-summary').filter({ hasText: 'P3 ready' }).click()
     await expect.poll(async () => (await attached()).length).toBe(0)
     await expect(page.locator('[data-plugin-island-preview]').filter({ visible: true })).toContainText('<script>safe text</script>')
     expect(await page.locator('[data-plugin-island-preview] script').count()).toBe(0)
-    await page.locator('.janus-notify-tray').getByRole('button', { name: 'Open reference desk', exact: true }).click()
+    await notifications.getByRole('button', { name: 'Open reference desk', exact: true }).click()
     await expect(workbench).toBeVisible()
     await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'collapsed')
     const reopenedDesk = await guest(app, '/dist/index.html', details.url())
