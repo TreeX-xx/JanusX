@@ -20,6 +20,9 @@ const isCI = process.env.CI === 'true'
 export default defineConfig({
   resolve: {
     alias: {
+      // Repository tests share current workspace modules, not a plugin's stale vendor installation.
+      '@janusx/llm-core/model-registry': resolve(__dirname, 'packages/llm-core/src/registry/model-registry.ts'),
+      '@janus-agent/chat-core': resolve(__dirname, 'node_modules/@janus-agent/chat-core/dist/index.js'),
       '@janusx/plugin-sdk/native': resolve(__dirname, 'packages/plugin-sdk/src/native.ts'), '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts'),
       '@': resolve(__dirname, 'src/renderer/src'),
     },
