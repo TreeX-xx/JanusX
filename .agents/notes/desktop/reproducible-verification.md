@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-10T02:41:00Z",
+  "updated": "2026-11-10T02:52:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -15,6 +15,8 @@
 # Verification owns its environment and inputs
 
 ## Problem
+
+During November 10 release verification, a combined multi-project Vitest run stopped with `ERR_IPC_CHANNEL_CLOSED` without completing its report. The full verify entry and matching CI step now run the existing unit, integration and browser projects sequentially, each retaining its original file set and failure handling. Direct `test:unit` still supports a combined run or file filters. This changes process scheduling, not acceptance coverage; the exact cause of the worker exit was not established.
 
 Blueprint source tests can resolve dependencies from an ignored plugin-local installation, while the test itself imports the root installation. This caused old JSON import syntax to fail before collection and split `ChatSessionRuntime` and `NoteService` constructor identity, so test spies did not reach the runtimes under test. Vitest now resolves the registry to current workspace source and the six public agent package entry points to root materialized packages. Exact-name matching preserves package subpath exports. The independent Blueprint build remains the separate check of the actual published dependency closure.
 

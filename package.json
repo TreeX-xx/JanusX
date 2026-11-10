@@ -75,7 +75,7 @@
     "check:skills-sync": "node scripts/check-skills-sync.mjs",
     "check:packaged-runtime": "node scripts/check-packaged-runtime.mjs",
     "check:portable-runtime": "node scripts/check-packaged-runtime.mjs --portable",
-    "verify": "npm run theme:check && npm run plugins:check:platform && npm run plugins:distribution:test:tools && npm run plugins:blueprint:check && npm run typecheck && npm run typecheck:llm-core && npm run build:llm-core && npm run test:unit -- --run && npm run test:llm-core && npm run typecheck:strict-unused && npm run build:app && npm run check:package-boundary && npm run exclusions:check && npm run i18n:check && npm run check:notes && npm run lint && npm run test:e2e:desktop",
+    "verify": "npm run theme:check && npm run plugins:check:platform && npm run plugins:distribution:test:tools && npm run plugins:blueprint:check && npm run typecheck && npm run typecheck:llm-core && npm run build:llm-core && npm run test:unit:fast && npm run test:integration && npm run test:browser && npm run test:llm-core && npm run typecheck:strict-unused && npm run build:app && npm run check:package-boundary && npm run exclusions:check && npm run i18n:check && npm run check:notes && npm run lint && npm run test:e2e:desktop",
     "verify:quick": "npm run theme:check && npm run typecheck && npm run typecheck:llm-core && npm run i18n:check && npm run lint && npm run test:unit:fast",
     "verify:local": "npm run verify && npm run check:skills-sync",
     "package:prepare": "npm run prepackage && npm run build && npm run check:package-boundary && npm run exclusions:sync",
