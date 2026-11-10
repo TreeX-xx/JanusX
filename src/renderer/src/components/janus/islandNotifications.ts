@@ -4,8 +4,9 @@ import type { KnowledgeRecallTrace } from '../../../../shared/knowledge'
 import type { ProductFileEntry } from '../../../../shared/product'
 import type { BlueprintMaintenanceTask } from '../../../../../plugins/blueprint/src/shared/janus/maintenance-types'
 import type { PluginIslandEntry } from '../../../../shared/ipc/plugins'
+import { isReminder, type AutomationRun } from '../../../../shared/automations'
 
-export type IslandNotificationKind = 'knowledge' | 'memory' | 'product' | 'maintenance' | 'agent' | 'plugin'
+export type IslandNotificationKind = 'knowledge' | 'memory' | 'product' | 'maintenance' | 'agent' | 'plugin' | 'automation'
 export type IslandNotificationSeverity = 'info' | 'success' | 'attention' | 'failed'
 export type IslandCapsuleTier = 'single' | 'double'
 export type IslandNotificationActionId =
@@ -15,6 +16,7 @@ export type IslandNotificationActionId =
   | 'open-blueprint'
   | 'open-maintenance'
   | 'open-plugin'
+  | 'open-automation'
 
 export interface IslandNotificationAction {
   id: IslandNotificationActionId
@@ -47,6 +49,9 @@ export interface IslandNotification {
   progress?: number
   plugin?: PluginIslandEntry
   order?: number
+  groupKey?: string
+  automation?: Pick<AutomationRun, 'id' | 'definitionId'>
+  productPath?: string
 }
 
 /** Higher ranks interrupt more; ties break by newest. */
@@ -102,11 +107,6 @@ export function capsuleTier(
   return notification.copy.subtitleKey || notification.copy.subtitleText ? 'double' : 'single'
 }
 
-/** Attention-and-above may auto-raise the expanded banner; info only pulses the badge. */
-export function mayAutoBanner(severity: IslandNotificationSeverity): boolean {
-  return severity === 'attention' || severity === 'failed'
-}
-
 export function notificationKickerKey(kind: IslandNotificationKind): string {
   return `janus:island.capsule.kicker.${kind}`
 }
@@ -118,10 +118,20 @@ const ACTION_LABEL_KEYS: Record<IslandNotificationActionId, string> = {
   'open-blueprint': 'janus:island.capsule.action.openBlueprint',
   'open-maintenance': 'janus:island.capsule.action.openMaintenance',
   'open-plugin': 'plugins:open',
+  'open-automation': 'janus:island.notif.openTask',
 }
 
 export function notificationActionLabelKey(id: IslandNotificationActionId): string {
   return ACTION_LABEL_KEYS[id]
+}
+
+export function automationNotification(run: AutomationRun): IslandNotification {
+  return { id: `automation:${run.id}`, kind: 'automation',
+    groupKey: isReminder(run.snapshot) ? `reminder:${run.definitionId}` : undefined,
+    automation: { id: run.id, definitionId: run.definitionId },
+    severity: run.state === 'failed' ? 'failed' : run.state === 'needs_attention' || run.report?.incomplete ? 'attention' : run.state === 'succeeded' ? 'success' : 'info',
+    copy: { titleKey: 'common:automations.title', titleText: run.snapshot.name, subtitleText: run.message ?? run.report?.summary ?? run.reason ?? run.state },
+    actions: [{ id: 'open-automation', primary: true }], createdAt: Date.parse(run.finishedAt ?? run.startedAt) }
 }
 
 export function knowledgeNotification(input: {
@@ -158,7 +168,7 @@ export function knowledgeNotification(input: {
 
 /**
  * User memory M4: quiet badge for habit candidates awaiting Inbox review.
- * Info severity only pulses the badge, never auto-raises the banner. The id
+ * Info severity is retained in the shared reader. The id
  * carries the pending count so new candidates re-notify.
  */
 export function memoryNotification(input: {
@@ -192,6 +202,7 @@ export function productNotification(
   const updated = entry.noticeKind === 'modified'
   return {
     id: `product:${entry.relPath}`,
+    productPath: entry.relPath,
     kind: 'product',
     severity: 'success',
     copy: {

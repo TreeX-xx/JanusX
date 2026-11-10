@@ -17,7 +17,7 @@ export interface MemoPanelBox {
 
 export interface MemoPanelLayout {
   box: MemoPanelBox
-  /** How far the host may slide right to clear the panel, clamped so it stays on screen. */
+  /** How far the host may slide left to clear the panel, clamped so it stays on screen. */
   shift: number
 }
 
@@ -40,7 +40,7 @@ export function layoutMemoIslands({ viewportWidth, viewportHeight, filesCollapse
   /** Reserve native titlebar controls before distributing the remaining height. */
   topInset?: number
 }): MemoIslandLayout {
-  const { companion, compact, ...layout } = layoutCompanionIslands({ viewportWidth, viewportHeight, previousMode, topInset })
+  const { companion, compact, ...layout } = layoutCompanionIslands({ viewportWidth, viewportHeight, previousMode, topInset, side: 'right', horizontalGap: 56, railWidth: 48 })
   return { ...layout, memo: companion, compactFiles: filesCollapsed || compact }
 }
 
@@ -56,18 +56,18 @@ export function layoutMemoPanel(host: {
   const { hostLeft, hostWidth, hostTop, hostHeight, viewportWidth, viewportHeight } = host
   const width = Math.min(
     MEMO_PANEL_MAX_WIDTH,
-    Math.max(MEMO_PANEL_MIN_WIDTH, hostLeft - MEMO_PANEL_GAP - MEMO_PANEL_MARGIN),
+    Math.max(MEMO_PANEL_MIN_WIDTH, viewportWidth - hostLeft - hostWidth - MEMO_PANEL_GAP - MEMO_PANEL_MARGIN),
     Math.max(1, viewportWidth - MEMO_PANEL_MARGIN * 2)
   )
   const left = Math.max(
     MEMO_PANEL_MARGIN,
-    Math.min(hostLeft - MEMO_PANEL_GAP - width, viewportWidth - MEMO_PANEL_MARGIN - width)
+    Math.min(hostLeft + hostWidth + MEMO_PANEL_GAP, viewportWidth - MEMO_PANEL_MARGIN - width)
   )
   const top = Math.max(MEMO_PANEL_MARGIN, Math.min(hostTop, viewportHeight - MEMO_PANEL_MARGIN - 1))
   const height = Math.max(1, Math.min(Math.max(MEMO_PANEL_MIN_HEIGHT, hostHeight), viewportHeight - top - MEMO_PANEL_MARGIN))
   const box: MemoPanelBox = { left, top, width, height }
   // Only slide the host when the panel actually reaches into it.
-  const overlap = box.left + box.width + MEMO_PANEL_GAP - hostLeft
-  const shiftRoom = Math.max(0, viewportWidth - MEMO_PANEL_MARGIN - (hostLeft + hostWidth))
-  return { box, shift: Math.min(Math.max(0, overlap), shiftRoom) }
+  const overlap = hostLeft + hostWidth + MEMO_PANEL_GAP - box.left
+  const shiftRoom = Math.max(0, hostLeft - MEMO_PANEL_MARGIN)
+  return { box, shift: 0 - Math.min(Math.max(0, overlap), shiftRoom) }
 }

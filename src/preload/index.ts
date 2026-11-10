@@ -1,4 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { AUTOMATIONS_CHANNELS as automationChannels, type AutomationsAPI } from '../shared/automations'
+
+const automationsAPI: AutomationsAPI = {
+  listCards: () => ipcRenderer.invoke(automationChannels.listCards),
+  saveCard: (...args) => ipcRenderer.invoke(automationChannels.saveCard, ...args),
+  removeCard: (...args) => ipcRenderer.invoke(automationChannels.removeCard, ...args),
+  list: () => ipcRenderer.invoke(automationChannels.list),
+  save: (...args) => ipcRenderer.invoke(automationChannels.save, ...args),
+  preview: (...args) => ipcRenderer.invoke(automationChannels.preview, ...args),
+  run: (...args) => ipcRenderer.invoke(automationChannels.run, ...args),
+  cancel: id => ipcRenderer.invoke(automationChannels.cancel, id),
+  remove: (...args) => ipcRenderer.invoke(automationChannels.remove, ...args),
+  history: id => ipcRenderer.invoke(automationChannels.history, id),
+  onChanged: callback => subscribeIpcEvent(automationChannels.changed, callback),
+  onRemoved: callback => subscribeIpcEvent(automationChannels.removed, callback),
+  onDraft: callback => subscribeIpcEvent(automationChannels.draft, callback),
+  onCompleted: callback => subscribeIpcEvent(automationChannels.completed, callback),
+  onFocus: callback => subscribeIpcEvent(automationChannels.focus, callback),
+}
 import { WORKSPACE_STORAGE_CHANNELS, type WorkspaceStorageAPI } from '../shared/ipc/workspace-storage'
 import { WORKSPACE_RUNTIME_CHANNELS, type WorkspaceRuntimeAPI } from '../shared/workspace-runtime'
 import { BLUEPRINT_REVIEW_CHANNELS } from '../shared/ipc/legacy-review-channels'
@@ -44,6 +63,7 @@ import { MEMO_CHANNELS, type MemoAPI } from '../shared/ipc/memo'
 import { HARNESS_COMMAND_CHANNELS, HARNESS_EVENT_CHANNELS, type HarnessAPI } from '../shared/ipc/harness'
 import { ROUNDTABLE_CHANNELS, type RoundtableAPI } from '../shared/ipc/roundtable'
 import { AGENT_SETTINGS_CHANNELS, NOTIFICATION_SETTINGS_CHANNELS, type AgentSettingsAPI, type NotificationSettingsAPI } from '../shared/ipc/settings'
+import { CONTROL_CHANNELS, type ControlAPI } from '../shared/ipc/control'
 import { LOCAL_INTEGRATION_CHANNELS, type LocalIntegrationsAPI } from '../shared/local-integrations'
 import { EXPERIMENTAL_CHANNELS, type ExperimentalAPI } from '../shared/ipc/experimental'
 import { THEME_CHANNELS, type AppTheme, type ThemeAPI } from '../shared/ipc/theme'
@@ -178,6 +198,7 @@ const projectAPI: ProjectAPI = {
 }
 
 const browserAPI: BrowserAPI = {
+  onShowRequested: callback => subscribeIpcEvent(BROWSER_EVENT_CHANNELS.show, callback),
   createSurface: (request) => ipcRenderer.invoke(BROWSER_INVOKE_CHANNELS.createSurface, request),
   destroySurface: (surfaceId) => ipcRenderer.invoke(BROWSER_INVOKE_CHANNELS.destroySurface, surfaceId),
   popOut: (surfaceId) => ipcRenderer.invoke(BROWSER_INVOKE_CHANNELS.popOut, surfaceId),
@@ -640,6 +661,17 @@ const worktreeAPI: WorktreeAPI = {
 }
 
 const hostedAPI: HostedAPI = {
+  repository: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.repository, workspacePath),
+  overview: (target) => ipcRenderer.invoke(HOSTED_CHANNELS.overview, target),
+  image: (target, path, ref) => ipcRenderer.invoke(HOSTED_CHANNELS.image, target, path, ref),
+  browse: (target, query) => ipcRenderer.invoke(HOSTED_CHANNELS.browse, target, query),
+  detail: (target, kind, number) => ipcRenderer.invoke(HOSTED_CHANNELS.detail, target, kind, number),
+  discussion: (target, kind, number, page) => ipcRenderer.invoke(HOSTED_CHANNELS.discussion, target, kind, number, page),
+  mutate: (target, mutation) => ipcRenderer.invoke(HOSTED_CHANNELS.mutate, target, mutation),
+  loginStart: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.loginStart, workspacePath),
+  loginRead: (id) => ipcRenderer.invoke(HOSTED_CHANNELS.loginRead, id),
+  loginInput: (id, data) => ipcRenderer.invoke(HOSTED_CHANNELS.loginInput, id, data),
+  loginStop: (id) => ipcRenderer.invoke(HOSTED_CHANNELS.loginStop, id),
   detect: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.detect, { workspacePath }),
   listReviews: (workspacePath, branch) => ipcRenderer.invoke(HOSTED_CHANNELS.listReviews, { workspacePath, branch }),
   checks: (workspacePath, branch) => ipcRenderer.invoke(HOSTED_CHANNELS.checks, { workspacePath, branch }),
@@ -647,10 +679,7 @@ const hostedAPI: HostedAPI = {
   createReview: (input) => ipcRenderer.invoke(HOSTED_CHANNELS.createReview, input),
   mergeReview: (workspacePath, number, method) =>
     ipcRenderer.invoke(HOSTED_CHANNELS.mergeReview, { workspacePath, number, method }),
-  gitlabGet: () => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabGet),
-  gitlabSave: (input) => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabSave, input),
-  gitlabVerify: (input) => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabVerify, input),
-  gitlabClearToken: () => ipcRenderer.invoke(HOSTED_CHANNELS.gitlabClearToken),
+  connection: (workspacePath) => ipcRenderer.invoke(HOSTED_CHANNELS.connection, { workspacePath }),
   listIssues: (workspacePath, query) => ipcRenderer.invoke(HOSTED_CHANNELS.listIssues, { workspacePath, query }),
   listComments: (workspacePath, number) => ipcRenderer.invoke(HOSTED_CHANNELS.listComments, { workspacePath, number }),
   postComment: (workspacePath, number, body) =>
@@ -675,6 +704,17 @@ const pluginAPI: PluginHostAPI = {
 }
 
 contextBridge.exposeInMainWorld('electron', {
+  controls: {
+    clients: () => ipcRenderer.invoke(CONTROL_CHANNELS.clients),
+    changeClient: input => ipcRenderer.invoke(CONTROL_CHANNELS.changeClient, input),
+    probeClient: (client, revision) => ipcRenderer.invoke(CONTROL_CHANNELS.probeClient, client, revision),
+    get: () => ipcRenderer.invoke(CONTROL_CHANNELS.get),
+    update: settings => ipcRenderer.invoke(CONTROL_CHANNELS.update, settings),
+    status: () => ipcRenderer.invoke(CONTROL_CHANNELS.status),
+    stop: () => ipcRenderer.invoke(CONTROL_CHANNELS.stop),
+    checkComputer: () => ipcRenderer.invoke(CONTROL_CHANNELS.checkComputer),
+  } satisfies ControlAPI,
+  automations: automationsAPI,
   workspaceStorage: {
     retireHooks: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.retireHooks),
     data: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.data),

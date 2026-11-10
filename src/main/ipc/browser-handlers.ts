@@ -15,6 +15,7 @@ export function registerBrowserHandlers(
   getMainWindow: () => BrowserWindow | null,
   surfaces: BrowserSurfaceManager,
 ): void {
+  surfaces.onShowRequested(surfaceId => getMainWindow()?.webContents.send(BROWSER_EVENT_CHANNELS.show, surfaceId))
   const pushTargets = (surfaceId: string): Electron.WebContents[] => {
     const targets = new Set<Electron.WebContents>()
     const mainWindow = getMainWindow()

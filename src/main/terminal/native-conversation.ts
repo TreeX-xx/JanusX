@@ -1,3 +1,4 @@
+import { toolActivity } from '../../shared/work-output'
 import { ConversationCatalog, type NativeCatalogEntry } from './conversation-catalog'
 import { ConversationSession, conversationState } from './conversation-session'
 import { randomUUID } from 'node:crypto'
@@ -53,6 +54,15 @@ export abstract class NativeConversation {
     } else if (event.type === 'item' && event.item) {
       const next = { ...event.item, text: event.item.text.slice(0, 32000), truncated: event.item.text.length > 32000 || event.item.truncated }
       const existing = this.state.items.find(item => item.id === next.id)
+      if (!next.activity && next.type === 'commandExecution') {
+        next.activity = existing?.activity
+        if (!next.activity) {
+          const [name, ...args] = event.item.text.split('\n')
+          let input: Record<string, unknown> = {}
+          try { const parsed = JSON.parse(args.join('\n')); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) input = parsed } catch { /* Legacy records may contain plain output. */ }
+          next.activity = toolActivity(name, input)
+        }
+      }
       if (existing) Object.assign(existing, next, { receivedAt: existing.receivedAt })
       else this.state.items.push({ ...next, receivedAt: next.receivedAt ?? Date.now() })
       this.session.discoverImages(next.id)

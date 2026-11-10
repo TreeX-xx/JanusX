@@ -1,3 +1,4 @@
+import { toolActivity } from '../../shared/work-output'
 import { createHash } from 'node:crypto'
 import { ConversationCatalog, type NativeCatalogEntry } from './conversation-catalog'
 import { ConversationSession, conversationState } from './conversation-session'
@@ -13,6 +14,9 @@ import { codexApprovalChoices, codexAsyncAnswer, codexAsyncQuestions, codexAsync
 import { hasBlockingQuestions, type ConversationQuestion } from '../../shared/conversation-questions'
 
 type Json = Record<string, any> // Codex's versioned JSON-RPC boundary; normalized before IPC.
+class CodexRequestError extends Error {
+  constructor(readonly method: string, readonly code: number | undefined, message: string) { super(message) }
+}
 // Session speed state and icon contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 const MAX_ITEMS = 500
 const MAX_TEXT = 32_000
@@ -56,7 +60,7 @@ export class CodexConversation {
   private disposed = false
   private stopping?: Promise<void>
   private requestId = 0
-  private pending = new Map<string, { resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
+  private pending = new Map<string, { method: string; resolve(value: Json): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
   private nativeThreadRequests = new Set<string | number>()
   private otherRequests = new Set<string | number>()
   private asyncQuestionItems = new Set<string>()
@@ -168,7 +172,7 @@ export class CodexConversation {
           const pending = this.pending.get(message.id)
           if (!pending) return
           clearTimeout(pending.timer); this.pending.delete(message.id)
-          if (message.error) pending.reject(new Error(message.error.message ?? 'Codex request failed'))
+          if (message.error) pending.reject(new CodexRequestError(pending.method, message.error.code, message.error.message ?? 'Codex request failed'))
           else pending.resolve(message.result ?? {})
         } else {
           if (!this.state.threadId && this.startup.intercept(message, reply => {
@@ -205,7 +209,7 @@ export class CodexConversation {
     const id = `janusx:${++this.requestId}`
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} timed out; delivery may be unknown. Do not automatically resend.`)) }, 15000)
-      this.pending.set(id, { resolve, reject, timer })
+      this.pending.set(id, { method, resolve, reject, timer })
       try { this.send({ id, method, params }) } catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error) }
     })
   }
@@ -219,6 +223,7 @@ export class CodexConversation {
   }
 
   private attach(thread: Json, settings: Json = {}): void {
+    if (this.state.threadId !== thread.id) this.state.capabilities = { ...this.state.capabilities, edit: true }
     if (this.state.threadId && this.state.threadId !== thread.id) {
       this.state.items = []; this.state.approvals = []; this.state.turnId = null; this.state.turnStartedAt = undefined
       this.state.plans = []
@@ -327,6 +332,9 @@ export class CodexConversation {
       })
       normalized.truncated ||= (raw.changes?.length ?? 0) > 100
     }
+    if (raw.type === 'commandExecution') normalized.activity = toolActivity('', { command: raw.command }) || previous?.activity
+    else if (raw.type === 'fileChange') normalized.activity = toolActivity('Edit', { path: normalized.files?.map(file => file.path).join(', ') })
+    else if (raw.type === 'mcpToolCall' || raw.type === 'dynamicToolCall') normalized.activity = toolActivity(String(raw.tool ?? raw.type), raw.arguments && typeof raw.arguments === 'object' ? raw.arguments : {})
     if (previous) Object.assign(previous, normalized)
     else this.state.items.push(normalized)
     this.trimHistory()
@@ -547,13 +555,27 @@ export class CodexConversation {
     } else if (command.type === 'send' || command.type === 'edit') {
       await this.session.submit(command, async () => {
         const target = command.type === 'edit' ? this.state.items.find(item => item.id === command.itemId) : undefined
-        if (command.type === 'edit' && (!target || target.type !== 'userMessage' || target.truncated || target.editable === false
+        if (command.type === 'edit' && (!this.state.capabilities.edit || !target || target.type !== 'userMessage' || target.truncated || target.editable === false
           || this.state.items.filter(item => item.turnId === target.turnId && item.type === 'userMessage').length !== 1)) throw new Error('This message cannot be edited safely')
-        await (async () => {
+        let historyReadFailed = false
+        try {
           if (target) {
             // Version 0.166 exposes revert, not the removed rollback API. Native
             // clients receive thread/reverted and reload the same thread.
-            const result = await this.call('thread/revert', { threadId: this.state.threadId, beforeTurnId: target.turnId })
+            let result: Json
+            try { result = await this.call('thread/revert', { threadId: this.state.threadId, beforeTurnId: target.turnId }) }
+            catch (error) {
+              // Codex 0.166 rejects this history read before reverting anything.
+              // Other RPC errors, timeouts and failures after revert stay uncertain.
+              // Recovery contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
+              if (error instanceof CodexRequestError && error.method === 'thread/revert' && error.code === -32603 &&
+                error.message.startsWith('failed to list thread history: thread-store internal error: failed to open thread history database:')) {
+                historyReadFailed = true
+                this.state.capabilities = { ...this.state.capabilities, edit: false }; this.changed()
+                throw new Error(`Codex could not read thread history. Your edited message was not sent and the original history was kept. You can send it as a new message or cancel editing to continue. ${error.message}`)
+              }
+              throw error
+            }
             if (result.thread?.id !== this.state.threadId) throw new Error('Invalid Codex edit response')
             const index = this.state.items.findIndex(item => item.turnId === target.turnId)
             this.state.items = this.state.items.slice(0, index)
@@ -571,10 +593,10 @@ export class CodexConversation {
             const result = await this.call('turn/start', { threadId: this.state.threadId, input })
             if (result.turn?.id && this.lastCompletedTurnId !== result.turn.id) this.state.turnId = result.turn.id
           }
-        })().catch(error => {
-          if (target) this.fail(`Codex edit delivery could not be confirmed. Check the terminal before retrying. ${String(error)}`)
+        } catch (error) {
+          if (target && !historyReadFailed) this.fail(`Codex edit delivery could not be confirmed. Check the terminal before retrying. ${String(error)}`)
           throw error
-        })
+        }
       })
     } else if (command.type === 'interrupt') {
       if (this.state.turnId) await this.call('turn/interrupt', { threadId: this.state.threadId, turnId: this.state.turnId })

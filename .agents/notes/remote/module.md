@@ -41,7 +41,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-03T10:03:13Z",
+  "updated": "2026-11-03T17:06:50.881Z",
   "moduleState": "partial"
 }
 ---
@@ -84,7 +84,7 @@ v0.9.4 远程功能收口为局域网测试：桌面发布构建默认只使用�
 
 ToB 三部曲：[identity](./tob-identity.md)、[transport](./tob-transport.md)、[lan-remote](./tob-lan-remote.md)按身份到传输到控制排序。
 
-Hosted 双适配以[orca-dual 纲](./requirements/orca-hosted-dual-github-gitlab.md)为目：[gitlab-config](./gitlab-provider-reviews.md)、[gitlab-reviews](./gitlab-provider-reviews.md)、[github-reviews](./hosted-github-reviews.md)、[automerge](./hosted-github-reviews.md)为目。
+Hosted 双适配以[协作需求](./requirements/orca-hosted-dual-github-gitlab.md)为目，仅支持 GitHub.com 和 GitLab.com，分别复用本机 gh/glab 授权。[GitLab Provider](./gitlab-provider-reviews.md)及 [GitHub 协作](./hosted-github-reviews.md)维护认证与既有任务盘操作。[工作区仓库侧栏](../workbench/ideas/repository-sidebar.md)已交付仓库级分页、详情、评论与常用写入；工作区三个点菜单和右侧未登录提示提供官方 CLI 授权入口，应用内展示交互提示。自建配置、凭据存储和托管平台设置页已移除，已有 Issue composer 与 Ship 保留。多远端和完整评审能力仍待续。
 
 ## Acceptance criteria
 

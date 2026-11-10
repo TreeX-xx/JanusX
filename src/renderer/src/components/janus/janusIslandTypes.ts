@@ -3,6 +3,9 @@ import type { KnowledgeRecallTrace } from '../../../../shared/knowledge'
 import type { ProductFileEntry } from '../../../../shared/product'
 import type { ChatModelOption, JanusResourceController, Message, UseJanusChatReturn } from './useJanusChat'
 
+// Temporary product scope: retain other view implementations without exposing them.
+export const ISLAND_CHAT_ONLY = true
+
 export type JanusIslandStage = 'collapsed' | 'peek' | 'expanded'
 export type JanusExpandedView = 'monitor' | 'chat' | 'roundtable' | `extension:${string}/${string}`
 
@@ -33,8 +36,6 @@ export interface JanusIslandProps {
   productNotice?: (ProductFileEntry & { noticeKind?: 'added' | 'modified' }) | null
   productFiles?: ProductFileEntry[]
   onOpenProductFile?: (relPath: string) => void
-  /** Fires when the expanded island window pin state changes (persistence owner). */
-  onIslandPinnedChange?: (pinned: boolean) => void
 }
 
 export type JanusParticle = { id: number; left: number; size: number; duration: number }

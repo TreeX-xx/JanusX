@@ -108,6 +108,11 @@
   margin-top: 20px;
 }
 
+/* About has no group heading; keep the same spacing as adjacent tabs. */
+.navGroup + .aboutGroup {
+  margin-top: 2px;
+}
+
 .groupTitle {
   margin: 0;
   padding: 0 12px 6px;

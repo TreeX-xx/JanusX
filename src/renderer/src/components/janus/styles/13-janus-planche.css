@@ -102,8 +102,8 @@ body.is-running[data-theme='planche'] {
 }
 
 /* 悬浮只换边框色，不缩放、不呼吸、不加光 */
-[data-theme='planche'] .janus-island[data-stage='collapsed']:hover:not(.is-dragging):not(.switching),
-[data-theme='planche'] .janus-island[data-mode='running'][data-stage='collapsed']:hover:not(.is-dragging):not(.switching) {
+[data-theme='planche'] .janus-island-shell:not([data-speaking='true']):not([data-notif='true']) .janus-island[data-stage='collapsed']:hover:not(.is-dragging):not(.switching),
+[data-theme='planche'] .janus-island-shell:not([data-speaking='true']):not([data-notif='true']) .janus-island[data-mode='running'][data-stage='collapsed']:hover:not(.is-dragging):not(.switching) {
   animation: none;
   transform: none;
   border-color: var(--shell-accent);

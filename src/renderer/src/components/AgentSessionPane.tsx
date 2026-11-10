@@ -25,6 +25,7 @@ import { ConversationPlanPanel } from './ConversationPlanPanel'
 import { ConversationDuration } from './ConversationDuration'
 import { ConversationMessageActions } from './ConversationMessageActions'
 import { ConversationMessageEditor } from './ConversationMessageEditor'
+import { ConversationPrompt } from './ConversationPrompt'
 import styles from './AgentSessionPane.module.css'
 import { conversationPrompt, activeConversationReferences, MAX_CONVERSATION_ATTACHMENTS, type ConversationReference } from '../../../shared/conversation-context'
 import type { ConversationInputHandle } from './ConversationInput'
@@ -254,21 +255,26 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
       else inputRef.current?.focus()
     })
   }
-  const submitEdit = async () => {
+  const submitEdit = async (asNew = false) => {
     if (!editing || !canSend || outgoing.length || !editing.text.trim() || !snapshot || busyRef.current || switchLocked.current) return
+    if (!asNew && !snapshot.capabilities.edit) return
     const commandId = crypto.randomUUID()
     setPendingSend(commandId)
     // Retain the editing position while the native history is replaced.
     follow.current = false
     try {
-      if (await action({ type: 'edit', itemId: editing.item.id, text: editing.text, commandId, controlEpoch: editing.epoch })) {
+      const command: ConversationCommand = asNew
+        ? { type: 'send', text: editing.text, commandId, controlEpoch: editing.epoch }
+        : { type: 'edit', itemId: editing.item.id, text: editing.text, commandId, controlEpoch: editing.epoch }
+      if (await action(command)) {
         setEditing(null); follow.current = true; setShowLatest(false)
         requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight })
       }
     } finally { setPendingSend(current => current === commandId ? null : current) }
   }
   const editor = editing && <ConversationMessageEditor text={editing.text} setText={text => setEditing(current => current && { ...current, text })}
-    busy={Boolean(pendingSend)} disabled={!canSend} error={error || snapshot?.error || ''} cancel={cancelEdit} submit={submitEdit} />
+    busy={Boolean(pendingSend)} disabled={!canSend} error={error || snapshot?.error || ''} cancel={cancelEdit} submit={() => submitEdit()}
+    sendAsNew={snapshot?.engine === 'codex' && snapshot.capabilities.edit === false ? () => submitEdit(true) : undefined} />
   const openFile = async (filePath: string) => {
     if (!terminal) return
     const resolvedPath = /^(?:[a-z]:[\\/]|[\\/])/i.test(filePath) ? filePath : `${terminal.cwd.replace(/[\\/]+$/, '')}/${filePath}`
@@ -284,8 +290,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     <header className={styles.header}>
       <div className={styles.toggle} data-mode={requestedMode ?? (conversation ? 'conversation' : 'terminal')} data-switching={transitioning || undefined} role="group" aria-label={t('conversation.display')}>
         <span className={styles.toggleIndicator} aria-hidden="true" />
-        <button type="button" aria-pressed={!conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (snapshot.engine === 'codex' && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
-        <button type="button" aria-pressed={conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (snapshot.engine === 'codex' && snapshot.connection === 'starting')} onClick={() => void changeMode('conversation')}><MessageSquare size={14} aria-hidden="true" />{t('conversation.dialog')}</button>
+        <button type="button" aria-pressed={!conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
+        <button type="button" aria-pressed={conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('conversation')}><MessageSquare size={14} aria-hidden="true" />{t('conversation.dialog')}</button>
       </div>
     </header>
     {!conversation && error && <ConversationNotice kind="error" message={error} />}
@@ -304,7 +310,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           if (scrollRef.current) useWorkspaceStore.getState().updateTerminal(terminalId, { conversationScrollTop: scrollRef.current.scrollTop })
         }}>
           <div className={styles.content}>
-            {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} />}
+            {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} engine={snapshot?.engine === 'claude' ? 'Claude' : 'Codex'} />}
             {(starting || (empty && !startupActive)) && <div className={styles.welcome} data-conversation-welcome data-loading={starting} data-animate={starting && visible && conversation}>
               <div className={styles.startingIdentity}><span className={styles.startingMark} aria-hidden="true"><TerminalPresetIcon preset={identityPreset} style={{ width: 20, height: 20 }} /><span className={styles.startingRing} /></span><span>{t(`provider.${identityPreset}`)}</span></div>
               <div className={styles.welcomeLayers}>
@@ -317,12 +323,13 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             </div>}
             {snapshot?.truncated && <p className={styles.notice}>{t('conversation.truncated')}</p>}
             {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
-              const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}>{item.text}</div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
+              const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
               onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                 if (!canSend || working || outgoing.length || busyRef.current) return
                 follow.current = false; setError('')
                 setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
               } : undefined} /></>}</div>
+              : item.type === 'error' ? <p className={styles.error} key={item.id} role="alert">{item.text}</p>
               : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
                 <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
                   <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
@@ -336,7 +343,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </article>
               : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
                 {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
-                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
+                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
               </article>
               : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
                 : <LazyDetails stateKey={item.id} className={styles.activity} key={item.id} data-state={item.status} summary={
@@ -357,12 +364,12 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               return <div key={group.items[0].id}>
                 {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
                   waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
-                  incomplete: group.summary.incomplete || !!snapshot.truncated }} settled={group.settled && !snapshot.truncated}>{renderNodes}</WorkDisclosure> : renderNodes()}
+                  }} settled={group.settled}>{renderNodes}</WorkDisclosure> : renderNodes()}
                 {lastGroup && changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
               </div>
             })} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
-              <div className={styles.user}>{item.text}</div>
+              <div className={styles.user}><ConversationPrompt text={item.text} /></div>
               <div className={styles.delivery} role="status">
                 <span title={t(`conversation.delivery.${item.status}`)} aria-label={t(`conversation.delivery.${item.status}`)} role="img">{item.status === 'queued' ? <Clock size={14} /> : item.status === 'sending' ? <LoaderCircle size={14} /> : item.status === 'accepted' ? <Check size={14} /> : <CircleAlert size={14} />}</span>
                 {(item.status === 'queued' || item.status === 'failed') && <button type="button" title={t('conversation.delivery.restore')} aria-label={t('conversation.delivery.restore')} onClick={() => {

@@ -16,6 +16,44 @@ function setup() {
   return { controller, wire, emit }
 }
 describe('Claude conversation control and projection', () => {
+  it('keeps denied tools distinct from errors and preserves bounded output metadata', async () => {
+    const { controller, emit } = setup()
+    emit('tool.start', { turnId: 't', toolUseId: 'denied', tool: 'Read' })
+    emit('tool.complete', { toolUseId: 'denied', denied: true, text: 'User denied' })
+    expect(controller.state.items.find(item => item.id === 'tool:denied')?.status).toBe('denied')
+    emit('tool.start', { turnId: 't', toolUseId: 'large', tool: 'Read' })
+    emit('tool.complete', { toolUseId: 'large', truncated: true, text: 'Partial output' })
+    expect(controller.state.items.find(item => item.id === 'tool:large')).toMatchObject({ status: 'completed', truncated: true })
+    await controller.dispose()
+  })
+  it('keeps Ultracode separate from effort and confirms native events before updating', async () => {
+    const { controller, wire, emit } = setup()
+    const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+    emit('settings', { model: 'opus', effort: 'medium', override: true })
+    await expect(controller.command({ type: 'ultracode', enabled: true, controlEpoch })).rejects.toThrow('unavailable')
+    emit('ultracode', { model: 'opus', enabled: false, available: true })
+    const call = vi.spyOn(wire, 'call').mockImplementation(async () => {
+      expect(controller.state.settingsUpdating).toBe(true)
+      expect(controller.state.ultracode?.enabled).toBe(false)
+      emit('ultracode', { model: 'opus', enabled: true, available: true })
+      return {}
+    })
+    await controller.command({ type: 'ultracode', enabled: true, controlEpoch })
+    expect(call).toHaveBeenCalledWith({ type: 'ultracode', enabled: true })
+    expect(controller.state).toMatchObject({ effort: 'medium', settingsOverride: true, ultracode: { enabled: true } })
+    call.mockRejectedValueOnce(new Error('Native refused'))
+    await expect(controller.command({ type: 'ultracode', enabled: false, controlEpoch })).rejects.toThrow('Native refused')
+    expect(controller.state.ultracode?.enabled).toBe(true)
+    expect(controller.state.settingsUpdating).toBe(false)
+    emit('turn.start', { turnId: 'busy', text: 'work' })
+    await expect(controller.command({ type: 'ultracode', enabled: false, controlEpoch })).rejects.toThrow('idle')
+    emit('turn.complete', { turnId: 'busy' })
+    emit('settings', { model: 'other', effort: 'high', override: true })
+    await expect(controller.command({ type: 'ultracode', enabled: true, controlEpoch })).rejects.toThrow('unavailable')
+    emit('native.settings', { pending: false })
+    expect(controller.state.ultracode).toBeUndefined()
+    await controller.dispose()
+  })
   it('keeps multi-step prose outside work groups and does not interrupt already completed messages', async () => {
     const { controller, emit } = setup()
     try {

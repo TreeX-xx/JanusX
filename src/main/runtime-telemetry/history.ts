@@ -116,12 +116,14 @@ async function scanClaudeHistory(cwd: string, startedAt?: number, sessionId?: st
 }
 
 async function scanCodexHistory(codexHome: string, cwd: string, startedAt?: number, sessionId?: string, checkpointLookup?: CheckpointLookup): Promise<HistoryTelemetrySnapshot | null> {
-  const root = join(codexHome, 'sessions')
-  const files = (await listJsonlFilesRecursive(root, (name) => name.startsWith('rollout-') && name.endsWith('.jsonl')))
+  const roots = [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')]
+  const groups = await Promise.all(roots.map(root => listJsonlFilesRecursive(root, (name) => name.startsWith('rollout-') && name.endsWith('.jsonl'))))
+  // A resumed active rollout wins over a retained archived copy, regardless of mtime.
+  const files = groups.flatMap(files => files
     .filter((file) => isFileAfterStartedAt(file, startedAt))
     .filter((file) => !sessionId || file.path.toLowerCase().includes(sessionId.toLowerCase()))
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, MAX_CODEX_CANDIDATES)
+    .slice(0, MAX_CODEX_CANDIDATES))
 
   for (const file of files) {
     const snapshot = await parseCodexSession(file, cwd, codexHome, startedAt, true, checkpointLookup)

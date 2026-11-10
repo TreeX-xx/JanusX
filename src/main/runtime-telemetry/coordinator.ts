@@ -34,8 +34,8 @@ interface TerminalLedgerEntry {
   compactionCount?: number
   modelSegments: ModelSegment[]
   updatedAt: number
-  /** Only independently correlated native-session bindings are reusable. */
-  source: 'correlated'
+  /** Native connection identity is reconfirmed on launch; correlation is reusable. */
+  source: 'correlated' | 'native'
 }
 
 interface TelemetryLedger {
@@ -54,6 +54,7 @@ export class TerminalContextCoordinator {
   private loaded = false
   private readonly requests = new Map<string, RuntimeTelemetryRequest>()
   private readonly codexHomes = new Map<string, string>()
+  private readonly nativeTerminals = new Set<string>()
   private readonly listeners = new Map<string, (snapshot: RuntimeTelemetrySnapshot) => void>()
   private readonly pending = new Map<string, Promise<RuntimeTelemetrySnapshot | null>>()
   private readonly snapshots = new Map<string, { key: string; version: string; at: number; snapshot: RuntimeTelemetrySnapshot }>()
@@ -74,10 +75,16 @@ export class TerminalContextCoordinator {
   private usageError?: string
   private readonly failedSessions = new Map<string, string>()
 
-  trackTerminal(terminalId: string, preset: RuntimeTelemetryRequest['preset'], cwd: string, notify?: (snapshot: RuntimeTelemetrySnapshot) => void, codexHome?: string): void {
+  trackTerminal(terminalId: string, preset: RuntimeTelemetryRequest['preset'], cwd: string, notify?: (snapshot: RuntimeTelemetrySnapshot) => void, codexHome?: string, nativeIdentity = false): void {
     if (this.stopping || !preset || preset === 'shell') return
     if (preset === 'codex' && codexHome) this.codexHomes.set(terminalId, codexHome)
     this.requests.set(terminalId, { terminalId, preset, cwd })
+    if (preset === 'codex' && nativeIdentity && !this.nativeTerminals.has(terminalId)) {
+      this.nativeTerminals.add(terminalId)
+      this.load()
+      // A new owned backend must confirm its own thread, including after restart.
+      this.clearBinding(terminalId)
+    }
     if (!this.startedAt.has(terminalId)) this.startedAt.set(terminalId, Date.now())
     if (notify) this.listeners.set(terminalId, notify)
     if (!this.pollTimer) {
@@ -126,6 +133,7 @@ export class TerminalContextCoordinator {
       const preset = request.preset
       if (!terminalId || !preset || preset === 'shell' || !request.cwd) continue
       if (this.entries.has(terminalId)) continue
+      if (this.nativeTerminals.has(terminalId)) continue
       const startedAt = this.startedAt.get(terminalId)
       const lastActivityAt = this.activity.get(terminalId)
       if (startedAt === undefined || lastActivityAt === undefined) continue
@@ -136,6 +144,8 @@ export class TerminalContextCoordinator {
           terminalStartedAt: startedAt,
           lastActivityAt,
           codexHome: this.codexHomes.get(terminalId),
+          excludedSessionIds: new Set([...this.sessionOwners.keys()]
+            .filter(key => key.startsWith(`${preset}:`)).map(key => key.slice(preset.length + 1))),
         })
         if (candidate && this.requests.get(terminalId) === request) {
           candidates.set(terminalId, { engine: preset, sessionId: candidate.sessionId, request })
@@ -208,6 +218,49 @@ export class TerminalContextCoordinator {
 
   bindSession(terminalId: string, engine: TelemetryEngine, sessionId?: string, source: 'correlated' = 'correlated'): boolean {
     if (source !== 'correlated') return false
+    if (this.nativeTerminals.has(terminalId)) return false
+    return this.assignBinding(terminalId, engine, sessionId, source)
+  }
+
+  // Note: owned Codex protocol identity, never hook/renderer identity — see
+  // .agents/notes/terminal/usage-telemetry-hook-decoupling.md
+  bindNativeSession(terminalId: string, sessionId: string): boolean {
+    const request = this.requests.get(terminalId)
+    if (this.stopping || !this.nativeTerminals.has(terminalId) || request?.preset !== 'codex' || !sessionId.trim()) return false
+    const owner = this.sessionOwners.get(this.sessionKey('codex', sessionId.trim()))
+    if (owner && owner !== terminalId) {
+      // Exact protocol identity can correct a heuristic match, but never steal
+      // a thread from another independently confirmed native connection.
+      if (this.entries.get(owner)?.source === 'native') {
+        this.clearBinding(terminalId)
+        this.refreshTerminal(terminalId)
+        return false
+      }
+      this.clearBinding(owner)
+      this.refreshTerminal(owner)
+    }
+    const bound = this.assignBinding(terminalId, 'codex', sessionId, 'native')
+    if (bound) this.refreshTerminal(terminalId)
+    return bound
+  }
+
+  private refreshTerminal(terminalId: string): void {
+    const request = this.requests.get(terminalId)
+    if (!request) return
+    void this.getSnapshot(request).then(snapshot => {
+      if (snapshot && this.requests.get(terminalId) === request) this.listeners.get(terminalId)?.(snapshot)
+    }).catch(error => this.reportUsageError(error))
+  }
+
+  private clearBinding(terminalId: string): void {
+    const previous = this.entries.get(terminalId)
+    if (previous) this.sessionOwners.delete(this.sessionKey(previous.engine, previous.sessionId))
+    this.entries.delete(terminalId)
+    this.snapshots.delete(terminalId)
+    if (previous) this.persist()
+  }
+
+  private assignBinding(terminalId: string, engine: TelemetryEngine, sessionId: string | undefined, source: TerminalLedgerEntry['source']): boolean {
     if (this.stopping) return false
     const normalizedSessionId = sessionId?.trim()
     if (!terminalId || !normalizedSessionId) return false
@@ -217,7 +270,7 @@ export class TerminalContextCoordinator {
     if (owner && owner !== terminalId) return false
 
     const previous = this.entries.get(terminalId)
-    if (previous?.sessionId === normalizedSessionId && previous.engine === engine) {
+    if (previous?.sessionId === normalizedSessionId && previous.engine === engine && previous.source === source) {
       return true
     }
     if (previous) this.sessionOwners.delete(this.sessionKey(previous.engine, previous.sessionId))
@@ -240,6 +293,7 @@ export class TerminalContextCoordinator {
     this.load()
     this.requests.delete(terminalId)
     this.codexHomes.delete(terminalId)
+    this.nativeTerminals.delete(terminalId)
     this.listeners.delete(terminalId)
     this.activity.delete(terminalId)
     this.startedAt.delete(terminalId)
@@ -298,7 +352,7 @@ export class TerminalContextCoordinator {
       const info = cached.snapshot.filePath ? await stat(cached.snapshot.filePath).catch(() => null) : null
       if (request.terminalId && this.entries.get(request.terminalId) !== bound) return null
       if (info && sourceVersion(info) === cached.version) return {
-        ...cached.snapshot, observedAt: Date.now(), sessionBinding: 'correlated',
+        ...cached.snapshot, observedAt: Date.now(), sessionBinding: bound.source === 'native' ? 'exact' : 'correlated',
       }
     }
     if (request.terminalId) this.snapshots.delete(request.terminalId)
@@ -315,7 +369,14 @@ export class TerminalContextCoordinator {
         try { this.usageLedger.markMissing(bound.engine, bound.sessionId) }
         catch (error) { this.reportUsageError(error) }
       }
-      return null
+      // An empty/new thread may not have flushed a rollout yet. Clear the old
+      // thread's numbers immediately and let the normal poll retry the file.
+      return bound?.source === 'native' ? {
+        source: 'history', confidence: 'authoritative', observedAt: Date.now(),
+        sessionId: bound.sessionId, sessionBinding: 'exact',
+      } : request.terminalId && this.nativeTerminals.has(request.terminalId) ? {
+        source: 'configuration', confidence: 'declared', observedAt: Date.now(),
+      } : null
     }
 
     const { usageObservation, sourceVersion: version, ...telemetry } = snapshot
@@ -335,7 +396,7 @@ export class TerminalContextCoordinator {
       ...telemetry,
       observedAt: Date.now(),
       sessionId: bound.sessionId,
-      sessionBinding: 'correlated',
+      sessionBinding: bound.source === 'native' ? 'exact' : 'correlated',
     }
     this.recordSnapshot(request.terminalId!, bound, exact)
     if (request.terminalId && version && exact.filePath && !usageObservation?.issue

@@ -28,6 +28,7 @@ import { Select } from '../ui/Select'
 import { ChatContextIndicator } from './ChatContextIndicator'
 import { MemoPanel } from '../memo/MemoPanel'
 import { useMemoStore } from '@/stores/memo'
+import { useIslandStore } from '@/stores/island'
 
 type SelectionMenu = 'provider' | 'model' | 'permission'
 type PermissionOption = { value: AgentApprovalMode; label: string }
@@ -437,6 +438,12 @@ export function JanusChat({
   const { t } = useI18n('janus')
   const memoTitle = (memoId: string) => useMemoStore.getState().memos.find(memo => memo.id === memoId)?.title
   const [input, setInput] = useState('')
+  const chatRequest = useIslandStore(state => state.chatRequest)
+  useEffect(() => {
+    if (!chatRequest) return
+    if (chatRequest.prefill) setInput(chatRequest.prefill)
+    useIslandStore.getState().consumeChat(chatRequest.sequence)
+  }, [chatRequest])
   const [historyPageSize, setHistoryPageSize] = useState(100)
   const historyEntries = useMemo(() => [...messages.slice(-historyPageSize).map((msg) => ({ kind: 'message' as const, timestamp: msg.timestamp, msg })), ...roundtableCards.map((card) => ({ kind: 'card' as const, timestamp: Date.parse(card.updatedAt || card.createdAt) || 0, card })), ...roundtableQuestions.map((block) => ({ kind: 'questions' as const, timestamp: block.timestamp, block}))]
           .sort((a, b) => a.timestamp - b.timestamp), [messages, historyPageSize, roundtableCards, roundtableQuestions])
@@ -664,7 +671,8 @@ export function JanusChat({
       chatRootRef.current?.focus({ preventScroll: true })
       focusTimerRef.current = window.setTimeout(() => {
         const inputElement = inputRef.current
-        if (inputElement && !inputElement.disabled) inputElement.focus()
+        // Respect focus moved to a companion control or dialog during the opening delay.
+        if (inputElement && !inputElement.disabled && document.activeElement === chatRootRef.current) inputElement.focus()
       }, 100)
     }
     return () => {

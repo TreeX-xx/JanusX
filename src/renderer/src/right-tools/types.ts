@@ -2,7 +2,7 @@ import type { TypedI18nKey } from '@/i18n/types'
 import type { ExtensionViewId } from '@/extensions/types'
 import type { LucideIcon } from 'lucide-react'
 
-export type BuiltinRightToolId = 'files' | 'git' | 'assist' | 'persona' | 'review' | 'sessions'
+export type BuiltinRightToolId = 'files' | 'git' | 'repository' | 'assist' | 'persona' | 'review' | 'sessions' | 'automations'
 export type RightToolId = BuiltinRightToolId | ExtensionViewId
 
 export interface RightToolDefinition {

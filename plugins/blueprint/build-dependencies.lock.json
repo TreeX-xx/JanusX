@@ -5,15 +5,15 @@
       "name": "@janus-agent/agent-core",
       "version": "0.1.0",
       "file": "janus-agent-agent-core-0.1.0.tgz",
-      "sha256": "d2209d57eb5f4c821900fc561ee1093de6666971c7101ad7de65c90e708e7f33",
-      "integrity": "sha512-r2i0/sfw93M+QA4q8JC5OBPJG7WA1RVlQhjhlQXG1r8FrXqyP0g9woZZuKKMQxdxsIGB52h8RmVt5MXUseXkyw=="
+      "sha256": "9d1a0b8ccf124172b05b0889236605a5a524869c0d7355340ef40a7fafc00997",
+      "integrity": "sha512-7GZV3EhMmMO7JOW0SNaOSjK1sFqepK+3F4/AfTegJGvaOXsf0eyEYrJ+UU0Y3UZRFwmRiSq0osWu7oB+eQJ0+A=="
     },
     {
       "name": "@janus-agent/chat-core",
       "version": "0.1.0",
       "file": "janus-agent-chat-core-0.1.0.tgz",
-      "sha256": "0414432a024f5834d357f53a947d123e564cf26a3bc7cdbc4e05e05ea6e73652",
-      "integrity": "sha512-qkaKza99yxuZ8Qh3Tv8vK0cK9dyK8evYUR4gji/HhosxGp8XFld5CXUNDw8sZ9yB5G30YLbyV4xhMd+oAprtCA=="
+      "sha256": "aa229ea5ae660d4f270cd27c773b1cba4552d75284bffb60eb067f6adea28c49",
+      "integrity": "sha512-2u7R/37DDjpmjHF1yTcjTWitH0gvr5UaoM5CMCKRfmCJ1dAB9wNP7RWubifBqiYwdpCiGKVQ/zG1OP4svHDC2A=="
     },
     {
       "name": "@janus-agent/harness-core",
@@ -26,29 +26,29 @@
       "name": "@janus-agent/harness-node",
       "version": "0.2.0",
       "file": "janus-agent-harness-node-0.2.0.tgz",
-      "sha256": "01b5128814112304052ab18a58f9e3e7d6afb87e50f334587127a43f28b44d3d",
-      "integrity": "sha512-T/CCtjVursS5OitMKF3O923qvLnNPaXDlGMWGjiyawBiPZmzprmDOehM2Xa+CyKnU8lFVwtZb7xWJvwwhS+20g=="
+      "sha256": "5679343c00ce3d3dd4000df66437e491072e3986050c2e1cc2777ffbbf3606c2",
+      "integrity": "sha512-MpEjcVS2LwpO1LJkj6oYDHeJ1fCk4Otle/ssiJ25Fszpbkuf3zoSr5JJ3cmsuax7EyEJrqu9LvwgdKwixPYHMw=="
     },
     {
       "name": "@janus-agent/janus-agent",
       "version": "0.1.0",
       "file": "janus-agent-janus-agent-0.1.0.tgz",
-      "sha256": "0426f706f7a48557b0639578e2d314e6e0c50009243a13dc47cd5428c613e0af",
-      "integrity": "sha512-lAl0zJRHTMFBiDRyHZBQ6SA/ln8W8TmpW+SEZ+gdWNpF8fNPmqH33kPS1vqL4YvzrePVXvC/UQZCU6xULoSnXQ=="
+      "sha256": "568f844513b1bf01fdedb10ac5ca4a22ecef7a272dd3944e887fbf3cd1e775c9",
+      "integrity": "sha512-Fs/Q82Yl7geTPWN9w8PGHynkIVD+8EZtZsejKjDR6CFPL4zHcjVdfrfZVknDlkm6zi19eOmTFM2RsGpKH3qthQ=="
     },
     {
       "name": "@janus-agent/node-hosts",
       "version": "0.1.0",
       "file": "janus-agent-node-hosts-0.1.0.tgz",
-      "sha256": "7264f951fe22d91e36a7512b04635fa157261191617f1d1114480732bc5555e1",
-      "integrity": "sha512-23nee6OFRbWyhk1nEeyCAQaUkIMx0rh0CdfmRRslpfBrdAvgkTeeRbCiXlz5BY1SNa20BswiimreM/FsLjVWXQ=="
+      "sha256": "8e68c4b0433663cd68b4e02eb85a8912afe6953b6527f4b88d02ca63659499de",
+      "integrity": "sha512-untvCSiUmVMeO+fDizHYK87wGm+MUK3YCfgSxIQsGnSohOQlWCIpkjZQD4+3Oz9RUfnPfVNYxHdtb8uq9Fi5XA=="
     },
     {
       "name": "@janusx/llm-core",
       "version": "0.1.0",
       "file": "janusx-llm-core-0.1.0.tgz",
-      "sha256": "478b3578a0d273758d0c6181b02b3186b6d5b8b6512597858265ba8b00823865",
-      "integrity": "sha512-NQNgowAzdq0D6BpdEc4t5atO0im2eVBaTBywjfUFDCScSjm2VER7ZqImmBctiu6206MDTUJFVlDQUXFcLbg2Ig=="
+      "sha256": "8e6a07aefd8e0bddfa1a07de20d082bda66e3741db2121ebc956dee5d5f6121b",
+      "integrity": "sha512-x8qhpCENyT306MpqC4p3AzPuTbPKrg7whRLsV6s2r3kbYKOae2n760xYjtSZFBWcetSd7oFv1CS4m+SZWMjPMw=="
     },
     {
       "name": "@janusx/note-tools",

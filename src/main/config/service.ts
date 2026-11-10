@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { readFile, rename } from 'node:fs/promises'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import type { GlobalConfig } from '../workspace/types'
+import { normalizeControlSettings, type ControlSettings } from '../../shared/ipc/control'
 import {
   DEFAULT_AGENT_NOTIFICATION_SETTINGS,
   normalizeAgentNotificationSettings,
@@ -181,6 +182,20 @@ export class ConfigService {
   async getNotificationSettings(): Promise<AgentNotificationSettings> {
     const config = await this.get()
     return normalizeAgentNotificationSettings(config.notificationSettings)
+  }
+
+  async getControlSettings(): Promise<ControlSettings> {
+    return normalizeControlSettings((await this.get()).controlSettings)
+  }
+
+  async updateControlSettings(settings: unknown): Promise<ControlSettings> {
+    return this.writeQueue.run(async () => {
+      const current = await this.get()
+      const controlSettings = normalizeControlSettings({ ...normalizeControlSettings(current.controlSettings), ...(settings as Partial<ControlSettings>) })
+      this.config = { ...current, controlSettings }
+      await this.persist()
+      return controlSettings
+    })
   }
 
   async updateNotificationSettings(

@@ -55,13 +55,17 @@ test('conversation startup respects reduced motion and yields to errors', async 
   await expect(page.getByRole('alert')).toContainText('Fixture connection lost')
 })
 
-test('startup trust stays inline, can pause and resume, and preserves the draft without exposing the terminal', async ({ page }) => {
-  await page.goto('/codex-conversation.html?initialView=conversation&pendingStartup')
+for (const engine of ['codex', 'claude']) test(`${engine} startup trust stays inline, can pause and resume, and preserves the draft without exposing the terminal`, async ({ page }) => {
+  await page.goto(`/codex-conversation.html?initialView=conversation&pendingStartup&engine=${engine}`)
   const input = page.locator('[data-conversation-input]')
   await input.fill('Keep my draft')
   await page.evaluate(() => (window as any).codexFixture.setup('trust'))
   const dialog = page.getByRole('region', { name: 'Trust this folder?' })
   await expect(dialog).toBeVisible()
+  const name = engine === 'claude' ? 'Claude' : 'Codex'
+  await expect(dialog.getByText(name, { exact: true })).toBeVisible()
+  await expect(dialog.getByText(`Trusting this folder allows ${name}`, { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Terminal', exact: true })).toBeDisabled()
   await expect(dialog.getByText('C:/fixture/project')).toBeVisible()
   await expect(page.locator('.xterm')).toBeHidden()
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -75,7 +79,7 @@ test('startup trust stays inline, can pause and resume, and preserves the draft 
   await page.getByRole('button', { name: 'Continue setup' }).click()
   await expect(dialog).toBeVisible()
   await expect(dialog).toHaveCSS('opacity', '1')
-  await page.screenshot({ path: 'artifacts/codex-startup/trust-inline.png' })
+  await page.screenshot({ path: `artifacts/${engine}-startup/trust-inline.png` })
   await dialog.getByRole('button', { name: 'Trust and continue' }).click()
   await expect(dialog).toHaveCount(0)
   await expect(input).toBeFocused()

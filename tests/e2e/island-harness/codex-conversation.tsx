@@ -32,6 +32,7 @@ state.mode = initialView
 if (claude) {
   state.capabilities = { ...state.capabilities, edit: false, newThread: false, steer: false }
   state.engine = 'claude'; state.model = 'claude-sonnet-4-6'; state.effort = 'medium'
+  state.ultracode = { enabled: false, available: true, model: state.model }
   state.models = [
     { model: 'claude-sonnet-4-6', displayName: 'Sonnet', description: 'Native Sonnet option', defaultEffort: null, efforts: ['low', 'medium', 'high'].map(effort => ({ effort, description: '' })) },
     { model: 'claude-opus-4-6', displayName: 'Opus', description: 'Native Opus option', defaultEffort: null, efforts: ['low', 'medium', 'high', 'max'].map(effort => ({ effort, description: '' })) },
@@ -54,6 +55,7 @@ const calls = { commands: [] as ConversationCommand[], create: 0, kill: 0, sends
 const startupCalls: string[] = []
 let settingsFailure = false
 let editAfterRevertFailure = false
+let editHistoryFailure = false
 let sendGate: Promise<void> | null = null
 let settleSend: ((fail: boolean) => void) | null = null
 let modeGate: Promise<void> | null = null
@@ -98,6 +100,10 @@ Object.assign(window.electron.terminal, {
       if (settingsFailure) throw new Error('Fixture settings update failed')
       state.serviceTier = command.fast ? 'fast' : null
     }
+    else if (command.type === 'ultracode') {
+      if (settingsFailure) throw new Error('Fixture settings update failed')
+      state.ultracode = { ...state.ultracode!, enabled: command.enabled }
+    }
     else if (command.type === 'settings') {
       if (settingsFailure) throw new Error('Fixture settings update failed')
       calls.settings.push({ model: command.model, effort: command.effort }); state.model = command.model; state.effort = command.effort
@@ -108,6 +114,10 @@ Object.assign(window.electron.terminal, {
       calls.sends.push(command.text)
       if (sendGate) await sendGate
       if (command.type === 'edit') {
+        if (editHistoryFailure) {
+          state.capabilities = { ...state.capabilities, edit: false }; publish()
+          throw new Error('Codex could not read thread history. Your edited message was not sent and the original history was kept.')
+        }
         const target = state.items.findIndex(item => item.id === command.itemId)
         if (target < 0) throw new Error('Message no longer exists')
         state.items = state.items.slice(0, target); state.plans = []
@@ -153,6 +163,15 @@ Object.assign(window, { codexFixture: {
       { id: 'confirm', header: 'Confirmation', text: 'Proceed?', options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }] },
       { id: 'checks', header: 'Checks', text: 'Select checks', multiple: true, allowText: true, options: [{ id: 'unit', label: 'Unit tests', description: 'Run local tests' }, { id: 'browser', label: 'Browser tests', description: 'Verify the interaction' }] },
       { id: 'text', text: 'Type something', options: [], allowText: true },
+    ] }]; publish()
+  },
+  asyncQuestions: () => {
+    state.turnId = 'active-turn'
+    state.turnStartedAt = Date.now()
+    state.items = [{ id: 'active-turn:ask', turnId: 'active-turn', type: 'agentMessage', text: 'Which direction?\n- First\n- Second', status: 'completed' }]
+    state.questions = [{ id: 'async:active-turn:ask', version: state.revision, blocking: false, cancelable: false, status: 'pending', questions: [
+      { id: '0', text: 'Which direction?', allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] },
+      { id: '1', text: 'Notes', allowText: true, options: [] },
     ] }]; publish()
   },
   expireQuestions: () => { state.questions = []; publish() },
@@ -208,6 +227,7 @@ Object.assign(window, { codexFixture: {
   },
   readOnly: () => { state.capabilities = { ...state.capabilities, submit: false }; publish() },
   editFailure: () => { editAfterRevertFailure = true },
+  editHistoryFailure: () => { editHistoryFailure = true },
   editPreview: () => {
     state.items = ['Earlier question', 'Original question', 'Later question'].flatMap((text, index) => [
       { id: `user-${index}`, turnId: `turn-${index}`, type: 'userMessage', text, status: 'completed' },
@@ -254,6 +274,7 @@ Object.assign(window, { codexFixture: {
     publish()
   },
   settingsFail: (value: boolean) => { settingsFailure = value },
+  ultracode: (value?: ConversationSnapshot['ultracode']) => { state.ultracode = value; publish() },
   catalogFail: () => { state.modelsError = 'Fixture catalog failed'; publish() },
   nativeSettings: () => { state.model = 'fixture-fast'; state.effort = 'high'; publish() },
   backgroundTask: () => { state.turnId = null; state.backgroundTasks = 1; publish() },
@@ -264,6 +285,12 @@ Object.assign(window, { codexFixture: {
   progressSnapshot: (snapshot: Pick<ConversationSnapshot, 'items' | 'turnId' | 'turnStartedAt'>) => {
     state.items = structuredClone(snapshot.items); state.turnId = snapshot.turnId; state.turnStartedAt = snapshot.turnStartedAt
     state.approvals = []; state.plans = []; state.connection = 'ready'; publish()
+  },
+  workTruncated: (kind: 'history' | 'output' | 'unknown') => {
+    state.truncated = kind === 'history'
+    state.items = [{ id: 'bounded', turnId: 'bounded', type: 'commandExecution', text: 'npm test\nPassed',
+      status: kind === 'unknown' ? 'unrecognized' : 'completed', truncated: kind === 'output' }]
+    state.turnId = null; publish()
   },
   workPreview: (stage: 'start' | 'update' | 'idle' | 'finish') => {
     if (stage === 'start') state.turnStartedAt = Date.now()

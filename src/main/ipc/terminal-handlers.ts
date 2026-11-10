@@ -845,7 +845,12 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             }
             sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.conversation, snapshot)
           },
-          (threadId, transcriptPath) => agentSessionRegistry.noteProviderSession(id, threadId, transcriptPath))
+          (threadId, transcriptPath) => {
+            agentSessionRegistry.noteProviderSession(id, threadId, transcriptPath)
+            // The owned Codex connection identifies its visible thread exactly;
+            // hooks remain outside telemetry. See usage-telemetry-hook-decoupling.md.
+            if (engine === 'codex') terminalContextCoordinator.bindNativeSession(id, threadId)
+          })
         conversation = managed
         conversations.set(id, conversation)
         if (config.initialView === 'conversation') await managed.command({ type: 'mode', mode: 'conversation' })
@@ -1126,7 +1131,11 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
     terminalContextCoordinator.trackTerminal(id, engine, cwd, telemetry => {
       sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.telemetry, { id, telemetry })
-    }, recoveryEnv?.codexHome)
+    }, recoveryEnv?.codexHome, engine === 'codex' && Boolean(conversation))
+    // Native selection may finish before PTY registration. Reconcile it once
+    // tracking exists; subsequent /new and /resume selections use the callback.
+    const nativeThreadId = conversation?.snapshot().threadId
+    if (engine === 'codex' && nativeThreadId) terminalContextCoordinator.bindNativeSession(id, nativeThreadId)
     // Hook-free attribution: bind this terminal to its native session as soon
     // as its first pty output lands, without waiting for the poll cadence.
     void terminalContextCoordinator.runAttributionPass().catch(() => undefined)

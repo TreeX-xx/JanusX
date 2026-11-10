@@ -14,9 +14,11 @@ async function finish(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Keep the standalone fixture's file navigation expanded for selection checks.
+  await page.setViewportSize({ width: 1600, height: 900 })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/memo.html')
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await page.evaluate(async () => {
     const memo = (window as any).memoFixture.memos[0]
@@ -37,7 +39,7 @@ test('snapshots the selected star for sends and steering while retaining selecti
   expect(steered.memoBinding).toMatchObject({ selectedNodeId: ids[0], messageId: steered.entryId })
   expect((await bindings(page))[0].selectedNodeId).toBe(ids[1])
   await finish(page)
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await expect(page.locator('.memo-panel')).toHaveCount(0)
   await send(page)
   expect((await bindings(page))[1].selectedNodeId).toBe(ids[0])

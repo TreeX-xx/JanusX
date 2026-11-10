@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { IslandSpeakQueue } from '../../src/renderer/src/components/janus/islandSpeakQueue'
+import type { IslandNotification } from '../../src/renderer/src/components/janus/islandNotifications'
 
 const T0 = 50_000
 
@@ -8,6 +9,17 @@ function make(): IslandSpeakQueue {
 }
 
 describe('IslandSpeakQueue 串行传话', () => {
+  it('removing a card clears its active, queued and retained notices while preserving other sources', () => {
+    const q = make()
+    const entry = (id: string) => ({ id, body: id, at: T0, notification: { automation: { id, definitionId: 'deleted-card' } } as IslandNotification })
+    q.enqueue(entry('active'), T0)
+    q.enqueue(entry('queued'), T0)
+    q.enqueue({ id: 'other', body: 'Other source', at: T0 }, T0)
+    q.removeAutomation('deleted-card')
+    expect(q.step(T0)).toMatchObject({ speaking: { id: 'other' }, historyCount: 1, unreadCount: 1, pendingCount: 1 })
+    q.enqueue(entry('active'), T0)
+    expect(q.step(T0).history.map(item => item.id)).toEqual(['other'])
+  })
   it('单条：立即开讲，hold 到点收起', () => {
     const q = make()
     q.enqueue({ id: 'a', body: 'A', at: T0 }, T0)
@@ -48,35 +60,61 @@ describe('IslandSpeakQueue 串行传话', () => {
     expect(snap.speaking?.id).toBe('b')
   })
 
-  it('AC-3 面板打开 = 已读：清空待播、历史保留', () => {
+  it('opening and closing silence presentation but preserve all unread records', () => {
     const q = make()
     q.enqueue({ id: 'a', body: 'A', at: T0 }, T0)
     q.enqueue({ id: 'b', body: 'B', at: T0 }, T0)
-    q.markSeen()
-    const snap = q.step(T0 + 10_000)
-    expect(snap.speaking).toBeNull()
-    expect(snap.pendingCount).toBe(0)
-    expect(snap.historyCount).toBe(2)
-  })
-
-  it('AC-3/AC-4 看过即焚：burnHistory 清空且计数归零', () => {
-    const q = make()
-    q.enqueue({ id: 'a', body: 'A', at: T0 }, T0)
+    q.silence()
+    expect(q.step(T0 + 10000)).toMatchObject({ speaking: null, pendingCount: 0, historyCount: 2, unreadCount: 2 })
+    q.markRead('a')
+    expect(q.step(T0).unreadCount).toBe(1)
+    q.clear(true)
+    expect(q.step(T0).history.map(item => item.id)).toEqual(['b'])
+    q.clear()
     q.enqueue({ id: 'b', body: 'B', at: T0 }, T0)
-    expect(q.historyList()).toHaveLength(2)
-    expect(q.burnHistory()).toBe(2)
-    expect(q.step(T0 + 1000).historyCount).toBe(0)
+    expect(q.step(T0).historyCount).toBe(0)
   })
 
-  it('历史与计数一致：计数只随到达与焚尽变化', () => {
-    const q = make()
+  it('pauses the remaining hold time while hovering or focusing', () => {
+    const q = new IslandSpeakQueue()
     q.enqueue({ id: 'a', body: 'A', at: T0 }, T0)
-    expect(q.step(T0).historyCount).toBe(1)
-    q.dismiss(T0 + 100)
-    expect(q.step(T0 + 200).historyCount).toBe(1)
-    q.enqueue({ id: 'b', body: 'B', at: T0 + 300 }, T0 + 300)
-    expect(q.step(T0 + 400).historyCount).toBe(2)
-    q.burnHistory()
-    expect(q.step(T0 + 500).historyCount).toBe(0)
+    q.setPaused(true, T0 + 2000)
+    expect(q.step(T0 + 20000).speaking?.id).toBe('a')
+    expect(q.step(T0 + 20000).nextEventAt).toBe(Infinity)
+    q.setPaused(false, T0 + 20000)
+    expect(q.step(T0 + 23999).speaking?.id).toBe('a')
+    expect(q.step(T0 + 24000).speaking).toBeNull()
+    expect(q.step(T0 + 24000).unreadCount).toBe(1)
+  })
+
+  it('groups reminders by task, renews the alert and unread state, and never moves a row', () => {
+    const q = new IslandSpeakQueue()
+    q.enqueue({ id: 'a', groupKey: 'phone', body: 'First', at: T0 }, T0)
+    q.enqueue({ id: 'b', body: 'Other', at: T0 + 1 }, T0 + 1)
+    q.markRead('phone')
+    q.silence()
+    q.enqueue({ id: 'c', groupKey: 'phone', body: 'Latest', at: T0 + 60000 }, T0 + 60000)
+    const snap = q.step(T0 + 60000)
+    expect(snap.speaking).toMatchObject({ id: 'c', body: 'Latest', count: 2, read: false })
+    expect(snap.history.map(item => item.key)).toEqual(['phone', 'b'])
+    expect(snap.unreadCount).toBe(2)
+    q.enqueue({ id: 'a', groupKey: 'phone', body: 'First', at: T0 }, T0 + 60001)
+    expect(q.step(T0 + 60001).history[0].id).toBe('c')
+  })
+
+  it('retains arrivals during Chat without replaying them on close', () => {
+    const q = new IslandSpeakQueue()
+    q.enqueue({ id: 'a', body: 'A', at: T0 }, T0, false)
+    expect(q.step(T0)).toMatchObject({ speaking: null, unreadCount: 1, historyCount: 1 })
+    q.enqueue({ id: 'a', body: 'A', at: T0 }, T0 + 5000)
+    expect(q.step(T0 + 5000).speaking).toBeNull()
+  })
+
+  it('bounds history and pending presentation together', () => {
+    const q = new IslandSpeakQueue({ historyLimit: 2 })
+    for (const id of ['a', 'b', 'c']) q.enqueue({ id, body: id, at: T0 }, T0)
+    expect(q.step(T0).history.map(item => item.id)).toEqual(['b', 'c'])
+    expect(q.step(T0).pendingCount).toBe(2)
+    expect(q.step(T0).speaking?.id).toBe('b')
   })
 })

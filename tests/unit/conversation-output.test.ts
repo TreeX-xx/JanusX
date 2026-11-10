@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { conversationOutputGroups } from '../../src/shared/conversation-output'
-import { summarizeWork } from '../../src/shared/work-output'
+import { summarizeWork, toolActivity } from '../../src/shared/work-output'
 import type { ConversationItem } from '../../src/shared/conversation-display'
 const item = (id: string, type: string, extra: Partial<ConversationItem> = {}): ConversationItem => ({ id, type, turnId: 'turn', text: id, status: 'completed', ...extra })
 describe('conversation output grouping', () => {
@@ -12,7 +12,7 @@ describe('conversation output grouping', () => {
     expect(live.items[0].id).toBe('read')
     rows[0].status = 'completed'
     expect(conversationOutputGroups(rows, null)[0].activity).toEqual({ text: 'Grep · message', startedAt: undefined })
-    expect(conversationOutputGroups([item('legacy', 'commandExecution')], null)[0].activity).toBeUndefined()
+    expect(conversationOutputGroups([item('legacy', 'commandExecution')], null)[0].activity?.text).toBe('legacy')
   })
   it('keeps chronological process separate from final answer and user input', () => {
     const items = [item('user', 'userMessage'), item('update', 'agentMessage', { phase: 'commentary' }), item('tool', 'commandExecution'), item('answer', 'agentMessage', { phase: 'final_answer' })]
@@ -34,6 +34,10 @@ describe('conversation output grouping', () => {
     const items = [item('tool', 'commandExecution'), item('tool2', 'commandExecution', { turnId: 'next' })]
     expect(conversationOutputGroups(items, null).map(g => g.items.length)).toEqual([1, 1])
   })
+  it('keeps blocking errors outside the collapsed operations', () => {
+    const groups = conversationOutputGroups([item('cmd', 'commandExecution'), item('error', 'error', { status: 'failed' })], null)
+    expect(groups.map(group => group.process)).toEqual([true, false])
+  })
   it('breaks runs at prose and image results, without dropping or reordering records', () => {
     const items = [item('a', 'commandExecution'), item('b', 'fileChange'), item('prose', 'agentMessage'), item('c', 'reasoning'), item('image', 'imageGeneration'), item('d', 'commandExecution')]
     const groups = conversationOutputGroups(items, 'turn')
@@ -42,7 +46,13 @@ describe('conversation output grouping', () => {
     expect(groups.flatMap(g => g.items)).toEqual(items)
   })
   it('keeps failures, approvals, interruption and truncation visible in the summary while other work runs', () => {
-    expect(summarizeWork(['running', 'failed', 'approval', 'declined', 'unknown'].map(status => ({ status })))).toEqual({ count: 5, running: 1, failed: 1, waiting: 1, interrupted: 1, incomplete: true })
+    expect(summarizeWork(['running', 'failed', 'approval', 'declined', 'unknown'].map(status => ({ status })))).toEqual({ count: 5, running: 1, failed: 1, waiting: 1, interrupted: 0, rejected: 1, unknown: 1, incomplete: false })
     expect(summarizeWork([{ status: 'completed', truncated: true }]).incomplete).toBe(true)
+  })
+  it('retains the last operation when reasoning follows it and avoids using output as preview', () => {
+    const rows = [item('cmd', 'commandExecution', { text: 'npm test\nlarge output' }), item('thinking', 'reasoning', { status: 'inProgress' })]
+    expect(conversationOutputGroups(rows, 'turn')[0].activity).toEqual({ text: 'npm test', startedAt: undefined })
+    expect(toolActivity('Bash', { command: 'npm\n test', description: 'Run checks', prompt: 'private prompt' })).toBe('Bash · npm test')
+    expect(toolActivity('Agent', { prompt: 'private prompt' })).toBe('Agent')
   })
 })

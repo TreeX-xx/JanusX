@@ -33,7 +33,7 @@ async function openHosts(page: Page, theme: string) {
     .fixture-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 16px; }
     .fixture-layout > section { display: flex; flex-direction: column; min-width: 0; height: 650px; overflow: auto; background: var(--shell-pane); }
     .fixture-layout > [data-testid="task"] { display: none; }
-    .fixture-layout > [data-testid="main-chat"] { position: static; width: auto; transform: none; }
+    .fixture-layout > [data-testid="main-chat"].janus-island-shell[data-stage="expanded"][data-view="chat"] { position: static; width: auto; transform: none; }
     .fixture-layout .janus-chat { width: 100%; height: 100%; }
   ` })
   // Exercise the production Island ancestor selectors with the same real JanusChat
@@ -46,7 +46,7 @@ async function openHosts(page: Page, theme: string) {
   const hosts = [page.getByTestId('main-chat'), page.getByTestId('project-panel')]
   for (const host of hosts) {
     await host.locator('.janus-chat-input').fill('Read the selected Note')
-    await host.locator('.janus-chat-input').press('Enter')
+    await host.getByRole('button', { name: 'Send message', exact: true }).click()
     await expect(host.locator('.janus-chat-turn-status')).toBeVisible()
   }
   return hosts
@@ -57,7 +57,6 @@ for (const theme of ['planche', 'dark', 'white']) {
     await page.goto('/')
     await setTheme(page, theme)
     await page.getByTestId('reopen-island').click()
-    await page.locator('.janus-island .janus-expanded-view-button[data-view="chat"]').click()
     const chat = page.locator('.janus-island-shell .janus-chat')
     await expect(chat.locator('.janus-chat-turn-status')).toBeVisible()
     await expectToken(chat.locator('.janus-chat-turn-status'), 'color', 'shell-muted')

@@ -11,7 +11,7 @@ import { OpenCodeConversation } from '../../src/main/terminal/opencode-conversat
 import { conversationOutputGroups } from '../../src/shared/conversation-output'
 import { PNG_PIXEL } from '../helpers/image-fixture'
 import { exportConversationImage } from '../../src/main/terminal/conversation-image-export'
-import { conversationState } from '../../src/main/terminal/conversation-session'
+import { ConversationSession, conversationState } from '../../src/main/terminal/conversation-session'
 
 describe('conversation image artifacts', () => {
   it('exports only a registered ready image to the chosen destination and respects cancellation', async () => {
@@ -54,6 +54,32 @@ describe('conversation image artifacts', () => {
     expect(conversationImageText(text, ['images/a b.png'])).toContain('[Local](<images/a b.png>)')
     expect(conversationImageText(text, ['images/a b.png'])).toContain('![Remote]')
   })
+  it('ignores fenced, indented, inline and escaped image examples without rewriting them', () => {
+    const examples = [
+      '```ts\nconst sample = "![Example](output.png)"\n```',
+      '~~~md\n![Example](output.png)\n~~~',
+      '    ![Example](output.png)',
+      '`![Example](output.png)`',
+      '\\![Example](output.png)',
+    ].join('\n\n')
+    const text = examples + '\n\n![Result](output.png)\n\n![Second](<images/a b.png>)'
+    expect(conversationImageLinks(examples)).toEqual([])
+    expect(conversationImageLinks(text)).toEqual(['output.png', 'images/a b.png'])
+    expect(conversationImageText(text, ['output.png', 'images/a b.png'])).toBe(
+      examples + '\n\n[Result](output.png)\n\n[Second](<images/a b.png>)')
+  })
+  it('keeps source-reading command output in the process group without discovering images', async () => {
+    const state = conversationState('test', 'codex')
+    const session = new ConversationSession(state, () => {})
+    const fixture = await readFile(new URL('../helpers/hook-cli-fixture.ts', import.meta.url), 'utf8')
+    state.items = [{ id: 'source', turnId: 'turn', type: 'commandExecution',
+      text: 'Get-Content tests/helpers/hook-cli-fixture.ts\n' + fixture, status: 'completed' }]
+    session.discoverImages('source')
+    expect(state.items[0].images).toBeUndefined()
+    expect(conversationOutputGroups(state.items, null)[0].process).toBe(true)
+    expect(state.items[0].text).toContain("'![Fixture image](generated.png)'")
+    session.stop()
+  })
   it('projects Codex image generation, preserves failed status and does not publish raw bytes', async () => {
     const root = await mkdtemp(join(tmpdir(), 'janusx-image-codex-'))
     const c = new CodexConversation('test', () => {}), wire = c as any
@@ -86,7 +112,7 @@ describe('conversation image artifacts', () => {
         wire.receive({ type: 'chunk', data: { turnId: 'turn', step: 1, chunk: { kind: 'text', text: '![Result](output.png)' } } })
         expect(c.state.items[0].images).toBeUndefined()
         wire.receive({ type: 'turn.complete', data: { turnId: 'turn' } })
-      } else wire.receive({ type: 'item', item: { id: 'result', turnId: 'turn', type: 'commandExecution', text: '![Result](output.png)', status: 'completed' } })
+      } else wire.receive({ type: 'item', item: { id: 'result', turnId: 'turn', type: 'agentMessage', text: '![Result](output.png)', status: 'completed' } })
       await vi.waitFor(() => expect(c.state.items[0].images?.[0].status).toBe('ready'))
       expect(c.state.items[0].images?.[0].source).toBe('output.png')
     } finally { await c.dispose(); await rm(root, { recursive: true, force: true }) }

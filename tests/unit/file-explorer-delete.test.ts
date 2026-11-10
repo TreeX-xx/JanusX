@@ -111,7 +111,7 @@ describe('file explorer delete confirmation', () => {
       ;(cancelButton.props.onClick as () => void)()
     } else if (route === 'Escape') {
       const modal = findElement(dialog, (element) => element.props.role === 'dialog')
-      ;(modal.props.onKeyDown as (event: unknown) => void)({ key: 'Escape', preventDefault: vi.fn() })
+      ;(modal.props.onKeyDown as (event: unknown) => void)({ key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() })
     } else {
       const overlay = dialog
       const backdrop = {}

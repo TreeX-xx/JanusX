@@ -5,10 +5,11 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { refreshScopeFileTree } from '@/features/workspace/actions'
 import { useI18n } from '@/i18n/useI18n'
 import { ModalCloseButton } from './ModalCloseButton'
+import { HostedConnectionNotice } from './HostedConnectionNotice'
 import { ModalFrame } from './shared/ModalFrame'
 import styles from './WorktreeDialogs.module.css'
 import type { BranchDiff } from '../../../shared/ipc/worktree'
-import type { FailedCheckLog, HostedCheck, HostedComment, HostedIssue, HostedReview } from '../../../shared/ipc/hosted'
+import type { FailedCheckLog, HostedCheck, HostedComment, HostedConnection, HostedIssue, HostedReview } from '../../../shared/ipc/hosted'
 import type { WorktreeInfo } from '../../../shared/ipc/worktree'
 import type { Workspace } from '@/types'
 
@@ -42,11 +43,11 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 5,
 }
 
-export function WorktreeComposer({ workspace, onClose }: { workspace: Workspace; onClose: () => void }) {
+export function WorktreeComposer({ workspace, initialIssue, onClose }: { workspace: Workspace; initialIssue?: HostedIssue; onClose: () => void }) {
   const { t } = useI18n('terminal')
   const createWorktree = useWorktreeStore((s) => s.createWorktree)
-  const [name, setName] = useState('')
-  const [branch, setBranch] = useState('')
+  const [name, setName] = useState(initialIssue?.title ?? '')
+  const [branch, setBranch] = useState(initialIssue ? slugify(initialIssue.title) : '')
   const [branchTouched, setBranchTouched] = useState(false)
   const [startFrom, setStartFrom] = useState('origin/main')
   const [busy, setBusy] = useState(false)
@@ -54,7 +55,9 @@ export function WorktreeComposer({ workspace, onClose }: { workspace: Workspace;
   const [issueQuery, setIssueQuery] = useState('')
   const [issues, setIssues] = useState<HostedIssue[]>([])
   const [issuesBusy, setIssuesBusy] = useState(false)
-  const [linkedIssue, setLinkedIssue] = useState<string | null>(null)
+  const [issueConnection, setIssueConnection] = useState<HostedConnection | null>(null)
+  const [issueError, setIssueError] = useState<string | null>(null)
+  const [linkedIssue, setLinkedIssue] = useState<string | null>(initialIssue ? `#${initialIssue.number}` : null)
 
   // Provider pattern: submit closes immediately; progress, cancel, and retry
   // live on the sidebar row while creation runs in the background. The close
@@ -81,11 +84,20 @@ export function WorktreeComposer({ workspace, onClose }: { workspace: Workspace;
 
   const searchIssues = async () => {
     setIssuesBusy(true)
+    setIssueError(null)
+    setIssues([])
     try {
+      const connection = await window.electron.hosted.connection(workspace.path)
+      setIssueConnection(connection)
+      if (!connection) {
+        setIssueError(t('common:hosted.unsupported'))
+        return
+      }
+      if (connection.status !== 'ready') return
       const results = await window.electron.hosted.listIssues(workspace.path, issueQuery.trim() || undefined)
       setIssues(results)
-    } catch {
-      setIssues([])
+    } catch (error) {
+      setIssueError(error instanceof Error ? error.message : String(error))
     } finally {
       setIssuesBusy(false)
     }
@@ -180,6 +192,8 @@ export function WorktreeComposer({ workspace, onClose }: { workspace: Workspace;
               )}
               {showIssues && (
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {issueConnection && <HostedConnectionNotice connection={issueConnection} onRetry={() => void searchIssues()} busy={issuesBusy} />}
+                  {issueError && <div role="alert" style={{ fontSize: 11, color: 'var(--shell-diff-del)' }}>{issueError}</div>}
                   <div className="flex" style={{ gap: 6 }}>
                     <input
                       value={issueQuery}
@@ -629,6 +643,7 @@ export function WorktreeShipDialog({
           )}
 
           <HostedReviewSection
+            key={JSON.stringify([workspacePath, worktree.path, branch, base])}
             workspacePath={workspacePath}
             worktreePath={worktree.path}
             branch={branch}
@@ -728,7 +743,8 @@ function HostedReviewSection({
   base: string
 }) {
   const { t } = useI18n('terminal')
-  const [provider, setProvider] = useState<'github' | 'gitlab' | null | 'unknown'>('unknown')
+  const [connection, setConnection] = useState<HostedConnection | null>(null)
+  const provider = connection?.provider
   const [reviews, setReviews] = useState<HostedReview[]>([])
   const [checks, setChecks] = useState<HostedCheck[]>([])
   const [logs, setLogs] = useState<FailedCheckLog[] | null>(null)
@@ -744,25 +760,32 @@ function HostedReviewSection({
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    const [detected, reviewList, checkList] = await Promise.all([
-      window.electron.hosted.detect(workspacePath),
-      window.electron.hosted.listReviews(workspacePath, branch).catch(() => []),
-      window.electron.hosted.checks(workspacePath, branch).catch(() => []),
-    ])
-    return { detected, reviewList, checkList }
+    const connection = await window.electron.hosted.connection(workspacePath)
+    if (!connection || connection.status !== 'ready') return { connection, reviewList: [], checkList: [], error: null }
+    let reviewList: HostedReview[] = []
+    try {
+      reviewList = await window.electron.hosted.listReviews(workspacePath, branch)
+      // gh pr checks fails when this branch has no open PR; that is a normal creation state.
+      const hasOpenReview = reviewList.some(review => review.head === branch && (review.state === 'open' || review.state === 'draft'))
+      const checkList = hasOpenReview ? await window.electron.hosted.checks(workspacePath, branch) : []
+      return { connection, reviewList, checkList, error: null }
+    } catch (error) {
+      return { connection, reviewList, checkList: [], error: error instanceof Error ? error.message : String(error) }
+    }
   }, [workspacePath, branch])
 
   useEffect(() => {
     let alive = true
     void refresh()
-      .then(({ detected, reviewList, checkList }) => {
+      .then(({ connection, reviewList, checkList, error }) => {
         if (!alive) return
-        setProvider(detected)
+        setConnection(connection)
         setReviews(reviewList)
         setChecks(checkList)
+        setError(error)
       })
-      .catch(() => {
-        if (alive) setProvider(null)
+      .catch((error) => {
+        if (alive) setError(error instanceof Error ? error.message : String(error))
       })
     return () => {
       alive = false
@@ -772,9 +795,11 @@ function HostedReviewSection({
   const reload = useCallback(async () => {
     setError(null)
     try {
-      const { reviewList, checkList } = await refresh()
+      const { connection, reviewList, checkList, error } = await refresh()
+      setConnection(connection)
       setReviews(reviewList)
       setChecks(checkList)
+      setError(error)
       setLogs(null)
       setComments(null)
     } catch (err) {
@@ -782,7 +807,8 @@ function HostedReviewSection({
     }
   }, [refresh])
 
-  if (provider !== 'github' && provider !== 'gitlab') return null
+  if (!connection) return error ? <div role="alert">{error}<button type="button" onClick={() => void reload()}>{t('common:hosted.retry')}</button></div> : null
+  if (connection.status !== 'ready') return <HostedConnectionNotice connection={connection} onRetry={() => void reload()} />
 
   const open = reviews.find((r) => r.head === branch && (r.state === 'open' || r.state === 'draft')) ?? null
   const failing = checks.filter((c) => c.state === 'fail')
@@ -904,6 +930,7 @@ function HostedReviewSection({
 
   return (
     <div style={{ borderTop: '1px solid var(--control-border)', paddingTop: 10 }}>
+      <HostedConnectionNotice connection={connection} onRetry={() => void reload()} />
       <div className="flex items-center" style={{ gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--shell-muted)' }}>
           {t('terminal:worktree.prSection')}

@@ -6,8 +6,7 @@ test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } })
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/memo.html?island=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await page.evaluate(async () => {
     const memo = (window as any).memoFixture.memos[0]

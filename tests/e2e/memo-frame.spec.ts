@@ -12,10 +12,11 @@ for (const theme of ['planche', 'dark']) {
       await expect(memo).toHaveCSS(property, expected)
     }
     await expect(page.locator('.memo-canvas')).toHaveCSS('border-top-width', '0px')
-    await expect(page.locator('.memo-shell-header button')).toHaveCSS('border-top-width', '0px')
+    await expect(page.locator('.memo-shell-header button').first()).toHaveCSS('border-top-width', '0px')
     await page.screenshot({ path: test.info().outputPath(`memo-frame-${theme}.png`) })
     const original = await memo.boundingBox()
     await page.getByRole('button', { name: /Collapse memo files|收起文件栏/ }).click()
+    await expect(page.locator('.memo-files')).toHaveCount(0)
     await expect.poll(async () => (await memo.boundingBox())!.width).toBe(original!.width)
     await page.setViewportSize({ width: 1000, height: 600 })
     await expect(memo).toHaveAttribute('data-layout', 'compact')

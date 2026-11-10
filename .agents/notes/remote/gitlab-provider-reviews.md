@@ -43,45 +43,44 @@
       }
     }
   },
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-11-03T17:06:50.881Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5"
 }
 ---
 
-# Self-hosted GitLab instance and provider reviews
+# GitLab.com reviews through glab
 
 ## Problem
-The hosted surface spoke GitHub only, so teams on private GitLab instances had configuration with nowhere to spend it: no merge requests, no pipelines, no logs, and no merge action. Instance URLs carry ports and subpaths, projects nest in subgroups, and drafts predate the modern flag, so naive URL parsing and GitHub-shaped assumptions fail against real intranet remotes.
 
-### Self-hosted GitLab instance configuration
-Company GitLab instances live on intranets with custom addresses, private accounts, and often self-signed certificates, so nothing about GitHub's fixed address and `gh` login transfers. Without a configured instance, every GitLab feature would fail opaquely, and stuffing tokens into plain settings files would trade convenience for credential leaks.
-
+Repository collaboration needs authenticated Issue/MR, pipeline, comment and merge operations. Public owner avatars do not establish API authorization. The former self-managed instance form required a URL, PAT, certificate bypass and timeout, adding configuration and credential ownership that the user no longer wants.
 
 ## Decision
-`src/main/hosted/gitlab.ts` implements the provider contract against the configured instance: detection matches the remote host against the instance hostname with a present token, project paths encode nested groups, merge requests map states including legacy work-in-progress drafts, pipelines resolve to the latest run with per-job checks where allowed failures count as passing, failure logs stream job traces with the same size cap as GitHub, creation posts with draft and remove-source-branch flags, and merging accepts with an explicit squash choice. The Ship dialog needs no fork: detection, reviews, checks, logs, creation, and merge all flow through the shared surface with MR wording. Remote parsing now tolerates ports and multi-segment groups on every URL form.
 
-### Self-hosted GitLab instance configuration
-Settings gains a hosting tab with two sections: a read-only GitHub row pointing at the local `gh` login, and a GitLab form with instance URL, PAT, self-signed toggle, and timeout. Instance URLs normalize to scheme plus host with subpaths kept and trailing slashes stripped; anything else fails with an actionable message. Non-secret fields persist as JSON while PATs live only in the OS keychain through encrypted storage, with `GITLAB_TOKEN` overriding both. Verification hits `/api/v4/user` with the form values before saving is required, and failures classify into config, token, certificate, and network with distinct guidance instead of one generic error. Self-signed certificates stay rejected by default behind an explicit intranet-only warning. New tab copy lives in `common.json` because `settings.json` carries a historical encoding freeze.
+Hosting supports GitHub.com and GitLab.com. GitHub reuses gh; GitLab reuses glab. Both CLIs must be installed on the desktop and available on PATH. JanusX does not register its own OAuth application, store hosting credentials, or maintain token refresh. Users with an existing CLI authorization can use collaboration immediately; otherwise the workspace three-dot menu opens an application dialog running the official CLI browser login. The right repository panel offers the same entry when unauthenticated. Missing CLI installation and retry are explained there; the existing Issue composer and Ship retain their fallback guidance.
 
+Platform detection reads the origin remote independently of authentication. A separate hosted connection IPC checks the appropriate CLI against the public host. Missing CLI, missing authorization and other failures have distinct states. Status output is discarded; no token is requested or returned to the renderer. The shared runner pins the public host, limits execution time, hides subprocess windows and passes JSON request bodies through stdin without shell interpolation. GitHub operations explicitly select the repository; GitLab API paths explicitly encode the project, including nested groups.
 
+The self-managed GitLab settings panel, settings navigation entry, configuration/credential store, PAT form, certificate bypass and configuration IPC are removed. No old JanusX credential is imported into glab. Existing userData files are left untouched and no longer read by Hosted; JanusX does not silently erase a user's stored files. Self-managed GitLab, including publicly reachable custom instances, is outside this scope. Git transport still uses the user's existing Git authentication.
+
+The GitLab Provider uses glab api for branch MR lists, checks, failed traces, MR creation and merge, Issue search, MR comments and auto-merge. Draft creation prefixes the title with Draft:. Merge IPC selects the detected provider rather than always selecting GitHub; a successful merge must return a merged state. Auto-merge uses auto_merge and checks the outcome. Cancellation uses the still-supported cancel_merge_when_pipeline_succeeds endpoint and checks its status field. Both comments and auto-merge are declared capabilities.
+
+Issue/MR request errors propagate to the UI rather than being converted to empty lists. Failed-log retrieval filters failed jobs on the server before selecting up to three traces, so newer successful jobs cannot hide a failure beyond the first page. It can retain readable logs if another job fails; when all requested traces fail, it surfaces the error. Connection checks do not prove project membership or merge permission; the requested operation remains authoritative.
 
 ## Alternatives considered
-- Separate GitLab UI flows — strongest case is vocabulary precision for MR-specific concepts. The driver that rules it out is duplication: states, checks, logs, and creation map one-to-one onto the shared surface, so one dialog serves both providers.
-- Server-side check rollups per MR — strongest case is fewer API calls. The driver that rules it out is freshness: the pipelines endpoint on demand reflects the latest run, while stored rollups go stale.
-- Merge without an explicit squash choice — strongest case is matching each project's default method. The driver that rules it out is API variance across instance versions, so the choice stays explicit and visible.
-- Do nothing / reuse — keep GitHub-only hosting with configured-but-useless instances. The cost is a settings page that promises what the product cannot do.
 
-### Self-hosted GitLab instance configuration
-- GitHub OAuth for everything — strongest case is one login for all hosting. The driver that rules it out is intranet reality: private instances have independent accounts, and OAuth to a public cloud cannot reach them.
-- Plaintext PAT in settings JSON — strongest case is trivial implementation with no keychain dependency. The driver that rules it out is leak surface: settings files get copied, synced, and pasted, while keychain entries do not.
-- Silent certificate bypass on failure — strongest case is fewer support questions from self-signed users. The driver that rules it out is downgrade risk: quietly disabling verification invites interception, so the toggle stays explicit with a warning.
-- Do nothing / reuse — keep zero GitLab surface until the full provider lands. The cost is designing the provider against guesses instead of a real configured instance.
-
+- Native browser OAuth with PKCE would remove the CLI dependency, but requires an app registration and credential lifecycle. The user selected existing CLI authorization to reduce product configuration and implementation work.
+- Anonymous public reads could avoid authorization for some browsing, but the requested experience includes private content and write operations. This change keeps collaboration on the CLI path; repository identity and GitHub owner avatars remain login-free.
+- Retaining custom instances would serve self-managed teams, but requires deployment, certificate, network and credential handling explicitly removed from scope.
+- Dropping GitLab entirely would minimize maintenance, but loses the requested GitLab.com Issue/MR workflow.
 
 ## Consequences
-- **Gains**: configured instances detect, list, check, log, create, and merge merge requests inside Ship with MR wording throughout. Parser coverage spans MR states, job normalization, project encoding, and truncation; provider flows run end to end against a stub instance including auth gating and host mismatch; project typecheck, touched-file lint, and bilingual key checks pass.
-- **Costs and limits**: comments, reactions, approvals, and auto-merge stay unscheduled; merge strategy stays an explicit choice rather than the project default; subgroup depth beyond two levels is untested. Built-app Electron acceptance was not exercised here.
 
-### Self-hosted GitLab instance configuration
-- **Gains**: self-hosted instances configure, verify, and persist with classified errors; tokens never touch plain JSON. URL normalization, error classification, config round-trips with keychain and env precedence, and live verification against a local HTTP server carry unit coverage; project typecheck, touched-file lint, and bilingual key checks pass.
-- **Costs and limits**: one instance only, matched later by remote host; no proxy support; keychain-unavailable machines fall back to the environment variable with an explicit error. GitLab reviews, checks, and comments still await the provider phase. Built-app Electron acceptance was not exercised here.
+The collaboration UI no longer needs a hosting settings page. CLI-managed authorization is reused, and failures offer a concrete next step without creating a JanusX account. Credentials remain with gh/glab.
+
+The CLIs are external dependencies, not bundled or automatically installed. Users can authorize in the application's dedicated login terminal, which displays the official CLI prompts and device code; credentials remain with the CLI. Closing the dialog, destroying its window or reaching the ten-minute timeout terminates the process. Authorization is rechecked after completion. Both providers resolve remotes through the workspace runtime; CLI API requests execute on the desktop, whose network must reach the public service.
+
+The legacy worktree Provider remains branch-oriented: MR lists cap at ten, Issue search at twenty and MR comments at fifty. Its checks use the latest branch pipeline. The implemented [repository sidebar](../workbench/ideas/repository-sidebar.md) uses the separate repository service for twenty-item pages, detail, ordinary comments, creation/editing, close/reopen and SHA-guarded merge. Its MR checks use the matching head pipeline. Full review threads, approvals and multi-remote selection remain outside this delivery.
+
+Verification covers CLI host selection, stdin bodies, missing/expired authorization, network errors, Provider operations, merge IPC dispatch, preload contracts and connection-guidance interactions in Chromium. Tests mock authenticated CLI/API responses; they do not establish live GitLab.com writes or packaged Electron acceptance.
+
+Validated with `npm run test:unit -- tests/unit/gitlab-provider.test.ts tests/unit/hosted-github.test.ts tests/unit/hosted-cli.test.ts tests/unit/hosted-handlers.test.ts tests/unit/remaining-ipc-contract.test.ts tests/unit/hosted-connection-ui.test.ts tests/unit/worktree-git.test.ts`: 86 tests passed in seven files, including four Chromium UI tests and forty real-Git tests. Type checking, lint on changed production files, locale synchronization and Notes validation also passed; Notes retain seventeen explicit external-link diagnostics.

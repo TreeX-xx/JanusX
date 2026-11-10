@@ -1,16 +1,50 @@
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   parseChecks,
   parseIssues,
   parsePrComments,
   parsePrList,
-  resetAuthCache,
   selectFailedRuns,
   truncateLog,
+  detectProvider,
+  getProvider,
+  hostedConnection,
 } from '../../src/main/hosted/github'
+import { gitRemoteUrl } from '../../src/main/git/worktrees'
+import { checkHostedConnection, runHostedCli } from '../../src/main/hosted/cli'
 
-afterEach(() => {
-  resetAuthCache()
+vi.mock('../../src/main/git/worktrees', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../src/main/git/worktrees')>(), gitRemoteUrl: vi.fn(),
+}))
+vi.mock('../../src/main/hosted/cli', () => ({ checkHostedConnection: vi.fn(), runHostedCli: vi.fn() }))
+
+beforeEach(() => vi.resetAllMocks())
+
+describe('GitHub.com CLI routing', () => {
+  it('recognizes a public host without invoking authentication', async () => {
+    vi.mocked(gitRemoteUrl).mockResolvedValue('git@github.com:owner/repo.git')
+    expect((await detectProvider('repo'))?.id).toBe('github')
+    expect(runHostedCli).not.toHaveBeenCalled()
+    expect(checkHostedConnection).not.toHaveBeenCalled()
+  })
+
+  it('pins an explicit repository and propagates CLI errors', async () => {
+    vi.mocked(gitRemoteUrl).mockResolvedValue('https://github.com/owner/repo.git')
+    vi.mocked(runHostedCli).mockResolvedValueOnce('[]')
+    await getProvider('github')!.listIssues('runtime://workspace/repo', 'bug')
+    expect(runHostedCli).toHaveBeenCalledWith('github', expect.arrayContaining(['--repo', 'github.com/owner/repo', '--search', 'bug']))
+    vi.mocked(runHostedCli).mockRejectedValueOnce(new Error('gh auth login'))
+    await expect(getProvider('github')!.listReviews('repo', 'feat')).rejects.toThrow('gh auth login')
+  })
+
+  it('exposes missing authorization for known repositories and ignores other hosts', async () => {
+    vi.mocked(gitRemoteUrl).mockResolvedValue('https://gitlab.com/team/app.git')
+    vi.mocked(checkHostedConnection).mockResolvedValue({ provider: 'gitlab', status: 'unauthenticated' })
+    expect(await hostedConnection('repo')).toEqual({ provider: 'gitlab', status: 'unauthenticated' })
+    vi.mocked(gitRemoteUrl).mockResolvedValue('https://git.company.com/team/app.git')
+    expect(await hostedConnection('repo')).toBeNull()
+    expect(checkHostedConnection).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('parsePrList', () => {

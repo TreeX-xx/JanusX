@@ -39,6 +39,9 @@ export default defineConfig(async ({ command }) => {
         this.addWatchFile(resolve(__dirname, 'resources/icon.png'))
         this.addWatchFile(resolve(__dirname, 'resources/icon.ico'))
         this.emitFile({ type: 'asset', fileName: 'workspace-backend.cjs', source: result.outputFiles[0].text })
+        const piBrowser = await bundleBackend({ entryPoints: [resolve(__dirname, 'src/main/browser/pi-browser.ts')], bundle: true, platform: 'node', format: 'esm', target: 'node22', write: false, metafile: true })
+        for (const path of Object.keys(piBrowser.metafile.inputs)) this.addWatchFile(resolve(__dirname, path))
+        this.emitFile({ type: 'asset', fileName: 'pi-browser.mjs', source: piBrowser.outputFiles[0].text })
         this.emitFile({ type: 'asset', fileName: 'workspace-host.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/host.py')) })
         this.emitFile({ type: 'asset', fileName: 'workspace-cli.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/cli.py')) })
       } }, externalizeDepsPlugin({
@@ -53,6 +56,7 @@ export default defineConfig(async ({ command }) => {
             'note-mcp': resolve(__dirname, 'src/main/plugins/note-mcp-launcher.ts'),
             'plugin-mcp': resolve(__dirname, 'src/main/plugins/plugin-mcp-entry.ts'),
             'office-mcp': resolve(__dirname, 'src/main/office/office-mcp.ts'),
+            'browser-mcp': resolve(__dirname, 'src/main/browser/terminal-mcp.ts'),
             'office-launcher': resolve(__dirname, 'src/main/office/office-launcher.ts')
           }
         }

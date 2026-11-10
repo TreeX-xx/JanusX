@@ -1,0 +1,24 @@
+/* Keep the linked automation surface outside the Island frame and backdrop. */
+.janus-island-cluster[data-tool-companion] {
+  left: var(--tool-island-left);
+  top: var(--tool-island-top);
+  transform: none;
+}
+.janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion]:not([data-memo-layout]) {
+  container: tool-island / inline-size;
+  left: var(--tool-island-left);
+  top: var(--tool-island-top);
+  width: var(--tool-island-width);
+  height: var(--tool-island-height);
+  margin-left: 0;
+  transform: none;
+  transition: none;
+}
+.janus-island-cluster[data-tool-companion] .janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion] { left: auto; top: auto; }
+@container tool-island (max-width: 720px) {
+  .janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion] .janus-chat--with-sidebar { grid-template-columns: minmax(0, 1fr) !important; }
+  .janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion] .janus-chat--with-sidebar > .janus-chat-sidebar { display: none; }
+  .janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion] .janus-chat--with-sidebar > .janus-chat-main { grid-column: 1; }
+  .janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion] .janus-chat--with-sidebar .janus-chat-toolbar,
+  .janus-island-shell[data-stage='expanded'][data-view='chat'][data-tool-companion] .janus-chat--with-sidebar .janus-chat-thread-selector { display: flex; }
+}

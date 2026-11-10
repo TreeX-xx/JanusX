@@ -23,6 +23,27 @@ async function writeCodexRollout(sessionId: string, lines: string[]) {
 }
 
 describe('runtime telemetry history', () => {
+  it('reads an exact resumed Codex identity from archived history', async () => {
+    const dir = join(testContext.homeDir, '.codex', 'archived_sessions')
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'rollout-archived-id.jsonl'), [
+      JSON.stringify({ type: 'session_meta', payload: { id: 'archived-id', cwd: 'C:/repo' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { total_tokens: 321 } } } }),
+    ].join('\n'))
+    expect(await getRuntimeTelemetrySnapshot({ preset: 'codex', cwd: 'C:/repo', sessionId: 'archived-id' }))
+      .toMatchObject({ sessionId: 'archived-id', contextTokens: 321 })
+    await writeCodexRollout('archived-id', [
+      JSON.stringify({ type: 'session_meta', payload: { id: 'archived-id', cwd: 'C:/repo' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { total_tokens: 123 } } } }),
+    ])
+    // Updating the archived copy must not shadow the active resumed rollout.
+    await writeFile(join(dir, 'rollout-archived-id.jsonl'), [
+      JSON.stringify({ type: 'session_meta', payload: { id: 'archived-id', cwd: 'C:/repo' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { total_tokens: 999 } } } }),
+    ].join('\n'))
+    expect(await getRuntimeTelemetrySnapshot({ preset: 'codex', cwd: 'C:/repo', sessionId: 'archived-id' }))
+      .toMatchObject({ sessionId: 'archived-id', contextTokens: 123 })
+  })
   beforeEach(async () => {
     vi.stubEnv('CODEX_HOME', '')
     testContext.homeDir = await mkdtemp(join(tmpdir(), 'janusx-telemetry-'))

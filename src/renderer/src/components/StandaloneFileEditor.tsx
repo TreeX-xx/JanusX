@@ -6,7 +6,7 @@ import { SlidingSelection } from '@/components/shared/SlidingSelection'
 import { DiffCounts } from '@/components/shared/DiffCounts'
 import { invalidateEditorFileCache, useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
-import { GitCompareArrows, Dock, ExternalLink, X, Pin, PinOff, RefreshCw, Save, Search } from 'lucide-react'
+import { GitCompareArrows, Dock, ExternalLink, X, Pin, PinOff, RefreshCw, Save, Search, Copy, FolderOpen } from 'lucide-react'
 import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { isEditorFindShortcut, isMonacoKeyboardEvent, openEditorFind, watchFindWidgetControls, type FindableEditor } from '@/lib/editor-find'
 import { attachWheelScrollX, revealStripItem } from '@/lib/wheel-scroll-x'
@@ -14,6 +14,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { ViewerActive, ViewerToolbarTarget } from './viewers/ViewerToolbar'
 import { ToolbarMenu } from './viewers/ToolbarMenu'
 import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
+import { parseRuntimeResource } from '../../../shared/workspace-runtime'
 
 interface EditorWindowParams {
   filePath: string
@@ -59,6 +60,23 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
   const saveFile = useEditorStore((state) => state.saveFile)
   const reloadOpenFile = useEditorStore((state) => state.reloadOpenFile)
   const activeFile = openFiles.find((file) => file.id === activeFileId) ?? null
+  const [pathActionMessage, setPathActionMessage] = useState<{ fileId: string; failed: boolean } | null>(null)
+  useEffect(() => { setPathActionMessage(null) }, [activeFileId])
+  const handlePathAction = async (action: 'copy' | 'reveal') => {
+    if (!activeFile) return
+    setPathActionMessage(null)
+    try {
+      if (action === 'copy') {
+        await navigator.clipboard.writeText(parseRuntimeResource(activeFile.absolutePath)?.path ?? activeFile.absolutePath)
+        setPathActionMessage({ fileId: activeFile.id, failed: false })
+      } else if (editorParams) {
+        const result = await window.electron.fileTree.reveal(editorParams.workspacePath, activeFile.path)
+        if (!result.success) throw new Error(result.error)
+      }
+    } catch {
+      setPathActionMessage({ fileId: activeFile.id, failed: true })
+    }
+  }
   const { confirmClose, closeDialog } = useEditorCloseDialog()
   const [diffFileId, setDiffFileId] = useState<string | null>(null)
   const [baselineStatus, setBaselineStatus] = useState<'loading' | 'unavailable' | null>(null)
@@ -299,6 +317,13 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
         </div>
         <div className="relative z-10 flex shrink-0 items-center gap-1" style={noDrag}>
           <ToolbarMenu label={t('editor:fileEditor.moreActions')}>
+            <button type="button" disabled={!activeFile} onClick={() => void handlePathAction('copy')}>
+              <Copy size={15} />{t('editor:fileTree.contextMenu.copyAbsolutePath')}
+            </button>
+            <button type="button" disabled={!activeFile || !editorParams || Boolean(parseRuntimeResource(editorParams.workspacePath))}
+              onClick={() => void handlePathAction('reveal')}>
+              <FolderOpen size={15} />{t('editor:fileTree.contextMenu.revealInExplorer')}
+            </button>
             {compactControls && canFind && <>
               <button type="button" onClick={() => void openEditorFind(findEditorRef.current)}><Search size={15} />{t('editor:fileEditor.find')}</button>
               <button type="button" aria-pressed={diffEnabled} onClick={() => setDiffFileId(diffEnabled ? null : activeFileId)}><GitCompareArrows size={15} />{t('editor:fileEditor.compareHead')}</button>
@@ -334,6 +359,10 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
           className="shell-icon-btn viewer-icon"><Save size={15} aria-hidden="true" /></button>}
       </div>}
       {transferError && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">{transferError}</div>}
+      {pathActionMessage?.fileId === activeFileId && <div role={pathActionMessage.failed ? 'alert' : 'status'} className="px-3 py-1 text-xs"
+        style={{ color: pathActionMessage.failed ? 'var(--shell-diff-del)' : 'var(--shell-muted)' }}>
+        {t(pathActionMessage.failed ? 'editor:fileTree.operationFailed' : 'editor:fileEditor.pathCopied')}
+      </div>}
       {activeFile?.saveConflict && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">
         {t('plugins:documentConflict')}
         {activeFile.conflictDisk && <><p>{t('plugins:conflictReviewHint')}</p>

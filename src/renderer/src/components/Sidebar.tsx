@@ -11,6 +11,8 @@ import { ProjectLauncher } from './ProjectLauncher'
 import { openLocalIntegrations } from './local-integrations-navigation'
 import { WorkspaceUnavailableNotice, relocateWorkspaceData } from './WorkspaceDataPanel'
 import { WorktreeComposer, WorktreeDeleteDialog, WorktreeShipDialog } from './WorktreeDialogs'
+import { WorkspaceHostedMenuItem } from './WorkspaceHostedMenuItem'
+import { HostedLoginDialog } from './HostedLoginDialog'
 import { ModalCloseButton } from './ModalCloseButton'
 import { ModalFrame } from './shared/ModalFrame'
 import { ThemedTooltip } from './ui/ThemedTooltip'
@@ -65,6 +67,7 @@ interface WorkspaceContextMenuProps {
   menu: WorkspaceContextMenuState
   onRunConfiguration: (workspace: Workspace) => void
   onCreateWorktree: (workspace: Workspace) => void
+  onHostedRepository: (workspace: Workspace) => void
   onRenameGroup: (group: WorkspaceSidebarGroup) => void
   onRemoveFromGroup: (workspaceId: string) => void
   onClearGroup: (groupId: string) => void
@@ -79,6 +82,7 @@ function WorkspaceContextMenu({
   menu,
   onRunConfiguration,
   onCreateWorktree,
+  onHostedRepository,
   onRenameGroup,
   onRemoveFromGroup,
   onClearGroup,
@@ -134,6 +138,7 @@ function WorkspaceContextMenu({
           <button type="button" className={itemClassName} onClick={() => onCreateWorktree(target.workspace)}>
             {t('common:workspace.createWorktree')}
           </button>
+          <WorkspaceHostedMenuItem workspacePath={target.workspace.path} className={itemClassName} onSelect={() => onHostedRepository(target.workspace)} />
           <button type="button" className={itemClassName} onClick={() => onRelocate(target.workspace)}>{t('storage:maintenance.relocate')}</button>
           {target.workspace.sidebarGroup && (
             <>
@@ -1626,6 +1631,10 @@ export function Sidebar() {
           onRunConfiguration={handleRunConfiguration}
           onIntegrations={workspace => { setContextMenu(null); openLocalIntegrations(workspace.id) }}
           onCreateWorktree={handleCreateWorktree}
+          onHostedRepository={workspace => {
+            setContextMenu(null)
+            void handleSelect(workspace.id)
+          }}
           onRenameGroup={startRenamingGroup}
           onRemoveFromGroup={handleRemoveFromGroup}
           onClearGroup={handleClearGroup}
@@ -1639,6 +1648,7 @@ export function Sidebar() {
           }}
         />
       )}
+      <HostedLoginDialog />
       {composerTarget && (
         <WorktreeComposer workspace={composerTarget} onClose={() => setComposerTarget(null)} />
       )}

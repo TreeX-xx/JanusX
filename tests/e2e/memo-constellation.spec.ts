@@ -2,8 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function open(page: Page) {
   await page.goto('/memo.html?island=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
 }
 async function seed(page: Page, records = false) {
@@ -106,7 +105,7 @@ test('blank insertion keeps the logical adjacent anchor after zooming', async ({
     return memo.nodes[1].id as string
   })
   await page.getByRole('tab', { name: 'First', exact: true }).press('ArrowRight')
-  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Zoom out constellation' }).click()
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Zoom out flow' }).click()
   await clickBetween(page, 'Last', 'Third')
   await expect(page.locator('.memo-star-target')).toContainText('Last')
   await expect(page.locator('.memo-star-target')).toContainText('Third')
@@ -148,7 +147,7 @@ test('selected stars show node and record counts without repeating the memo file
   await expect(page.getByRole('button', { name: 'A', exact: true })).toBeVisible()
 })
 
-test('connections avoid actual text and leader geometry at zoom limits, across rows and after panning', async ({ page }) => {
+test('connections avoid actual text and leader geometry at zoom limits, along a horizontal flow and after panning', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await open(page)
   await page.evaluate(async () => {
@@ -192,6 +191,11 @@ test('connections avoid actual text and leader geometry at zoom limits, across r
     expect(collisions.leaders).toBe(0)
   }
   await expect(page.locator('.memo-star-connection')).toHaveCount(13)
+  const positions = await page.locator('.memo-star').evaluateAll(stars => stars.map(star => ({ x: parseFloat((star as HTMLElement).style.left), y: parseFloat((star as HTMLElement).style.top) })))
+  for (let index = 1; index < positions.length; index++) {
+    expect(positions[index].y).toBeCloseTo(positions[0].y)
+    expect(positions[index].x).toBeGreaterThan(positions[index - 1].x)
+  }
   await check()
   await canvas.focus()
   for (let index = 0; index < 7; index++) await canvas.press('-')
@@ -247,7 +251,7 @@ test('title stays above its leader and label below it through zoom, pan and file
     expect(boxes.label.edge).toBeCloseTo(boxes.line.x)
   }
   await check()
-  await page.getByRole('button', { name: 'Zoom in constellation' }).click()
+  await page.getByRole('button', { name: 'Zoom in flow' }).click()
   await check()
   const canvas = (await page.locator('.memo-star-track').boundingBox())!
   await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
@@ -307,18 +311,27 @@ test('new star travels from the clicked blank space with live connections; cance
   expect(await page.evaluate(() => (window as any).memoFixture.memos[0].nodes.length)).toBe(2)
   await page.mouse.click(box.x + origin.x, box.y + origin.y)
   await page.getByRole('dialog').getByRole('textbox').fill('Moving star')
+  const worldOrigin = await canvas.evaluate((element, origin) => {
+    const track = element as HTMLElement
+    const scale = Number(track.dataset.cameraScale)
+    return { x: (origin.x - Number(track.dataset.cameraX)) / scale, y: (origin.y - Number(track.dataset.cameraY)) / scale }
+  }, origin)
   const samples = await page.evaluate(async () => {
     document.querySelector<HTMLButtonElement>('.memo-star-composer button[type="submit"]')!.click()
     const frames: { x: number; y: number; edges: number }[] = []
     for (let i = 0; i < 35; i++) {
       await new Promise(requestAnimationFrame)
       const star = document.querySelector<HTMLElement>('.memo-star[data-born="true"]')
-      if (star) frames.push({ x: parseFloat(star.style.left) + 16, y: parseFloat(star.style.top) + 16, edges: document.querySelectorAll('.memo-star-connection').length })
+      if (star) {
+        const track = document.querySelector<HTMLElement>('.memo-star-track')!
+        const scale = Number(track.dataset.cameraScale)
+        frames.push({ x: (parseFloat(star.style.left) + 16 - Number(track.dataset.cameraX)) / scale, y: (parseFloat(star.style.top) + 16 - Number(track.dataset.cameraY)) / scale, edges: document.querySelectorAll('.memo-star-connection').length })
+      }
     }
     return frames
   })
   expect(samples.length).toBeGreaterThan(3)
-  expect(Math.hypot(samples[0].x - origin.x, samples[0].y - origin.y)).toBeLessThan(65)
+  expect(Math.hypot(samples[0].x - worldOrigin.x, samples[0].y - worldOrigin.y)).toBeLessThan(65)
   expect(Math.hypot(samples.at(-1)!.x - samples[0].x, samples.at(-1)!.y - samples[0].y)).toBeGreaterThan(25)
   expect(new Set(samples.map(point => `${point.x},${point.y}`)).size).toBeGreaterThan(3)
   expect(samples.every(point => point.edges === 2)).toBe(true)
@@ -378,9 +391,9 @@ test('star captions and leaders select without creating and layout survives hide
   await page.getByRole('button', { name: 'B', exact: true }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await checkPositions()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await expect(page.locator('.memo-panel')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await checkPositions()
 })
 
@@ -397,10 +410,10 @@ test('closing during creation clears provisional overlays before the delayed sav
   await page.getByRole('button', { name: 'Add star', exact: true }).click()
   await page.getByRole('dialog').getByRole('textbox').fill('Late star')
   await page.getByRole('dialog').getByRole('button', { name: 'OK', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.evaluate(() => (window as any).releaseMemoSave())
   await expect(page.locator('.memo-panel')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.locator('.memo-star-ghost[data-pending="true"]')).toHaveCount(0)
   expect(await page.evaluate(() => (window as any).memoFixture.memos[0].nodes.map((node: any) => node.title))).toContain('Late star')

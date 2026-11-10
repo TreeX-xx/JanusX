@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useAssistantPendingCount } from '@/components/knowledge/useAssistantPendingCount'
 // Note: rail-only is the normal empty state with no panel toggle — see .agents/notes/workbench/right-rail-toggle-motion.md
 import { Puzzle } from 'lucide-react'
@@ -46,6 +46,15 @@ export function RightToolRail({
   const visibleTools = getRightToolDefinitions().filter((tool) => isRightToolEnabled(tool.id, { persona: personaEnabled, knowledge: knowledgeEnabled })
     && (extensionRegistry.getView(tool.id)?.scope !== 'project' || workspaceId))
   const toolsRef = useRef<HTMLDivElement>(null)
+  const toolsLayoutKey = visibleTools.map((tool) => tool.id).join(',')
+  const previousLayout = useRef(toolsLayoutKey)
+  const waitForPointerMovement = useRef(false)
+  useLayoutEffect(() => {
+    // Note: .agents/notes/workbench/right-dock.md — stationary pointer after removal.
+    // Removing a tool can move its neighbour under a stationary pointer.
+    if (previousLayout.current !== toolsLayoutKey) waitForPointerMovement.current = true
+    previousLayout.current = toolsLayoutKey
+  }, [toolsLayoutKey])
   const { pendingToolId, visualToolId, requestActivate } = usePendingToolActivation({
     activeToolId, validToolIds: visibleTools.map((tool) => tool.id), onActivate: onToggleTool,
     resetKey: `${collapsed}:${forcedCollapsed}:${workspaceId}:${openToolIds.join(',')}`, toggleCurrent: true,
@@ -78,7 +87,13 @@ export function RightToolRail({
               aria-pressed={!collapsed && state === 'active'}
               aria-controls={`right-tool-panel-${tool.id}`}
               aria-expanded={previewToolId === tool.id || (!collapsed && state === 'active')}
-              onPointerEnter={(event) => { if (event.pointerType !== 'touch') onPreview?.(tool.id) }}
+              onPointerEnter={(event) => { if (event.pointerType !== 'touch' && !waitForPointerMovement.current) onPreview?.(tool.id) }}
+              onPointerMove={(event) => {
+                if (event.pointerType !== 'touch' && waitForPointerMovement.current && (event.movementX || event.movementY)) {
+                  waitForPointerMovement.current = false
+                  onPreview?.(tool.id)
+                }
+              }}
               onPointerLeave={onPreviewLeave}
               onFocus={() => onPreview?.(tool.id)}
               onClick={() => { onPreviewLeave?.(); requestActivate(tool.id) }}

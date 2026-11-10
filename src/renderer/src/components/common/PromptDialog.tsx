@@ -6,7 +6,7 @@
  *  样式见 ./PromptDialog.css（.prompt-dialog 前缀）。
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import './PromptDialog.css'
 import { useI18n } from '@/i18n/useI18n'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
@@ -20,6 +20,7 @@ export interface PromptDialogProps {
   defaultValue?: string
   description?: ReactNode
   confirmOnly?: boolean
+  busy?: boolean
   /** 仅展示确认按钮(用于错误告知类对话框) */
   hideCancel?: boolean
   tone?: 'primary' | 'danger'
@@ -39,6 +40,7 @@ export function PromptDialog({
   defaultValue,
   description,
   confirmOnly = false,
+  busy = false,
   hideCancel = false,
   tone = 'primary',
   confirmText,
@@ -52,6 +54,7 @@ export function PromptDialog({
   const resolvedConfirmText = confirmText ?? t('common:action.ok')
   const resolvedCancelText = cancelText ?? t('common:action.cancel')
   const [value, setValue] = useState('')
+  const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -81,7 +84,7 @@ export function PromptDialog({
 
   const trimmed = value.trim()
   const validationMsg = validate ? validate(trimmed) : null
-  const canConfirm = confirmOnly || (trimmed.length > 0 && !validationMsg)
+  const canConfirm = !busy && (confirmOnly || (trimmed.length > 0 && !validationMsg))
 
   const submit = () => {
     if (!canConfirm) return
@@ -99,7 +102,8 @@ export function PromptDialog({
   const onDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault()
-      onCancel()
+      e.stopPropagation()
+      if (!busy) onCancel()
     } else if (e.key === 'Enter' && confirmOnly) {
       e.preventDefault()
       submit()
@@ -108,7 +112,7 @@ export function PromptDialog({
 
   // 遮罩点击：仅当点击的是遮罩本身（而非内部对话框）时才取消
   const onOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) onCancel()
+    if (!busy && e.target === e.currentTarget) onCancel()
   }
 
   return (
@@ -118,6 +122,7 @@ export function PromptDialog({
         className={`prompt-dialog${className ? ` ${className}` : ''}`}
         role="dialog"
         aria-modal="true"
+        aria-busy={busy}
         aria-label={title}
         tabIndex={-1}
         onKeyDown={onDialogKeyDown}
@@ -125,10 +130,11 @@ export function PromptDialog({
         <div className="prompt-dialog__title">{title}</div>
 
         {description ? <div className="prompt-dialog__description">{description}</div> : null}
-        {!confirmOnly && label ? <label className="prompt-dialog__label">{label}</label> : null}
+        {!confirmOnly && label ? <label className="prompt-dialog__label" htmlFor={inputId}>{label}</label> : null}
 
         {!confirmOnly ? (
           <input
+            id={inputId}
             ref={inputRef}
             className="prompt-dialog__input"
             type="text"
@@ -143,7 +149,7 @@ export function PromptDialog({
 
         <div className="prompt-dialog__actions">
           {!hideCancel && (
-            <button type="button" className="blueprint-btn" onClick={onCancel}>
+            <button type="button" className="blueprint-btn" disabled={busy} onClick={onCancel}>
               {resolvedCancelText}
             </button>
           )}

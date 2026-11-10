@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-04T15:14:49.142Z",
+  "updated": "2026-11-10T02:52:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -16,6 +16,14 @@
 
 ## Problem
 
+During November 10 release verification, a combined multi-project Vitest run stopped with `ERR_IPC_CHANNEL_CLOSED` without completing its report. The full verify entry and matching CI step now run the existing unit, integration and browser projects sequentially, each retaining its original file set and failure handling. Direct `test:unit` still supports a combined run or file filters. This changes process scheduling, not acceptance coverage; the exact cause of the worker exit was not established.
+
+Blueprint source tests can resolve dependencies from an ignored plugin-local installation, while the test itself imports the root installation. This caused old JSON import syntax to fail before collection and split `ChatSessionRuntime` and `NoteService` constructor identity, so test spies did not reach the runtimes under test. Vitest now resolves the registry to current workspace source and the six public agent package entry points to root materialized packages. Exact-name matching preserves package subpath exports. The independent Blueprint build remains the separate check of the actual published dependency closure.
+
+An outdated ignored `plugins/blueprint/node_modules` also hid the current SDK theme export and bundled a second React into browser fixtures. Move that stale installation aside before repository verification rather than editing installed package files or treating UI timeouts as product failures. The November 10 local backup is `.cache/blueprint-node-modules-pre-v099`; the affected five native/browser files then passed 33 cases, with the Note lock regression passing separately. Independent plugin validation continues installing its own locked archives outside the repository.
+
+Blueprint lock refresh seeds npm with the existing lock and removes only changed local archive entries before installation. It retains unrelated registry versions while updating archive integrity and any newly required dependencies. Normal verification still rejects archive drift and uses npm ci; updating a lock does not count as a runtime pass. The November 10 refresh includes six changed public archives, identified by SHA256 and npm integrity in `plugins/blueprint/build-dependencies.lock.json`, and preserves the sibling checkout's unrelated edits.
+
 A fresh checkout lacks the ignored personal `.codex` and `.claude` directories. Tests that discover the developer's config or compare their skill files produce different results on a runner. Shared temporary audit storage also exposes earlier test runs, while exact theme color assertions drift after intentional visual edits.
 
 A live Electron process retains hashed chunk paths from its startup build. If development and production both emit into `out`, a production build deletes the chunks that the live process has not imported yet. Blueprint proposal generation then fails with `ERR_MODULE_NOT_FOUND` before reaching the model, even though a fresh build contains the service under a different hash. Rebuilding that directory again cannot update imports already held by the process.
@@ -23,6 +31,8 @@ A live Electron process retains hashed chunk paths from its startup build. If de
 On Windows, libuv's short-path directory watcher assertion terminates the worker before Vitest can report all failures. The native failure reproduces under Node 24.20.0/libuv 1.52.1 when a short directory alias and a short file alias are used together. The same probe completes under Node 24.15.0/libuv 1.51.0, or with the watched directory expanded by `realpathSync.native`. Upstream [libuv issue 5010](https://github.com/libuv/libuv/issues/5010) documents the same assertion and GitHub runner temporary paths.
 
 ## Decision
+
+Windows worktree cleanup must inspect dependency junctions recursively, including workspace-package links, before removing the checkout. A clean Git status and a normal top-level directory do not prove that nested dependencies are isolated. During the repository/automation integration cleanup on 2026-11-05, removal also emptied the primary checkout's dependencies and four shared package directories. The previously clean tracked package files were restored from the index; `npm ci --include=dev` restored dependencies without changing the lockfile. Application and SDK builds, strict unused typecheck, the development environment check and one real desktop automation IPC persistence test passed after recovery. Preserve ignored evidence first, detach links to other checkouts without traversing their targets, and verify the surviving checkout after removal. Recovery evidence is recorded under `artifacts/worktree-merge-dependencies-restore.log`, `artifacts/worktree-merge-recovery-*` and `artifacts/worktree-integration-20261104/manifest.json`.
 
 The v0.9.8 release candidate includes committed JanusX development through `f3132afa`. The maintainer explicitly included the previously uncommitted theme and scrollbar edits; they are committed intact and integrated before tagging. It uses an isolated checkout, Node 24.20.0, agentX `4df4c4457269e46a52b7ed430db379e194fac175` and WorkFlowX `efaf5ae7aac24362286251dc931487d5cfd2e2a5`. The Blueprint publication lock is refreshed for the SDK bytes produced by this clean source; only the SDK digest and matching npm integrity change, retaining the existing third-party dependency versions. Published Android 0.1.13 and optional signed plugin assets are reused byte-for-byte from v0.9.7; this does not publish newer plugin source changes. User-facing release notes follow the existing headings and download table in `docs/releases/v0.9.8.md`.
 

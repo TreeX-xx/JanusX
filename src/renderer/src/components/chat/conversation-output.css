@@ -11,6 +11,7 @@
 .markdown-preview.conversation-markdown li { margin: 4px 0; }
 .markdown-preview.conversation-markdown pre { max-height: none; white-space: pre; overflow-wrap: normal; overflow: auto; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-hover); }
 .markdown-preview.conversation-markdown blockquote { margin: 12px 0; padding: 2px 14px; border-left: 2px solid var(--shell-border); color: var(--shell-muted); }
+.conversation-file-link { display: inline-block; box-sizing: border-box; max-width: min(280px, 100%); padding: 0 6px; border: 1px solid var(--shell-border); border-radius: 5px; background: var(--shell-hover); vertical-align: text-bottom; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.6; }
 .conversation-work { margin: 12px 0 20px; min-width: 0; }
 .conversation-work-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 0; border: 0; background: transparent; color: var(--shell-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .conversation-work-toggle:hover { color: var(--shell-text); }

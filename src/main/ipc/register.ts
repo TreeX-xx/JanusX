@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron'
+import { registerAutomationHandlers } from '../automations/host'
 import type { OfficeArtifactIndex } from '../office/office-artifact-index'
 import type { OfficeWatchPool } from '../office/office-watch-pool'
 import type { ResolveWorkspaceRoot } from '../office/office-workspace-guard'
@@ -6,6 +7,7 @@ import { createProductionOfficeOperations } from '../office/office-handler-opera
 import type { BrowserSurfaceManager } from '../browser/surface-manager'
 import { registerAgentHandlers } from './janus-runner-handlers'
 import { registerBrowserHandlers } from './browser-handlers'
+import { initializeBrowserControl, stopBrowserControl } from '../browser/control-service'
 import { registerPluginHandlers } from './plugin-handlers'
 import { registerCheckpointHandlers } from './checkpoint-handlers'
 import { registerSessionHandlers } from './session-handlers'
@@ -28,6 +30,7 @@ import { registerProjectHandlers } from './project-handlers'
 import { registerRuntimeTelemetryHandlers } from './runtime-telemetry-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
 import { registerLocalIntegrationHandlers } from './local-integrations-handlers'
+import { initializeBrowserTerminalClients } from '../browser/terminal-service'
 import { registerSubAgentRunHandlers } from './subagent-run-handlers'
 import { registerTeamHandlers } from './team-handlers'
 import { registerUpdaterHandlers } from './updater-handlers'
@@ -77,11 +80,13 @@ function getCurrentMainWindow(): BrowserWindow | null {
 
 export function registerApplicationIpc(options: RegisterApplicationIpcOptions): void {
   const { mainWindow, officeWatchPool, officeArtifactIndex } = options
+  initializeBrowserControl(options.browserSurfaces)
 
   // 每次窗口重建都重绑窗口级引用与生命周期监听；幂等守卫只拦 handler 注册。
   currentMainWindow = mainWindow
   subAgentRunRegistry.setMainWindow(mainWindow)
   mainWindow.on('closed', () => {
+    void stopBrowserControl()
     pluginService?.closeAll()
     if (currentMainWindow === mainWindow) currentMainWindow = null
     subAgentRunRegistry.setMainWindow(null)
@@ -117,9 +122,10 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
   pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
-  registerLocalIntegrationHandlers(options.getAllowedWindows, options.resolveWorkspaceRoot, () => pluginService)
+  initializeBrowserTerminalClients(registerLocalIntegrationHandlers(options.getAllowedWindows, options.resolveWorkspaceRoot, () => pluginService))
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
+  registerAutomationHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
   registerCheckpointHandlers()
   registerSessionHandlers(getCurrentMainWindow)
   registerWorktreeHandlers(getCurrentMainWindow)
@@ -136,7 +142,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerMemoHandlers()
   registerRoundtableHandlers(getCurrentMainWindow)
   registerRuntimeTelemetryHandlers()
-  registerSettingsHandlers()
+  registerSettingsHandlers(options.getAllowedWindows)
   registerLanguageHandlers()
   registerSubAgentRunHandlers()
   registerKnowledgeHandlers()

@@ -8,8 +8,7 @@ async function attach(page: Page, name: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/memo.html?island=1&workspaces=1')
-  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
 })
 

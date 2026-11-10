@@ -314,6 +314,13 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     <div className={styles.composerActions}>
       {addControl}
       <div className={styles.modelControls}>
+        {snapshot?.engine === 'claude' && <button type="button" className={styles.modelControl}
+          aria-label={t('conversation.ultracode.label')} aria-pressed={snapshot.ultracode?.enabled}
+          title={t(!snapshot.ultracode ? 'conversation.ultracode.unknown' : !snapshot.ultracode.available || snapshot.model !== snapshot.ultracode.model
+            ? 'conversation.ultracode.unavailable' : 'conversation.ultracode.hint')}
+          disabled={!canConfigure || !snapshot.ultracode || !snapshot.ultracode.enabled && (!snapshot.ultracode.available || snapshot.model !== snapshot.ultracode.model)}
+          onClick={() => void action({ type: 'ultracode', enabled: !snapshot.ultracode!.enabled, controlEpoch: snapshot.controlEpoch })}>
+          <Sparkles size={12} aria-hidden="true" /><span>Ultracode</span>{snapshot.ultracode?.enabled && <Check size={12} aria-hidden="true" />}</button>}
         {snapshot?.engine === 'codex' && <button type="button" className={`${styles.modelControl} ${styles.speedControl}`}
           aria-label={speedTitle} title={speedTitle} aria-pressed={speedKnown ? fastEnabled : undefined}
           disabled={!canConfigure || !speedKnown || (!fastEnabled && !model?.fastTier)}

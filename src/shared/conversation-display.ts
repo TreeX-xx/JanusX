@@ -94,6 +94,8 @@ export interface ConversationCatalogEntry {
   argumentHint?: string
 }
 export interface ConversationSnapshot {
+  /** Claude's native session workflow control; absent until native readback succeeds. */
+  ultracode?: { enabled: boolean; available: boolean; model: string }
   /** Undefined until the native session reports its tier; null means standard. */
   serviceTier?: string | null
   commands?: ConversationCatalogEntry[]
@@ -136,6 +138,7 @@ export interface ConversationSnapshot {
   error?: string
 }
 export type ConversationCommand =
+  | { type: 'ultracode'; enabled: boolean; controlEpoch: number }
   | { type: 'commands'; controlEpoch: number }
   | { type: 'invoke'; entryId: string; catalogRevision: number; arguments: string; commandId: string; controlEpoch: number }
   | { type: 'terminal-command'; name: string; arguments: string; commandId: string; controlEpoch: number }

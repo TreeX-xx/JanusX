@@ -188,6 +188,7 @@
     "collapsePanel": "Collapse file panel",
     "expandPanel": "Show file preview",
     "moreActions": "More file actions",
+    "pathCopied": "File path copied",
     "detachToFloat": "Return to floating window",
     "save": "Save",
     "closeTab": "Close {{name}}",

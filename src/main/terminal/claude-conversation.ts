@@ -13,6 +13,7 @@ import type { ConversationCommand, ConversationSnapshot, ConversationItem } from
 import { hasBlockingQuestions, questionAnswerValues, type ConversationQuestion } from '../../shared/conversation-questions'
 import modSource from './claude-mod.js?raw'
 import { readClaudeCatalog } from './claude-models'
+import { acceptClaudeWorkspaceTrust, claudeTrustDirectory } from './claude-trust'
 
 type Json = Record<string, any> // Native versioned Mods/daemon boundary; normalized before IPC.
 const exec = promisify(execFile)
@@ -59,6 +60,8 @@ export class ClaudeConversation {
   private lastTurn?: string
   private lastTurnSequence = 0
   private changingSession = false
+  private trustSequence = 0
+  private trustWaiter?: { resolve(): void; reject(error: Error): void }
 
   constructor(readonly id: string, publish: (snapshot: ConversationSnapshot) => void,
     private readonly bind: (sessionId: string, transcriptPath?: string) => void = () => {}) {
@@ -106,8 +109,11 @@ export class ClaudeConversation {
   }
   private async launch(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
     if (process.platform !== 'win32') throw new Error('Claude dual mode is currently validated on Windows only.')
-    this.session.configureImages(join(options.assetsDir, 'images'), options.cwd)
-    this.binary = resolveClaudeBinary(options.command); this.env = { ...options.env }; this.cwd = options.cwd
+    // Keep native startup, catalog discovery and trust confirmation on the same
+    // on-disk path. See .agents/notes/workbench/terminal-dialog-dual-mode.md.
+    this.cwd = claudeTrustDirectory(options.cwd)
+    this.session.configureImages(join(options.assetsDir, 'images'), this.cwd)
+    this.binary = resolveClaudeBinary(options.command); this.env = { ...options.env }
     const pathKey = Object.keys(this.env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) this.env[pathKey] = `${options.pathDir}${delimiter}${this.env[pathKey] ?? ''}`
     this.configDir = this.env.CLAUDE_CONFIG_DIR || join(this.env.USERPROFILE || this.env.HOME || homedir(), '.claude')
@@ -150,7 +156,29 @@ export class ClaudeConversation {
     this.catalogSettings = join(this.directory, 'catalog-settings.json')
     await writeFile(this.catalogSettings, JSON.stringify({ ...settings, disableAllHooks: true }), { mode: 0o600 })
     if (this.disposed) throw new Error('Claude launch cancelled')
-    const dispatch = await this.cli([...args, '--settings', settingsPath, '--plugin-dir', plugin, '--bg'], 20000)
+    const dispatchArgs = [...args, '--settings', settingsPath, '--plugin-dir', plugin, '--bg']
+    let dispatch
+    for (;;) {
+      try { dispatch = await this.cli(dispatchArgs, 20000); break }
+      catch (error) {
+        // Native --bg is authoritative. Never infer consent from a UI setting,
+        // automatically trust a folder, or retry an uncertain dispatch.
+        const stderr = (error as { stderr?: unknown }).stderr
+        if (this.disposed || this.state.mode !== 'conversation' || typeof stderr !== 'string' ||
+          !stderr.trim().startsWith('Workspace not trusted. Run `claude` in ')) throw error
+        const directory = claudeTrustDirectory(this.cwd)
+        const target = stderr.trim().match(/^Workspace not trusted\. Run `claude` in (.+) once and accept the trust prompt, then retry\.$/)?.[1]
+        if (!target || claudeTrustDirectory(target) !== directory) throw error
+        await new Promise<void>((resolve, reject) => {
+          this.trustWaiter = { resolve, reject }
+          this.state.startup = { id: ++this.trustSequence, kind: 'trust', status: 'pending', directory,
+            ...(this.trustSequence > 1 ? { error: 'Claude still reports this folder as untrusted. Check its configuration before retrying.' } : {}) }
+          this.changed()
+        })
+        if (this.disposed) throw new Error('Claude launch cancelled')
+      }
+    }
+    this.state.startup = undefined; this.changed()
     this.short = /backgrounded\s*·\s*([a-f0-9]+)/.exec(dispatch.stdout)?.[1]
     if (!this.short) throw new Error(`Claude did not create a background session. ${dispatch.stderr || dispatch.stdout}`)
     if (this.disposed) throw new Error('Claude launch cancelled')
@@ -305,12 +333,16 @@ export class ClaudeConversation {
       this.questionReplies.delete(e.toolUseId)
       this.state.needsTerminal = true
     }
-    else if (event.type === 'session.start') { this.state.capabilities.questions = true; this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null }
+    else if (event.type === 'session.start') { this.state.capabilities.questions = true; this.state.model = typeof e.model === 'string' ? e.model : e.model?.model ?? null; this.state.ultracode = undefined }
     else if (event.type === 'settings') {
       this.state.model = e.model ?? this.state.model; this.state.effort = e.effort ?? null
       this.state.settingsOverride = Boolean(e.override)
     }
-    else if (event.type === 'native.settings') { this.state.needsTerminal = Boolean(e.pending) }
+    else if (event.type === 'ultracode') {
+      this.state.ultracode = typeof e.enabled === 'boolean' && typeof e.available === 'boolean' && typeof e.model === 'string'
+        ? { enabled: e.enabled, available: e.available, model: e.model } : undefined
+    }
+    else if (event.type === 'native.settings') { this.state.needsTerminal = Boolean(e.pending); this.state.ultracode = undefined }
     else if (event.type === 'turn.start') {
       this.state.turnStartedAt = Date.now(); this.state.turnId = e.turnId; this.lastTurn = e.turnId
       this.lastTurnSequence = event.seq
@@ -352,7 +384,7 @@ export class ClaudeConversation {
         if (this.tools.size <= 1000) break
       }
       const item = this.item(`tool:${e.toolUseId}`, e.turnId, ['Write', 'Edit'].includes(e.tool) ? 'fileChange' : 'commandExecution')
-      item.activity = String(e.activity ?? e.tool).replace(/\s+/g, ' ').slice(0, 240)
+      item.activity = String(e.command ? `${e.tool} · ${e.command}` : e.activity ?? e.tool).replace(/\s+/g, ' ').slice(0, 240)
       item.text = String(e.command ?? e.tool).slice(0, MAX_TEXT)
       if (typeof e.path === 'string') item.files = [{ path: e.path, diff: e.old !== undefined ? `- ${e.old}\n+ ${e.text ?? ''}` : String(e.text ?? '') }]
       if (['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'].includes(e.tool)) this.state.needsTerminal = true
@@ -362,7 +394,11 @@ export class ClaudeConversation {
       tool.taskId = e.taskId; tool.active = (Boolean(e.taskId) && !this.finishedTasks.has(e.taskId)) || (event.type === 'tool.error' && tool.name === 'Bash')
       const item = this.state.items.find(value => value.id === `tool:${e.toolUseId}`)
       const finished = this.finishedTasks.get(e.taskId)
-      if (item) { item.text = `${item.text}\n${e.text ?? ''}`.slice(0, MAX_TEXT); item.status = tool.active ? 'inProgress' : finished === 'killed' || finished === 'missing' ? 'interrupted' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed' }
+      if (item) {
+        const text = `${item.text}\n${e.text ?? ''}`
+        item.text = text.slice(0, MAX_TEXT); item.truncated ||= text.length > MAX_TEXT || !!e.truncated
+        item.status = tool.active ? 'inProgress' : finished === 'killed' || finished === 'missing' ? 'interrupted' : e.denied ? 'denied' : e.failed || finished === 'failed' || event.type === 'tool.error' ? 'failed' : 'completed'
+      }
       if (item) this.session.discoverImages(item.id)
       this.expireToolApproval(e.toolUseId)
       this.questionReplies.delete(e.toolUseId)
@@ -456,7 +492,25 @@ export class ClaudeConversation {
     })
   }
   async command(command: ConversationCommand): Promise<ConversationSnapshot> {
+    if (command.type === 'startup') {
+      const startup = this.state.startup
+      if (this.disposed || !this.trustWaiter || !startup || startup.id !== command.startupId ||
+        this.state.connection !== 'starting' || this.state.mode !== 'conversation' || command.controlEpoch !== this.state.controlEpoch) throw new Error('Startup control changed; action rejected')
+      if (startup.status === 'busy') throw new Error('Startup confirmation is busy')
+      if (command.action === 'cancel') startup.status = 'cancelled'
+      else if (command.action === 'resume' && startup.status === 'cancelled') { startup.status = 'pending'; startup.error = undefined }
+      else if (command.action === 'trust' && startup.status === 'pending') {
+        startup.status = 'busy'; startup.error = undefined; this.changed()
+        try {
+          acceptClaudeWorkspaceTrust(startup.directory!, this.env)
+          const waiter = this.trustWaiter; this.trustWaiter = undefined
+          waiter.resolve()
+        } catch (error) { startup.status = 'pending'; startup.error = String(error).slice(0, 500) }
+      } else throw new Error('Invalid startup action')
+      this.changed(); return this.snapshot()
+    }
     if (command.type === 'mode') {
+      if (this.startup && this.state.connection === 'starting' && command.mode !== this.state.mode) throw new Error('Complete startup before switching views')
       this.session.mode(command, this.disposed)
       if (this.server && this.state.connection === 'ready' && !this.broken) await this.call({ type: 'display-mode', mode: command.mode })
       return this.snapshot()
@@ -466,6 +520,15 @@ export class ClaudeConversation {
     if (command.type === 'answer') { await this.session.questions.answer(command.requestId, command.version, command.answer); return this.snapshot() }
     if (command.type === 'commands' || command.type === 'invoke') { await this.catalog.command(command); return this.snapshot() }
     if (command.type === 'models') { await this.loadModels() }
+    else if (command.type === 'ultracode') {
+      if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
+      if (typeof command.enabled !== 'boolean') throw new Error('Invalid Ultracode setting')
+      const state = this.state.ultracode
+      if (!state || command.enabled && (!state.available || this.state.model !== state.model)) throw new Error('Ultracode is unavailable for the native session model')
+      this.state.settingsUpdating = true; this.changed()
+      try { await this.call({ type: 'ultracode', enabled: command.enabled }) }
+      finally { this.state.settingsUpdating = false; this.changed() }
+    }
     else if (command.type === 'settings') {
       if (this.state.settingsUpdating || this.state.submitting || this.state.turnId || this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new Error('Wait until Claude is idle before changing settings')
       const model = this.state.models.find(option => option.model === command.model)
@@ -536,6 +599,8 @@ export class ClaudeConversation {
   dispose(): Promise<void> {
     if (this.stopping) return this.stopping
     this.disposed = true; this.session.stop()
+    this.trustWaiter?.reject(new Error('Claude launch cancelled')); this.trustWaiter = undefined
+    this.state.startup = undefined
     for (const finish of this.questionWaiters.values()) finish()
     this.questionReplies.clear()
     this.catalogAbort.abort()

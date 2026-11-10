@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/memo.html')
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
 })
 
@@ -37,7 +37,7 @@ test('memo supports star-owned records and shows an empty state after deleting t
   await expect(page.getByRole('button', { name: 'Add point' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Add the first star' })).toBeVisible()
   await page.reload()
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Memo title' })).toHaveValue('A')
   await expect(page.getByRole('textbox', { name: 'Point text' })).toHaveCount(0)
@@ -85,7 +85,7 @@ test('creates and deletes a memo without a workspace', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Cross-project plan', exact: true })).toHaveCount(0)
 })
 
-test('closing the memo panel leaves the memo and opens a new session', async ({ page }) => {
+test('explicitly leaving the memo opens a new session', async ({ page }) => {
   await page.getByRole('button', { name: 'A', exact: true }).click()
   await page.evaluate(() => (window as any).memoFixture.send('Record A'))
   await expect(page.getByTestId('reply')).toHaveText('Reply 1')
@@ -115,12 +115,12 @@ test('panel stays inside a narrow viewport instead of running off the edge', asy
 
 test('stays a top-level float over a scaled main interface', async ({ page }) => {
   await page.goto('/memo.html?scaled=1')
-  await page.getByRole('button', { name: 'Open memo on the left' }).click()
+  await page.getByRole('button', { name: 'Open memo on the right' }).click()
   await page.getByRole('button', { name: 'A', exact: true }).click()
   const panel = page.getByRole('complementary', { name: 'Milestone memo' })
   await expect(panel).toBeVisible()
   await panel.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => undefined))) })
-  // The host surface is scaled and shifted; the panel docks at its visual left
+  // The host surface is scaled and shifted; the panel docks at its visual right
   // edge with the fixed 12px gap instead of sliding under it.
   const panelBox = (await panel.boundingBox())!
   const chatBox = (await page.locator('.janus-chat').boundingBox())!
