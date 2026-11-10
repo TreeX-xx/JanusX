@@ -16,7 +16,7 @@
 
 ## Problem
 
-Blueprint source tests can resolve dependencies from an ignored plugin-local installation, while the test itself imports the root installation. This caused old JSON import syntax to fail before collection and split `ChatSessionRuntime` constructor identity, so a test spy did not reach the runtime under test. Vitest now resolves the registry to current workspace source and chat-core to the root materialized package. The independent Blueprint build remains the separate check of the actual published dependency closure.
+Blueprint source tests can resolve dependencies from an ignored plugin-local installation, while the test itself imports the root installation. This caused old JSON import syntax to fail before collection and split `ChatSessionRuntime` and `NoteService` constructor identity, so test spies did not reach the runtimes under test. Vitest now resolves the registry to current workspace source and the six public agent package entry points to root materialized packages. Exact-name matching preserves package subpath exports. The independent Blueprint build remains the separate check of the actual published dependency closure.
 
 Blueprint lock refresh seeds npm with the existing lock and removes only changed local archive entries before installation. It retains unrelated registry versions while updating archive integrity and any newly required dependencies. Normal verification still rejects archive drift and uses npm ci; updating a lock does not count as a runtime pass. The November 10 refresh includes six changed public archives, identified by SHA256 and npm integrity in `plugins/blueprint/build-dependencies.lock.json`, and preserves the sibling checkout's unrelated edits.
 
