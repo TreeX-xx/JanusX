@@ -61,7 +61,7 @@ test('terminal drag keeps its existing transfer identity without selecting it', 
   expect(await fixtureState(page)).toMatchObject({ terminal: 'review', pane: 'left', terminals: 3, droppedTerminal: 'feature-cli' })
 })
 
-for (const theme of ['planche', 'dark']) {
+for (const theme of ['planche', 'dark', 'white']) {
   test(`sidebar remains readable and compact in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 1100, height: 760 })
     await page.goto(`/sidebar.html?theme=${theme}`)
@@ -75,5 +75,50 @@ for (const theme of ['planche', 'dark']) {
     await expect(sidebar).toHaveAttribute('data-collapsed', 'true')
     await page.getByRole('button', { name: '展开工作区侧栏' }).click()
     await expect(sidebar).toHaveAttribute('data-collapsed', 'false')
+  })
+}
+
+for (const theme of ['dark', 'planche', 'white']) {
+  test(`sidebar navigation feedback uses neutral colors in ${theme}`, async ({ page }) => {
+    await page.goto(`/sidebar.html?theme=${theme}`)
+    const sidebar = page.locator('aside')
+    const neutral = await sidebar.evaluate(node => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--interaction-accent)'
+      node.append(probe)
+      const color = getComputedStyle(probe).color
+      probe.remove()
+      return color
+    })
+    const row = page.locator('.workspace-sidebar__expanded .ws').first()
+    await row.focus()
+    await expect(row).toHaveCSS('outline-color', neutral)
+    await expect(row).toHaveCSS('outline-style', 'solid')
+    await sidebar.screenshot({ path: test.info().outputPath('expanded-focus.png'), animations: 'disabled' })
+    for (const collapsed of [false, true]) {
+      if (collapsed) await page.getByRole('button', { name: '收起工作区侧栏' }).click()
+      const rows = page.locator(collapsed ? '.workspace-sidebar__collapsed .ws' : '.workspace-sidebar__expanded .ws')
+      const source = rows.first()
+      const target = rows.nth(1)
+      const transfer = await page.evaluateHandle(() => new DataTransfer())
+      await source.dispatchEvent('dragstart', { dataTransfer: transfer })
+      const rect = (await target.boundingBox())!
+      await target.dispatchEvent('dragover', { dataTransfer: transfer, clientY: rect.y + 1 })
+      await expect(target.locator(':scope > .pointer-events-none')).toHaveCSS('background-color', neutral)
+      await sidebar.screenshot({ path: test.info().outputPath(collapsed ? 'collapsed-insertion.png' : 'expanded-insertion.png'), animations: 'disabled' })
+      await target.dispatchEvent('dragover', { dataTransfer: transfer, clientY: rect.y + rect.height / 2 })
+      const tint = await target.evaluate(node => {
+        const probe = document.createElement('span')
+        probe.style.background = 'color-mix(in srgb, var(--interaction-accent) 10%, transparent)'
+        node.append(probe)
+        const color = getComputedStyle(probe).backgroundColor
+        probe.remove()
+        return color
+      })
+      await expect(target).toHaveCSS('background-color', tint)
+      await sidebar.screenshot({ path: test.info().outputPath(collapsed ? 'collapsed-group.png' : 'expanded-group.png'), animations: 'disabled' })
+      await source.dispatchEvent('dragend', { dataTransfer: transfer })
+      await transfer.dispose()
+    }
   })
 }
