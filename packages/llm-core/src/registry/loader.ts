@@ -5,7 +5,7 @@
  */
 
 import { ConfigLoadError } from '../utils/errors'
-import providersData from './providers.json' assert { type: 'json' }
+import providersData from './providers.json' with { type: 'json' }
 
 /* ════════════════════════════════════════════════════════════
    配置数据类型

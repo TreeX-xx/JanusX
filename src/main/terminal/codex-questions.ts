@@ -1,4 +1,4 @@
-import type { ConversationQuestion } from '../../shared/conversation-questions'
+import type { ConversationQuestion, ConversationQuestionAnswer } from '../../shared/conversation-questions'
 import type { ConversationApproval } from '../../shared/conversation-display'
 
 /** agentMessage.questions is a notification, not a waiting request_user_input RPC. */
@@ -11,15 +11,26 @@ export function codexAsyncQuestions(value: unknown): ConversationQuestion[] | nu
     options: (q.options ?? []).map((label: string, index: number) => ({ id: String(index), label })) }))
 }
 
-export function codexAsyncReplyText(text: string): string | undefined {
-  const match = /^<send_user_message_question_reply>([\s\S]*)<\/send_user_message_question_reply>$/.exec(text.trim())
-  if (!match) return
+const ASYNC_REPLY_START = '<send_user_message_question_reply>'
+const ASYNC_REPLY_END = '</send_user_message_question_reply>'
+export function codexAsyncAnswer(itemId: string, questions: ConversationQuestion[], answer: ConversationQuestionAnswer): string {
+  const replies = questions.map(question => {
+    const row = answer.answers.find(row => row.id === question.id)!
+    return { questionItemId: JSON.stringify(['request_user_input_async', itemId, Number(question.id)]),
+      question: Buffer.from(question.text).subarray(0, 512).toString('utf8').replace(/\uFFFD$/, '').replace(/[\r\n]/g, ' '),
+      answer: row.selected.length ? question.options.find(option => option.id === row.selected[0])!.label : row.text!.trim() }
+  })
+  return `${ASYNC_REPLY_START}\n${JSON.stringify(replies)}\n${ASYNC_REPLY_END}`
+}
+
+export function codexAsyncReplies(text: string): Array<{ questionItemId: string; question: string; answer: string }> | null {
+  text = text.trim()
+  if (!text.startsWith(ASYNC_REPLY_START) || !text.endsWith(ASYNC_REPLY_END)) return null
   try {
-    const value = JSON.parse(match[1])
-    const replies = Array.isArray(value) ? value : [value]
-    if (!replies.length || replies.some(row => !row || typeof row.questionItemId !== 'string' || typeof row.question !== 'string' || typeof row.answer !== 'string')) return
-    return replies.map(row => `> ${row.question}\n\n${row.answer}`).join('\n\n')
-  } catch { return }
+    const parsed = JSON.parse(text.slice(ASYNC_REPLY_START.length, -ASYNC_REPLY_END.length))
+    const replies = Array.isArray(parsed) ? parsed : [parsed]
+    return replies.length && replies.every(row => row && typeof row.questionItemId === 'string' && typeof row.question === 'string' && typeof row.answer === 'string') ? replies : null
+  } catch { return null }
 }
 
 // Native schema: app-server generate-json-schema. Keep opaque policy values on the main side.

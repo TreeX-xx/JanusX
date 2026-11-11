@@ -17,11 +17,11 @@
 | `npm run verify:quick` | 主题、类型、国际化、lint 和快速单测；不构建桌面、不代替完整验收 |
 | `npm run verify` | 完整插件验证、三个 Vitest 组、LLM 测试、类型、构建、包边界、Notes、lint 和 Electron 检查 |
 
-`verify:quick` 需要已经准备好 sibling 发布入口；完整环境步骤见[开发指南](./development.md)。缺失的工具或依赖应先修复，不能把环境失败当成某组测试已经通过。`verify` 保留现有的完整检查范围，CI 继续对 `main`、`dev` 的 PR 运行它的各个阶段。
+`verify:quick` 需要已经准备好 sibling 发布入口；完整环境步骤见[开发指南](./development.md)。缺失的工具或依赖应先修复，不能把环境失败当成某组测试已经通过。`verify` 和手动 CI 依次运行单元、集成、浏览器三个完整项目，避免混合进程池并发中断；遇到任一失败即停止，覆盖范围不变。
 
 ## 分组与重复执行
 
-[test-suites.ts](../tests/helpers/test-suites.ts) 明确列出 14 个真实浏览器文件及 15 个慢集成文件。其他 `tests/unit/**/*.test.ts` 默认进入快速组，新增测试不会因为命名规则而漏掉。分组改变时应重新收集测试列表，确认三个组互不相交，合并后仍覆盖全部文件。
+[test-suites.ts](../tests/helpers/test-suites.ts) 明确列出真实浏览器文件及慢集成文件。其他 `tests/unit/**/*.test.ts` 默认进入快速组，新增测试不会因为命名规则而漏掉。分组改变时应重新收集测试列表，确认三个组互不相交，合并后仍覆盖全部文件。
 
 独立的 `plugins:check`、`plugins:distribution:check` 保留专项完整验证。全量 `verify` 先运行平台与分发工具检查，再在统一单测阶段运行对应 Vitest 文件，避免 22 个插件测试文件各执行两遍。
 

@@ -430,6 +430,16 @@
     "copiedMessage": "Copied",
     "editMessage": "Edit message",
     "thinking": "Thinking…",
+    "notice": {
+      "retry": "Retrying connection",
+      "failure": "This response could not be completed",
+      "failureHint": "You can send a message to continue. Details are available below.",
+      "connection": "Session connection lost",
+      "connectionHint": "Check the session in the terminal before continuing.",
+      "error": "The operation could not be completed",
+      "errorHint": "Review the details before trying again.",
+      "details": "View details"
+    },
     "delivery": {
       "queued": "Waiting to send",
       "sending": "Sending…",
@@ -477,6 +487,9 @@
     "emptyTitle": "What will you build?",
     "emptyHint": "Start with an idea, a task, or something to fix.",
     "latest": "Back to latest",
+    "inputNavigation": "Navigate inputs",
+    "inputNumber": "Input {{number}}",
+    "inputAttachment": "Attachment input",
     "history": "Conversation history",
     "truncated": "Some older or long content is omitted from this view. Full details remain in the native session.",
     "activity": "Agent activity",

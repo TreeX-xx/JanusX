@@ -3,9 +3,9 @@
  * @description Loads generated model metadata and provides lookup helpers.
  */
 
-import generatedRegistry from './models.openrouter.generated.json' assert { type: 'json' }
-import modelOverrides from './models.overrides.json' assert { type: 'json' }
-import legacyOverrides from './models.legacy-overrides.json' assert { type: 'json' }
+import generatedRegistry from './models.openrouter.generated.json' with { type: 'json' }
+import modelOverrides from './models.overrides.json' with { type: 'json' }
+import legacyOverrides from './models.legacy-overrides.json' with { type: 'json' }
 import type { ModelInfo } from '../core/types'
 import type {
   AiModelMatchConfidence,

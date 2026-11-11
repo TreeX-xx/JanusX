@@ -37,8 +37,16 @@ if (!update) {
   const previous = JSON.parse(await readFile(join(source, 'build-dependencies.lock.json'), 'utf8'))
   const differences = dependencyDifferences(previous, dependencyLock)
   if (differences.length) throw new Error(`Public dependency bytes changed:\n${differences.join('\n')}\nReview the source/build changes, then run npm run plugins:blueprint:verify -- --update-lock. No installation was attempted.`)
-  await cp(join(source, 'package-lock.json'), join(project, 'package-lock.json'))
 }
+// Refresh local archives without upgrading unrelated registry dependencies.
+const installLock = JSON.parse(await readFile(join(source, 'package-lock.json'), 'utf8'))
+if (update) {
+  for (const dependency of dependencies) {
+    const key = `node_modules/${dependency.name}`
+    if (installLock.packages[key]?.integrity !== dependency.integrity) delete installLock.packages[key]
+  }
+}
+await writeFile(join(project, 'package-lock.json'), JSON.stringify(installLock, null, 2) + '\n')
 console.log(`Packed ${dependencies.length} public dependencies. Installing in ${project}`)
 run([update ? 'install' : 'ci', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-offline'], project)
 console.log('Checking independent types and browser/native builds')

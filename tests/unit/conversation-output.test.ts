@@ -23,6 +23,9 @@ describe('conversation output grouping', () => {
   it.each([{ status: 'failed' }, { status: 'inProgress' }, { status: 'declined' }, { truncated: true }])('does not label unresolved evidence as settled: %j', extra => {
     expect(conversationOutputGroups([item('tool', 'commandExecution', extra), item('answer', 'agentMessage')], null)[0].settled).toBe(false)
   })
+  it('keeps terminal turn failures outside collapsed work output', () => {
+    expect(conversationOutputGroups([item('tool', 'commandExecution'), item('failure', 'turnError', { status: 'failed' })], null).map(g => g.process)).toEqual([true, false])
+  })
   it('groups live operations without waiting for a final answer', () => {
     expect(conversationOutputGroups([item('tool', 'commandExecution'), item('answer', 'agentMessage')], 'turn')[0].settled).toBe(false)
     expect(conversationOutputGroups([item('tool', 'commandExecution'), item('update', 'agentMessage', { phase: 'commentary' })], null).map(g => g.process)).toEqual([true, false])

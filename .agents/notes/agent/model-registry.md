@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-17T02:11:22.000Z",
+  "updated": "2026-11-10T02:32:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10"
 }
 ---
@@ -34,6 +34,8 @@
 Model capacity changes independently of application releases. If chat budgeting reads only bundled metadata, new model IDs receive a 16,384-token estimate and trigger premature history compaction. Adapter lists also contain bundled limits, so treating every listed capacity as a provider override prevents updated metadata from taking effect.
 
 ## Decision
+
+Registry and provider JSON imports use `with { type: 'json' }`, supported by the repository's Node 24 runtime and Electron's Node 22 runtime. The removed `assert` syntax cannot be parsed by Node 24. Repository Blueprint tests resolve model metadata from the current workspace source; independent plugin builds continue consuming locked published archives.
 
 OpenRouter supplies the bundled registry and runtime catalog cache. Janus chat, the blueprint conversation and Note repair share the model port in `janus-agent-ports.ts`. Each resolution queries model metadata and the adapter list, including when manual settings exist. Complete automatic context and maximum-output pairs take precedence in this order: runtime catalog, adapter list, then bundled exact or high-confidence match. A valid manual pair applies only when no complete automatic pair is available. Context-only settings cannot suppress output detection. The detected maximum output is passed to generation without the previous 20%-of-context cap; context budgeting reserves that output allowance.
 

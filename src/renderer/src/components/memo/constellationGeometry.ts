@@ -63,9 +63,7 @@ export function connectionMidpoint(segments: ConstellationSegment[]): Constellat
 }
 
 export function starPosition(index: number): ConstellationPoint {
-  const row = Math.floor(index / 6)
-  const column = row % 2 ? 5 - index % 6 : index % 6
-  return { x: 48 + column * 110, y: 94 + row * 210 + [0, 44, -20, 30, -4, 52][index % 6] }
+  return { x: 52 + index * 172, y: 80 }
 }
 export function projectStar(point: ConstellationPoint, camera: ConstellationCamera): ConstellationPoint {
   return { x: camera.x + point.x * camera.scale, y: camera.y + point.y * camera.scale }
@@ -78,7 +76,7 @@ export function boundCamera(camera: ConstellationCamera, viewport: Constellation
   if (points?.length) return { ...camera,
     x: clamp(camera.x, -Math.max(...points.map(point => point.x)) * camera.scale + 32, viewport.width - Math.min(...points.map(point => point.x)) * camera.scale - 32),
     y: clamp(camera.y, -Math.max(...points.map(point => point.y)) * camera.scale + 40, viewport.height - Math.min(...points.map(point => point.y)) * camera.scale - 32) }
-  const world = { width: Math.min(6, Math.max(1, count)) * 110 + 130, height: Math.max(1, Math.ceil(count / 6)) * 210 }
+  const world = { width: starPosition(Math.max(0, count - 1)).x + 140, height: 160 }
   return { ...camera, x: clamp(camera.x, -world.width * camera.scale + 48, Math.max(48, viewport.width - 48)),
     y: clamp(camera.y, -world.height * camera.scale + 48, Math.max(48, viewport.height - 32)) }
 }

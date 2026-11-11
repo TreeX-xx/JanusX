@@ -19,10 +19,17 @@ const isCI = process.env.CI === 'true'
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@janusx/plugin-sdk/native': resolve(__dirname, 'packages/plugin-sdk/src/native.ts'), '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts'),
-      '@': resolve(__dirname, 'src/renderer/src'),
-    },
+    alias: [
+      // Repository tests share root package identities, not a plugin's stale vendor installation.
+      ...['agent-core', 'chat-core', 'harness-core', 'harness-node', 'janus-agent', 'node-hosts'].map(name => ({
+        find: new RegExp(`^@janus-agent/${name}$`),
+        replacement: resolve(__dirname, `node_modules/@janus-agent/${name}/dist/index.js`),
+      })),
+      { find: '@janusx/llm-core/model-registry', replacement: resolve(__dirname, 'packages/llm-core/src/registry/model-registry.ts') },
+      { find: '@janusx/plugin-sdk/native', replacement: resolve(__dirname, 'packages/plugin-sdk/src/native.ts') },
+      { find: '@janusx/plugin-sdk', replacement: resolve(__dirname, 'packages/plugin-sdk/src/index.ts') },
+      { find: '@', replacement: resolve(__dirname, 'src/renderer/src') },
+    ],
   },
   test: {
     globals: true,

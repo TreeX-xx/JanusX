@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { annotationClearance, boundCamera, clearConnection, connectionMidpoint, projectStar, starPosition, zoomCamera } from '../../src/renderer/src/components/memo/constellationGeometry'
+import { boundCamera, clearConnection, connectionMidpoint, projectStar, starPosition, zoomCamera } from '../../src/renderer/src/components/memo/constellationGeometry'
+import { labelGeometry, placeLabels } from '../../src/renderer/src/components/memo/constellationLayout'
 import { layoutCompanionIslands } from '../../src/renderer/src/components/island/islandLayout'
 
 describe('constellation camera', () => {
@@ -53,10 +54,12 @@ describe('constellation annotation clearance', () => {
     expect(clearConnection(point, { x: 6, y: 5 }, [])).toEqual([])
   })
 
-  it('leaves screen-sized title and leader clearance across ascending, descending and serpentine edges at all zoom limits', () => {
+  it('leaves screen-sized title and leader clearance along horizontal flows at all zoom limits', () => {
     for (const scale of [.4, .7, 1, 1.6, 2.4]) {
       const points = Array.from({ length: 24 }, (_, index) => projectStar(starPosition(index), { x: -137, y: 58, scale }))
-      const obstacles = points.flatMap((point, index) => annotationClearance(point, index % 2 === 0))
+      const stars = points.map((point, index) => ({ id: String(index), point, hasLabel: index % 2 === 0 }))
+      const sides = placeLabels(stars, '0', { width: 460, height: 160 })
+      const obstacles = stars.flatMap(star => labelGeometry(star.point, star.hasLabel, sides[star.id]).boxes)
       const segments = points.slice(1).flatMap((point, index) => clearConnection(points[index], point, obstacles))
       expect(segments.length).toBeGreaterThan(0)
       for (const { start, end } of segments) {

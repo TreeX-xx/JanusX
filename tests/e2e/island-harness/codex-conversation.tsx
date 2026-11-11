@@ -16,9 +16,11 @@ Object.assign(window.electron.system, { getLanguage: async () => 'en' })
 const claude = new URLSearchParams(location.search).get('engine') === 'claude'
 const extraEngine = new URLSearchParams(location.search).get('engine')
 const initialView = new URLSearchParams(location.search).get('initialView') === 'conversation' ? 'conversation' : 'terminal'
+const split = new URLSearchParams(location.search).get('split')
 let pendingStartup = new URLSearchParams(location.search).has('pendingStartup')
 useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'light' ? 'planche' : new URLSearchParams(location.search).get('theme') ?? 'dark')
 useWorkspaceStore.setState({ activeWorkspaceId: 'ws', terminals: [{ id: 'codex', workspaceId: 'ws', name: 'Codex', preset: 'codex', cwd: 'C:/fixture', shell: 'powershell.exe', pid: 42, status: 'wait', conversationEnabled: true, conversationInitialView: initialView }], activeTerminalId: 'codex' })
+if (split) useWorkspaceStore.setState(current => ({ terminals: [...current.terminals, { ...current.terminals[0], id: 'codex-second', pid: 43 }] }))
 const state: ConversationSnapshot = { id: 'codex', engine: 'codex', capabilities: CODEX_CONVERSATION_CAPABILITIES, revision: 1, mode: 'terminal', controlEpoch: 0, connection: 'ready', threadId: 'native-thread', turnId: null, submitting: false, items: [], approvals: [], needsTerminal: false, truncated: false,
   serviceTier: null, model: 'fixture-fast', effort: 'medium', modelsLoading: false, settingsUpdating: false, models: [
     { model: 'fixture-fast', fastTier: 'fast', displayName: 'Fixture Fast', description: 'A fast local test model', defaultEffort: 'medium', efforts: [
@@ -70,13 +72,16 @@ const measuredSnapshot = () => {
   }
   return next
 }
-const publish = () => { state.revision++; for (const listener of listeners) listener(measuredSnapshot()) }
+const publish = () => { state.revision++; for (const listener of listeners) {
+  listener(measuredSnapshot())
+  if (split) listener({ ...measuredSnapshot(), id: 'codex-second', threadId: 'secondary-thread' })
+} }
 Object.assign(window.electron.terminal, {
   saveConversationImage: async (_id: string, itemId: string, imageId: string) => { calls.opens.push(`image:${itemId}:${imageId}`); return { canceled: false } },
   create: async () => { calls.create++; return { pid: 42 } }, kill: async () => { calls.kill++; return { success: true } },
   replay: async () => ({ data: 'Native Codex terminal\r\n› ', seq: 1 }),
   input: (_id: string, data: string) => { calls.input.push(data) },
-  conversation: async () => pendingStartup ? null : structuredClone(state),
+  conversation: async (id: string) => pendingStartup ? null : { ...structuredClone(state), id, threadId: id === 'codex-second' ? 'secondary-thread' : state.threadId },
   onConversation: (callback: (s: ConversationSnapshot) => void) => { listeners.add(callback); return () => listeners.delete(callback) },
   conversationCommand: async (_id: string, command: ConversationCommand) => {
     calls.commands.push(structuredClone(command))
@@ -154,7 +159,10 @@ Object.assign(window, { codexFixture: {
     state.model = 'opencode-go/shared'; state.effort = 'default'; publish()
   },
   questions: (kind = 'mixed') => {
-    state.questions = [{ id: 'question', version: state.revision, cancelable: true, status: 'pending', questions: kind === 'text' ? [
+    if (kind === 'async') state.turnId = 'async-turn'
+    state.questions = [{ id: 'question', version: state.revision, cancelable: true, blocking: kind !== 'async', status: 'pending', questions: kind === 'async' ? [
+      { id: 'choice', text: 'Choose async', allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] },
+    ] : kind === 'text' ? [
       { id: 'text', text: 'Type something', options: [], allowText: true },
     ] : [
       { id: 'confirm', header: 'Confirmation', text: 'Proceed?', options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }] },
@@ -172,6 +180,7 @@ Object.assign(window, { codexFixture: {
     ] }]; publish()
   },
   expireQuestions: () => { state.questions = []; publish() },
+  finishAsyncTurn: () => { state.turnId = null; publish() },
   approvalChoices: () => {
     state.approvals = [{ id: 'approval', itemId: 'tool', kind: 'command', description: 'npm test', choices: [
       { id: 'accept', label: 'Allow once' }, { id: 'acceptForSession', label: 'Allow for this session' },
@@ -259,6 +268,16 @@ Object.assign(window, { codexFixture: {
     state.approvals = [{ id: 7, itemId: 'file', kind: 'file', description: 'Create report.html' }]; publish()
   },
   fail: () => { state.connection = 'disconnected'; state.error = 'Fixture connection lost'; publish() },
+  retryStatus: (stage = 'retry', message = 'Reconnecting... 1/5\nThe connection to the model was interrupted.') => {
+    state.error = undefined
+    state.connection = 'ready'
+    state.turnId = stage === 'retry' ? 'retry-turn' : null
+    state.items = [{ id: 'retry-user', turnId: 'retry-turn', type: 'userMessage', text: 'Review the current changes', status: 'completed' }]
+    state.retry = stage === 'retry' ? { turnId: 'retry-turn', message } : undefined
+    if (stage === 'recovered') state.items.push({ id: 'retry-answer', turnId: 'retry-turn', type: 'agentMessage', text: 'Connection recovered. Review complete.', status: 'completed' })
+    if (stage === 'failed') state.items.push({ id: 'retry-failure', turnId: 'retry-turn', type: 'turnError', text: message, status: 'failed' })
+    publish()
+  },
   settingsFail: (value: boolean) => { settingsFailure = value },
   ultracode: (value?: ConversationSnapshot['ultracode']) => { state.ultracode = value; publish() },
   catalogFail: () => { state.modelsError = 'Fixture catalog failed'; publish() },
@@ -304,8 +323,9 @@ function Harness() {
   const [visible, setVisible] = useState(true)
   const [generation, setGeneration] = useState(0)
   return <><div style={{ height: 34, display: 'flex', gap: 20 }}><button onClick={() => setVisible(value => !value)}>Other workspace</button><button onClick={() => setGeneration(value => value + 1)}>Remount</button></div>
-    <div style={{ height: 'calc(100vh - 34px)', visibility: visible ? 'visible' : 'hidden' }}>
-      <AgentSessionPane key={generation} terminalId="codex" visible={visible} focused={visible} workspaceVisible={visible} />
+    <div style={{ height: 'calc(100vh - 34px)', visibility: visible ? 'visible' : 'hidden', ...(split ? { display: 'flex', flexDirection: split === 'stacked' ? 'column' as const : 'row' as const } : {}) }}>
+      <div data-fixture-pane="first" style={{ flex: 1, minWidth: 0, minHeight: 0, height: split ? undefined : '100%' }}><AgentSessionPane key={generation} terminalId="codex" visible={visible} focused={visible} workspaceVisible={visible} /></div>
+      {split && <div data-fixture-pane="second" style={{ flex: 1, minWidth: 0, minHeight: 0 }}><AgentSessionPane terminalId="codex-second" visible={visible} focused={false} workspaceVisible={visible} /></div>}
     </div></>
 }
 await initI18n(); await changeLanguage('en')

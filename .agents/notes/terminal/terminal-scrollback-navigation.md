@@ -5,14 +5,16 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-22",
-  "updated": "2026-10-22T10:52:13.448Z",
+  "updated": "2026-11-11T03:05:19Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
   "codeRefs": [
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/CLITerminal.tsx","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/lib/terminal-tui-wheel.ts","role":"implementation"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/TurnChangeIsland.tsx","role":"implementation"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/TerminalScrollControls.tsx","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/lib/terminal-navigation.ts","role":"implementation"}
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/lib/terminal-navigation.ts","role":"implementation"},
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/ConversationNavigation.tsx","role":"implementation"},
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/chat/VirtualHistory.tsx","role":"implementation"}
   ]
 }
 ---
@@ -78,6 +80,32 @@ Claude 的普通聊天 PageUp 同样保留固定输入区和草稿，但没有�
 因此，“两个 CLI 均精确跳提问且输入框始终可见”的完整目标目前没有可靠的原生接法。Claude 单独适配其原生浏览视图需要接受输入框暂时隐藏，并可靠识别浏览／编辑上下文及自定义快捷键，本阶段不实施。用户确认优先保留固定输入区与跨 CLI 一致性，现有两个按钮保持点击翻页、长按持续滚动，不能静默改成一套未经支持的按键宏。
 
 官方依据：[Claude fullscreen](https://code.claude.com/docs/en/fullscreen)、[Claude keybindings](https://code.claude.com/docs/en/keybindings)、OpenAI Docs 的 [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-interactive-shortcuts)。调查保存了官方原文、本机帮助及 keymap 截图；没有发现能力不等于证明不存在任何未公开实现。
+
+### 对话模式输入刻度导航（已实施）
+
+用户在原生 TUI 复核后明确将本功能限定为对话模式，并在讨论后确认记录左侧独立细刻度方案。对话正文左侧增加按输入导航的刻度，保留右侧滚动条：刻度负责按提问定位，滚动条负责连续阅读及长回答内部拖动，不用刻度替换滚动条。当前已接入对话显示层，原生终端导航保持原有范围。
+
+- 每次已提交且进入会话消息记录的用户输入对应一个刻度，沿输入顺序均匀排列，不按回答长度分配位置。仅覆盖消息阅读区，不延伸到输入框旁。
+- 常态为低对比度灰色短横线；当前阅读轮次的刻度略长、略亮，以现有主题强调色轻微突出，不使用发光或跳动装饰。右侧滚动条可在空闲时淡出。
+- 鼠标靠近刻度列时增强可见性和命中范围；悬停某条刻度显示该次输入前 3～4 行。悬停只预览，点击才跳转，鼠标经过不改变阅读位置。
+- 点击后将对应输入定位在阅读区上方，下面接对应回答；暂停跟随新输出，沿用“回到最新”入口。手动阅读时，刻度高亮随当前轮次更新。
+- 长会话刻度密集时提供靠近后展开的局部列表，保证每条输入可选择。浮层、边框与颜色沿用 JanusX 现有主题体系。
+
+以上方向已在现有主题内实施，定位使用稳定消息身份并适配虚拟列表，不依赖正文匹配；具体规则与验证边界见下文。右侧合并轨道和圆点目录是讨论过的备选，当前选择左侧细刻度。本方案不扩展至原生终端，也不将下方既有终端验收项视为此功能已完成的证据。
+
+### 对话输入导航实现与分屏适配
+
+`AgentSessionPane` 在消息阅读区左侧接入 `ConversationNavigation`，只从当前快照的 `userMessage` 建立索引；同轮多次输入分别可选，待发送队列不计入，历史截断提示继续保留。右侧滚动条、输入框和原生终端维持各自职责。入口与虚拟列表均反向注释到本 Note。
+
+`VirtualHistory` 提供会话内按轮次键与消息 ID 定位的接口，先挂载目标轮次，再将对应用户消息尽可能对齐阅读区上方 12px；最新轮次仍走正常流，导航和编辑各最多额外固定一个历史行。ResizeObserver、正文结构变化与滚动校正共同处理动态高度，不靠固定等待时间或正文匹配。点击暂停跟随，手动滚轮、触摸、指针操作及阅读按键取消定位，“回到最新”清除目标并恢复跟随；隐藏视图、会话替换或目标移除使旧请求失效。
+
+当前刻度依据阅读区顶部 16px 参考线之前最近的用户输入判定；参考线位于长回答内时使用所属轮次及其输入顺序。常态刻度低对比度，当前项使用主题强调色，悬停与键盘聚焦显示至多四行纯文本预览。空正文保留附件输入提示。
+
+分屏适配以每个 pane 的实际阅读区 ResizeObserver 测量为依据，不依赖整个窗口宽度。轨道宽 24px，顶部与底部各留 12px，按每组至少约 18px 的可用高度计算容量；每条输入保留索引，密集时将连续输入归组，点击展开局部可滚动列表。输入较少时一条刻度直接跳转，极小高度至少保留一组。列表打开后保留所选输入范围，分屏重排不会将选择静默换成另一组。
+
+预览与列表在所属阅读区内绝对定位，按当前宽高限宽、限高及上下停靠，不跨入相邻 pane 或输入框；无需 portal。正文窄屏左侧留出轨道空间，右侧连续阅读轨道保留。拖动分隔线、输入框增高或窗口缩放时，阅读中的已挂载消息按稳定身份和可见偏移同步恢复，避免延迟恢复覆盖下一次滚动；主动跳转期间由目标实测几何继续校正。每个实例独立拥有高亮、浮层和定位状态，跨 terminalId 与会话不复用。密集列表支持键盘进入与 Esc 返回刻度，关闭列表不会改写草稿；动效遵循减少动画偏好。
+
+当前验证覆盖长历史未挂载定位、重复正文、同轮多输入、目标之前内容变高、流式更新、回到最新、短历史和视图切换；分屏覆盖 230px 宽容器、小高度、容器宽高变化、左右与上下双 pane，检查浮层边界、草稿及阅读状态隔离，并回归共享虚拟列表和输入编辑。`conversation-navigation.spec.ts`、`conversation-virtual-history.spec.ts` 和 `conversation-input-editing.spec.ts` 最终共 14 项通过，轮次投影单测 2 项通过；strict-unused 类型检查、三个变更 TSX 的 ESLint、双语检查、生产构建及 diff 检查通过，Note 检查 0 错误、17 条既有跨仓库链接诊断。产物在忽略目录 `artifacts/input-navigation/`，最终 Playwright 输出为 `final-verified/`，截图包括深色正常视图及纸色双 pane。尚未执行打包 Electron 现场使用、三层嵌套分屏或真实延迟图片加载验证；这些边界不以终端既有 AC 替代。原生终端 AC-6 状态不变。
 
 ## Acceptance criteria
 

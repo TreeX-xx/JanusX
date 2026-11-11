@@ -57,7 +57,8 @@
 .planHistory .plan { margin-top: 8px; }
 .readOnly { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--shell-muted); font-size: 12px; }
 .readOnly button { padding: 6px 10px; background: var(--shell-hover); color: var(--shell-text); }
-.scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; outline: none; }
+.readingArea { position: relative; flex: 1; min-height: 0; min-width: 0; display: flex; overflow: hidden; }
+.scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; outline: none; }
 .scroll:focus-visible { outline: 1px solid color-mix(in srgb, var(--shell-muted) 35%, var(--bg-deep)); outline-offset: -1px; }
 .content { width: min(100%, 800px); margin: 0 auto; padding: 28px 28px 24px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.75; }
 /* Reading width and keyboard focus: .agents/notes/workbench/terminal-dialog-dual-mode.md. */
@@ -251,7 +252,7 @@
   .empty { padding-bottom: 10px; }
   .header { padding: 6px 12px; }
   .toggle button { padding: 5px 8px; }
-  .content { padding: 20px 16px 24px; }
+  .content { padding: 20px 16px 24px 26px; }
   .composer { width: calc(100% - 24px); margin-bottom: 12px; padding: 14px 14px 10px; border-radius: 18px; }
   .inputHint, .filePath { display: none; }
   .activityPreview { display: none; }

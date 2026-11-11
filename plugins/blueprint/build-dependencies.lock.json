@@ -12,8 +12,8 @@
       "name": "@janus-agent/chat-core",
       "version": "0.1.0",
       "file": "janus-agent-chat-core-0.1.0.tgz",
-      "sha256": "038d459295639dc92d5d2010bc44e1e0d14ed4965e44af6eefd813f63a16eca0",
-      "integrity": "sha512-l5TwgduCHiuKHnt690kEykqhYaHW2YR5QJg8lvga5Gg8yRlU4tFChaBErHwvkaxS/6nY7SqKJH3Y2gM299TOmg=="
+      "sha256": "aa229ea5ae660d4f270cd27c773b1cba4552d75284bffb60eb067f6adea28c49",
+      "integrity": "sha512-2u7R/37DDjpmjHF1yTcjTWitH0gvr5UaoM5CMCKRfmCJ1dAB9wNP7RWubifBqiYwdpCiGKVQ/zG1OP4svHDC2A=="
     },
     {
       "name": "@janus-agent/harness-core",
@@ -33,8 +33,8 @@
       "name": "@janus-agent/janus-agent",
       "version": "0.1.0",
       "file": "janus-agent-janus-agent-0.1.0.tgz",
-      "sha256": "fb8ccda30b7034ceccfdeb45e778adf47ebfbb7a9758661d9f10f5f3d1e7772b",
-      "integrity": "sha512-rMs82KtWqgc7rAujFGQF28zMY7+7zYGhXnBf3UHcYyAsH05I2/EbHivM9uNgWtliRdTyU9rL8ptOdaA2au/Y0A=="
+      "sha256": "568f844513b1bf01fdedb10ac5ca4a22ecef7a272dd3944e887fbf3cd1e775c9",
+      "integrity": "sha512-Fs/Q82Yl7geTPWN9w8PGHynkIVD+8EZtZsejKjDR6CFPL4zHcjVdfrfZVknDlkm6zi19eOmTFM2RsGpKH3qthQ=="
     },
     {
       "name": "@janus-agent/node-hosts",
@@ -47,8 +47,8 @@
       "name": "@janusx/llm-core",
       "version": "0.1.0",
       "file": "janusx-llm-core-0.1.0.tgz",
-      "sha256": "478b3578a0d273758d0c6181b02b3186b6d5b8b6512597858265ba8b00823865",
-      "integrity": "sha512-NQNgowAzdq0D6BpdEc4t5atO0im2eVBaTBywjfUFDCScSjm2VER7ZqImmBctiu6206MDTUJFVlDQUXFcLbg2Ig=="
+      "sha256": "8e6a07aefd8e0bddfa1a07de20d082bda66e3741db2121ebc956dee5d5f6121b",
+      "integrity": "sha512-x8qhpCENyT306MpqC4p3AzPuTbPKrg7whRLsV6s2r3kbYKOae2n760xYjtSZFBWcetSd7oFv1CS4m+SZWMjPMw=="
     },
     {
       "name": "@janusx/note-tools",

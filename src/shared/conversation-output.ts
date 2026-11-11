@@ -3,7 +3,7 @@ import { groupWorkOutput, summarizeWork } from './work-output'
 
 export function conversationOutputGroups(items: ConversationItem[], activeTurnId: string | null) {
   return groupWorkOutput(items,
-    item => !['userMessage', 'agentMessage', 'imageGeneration', 'error'].includes(item.type) && !item.images?.length,
+    item => !['userMessage', 'agentMessage', 'imageGeneration', 'error', 'turnError'].includes(item.type) && !item.images?.length,
     item => item.turnId,
   ).map(group => {
     // Prefer work still running over a newer operation that already finished.
