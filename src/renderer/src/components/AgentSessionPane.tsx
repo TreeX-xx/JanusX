@@ -11,7 +11,8 @@ import { ConversationFileChanges } from './ConversationFileChanges'
 import { ConversationImages } from './ConversationImages'
 import { conversationImageText } from '../../../shared/conversation-images'
 import { createConversationTurns } from '../lib/conversation-turns'
-import { VirtualHistory, LazyDetails } from './chat/VirtualHistory'
+import { VirtualHistory, LazyDetails, type HistoryNavigation } from './chat/VirtualHistory'
+import { ConversationNavigation } from './ConversationNavigation'
 import { MarkdownContent } from './chat/ChatContent'
 import { ConversationStartupPanel } from './ConversationStartupPanel'
 import { CLITerminal } from './CLITerminal'
@@ -53,6 +54,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const visibleRef = useRef(visible)
   visibleRef.current = visible
   const scrollRef = useRef<HTMLDivElement>(null)
+  const navigationRef = useRef<HistoryNavigation>(null)
   const inputRef = useRef<ConversationInputHandle>(null)
   const terminalHost = useRef<HTMLDivElement>(null)
   const conversationHost = useRef<HTMLDivElement>(null)
@@ -301,10 +303,11 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
         <TurnChangeIsland terminalId={terminalId} focused={visible && focused && !conversation && !transitioning} />
       </div>
       <div ref={conversationHost} className={`${styles.conversation} ${modeTransition === 'conversation' ? styles.viewEntering : ''}`} hidden={!conversation} data-empty={empty}>
+        <div className={styles.readingArea}>
         <div className={styles.scroll} ref={scrollRef} role="region" aria-label={t('conversation.history')} tabIndex={0} onScroll={event => {
           const el = event.currentTarget
           readingTop.current = el.scrollTop
-          follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
+          follow.current = !navigationRef.current?.isLocating() && el.scrollHeight - el.scrollTop - el.clientHeight < 64
           setShowLatest(!follow.current)
         }} onBlur={() => {
           if (scrollRef.current) useWorkspaceStore.getState().updateTerminal(terminalId, { conversationScrollTop: scrollRef.current.scrollTop })
@@ -322,7 +325,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </div>
             </div>}
             {snapshot?.truncated && <p className={styles.notice}>{t('conversation.truncated')}</p>}
-            {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
+            {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} navigationRef={navigationRef} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
               const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
               onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                 if (!canSend || working || outgoing.length || busyRef.current) return
@@ -399,7 +402,10 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             {!editing && (error || snapshot?.error) && <ConversationNotice kind={!error && snapshot?.connection === 'disconnected' ? 'connection' : 'error'} message={error || snapshot?.error || ''} />}
           </div>
         </div>
+        {snapshot && visible && conversation && !transitioning && <ConversationNavigation key={terminalId + ':' + snapshot.threadId} items={snapshot.items} scrollRef={scrollRef} navigationRef={navigationRef} following={follow} onNavigate={() => { follow.current = false; setShowLatest(true) }} />}
+        </div>
         <div className={styles.latestAnchor}>{showLatest && <button type="button" className={styles.latest} aria-label={t('conversation.latest')} title={t('conversation.latest')} onClick={() => {
+          navigationRef.current?.cancel()
           follow.current = true; setShowLatest(false)
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
         }}><ArrowDown size={16} aria-hidden="true" /></button>}</div>
