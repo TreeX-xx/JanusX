@@ -1,6 +1,8 @@
 // Note: transcript detail reads plus provider resume commands back the
 // windowed session reading — see
 // .agents/notes/sessions/records/session-resume-detail.md
+// Conversation titles and recent discussion preview:
+// .agents/notes/sessions/records/session-content-truth-kernel.md
 export const SESSION_CHANNELS = {
   list: 'session:list',
   get: 'session:get',
@@ -36,6 +38,10 @@ export interface AgentSessionSummary {
   cwd: string
   branch?: string
   firstPrompt: string
+  /** Provider-authored conversation title, independent of the first question. */
+  title?: string
+  /** Recent conversation prose; a preview, not a generated summary. */
+  conversationPreview?: string
   turnCount: number
   checkpointCount: number
   status: AgentSessionStatus

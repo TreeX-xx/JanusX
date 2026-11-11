@@ -3,6 +3,8 @@
 // .agents/notes/sessions/workspace-sessions-v1.md
 // Note: external provider sessions import by transcript backfill — see
 // .agents/notes/sessions/records/external-session-backfill.md
+// Codex cached injection titles are cleared before transcript backfill — see
+// .agents/notes/sessions/records/session-content-truth-kernel.md
 import { randomUUID } from 'node:crypto'
 import { copyFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -38,6 +40,7 @@ export interface ImportExternalSessionInput {
   providerSessionId: string
   transcriptPath: string
   firstPrompt: string
+  title?: string
   lastExcerpt?: string
   turnCount: number
   preview?: TranscriptTurn[]
@@ -143,11 +146,22 @@ export class AgentSessionRegistry {
         console.error('[sessions] store has unexpected shape; writes paused to protect disk state')
         return
       }
+      let clearedInjection = false
       for (const entry of document.sessions) {
         if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.cwd !== 'string') continue
         const record = entry as unknown as AgentSessionRecord
+        // A missing transcript must not leave repository instructions as the
+        // title forever. Keep recorded turns intact; a rescan fills the title
+        // only when it can recover the actual first question.
+        const clearFirst = record.engine === 'codex' && typeof record.firstPrompt === 'string'
+          && isEnvironmentInjectionText(record.firstPrompt)
+        const clearLast = record.engine === 'codex' && typeof record.lastPrompt === 'string'
+          && isEnvironmentInjectionText(record.lastPrompt)
+        clearedInjection ||= clearFirst || clearLast
         this.sessions.set(record.id, {
           ...record,
+          firstPrompt: clearFirst ? '' : record.firstPrompt,
+          lastPrompt: clearLast ? '' : record.lastPrompt,
           terminalIds: Array.isArray(record.terminalIds) ? record.terminalIds : [],
           turns: Array.isArray(record.turns) ? record.turns.slice(-MAX_TURNS_PER_SESSION) : [],
           checkpointIds: Array.isArray(record.checkpointIds) ? record.checkpointIds : [],
@@ -164,6 +178,7 @@ export class AgentSessionRegistry {
       }
       this.dropEmptyOrphans()
       this.loadOk = true
+      if (clearedInjection) this.persist()
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
         // Fresh start: no store yet, writes proceed.
@@ -530,6 +545,7 @@ export class AgentSessionRegistry {
     if (!record.transcriptPath && duplicate.transcriptPath) {
       record.transcriptPath = duplicate.transcriptPath
     }
+    if (!record.title && duplicate.title) record.title = duplicate.title
     if (record.turns.length === 0 && duplicate.turns.length > 0) {
       record.turns = duplicate.turns
     }
@@ -646,6 +662,7 @@ export class AgentSessionRegistry {
     const createdAt = toImportTimestamp(input.createdAt) ?? toImportTimestamp(input.updatedAt) ?? now
     const updatedAt = toImportTimestamp(input.updatedAt) ?? toImportTimestamp(input.createdAt) ?? now
     const firstPrompt = input.firstPrompt.trim()
+    const title = input.title?.trim()
     const lastExcerpt = input.lastExcerpt?.trim() ? input.lastExcerpt.trim() : undefined
     const turnCount = Number.isFinite(input.turnCount) ? Math.max(0, Math.floor(input.turnCount)) : 0
 
@@ -666,8 +683,10 @@ export class AgentSessionRegistry {
       // conversation never becomes two cards.
       Array.from(this.sessions.values()).find((record) => this.sameConversation(record, scanIdentity))
     if (existing) {
+      const titleChanged = Boolean(title && title !== existing.title)
+      if (titleChanged) existing.title = title
       if (existing.external !== true) {
-        let changed = false
+        let changed = titleChanged
         if (!existing.providerSessionId) {
           existing.providerSessionId = providerSessionId
           changed = true
@@ -695,7 +714,7 @@ export class AgentSessionRegistry {
         }
         return existing
       }
-      let changed = false
+      let changed = titleChanged
       if (this.updateTranscriptProjection(existing, input, updatedAt, turnCount)) changed = true
       // Transcript is display truth for external rows: a rescan heals stale
       // first prompts (pre-fix rows stored the AGENTS.md injection as title)
@@ -761,6 +780,7 @@ export class AgentSessionRegistry {
       command: undefined,
       args: undefined,
       firstPrompt,
+      ...(title ? { title } : {}),
       lastPrompt: firstPrompt,
       turnCount,
       checkpointCount: 0,
@@ -908,6 +928,13 @@ export class AgentSessionRegistry {
 }
 
 function toSummary(record: AgentSessionRecord): AgentSessionSummary {
+  const ledgerTime = record.turns.at(-1)?.endedAt ?? ''
+  const turns = record.transcriptPreview && (record.transcriptUpdatedAt ?? '') >= ledgerTime
+    ? record.transcriptPreview : record.turns
+  const recent = turns.at(-1)
+  const conversationPreview = [recent?.prompt, recent?.excerpt]
+    .filter((text): text is string => typeof text === 'string' && Boolean(text.trim()) && !isEnvironmentInjectionText(text))
+    .map(text => text.trim().replace(/\s+/g, ' ')).join(' · ').slice(0, 500)
   return {
     id: record.id,
     workspaceId: record.workspaceId,
@@ -915,6 +942,8 @@ function toSummary(record: AgentSessionRecord): AgentSessionSummary {
     cwd: record.cwd,
     branch: record.branch,
     firstPrompt: record.firstPrompt,
+    ...(record.title ? { title: record.title } : {}),
+    ...(conversationPreview ? { conversationPreview } : {}),
     turnCount: record.external ? record.turnCount : Math.max(record.turnCount, record.transcriptTurnCount ?? 0),
     checkpointCount: record.checkpointIds.length,
     status: toStatus(record),

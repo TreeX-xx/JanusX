@@ -1,6 +1,10 @@
 // Note: external provider sessions import by transcript backfill — see
 // .agents/notes/sessions/records/external-session-backfill.md
+// Provider titles and first-prompt separation:
+// .agents/notes/sessions/records/session-content-truth-kernel.md
 import { readdir, stat } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import {
@@ -77,6 +81,7 @@ interface ParsedTranscript {
   providerSessionId: string
   cwd: string
   firstPrompt: string
+  title?: string
   lastExcerpt?: string
   turnCount: number
   preview: TranscriptTurn[]
@@ -146,6 +151,27 @@ function piSessionIdFromFilename(path: string): string | undefined {
 // Per-registry cache: unchanged polling passes avoid re-reading tool-heavy files.
 const parsedFiles = new WeakMap<ExternalSessionSink, Map<string, { mtimeMs: number; size: number; parsed: ParsedTranscript | null }>>()
 
+/** Read on each scan: Codex can rename a thread without changing its rollout. */
+async function codexThreadTitles(store: string): Promise<Map<string, string>> {
+  const titles = new Map<string, string>()
+  const source = createReadStream(join(dirname(store), 'session_index.jsonl'), { encoding: 'utf8' })
+  const lines = createInterface({ input: source, crlfDelay: Infinity })
+  try {
+    for await (const line of lines) {
+      const row = parseJsonLine(line)
+      if (typeof row?.id !== 'string' || typeof row.thread_name !== 'string') continue
+      const title = row.thread_name.trim()
+      if (title) titles.set(row.id, title)
+    }
+  } catch {
+    // Older CLIs have no index; rollout content remains available.
+  } finally {
+    lines.close()
+    source.destroy()
+  }
+  return titles
+}
+
 async function parseFile(candidate: FileCandidate, engine: 'claude' | 'codex' | 'pi'): Promise<ParsedTranscript | null> {
   const snapshot = await readTranscriptSnapshot(candidate.path, engine, 2)
   if (!snapshot) return null
@@ -155,7 +181,7 @@ async function parseFile(candidate: FileCandidate, engine: 'claude' | 'codex' | 
   const cwd = snapshot.cwd ?? (engine === 'pi' ? decodePiSlugDir(basename(dirname(candidate.path))) : undefined)
   if (!providerSessionId || !cwd || (!snapshot.firstPrompt && !snapshot.lastExcerpt)) return null
   return {
-    providerSessionId, cwd, firstPrompt: snapshot.firstPrompt,
+    providerSessionId, cwd, firstPrompt: snapshot.firstPrompt, title: snapshot.title,
     lastExcerpt: snapshot.lastExcerpt ? truncate(snapshot.lastExcerpt) : undefined,
     turnCount: snapshot.totalTurns,
     preview: snapshot.turns.map((turn) => ({
@@ -192,6 +218,7 @@ async function scanOpencodeStore(
       providerSessionId: row.providerSessionId,
       transcriptPath: dbPath,
       firstPrompt: row.firstPrompt,
+      title: row.title,
       ...(row.lastExcerpt ? { lastExcerpt: row.lastExcerpt } : {}),
       turnCount: row.turnCount,
       ...(row.createdAt ? { createdAt: row.createdAt } : {}),
@@ -245,6 +272,7 @@ export async function scanExternalSessions(
         continue
       }
       const candidates = await collectCandidates(store, maxFiles)
+      const titles = engine === 'codex' ? await codexThreadTitles(store) : undefined
       for (const candidate of candidates) {
         summary.scanned += 1
         visited.add(candidate.path)
@@ -263,6 +291,7 @@ export async function scanExternalSessions(
           providerSessionId: parsed.providerSessionId,
           transcriptPath: candidate.path,
           firstPrompt: parsed.firstPrompt,
+          title: titles?.get(parsed.providerSessionId) ?? parsed.title,
           ...(parsed.lastExcerpt ? { lastExcerpt: parsed.lastExcerpt } : {}),
           turnCount: parsed.turnCount,
           preview: parsed.preview,
