@@ -632,30 +632,7 @@
 }
 
 /* 閿欒鍗＄墖 */
-.janus-chat-error-card {
-  align-self: flex-start;
-  max-width: 90%;
-  padding: 8px 10px;
-  margin-top: 4px;
-  background: color-mix(in srgb, var(--status-danger) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--status-danger) 20%, transparent);
-  border-radius: 10px;
-  animation: message-in 0.3s ease-out;
-}
 
-.janus-chat-error-text {
-  font-size: 10px;
-  color: var(--status-danger);
-  line-height: 1.5;
-}
-
-.janus-chat-error-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.janus-chat-retry,
 .janus-chat-config-llm {
   font-size: 9px;
   padding: 3px 8px;
@@ -667,7 +644,6 @@
   transition: all 0.2s;
 }
 
-.janus-chat-retry:hover,
 .janus-chat-config-llm:hover {
   background: color-mix(in srgb, var(--surface-tint) 10%, transparent);
   border-color: var(--accent-color, var(--janus-current));

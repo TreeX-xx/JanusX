@@ -1705,28 +1705,6 @@
   justify-content: flex-start;
 }
 
-.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-error-card {
-  align-self: flex-start;
-  max-width: min(360px, 72%);
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--status-danger) 18%, transparent);
-  border-left: 2px solid color-mix(in srgb, var(--status-danger) 76%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--shell-pane) 22%, transparent);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 24%, transparent);
-}
-
-.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-error-text {
-  color: color-mix(in srgb, var(--status-danger) 90%, transparent);
-  font-size: 12px;
-}
-
-.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-error-actions {
-  justify-content: flex-start;
-}
-
-.janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-retry,
 .janus-island-shell[data-stage="expanded"][data-view="chat"] .janus-chat-config-llm {
   height: 26px;
   border-radius: 6px;

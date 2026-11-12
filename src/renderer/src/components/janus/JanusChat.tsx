@@ -13,6 +13,7 @@ import type { AgentResultCard } from '../../../../shared/roundtable/events'
 import { AgentResultCard as AgentResultCardView } from './AgentResultCard'
 import { useOptionalJanusChatController } from './JanusChatProvider'
 import { MarkdownContent, StreamingText } from '../chat/ChatContent'
+import { ChatErrorCard } from '../chat/ChatErrorCard'
 import { useI18n } from '@/i18n/useI18n'
 import { PromptDialog } from '../common/PromptDialog'
 import { ToolCallGroup } from './ToolCallCard'
@@ -1607,15 +1608,11 @@ export function JanusChat({
         )}
 
         {error && (
-          <div className="janus-chat-error-card">
-            {isStreaming && <div role="status">{t('janus:chat.recoveringTools')}</div>}
-            <div className="janus-chat-error-text">{error}</div>
-            <div className="janus-chat-error-actions">
-              <button className="janus-chat-retry" onClick={handleRetry} disabled={isStreaming}>
+          <ChatErrorCard message={error}
+            status={isStreaming && <div role="status">{t('janus:chat.recoveringTools')}</div>}
+            actions={<button type="button" onClick={handleRetry} disabled={isStreaming}>
                 {t('common:action.retry')}
-              </button>
-            </div>
-          </div>
+              </button>} />
         )}
 
         {discussionFooter}

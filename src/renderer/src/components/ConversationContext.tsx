@@ -7,6 +7,7 @@ import { setConversationReferences } from '../stores/conversation-context'
 import { readWorkspaceFileDragData, hasWorkspaceFileDrag } from '../lib/terminal-file-reference'
 import styles from './AgentSessionPane.module.css'
 import type { ConversationInputHandle } from './ConversationInput'
+import { ChatErrorCard } from './chat/ChatErrorCard'
 
 export function ConversationContext({ inputRef, terminalId, workspacePath, references, draft, setDraft, disabled, onImporting, open, onOpenChange, pickerActive, children }: {
   inputRef: RefObject<ConversationInputHandle>
@@ -81,9 +82,10 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     })
     inputRef.current?.insertReferences(inline, range)
   }
-  const add = (ref: ConversationReference, range?: [number, number]) => addReferences([ref], range)
+  const add = (ref: ConversationReference, range?: [number, number]) => { setError(''); addReferences([ref], range) }
   const importFiles = async (files: File[]) => {
     if (disabled || importLock.current || !files.length) return
+    setError('')
     if (activeReferences.length + files.length > MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
     if (files.some(file => !file.size || file.size > MAX_CONVERSATION_ATTACHMENT_BYTES)) { setError(t('conversation.context.size')); return }
     const editor = inputRef.current
@@ -138,7 +140,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
         {!matches.length && !error && <p className={styles.pickerMessage}>{t('conversation.context.empty')}</p>}
       </>}
     </div>
-    {error && <p className={styles.pickerMessage} role="alert">{error}</p>}
+    {error && <ChatErrorCard message={error} onDismiss={() => { setError(''); focusInput() }} />}
   </>
   const attachmentControl = <div ref={addControl} className={styles.contextAdd} onBlur={event => {
     if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
@@ -196,7 +198,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     <input ref={picker} type="file" multiple hidden onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />
     {importing && <span role="status">{t('conversation.context.importing')}</span>}
     {browsing && !open && <div className={styles.commandPanel} aria-label={t('conversation.context.reference')}>{fileList}</div>}
-    {error && !browsing && <p className={styles.error} role="alert">{error}</p>}
+    {error && !browsing && <ChatErrorCard message={error} onDismiss={() => { setError(''); focusInput() }} />}
     {children(attachmentControl)}
   </div>
 }

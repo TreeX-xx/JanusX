@@ -53,6 +53,25 @@ async function openHosts(page: Page, theme: string) {
 }
 
 for (const theme of ['planche', 'dark', 'white']) {
+  test(`${theme}: shared error card preserves SuperAgent retry`, async ({ page }) => {
+    const hosts = await openHosts(page, theme)
+    await page.evaluate(() => {
+      const fixture = (window as any).projectFixture
+      for (const request of [...fixture.streams]) fixture.emitAgentEvent({ type: 'stream_error', requestId: request.requestId, error: 'Fixture provider unavailable' })
+    })
+    for (const host of hosts) {
+      const card = host.locator('[data-chat-error-card]')
+      await expect(card.getByRole('alert')).toHaveText('Fixture provider unavailable')
+      await expect(card).toHaveCSS('border-radius', '8px')
+      await expect(card.getByRole('button', { name: 'Retry', exact: true })).toBeEnabled()
+    }
+    await page.screenshot({ path: test.info().outputPath(`${theme}-errors.png`) })
+    await hosts[0].getByRole('button', { name: 'Retry', exact: true }).click()
+    await expect(hosts[0].locator('[data-chat-error-card]')).toHaveCount(0)
+    await expect(hosts[0].locator('.janus-chat-turn-status')).toBeVisible()
+    await expect(hosts[1].locator('[data-chat-error-card]')).toBeVisible()
+  })
+
   test(`${theme}: real Island uses the shared feedback palette`, async ({ page }) => {
     await page.goto('/')
     await setTheme(page, theme)

@@ -1251,23 +1251,12 @@ body.is-running[data-theme='planche'] {
   color: var(--planche-red, var(--shell-accent));
 }
 
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-error-card {
-  background: var(--paper, var(--shell-canvas));
-  border: 1px solid var(--shell-accent-border);
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-error-text {
-  color: var(--planche-red, var(--shell-accent));
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-retry,
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-config-llm {
   background: transparent;
   border: 1px solid var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
   color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-retry:hover,
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-config-llm:hover {
   background: var(--paper-deep, var(--shell-hover));
   border-color: var(--planche-red, var(--shell-accent));
