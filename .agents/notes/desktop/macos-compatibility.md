@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-12T08:18:33Z",
+  "updated": "2026-11-12T10:46:05Z",
   "class": "architecture",
   "tags": ["macos", "compatibility", "distribution"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
@@ -91,5 +91,7 @@ MAC-12 / 低：红黄绿按钮已按平台调整位置与顺序，但 [WindowCon
 Mac 自动更新需签名应用及 ZIP 更新产物，并配套 `latest-mac.yml` 等对应渠道元数据，不能只上传 DMG。[electron-builder 官方更新文档](https://www.electron.build/docs/features/auto-update/)说明了这两个条件；实现时应同时对照仓库固定的 builder/updater 版本，不能把新版本文档特性直接假定为当前版本已有。
 
 ## 未决项
+
+MAC-10 的跨平台回收机制及 Windows／SuperAgent 对照已扩展到[退出与资源回收](./application-shutdown.md)。该专题包含实际 Windows 安装副本测试、退出期间重启的故障注入复现、公共清理预算问题及实施顺序；Mac 进程组回收和 Cmd+Q 实机证据仍未取得。Mac 关闭最后一个窗口后的正常保活与真正退出后的非预期残留需分别验收。
 
 尚需确定最低 macOS 版本、首批公开支持的架构、可用 Mac／签名身份、Claude 双模式的首发支持策略，以及正式更新渠道。目前只完成调查与记录，上述修复和 Mac 发布均未执行。后续修复应按问题编号维护本篇状态，并将完成证据落到对应功能的 owning Note，避免将风险清单长期保留成过期结论。
