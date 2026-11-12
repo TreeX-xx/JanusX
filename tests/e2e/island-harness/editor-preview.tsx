@@ -25,7 +25,7 @@ const files: Record<string, string> = { 'C:/fixture/notes.md': markdown, 'C:/fix
 const harness = {
   baselines: {} as Record<string, string>,
   baselineCalls: 0, saves: [] as string[], links: [] as string[], closed: 0, failSave: false,
-  copiedPaths: [] as string[], revealedPaths: [] as string[][], failPathAction: false,
+  copiedPaths: [] as string[], revealedPaths: [] as string[], failPathAction: false,
   editors: () => monaco.editor.getEditors(),
   diffEditors: () => monaco.editor.getDiffEditors(),
   state: () => useEditorStore.getState(),
@@ -45,9 +45,9 @@ Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
     harness.copiedPaths.push(value)
   },
 } })
-Object.assign(window.electron.fileTree, {
-  reveal: async (root: string, path: string) => {
-    harness.revealedPaths.push([root, path])
+Object.assign(window.electron.file, {
+  reveal: async (path: string) => {
+    harness.revealedPaths.push(path)
     return harness.failPathAction ? { success: false, error: 'Fixture: reveal failed' } : { success: true }
   },
 })

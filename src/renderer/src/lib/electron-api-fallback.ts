@@ -63,6 +63,7 @@ export function installElectronApiFallback(): void {
       save: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
       readBinary: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
       stat: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
+      reveal: () => Promise.resolve({ success: false, error: 'Electron file API is unavailable' }),
     },
     terminal: {
       conversation: () => Promise.resolve(null),
