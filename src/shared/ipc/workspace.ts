@@ -22,6 +22,7 @@ export const FILE_TREE_CHANNELS = {
 } as const
 
 export const FILE_CHANNELS = {
+  reveal: 'file:reveal',
   importConversationAttachment: 'file:conversation-attachment',
   read: 'file:read',
   save: 'file:save',
@@ -163,6 +164,7 @@ export interface HtmlPreviewRequest { workspacePath: string; documentPath: strin
 export interface HtmlPreviewLease { id: string; url: string }
 
 export interface FileAPI {
+  reveal(filePath: string): Promise<OperationResult>
   importConversationAttachment(name: string, bytes: Uint8Array): Promise<import('../conversation-context').ConversationReference>
   openPreviewLink(url: string): Promise<void>
   openHtmlPreview(request: HtmlPreviewRequest): Promise<HtmlPreviewLease>

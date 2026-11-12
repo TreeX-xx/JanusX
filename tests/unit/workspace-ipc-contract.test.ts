@@ -1,4 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { join, normalize } from 'node:path'
+import { tmpdir } from 'node:os'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import {
   FILE_CHANNELS,
   FILE_TREE_CHANNELS,
@@ -12,6 +15,7 @@ const invoke = vi.fn()
 const on = vi.fn()
 const removeListener = vi.fn()
 const handle = vi.fn()
+const showItemInFolder = vi.fn()
 let exposedApi: {
   workspace: WorkspaceAPI
   fileTree: FileTreeAPI
@@ -29,7 +33,7 @@ vi.mock('electron', () => ({
   dialog: {},
   ipcMain: { handle },
   ipcRenderer: { invoke, send: vi.fn(), on, removeListener },
-  shell: {},
+  shell: { showItemInFolder },
 }))
 
 beforeAll(async () => {
@@ -45,6 +49,7 @@ describe('Workspace/File IPC contract', () => {
     invoke.mockReset()
     on.mockReset()
     removeListener.mockReset()
+    showItemInFolder.mockReset()
   })
 
   it('defines unique channels and registers every invoke handler from shared constants', () => {
@@ -73,6 +78,30 @@ describe('Workspace/File IPC contract', () => {
     expect(invoke).toHaveBeenNthCalledWith(4, FILE_CHANNELS.save, 'C:\\workspace\\demo\\note.md', 'content')
     await exposedApi.file.save('C:\\workspace\\demo\\note.md', 'draft', 'a'.repeat(64))
     expect(invoke).toHaveBeenNthCalledWith(5, FILE_CHANNELS.save, 'C:\\workspace\\demo\\note.md', 'draft', 'a'.repeat(64))
+    await exposedApi.file.reveal('C:\\outside\\中文 空格.md')
+    expect(invoke).toHaveBeenNthCalledWith(6, FILE_CHANNELS.reveal, 'C:\\outside\\中文 空格.md')
+  })
+
+  it('reveals an existing absolute file, reports missing files and rejects nonlocal paths', async () => {
+    const reveal = handle.mock.calls.find(([channel]) => channel === FILE_CHANNELS.reveal)![1]
+    const frame = {}, event = { senderFrame: frame, sender: { mainFrame: frame } }
+    const folder = await mkdtemp(join(tmpdir(), 'janusx-reveal-'))
+    try {
+      const file = join(folder, '中文 空格.md')
+      await writeFile(file, 'preview')
+      await expect(reveal(event, file)).resolves.toEqual({ success: true })
+      expect(showItemInFolder).toHaveBeenCalledWith(normalize(file))
+      showItemInFolder.mockClear()
+      for (const path of [join(folder, 'missing.md'), '../relative.md', 'janusx-workspace://remote/home/a.md', 'https://example.com/a.md', 'bad\0path']) {
+        await expect(reveal(event, path)).resolves.toMatchObject({ success: false, error: expect.any(String) })
+      }
+      await expect(reveal({ ...event, senderFrame: {} }, file)).resolves.toMatchObject({ success: false })
+      expect(showItemInFolder).not.toHaveBeenCalled()
+      showItemInFolder.mockImplementationOnce(() => { throw new Error('Explorer unavailable') })
+      await expect(reveal(event, file)).resolves.toEqual({ success: false, error: 'Explorer unavailable' })
+    } finally {
+      await rm(folder, { recursive: true, force: true })
+    }
   })
 
   it('preserves file-tree event payload and unsubscribe semantics', () => {

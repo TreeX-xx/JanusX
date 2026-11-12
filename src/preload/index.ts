@@ -151,6 +151,7 @@ const fileAPI: FileAPI = {
   closeHtmlPreview: (id) => ipcRenderer.invoke(FILE_CHANNELS.closeHtmlPreview, id),
   readBinary: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.readBinary, filePath),
   stat: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.stat, filePath),
+  reveal: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.reveal, filePath),
 }
 
 function subscribeIpcEvent<T>(channel: string, callback: (event: T) => void): () => void {

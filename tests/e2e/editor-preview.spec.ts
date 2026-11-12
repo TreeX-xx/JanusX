@@ -22,11 +22,20 @@ for (const embedded of [false, true]) {
     expect(await page.evaluate(() => (window as any).previewHarness.copiedPaths)).toEqual(['C:/fixture/notes.md', 'C:/fixture/中文 空格.bin'])
     await more.click()
     await page.getByRole('button', { name: '在资源管理器中显示', exact: true }).click()
-    expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths)).toEqual([['C:/fixture', '中文 空格.bin']])
+    expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths)).toEqual(['C:/fixture/中文 空格.bin'])
     await page.locator('[data-editor-tab]').filter({ hasText: 'notes.md' }).click()
     await more.click()
     await page.getByRole('button', { name: '在资源管理器中显示', exact: true }).click()
-    expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths)).toEqual([['C:/fixture', '中文 空格.bin'], ['C:/fixture', 'notes.md']])
+    expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths)).toEqual(['C:/fixture/中文 空格.bin', 'C:/fixture/notes.md'])
+    for (const path of ['C:\\Fixture\\中文 空格.md', 'D:/outside/报告.md', '//server/share/notes.md']) {
+      await page.evaluate(path => (window as any).previewHarness.state().openFile(path, 'C:/fixture'), path)
+      await more.click()
+      await page.getByRole('button', { name: '在资源管理器中显示', exact: true }).click()
+      expect(await page.evaluate(() => (window as any).previewHarness.revealedPaths.at(-1))).toBe(path)
+    }
+    await page.evaluate(() => (window as any).previewHarness.state().openFile('janusx-workspace://remote/home/notes.md', 'C:/fixture'))
+    await more.click()
+    await expect(page.getByRole('button', { name: '在资源管理器中显示', exact: true })).toBeDisabled()
   })
 }
 
@@ -37,9 +46,13 @@ test('file path failures are visible and can be retried without changing the doc
     await more.click()
     await page.getByRole('button', { name, exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: '文件操作失败' })).toBeVisible()
+    await expect(page.getByRole('alert').filter({ hasText: '文件操作失败' })).toContainText(name === '复制绝对路径' ? 'Fixture: clipboard unavailable' : 'Fixture: reveal failed')
     await expect(page.locator('[data-editor-tab]')).toHaveCount(1)
   }
   await page.evaluate(() => { (window as any).previewHarness.failPathAction = false })
+  await more.click()
+  await page.getByRole('button', { name: '在资源管理器中显示', exact: true }).click()
+  await expect(page.getByRole('alert').filter({ hasText: '文件操作失败' })).toHaveCount(0)
   await more.click()
   await page.getByRole('button', { name: '复制绝对路径', exact: true }).click()
   await expect(page.getByRole('alert').filter({ hasText: '文件操作失败' })).toHaveCount(0)
