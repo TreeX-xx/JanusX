@@ -86,4 +86,22 @@ describe('Office external launcher', () => {
     expect(output).toHaveBeenCalledWith(expect.stringContaining('"state":"ready"'))
     output.mockRestore()
   })
+
+  it('resolves macOS resources and the explicit override through the launcher', async () => {
+    const root = await temp()
+    const bundled = join(root, 'officecli', `darwin-${process.arch}`, 'officecli')
+    await mkdir(join(bundled, '..'), { recursive: true })
+    await writeFile(bundled, 'binary')
+    const output = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    try {
+      await runOfficeLauncher(['status'], { resourcesPath: root, platform: 'darwin', env: {} })
+      expect(JSON.parse(output.mock.calls.at(-1)![0] as string)).toMatchObject({ state: 'ready', binary: bundled })
+      const override = join(root, 'override')
+      await writeFile(override, 'binary')
+      await runOfficeLauncher(['status'], { resourcesPath: root, platform: 'darwin', env: { JANUSX_OFFICECLI_BINARY: override } })
+      expect(JSON.parse(output.mock.calls.at(-1)![0] as string)).toMatchObject({ state: 'ready', binary: override })
+    } finally {
+      output.mockRestore()
+    }
+  })
 })

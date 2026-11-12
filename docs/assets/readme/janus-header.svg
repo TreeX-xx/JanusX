@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="96" viewBox="0 0 360 96" role="img" aria-labelledby="title">
+  <title id="title">JanusX</title>
+  <style>
+    .shell { fill: #141414; stroke: #45484d; }
+    .eyes { fill: #f5f5f5; }
+    .word { fill: #1f2328; }
+    .accent { fill: #ff7b32; }
+    @media (prefers-color-scheme: dark) {
+      .shell { stroke: #626973; }
+      .word { fill: #f0f6fc; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .eyes { transform-origin: 66px 48px; animation: blink 8s ease-in-out infinite; }
+    }
+    @keyframes blink {
+      0%, 44%, 48%, 100% { transform: scaleY(1); }
+      46% { transform: scaleY(.12); }
+    }
+  </style>
+  <rect class="shell" x="18" y="24" width="96" height="48" rx="24" stroke-width="1.5"/>
+  <g class="eyes">
+    <rect x="48.5" y="39" width="14.5" height="18" rx="1"/>
+    <rect x="69" y="39" width="14.5" height="18" rx="1"/>
+  </g>
+  <!-- Pixel grid shared with the in-app Janus wordmark. -->
+  <g transform="translate(140 31.5) scale(.75)" shape-rendering="crispEdges">
+    <path class="word" d="M18 0h8v8h-8z M27 0h8v8h-8z M27 9h8v8h-8z M27 18h8v8h-8z M0 27h8v8h-8z M27 27h8v8h-8z M9 36h8v8h-8z M18 36h8v8h-8z M54 0h8v8h-8z M63 0h8v8h-8z M45 9h8v8h-8z M72 9h8v8h-8z M45 18h8v8h-8z M54 18h8v8h-8z M63 18h8v8h-8z M72 18h8v8h-8z M45 27h8v8h-8z M72 27h8v8h-8z M45 36h8v8h-8z M72 36h8v8h-8z M90 0h8v8h-8z M117 0h8v8h-8z M90 9h8v8h-8z M99 9h8v8h-8z M117 9h8v8h-8z M90 18h8v8h-8z M108 18h8v8h-8z M117 18h8v8h-8z M90 27h8v8h-8z M117 27h8v8h-8z M90 36h8v8h-8z M117 36h8v8h-8z M135 0h8v8h-8z M162 0h8v8h-8z M135 9h8v8h-8z M162 9h8v8h-8z M135 18h8v8h-8z M162 18h8v8h-8z M135 27h8v8h-8z M162 27h8v8h-8z M144 36h8v8h-8z M153 36h8v8h-8z M189 0h8v8h-8z M198 0h8v8h-8z M207 0h8v8h-8z M180 9h8v8h-8z M189 18h8v8h-8z M198 18h8v8h-8z M207 27h8v8h-8z M180 36h8v8h-8z M189 36h8v8h-8z M198 36h8v8h-8z M261 0h8v8h-8z M252 9h8v8h-8z M234 27h8v8h-8z M225 36h8v8h-8z"/>
+    <path class="accent" d="M225 0h8v8h-8z M234 9h8v8h-8z M243 18h8v8h-8z M252 27h8v8h-8z M261 36h8v8h-8z"/>
+  </g>
+</svg>

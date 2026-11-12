@@ -1,0 +1,55 @@
+.card {
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  margin: 4px 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--status-danger) 18%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--status-danger) 76%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--shell-pane) 22%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 24%, transparent);
+}
+
+.text {
+  color: color-mix(in srgb, var(--status-danger) 90%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.actions > button {
+  height: 26px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--surface-tint) 10%, transparent);
+  background: color-mix(in srgb, var(--surface-tint) 5.5%, transparent);
+  color: var(--shell-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.actions > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-tint) 10%, transparent);
+  border-color: var(--shell-accent);
+  color: var(--shell-accent);
+}
+.actions > button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+.actions > button:disabled { opacity: 0.5; cursor: default; }
+
+:global([data-theme='planche']) .card {
+  background: var(--paper, var(--shell-canvas));
+  border: 1px solid var(--shell-accent-border);
+}
+:global([data-theme='planche']) .text { color: var(--planche-red, var(--shell-accent)); }
+:global([data-theme='planche']) .actions > button {
+  background: transparent;
+  border-color: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
+  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
+}
+:global([data-theme='planche']) .actions > button:hover:not(:disabled) {
+  background: var(--paper-deep, var(--shell-hover));
+  border-color: var(--planche-red, var(--shell-accent));
+  color: var(--planche-red, var(--shell-accent));
+}

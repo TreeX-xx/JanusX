@@ -19,6 +19,17 @@ test('dropped and pasted images preview before sending and survive remount', asy
     const preview = page.getByRole('button', { name: `Preview image: ${method}.png`, exact: true })
     await expect(preview.locator('img')).toBeVisible()
     await expect.poll(() => preview.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1)
+    // Measure the text beside the chip, not its containing line box: an image
+    // must not supply the baseline for the whole inline reference.
+    const alignment = await input.evaluate(element => {
+      const text = [...element.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent?.includes('Keep my draft'))!
+      const range = document.createRange()
+      range.selectNodeContents(text)
+      const textRect = range.getBoundingClientRect()
+      const chipRect = element.querySelector('[data-reference-token]')!.getBoundingClientRect()
+      return Math.abs((textRect.top + textRect.bottom) / 2 - (chipRect.top + chipRect.bottom) / 2)
+    })
+    expect(alignment).toBeLessThanOrEqual(3)
   }
   await page.getByRole('button', { name: 'Remount', exact: true }).click()
   const preview = page.getByRole('button', { name: 'Preview image: drop.png', exact: true })

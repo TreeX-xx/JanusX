@@ -102,6 +102,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   const { t } = useTranslation('terminal')
   const root = useRef<HTMLDivElement>(null)
   const caret = useRef<[number, number]>([value.length, value.length])
+  const pendingInsertion = useRef<{ range: Range } | null>(null)
   const composing = useRef(false)
   const latest = useRef({ value, references, onChange }); latest.current = { value, references, onChange }
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null)
@@ -130,13 +131,19 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     }
     return result
   }
-  const restore = (editor: HTMLElement, text: string) => {
+  const draftFragment = (text: string, refs = latest.current.references) => {
     const lines = text.split('\n')
-    editor.replaceChildren(...(lines.length === 1 ? Array.from(fragment(text).childNodes) : lines.map(line => {
-      const block = fragment(line)
+    if (lines.length === 1) return fragment(text, refs)
+    const result = document.createElement('div')
+    for (const line of lines) {
+      const block = fragment(line, refs)
       if (!line) block.replaceChildren(document.createElement('br'))
-      return block
-    })))
+      result.append(block)
+    }
+    return result
+  }
+  const restore = (editor: HTMLElement, text: string) => {
+    editor.replaceChildren(...Array.from(draftFragment(text).childNodes))
     editor.dataset.inputEmpty = String(text.length === 0)
   }
   const publish = () => {
@@ -152,9 +159,35 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   }
   const insert = (text: string, refs = latest.current.references, range = caret.current) => {
     if (!root.current || disabled) return
-    root.current.focus(); select(root.current, ...range)
+    const editor = root.current
+    const content = fragment(text, refs)
+    const current = read(editor)
+    editor.focus()
+    if (content.querySelector('[data-reference-token]') && (current.includes('\n') || text.includes('\n'))) {
+      // Chromium lifts non-editable chips out of a paragraph at its boundaries.
+      // Insert complete lines in one native undo transaction instead of replacing
+      // the DOM directly, which would bypass the browser's undo history.
+      const next = current.slice(0, range[0]) + text + current.slice(range[1])
+      const pending = pendingInsertion.current
+      const pendingOffsets = pending && offsets(editor, pending.range)
+      const all = document.createRange(); all.selectNodeContents(editor)
+      const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(all)
+      document.execCommand('insertHTML', false, draftFragment(next, refs).innerHTML)
+      // A directory reference can be dropped while an attachment is importing.
+      // Re-anchor its live range after rebuilding lines, then restore our caret.
+      if (pending && pendingOffsets) {
+        const rebase = (offset: number) => offset <= range[0] ? offset
+          : offset >= range[1] ? offset + text.length - (range[1] - range[0]) : range[0] + text.length
+        select(editor, rebase(pendingOffsets[0]), rebase(pendingOffsets[1]))
+        pending.range = window.getSelection()!.getRangeAt(0).cloneRange()
+      }
+      select(editor, range[0] + text.length, range[0] + text.length)
+      publish()
+      return
+    }
+    select(editor, ...range)
     // Chromium's editing command keeps insertion/deletion in its native undo stack.
-    document.execCommand('insertHTML', false, fragment(text, refs).innerHTML)
+    document.execCommand('insertHTML', false, content.innerHTML)
     publish()
   }
   useImperativeHandle(ref, () => ({
@@ -171,8 +204,12 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
       select(editor, ...caret.current)
       // A live DOM Range follows edits before the drop point without following
       // subsequent caret moves while the attachment is being imported.
-      const range = window.getSelection()!.getRangeAt(0).cloneRange()
-      return () => offsets(editor, range) ?? [read(editor).length, read(editor).length]
+      const pending = { range: window.getSelection()!.getRangeAt(0).cloneRange() }
+      pendingInsertion.current = pending
+      return () => {
+        if (pendingInsertion.current === pending) pendingInsertion.current = null
+        return offsets(editor, pending.range) ?? [read(editor).length, read(editor).length]
+      }
     },
     setDropPoint(x, y) {
       const range = document.caretRangeFromPoint(x, y)

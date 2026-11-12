@@ -51,8 +51,10 @@ desktop.ini
 *.swp
 *.swo
 
-# Downloaded and checksum-verified by release-win before packaging.
+# Downloaded and checksum-verified by officecli:prepare before packaging.
 resources/officecli/*.exe
+resources/officecli/*.tmp
+resources/officecli/darwin-*/
 
 # Environment / secrets
 .env

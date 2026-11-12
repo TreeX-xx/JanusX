@@ -6,7 +6,7 @@
   "lifecycle": "implemented",
   "created": "2026-10-03",
   "class": "simplification",
-  "updated": "2026-10-27T12:01:13.611Z",
+  "updated": "2026-11-12T02:13:43.694Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -18,6 +18,26 @@
 README 演示需要独立调整单个功能的步骤、文案与节奏。分屏脚本独有的启动和鼠标逻辑、集中存放所有字幕的 HTML，以及硬编码的本机编码工具路径，使修改一个功能时还要追踪其他入口。录制参数与 GIF 编码器的延时单位不一致，也会让预期停留时间失真。产物工作区需要在基础功能区提供可复现的真实操作演示。
 
 ## Decision
+
+### README 改版审阅素材
+
+中英文 README 已接入两张经典黑素材。[工作台首图](../../../docs/assets/readme/workbench-overview.png) 为同一项目的两个独立会话，左侧为 Claude Code 原生终端（Opus 5.5），右侧为 Codex 对话（GPT-6 Astra）。[分屏动图](../../../docs/assets/readme/terminal-split.gif) 从同窗格两个对话标签开始，拖出 Codex，把分隔比例从 50 调到 43，再合回单窗格。素材来自隔离 Electron 实例和公共目录下的 Atlas 示例项目，回复由本地脚本生成。录制复用 record-motion.mjs，实际会话型号经核对。GIF 为 1804×850、10.95 秒，已核对窗格数、对话视图、标签归属与循环。
+
+[Codex 双视图动图](../../../docs/assets/readme/codex-dual-view.gif) 沿用 Atlas 分屏和 GPT-6 Astra，从对话切到原生终端，再切回对话。实录确认终端显示原来的问题和回答，Codex 的终端 ID、线程 ID、模型及消息 ID 和内容在来回切换中一致。两侧采用本地脚本回复。成品为 1804×850、6.78 秒。
+
+[Worktree 动图](../../../docs/assets/readme/worktree-parallel.gif) 在 Atlas 隔离项目里从 main 的 Claude Code 会话切到 feature/search-hint 的 Codex 会话。功能分支的五项测试实际执行通过，演示回复使用本地脚本。在 JanusX 的 Ship 窗口提交、查看差异并合并回 main，成功后切回原会话查看运行面板。已核对合并提交的两个父提交、合入文件、本地示例远端和同一个 HTTP 服务进程。GIF 为 1514×834、16.40 秒。
+
+中英文 README 的产品图片和演示统一直接展示，后续素材不添加图下小字。素材来源与验证记录留在本 Note。
+
+经典黑素材来自应用的原始帧。首图的应用区域保留截图颜色，外部留边是单独合成的底板。三个 GIF 的调色板先固定原始界面的大面积背景、窗格和输入区颜色，再分配文字和细节颜色。重编码后首帧的应用区域有 99.03%–99.58% 的像素与原始截图一致，主要界面色逐点核对通过。
+
+[右侧工作台动图](../../../docs/assets/readme/right-workbench.gif) 在隔离的 JanusX 实例中展示文件悬停预览、固定和搜索，Git 的实际改动和提交历史，托管仓库的议题和拉取请求，会话搜索和近期轮次，以及通过 Run now 执行本地提醒并查看结果。托管仓库与会话数据使用本地示例，文件和 Git 操作走真实示例仓库，自动化走实际宿主。收起面板后核对工作区宽度和 Codex 对话。成品为 1504×809、27.17 秒，调色板固定应用主要原色。
+
+[插件管理截图](../../../docs/assets/readme/plugin-management.png) 使用 JanusX 0.9.9 Windows x64 打包构建（8e82d40d）的隔离实例。通过设置页导入三个签名官方包，Blueprint 1.0.8 启用，CPA 1.0.0 与 Docker 1.0.0 保持停用。成品为经典黑设置弹窗的 1040×760 原始 PNG，保留原始界面色值。中英文 README 共用该图，已在 1280px 与 390px 本地浏览器预览中验证图片加载和原图链接。
+
+[蓝图工作台截图](../../../docs/assets/readme/blueprint-workbench.png) 来自隔离的 JanusX 0.9.9 Windows x64 打包构建（8e82d40d）和官方 Blueprint 1.0.8。左侧预览 Atlas 的「项目约定」，中间展示项目根节点、六个模块、两篇 Note 和两项决策，右侧用真实 Janus 对话界面展示一轮关于模块职责的问答，回复由本地示例脚本提供。已核对 11 张节点卡片与 10 条父级连线。两版 README 共用经典黑主题的 1760×940 原始 PNG，已在 1280px 和 390px 本地浏览器视口验证加载和原图链接。
+
+### 旧版录制基线
 
 2026-10-27：副黑板已退役，S2 录制及验证脚本改为 tools/switch/return 三个检查点，移除蓝图 fixture 与黑板交互依赖。README 已撤下旧 S2 动图，历史素材与下方来源/哈希保留，尚未重录，不用旧成品证明当前 UI。
 

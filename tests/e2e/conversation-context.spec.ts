@@ -1,5 +1,38 @@
 import { expect, test } from '@playwright/test'
 
+for (const theme of ['dark', 'planche', 'white']) test(`attachment errors use the shared dismissible chat card in ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 })
+  await page.goto(`/codex-conversation.html?initialView=conversation&theme=${theme}`)
+  const input = page.getByRole('combobox', { name: 'Message Codex' })
+  await input.fill('Keep my draft')
+  const dropEmpty = () => input.evaluate(element => {
+    const data = new DataTransfer()
+    data.items.add(new File([], 'folder'))
+    element.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }))
+  })
+  await dropEmpty()
+  const card = page.locator('[data-chat-error-card]')
+  await expect(card.getByRole('alert')).toHaveText('Each attachment must be between 1 byte and 10 MB.')
+  expect(await card.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await page.screenshot({ path: `artifacts/conversation-errors/attachment-${theme}.png` })
+  await card.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(card).toHaveCount(0)
+  await expect(input).toBeFocused()
+  await expect(input).toHaveText('Keep my draft')
+  await dropEmpty()
+  await expect(card).toBeVisible()
+  // A successful internal reference also clears the previous attachment error.
+  await input.evaluate(element => {
+    const data = new DataTransfer()
+    data.setData('application/x-janusx-workspace-file', JSON.stringify({ type: 'directory', name: 'src', path: 'src', workspacePath: 'C:/fixture' }))
+    element.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }))
+  })
+  await expect(card).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Remove src', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+})
+
 test('context references survive remount, support keyboard @ navigation and send native images', async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
   const input = page.getByRole('combobox', { name: 'Message Codex' })
