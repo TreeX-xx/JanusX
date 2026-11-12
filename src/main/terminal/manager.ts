@@ -1,6 +1,7 @@
 // Note: console configuration matching the reference terminal — see .agents/notes/terminal/ime-candidate-drift.md
 import { spawn, type IPty } from 'node-pty'
-import { spawn as spawnProcess } from 'node:child_process'
+import { stopProcessTree } from '../shutdown/process-tree'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 import { existsSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { delimiter, dirname, join } from 'node:path'
@@ -77,6 +78,7 @@ export class TerminalManager {
   private instances = new Map<string, TerminalInstance>()
 
   adopt(instance: TerminalInstance): void {
+    assertApplicationRunning()
     if (this.instances.has(instance.id)) throw new Error('Terminal is already attached')
     this.instances.set(instance.id, instance)
   }
@@ -177,6 +179,7 @@ export class TerminalManager {
   }
 
   create(config: TerminalConfig, officecliPathDir?: string): TerminalInstance {
+    assertApplicationRunning()
     const shell = config.shell || (process.platform === 'win32' ? 'powershell.exe' : 'bash')
     const file = config.program || shell
     const args = config.program ? (config.programArgs ?? []) : []
@@ -190,12 +193,7 @@ export class TerminalManager {
     if (existing) {
       if (existing.remote) throw new Error('A remote terminal cannot be replaced by a local process')
       this.releaseRuntime(existing)
-      try {
-        existing.pty.kill()
-      } catch {
-        // old pty may already be dead; ignore
-      }
-      this.killProcessTree(existing.pty.pid)
+      this.stopPty(existing)
       this.instances.delete(config.id)
     }
 
@@ -289,58 +287,43 @@ export class TerminalManager {
         void this.endRemote(id).catch(error => logTerminalDiagnostic('remote terminal end failed', { id, error: String(error) }))
         return
       }
-      const pid = instance.pty.pid
       this.releaseRuntime(instance)
-      try {
-        instance.pty.kill()
-      } catch {
-        // 进程可能已退出
-      }
-      this.killProcessTree(pid)
+      this.stopPty(instance)
       instance.status = 'exited'
       this.instances.delete(id)
     }
   }
 
-  /** 在途的 taskkill 兜底进程；killAll 等待它们全部退出（audit C7）。 */
+  /** All owned runtime and PTY stops are awaited by shutdown. */
   private pendingKillers = new Set<Promise<void>>()
+  private cleanupErrors: unknown[] = []
+
+  private trackStop(operation: Promise<void>): void {
+    const pending = operation.catch(error => {
+      this.cleanupErrors.push(error)
+      logTerminalDiagnostic('owned process cleanup failed', { error: String(error) })
+    })
+    this.pendingKillers.add(pending)
+    void pending.finally(() => this.pendingKillers.delete(pending))
+  }
 
   private releaseRuntime(instance: TerminalInstance): void {
-    const stopped = instance.disposeRuntime?.()
+    const dispose = instance.disposeRuntime
     instance.disposeRuntime = undefined
-    if (stopped) {
-      const pending = stopped.catch(error => logTerminalDiagnostic('owned runtime cleanup failed', { id: instance.id, error: String(error) }))
-      this.pendingKillers.add(pending)
-      void pending.finally(() => this.pendingKillers.delete(pending))
-    }
+    if (dispose) this.trackStop(Promise.resolve().then(dispose))
   }
 
   /**
-   * Windows 进程树兜底：pty.kill() 不保证回收子进程，taskkill /T 强制清理。
+   * 先确认自有进程树停止，再释放 PTY，避免父进程先消失而丢失子进程。
    * 返回 Promise 以便 shutdown 路径等待 killer 完成，保证「先杀终端再 finalize
    * checkpoint」的顺序真正成立（audit C7）。失败静默。
    */
-  private killProcessTree(pid: number | undefined): Promise<void> {
-    if (process.platform !== 'win32' || typeof pid !== 'number') return Promise.resolve()
-    const done = new Promise<void>((resolve) => {
-      try {
-        const killer = spawnProcess('taskkill', ['/PID', String(pid), '/T', '/F'], {
-          windowsHide: true,
-          stdio: 'ignore',
-        })
-        killer.on('error', () => {
-          // 兜底失败不得中断 kill 流程
-          resolve()
-        })
-        killer.on('exit', () => resolve())
-      } catch {
-        // 兜底失败静默
-        resolve()
-      }
+  private stopPty(instance: TerminalInstance): void {
+    const done = stopProcessTree(instance.pty, { processGroup: true }).finally(() => {
+      // Dispose the native console only after capturing/terminating its tree.
+      try { instance.pty.kill() } catch { /* Console may already be closed. */ }
     })
-    this.pendingKillers.add(done)
-    void done.finally(() => this.pendingKillers.delete(done))
-    return done
+    this.trackStop(done)
   }
 
   killByWorkspace(workspaceId: string): void {
@@ -353,13 +336,16 @@ export class TerminalManager {
     }
   }
 
-  /** 同步发起全部 kill；返回的 Promise 在所有 taskkill 兜底进程退出后 resolve。 */
+  /** 同步发起全部停止；等待原生运行时和自有进程树的退出确认。 */
   killAll(): Promise<void> {
     for (const [id] of this.instances) {
       if (this.instances.get(id)?.remote) this.detach(id)
       else this.kill(id)
     }
-    return Promise.all([...this.pendingKillers]).then(() => undefined)
+    return Promise.all([...this.pendingKillers]).then(() => {
+      const errors = this.cleanupErrors.splice(0)
+      if (errors.length) throw new AggregateError(errors, 'Terminal cleanup has unconfirmed outcomes')
+    })
   }
 
   getInstance(id: string): TerminalInstance | undefined {

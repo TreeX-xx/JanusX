@@ -9,12 +9,35 @@ import { app } from 'electron'
 import { fetch as fetchRuntime, EnvHttpProxyAgent } from 'undici'
 import type { Workspace } from '../../shared/ipc/workspace'
 import { parseRuntimeResource, runtimeResource, type WorkspaceRuntime } from '../../shared/workspace-runtime'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 
 const execute = promisify(execFile)
 type ExternalRuntime = Exclude<WorkspaceRuntime, { kind: 'windows' }>
 export const workspaceRecordsDirectory = () => join(app.getPath('userData'), 'janusx', 'workspaces')
 const connections = new Map<string, RuntimeClient>()
 const preparing = new Map<string, Promise<void>>()
+const transports = new Set<ReturnType<typeof spawn>>()
+
+function spawnTransport(file: string, args: string[]) {
+  assertApplicationRunning()
+  const child = spawn(file, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+  transports.add(child)
+  child.once('close', () => transports.delete(child))
+  return child
+}
+
+/** Stop only the local SSH/WSL connection; remote daemon and PTYs persist. */
+function stopTransport(child: ReturnType<typeof spawn>): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const done = () => { clearTimeout(force); clearTimeout(deadline); resolve() }
+    const force = setTimeout(() => { try { child.kill('SIGKILL') } catch {} }, 1000)
+    const deadline = setTimeout(() => { child.removeListener('close', done); reject(new Error('Workspace transport exit unconfirmed')) }, 2500)
+    child.once('close', done)
+    child.stdin?.end()
+    try { child.kill() } catch (error) { clearTimeout(force); clearTimeout(deadline); child.removeListener('close', done); reject(error) }
+  })
+}
 
 export function quotePosix(value: string): string {
   if (value.includes('\0')) throw new Error('Invalid command argument')
@@ -57,7 +80,7 @@ function transport(runtime: ExternalRuntime, argv: string[]): { file: string; ar
 function runTransport(runtime: ExternalRuntime, argv: string[], input?: Buffer): Promise<string> {
   const { file, args } = transport(runtime, argv)
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawnTransport(file, args)
     let output = '', error = ''
     const timer = setTimeout(() => { child.kill(); reject(new Error('Workspace connection timed out')) }, 120_000)
     child.stdout.setEncoding('utf8')
@@ -180,7 +203,7 @@ class RuntimeClient {
   closed = false
   constructor(runtime: ExternalRuntime, private readonly onClose: () => void) {
     const { file, args } = transport(runtime, ['python3', '-u', '-c', "import os,pathlib; p=pathlib.Path.home()/'.local/share/janusx/runtime-v1/host.py'; os.execvp('python3',['python3','-u',str(p),'connect'])"])
-    this.child = spawn(file, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    this.child = spawnTransport(file, args)
     let errorText = ''
     this.child.stderr?.on('data', value => { errorText = (errorText + value.toString()).slice(-4000) })
     const lines = createInterface({ input: this.child.stdout! })
@@ -240,10 +263,14 @@ export async function runtimeRequest<T>(runtime: ExternalRuntime, method: string
   }
   return client.request<T>(method, params)
 }
-export function disconnectRuntimeTransports(): void {
+export async function disconnectRuntimeTransports(): Promise<void> {
+  const stopping = [...transports].map(stopTransport)
   for (const client of [...connections.values()]) client.close()
   connections.clear()
   // The daemon and PTYs intentionally remain alive on Linux.
+  const results = await Promise.allSettled(stopping)
+  const errors = results.filter(result => result.status === 'rejected').map(result => result.reason)
+  if (errors.length) throw new AggregateError(errors, 'Workspace transports remain open')
 }
 export async function readWorkspaceRecord(id: string): Promise<Workspace> {
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) throw new Error('Invalid workspace id')

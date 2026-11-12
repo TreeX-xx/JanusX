@@ -135,10 +135,9 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
       await installLocalDevelopmentPlugin(service, __JANUSX_LOCAL_PLUGIN__, { packaged: app.isPackaged, profile: app.getPath('userData') })
     }
   })
-  appShutdown.configure({ stopPlugins: async () => { distribution.dispose(); await service.dispose(); runtime.dispose() } })
+  appShutdown.configure({ stopPlugins: async () => { distribution.dispose(); const stopping = service.dispose(); runtime.dispose(); await stopping } })
   // Observe rejection immediately; management requests still report the original error.
   void ready.catch(() => service.log('STORAGE_UNAVAILABLE'))
-  app.on('will-quit', () => { distribution.dispose(); service.dispose(); runtime.dispose() })
   ipcMain.handle(PLUGIN_CHANNELS.manage, async (event, input: unknown): Promise<PluginHostResult> => {
     try {
       const window = getWindow()

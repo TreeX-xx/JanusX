@@ -9,6 +9,7 @@ vi.mock('electron', () => ({
 }))
 
 import { AppShutdown } from '../../src/main/shutdown/AppShutdown'
+vi.mock('../../src/main/shutdown/diagnostics', () => ({ logShutdown: vi.fn() }))
 
 describe('AppShutdown', () => {
   beforeEach(() => {
@@ -101,7 +102,7 @@ describe('AppShutdown', () => {
       shutdown.configure({ flushSuperAgentRecords: () => new Promise<void>(resolve => setTimeout(resolve, 8000)), killTerminals })
       const quitting = shutdown.beginQuit()
       await vi.advanceTimersByTimeAsync(4500)
-      expect(killTerminals).not.toHaveBeenCalled(); expect(appExit).not.toHaveBeenCalled()
+      expect(killTerminals).toHaveBeenCalledTimes(1); expect(appExit).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(3500); await quitting
       expect(killTerminals).toHaveBeenCalledTimes(1); expect(appExit).toHaveBeenCalledTimes(1)
     } finally { vi.useRealTimers() }
@@ -124,6 +125,31 @@ describe('AppShutdown', () => {
     expect(failing).toHaveBeenCalledTimes(1)
     expect(later).toHaveBeenCalledTimes(1)
     expect(appExit).toHaveBeenCalledTimes(1)
+    expect(appExit).toHaveBeenCalledWith(1)
+  })
+
+  it('marks quitting before renderer acknowledgement and starts critical stops despite a hung worker', async () => {
+    const shutdown = new AppShutdown(), terminals = vi.fn(), office = vi.fn(), transport = vi.fn()
+    expect(shutdown.requestQuit()).toBe(true)
+    expect(shutdown.requestQuit()).toBe(false)
+    shutdown.configure({ flushSuperAgentRecords: () => new Promise(() => {}), killTerminals: terminals,
+      stopOfficeWatches: office, disconnectWorkspaceTransports: transport })
+    const flight = shutdown.beginQuit({ timeoutMs: 50 })
+    await Promise.resolve(); await Promise.resolve()
+    expect(terminals).toHaveBeenCalledOnce(); expect(office).toHaveBeenCalledOnce(); expect(transport).toHaveBeenCalledOnce()
+    await flight
+    expect(appExit).toHaveBeenCalledWith(1)
+  })
+
+  it('does not finalize terminal records before asynchronous disposal completes', async () => {
+    const shutdown = new AppShutdown(), flush = vi.fn()
+    let release!: () => void
+    shutdown.configure({ killTerminals: () => new Promise<void>(resolve => { release = resolve }), flushAgentSessions: flush })
+    const flight = shutdown.beginQuit()
+    await Promise.resolve(); await Promise.resolve()
+    expect(flush).not.toHaveBeenCalled()
+    release(); await flight
+    expect(flush).toHaveBeenCalledOnce(); expect(appExit).toHaveBeenCalledWith(0)
   })
 
   it('destroys toast/editor early and kills terminals before flushing session records', async () => {

@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-11-06T03:26:58Z",
+  "updated": "2026-11-12T11:14:46Z",
   "moduleState": "partial"
 }
 ---
@@ -78,3 +78,6 @@ Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边
 - [ ] AC-3: github-maintenance 归属产品面，本域不重复收纳。
 
 [Public account migration](./account-migration.md) records the three repositories, Pages, release assets and old-client update limits. Isolated migration worktrees preserve unrelated uncommitted development changes.
+
+
+[应用退出、进程回收与安装占用](./application-shutdown.md)维护 Windows／Mac 退出边界、SuperAgent 清理实现、隔离故障复测及安装包交付证据。

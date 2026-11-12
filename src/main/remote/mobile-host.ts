@@ -11,6 +11,8 @@ import type { MobileHostOptions, MobileHostStatus } from '../../shared/ipc/remot
 import { configService } from '../config/service'
 import { lanAddresses, validateSignalUrl } from './network'
 import { REMOTE_LAN_ONLY } from '../../shared/remote-scope'
+import { appShutdown } from '../shutdown/AppShutdown'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 
 // Note: .agents/notes/remote/android-pairing-handshake.md
 const BRIDGE = 'remote:transport'
@@ -130,6 +132,7 @@ async function createHost(selected: MobileHostOptions, activation: number): Prom
   } catch (error) { disposeHost(entry); throw error }
 }
 export async function startMobileHost(input: MobileHostOptions): Promise<void> {
+  assertApplicationRunning()
   if (starting) throw Error('远程正在开启')
   if (!input || typeof input.workspaceId !== 'string' || typeof input.signalUrl !== 'string' || typeof input.stunUrl !== 'string') throw Error('远程设置无效')
   starting = true
@@ -179,4 +182,4 @@ ipcMain.on(BRIDGE, (event, m) => {
   if (m?.type === 'status' && typeof m.text === 'string') { entry.state = m.text.slice(0, 300); latest = entry }
   if (m?.type === 'message' && typeof m.text === 'string') void entry.session.receive(m.text)
 })
-app.on('before-quit', () => { void stopMobileHost() })
+appShutdown.configure({ stopMobileHost })
