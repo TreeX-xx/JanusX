@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-12T10:46:05Z",
+  "updated": "2026-11-12T11:51:42Z",
   "class": "architecture",
   "tags": ["shutdown", "windows", "macos", "superagent"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
@@ -24,11 +24,41 @@
 
 # 应用退出、进程回收与安装占用
 
-## 结论与调查边界
+## 当前交付记录（2026-11-12）
+
+用户授权 xdo 实施并覆盖 SuperAgent installer。修复实施在 JanusX-superagent-automation 工作树和相邻 janus-agentX 引擎源码；保留两处原有未提交迁移。dev 本轮维护此分析 Note，尚未回移产品代码，因此不能把 dev 视作已修复构建。
+
+- 退出意图在 renderer ACK 前锁定；异常风暴不再 relaunch，second-instance／窗口激活不再创建新窗口。正常运行期的崩溃恢复保留。
+- AppShutdown 同时发起独立资源停止，终端记录在终端停止等待结束后保存，Office 索引在 watch 停止等待结束后关闭。总预算 20 秒，进程步骤 17 秒，最后 3 秒尝试自有进程失败重试；未确认、异常和超时退出码为 1。同步诊断写入 userData/logs/shutdown.log，仅持久化步骤、耗时、状态和进程身份，不记录命令、提示或环境变量。单步 timeout 不等于底层操作已完成；保留失败诊断，不能把退出码 1 称为清理成功。
+- 终端、普通 Agent、项目和 OpenCode 共用停止入口。Windows 在父进程存活时捕获原生创建时间，以句柄终止并验证退出；终止后重新扫描后代，最多三轮，失败保留捕获身份用于重试。首次普通进程清理合并为一次 PowerShell 调用，避免三次启动造成单项目超过 5 秒。原 managed Worker 保留持久身份恢复与二次核验。普通进程尚未在创建时持久登记，父节点在停止请求前自然消失、权限拒绝以及不可查询后代仍是需扩展验证的边界。
+- Agent 的 AbortSignal 不再先杀父壳；killAll 等待停止结果，CLI 路径解析期间取消的任务不能稍后 spawn。ProjectRunner 移除同步 taskkill 和用 killed 误判退出的逻辑；POSIX 自有组验证后执行 TERM、等待、KILL。Mac 原生系统测试未运行，不能据此宣称 Mac Worker 已开放。
+- Browser terminal host、workspace 本地 SSH/WSL 连接、mobile host 显式接入协调器，插件 runtime 在等待 service.dispose 前释放；远程 daemon／PTY 保持持续运行契约。终端、Agent、项目、OpenCode、Office 预览和本地 transport 启动检查退出状态。既有 Office watch 清理保留；文档 resident、插件原生进程及真实 SSH/WSL 混合负载仍需后续专门矩阵。
+- 真正的引擎 workers.close 重试此前失败的 stop Promise；新失败仍保留 stopConfirmed=false、hostDrained 和环境占用。普通 Codex Windows dispose 也改为确认式树终止，拒绝访问不再静默成功。
+
+已验证：桌面核心 9 文件 88 项，追加 2 项 Agent 关闭竞态测试；Office／workspace 服务 4 文件 29 项（其中 17 项 Office 与前组重复）；引擎原生 2 文件 15 项；桌面 typecheck 与引擎 build 通过。首次回归发现停止耗时超限，优化后同一真实项目测试通过。以下为最终安装包的隔离运行证据。
+
+引擎固定包版本为 0.1.0-engine.20c26913ba5c4f38，六个包由 vendor/janus-agent/manifest.json 记录完整 SHA-256；包含原有迁移工作区输入，源码不是干净发布提交。构建只覆盖用户指定的 release/superagent/installer，不改动 D:/janusX 真实安装和配置，不代表已经执行覆盖安装或远端发布。
+
+最终安装包已从 NSIS 中解出 EXE 与 app.asar，哈希与实际测试目录一致；478 个 out 文件、186 个引擎文件逐字节一致，latest.yml 的 SHA-512 与大小通过。包外独立目录的模块图、LLM runtime、真实窗口和 preload 验证通过。安装包 SHA-256：d8b543fdf5ea340a104d95b7367a5a6900529d2ebc36fd461de3e6866f09589f，大小 171998430 字节。
+
+| 最终包隔离场景 | 启动器观察耗时 | 退出码 | 30 秒检查 |
+| --- | --- | --- | --- |
+| 空闲退出 | 1057 ms | 0 | 自有进程 0、所测端口关闭、EXE 可独占打开 |
+| PTY＋项目＋managed 协议夹具＋Office 预览 | 5016 ms | 0 | 自有进程 0、所测端口关闭、EXE 可独占打开 |
+| Worker／自动化清理阻塞注入 | 17615 ms | 1 | 自有进程 0、所测端口关闭、EXE 可独占打开 |
+| 退出期间 21 次异常风暴 | 2453 ms | 0 | 自有进程 0、所测端口关闭、EXE 可独占打开 |
+
+正常负载包含真实 PTY、后台项目及其监听子进程、真实 OfficeCLI 和 managed transport 协议夹具；没有调用真实模型。阻塞注入按预期返回 1，其余返回 0。旧异常风暴场景产生的新实例已不再出现。候选测试发现并发 PowerShell 冷启动超时和 Worker 超过 12 秒预算，均未交付；最终合并原生请求、以 Toolhelp32 快照替代重复 WMI 枚举，并按实测调整总预算为 20 秒、进程步骤为 17 秒，保留最后 3 秒兜底。
+
+证据保存在 artifacts/shutdown-delivery-20261112/shutdown-results.json 和 artifact-verification.json；失败候选证据保留，最终记录用 app.asar SHA-256 绑定候选字节。NSIS 同目录覆盖升级、真实 SSH/WSL／插件多进程混合矩阵和 Mac 真机验收仍为 not-run。
+
+Windows 快照入口依据 [Microsoft Toolhelp 文档](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot)实现，并保留创建时间与原生句柄验证。夹具叶子 PID 未总出现在 CIM 进程清单中，因此以监听端口检查作为附加观察，真实 Node 父子进程的独立原生测试作为树回收证据；不把有限场景扩展为全部原生 CLI 的证明。
+
+## 修复前的结论与调查边界
 
 用户反馈：使用 SuperAgent 安装版，退出并等待至少 30 秒后，重新安装仍提示正在运行。当前 Windows 清理不能认定为所有路径均可靠。正常关闭的隔离安装版测试可以释放所测资源；退出期间异常重启的故障注入则复现了新 JanusX 进程继续运行、程序文件仍被占用。串行清理超时、普通进程树终止和退出事件覆盖也有确定缺口。
 
-这证明存在能够造成同类安装提示的路径，尚未证明用户此前每次遇到的原因就是该路径。用户选择暂不关闭正在工作的真实实例；本次没有终止它、修改它的配置或执行覆盖安装。调查和计划已完成，下面的产品修复尚未实施。
+这证明存在能够造成同类安装提示的路径，尚未证明用户此前每次遇到的原因就是该路径。用户选择暂不关闭正在工作的真实实例；本次没有终止它、修改它的配置或执行覆盖安装。下文保留修复前的调查与原始计划；SuperAgent 交付链的实施和验证见当前交付记录。
 
 本次比较了三个层次，不能互相替代：
 
@@ -38,7 +68,7 @@
 | SuperAgent 工作树 | `feat/superagent-automation-exploration`，HEAD `d3abad6bb59c7d14386394a2af128c418dd0b735`，另有大量未提交引擎迁移 | 同时检查 HEAD 与当前工作树；不覆盖其改动 |
 | 实际安装包 | `D:\janusX`，JanusX `0.9.9`，内置 `@janus-agent/janus-agent` 为 `0.1.0-engine.457d4530b40f11d6` | 从实际 `app.asar` 读取并运行；不是用 dev 源码猜测安装版本 |
 
-SuperAgent 工作树当前依赖为 `0.1.0-engine.ea0ea625e770270c`，与安装包不同。当前 `workers.ts`、`codex-managed-transport.ts` 等已转为引擎包转导出；后续应在相邻 `janus-agentX/packages/janus-agent/src/superagent` 的真正实现处修复、测试并生成固定版本包，不能只修改桌面的转导出文件或 `node_modules`。
+调查时 SuperAgent 工作树依赖为 `0.1.0-engine.ea0ea625e770270c`，与安装包不同。当前 `workers.ts`、`codex-managed-transport.ts` 等已转为引擎包转导出；后续应在相邻 `janus-agentX/packages/janus-agent/src/superagent` 的真正实现处修复、测试并生成固定版本包，不能只修改桌面的转导出文件或 `node_modules`。
 
 ## 安装器提示的含义
 
@@ -91,9 +121,9 @@ Office watch 已有 stopAll、等待退出、execa 强杀延迟与代理连接�
 
 补充验证：对实际安装包和 dev `AppShutdown` 运行可控时钟探针，分别让前置 12+4 秒步骤／四个 4 秒步骤阻塞，均在 15000 ms 调用 app.exit，调用快照中尚无 `killTerminals`、`stopOfficeWatches`、`killAgents`、`stopProjects`。这证明调度遗漏，不等同于真实安装副本的残留结果。`probe.cjs` 共保留 5 项机制探针；现有 dev shutdown 单测 5/5、SuperAgent 工作树 shutdown＋managed recovery 单测 13/13 通过，它们未覆盖全部上述故障路径。
 
-## 实施计划（尚未实施）
+## 原实施计划与验收范围
 
-按以下顺序落地；修复优先进入用户实际使用的 SuperAgent 交付链，共用部分同步 dev。维护同一份资源归属契约，不建立两套逐渐分歧的 shutdown。
+按以下顺序落地；修复优先进入用户实际使用的 SuperAgent 交付链，共用部分后续回移 dev 时须同时对齐引擎版本，不能把新的引擎接口直接复制到旧依赖上。维护同一份资源归属契约，不建立两套逐渐分歧的 shutdown。
 
 | 阶段 | 修改范围与交付物 | 验收条件 |
 | --- | --- | --- |
