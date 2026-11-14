@@ -1,0 +1,67 @@
+{
+  "importedAt": "2026-11-14T03:48:36.062Z",
+  "theme": "dark",
+  "sourceNote": "JanusX/.agents/notes/desktop/readme-showcase.md",
+  "sourcePeriod": "2026-11-10 / 2026-11-12",
+  "provenance": "Existing isolated Electron captures; original bytes preserved. Not a fresh capture of current HEAD.",
+  "conversationContent": "Local scripted demonstration responses in the Atlas example project",
+  "dualView": {
+    "threadUnchanged": true,
+    "sourceManifest": ".cache/readme-dual-view-fkPH3s/manifest.json"
+  },
+  "rightPanel": {
+    "sessionsFixture": true,
+    "sourceManifest": ".cache/readme-right-dock-full-dXLiGB/manifest.json"
+  },
+  "assets": [
+    {
+      "file": "workbench.png",
+      "source": "docs/assets/readme/workbench-overview.png",
+      "sha256": "6101bc9b9f1262a44c3d3608f2655394178724829ccc36f4daa6627b6a7d2e58",
+      "width": 1716,
+      "height": 926
+    },
+    {
+      "file": "conversation.png",
+      "source": ".cache/readme-dual-view-fkPH3s/frames/p-0000.png",
+      "sha256": "77f97e7003a0f0dfa69ff1c1641cde24bf61b6d21e19c88f291bc598320d3e67",
+      "width": 1780,
+      "height": 826
+    },
+    {
+      "file": "terminal.png",
+      "source": ".cache/readme-dual-view-fkPH3s/frames/p-0015.png",
+      "sha256": "3e7699d315b4cf2474aafca25776a70b01b5b77126056256f8ceabfaaf491f34",
+      "width": 1780,
+      "height": 826
+    },
+    {
+      "file": "split.png",
+      "source": ".cache/readme-chat-split-R5Y4y9/frames/p-0063.png",
+      "sha256": "cb5f80d49547f3a250409972462f568a7b2f341e839cc0e8396a87112c4de432",
+      "width": 1780,
+      "height": 826
+    },
+    {
+      "file": "files-panel.png",
+      "source": ".cache/readme-right-dock-full-dXLiGB/frames/p-0014.png",
+      "sha256": "b48f1b9d39f99c7c9b98bbca8e5b285fa38261ba629081fba28c6128cbac0c3a",
+      "width": 1480,
+      "height": 785
+    },
+    {
+      "file": "session-panel.png",
+      "source": ".cache/readme-right-dock-full-dXLiGB/frames/p-0107.png",
+      "sha256": "93e77d2efebdcf24b3eee2dfa2b27f994742e687f7f153ac36b8f3ea12a43b29",
+      "width": 1480,
+      "height": 785
+    },
+    {
+      "file": "blueprint-workbench.png",
+      "source": "docs/assets/readme/blueprint-workbench.png",
+      "sha256": "fad377e3dde5f63e75d635faebbf52f1fac67810630410656cd4e3010bb14711",
+      "width": 1760,
+      "height": 940
+    }
+  ]
+}

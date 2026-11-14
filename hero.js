@@ -10,10 +10,10 @@
   const controls = hero?.querySelector('.workspace-controls');
   const caption = document.getElementById('workspace-caption');
   const views = {
-    overview: ['JanusX 黑色工作区：四个 CLI 终端与 CPA 管理页、Markdown 文档预览组成六个分区', '终端与工具独立分屏，让执行、账号管理与文档阅读并排展开。'],
-    terminals: ['Claude、Codex、OpenCode 与 Pi 在黑色工作区中组成四格终端分屏', '四个 CLI，各自保留上下文。拖动标签拆分，按任务调整比例。'],
-    cpa: ['四终端旁嵌入真实的黑色 CPA 管理页，展示本地空实例', 'Janus 工具箱内嵌 CPA。这里展示本地空实例，未添加账号或发起请求。'],
-    documents: ['四终端旁嵌入 Markdown 源码编辑与发布清单预览', 'Markdown 编辑与预览并排，发布清单和笔记始终在手边。']
+    workbench: ['新版 JanusX 黑色工作区：左侧 Claude Code 原生终端，右侧 Codex 对话，项目与会话列表位于左栏', 'Claude Code 终端与 Codex 对话并排，同一项目中的不同任务各有空间。'],
+    conversation: ['Claude Code 与 Codex 并排的对话视图，显示消息、文件引用和带模型选项的输入区', '用对话阅读回复、查看文件引用，在当前会话里继续追问。'],
+    terminal: ['左侧保持 Claude 对话，右侧 Codex 切回原生终端，显示同一问题和回答', '同一个 Codex 会话，切回原生终端时保留原来的线程与消息。'],
+    'files-panel': ['Codex 对话旁固定展开项目文件树，展示源码目录、测试文件与改动标记', '右侧工作台随时展开，文件与项目上下文留在对话旁边。']
   };
   if (workspace && preview && controls && caption) {
     workspace.inert = false;
@@ -33,6 +33,8 @@
         await next.decode();
         if (current !== selection) return;
         preview.src = src;
+        preview.width = next.naturalWidth;
+        preview.height = next.naturalHeight;
         preview.alt = views[name][0];
         caption.textContent = views[name][1];
         workspace.querySelectorAll('.workspace-image, .workspace-original').forEach(link => { link.href = src; });

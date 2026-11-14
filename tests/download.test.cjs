@@ -11,20 +11,15 @@ const release = { tag_name: 'v1.2.3', published_at: '2026-09-18T00:00:00Z', asse
 
 (async () => {
   const assetsPath = path.resolve(__dirname, '../assets/workspace');
-  const capture = JSON.parse(fs.readFileSync(path.join(assetsPath, 'capture.json')));
-  const imported = JSON.parse(fs.readFileSync(path.join(assetsPath, 'imported.json')));
+  const capture = JSON.parse(fs.readFileSync(path.join(assetsPath, 'current-ui.json')));
   assert.equal(capture.theme, 'dark');
-  assert.equal(capture.cpa.authenticationFiles, 0);
-  assert.equal(capture.cpa.requests, 0);
-  const overview = capture.captures.find(item => item.file === 'overview.png');
-  assert.equal(overview.projectPanes, 4);
-  assert.equal(overview.toolPanes, 2);
-  assert.equal(overview.nativeViews, 1);
-  for (const asset of [...capture.captures, ...imported.assets]) {
+  assert.equal(capture.assets.length, 7);
+  assert.deepEqual(fs.readdirSync(assetsPath).filter(file => /\.(png|gif|webp|jpe?g)$/i.test(file)).sort(), capture.assets.map(asset => asset.file).sort(), 'Published captures must not accumulate obsolete images');
+  assert.equal(capture.dualView.threadUnchanged, true);
+  for (const asset of capture.assets) {
     assert.equal(createHash('sha256').update(fs.readFileSync(path.join(assetsPath, asset.file))).digest('hex'), asset.sha256);
-    if (asset.theme) assert.equal(asset.theme, 'dark');
   }
-  console.log('PASS seven real dark captures match recorded hashes; six-pane overview includes native CPA');
+  console.log('PASS seven current UI captures match recorded source hashes');
   const browser = await chromium.launch({ headless: true });
   let checks = 0;
   async function scenario(name, response, verify) {
@@ -51,8 +46,10 @@ const release = { tag_name: 'v1.2.3', published_at: '2026-09-18T00:00:00Z', asse
         await img.scrollIntoViewIfNeeded();
         await img.evaluate(node => node.decode());
         const src = await img.getAttribute('src');
-        assert.ok(src.startsWith('assets/workspace/'), 'Every feature must use the new dark captures');
-        assert.deepEqual(await img.evaluate(node => [node.naturalWidth, node.naturalHeight]), [1760, 884]);
+        const asset = capture.assets.find(item => src === `assets/workspace/${item.file}`);
+        assert.ok(asset, 'Every feature must use a current UI capture');
+        assert.deepEqual(await img.evaluate(node => [node.naturalWidth, node.naturalHeight]), [asset.width, asset.height]);
+        assert.deepEqual([Number(await img.getAttribute('width')), Number(await img.getAttribute('height'))], [asset.width, asset.height]);
         assert.ok(await img.getAttribute('alt'));
         assert.equal(await img.locator('..').getAttribute('href'), src);
       }
