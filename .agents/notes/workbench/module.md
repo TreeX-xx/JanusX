@@ -41,7 +41,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-10T02:18:00Z",
+  "updated": "2026-11-14T05:42:24.885Z",
   "moduleState": "partial"
 }
 ---
@@ -49,6 +49,8 @@
 # 工作台与产物界面
 
 ## Responsibility
+
+设计与调研源统一在 `design/` 维护，本机入口为 `design/README.md`；原 `_design/` 已合并。功能验证和渲染脚本保留，临时探针按清单清理；截图、宣传图导出与采集结果进入 `artifacts/`，原生成产物归档到 `artifacts/archive/design-dev-20261114/`，避免与维护素材混放。
 
 组织 Island、右侧工具栏、产物预览与共享编辑器的交互和视觉。RightDock 负责工具承载与布局，ProductWorkspacePanel 负责生成文件的预览，JanusIsland 负责工作状态及通知入口。文件事实由既有读取服务提供，会话耐久、Agent 执行与工程 Note 事务分别由对应模块负责。
 
@@ -183,7 +185,7 @@ Chat 会话删除确认框虽通过 portal 挂到 body，仍属于 island 的交
 
 Island 下滑展开通知（2026-10-27）：胶囊向下拖动 ≥60px 后松手打开既有通知面，已展开时再次下滑保持展开；未达阈值、反向拉回与取消不触发。单击、Esc 与点空白处收起，保留看过即焚。副黑板组件、中央列让位、板高状态与持久化、板缘拖拽、插件列表入口均已删除；蓝图继续使用插件声明的工作台入口。取舍与历史见[副黑板退役与通知手势](./island-blackboard.md)。
 
-眼睛行为与通知系统：折叠胶囊由注意力行为驱动凝视、摸头与事件原语；通知采用串行传话、左上角灰字计数和整体纵向展开的通知中心。通知可经下滑、岛体单击、灰字计数或传话条打开；peek 下滑先返回胶囊再展开通知，expanded 仍禁用复杂手势。单击开合、双击控制台及运行按钮维持现有语义。生产待机动作保留伸懒腰、环顾四周、小跳、打瞌睡和深呼吸；按用户审美偏好移除「歪头好奇」的动作定义与调度入口，其他动作间隔、交互让位及事件反应不变。参数与历史验收归[行为系统移植任务](./tasks/island-behavior-system.md)，历史设计原型在 `_design/janus-eye-behavior-lab/`，其中旧动作列表不代表当前生产范围。
+眼睛行为与通知系统：折叠胶囊由注意力行为驱动凝视、摸头与事件原语；通知采用串行传话、左上角灰字计数和整体纵向展开的通知中心。通知可经下滑、岛体单击、灰字计数或传话条打开；peek 下滑先返回胶囊再展开通知，expanded 仍禁用复杂手势。单击开合、双击控制台及运行按钮维持现有语义。生产待机动作保留伸懒腰、环顾四周、小跳、打瞌睡和深呼吸；按用户审美偏好移除「歪头好奇」的动作定义与调度入口，其他动作间隔、交互让位及事件反应不变。参数与历史验收归[行为系统移植任务](./tasks/island-behavior-system.md)，历史设计原型在 `design/janus-eye-behavior-lab/`，其中旧动作列表不代表当前生产范围。
 
 产物语义：[workspace 重构](./product-workspace.md)、[notice-matrix](./product-workspace.md)、[peek-race](./product-workspace.md)、[preview-p0](./product-workspace.md)、[tour](./product-tour.md)、[landing](../desktop/landing-page.md)。
 

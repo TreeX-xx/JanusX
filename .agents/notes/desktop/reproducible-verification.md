@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-10T02:52:00Z",
+  "updated": "2026-11-14T05:41:46.595Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -141,6 +141,14 @@ Release preparation installs Node before any build, verifies the pinned OfficeCL
 The maintainer explicitly requested committing and pushing the current JanusX checkout, tagging v0.9.3, publishing release notes from the v0.9.2 range, and delivering Windows setup and portable packages. This authorizes the direct release path described in the maintainer guide; repository protections remain enabled and no independent review is claimed. Both workflows retain the published sibling pin `8baa18e5db8ca641871c139a5b76904bedc88dda`; release packaging uses that clean source rather than the sibling checkout's unrelated local edits.
 
 Release preflight found 26 new theme diagnostics. Existing star, run-orb, usage-heatmap, dialog and HTML-preview colors now live in shared theme tokens with their previous values; the missing monospace font and default focus progress variables are defined there. Theme generation and audit pass without expanding the legacy baseline. The assistant UI browser fixture stubs the Monaco initialization boundary because esbuild does not implement Vite worker imports; actual editor loading remains covered by the production build and desktop checks.
+
+### Dev design consolidation and generated output ownership
+
+The November 14 dev cleanup merged the twelve `_design/janus-eye-behavior-lab` files into `design/` first, then removed four completed one-off height probes. Seven functional verifiers and the prototype remain. Eleven generated screenshots, poster exports and capture results moved byte-for-byte into `artifacts/archive/design-dev-20261114/`; the entrance verifier moved from the screenshot directory to `design/verify-entrance.mjs`. Existing hand-authored prototypes, research documents and source assets remain, including the original run-status files. The nine unrelated dirty/untracked files present before this work retain their original hashes.
+
+Design sources remain local under the gitignored `design/` directory, indexed by `design/README.md`. Eye checks use relative HTML paths and place images under `artifacts/design-reviews/`; poster renders place their outputs under `artifacts/design-exports/`. Blueprint capture keeps confirmed poster inputs in its assets directory, but its disposable project, result JSON and error screenshots go to artifacts. Capture was syntax-checked rather than run during cleanup, so no recording application or Note mutation was started.
+
+Main verified all original files are either retained, intentionally maintained, archived with the same hash, or one of the four listed probes. Design Markdown links have no missing targets, all design scripts parse, both poster renders export both resolutions, Blueprint preview/keyboard checks pass, and Eye and entrance probes report no failures. The 330-Note corpus passes with zero errors and 17 existing external-link diagnostics. The migration map, hashes and exact validation commands are in `artifacts/design-consolidation-dev/plan.json` and `verification.json`. Moves/deletes used checked absolute paths within this dev worktree and rejected links or live process references. No cleanup outside the two design directories or full product verify is claimed.
 
 ## Alternatives considered
 

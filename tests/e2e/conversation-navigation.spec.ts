@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
 
-async function seed(page: Page, count = 100) {
-  await page.goto('/codex-conversation.html?initialView=conversation')
+async function seed(page: Page, count = 100, theme = 'dark') {
+  await page.goto(`/codex-conversation.html?initialView=conversation&theme=${theme}`)
   await page.getByRole('combobox', { name: 'Message Codex' }).waitFor()
   await page.evaluate(count => {
     const items = Array.from({ length: count }, (_, index) => [
@@ -14,17 +14,74 @@ async function seed(page: Page, count = 100) {
   }, count)
 }
 
+for (const theme of ['dark', 'planche', 'white']) {
+  test(`input rail centers up to twelve ticks and scrolls independently in ${theme}`, async ({ page }) => {
+    for (const count of [1, 4, 12, 13]) {
+      await seed(page, count, theme)
+      const nav = page.getByRole('navigation', { name: 'Navigate inputs' })
+      const rail = nav.locator('> div').first()
+      await expect(nav.getByRole('button')).toHaveCount(count)
+      await expect.poll(() => rail.evaluate(el => el.clientHeight)).toBe(Math.min(count, 12) * 18)
+      const outer = (await nav.boundingBox())!, inner = (await rail.boundingBox())!
+      expect(Math.abs(inner.y + inner.height / 2 - outer.y - outer.height / 2)).toBeLessThan(1)
+      if (count === 4 || count === 13) await page.screenshot({ path: test.info().outputPath(`${theme}-${count}.png`) })
+    }
+    await seed(page, 100, theme)
+    const nav = page.getByRole('navigation', { name: 'Navigate inputs' })
+    const rail = nav.locator('> div').first()
+    await choose(page, 51)
+    await aligned(page, 'input-49')
+    await expect.poll(() => rail.evaluate(el => {
+      const active = el.querySelector('[aria-current]')!
+      return Math.abs(active.getBoundingClientRect().top + 9 - el.getBoundingClientRect().top - el.clientHeight / 2)
+    })).toBeLessThan(2)
+    const color = await nav.evaluate(el => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--interaction-accent)'
+      el.append(probe)
+      const color = getComputedStyle(probe).color
+      probe.remove()
+      return color
+    })
+    await expect(nav.locator('[aria-current] span')).toHaveCSS('background-color', color)
+    const main = page.getByRole('region')
+    const reading = await main.evaluate(el => el.scrollTop)
+    const before = await rail.evaluate(el => el.scrollTop)
+    await rail.hover()
+    await page.mouse.wheel(0, 180)
+    await expect.poll(() => rail.evaluate(el => el.scrollTop)).toBeGreaterThan(before + 50)
+    expect(await main.evaluate(el => el.scrollTop)).toBe(reading)
+    await page.screenshot({ path: test.info().outputPath(`${theme}-overflow.png`) })
+    await choose(page, 1)
+    await aligned(page, 'input-0')
+    await choose(page, 101)
+    await expect(page.locator('[data-user-message="input-99"]')).toBeInViewport()
+    await expect.poll(() => rail.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(2)
+  })
+}
+
 async function choose(page: Page | Locator, number: number) {
   const nav = page.getByRole('navigation', { name: 'Navigate inputs' })
-  await expect.poll(() => nav.evaluate(root => root.firstElementChild!.children.length === Math.min(Number(root.getAttribute('data-input-count')), Math.max(1, Math.floor((root.getBoundingClientRect().height - 24) / 18))))).toBe(true)
-  const ticks = nav.locator('> div').first().getByRole('button')
-  const starts = await ticks.evaluateAll(buttons => buttons.map(button => Number(button.getAttribute('aria-label')!.split(' ')[1])))
-  const group = Math.max(0, starts.findLastIndex(start => start <= number))
-  const dense = await ticks.nth(group).getAttribute('aria-haspopup')
-  await ticks.nth(group).click()
-  const dialog = nav.getByRole('dialog')
-  if (dense) await dialog.getByRole('button', { name: `Input ${number}`, exact: true }).click()
+  await nav.getByRole('button', { name: `Input ${number}`, exact: true }).click()
 }
+
+test('empty history and reduced-motion keyboard navigation retain boundaries', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seed(page, 0)
+  await expect(page.getByRole('navigation', { name: 'Navigate inputs' })).toHaveCount(0)
+  await seed(page, 13)
+  const nav = page.getByRole('navigation', { name: 'Navigate inputs' })
+  const first = nav.getByRole('button', { name: 'Input 1', exact: true })
+  await first.focus()
+  await first.press('Enter')
+  await aligned(page, 'input-0')
+  const last = nav.getByRole('button', { name: 'Input 13', exact: true })
+  await last.focus()
+  await last.press('Space')
+  await expect(last).toHaveAttribute('aria-current', 'step')
+  await expect(last).toBeInViewport()
+  await expect(page.locator('[data-user-message="input-12"]')).toBeInViewport()
+})
 
 async function aligned(page: Page, id: string) {
   const message = page.locator(`[data-user-message="${id}"]`)
@@ -65,10 +122,12 @@ test('input ticks navigate unmounted messages by identity and pause streaming fo
   })).toBeLessThan(3)
   // Hover is a preview, never a scroll action.
   const last = await page.locator('[data-user-message="input-99"]').boundingBox()
+  await nav.getByRole('button').first().scrollIntoViewIfNeeded()
+  await page.mouse.move(700, 20)
   await nav.getByRole('button').first().hover()
   await expect(nav.getByRole('tooltip')).toContainText('Question 0')
   expect((await page.locator('[data-user-message="input-99"]').boundingBox())!.y).toBe(last!.y)
-  await page.screenshot({ path: 'artifacts/input-navigation/normal.png' })
+  await page.screenshot({ path: test.info().outputPath('normal.png') })
 })
 
 test('navigation fits narrow and short pane containers, restores after resize, and cancels on manual reading', async ({ page }) => {
@@ -78,26 +137,29 @@ test('navigation fits narrow and short pane containers, restores after resize, a
   await choose(page, 51)
   await aligned(page, 'input-49')
   const nav = page.getByRole('navigation', { name: 'Navigate inputs' })
-  await nav.getByRole('button').first().click()
-  const popup = nav.getByRole('dialog')
+  await nav.getByRole('button').first().hover()
+  const popup = nav.getByRole('tooltip')
   await expect(popup).toBeVisible()
   const bounds = await pane.boundingBox(), box = await popup.boundingBox()
   expect(box!.x + box!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width)
   expect(box!.y + box!.height).toBeLessThanOrEqual((await nav.boundingBox())!.y + (await nav.boundingBox())!.height)
-  await popup.getByRole('button').first().press('Escape')
+  await nav.getByRole('button').first().focus()
+  await page.keyboard.press('Escape')
   await expect(popup).toHaveCount(0)
   await choose(page, 60)
   await aligned(page, 'input-58')
   await pane.evaluate(pane => { pane.style.width = '350px'; pane.style.height = '520px' })
   await aligned(page, 'input-58')
-  await page.mouse.move(bounds!.x + 120, bounds!.y + 100)
+  const reading = page.getByRole('region')
+  const readingBounds = (await reading.boundingBox())!
+  await reading.hover({ position: { x: readingBounds.width - 12, y: readingBounds.height / 2 } })
   await page.mouse.wheel(0, -350)
   await expect.poll(() => page.locator('[data-user-message="input-58"]').evaluate(message => Math.abs(message.getBoundingClientRect().top - message.closest('[role=region]')!.getBoundingClientRect().top - 12))).toBeGreaterThan(10)
   await pane.evaluate(pane => { pane.style.width = '230px'; pane.style.height = '300px' })
-  await expect.poll(() => nav.getByRole('button').count()).toBeLessThan(10)
-  await nav.getByRole('button').first().click()
-  await expect(nav.getByRole('dialog')).toBeVisible()
-  await page.screenshot({ path: 'artifacts/input-navigation/narrow-short.png' })
+  await expect.poll(() => nav.locator('> div').first().evaluate(rail => rail.clientHeight)).toBeLessThan(216)
+  await nav.getByRole('button').first().hover()
+  await expect(nav.getByRole('tooltip')).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('narrow-short.png') })
 })
 
 test('short histories, latest input and hidden views retain draft and navigation state boundaries', async ({ page }) => {
@@ -138,12 +200,12 @@ for (const split of ['side', 'stacked']) test(`two ${split} panes isolate naviga
   await page.evaluate(() => (window as any).codexFixture.delta('\n\nAnother live update.'))
   await expect.poll(() => second.getByRole('region').evaluate(scroll => scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight)).toBeLessThan(3)
   await expect(target).toBeInViewport()
-  await first.getByRole('navigation').getByRole('button').first().click()
-  const popup = first.getByRole('dialog')
+  await first.getByRole('navigation').getByRole('button').first().hover()
+  const popup = first.getByRole('tooltip')
   await expect(popup).toBeVisible()
   const box = await popup.boundingBox(), bounds = await first.getByRole('navigation').boundingBox()
   expect(box!.x + box!.width).toBeLessThanOrEqual((await first.boundingBox())!.x + (await first.boundingBox())!.width)
   expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height)
-  await expect(second.getByRole('dialog')).toHaveCount(0)
-  await page.screenshot({ path: `artifacts/input-navigation/split-${split}.png` })
+  await expect(second.getByRole('tooltip')).toHaveCount(0)
+  await page.screenshot({ path: test.info().outputPath(`split-${split}.png`) })
 })

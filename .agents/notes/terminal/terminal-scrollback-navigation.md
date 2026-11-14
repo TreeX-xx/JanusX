@@ -81,6 +81,21 @@ Claude 的普通聊天 PageUp 同样保留固定输入区和草稿，但没有�
 
 官方依据：[Claude fullscreen](https://code.claude.com/docs/en/fullscreen)、[Claude keybindings](https://code.claude.com/docs/en/keybindings)、OpenAI Docs 的 [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-interactive-shortcuts)。调查保存了官方原文、本机帮助及 keymap 截图；没有发现能力不等于证明不存在任何未公开实现。
 
+### 双模式输入导航复核（2026-11-11）
+
+双模式的结构化消息身份并不提供原生 TUI 的阅读坐标。输入刻度和悬停预览可以共用消息记录；留在原生终端中点击任意输入并可靠定位，仍需逐引擎验证，不能用终端提交时的光标位置代替消息锚点。本次仅验证能力，不改产品导航与既有验收范围。
+
+复现入口为 `node scripts/native-input-navigation-probe.mjs`，可追加 `claude`、`codex`、`pi` 或 `opencode` 单独运行。证据写入忽略目录 `artifacts/native-input-navigation/`，包含逐步屏幕 JSON、截图、ANSI、报告、OpenCode OpenAPI 与另行生成的 Codex app-server schema。使用独立临时 home、真实 node-pty/ConPTY 和 Chromium xterm；Claude/Pi 恢复自建 30 轮历史，Codex 通过 localhost Responses 夹具生成 16 轮历史。没有使用真实账号、模型服务或已有用户会话。宽屏 100×30，Claude/Pi 另测 45×18。
+
+| 引擎 | 本次实际证据 | 对任意输入点击跳转的判断 |
+|---|---|---|
+| Claude Code 2.1.319 | 全屏 `Ctrl+O` 后 `{`、`}` 的首个可见输入按 28→27→28 变化；窄屏仍可移动。退出浏览器保留 `DRAFT_NAV_CHECK`，但回到聊天底部 | 仍只验证了原生 transcript 内跳转；未获得保持普通聊天输入区的消息定位接口 |
+| Codex CLI 0.166.0 | 恢复 16 轮真实本地夹具历史，普通 PageUp 能滚动且保留草稿。`/keymap` 实际显示 154 个动作；分别搜索 prompt、previous、scroll、message，只有 prompt stack、输入历史、翻页和队列编辑等动作。当前生成的 ClientRequest schema 未发现 TUI 阅读位置或消息滚动命令 | 在已检查的原生动作和协议中仍未找到按消息身份定位；不能把该负面证据推广为所有未公开实现均不存在 |
+| Pi 0.85.1，全屏模式 | 独立配置 `tuiMode=fullscreen`，Ctrl+Up/Down 移动原生语义提问边界，宽窄屏保留输入框和草稿。Home 可到顶；窄屏从顶连续四次 next 落到输入 03，部分相邻操作仍停靠同一输入的不同渲染行 | 比 Codex/Claude 有更直接的原生适配基础，但不能假设 N 次按键等于第 N 条消息；尚未验证按消息 ID 的直接寻址、当前阅读身份回读及工作中并发输出 |
+| OpenCode 2.2.5 | 启动隔离服务并认证读取 `/openapi.json`；未发现 TUI scroll/jump 定位端点，`session.view` 只标记 idle 已读，terminal 系列属于 persistent PTY | 本次仅检查服务协议，没有执行恢复长会话后的 TUI 按键实验，不能据此判定其所有原生快捷键均不支持 |
+
+Pi 的语义边界在本机安装的 `pi-tui/dist/tui-alt-screen.js` 中由渲染内容的 OSC133 prompt 标记查找，不是公开的消息 ID→阅读位置映射。重复正文不作为身份依据，`/tree`、恢复输入历史、编辑／分叉也不算只读定位。Pi 常规模式、DSH 原生 TUI、恢复分页、compaction、运行中输出、自定义键位和产品实际双模式桌面组合均未验收。此次证据不支持承诺所有原生终端统一实现任意输入精确跳转；对话视图的消息定位仍可独立建设。
+
 ### 对话模式输入刻度导航（已实施）
 
 用户在原生 TUI 复核后明确将本功能限定为对话模式，并在讨论后确认记录左侧独立细刻度方案。对话正文左侧增加按输入导航的刻度，保留右侧滚动条：刻度负责按提问定位，滚动条负责连续阅读及长回答内部拖动，不用刻度替换滚动条。当前已接入对话显示层，原生终端导航保持原有范围。

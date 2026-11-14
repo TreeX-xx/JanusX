@@ -55,7 +55,7 @@
     ],
     "review": "self"
   },
-  "updated": "2026-10-27T12:18:31.589Z",
+  "updated": "2026-11-14T05:32:53.773Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/2a85ca64-bc0b-48b1-91b5-a89c44e13321" },
@@ -68,7 +68,7 @@
 
 ## Goal
 
-按 2026-10-23 实验台定稿，把折叠胶囊从 `mini-idle` 8s 死板循环升级为注意力行为系统，并把通知改为胶囊传话 + 点击式通知中心。可玩原型（设计源）：`_design/janus-eye-behavior-lab/Janus Eye Behavior Lab.html`，含 A/B 对照（旧循环）、6× 放大镜、行为日志与 Playwright 验证脚本（verify-lab2–5，交互断言全绿）。与[功能形象探索](../ideas/janus-functional-character.md)互补：本任务只改现有眼睛与通知面，不引入新角色形象；与[hifi 通知胶囊](../island-hifi-optimized-alignment.md)分工：一级展开（peek）通知胶囊仍归 hifi 层，本任务只动折叠胶囊态与新增历史面。
+按 2026-10-23 实验台定稿，把折叠胶囊从 `mini-idle` 8s 死板循环升级为注意力行为系统，并把通知改为胶囊传话 + 点击式通知中心。可玩原型（设计源）：`design/janus-eye-behavior-lab/Janus Eye Behavior Lab.html`，含 A/B 对照（旧循环）、6× 放大镜、行为日志与 Playwright 验证脚本（verify-lab2–5，交互断言全绿）。与[功能形象探索](../ideas/janus-functional-character.md)互补：本任务只改现有眼睛与通知面，不引入新角色形象；与[hifi 通知胶囊](../island-hifi-optimized-alignment.md)分工：一级展开（peek）通知胶囊仍归 hifi 层，本任务只动折叠胶囊态与新增历史面。
 
 ## 设计定稿
 
@@ -117,7 +117,7 @@
 
 2026-10-27 Main 自检：typecheck、改动 renderer 文件 ESLint、i18n:types/i18n:check、两份 showcase 脚本语法、showcase 9 项及按仓库 CRLF 检查的 diff 空白均通过。以 JANUS_E2E_PORT=51987、NO_PROXY=127.0.0.1,localhost 运行通知手势/取消/peek/几何与 host-boundary 的定向回归，13 项全部通过。两文件完整回归为 38/43；启动 warmup 首次超时、定向复跑通过，聊天附加入口/会话选择/旧拖动三项在 HEAD 原始 JanusIsland/useIslandGesture/app store 的只读 Vite 覆盖层复现。模型菜单测试断言 Chat 根保持焦点，但既有 JanusChat 会在 100ms 后把焦点交给输入框，原始版本通过、当前单跑仍失败，保留为未解决的时序断言，未修改聊天实现。原始源码覆盖证据在 .cache/island-notification-baseline/，proof.json 确认服务返回原始 handleSwipeBoard；未改写工作区实现做基线测试。全仓 check:notes 仍报 4 项既存问题：两处历史 1.0.3/1.0.4 插件包断链与 entrance-choreography 的缺 AC/时间顺序；本轮六份维护 Note 无新增格式错误。未构建/打包宿主、未跑真实 Electron 手势冒烟、未重录 S2 素材。
 
-V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior.test.ts tests/unit/island-speak-queue.test.ts`（35 用例：调度器状态机 29 含待机动作 8 + 传话队列语义 6）。原型层证据：`_design/janus-eye-behavior-lab/verify-lab2.mjs`–`verify-lab5.mjs`（摸头/惊醒/传话/队列续播/展开/看过即焚断言全绿，0 pageerror）。harness 层 e2e（2026-10-24 跑过，`island-interaction.spec.ts`）：29 过，含单击开/合通知面、通知面/expanded 视口几何、延迟单击回调身份（改 peek→收起路径验证）；3 失败为**基线既有**（docks / switches conversations / chat topbar drag，stash 基线复核确认）；2 用例并发负载 flake（approval panel / roundtable parchment，单跑全过）。未跑（显式缺口）：真机 App e2e 回归（下拉只落副黑板、传话/摸头视觉冒烟）——需真实 App 运行环境，留待合并前补。eslint 对改动文件 0 错误。
+V-1 `npm run typecheck`；V-2 `npx vitest run tests/unit/janus-behavior.test.ts tests/unit/island-speak-queue.test.ts`（35 用例：调度器状态机 29 含待机动作 8 + 传话队列语义 6）。原型层证据：`design/janus-eye-behavior-lab/verify-lab2.mjs`–`verify-lab5.mjs`（摸头/惊醒/传话/队列续播/展开/看过即焚断言全绿，0 pageerror）。harness 层 e2e（2026-10-24 跑过，`island-interaction.spec.ts`）：29 过，含单击开/合通知面、通知面/expanded 视口几何、延迟单击回调身份（改 peek→收起路径验证）；3 失败为**基线既有**（docks / switches conversations / chat topbar drag，stash 基线复核确认）；2 用例并发负载 flake（approval panel / roundtable parchment，单跑全过）。未跑（显式缺口）：真机 App e2e 回归（下拉只落副黑板、传话/摸头视觉冒烟）——需真实 App 运行环境，留待合并前补。eslint 对改动文件 0 错误。
 
 ## Progress
 
@@ -131,7 +131,7 @@ P1–P5 全部落地（2026-10-24，feat/island-behavior-system，f8630f51→2d8
 
 ## Evidence
 
-- 设计源：`_design/janus-eye-behavior-lab/Janus Eye Behavior Lab.html`（verify-lab2–5.mjs 交互断言全绿，0 pageerror，2026-10-23；verify-lab2–5 记录的是下拉开面旧手势期证据）。
+- 设计源：`design/janus-eye-behavior-lab/Janus Eye Behavior Lab.html`（verify-lab2–5.mjs 交互断言全绿，0 pageerror，2026-10-23；verify-lab2–5 记录的是下拉开面旧手势期证据）。
 - 原型跟进（2026-10-24）：lab 单击=通知中心开合/下拉开面退役/传话中轻点收起续播 + 自主动作切换（greet→nod 实测不连重、忙时让位），`verify-lab6.mjs` 全绿 0 pageerror（A 单击展开 / B 单击焚尽收起 / C 下拉不开面 / D 传话续播 / E 自主切换 / F 面板让位）。
 - 待机动作丰富（2026-10-24）：6 个待机动作经右栏按钮逐个实测（`verify-lab7.mjs` 全绿 0 pageerror，中段变量截图 shot-30-act-*.png）——tilt 中段 |rot|≈10°（方向随机 ±）、hop 中段 fy=-2.7 拉伸、doze 中段 lid=0.53 眨拉、breathe 眼睑包络正确，播完自动归还；事件反应按钮手动通路抽查（nod 打断进行中动作）；呼吸基线两次采样不同；摸头即时中断动作。
 - 待机动作生产移植（2026-10-24）：V-1 typecheck 干净、V-2 35 用例全绿（tilt 中段 ±10°/hop 腾空 faceY<-1/doze 垂眼/lookaround 扫视前眨眼/让位与打断/reduced-motion 静止）、eslint 0 错误，`tests/unit/janus/` 套件 68 过。

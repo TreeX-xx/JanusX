@@ -14,18 +14,22 @@ export function ConversationNavigation({ items, scrollRef, navigationRef, follow
   const inputs = useMemo(() => items.filter(item => item.type === 'userMessage'), [items])
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [current, setCurrent] = useState('')
-  const [opened, setOpened] = useState<{ start: number; end: number } | null>(null)
   const [preview, setPreview] = useState<number | null>(null)
+  const [railScroll, setRailScroll] = useState(0)
   const host = useRef<HTMLElement>(null)
   const anchor = useRef<{ id: string; offset: number } | null>(null)
-  const capacity = Math.max(1, Math.floor((size.height - 24) / 18))
-  const groups = useMemo(() => {
-    const count = Math.min(inputs.length, capacity)
-    return Array.from({ length: count }, (_, index) => ({
-      start: Math.floor(index * inputs.length / count), end: Math.floor((index + 1) * inputs.length / count),
-    }))
-  }, [inputs.length, capacity])
-  useEffect(() => { setOpened(null); setPreview(null) }, [inputs.length])
+  const rail = useRef<HTMLDivElement>(null)
+  useEffect(() => { setPreview(null) }, [inputs.length])
+  useEffect(() => {
+    const list = rail.current
+    const active = list?.querySelector<HTMLElement>('[aria-current]')
+    if (!list || !active) return
+    list.scrollTo({
+      top: list.scrollTop + active.getBoundingClientRect().top - list.getBoundingClientRect().top
+        - (list.clientHeight - active.offsetHeight) / 2,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    })
+  }, [current, size.height, inputs.length])
   useEffect(() => {
     const scroll = scrollRef.current
     if (!scroll) return
@@ -94,46 +98,31 @@ export function ConversationNavigation({ items, scrollRef, navigationRef, follow
       scroll.removeEventListener('keydown', keydown)
     }
   }, [inputs, scrollRef, navigationRef, following])
-  useEffect(() => {
-    if (opened === null) return
-    host.current?.querySelector<HTMLButtonElement>('[role=dialog] button')?.focus()
-    const outside = (event: PointerEvent) => { if (!host.current?.contains(event.target as Node)) setOpened(null) }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [opened])
   if (!inputs.length || size.height < 1) return null
-  const selected = opened ? groups.findIndex(group => group.start <= opened.start && group.end > opened.start) : preview
-  const group = opened ?? (selected === null ? undefined : groups[selected])
-  const currentIndex = inputs.findIndex(input => input.id === current)
   const choose = (input: ConversationItem) => {
     navigationRef.current?.locate(input.turnId, input.id)
-    host.current?.querySelector<HTMLButtonElement>('[aria-expanded=true]')?.focus({ preventScroll: true })
-    onNavigate(); setCurrent(input.id); setOpened(null); setPreview(null)
+    onNavigate(); setCurrent(input.id); setPreview(null)
   }
   const label = (index: number) => t('conversation.inputNumber', { number: index + 1 })
+  const input = preview === null ? undefined : inputs[preview]
   const popupHeight = Math.min(240, Math.max(32, size.height - 8))
-  const top = selected === null ? 0 : Math.min(Math.max(4, (selected + .5) * size.height / groups.length - popupHeight / 2), size.height - popupHeight - 4)
+  const railTop = rail.current?.offsetTop ?? 0
+  const tickTop = preview === null ? size.height / 2 : railTop + preview * 18 - railScroll + 9
+  const previewVisible = tickTop >= railTop && tickTop <= railTop + (rail.current?.clientHeight ?? 0)
+  const top = Math.max(4, Math.min(tickTop - popupHeight / 2, size.height - popupHeight - 4))
   return <nav ref={host} className={styles.root} aria-label={t('conversation.inputNavigation')} data-input-navigation data-input-count={inputs.length}
     onMouseLeave={() => setPreview(null)} onKeyDown={event => {
-      if (event.key === 'Escape') {
-        host.current?.querySelector<HTMLButtonElement>('[aria-expanded=true]')?.focus({ preventScroll: true })
-        setOpened(null); setPreview(null)
-      }
+      if (event.key === 'Escape') setPreview(null)
     }}>
-    <div className={styles.rail}>
-      {groups.map((group, index) => <button key={index} type="button" className={styles.tick}
-        aria-label={label(group.start)} aria-current={currentIndex >= group.start && currentIndex < group.end ? 'step' : undefined}
-        aria-expanded={!!opened && selected === index} aria-haspopup={group.end - group.start > 1 ? 'dialog' : undefined}
+    <div ref={rail} className={styles.rail} onScroll={event => setRailScroll(event.currentTarget.scrollTop)}>
+      {inputs.map((input, index) => <button key={input.id} type="button" className={styles.tick}
+        aria-label={label(index)} aria-current={input.id === current ? 'step' : undefined}
         onMouseEnter={() => setPreview(index)} onFocus={() => setPreview(index)} onBlur={() => setPreview(null)}
-        onClick={() => { if (group.end - group.start === 1) choose(inputs[group.start]); else { setOpened(group); setPreview(null) } }}><span /></button>)}
+        onClick={() => choose(input)}><span /></button>)}
     </div>
-    {group && <div className={styles.popup} style={{ top, maxHeight: popupHeight, width: Math.max(1, Math.min(300, size.width - 40)) }}
-      role={opened === null ? 'tooltip' : 'dialog'} aria-label={t('conversation.inputNavigation')}>
-      {opened === null ? <><span className={styles.number}>{label(group.start)}{group.end - group.start > 1 ? ` – ${group.end}` : ''}</span><div className={styles.preview}>{inputs[group.start].text || t('conversation.inputAttachment')}</div></>
-        : inputs.slice(group.start, group.end).map((input, offset) => <button type="button" key={input.id} className={styles.entry}
-          aria-label={label(group.start + offset)} aria-current={input.id === current ? 'step' : undefined} onClick={() => choose(input)}>
-          <span className={styles.number}>{label(group.start + offset)}</span><span className={styles.preview}>{input.text || t('conversation.inputAttachment')}</span>
-        </button>)}
+    {input && previewVisible && <div className={styles.popup} style={{ top, maxHeight: popupHeight, width: Math.max(1, Math.min(300, size.width - 40)) }}
+      role="tooltip" aria-label={t('conversation.inputNavigation')}>
+      <span className={styles.number}>{label(preview!)}</span><div className={styles.preview}>{input.text || t('conversation.inputAttachment')}</div>
     </div>}
   </nav>
 }

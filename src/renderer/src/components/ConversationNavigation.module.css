@@ -1,13 +1,13 @@
-.root { position: absolute; inset: 0 auto 0 0; width: 24px; z-index: 2; }
-.rail { height: 100%; padding: 12px 0; display: flex; flex-direction: column; justify-content: space-around; }
-.tick { display: grid; place-items: center; width: 24px; min-height: 0; flex: 1; padding: 0; background: transparent; }
+.root { position: absolute; inset: 0 auto 0 0; width: 24px; z-index: 2; display: flex; align-items: center; }
+.rail { max-height: min(216px, calc(100% - 24px)); width: 24px; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.tick { display: grid; place-items: center; width: 24px; min-height: 0; height: 18px; flex: 0 0 18px; padding: 0; background: transparent; }
 .tick span { width: 7px; height: 1px; background: var(--shell-muted); opacity: .35; transition: width 120ms, opacity 120ms; }
-.tick[aria-current] span { width: 12px; height: 2px; opacity: .8; background: var(--shell-accent); }
+.tick[aria-current] span { width: 12px; height: 2px; opacity: .8; background: var(--interaction-accent); }
+.tick:focus-visible { outline: 1px solid var(--interaction-accent); outline-offset: -1px; }
 .root:hover .tick span, .root:focus-within .tick span { opacity: .75; }
 .tick:hover span, .tick:focus-visible span { width: 15px; opacity: 1; }
 .popup { position: absolute; left: 28px; box-sizing: border-box; padding: 8px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--shell-border); border-radius: 8px; background: var(--shell-chrome-raised); color: var(--shell-text); box-shadow: 0 3px 12px var(--shell-border); font-size: 12px; overflow-wrap: anywhere; }
 .number { display: block; color: var(--shell-muted); font-size: 11px; margin-bottom: 3px; }
 .preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: pre-wrap; }
-.entry { display: block; width: 100%; padding: 6px; text-align: left; background: transparent; }
-.entry:hover, .entry:focus-visible, .entry[aria-current] { background: var(--shell-hover); }
 @media (prefers-reduced-motion: reduce) { .tick span { transition: none; } }
