@@ -78,7 +78,19 @@
   :is(.janus-island-shell[data-stage][data-view], [data-superagent-workspace]) .janus-chat[data-conversation-style] :is(.janus-context-indicator, .janus-todo-strip, .janus-question-gate) { width: calc(100% - 24px); }
   :is(.janus-island-shell[data-stage][data-view], [data-superagent-workspace]) .janus-chat[data-conversation-style] :is(.janus-chat-toolbar, .janus-resource-scope) { padding-inline: 12px; }
 }
+.janus-message-contexts { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.janus-message-context { display:inline-flex; align-items:center; gap:5px; min-width:0; max-width:100%; padding:2px 6px; border:1px solid var(--shell-border); border-radius:6px; color:var(--shell-muted); background:var(--shell-hover); font-size:11px; line-height:1.6; }
+.janus-message-context svg { flex-shrink:0; }
+.janus-message-context > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media (prefers-reduced-motion: reduce) {
   :is(.janus-island-shell[data-stage][data-view], [data-superagent-workspace]) .janus-chat[data-conversation-style] .janus-chat-input-wrapper { transition: none; }
 }
 
+/* Match the native conversation caret and latest-message control. */
+.janus-chat[data-conversation-style] :is(.janus-chat-input, .janus-chat-inline-editor) { caret-color: auto; }
+.janus-chat[data-conversation-style] .janus-chat-streaming-cursor { background: currentColor; }
+.janus-chat-transcript-content { flex: none; min-width: 0; }
+.janus-chat-transcript-viewport { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.janus-chat-latest-anchor { position: relative; flex: none; height: 0; z-index: 40; }
+.janus-chat-latest { position: absolute; bottom: 10px; left: calc(50% - 16px); display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: var(--shell-chrome-raised); color: var(--shell-muted); border: 1px solid var(--shell-border); box-shadow: 0 2px 8px var(--shell-border); cursor: pointer; }
+.janus-chat-latest:hover { color: var(--shell-text); background: var(--shell-hover); }

@@ -14,6 +14,7 @@ for (const surface of ['main-chat', 'project-panel']) {
       fixture.emitAgentEvent({ type: 'tool_call_ready', requestId, callId: 'read-1', toolName: 'note_read', argumentKeys: ['uri', 'maxChars'] })
       fixture.emitAgentEvent({ type: 'tool_execution_start', requestId, callId: 'read-1', toolName: 'note_read' })
     })
+    await chat.locator('.conversation-work-toggle').click()
     const card = chat.locator('.janus-tool-card')
     await expect(card).toHaveCount(1)
     await expect(card.locator('.janus-tool-card-body')).toHaveCount(0)

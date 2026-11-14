@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { ChatTurnPorts } from '@janus-agent/janus-agent'
 import { estimateContextTokens } from '@janus-agent/chat-core'
 import { SuperAgentContext } from '../../src/main/janus/superagent/context'
@@ -19,27 +20,49 @@ async function setup() {
   const service = new SuperAgentService(f.store, async id => id === workspace.workspaceId ? workspace.workspacePath : undefined)
   cleanups.push(() => service.close())
   const context = service.context
-  const turn = async (text: string, conversationId = 'new-chat') => {
+  const turn = async (text: string, conversationId = 'new-chat', contextWindow = 32_768) => {
     const controller = new AbortController()
     const host = await createSuperAgentChatTurn({ service, workspaceId: workspace.workspaceId, conversationId, eventId: randomUUID(), text, signal: controller.signal })
-    host.configure({ contextWindow: 32_768, maxOutputTokens: 4096 })
+    host.configure({ contextWindow, maxOutputTokens: 4096 })
     const ports = { localTools: [], streamTextFn: vi.fn(async () => ({ textStream: (async function* () {})() })) } as unknown as ChatTurnPorts
-    const inline = await host.attach(ports), messages = await host.prepareMessages([{ role: 'user', content: text }])
-    const initial = [{ role: 'system', content: inline }, ...messages]
+    const inline = await host.attach(ports), prepared = await host.prepareMessages([{ role: 'user' as const, content: text }])
+    const initial = await ports.prepareContext!([{ role: 'system', content: inline }, ...prepared], { model: { contextWindow, maxOutputTokens: 4096 } })
+    const messages = initial.filter(message => message.role !== 'system')
     await ports.streamTextFn({ messages: initial })
     const input = (await service.snapshot(workspace.workspaceId)).inputs.at(-1)!
     const call = async (name: string, args: unknown) => {
+      if (name === 'work_route' && !['stop', 'close', 'stop-all'].includes((args as { action: string }).action)) {
+        const value = args as { context?: object }
+        args = { ...value, context: { goal: 'Apply the current instruction', constraints: [], backgroundInputIds: [],
+          outcome: { target: 'Requested component', acceptance: ['Requested behavior works'], assumptions: [], maxRepairRounds: 1 }, ...value.context } }
+      }
       const result = await ports.localTools!.find(row => row.name === name)!.execute({ id: randomUUID(), name, arguments: args } as never, controller.signal)
       if (result.isError) throw new Error(result.content)
       return JSON.parse(result.content)
     }
-    const see = async (value: unknown) => ports.streamTextFn({ messages: [...initial, { role: 'tool', content: JSON.stringify(value) }] })
+    const history: Array<{ role: string; content: string }> = [...initial]
+    const see = async (value: unknown) => { history.push({ role: 'tool', content: JSON.stringify(value) }); return ports.streamTextFn({ messages: history }) }
     return { host, ports, input, call, see, inline, messages, initial }
   }
   return { ...f, service, context, turn }
 }
 
 describe('P5 shared context and source integrity', () => {
+  it('ships a bounded integer repair limit in the pinned work_route declaration for Gemini', async () => {
+    const f = await setup(), t = await f.turn('Update the sidebar')
+    const tool = t.ports.localTools!.find(row => row.name === 'work_route')!
+    expect(zodToJsonSchema(tool.parameters)).toMatchObject({ properties: { context: { properties: {
+      outcome: { properties: { maxRepairRounds: { type: 'integer', minimum: 0, maximum: 1 } } },
+    } } } })
+    for (const limit of [0, 1, -1, 2, 0.5, '0', '1', null, undefined]) {
+      expect(tool.parameters.safeParse({ action: 'new', inputId: t.input.id, context: {
+        goal: 'Update the sidebar', constraints: [], backgroundInputIds: [], outcome: {
+          target: 'Sidebar', acceptance: ['The requested change is observable'], assumptions: [], maxRepairRounds: limit,
+        },
+      } }).success).toBe(limit === 0 || limit === 1)
+    }
+  })
+
   it('exposes scoped stop-all only for a current host-admitted input without requiring historical context reads', async () => {
     const f = await setup(), prior = await f.turn('Historical request'), t = await f.turn('Stop all work in this workspace')
     const route = vi.spyOn(f.service, 'routeDecision').mockResolvedValue({ requested: true } as never)
@@ -56,14 +79,14 @@ describe('P5 shared context and source integrity', () => {
     const [first, second] = await Promise.all([t.host.steering(eventId, raw), t.host.steering(eventId, raw)])
     expect(second).toBe(first)
     expect(await t.host.steering(eventId, raw)).toBe(first)
-    expect(first).toContain('"truncated":true')
+    expect(first).toContain('"truncated":false')
     await expect(t.host.steering(eventId, raw + ' changed')).rejects.toThrow()
     const records = await f.service.snapshot(workspace.workspaceId)
     expect(records.inputs).toHaveLength(2)
     expect((await f.service.readResource(workspace.workspaceId, records.inputs[1].resourceId)).text).toBe(raw)
   })
 
-  it('finds retained closed work beyond five candidates by alias, file and native/report references, then reads its originals', async () => {
+  it('keeps retained closed work searchable without a fixed five-candidate cap, then reads its originals', async () => {
     const f = await setup(), old = await createWork(f.store, 'Old checkout feature'), execution = await recordExecution(f.store, old.id)
     const detail = await f.store.workDetail(workspace.workspaceId, old.id)
     await f.context.update(workspace.workspaceId, { workId: old.id, expectedWorkRevision: detail.work.revision, expectedContextRevision: 0,
@@ -73,13 +96,13 @@ describe('P5 shared context and source integrity', () => {
     for (let i = 0; i < 7; i++) await createWork(f.store, 'New feature ' + i)
     const t = await f.turn('What happened in the earlier work?')
     const data = JSON.parse(t.inline.split('\n').find(line => line.startsWith('SuperAgent Inline: '))!.slice(19))
-    expect(data.candidates.works.length).toBeLessThanOrEqual(5)
-    expect(data.candidates.nextOffset).not.toBeNull()
+    expect(data.candidates.works.length).toBeGreaterThan(5)
+    expect(data.candidates.nextOffset).toBeNull()
     for (const query of ['previous-panel', 'src/panel.ts', execution.providerSessionId!, report.id, report.resourceId]) {
       expect((await t.call('work_list', { query })).works.map((row: any) => row.id)).toContain(old.id)
     }
     const later = await t.call('work_list', { offset: 5 }); expect(later.works.map((row: any) => row.id)).toContain(old.id)
-    const card = await t.call('work_read', { workId: old.id })
+    const card = await t.call('work_read', { workId: old.id, view: 'history' })
     expect(card.work.closedAt).not.toBeNull(); expect(card.report.summary).toBe('Historical result')
     expect((await t.call('work_read_resource', { resourceId: card.source.resourceId })).text).toBe('Implement the requested feature')
     expect((await t.call('work_read_resource', { resourceId: card.report.resourceId })).text).toBe('Original report with evidence.')
@@ -112,11 +135,15 @@ describe('P5 shared context and source integrity', () => {
   })
 
   it('preserves very long input and blocks dispatch until every page has actually reached a later model request, without a six-read quota', async () => {
-    const f = await setup(), raw = '要求必须保留。'.repeat(12_000) + 'TAIL_REQUIREMENT', t = await f.turn(raw)
+    const f = await setup(), raw = '要求必须保留。'.repeat(12_000) + 'TAIL_REQUIREMENT'
+    // Exercise a transport that pages at 6000 tokens while the model can retain all pages.
+    const read = f.context.read.bind(f.context)
+    vi.spyOn(f.context, 'read').mockImplementation((scope, query, tokens = Infinity, workId, maxBytes) => read(scope, query, Math.min(tokens, 6000), workId, maxBytes))
+    const t = await f.turn(raw, 'new-chat', 1_000_000)
     const route = vi.spyOn(f.service, 'routeDecision').mockResolvedValue({ work: { id: randomUUID() } } as never)
     const args = { inputId: t.input.id, action: 'new', key: 'long', title: 'Long work', goal: 'Preserve all requirements' }
     expect((await f.service.readResource(workspace.workspaceId, t.input.resourceId)).text).toBe(raw)
-    expect(estimateContextTokens(t.inline + JSON.stringify(t.messages))).toBeLessThan(8000)
+    expect(estimateContextTokens(t.inline + JSON.stringify(t.messages))).toBeLessThan(1_000_000 * .8)
     expect(t.messages[0].content).toContain('"truncated":true')
     let blocked = await t.call('work_route', args), count = 0
     expect(blocked.blocked).toBe(true)
@@ -203,8 +230,10 @@ describe('P5 shared context and source integrity', () => {
 
   it('uses stable Unicode-safe ranges and returns normal material whole when it fits', () => {
     const text = 'x'.repeat(47_999) + '😀' + 'tail', resource = { id: randomUUID(), workspaceId: workspace.workspaceId, kind: 'input' as const, bytes: Buffer.byteLength(text), sha256: hashText(text), createdAt: 1 }
-    const first = resourcePage({ resource, text }), next = resourcePage({ resource, text }, first.nextOffset!)
-    expect(first.text + next.text).toBe(text); expect(first.end).toBe(47_999); expect(next.version).toBe(first.version)
+    expect(resourcePage({ resource, text }).text).toBe(text)
+    const first = resourcePage({ resource, text }, 0, 12_000), next = resourcePage({ resource, text }, first.nextOffset!)
+    expect(first.text + next.text).toBe(text); expect(first.end).toBeLessThan(text.length); expect(next.version).toBe(first.version)
+    expect(first.text).not.toMatch(/[\uD800-\uDBFF]$/)
     expect(resourcePage({ resource, text: 'Normal material' }).truncated).toBe(false)
     expect(() => resourcePage({ resource, text }, text.length + 1)).toThrow('offset')
     const escaped = ('中文😀\\\"\n').repeat(3000), bounded = resourcePage({ resource, text: escaped }, 0, Infinity, 12_000)

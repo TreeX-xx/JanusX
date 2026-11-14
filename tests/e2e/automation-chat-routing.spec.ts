@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 test.setTimeout(60_000)
 
 type FixtureWindow = Window & { automationChatFixture: {
-  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; isStreaming: boolean; activeTool: string | null; saveCount: number };
-  selectWorkspace(id: string | null): void; showGit(): void; draft(): void; queuePreviousRunFocus(): void;
+  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; isStreaming: boolean; activeTool: string | null; companionToolId: string | null; superAgentTab: string | null; saveCount: number };
+  selectWorkspace(id: string | null): void; showGit(): void; showAutomations(): void; closeAutomations(): void; draft(): void; queuePreviousRunFocus(): void;
   enableSuperAgent(): void; send(text: string): void; finish(): void;
   requests: Array<{ workspaceId?: string; workspaceResources: Array<{ workspaceId: string; agentSessionId: string }> }>;
 } }
@@ -52,7 +52,35 @@ for (const width of [1280, 680]) {
     expect(await state(page)).toMatchObject({ activeTool: 'automations', saveCount: 0 })
     await page.screenshot({ path: `artifacts/automations/automatic-routing-${width}.png`, animations: 'disabled' })
     await page.keyboard.press('Escape')
-    await expect(automation).toHaveAttribute('data-island-linked', 'false')
+    await expect(automation).toHaveAttribute('data-island-linked', 'true')
+    await expect(island).toHaveAttribute('data-stage', 'expanded')
+  })
+}
+
+for (const superAgent of [false, true]) {
+  test(`opening the automation sidebar connects and locks the eyes with SuperAgent ${superAgent ? 'started' : 'not started'}`, async ({ page }) => {
+    await page.goto('/automation-chat.html')
+    await expect.poll(async () => (await state(page)).loaded).toBe(true)
+    if (superAgent) await page.evaluate(() => (window as FixtureWindow).automationChatFixture.enableSuperAgent())
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
+    const panel = page.locator('.automation-panel')
+    const eyes = panel.getByRole('button', { name: 'SuperAgent connected', exact: true })
+    await expect(panel).toBeVisible()
+    await expect(eyes).toHaveAttribute('aria-pressed', 'true')
+    await expect(eyes).toBeDisabled()
+    const initial = await state(page)
+    expect(initial).toMatchObject({ companionToolId: 'automations', saveCount: 0 })
+    if (superAgent) expect(initial.superAgentTab).toBe('superagent')
+    await page.keyboard.press('Escape')
+    await expect(eyes).toHaveAttribute('aria-pressed', 'true')
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showGit())
+    await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
+    await expect(eyes).toBeDisabled()
+    expect(await state(page)).toMatchObject({ conversationId: initial.conversationId, messages: initial.messages, saveCount: 0 })
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.closeAutomations())
+    await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+    if (superAgent) expect((await state(page)).superAgentTab).toBe('superagent')
   })
 }
 

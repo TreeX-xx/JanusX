@@ -7,6 +7,7 @@ import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { WorkflowXStatus } from './janus/WorkflowXMonitor'
 import { useThemeStore } from '@/stores/theme'
 import { ThemePreviewPicker } from './ThemePreviewPicker'
+import { AnswerEmphasisSettings } from './AnswerEmphasisSettings'
 import { DEFAULT_APP_THEME } from '../../../shared/ipc/theme'
 import type { AppTheme } from '../../../shared/ipc/theme'
 import styles from './AppSettingsModal.module.css'
@@ -84,6 +85,7 @@ export function GeneralSettingsPanel() {
             />
           </div>
         </div>
+        <AnswerEmphasisSettings disabled={!themeLoaded || themeSaving} />
         <SettingsRow className={styles.generalRow}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.language.label')}</div>

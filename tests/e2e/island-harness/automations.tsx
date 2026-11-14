@@ -2,6 +2,8 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { AutomationPanel } from '../../../src/renderer/src/components/automations/AutomationPanel'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
+import { useRightToolStore } from '../../../src/renderer/src/stores/right-tools'
+import { useAppStore } from '../../../src/renderer/src/stores/app'
 import { receiveAutomationDraft, useAutomationsStore } from '../../../src/renderer/src/stores/automations'
 import { automationInputSchema, dailyReviewTemplate, type AutomationCard, type AutomationDefinition, type AutomationRun, type AutomationsAPI } from '../../../src/shared/automations'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
@@ -60,6 +62,8 @@ const api: AutomationsAPI = {
 Object.assign(window, { electron: { automations: api, llm: { getTerminalDefault: async () => ({ provider: { id: 'fixture-provider' }, modelId: 'fixture-model' }) } } })
 Object.assign(window, { automationFixture: { receiveDraft: receiveAutomationDraft } })
 useWorkspaceStore.setState({ activeWorkspaceId: 'project', workspaces: [{ id: 'project', name: 'Fixture project', path: '/fixture', clis: [], layout: { mode: 'tabs', positions: [] }, createdAt: '', updatedAt: '' }] })
+useRightToolStore.setState({ activeToolId: 'automations', openToolIds: ['automations'] })
+useAppStore.setState({ panelCollapsed: false })
 const params = new URLSearchParams(location.search)
 useThemeStore.getState().applyExternal(params.get('theme') === 'planche' ? 'planche' : 'dark')
 const panelWidth = Number(params.get('width') ?? 420)

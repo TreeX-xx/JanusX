@@ -19,7 +19,8 @@ const deferred = () => { let resolve!: () => void; const promise = new Promise<v
 async function fixture() {
   const f = await superAgentFixture(); cleanups.push(f.dispose)
   const mcpEntry = join(f.root, 'worker-mcp.js'); await writeFile(mcpEntry, '')
-  const clock = { now: 1000 }
+  const clock = { now: 1000, idleMs: WORKER_IDLE_MS, backend: 'codex' as 'codex' | 'claude' }
+  const recovery = { terminate: vi.fn(async (_tree: Array<{ pid: number; started: string }>) => {}), reboot: vi.fn(async (_after: number) => { throw new Error('Previous execution stop is unconfirmed; restart Windows') }) }
   const runtime = (store: SuperAgentStore = f.store, lifecycle?: SuperAgentLifecycleStore) => {
     let guard: () => Promise<readonly string[]> = async () => []
     const leases = new Map<string, SuperAgentEnvironmentLease>(), bindings = new Map<string, any>(), engines: ManagedEngineFixture[] = []
@@ -38,15 +39,15 @@ async function fixture() {
       release: vi.fn(async (id: string) => { leases.delete(id) }), close: async () => {},
     } as unknown as SuperAgentEnvironments
     const workers = new SuperAgentWorkers(store, environment, f.root,
-      async () => ({ command: 'fixture', env: {}, mcpCommand: process.execPath, mcpEntry }),
-      (_id, publish) => { const engine = new ManagedEngineFixture(publish); engines.push(engine); return engine }, 2 ** 30, () => clock.now, lifecycle)
+      async backend => ({ backend: backend ?? clock.backend, command: 'fixture', env: {}, mcpCommand: process.execPath, mcpEntry }),
+      (_id, publish) => { const engine = new ManagedEngineFixture(publish); engines.push(engine); return engine }, 2 ** 30, () => clock.now, lifecycle, recovery, () => clock.idleMs)
     const service = new SuperAgentService(store, async scope => scope === workspace.workspaceId ? workspace.workspacePath : otherWorkspace.workspacePath, environment, workers)
     cleanups.push(async () => { await service.close().catch(() => undefined) })
     const current = (workId: string, scope = workspace.workspaceId) => workers.snapshots(scope).find(row => row.workId === workId)!
-    const create = async (scope = workspace) => {
+    const create = async (scope = workspace, workerBackend?: 'codex' | 'claude') => {
       await service.scheduler!.initialize()
       const { input } = await store.receiveInput(scope, { ...submission(), workspaceId: scope.workspaceId })
-      return store.createWork(scope.workspaceId, { creationId: randomUUID(), sourceInputId: input.id, title: 'Lifecycle work', goal: 'Preserve requirements and current code' })
+      return store.createWork(scope.workspaceId, { workerBackend, creationId: randomUUID(), sourceInputId: input.id, title: 'Lifecycle work', goal: 'Preserve requirements and current code' })
     }
     const start = async (work: Awaited<ReturnType<typeof create>>) => {
       await service.scheduler!.request(work.workspaceId, work.id, work.sourceInputId)
@@ -60,10 +61,85 @@ async function fixture() {
     }
     return { workers, service, engines, current, create, start, ready, environment, store }
   }
-  return { ...f, clock, runtime }
+  return { ...f, clock, runtime, recovery }
 }
 
 describe('P6 resident lifecycle and explicit recovery', () => {
+  it('preserves native exit diagnostics across failed close and releases capacity after an explicit stop retry', async () => {
+    const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
+    engine.exit = vi.fn().mockRejectedValue(new Error('Owned descendant still running'))
+    engine.options!.onEvent!({ method: 'janus/transportError', params: { message: 'Codex exited (7). native failure' } })
+    engine.state.connection = 'disconnected'; engine.state.error = 'Codex exited (7). native failure'; engine.changed()
+    await expect.poll(() => r.current(work.id)?.phase).toBe('failed')
+    expect(r.current(work.id).diagnostic).toContain('Codex exited (7). native failure')
+    expect(r.current(work.id).diagnostic).toContain('Owned descendant still running')
+    expect((await r.service.workerLog(work.workspaceId, r.current(work.id).executionId)).text).toContain('Codex exited (7). native failure')
+    const detail = await r.store.workDetail(work.workspaceId, work.id)
+    await r.service.controlWork({ workspaceId: work.workspaceId, conversationId: submission().conversationId,
+      workId: work.id, expectedRevision: detail.work.revision, action: 'close' })
+    await expect.poll(() => (engine.exit as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2)
+    await expect.poll(() => r.current(work.id)?.phase).toBe('failed')
+    expect((await r.store.workDetail(work.workspaceId, work.id)).work.closedAt).not.toBeNull()
+    expect((await r.service.scheduleSnapshot(work.workspaceId)).occupied).toBe(1)
+    const diagnostic = r.current(work.id).diagnostic!
+    expect(diagnostic.split('Codex exited (7)')).toHaveLength(2)
+    expect((await r.workers.lifecycle.snapshot())[0].diagnostic).toBe(diagnostic)
+    engine.exit = vi.fn().mockResolvedValue(undefined)
+    await r.service.controlWorker({ workspaceId: work.workspaceId, workId: work.id, executionId: r.current(work.id).executionId, type: 'stop' })
+    await expect.poll(() => r.current(work.id)?.stopConfirmed).toBe(true)
+    await expect.poll(async () => (await r.service.scheduleSnapshot(work.workspaceId)).occupied).toBe(0)
+    expect(r.current(work.id).diagnostic).toBe('Codex exited (7). native failure')
+    await expect.poll(async () => (await r.service.scheduleSnapshot(work.workspaceId)).entries[0].diagnostic).toBe('Codex exited (7). native failure')
+    expect(r.environment.release).toHaveBeenCalledOnce()
+  })
+
+  it('retries an earlier failed worker stop during application close and releases only after confirmation', async () => {
+    const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
+    engine.exit = vi.fn().mockRejectedValueOnce(new Error('native stop denied')).mockResolvedValue(undefined)
+    await expect(r.workers.stopWork(work.workspaceId, work.id)).rejects.toThrow('native stop denied')
+    expect(r.current(work.id).stopConfirmed).toBe(false)
+    expect(r.environment.release).not.toHaveBeenCalled()
+    await r.service.close()
+    expect(engine.exit).toHaveBeenCalledTimes(2)
+    expect(r.current(work.id).stopConfirmed).toBe(true)
+    expect(r.environment.release).toHaveBeenCalledOnce()
+  })
+
+  it('mixes engines under the shared capacity and pins continuations and restored identities', async () => {
+    const f = await fixture(), r = f.runtime()
+    await r.service.configureCapacity(2)
+    const a = await r.create(), first = await r.start(a)
+    const b = await r.create(workspace, 'claude'), second = await r.start(b)
+    f.clock.backend = 'claude'
+    expect(r.current(a.id).conversation.engine).toBe('codex')
+    expect(r.current(b.id).conversation.engine).toBe('claude')
+    await r.ready(a.id, first); await r.ready(b.id, second)
+    const thread = r.current(a.id).conversation.threadId
+    await r.service.continueWorker({ ...submission('Continue original engine'), workId: a.id })
+    await expect.poll(() => r.engines[2]?.options?.worker?.backend).toBe('codex')
+    expect(r.engines[2].options?.threadId).toBe(thread)
+    await r.service.close()
+    const restored = f.runtime(f.createStore().store)
+    const states = await restored.service.workerSnapshots(workspace.workspaceId)
+    expect(states.find(row => row.workId === b.id)?.conversation.engine).toBe('claude')
+  })
+
+  it('applies increased and reduced idle policy to existing ready instances without resetting elapsed time', async () => {
+    const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
+    await r.ready(work.id, engine)
+    const idleSince = r.current(work.id).idleSince!
+    f.clock.idleMs = WORKER_IDLE_MS * 2
+    f.clock.now = idleSince + WORKER_IDLE_MS
+    await r.workers.sweep()
+    expect(r.current(work.id).idleSince).toBe(idleSince)
+    f.clock.idleMs = NaN
+    await expect(r.workers.sweep()).rejects.toThrow('Invalid Worker idle timeout')
+    expect(r.current(work.id)).toBeDefined()
+    f.clock.idleMs = WORKER_IDLE_MS / 2
+    await r.workers.sweep()
+    expect(r.current(work.id)).toBeUndefined()
+  })
+
   it('restores a ready idle deadline across app restart without extending it or launching anything', async () => {
     const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
     await r.ready(work.id, engine)
@@ -216,6 +292,58 @@ describe('P6 resident lifecycle and explicit recovery', () => {
     await expect(reopened.workers.stopWork(workspace.workspaceId, work.id)).rejects.toThrow('unconfirmed')
   })
 
+  it.skipIf(process.platform !== 'win32')('retries a restored owned tree and releases capacity only after native and durable confirmation', async () => {
+    const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
+    const stop = f.recovery.terminate.mockRejectedValue(new Error('Owned PID 48852 is still running')), reboot = f.recovery.reboot
+    const tree = [{ pid: 48852, started: '123456789' }]
+    engine.exit = async () => { await engine.options!.onProcessTree!(tree); throw new Error('Access denied: PID 48852') }
+    await expect(r.workers.stopWork(workspace.workspaceId, work.id)).rejects.toThrow('Access denied')
+    expect((await r.workers.lifecycle.snapshot())[0]).toMatchObject({ processTree: tree, hostDrained: true, stopConfirmed: false })
+    await r.service.close().catch(() => undefined)
+    const reopened = f.runtime(f.createStore().store)
+    expect((await reopened.service.workerSnapshots(workspace.workspaceId))[0].diagnostic).toContain('PID 48852')
+    await expect(reopened.workers.stopWork(workspace.workspaceId, work.id)).rejects.toThrow('still running')
+    expect((await reopened.service.scheduleSnapshot(workspace.workspaceId)).occupied).toBe(1)
+    await expect(reopened.environment.acquire(workspace.workspaceId, work.id)).rejects.toThrow('occupied')
+    stop.mockResolvedValue(undefined)
+    await reopened.workers.stopWork(workspace.workspaceId, work.id)
+    await expect.poll(async () => (await reopened.service.scheduleSnapshot(workspace.workspaceId)).occupied).toBe(0)
+    expect(reopened.current(work.id)).toMatchObject({ phase: 'stopped', stopConfirmed: true, restored: true })
+    expect((await reopened.workers.lifecycle.snapshot())[0].stopConfirmed).toBe(true)
+    expect(reopened.engines).toHaveLength(0)
+    expect(stop).toHaveBeenLastCalledWith(tree)
+    expect(reboot).toHaveBeenCalledTimes(1)
+    await reopened.environment.acquire(workspace.workspaceId, work.id)
+  })
+
+  it.skipIf(process.platform !== 'win32')('releases a legacy unconfirmed record only after a verified Windows reboot', async () => {
+    const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
+    const reboot = f.recovery.reboot.mockResolvedValue(undefined), stop = f.recovery.terminate
+    engine.exit = async () => { throw new Error('Legacy process tree unconfirmed') }
+    await expect(r.workers.stopWork(workspace.workspaceId, work.id)).rejects.toThrow('unconfirmed')
+    await r.service.close().catch(() => undefined)
+    const reopened = f.runtime(f.createStore().store)
+    await reopened.service.workerSnapshots(workspace.workspaceId)
+    await reopened.workers.stopWork(workspace.workspaceId, work.id)
+    expect(reboot).toHaveBeenCalledWith(f.clock.now)
+    expect(stop).not.toHaveBeenCalled()
+    expect(reopened.current(work.id).stopConfirmed).toBe(true)
+    expect(reopened.engines).toHaveLength(0)
+  })
+
+  it.skipIf(process.platform !== 'win32')('does not trust native exit evidence when host writes were not drained', async () => {
+    const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
+    const stop = f.recovery.terminate
+    engine.exit = async () => { throw new Error('unconfirmed') }
+    await expect(r.workers.stopWork(workspace.workspaceId, work.id)).rejects.toThrow('unconfirmed')
+    await r.service.close().catch(() => undefined)
+    await r.workers.lifecycle.update(work.id, r.current(work.id).executionId, { processTree: [{ pid: 48852, started: '123' }], hostDrained: false })
+    const reopened = f.runtime(f.createStore().store)
+    await expect(reopened.workers.stopWork(workspace.workspaceId, work.id)).rejects.toThrow('unconfirmed')
+    expect(stop).not.toHaveBeenCalled()
+    expect((await reopened.workers.lifecycle.snapshot())[0].stopConfirmed).toBe(false)
+  })
+
   it('does not mistake normal native waiting for loss, but stops on a missing MCP heartbeat without replaying pending input', async () => {
     const f = await fixture(), r = f.runtime(), work = await r.create(), engine = await r.start(work)
     engine.state.approvals = [{ id: 'approval', kind: 'command', description: 'Waiting for user' }]; engine.changed()
@@ -295,11 +423,19 @@ describe('P6 resident lifecycle and explicit recovery', () => {
     await r.service.continueWorker({ ...submission('Continue without native history'), workId: work.id })
     await expect.poll(() => r.current(work.id).phase).toBe('running')
     expect(r.current(work.id).recovery).toBe('rebuilt')
-    expect(r.engines[1].inputs[0].text).toContain('original native history is missing')
+    expect(r.engines[1].inputs[0].text).toContain('Native history is missing')
+    expect(r.engines[1].inputs[0].text).toContain('read_work and original resources before dependent actions')
     await r.ready(work.id, r.engines[1])
     const detail = await r.store.workDetail(workspace.workspaceId, work.id)
     const resource = detail.resources.find(row => row.id === (kind === 'input' ? detail.inputs[0].resourceId : detail.reports.at(-1)!.resourceId))!
     await rm(join(f.root, 'resources', `${resource.id}.txt`))
+    if (kind === 'input') {
+      // Dispatch now validates supplied background originals before admitting a new execution.
+      await expect(r.service.continueWorker({ ...submission('Try with missing critical original'), workId: work.id })).rejects.toThrow('resource unavailable')
+      expect(r.engines).toHaveLength(2)
+      expect(r.current(work.id).stopConfirmed).toBe(true)
+      return
+    }
     await r.service.continueWorker({ ...submission('Try with missing critical original'), workId: work.id })
     await expect.poll(() => r.current(work.id).phase).toBe('failed')
     expect(r.current(work.id).diagnostic).toContain('required original')

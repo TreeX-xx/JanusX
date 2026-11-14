@@ -7,7 +7,7 @@ function fixture(error: Error, recover = vi.fn(async () => {})) {
   vi.spyOn(CodexManagedTransport.prototype, 'start').mockResolvedValue(undefined)
   vi.spyOn(CodexManagedTransport.prototype, 'stop').mockResolvedValue(undefined)
   const call = vi.spyOn(CodexManagedTransport.prototype, 'call').mockImplementation(async method => {
-    if (method === 'config/read') return { config: {} }
+    if (method === 'config/read') return { config: { projects: { [process.cwd()]: { trust_level: 'trusted' } } } }
     if (method === 'environment/status') return { status: 'ready' }
     if (method === 'account/read') return { requiresOpenaiAuth: false }
     if (method === 'thread/resume') throw error
@@ -47,4 +47,29 @@ describe('native missing-history boundary', () => {
     expect(f.call.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
     await f.engine.dispose()
   })
+})
+
+it('holds managed startup at directory trust and resumes the original launch after native confirmation', async () => {
+  vi.spyOn(CodexManagedTransport.prototype, 'start').mockResolvedValue(undefined)
+  vi.spyOn(CodexManagedTransport.prototype, 'stop').mockResolvedValue(undefined)
+  let trusted = false
+  const call = vi.spyOn(CodexManagedTransport.prototype, 'call').mockImplementation(async method => {
+    if (method === 'config/read') return { config: { projects: trusted ? { [process.cwd()]: { trust_level: 'trusted' } } : {} } }
+    if (method === 'config/batchWrite') { trusted = true; return {} }
+    if (method === 'environment/status') return { status: 'ready' }
+    if (method === 'account/read') return { requiresOpenaiAuth: false }
+    if (method === 'thread/start') return { thread: { id: 'confirmed', turns: [] } }
+    throw new Error(method)
+  })
+  const engine = new CodexConversation('trust-fixture', () => {})
+  const pending = engine.startManaged({ command: 'fixture.exe', args: [], cwd: process.cwd(), env: {}, configure: () => ({}) })
+  try {
+    await vi.waitFor(() => expect(engine.snapshot().startup?.kind).toBe('trust'))
+    expect(call.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
+    const state = engine.snapshot()
+    await engine.command({ type: 'startup', startupId: state.startup!.id, controlEpoch: state.controlEpoch, action: 'trust' })
+    await pending
+    expect(engine.snapshot().threadId).toBe('confirmed')
+    expect(call.mock.calls.filter(([method]) => method === 'thread/start')).toHaveLength(1)
+  } finally { await engine.dispose() }
 })

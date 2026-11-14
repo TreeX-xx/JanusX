@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-11-05",
-  "updated": "2026-11-07T03:06:27Z",
+  "updated": "2026-11-14T05:17:24.719Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
     {
@@ -462,7 +462,7 @@ Janus 对话负责全部输入、必要的澄清和结果交付；输入框在�
 
 P1–P5 未修改 HTML。第四版 HTML 尚未对齐现有对话模式、ready／手动关闭、回收后隐藏和按需拉起、Codex 可扩展 Worker 并发、worktree 创建／合并／删除需用户同意、即时补充、原生审批、MCP 与不自动重试等最新约定。下文及表格描述历史演示，其串行、无审批自动建目录、持久会话和条件验收器不作为当前需求；下一次修订以最新决策为准。
 
-2026-11-05 更新[离线 HTML 演示](../../../../_design/janus-superagent/index.html)，包含四个页面：整体框架、交互体验、机制剖面和实施路线。图标、样式和脚本全部内嵌，可直接用浏览器打开；无 CDN、模型请求、真实执行或 Git 操作。localStorage 只保存演示数据，切换页面不会清空工作，重置按钮只清除本演示状态。
+2026-11-05 更新[离线 HTML 演示](../../../../design/janus-superagent/index.html)，包含四个页面：整体框架、交互体验、机制剖面和实施路线。图标、样式和脚本全部内嵌，可直接用浏览器打开；无 CDN、模型请求、真实执行或 Git 操作。localStorage 只保存演示数据，切换页面不会清空工作，重置按钮只清除本演示状态。
 
 框架页可点击十个职责模块，查看输入、输出、约束和建议阶段；六步路径解释接收、判断、会话、执行、交付以及测试反馈续接。区分全局 Janus 身份、工作区上下文、内部工作、持久 Session、执行目录和单轮执行，不再以“每轮结束销毁 Worker”解释连续开发。
 
@@ -482,9 +482,9 @@ P1–P5 未修改 HTML。第四版 HTML 尚未对齐现有对话模式、ready�
 
 三阶段是建议实施路线，不是已承诺排期。原型同时开放各阶段的设计体验；不代表 MVP 必须实现全部页面能力。云端常驻、跨设备和存算分离保持后置。Codex／Claude Code 等引擎选项只是新模拟会话的标签；真实接口、会话续接、追加和中断能力仍需逐个核对。
 
-源码为同目录的 `index.template.html`、`demo.css`、`demo.js`；运行 `node _design/janus-superagent/build.mjs` 生成可独立分发的 `index.html`。旧版保留为 `index-v1.html`、`index-v2.html`、`index-v3.html`，第四版使用独立存储键 `janus-superagent-design-04`，历史原型不再作为当前交互要求。
+源码为同目录的 `index.template.html`、`demo.css`、`demo.js`；运行 `node design/janus-superagent/build.mjs` 生成可独立分发的 `index.html`。旧版保留为 `index-v1.html`、`index-v2.html`、`index-v3.html`，第四版使用独立存储键 `janus-superagent-design-04`，历史原型不再作为当前交互要求。
 
-验证脚本 `_design/janus-superagent/verify.mjs` 使用 Playwright 点击真实浏览器，覆盖会话续接、异步回执、事件去重、工作区快照、分支归属、澄清、停止、槽位、软件面板、机制样本与异常恢复；检查四页面在 1440／1024／768／390 宽度下无页面横向溢出、无页面脚本错误或远程请求。截图及机器结果保存在 `artifacts/janus-superagent-demo/`，并人工查看桌面、手机和深色截图。此验证仅证明规则原型交互，不勾选产品 AC。
+验证脚本 `design/janus-superagent/verify.mjs` 使用 Playwright 点击真实浏览器，覆盖会话续接、异步回执、事件去重、工作区快照、分支归属、澄清、停止、槽位、软件面板、机制样本与异常恢复；检查四页面在 1440／1024／768／390 宽度下无页面横向溢出、无页面脚本错误或远程请求。截图及机器结果保存在 `artifacts/janus-superagent-demo/`，并人工查看桌面、手机和深色截图。此验证仅证明规则原型交互，不勾选产品 AC。
 
 第四版浏览器验证通过 8 组场景，包含双入口、已启动状态保存、通知与焦点、自动分支和原环境复用、Worker 多状态、异步与异常路径、机制页面及响应式布局。Note 的 JSON 元数据与相对文件链接另行检查；仓库正式校验脚本此前因当前环境缺少 `@janus-agent/harness-core` 无法运行，本轮未重跑，不声明完整语义校验通过。
 

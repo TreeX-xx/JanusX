@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest'
 import { AgentSteeringPort, runJanusAgentLoop } from '@janus-agent/agent-core'
 
 describe('installed agent tool pairing', () => {
+  it('includes inputs received while preparing context in the first installed-engine request', async () => {
+    const steeringPort = new AgentSteeringPort()
+    let calls = 0, transforms = 0
+    const messages = await runJanusAgentLoop([{ role: 'user', content: 'Start' }], {
+      tools: [], steeringPort,
+      transformContext: async context => {
+        if (transforms++ === 0) steeringPort.push('early', { role: 'user', content: 'New constraint' })
+        return context
+      },
+      stream: async context => {
+        calls++
+        expect(context.at(-1)?.content).toBe('New constraint')
+        return { message: { role: 'assistant', content: 'Updated' } }
+      },
+    })
+    expect(calls).toBe(1)
+    expect(messages.filter(m => m.content === 'New constraint')).toHaveLength(1)
+  })
   it.each([true, false])('pairs every call when parallel steering is %s', async (steer) => {
     const steeringPort = new AgentSteeringPort()
     const calls = [

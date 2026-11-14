@@ -24,16 +24,6 @@ jobs:
         with:
           path: JanusX
 
-      - name: Checkout sibling janus-agentX
-        uses: actions/checkout@v4
-        with:
-          repository: TreeX-xx/janus-agentX
-          ref: 4df4c4457269e46a52b7ed430db379e194fac175
-          path: janus-agentX
-
-      # S1.2 相容测试与 Note 外链检查按相对路径 ../WorkFlowX 读取标准与
-      # fixture；缺席则 ENOENT/unresolved-external-link 全红（v0.8.8 未推送
-      # 时本地能过、远端必挂的根因）。pin 显式 SHA 以保证可复现。
       - name: Checkout sibling WorkFlowX
         uses: actions/checkout@v4
         with:
@@ -48,31 +38,11 @@ jobs:
           cache: npm
           cache-dependency-path: |
             JanusX/package-lock.json
-            janus-agentX/package-lock.json
 
-      # @janus-agent/* 以 dist/ 发布，CI 里是源码检出，必须先构建同级仓，
-      # 否则 JanusX 侧 typecheck/bundle 找不到模块声明。
-      # 同级仓 workspace 字母序先编 cli 再编其依赖，单次全量构建必败；
-      # 此处按依赖分层显式定序，一次通过，不重试。
-      # cli 必须单独在最后：它消费 notes-cli 的 dist，同批并行必撞 fresh-clone 空 dist。
-      - name: Build sibling janus-agentX
-        working-directory: janus-agentX
-        shell: pwsh
-        run: |
-          npm ci
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/agent-core --workspace=@janus-agent/harness-core --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/chat-core --workspace=@janus-agent/harness-node --workspace=@janus-agent/node-hosts --workspace=@janus-agent/notes-cli --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/janus-agent --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/cli --if-present
-
-      # file: 依赖需要先物化，否则 install 找不到同级包。
+      # Engine artifacts are pinned in vendor/janus-agent and checked before use.
       - name: Prepackage
         working-directory: JanusX
-        run: npm run prepackage
+        run: npm ci && npm run prepackage
 
       # knowledge-note-ui 单测在 beforeAll 起 headless chromium；runner
       # 无预装浏览器则整个文件失败（v0.8.8 R3 新增用例首个需要的）。

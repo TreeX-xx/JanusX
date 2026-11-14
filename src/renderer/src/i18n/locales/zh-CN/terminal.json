@@ -20,6 +20,7 @@
     "contextUnknown": "上下文未知"
   },
   "context": {
+    "moreStats": "更多统计",
     "row": {
       "runtimeWindow": "运行窗口",
       "modelCapacity": "模型容量",
@@ -169,6 +170,7 @@
     "terminalRuntime": "用量",
     "noTelemetryData": "暂无用量数据",
     "focusWorkspaceTitle": "焦点终端工作区：{{name}} · {{path}}",
+    "closeRuntimePanel": "收起用量面板",
     "runtimePanelToggle": "切换用量面板",
     "janusChatFallback": "Janus 对话",
     "runtimeAria": "用量",
@@ -406,6 +408,8 @@
     "planTitle": "执行计划",
     "planUnavailable": "任务状态同步失败 · 显示最后确认的进度",
     "planHistory": "计划历史",
+    "planChanges": "计划调整",
+    "planPrevious": "调整前计划",
     "planCleared": "Agent 已清空计划",
     "planInterrupted": "执行已停止 · 保留原有进度",
     "planCount": "已完成 {{done}} / {{total}}",
@@ -497,9 +501,10 @@
     "approval": "待处理的审批",
     "approvalChoices": {
       "accept": "允许一次",
+      "acceptForTurn": "允许本轮权限",
       "acceptForSession": "本会话允许",
       "decline": "拒绝",
-      "cancel": "拒绝并停止"
+      "cancel": "拒绝并停止本轮"
     },
     "question": {
       "heading": "需要你的回答",
@@ -547,6 +552,8 @@
     "retryModels": "重试",
     "unsupportedCommand": "对话视图尚未支持此指令，请在终端中使用。",
     "openTerminalCommand": "切换到终端",
+    "newPending": "正在等待 Codex 新建对话。可切换到终端，完成尚未处理的原生交互。",
+    "commandArgumentsUnsupported": "此对话控制不接受参数。已保留草稿；带参数的原生命令请在终端中使用。",
     "effortUnavailable": "模型列表没有当前模型的推理强度信息，请选择列表中的模型或在终端中调整。",
     "noOptions": "没有匹配的可用选项。",
     "nextTurnSettings": "对当前会话的下一轮生效，正在进行的回复会继续。",
@@ -580,6 +587,14 @@
     "inputHint": "Enter 发送 · Ctrl+J / Shift+Enter 换行",
     "stop": "停止回复",
     "send": "发送",
+    "toolAction": {
+      "run": "执行",
+      "read": "读取",
+      "search": "搜索",
+      "edit": "修改",
+      "think": "思考",
+      "tool": "调用"
+    },
     "kind": {
       "commandExecution": "命令",
       "fileChange": "文件修改",
@@ -597,6 +612,7 @@
       "back": "返回",
       "search": "搜索文件或输入路径",
       "attachHint": "从电脑选择文件",
+      "drop": "松开以添加上下文",
       "referenceHint": "选择工作区中的文件或目录",
       "add": "添加上下文",
       "attach": "添加附件",

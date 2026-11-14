@@ -1,0 +1,88 @@
+.topics { display: flex; flex-direction: column; min-width: 0; padding: 0; color: var(--text); }
+.parallel { margin: 14px 0; min-width: 0; }
+.parallel > summary { display: flex; align-items: center; gap: 7px; padding: 10px 0; color: var(--shell-muted); font-size: 12px; cursor: pointer; list-style: none; }
+.parallel > summary::-webkit-details-marker { display: none; }
+.parallel > summary:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: 2px; }
+.parallelCards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.topics[data-single] .parallel .card[data-parallel='true'] { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-deep); min-width: 0; }
+.topics[data-single] .card[data-parallel='true'] .header { padding: 12px; background: var(--shell-chrome); }
+.topics[data-single] .card[data-parallel='false'] > .header { border: 0; padding: 6px 0; }
+.branchTitle { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 500; }
+.header > .iconButton { margin-left: auto; flex-shrink: 0; }
+@container (max-width: 700px) { .parallelCards { grid-template-columns: minmax(0, 1fr); } }
+.card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-deep); overflow: hidden; transition: border-color 450ms ease, box-shadow 450ms ease; }
+.topics[data-single] .card[data-parallel='false'] { border: 0; border-radius: 0; background: transparent; transition: none; }
+.topics[data-single='true'] .header { background: transparent; padding: 8px 0 14px; }
+.header { display: flex; align-items: center; gap: 10px; padding: 12px 15px; background: var(--shell-chrome); border-bottom: 1px solid var(--border); font-size: 11px; }
+.topics button { cursor: pointer; font: inherit; color: inherit; }
+.iconButton { border: 0; background: transparent; padding: 3px; }
+.iconButton svg { flex-shrink: 0; }
+.topics button:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: -2px; }
+/* The containing JanusChat has a stronger global focus rule; keep topic ink inside clipped cards. */
+:global([data-superagent-workspace] .janus-chat[data-conversation-style]) .topics[data-single] .card button:focus-visible { outline-offset: -2px; }
+.state { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: var(--text-secondary); }
+.input { width: fit-content; max-width: 85%; box-sizing: border-box; margin: 10px 0 14px auto; padding: 11px 16px; border: 1px solid color-mix(in srgb, var(--shell-border) 55%, transparent); background: color-mix(in srgb, var(--shell-chrome-raised) 65%, var(--bg-deep)); border-radius: 16px 16px 5px 16px; text-align: left; }
+.input p { margin: 0; font-size: 14px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.input small { display: block; margin-top: 8px; color: var(--text-secondary); font-size: 11px; }
+.error { margin: 12px 16px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--status-danger) 24%, var(--shell-border)); border-radius: 7px; color: var(--status-danger); background: color-mix(in srgb, var(--status-danger) 6%, transparent); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.choice, .resume { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.choice p { flex-basis: 100%; margin: 0 0 4px; color: var(--text-secondary); }
+.choice button, .resume button { border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; background: var(--surface-elevated); max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.resume span { color: var(--text-secondary); flex: 1; }
+.empty { padding: 24px 16px; color: var(--text-secondary); font-size: 13px; }
+.transcript :global(.janus-chat) { position: relative; inset: auto; z-index: auto; width: 100%; height: auto; min-height: 0; flex: none; overflow: visible; border: 0; background: transparent; }
+.transcript :global(.janus-chat-input-wrapper[hidden]) { display: none; }
+.transcript :global(.janus-chat-message) { animation: none; }
+.transcript :global(.janus-chat-message.assistant[data-round-id]) { position:relative; isolation:isolate; border-radius:8px; }
+.transcript :global(.janus-chat-message.assistant[data-round-id]::before) { content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; border-radius:inherit; background:color-mix(in srgb, var(--shell-text) 4%, transparent); opacity:0; transition:opacity 120ms ease; }
+.transcript :global(.janus-chat-message.assistant[data-cross-highlight=true]::before) { opacity:1; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.user > .janus-chat-message-content) { transition:box-shadow 120ms ease; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.user[data-cross-highlight=true] > .janus-chat-message-content) { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--shell-text) 32%, var(--shell-border)); }
+.transcript :global(.janus-chat-message[data-round-id]:focus-visible) { outline:2px solid var(--shell-muted)!important; outline-offset:-2px!important; }
+.transcript :global(.janus-chat-message.user[data-round-id]:focus-visible) { outline:none!important; }
+.transcript :global(.janus-chat-message.user[data-round-id]:focus-visible > .janus-chat-message-content) { outline:2px solid var(--shell-muted); outline-offset:-2px; }
+.transcript :global(.superagent-reply) { min-width:0; width:100%; }
+.transcript :global(.superagent-reply > summary) { display:flex; align-items:center; gap:8px; list-style:none; cursor:pointer; color:var(--shell-muted); font-size:11px; min-width:0; padding:8px; border-radius:7px; }
+.transcript :global(.superagent-reply:not([open]) > summary) { background:color-mix(in srgb, var(--shell-text) 3%, transparent); }
+.transcript :global(.superagent-reply > summary:hover) { color:var(--shell-text); background:var(--shell-hover); }
+.transcript :global(.superagent-reply > summary::marker) { content:''; }
+.transcript :global(.superagent-reply > summary span) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.transcript :global(.superagent-reply > summary svg) { flex-shrink:0; }
+.transcript :global(.superagent-reply[open] > summary svg) { transform:rotate(180deg); }
+.transcript :global(.superagent-reply > summary:focus-visible) { outline:2px solid var(--shell-muted)!important; outline-offset:-2px!important; }
+.topics .transcript :global(.janus-chat-messages:has([data-worker-report])) { padding-inline: 0 !important; }
+.transcript :global(.janus-question-gate-heading) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.transcript :global(.janus-question-gate-heading button) { border: 0; padding: 5px; color: var(--text-secondary); background: transparent; font-size: 11px; }
+@media (prefers-reduced-motion: reduce) { .card, .transcript :global(.janus-chat-message.assistant[data-round-id]::before), :global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.user > .janus-chat-message-content) { transition: none; } }
+
+.state::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.card[data-topic-state='running'] .state { color: var(--status-success); }
+.card:is([data-topic-state='routing'], [data-topic-state='queued'], [data-topic-state='question'], [data-topic-state='paused']) .state { color: var(--status-warning); }
+.card[data-topic-state='done'] .state { color: var(--status-info); }
+.iconButton { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 4px; }
+.iconButton:hover { background: var(--shell-hover); }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style]) { position: relative; inset: auto; width: 100%; height: auto; flex: none; min-height: 0; overflow: visible; background: transparent; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-main) { height: auto; min-height: 0; overflow: visible; background: transparent; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-messages) { height: auto; flex: none; overflow: visible; padding: 19px 18px 10px; scrollbar-gutter: auto; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message) { display: flex; flex-direction: column; width: 100%; max-width: none; padding: 0 0 13px; margin: 0; align-items: stretch; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.user) { align-items: flex-end; padding: 16px 0 0; border-top: 1px solid var(--shell-border); }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.user:first-child) { padding-top: 0; border-top: 0; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.assistant) { width: auto; margin: 20px 7% 0 0; gap: 9px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.assistant[data-round-id]) { padding:10px 12px 13px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message-content) { order: initial; font-size: 13px; line-height: 1.85; }
+/* Inherit the native JanusChat bubble surface, radii and responsive width. */
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.user .janus-chat-message-content) { box-sizing: border-box; text-align: left; font-size: 14px; line-height: 1.65; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message-author) { order: initial; margin: 0; font-size: 11px; gap: 7px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message-speaker) { display: none; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message-meta) { display: none; }
+.transcript :global(.janus-chat-steering-status) { order: 2; display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message-content p) { font-size: inherit; line-height: inherit; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-question-gate) { width: auto; max-width: none; margin: 20px 7% 14px 0; padding: 14px; border-radius: 9px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-question-option) { padding: 12px; border-radius: 6px; background: var(--bg-deep); }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-question-custom) { padding: 11px 12px; border-radius: 6px; min-height: 80px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-question-submit) { border-radius: 5px; }
+:global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-error-card) { margin: 15px 7% 10px 0; border: 1px solid color-mix(in srgb, var(--status-danger) 24%, var(--shell-border)); border-radius: 7px; padding: 13px; background: color-mix(in srgb, var(--status-danger) 5%, var(--bg-deep)); }
+:global([data-superagent-workspace]) .topics[data-single="true"] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-messages) { padding: 22px 0 10px; }
+:global([data-superagent-workspace]) .topics[data-single="true"] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message-content) { font-size: 13px; line-height: 1.85; }
+@container (max-width: 540px) { .input { max-width: 92%; } }
+@container (max-width: 500px) { :global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-chat-message.assistant) { margin-right: 0; } :global([data-superagent-workspace]) .topics[data-single] .transcript :global(.janus-chat[data-conversation-style] .janus-question-gate) { margin: 15px 0 12px; padding: 13px; } }

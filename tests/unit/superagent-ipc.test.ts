@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { SUPERAGENT_CHANNELS, type SuperAgentAPI } from '../../src/shared/ipc/superagent'
 import { SuperAgentService } from '../../src/main/janus/superagent/service'
 import { registerSuperAgentHandlers } from '../../src/main/ipc/superagent-handlers'
+import { WorkerSettingsStore, type WorkerSettingsEngines } from '../../src/main/janus/superagent/worker-settings'
 import { createWork, otherWorkspace, submission, superAgentFixture, workspace } from '../helpers/superagent-fixture'
 
 const mocks = vi.hoisted(() => ({ handle: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), expose: vi.fn() }))
@@ -45,13 +46,13 @@ describe('SuperAgent host admission and IPC', () => {
     expect((await fixture.store.snapshot(scope)).inputs).toEqual([])
   })
 
-  function register() {
+  function register(workerSettings?: WorkerSettingsEngines) {
     const frame = {}
     const send = vi.fn()
     const contents = { id: 10, mainFrame: frame, isDestroyed: () => false, send }
     const window = { isDestroyed: () => false, webContents: contents }
     const closedWindow = { isDestroyed: () => true, webContents: { ...contents, id: 11, send: vi.fn() } }
-    const options = { getAllowedWindows: () => [window, closedWindow] as unknown as BrowserWindow[], resolveWorkspaceRoot: async () => workspace.workspacePath }
+    const options = { getAllowedWindows: () => [window, closedWindow] as unknown as BrowserWindow[], resolveWorkspaceRoot: async () => workspace.workspacePath, workerSettings }
     registerSuperAgentHandlers(options, service)
     const handlers = new Map(mocks.handle.mock.calls.map(([channel, callback]) => [channel, callback]))
     const event = { sender: contents, senderFrame: frame } as unknown as IpcMainInvokeEvent
@@ -72,11 +73,14 @@ describe('SuperAgent host admission and IPC', () => {
     await submit(event, input)
     expect(send).toHaveBeenCalledTimes(1)
     expect([...handlers.keys()]).toEqual([
+      SUPERAGENT_CHANNELS.workerModels,
+      SUPERAGENT_CHANNELS.workerDefaults, SUPERAGENT_CHANNELS.workerPolicy, SUPERAGENT_CHANNELS.updateWorkerPolicy, SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes, SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes, SUPERAGENT_CHANNELS.updateWorkerDefaults, SUPERAGENT_CHANNELS.workerSettings,
+      SUPERAGENT_CHANNELS.configureWorker, SUPERAGENT_CHANNELS.refreshWorkerModels,
       SUPERAGENT_CHANNELS.submitInput, SUPERAGENT_CHANNELS.snapshot, SUPERAGENT_CHANNELS.workDetail, SUPERAGENT_CHANNELS.readResource,
       SUPERAGENT_CHANNELS.environments, SUPERAGENT_CHANNELS.decideEnvironmentOperation,
       SUPERAGENT_CHANNELS.prepareWorker, SUPERAGENT_CHANNELS.startWorker, SUPERAGENT_CHANNELS.appendWorker, SUPERAGENT_CHANNELS.continueWorker,
       SUPERAGENT_CHANNELS.workers, SUPERAGENT_CHANNELS.controlWorker, SUPERAGENT_CHANNELS.workerLog,
-      SUPERAGENT_CHANNELS.schedule, SUPERAGENT_CHANNELS.configureCapacity, SUPERAGENT_CHANNELS.controlWork,
+      SUPERAGENT_CHANNELS.schedule, SUPERAGENT_CHANNELS.workflows, SUPERAGENT_CHANNELS.controlWorkflow, SUPERAGENT_CHANNELS.configureCapacity, SUPERAGENT_CHANNELS.controlWork, SUPERAGENT_CHANNELS.controlQueue,
     ])
   })
 
@@ -88,6 +92,16 @@ describe('SuperAgent host admission and IPC', () => {
     await expect(handlers.get(SUPERAGENT_CHANNELS.workDetail)!(event, otherWorkspace.workspaceId, work.id)).rejects.toThrow('not found')
     await expect(handlers.get(SUPERAGENT_CHANNELS.readResource)!(event, otherWorkspace.workspaceId, detail.inputs[0].resourceId)).rejects.toThrow('not found')
     expect((await handlers.get(SUPERAGENT_CHANNELS.snapshot)!(event, scope)).works).toHaveLength(1)
+  })
+
+  it('authorizes queue controls before calling the scheduler and validates their public shape', async () => {
+    const { handlers, event } = register(), control = handlers.get(SUPERAGENT_CHANNELS.controlQueue)!
+    const value = { workspaceId: scope, workId: '00000000-0000-4000-8000-000000000123', expectedVersion: 1, action: 'pause' }
+    const dispatch = vi.spyOn(service, 'controlQueue')
+    await expect(control({ ...event, senderFrame: {} }, value)).rejects.toThrow('main frames')
+    expect(dispatch).not.toHaveBeenCalled()
+    await expect(control(event, { ...value, action: 'priority', priority: 'urgent' })).rejects.toThrow()
+    await expect(control(event, { ...value, workspaceId: 'missing' })).rejects.toThrow('not registered')
   })
 
   it('requires the trusted main frame for user Git decisions and rejects replacement operation targets', async () => {
@@ -102,6 +116,44 @@ describe('SuperAgent host admission and IPC', () => {
     expect(await decide(event, decision)).toMatchObject({ id: decision.operationId, status: 'rejected' })
     expect(dispatch).toHaveBeenLastCalledWith(decision)
     dispatch.mockRestore()
+  })
+
+  it('authorizes settings IPC, validates saved preferences and resolves only the current execution instance', async () => {
+    const state = { selection: { terminal: 'codex', model: null, effort: null }, inherited: true, pending: false }
+    const engine = { state: vi.fn(() => state), configure: vi.fn(async () => state), refreshModels: vi.fn(async () => state) }
+    const adapter = { defaults: new WorkerSettingsStore(fixture.root), get: vi.fn(() => engine) } as unknown as WorkerSettingsEngines
+    const worker = { workspaceId: scope, workId: 'work', executionId: 'execution', instanceId: 'native-instance', phase: 'running', stopConfirmed: false }
+    Object.defineProperty(service, 'workers', { value: { snapshots: (workspaceId: string) => workspaceId === scope ? [worker] : [], subscribe: () => () => {} } })
+    const { handlers, event } = register(adapter)
+    const identity = { workspaceId: scope, workId: 'work', executionId: 'execution' }
+    for (const channel of [SUPERAGENT_CHANNELS.workerModels, SUPERAGENT_CHANNELS.workerPolicy, SUPERAGENT_CHANNELS.updateWorkerPolicy, SUPERAGENT_CHANNELS.workerDefaults, SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes, SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes, SUPERAGENT_CHANNELS.updateWorkerDefaults, SUPERAGENT_CHANNELS.workerSettings, SUPERAGENT_CHANNELS.configureWorker, SUPERAGENT_CHANNELS.refreshWorkerModels]) {
+      await expect(handlers.get(channel)!({ ...event, senderFrame: {} }, identity, null)).rejects.toThrow('main frames')
+    }
+    const defaults = { terminal: 'codex', model: 'alternate', effort: 'high' }
+    expect(await handlers.get(SUPERAGENT_CHANNELS.updateWorkerDefaults)!(event, defaults)).toEqual(defaults)
+    expect(await handlers.get(SUPERAGENT_CHANNELS.workerDefaults)!(event)).toEqual(defaults)
+    expect(await handlers.get(SUPERAGENT_CHANNELS.workerPolicy)!(event)).toEqual({ defaultBackend: 'codex', enabled: ['codex', 'claude'] })
+    await handlers.get(SUPERAGENT_CHANNELS.updateWorkerPolicy)!(event, { defaultBackend: 'codex', enabled: ['codex'] })
+    expect(await handlers.get(SUPERAGENT_CHANNELS.workerPolicy)!(event)).toEqual({ defaultBackend: 'codex', enabled: ['codex'] })
+    await expect(handlers.get(SUPERAGENT_CHANNELS.updateWorkerPolicy)!(event, { defaultBackend: 'claude', enabled: ['codex'] })).rejects.toThrow('must be enabled')
+    expect(await handlers.get(SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes)!(event)).toBe(30)
+    expect(await handlers.get(SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes)!(event, 60)).toBe(60)
+    expect(await handlers.get(SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes)!(event)).toBe(60)
+    await expect(handlers.get(SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes)!(event, 0)).rejects.toThrow('Invalid Worker idle timeout')
+    await expect(handlers.get(SUPERAGENT_CHANNELS.updateWorkerDefaults)!(event, { ...defaults, terminal: 'shell' })).rejects.toThrow('Unsupported Worker backend')
+    expect(await handlers.get(SUPERAGENT_CHANNELS.configureWorker)!(event, identity, defaults)).toBe(state)
+    expect(adapter.get).toHaveBeenLastCalledWith('native-instance')
+    expect(engine.configure).toHaveBeenLastCalledWith(defaults)
+    await handlers.get(SUPERAGENT_CHANNELS.configureWorker)!(event, identity, null)
+    expect(engine.configure).toHaveBeenLastCalledWith(null)
+    await handlers.get(SUPERAGENT_CHANNELS.refreshWorkerModels)!(event, identity)
+    expect(engine.refreshModels).toHaveBeenCalledOnce()
+    for (const forged of [{ ...identity, executionId: 'old' }, { ...identity, workspaceId: 'other' }, { ...identity, instanceId: 'forged' }]) {
+      await expect(handlers.get(SUPERAGENT_CHANNELS.configureWorker)!(event, forged, defaults)).rejects.toThrow()
+    }
+    worker.phase = 'stopping'
+    await expect(handlers.get(SUPERAGENT_CHANNELS.configureWorker)!(event, identity, defaults)).rejects.toThrow('unavailable')
+    expect(engine.configure).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -145,5 +197,34 @@ describe('SuperAgent preload contract', () => {
     expect(environmentCallback).toHaveBeenCalledWith({ workspaceId: workspace.workspaceId, revision: 1 })
     off()
     expect(mocks.removeListener).toHaveBeenCalledWith(environmentChannel, environmentListener)
+  })
+
+  it('preserves queue versions and priority controls through preload', async () => {
+    const control = { workspaceId: 'scope', workId: 'work', expectedVersion: 4, action: 'priority' as const, priority: 'background' as const }
+    await api.controlQueue(control)
+    expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith(SUPERAGENT_CHANNELS.controlQueue, control)
+  })
+  it('preserves scoped workflow identities, revisions and event unsubscribe through preload', async () => {
+    const control = { workspaceId: 'scope', workflowId: 'flow', expectedRevision: 4, action: 'pause' as const }
+    await api.workflows('scope'); await api.controlWorkflow(control)
+    expect(mocks.invoke.mock.calls).toEqual([[SUPERAGENT_CHANNELS.workflows, 'scope'], [SUPERAGENT_CHANNELS.controlWorkflow, control]])
+    const listener = vi.fn(), off = api.onWorkflowsChanged(listener), [channel, callback] = mocks.on.mock.calls[0]
+    callback({}, { workspaceId: 'scope' }); expect(listener).toHaveBeenCalledWith({ workspaceId: 'scope' })
+    off(); expect(mocks.removeListener).toHaveBeenCalledWith(channel, callback)
+  })
+
+  it('passes settings and exact execution identity through preload without rewriting null restores', async () => {
+    const identity = { workspaceId: 'scope', workId: 'work', executionId: 'execution' }
+    const settings = { terminal: 'codex' as const, model: 'alternate', effort: 'high' }
+    await api.workerModels('claude')
+    await api.workerDefaults(); await api.workerIdleTimeoutMinutes(); await api.updateWorkerIdleTimeoutMinutes(60); await api.updateWorkerDefaults(settings)
+    await api.workerSettings(identity); await api.configureWorker(identity, settings)
+    await api.configureWorker(identity, null); await api.refreshWorkerModels(identity)
+    expect(mocks.invoke.mock.calls).toEqual([
+      [SUPERAGENT_CHANNELS.workerModels, 'claude'],
+      [SUPERAGENT_CHANNELS.workerDefaults], [SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes], [SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes, 60], [SUPERAGENT_CHANNELS.updateWorkerDefaults, settings],
+      [SUPERAGENT_CHANNELS.workerSettings, identity], [SUPERAGENT_CHANNELS.configureWorker, identity, settings],
+      [SUPERAGENT_CHANNELS.configureWorker, identity, null], [SUPERAGENT_CHANNELS.refreshWorkerModels, identity],
+    ])
   })
 })

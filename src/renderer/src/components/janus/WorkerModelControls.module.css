@@ -1,0 +1,17 @@
+.trigger.trigger { display: inline-flex; flex: 1; align-items: center; gap: 5px; min-width: 0; min-height: 28px; padding: 0 5px; border: 0; background: transparent; color: var(--shell-dim); text-align: left; font: inherit; font-size: 10px; }
+.trigger:hover { background: var(--shell-hover); }
+.trigger svg { flex-shrink: 0; }
+.trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialog { box-sizing: border-box; width: min(380px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: 85dvh; padding: 0; border: 1px solid var(--shell-border); border-radius: 9px; color: var(--shell-muted); background: var(--bg-deep); font: inherit; font-size: 12px; line-height: 1.6; overflow: visible; }
+.dialog { position: fixed; inset: auto; margin: 0; z-index: 1000; display: flex; flex-direction: column; }
+
+.dialog header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--shell-border); }
+.dialog h2 { margin: 0; font-size: 13px; font-weight: 550; color: var(--shell-text); }
+.dialog header button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; color: var(--shell-muted); background: transparent; cursor: pointer; }
+.dialog header button:hover { background: var(--shell-hover); }
+.trigger:focus-visible, .dialog button:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: 2px; }
+.body { display: grid; box-sizing: border-box; min-height: 0; overflow: auto; gap: 10px; padding: 14px; }
+.body > p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.body > label { display: grid; grid-template-columns: 55px minmax(0, 1fr); align-items: center; gap: 8px; }
+.body [role='alert'] { color: var(--status-danger); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }

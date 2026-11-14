@@ -500,11 +500,22 @@ const memoAPI: MemoAPI = {
 }
 
 const janusChatAPI: JanusChatAPI = {
+  routeTopic: request => ipcRenderer.invoke(JANUS_CHAT_CHANNELS.routeTopic, request),
   load: () => ipcRenderer.invoke(JANUS_CHAT_CHANNELS.load),
   save: (snapshot) => ipcRenderer.invoke(JANUS_CHAT_CHANNELS.save, snapshot).then(() => undefined),
 }
 
 const superAgentAPI: SuperAgentAPI = {
+  workerModels: backend => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerModels, backend),
+  workerDefaults: backend => backend === undefined ? ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerDefaults) : ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerDefaults, backend),
+  workerPolicy: () => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerPolicy),
+  updateWorkerPolicy: policy => ipcRenderer.invoke(SUPERAGENT_CHANNELS.updateWorkerPolicy, policy),
+  workerIdleTimeoutMinutes: () => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes),
+  updateWorkerIdleTimeoutMinutes: minutes => ipcRenderer.invoke(SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes, minutes),
+  updateWorkerDefaults: settings => ipcRenderer.invoke(SUPERAGENT_CHANNELS.updateWorkerDefaults, settings),
+  workerSettings: identity => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerSettings, identity),
+  configureWorker: (identity, settings) => ipcRenderer.invoke(SUPERAGENT_CHANNELS.configureWorker, identity, settings),
+  refreshWorkerModels: identity => ipcRenderer.invoke(SUPERAGENT_CHANNELS.refreshWorkerModels, identity),
   submitInput: input => ipcRenderer.invoke(SUPERAGENT_CHANNELS.submitInput, input),
   snapshot: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.snapshot, workspaceId),
   workDetail: (workspaceId, workId) => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workDetail, workspaceId, workId),
@@ -524,7 +535,11 @@ const superAgentAPI: SuperAgentAPI = {
   schedule: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.schedule, workspaceId),
   configureCapacity: value => ipcRenderer.invoke(SUPERAGENT_CHANNELS.configureCapacity, value),
   controlWork: control => ipcRenderer.invoke(SUPERAGENT_CHANNELS.controlWork, control),
+  controlQueue: control => ipcRenderer.invoke(SUPERAGENT_CHANNELS.controlQueue, control),
   onScheduleChanged: callback => subscribeIpcEvent(SUPERAGENT_CHANNELS.scheduleChanged, callback),
+  workflows: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workflows, workspaceId),
+  controlWorkflow: control => ipcRenderer.invoke(SUPERAGENT_CHANNELS.controlWorkflow, control),
+  onWorkflowsChanged: callback => subscribeIpcEvent(SUPERAGENT_CHANNELS.workflowsChanged, callback),
 }
 
 const notificationSettingsAPI: NotificationSettingsAPI = {

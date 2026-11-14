@@ -16,6 +16,8 @@ interface ThemedTooltipProps {
    * panel：左对齐结构化内容（标签/数值列），供用量卡片等同构浮层。
    */
   variant?: 'text' | 'panel'
+  /** Allow compact usage indicators to pin their details with a click. */
+  openOnClick?: boolean
 }
 
 interface TipGeometry {
@@ -37,10 +39,12 @@ export function ThemedTooltip({
   delayMs = 350,
   disabled = false,
   variant = 'text',
+  openOnClick = false,
 }: ThemedTooltipProps) {
   const anchorRef = useRef<HTMLSpanElement | null>(null)
   const tipRef = useRef<HTMLDivElement | null>(null)
   const pointerFocusRef = useRef(false)
+  const pinnedRef = useRef(false)
   const timerRef = useRef<number | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [geometry, setGeometry] = useState<TipGeometry | null>(null)
@@ -54,13 +58,14 @@ export function ThemedTooltip({
   }
 
   const hide = useCallback(() => {
+    pinnedRef.current = false
     clearTimer()
     setArmed(false)
     setAnchorRect(null)
     setGeometry(null)
   }, [])
 
-  const show = () => {
+  const show = (delay = delayMs) => {
     if (disabled || !label) return
     clearTimer()
     setArmed(true)
@@ -70,7 +75,7 @@ export function ThemedTooltip({
       const rect = target?.getBoundingClientRect()
       if (!rect || (rect.width === 0 && rect.height === 0)) return
       setAnchorRect(rect)
-    }, delayMs)
+    }, delay)
   }
 
   useLayoutEffect(() => {
@@ -106,19 +111,26 @@ export function ThemedTooltip({
   useEffect(() => {
     if (!armed) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') hide()
+      if (event.key === 'Escape') {
+        if (openOnClick) event.preventDefault()
+        hide()
+      }
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (openOnClick && event.target instanceof Node && anchorRef.current?.contains(event.target)) return
+      hide()
     }
     window.addEventListener('scroll', hide, true)
     window.addEventListener('resize', hide)
-    document.addEventListener('pointerdown', hide, true)
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown, openOnClick)
     return () => {
       window.removeEventListener('scroll', hide, true)
       window.removeEventListener('resize', hide)
-      document.removeEventListener('pointerdown', hide, true)
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, openOnClick)
     }
-  }, [armed, hide])
+  }, [armed, hide, openOnClick])
 
   useEffect(() => { if (disabled) hide() }, [disabled, hide])
 
@@ -129,10 +141,13 @@ export function ThemedTooltip({
       <span
         ref={anchorRef}
         className={styles.anchor}
-        onMouseEnter={show}
-        onMouseLeave={hide}
-        onPointerDownCapture={() => { pointerFocusRef.current = true; hide() }}
-        onClickCapture={hide}
+        onMouseEnter={() => { if (!pinnedRef.current) show() }}
+        onMouseLeave={() => { if (!pinnedRef.current) hide() }}
+        onPointerDownCapture={() => { pointerFocusRef.current = true; if (!openOnClick) hide() }}
+        onClickCapture={() => {
+          if (!openOnClick || pinnedRef.current) hide()
+          else { pinnedRef.current = true; show(0) }
+        }}
         onFocus={(event) => {
           if (!pointerFocusRef.current && event.target.matches(':focus-visible')) show()
         }}

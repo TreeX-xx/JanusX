@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { SuperAgentSchedulingStore } from '../../src/main/janus/superagent/scheduling-store'
 import type { ChatTurnPorts } from '@janus-agent/janus-agent'
 import { SuperAgentService } from '../../src/main/janus/superagent/service'
 import { SuperAgentWorkers } from '../../src/main/janus/superagent/workers'
@@ -26,17 +27,24 @@ async function setup(capacity = 2) {
     const host = await createSuperAgentChatTurn({ service, workspaceId: scope, conversationId, eventId, text, signal: controller.signal })
     const ports = { localTools: [] } as unknown as ChatTurnPorts
     const context = await host.attach(ports)
-    host.observeModelMessages([{ role: 'system', content: context }, ...await host.prepareMessages([{ role: 'user', content: text }])])
+    const messages = [{ role: 'system', content: context }, ...await host.prepareMessages([{ role: 'user', content: text }])]
+    host.observeModelMessages(messages)
     const inputId = JSON.parse(context.split('\n').find(line => line.startsWith('Current host input: '))!.slice('Current host input: '.length)).inputId
     const call = async (name: string, args: unknown) => {
+      if (name === 'work_route' && !['stop', 'close', 'stop-all'].includes((args as { action: string }).action)) {
+        const value = args as { context?: object; goal?: string }
+        args = { ...value, context: { goal: value.goal ?? 'Apply the current instruction', constraints: [], backgroundInputIds: [],
+          outcome: { target: 'Requested component', acceptance: ['Requested behavior works'], assumptions: [], maxRepairRounds: 1 }, ...value.context } }
+      }
       const tool = ports.localTools!.find(row => row.name === name)!
       const result = await tool.execute({ id: randomUUID(), name, arguments: args } as never, controller.signal)
       if (result.isError) throw new Error(result.content)
-      host.observeModelMessages([{ role: 'tool', content: result.content }])
+      messages.push({ role: 'tool', content: result.content })
+      host.observeModelMessages(messages)
       return JSON.parse(result.content)
     }
     return { controller, host, ports, context, inputId, call,
-      create: (key: string) => call('work_route', { action: 'new', inputId, key, title: key, goal: `Implement only ${key}` }),
+      create: (key: string, isolated = false) => call('work_route', { action: 'new', inputId, key, title: key, goal: `Implement only ${key}`, ...(isolated ? { environmentSelection: { mode: 'create' } } : {}) }),
       route: async (action: 'continue' | 'stop' | 'close' | 'reopen', workId: string) => {
         const card = await call('work_read', { workId })
         return call('work_route', { action, inputId, workId, expectedRevision: card.work.revision })
@@ -50,6 +58,82 @@ async function setup(capacity = 2) {
 }
 
 describe('same-Janus work routing and managed admission', () => {
+  it('never admits execution when saving dispatch context fails', async () => {
+    const f = await setup(), turn = await f.turn('Implement centered markers')
+    vi.spyOn(f.store, 'prepareDispatch').mockRejectedValueOnce(new Error('Context write failed'))
+    const request = vi.spyOn(f.service.scheduler!, 'request')
+    await expect(turn.create('markers')).rejects.toThrow('Context write failed')
+    expect(request).not.toHaveBeenCalled()
+    expect(f.engines).toHaveLength(0)
+  }, 20000)
+  it('dispatches a short follow-up with prior discussion and answers its report once', async () => {
+    const f = await setup()
+    const prior = await f.turn('Center input navigation markers; scroll when there are too many')
+    const turn = await f.turn('Show twelve and dispatch')
+    const original = (await f.service.snapshot(f.scope)).inputs.find(row => row.id === prior.inputId)!
+    await turn.call('work_read_resource', { resourceId: original.resourceId })
+    const card = await turn.call('work_route', { action: 'new', inputId: turn.inputId, key: 'markers', title: 'Markers', goal: 'Markers',
+      context: { goal: 'Center twelve input navigation markers', constraints: ['Scroll overflow'], backgroundInputIds: [prior.inputId] } })
+    await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15000 }).toBe(1)
+    expect(f.engines[0].inputs[0].text).toContain('Center twelve input navigation markers')
+    const assigned = await f.engines[0].tool('read_work') as any
+    expect(assigned.inputs.some((row: any) => row.original.text.includes('Center input navigation markers'))).toBe(true)
+    expect(assigned.inputs.filter((row: any) => row.delivery)).toHaveLength(1)
+    const reportId = randomUUID()
+    await f.engines[0].tool('report_work', { reportId, kind: 'question', summary: 'Which theme?', text: 'Which theme should be checked?' })
+    f.engines[0].end()
+    const answer = { workspaceId: f.scope, conversationId: 'chat', workId: card.workId, eventId: randomUUID(), replyToReportId: reportId, text: 'Check all three themes' }
+    await f.service.continueWorker(answer)
+    await f.service.continueWorker(answer)
+    await expect.poll(() => f.engines.flatMap(engine => engine.inputs).length, { timeout: 15000 }).toBe(2)
+    expect(f.engines.at(-1)!.inputs.at(-1)!.text).toContain('Check all three themes')
+    expect((await f.service.workDetail(f.scope, card.workId)).work.questionResponses).toHaveLength(1)
+  }, 40000)
+  it('dispatches two independent workers into the same checkout without terminal or peer exclusion', async () => {
+    const f = await setup(2)
+    f.occupied.push(f.repo)
+    const a = await (await f.turn('Implement A')).create('A')
+    await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15000 }).toBe(1)
+    const b = await (await f.turn('Implement B in separate files')).create('B')
+    await expect.poll(() => f.engines[1]?.inputs.length, { timeout: 15000 }).toBe(1)
+    expect(f.engines.map(engine => engine.options!.cwd)).toEqual([f.repo, f.repo])
+    expect((await f.service.scheduleSnapshot(f.scope)).occupied).toBe(2)
+    await (await f.turn('Stop only A')).route('stop', a.work.id)
+    await expect.poll(() => f.workers.snapshots(f.scope).find(row => row.workId === a.work.id)?.stopConfirmed).toBe(true)
+    expect(f.workers.snapshots(f.scope).find(row => row.workId === b.work.id)?.stopConfirmed).toBe(false)
+  }, 45000)
+
+  it('persists a pre-launch block, returns it on duplicate routing, and resumes the same work only with new input', async () => {
+    const f = await setup()
+    const turn = await f.turn('Implement A')
+    // A deterministic environment precondition fails before scheduler.request or native RPC.
+    await f.git(['checkout', '--detach'])
+    const blocked = await turn.create('A')
+    expect(blocked.schedule).toMatchObject({ status: 'blocked', diagnostic: expect.stringContaining('Environment preparation') })
+    expect(f.engines).toHaveLength(0)
+    expect((await f.service.scheduleSnapshot(f.scope)).occupied).toBe(0)
+    expect((await f.service.scheduler!.ledger.snapshot()).actions[0]).toMatchObject({ status: 'blocked', stage: 'environment', workId: blocked.work.id })
+    const restored = await new SuperAgentSchedulingStore(f.root).snapshot()
+    expect(restored.entries[0].status).toBe('blocked')
+    expect(restored.actions[0].status).toBe('blocked')
+    expect((await turn.create('A')).work.id).toBe(blocked.work.id)
+    await f.git(['checkout', 'main'])
+    const resumed = await (await f.turn('Environment repaired; continue A')).route('continue', blocked.work.id)
+    expect(resumed.work.id).toBe(blocked.work.id)
+    await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15000 }).toBe(1)
+    expect((await f.service.snapshot(f.scope)).works).toHaveLength(1)
+    await expect.poll(async () => (await f.service.workDetail(f.scope, blocked.work.id)).deliveries.every(row => row.status === 'delivered'), { timeout: 15000 }).toBe(true)
+  }, 40000)
+  it('preserves unknown outcomes after scheduling starts and refuses to replay the same decision', async () => {
+    const f = await setup(), turn = await f.turn('Implement A')
+    const request = vi.spyOn(f.service.scheduler!, 'request').mockRejectedValueOnce(new Error('Unconfirmed scheduling write'))
+    try {
+      await expect(turn.create('A')).rejects.toThrow('Unconfirmed scheduling write')
+      expect((await f.service.scheduler!.ledger.snapshot()).actions[0].status).toBe('unknown')
+      await expect(turn.create('A')).rejects.toThrow('unknown outcome')
+      expect(request).toHaveBeenCalledTimes(1)
+    } finally { request.mockRestore() }
+  }, 40000)
   it('proposes Git operations from a current read card, requires concrete approval, deduplicates and preserves the removed branch', async () => {
     const f = await setup(), work = await f.work()
     const creation = await f.service.environments!.proposeCreate(f.scope, { workId: work.id })
@@ -88,7 +172,7 @@ describe('same-Janus work routing and managed admission', () => {
   it('continues an idle work before admitting queued new work at capacity one', async () => {
     const f = await setup(1), a = await (await f.turn('Implement A')).create('A')
     await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15000 }).toBe(1)
-    const b = await (await f.turn('Implement B')).create('B'); await f.approve(b.work.id)
+    const b = await (await f.turn('Implement B')).create('B', true); await f.approve(b.work.id)
     f.engines[0].end()
     await (await f.turn('Supplement the idle A')).route('continue', a.work.id)
     await expect.poll(() => f.engines[1]?.inputs.length, { timeout: 15000 }).toBe(1)
@@ -101,7 +185,7 @@ describe('same-Janus work routing and managed admission', () => {
   it('runs four isolated worktrees with an ordered fifth, supplements only A, and stops only B after confirmed exit', async () => {
     const f = await setup(4), ids: string[] = []
     for (let index = 0; index < 5; index++) {
-      const turn = await f.turn(`Implement feature ${index}`), result = await turn.create('Feature-' + index)
+      const turn = await f.turn(`Implement feature ${index}`), result = await turn.create('Feature-' + index, index > 0)
       ids.push(result.work.id)
       if (index) {
         expect(result.schedule.status).toBe('awaiting-approval')
@@ -146,7 +230,9 @@ describe('same-Janus work routing and managed admission', () => {
     await expect(question.call('work_route', { inputId: turn.inputId, action: 'stop', workId: id, expectedRevision: 1 })).rejects.toThrow('current host-admitted')
     const stale = await f.turn('Add one check to A'), card = await stale.call('work_read', { workId: id })
     const stop = await f.turn('Close A'); await stop.route('close', id)
-    await expect(stale.call('work_route', { inputId: stale.inputId, action: 'continue', workId: id, expectedRevision: card.work.revision })).rejects.toThrow('changed')
+    await expect(stale.call('work_route', { inputId: stale.inputId, action: 'continue', workId: id, expectedRevision: card.work.revision })).resolves.toMatchObject({
+      blocked: true, reasonCode: 'work-version-changed', effects: 'none', requiredCard: { workId: id, view: 'dispatch' },
+    })
     await expect(stale.route('reopen', id)).rejects.toThrow('predates')
     await expect(question.call('work_read', { workId: randomUUID() })).rejects.toThrow('not found')
     const aborted = await f.turn('Implement something else'); aborted.controller.abort()
@@ -161,7 +247,7 @@ describe('same-Janus work routing and managed admission', () => {
   it('a queued close cancels the original pending input; late approvals cannot revive it and duplicate inputs never resend', async () => {
     const f = await setup(1), first = await f.turn('Implement A'), a = await first.create('A')
     await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15_000 }).toBe(1)
-    const second = await f.turn('Implement B'), b = await second.create('B')
+    const second = await f.turn('Implement B'), b = await second.create('B', true)
     const proposal = (await f.service.environmentSnapshot(f.scope)).operations.find(row => row.workId === b.work.id)!
     const close = await f.turn('Close B'); await close.route('close', b.work.id)
     const decision = await f.service.decideEnvironmentOperation({ workspaceId: f.scope, operationId: proposal.id, approved: true })
@@ -176,3 +262,47 @@ describe('same-Janus work routing and managed admission', () => {
     expect(f.engines).toHaveLength(1)
   }, 40_000)
 })
+
+it('routes a request to commit existing dev changes into that checkout without a create proposal', async () => {
+  const f = await setup(), path = join(f.root, 'dev-checkout')
+  await f.git(['worktree', 'add', '-b', 'dev', path])
+  await writeFile(join(path, 'feature.txt'), 'user changes')
+  const turn = await f.turn('Commit the current dev changes and push')
+  const inventory = await turn.call('work_environment', {})
+  expect(inventory.checkouts).toEqual(expect.arrayContaining([expect.objectContaining({ path, branch: 'dev', dirty: true })]))
+  expect(turn.ports.localTools!.find(tool => tool.name === 'work_environment')?.coordinatorAccess).toBe('read')
+  const result = await turn.call('work_route', { action: 'new', inputId: turn.inputId, key: 'release', title: 'Release', goal: 'Commit dev changes', environmentSelection: { branch: 'dev', includeChanges: true } })
+  await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15000 }).toBe(1)
+  expect(f.engines[0].options?.cwd).toBe(path)
+  expect((await f.service.workDetail(f.scope, result.work.id)).work.environmentSelection).toEqual({ branch: 'dev', includeChanges: true })
+  expect((await f.service.environmentSnapshot(f.scope)).operations).toEqual([])
+  expect(f.engines[0].inputs[0].text).toContain(`Checkout: ${path}`)
+  expect(f.engines[0].inputs[0].text).toContain('Branch: dev')
+  expect(f.engines[0].inputs[0].text).not.toContain('Baseline HEAD:')
+  const continuation = await f.turn('Continue releasing the existing dev changes')
+  const card = await continuation.call('work_read', { workId: result.work.id })
+  expect(card.checkout.current.head).toBe(inventory.workspace.head)
+  const decision = { action: 'continue', inputId: continuation.inputId, workId: result.work.id, expectedRevision: card.work.revision,
+    environmentSelection: { branch: 'dev', includeChanges: true } }
+  await continuation.call('work_route', decision)
+  const updated = await continuation.call('work_read', { workId: result.work.id })
+  await expect(continuation.call('work_route', { ...decision, expectedRevision: updated.work.revision,
+    environmentSelection: { branch: 'main' } })).rejects.toThrow('Decision identity conflict')
+  expect((await f.service.inspectEnvironments(f.scope, result.work.id)).assigned?.branch).toBe('dev')
+})
+
+it('routes an explicit Claude request while leaving unspecified new work on Codex', async () => {
+  const f = await setup()
+  const request = await f.turn('Use Claude Code for the first work')
+  const card = await request.call('work_route', { action: 'new', inputId: request.inputId, key: 'claude-choice', title: 'Claude work', goal: 'Verify requested engine', workerBackend: 'claude' })
+  await expect.poll(() => f.engines[0]?.inputs.length, { timeout: 15000 }).toBe(1)
+  expect(f.engines[0].state.engine).toBe('claude')
+  const detail = await f.service.workDetail(f.scope, card.workId)
+  expect(detail.work.workerBackend).toBe('claude')
+  expect(detail.executions[0].backend).toBe('claude')
+  const other = await f.turn('Start another independent task using defaults')
+  await other.create('default-choice')
+  await expect.poll(() => f.engines[1]?.inputs.length, { timeout: 15000 }).toBe(1)
+  expect(f.engines[1].state.engine).toBe('codex')
+  expect(() => f.service.routeDecision(f.scope, { action: 'continue', inputId: request.inputId, workId: detail.work.id, expectedRevision: detail.work.revision, workerBackend: 'codex' } as never)).toThrow()
+}, 30000)

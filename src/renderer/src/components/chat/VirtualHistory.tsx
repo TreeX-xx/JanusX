@@ -34,10 +34,10 @@ export interface HistoryNavigation {
 }
 
 /** Latest item stays in normal flow. Only the historical viewport is virtualized. */
-export function VirtualHistory<T>({ items, itemKey, renderItem, scrollRef, following, pinnedKey, active = true, rowStyle, gap = 0, navigationRef }: {
+export function VirtualHistory<T>({ items, itemKey, renderItem, scrollRef, following, pinnedKey, active = true, virtualize = true, rowStyle, gap = 0, navigationRef }: {
   items: readonly T[]; itemKey(item: T): string; renderItem(item: T, index: number): ReactNode
   scrollRef: RefObject<HTMLDivElement>; following: MutableRefObject<boolean>; pinnedKey?: string; active?: boolean
-  rowStyle?: CSSProperties; gap?: number; navigationRef?: Ref<HistoryNavigation>
+  rowStyle?: CSSProperties; gap?: number; virtualize?: boolean; navigationRef?: Ref<HistoryNavigation>
 }) {
   const host = useRef<HTMLDivElement>(null)
   const states = useRef(new Map<string, Map<string, boolean>>())
@@ -46,7 +46,7 @@ export function VirtualHistory<T>({ items, itemKey, renderItem, scrollRef, follo
   const [destination, setDestination] = useState<{ key: string; messageId: string } | null>(null)
   const locating = useRef(false)
   const count = Math.max(0, items.length - 1)
-  const virtual = items.length > 20
+  const virtual = virtualize && items.length > 20
   const getKey = useCallback((index: number) => itemKey(items[index]), [items, itemKey])
   const pinned = pinnedKey ? items.findIndex(item => itemKey(item) === pinnedKey) : -1
   const target = destination ? items.findIndex(item => itemKey(item) === destination.key) : -1
@@ -130,6 +130,9 @@ export function VirtualHistory<T>({ items, itemKey, renderItem, scrollRef, follo
   }
   const rows = list.getVirtualItems()
   return <div ref={host} data-virtual-history={virtual || undefined} style={{ overflowAnchor: 'none', flexShrink: 0, minWidth: 0 }}>
+    {/* An explicitly non-virtual transcript keeps each row mounted when the tail advances. */}
+    {!virtualize ? items.map((_, index) => <div key={getKey(index)} data-history-key={getKey(index)} data-live-tail={index === count || undefined}
+      style={{ display: 'flow-root', ...rowStyle, paddingBottom: index < count ? gap : undefined }}>{render(index)}</div>) : <>
     {virtual ? <div style={{ height: list.getTotalSize(), position: 'relative' }}>
       {rows.map(({ index, start }) => {
         return <div key={getKey(index)} data-index={index} data-history-key={getKey(index)} ref={list.measureElement}
@@ -137,5 +140,6 @@ export function VirtualHistory<T>({ items, itemKey, renderItem, scrollRef, follo
       })}
     </div> : items.slice(0, count).map((_, index) => <div key={getKey(index)} data-history-key={getKey(index)} style={{ display: 'flow-root', ...rowStyle, paddingBottom: gap }}>{render(index)}</div>)}
     {items.length > 0 && <div data-history-key={getKey(count)} data-live-tail style={{ display: 'flow-root', ...rowStyle }}>{render(count)}</div>}
+    </>}
   </div>
 }

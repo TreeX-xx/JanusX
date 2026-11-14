@@ -1,7 +1,6 @@
 # 手动 Windows 构建：验证后上传 Actions 附件，不创建或公开 Release。
 # tag 仅标记版本；本地 stage:win 与 publish:win 分别上传草稿和公开。
-# 前提：package.json 用 file: 引用 ../janus-agentX，先把它检出到同级目录
-#（固定上游仓库，Fork 无需复制 sibling 仓库）。
+# 引擎使用仓库内 vendor/janus-agent 的固定构建包，安装后校验内容哈希。
 # Note: reproducible inputs and release naming — see .agents/notes/desktop/reproducible-verification.md
 name: release-win
 
@@ -43,13 +42,6 @@ jobs:
             scripts/publish-win.mjs
           sparse-checkout-cone-mode: false
 
-      - name: Checkout sibling janus-agentX
-        uses: actions/checkout@v4
-        with:
-          repository: TreeX-xx/janus-agentX
-          ref: 4df4c4457269e46a52b7ed430db379e194fac175
-          path: janus-agentX
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -57,7 +49,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             JanusX/package-lock.json
-            janus-agentX/package-lock.json
 
       # publisher 用 package.json 的 version 生成 tag 名与 latest.yml；
       # tag 与包版本错位会产出名字错乱的 Release 或静默无更新，先拦。
@@ -83,24 +74,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # Fail version/resource checks before dependency installation and builds.
-      # Keep the sibling dependency layers aligned with verify.yml.
-      - name: Build sibling janus-agentX
-        working-directory: janus-agentX
-        shell: pwsh
-        run: |
-          npm ci
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/agent-core --workspace=@janus-agent/harness-core --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/chat-core --workspace=@janus-agent/harness-node --workspace=@janus-agent/node-hosts --workspace=@janus-agent/notes-cli --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/janus-agent --if-present
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build --workspace=@janus-agent/cli --if-present
-
+      # Verify the same pinned engine artifacts as verify.yml.
       - name: Install
         working-directory: JanusX
-        run: npm run prepackage
+        run: npm ci && npm run prepackage
 
       - name: Build
         working-directory: JanusX

@@ -1,28 +1,31 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
-import { Clock, LoaderCircle, CircleAlert, Undo2, Trash2, ArrowDown, Check, ChevronRight, FileCode2, ShieldCheck, TerminalSquare, MessageSquare } from 'lucide-react'
+import { Clock, LoaderCircle, CircleAlert, Undo2, Trash2, ArrowDown, Check, ShieldCheck, TerminalSquare, MessageSquare } from 'lucide-react'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../../shared/conversation-display'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useRightToolStore } from '@/stores/right-tools'
 import { useConversationOutbox, bindConversationOutbox, conversationOutbox, enqueueConversationMessage, observeConversationOutbox, removeOutgoingMessage } from '@/stores/conversation-outbox'
 import { WorkDisclosure } from './chat/WorkDisclosure'
+import { ConversationToolCall } from './chat/ConversationToolCall'
 import { ConversationFileChanges } from './ConversationFileChanges'
 import { ConversationImages } from './ConversationImages'
 import { conversationImageText } from '../../../shared/conversation-images'
 import { createConversationTurns } from '../lib/conversation-turns'
-import { VirtualHistory, LazyDetails, type HistoryNavigation } from './chat/VirtualHistory'
+import { VirtualHistory, type HistoryNavigation } from './chat/VirtualHistory'
 import { ConversationNavigation } from './ConversationNavigation'
 import { MarkdownContent } from './chat/ChatContent'
 import { ConversationStartupPanel } from './ConversationStartupPanel'
 import { CLITerminal } from './CLITerminal'
+import { ConversationWelcome } from './ConversationWelcome'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TurnChangeIsland } from './TurnChangeIsland'
 import { AgentComposer } from './AgentComposer'
 import { ConversationQuestions } from './ConversationQuestions'
 import { ConversationNotice } from './ConversationNotice'
 import { hasBlockingQuestions } from '../../../shared/conversation-questions'
-import { ConversationPlanPanel } from './ConversationPlanPanel'
+import { ConversationPlanPanel, ConversationPlanHistory } from './ConversationPlanPanel'
+import { compactConversationPlans } from '../../../shared/conversation-plans'
 import { ConversationDuration } from './ConversationDuration'
 import { ConversationMessageActions } from './ConversationMessageActions'
 import { ConversationMessageEditor } from './ConversationMessageEditor'
@@ -40,7 +43,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const references = useConversationContext(state => state.entries[terminalId]) ?? []
   const [snapshot, setSnapshot] = useState<ConversationSnapshot | null>(null)
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [activeAction, setActiveAction] = useState<ConversationCommand['type'] | null>(null)
+  const busy = activeAction !== null
   const [pendingSend, setPendingSend] = useState<string | null>(null)
   const outgoing = useConversationOutbox(s => s.entries[terminalId]) ?? []
   const delivering = outgoing.some(item => item.status === 'sending' || item.status === 'accepted')
@@ -73,6 +77,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     return row && { pid: row.pid, cwd: row.cwd, workspaceId: row.workspaceId, preset: row.preset,
       conversationInitialView: row.conversationInitialView, conversationScrollTop: row.conversationScrollTop }
   }))
+  const welcomeWorkspace = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === terminal?.workspaceId))
   const identityPreset = snapshot?.engine ?? terminal?.preset ?? 'shell'
   const historyScope = inputHistoryScope(terminal?.workspaceId ?? '', terminal?.cwd ?? '', snapshot?.engine ?? '')
   const projectPath = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === state.activeWorkspaceId && workspace.id === terminal?.workspaceId)?.path)
@@ -85,15 +90,16 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const starting = !startup && (!snapshot || snapshot.connection === 'starting') && !error && !snapshot?.error
   const terminalVisible = !conversation
   const transitioning = switching || modeTransition !== null
-  const newestPlan = snapshot?.plans?.at(-1)
-  const currentPlan = newestPlan && (!snapshot?.turnId || newestPlan.turnId === snapshot.turnId) ? newestPlan : undefined
-  const pastPlans = snapshot?.plans?.filter(plan => plan !== currentPlan) ?? []
+  const plans = useMemo(() => compactConversationPlans(snapshot?.plans ?? []), [snapshot?.plans])
+  const currentPlan = snapshot?.turnId ? plans.filter(plan => plan.turnId === snapshot.turnId).at(-1) : undefined
   // Drop cached turn identities when the native session changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const projectTurns = useMemo(() => createConversationTurns(), [terminalId, snapshot?.threadId])
   const turns = useMemo(() => projectTurns(snapshot?.items ?? [], snapshot?.turnId ?? null), [projectTurns, snapshot?.items, snapshot?.turnId])
+  const detachedPlans = plans.filter(plan => !turns.some(turn => turn.key === plan.turnId))
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
   const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.plans?.length
+  const showWelcome = empty && !startupActive && !error && !snapshot?.error
 
   const accept = useCallback((next: ConversationSnapshot) => {
     if (next.id !== terminalId || (latest.current && next.revision < latest.current.revision)) return
@@ -190,13 +196,19 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
 
   const action = async (command: ConversationCommand): Promise<boolean> => {
     if (busyRef.current || switchLocked.current || !visible) return false
-    busyRef.current = true; setBusy(true); setError('')
+    // Catalog reads have their own loading/error state. They must not lock the
+    // composer or trap the user in this view while a provider is responding.
+    if (command.type === 'commands' || command.type === 'models') {
+      try { accept(await window.electron.terminal.conversationCommand(terminalId, command)); return true }
+      catch (e) { if (latest.current?.controlEpoch === command.controlEpoch) setError(String(e)); return false }
+    }
+    busyRef.current = true; setActiveAction(command.type); setError('')
     try { accept(await window.electron.terminal.conversationCommand(terminalId, command)); if (command.type === 'new') setConversationReferences(terminalId, () => []); return true }
     catch (e) { setError(String(e)); return false }
-    finally { busyRef.current = false; setBusy(false) }
+    finally { busyRef.current = false; setActiveAction(null) }
   }
   const changeMode = async (mode: 'terminal' | 'conversation') => {
-    if (switchLocked.current || editing || busyRef.current || conversationOutbox(terminalId).some(item => item.status === 'sending') || !visible || snapshot?.mode === mode) return
+    if (switchLocked.current || editing || (busyRef.current && !(mode === 'terminal' && activeAction === 'new')) || conversationOutbox(terminalId).some(item => item.status === 'sending') || !visible || snapshot?.mode === mode) return
     const request = ++switchRequest.current
     switchLocked.current = true
     if (scrollRef.current && conversation) useWorkspaceStore.getState().updateTerminal(terminalId, { conversationScrollTop: scrollRef.current.scrollTop })
@@ -292,17 +304,18 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     <header className={styles.header}>
       <div className={styles.toggle} data-mode={requestedMode ?? (conversation ? 'conversation' : 'terminal')} data-switching={transitioning || undefined} role="group" aria-label={t('conversation.display')}>
         <span className={styles.toggleIndicator} aria-hidden="true" />
-        <button type="button" aria-pressed={!conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
+        <button type="button" aria-pressed={!conversation} disabled={transitioning || (busy && activeAction !== 'new') || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
         <button type="button" aria-pressed={conversation} disabled={transitioning || busy || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('conversation')}><MessageSquare size={14} aria-hidden="true" />{t('conversation.dialog')}</button>
       </div>
     </header>
-    {!conversation && error && <ConversationNotice kind="error" message={error} />}
+    {!conversation && (error || snapshot?.error) && <ConversationNotice kind="error" message={error || snapshot?.error || ''} />}
+    {conversation && activeAction === 'new' && <p className={styles.notice} role="status">{t('conversation.newPending')} <button type="button" disabled={transitioning} onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button></p>}
     <div className={styles.body}>
       <div ref={terminalHost} className={`${styles.terminal} ${modeTransition === 'terminal' ? styles.viewEntering : ''}`} style={{ visibility: terminalVisible ? 'visible' : 'hidden', pointerEvents: !terminalVisible || transitioning ? 'none' : 'auto' }} aria-hidden={!terminalVisible}>
         <CLITerminal terminalId={terminalId} visible={visible && terminalVisible} focused={focused && terminalVisible && !transitioning} workspaceVisible={workspaceVisible} />
         <TurnChangeIsland terminalId={terminalId} focused={visible && focused && !conversation && !transitioning} />
       </div>
-      <div ref={conversationHost} className={`${styles.conversation} ${modeTransition === 'conversation' ? styles.viewEntering : ''}`} hidden={!conversation} data-empty={empty}>
+      <div ref={conversationHost} className={`${styles.conversation} ${modeTransition === 'conversation' ? styles.viewEntering : ''}`} hidden={!conversation} data-empty={empty} data-welcome={showWelcome}>
         <div className={styles.readingArea}>
         <div className={styles.scroll} ref={scrollRef} role="region" aria-label={t('conversation.history')} tabIndex={0} onScroll={event => {
           const el = event.currentTarget
@@ -314,16 +327,9 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
         }}>
           <div className={styles.content}>
             {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} engine={snapshot?.engine === 'claude' ? 'Claude' : 'Codex'} />}
-            {(starting || (empty && !startupActive)) && <div className={styles.welcome} data-conversation-welcome data-loading={starting} data-animate={starting && visible && conversation}>
-              <div className={styles.startingIdentity}><span className={styles.startingMark} aria-hidden="true"><TerminalPresetIcon preset={identityPreset} style={{ width: 20, height: 20 }} /><span className={styles.startingRing} /></span><span>{t(`provider.${identityPreset}`)}</span></div>
-              <div className={styles.welcomeLayers}>
-                <div className={styles.starting} data-active={starting} data-conversation-loading={starting ? '' : undefined} aria-hidden={!starting} role={starting ? 'status' : undefined} aria-live={starting ? 'polite' : undefined}>
-                  <h2>{t('conversation.starting')}</h2><p>{t('conversation.startingHint')}</p>
-                  <div className={styles.startingLines} aria-hidden="true"><span /><span /><span /></div>
-                </div>
-                <div className={styles.empty} data-active={!starting} aria-hidden={starting}><h2>{t('conversation.emptyTitle')}</h2><p>{t('conversation.emptyHint')}</p></div>
-              </div>
-            </div>}
+            {showWelcome && <ConversationWelcome brand={identityPreset}
+              workspacePath={terminal?.cwd || welcomeWorkspace?.path} workspaceName={welcomeWorkspace?.name}
+              loading={starting} active={visible && conversation} />}
             {snapshot?.truncated && <p className={styles.notice}>{t('conversation.truncated')}</p>}
             {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} navigationRef={navigationRef} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
               const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
@@ -349,18 +355,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
               </article>
               : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
-                : <LazyDetails stateKey={item.id} className={styles.activity} key={item.id} data-state={item.status} summary={
-                  <summary><ChevronRight size={14} className={styles.chevron} aria-hidden="true" /><span>{t(`conversation.kind.${item.type}`, { defaultValue: t('conversation.activity') })}</span>
-                    <span className={styles.activityPreview}>{item.files?.length ? item.files.map(file => file.path.split(/[\\/]/).pop()).join(', ') : item.text.split('\n')[0]}</span>
-                    <span className={styles.activityState} data-state={item.status}>{item.status === 'completed' && <Check size={12} aria-hidden="true" />}{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></summary>}>{() => <div className={styles.activityBody}>
-                    {item.text && <pre>{item.text}</pre>}
-                    {item.files?.map(file => <div className={styles.file} key={file.path}>
-                      <button type="button" onClick={() => void openFile(file.path)} aria-label={file.path} title={`${t('conversation.openFile')} · ${file.path}`}><FileCode2 size={15} aria-hidden="true" /><span>{file.path.split(/[\\/]/).pop()}</span><span className={styles.filePath}>{file.path}</span></button>
-                      <pre className={styles.diff}>{file.diff.split('\n').map((line, index) => <span key={index} data-change={line.startsWith('+') ? 'add' : line.startsWith('-') ? 'delete' : undefined}>{line}{'\n'}</span>)}</pre>
-                    </div>)}
-                    {item.truncated && <p>{t('conversation.truncated')}</p>}
-                  </div>}
-                </LazyDetails>)
+                : <ConversationToolCall key={item.id} item={item} openFile={path => void openFile(path)} />)
               const turnId = group.items[0].turnId
               const changes = turn.changes
               const lastGroup = turn.groups[groupIndex + 1]?.items[0].turnId !== turnId
@@ -368,7 +363,10 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
                   waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
                   }} settled={group.settled}>{renderNodes}</WorkDisclosure> : renderNodes()}
-                {lastGroup && changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
+                {lastGroup && <div className={styles.turnAttachments}>
+                  <ConversationPlanHistory plans={plans.filter(plan => plan.turnId === turnId)} connection={snapshot.connection} activeTurnId={snapshot.turnId} />
+                  {changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
+                </div>}
               </div>
             })} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
@@ -389,11 +387,11 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             {editing && !snapshot?.items.some(item => item.id === editing.item.id) && <div className={styles.userMessage}>{editor}</div>}
             {snapshot?.retry && snapshot.retry.turnId === snapshot.turnId && <ConversationNotice kind="retry" message={snapshot.retry.message} />}
             {working && !snapshot?.retry && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
-            {pastPlans.length > 0 && <details className={styles.planHistory}><summary>{t('conversation.planHistory')}</summary>{pastPlans.map(plan => <ConversationPlanPanel key={`${snapshot?.threadId}:${plan.turnId}:${plan.version}`} plan={plan} connection={snapshot!.connection} historical />)}</details>}
+            <ConversationPlanHistory plans={detachedPlans} connection={snapshot?.connection ?? 'starting'} activeTurnId={snapshot?.turnId} />
             {snapshot?.approvals.map(approval => <div className={styles.approval} key={approval.id} role="group" aria-label={t('conversation.approval')}>
               <strong><ShieldCheck size={17} aria-hidden="true" />{t(approval.kind === 'file' ? 'conversation.approveFile' : 'conversation.approveCommand')}</strong>
               {approval.description && <pre>{approval.description}</pre>}
-              <div>{(approval.choices ?? [{ id: 'decline', label: t('conversation.decline') }, { id: 'accept', label: t('conversation.accept') }]).map(choice => <button key={choice.id} type="button" title={choice.description} className={choice.id === 'accept' ? styles.primary : undefined} disabled={busy || switching || snapshot.connection !== 'ready'} onClick={() => void action({ type: 'approve', requestId: approval.id, decision: choice.id, controlEpoch: snapshot.controlEpoch })}>{t(`conversation.approvalChoices.${choice.id}`, { defaultValue: choice.label })}</button>)}</div>
+              <div>{(approval.choices ?? [{ id: 'decline', label: t('conversation.decline') }, { id: 'accept', label: t('conversation.accept') }]).map(choice => <button key={choice.id} type="button" title={choice.description} className={choice.id === 'accept' ? styles.primary : undefined} disabled={busy || switching || snapshot.connection !== 'ready'} onClick={() => void action({ type: 'approve', requestId: approval.id, decision: choice.id, controlEpoch: snapshot.controlEpoch })}>{t(`conversation.approvalChoices.${approval.permissionScope === 'turn' && choice.id === 'accept' ? 'acceptForTurn' : choice.id}`, { defaultValue: choice.label })}</button>)}</div>
             </div>)}
             {snapshot?.questions?.map(request => <ConversationQuestions key={`${snapshot.threadId}:${typeof request.id}:${request.id}:${request.version}`} request={request} disabled={busy || transitioning || snapshot.connection !== 'ready' || !visible || !conversation}
               answer={answer => void action({ type: 'answer', requestId: request.id, version: request.version, answer, controlEpoch: snapshot.controlEpoch })} />)}

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 556 80" fill="none" role="img" aria-label="OpenCode">
+  <title>OpenCode</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-o-0" transform="translate(0 0)">
+      <path d="M18 8H48L64 24V56L48 72H18L2 56V24Z M22 20L14 28V52L22 60H44L52 52V28L44 20Z"/>
+    </g>
+    <g id="letter-p-1" transform="translate(74 0)">
+      <path d="M2 72V8H44L60 24V40L44 56H14V72Z M14 20V44H38L48 34V30L38 20Z"/>
+    </g>
+    <g id="letter-e-2" transform="translate(144 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-n-3" transform="translate(210 0)">
+      <path d="M2 72V8H14L48 50V8H60V72H48L14 30V72Z"/>
+    </g>
+    <g id="letter-c-4" transform="translate(280 0)">
+      <path d="M18 8H58L48 20H22L14 28V52L22 60H48L58 72H18L2 56V24Z"/>
+    </g>
+    <g id="letter-o-5" transform="translate(346 0)">
+      <path d="M18 8H48L64 24V56L48 72H18L2 56V24Z M22 20L14 28V52L22 60H44L52 52V28L44 20Z"/>
+    </g>
+    <g id="letter-d-6" transform="translate(420 0)">
+      <path d="M2 8H40L60 28V52L40 72H2Z M14 20V60H34L48 46V34L34 20Z"/>
+    </g>
+    <g id="letter-e-7" transform="translate(490 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+  </g>
+</svg>

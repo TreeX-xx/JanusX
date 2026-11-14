@@ -1,6 +1,4 @@
-import { app } from 'electron'
-import { readFile } from 'node:fs/promises'
-import { delimiter, join, resolve } from 'node:path'
+import { delimiter } from 'node:path'
 import type { ExternalCliToolDescriptor } from './tool-registry'
 import { claudeKnownBinDirs, findExecutableOnPath, quotePowerShellPath, readPathValue } from './cli-detector'
 
@@ -18,14 +16,8 @@ interface CliInstallerDependencies {
   homeDir: string
   isRegularFile(path: string): Promise<boolean>
   run(file: string, args: readonly string[], options: { timeout: number; pathDirs: string[]; cwd?: string }): Promise<RunResult>
-  resolveSiblingRoot?: () => string | undefined
   prepareNpm?: (candidate: { path: string; pathDirs: string[] } | undefined) => Promise<{ path: string; pathDirs: string[] }>
   installPrefix?: () => string | undefined
-}
-
-export interface LocalToolSource {
-  packageDir: string
-  version?: string
 }
 
 function npmBinaryNames(platform: NodeJS.Platform): readonly string[] {
@@ -34,14 +26,6 @@ function npmBinaryNames(platform: NodeJS.Platform): readonly string[] {
 
 function lastLines(text: string, count: number): string {
   return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-count).join('\n')
-}
-
-function defaultSiblingRoot(): string | undefined {
-  try {
-    return resolve(app.getAppPath(), '..', 'janus-agentX')
-  } catch {
-    return undefined
-  }
 }
 
 export class CliInstaller {
@@ -81,26 +65,6 @@ export class CliInstaller {
     return { path: npmPath, pathDirs: [...knownDirs, ...pathDirs] }
   }
 
-  /**
-   * 定位自有 sibling 源码包目录并校验包名；顺带读出源码版本号（最新版比对用）。
-   * 打包后或目录缺失时返回 undefined，调用方降级为手动指引。
-   */
-  async locateLocalSource(tool: ExternalCliToolDescriptor): Promise<LocalToolSource | undefined> {
-    const lifecycle = tool.localLifecycle
-    if (!lifecycle) return undefined
-    const root = this.deps.resolveSiblingRoot?.() ?? defaultSiblingRoot()
-    if (!root) return undefined
-    try {
-      const packageDir = join(root, 'packages', lifecycle.packageDirName)
-      const raw = await readFile(join(packageDir, 'package.json'), 'utf8')
-      const parsed = JSON.parse(raw) as { name?: unknown; version?: unknown }
-      if (parsed.name !== lifecycle.packageName) return undefined
-      return { packageDir, version: typeof parsed.version === 'string' ? parsed.version : undefined }
-    } catch {
-      return undefined
-    }
-  }
-
   buildCommand(npmPath: string, tool: ExternalCliToolDescriptor, version = 'latest'): { file: string; args: readonly string[]; display: string } {
     if (!tool.npmPackage) throw new Error(`${tool.displayName} is not npm-distributed.`)
     if (version !== 'latest' && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.')
@@ -131,42 +95,6 @@ export class CliInstaller {
     return { file: npmPath, args: ['rm', '-g', tool.npmPackage, ...this.prefixArgs()], display: `${npmPath} rm -g ${tool.npmPackage}` }
   }
 
-  /** 自有源码更新：包目录内 build 后全局 link；两步任一步失败即停并透出尾部输出。 */
-  private async installLocal(
-    npmPath: string,
-    pathDirs: string[],
-    source: LocalToolSource,
-  ): Promise<{ success: boolean; command?: string; error?: string }> {
-    const steps: Array<{ display: string; file: string; args: readonly string[] }> = this.deps.platform === 'win32'
-      ? (['run build', 'link'] as const).map(args => ({
-        display: `npm ${args} (${source.packageDir})`,
-        file: 'powershell.exe',
-        args: [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} ${args}${args === 'link' ? this.prefixScript() : ''}; exit $LASTEXITCODE`,
-        ],
-      }))
-      : ([
-        { display: `npm run build (${source.packageDir})`, args: ['run', 'build'] as const },
-        { display: `npm link (${source.packageDir})`, args: ['link', ...this.prefixArgs()] },
-      ]).map(step => ({ ...step, file: npmPath }))
-    const displays: string[] = []
-    for (const step of steps) {
-      displays.push(step.display)
-      const result = await this.deps.run(step.file, step.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs, cwd: source.packageDir })
-      if (result.exitCode !== 0) {
-        return {
-          success: false,
-          command: displays.join(' && '),
-          error: lastLines(`${result.stderr}\n${result.stdout}`, 8) || `${step.display} exited with code ${result.exitCode}.`,
-        }
-      }
-    }
-    return { success: true, command: displays.join(' && ') }
-  }
-
   async install(tool: ExternalCliToolDescriptor, version = 'latest', replace?: ExternalCliToolDescriptor): Promise<{ success: boolean; command?: string; error?: string }> {
     if (this.running) return { success: false, error: 'Another install is already running.' }
     // 同步置位：检查与置位之间不允许 await，否则两次同步进入的调用会同时通过检查。
@@ -175,14 +103,6 @@ export class CliInstaller {
       const candidate = await this.locateNpm()
       const located = this.deps.prepareNpm ? await this.deps.prepareNpm(candidate) : candidate
       if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
-      if (tool.localLifecycle) {
-        const source = await this.locateLocalSource(tool)
-        if (source) return this.installLocal(located.path, located.pathDirs, source)
-        if (!tool.npmPackage) {
-          return { success: false, command: tool.manualInstallCommand, error: 'Local janus-agentX source was not found. Follow the manual steps in a terminal.' }
-        }
-        // 无源码回退到 npm 安装（janus 已发布到 registry）。
-      }
       if (!tool.npmPackage) return { success: false, command: tool.manualInstallCommand, error: 'No install strategy for this tool.' }
       const command = this.buildCommand(located.path, tool, version)
       // Only remove a conflicting npm package after reading its actual installed version.

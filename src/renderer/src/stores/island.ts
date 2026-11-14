@@ -11,6 +11,7 @@ import {
 
 interface IslandStore {
   openSequence: number
+  automationLocked: boolean
   companionToolId: 'automations' | null
   releaseCompanion: () => void
   chatRequest: { prefill: string; sequence: number } | null
@@ -30,20 +31,21 @@ interface IslandStore {
 export const useIslandStore = create<IslandStore>()((set) => ({
   ...INITIAL_ISLAND_CONTROLLER_STATE,
   openSequence: 0,
+  automationLocked: false,
   companionToolId: null,
   releaseCompanion: () => set({ companionToolId: null }),
   chatRequest: null,
   openChat: (prefill = '', companionToolId) => {
     if (useSuperAgentUIStore.getState().started) {
       openSuperAgent()
-      set({ chatRequest: { prefill, sequence: ++chatSequence }, companionToolId: null })
+      set(current => ({ chatRequest: { prefill, sequence: ++chatSequence }, companionToolId: companionToolId ?? current.companionToolId }))
       return
     }
     set(current => ({
     openSequence: current.openSequence + 1,
     ...(current.stage === 'expanded' ? {} : reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, { type: 'double-activate' })),
     chatRequest: { prefill, sequence: ++chatSequence },
-    companionToolId: companionToolId ?? null,
+    companionToolId: companionToolId ?? current.companionToolId,
     }))
   },
   consumeChat: sequence => set(current => current.chatRequest?.sequence === sequence ? { chatRequest: null } : {}),
@@ -57,6 +59,9 @@ export const useIslandStore = create<IslandStore>()((set) => ({
   })),
   dispatch: (action) => set((current) => {
     const next = reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, action)
-    return { ...next, ...(next.stage === 'expanded' && current.stage !== 'expanded' ? { openSequence: current.openSequence + 1 } : {}), ...(next.stage !== 'expanded' ? { companionToolId: null } : {}) }
+    // The automation panel owns this lock until it closes or another tool takes over.
+    const companion = current.companionToolId === 'automations'
+    if (current.automationLocked && current.stage === 'expanded' && next.stage !== 'expanded' && !useSuperAgentUIStore.getState().started) return current
+    return { ...next, ...(next.stage === 'expanded' && current.stage !== 'expanded' ? { openSequence: current.openSequence + 1 } : {}), ...(!companion && next.stage !== 'expanded' ? { companionToolId: null } : {}) }
   }),
 }))

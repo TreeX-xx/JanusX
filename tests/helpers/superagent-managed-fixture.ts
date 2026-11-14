@@ -19,8 +19,14 @@ export class ManagedEngineFixture implements ManagedWorkerEngine {
   changed() { this.publish(this.snapshot()) }
   async startManaged(options: Parameters<ManagedWorkerEngine['startManaged']>[0]) {
     this.options = options
+    if (options.worker?.backend === 'claude') {
+      this.state.engine = 'claude'
+      this.grant = { JANUS_WORKER_ENDPOINT: options.worker.bridge.endpoint, JANUS_WORKER_TOKEN: options.worker.bridge.token }
+      await this.tool('__tools_discovered')
+    } else {
     this.config = await options.configure({ config: { projects: { [options.cwd]: { trust_level: 'trusted' } }, mcp_servers: { inherited: { command: 'must-not-run' } } } })
     this.grant = this.config.config.mcp_servers.janus_worker.env
+    }
     this.state.threadId = options.threadId ?? randomUUID(); this.state.connection = 'ready'; this.state.mode = 'conversation'; this.changed()
   }
   async managedCall() { return { data: [{ name: 'janus_worker', tools: { report_work: {} } }] } }

@@ -7,6 +7,7 @@ let activeBrowserTabDragSurfaceId: string | null = null
 let activeWorkspaceFileDragPayload: WorkspaceFileDragPayload | null = null
 
 export interface WorkspaceFileDragPayload {
+  quote?: string
   type: 'file' | 'directory'
   name: string
   path: string
@@ -109,6 +110,7 @@ export function readWorkspaceFileDragData(dataTransfer: DataTransfer): Workspace
       name: parsed.name,
       path: normalizeWorkspaceFilePath(parsed.path),
       workspacePath: parsed.workspacePath,
+      quote: typeof parsed.quote === 'string' ? parsed.quote : undefined,
     }
   } catch {
     return null

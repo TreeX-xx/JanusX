@@ -189,7 +189,7 @@ export function TerminalSelector() {
     [launch]
   )
 
-  const cliPresets = listVisibleCliPresets(settings, ['janus', 'claude', 'codex', 'opencode', 'pi', 'dsh'])
+  const cliPresets = listVisibleCliPresets(settings, ['claude', 'codex', 'opencode', 'pi', 'dsh'])
 
   return (
     <div

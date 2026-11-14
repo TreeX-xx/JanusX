@@ -4,9 +4,25 @@ import type {
 } from '../superagent'
 import type { SuperAgentEnvironmentChange, SuperAgentEnvironmentDecision, SuperAgentEnvironmentSnapshot, SuperAgentGitOperation } from '../superagent-environment'
 import type { SuperAgentAppendInput, SuperAgentContinueInput, SuperAgentNativeLog, SuperAgentPreparedWork, SuperAgentWorkerControl, SuperAgentWorkerSnapshot } from '../superagent-worker'
-import type { SuperAgentScheduleEntry, SuperAgentScheduleSnapshot, SuperAgentWorkControl } from '../superagent-scheduling'
+import type { SuperAgentQueueControl, SuperAgentScheduleEntry, SuperAgentScheduleSnapshot, SuperAgentWorkControl } from '../superagent-scheduling'
+import type { WorkerModelSettings, WorkerSettingsIdentity, WorkerSettingsState } from '../superagent-worker-settings'
+import type { WorkerPolicy } from '../superagent-worker-settings'
+import type { SuperAgentWorkflow, SuperAgentWorkflowControl, SuperAgentWorkflowSnapshot } from '../superagent-workflow'
 
 export const SUPERAGENT_CHANNELS = {
+  workerModels: 'superagent:worker-models',
+  workflows: 'superagent:workflows',
+  controlWorkflow: 'superagent:control-workflow',
+  workflowsChanged: 'superagent:workflows-changed',
+  workerPolicy: 'superagent:worker-policy',
+  updateWorkerPolicy: 'superagent:update-worker-policy',
+  workerDefaults: 'superagent:worker-defaults',
+  workerIdleTimeoutMinutes: 'superagent:worker-idle-timeout-minutes',
+  updateWorkerIdleTimeoutMinutes: 'superagent:update-worker-idle-timeout-minutes',
+  updateWorkerDefaults: 'superagent:update-worker-defaults',
+  workerSettings: 'superagent:worker-settings',
+  configureWorker: 'superagent:configure-worker',
+  refreshWorkerModels: 'superagent:refresh-worker-models',
   submitInput: 'superagent:submit-input',
   snapshot: 'superagent:snapshot',
   workDetail: 'superagent:work-detail',
@@ -26,11 +42,25 @@ export const SUPERAGENT_CHANNELS = {
   schedule: 'superagent:schedule',
   configureCapacity: 'superagent:configure-capacity',
   controlWork: 'superagent:control-work',
+  controlQueue: 'superagent:control-queue',
   scheduleChanged: 'superagent:schedule-changed',
 } as const
 
 /** Renderer can submit user input and read records, never forge worker reports or delivery. */
 export interface SuperAgentAPI {
+  workerModels(backend: 'codex' | 'claude'): Promise<import('../conversation-display').ConversationModelOption[]>
+  workflows(workspaceId: string): Promise<SuperAgentWorkflowSnapshot>
+  controlWorkflow(control: SuperAgentWorkflowControl): Promise<SuperAgentWorkflow>
+  onWorkflowsChanged(callback: (change: { workspaceId: string }) => void): () => void
+  workerPolicy(): Promise<WorkerPolicy>
+  updateWorkerPolicy(policy: WorkerPolicy): Promise<WorkerPolicy>
+  workerDefaults(backend?: 'codex' | 'claude'): Promise<WorkerModelSettings>
+  workerIdleTimeoutMinutes(): Promise<number>
+  updateWorkerIdleTimeoutMinutes(minutes: number): Promise<number>
+  updateWorkerDefaults(settings: WorkerModelSettings): Promise<WorkerModelSettings>
+  workerSettings(identity: WorkerSettingsIdentity): Promise<WorkerSettingsState>
+  configureWorker(identity: WorkerSettingsIdentity, settings: WorkerModelSettings | null): Promise<WorkerSettingsState>
+  refreshWorkerModels(identity: WorkerSettingsIdentity): Promise<WorkerSettingsState>
   submitInput(input: SuperAgentSubmitInput): Promise<SuperAgentInputReceipt>
   snapshot(workspaceId: string): Promise<SuperAgentSnapshot>
   workDetail(workspaceId: string, workId: string): Promise<SuperAgentWorkDetail>
@@ -50,5 +80,6 @@ export interface SuperAgentAPI {
   schedule(workspaceId: string): Promise<SuperAgentScheduleSnapshot>
   configureCapacity(maxConcurrentWorkers: number): Promise<number>
   controlWork(control: SuperAgentWorkControl): Promise<unknown>
+  controlQueue(control: SuperAgentQueueControl): Promise<SuperAgentScheduleSnapshot>
   onScheduleChanged(callback: (change: { workspaceId: string }) => void): () => void
 }

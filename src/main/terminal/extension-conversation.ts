@@ -116,7 +116,12 @@ class ExtensionConversation extends NativeConversation {
   }
   private request(command: { id: string; [key: string]: unknown }): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(command.id); this.fail('Native delivery is unknown. Check the terminal before sending again.'); reject(new Error('Native delivery unknown')) }, 10000)
+      const timer = setTimeout(() => {
+        this.pending.delete(command.id)
+        // A read-only catalog can fail independently of the live session.
+        if (command.type === 'catalog') { reject(new Error('Native command catalog timed out. Retry loading the commands.')); return }
+        this.fail('Native delivery is unknown. Check the terminal before sending again.'); reject(new Error('Native delivery unknown'))
+      }, 10000)
       this.pending.set(command.id, { command, resolve, reject, timer })
     })
   }

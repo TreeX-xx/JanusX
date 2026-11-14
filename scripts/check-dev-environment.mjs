@@ -27,7 +27,7 @@ export function checkDevEnvironment(root) {
       const dependency = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
       if (!dependency.main || !existsSync(join(directory, dependency.main))) throw new Error('missing build output')
     } catch {
-      issues.push(`${name} has no installed build output. Build ../janus-agentX first, then run npm run prepackage.`)
+      issues.push(`${name} has no installed build output. Run npm ci, then npm run prepackage to verify the pinned engine artifacts.`)
     }
   }
   return issues

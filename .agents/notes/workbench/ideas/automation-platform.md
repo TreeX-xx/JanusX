@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-04T15:59:18.397Z",
+  "updated": "2026-11-08T15:16:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e22d4cdb-c2aa-5a6c-ae54-945ea26e91ce" },
@@ -30,6 +30,10 @@
 本轮先交付独立通知提醒闭环：自然对话生成草案、分钟间隔、编辑内容和周期、保存启用、试跑、停用与重启恢复，并回归原有代码审查。通用 Agent 任意任务执行、更多资源与事件触发作为后续阶段，不能将现有审查执行器宣传为已经支持通用任务。保持本地应用常驻约束，休眠或关闭期间不持续执行；恢复后不逐次补发积压提醒。
 
 ## 当前实现与验证
+
+2026-11-08 侧栏默认连接与锁定：`npx vitest run tests/unit/automation-island-layout.test.ts tests/unit/automation-intent.test.ts tests/unit/right-tool-state.test.ts` 56 项通过。`npx playwright test tests/e2e/automation-chat-routing.spec.ts tests/e2e/automations.spec.ts tests/e2e/island-notifications.spec.ts tests/e2e/island-chat-surface.spec.ts --project=island --workers=1 --output=artifacts/automation-companion-browser-final` 31 项通过，覆盖未启动／已启动 SuperAgent、自动点亮与禁用眼睛、Esc 保持连接、切换／关闭／重开、草稿与既有通知及编辑流程。
+
+构建后的 `desktop-automations.spec.ts --config playwright.desktop.config.ts --workers=1` 五个场景均取得最终通过结果，来自最终整组中三项通过与两项定向复验：真实 SuperAgent 工作区与侧栏同时可用、眼睛锁定及草稿保留、IPC 编辑／删除、提醒草案工具闭环、实际一分钟调度与停用后重启，以及宽窗／680px 上下布局恢复。首轮暴露备忘录释放布局标记时丢失连接锁，现将连接锁独立于几何标记，并在备忘录退场后恢复避让；通知预览测试明确先收起侧栏，旧的聊天工具栏、隐藏胶囊与响应式重开断言按当前界面对齐。并发浏览器测试曾清理桌面 trace 所在的默认输出目录，后续证据分开保存；没有把首轮失败记为整组通过。日志为 `artifacts/automation-companion-{browser,desktop,desktop-superagent,desktop-layout}.log`，桌面效果图为 `artifacts/automations/superagent-connected-desktop.png`，已人工检查。`npm run build:app`、严格未使用项类型检查、定向 ESLint 和双语检查通过；本轮模型回复使用本地夹具，没有调用用户模型或启用用户实际计划。
 
 整合到 v0.9.8 之后的 dev 时，保留仓库侧栏、本地 Skills／MCP 设置、移动远控、中性滚动条及已移除歪头动作的状态。通知文字和仓库图片遮罩复用现有主题令牌，Memo 圆角沿用共享 Island 令牌；伴随布局变量集中声明，生命周期不变。相关单测 347 项通过、5 项外部环境用例跳过，72 个浏览器主场景分批通过；工具移除后误触发相邻预览的整合问题修复后，11 项工具栏回归通过。生产检查构建及 5 项桌面自动化专项通过，覆盖 IPC 保存、卡片删除、对话草案路由、真实分钟调度与重启恢复；最终严格类型、主题、双语及 ESLint 检查通过，lint 保留 51 条既有警告。没有启用用户实际计划或调用真实模型。原 worktree 资料归档到 `artifacts/worktree-integration-20261104/automation-platform/`，新证据位于 `artifacts/worktree-merge-*`。
 
@@ -115,7 +119,9 @@ Island 当前对话发送包含“自动化”、定时任务／提醒／通知�
 
 当前面板采用 RightDock 的 `shell-*`／`tool-*` 主题令牌和 30–32px 控件尺度：顶部工具栏固定，卡片分层显示项目、分支、周期与状态，选中后在列表下方展示运行记录和报告。编辑页按基本信息、周期、顺序任务与模型分组，任务使用可读名称和编号，输入绑定仍保存原始任务 ID；仅手动执行隐藏时间与时区控件，高级选项收纳重选基准。保存操作固定在面板底部，预览与试跑保留在表单末尾。宽度不超过 320px 时通过容器查询将并排字段转为单列，图标操作提供双语名称及键盘焦点，减少动态效果时关闭控件过渡。该调整不改变宿主调度、授权及持久化语义。
 
-2026-11-03 用户调整入口：移除侧栏的“一句话生成”卡片及预设提示词，改为标题栏的小眼睛控件，列表和草案均可使用。复用 `JanusEye` 双眼形态，按钮只显示眼睛；悬停和无障碍名称说明唤出／收起 Island。展开当前 Chat 后建立临时伴随关系，以反色眼睛按钮、双层中性细框与清晰标题带提示；字段保持可编辑，不表达真实锁定，也不使用锁图标、锁定文案或橙色联动强调。`useAutomationIslandLayout` 按右栏实际位置避让：宽度足够时并排，左侧不足 360px（另预留边距和 48px 功能按钮列）时上下排列，右栏使用独立滚动区；背景遮罩避开自动化面板。响应式折叠时临时保持自动化浮动面板可见，点击编辑区不触发 Island 外部点击收起。Esc、快捷控件再次激活、切换工具或关闭联动面板后解除伴随并恢复几何，不保存此状态。自然对话中已有自动化工具仍可消费用户请求；本次移除的是专用生成入口与提示词预填。
+2026-11-08 用户调整默认联动：正式打开自动化侧栏即连接当前对话，标题栏 `JanusEye` 默认点亮并锁定，不能再次点击断开。无障碍名称为“SuperAgent 已连接”，悬停说明可随时通过对话创建或调整任务；锁定只约束连接，字段仍可编辑。反色双眼、双层中性细框和标题带沿用原有主题，禁用态不降低眼镜亮度。已启动 SuperAgent 时复用独立全局工作区，连接标识不再依赖 Island 展开状态，也不弹出 Island 对话浮层。未启动时仍由 Island Chat 承载，Esc、外部点击及终端切换不解除侧栏持有的连接；显式收起、关闭或切换侧栏才释放。关闭侧栏不关闭 SuperAgent，也不清空会话或草稿；打开联动本身不保存、启用或运行自动化。
+
+`useAutomationIslandLayout` 继续只处理 Island 对话的临时几何：宽度足够时并排，左侧不足 360px（另预留边距和 48px 功能按钮列）时上下排列，右栏使用独立滚动区；背景遮罩避开自动化面板。响应式折叠时临时保持伴随浮动面板可见，显式收起侧栏则恢复几何；普通悬浮预览不主动打开对话。备忘录临时接管几何时保留连接锁，退场后仅在自动化侧栏仍打开时恢复自动化布局。2026-11-03 移除的“一句话生成”卡片及预设提示词继续保持移除，原有自然对话工具消费任务请求。下述 2026-11-03 的 Esc／重复激活解锁证据属于历史行为，由本轮侧栏锁定规则替代。
 
 联动验证（2026-11-03）：`npx vitest run tests/unit/automation-island-layout.test.ts tests/unit/right-tool-state.test.ts` 36 项通过，后续补充功能按钮列边界后布局六项复验通过。`npx playwright test tests/e2e/automations.spec.ts tests/e2e/island-chat-surface.spec.ts --project=island --workers=1` 13 项通过。`npx playwright test tests/e2e/desktop-automations.spec.ts --project=desktop --workers=1` 最终一项通过：真实构建桌面验证不注入提示词、并排／680px 窄窗上下排列、外侧按钮不越界、单列 Chat 与会话选择器、编辑时不收起、Esc／重复激活解锁、草案保留、恢复响应式显隐，以及原有保存和重启恢复。检查截图时修正了浮动面板 top 覆盖、功能按钮列预留和 Chat 网格／相对定位的选择器优先级。最终构建、类型检查、定向 ESLint、双语检查通过，未调用模型。人工复核 dark 宽窗／窄窗与 planche 宽窗，截图为 `artifacts/automations/island-locked-desktop.png`、`island-locked-narrow.png` 和 `island-locked-planche.png`。
 

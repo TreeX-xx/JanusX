@@ -37,6 +37,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const draft = useWorkspaceStore(state => (state.terminals.find(item => item.id === terminalId)
     ?? Object.values(state.terminalSnapshots).flatMap(entry => entry.terminals).find(item => item.id === terminalId))?.conversationDraft ?? '')
   const activeReferences = activeConversationReferences(draft, references)
+  const hasDraft = Boolean(draft.trim() || activeReferences.length)
   const localHistory = useConversationInputHistory(state => state.entries[historyScope])
   const [nativeHistory, setNativeHistory] = useState<InputHistoryEntry[]>([])
   const historyCursor = useRef(new InputHistoryCursor())
@@ -67,6 +68,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const listId = useId()
   const slash = parseConversationSlashCommand(draft, snapshot?.commands)
   const commandQuery = Boolean(slash)
+  const showStop = Boolean((snapshot?.turnId || snapshot?.backgroundTasks) && snapshot?.capabilities.cancel && !slash)
   const catalogRequested = useRef<string>()
   useEffect(() => {
     if (!commandQuery || busy || switching || !snapshot?.capabilities.commands || snapshot.connection !== 'ready' || snapshot.mode !== 'conversation' || snapshot.commands !== undefined || snapshot.commandsLoading || snapshot.commandsError) return
@@ -133,7 +135,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     } else setSelectionFailed(true)
   }
   const commands: Choice[] = [
-    { id: 'new', icon: Plus, label: '/new', description: t('conversation.commands.new'), disabled: !available || hasOutgoing || !!snapshot?.turnId || !!snapshot?.approvals.length || !!snapshot?.needsTerminal, run: () => {
+    { id: 'new', icon: Plus, label: '/new', description: t('conversation.commands.new'), disabled: !available || hasOutgoing || !!snapshot?.turnId || !!snapshot?.approvals.length || !!snapshot?.needsTerminal || !!(slash?.name === 'new' && slash.query), run: () => {
       if (snapshot) void action({ type: 'new', controlEpoch: snapshot.controlEpoch }).then(ok => {
         if (ok && inputRef.current?.value === draft) setDraft('')
         if (ok) { setPanel(null); setDismissed(null); inputRef.current?.focus() }
@@ -141,15 +143,16 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     } },
     { id: 'model', icon: SlidersHorizontal, label: '/model', description: t('conversation.commands.model'), run: () => { setDraft('/model '); setPanel(null); setDismissed(null); inputRef.current?.focus() } },
     { id: 'effort', icon: SlidersHorizontal, label: '/effort', description: t('conversation.commands.effort'), run: () => { setDraft('/effort '); setPanel(null); setDismissed(null); inputRef.current?.focus() } },
-    { id: 'terminal', icon: Terminal, label: '/terminal', description: t('conversation.commands.terminal'), run: () => { setDraft(''); void changeMode('terminal') } },
-    { id: 'stop', icon: Square, label: '/stop', description: t('conversation.commands.stop'), disabled: !(snapshot?.turnId || snapshot?.backgroundTasks) || !available, run: () => {
+    { id: 'terminal', icon: Terminal, label: '/terminal', description: t('conversation.commands.terminal'), disabled: busy || switching || !!(slash?.name === 'terminal' && slash.query), run: () => { void changeMode('terminal') } },
+    { id: 'stop', icon: Square, label: '/stop', description: t('conversation.commands.stop'), disabled: !(snapshot?.turnId || snapshot?.backgroundTasks) || !available || !!(slash?.name === 'stop' && slash.query), run: () => {
       if (snapshot) void action({ type: 'interrupt', controlEpoch: snapshot.controlEpoch }).then(ok => { if (ok && inputRef.current?.value === draft) setDraft('') })
     } },
   ].filter(option => (option.id !== 'model' && option.id !== 'effort' || snapshot?.capabilities.settings)
     && (option.id !== 'stop' || snapshot?.capabilities.cancel)
     && (option.id !== 'terminal' || snapshot?.engine !== 'opencode')
     && (option.id !== 'new' || snapshot?.capabilities.newThread))
-  const nativeChoices: Choice[] = (snapshot?.commands ?? []).map(entry => ({
+  // Session controls own their reserved names; avoid two indistinguishable rows.
+  const nativeChoices: Choice[] = (snapshot?.commands ?? []).filter(entry => !commands.some(option => option.label === '/' + entry.name)).map(entry => ({
     id: entry.id, label: '/' + entry.name, completion: '/' + entry.name + ' ',
     description: [entry.label !== entry.name ? entry.label : '', entry.description, entry.argumentHint].filter(Boolean).join(' \u00b7 '),
     icon: entry.kind === 'skill' ? Sparkles : entry.kind === 'prompt' ? FileText : Command,
@@ -210,13 +213,23 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     id: option.effort, label: option.effort === 'default' ? t('conversation.defaultEffort') : t(`conversation.efforts.${option.effort}`, { defaultValue: option.effort }), description: '',
     selected: option.effort === snapshot?.effort, disabled: !canConfigure,
     run: () => void selectSettings(model!.model, option.effort),
-  })) : [...commands, ...nativeChoices, ...terminalChoice]).filter(option => `${currentPanel === 'commands' ? '' : option.id} ${option.label} ${option.description} ${option.provider?.name ?? ''} ${option.provider?.id === 'opencode' ? 'zen' : ''}`.toLowerCase().includes(query.toLowerCase()))
+  })) : [...commands, ...nativeChoices, ...terminalChoice]).filter(option => currentPanel === 'commands' && !panel
+    ? option.label.toLowerCase().startsWith('/' + query.toLowerCase())
+    : `${option.id} ${option.label} ${option.description} ${option.provider?.name ?? ''} ${option.provider?.id === 'opencode' ? 'zen' : ''}`.toLowerCase().includes(query.toLowerCase()))
   const activeChoice = choices[Math.min(active, choices.length - 1)]
-  const selectedIndex = currentPanel !== 'commands' && !query ? choices.findIndex(option => option.selected) : -1
+  const selectedIndex = currentPanel === 'commands' && slash?.name
+    ? choices.findIndex(option => option.label === '/' + slash.name && !option.id.startsWith('terminal:'))
+    : !query ? choices.findIndex(option => option.selected) : -1
+  const unsupportedArguments = Boolean(slash?.query && ['new', 'stop', 'terminal'].includes(slash.name) && commands.some(option => option.label === '/' + slash.name))
   useEffect(() => { setActive(Math.max(0, selectedIndex)); setSelectionFailed(false) }, [query, currentPanel, selectedIndex, providerFilter])
   const submit = () => {
     if (slash) {
       setDismissed(null)
+      if (unsupportedArguments) return
+      // Prefix search is completion, never permission to run a different command.
+      if (currentPanel === 'commands' && activeChoice && activeChoice.label !== '/' + slash.name) {
+        setDraft(activeChoice.completion ?? activeChoice.label + ' '); return
+      }
       if (activeChoice && !activeChoice.disabled) activeChoice.run()
     } else if (!importing) { setAcceptedCommand(null); void send() }
   }
@@ -287,7 +300,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
           className={currentPanel === 'effort' ? `${styles.effortOption} ${effortToneClass(option.id)}` : styles.commandOption} data-active={index === Math.min(active, choices.length - 1)} tabIndex={-1} onMouseEnter={() => setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
           title={currentPanel === 'effort' ? undefined : option.title ?? option.description} aria-label={option.provider ? `${option.label} · ${option.provider.name}` : currentPanel === 'effort' ? option.label : undefined}>
           {currentPanel === 'effort' ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + (effortVisualLevel(option.id) ?? 0) * 3 }} data-filled={index === active} /></span><span>{option.label}</span><i className={styles.effortSelected} aria-hidden="true" /></>
-            : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}{option.selected && <Check size={14} aria-hidden="true" />}</>}
+            : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}</>}
         </button></Fragment>)}
         </div>
       </div>
@@ -297,6 +310,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       </div>}
       {currentPanel !== 'commands' && snapshot?.modelsLoading && <p className={styles.pickerMessage} role="status">{t('conversation.modelsLoading')}</p>}
       {currentPanel !== 'commands' && snapshot?.modelsError && <div className={styles.pickerMessage} role="alert">{t('conversation.modelsFailed')}<button type="button" disabled={!available} onClick={() => snapshot && void action({ type: 'models', controlEpoch: snapshot.controlEpoch })}>{t('conversation.retryModels')}</button></div>}
+      {unsupportedArguments && <p className={styles.pickerMessage} role="status">{t('conversation.commandArgumentsUnsupported')}</p>}
       {!choices.length && (currentPanel === 'commands' || (!snapshot?.modelsLoading && !snapshot?.modelsError)) && <p className={styles.pickerMessage}>{t(currentPanel === 'commands' ? 'conversation.unsupportedCommand' : currentPanel === 'effort' && !model ? 'conversation.effortUnavailable' : 'conversation.noOptions')}</p>}
       {currentPanel === 'commands' && !choices.length && <button className={styles.terminalCommand} type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button>}
       {currentPanel !== 'commands' && <div className={styles.pickerFootnote} title={t(snapshot?.engine === 'claude' ? 'conversation.claudeSessionSettings' : 'conversation.nextTurnSettings')}><span>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}
@@ -334,8 +348,10 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
           : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={`${styles.modelControl} ${styles.effortControl} ${effortToneClass(snapshot.effort)}`}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
-      {Boolean(snapshot?.turnId || snapshot?.backgroundTasks) && snapshot?.capabilities.cancel && !slash && <button className={styles.submit} type="button" disabled={!available} aria-label={t('conversation.stop')} title={t('conversation.stop')} onClick={() => void action({ type: 'interrupt', controlEpoch: snapshot.controlEpoch })}><Square size={13} fill="currentColor" aria-hidden="true" /></button>}
-      <button className={styles.submit} type="submit" disabled={slash ? !activeChoice || activeChoice.disabled : !canSend || importing || (!draft.trim() && !activeReferences.length)} aria-label={t(slash ? 'conversation.runCommand' : 'conversation.send')} title={t(slash ? 'conversation.runCommand' : 'conversation.send')}><ArrowUp size={18} aria-hidden="true" /></button>
+      <div className={styles.composerSubmit} data-composer-submit>
+        {showStop && <button className={styles.submit} data-secondary={hasDraft || undefined} type="button" disabled={!available} aria-label={t('conversation.stop')} title={t('conversation.stop')} onClick={() => void action({ type: 'interrupt', controlEpoch: snapshot!.controlEpoch })}><Square size={12} fill="currentColor" aria-hidden="true" /></button>}
+        {(!showStop || hasDraft) && <button className={styles.submit} type="submit" disabled={slash ? unsupportedArguments || !activeChoice || activeChoice.disabled : !canSend || importing || !hasDraft} aria-label={t(slash ? 'conversation.runCommand' : 'conversation.send')} title={t(slash ? 'conversation.runCommand' : 'conversation.send')}><ArrowUp size={18} aria-hidden="true" /></button>}
+      </div>
     </div>
     </>}
     </ConversationContext>

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { fixtureWorkerReport } from '../helpers/worker-report'
 import { createServer, type ServerResponse } from 'node:http'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -14,6 +15,7 @@ import { WORKER_IDLE_MS } from '../../src/main/janus/superagent/lifecycle-store'
 
 const binary = process.env.JANUS_SUPERAGENT_CODEX_BINARY
 const entry = resolve('artifacts/build-check/main/worker-mcp.js')
+const evidenceDirectory = resolve(process.env.JANUS_SUPERAGENT_EVIDENCE_DIR ?? 'artifacts/superagent-p6')
 const electron = createRequire(import.meta.url)('electron') as string
 
 function respond(res: ServerResponse, model: string, item: any) {
@@ -63,7 +65,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
           return
         }
         if (lastUser.includes('P3_RESUME')) {
-          if (!completed('resume_report')) { call('report_work', 'resume_report', { reportId: reports.resume, kind: 'ready', summary: 'Resumed', text: 'Read original context and continued.' }); return }
+          if (!completed('resume_report')) { call('report_work', 'resume_report', { reportId: reports.resume, kind: 'ready', summary: 'Resumed', report: fixtureWorkerReport('Read original context and continued.') }); return }
           respond(res, body.model, { id: randomUUID(), type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'P3_RESUMED', annotations: [] }] }); return
         } else if (!completed('read_assigned')) { call('read_work', 'read_assigned', {}); return }
         else {
@@ -82,14 +84,14 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
           originalPages.splice(0, originalPages.length, ...pages.sort((a, b) => a.offset - b.offset))
         }
         if (!completed('edit_code')) {
-          call('exec_command', 'edit_code', { cmd: 'Set-Content -LiteralPath worker-result.txt -Value P3_NATIVE_EDIT', shell: 'powershell.exe', login: false }); return
+          call('exec_command', 'edit_code', { cmd: `$env:TEMP=$env:TMPDIR; $env:TMP=$env:TMPDIR; & '${process.execPath.replaceAll("'", "''")}' scratch-check.cjs; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Content -LiteralPath worker-result.txt -Value P3_NATIVE_EDIT`, shell: 'powershell.exe', login: false }); return
         } else if (!completed('ask_user')) {
           call('request_user_input', 'ask_user', { questions: [
             { id: 'choice', header: 'Choose', question: 'Which output?', options: [{ label: 'Short', description: 'Short output' }, { label: 'Long', description: 'Long output' }] },
             { id: 'custom', header: 'Notes', question: 'Additional notes?', options: [{ label: 'None', description: 'No note' }, { label: 'Later', description: 'Add later' }] },
           ] }); return
         } else if (!completed('ready_report')) {
-          call('report_work', 'ready_report', { reportId: reports.first, kind: 'ready', summary: 'Fixture implemented', text: 'Created worker-result.txt; read the original input; answered the native question.' }); return
+          call('report_work', 'ready_report', { reportId: reports.first, kind: 'ready', summary: 'Fixture implemented', report: fixtureWorkerReport('Created worker-result.txt; read the original input; answered the native question.') }); return
         }
         respond(res, body.model, { id: randomUUID(), type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'P3_DONE', annotations: [] }] })
       } catch (error) { modelErrors.push(String(error)); res.destroy(error as Error) }
@@ -120,7 +122,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
     let workId = ''
     const current = () => workers.snapshots(scope).find(row => row.workId === workId)!
     const control = (value: any) => service.controlWorker({ workspaceId: scope, workId, executionId: current().executionId, ...value })
-    let mcpDecisions = 0
+    let mcpDecisions = 0, nativeDecisions = 0
     const decideMcp = async () => {
       for (const request of current()?.conversation.questions ?? []) if (request.questions.some(row => row.id === '$action') && request.status === 'pending') {
         mcpDecisions++
@@ -139,6 +141,15 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
       const prepared = { work, receipt: input, operation: undefined }
       workId = prepared.work.id; sourceResource = prepared.receipt.input.resourceId
       expect(prepared.operation).toBeUndefined()
+      await writeFile(join(f.repo, 'scratch-check.cjs'), String.raw`
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),cp=require('node:child_process');
+const temp=os.tmpdir();if(!path.basename(temp).startsWith('janus-worker-'))throw Error('Scratch was not propagated');
+const dir=fs.mkdtempSync(path.join(temp,'fixture-'));const git=args=>cp.execFileSync('git',args,{cwd:dir,windowsHide:true,stdio:'pipe'});
+git(['init','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.invalid']);
+fs.writeFileSync(path.join(dir,'state'),'old');fs.writeFileSync(path.join(dir,'pending'),'new');fs.renameSync(path.join(dir,'pending'),path.join(dir,'state'));
+git(['add','.']);git(['commit','-m','fixture']);fs.rmSync(dir,{recursive:true});
+fs.writeFileSync('scratch-evidence.json',JSON.stringify({temp,cleaned:!fs.existsSync(dir)}));
+`)
       await service.startWorker(scope, workId)
       await vi.waitFor(() => expect(requests.length).toBeGreaterThan(0), { timeout: 15000 })
       const running = current()
@@ -149,6 +160,7 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
       await vi.waitFor(async () => {
         await decideMcp()
         for (const approval of current().conversation.approvals) {
+          nativeDecisions++
           expect(approval.choices?.some(choice => choice.id === 'accept')).toBe(true)
           await control({ type: 'approve', requestId: approval.id, decision: 'accept' })
         }
@@ -162,9 +174,15 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
       await vi.waitFor(async () => { await decideMcp(); expect(current().phase, JSON.stringify({ current: current(), modelErrors })).toBe('ready') }, { timeout: 20000 })
       expect(existsSync(join(f.repo, 'worker-result.txt')), JSON.stringify(requests.at(-1).input.filter((row: any) => row.call_id === 'edit_code'))).toBe(true)
       expect(await readFile(join(f.repo, 'worker-result.txt'), 'utf8')).toContain('P3_NATIVE_EDIT')
+      expect(JSON.parse(await readFile(join(f.repo, 'scratch-evidence.json'), 'utf8'))).toMatchObject({ cleaned: true })
+      expect(nativeDecisions, 'Test scratch access must not require native approval').toBe(0)
       expect(JSON.stringify(requests)).toContain('user_note: 中文 custom answer')
       expect(JSON.stringify(requests.at(-1).input)).toContain('P3_SUPPLEMENT')
+      const supplement = requests.flatMap(body => body.input ?? []).find(row => row.role === 'user' && JSON.stringify(row).includes('P3_SUPPLEMENT'))
+      expect(JSON.stringify(supplement)).toContain('Current input for this work')
+      expect(JSON.stringify(supplement)).not.toContain('Assigned work:')
       expect((await service.workDetail(scope, workId)).reports).toHaveLength(1)
+      expect(mcpDecisions, 'Initial internal reads and reporting must not require MCP approval').toBe(0)
       expect(originalPages.length).toBeGreaterThan(1)
       expect(hashText(originalPages.map(page => page.text).join(''))).toBe(hashText(original))
       expect(originalPages.at(-1).text).toContain('P5_TAIL_REQUIREMENT')
@@ -206,14 +224,17 @@ describe.skipIf(!binary || process.platform !== 'win32')('P3/P5/P6 product servi
       await vi.waitFor(async () => { await decideMcp(); expect(current()?.report?.id, JSON.stringify(current())).toBe(reports.resume) }, { timeout: 30000 })
       await vi.waitFor(() => expect(current()).toMatchObject({ phase: 'ready', stopConfirmed: true, recovery: 'rebuilt' }), { timeout: 15000 })
       expect(current().conversation.threadId).not.toBe('00000000-0000-4000-8000-000000000006')
+      const rebuilt = requests.flatMap(body => body.input ?? []).find(row => row.role === 'user' && JSON.stringify(row).includes('P6_REBUILD'))
+      expect(JSON.stringify(rebuilt)).toContain('Assigned work:')
+      expect(JSON.stringify(rebuilt)).toContain('Native history is missing')
       expect((await service.workDetail(scope, workId)).executions).toHaveLength(retained.executions.length + 2)
-      expect(mcpDecisions).toBeGreaterThan(0)
+      expect(mcpDecisions, 'Host-bound reads and reports must not ask for tool permission, including resumed workers').toBe(0)
       expect(modelErrors).toEqual([])
     } catch (error) { failure = error; throw error }
     finally {
-      await mkdir('artifacts/superagent-p6', { recursive: true })
-      await writeFile('artifacts/superagent-p6/native-result.json', JSON.stringify({ failure: failure && String(failure), modelErrors,
-        requestCount: requests.length, nativeLimits, pages: originalPages.map(({ resourceId, version, offset, end, total, nextOffset, text }) => ({ resourceId, version, offset, end, total, nextOffset,
+      await mkdir(evidenceDirectory, { recursive: true })
+      await writeFile(join(evidenceDirectory, 'native-result.json'), JSON.stringify({ failure: failure && String(failure), modelErrors,
+        requestCount: requests.length, mcpDecisions, nativeLimits, pages: originalPages.map(({ resourceId, version, offset, end, total, nextOffset, text }) => ({ resourceId, version, offset, end, total, nextOffset,
           textLength: text.length, textHash: hashText(text), truncation: text.match(/.{0,60}(?:truncat|omitted).{0,100}/g) })),
         current: workId && current() }, null, 2))
       releaseFirst(); holdStop?.destroy()

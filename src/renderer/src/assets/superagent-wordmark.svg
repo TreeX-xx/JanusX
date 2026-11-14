@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 80" fill="none" role="img" aria-label="JanusX">
+  <title>JanusX</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-j-0" transform="translate(0 0)">
+      <path d="M18 8H60V54L42 72H18L2 56V42H14V50L24 60H36L48 48V20H18Z"/>
+    </g>
+    <g id="letter-a-1" transform="translate(70 0)">
+      <path d="M2 72V24L18 8H44L60 24V72H48V48H14V72Z M14 36H48V28L40 20H22L14 28Z"/>
+    </g>
+    <g id="letter-n-2" transform="translate(140 0)">
+      <path d="M2 72V8H14L48 50V8H60V72H48L14 30V72Z"/>
+    </g>
+    <g id="letter-u-3" transform="translate(210 0)">
+      <path d="M2 8H14V52L22 60H40L48 52V8H60V56L44 72H18L2 56Z"/>
+    </g>
+    <g id="letter-s-4" transform="translate(280 0)">
+      <path d="M18 8H60L48 20H22L14 28V34H44L60 50V56L44 72H2L14 60H40L48 52V48H18L2 32V24Z"/>
+    </g>
+    <g id="letter-x-5" transform="translate(350 0)">
+      <path d="M18 8H2L24 37.333L32 26.667Z M44 42.667L36 53.333L50 72H66Z"/>
+      <path d="M50 8H66L18 72H2Z" fill="#e8b697"/>
+    </g>
+  </g>
+</svg>

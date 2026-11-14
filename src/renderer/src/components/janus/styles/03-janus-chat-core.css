@@ -167,6 +167,7 @@
 .janus-chat-message.assistant {
   align-self: flex-start;
 }
+.janus-chat-message.assistant:has(.janus-chat-timeline) { width: 100%; }
 
 .janus-chat-message.streaming {
   animation: message-in 0.18s ease-out;
@@ -520,8 +521,8 @@
   flex-direction: column;
   gap: 2px;
   margin: 2px 0 4px;
-  border-left: 2px solid var(--shell-accent);
-  padding-left: 8px;
+  min-width: 0;
+  padding: 0 8px;
 }
 
 .janus-chat-thinking-toggle {
@@ -532,14 +533,18 @@
   border: none;
   padding: 2px 0;
   cursor: pointer;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
   color: var(--shell-muted);
   font-size: 11px;
   line-height: 1.4;
 }
 
 .janus-chat-thinking-toggle:hover {
-  color: var(--shell-accent);
+  color: var(--shell-text);
 }
+.janus-chat-thinking-toggle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .janus-chat-thinking-body {
   max-height: 240px;
@@ -1080,27 +1085,10 @@
 .janus-chat-timeline-block[data-phase="process"] .markdown-preview :is(p, li, strong, em, h1, h2, h3, h4, h5, h6) {
   color: var(--shell-muted);
 }
-.janus-chat-tool-result { padding: 6px 10px; border-left: 1px solid var(--shell-border); color: var(--shell-muted); font-size: 12px; }
+.janus-chat-tool-result { padding: 8px 12px; border: 1px solid var(--shell-border); border-radius: 8px; color: var(--shell-muted); font-size: 12px; }
 .janus-chat-tool-result p { margin: 4px 0; }
-.janus-tool-card-summary { margin: 2px 10px 6px; color: var(--shell-muted); font-size: 11px; overflow-wrap: anywhere; }
-.janus-tool-card { min-width: 0; padding: 4px 0; color: var(--shell-muted); font-size: 11px; }
-.janus-tool-card-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.janus-tool-card-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--shell-text); }
-.janus-tool-card-workspace { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.janus-tool-card-status, .janus-tool-card-duration { flex-shrink: 0; color: var(--shell-dim); }
-.janus-tool-card-duration { display: inline-flex; align-items: center; gap: 3px; }
-.janus-tool-card-toggle, .janus-tool-card-copy, .janus-tool-call-group-toggle { border: 0; background: transparent; color: inherit; cursor: pointer; }
-.janus-tool-card-toggle { display: inline-flex; padding: 2px; flex-shrink: 0; }
-.janus-tool-card-toggle:disabled { cursor: default; }
-.janus-tool-card-toggle-spacer { width: 11px; }
-.janus-tool-card-copy { margin-left: auto; padding: 2px; }
-.janus-tool-card-icon { flex-shrink: 0; }
-.janus-tool-card-icon--running { animation: janus-tool-spin 1s linear infinite; }
-.janus-tool-card-body { margin: 4px 0 4px 20px; padding-left: 8px; border-left: 1px solid var(--shell-border); overflow-wrap: anywhere; }
-.janus-tool-card-section-label { display: block; margin-top: 4px; }
-.janus-tool-card-code, .janus-tool-card-error { white-space: pre-wrap; font-family: var(--font-mono, monospace); }
-@keyframes janus-tool-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .janus-tool-card-icon--running { animation: none; } }
+.janus-tool-call-group-toggle { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.janus-tool-card-status { flex-shrink: 0; color: var(--shell-muted); font-size: 10px; }
 .janus-context-indicator form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; }
 .janus-context-indicator label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .janus-context-indicator input { width: 110px; color: inherit; background: var(--shell-canvas); border: 1px solid var(--shell-border); }

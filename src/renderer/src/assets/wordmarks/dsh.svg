@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 544 80" fill="none" role="img" aria-label="DeepSeek">
+  <title>DeepSeek</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-d-0" transform="translate(0 0)">
+      <path d="M2 8H40L60 28V52L40 72H2Z M14 20V60H34L48 46V34L34 20Z"/>
+    </g>
+    <g id="letter-e-1" transform="translate(70 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-e-2" transform="translate(136 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-p-3" transform="translate(202 0)">
+      <path d="M2 72V8H44L60 24V40L44 56H14V72Z M14 20V44H38L48 34V30L38 20Z"/>
+    </g>
+    <g id="letter-s-4" transform="translate(272 0)">
+      <path d="M18 8H60L48 20H22L14 28V34H44L60 50V56L44 72H2L14 60H40L48 52V48H18L2 32V24Z"/>
+    </g>
+    <g id="letter-e-5" transform="translate(342 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-e-6" transform="translate(408 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-k-7" transform="translate(474 0)">
+      <path d="M2 8H14V34H26L48 8H64L38 40L64 72H48L26 46H14V72H2Z"/>
+    </g>
+  </g>
+</svg>

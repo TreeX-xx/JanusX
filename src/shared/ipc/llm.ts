@@ -38,6 +38,8 @@ export interface ChatWorkspaceResource {
   agentSessionId: string
 }
 export interface ChatRequest {
+  workerBackend?: 'codex' | 'claude'
+  agentMode?: 'ordinary' | 'superagent'
   inputEventId?: string
   memoBinding?: MemoBinding
   /** Originating user message, including turns with no bound memo yet. */
@@ -123,6 +125,7 @@ export interface ChatAnswerQuestionPayload {
 export type ChatAgentEvent =
   | { type: 'memo_created'; requestId: string; conversationId: string; binding: MemoBinding }
   | { type: 'context_state'; requestId: string; state: import('../chat-context').ChatContextStatus }
+  | { type: 'context_diagnostic'; requestId: string; data: import('@janus-agent/chat-core').ContextDiagnostic }
   | { type: 'note_repair'; requestId: string; update: import('../../../plugins/blueprint/src/shared/note-repair').NoteRepairUpdate }
   | { type: 'note_change'; requestId: string; callId?: string; change: import('../note-chat').NoteChatChange }
   | { type: 'config_change'; requestId: string; callId?: string; change: import('../launch-config-chat').LaunchConfigChange }
@@ -148,6 +151,9 @@ export type ChatAgentEvent =
 
 /** R6-full：流式中 steering 投递（主侧排队 + 抢占）与撤销。 */
 export interface ChatSteerInput {
+  workerBackend?: 'codex' | 'claude'
+  /** Reject a late input instead of delivering it to a replacement turn. */
+  expectedRequestId?: string
   workspaceId?: string
   conversationId?: string
   entryId: string

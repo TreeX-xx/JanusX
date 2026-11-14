@@ -16,7 +16,8 @@
 
 // Note: policy-neutral loop core with shell-side duties only — see .agents/notes/agent/agent-loop-refactor.md
 import { llmService } from './LlmService'
-import { configService, DEFAULT_AGENT_MAX_STEPS } from '../config/service'
+import { configService } from '../config/service'
+import { INTERACTIVE_RUN_LIMIT } from '@janus-agent/janus-agent'
 import { captureEngineeringUserMemory } from '../knowledge/engineering-user-memory'
 import { knowledgeProcessingQueue } from '../knowledge/processing-queue'
 import { knowledgeContextService } from '../knowledge/context-service'
@@ -49,7 +50,7 @@ import type { ChatContextCheckpoint, ChatContextStatus } from '../../shared/chat
 import type { UserMemoryDelivery } from '../../shared/memory-strength'
 import { containsMemoryDelivery, recordUserMemoryAccessBestEffort, trackMemoryStream } from '../knowledge/memory-access'
 import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
-import { createSuperAgentChatTurn } from '../janus/superagent/chat-tools'
+import { createSuperAgentChatTurn } from '../janus/superagent/desktop-chat-turn'
 import { superAgentService } from '../janus/superagent/host'
 import { endBrowserTurn } from '../browser/control-service'
 
@@ -61,6 +62,8 @@ export interface ChatMessage {
 
 /** 流式对话请求参数 */
 export interface ChatStreamRequest {
+  workerBackend?: 'codex' | 'claude'
+  agentMode?: 'ordinary' | 'superagent'
   inputEventId?: string
   memoBinding?: import('../../shared/memo').MemoBinding
   memoMessageId?: string
@@ -179,9 +182,6 @@ export function gateFromToolAllowlist(allowlist: string[] | undefined, policy?: 
     return policy?.(call)
   }
 }
-/** P6：默认 40（P6 前硬编码 20），经 agentMaxSteps 配置可调，仅 janus-chat 通道。 */
-const CHAT_MAX_STEPS = DEFAULT_AGENT_MAX_STEPS
-
 /** Active streaming chat abort controllers (module-scoped for shutdown). */
 const abortControllers = new Map<string, AbortController>()
 const chatSessions = new Map<string, ManagedChatSession>()
@@ -240,6 +240,9 @@ export function steerChatStream(input: ChatSteerInput, hostContext?: string): { 
     if (key) activeSteerTargets.delete(key)
     return { accepted: false, error: 'No active stream for this conversation' }
   }
+  if (input.expectedRequestId && input.expectedRequestId !== target.requestId) {
+    return { accepted: false, error: 'Active stream changed' }
+  }
   if (target.memoId) content += '\n\n' + memoSteeringContext(target.memoId, input.entryId, input.memoBinding)
   if (hostContext) content += '\n\n' + hostContext
   const previous = target.entries.get(input.entryId)
@@ -256,11 +259,12 @@ export function steerChatStream(input: ChatSteerInput, hostContext?: string): { 
 /** Production steering saves the original user input before acknowledging it to the renderer. */
 export async function submitChatSteer(input: ChatSteerInput): Promise<{ accepted: boolean; error?: string }> {
   const target = activeSteerTargets.get(input.conversationId ?? '')
+  if (input.expectedRequestId && target && input.expectedRequestId !== target.requestId) return { accepted: false, error: 'Active stream changed' }
   if (!target?.superAgent) return steerChatStream(input)
   if (input.workspaceId !== target.workspaceId) return { accepted: false, error: 'Workspace changed; this message cannot steer the previous workspace turn' }
   try {
     const scope = await target.superAgent
-    const context = await scope.steering(input.entryId, input.text)
+    const context = await scope.steering(input.entryId, input.text, input.workerBackend)
     if (activeSteerTargets.get(input.conversationId ?? '') !== target) return { accepted: false, error: 'No active stream for this conversation' }
     return steerChatStream({ ...input, text: context })
   } catch (error) { return { accepted: false, error: String(error) } }
@@ -367,7 +371,7 @@ function defaultChatTurnPorts(callerId: string, requestId: string, domain?: 'per
       }
       return typeof catalog.listModels === 'function' ? catalog.listModels('janus', providerId) : Promise.resolve([])
     },
-    getMaxTurns: () => configService.getAgentMaxSteps().catch(() => CHAT_MAX_STEPS),
+    getMaxTurns: async () => INTERACTIVE_RUN_LIMIT,
     getAgentSession: (agentSessionId) => workspaceAgentRuntime.getSession(agentSessionId),
     forkAgentSession: async (parentId, caller) => {
       const child = await workspaceAgentRuntime.forkSession(parentId, caller)
@@ -375,7 +379,8 @@ function defaultChatTurnPorts(callerId: string, requestId: string, domain?: 'per
       return { sessionId: child.id, ...child.workspace, status: child.status }
     },
     closeAgentSession: async id => { try { await workspaceAgentRuntime.cancelSession(id) } finally { workflowSessionParents.delete(id) } },
-    executeFunctionCall: (input, caller) => workspaceAgentRuntime.executeFunctionCall(input, caller),
+    executeFunctionCall: (input, caller, signal) => workspaceAgentRuntime.executeFunctionCall(input, caller, signal),
+    awaitBackground: (refs, options, caller) => workspaceAgentRuntime.awaitBackground(refs, options, caller),
     listRegistryTools: () => workspaceAgentRuntime.registry.list(),
     listRegistryManifests: () => workspaceAgentRuntime.registry.listManifests?.(),
     knowledgeSearch: async (input) => {
@@ -510,10 +515,12 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     let turnToolGate = gateFromToolAllowlist(toolAllowlist, toolGate)
     const userText = [...messages].reverse().find(message => message.role === 'user')?.content ?? ''
     let superAgentTurn: Awaited<ReturnType<typeof createSuperAgentChatTurn>> | undefined
-    if (sourceTag === 'janus-chat' && !request.compact && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
+    if (request.agentMode !== undefined && !['ordinary', 'superagent'].includes(request.agentMode)) throw new Error('Invalid Agent mode')
+    if (request.agentMode !== 'ordinary' && sourceTag === 'janus-chat' && !request.compact && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
       if (event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
       const admission = createSuperAgentChatTurn({ service: superAgentService(event.sender?.id), workspaceId, conversationId,
-        eventId: request.inputEventId, text: userText, signal: controller.signal })
+        eventId: request.inputEventId, text: userText, signal: controller.signal, workerBackend: request.workerBackend,
+        onDiagnostic: data => sendAgentEvent({ type: 'context_diagnostic', requestId, data }) })
       activeSteerTargets.get(steerKey)!.superAgent = admission
       superAgentTurn = await admission
     }
@@ -550,8 +557,13 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     const modelStream = ports.streamTextFn
     ports.streamTextFn = (async (options: Record<string, unknown>) => modelStream({ ...options,
       maxTokens: options.maxTokens ?? endpoint.maxOutputTokens } as never)) as typeof modelStream
+    if (superAgentTurn && endpoint.supportsFunctionCalling !== false && workspaceId && conversationId) {
+      const { createReportReviewer } = await import('@janus-agent/janus-agent/superagent/report-reviewer')
+      superAgentService(event.sender?.id).reviews?.register(workspaceId, conversationId,
+        createReportReviewer({ model: { resolve: async () => endpoint, getMaxTurns: () => 12 }, streamTextFn: ports.streamTextFn }))
+    }
     const summarize = async (input: { system?: string; prompt: string }, signal: AbortSignal) => {
-      const result = await modelStream({ model: endpoint.model, abortSignal: signal, maxTokens: Math.min(endpoint.maxOutputTokens ?? 4096, 4096),
+      const result = await modelStream({ model: endpoint.model, abortSignal: signal, maxTokens: endpoint.maxOutputTokens ?? 4096,
         messages: [{ role: 'system', content: input.system ?? '' }, { role: 'user', content: input.prompt }] } as never)
       let text = ''
       for await (const delta of result.textStream) { signal.throwIfAborted(); text += delta }
@@ -677,6 +689,8 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
         requestId,
         messages: turnMessages,
         workflowMode: resolveWorkflowXMode(messages),
+        agentMode: request.agentMode ?? (superAgentTurn ? 'superagent' : 'ordinary'),
+        runPolicy: 'interactive',
         providerId,
         modelId,
         sourceTag: turnSourceTag,

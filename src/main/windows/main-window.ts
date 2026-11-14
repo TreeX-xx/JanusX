@@ -6,14 +6,15 @@ import { installProductionCsp } from '../bootstrap/session'
 import { loadRendererWindow } from './renderer-loader'
 import { configService } from '../config/service'
 import { getThemeDefinition } from '../../shared/theme/registry'
+import icoPath from '../../../resources/icon.ico?asset'
+import pngPath from '../../../resources/icon.png?asset'
 
+// Note: build-owned assets — see .agents/notes/desktop/reproducible-verification.md
 export function createMainWindow(onClosed: () => void): BrowserWindow {
   // Bootstrap loads the profile before creating any main window.
   // Note: .agents/notes/workbench/standalone-editor-initial-theme.md
   const theme = getThemeDefinition(configService.getCachedTheme())
-  const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
-  const resources = join(__dirname, '../../../resources')
-  const appIcon = nativeImage.createFromPath(join(resources, iconFile))
+  const appIcon = nativeImage.createFromPath(process.platform === 'win32' ? icoPath : pngPath)
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -34,7 +35,7 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
   })
   if (process.platform === 'win32' && !app.isPackaged) {
     // Windows caches taskbar icons by path separately from the native window icon.
-    const icon = readFileSync(join(resources, 'icon.ico'))
+    const icon = readFileSync(icoPath)
     const hash = createHash('sha256').update(icon).digest('hex').slice(0, 16)
     const directory = join(app.getPath('userData'), 'shell-icons')
     mkdirSync(directory, { recursive: true })
@@ -44,7 +45,7 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
       appId: 'com.janusx.app.dev',
       appIconPath: iconPath,
       appIconIndex: 0,
-      relaunchCommand: `"${process.execPath}" "${join(resources, '../scripts/dev-entry.mjs')}"`,
+      relaunchCommand: `"${process.execPath}" "${process.argv[1]}"`,
       relaunchDisplayName: 'JanusX (Dev)',
     })
   }

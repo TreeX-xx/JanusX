@@ -16,7 +16,7 @@ describe('work-card environment evidence', () => {
       const reopened = new SuperAgentLifecycleStore(f.root), environments = f.createService()
       environments.setExecutionGuard(async () => (await reopened.snapshot()).filter(row => !row.stopConfirmed).map(row => row.cwd))
       await expect(environments.acquire(scope, work.id)).rejects.toThrow('no confirmed stop')
-      await expect(environments.reuse(scope, { workId: other.id, path: f.repo, branch: 'main' })).rejects.toThrow('already assigned')
+      await expect(environments.reuse(scope, { workId: other.id, path: f.repo, branch: 'main' })).rejects.toThrow('no confirmed stop')
       // This is the explicit process-receipt seam; production only writes it after owned tree settlement.
       await reopened.update(work.id, executionId, { phase: 'stopped', stopConfirmed: true, updatedAt: 2000 })
       const lease = await environments.acquire(scope, work.id); await environments.release(lease.id)

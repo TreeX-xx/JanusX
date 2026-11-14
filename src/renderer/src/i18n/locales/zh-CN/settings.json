@@ -1,4 +1,54 @@
 {
+  "workerDefaults": {
+    "isDefault": "默认执行",
+    "makeDefault": "设为默认",
+    "enableWorker": "启用 {{name}}",
+    "refreshModels": "刷新模型",
+    "catalog": {"loading":"正在读取模型…","empty":"终端未返回可选模型，可使用原生默认","error":"终端模型读取失败，请刷新"},
+    "defaultBackend": "默认 Worker",
+    "defaultHint": "未指定引擎时使用。",
+    "enabledBackends": "允许使用的 Worker",
+    "enabledHint": "默认 Worker 必须启用。禁用后拦截新的派发，已运行的工作继续。",
+    "claudePermissions": "Claude Code 在 Windows 原生运行，沿用原生权限与用户审批，不使用 Codex MXC 沙箱。",
+    "idleTimeout": "空闲自动关闭时间",
+    "idleHint": "仅在工作完成且已确认停止后计时；运行中或待确认的 Worker 不自动关闭。可设置 1–10080 的整数分钟；保存后在下一次检查生效，已有空闲时间继续累计。",
+    "minutes": "分钟",
+    "title": "SuperAgent Worker",
+    "terminal": "配置引擎",
+    "supported": "编辑引擎配置不会改变默认 Worker。",
+    "model": "默认模型",
+    "modelHint": "输入所选引擎的模型 ID，留空使用原生默认；启动时通过原生模型目录校验。",
+    "effort": "推理强度",
+    "effortHint": "此处提供常见值；Worker 启动时会按原生模型目录校验模型与强度组合。",
+    "native": "原生默认",
+    "timing": "两种引擎分别保存默认配置。修改默认引擎只影响新工作；已有工作和后续继续仍使用原引擎。",
+    "restore": "恢复原生默认",
+    "error": "Worker 设置加载或保存失败",
+    "unavailable": "SuperAgent 当前不可用。",
+    "efforts": {
+      "none": "无",
+      "minimal": "最低",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "极高",
+      "max": "最大（max）",
+      "ultra": "超强（ultra）"
+    },
+    "errors": {
+      "idleTimeout": "请输入 1 到 10080 之间的整数分钟。",
+      "invalidSettings": "Worker 设置无效，请检查模型与推理强度。",
+      "backend": "请选择 Codex 或 Claude Code。",
+      "modelId": "请输入有效的模型 ID，不能包含空格。",
+      "effortId": "推理强度标识须以字母或数字开头，最多 64 字符，可包含点、连字符和下划线。",
+      "unsupportedEffort": "此模型不支持所选推理强度，请刷新模型列表并选择可用选项。",
+      "missingModel": "当前 Worker 的模型目录中没有此模型，请刷新列表并重新选择。",
+      "unavailable": "此 Worker 当前不可用，请选择运行中的 Worker 后重试。",
+      "loading": "Worker 设置仍在加载，请稍后重试。",
+      "changed": "Worker 执行已变化，请重新打开其模型设置后重试。",
+      "unconfirmed": "原生 Worker 尚未确认配置，请刷新并核对当前设置。"
+    }
+  },
   "title": "设置中心",
   "brand": "设置中心",
   "groups": {
@@ -62,7 +112,30 @@
       "navMeta": "Models"
     }
   },
+  "workerCapacity": {
+    "title": "Worker 并发",
+    "limit": "并发上限",
+    "help": "所有工作区共用的 Worker 名额，超出上限的任务排队等待。",
+    "workspaceRequired": "请先打开一个工作区以读取当前上限。",
+    "invalid": "请输入大于或等于 1 的整数。",
+    "retry": "重新读取"
+  },
   "general": {
+    "emphasis": {
+      "label": "行内代码颜色",
+      "help": "设置字段名、命令等行内代码的颜色。普通对话与 SuperAgent 共用，按主题分别保存。",
+      "picker": "选择行内代码颜色",
+      "hex": "行内代码色值",
+      "reset": "恢复默认",
+      "automatic": "跟随主题",
+      "custom": "自定义颜色",
+      "invalid": "请输入十六进制色值，例如 #89BFFE 或 #8BF。",
+      "previewLabel": "文字效果预览",
+      "previewBefore": "正文重点 · 加粗",
+      "previewStrong": "关键内容",
+      "previewCode": "field_name",
+      "previewAfter": "行内代码 · 颜色"
+    },
     "remote": {
       "label": "手机远程",
       "enable": "启用手机远程",

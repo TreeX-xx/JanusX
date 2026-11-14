@@ -6,8 +6,28 @@ import { SuperAgentWorkerBroker } from '../../src/main/janus/superagent/worker-b
 import { callWorkerHost } from '../../src/main/janus/superagent/worker-mcp'
 import { SuperAgentNativeLogs } from '../../src/main/janus/superagent/native-log'
 import { superAgentFixture } from '../helpers/superagent-fixture'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { resolve } from 'node:path'
 
 describe('Worker bridge capabilities and optional diagnostics', () => {
+  it('enforces the structured report contract over the real stdio bridge before forwarding to the host', async () => {
+    const broker = new SuperAgentWorkerBroker(), received: unknown[] = []
+    const grant = await broker.issue(async (name, args) => { if (name === 'report_work') received.push(args); return { saved: true } })
+    const client = new Client({ name: 'report-test', version: '1' })
+    try {
+      await client.connect(new StdioClientTransport({ command: process.execPath,
+        args: [resolve('node_modules/@janus-agent/janus-agent/dist/superagent/worker-mcp.js')],
+        env: { ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)), JANUS_WORKER_ENDPOINT: grant.endpoint, JANUS_WORKER_TOKEN: grant.token } }))
+      const tools = await client.listTools()
+      expect(tools.tools.find(tool => tool.name === 'report_work')?.inputSchema.required).toContain('report')
+      const old = await client.callTool({ name: 'report_work', arguments: { reportId: randomUUID(), kind: 'ready', summary: 'Done', text: 'Plain prose' } })
+      expect(old.isError).toBe(true); expect(received).toHaveLength(0)
+      const report = { reportId: randomUUID(), kind: 'ready', summary: 'Analysis delivered.', report: { completed: ['Read-only analysis'], artifacts: [], checks: [{ method: 'Execution', status: 'not_applicable', result: 'Analysis only', evidence: [] }], limitations: [], questions: [], details: '' } }
+      expect((await client.callTool({ name: 'report_work', arguments: report })).isError).not.toBe(true)
+      expect(received).toEqual([report])
+    } finally { await client.close(); await broker.close() }
+  })
   it('isolates multiple capabilities and rejects browser-origin, foreign and revoked callers', async () => {
     const broker = new SuperAgentWorkerBroker()
     try {

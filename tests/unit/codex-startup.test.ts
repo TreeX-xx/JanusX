@@ -129,3 +129,31 @@ describe('structured Codex startup confirmation', () => {
     expect(startup.state).toBeUndefined()
   })
 })
+
+
+describe('managed startup review', () => {
+  it('waits for explicit trust, rereads configuration, and resumes the same pending startup', async () => {
+    const cwd = 'C:\\work\\existing', trusted = { config: { projects: { [cwd]: { trust_level: 'trusted' } } } }
+    const call = vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce(trusted)
+    const startup = new CodexStartup(call, vi.fn())
+    let completed = false
+    const pending = startup.review('config/read', { cwd, includeLayers: true }, { config: {} }).then(value => { completed = true; return value })
+    expect(startup.state).toMatchObject({ kind: 'trust', directory: cwd, status: 'pending' })
+    await startup.command({ type: 'startup', startupId: startup.state!.id, action: 'cancel', controlEpoch: 1 })
+    expect(completed).toBe(false); expect(call).not.toHaveBeenCalled()
+    await startup.command({ type: 'startup', startupId: startup.state!.id, action: 'resume', controlEpoch: 1 })
+    await startup.command({ type: 'startup', startupId: startup.state!.id, action: 'trust', controlEpoch: 1 })
+    expect(await pending).toEqual(trusted); expect(startup.state).toBeUndefined()
+    expect(call.mock.calls[1]).toEqual(['config/read', { cwd, includeLayers: true }])
+  })
+  it('cancels a pending managed setup when its worker is stopped', async () => {
+    const startup = new CodexStartup(vi.fn(), vi.fn())
+    const pending = startup.review('config/read', { cwd: 'C:/work' }, { config: {} })
+    const assertion = expect(pending).rejects.toThrow('stopped')
+    startup.dispose(); await assertion
+  })
+  it('recognizes Windows separator/case aliases without upgrading a saved untrusted choice', () => {
+    expect(codexTrustTarget({ config: { projects: { 'C:/WORK': { trust_level: 'trusted' } } } }, 'c:\\work')).toBeUndefined()
+    expect(codexTrustTarget({ config: { projects: { 'C:/WORK': { trust_level: 'untrusted' } } } }, 'c:\\work')).toBeUndefined()
+  })
+})

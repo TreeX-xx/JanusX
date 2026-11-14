@@ -5,6 +5,16 @@ import { normalizeJanusChatSnapshot } from '../../src/shared/ipc/janus-chat'
 import type { ChatAgentEvent } from '../../src/shared/ipc/llm'
 
 describe('ordered chat process', () => {
+  it('persists bounded context diagnostics without allowing raw text into the display snapshot', () => {
+    const data = { phase: 'tool-result' as const, modelRequest: 2, at: 10, callId: 'read', toolName: 'work_read_resource',
+      reasonCode: 'context-missing', resources: [{ resourceId: 'resource', version: 'hash', offset: 0, end: 40, total: 90, text: 'secret original' }], text: 'secret instruction' }
+    const snapshot = reduceChatTimeline(emptyChatTimeline('r'), { type: 'context_diagnostic', requestId: 'r', data })
+    const restored = normalizeChatTimeline(JSON.parse(JSON.stringify(snapshot)))!
+    expect(restored.contextDiagnostics?.[0]).toMatchObject({ callId: 'read', resources: [{ resourceId: 'resource', offset: 0, end: 40 }] })
+    expect(JSON.stringify(restored)).not.toContain('secret')
+    expect(restored.blocks).toEqual([])
+    expect(reduceChatTimeline(snapshot, { type: 'context_diagnostic', requestId: 'other', data })).toBe(snapshot)
+  })
   it('preserves interleaving and closes each thinking segment before tool execution', () => {
     let state = emptyChatTimeline('r')
     const emit = (event: Omit<ChatAgentEvent, 'requestId'>, now: number) => { state = reduceChatTimeline(state, { ...event, requestId: 'r' } as ChatAgentEvent, now) }

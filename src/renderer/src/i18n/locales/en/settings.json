@@ -1,4 +1,54 @@
 {
+  "workerDefaults": {
+    "isDefault": "Default",
+    "makeDefault": "Set as default",
+    "enableWorker": "Enable {{name}}",
+    "refreshModels": "Refresh models",
+    "catalog": {"loading":"Loading models…","empty":"The terminal returned no models. Use native default.","error":"Models unavailable. Try refreshing."},
+    "defaultBackend": "Default Worker",
+    "defaultHint": "Used when no engine is specified.",
+    "enabledBackends": "Allowed Workers",
+    "enabledHint": "The default must stay enabled. Disabling blocks new dispatches; existing runs continue.",
+    "claudePermissions": "Claude Code runs natively on Windows using its own permissions and your approvals. It does not use the Codex MXC sandbox.",
+    "idleTimeout": "Idle auto-close time",
+    "idleHint": "Only completed and stopped Workers are retired after this idle time. Running Workers and pending decisions stay open. Enter 1 to 10080 whole minutes. Saved changes apply to existing idle Workers at the next check without resetting elapsed time.",
+    "minutes": "minutes",
+    "title": "SuperAgent Workers",
+    "terminal": "Configure engine",
+    "supported": "Editing an engine profile does not change the default Worker.",
+    "model": "Default model",
+    "modelHint": "Enter a model ID for the selected engine, or leave blank for its native default. The native catalog is checked at startup.",
+    "effort": "Reasoning effort",
+    "effortHint": "Common values are offered here. The model and effort are checked against the Worker's native catalog at startup.",
+    "native": "Native default",
+    "timing": "Each engine keeps its own defaults. Changing the default engine affects new work only; existing work and continuations keep their engine.",
+    "restore": "Restore native defaults",
+    "error": "Worker settings could not be saved or loaded",
+    "unavailable": "SuperAgent is unavailable.",
+    "efforts": {
+      "none": "None",
+      "minimal": "Minimal",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Extra high",
+      "max": "Maximum (max)",
+      "ultra": "Ultra"
+    },
+    "errors": {
+      "idleTimeout": "Enter a whole number of minutes between 1 and 10080.",
+      "invalidSettings": "Invalid Worker settings. Check the model and reasoning effort.",
+      "backend": "Choose Codex or Claude Code.",
+      "modelId": "Enter a valid model ID without spaces.",
+      "effortId": "Enter a reasoning effort identifier of up to 64 letters, digits, dots, hyphens or underscores.",
+      "unsupportedEffort": "This model does not support the selected reasoning effort. Refresh models and choose an available option.",
+      "missingModel": "This model is absent from the current Worker catalog. Refresh models and select an available model.",
+      "unavailable": "This Worker is unavailable. Select a running Worker and try again.",
+      "loading": "Worker settings are still loading. Try again shortly.",
+      "changed": "The Worker execution changed. Reopen its model settings and try again.",
+      "unconfirmed": "The native Worker has not confirmed the configuration. Refresh and check its current settings."
+    }
+  },
   "title": "Settings",
   "brand": "Settings",
   "groups": {
@@ -62,7 +112,30 @@
       "navMeta": "Models"
     }
   },
+  "workerCapacity": {
+    "title": "Worker concurrency",
+    "limit": "Concurrency limit",
+    "help": "Worker slots are shared across all workspaces. Additional tasks wait in the queue.",
+    "workspaceRequired": "Open a workspace to read the current limit.",
+    "invalid": "Enter a whole number greater than or equal to 1.",
+    "retry": "Reload"
+  },
   "general": {
+    "emphasis": {
+      "label": "Inline code color",
+      "help": "Color for inline fields and commands. Shared by conversations and SuperAgent, saved separately for each theme.",
+      "picker": "Choose inline code color",
+      "hex": "Inline code color hex value",
+      "reset": "Reset to default",
+      "automatic": "Follow theme",
+      "custom": "Custom color",
+      "invalid": "Enter a hex color, such as #89BFFE or #8BF.",
+      "previewLabel": "Text appearance preview",
+      "previewBefore": "Emphasis · weight",
+      "previewStrong": "Key content",
+      "previewCode": "field_name",
+      "previewAfter": "Inline code · color"
+    },
     "remote": {
       "label": "Mobile remote",
       "enable": "Enable mobile remote",
