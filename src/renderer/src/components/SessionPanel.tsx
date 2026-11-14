@@ -196,7 +196,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
     const q = query.trim().toLowerCase()
     if (!q) return scoped
     return scoped.filter((s) =>
-      (s.firstPrompt ?? '').toLowerCase().includes(q)
+      [s.title, s.conversationPreview, s.firstPrompt].some(text => (text ?? '').toLowerCase().includes(q))
       || s.engine.toLowerCase().includes(q)
       || s.cwd.toLowerCase().includes(q)
       || (s.branch ?? '').toLowerCase().includes(q),
@@ -435,12 +435,6 @@ function baseNameOf(path: string): string {
   return path.split(/[/\\]/).filter(Boolean).at(-1) ?? path
 }
 
-/** L1 标题：首轮提示的首个短句（HiFi v6 收缩态「」标题），无提示时回落 engine。 */
-function promptTitle(prompt: string): string {
-  const first = prompt.split(/[，。！？；、,!?;\n]/)[0]?.trim() ?? ''
-  return first.length > 24 ? `${first.slice(0, 24)}…` : first
-}
-
 /** In-app dialogs expose only the close operation they support. */
 function SessionDialogHeader({ heading, onClose }: { heading: ReactNode; onClose: () => void }) {
   return (
@@ -550,7 +544,7 @@ const SessionCard = memo(function SessionCard({
           className="flex-1 min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap"
           style={{ fontSize: 13, color: 'var(--shell-text)', fontWeight: 500 }}
         >
-          {session.firstPrompt ? promptTitle(session.firstPrompt) : session.engine}
+          {session.title || session.engine}
         </span>
         <span
           style={{
@@ -580,9 +574,9 @@ const SessionCard = memo(function SessionCard({
         </ThemedTooltip>
       </div>
 
-      {session.firstPrompt && session.firstPrompt.trim() !== promptTitle(session.firstPrompt) && (
+      {session.conversationPreview && (
         <div className={styles.promptPreview}>
-          {session.firstPrompt}
+          {session.conversationPreview}
         </div>
       )}
       <div className={styles.sessionMeta}>
@@ -908,7 +902,7 @@ function SessionDetailWindow({
     >
       <div
         role="dialog"
-        aria-label={session.firstPrompt || session.engine}
+        aria-label={session.title || session.engine}
         className="overflow-hidden flex flex-col"
         style={{
           width: 1020,
@@ -925,7 +919,7 @@ function SessionDetailWindow({
           heading={
             <>
               <TerminalPresetIcon preset={iconPreset} alt={session.engine} style={{ width: 12, height: 12, display: 'inline-block', verticalAlign: -1, marginRight: 6 }} />
-              {session.firstPrompt || session.engine}
+              {session.title || session.engine}
             </>
           }
           onClose={onClose}

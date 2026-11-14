@@ -274,6 +274,40 @@ describe.skipIf(!bin || process.platform !== 'win32')('managed Codex native TUI 
       expect(controller.state.items.filter(item => item.type === 'userMessage').map(item => item.text)).toEqual(['NEW_THREAD_DIALOG', 'NEW_THREAD_NATIVE'])
     } finally { terminal?.kill(); await controller.dispose(); await fixture.close() }
   }, 60000)
+  it('recovers /new from a hidden native picker without disconnecting or replaying', async () => {
+    const fixture = await hookCliFixture()
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const c = new CodexConversation('picker-recovery', () => {})
+    let terminal: pty.IPty | undefined
+    let output = ''
+    try {
+      const launch = await c.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { output += data; if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      c.setNativeInput(text => terminal!.write(text))
+      await vi.waitFor(() => expect(c.state.connection).toBe('ready'), { timeout: 15000 })
+      await vi.waitFor(() => expect(output).toContain('state=idle'), { timeout: 10000 })
+      terminal.write('/model'); await new Promise(resolve => setTimeout(resolve, 150)); terminal.write('\r')
+      await vi.waitFor(() => expect(output).toContain('Select Model and Effort'), { timeout: 5000 })
+      const old = c.state.threadId
+      const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
+      await expect(c.command({ type: 'new', controlEpoch })).rejects.toThrow('new conversation could not be confirmed')
+      expect(c.state).toMatchObject({ mode: 'terminal', connection: 'ready', threadId: old, submitting: false })
+      expect(fixture.responseRequests).toHaveLength(0)
+      terminal.write('\x1b'); await new Promise(resolve => setTimeout(resolve, 150))
+      terminal.write('\x1b'); await new Promise(resolve => setTimeout(resolve, 150))
+      terminal.write('/new'); await new Promise(resolve => setTimeout(resolve, 150)); terminal.write('\r')
+      await vi.waitFor(() => expect(c.state.threadId).not.toBe(old), { timeout: 10000 })
+      const recovered = await c.command({ type: 'mode', mode: 'conversation' })
+      expect(recovered.error).toBeUndefined()
+      await c.command({ type: 'send', text: 'RECOVERED_NEW', commandId: 'recovered', controlEpoch: recovered.controlEpoch })
+      await vi.waitFor(() => expect(c.state.items.some(item => item.type === 'agentMessage' && item.status === 'completed')).toBe(true), { timeout: 15000 })
+    } finally { terminal?.kill(); await c.dispose(); await fixture.close() }
+  }, 60000)
   it('bypasses an inherited proxy for the loopback bridge while preserving proxy configuration', async () => {
     const fixture = await hookCliFixture()
     const requests: string[] = []

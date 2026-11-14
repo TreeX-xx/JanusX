@@ -8,6 +8,7 @@ import { createSocket } from 'node:dgram'
 import { build } from 'esbuild'
 import { createServer as createTcpServer } from 'node:net'
 import { createDesktopTestEnv, seedIntroducedLearning } from './desktop-test-env'
+import { ISLAND_CHAT_ONLY } from '../../src/renderer/src/components/janus/janusIslandTypes'
 
 const pluginId = 'example.project-reference'
 async function chooseSetting(page: Page, control: Locator, label: string | RegExp) {
@@ -1309,7 +1310,13 @@ test('P3 surfaces preserve panes, chat-only Island notifications, focus and proj
     const notifications = page.locator('.janus-notification-center')
     await notifications.locator('.janus-notif-summary').filter({ hasText: 'P3 ready' }).click()
     await expect.poll(async () => (await attached()).length).toBe(0)
-    await expect(page.locator('[data-plugin-island-preview]').filter({ visible: true })).toContainText('<script>safe text</script>')
+    // Opening chat refreshes project context and the fixture may publish a new
+    // README preview. Assert escaping against the explicitly latest update.
+    await rawCall(details, 'island.update', { id: 'reference', status: { title: 'P3 ready', state: 'running', progress: 42, badge: '42%', preview: { text: '<script>safe text</script>', rows: [{ label: 'Project', value: 'A' }] } } })
+    const notice = page.locator('.janus-notify-tray .janus-notif-row').filter({ hasText: 'P3 ready' }).first()
+    await expect(notice).toBeVisible()
+    if (await notice.getAttribute('data-selected') !== 'true') await notice.locator('.janus-notif-summary').click()
+    await expect(notice.locator('[data-plugin-island-preview]')).toContainText('<script>safe text</script>')
     expect(await page.locator('[data-plugin-island-preview] script').count()).toBe(0)
     await notifications.getByRole('button', { name: 'Open reference desk', exact: true }).click()
     await expect(workbench).toBeVisible()

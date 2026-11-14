@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('collapsed context badge shows exact values and distinguishes zero from unknown', async ({ page }) => {
   await page.goto('/pane-tabs.html?usage')
-  await page.getByText('4.0k / 200k', { exact: true }).hover()
+  await page.locator('[data-context-indicator]').hover()
   const tooltip = page.getByRole('tooltip')
   // 悬浮提示与展开卡片同一份数据：上下文明细 + 五项统计
   await expect(tooltip.getByText('Context', { exact: true }).locator('..')).toContainText('4,000 / 200,000')
@@ -17,7 +17,7 @@ test('collapsed context badge shows exact values and distinguishes zero from unk
   await page.mouse.move(0, 0)
   await expect(tooltip).toHaveCount(0)
   await page.evaluate(() => (window as any).paneFixture.updateUsage({ contextTokens: undefined }))
-  await page.getByText('ctx unknown', { exact: true }).hover()
+  await page.locator('[data-context-indicator]').hover()
   await expect(tooltip.getByText('Context', { exact: true }).locator('..')).toContainText('– / 200,000')
   await expect(tooltip.getByText('Remaining', { exact: true }).locator('..')).toContainText('–')
 })
@@ -43,7 +43,7 @@ test('one opening exposes usage, live runtime and unknown values without a detai
   await card.getByText('Cache read', { exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(panel).not.toContainText('Telemetry status')
-  await card.getByText('Context', { exact: false }).hover()
+  await card.getByText('Context', { exact: true }).hover()
   await page.clock.fastForward(400)
   const tooltip = page.getByRole('tooltip')
   // 悬浮提示内容与展开卡片一致：上下文明细 + 五项统计
@@ -66,6 +66,9 @@ test('one opening exposes usage, live runtime and unknown values without a detai
   await page.clock.fastForward(20_000)
   await expect(card).toContainText('0:01:15')
   await panel.getByRole('button', { name: /Shell/ }).first().click()
+  // Selecting a terminal moves focus into its pane and dismisses the overlay.
+  await expect(page.getByRole('button', { name: 'Toggle usage panel' })).toHaveAttribute('aria-expanded', 'false')
+  await page.getByRole('button', { name: 'Toggle usage panel' }).click()
   await expect(panel.getByRole('button', { name: /Shell/ }).first()).toHaveAttribute('aria-current', 'true')
 })
 

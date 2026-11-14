@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'events'
 import ProjectRunner, { requiresCommandShell } from '../../src/main/project/runner/runner'
+vi.mock('../../src/main/shutdown/process-tree', () => ({ stopProcessTree: vi.fn(async (proc) => { proc.kill('SIGTERM') }) }))
 
 function makeFakeProcess(): EventEmitter & {
   kill: ReturnType<typeof vi.fn>

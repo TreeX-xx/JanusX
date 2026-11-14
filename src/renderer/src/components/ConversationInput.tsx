@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { referenceToken, conversationPrompt, type ConversationReference } from '../../../shared/conversation-context'
 import { loadLocalAssetDataUrl } from './viewers/local-asset'
 import styles from './ConversationInput.module.css'
+import { EXTERNAL_CLI_TOOL_ICONS } from '../lib/cli-tool-icons'
 
 // Inline reference editing contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 
@@ -17,6 +18,7 @@ export interface ConversationInputHandle {
   setSelectionRange(start: number, end: number): void
   isHistoryBoundary(key: 'ArrowUp' | 'ArrowDown'): boolean
   insertReferences(refs: ConversationReference[], range?: [number, number]): void
+  insertEngine(backend: 'codex' | 'claude', range: [number, number]): void
   captureInsertionRange(): () => [number, number]
   setDropPoint(x: number, y: number): void
 }
@@ -96,9 +98,10 @@ function select(root: HTMLElement, start: number, end: number) {
 }
 
 export const ConversationInput = forwardRef<ConversationInputHandle, {
-  value: string; references: ConversationReference[]; disabled: boolean; placeholder: string; label: string; title: string
+  value: string; references: ConversationReference[]; disabled: boolean; placeholder: string; label: string; title: string; className?: string
+  engineShortcuts?: boolean
   onChange(value: string): void; onKeyDown(event: KeyboardEvent<HTMLDivElement>): void
-} & AriaAttributes>(function ConversationInput({ value, references, disabled, placeholder, label, title, onChange, onKeyDown, ...aria }, ref) {
+} & AriaAttributes>(function ConversationInput({ value, references, disabled, placeholder, label, title, className, engineShortcuts = false, onChange, onKeyDown, ...aria }, ref) {
   const { t } = useTranslation('terminal')
   const root = useRef<HTMLDivElement>(null)
   const caret = useRef<[number, number]>([value.length, value.length])
@@ -112,20 +115,30 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   const remember = () => { if (root.current) caret.current = offsets(root.current) ?? caret.current }
   const fragment = (text: string, refs = latest.current.references) => {
     const result = document.createElement('div')
-    for (const part of text.split(/(\[\[ref:[^\]]+\]\])/g)) {
-      const reference = refs.find(item => referenceToken(item) === part)
+    for (const part of text.split(/(\[\[ref:[^\]]+\]\]|\[\[engine:(?:codex|claude)\]\])/g)) {
+      const backend = engineShortcuts ? /^\[\[engine:(codex|claude)\]\]$/.exec(part)?.[1] as 'codex' | 'claude' | undefined : undefined
+      const reference = backend ? { id: part, name: backend === 'claude' ? '#Claude Code' : '#Codex', path: backend, kind: 'engine' } : refs.find(item => referenceToken(item) === part)
       if (!reference) { result.append(document.createTextNode(part)); continue }
       const chip = document.createElement('span')
       chip.contentEditable = 'false'; chip.draggable = true; chip.className = styles.reference
-      chip.dataset.referenceToken = part; chip.dataset.referenceId = reference.id; chip.title = reference.path + (reference.quote ? '\n' + reference.quote : '')
+      chip.dataset.referenceToken = part; chip.dataset.referenceId = reference.id; chip.title = reference.path + ('quote' in reference && reference.quote ? '\n' + reference.quote : '')
       const name = document.createElement('span'); name.textContent = reference.name
+      if (backend) {
+        chip.dataset.engine = backend
+        const icon = document.createElement('img'); icon.src = EXTERNAL_CLI_TOOL_ICONS[backend]!; icon.alt = ''; icon.setAttribute('aria-hidden', 'true'); icon.style.width = '14px'; icon.style.height = '14px'
+        if (backend === 'codex') icon.style.filter = 'var(--sidebar-codex-filter)'
+        chip.append(icon)
+      }
       if (reference.kind === 'image') {
         const image = document.createElement('img'); image.alt = reference.name; image.hidden = true
         const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.dataset.preview = reference.id
         previewButton.disabled = true
         previewButton.setAttribute('aria-label', `${t('conversation.images.preview')}: ${reference.name}`); previewButton.append(image, name); chip.append(previewButton)
       } else chip.append(name)
-      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.dataset.remove = part
+      const remove = document.createElement('button'); remove.type = 'button'; remove.dataset.remove = part
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      for (const [key, value] of Object.entries({ viewBox:'0 0 24 24', width:'12', height:'12', fill:'none', stroke:'currentColor', 'stroke-width':'1.5', 'stroke-linecap':'round', 'aria-hidden':'true' })) icon.setAttribute(key, value)
+      const path = document.createElementNS(icon.namespaceURI, 'path'); path.setAttribute('d', 'M6 6l12 12M18 6L6 18'); icon.append(path); remove.append(icon)
       remove.setAttribute('aria-label', t('conversation.context.remove', { name: reference.name })); chip.append(remove)
       result.append(chip)
     }
@@ -198,6 +211,12 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     setSelectionRange(start, end) { caret.current = [start, end]; if (root.current) select(root.current, start, end) },
     isHistoryBoundary(key) { return !!root.current && isHistoryBoundary(root.current, key) },
     insertReferences(refs, range) { insert(refs.map(referenceToken).join(' ') + ' ', [...latest.current.references, ...refs], range) },
+    insertEngine(backend, range) {
+      if (!engineShortcuts) return
+      const token = `[[engine:${backend}]] `
+      insert(token, latest.current.references, range)
+      if (root.current) { select(root.current, range[0] + token.length, range[0] + token.length); remember() }
+    },
     captureInsertionRange() {
       const editor = root.current!
       remember()
@@ -246,7 +265,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     }
   })
   return <>
-    <div {...aria} ref={root} className={styles.editor} data-conversation-input contentEditable={!disabled} suppressContentEditableWarning
+    <div {...aria} ref={root} className={`${styles.editor} ${className ?? ''}`} data-conversation-input contentEditable={!disabled} suppressContentEditableWarning
       role="combobox" aria-multiline="true" aria-disabled={disabled} aria-label={label} title={title} data-placeholder={placeholder} spellCheck={false}
       onInput={publish} onBlur={remember} onKeyUp={remember} onMouseUp={remember}
       onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false; publish() }}

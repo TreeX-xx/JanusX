@@ -20,6 +20,7 @@ import { registerJanusHandlers } from './janus-handlers'
 import { registerHarnessHandlers } from './harness-handlers'
 import { registerBlueprintReviewHandlers } from './blueprint-review-handlers'
 import { registerJanusChatHandlers } from './janus-chat-handlers'
+import { registerSuperAgentHandlers } from './superagent-handlers'
 import { registerMemoHandlers } from './memo-handlers'
 import { registerRoundtableHandlers } from './roundtable-handlers'
 import { registerKnowledgeHandlers } from './knowledge-handlers'
@@ -139,6 +140,10 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerHarnessHandlers(getCurrentMainWindow)
   registerBlueprintReviewHandlers()
   registerJanusChatHandlers()
+  const superAgent = registerSuperAgentHandlers({ ...options,
+    getOccupiedPaths: () => terminalManager.listInstances().map(instance => instance.config.cwd),
+  })
+  appShutdown.configure({ flushSuperAgentRecords: () => superAgent.close() })
   registerMemoHandlers()
   registerRoundtableHandlers(getCurrentMainWindow)
   registerRuntimeTelemetryHandlers()

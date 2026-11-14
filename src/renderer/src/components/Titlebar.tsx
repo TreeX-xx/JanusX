@@ -27,6 +27,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginAuthorizationTarget, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { extensionRegistry, isExtensionViewId } from '@/extensions/registry'
 import { LOCAL_INTEGRATIONS_EVENT } from './local-integrations-navigation'
+import { SUPERAGENT_SETTINGS_EVENT } from './worker-settings-navigation'
 
 /* ════════════════════════════════════════════════════════════
    Titlebar �?标题栏（简化版�?
@@ -46,6 +47,11 @@ export function Titlebar() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
   const [integrationWorkspaceId, setIntegrationWorkspaceId] = useState<string>()
+  useEffect(() => {
+    const open = () => { setSettingsInitialTab('agent'); setSettingsModalOpen(true) }
+    window.addEventListener(SUPERAGENT_SETTINGS_EVENT, open)
+    return () => window.removeEventListener(SUPERAGENT_SETTINGS_EVENT, open)
+  }, [])
   useEffect(() => {
     const open = (event: Event) => {
       const id: unknown = (event as CustomEvent).detail

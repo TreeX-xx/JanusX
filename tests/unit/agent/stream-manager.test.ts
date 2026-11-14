@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { EventEmitter } from 'events'
+vi.mock('../../../src/main/shutdown/process-tree', () => ({ stopProcessTree: vi.fn(async (proc) => { proc.kill('SIGTERM') }) }))
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -493,6 +494,29 @@ describe('AgentStreamManager', () => {
   // Additional: getSession()
   // -------------------------------------------------------
   describe('getSession()', () => {
+    it('blocks a launch still resolving its CLI when shutdown begins', async () => {
+      const AgentStreamManager = await importManager(), manager = new AgentStreamManager()
+      let resolve!: (value: string) => void
+      resolveCLIPathMock.mockReturnValueOnce(new Promise<string>(yes => { resolve = yes }))
+      const launch = manager.startWithId('late', { engine: 'claude', prompt: 'test', cwd: '/tmp' })
+      const rejected = expect(launch).rejects.toThrow('cancelled before spawn')
+      await manager.killAll(); resolve('/usr/bin/claude'); await rejected
+      expect(spawnMock).not.toHaveBeenCalled()
+    })
+
+    it('waits for native confirmation after cancelling active streams', async () => {
+      const AgentStreamManager = await importManager(), manager = new AgentStreamManager(), proc = createMockProcess()
+      const { stopProcessTree } = await import('../../../src/main/shutdown/process-tree')
+      let confirm!: () => void
+      vi.mocked(stopProcessTree).mockImplementationOnce(() => new Promise<void>(resolve => { confirm = resolve }))
+      spawnMock.mockReturnValue(proc)
+      await manager.start({ engine: 'claude', prompt: 'test', cwd: '/tmp' })
+      let stopped = false
+      const flight = manager.killAll().then(() => { stopped = true })
+      await Promise.resolve(); expect(stopped).toBe(false)
+      expect(proc.kill).not.toHaveBeenCalled()
+      confirm(); await flight; expect(stopped).toBe(true)
+    })
     it('returns undefined for non-existent and the session while running', async () => {
       const AgentStreamManager = await importManager()
       const manager = new AgentStreamManager()

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 338 80" fill="none" role="img" aria-label="Shell">
+  <title>Shell</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-s-0" transform="translate(0 0)">
+      <path d="M18 8H60L48 20H22L14 28V34H44L60 50V56L44 72H2L14 60H40L48 52V48H18L2 32V24Z"/>
+    </g>
+    <g id="letter-h-1" transform="translate(70 0)">
+      <path d="M2 8H14V34H48V8H60V72H48V46H14V72H2Z"/>
+    </g>
+    <g id="letter-e-2" transform="translate(140 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-l-3" transform="translate(206 0)">
+      <path d="M2 8H14V60H48L60 72H2Z"/>
+    </g>
+    <g id="letter-l-4" transform="translate(272 0)">
+      <path d="M2 8H14V60H48L60 72H2Z"/>
+    </g>
+  </g>
+</svg>

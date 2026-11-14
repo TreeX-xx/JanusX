@@ -1,12 +1,18 @@
 import type { ChatToolTraceEntry } from './llm'
+import { normalizeConversationTopic, type ConversationTopic, type TopicRouteRequest, type TopicRoute } from '../conversation-topics'
 import { normalizeChatTimeline, type ChatTimelineSnapshot } from '../chat-timeline'
+import { normalizeMessageContext, type MessageContext } from '../conversation-context'
 
 export const JANUS_CHAT_CHANNELS = {
   load: 'janus-chat:load',
   save: 'janus-chat:save',
+  routeTopic: 'janus-chat:route-topic',
 } as const
 
 export interface JanusChatMessage {
+  context?: MessageContext
+  /** Captured when sent; later workspace navigation never retargets this input. */
+  workspaceId?: string | null
   timeline?: ChatTimelineSnapshot
   id: string
   role: 'user' | 'assistant'
@@ -38,6 +44,9 @@ export interface EngineeringContext {
 }
 
 export interface PersistedJanusConversation {
+  /** Explicit SuperAgent composer choice; absent means follow configured defaults. */
+  superAgentModel?: { providerId: string; modelId: string }
+  topic?: ConversationTopic
   contextCheckpoint?: import('../chat-context').ChatContextCheckpoint
   contextEpoch?: number
   id: string
@@ -65,6 +74,7 @@ export interface JanusChatStorageSnapshot {
 }
 
 export interface JanusChatAPI {
+  routeTopic(request: TopicRouteRequest): Promise<TopicRoute>
   load(): Promise<JanusChatStorageSnapshot | null>
   save(snapshot: JanusChatStorageSnapshot): Promise<void>
 }
@@ -177,7 +187,9 @@ function normalizeConversation(value: unknown): PersistedJanusConversation | nul
     if (!messageId || content === null || timestamp === null) return []
     if (message.role !== 'user' && message.role !== 'assistant') return []
     const timeline = message.role === 'assistant' ? normalizeChatTimeline(message.timeline) : undefined
-    return [{ id: messageId, role: message.role, content, timestamp, ...(timeline && (timeline.blocks.length || timeline.truncated) ? { timeline } : {}) }]
+    const workspaceId = message.workspaceId === null ? null : boundedString(message.workspaceId, MAX_ID_LENGTH) ?? undefined
+    const context = message.role === 'user' ? normalizeMessageContext(message.context) : undefined
+    return [{ id: messageId, role: message.role, content, timestamp, ...(context ? { context } : {}), ...(workspaceId !== undefined ? { workspaceId } : {}), ...(timeline && (timeline.blocks.length || timeline.truncated) ? { timeline } : {}) }]
   })
 
   const attachedWorkspaceIds = Array.isArray(source.attachedWorkspaceIds)
@@ -222,6 +234,9 @@ function normalizeConversation(value: unknown): PersistedJanusConversation | nul
 
   const providerId = boundedString(source.providerId, MAX_ID_LENGTH) ?? undefined
   const modelId = boundedString(source.modelId, 256) ?? undefined
+  const rawSuperAgentModel = source.superAgentModel as Record<string, unknown> | undefined
+  const selectedProvider = rawSuperAgentModel && boundedString(rawSuperAgentModel.providerId, MAX_ID_LENGTH)
+  const selectedModel = rawSuperAgentModel && boundedString(rawSuperAgentModel.modelId, 256)
   const memoId = typeof source.memoId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(source.memoId) ? source.memoId : undefined
   const engineeringContext = normalizeEngineeringContext(source.engineeringContext)
   const rawArtifactRefs = Array.isArray(source.artifactRefs)
@@ -260,6 +275,7 @@ function normalizeConversation(value: unknown): PersistedJanusConversation | nul
     && (checkpoint.references === undefined || (Array.isArray(checkpoint.references) && checkpoint.references.every(ref => typeof ref === 'string' && ref.length <= 16000))) ? checkpoint : undefined
   return {
     ...(contextCheckpoint ? { contextCheckpoint } : {}),
+    ...(normalizeConversationTopic(source.topic) ? { topic: normalizeConversationTopic(source.topic) } : {}),
     contextEpoch: Number.isSafeInteger(source.contextEpoch) ? source.contextEpoch as number : 0,
     id,
     title,
@@ -268,6 +284,7 @@ function normalizeConversation(value: unknown): PersistedJanusConversation | nul
     messages,
     ...(providerId ? { providerId } : {}),
     ...(modelId ? { modelId } : {}),
+    ...(selectedProvider && selectedModel ? { superAgentModel: { providerId:selectedProvider, modelId:selectedModel } } : {}),
     ...(memoId ? { memoId } : {}),
     attachedWorkspaceIds,
     toolTraces,

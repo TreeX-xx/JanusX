@@ -52,7 +52,11 @@ test('conversation startup respects reduced motion and yields to errors', async 
   await page.evaluate(() => (window as any).codexFixture.starting())
   await page.evaluate(() => (window as any).codexFixture.fail())
   await expect(loading).toHaveCount(0)
-  await expect(page.getByRole('alert')).toContainText('Fixture connection lost')
+  await expect(page.getByRole('alert')).toContainText('Session connection lost')
+  const notice = page.locator('[data-conversation-notice=connection]')
+  await notice.locator('summary').click()
+  await expect(notice.locator('pre')).toHaveText('Fixture connection lost')
+  await expect(page.locator('[data-conversation-welcome]')).toHaveCount(0)
 })
 
 for (const engine of ['codex', 'claude']) test(`${engine} startup trust stays inline, can pause and resume, and preserves the draft without exposing the terminal`, async ({ page }) => {

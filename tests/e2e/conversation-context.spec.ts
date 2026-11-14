@@ -82,7 +82,7 @@ test('OpenCode holds messages for a required answer, allows removal and resumes 
   expect(command.expectedTurnId).toBeUndefined()
   await page.setViewportSize({ width: 390, height: 720 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({ path: 'artifacts/conversation-p0-narrow.png' })
+  await page.screenshot({ path: `${process.env.JANUS_CONTEXT_TEST_ARTIFACTS ?? 'artifacts'}/conversation-p0-narrow.png` })
 })
 
 test('diff feedback adds historical context to the existing draft without sending', async ({ page }) => {

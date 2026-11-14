@@ -77,7 +77,7 @@ npm run dev:blueprint
 
 源码放在 `src/`、`packages/` 和 `apps/`，自动化放在 `scripts/`，测试与固定 fixture 放在 `tests/`。贡献者说明由 `docs/` 维护，模块事实和验收记录由 `.agents/notes/` 维护；不要把临时报告、截图或手工测试文件放在根目录。
 
-设计原型、调研说明与必要素材统一维护在 `design/` ，由 .gitignore 忽略并保留在本机，本机入口为 `design/README.md`。原 `_design/` 已合并；验证截图与采集结果写入 `artifacts/design-reviews/`，导出图片写入 `artifacts/design-exports/`，历史生成产物按批次归档到 `artifacts/archive/`。
+设计原型、调研说明与必要素材统一维护在 `design/`，由 .gitignore 忽略并保留在本机；本机入口为 `design/README.md`。维护源码、离线页面与必要素材放在同一主题目录，验证截图和采集结果写入 `artifacts/design-reviews/`，宣传图导出写入 `artifacts/design-exports/`，历史生成产物按批次归档到 `artifacts/archive/`。原 `_design/` 已合并，不再新建第二套原型目录。
 
 `artifacts/` 收纳验证报告、截图及本地交付副本，`release/` 保留正式交付和校验清单。手工测试素材放在 `artifacts/manual-fixtures/`；需要跟随版本的测试样例应由测试引用并放入 `tests/fixtures/`。历史产物可归档到 `artifacts/archive/<批次>/`，同时记录原位置与归档位置。保留报告、日志、截图和必要的冻结基线，已结束测试生成的隔离 profile、重复暂存安装包及解包目录可以在核实后归档或清理。
 

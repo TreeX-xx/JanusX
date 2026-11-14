@@ -109,6 +109,17 @@ describe('chat turn guard (S6-a)', () => {
     expect(createMemo).not.toHaveBeenCalled()
     expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
   })
+  it.each(['ordinary', 'superagent'] as const)('honors %s mode through the installed engine package', async agentMode => {
+    immediateStream('Done')
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, {
+      requestId: `mode-${agentMode}`, conversationId: `mode-${agentMode}`, providerId: 'p', agentMode,
+      sourceTag: 'janus-chat', domain: 'project', messages: userMessages, memoMessageId: 'mode-input',
+    })
+    const tools = Object.keys(streamText.mock.calls[0][0].tools ?? {})
+    expect(tools.includes('memo_create')).toBe(agentMode === 'ordinary')
+    expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+  })
   it('offers unbound memo creation and emits a binding for the originating message', async () => {
     const memo = { id: '00000000-0000-4000-8000-000000000300', title: '工程排期', revision: 0, nodes: [] }
     createMemo.mockResolvedValue(memo)
@@ -158,6 +169,7 @@ describe('chat turn guard (S6-a)', () => {
       memoBinding: { memoId, messageId: 'first-message', selectedNodeId: nodes[0] } })
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
     const input = { conversationId: 'memo-steer-chat', entryId: 'next-message', text: 'Record in this star', memoBinding: { memoId, messageId: 'next-message', selectedNodeId: nodes[1] } }
+    expect(steerChatStream({ ...input, expectedRequestId: 'previous-turn' })).toEqual({ accepted: false, error: 'Active stream changed' })
     expect(steerChatStream(input).accepted).toBe(true)
     expect(steerChatStream(input).accepted).toBe(true)
     expect(steerChatStream({ ...input, memoBinding: { ...input.memoBinding, selectedNodeId: nodes[0] } }).accepted).toBe(false)

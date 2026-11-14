@@ -5,9 +5,12 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-11-05T17:44:35.000Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662",
   "moduleState": "partial",
+  "relations": [
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/91dac1f7-1814-400f-802e-5229ff6b0228" }
+  ],
   "codeRefs": [
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
@@ -42,6 +45,8 @@
 ## Design
 
 工作树从本地 Git 事实读取，路径归一后再作为选择和缓存键；切换只改变有效目录及对应视图。创建、删除、合并和推送保持各自明确操作。会话与快照通过作用目录和 sessionId 协作，不复制它们的持久化职责。
+
+SuperAgent P2 通过显式 `isolated` 创建和 `worktree-only` 删除模式复用 API：固定提交、路径和分支，不自动共享依赖／复制配置，删除保留分支；旧手动入口默认行为保持兼容。Git 检查与受控合并归 `controlled-worktree.ts`，工作绑定、具体批准与执行占用由 [Agent 环境模块](../../agent/superagent-environments.md)负责，不在手动侧栏维护第二套批准状态。
 
 ## Related documents
 

@@ -4,6 +4,8 @@ import type { AgentEngine, AgentEvent, AgentSpawnOptions, StreamSession } from '
 import { normalizeAgentApprovalMode } from '../../shared/ipc/agent-runtime'
 import { resolveCLIPath } from './cli-resolver'
 import { createParser } from './parsers'
+import { stopProcessTree } from '../shutdown/process-tree'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 const DEFAULT_MAX_CONCURRENCY = 3
@@ -24,6 +26,11 @@ export class AgentStreamManager {
   private queue: QueuedTask[] = []
   private running = 0
   private maxConcurrency: number
+  private stopping = false
+  private launching = new Set<string>()
+  private cancelled = new Set<string>()
+  private stops = new Set<Promise<void>>()
+  private stopErrors: unknown[] = []
 
   constructor(opts?: { maxConcurrency?: number }) {
     this.maxConcurrency = opts?.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY
@@ -34,12 +41,15 @@ export class AgentStreamManager {
   }
 
   async startWithId(id: string, options: AgentSpawnOptions): Promise<string> {
+    assertApplicationRunning()
+    if (this.stopping) throw new Error('Agent streams are stopping')
     // 重复 id 会覆盖旧 session 使其失去 cancel 句柄，直接拒绝
-    if (this.sessions.has(id) || this.queue.some((task) => task.id === id)) {
+    if (this.sessions.has(id) || this.launching.has(id) || this.queue.some((task) => task.id === id)) {
       throw new Error(`Agent stream already exists: ${id}`)
     }
     return new Promise<string>((resolve, reject) => {
       const run = async () => {
+        this.launching.add(id)
         try {
           await this.runTask(id, options)
           resolve(id)
@@ -49,6 +59,9 @@ export class AgentStreamManager {
           this.listeners.delete(id)
           this.drainQueue()
           reject(err)
+        } finally {
+          this.launching.delete(id)
+          this.cancelled.delete(id)
         }
       }
 
@@ -63,6 +76,8 @@ export class AgentStreamManager {
 
   private async runTask(id: string, options: AgentSpawnOptions): Promise<void> {
     const cliPath = await resolveCLIPath(options.engine)
+    assertApplicationRunning()
+    if (this.stopping || this.cancelled.has(id)) throw new Error('Agent stream cancelled before spawn')
     if (!cliPath) {
       throw new Error(`CLI not found for engine: ${options.engine}`)
     }
@@ -74,8 +89,9 @@ export class AgentStreamManager {
     const proc = spawn(cliPath, args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      signal: abortController.signal,
       shell: process.platform === 'win32',
+      detached: process.platform !== 'win32',
+      windowsHide: true,
     })
 
     const parser = createParser(options.engine)
@@ -195,6 +211,7 @@ export class AgentStreamManager {
   }
 
   cancel(id: string): void {
+    if (this.launching.has(id)) this.cancelled.add(id)
     // 命中排队任务：移出队列并 reject，否则调用方 await start() 永挂
     const queuedIndex = this.queue.findIndex((task) => task.id === id)
     if (queuedIndex >= 0) {
@@ -212,6 +229,7 @@ export class AgentStreamManager {
   }
 
   cancelAll(): void {
+    for (const id of this.launching) this.cancelled.add(id)
     const queued = this.queue
     this.queue = []
     for (const task of queued) {
@@ -223,30 +241,21 @@ export class AgentStreamManager {
     }
   }
 
-  /** SIGTERM + Windows taskkill /T 双发：shell:true 时 SIGTERM 只杀 shell 壳，taskkill 连带 CLI 子进程 */
+  /** Capture descendants before terminating their parent; retain failed stops. */
   private killProcessTree(proc: StreamSession['process']): void {
-    try {
-      proc.kill('SIGTERM')
-    } catch {
-      /* 进程可能已退出 */
-    }
-    if (process.platform === 'win32' && typeof proc.pid === 'number') {
-      try {
-        const killer = spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], {
-          windowsHide: true,
-          stdio: 'ignore',
-        })
-        killer.on('error', () => {
-          /* 兜底失败不中断，SIGTERM 已发 */
-        })
-      } catch {
-        /* 兜底失败静默 */
-      }
-    }
+    const pending = stopProcessTree(proc, { processGroup: true }).catch(error => {
+      this.stopErrors.push(error)
+      console.error('[AgentStreamManager] process exit unconfirmed', error)
+    }).finally(() => this.stops.delete(pending))
+    this.stops.add(pending)
   }
 
-  killAll(): void {
+  async killAll(): Promise<void> {
+    this.stopping = true
     this.cancelAll()
+    await Promise.all([...this.stops])
+    const errors = this.stopErrors.splice(0)
+    if (errors.length) throw new AggregateError(errors, 'Agent process exit unconfirmed')
   }
 
   getSession(id: string): StreamSession | undefined {

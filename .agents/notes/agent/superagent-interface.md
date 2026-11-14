@@ -1,0 +1,289 @@
+---
+{
+  "schema": "harness-note/2",
+  "id": "f818911a-9077-46c0-9117-8e1fc1298eb3",
+  "kind": "decision",
+  "lifecycle": "accepted",
+  "created": "2026-11-06",
+  "updated": "2026-11-14T05:17:24.719Z",
+  "class": "architecture",
+  "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
+  "relations": [
+    {
+      "type": "related-to",
+      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1a7fc604-93b2-4f99-91eb-c0d9f57616ba"
+    },
+    {
+      "type": "related-to",
+      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/57c74036-6700-47ea-abcc-1710c3962b5e"
+    }
+  ],
+  "codeRefs": [
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/janus/SuperAgentStartup.tsx", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/janus/useWorkerShortcuts.tsx", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/janus/WorkerReportCard.module.css", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/WorkerDefaultsSettings.tsx", "role": "implementation" },
+    {
+      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
+      "path": "src/renderer/src/components/janus/SuperAgentWorkspace.tsx",
+      "role": "entry"
+    },
+    {
+      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
+      "path": "src/renderer/src/components/janus/styles/18-janus-conversation.css",
+      "role": "implementation"
+    },
+    {
+      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
+      "path": "src/renderer/src/components/janus/SuperAgentWork.tsx",
+      "role": "implementation"
+    },
+    {
+      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
+      "path": "src/renderer/src/components/janus/WorkerModelControls.tsx",
+      "role": "implementation"
+    },
+    {
+      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
+      "path": "src/renderer/src/components/janus/useSuperAgentNotices.ts",
+      "role": "implementation"
+    }
+  ]
+}
+---
+
+# SuperAgent 界面、通知与终端分屏
+
+## Problem
+
+P6 的工作卡仍嵌在聊天消息中，完整执行能力尚无常驻工作界面。2026-11-06 用户授权一起实施 P7、P8，明确界面无需参考离线 HTML，Worker 面板必须能够展开收起，并遵守现有分屏规则，让用户继续唤出及操作普通终端。
+
+## Decision
+
+后续对话界面调整归[共用界面原型](../workbench/ideas/conversation-interface-prototype.md)：用户要求同时落实 dev 与 superAgent，保留现有执行计划、Janus 回复形象和数码加载结构，改进品牌、底部覆盖式统计与共用控件。2026-11-13 按用户要求分步落地，首批已接入 SuperAgent 全屏加载页的 JanusX 字标与扫描；项目区底部用量栏也已接入18px圆环、外置百分比和覆盖式统计；它读取已有终端会话数据，不新增 SuperAgent 独立用量来源。两种模式的输入框外观、弱灰分割线与发送／停止布局，以及共用新会话欢迎页也已接入；其余对话外壳仍待后续实施。Tab、终端选择及启动入口继续使用 Janus 双眼，不换成字标；回复形象保持。
+
+SuperAgent 启动界面参考 [CPA 登录页左侧点阵](https://github.com/router-for-me/Cli-Proxy-API-Management-Center/tree/main/src/pages/login)：灰阶方块背景铺满整个工作区，右下品牌已按2026-11-13最新确认，采用与 CODEX 同家族的纯文字 JanusX 切角字标：64单位字高、12单位笔画、暖白主体 #eae7e2，X 从右上到左下的完整斜笔使用不透明浅杏橙 #e8b697，另一斜笔在交叉处留白。生产 superagent-wordmark.svg 与对话原型 assets/janusx-lockup.svg 逐字节一致，viewBox 为420×80，无字体依赖；现有等比图片和SVG遮罩直接适配新轮廓。取代原 17×17 中央矩阵；点阵随容器尺寸重建，以不超过 2 倍像素密度、约 30fps 和约 6,500 点的规模缓慢流动。底色仍为 #181818，文字区域渐隐背景以保持可读性，窄窗缩放字标，矮窗压缩留白。`design/superagent-startup/index.html` 保留为上一版原型，当前事实以生产组件为准。
+
+字标先显示低亮底形，可见动画计时达到300ms后开始约1500ms的由左至右扫描，最后显现橙色 X；扫光通过同一SVG遮罩限制在字形内，遮罩URL兼容构建内联的SVG。字标与点阵共用可见动画时钟，隐藏时均暂停、恢复后接续，减少动态偏好直接显示完整字标；退出时确保字形完整。视觉进度不代表后端恢复百分比。
+
+`SuperAgentWorkspace` 首次挂载仍等待共用对话 registry 的 `persistenceReady`。为避免快速恢复时一闪而过，可见入场至少 2,600ms，再用 420ms 淡出；实际恢复更慢时持续等待，不因计时结束进入未就绪界面，也不伪造百分比或执行阶段。状态文字直接反映真实 ready 值，不把视觉停留写成后端仍在加载。隐藏 pane 或文档进入后台时暂停展示计时及 canvas，恢复后接续可见时长；卸载清理计时器、帧循环和尺寸观察。减少动态偏好使用静态全屏点阵，恢复完成后跳过视觉等待。
+
+启动完成状态只属于当前挂载的 pane。切换可见性、项目或恢复终端不重播，原有草稿与会话保持；关闭后重新挂载会重新入场。就绪仅表示既有界面恢复流程结束，沿用其读取失败降级语义，不宣称历史读取或外部模型连接成功，不主动发送消息或启动 Worker。控制器恢复失败的提示与重试仍是独立改进范围。
+
+全屏启动验证：`npx vitest run tests/unit/conversation-topics-ui.test.ts` 共 29 项通过。受控浏览器时钟验证快速恢复仍展示完整入场、pane 隐藏和文档后台时间均不计入可见时长；慢恢复超过 3.2 秒仍等待实际 ready，减少动态效果下静态展示并直接进入已就绪界面。真实 React 组件截图覆盖三主题、1100×850、1920×1080、800×280 和 320×420，已目视检查宽屏、矮窗及窄窗，无横向溢出。严格未用项类型检查、组件定向 ESLint 与 build:check 通过。截图和测试／构建日志位于 `artifacts/superagent-startup-fullscreen/`。本轮未改变语言键，未更新运行中安装版或进行真实模型验收。
+
+右侧工作按运行中、排队、待处理、已结束／保留分组。队列显示全局名额与排队统计，当前工作区的卡片使用全局位置；优先级、等待晋级和暂停／恢复／取消由宿主执行，界面只提交带 queueVersion 的控制。排队、活跃及待处理卡片不受历史分页隐藏；跨组移动保留打开的控件和草稿。直投回执改为“调度已接收”，并从共享快照显示目标当前的排队位置或状态。具体排序、恢复语义和验证归[调度决策](superagent-scheduling.md)。
+
+SuperAgent 输入框支持在正文光标处输入 `#` 并选择引擎，插入带引擎图标的行内标签。一条输入可包含多个标签，例如 Claude 实施后 Codex 测试；标签可随正文移动、删除和撤销，沿用文件引用的编辑机制。候选列表用方向键定位、Enter／Tab 选中、Escape 关闭，禁用引擎不可选。`@` 继续作为行首 Worker 直投入口，限定当前工作区未关闭工作，显示终端图标、标题、引擎及状态；选定 Worker 后移除目标才能更换。普通未选中的 # 文本保持原文。
+
+`#` 标签按正文位置序列化为 `[[engine:claude]]`／`[[engine:codex]]`，随消息保存、重试和发送，历史中还原为行内标签；不设置整条消息的 workerBackend。协调器结合标签附近的任务描述，为 work_plan 各节点设置引擎和依赖，歧义时澄清；宿主继续校验节点引擎策略。旧消息的单引擎约束仍兼容，不改全局默认。`@` 以稳定 workId 绑定目标，保存用户消息及原始投递身份后调用既有 continueWorker，不经过话题归属模型或 SuperAgent 执行回合；附件与引用展开后的正文原样送入。对话显示待确认、已提交或失败，已提交不代表 Worker 已纳入或完成。失败可显式重试同一输入身份；重启不自动投递，关闭工作不自动重开。SuperAgent 下一次普通用户回合可见直投记录，作为观察上下文而非新的待派发指令。侧栏报告仍沿用既有展示。
+
+Worker 设置直接展示带品牌图标的 Codex、Claude Code 独立配置区，包含启用、设为默认、模型和推理强度；不再使用“配置引擎”切换编辑对象。设为默认同时启用该 Worker，默认项不能禁用；两份草稿独立保存。模型下拉通过受主窗口授权的 workerModels IPC 查询对应终端原生目录，不读取 LLM 渠道列表。全局默认目录在用户目录下查询，沿用 CLI 检测、managedCliEnv 和原生用户配置；Codex 只初始化 app-server 并分页调用 model/list，Claude 使用禁用 hooks 的只读 initialize。无提示词、任务、会话创建或全局配置写入；查询完成关闭临时进程，同一引擎并发读取合并，刷新重新读取。终端未安装或目录读取失败时显示可重试错误，不以渠道模型替代；已保存但缺失的模型只保留显示且禁选。原生读取自然反映已实际应用到终端的渠道配置，不把仅保存在 LLM 页面中的配置当成已应用。项目级配置可能不同，执行时仍按 Worker 自身的原生目录校验。切换模型清空推理强度覆盖。恢复原生默认重置两份模型配置和共用空闲时间，保留启用与默认执行策略。布局统一对齐，窄窗纵向排列；常驻说明收起，错误和列表状态按需显示。
+
+2026-11-12 设置简化验证：`npm run test:browser -- tests/unit/superagent-work-ui.test.ts -t "settings compact|loads, saves and restores|bilingual ultra|selects Claude and Codex"` 四项通过，覆盖模型选择、独立保存、默认与启用联动、恢复、错误重试、双语和窄窗。`superagent-worker-settings.test.ts` 十二项通过，TypeScript、定向 ESLint 和 i18n 检查通过。已查看 `artifacts/superagent-worker-settings/` 深浅主题和 360px 窄窗截图；本轮未在安装版 Electron 或真实服务渠道执行模型连接验证。Notes 校验无错误，17 条既有外部链接诊断保留。
+
+2026-11-12 快捷输入与策略验证：定向 unit 共 76 项通过（worker-shortcut-routing 3、superagent-worker-settings 12、conversation-topics 27、superagent-ipc 9、llm/janus-agent-ports 24、engine-packages 1），两组定向浏览器各 4 项通过，覆盖选择、普通文本、直投失败重试、观察上下文、设置隔离、双语、布局及原有导航。设置浏览器首轮一项仍断言旧说明，更新为新规则后复跑通过。严格未用项类型检查、i18n、build:check 通过；定向 ESLint 无错误，保留原有四处中文文案警告。构建日志 `artifacts/worker-shortcuts-build.log`，已查看 `artifacts/superagent-shortcuts/` 菜单／投递截图和 `artifacts/superagent-worker-settings/claude-defaults.png`。Notes 校验 340 篇、0 errors，17 条既有外链诊断未在本次解决。未运行真实云模型或 Electron 桌面端端到端测试，未覆盖运行中的安装版。
+
+SuperAgent 对话左侧复用原生对话模式的输入导航刻度：按当前已加载的展示顺序索引用户消息及待处理输入，悬停或键盘聚焦预览正文，点击或 Enter 跳到对应输入。多话题只在外层滚动区显示一份导航；定位折叠的并行分支时先展开，历史阅读期间不跟随新输出，返回最新按钮恢复跟随。加载更早记录后导航同步增加；尚未加载的历史不伪造定位。`TranscriptNavigation` 适配已挂载的话题内容，`ConversationNavigation` 继续共用样式和交互。2026-11-12 定向浏览器验证通过两项：预览、定位、流式阅读位置、窄窗键盘返回，以及五条跨话题输入和折叠分支展开；TypeScript 检查通过，定向 ESLint 无错误（原有四处中文文案警告）。
+
+2026-11-11 问题报告与交付报告共用原文存储，使用不同的阅读重点。结构化 question 首屏只显示问题、结论与阻塞，完成事项、验证和产物折叠到详情；历史文本保持原文。当前未回答的 question 在对话待处理区显示 WorkerQuestionCard，提供文字回答和“补齐已有前文并继续”。回答通过既有 continueWorker 携带原报告身份，以相同 eventId 重试相同内容；宿主保存回答关联后移除待答卡片。页面刷新或重启从工作和报告记录恢复，不把报告伪装成原生提问。分页不会隐藏待答报告，工作关闭或报告被替代后不再展示。中英文同步，技术 ID 不进入问题卡片正文。
+
+Worker 面板分别保存刷新错误和操作错误。最新有效读取成功后清除刷新错误；读取失败按工作区代次和请求序号处理，较早请求不能覆盖较新的成功或失败。操作已成功但随后的刷新失败时，错误归面板读取，不滞留在工作卡。后台刷新不会抹掉容量修改等操作失败。`superagent-work-ui.test.ts` 通过浏览器夹具覆盖恢复清除、乱序读取、工作区切换及操作错误保留。
+
+SuperAgent 使用现有全局工具树的单例 pane，复用 JanusChat 和应用级对话控制器。初始终端选择页、Island 中的启动按钮与工具箱指向同一个 pane；重复启动只定位，不新建模型会话或执行。项目的终端树、全局工具树和外层分隔线沿用[全局分屏规则](../workbench/global-tool-layout.md)，切换项目不搬移工具。没有项目 pane 时聊天使用工具区，显示终端入口恢复项目启动区；已有终端保留分屏、比例和实例。
+
+当前项目没有打开的 pane 时，「显示终端」是终端启动界面的开关：首次点击展开，再次点击隐藏，提示与展开状态同步变化；隐藏后焦点回到 SuperAgent，聊天草稿保留。已有终端或编辑器等项目 pane 时隐藏此入口，避免把项目区域定位误认为可以收起正在使用的终端；关闭最后一个项目 pane 后恢复开关。未选中项目时按钮禁用。布局继续通过已有全局分屏计算可用空间。
+
+标签使用 Janus 的双眼图形，启动按钮与工具箱入口保持同一形象。首页与 Island 启动入口统一显示「Super Agent」，不再附加 Open／打开动作词。标签下方不再常驻重复的 Janus／JanusX 标题；仅新会话显示共用的 JanusX 图形字标欢迎页。终端入口保留在标签栏右侧，Worker 开合只在本 pane 内提供，避开标签栏的工具箱总开关。展开时按钮位于Workers标题栏右端，标题与占用徽标为它预留空间；收起后才显示窄条入口及状态预览，不在展开面板旁保留第二列。唯一按钮保持同一DOM与右上位置，32×32 px点击区内使用22 px专属SVG：两条细轨、右侧边界和沿轨移动的实心方块，展开时方块向左移动、收起时靠右，取代普通箭头。260 ms位移动画服从减少动态效果偏好。按钮不显示文字，保留随状态切换的悬停提示和无障碍名称；窄 pane 展开后提示「返回对话」，切回后恢复输入框焦点及草稿，宽窗开合偏好与调宽值仍保留。当前工作区通过已有项目导航与 Worker 列表识别。
+
+2026-11-13 Worker 开合调整：展开为单栏，整体默认宽340 px，保留既有280–440 px调宽偏好；收起宽48 px，仅保留入口及其下方状态预览。分隔抓手仅在宽窗展开时显示：拖动、方向键及Home／End调宽，双击恢复340 px，单击及Enter／Space不再切换面板。唯一开合按钮支持原生Enter／Space。宽窗网格使用340 ms过渡，快速反向沿当前宽度返回；拖动及减少动态效果时不插值。宽度计算仅预留9 px分隔抓手与至少360 px对话空间，展开不再额外占用控制条宽度；窄窗Worker内容填满本 pane，直接切换完整视图以避免半幅留白。侧栏标题固定，内容单独滚动；卡片保持挂载，折叠状态与滚动位置保留，隐藏侧栏立即inert并将内部焦点交回独立按钮。收起后的窄条仍保留状态观察能力，展开后的观察与操作统一归入单栏。
+
+2026-11-14 Worker 开合悬浮反馈：生产按钮与 Bubbles HTML 原型均采用6 px圆角、透明描边、闲置透明背景及150 ms颜色过渡；展开状态由图形表达，不再常驻填充或悬浮加深边框。悬浮／按下优先读取 `--interaction-hover`，抓手底色优先读取 `--surface-hover`；当前主题与 `@janusx/ui` 使用 `--shell-hover`，故两者均以它回退，保留 Planche 的主题色。抓手保持固定长度，仅以底色及透明度反馈悬浮、键盘聚焦和拖动，不加阴影。减少动态效果时关闭过渡。原型样式源为 `dock-preview.css`，生成入口为 `SuperAgent Bubbles.html`；本次只同步交互外观，不迁移原型已有布局行为。
+
+监视轨只在收起时呈现，复用实际工作快照：运行状态点缓慢明暗变化，排队空心点、失败菱形点，耗时来自原生Worker计时，未知显示“—”。悬浮或聚焦显示任务概括、状态、分支及查看入口，不触发执行。未读标记按workspaceId／workId记录最新成功读取的resourceId，保存在现有本地视图偏好并限制200项；加载失败不清除，新资源重新提示。该标记只表示本机已打开资源，不代表宿主验收。窄窗在48 px监视轨与填满本 pane 的Worker单栏之间切换，打开汇报回到对话；长引用最大宽度扣除4 px外边距，避免进一步压缩输入区后横向溢出。
+
+2026-11-13 单栏修订验证：`conversation-topics-ui.test.ts`的`live 48px|distinct Worker|centers the new conversation`三项通过，专属图标接入后复跑前两项通过。新增几何断言确认展开内容直达pane右缘、按钮区域只占标题高度、占用徽标不与按钮重叠；保留340／370 px实际宽度、窄窗全宽、快速反向、键盘、草稿和状态预览回归。已目视检查`artifacts/superagent-toolbar/`三主题、收起态及320 px中文截图。日志为`artifacts/worker-single-column-browser.log`和`artifacts/worker-single-column-icon-browser.log`；定向ESLint与diff检查通过。此次未重跑Electron桌面或构建安装包，下面的较早桌面验证对应上一版双列布局。
+
+2026-11-13 独立控件验证：`npm run test:browser -- tests/unit/conversation-topics-ui.test.ts -t "live 48px|distinct Worker|terminal launcher toggle|centers the new conversation|restores a report"` 5项通过，覆盖唯一入口、固定位置、分隔线不再开合、调宽与快速反向、状态预览／汇报、草稿保留、三主题及320 px中文窄窗。截图检查发现窄窗沿用网格动画会短暂留白，已关闭该动画并通过实际几何检查。`build:check`、严格未用项类型检查、定向ESLint和diff空白检查通过。使用隔离profile和`artifacts/build-check/main/index.js`运行`desktop-superagent.spec.ts`的`Island starts the shared workspace`用例通过，验证工具箱与Worker独立开合、按钮垂直不相交、窄窗不覆盖项目区及草稿／焦点恢复；首轮旧测试把默认宽度当作宽窗，改为明确1800／1000 px分别验收响应式状态。浏览器和实际Electron截图已目视检查，产物在`artifacts/superagent-toolbar/`、`artifacts/superagent-controls/light-expanded.png`及`artifacts/worker-dock-*.log`。构建中的既有CSS组合告警与Notes的17条外部链接诊断保留；不涉及真实模型执行或安装版替换。
+
+2026-11-10 右上角开关验证：`conversation-topics-ui.test.ts` 新增两项浏览器回归，覆盖未选项目禁用、终端／Markdown pane 出现后隐藏入口、最后一个 pane 关闭后恢复、键盘开合、三主题选中态、窄窗返回及草稿／焦点／440 px 宽度保留。Main 已查看 `artifacts/superagent-toolbar/` 的深浅主题与窄窗截图。`npx vitest run tests/unit/conversation-topics-ui.test.ts tests/unit/superagent-work-ui.test.ts` 共 23 项中 20 项通过，包括新增两项和全部 13 项 Worker 回归；其余 3 项等待话题 merging／choice 状态超时，用修改前的按钮逻辑构建临时对照组件后同样复现，尚未修复话题调度回归。`npm run typecheck` 和组件定向 ESLint 通过。桌面 E2E 已同步终端入口隐藏断言及「返回对话」定位，本次未运行 Electron 实测。
+
+Island 与 SuperAgent 已统一采用现有原生对话模式的视觉风格：14 px 正文、右侧浅底圆角用户气泡、带 Janus 双眼图形的回复署名，以及底部集中放置模型、权限和发送控件的圆角输入框。消息与输入区分别限制阅读宽度，随 pane 宽度缩减留白；深色、浅色和 Planche 均使用现有主题变量。两处 JanusChat 开启同一呈现选项，共用 `18-janus-conversation.css`，工具过程继续使用共享对话组件，移除 SuperAgent 对消息和输入区的独立样式覆盖。底层会话、历史和执行能力继续共享，专属呈现集中于工作安排、真实状态、阶段结果和待确认事项。
+
+模型、供应商、权限菜单与提问卡片也使用同一组中性对话主题变量，包含悬停、键盘高亮、选中、输入焦点与提交按钮；普通选项不再沿用橙色警告样式。Worker 容量输入框的尺寸规则仅作用于数字输入，避免影响共用问答组件的单选框与自定义回答。
+
+2026-11-13 两种真实新会话已共用 ConversationWelcome：图形字标、标题“想从哪里开始？”、说明、实际工作区与输入文字左对齐，整组在可用 pane 内居中，默认最大宽744px。普通对话按当前引擎选取切角 SVG 并保留小图标；SuperAgent 使用 JanusX 和完整品牌色斜笔。字标按原始比例缩放，短名称不拉伸，颜色来自现有主题令牌；工作区缺失时明确显示尚未选择，不伪造就绪状态。窄 pane 缩减字标、字号和留白，矮窗／上下分屏可滚动访问字标及输入框。
+
+普通对话保留启动环、状态文案、trust/login/hooks 内联确认与减少动态偏好；加载和就绪内容使用等高叠层，同一输入框保留草稿、引用、焦点及首条消息移动动画。SuperAgent 全屏加载字标、扫描、真实 persistenceReady 守卫、可见计时及后台暂停不变；进入工作区后先等待工作数据恢复，再判断欢迎页。根历史、当前工作区话题（包括暂停／失败输入）、工作流计划、待处理 Worker 决策或错误均优先展示已有内容，不被新会话覆盖。欢迎页只负责呈现，模型、上下文、#／@ 操作仍归原输入框。
+
+2026-11-13 已将 HTML 输入框方案落实到当前 checkout 的普通对话 AgentComposer 与 SuperAgent 根输入框：15px圆角（普通新会话16px）、13px正文、1.85行高、175px最大输入高度，统一浅表面、弱阴影和31px操作按钮。1px灰色分割线与输入文字对齐，颜色混合现有 shell-border 85%与 shell-chrome-raised 15%，聚焦和运行时不变色；桌面左右内缩17px、窄 pane 13px，快捷键提示移至框外下方。沿用生产三主题令牌，不导入 HTML 的固定色值。
+
+发送区按真实可取消状态收敛：空闲只显示向上箭头；运行且无有效草稿时只显示停止；运行有文字或有效引用时显示弱化停止与主发送。停止保留未发送草稿，补充发送后恢复单个停止。原生斜杠命令、能力限制、审批／问题守卫与实时投递路径保持，后台任务仍可停止；新布局不引入新的排队或暂停语义。 SuperAgent 根输入框只保留真实模型选择及上下文入口，不加入推理强度、闪电或权限控件。正文 # 插入引擎标签、行首 @ 直投 Worker 的提示、选择标签和键盘候选仍归 useWorkerShortcuts；文件引用继续从“+”菜单进入。快捷输入、当前模型、选定目标、异步导入和投递失败恢复不由按钮布局改写。紧凑操作仅用于 contextComposer 的对话呈现，普通 Island 与其他 Janus 编辑器继续沿用原行为。
+
+SuperAgent 不呈现输入框上方的用量／上下文容量面板。按输入78／79恢复底部纯模型选择，菜单包含已配置供应商的模型，不增加推理强度、权限或清空控件；Tab 为原生导航，Ctrl+P 打开模型菜单。手动选择保存在根会话 superAgentModel，下一轮执行、重试及多分支归属判断使用该选择；正在进行的补充仍属于当前模型回合。没有手动选择时，每次新请求继续读取设置页默认模型。普通 Island 的模型／权限操作和 Worker 原生设置保持既有行为。
+
+Island 对话模式保留会话管理和手动工作区附件。SuperAgent 不呈现会话列表、新建／切换会话入口，也不呈现工作区添加、移除与附件条。其前台注意力自动跟随当前工作区：每条消息和普通项目工具使用发送时固定的同一工作区，无需附加；没有选中工作区时不沿用旧附件。切换工作区不改写已提交消息的归属，也不取消该消息正在建立的工具会话。Island 原有附件选择继续保留。
+
+Worker 侧栏属于聊天 pane 内部，支持独立收起、指针及键盘调宽。空间不足时自动收起但保留用户偏好；窄 pane 显式展开时在本 pane 内查看 Worker，返回对话后草稿仍在，不遮挡其他终端区域。开合、卸载和关闭工具标签都不调用停止接口。聊天快捷键只由当前获得焦点的呈现处理。
+
+SuperAgent 与 Island 的对话风格输入框、内联编辑框使用跟随文字颜色的原生插入光标，流式尾标同样跟随正文颜色。消息上翻后显示与原生对话模式一致的圆形向下按钮，点击或键盘激活立即回到当前列表底部并恢复跟随。多话题共用外层滚动区；内容高度变化时，仅在读者已经位于底部时跟随，上翻阅读不被新输出拉回。内层话题不显示重复跳转按钮，也不滚动祖先容器。`conversation-topics-ui.test.ts` 的浏览器回归覆盖三主题光标、流式增长、历史位置保持、恢复跟随、窄窗及键盘跳转。
+
+Island／SuperAgent 对话及 Worker 侧栏直接复用原生对话模式的 `native-scrollbars.module.css`：12 px 拖动区域包住细灰色圆角滑块，悬停与拖动时加深、加宽，轨道透明。旧 Island 滚动条规则仅保留给非对话风格；消息与侧栏分别保留滚动槽，滚动和内容增减不挤动相邻区域。
+
+状态侧栏展示当前驻留实例和排队安排，按集合扩展，历史仍通过对话查询。原生审批、问题和具体 Git 计划在聊天内回答，待决策项与明确定位的工作不受列表分页截断。状态与决策共用一份订阅和工作视图，卡片不决定下一条自然语言输入的归属。详情保留目录、分支、原生会话及结果来源，并通过已有 Git／Diff 工具查看实际工作目录，不计算虚构完成百分比。
+
+2026-11-12 按 HTML 设计统一独立 Worker、编排节点和父流程的标题结构：14 px 任务标题，下行 12 px 角色／实际引擎与状态，详情默认折叠。分支、耗时、日志、模型设置、停止和关闭随节点展开；报告入口仍在标题右侧。失败与待审批保持可见，不因简化卡片隐藏决策。父流程直接包含同款节点卡片，底部保留 Janus 交付进度、流程详情、暂停与停止；依赖等待和全局排队位置分别显示。左侧计划显示角色进度并可定位对应节点，具体执行规则归[编排决策](ideas/superagent-workflow-orchestration.md)。关闭工作和停止编排均先行内确认；回执不冒充原生停止确认。
+
+文件输入复用 dev 对话模式的 ConversationInput／ConversationContext：文件落在光标位置，以行内引用保存；异步导入保持原插入点，多行引用插入同步 dev 的原生撤销与 Range 重定位修复。SuperAgent 不额外显示整块拖入遮罩。发送后的用户消息用 ConversationPrompt 将原始路径语法还原为行内文件标签，不再重复显示附件条；正文和原始路径仍完整保留用于投递、编辑与复制。
+
+### Worker 监视窗开合
+
+输入85将外层卡片开关统一为分段框线与水平刻度，标题和状态抬头保持稳定。WorkerMonitorBody 负责 340 ms 阻尼展开、210 ms 收回以及短距内容淡入；独立 Worker、编排节点和父流程详情共用样式，不改变调度或制造运行进度。命令与输出仍独立折叠，详情保持挂载以保留内部开合和滚动状态；提示词、队列控制也随外层收起，失败与审批决策继续独立可见。
+
+标题按钮通过 aria-controls／aria-expanded 关联详情；收起立即 inert 并隐藏于辅助技术，需要时将内部焦点归还标题。CSS 允许未完成的过渡直接反向，减少动态效果设置关闭全部新增过渡。HTML 同步这一规则，点击就地更新节点而非重建卡片；键盘分支提示在展开引起的滚动中重新定位。截图、逐帧及回归证据归[验收记录](superagent-verification.md)。
+
+### Worker 设置入口
+
+2026-11-12 原生默认模型目录验证：`worker-model-catalog.test.ts` 5 项与 `superagent-ipc.test.ts` 12 项通过，覆盖原生协议、分页、能力过滤、失败清理、并发合并、刷新、主窗口授权和 preload 转发；设置浏览器定向 4 项通过，并断言无 LLM 渠道调用。TypeScript、定向 ESLint、双语键检查通过。本轮未连接真实终端账号验证目录返回值。
+
+Agent 设置页提供独立 Worker 配置区、原生模型选择和推理强度，沿用 @janusx/ui 的设置区域、选择器与按钮；终端使用已有引擎图标。展开右侧节点卡片后，通过模型按钮的非模态 Popover 打开设置，模型／强度来自此 Worker 的原生能力目录，保留当前配置、下轮待生效状态、恢复默认、刷新目录及可见错误。默认值与覆盖的持久范围、生效时机及失败处理见[Worker 决策](superagent-workers.md)。
+
+两个入口共用 worker-settings-text 的双语文案；xhigh 显示“极高／Extra high”，max 显示“最大（max）／Maximum (max)”，ultra 显示“超强（ultra）／Ultra”。界面选项及当前／下轮摘要使用翻译，提交值仍为原生 token。全局默认的推理强度选项是建议而非能力白名单，并保留已保存的未知值；右侧只展示当前模型实际支持的值。已知配置错误显示本地化修复提示，未知诊断保持原文。相关格式与能力校验归 Worker 决策。
+
+Popover 首次展示前测量触发按钮和表单，优先贴近按钮，空间不足时向上翻转并限制在视口内；滚动、窗口缩放和按钮尺寸变化后重新定位，避免落在左上角或固定居中。点击外部关闭，Escape 先关闭模型下拉再关闭设置，明确关闭后恢复入口焦点。布局与模型操作回归使用执行专属的 artifacts/superagent-settings-7328330f/ 目录，不覆盖其他执行的截图。
+
+设置页同时显示默认终端、默认模型、推理强度和空闲自动关闭时间。空闲时间经可信 IPC 读取实际引擎常量，目前为 30 分钟并保持只读；不会把只能保存的偏好描述为已经改变回收策略。用户已确认希望配置完成并停止后的空闲回收，真实可编辑能力仍待引擎接口，边界见[生命周期决策](superagent-lifecycle.md)。本轮按 xdo 直接实施，不新增正式 Task。
+
+## 并发配置归设置页（输入84，2026-11-13）
+
+2026-11-13 控件精简验证：Worker栏移除设置入口、独立开合改为纯箭头图标后，`npm run test:browser -- tests/unit/conversation-topics-ui.test.ts tests/unit/superagent-work-ui.test.ts -t "live 48px|distinct Worker|shows occupancy|validates capacity|renders global queue"` 5项通过，涵盖入口移除、设置页容量编辑、状态预览、键盘开合、草稿保留和窄窗返回。严格未用项类型检查、定向ESLint与diff检查通过，已查看三主题及320 px中文截图；日志为`artifacts/worker-dock-icons-browser.log`。此次小改未重新构建安装包或运行Electron测试，上一轮桌面验证记录对应带文字的旧按钮。
+
+右侧 Worker 顶部由固定的信息标题区统一呈现：第一行左侧Workers标题、右侧中性占用徽标，第二行显示当前项目名。标题区与工作卡片采用相同的14 px左右内缩；项目名独占一行、单行截断，悬停可读完整名称，避免窄栏挤压占用数。占用数来自既有全局调度快照，悬停说明跨工作区含义；没有快照时不伪造数值。标题区不随卡片列表滚动。按2026-11-13要求移除“前往设置”控件，并发配置仍从软件设置的Agent页进入。WorkerCapacitySettings 独立读取、校验和保存并发上限，沿用原 configureCapacity IPC；不改模型默认值或调度机制。正整数校验在提交前完成，保存失败保留草稿，读取失败可重试，异步旧结果不覆盖切换后的设置。
+
+Worker卡片的启动／运行状态使用10 px旋转加载环配合状态文字，替代静态圆点。动画由真实实例、调度分组和工作流节点状态共同约束，等待用户、排队、暂停、空闲或完成状态不持续旋转；运行中的工作流父卡采用同样的指示。只用CSS动画，不增加状态轮询或模拟进度；隐藏侧栏暂停动画，减少动态效果时保留静态环。原有状态文字、语义色及执行操作保持。
+
+2026-11-13 标题区与状态动效验证：`conversation-topics-ui.test.ts`的`distinct Worker`及`superagent-work-ui.test.ts`的`shows real branch metadata|shows occupancy|renders global queue`共4项通过；增加长项目名与固定标题几何断言后，前者复跑通过。覆盖三主题、320 px中文窄窗、名称截断、占用信息、滚动固定、真实旋转变化、等待／完成停止和减少动态效果。严格未用项类型检查、定向ESLint与diff检查通过。已查看`artifacts/superagent-toolbar/`截图，日志为`artifacts/worker-header-status-browser.log`和`artifacts/worker-header-layout-browser.log`；此次验证使用真实组件和fixture快照，未重跑Electron或真实模型任务。
+
+当前快照 IPC 需要已登记工作区，因此读取使用当前工作区或首个已有工作区；完全没有工作区时明确提示先打开工作区，并禁用修改，避免展示或保存虚构默认值。HTML 设置预览同步色卡、语义示例和并发配置，模拟值只存本页，不写入桌面设置。代码与浏览器证据见[验收记录](superagent-verification.md)。
+
+## 多输入话题与调度
+
+2026-11-10 环境占用与关闭交互修订：Worker 状态／决策、话题错误和展开对话错误均取消左侧强化边缘，使用四边一致的细边框。启动前的目录占用错误显示中文／英文原因、已选目录与处理提示，原始诊断折叠保留；只改变呈现，不绕过引擎占用保护。宿主仍把所有已登记终端的启动目录视为占用，包括空闲终端及与目标目录有父子关系的目录；现有诊断没有占用者身份，不能据此点名某个终端。关闭确认使用底部行内区域，确认期间隐藏普通操作，说明停止执行、取消待发送输入并保留记录；取消和 Escape 恢复关闭按钮焦点。未启动且未排队的阻塞工作不显示停止 Worker。浏览器回归覆盖三主题等宽错误边框、窄栏无溢出、原始错误与目标目录、取消／确认及停止回执；截图见 `artifacts/superagent-errors/`。验证命令为 `npx vitest run tests/unit/superagent-work-ui.test.ts tests/unit/conversation-topics-ui.test.ts tests/unit/superagent-environment-selection.test.ts`，三组共 30 项通过；这是组件夹具与临时 Git 仓库证据，未替换正在运行的安装版。
+
+2026-11-10 最新合并 HTML 已作为高保真标准接入实际 Renderer，随后按用户反馈压缩右侧卡片。Worker 默认显示 Codex 图标、任务、文字状态，不显示内部工作编号；最近原生回答按内容增长，最高 112 px，当前执行指令及输出默认最高 64 px，按需展开至最高 220 px，空闲时随状态文字收紧。两区独立滚动和键盘聚焦，上滚暂停各自的底部跟随；前端不再额外截短输出，原生事件已截断时仍提示节选。活动命令仅使用当前 turn 的原生事件，完成、恢复快照、失败、断连及停止均不显示活动命令。底部同一行放置模型摘要与提示词入口；长模型名称省略显示，悬停保留完整摘要。模型表单通过吸附触发按钮的非模态 Popover 打开，不受卡片裁切；高度随视口限制，表单可滚动，下拉挂载于浮层内，Escape 先关闭下拉再关闭设置，关闭后焦点返回入口。提示词按需展开，直接显示当前 Worker 原生会话中最近一条 userMessage，即宿主实际提交的任务指令与背景，不再用用户输入资源冒充派发提示词。缺少原生记录时明确显示不可用，原生记录已截断时提示节选。选择文字或滚动不展开卡片。
+
+2026-11-11 按原始输入 43 去除 Worker 卡片顶部短 workId 与完整编号的 title 提示，保留任务名称、执行器名称和状态；内部标识仍用于记录及操作关联。原型同步这项调整。当前命令交互组件回归 1 项通过、25 项未选中，类型检查与定向 ESLint 通过；三主题截图见 `artifacts/superagent-identity-eee6df55/reports/`。汇报分节标题的灰底标签仅应用于 HTML 原型，未改生产汇报排版。
+
+2026-11-11 当前命令光标修正：原 pre-wrap 显示保留输出末尾换行，加上有宽度的 inline-block 光标，会让光标进入空行或在行尾单独换行。SuperAgentWork 仅在显示时 trimEnd，保留行内缩进、换行与完整原始事件；零宽定位的光标跟随最后字形，并保持减少动态效果时停止闪烁。真实 React 组件中末尾换行的偏差由 32 px 降至不超过 2 px；280／352 px、长文本和恰好占满一行的用例均无横向溢出。`tests/unit/superagent-work-ui.test.ts` 的光标对齐与当前命令交互两项定向测试通过，三主题截图位于 `artifacts/superagent-caret-c9239439/compact/caret/`；类型检查与生产组件定向 ESLint 通过。同期 HTML 汇报紧凑化仅用于原型评审，未改变下述生产汇报字号。
+
+右侧紧凑布局验证：`npx vitest run tests/unit/superagent-work-ui.test.ts` 的 18 项浏览器回归全部通过；`npx vitest run tests/unit/conversation-topics-ui.test.ts -t 'Worker panel states'` 通过，新增检查 280 px 侧栏在 420 px 高窗口中的工具入口可滚动到并点击。三主题卡片、长模型名称和设置浮层截图见 `artifacts/superagent-compact/`，Main 已查看窄栏、深色卡片及设置浮层。`npm run typecheck`、组件定向 ESLint、`npm run i18n:check` 和 `npm run check:notes` 通过。证据来自真实 React 组件与模拟 Worker 状态，本次未打包安装或进行外部 CLI 实机验收。
+
+历史及新收到的 `worker-report:` 消息统一渲染为紧凑汇报卡片，原持久消息和资源内容保留。结构化报告卡片仅显示任务标题、最多两行的结果摘要与验证概况；标题 13 px、正文 12 px，输入 UUID、版本哈希和 checkout 等追溯内容不进入摘要。旧文本报告显示“报告已保存”入口，不再把正文首段截成密集小字。详情标题 14 px、摘要 13 px；关键分节为 12 px 加粗、中性灰底和细边框标签，与正文清楚区分。
+
+详情默认显示工作结果：结论、完成事项、明确区分通过／失败／未运行／不适用的验证列表、产物引用、限制和待回答问题；详细 Markdown 说明可展开。原始报告是工具栏辅助入口，保留完整资源供核对，返回后继续阅读格式化结果。历史文本仍可 Markdown 阅读，并标明没有结构化验证信息，不推导验证通过。契约与兼容边界归 [Worker 决策](superagent-workers.md)。
+
+2026-11-11 原始输入 47：右侧卡片的汇报入口改为顶部 28×28 px 清单图标，与停止／关闭同排，去掉额外的按钮行；无报告不显示入口。保留“查看汇报”的 title、无障碍名称、键盘打开与焦点返回。WorkerReportCard 的图标模式复用原资源阅读弹窗，问题回答区与对话汇报继续使用文字入口。原型同步；同样例卡片高度减少 40 px。汇报阅读器、结构化汇报与窄窗模型工具 3 项相关组件回归通过，覆盖 320 px、三主题、同排尺寸、无额外高度、原资源关联和焦点；截图在 `artifacts/superagent-report-icon-17e4b5ba/reports/`，类型检查与定向 ESLint 通过。
+
+输入90取代输入79的侧栏抽屉：点击对话卡片、Worker图标或监视轨的汇报入口，均在对应对话报告后就地展开，侧栏不挂载阅读器。按实际resourceId关联；目标处于历史折叠中时先展开，消息尚未挂载时在当前对话流末尾提供唯一备用阅读器。空对话打开汇报时让出欢迎页，草稿继续可用。仅显式“独立查看”使用居中原生dialog：外壳不滚动，顶栏及辅助工具栏固定，正文独立滚动；右侧操作区、滚动条统一中性灰阶。Escape先返回对话，再关闭并归还可见入口或输入框焦点；原文与格式化结果共用已读内容，加载失败支持重试。待决策区不重复挂载阅读器。模型设置继续采用独立吸附Popover，真实容量、审批、问题回答、变更、重试、停止及关闭确认保持。
+
+2026-11-10 用户补充指出的黄色界面是 MCP 工具权限授予，不是模型问答选项。遗漏来自 `SuperAgentWork` 的 decisions 呈现仍使用旧状态色边框，而中性边框只覆盖 status 呈现。两种卡片现在统一中性细边框，语义色仅用于状态文字与圆点；原生审批仍按 workId／executionId／requestId 返回。右侧已支持的 Codex Worker 使用共享 `TerminalPresetIcon`，取代通用终端符号，沿用各主题的品牌图标适配。内部工具频繁审批的配置修复见 [Worker 决策](superagent-workers.md)。
+
+`superagent-work-ui.test.ts` 的 10 项回归通过，新增覆盖真实审批描述、按钮回传身份、三主题中性边框和 Codex 图标成功加载。浅色主题使用项目实际标识 `white`，不是 `light`；同时覆盖 `dark` 与 `planche`。Main 已查看 `artifacts/superagent-approvals/` 的审批／Worker 截图；该证据来自真实 React 组件与模拟状态，不代表已替换用户正在运行的安装版。
+
+2026-11-10 用户指定以 原多输入卡片第二版（现已合并至 `design/superagent-merged/SuperAgent Merged.html`）作为 SuperAgent 模式的视觉依据。话题消息采用左侧角色列与 12–13 px 正文，单话题透明、无圆角，多话题使用 8 px 卡片，判断中的临时卡使用虚线；页面增加原型引导标题并调整公共输入区。Worker 使用 30 px 引擎图标、9 px 卡片圆角、工作摘要和底部详情／操作区。真实权限、容量配置和审批保持可用；主模型与供应商改由设置维护，原型演示控制与模拟数据不进入产品。此呈现覆盖上文 SuperAgent 共用右侧气泡的旧规则；Island 与普通模式仍使用原有对话风格。组件继续复用真实会话控制器，样式限定在对应工作区与话题区域。
+
+界面对照使用 `tests/unit/conversation-topics-ui.test.ts` 的完整 `SuperAgentWorkspace` 夹具，覆盖深浅主题、480 px 窄窗和真实话题控制器；`artifacts/superagent-topics/workspace-dark.png`、`workspace-light.png`、`parallel-narrow.png` 为浏览器夹具截图。Worker 状态来自测试数据，不代表外部 CLI 实机验收。
+
+SuperAgent 工作界面固定使用 SuperAgent 模式。2026-11-11 按用户要求改为 Codex CLI 式的本轮补充：空闲时直接续用当前普通会话；只有一个活动回答时，普通输入直接送入当前回合，不调用归属模型，也不等本轮结束。2026-11-12 按输入83移除左上角“独立提问”入口及其状态、专属占位文案和样式；公共输入始终沿用普通提交路径。已有并行历史及内部显式分叉机制继续保留。多个活动分支仍通过归属模型定位目标，continue 随即投递补充；独立或需汇合结果的请求等待已有并行组结束。归属调用为无工具、30 秒、2048 token、不自动重试；故障与真正歧义分开显示。历史话题不进入归属候选。
+
+2026-11-11 修复设置已恢复模型而旧话题仍使用旧模型的问题：SuperAgent 话题每次发送请求及归属判断前，直接读取已保存的 Janus 默认 provider／模型，不依赖根会话选择、子话题旧值或异步刷新的菜单目录。失败重试、恢复暂停、空闲续聊、合并排队及编辑后重发均经过同一发送入口；已发出的流保持原模型，下一请求使用届时设置。实际请求模型回写话题；模型变化时清除旧 checkpoint 并递增 contextEpoch。没有默认配置时显示中英文设置提示并保留输入，不静默使用旧模型。该修复处理本地模型选择错误，不把供应商明确拒绝误报为已解除，也不自动重放失败请求。
+
+较早的默认模型修复验证：`npm run test:unit:fast -- tests/unit/conversation-topics.test.ts tests/unit/janus-chat-shortcuts.test.ts` 的 20 项通过；`npm run test:browser -- tests/unit/conversation-topics-ui.test.ts` 的 14 项通过，覆盖旧根会话、未刷新目录、缺少默认配置和当时的排队流程。此证据保留为历史记录；本轮补充保持活动请求的 provider／模型，下次新请求再读取默认设置。当前 steering 回归与构建证据统一见[验收记录](superagent-verification.md)。
+
+`TopicScheduler` 按原输入顺序投递补充，仅串行化保存和短 RPC，不等待活动回合完成；启动请求尚未发送时等待其 requestId 就绪。message.id／inputEventId 保持不变，expectedRequestId 与本地 generation 防止迟到补充进入新回合。持久状态区分 queued、steering、accepted、consumed 及暂停／失败；RPC 接收与引擎纳入分开，只有 steering_consumed 确认进入循环上下文，不能据此证明模型已遵从。纳入后清除“正在纳入本轮”标记，不再排队另起一轮。未纳入前可撤回，成功后同步删除原文与待处理记录。RPC 超过 15 秒或结果不明时保留原文并暂停，不自动重发；只有明确无活动流才转下一轮。结束、失败和停止后的迟到回执不能重启执行。
+
+临时分叉继续使用独立 conversationId、流和取消句柄；两支读取同一分叉节点的历史，不读取彼此未完成输出。并行组结束后按原始问答组去重汇入后续上下文，不调用模型改写汇总；失败或暂停明确标记为未完成，单支停止不停止另一支。共享前缀变化时清除旧 checkpoint 并递增 contextEpoch。
+
+快照保存根会话、工作区、分叉节点、等待组、基础历史及输入状态；重启将未完成输入暂停，必须显式继续，不自动重放执行。旧版没有分叉元数据的会话仍可读取，按原有顺序显示并参与后续共享上下文，不猜测其历史并行边界。普通输入持续复用当前串行会话，避免每轮新增底层会话；并行历史保留原会话身份，供后续 Worker 报告定位。
+
+界面保持一条公共输入和一个外层滚动区。普通问答没有常驻话题标题；真正分叉后显示同一临时区域中的两张卡片，宽窗并排，窄窗上下排列。完成结果先保持展开；下一段普通对话开始后，成功结束的并行区域默认收成可展开的历史条目。失败或暂停保持展开，手动展开／收起优先于自动状态。移除逐条输入成卡后的合并动画与回执，不再要求管理长期独立话题。
+
+模型提问保留单选／多选、说明和自定义文本，稍后回答不丢草稿；回答等待实际 IPC 接受，失败保留表单，成功禁止重复提交直到模型解决该问题。停止或结束回合清除过期提问。异常摘要在话题收起时仍可见，显式继续只影响本话题。
+
+普通单回合补充不再依赖模型归属判断；多分支目标判断仍可能误判或遭遇供应商故障，真实语义准确率和费用未验收。已形成并行组时不自动增加更多分支。生成期间补充中止当前生成尝试并带上新上下文续推，已经显示的正文保留；工具执行期间在串行间隙或并行批次结束后纳入，不中断已经执行的工具。启动及上下文压缩期间的输入在建流前纳入。底层全局执行容量仍为 4；快照仍有 100 会话上限，新建记录在 95 时拒绝，已有普通会话续聊不需要新记录。长期大量并行历史的归档分页仍需后续设计。
+
+机器证据：`conversation-topics.test.ts` 覆盖空闲复用、同回合按序补充、启动／结束／回执竞态、失败与停止隔离、分叉汇合、跨工作区和恢复暂停；`conversation-topic-routing.test.ts` 覆盖有界分类与失败原因。`conversation-topics-ui.test.ts` 用真实 React 控制器验证同一 requestId 接收连续补充、纳入回执、撤回持久化、默认模型、并行分叉及窄窗。浏览器夹具截图在 `artifacts/steering-verification/superagent-steering/`，不代表真实供应商或外部 CLI 已验收。
+
+卡片以现有 `data-phase` 决定状态圆点与文字颜色，不新增推算状态：启动／运行用绿色，等待审批／回答、停止中与中断用琥珀色，失败用红色，已汇报完成用蓝色，其余状态用中性灰。颜色仅辅助文字状态，不承担整项装饰；使用既有语义主题变量适配深色、浅色和 Planche。
+
+应用级通知订阅独立于 pane。正式报告、原生决策和失败按稳定身份进入 Island 通知历史，普通输出只刷新状态。通知包含来源项目，打开阅读器不导航；用户选择定位后才切到来源项目与原对话。启动 SuperAgent 后，Island 手势只操作通知；其他软件发起的 Janus 对话请求定位同一工作界面。重开应用恢复呈现偏好和历史，不自动启动执行。
+
+P8 联调补齐 `work_git`：同一 Janus 只能根据当前宿主输入和已读工作卡提出受控合并／删除计划，具体审批仍由用户完成。持久操作身份防止相同输入重复生成计划；未知结果不重放。删除保留分支，审批显示实际工作目录、目标分支、未合并状态及忽略内容。
+
+### 左右气泡和卡片数据（2026-11-11）
+
+用户要求将左右气泡 HTML 落实到生产组件，该要求替代上文 2026-11-10 的左侧角色列方案。SuperAgentTopics 普通及临时并行对话中的用户消息右靠齐、文字左对齐，隐藏“你”署名；Janus 署名、正文及汇报左对齐。输入73进一步要求与普通 JanusChat 气泡一致：14 px、1.65行高、11×16 px内边距、16/16/5/16 px圆角及原生中性底色，宽度上限85%，540 px以下容器92%。SuperAgentTopics 删除旧外观覆盖、继承 JanusChat；排队输入同步，长文本可换行。问题、报错与权限决定保持现有交互。HTML 普通已结束对话同样不增加话题标题或轮次编号。
+
+整轮／Worker联动高亮、历史回复折叠与就地汇报已接入生产。SuperAgentPresentation 通过 sourceInputId／delivery.inputId 对应输入 eventId，不从日志猜测归属；悬停输入／回复只联动本轮，Worker 反向联动所有显式关联轮次。连续补充仍属于同一轮，Worker 关联晚于输入到达时也即时刷新，不需要重新移入鼠标。流式回复按最后一个有效问答轮次关联，末尾的 Worker 报告不截断它。历史回复默认收起，最新展开；用户显式开合优先，刷新保留。
+
+高亮统一区分临时鼠标悬停与键盘焦点：鼠标点击不产生持续选中，移开即取消；键盘进入消息或其内部控件仍可保持本轮联动。每个来源独立释放，消息／卡片卸载、窗口失焦和工作区切换清空相应状态，旧来源的离开不清掉新来源。SuperAgent 的非虚拟消息列表按稳定消息身份挂载，追加输入时不把原末条消息卸载重建，保留悬停、键盘焦点和手动展开状态。高亮不滚动、不展开历史，也不改变执行或输入归属。
+
+用户消息仅在原生气泡内描边，避免整行空白被染色；回复使用轻淡底色，按输入83去掉左侧内阴影竖线，固定内边距避免文字贴边，高亮切换不改变布局。Worker 和汇报沿用同一中性完整描边。HTML 的问答轮次同步使用微底色，不画单侧亮边。深色、浅色和 Planche 使用现有主题变量，窄窗不向外扩描边；120ms过渡在减少动态效果时取消。修复前的点击残留与当前回归证据见[验收记录](superagent-verification.md)。
+
+右侧 Worker 顶部复用两行展示分支与本轮耗时。分支来自当前未释放、未删除的真实环境 checkout，缺失时隐藏；共享 ThemedTooltip 在悬停和键盘聚焦时展示完整分支及路径。主标题优先读取当前原生计划的进行中步骤；明确 ready 状态可展示同执行的正式摘要，过滤追溯标识与路径，无有效概括时使用工作名。按输入 64 删除最近 agentMessage 首行回退，普通回复或日志无论是否短句都只进入“最近输出”，不作为标题。内部身份继续用于控制，不显示 UUID。
+
+时间组件独立每秒刷新，运行中使用原生 turnStartedAt，结束后使用同轮 agentMessage.durationMs；含等待、按轮重新计时，不把轮次结束解释为工作完成。恢复快照或缺失可信时间时隐藏，不由报告到达时间或页面打开时间推算。长分支和标题省略，时间等宽，保持卡片原有高度。`WorkerMetadata.tsx` 与 `workerPresentation.ts` 承担呈现，执行与审批协议保持原状。
+
+验收证据位于 `artifacts/superagent-ui-sync-20261111/`：真实 React 浏览器回归 45 项、worker-presentation 单元测试 8 项、HTML 离线 17 组检查通过；原型无外部请求或页面错误。三主题／窄窗、分支浮层、280 px 高度与省略、计时／焦点、结构化分节及原文、问题回答、停止／重试／关闭均有回归。严格类型检查、定向 ESLint、中英文键校验与 build:check 通过。测试使用真实组件及可控原生快照，未替换运行中安装版、未以夹具结果宣称真实模型执行通过。
+
+2026-11-11 输入 62／63／64 补充：HTML 底部恢复纯模型选择菜单，沿用普通对话样式并排除推理强度与清空控件；该底部改动仅为离线原型。标题日志回退问题已在 workerPresentation.ts 修复，8 项呈现逻辑测试、类型检查、定向 ESLint 与 19 组离线检查通过；27 张截图与验证记录见 `design/superagent-bubbles/review-e5702c80/`。本轮未修改生产聊天输入区或更新安装包。
+
+### 原型交互与上下文生产落地（输入78／79，2026-11-11）
+
+右侧最近输出与当前命令各用 WorkerDisclosure 原生按钮，默认收起，鼠标／Enter／空格独立开合；CSS Grid 提供180ms高度过渡，同步 aria-expanded、aria-hidden 和 inert，减少动态效果时取消过渡。展开后输出限高112px、命令220px并可独立滚动。没有问题／审批／失败／Git决定的 idle／ready 或已确认关闭卡片排序沉降并折叠记录；沉降只改变呈现，不回收执行或删除工作。分支、轮次时间与业务标题继续使用可信的原有数据源。
+
+输入区复用 ConversationContext 和 ConversationInput：加号打开附件导入／工作区文件与目录选择，支持键盘检索、原生文件拖入及工作区资源（可带代码摘录）拖入；拖拽目标显示中性高亮，引用以可移除的内联条目吸附到插入位置。导入沿用已有 IPC 与8项／单项10MB边界；异步导入期间禁止发送，编辑和引用位置继续保留。发送失败恢复草稿及引用；成功发送将令牌展开为实际路径与摘录，消息另存经过校验的 context 元数据用于紧凑引用展示和重启恢复，不持久化文件字节。草稿按根会话和工作区隔离。
+
+共享引用条目的删除按钮使用线性 SVG 与显式无边框样式，所有新增控件沿用中性主题变量。输入71／72的意图检测仍仅为[设计备忘](ideas/superagent-conversation-cards.md)，未增加正则派发或自动执行。生产与离线证据分别位于 artifacts/superagent-ui-c16f1987 和 artifacts/archive/design-review-20261114/superagent-bubbles/review-c16f1987，结果归[验收记录](superagent-verification.md)。
+
+### 输入框底栏对齐（2026-11-12）
+
+SuperAgent 底栏的加号与编辑区左边缘对齐，模型字号为 12px，菜单展开显示中性高亮；移除覆盖原生 focus-within 边框的旧样式。聚焦时显示与对话模式相同的 Enter／Ctrl+J／Shift+Enter 提示，窄窗隐藏提示并允许底栏换行。
+
+公共输入框读取当前根对话及当前工作区话题的活动状态，运行或排队时显示停止按钮与停止提示。公共停止暂停这些话题的待处理输入并中断活动生成；分支内停止仍只影响对应话题，不操作右侧 Worker。停止后恢复发送提示。
+
+验证：`npm run test:browser -- tests/unit/conversation-topics-ui.test.ts` 23 项通过，包含底栏几何、字号、焦点高亮、菜单状态、双分支中断及窄窗回归；`npm run typecheck` 通过。定向 ESLint 无错误，JanusChat 原有 4 条中文硬编码警告仍在。截图在 `artifacts/composer-footer/`；使用真实 React 组件与可控 IPC，未验证真实供应商取消或更新安装包。
+
+### 当前命令实时输出（2026-11-12）
+
+右侧订阅链路仍为原生会话快照 → SuperAgentWorkers.observe/publish → superagent:worker-changed → useWorkState → workerStream。记录与环境／调度变化触发重新读取，30 秒轮询补读快照；轮询不能补回适配器未消费的事件。最近输出只读取 agentMessage；当前命令只选择 running／starting Worker 当前 turn 中最后一个 inProgress 命令或带 activity 的事件，完成、等待、停止、恢复和断连时清空，两区默认折叠。
+
+原生适配器曾遗漏 item/commandExecution/outputDelta，导致执行期间正文不增长，完成事件写入完整输出时又被前端过滤。引擎现按 threadId／turnId／itemId 将有效增量追加到当前执行命令，复用 32ms 快照合并发布和 32,000 字符显示上限；已完成、旧轮次、其他线程、未知条目与非法增量均不会恢复活动显示。完成事件的 aggregatedOutput 替换流式正文，避免重复拼接；缺少最终汇总时保留已收正文及截断标记。工具输出不作为模型重试恢复证据。具体适配实现归 [SuperAgent 引擎](note://62b44166-82f0-41ff-838d-e2b02388ed06/648b9641-22d5-4804-b141-0929c93d0c70)。
+
+桌面固定包为 5b830e07d355e7ea，锁文件及六包安装字节一致；相对前一构建，除包版本元数据外仅 Codex 适配器实现和声明映射变化。新增浏览器回归直接接收真实适配器发布的快照，再送入 Worker 订阅与 React 卡片，不再以直接修改文本代替原生增量。该用例在旧包上因无新快照失败，更新后与当前命令交互、光标检查共 3 项通过；引擎命令输出及受管请求测试 17 项、桌面 Codex／重试／呈现／固定包／Worker 回归 72 项通过，共 92 项。严格桌面类型检查、build:check、固定包及桌面 Notes 校验通过。命令与证据范围见 `artifacts/command-output-fix/verification.json`；引擎 Notes 全量检查仍有两项既有错误，本次修改的模块无错误。命令完成后仍清空活动区，最后一条已完成命令的保留展示尚未引入。此次未替换运行中安装版或进行真实 CLI 验收。
+
+## Alternatives considered
+
+把聊天扩成浮层会覆盖终端，另建项目 pane 则需要在切换工作区时搬移同一 Janus。全局工具树已拥有单例、布局隔离和窄窗恢复能力，因此复用。代价是终端与 SuperAgent 分属外层两个区域，不能混成同一项目 tab；各区域内部继续使用已有分屏和排序。
+
+## Consequences
+
+原 `design/janus-superagent/` 离线 HTML 保留为历史探索，不作为实现的设计来源。按用户后续要求，新交付 `design/superagent-current/SuperAgent.html` 从当前主题、对话、Worker 样式和 Janus 图形构建，离线展示五个模拟 Worker、问答、开合与终端分屏；演示控制与模拟数据明确标识，实际产品代码仍是界面事实来源。2026-11-10 合并审阅后，该旧交付及独立汇报目录已移入回收站，当前入口为 `design/superagent-merged/SuperAgent Merged.html`；汇报以紧凑摘要展示，详情按需打开，Worker 使用适配主题的 Codex 图标。
+
+执行状态仍由宿主事实决定，界面呈现偏好不能替代停止、批准或继续意图。若未来要求把全局 Janus 放入任意项目 pane，应先重新界定唯一呈现及工作区归属。
+
+代码已接入，联合检查的结果与边界统一维护在[验收证据](superagent-verification.md)，不能以本决策的接受状态推定所有固定 AC 已通过。
+
+## 输出流、编排计划与折叠（2026-11-13）
+
+SuperAgent 复用两行过程摘要和轻量工具行；动作、目标摘要、真实状态及已有耗时可见，参数／结果／错误按需展开。运行项以整行中性底色高亮，公开推理不再使用橙色左边缘。WorkDisclosureScope 现在同时保存过程和工具详情的手动开合，避免流式回复转为历史行时工具详情意外收起；回复整体开合沿用历史行缓存。最近回复、历史回复及并行分支原有默认折叠规则继续有效。
+
+编排计划使用可折叠的标题、真实完成节点数和步骤列表；运行计划默认展开，完成／停止默认收起，手动选择优先。当前运行节点整行高亮，节点仍可定位对应 Worker，并参与对话／Worker 关联高亮；没有 workId 的节点不可定位。失败、阻塞、审批与问题继续通过原待决策区域显示。Worker 文件改动仍由真实工作目录及既有 Git／diff 操作读取，不把工具参数或工作区全部改动伪造成当前回复的文件清单。
+
+输出流定向验证：35项浏览器回归、5项真实 SuperAgent 组件浏览器场景和11项单测通过。覆盖过程默认收起、最近命令、手动开合、流式归档、失败／未知／截断状态、计划版本与中断保留、文件打开及 diff、文本选择复制、向上阅读、并行分支与 Worker 关联高亮；深色／纯白／石板色及390px窄窗截图已检查。严格类型、定向 lint、生产构建与 Notes 检查通过，Notes 保留17条既有外部引用诊断。证据为 artifacts/output-stream-20261113/；只更新当前 checkout，未覆盖安装版或执行真实模型／Worker CLI 验收。
+
+## 工具调用三处视觉对齐（2026-11-13）
+
+工具视觉统一的边界是 ToolDisclosure：普通对话与 SuperAgent 不再各自维护摘要行和详情框 CSS。两行过程摘要采用动作词加等宽目标；工具行采用左侧语义图标／运行指示、动作、目标、状态／已有耗时和右侧箭头。原工具名、工作区与复制摘要位于展开区，参数和结果共用原始输出框。专属的回复／分支折叠、编排计划、审批、Worker 关联高亮和业务证据保留原逻辑。
+
+本轮验证：34 项浏览器交互回归、5 项真实 SuperAgent 组件场景、11 项工具／呈现单测及 1 项 HTML 对照测试通过。对照测试读取确认的 HTML 并比较两种生产适配器的运行／完成行内边距、32px 行高、8px 间距、图标、右侧箭头和输出框指标；深色、纯白、石板色及390px窄窗截图存于 artifacts/tool-presentation-unification-20261113/。严格类型、定向 ESLint、国际化、构建和 Notes 检查通过；Notes 保留17条既有外部引用诊断。验证为当前 checkout 和浏览器夹具，未替换安装版。

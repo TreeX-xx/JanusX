@@ -122,7 +122,7 @@ test('real Chat UI sends memo tools through HTTP, persists edits and refreshes t
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
-    const buildRoot = resolve('out')
+    const buildRoot = resolve(process.env.JANUS_DESKTOP_BUILD_ROOT ?? 'out')
     application = await electron.launch({ args: [join(buildRoot, 'main/index.js'), `--user-data-dir=${join(root, 'user-data')}`], env: { ...createDesktopTestEnv(root), JANUSX_DEV_BUILD_ROOT: buildRoot } })
     const page = await application.firstWindow()
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1400, 800))
@@ -143,7 +143,8 @@ test('real Chat UI sends memo tools through HTTP, persists edits and refreshes t
     await seedIntroducedLearning(page)
     await page.reload()
     await page.locator('.janus-island').dblclick()
-      await page.getByRole('button', { name: 'Open memo on the right' }).click()
+    await page.getByRole('combobox', { name: 'Agent mode (next message)' }).selectOption('ordinary')
+    await page.getByRole('button', { name: 'Open memo on the right' }).click()
     await page.getByRole('button', { name: 'Review A', exact: true }).click()
     await page.getByRole('tab', { name: 'First', exact: true }).press('ArrowRight')
     await expect(page.getByRole('textbox', { name: 'Node title', exact: true })).toHaveValue('Target')

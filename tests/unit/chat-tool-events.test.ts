@@ -1,6 +1,25 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import type { ChatTurnPorts } from '@janus-agent/janus-agent'
 import { attachChatToolEvents, currentChatCallId } from '../../src/main/llm/chat-tool-events'
+
+it('forwards request cancellation and publishes deferred receipts on the original call', async () => {
+  const controller = new AbortController()
+  const receipt = { toolName: 'command.run', workspaceId: 'w', correlationId: 'c', status: 'completed', summary: 'done', output: { ok: true, exitCode: 0 } }
+  const execute = vi.fn(async () => ({ ...receipt, continuation: { executionId: 'e' }, output: { state: 'running' } }))
+  const wait = vi.fn(async () => [{ executionId: 'e', result: receipt }])
+  const entries: any[] = []
+  const ports = { tools: { executeFunctionCall: execute, awaitBackground: wait } } as unknown as ChatTurnPorts
+  attachChatToolEvents(ports, 'r', entry => entries.push(entry))
+  const input = { sessionId: 's', call: { toolName: 'command.run', input: {}, correlationId: 'c' } }
+  await ports.tools.executeFunctionCall(input, 'caller', controller.signal)
+  expect(execute).toHaveBeenCalledWith(input, 'caller', controller.signal)
+  await ports.tools.awaitBackground!([{ sessionId: 's', executionId: 'e' }], { signal: controller.signal }, 'caller')
+  expect(entries.map(entry => entry.callId)).toEqual(['c', 'c'])
+  expect(entries.map(entry => entry.status)).toEqual(['running', 'completed'])
+  controller.abort()
+  await ports.tools.awaitBackground!([{ sessionId: 's', executionId: 'e' }], { signal: controller.signal }, 'caller')
+  expect(entries).toHaveLength(2)
+})
 
 it('keeps parallel same-name calls and their business events bound to the originating call', async () => {
   const seen: string[] = []

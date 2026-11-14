@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,6 +10,23 @@ beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'janusx-memory-tool
 afterEach(async () => { await rm(root, { recursive: true, force: true }) })
 
 describe('host memory tool event context', () => {
+  it('preserves the request abort signal through its executeTool wrapper', async () => {
+    const runtime = bindMemoryToolIdentity(createAgentRuntime({ resolveWorkspaceRoot: async () => root }))
+    let entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const execute = vi.fn((_input, context) => new Promise((_resolve, reject) => {
+      context.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })
+      entered()
+    }))
+    runtime.registry.register({ name: 'probe', description: 'wait', actionRisk: 'read', inputSchema: { type: 'object' }, execute })
+    const session = await runtime.createSession({ workspaceId: 'workspace', workspaceRoot: root })
+    const controller = new AbortController()
+    const pending = runtime.executeFunctionCall({ sessionId: session.id, call: { toolName: 'probe', input: {} } }, 'caller', controller.signal)
+    await started
+    controller.abort()
+    expect((await pending).status).toBe('cancelled')
+    await runtime.cancelSession(session.id)
+  })
   it('carries the actual runtime event through concurrent calls without accepting payload identity', async () => {
     const runtime = bindMemoryToolIdentity(createAgentRuntime({ resolveWorkspaceRoot: async () => root }))
     runtime.registry.register({ name: 'probe', description: 'read event', actionRisk: 'read', inputSchema: { type: 'object' },

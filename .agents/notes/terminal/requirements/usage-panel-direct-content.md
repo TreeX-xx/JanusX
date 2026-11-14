@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-14",
-  "updated": "2026-10-22T07:55:52Z",
+  "updated": "2026-11-13T03:26:22Z",
   "class": "simplification",
   "tags": ["usage", "context", "panel", "interaction"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
@@ -49,6 +49,8 @@
 - [x] AC-4: 面板中不再展示“遥测状态”分区及其内部诊断信息。
 - [x] AC-5: 卡片与悬浮提示的缓存命中率为会话累计口径，公式与设置页统计同源（`cacheSplitFor`）；标签为“缓存命中率”，不声明“最近”。缺字段显示“–”，明确零命中显示 `0.0%`。
 
+2026-11-13 原型落地修订：底栏保持28px占位，统计面板改向上覆盖，不再挤压终端/对话或改变阅读位置。圆环18px、百分比外置，支持悬浮/聚焦/点击查看精确明细；主要统计直接展示，压缩次数并入主卡片，“更多统计”只收纳剩余上下文、运行窗口和模型容量。三/二/一列响应布局、关闭/Esc/外部点击/移焦、内部滚动及减少动态支持已实现；保留指针与键盘调高。新外观取代上述旧卡片样式，既有真实数据口径与未知值契约保持；详见[底部用量栏](../../workbench/runtime-drawer-cards-resize.md)。
+
 ## Implementation status
 
 已在当前工作树实施。界面入口为 `src/renderer/src/components/TerminalArea.tsx`，统计行与运行时间由 `TerminalUsageDetails.tsx` 提供。
@@ -56,6 +58,8 @@
 2026-10-22：命中率改为 `TerminalUsageDetails.tsx` 的 `cacheHitRateLabel`，直接调用 `@/lib/usage-stats` 的 `cacheSplitFor`，读取既有会话累计投影字段，不新增 IPC 与解析。标签键由 `terminal:context.row.recentCacheHitRate` 更名为 `terminal:context.row.cacheHitRate`（中「缓存命中率」/ 英 `Cache hit rate`）。同时移除 `recentCacheHitRate`：`src/main/runtime-telemetry/history.ts` 的 `recentCacheHitRate()` 及四处源赋值（Claude/Codex/OpenCode/Pi）、`src/shared/ipc/system.ts` 契约字段、`src/renderer/src/lib/runtime-telemetry.ts` 的两处接口声明与合并分支及两处字段清单、`src/renderer/src/types/index.ts` 的 `Terminal` 字段。持久账本的累计口径与聚合契约不受影响。
 
 ## Validation evidence
+
+2026-11-13 验证：`npx playwright test tests/e2e/terminal-usage.spec.ts tests/e2e/workspace-surface.spec.ts tests/e2e/runtime-drawer-overlay.spec.ts --project=island --workers=1 --timeout=60000 --output artifacts/runtime-drawer-production-20261113/final-browser` 共23项通过（用量3、覆盖式交互7、工作区13）。覆盖圆环独立点击/悬浮/键盘焦点、Esc优先级、关闭归焦与inert、真实xterm几何和历史阅读位置、连续开合、更多统计状态保留、指针/键盘调高、三种主题及360–1440px布局。已目视检查白色桌面、纸色390px和深色360px最终截图。严格类型、定向ESLint、翻译一致性及最终build:check通过；Notes校验0错误、17条既有外部链接诊断。日志和截图位于 `artifacts/runtime-drawer-production-20261113/`。首轮卡片切换断言按移焦自动关闭的交互更新；一次首次页面加载超时以60秒测试时限复跑通过；截图检查发现的减少动态选择器优先级问题及夹具未实际选择纸色主题均已修复并复验。未运行完整测试套件、live Electron、真实模型/CLI用量对账或打包替换安装版。
 
 悬浮恢复回归：`tests/e2e/terminal-usage.spec.ts` 三项通过，覆盖抽屉收起时徽标、卡片悬浮、移开关闭、实时值变化、零与未知、中英文和 480px 提示边界。已查看 `artifacts/terminal-usage-narrow.png`。本轮同时运行的遥测单测三文件 42 项通过；严格类型、定向 ESLint、翻译一致性及 `build:check` 通过。测试使用 renderer fixture，尚未确认用户当前运行实例中的 Codex 会话是否已精确绑定。
 

@@ -2,6 +2,7 @@ import { createServer } from 'node:net'
 import { isAbsolute, relative, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { execa } from 'execa'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 import type { OfficePreviewLease, OfficeWatchErrorCode, OfficeWatchEvictedEvent } from '../../shared/office'
 import { officecliManager } from './officecli-manager'
 import { createOfficePreviewProxy } from './office-preview-proxy'
@@ -163,6 +164,7 @@ export class OfficeWatchPool {
   }
 
   async acquire(file: TrustedOfficeFile): Promise<OfficePreviewLease> {
+    assertApplicationRunning()
     const key = file.filePath
     if (this.stoppingAll || Array.from(this.stoppingRoots).some((root) => isWithinRoot(root, key))) {
       throw new OfficeWatchPoolError('START_FAILED')

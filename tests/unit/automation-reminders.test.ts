@@ -112,7 +112,7 @@ it('coalesces missed intervals and only delivers the new occurrence once', async
   now.value += 80_000; await service.tick()
   expect(Date.parse(service.list()[0].nextRunAt!) - now.value).toBe(40_000)
 })
-it('normal chat loop offers and executes reminder tools without a workspace', async () => {
+it.each(['ordinary', 'superagent'] as const)('%s chat loop offers reminder drafts without a workspace or saving a schedule', async agentMode => {
   const { service } = await fixture()
   let rounds = 0
   const ports: ChatTurnPorts = {
@@ -131,7 +131,7 @@ it('normal chat loop offers and executes reminder tools without a workspace', as
   }
   const draft = vi.fn()
   attachReminderChatTools(ports, new AbortController().signal, draft)
-  const result = await runChatTurn({ requestId: 'reminder', providerId: 'fixture', sourceTag: 'janus-chat', systemPromptPrefix: REMINDER_CHAT_PROMPT,
+  const result = await runChatTurn({ requestId: 'reminder', providerId: 'fixture', sourceTag: 'janus-chat', agentMode, systemPromptPrefix: REMINDER_CHAT_PROMPT,
     messages: [{ role: 'user', content: '生成一个自动化流程，每一分钟提醒我检查一下手机，以通知的形式' }] }, ports)
   expect(draft).toHaveBeenCalledOnce(); expect(service.list()).toHaveLength(0)
   expect(result.toolTraces.map(trace => trace.toolName)).toEqual(['automation_reminder'])

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-12T11:51:42Z",
+  "updated": "2026-11-12T17:13:34.898Z",
   "class": "architecture",
   "tags": ["shutdown", "windows", "macos", "superagent"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",

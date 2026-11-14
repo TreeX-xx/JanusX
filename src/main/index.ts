@@ -6,6 +6,9 @@ import { configureStartupDiagnostics, logStartupFailure } from './bootstrap/star
 import { join } from 'node:path'
 import { registerPluginScheme } from './plugins/scheme'
 import { configureBrowserDebugging } from './browser/devtools-runtime'
+import { isApplicationQuitting } from './shutdown/quit-state'
+import { logShutdown } from './shutdown/diagnostics'
+import { retryPendingProcessStops } from './shutdown/process-tree'
 
 registerPluginScheme()
 
@@ -34,6 +37,10 @@ const FATAL_BURST_THRESHOLD = 20
 const FATAL_BURST_WINDOW_MS = 5000
 
 function triggerFatalRelaunch(reason: string): void {
+  if (isApplicationQuitting()) {
+    logShutdown('relaunch-suppressed', { reason })
+    return
+  }
   console.error(`[main] fatal relaunch triggered: ${reason}`)
   try {
     if (app.isReady()) app.relaunch()
@@ -224,6 +231,7 @@ async function bootstrapApp(): Promise<void> {
     createApplicationServices(getOfficeWindows)
 
   appShutdown.configure({
+    forceProcesses: retryPendingProcessStops,
     abortChatStreams: () => abortAllChatStreams(),
     killTerminals: () => terminalManager.killAll(),
     killAgents: () => agentStreamManager.killAll(),
@@ -241,6 +249,7 @@ async function bootstrapApp(): Promise<void> {
   })
 
   function createWindow(): void {
+    if (appShutdown.isQuitting) return
     mainWindow = createMainWindow(() => {
       officeArtifactIndex.disposeAll()
       void feishuInboundRuntime.stop()
@@ -278,6 +287,7 @@ async function bootstrapApp(): Promise<void> {
   }
 
   app.on('second-instance', () => {
+    if (appShutdown.isQuitting) return
     if (!mainWindow || mainWindow.isDestroyed()) {
       if (app.isReady()) createWindow()
       return
@@ -295,13 +305,13 @@ async function bootstrapApp(): Promise<void> {
   })
 
   app.on('before-quit', (event) => {
-    if (appShutdown.isQuitting) return
     event.preventDefault()
+    if (!appShutdown.requestQuit()) return
     const ack = mainWindow && !mainWindow.isDestroyed()
       ? new Promise<void>((resolve) => {
           quitAck = resolve
-          mainWindow!.webContents.send('app:prepareQuit')
           setTimeout(resolve, 1_000).unref?.()
+          try { mainWindow!.webContents.send('app:prepareQuit') } catch { resolve() }
         })
       : Promise.resolve()
     void ack.then(() => appShutdown.beginQuit({ reason: 'before-quit' }))

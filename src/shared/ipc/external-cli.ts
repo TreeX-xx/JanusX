@@ -16,10 +16,10 @@ export const EXTERNAL_CLI_CHANNELS = {
 
 export type ExternalCliChannel = (typeof EXTERNAL_CLI_CHANNELS)[keyof typeof EXTERNAL_CLI_CHANNELS]
 
-/** 受管外部终端白名单；与 JanusX 终端预设的外部 CLI 对齐（claude/codex/opencode/pi 为第三方，janus 为自有 sibling 源码构建） */
+/** 受管外部终端白名单；与 JanusX 终端预设的外部 CLI 对齐；janus 仅保留内置模型配置与旧记录身份 */
 export type ExternalCliToolId = 'claude' | 'codex' | 'opencode' | 'pi' | 'janus' | 'dsh'
 
-export const EXTERNAL_CLI_TOOL_ORDER: readonly ExternalCliToolId[] = ['janus', 'claude', 'codex', 'opencode', 'pi', 'dsh']
+export const EXTERNAL_CLI_TOOL_ORDER: readonly Exclude<ExternalCliToolId, 'janus'>[] = [ 'claude', 'codex', 'opencode', 'pi', 'dsh']
 
 /** 两端共享的展示元数据：首字母徽标＋品牌色，不引入二进制图标资产。 */
 export interface ExternalCliToolMeta {

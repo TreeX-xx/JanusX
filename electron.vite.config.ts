@@ -56,6 +56,7 @@ export default defineConfig(async ({ command }) => {
             'note-mcp': resolve(__dirname, 'src/main/plugins/note-mcp-launcher.ts'),
             'plugin-mcp': resolve(__dirname, 'src/main/plugins/plugin-mcp-entry.ts'),
             'office-mcp': resolve(__dirname, 'src/main/office/office-mcp.ts'),
+            'worker-mcp': resolve(__dirname, 'src/main/janus/superagent/worker-mcp.ts'),
             'browser-mcp': resolve(__dirname, 'src/main/browser/terminal-mcp.ts'),
             'office-launcher': resolve(__dirname, 'src/main/office/office-launcher.ts')
           }

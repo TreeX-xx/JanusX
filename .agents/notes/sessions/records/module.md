@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-23T03:08:30Z",
+  "updated": "2026-11-11T04:21:31Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662",
   "moduleState": "partial",
   "codeRefs": [
@@ -46,6 +46,8 @@
 维护稳定的会话身份、终端绑定、回合记录、外部转录发现与有界读取，以及会话时间线和续接。提供 AgentSessionRegistry 给终端、检查点及其他调用方。
 
 ## Design
+
+会话标题来自提供方已有的会话概括，卡片另显示最近讨论预览，首次提示保留在详情。指令注入过滤、旧首问清理与标题同步边界见[会话内容真值](session-content-truth-kernel.md)。
 
 注册表先加载后写入并在退出前刷盘，外部扫描批量合并通知；各引擎的转录与续接能力显式判断。会话管理只读取账本回合和提供方转录，保留筛选、归档查阅、复制、实时预览、详情导航与原生续接；不显示还原点计数、文件变更、diff 或恢复操作，也不请求 checkpoint IPC。问题文本来自回合快照与转录合并，不再从检查点补齐。底层快照创建、数据与其他调用方仍归 [会话检查点](../checkpoints/module.md)，本次移除不迁移或删除历史记录。界面分层见 [窗口化阅读](session-windowed-reading.md)。Hook 能力表属于终端事件协作边界，知识证据提取由知识模块维护。
 

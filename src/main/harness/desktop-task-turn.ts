@@ -120,7 +120,8 @@ export async function generateDesktopReviewText(root: string, runId: string, tok
     }, buildJanusChatTurnPorts({
       callerId, getProviderSettings: async () => ({ modelId: deps.modelId }), getLanguageModel: deps.getModel,
       getMaxTurns: async () => deps.maxTurns, getAgentSession: (id) => runtime.getSession(id),
-      executeFunctionCall: (input, caller) => runtime.executeFunctionCall(input, caller),
+      executeFunctionCall: (input, caller, signal) => runtime.executeFunctionCall(input, caller, signal),
+      awaitBackground: (refs, options, caller) => runtime.awaitBackground(refs, options, caller),
       listRegistryTools: () => runtime.registry.list(), listRegistryManifests: () => runtime.registry.listManifests(),
       streamTextFn: deps.streamTextFn,
     }), {}, signal)
@@ -163,7 +164,8 @@ export function createDesktopImplementationPort(deps: DesktopTaskModelDeps) {
         getLanguageModel: deps.getModel,
         getMaxTurns: async () => deps.maxTurns,
         getAgentSession: (id) => runtime.getSession(id),
-        executeFunctionCall: (input, caller) => runtime.executeFunctionCall(input, caller),
+        executeFunctionCall: (input, caller, signal) => runtime.executeFunctionCall(input, caller, signal),
+        awaitBackground: (refs, options, caller) => runtime.awaitBackground(refs, options, caller),
         listRegistryTools: () => runtime.registry.list(),
         listRegistryManifests: () => runtime.registry.listManifests(),
         streamTextFn: deps.streamTextFn,

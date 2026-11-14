@@ -5,7 +5,8 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, CircleCheck, CircleX, Copy, LoaderCircle, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Send, ShieldX, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, CircleCheck, CircleX, Copy, LoaderCircle, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Send, ShieldX, Trash2, X } from 'lucide-react'
+import { JanusIcon } from '../ui/JanusIcon'
 import type { ChatModelOption, JanusResourceController, Message, UseJanusChatReturn } from './useJanusChat'
 import type { ChatQuestionAnswer, ChatTodoItem, ChatToolTraceEntry } from '../../../../shared/ipc/llm'
 import type { AgentApprovalMode } from '../../../../shared/ipc/agent-runtime'
@@ -19,6 +20,17 @@ import { PromptDialog } from '../common/PromptDialog'
 import { ToolCallGroup } from './ToolCallCard'
 import { ThinkingRegion } from './ThinkingRegion'
 import { VirtualHistory } from '../chat/VirtualHistory'
+import { WorkerReportMessage } from './WorkerReportCard'
+import { SuperAgentMessage } from './SuperAgentPresentation'
+import { TranscriptNavigation } from './TranscriptNavigation'
+import { useWorkerShortcuts } from './useWorkerShortcuts'
+import { SuperAgentReply, messageRounds } from './SuperAgentReply'
+import { ConversationInput, type ConversationInputHandle } from '../ConversationInput'
+import { JanusContextComposer } from './JanusContextComposer'
+import { useConversationContext } from '../../stores/conversation-context'
+import { activeConversationReferences, conversationPrompt, referenceToken, type ConversationReference, type MessageContext } from '../../../../shared/conversation-context'
+import { MessageContextChips } from './MessageContextChips'
+import { ConversationPrompt } from '../ConversationPrompt'
 import { WorkDisclosureScope } from '../chat/WorkDisclosure'
 import { ChatTimeline, type ChatTimelineProps } from './ChatTimeline'
 import type { ChatTimelineSnapshot } from '../../../../shared/chat-timeline'
@@ -28,8 +40,10 @@ import type { JanusChatStatus, JanusPendingQuestion } from './janusRuntimeState'
 import { Select } from '../ui/Select'
 import { ChatContextIndicator } from './ChatContextIndicator'
 import { MemoPanel } from '../memo/MemoPanel'
+import { AgentModeSelect } from './AgentModeSelect'
 import { useMemoStore } from '@/stores/memo'
 import { useIslandStore } from '@/stores/island'
+import nativeScrollbars from '../../styles/native-scrollbars.module.css'
 
 type SelectionMenu = 'provider' | 'model' | 'permission'
 type PermissionOption = { value: AgentApprovalMode; label: string }
@@ -43,9 +57,10 @@ interface ChatShortcutEvent {
   isComposing: boolean
 }
 
-export function resolveChatSelectionShortcut(event: ChatShortcutEvent): SelectionMenu | null {
+export function resolveChatSelectionShortcut(event: ChatShortcutEvent, showModelSelector = true): SelectionMenu | null {
   if (event.isComposing || event.altKey) return null
   if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'f') return 'permission'
+  if (!showModelSelector) return null
   if (event.shiftKey) return null
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') return 'model'
   if (!event.ctrlKey && !event.metaKey && event.key === 'Tab') return 'provider'
@@ -76,11 +91,25 @@ export interface RoundtableHostQuestionBlock {
 }
 
 interface JanusChatProps {
+  workerShortcuts?: { workspaceId: string | null }
+  superAgentTranscript?: boolean
+  latestReplyId?: string
+  contextComposer?: { id: string; workspacePath?: string }
+  transcriptOnly?: boolean
+  transcriptContent?: React.ReactNode
   /** 是否显示 */
   visible: boolean
   /** 停靠态：作为右侧 flex 列，而非绝对浮层 */
   docked?: boolean
   compactNavigation?: boolean
+  /** Hosts such as SuperAgent own their context and omit manual navigation. */
+  showConversationNavigation?: boolean
+  showWorkspaceScope?: boolean
+  showContextIndicator?: boolean
+  /** Standard chat hosts that do not provide their own mode control. */
+  showAgentMode?: boolean
+  /** Shared Island/SuperAgent appearance based on the native conversation view. */
+  conversationStyle?: boolean
   /** Embed only the discussion and composer (workspace scope stays in the main chat view). */
   discussionOnly?: boolean
   /**
@@ -138,6 +167,8 @@ interface JanusChatProps {
   /** 错误信息 */
   error: string | null
   modelOptions?: ChatModelOption[]
+  /** Settings-owned surfaces hide both model/provider menus and their shortcuts. */
+  showModelSelector?: boolean
   activeModel?: ChatModelOption | null
   modelNotice?: string | null
   resourceController?: JanusResourceController
@@ -145,7 +176,7 @@ interface JanusChatProps {
   conversationController?: UseJanusChatReturn | null
   onSelectModel?: (providerId: string, modelId: string) => void
   /** 发送一条用户消息 */
-  onSend: (text: string) => void
+  onSend: (text: string, context?: MessageContext) => void | Promise<void>
   /** 重写历史用户消息并从该轮重新生成 */
   onRewrite: (messageId: string, text: string) => void
   /** 停止当前流式输出 */
@@ -161,7 +192,7 @@ interface JanusChatProps {
   /** Open mid-turn questions (defaults to conversationController). */
   pendingQuestions?: JanusPendingQuestion[] | null
   /** Answer one pending mid-turn question (defaults to conversationController). */
-  onAnswerQuestion?: ((callId: string, answer: ChatQuestionAnswer) => void) | null
+  onAnswerQuestion?: ((callId: string, answer: ChatQuestionAnswer) => void | Promise<void>) | null
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -258,10 +289,21 @@ function TodoStrip({ todos }: { todos: ChatTodoItem[] }) {
   )
 }
 
-function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer: (answer: ChatQuestionAnswer) => void }) {
+function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer: (answer: ChatQuestionAnswer) => void | Promise<void> }) {
   const { t } = useI18n('janus')
   const [selected, setSelected] = useState<Record<number, string[]>>({})
   const [custom, setCustom] = useState<Record<number, string>>({})
+  const [deferred, setDeferred] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [answerError, setAnswerError] = useState('')
+  const submitting = useRef(false)
+  const deliver = async (answer: ChatQuestionAnswer) => {
+    if (submitting.current) return
+    submitting.current = true; setSending(true); setAnswerError('')
+    try { await onAnswer(answer) } catch (error) {
+      submitting.current = false; setSending(false); setAnswerError(String(error))
+    }
+  }
 
   const toggleOption = (questionIndex: number, label: string, multiple: boolean) => {
     setSelected((current) => {
@@ -280,7 +322,7 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
 
   const submit = () => {
     if (!submittable) return
-    onAnswer({
+    void deliver({
       status: 'answered',
       answers: gate.questions.map((question, index) => {
         const customText = (custom[index] ?? '').trim()
@@ -297,9 +339,11 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
     <div className="janus-question-gate" role="region" aria-label={t('janus:chat.question.regionAria')}>
       <div className="janus-question-gate-heading">
         <strong>{t('janus:chat.question.heading')}</strong>
+        <button type="button" onClick={() => setDeferred(!deferred)}>{t(deferred ? 'janus:topics.answerNow' : 'janus:topics.defer')}</button>
       </div>
+      <div hidden={deferred}>
       {gate.questions.map((question, questionIndex) => (
-        <fieldset key={`${question.header}-${questionIndex}`} className="janus-question-item">
+        <fieldset key={`${question.header}-${questionIndex}`} className="janus-question-item" disabled={sending}>
           <legend>
             <strong>{question.header}</strong>
             <span>{question.question}</span>
@@ -338,13 +382,15 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
         </fieldset>
       ))}
       <div className="janus-question-gate-actions">
-        <button type="button" className="janus-question-cancel" onClick={() => onAnswer({ status: 'cancelled' })}>
+        <button type="button" className="janus-question-cancel" disabled={sending} onClick={() => void deliver({ status: 'cancelled' })}>
           {t('janus:chat.question.cancel')}
         </button>
-        <button type="button" className="janus-question-submit" disabled={!submittable} onClick={submit}>
-          {t('janus:chat.question.submit')}
+        <button type="button" className="janus-question-submit" disabled={!submittable || sending} onClick={submit}>
+          {t(sending ? 'janus:topics.submitted' : 'janus:chat.question.submit')}
         </button>
       </div>
+      </div>
+      {answerError && <p role="alert">{answerError}</p>}
     </div>
   )
 }
@@ -364,7 +410,7 @@ function TurnStatusRow({ status, startedAt }: { status: JanusChatStatus; started
   const elapsed = typeof startedAt === 'number' ? formatThinkingDuration(Math.max(0, now - startedAt)) : null
   const text = status.kind === 'running' && status.toolName
     ? t('janus:chat.turnStatus.running', { tool: status.toolName })
-    : status.kind === 'thinking'
+    : status.kind === 'connecting' ? t('janus:chat.turnStatus.connecting') : status.kind === 'thinking'
       ? t('janus:chat.turnStatus.thinking')
       : status.kind === 'writing'
         ? t('janus:chat.turnStatus.writing')
@@ -388,16 +434,28 @@ function TurnStatusRow({ status, startedAt }: { status: JanusChatStatus; started
 
 const EMPTY_REASONING_SNAPSHOT: ReasoningSnapshot = { text: '', chars: 0, truncated: false }
 const EMPTY_REASONING_BY_TURN: Record<string, ReasoningSnapshot> = {}
-const FALLBACK_TURN_STATUS: JanusChatStatus = { kind: 'thinking' }
+const FALLBACK_TURN_STATUS: JanusChatStatus = { kind: 'connecting' }
 const CHAT_SIDEBAR_STORAGE_KEY = 'janus:chat-sidebar-collapsed'
+const EMPTY_REFERENCES: ConversationReference[] = []
 
 export function JanusChat({
+  superAgentTranscript = false,
+  latestReplyId,
+  contextComposer,
   visible,
   docked = false,
   compactNavigation = false,
+  showConversationNavigation = true,
+  showWorkspaceScope = true,
+  showContextIndicator = true,
+  showAgentMode = false,
+  conversationStyle = false,
   discussionOnly = false,
   minimalComposer = false,
   discussionFooter,
+  transcriptOnly = false,
+  transcriptContent,
+  workerShortcuts,
   emptyState,
   renderTurnFooter,
   renderToolDetails = block => <NoteTimelineDetails block={block} />,
@@ -414,6 +472,7 @@ export function JanusChat({
   turnStatus: turnStatusProp = null,
   error,
   modelOptions = [],
+  showModelSelector = true,
   activeModel = null,
   modelNotice = null,
   roundtableCards = [],
@@ -441,18 +500,19 @@ export function JanusChat({
   const [input, setInput] = useState('')
   const chatRequest = useIslandStore(state => state.chatRequest)
   useEffect(() => {
-    if (!chatRequest) return
+    if (transcriptOnly || !chatRequest || !visible) return
     if (chatRequest.prefill) setInput(chatRequest.prefill)
     useIslandStore.getState().consumeChat(chatRequest.sequence)
-  }, [chatRequest])
+  }, [chatRequest, visible, transcriptOnly])
   const [historyPageSize, setHistoryPageSize] = useState(100)
   const historyEntries = useMemo(() => [...messages.slice(-historyPageSize).map((msg) => ({ kind: 'message' as const, timestamp: msg.timestamp, msg })), ...roundtableCards.map((card) => ({ kind: 'card' as const, timestamp: Date.parse(card.updatedAt || card.createdAt) || 0, card })), ...roundtableQuestions.map((block) => ({ kind: 'questions' as const, timestamp: block.timestamp, block}))]
-          .sort((a, b) => a.timestamp - b.timestamp), [messages, historyPageSize, roundtableCards, roundtableQuestions])
+          .sort((a, b) => transcriptOnly ? 0 : a.timestamp - b.timestamp), [messages, historyPageSize, roundtableCards, roundtableQuestions, transcriptOnly])
 
   // Composer auto-grows from content (including soft-wrapped long lines) up to
   // MAX_COMPOSER_HEIGHT, then scrolls internally. Counting '\n' is not enough:
   // a single long line without newlines would stay one row high and overflow.
   const [showNewMessageBadge, setShowNewMessageBadge] = useState(false)
+  const [showLatest, setShowLatest] = useState(false)
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu | null>(null)
   const [menuIndex, setMenuIndex] = useState(0)
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
@@ -471,8 +531,15 @@ export function JanusChat({
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<{ id: string; title: string } | null>(null)
   const [isRestoringScroll, setIsRestoringScroll] = useState(true)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const messagesEndRef = useRef<HTMLSpanElement>(null)
+  const transcriptContentRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const richInputRef = useRef<ConversationInputHandle>(null)
+  const shortcuts = useWorkerShortcuts(workerShortcuts, input, setInput, richInputRef)
+  const [sendingShortcut, setSendingShortcut] = useState(false)
+  const shortcutSendRef = useRef(false)
+  const composerInput = contextComposer ? richInputRef : inputRef
+  const references = useConversationContext(state => contextComposer ? state.entries[contextComposer.id] : undefined) ?? EMPTY_REFERENCES
+  const [contextImporting, setContextImporting] = useState(false)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const chatRootRef = useRef<HTMLDivElement>(null)
   const threadSelectorRef = useRef<HTMLDivElement>(null)
@@ -493,6 +560,8 @@ export function JanusChat({
   const historyDraftRef = useRef('')
   const contextConversations = useOptionalJanusChatController()
   const conversations = controllerOverride ?? contextConversations
+  const rounds = useMemo(() => messageRounds(messages), [messages])
+  const pendingRound = superAgentTranscript ? [...rounds.values()].at(-1) : undefined
   const activeApprovalMode = approvalMode ?? conversations?.approvalMode ?? 'per-action'
   const activeTimeline = conversations?.pendingTimeline
   const activePendingReasoning = pendingReasoningProp ?? conversations?.pendingReasoning ?? EMPTY_REASONING_SNAPSHOT
@@ -519,7 +588,7 @@ export function JanusChat({
     })
   }, [])
 
-  const showConversationSidebar = !!docked && !!conversations && !discussionOnly && !compactNavigation
+  const showConversationSidebar = showConversationNavigation && !!docked && !!conversations && !discussionOnly && !compactNavigation
   const copyMessage = useCallback((content: string) => {
     if (!navigator.clipboard) return
     void navigator.clipboard.writeText(content).catch(() => undefined)
@@ -529,7 +598,7 @@ export function JanusChat({
     .filter((message) => message.role === 'user')
     .map((message) => message.content)
   const providerOptions = getProviderMenuOptions(modelOptions)
-  const activeProviderModels = activeModel
+  const activeProviderModels = activeModel && !contextComposer
     ? modelOptions.filter((option) => option.providerId === activeModel.providerId)
     : modelOptions
   const permissionOptions = useMemo<PermissionOption[]>(() => [
@@ -579,14 +648,14 @@ export function JanusChat({
   // 滚动到底�?
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const container = messagesContainerRef.current
-    if (!container) return
+    if (!container || transcriptOnly) return
     if (behavior === 'auto') {
       // Bypass CSS scroll-behavior so history hydration never animates.
       container.scrollTop = container.scrollHeight
       return
     }
-    messagesEndRef.current?.scrollIntoView({ behavior })
-  }, [])
+    container.scrollTo({ top: container.scrollHeight, behavior })
+  }, [transcriptOnly])
 
   // 监听滚动，判断用户是否在底部
   const handleScroll = useCallback(() => {
@@ -595,10 +664,26 @@ export function JanusChat({
     const threshold = 20
     const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= threshold
     isAtBottomRef.current = atBottom
+    setShowLatest(!atBottom)
     if (atBottom) {
       setShowNewMessageBadge(false)
     }
   }, [])
+
+  // Topic transcripts grow independently of the outer chat's message array.
+  // Observe their layout, following only while the reader remains at the end.
+  const hasTranscriptContent = transcriptContent != null
+  useLayoutEffect(() => {
+    const content = transcriptContentRef.current, container = messagesContainerRef.current
+    if (!visible || !hasTranscriptContent || !content || !container) return
+    const observer = new ResizeObserver(() => {
+      if (isAtBottomRef.current) container.scrollTop = container.scrollHeight
+      handleScroll()
+    })
+    observer.observe(content)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [visible, hasTranscriptContent, handleScroll])
 
   useLayoutEffect(() => {
     const becameVisible = visible && !previousVisibleRef.current
@@ -609,6 +694,7 @@ export function JanusChat({
     const container = messagesContainerRef.current
     if (container) container.scrollTop = container.scrollHeight
     isAtBottomRef.current = true
+    setShowLatest(false)
     setShowNewMessageBadge(false)
     setIsRestoringScroll(true)
     const frame = window.requestAnimationFrame(() => {
@@ -671,9 +757,9 @@ export function JanusChat({
     if (visible && focused) {
       chatRootRef.current?.focus({ preventScroll: true })
       focusTimerRef.current = window.setTimeout(() => {
-        const inputElement = inputRef.current
+        const inputElement = composerInput.current
         // Respect focus moved to a companion control or dialog during the opening delay.
-        if (inputElement && !inputElement.disabled && document.activeElement === chatRootRef.current) inputElement.focus()
+        if (inputElement && !('disabled' in inputElement && inputElement.disabled) && document.activeElement === chatRootRef.current) inputElement.focus()
       }, 100)
     }
     return () => {
@@ -682,7 +768,7 @@ export function JanusChat({
         focusTimerRef.current = null
       }
     }
-  }, [focused, visible])
+  }, [focused, visible, composerInput])
 
   // 发送消息（支持重试传入指定文本�?
   const MAX_COMPOSER_HEIGHT = 150
@@ -742,7 +828,7 @@ export function JanusChat({
     (textOverride?: string) => {
       const text = (textOverride ?? input).trim()
       // R6-lite：流式中发送由 hook 路由进排队（自然结束边界自动发出），此处不再拦截。
-      if (!text) return
+      if (!text || contextImporting || shortcutSendRef.current) return
 
       setInput('')
       setHistoryIndex(null)
@@ -756,9 +842,16 @@ export function JanusChat({
         isAtBottomRef.current = true
         scrollToBottom('auto')
       }
-      onSend(text)
+      const restore = () => setInput(current => current ? `${text}\n\n${current}` : text)
+      const activeRefs = contextComposer ? activeConversationReferences(text, references) : []
+      const prompt = contextComposer ? conversationPrompt(text, activeRefs) : text
+      const context = activeRefs.length || shortcuts.selected ? { text:activeRefs.reduce((plain, ref) => plain.replaceAll(referenceToken(ref), ''),text).trim(), references:activeRefs.map(ref => ({...ref})), worker: shortcuts.selected } : undefined
+      if (shortcuts.selected) { shortcutSendRef.current = true; setSendingShortcut(true) }
+      try { void Promise.resolve(onSend(prompt, context)).then(() => { if (shortcuts.selected) shortcuts.clear() }).catch(restore)
+        .finally(() => { if (shortcuts.selected) { shortcutSendRef.current = false; setSendingShortcut(false) } })
+      } catch { restore(); if (shortcuts.selected) { shortcutSendRef.current = false; setSendingShortcut(false) } }
     },
-    [input, onSend, scrollToBottom, discussionOnly]
+    [input, onSend, scrollToBottom, discussionOnly, contextImporting, contextComposer, references, shortcuts]
   )
 
   // 输入变化；高度由上面的 auto-grow effect 按 scrollHeight 调整，
@@ -769,17 +862,17 @@ export function JanusChat({
   }, [])
 
   const openSelectionMenu = useCallback((menu: SelectionMenu) => {
-    if (minimalComposer) return
+    if (minimalComposer || (!showModelSelector && menu !== 'permission')) return
     if (menu === 'permission') {
       const activeIndex = permissionOptions.findIndex((option) => option.value === activeApprovalMode)
       setSelectionMenu(menu)
       setMenuIndex(activeIndex >= 0 ? activeIndex : 0)
-      window.requestAnimationFrame(() => inputRef.current?.focus())
+      window.requestAnimationFrame(() => composerInput.current?.focus())
       return
     }
     const options = menu === 'provider'
       ? getProviderMenuOptions(modelOptions)
-      : activeModel
+      : activeModel && !contextComposer
         ? modelOptions.filter((option) => option.providerId === activeModel.providerId)
         : modelOptions
     const activeIndex = options.findIndex((option) => menu === 'provider'
@@ -787,8 +880,8 @@ export function JanusChat({
       : option.providerId === activeModel?.providerId && option.modelId === activeModel?.modelId)
     setSelectionMenu(menu)
     setMenuIndex(activeIndex >= 0 ? activeIndex : 0)
-    window.requestAnimationFrame(() => inputRef.current?.focus())
-  }, [activeApprovalMode, activeModel, minimalComposer, modelOptions, permissionOptions])
+    window.requestAnimationFrame(() => composerInput.current?.focus())
+  }, [activeApprovalMode, activeModel, minimalComposer, modelOptions, permissionOptions, showModelSelector, composerInput, contextComposer])
 
   const selectMenuOption = useCallback((option: ChatModelOption | { value: AgentApprovalMode; label: string }) => {
     if (selectionMenu === 'permission') {
@@ -834,8 +927,8 @@ export function JanusChat({
 
   const replaceInput = useCallback((value: string) => {
     setInput(value)
-    window.requestAnimationFrame(() => inputRef.current?.setSelectionRange(value.length, value.length))
-  }, [])
+    window.requestAnimationFrame(() => composerInput.current?.setSelectionRange(value.length, value.length))
+  }, [composerInput])
 
   const handleEditMessage = useCallback((message: Message) => {
     setEditingMessageId(message.id)
@@ -869,6 +962,8 @@ export function JanusChat({
 
   const handleChatKeyDownCapture = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-island-companion]')) return
+    if (event.target === richInputRef.current?.element && shortcuts.keyDown(event)) return
+    if (contextComposer && event.key === 'Tab') { setSelectionMenu(null); return }
     const shortcutMenu = resolveChatSelectionShortcut({
       key: event.key,
       altKey: event.altKey,
@@ -876,7 +971,8 @@ export function JanusChat({
       metaKey: event.metaKey,
       shiftKey: event.shiftKey,
       isComposing: event.nativeEvent.isComposing,
-    })
+    }, showModelSelector)
+    if (contextComposer && shortcutMenu && shortcutMenu !== 'model') return
     if (shortcutMenu) {
       event.preventDefault()
       event.stopPropagation()
@@ -887,7 +983,7 @@ export function JanusChat({
       event.preventDefault()
       event.stopPropagation()
     }
-  }, [handleMenuKey, openSelectionMenu, selectionMenu])
+  }, [handleMenuKey, openSelectionMenu, selectionMenu, showModelSelector, contextComposer, shortcuts])
 
   const handleChatPointerDownCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as Element).closest('[data-island-companion]')) return
@@ -914,9 +1010,10 @@ export function JanusChat({
 
   // 快捷键：Enter 发送，Shift+Enter 换行。组字中（中文输入法选词）的 Enter
   // 必须放行，否则选词会误触发送。
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
     if (!e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.nativeEvent.isComposing) {
-      const textarea = e.currentTarget
+      const textarea = composerInput.current
+      if (!textarea) return
       const caret = textarea.selectionStart
       const selectionCollapsed = caret === textarea.selectionEnd
       const firstLineEnd = input.indexOf('\n') < 0 ? input.length : input.indexOf('\n')
@@ -947,14 +1044,15 @@ export function JanusChat({
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j' && !e.nativeEvent.isComposing) {
       // Ctrl+J / Cmd+J 换行（与终端侧多行输入约定一致），不触发发送。
       e.preventDefault()
-      const textarea = e.currentTarget
+      const textarea = composerInput.current
+      if (!textarea) return
       const start = textarea.selectionStart ?? input.length
       const end = textarea.selectionEnd ?? input.length
       setInput(`${input.slice(0, start)}\n${input.slice(end)}`)
       setHistoryIndex(null)
       const caret = start + 1
       window.requestAnimationFrame(() => {
-        const el = inputRef.current
+        const el = composerInput.current
         if (!el) return
         el.focus()
         el.setSelectionRange(caret, caret)
@@ -965,10 +1063,10 @@ export function JanusChat({
       e.preventDefault()
       handleSend()
     }
-  }, [handleSend, historyIndex, input, inputHistory, replaceInput])
+  }, [handleSend, historyIndex, input, inputHistory, replaceInput, composerInput])
 
   useEffect(() => {
-    if (!visible || discussionOnly) return
+    if (!visible || discussionOnly || transcriptOnly) return
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
       const chatRoot = chatRootRef.current
       if (!chatRoot) return
@@ -986,7 +1084,9 @@ export function JanusChat({
       // browser focus update landing in exactly the same frame.
       if (activeChat ? activeChat !== chatRoot : !focused) return
 
-      const shortcutMenu = resolveChatSelectionShortcut(event)
+      const shortcutMenu = resolveChatSelectionShortcut(event, showModelSelector)
+      if (contextComposer && event.key === 'Tab') { setSelectionMenu(null); return }
+      if (contextComposer && shortcutMenu && shortcutMenu !== 'model') return
       if (shortcutMenu) {
         event.preventDefault()
         event.stopPropagation()
@@ -1015,7 +1115,7 @@ export function JanusChat({
       document.removeEventListener('keydown', handleDocumentKeyDown, true)
       window.removeEventListener('keydown', handleGlobalKeyDown, true)
     }
-  }, [discussionOnly, focused, handleMenuKey, openSelectionMenu, selectionMenu, visible])
+  }, [discussionOnly, transcriptOnly, focused, handleMenuKey, openSelectionMenu, selectionMenu, showModelSelector, visible, contextComposer])
 
   useEffect(() => {
     if (!threadMenuOpen && !selectionMenu) return
@@ -1076,6 +1176,22 @@ export function JanusChat({
   const canClear = messages.length > 0 || !!pendingContent || !!error
   const hasConversation = messages.length > 0 || !!pendingContent || isStreaming || !!error
   const activeModelLabel = activeModel?.modelId ?? t('janus:chat.model.noneConfigured')
+  const compactComposerActions = conversationStyle && Boolean(contextComposer)
+  const hasComposerDraft = Boolean(input.trim())
+  const sendControls = <>
+    {isStreaming && <button
+      className="janus-chat-stop" onClick={handleStop}
+      data-secondary={compactComposerActions && hasComposerDraft || undefined}
+      style={{ '--accent-color': modeColor } as React.CSSProperties}
+      title={t('janus:chat.stop.title')} aria-label={t('janus:chat.stop.aria')} type="button"
+    ><StopIcon /></button>}
+    {(!compactComposerActions || !isStreaming || hasComposerDraft) && <button className="janus-chat-send" onClick={() => handleSend()} disabled={!hasComposerDraft || contextImporting || sendingShortcut}
+      title={t(isStreaming ? 'janus:chat.queue.sendTitle' : 'janus:chat.send.title')}
+      aria-label={t(isStreaming ? 'janus:chat.queue.sendAria' : 'janus:chat.send.aria')} type="button">
+      {minimalComposer ? <span aria-hidden="true">↑</span>
+        : conversationStyle ? <ArrowUp size={18} aria-hidden="true" /> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
+    </button>}
+  </>
 
   return (
     <WorkDisclosureScope scopeKey={conversations?.conversationId ?? 'chat'}>
@@ -1084,8 +1200,10 @@ export function JanusChat({
         hidden={!visible}
         data-compact-navigation={compactNavigation || undefined}
         data-minimal-composer={minimalComposer || undefined}
+        data-conversation-style={conversationStyle || undefined}
+        data-transcript-only={transcriptOnly || undefined}
       tabIndex={-1}
-      className={visible ? `janus-chat${docked ? ' janus-chat--docked' : ''}${discussionOnly ? ' janus-chat--discussion-only' : ''}${showConversationSidebar ? ' janus-chat--with-sidebar' : ''}${showConversationSidebar && sidebarCollapsed ? ' janus-chat--sidebar-collapsed' : ''}${hasConversation ? ' janus-chat--active' : ' janus-chat--empty'}${isRestoringScroll ? ' janus-chat--restoring-scroll' : ''}` : undefined}
+      className={visible ? `janus-chat${conversationStyle ? ` ${nativeScrollbars.scope}` : ''}${docked ? ' janus-chat--docked' : ''}${discussionOnly ? ' janus-chat--discussion-only' : ''}${showConversationSidebar ? ' janus-chat--with-sidebar' : ''}${showConversationSidebar && sidebarCollapsed ? ' janus-chat--sidebar-collapsed' : ''}${hasConversation ? ' janus-chat--active' : ' janus-chat--empty'}${isRestoringScroll ? ' janus-chat--restoring-scroll' : ''}` : undefined}
       onKeyDownCapture={handleChatKeyDownCapture}
       onPointerDownCapture={handleChatPointerDownCapture}
       onDoubleClick={(e) => e.stopPropagation()}
@@ -1208,8 +1326,8 @@ export function JanusChat({
           </div>
         </aside>
       ))}
-      <div className="janus-chat-main">
-      {!discussionOnly && !minimalComposer && <div className="janus-chat-toolbar">
+      <div className="janus-chat-main" style={transcriptOnly ? { display: 'block', flex: 'none', height: 'auto', minHeight: 0, padding: 0, overflow: 'visible' } : undefined}>
+      {showConversationNavigation && !discussionOnly && !minimalComposer && <div className="janus-chat-toolbar">
         <div ref={threadSelectorRef} className="janus-chat-thread-selector">
           <button
             type="button"
@@ -1316,7 +1434,7 @@ export function JanusChat({
         </div>
       </div>}
 
-      {resourceController && (resourceController.resources.length > 0 || attachableWorkspaces.length > 0) && !discussionOnly && !minimalComposer && (
+      {showWorkspaceScope && resourceController && (resourceController.resources.length > 0 || attachableWorkspaces.length > 0) && !discussionOnly && !minimalComposer && (
         <div className="janus-resource-scope" aria-label={t('janus:chat.resource.scopeAria')}>
           <div className="janus-resource-list">
             {resourceController.resources.map((resource) => (
@@ -1428,20 +1546,22 @@ export function JanusChat({
         ))}
 
       {/* 消息区域 */}
+      <div className={hasTranscriptContent ? 'janus-chat-transcript-viewport' : undefined} style={!hasTranscriptContent ? { display: 'contents' } : messagesHidden ? { display: 'none' } : undefined}>
       <div
         ref={messagesContainerRef}
         className="janus-chat-messages"
-        style={messagesHidden ? { display: 'none' } : undefined}
+        style={messagesHidden ? { display: 'none' } : transcriptOnly ? { overflow: 'visible', height: 'auto', flex: 'none', padding: '12px 16px', maxHeight: 'none' } : undefined}
         onScroll={handleScroll}
       >
+        {hasTranscriptContent ? <div ref={transcriptContentRef} className="janus-chat-transcript-content">{transcriptContent}</div> : <>
         {messages.length === 0 && (emptyState ?? (
           <div className="janus-chat-empty">
-            <JanusXTerminalBanner />
+            {!conversationStyle && <JanusXTerminalBanner />}
           </div>
         ))}
 
         {messages.length > historyPageSize && <button type="button" className="janus-chat-load-history" onClick={() => setHistoryPageSize(size => size + 100)}>{t('janus:chat.context.older')}</button>}
-        {<VirtualHistory rowStyle={{ display: 'flex', flexDirection: 'column' }} gap={6} key={conversations?.conversationId ?? 'chat'} items={historyEntries} itemKey={entry => entry.kind === 'message' ? entry.msg.id : entry.kind === 'card' ? 'card:' + entry.card.id : 'questions:' + entry.block.roundNumber} scrollRef={messagesContainerRef} following={isAtBottomRef} active={visible} pinnedKey={editingMessageId ?? undefined} renderItem={(entry) => entry.kind === 'card' ? (
+        {<VirtualHistory virtualize={!transcriptOnly} rowStyle={{ display: 'flex', flexDirection: 'column' }} gap={6} key={conversations?.conversationId ?? 'chat'} items={historyEntries} itemKey={entry => entry.kind === 'message' ? entry.msg.id : entry.kind === 'card' ? 'card:' + entry.card.id : 'questions:' + entry.block.roundNumber} scrollRef={messagesContainerRef} following={isAtBottomRef} active={visible} pinnedKey={editingMessageId ?? undefined} renderItem={(entry) => entry.kind === 'card' ? (
           <div key={entry.card.id} className="janus-chat-message assistant janus-chat-agent-card-message">
             <div className="janus-chat-message-author">{entry.card.title}</div>
             <AgentResultCardView card={entry.card} onOpen={() => onOpenAgentResult?.(entry.card)} />
@@ -1458,13 +1578,28 @@ export function JanusChat({
               ) : null}
             </div>
           </div>
-        ) : (() => { const msg = entry.msg; return (
-          <div
+        ) : (() => { const msg = entry.msg;
+          if (conversationStyle && msg.role === 'assistant' && msg.id.startsWith('worker-report:')) return <WorkerReportMessage key={msg.id} content={msg.content} reportId={msg.id.slice('worker-report:'.length)} />
+          return (
+          <SuperAgentMessage
             key={msg.id}
+            userMessage={msg.role === 'user' ? { id: msg.id, text: msg.context?.text ?? msg.content } : undefined}
             className={`janus-chat-message ${msg.role}`}
+            round={superAgentTranscript ? rounds.get(msg.id) : undefined}
           >
+            {transcriptOnly && conversationStyle && msg.role === 'user' && <div className="janus-chat-message-speaker">{t('janus:topics.you')}</div>}
+            {conversationStyle && msg.role === 'assistant' && <div className="janus-chat-message-author">
+              <JanusIcon size={14} />{t('janus:chat.author.assistant')}
+            </div>}
+            {transcriptOnly && msg.role === 'user' && pendingSteerIds.includes(msg.id) && <div className="janus-chat-steering-status">
+              <span className="janus-chat-queued-badge" role="status">{t('janus:chat.queue.badge')}</span>
+              <button className="janus-chat-message-edit" type="button" title={t('janus:chat.queue.cancelTitle')}
+                aria-label={t('janus:chat.queue.cancelAria')} onClick={() => cancelSteeredMessage?.(msg.id)}>
+                <X size={13} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            </div>}
             <div className="janus-chat-message-meta">
-              {msg.role === 'assistant' && (
+              {!conversationStyle && msg.role === 'assistant' && (
                 <div className="janus-chat-message-author">
                   {t('janus:chat.author.assistant')}
                 </div>
@@ -1472,7 +1607,7 @@ export function JanusChat({
               <time className="janus-chat-message-time" dateTime={new Date(msg.timestamp).toISOString()}>
                 {formatMessageTime(msg.timestamp)}
               </time>
-              {!discussionOnly && !minimalComposer && <div className="janus-chat-message-edit-actions">
+              {!transcriptOnly && !discussionOnly && !minimalComposer && <div className="janus-chat-message-edit-actions">
                 <button
                   className="janus-chat-message-edit"
                   type="button"
@@ -1543,6 +1678,7 @@ export function JanusChat({
               ) : null}
               </div>}
             </div>
+            <SuperAgentReply enabled={superAgentTranscript && msg.role === 'assistant'} latest={msg.id === (latestReplyId ?? lastAssistantMessageId) && !isStreaming} summary={msg.content}>
             {editingMessageId === msg.id ? (
               <textarea
                 ref={editInputRef}
@@ -1567,7 +1703,10 @@ export function JanusChat({
                 {msg.role === 'assistant' && activeReasoningByTurn[msg.id] && (
                   <ThinkingRegion snapshot={activeReasoningByTurn[msg.id]} streaming={false} defaultExpanded={false} />
                 )}
-                <MarkdownContent content={msg.content} variant="conversation" />
+                {msg.role === 'user' && (contextComposer || superAgentTranscript)
+                  ? <div className="janus-user-inline-prompt" style={{ whiteSpace: 'pre-wrap' }}><ConversationPrompt text={msg.content} /></div>
+                  : <MarkdownContent content={msg.role === 'user' ? msg.context?.text ?? msg.content : msg.content} variant="conversation" />}
+                {msg.role === 'user' && <MessageContextChips context={msg.context} hideReferences={!!contextComposer || superAgentTranscript} />}
                 {msg.role === 'assistant' && (
                   <ToolCallGroup
                     entries={toolTraces.filter((entry) => entry.turnId === msg.id)}
@@ -1579,12 +1718,13 @@ export function JanusChat({
                 {msg.role === 'assistant' && renderTurnFooter?.(msg.id, msg.timeline)}
               </div>
             )}
-          </div>
+            </SuperAgentReply>
+          </SuperAgentMessage>
         )})()} />}
 
         {(isStreaming || pendingContent || (error && liveToolTraces.length > 0)) && (
-          <div className="janus-chat-message assistant streaming">
-            <div className="janus-chat-message-author">{t('janus:chat.author.assistant')}</div>
+          <SuperAgentMessage className="janus-chat-message assistant streaming" round={pendingRound}>
+            <div className="janus-chat-message-author">{conversationStyle && <JanusIcon size={14} />}{t('janus:chat.author.assistant')}</div>
             <div className="janus-chat-message-content">
               {isStreaming && <TurnStatusRow status={activeTurnStatus} startedAt={activeTurnStartedAt} />}
               {(activeTimeline?.blocks.length || activeTimeline?.truncated) ? <ChatTimeline snapshot={activeTimeline} streaming={isStreaming} workspaceNames={workspaceNames} renderToolDetails={renderToolDetails} /> : <>
@@ -1604,7 +1744,7 @@ export function JanusChat({
               </>}
               {renderTurnFooter?.(undefined, activeTimeline)}
             </div>
-          </div>
+          </SuperAgentMessage>
         )}
 
         {error && (
@@ -1616,9 +1756,9 @@ export function JanusChat({
         )}
 
         {discussionFooter}
-        <span ref={messagesEndRef} className="janus-chat-end-anchor" />
+        <span className="janus-chat-end-anchor" />
 
-        {showNewMessageBadge && (
+        {showNewMessageBadge && !conversationStyle && !transcriptOnly && (
           <button
             className="janus-chat-new-message-badge"
             onClick={() => {
@@ -1630,7 +1770,21 @@ export function JanusChat({
             {t('janus:chat.newMessage')}
           </button>
         )}
+        </>}
       </div>
+
+      {hasTranscriptContent && visible && !messagesHidden && <TranscriptNavigation scrollRef={messagesContainerRef} following={isAtBottomRef} onNavigate={() => { setShowLatest(true); setShowNewMessageBadge(false) }} />}
+      </div>
+
+      {conversationStyle && !transcriptOnly && !messagesHidden && <div className="janus-chat-latest-anchor">
+        {showLatest && <button type="button" className="janus-chat-latest" aria-label={t('terminal:conversation.latest')} title={t('terminal:conversation.latest')}
+          onClick={() => {
+            isAtBottomRef.current = true
+            setShowLatest(false)
+            setShowNewMessageBadge(false)
+            scrollToBottom('auto')
+          }}><ArrowDown size={16} aria-hidden="true" /></button>}
+      </div>}
 
       {/* Agent todo 条 + 中途提问门（janus-agent parity，位于 composer 上方） */}
       <TodoStrip todos={activeTodos} />
@@ -1639,13 +1793,17 @@ export function JanusChat({
       ))}
 
       {aboveComposer}
-      <ChatContextIndicator controller={conversations} />
+      {showContextIndicator && <ChatContextIndicator controller={conversations} />}
 
       {/* 输入区域：opencode 风格方框 composer；minimal 下加 › 前缀（对齐蓝图高保真） */}
-      <div className="janus-chat-input-wrapper" data-has-input={input.length > 0}>
+      <JanusContextComposer context={contextComposer} inputRef={richInputRef} references={references} draft={input} setDraft={setInput} onImporting={setContextImporting} pickerActive={!!selectionMenu}>
+      {contextControl => <div className="janus-chat-input-wrapper" hidden={transcriptOnly} style={transcriptOnly ? { display: 'none' } : undefined} data-has-input={input.length > 0}>
+        {shortcuts.control}
         <div className="janus-chat-composer-row">
           {minimalComposer && <span className="janus-chat-prompt-prefix" aria-hidden="true">›</span>}
-          <textarea
+          {contextComposer ? <ConversationInput ref={richInputRef} className="janus-chat-input" value={input} references={references} disabled={sendingShortcut} engineShortcuts={!!workerShortcuts}
+            placeholder={inputPlaceholderOverride ?? t('janus:chat.inputPlaceholder')} label={t('janus:chat.inputPlaceholder')} title=""
+            onChange={value => { setInput(value); setHistoryIndex(null) }} onKeyDown={handleKeyDown} /> : <textarea
             ref={inputRef}
             className="janus-chat-input"
             rows={1}
@@ -1655,58 +1813,30 @@ export function JanusChat({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             style={{ '--accent-color': modeColor } as React.CSSProperties}
-          />
-          {isStreaming ? (
-            <>
-              <button
-                className="janus-chat-stop"
-                onClick={handleStop}
-                style={{ '--accent-color': modeColor } as React.CSSProperties}
-                title={t('janus:chat.stop.title')}
-                aria-label={t('janus:chat.stop.aria')}
-                type="button"
-              >
-                <StopIcon />
-              </button>
-              <button
-                className="janus-chat-send"
-                onClick={() => handleSend()}
-                disabled={!input.trim()}
-                title={t('janus:chat.queue.sendTitle')}
-                aria-label={t('janus:chat.queue.sendAria')}
-                type="button"
-              >
-                {minimalComposer ? <span aria-hidden="true">↑</span> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
-              </button>
-            </>
-          ) : (
-            <button
-              className="janus-chat-send"
-              onClick={() => handleSend()}
-              disabled={!input.trim()}
-              title={t('janus:chat.send.title')}
-              aria-label={t('janus:chat.send.aria')}
-              type="button"
-            >
-              {minimalComposer ? <span aria-hidden="true">↑</span> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
-            </button>
-          )}
+          />}
+          {!conversationStyle && sendControls}
         </div>
         {!discussionOnly && !minimalComposer && <div className="janus-chat-status-bar">
-          <button
+          {contextControl}
+          {showModelSelector && <button
             type="button"
             className="janus-chat-model-tag"
+            aria-haspopup="listbox" aria-expanded={selectionMenu === 'model'}
+            data-selection-trigger={conversationStyle ? 'model' : undefined}
+            aria-label={conversationStyle ? t('janus:chat.selectionMenu.aria', { kind: 'model' }) : undefined}
             onPointerDown={(event) => handleSelectionTriggerPointerDown(event, 'model')}
             onClick={() => openSelectionMenu('model')}
             title={t('janus:chat.model.menuShortcutTitle')}
           >
             <span>{t('janus:chat.model.tagLabel')}</span>
             <strong>{activeModelLabel}</strong>
-          </button>
-          <div className="janus-chat-status-actions">
+            {conversationStyle && <ChevronDown size={12} aria-hidden="true" />}
+          </button>}
+          {!contextComposer && <div className="janus-chat-status-actions">
+            {showAgentMode && <AgentModeSelect disabled={isStreaming} />}
             {conversations && <MemoPanel compactTrigger onBindMemo={conversations.bindMemo} />}
             <div className="janus-chat-shortcuts">
-              <button
+              {showModelSelector && <button
                 type="button"
                 data-selection-trigger="provider"
                 aria-label={t('janus:chat.selectionMenu.aria', { kind: 'provider' })}
@@ -1714,8 +1844,8 @@ export function JanusChat({
                 onClick={() => openSelectionMenu('provider')}
               >
                 <kbd>tab</kbd> {t('janus:chat.shortcuts.providers')}
-              </button>
-              <button
+              </button>}
+              {showModelSelector && !conversationStyle && <button
                 type="button"
                 data-selection-trigger="model"
                 aria-label={t('janus:chat.selectionMenu.aria', { kind: 'model' })}
@@ -1723,7 +1853,7 @@ export function JanusChat({
                 onClick={() => openSelectionMenu('model')}
               >
                 <kbd>ctrl+p</kbd> {t('janus:chat.shortcuts.models')}
-              </button>
+              </button>}
               <button
                 type="button"
                 className="janus-chat-permission-select"
@@ -1745,7 +1875,9 @@ export function JanusChat({
             >
               <Trash2 size={14} strokeWidth={1.8} aria-hidden="true" />
             </button>
-          </div>
+          </div>}
+          {conversationStyle && contextComposer && <span className="janus-chat-input-hint" role="status">{t(isStreaming ? 'janus:chat.stop.title' : 'terminal:conversation.inputHint')}</span>}
+          {conversationStyle && <div className="janus-chat-composer-submit">{sendControls}</div>}
           {selectionMenu && (
             <div
               ref={selectionMenuRef}
@@ -1791,6 +1923,7 @@ export function JanusChat({
           </div>
         }
       </div>
+      }</JanusContextComposer>
       {modelNotice && !minimalComposer && <div className="janus-chat-model-notice">{modelNotice}</div>}
       </div>
       {/* The portaled confirmation belongs to the island, including its backdrop.

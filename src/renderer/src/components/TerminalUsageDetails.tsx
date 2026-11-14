@@ -1,12 +1,17 @@
 // Note: direct usage content and terminal lifetime — see .agents/notes/terminal/requirements/usage-panel-direct-content.md
 import { useEffect, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import type { Terminal } from '@/types'
 import type { ReactNode } from 'react'
 import { resolveContextWindows } from '@/lib/runtime-telemetry'
-import { contextPercentLabel, contextRatio, contextRatioColor, providerLabel } from '@/lib/terminal-labels'
+import { contextPercentLabel, contextRatio, contextRatioColor, modelLabel, providerLabel } from '@/lib/terminal-labels'
+import { getTerminalStatusVisual } from '@/lib/terminal-sidebar-visual'
 import { cacheSplitFor, formatUsageRate } from '@/lib/usage-stats'
 import { ThemedTooltip } from './ui/ThemedTooltip'
+import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
+import { TerminalStatusLight } from './ui/TerminalStatusLight'
+import styles from './TerminalUsageDetails.module.css'
 
 const tokenCount = (value?: number) => value === undefined ? '–' : value.toLocaleString('en-US')
 
@@ -23,16 +28,16 @@ export function formatRuntimeDuration(terminal: Terminal, now: number = Date.now
     : `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-export function TerminalRuntime({ terminal }: { terminal: Terminal }) {
+export function TerminalRuntime({ terminal, live = true }: { terminal: Terminal; live?: boolean }) {
   const { t } = useI18n('terminal')
   const [now, setNow] = useState(Date.now)
   const startedAt = terminal.telemetryStartedAt
   useEffect(() => {
-    if (startedAt === undefined || terminal.exitCode !== undefined) return
+    if (!live || startedAt === undefined || terminal.exitCode !== undefined) return
     setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
-  }, [startedAt, terminal.exitCode])
+  }, [startedAt, terminal.exitCode, live])
   return <span className="shrink-0 tabular-nums text-[10px] text-[var(--shell-muted)]">{t('terminal:context.row.runtime')} {formatRuntimeDuration(terminal, now)}</span>
 }
 
@@ -62,7 +67,7 @@ function usageStatEntries(terminal: Terminal, t: (key: string) => string) {
   ]
 }
 
-/** 五项统计：卡片用 2 列网格（末项通栏），悬浮用标签/数值行。 */
+/** Cards add the confirmed compaction count to the same cumulative statistics. */
 export function TerminalUsageStats({ terminal, layout }: { terminal: Terminal; layout: 'grid' | 'rows' }) {
   const { t } = useI18n('terminal')
   const stats = usageStatEntries(terminal, t)
@@ -81,11 +86,11 @@ export function TerminalUsageStats({ terminal, layout }: { terminal: Terminal; l
   }
 
   return (
-    <span className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t pt-2" style={{ borderColor: 'var(--shell-border-soft)' }}>
-      {stats.map((stat, index) => (
-        <span key={stat.key} className={`flex min-w-0 flex-col${index === stats.length - 1 ? ' col-span-2' : ''}`}>
-          <span className="truncate text-[10px] text-[var(--shell-muted)]">{stat.label}</span>
-          <span className="truncate text-[11px] text-[var(--shell-text)]">{stat.value}</span>
+    <span className={styles.metrics}>
+      {[...stats, { key: 'compactions', label: t('terminal:context.row.compactions'), value: tokenCount(terminal.compactionCountConfidence === 'exact' ? terminal.compactionCount ?? 0 : undefined) }].map((stat) => (
+        <span key={stat.key}>
+          <span>{stat.label}</span>
+          <strong>{stat.value}</strong>
         </span>
       ))}
     </span>
@@ -93,7 +98,7 @@ export function TerminalUsageStats({ terminal, layout }: { terminal: Terminal; l
 }
 
 /** 悬浮提示的上下文明细：占用/窗口与占比、剩余、运行窗口、模型容量、压缩次数。 */
-function TerminalContextFacts({ terminal }: { terminal: Terminal }) {
+function TerminalContextFacts({ terminal, moreOnly = false }: { terminal: Terminal; moreOnly?: boolean }) {
   const { t } = useI18n('terminal')
   const windows = resolveContextWindows(terminal.preset, terminal.detectedModel, terminal.contextWindowTokens)
   const ratio = contextRatio(terminal)
@@ -108,7 +113,7 @@ function TerminalContextFacts({ terminal }: { terminal: Terminal }) {
   ]
   return (
     <span className="grid gap-0.5">
-      {facts.map((fact) => (
+      {facts.filter(fact => !moreOnly || (fact.key !== 'context' && fact.key !== 'compactions')).map((fact) => (
         <span key={fact.key} className="flex items-baseline justify-between gap-4">
           <span className="text-[10px] text-[var(--shell-muted)]">{fact.label}</span>
           <span className="flex items-baseline gap-1.5">
@@ -125,11 +130,12 @@ function TerminalContextFacts({ terminal }: { terminal: Terminal }) {
  * 用量悬浮提示：与底部抽屉卡片同一份数据（五项统计 + 上下文明细 + 运行
  * 时间），悬浮即可看全，不必打开抽屉。
  */
-export function TerminalContextTooltip({ terminal, children }: { terminal: Terminal; children: ReactNode }) {
+export function TerminalContextTooltip({ terminal, children, openOnClick = false }: { terminal: Terminal; children: ReactNode; openOnClick?: boolean }) {
   const { t } = useI18n('terminal')
   return (
     <ThemedTooltip
       variant="panel"
+      openOnClick={openOnClick}
       label={
         <span className="grid min-w-0 gap-1.5">
           <span className="flex items-baseline justify-between gap-3">
@@ -148,4 +154,54 @@ export function TerminalContextTooltip({ terminal, children }: { terminal: Termi
       {children}
     </ThemedTooltip>
   )
+}
+
+/** Small context window indicator; the percentage remains outside the empty ring. */
+export function TerminalContextIndicator({ terminal }: { terminal: Terminal }) {
+  const { t } = useI18n('terminal')
+  const ratio = contextRatio(terminal)
+  return <TerminalContextTooltip terminal={terminal} openOnClick>
+    <button type="button" className={styles.indicator} data-context-indicator=""
+      aria-label={`${t('terminal:context.row.context')} · ${contextPercentLabel(terminal)}`}>
+      <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+        <circle className={styles.ringTrack} cx="10" cy="10" r="7" />
+        {ratio !== undefined && ratio > 0 && <circle className={styles.ringValue} cx="10" cy="10" r="7" pathLength="100"
+          strokeDasharray={`${ratio * 100} 100`} />}
+      </svg>
+      <span>{ratio === undefined ? '–' : contextPercentLabel(terminal)}</span>
+    </button>
+  </TerminalContextTooltip>
+}
+
+export function TerminalUsageCard({ terminal, active, visible, workspaceName, onSelect }: {
+  terminal: Terminal; active: boolean; visible: boolean; workspaceName?: string; onSelect: () => void
+}) {
+  const { t } = useI18n('terminal')
+  const ratio = contextRatio(terminal)
+  const windows = resolveContextWindows(terminal.preset, terminal.detectedModel, terminal.contextWindowTokens)
+  const status = t(getTerminalStatusVisual(terminal.status).labelKey)
+  return <article className={styles.card} data-runtime-card="" data-current={active}>
+    <button type="button" className={styles.cardMain} aria-current={active ? 'true' : undefined}
+      aria-label={`${providerLabel(terminal.preset, t)} · ${status} · ${terminal.cwd}`} onClick={onSelect}>
+      <span className={styles.cardTop}>
+        <span className={styles.identity}>
+          <TerminalPresetIcon preset={terminal.preset} className="h-[19px] w-[19px] shrink-0" />
+          <span><strong>{providerLabel(terminal.preset, t)}</strong><span title={modelLabel(terminal, t)}>{modelLabel(terminal, t)}</span></span>
+        </span>
+        <span className={styles.status}><TerminalStatusLight status={terminal.status} compact />{status}</span>
+      </span>
+      <TerminalContextTooltip terminal={terminal}>
+        <span className={styles.context}>
+          <span className={styles.contextHead}><span>{t('terminal:context.row.context')}</span><strong>{tokenCount(terminal.contextTokens)} / {tokenCount(windows.effectiveWindow)}</strong><span>{ratio === undefined ? '–' : contextPercentLabel(terminal)}</span></span>
+          <span className={styles.contextTrack}><span style={{ width: `${(ratio ?? 0) * 100}%` }} /></span>
+        </span>
+      </TerminalContextTooltip>
+      <TerminalUsageStats terminal={terminal} layout="grid" />
+      <span className={styles.cardFoot}><span title={terminal.cwd}>{workspaceName ?? terminal.cwd}</span><TerminalRuntime terminal={terminal} live={visible} /></span>
+    </button>
+    <details className={styles.more}>
+      <summary><ChevronRight size={11} aria-hidden="true" />{t('terminal:context.moreStats')}</summary>
+      <TerminalContextFacts terminal={terminal} moreOnly />
+    </details>
+  </article>
 }

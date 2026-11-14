@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-11-12T06:58:41Z",
+  "updated": "2026-11-13T09:38:28Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -58,3 +58,5 @@ Verification on 2026-11-12 (Windows host): the full Office unit directory passed
 ## Consequences
 
 The runtime remains free of managed downloads, PATH fallback, installer dialogs and a separate OfficeCLI update channel. Each package grows by one target binary. Unsupported targets fail closed, and packaging checks catch missing or mismatched assets before producing a package. Development still needs explicit preparation. Adding Linux, universal macOS apps, or changing OfficeCLI's upstream signing/release process requires extending the manifest and packaging contract; it must not weaken the broker checksum to accommodate altered binaries.
+
+Windows installer rebuild on 2026-11-13 exposed a boundary-check mismatch: the builder already excludes resources/officecli from app.asar, but the path validator rejected that known sidecar tree. The validator now allows that exact exclusion while continuing to reject other resource paths. The existing platform-specific extraResources and pinned-binary checks remain unchanged. Package-boundary tests passed 14 cases, including the sidecar regression; the actual boundary check and exclusion synchronization passed. Packaging evidence is under artifacts/superagent-installer-20261113-173230.

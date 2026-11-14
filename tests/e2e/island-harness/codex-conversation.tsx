@@ -62,6 +62,10 @@ let sendGate: Promise<void> | null = null
 let settleSend: ((fail: boolean) => void) | null = null
 let modeGate: Promise<void> | null = null
 let settleMode: ((fail: boolean) => void) | null = null
+let catalogGate: Promise<void> | null = null
+let releaseCatalog: (() => void) | null = null
+let newGate: Promise<void> | null = null
+let rejectNew: (() => void) | null = null
 let historyReads = 0
 let trackHistoryReads = false
 const measuredSnapshot = () => {
@@ -86,8 +90,14 @@ Object.assign(window.electron.terminal, {
   conversationCommand: async (_id: string, command: ConversationCommand) => {
     calls.commands.push(structuredClone(command))
     if (command.type === 'mode') {
+      if (command.mode === 'terminal' && state.submitting && rejectNew) rejectNew()
       if (modeGate) await modeGate
       state.mode = command.mode; state.controlEpoch++
+    }
+    else if (command.type === 'commands') {
+      state.commandsLoading = true; publish()
+      if (catalogGate) await catalogGate
+      state.commands = state.commands ?? []; state.commandsLoading = false; publish()
     }
     else if (command.type === 'startup' && state.startup) {
       startupCalls.push(command.action)
@@ -113,6 +123,12 @@ Object.assign(window.electron.terminal, {
       if (settingsFailure) throw new Error('Fixture settings update failed')
       calls.settings.push({ model: command.model, effort: command.effort }); state.model = command.model; state.effort = command.effort
     } else if (command.type === 'new') {
+      if (newGate) {
+        state.submitting = true; publish()
+        try { await newGate }
+        catch (error) { state.mode = 'terminal'; state.controlEpoch++; state.error = String(error); throw error }
+        finally { state.submitting = false; publish() }
+      }
       state.threadId = `new-${state.revision}`; state.items = []; state.plans = []; state.controlEpoch++
     } else if (command.type === 'models') { state.modelsError = undefined }
     else if (command.type === 'send' || command.type === 'edit') {
@@ -210,6 +226,15 @@ Object.assign(window, { codexFixture: {
   reviewProject: (path: string) => useWorkspaceStore.setState({ workspaces: [{ id: 'ws', name: 'Fixture', path, clis: [], layout: { mode: 'tabs', positions: [] }, createdAt: '', updatedAt: '' }] }),
   reviewTool: () => useRightToolStore.getState().activeToolId,
   calls,
+  holdCatalog: () => {
+    state.capabilities = { ...state.capabilities, commands: true }; state.commands = undefined
+    catalogGate = new Promise(resolve => { releaseCatalog = resolve }); publish()
+  },
+  releaseCatalog: () => { releaseCatalog?.(); catalogGate = null },
+  holdNew: () => {
+    newGate = new Promise((_, reject) => { rejectNew = () => reject(new Error('Codex new conversation could not be confirmed. Check the terminal before retrying.')) })
+  },
+  failNew: () => { rejectNew?.(); newGate = null; rejectNew = null },
   catalog: () => {
     state.capabilities = { ...state.capabilities, commands: true }
     state.commands = [{ id: 'native-review', name: state.engine === 'pi' ? 'skill:review' : state.engine === 'opencode' ? 'team/review' : 'review',
@@ -251,8 +276,15 @@ Object.assign(window, { codexFixture: {
       steps: [{ step: 'Inspect protocol', status: 'completed' as const }, { step: 'Build interface', status: complete ? 'completed' as const : 'inProgress' as const }, { step: 'Run checks', status: complete ? 'completed' as const : 'pending' as const }] }]
     publish()
   },
+  revisePlan: (steps = ['Inspect protocol', 'Build interface', 'Run checks', 'Review result']) => {
+    const previous = state.plans?.filter(plan => plan.turnId === state.turnId).at(-1)
+    if (!previous) return
+    state.plans = [...state.plans!, { ...previous, version: previous.version + 1,
+      steps: steps.map(step => previous.steps.find(row => row.step === step) ?? { step, status: 'pending' as const }) }]
+    publish()
+  },
   endPlan: (outcome: 'completed' | 'interrupted' | 'failed') => {
-    state.plans = state.plans?.map(plan => ({ ...plan, outcome })); state.turnId = null; publish()
+    state.plans = state.plans?.map(plan => plan.turnId === state.turnId ? { ...plan, outcome } : plan); state.turnId = null; publish()
   },
   stalePlan: () => { const plan = state.plans?.at(-1); if (plan) plan.stale = true; publish() },
   holdMode: () => {

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 80" fill="none" role="img" aria-label="Claude">
+  <title>Claude</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-c-0" transform="translate(0 0)">
+      <path d="M18 8H58L48 20H22L14 28V52L22 60H48L58 72H18L2 56V24Z"/>
+    </g>
+    <g id="letter-l-1" transform="translate(66 0)">
+      <path d="M2 8H14V60H48L60 72H2Z"/>
+    </g>
+    <g id="letter-a-2" transform="translate(132 0)">
+      <path d="M2 72V24L18 8H44L60 24V72H48V48H14V72Z M14 36H48V28L40 20H22L14 28Z"/>
+    </g>
+    <g id="letter-u-3" transform="translate(202 0)">
+      <path d="M2 8H14V52L22 60H40L48 52V8H60V56L44 72H18L2 56Z"/>
+    </g>
+    <g id="letter-d-4" transform="translate(272 0)">
+      <path d="M2 8H40L60 28V52L40 72H2Z M14 20V60H34L48 46V34L34 20Z"/>
+    </g>
+    <g id="letter-e-5" transform="translate(342 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+  </g>
+</svg>

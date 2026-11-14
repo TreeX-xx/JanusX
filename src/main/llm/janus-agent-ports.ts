@@ -58,7 +58,8 @@ export interface JanusChatTurnPortsDeps {
   getAgentSession: (agentSessionId: string) => JanusAgentSessionShape | null | undefined
   forkAgentSession?: NonNullable<ChatTurnPorts['sessions']['forkSession']>
   closeAgentSession?: NonNullable<ChatTurnPorts['sessions']['closeSession']>
-  executeFunctionCall: (input: ExecuteToolInput, callerId: string) => Promise<ToolResult>
+  executeFunctionCall: (input: ExecuteToolInput, callerId: string, signal?: AbortSignal) => Promise<ToolResult>
+  awaitBackground?: ChatTurnPorts['tools']['awaitBackground']
   listRegistryTools: () => ToolDefinition[]
   listRegistryManifests: () => ToolManifest[] | undefined
   /**
@@ -133,7 +134,8 @@ export function buildJanusChatTurnPorts(deps: JanusChatTurnPortsDeps): ChatTurnP
       },
     },
     tools: {
-      executeFunctionCall: (input, callerId) => deps.executeFunctionCall(input, callerId),
+      executeFunctionCall: (input, callerId, signal) => deps.executeFunctionCall(input, callerId, signal),
+      ...(deps.awaitBackground ? { awaitBackground: deps.awaitBackground } : {}),
       registry: {
         list: () => deps.listRegistryTools(),
         // The facade tolerates an undefined return (`?.() ?? createToolManifests`)

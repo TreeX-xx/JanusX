@@ -1,3 +1,5 @@
+import { fixtureWorkerReport } from './worker-report'
+import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -51,6 +53,7 @@ export async function claudeConversationFixture() {
     const latest = body.messages.at(-1)?.content
     const hasResult = (Array.isArray(latest) && latest.some((item: any) => item.type === 'tool_result')) || JSON.stringify(latest).includes('<task-notification>')
     const plans: Record<string, { name: string; input: object }> = {
+      CC_WORKER_REPORT: { name: 'mcp__janus_worker__report_work', input: { reportId: randomUUID(), kind: 'ready', summary: 'Worker fixture finished', report: fixtureWorkerReport('Native Claude MCP report') } },
       CC_QUESTION: { name: 'AskUserQuestion', input: { questions: [
         { header: 'Deploy', question: 'Deploy now?', options: [{ label: 'Yes', description: 'Deploy once' }, { label: 'No', description: 'Keep current version' }], multiSelect: false },
         { header: 'Checks', question: 'Select checks', options: [{ label: 'Unit', description: 'Run units' }, { label: 'Browser', description: 'Run browser' }], multiSelect: true },

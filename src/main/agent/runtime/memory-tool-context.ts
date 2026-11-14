@@ -8,10 +8,10 @@ export const currentMemoryToolEvent = () => events.getStore()
 
 export function bindMemoryToolIdentity<T extends WorkspaceAgentRuntime>(runtime: T): T {
   const execute = runtime.executeTool.bind(runtime)
-  runtime.executeTool = (input, callerId) => {
+  runtime.executeTool = (input, callerId, signal) => {
     const correlationId = input.call.correlationId ?? randomUUID()
     return events.run({ sessionId: input.sessionId, sourceEventId: correlationId },
-      () => execute({ ...input, call: { ...input.call, correlationId } }, callerId))
+      () => execute({ ...input, call: { ...input.call, correlationId } }, callerId, signal))
   }
   return runtime
 }

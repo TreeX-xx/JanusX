@@ -43,7 +43,8 @@ export type ExtensionPaneContent = {
   workspaceId?: never
 }
 
-export type PaneContent = TerminalPaneContent | BrowserPaneContent | MarkdownPaneContent | ExtensionPaneContent
+export type SuperAgentPaneContent = { type: 'superagent'; id: 'superagent' }
+export type PaneContent = TerminalPaneContent | BrowserPaneContent | MarkdownPaneContent | ExtensionPaneContent | SuperAgentPaneContent
 
 export type WorkspacePaneLeaf = {
   type: 'leaf'

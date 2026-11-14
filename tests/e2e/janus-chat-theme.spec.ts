@@ -79,7 +79,10 @@ for (const theme of ['planche', 'dark', 'white']) {
     const chat = page.locator('.janus-island-shell .janus-chat')
     await expect(chat.locator('.janus-chat-turn-status')).toBeVisible()
     await expectToken(chat.locator('.janus-chat-turn-status'), 'color', 'shell-muted')
-    await expectToken(chat.locator('.janus-chat-streaming-cursor'), 'background-color', 'shell-accent')
+    // SuperAgent's conversation surface follows the native neutral caret;
+    // other chat hosts retain the shared accent cursor.
+    const cursorToken = await chat.getAttribute('data-conversation-style') !== null ? 'shell-text' : 'shell-accent'
+    await expectToken(chat.locator('.janus-chat-streaming-cursor'), 'background-color', cursorToken)
     await expectToken(chat.locator('.janus-chat-message-content').first(), 'color', 'shell-text')
     await expectToken(chat.locator('.janus-chat-input'), 'color', 'shell-text')
   })

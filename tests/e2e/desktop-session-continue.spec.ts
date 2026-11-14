@@ -33,6 +33,7 @@ const PROVIDER_SESSION_ID = 'sess-ext-1'
 const FAKE_AGENT_JS = [
   "const fs = require('fs')",
   "const path = require('path')",
+  "if (process.argv.includes('--version')) { console.log('fixture 1.0.0'); process.exit(0) }",
   'const dir = __dirname',
   "fs.writeFileSync(path.join(dir, 'argv-' + process.pid + '.json'), JSON.stringify(process.argv.slice(2)))",
   "process.stdout.write('\\u001b[?2004hfake-agent ready> ')",
@@ -150,7 +151,7 @@ async function listLive(page: Page): Promise<AgentSessionSummary[]> {
 
 test('Continue in New Session mints one card, delivers one handoff, and fails without ghosts', async () => {
   test.setTimeout(150_000)
-  const entry = resolve('out/main/index.js')
+  const entry = resolve(process.env.JANUS_DESKTOP_ENTRY ?? process.env.JANUSX_DESKTOP_ENTRY ?? 'out/main/index.js')
   let fixtureRoot: string | undefined
   let application: ElectronApplication | undefined
   let page: Page | undefined
@@ -280,8 +281,9 @@ test('Continue in New Session mints one card, delivers one handoff, and fails wi
     // Count live cards, since actions are only rendered for the expanded card.
     const sessionCards = page.getByRole('region', { name: /会话/ }).locator('[data-session-id]')
     await expect(sessionCards).toHaveCount(3, { timeout: 10_000 })
-    const internalCard = page.locator('div[class*="cardSurface"]')
-      .filter({ hasText: HANDOFF_MARKER }).first()
+    // Collapsed cards mount prompt details only after expansion. Locate the
+    // exact minted identity rather than searching an unmounted prompt body.
+    const internalCard = page.locator(`[data-session-id="${continued.sessionId}"]`)
     await internalCard.getByRole('button', { name: '展开', exact: true }).click()
     const xtermsBeforeUiContinue = await page.locator('.xterm-rows').count()
     await internalCard.getByRole('button', { name: '在新会话中继续', exact: true }).click()
@@ -427,7 +429,7 @@ test('external Codex growth refreshes the open conversation without reopening or
       { type: 'response_item', payload: { type: 'function_call_output', output: 'x'.repeat(600000) } },
     ].map((record) => JSON.stringify(record)).join('\n') + '\n')
     application = await electron.launch({
-      args: [resolve('out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`],
+      args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? process.env.JANUSX_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`],
       env: fixtureEnv(fixtureRoot, binDir),
     })
     const page = await application.firstWindow()
@@ -516,7 +518,7 @@ test('Claude, Codex and Opencode restore native history and track follow-up turn
   try {
     const cwd = join(fixtureRoot, 'workspace')
     const { binDir, manifest } = await seedRecoveryFixture(fixtureRoot, cwd)
-    application = await electron.launch({ args: [resolve(process.env.JANUSX_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`], env: fixtureEnv(fixtureRoot, binDir) })
+    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? process.env.JANUSX_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(fixtureRoot, 'user-data')}`], env: fixtureEnv(fixtureRoot, binDir) })
     page = await application.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     const workspace = await page.evaluate((path) => (window as DesktopWindow).electron.workspace.create({ name: 'Recovery drill', path }), cwd)

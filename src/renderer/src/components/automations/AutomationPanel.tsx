@@ -7,17 +7,35 @@ import { AutomationTaskEditor } from './AutomationTaskEditor'
 import { AutomationTaskHistory } from './AutomationTaskHistory'
 import { isReminder, reminderTemplate, type AutomationCard, type AutomationDefinition, type AutomationRun } from '../../../../shared/automations'
 import { useRightToolStore } from '@/stores/right-tools'
+import { useAppStore } from '@/stores/app'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { activateAutomationCompanion, receiveAutomationRemoval, useAutomationsStore } from '@/stores/automations'
 import { useIslandStore } from '@/stores/island'
 import { useI18n } from '@/i18n/useI18n'
 import './automations.css'
 
 type DeleteTarget = { kind: 'card' | 'task'; id: string; revision: number; name: string; taskIds: string[]; active: boolean }
-export function AutomationPanel() {
+export function AutomationPanel({ active = true }: { active?: boolean }) {
   const { t } = useI18n('common'), api = window.electron.automations
   const draft = useAutomationsStore(state => state.draft), setDraft = useAutomationsStore(state => state.setDraft), draftSequence = useAutomationsStore(state => state.draftSequence)
   const focus = useRightToolStore(state => state.focusRequest)
-  const islandLinked = useIslandStore(state => state.stage === 'expanded' && state.companionToolId === 'automations')
+  const activeToolId = useRightToolStore(state => state.activeToolId)
+  const panelCollapsed = useAppStore(state => state.panelCollapsed)
+  const superAgentStarted = useSuperAgentUIStore(state => state.started)
+  const companionLinked = useIslandStore(state => state.companionToolId === 'automations')
+  const panelOpen = active && activeToolId === 'automations' && !panelCollapsed
+  const islandLinked = panelOpen || companionLinked
+  useEffect(() => {
+    if (!panelOpen) return
+    useIslandStore.setState({ automationLocked: true })
+    activateAutomationCompanion()
+    return () => {
+      useIslandStore.setState({ automationLocked: false })
+      const island = useIslandStore.getState()
+      if (island.companionToolId === 'automations') island.releaseCompanion()
+      if (!useSuperAgentUIStore.getState().started) island.dispatch({ type: 'dismiss' })
+    }
+  }, [panelOpen, superAgentStarted])
   const [cards, setCards] = useState<AutomationCard[]>([]), [tasks, setTasks] = useState<AutomationDefinition[]>([])
   const [selected, setSelected] = useState<string | null>(null), [closedCards, setClosedCards] = useState<string[]>([])
   const [runs, setRuns] = useState<AutomationRun[]>([]), [runId, setRunId] = useState<string | null>(null)
@@ -95,7 +113,7 @@ export function AutomationPanel() {
   const editor = draft && <AutomationTaskEditor key={`${draft.id ?? 'new'}:${draft.input.cardId ?? ''}:${draftSequence}`} draft={draft} cards={cards} busy={busy} action={action} onSaved={(task, run) => { setSelected(task.id); setRunId(run ?? null); void refresh().catch(error => setError(String(error))) }} />
   return <section ref={panelRef} className="automation-panel" data-island-linked={islandLinked} aria-label={t('automations.title')} aria-busy={busy}>
     <header className="automation-header"><div className="automation-heading"><h2>{t('automations.title')}</h2><span className="automation-count">{tasks.length}</span></div>
-      <div className="automation-header-actions"><button className="automation-island-control" aria-pressed={islandLinked} title={t(islandLinked ? 'automations.closeIsland' : 'automations.openIslandHint')} aria-label={t(islandLinked ? 'automations.closeIsland' : 'automations.openIsland')} onClick={() => islandLinked ? useIslandStore.getState().dispatch({ type: 'dismiss' }) : activateAutomationCompanion()}><span aria-hidden="true"><JanusEye mode="order" className="automation-island-eyes" /></span></button>
+      <div className="automation-header-actions"><button className="automation-island-control" aria-pressed={islandLinked} disabled={islandLinked} title={t(islandLinked ? 'automations.companionLockedHint' : 'automations.openIslandHint')} aria-label={t(islandLinked ? 'automations.companionLocked' : 'automations.openIsland')} onClick={activateAutomationCompanion}><span aria-hidden="true"><JanusEye mode="order" className="automation-island-eyes" /></span></button>
         <button className="automation-text-button" disabled={busy || !api} onClick={() => { setError(''); setCardPrompt({}) }}><Plus size={14} />{t('automations.new')}</button></div>
     </header>
     <div className="automation-scroll">

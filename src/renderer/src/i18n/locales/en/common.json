@@ -1,4 +1,10 @@
 {
+  "conversationWelcome": {
+    "title": "Where would you like to start?",
+    "hint": "Ask a question, or start with your project files.",
+    "workspace": "Current workspace",
+    "noWorkspace": "No workspace selected"
+  },
   "learning": {
     "title": "Help & learning",
     "introTitle": "Getting started",
@@ -442,6 +448,8 @@
     "openIsland": "Open Island",
     "openIslandHint": "Expand Island alongside the automation panel",
     "closeIsland": "Collapse Island",
+    "companionLocked": "SuperAgent connected",
+    "companionLockedHint": "SuperAgent stays connected while Automations is open. Describe a task or ask to adjust it in chat.",
     "localOnly": "Runs on this computer while the app is open. Scheduling stops when the app exits.",
     "unavailable": "Automation service unavailable",
     "empty": "Create a card to group tasks, then add reminders or code reviews. Each task has its own schedule.",

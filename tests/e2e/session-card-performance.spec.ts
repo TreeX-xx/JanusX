@@ -6,6 +6,22 @@ declare global {
   }
 }
 
+test('session cards show the conversation title and recent discussion while retaining the first prompt in details', async ({ page }) => {
+  await page.goto('/session-panel.html')
+  const card = page.locator('[data-session-id="session-0"]')
+  await expect(card.getByText('Conversation overview 0', { exact: true })).toBeVisible()
+  await expect(card.getByText('Recent discussion 0: implementation and verification', { exact: true })).toBeVisible()
+  await expect(card.getByText(/^Session 0\n/)).toHaveCount(0)
+  const withoutTitle = page.locator('[data-session-id="session-1"]')
+  await expect(withoutTitle.getByText('Recent discussion 1: implementation and verification', { exact: true })).toBeVisible()
+  await expect(withoutTitle.getByText('codex', { exact: true })).toHaveCount(2)
+  await card.locator('button[aria-expanded]').click()
+  await expect(card.getByText(/^Session 0\n/)).toBeVisible()
+  await page.getByRole('textbox').fill('Conversation overview 199')
+  await expect(page.locator('[data-session-id]')).toHaveCount(1)
+  await expect(page.locator('[data-session-id="session-199"]')).toBeVisible()
+})
+
 test('large session lists keep unopened bodies out of the DOM; slow reads never gate toggles', async ({ page }) => {
   await page.goto('/session-panel.html')
   const cards = page.locator('[data-session-id]')

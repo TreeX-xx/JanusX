@@ -1,0 +1,22 @@
+.rail { width:100%; min-height:0; display:flex; flex:1; flex-direction:column; align-items:center; margin-top:12px; overflow-y:auto; scrollbar-width:none; }
+.rail[hidden] { display:none; }
+.list { display:flex; flex-direction:column; gap:5px; width:100%; padding-top:8px; border-top:1px solid var(--shell-border); }
+.item { position:relative; display:flex; flex-shrink:0; flex-direction:column; align-items:center; justify-content:center; gap:6px; width:32px; min-height:48px; margin:0 auto; padding:5px 1px; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--shell-muted); cursor:pointer; }
+.item:hover,.item:focus-visible { border-color:var(--shell-border); background:var(--shell-hover); }
+.elapsed { min-height:11px; font:9px/1.2 Consolas,monospace; font-variant-numeric:tabular-nums; letter-spacing:-.4px; }
+.elapsed > span { font:inherit; }
+.elapsed svg { display:none; }
+.dot { width:5px; height:5px; border:1px solid var(--shell-muted); border-radius:50%; background:var(--shell-muted); }
+.item[data-running=true] .dot { background:var(--shell-text); animation:breathe 2.4s ease-in-out infinite; }
+.item:is([data-phase=waiting],[data-phase=queued],[data-phase=paused]) .dot { background:transparent; }
+.item:is([data-phase=failed],[data-phase=blocked]) .dot { border-radius:1px; transform:rotate(45deg); }
+.unread { position:absolute; right:0; top:1px; color:var(--shell-text); }
+.empty { display:grid; place-items:center; padding-top:10px; color:var(--shell-dim); }
+.peek { position:fixed; z-index:1400; width:min(278px,calc(100vw - 54px)); max-height:calc(100vh - 16px); overflow:auto; padding:12px; box-sizing:border-box; border:1px solid var(--shell-border); border-radius:8px; background:var(--shell-chrome); color:var(--shell-text); box-shadow:0 12px 32px color-mix(in srgb,var(--shadow-color) 20%,transparent); font-size:12px; }
+.peek strong { display:block; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.peek p { margin:7px 0; color:var(--shell-muted); font-size:11px; line-height:1.6; overflow-wrap:anywhere; }
+.peek footer { display:flex; gap:6px; margin-top:10px; }
+.peek button { padding:5px 8px; color:var(--shell-muted); background:var(--shell-hover); border:1px solid var(--shell-border); border-radius:4px; font:inherit; font-size:11px; cursor:pointer; }
+.item:focus-visible,.peek button:focus-visible { outline:1px solid var(--shell-muted); outline-offset:-2px; }
+@keyframes breathe { 0%,100% { opacity:.45; } 50% { opacity:1; } }
+@media(prefers-reduced-motion:reduce) { .dot { animation:none!important; } }

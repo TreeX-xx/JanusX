@@ -48,15 +48,16 @@ export function attachNoteChatTools(ports: ChatTurnPorts, options: {
   const isSharedNoteTool = (name: string) => NOTE_TOOL_DEFINITIONS.some(tool => tool.name === name)
   const definitions = NOTE_CHAT_TOOLS.filter(tool => authorized || tool.actionRisk === 'read')
   ports.tools = {
+    ...original,
     registry: { list: () => [...original.registry.list().filter(tool => !isSharedNoteTool(tool.name)), ...definitions],
       listManifests: () => [...(original.registry.listManifests?.() ?? createToolManifests(original.registry.list())).filter(tool => !isSharedNoteTool(tool.canonicalName)), ...createToolManifests(definitions)] },
-    executeFunctionCall: async (input, callerId): Promise<ToolResult> => {
+    executeFunctionCall: async (input, callerId, signal): Promise<ToolResult> => {
       // Isolated WorkflowX children use the shared runtime policy and their own session.
       if (!options.resources.some(item => item.agentSessionId === input.sessionId)) {
-        return original.executeFunctionCall(input, callerId)
+        return original.executeFunctionCall(input, callerId, signal)
       }
       if (!NOTE_CHAT_TOOLS.some(tool => tool.name === input.call.toolName)) {
-        const result = await original.executeFunctionCall(input, callerId)
+        const result = await original.executeFunctionCall(input, callerId, signal)
         if (input.call.toolName !== 'workspace.read' || result.status !== 'completed' || options.signal.aborted) return result
         const resource = options.resources.find(item => item.agentSessionId === input.sessionId)
         const output = result.output as { path?: string; content?: string; sha256?: string; truncated?: boolean } | undefined

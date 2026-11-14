@@ -1,19 +1,22 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawn, execFile } from 'node:child_process'
+import childProcess from 'node:child_process'
+import { syncBuiltinESMExports } from 'node:module'
 import { CodexConversation } from '../../src/main/terminal/codex-conversation'
 import { OpenCodeConversation } from '../../src/main/terminal/opencode-conversation'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
 import { PiConversation, DshConversation } from '../../src/main/terminal/extension-conversation'
 
-vi.mock('node:child_process', async importOriginal => ({
-  ...await importOriginal<typeof import('node:child_process')>(),
-  spawn: vi.fn(() => { throw new Error('fixture backend reached') }),
-  execFile: vi.fn(() => { throw new Error('unexpected CLI version probe') }),
-}))
-afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks() })
+beforeEach(() => {
+  vi.spyOn(childProcess, 'spawn').mockImplementation(() => { throw new Error('fixture backend reached') })
+  vi.spyOn(childProcess, 'execFile').mockImplementation(() => { throw new Error('unexpected CLI version probe') })
+  // The pinned native ESM engine must share the same subprocess fixture.
+  syncBuiltinESMExports()
+})
+
+afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); syncBuiltinESMExports() })
 
 describe('conversation startup does not gate on installed CLI versions', () => {
   for (const [engine, Controller, verb] of [['codex', CodexConversation, 'app-server'], ['opencode', OpenCodeConversation, 'serve']] as const) {
@@ -21,8 +24,8 @@ describe('conversation startup does not gate on installed CLI versions', () => {
       const controller = new Controller(engine, vi.fn())
       try {
         await expect(controller.start({ command: `${engine}.exe`, args: [], cwd: tmpdir(), env: {}, assetsDir: tmpdir() })).rejects.toThrow('fixture backend reached')
-        expect(spawn).toHaveBeenCalledWith(`${engine}.exe`, expect.arrayContaining([verb]), expect.any(Object))
-        expect(execFile).not.toHaveBeenCalled()
+        expect(childProcess.spawn).toHaveBeenCalledWith(`${engine}.exe`, expect.arrayContaining([verb]), expect.any(Object))
+        expect(childProcess.execFile).not.toHaveBeenCalled()
       } finally { await controller.dispose() }
     })
   }

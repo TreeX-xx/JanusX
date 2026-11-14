@@ -36,19 +36,19 @@ export const EMPTY_JANUS_RUNTIME_STATE: JanusRuntimeState = { activities: [], pe
  * agentX store.ts parity：ChatAgentEvent -> 聊天状态行（思考/输出/工具/等待）。
  * 返回 null 表示该事件不改变状态行（沿用上一状态）。
  */
-export type JanusChatStatusKind = 'thinking' | 'writing' | 'preparing' | 'running' | 'awaiting' | 'finishing'
+export type JanusChatStatusKind = 'connecting' | 'thinking' | 'writing' | 'preparing' | 'running' | 'awaiting' | 'finishing'
 
 export interface JanusChatStatus {
   kind: JanusChatStatusKind
   toolName?: string
 }
 
-export const INITIAL_JANUS_CHAT_STATUS: JanusChatStatus = { kind: 'thinking' }
+export const INITIAL_JANUS_CHAT_STATUS: JanusChatStatus = { kind: 'connecting' }
 
 export function chatStatusForEvent(event: ChatAgentEvent): JanusChatStatus | null {
   switch (event.type) {
     case 'agent_start':
-      return { kind: 'thinking' }
+      return { kind: 'connecting' }
     case 'reasoning_delta':
       return { kind: 'thinking' }
     case 'text_delta':

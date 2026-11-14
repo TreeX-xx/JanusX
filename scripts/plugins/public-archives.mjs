@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -11,6 +11,16 @@ export async function publicArchives({ sources, vendor, cache, npm }) {
   const pending = [], records = new Map()
   for (let index = 0; index < plans.length; index++) {
     const plan = plans[index]
+    // Pinned engine archives are already publications. Preserve their exact bytes;
+    // treating them as directories or repacking installed files breaks that pin.
+    if ((await stat(sources[index])).isFile()) {
+      const bytes = await readFile(sources[index])
+      const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
+      if (plan.integrity && plan.integrity !== integrity) throw Error(`Publication integrity changed: ${plan.name}`)
+      await cp(sources[index], join(vendor, plan.filename))
+      records.set(plan.name, { name: plan.name, version: plan.version, file: plan.filename, sha256: digest(bytes), integrity })
+      continue
+    }
     const files = await Promise.all(plan.files.map(async ({ path, mode }) =>
       [path, mode, digest(await readFile(join(sources[index], path)))]))
     files.sort(([a], [b]) => a.localeCompare(b))

@@ -1,6 +1,8 @@
 // Note: transcript-driven session content truth — one per-engine record
 // classification shared by scanner, detail reader and excerpt path — see
 // .agents/notes/sessions/requirements/session-content-truth.md
+// Codex instruction header variants and cached-title repair:
+// .agents/notes/sessions/records/session-content-truth-kernel.md
 import { isRuntimeNotification } from '../knowledge/personal-memory-content'
 
 export type TranscriptKernelEngine = 'claude' | 'codex' | 'pi' | 'janus'
@@ -159,7 +161,7 @@ function isCodexInputRecord(record: Record<string, unknown>): boolean {
 }
 
 const CODEX_INJECTION_TEXT =
-  /^(?:# AGENTS\.md instructions for |<ENVIRONMENT_CONTEXT>|<user_instructions>|<INSTRUCTIONS>)/i
+  /^(?:# AGENTS\.md instructions(?:[ \t]+for[ \t]+[^\r\n]+)?[ \t]*(?:\r?\n|$)|<ENVIRONMENT_CONTEXT>|<user_instructions>|<INSTRUCTIONS>)/i
 
 /** Environment-context text a CLI injected as a user message; never a question. */
 export function isEnvironmentInjectionText(text: string): boolean {

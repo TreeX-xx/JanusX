@@ -18,7 +18,7 @@ import { buildEvaluatorPrompt, createModelReviewPort } from '../harness/desktop-
 import { executeDesktopTask, runDesktopCommand } from '../harness/desktop-executor'
 import { createDesktopImplementationPort, generateDesktopReviewText } from '../harness/desktop-task-turn'
 import { readTaskTranscript } from '../harness/task-transcript'
-import { configService, DEFAULT_AGENT_MAX_STEPS } from '../config/service'
+import { INTERACTIVE_RUN_LIMIT } from '@janus-agent/janus-agent'
 import type { ChatTurnPorts } from '@janus-agent/janus-agent'
 import { finishWithLatestReceipt, requestIndependentReview } from '../harness/independent-review'
 import { ensureTaskThread, readDesktopConcurrency, setThreadModel, setThreadReviewer } from '../harness/task-thread'
@@ -292,7 +292,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
         if (policy.independent && reviewerProviderId && reviewerModelId) {
           thread = await setThreadReviewer(root, runId, { providerId: reviewerProviderId, modelId: reviewerModelId }, reviewer).catch(threadError)
         }
-        const maxTurns = await configService.getAgentMaxSteps().catch(() => DEFAULT_AGENT_MAX_STEPS)
+        const maxTurns = INTERACTIVE_RUN_LIMIT
         const reviewPort = (kind: 'self' | 'independent') => async (evidence: Parameters<ReturnType<typeof createModelReviewPort>>[0], signal?: AbortSignal) => {
           const provider = kind === 'independent' ? reviewerProviderId : providerId
           const model = kind === 'independent' ? reviewerModelId : modelId
@@ -492,7 +492,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
           ...(modelId ? { modelId } : {}),
           getModel: (provider, model) => llmService.getLanguageModel('janus', provider, model),
           generateReviewText: (_model, prompt, signal) => generateDesktopReviewText(root, runId, token, 'independent', {
-            providerId: providerId ?? '', modelId: modelId ?? '', maxTurns: DEFAULT_AGENT_MAX_STEPS,
+            providerId: providerId ?? '', modelId: modelId ?? '', maxTurns: INTERACTIVE_RUN_LIMIT,
             getModel: (provider, model) => llmService.getLanguageModel('janus', provider, model),
             streamTextFn: streamText as unknown as ChatTurnPorts['streamTextFn'],
           }, prompt, signal),

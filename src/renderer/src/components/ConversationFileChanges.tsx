@@ -26,7 +26,10 @@ export function ConversationFileChanges({ turnId, files, incomplete, openFile, o
     {files.map(file => <LazyDetails stateKey={file.path} className={`${styles.file} ${styles.turnFile}`} key={file.path} summary={
       <summary>
         <ChevronRight size={13} className={styles.chevron} aria-hidden="true" />
-        <FileCode2 size={15} aria-hidden="true" /><span className={styles.turnFilePath}>{file.path}</span>
+        <FileCode2 size={15} aria-hidden="true" /><span className={styles.turnFilePath} title={file.path}>
+          <span className={styles.turnFileName}>{file.path.split(/[\\/]/).pop()}</span>
+          {/[\\/]/.test(file.path) && <span className={styles.turnFileDirectory}>{file.path}</span>}
+        </span>
         {file.countsKnown && <DiffCounts additions={file.additions} deletions={file.deletions} />}
       </summary>}>{() => <>
       <button type="button" onClick={() => void openFile(file.path)} aria-label={file.path} title={`${t('conversation.openFile')} · ${file.path}`}>{t('conversation.openFile')}</button>

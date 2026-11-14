@@ -47,6 +47,9 @@ files:
   - "!scripts/android-lab{,/**/*}"
   - "!scripts/remote-lab{,/**/*}"
   - "!design{,/**/*}"
+  # Keep the retired prototype root excluded as well as design/ for older local material.
+  - "!_design{,/**/*}"
+  - "!vendor/janus-agent{,/**/*}"
   - "!release{,/**/*}"
   - "!src{,/**/*}"
   # Downloadable features have their own signed packages, including build caches

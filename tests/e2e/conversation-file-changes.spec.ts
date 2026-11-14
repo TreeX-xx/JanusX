@@ -5,7 +5,7 @@ for (const theme of ['dark', 'light']) test(`turn file summary stays visible out
   await page.goto(`/codex-conversation.html?theme=${theme}`)
   await page.getByRole('button', { name: 'Conversation', exact: true }).click()
   await page.evaluate(() => (window as any).codexFixture.designPreview())
-  const work = page.getByRole('button', { name: 'Work log', exact: true })
+  const work = page.locator('.conversation-work-toggle')
   const changes = page.locator('[data-turn-files="preview"]')
   await expect(work).toHaveAttribute('aria-expanded', 'false')
   await expect(changes.locator(':scope > summary')).toHaveText('Files changed this turn (1)View changes')

@@ -14,6 +14,7 @@ import { JanusIdentityCore } from './JanusIdentityCore'
 import { WorkflowXMonitor } from './WorkflowXMonitor'
 import { getJanusAgentIdentity } from './janusIdentity'
 import { JanusChat } from './JanusChat'
+import { SuperAgentLaunch } from './SuperAgentLaunch'
 import { JanusRoundtablePane } from './JanusRoundtablePane'
 import { ISLAND_CHAT_ONLY } from './janusIslandTypes'
 import type { JanusExpandedView, JanusIslandProps, JanusIslandStage, JanusParticle } from './janusIslandTypes'
@@ -231,6 +232,7 @@ export function JanusIslandExpandedShell({
                     data-view={item.id} data-active={view === item.id} aria-selected={view === item.id}
                     title={`${item.extensionId} · ${item.title}`} onClick={() => setView(item.id)}>{item.title}</button>)}
                 </div>}
+                <SuperAgentLaunch compact />
                 <div className="janus-notify-anchor">
                   <button type="button" className="janus-notify-badge" data-active={trayOpen}
                     data-unread={notificationCenter.unreadCount > 0} aria-expanded={trayOpen}
@@ -423,6 +425,8 @@ export function JanusIslandExpandedShell({
                   // it intercept Tab/Ctrl+P and open a menu outside the viewport.
                   visible={stage === 'expanded' && view === 'chat'}
                   docked
+                  showAgentMode
+                  conversationStyle
                   modeColor={modeColor}
                   messages={messages}
                   pendingContent={pendingContent}

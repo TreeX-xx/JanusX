@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 346 80" fill="none" role="img" aria-label="Codex">
+  <title>Codex</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-c-0" transform="translate(0 0)">
+      <path d="M18 8H58L48 20H22L14 28V52L22 60H48L58 72H18L2 56V24Z"/>
+    </g>
+    <g id="letter-o-1" transform="translate(66 0)">
+      <path d="M18 8H48L64 24V56L48 72H18L2 56V24Z M22 20L14 28V52L22 60H44L52 52V28L44 20Z"/>
+    </g>
+    <g id="letter-d-2" transform="translate(140 0)">
+      <path d="M2 8H40L60 28V52L40 72H2Z M14 20V60H34L48 46V34L34 20Z"/>
+    </g>
+    <g id="letter-e-3" transform="translate(210 0)">
+      <path d="M2 8H58L46 20H14V34H48L38 46H14V60H46L58 72H2Z"/>
+    </g>
+    <g id="letter-x-4" transform="translate(276 0)">
+      <path d="M2 8H18L66 72H50Z"/>
+      <path d="M50 8H66L44 37.333L36 26.667Z M24 42.667L32 53.333L18 72H2Z"/>
+    </g>
+  </g>
+</svg>

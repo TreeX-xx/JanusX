@@ -1,6 +1,7 @@
 import { toolActivity } from '../../shared/work-output'
-import { spawn, execFile, type ChildProcess } from 'node:child_process'
-import { promisify } from 'node:util'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { stopProcessTree } from '../shutdown/process-tree'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 import { randomBytes } from 'node:crypto'
 import { dirname, extname, join, delimiter, resolve } from 'node:path'
 import { createServer, request as httpRequest, type Server } from 'node:http'
@@ -75,7 +76,8 @@ export class OpenCodeConversation extends NativeConversation {
     const pathKey = Object.keys(env).find(k => k.toLowerCase() === 'path') ?? 'PATH'
     if (options.pathDir) env[pathKey] = `${options.pathDir}${delimiter}${env[pathKey] ?? ''}`
     if (this.disposed) throw new Error('OpenCode launch cancelled')
-    this.child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd: options.cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    assertApplicationRunning()
+    this.child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd: options.cwd, env, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
     let log = ''
     const record = (bytes: Buffer) => { log = (log + bytes).slice(-4000); this.endpoint ||= /http:\/\/127\.0\.0\.1:\d+/.exec(log)?.[0] ?? '' }
     this.child.stdout?.on('data', record); this.child.stderr?.on('data', record)
@@ -446,12 +448,11 @@ export class OpenCodeConversation extends NativeConversation {
       this.sockets.clear()
       this.proxy?.closeAllConnections(); this.proxy?.close()
       if (this.child?.pid && this.child.exitCode === null && this.child.signalCode === null) {
-        if (process.platform === 'win32') await promisify(execFile)('taskkill', ['/PID', String(this.child.pid), '/T', '/F'], { windowsHide: true, timeout: 5000 }).catch(() => { this.child?.kill() })
-        else this.child.kill()
+        await stopProcessTree(this.child, { processGroup: true })
       }
       await this.polling
       await this.loadingModels
-    })()
+    })().catch(error => { this.stopping = undefined; throw error })
     return this.stopping
   }
 }

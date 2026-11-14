@@ -10,10 +10,18 @@ export const currentChatCallId = () => activeCall.getStore()
 /** Emit each redacted result before stream_end can unsubscribe the renderer. */
 export function attachChatToolEvents(ports: ChatTurnPorts, requestId: string, onTrace: (entry: ChatToolTraceEntry) => void): void {
   const execute = ports.tools.executeFunctionCall.bind(ports.tools)
-  ports.tools = { ...ports.tools, executeFunctionCall: (input, callerId) => {
+  const awaitBackground = ports.tools.awaitBackground?.bind(ports.tools)
+  ports.tools = { ...ports.tools,
+    ...(awaitBackground ? { awaitBackground: async (...args: Parameters<NonNullable<ChatTurnPorts['tools']['awaitBackground']>>) => {
+      const results = await awaitBackground(...args)
+      if (args[1].signal.aborted) return []
+      for (const { result } of results) onTrace({ ...toolTraceEntryFromResult(result, requestId), callId: result.correlationId })
+      return results
+    } } : {}),
+    executeFunctionCall: (input, callerId, signal) => {
     const callId = input.call.correlationId
     return activeCall.run(callId ?? '', async () => {
-      const result = await execute(input, callerId)
+      const result = await execute(input, callerId, signal)
       const trace: ChatToolTraceEntry = { ...toolTraceEntryFromResult(result, requestId), ...(callId ? { callId } : {}) }
       const output = result.output as { summary?: unknown; validation?: { valid: boolean; errors: Array<{ field: string; message: string }>; warnings: Array<{ field: string; message: string }> }; applied?: boolean } | undefined
       if (/^launch-config\.(get|edit|apply)$/.test(result.toolName) && output?.validation) {

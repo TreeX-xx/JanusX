@@ -1071,7 +1071,7 @@ body.is-running[data-theme='planche'] {
   outline: 0;
 }
 
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat-input::-webkit-scrollbar-thumb {
+[data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-chat:not([data-conversation-style]) .janus-chat-input::-webkit-scrollbar-thumb {
   background: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
 }
 

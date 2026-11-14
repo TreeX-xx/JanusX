@@ -57,10 +57,12 @@ describe('managed conversation context', () => {
     const statuses: ChatContextStatus[] = []
     session.beginTurn(messages, 'scope', undefined, state => statuses.push(state), 'catalog')
     let attempts = 0
-    await expect(session.maybeCompact(messages, options, async () => {
+    // Force a second summary request independently of automatic selection thresholds.
+    await expect(session.maybeCompact(messages, { ...options, force: true }, async () => {
       if (attempts++ > 0) throw new Error('summary unavailable')
       return summary()
     })).rejects.toThrow('原始对话已保留')
+    expect(attempts).toBe(2)
     expect(statuses.every(state => !state.checkpoint)).toBe(true)
     expect(() => session.buildContext(messages, options)).toThrow('原始对话已保留')
     expect(messages).toHaveLength(35)

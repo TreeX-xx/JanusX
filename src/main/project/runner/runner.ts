@@ -9,7 +9,9 @@
  * 4. 流式输出日志，提取关键信息（端口号等）
  */
 
-import { spawn, spawnSync, ChildProcess } from 'node:child_process'
+import { spawn, ChildProcess } from 'node:child_process'
+import { stopProcessTree } from '../../shutdown/process-tree'
+import { assertApplicationRunning } from '../../shutdown/quit-state'
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
 import { mkdir, rm } from 'node:fs/promises'
@@ -30,6 +32,7 @@ interface RunningProject extends ProcessHandle {
   outputBuffer: string // 用于缓存未完整的输出行
   eventEmitter: EventEmitter
   terminated: boolean
+  stopping?: Promise<void>
   /** P4尾巴：仅 adhoc 后台命令有值，退出时落盘，process-output 可读已退出任务。 */
   persistLogPath?: string
   storageRoot?: string
@@ -80,19 +83,6 @@ export function requiresCommandShell(command: string, platform: NodeJS.Platform 
 export function spawnHint(program: string): string {
   return `hint: the program '${program}' failed to start (ENOENT reads as a negative exit such as -4058 on Windows).`
     + ` Launch the host from a shell with Node on PATH; package-manager shims resolve through cmd.exe on win32.`
-}
-
-/** win32 树杀预清：控制台进程无视优雅终结，taskkill 成败都不影响后续句柄杀流程。 */
-export function tryTreeKill(pid: unknown): void {
-  if (process.platform !== 'win32' || !Number.isSafeInteger(pid)) return
-  try {
-    const systemRoot = process.env.SystemRoot ?? process.env.windir ?? 'C:\\Windows'
-    spawnSync(`${systemRoot}\\System32\\taskkill.exe`,
-      ['/PID', String(pid), '/T', '/F'],
-      { windowsHide: true, timeout: 10_000 })
-  } catch {
-    // Best effort: the handle-kill flow below covers the miss.
-  }
 }
 
 /**
@@ -326,9 +316,7 @@ export class ProjectRunner extends EventEmitter {
       throw new Error(`Project ${projectId} is not running`)
     }
 
-    if (running.terminated) {
-      return
-    }
+    if (running.stopping) return running.stopping
 
     running.terminated = true
     // R3：手动 stop 清掉超时计时（快照 timedOut 保持 false，区别于超时 kill）。
@@ -337,26 +325,11 @@ export class ProjectRunner extends EventEmitter {
       running.timeoutTimer = undefined
     }
 
-    // win32 先整树强杀（子树不残留），再走句柄杀流程；taskkill 失败时句柄杀兜底。
-    tryTreeKill(running.pid)
-    // 先发送 SIGTERM
-    running.process.kill('SIGTERM')
-
-    // 设置超时强制杀死
-    const killTimer = setTimeout(() => {
-      if (!running.process.killed) {
-        running.process.kill('SIGKILL')
-      }
-    }, timeout)
-
-    // 等待进程退出
-    return new Promise((resolve, reject) => {
-      running.process.once('exit', () => {
-        clearTimeout(killTimer)
-        resolve()
-      })
-      running.process.once('error', reject)
+    running.stopping = stopProcessTree(running.process, { processGroup: true, graceMs: timeout }).catch(error => {
+      running.stopping = undefined
+      throw error
     })
+    return running.stopping
   }
 
   /**
@@ -366,15 +339,9 @@ export class ProjectRunner extends EventEmitter {
     const ids = Array.from(this.runningProjects.keys())
     if (ids.length === 0) return
 
-    await Promise.all(
-      ids.map(async (id) => {
-        try {
-          await this.stop(id, timeout)
-        } catch {
-          // ignore missing/racy entries during shutdown
-        }
-      }),
-    )
+    const results = await Promise.allSettled(ids.map(id => this.runningProjects.has(id) ? this.stop(id, timeout) : Promise.resolve()))
+    const errors = results.filter(result => result.status === 'rejected').map(result => result.reason)
+    if (errors.length) throw new AggregateError(errors, 'Project process exit unconfirmed')
   }
 
   /**
@@ -439,11 +406,14 @@ export class ProjectRunner extends EventEmitter {
     args: string[],
     options: any
   ): ChildProcess {
+    assertApplicationRunning()
     assertWorkspaceStorageAvailable(options.cwd)
     return spawn(command, args, {
       ...options,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: requiresCommandShell(command),
+      detached: process.platform !== 'win32',
+      windowsHide: true,
     })
   }
 

@@ -15,6 +15,7 @@ export interface TranscriptSnapshot {
   createdAt?: string
   updatedAt: string
   firstPrompt: string
+  title?: string
   lastExcerpt?: string
   totalTurns: number
   turns: TranscriptTurn[]
@@ -87,9 +88,17 @@ export async function readTranscriptSnapshot(
     let providerSessionId: string | undefined
     let cwd: string | undefined
     let createdAt: string | undefined
+    let title: string | undefined
+    let customTitle: string | undefined
     const consume = (line: Buffer) => {
       const record = parseJsonLine(line.toString('utf8'))
       if (!record) return
+      // Provider-authored titles are metadata, never conversation turns.
+      if (engine === 'claude') {
+        if (record.type === 'custom-title') customTitle = string(record.customTitle) ?? customTitle
+        if (record.type === 'ai-title') title = string(record.aiTitle) ?? title
+      }
+      if (engine === 'pi' && record.type === 'session_info') title = string(record.name) ?? title
       const payload = record.payload && typeof record.payload === 'object'
         ? record.payload as Record<string, unknown> : undefined
       if (engine === 'codex') {
@@ -151,7 +160,7 @@ export async function readTranscriptSnapshot(
     collector.finish()
     return {
       providerSessionId, cwd, createdAt, updatedAt: new Date(info.mtimeMs).toISOString(),
-      firstPrompt: collector.firstPrompt, lastExcerpt: collector.lastExcerpt,
+      firstPrompt: collector.firstPrompt, title: customTitle ?? title, lastExcerpt: collector.lastExcerpt,
       totalTurns: collector.totalTurns, turns: collector.turns,
       truncated: dropped || collector.truncated,
     }

@@ -4,9 +4,11 @@ import type { ConversationItem } from '../../../shared/conversation-display'
 import type { HistoryNavigation } from './chat/VirtualHistory'
 import styles from './ConversationNavigation.module.css'
 
+export type NavigationInput = Pick<ConversationItem, 'id' | 'turnId' | 'type' | 'text'>
+
 // Reading/navigation ownership: .agents/notes/terminal/terminal-scrollback-navigation.md
 export function ConversationNavigation({ items, scrollRef, navigationRef, following, onNavigate }: {
-  items: ConversationItem[]; scrollRef: RefObject<HTMLDivElement>
+  items: NavigationInput[]; scrollRef: RefObject<HTMLDivElement>
   navigationRef: RefObject<HistoryNavigation>; onNavigate(): void
   following: MutableRefObject<boolean>
 }) {
@@ -40,13 +42,13 @@ export function ConversationNavigation({ items, scrollRef, navigationRef, follow
       const line = top + 16
       const rows = [...scroll.querySelectorAll<HTMLElement>('[data-history-key]')]
       const row = rows.find(row => row.getBoundingClientRect().bottom > line && row.getBoundingClientRect().top <= line)
-      const messages = [...scroll.querySelectorAll<HTMLElement>('[data-user-message]')]
+      const messages = [...scroll.querySelectorAll<HTMLElement>('[data-user-message]')].filter(message => message.getClientRects().length > 0)
       const above = messages.filter(message => message.getBoundingClientRect().top <= line)
         .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top)[0]
       const key = row?.dataset.historyKey
       const input = above && (!key || above.closest<HTMLElement>('[data-history-key]')?.dataset.historyKey === key)
         ? inputs.find(input => input.id === above.dataset.userMessage)
-        : inputs.find(input => input.turnId === key) ?? inputs[0]
+        : inputs.find(input => input.turnId === key) ?? inputs.find(input => input.id === above?.dataset.userMessage) ?? inputs[0]
       if (input) setCurrent(input.id)
       const first = messages.find(message => message.getBoundingClientRect().bottom > top)
       // Keep a visible message anchor; long answers use their measured turn row.
@@ -99,7 +101,7 @@ export function ConversationNavigation({ items, scrollRef, navigationRef, follow
     }
   }, [inputs, scrollRef, navigationRef, following])
   if (!inputs.length || size.height < 1) return null
-  const choose = (input: ConversationItem) => {
+  const choose = (input: NavigationInput) => {
     navigationRef.current?.locate(input.turnId, input.id)
     onNavigate(); setCurrent(input.id); setPreview(null)
   }

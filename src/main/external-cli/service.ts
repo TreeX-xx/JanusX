@@ -151,11 +151,6 @@ export class DefaultExternalCliService implements ExternalCliService {
       const versions = await this.openCodeVersions()
       return { toolId, versions }
     }
-    // 自有工具的“最新”即 sibling 源码版本号；取不到（打包后）则未知，不阻塞卡片。
-    if (tool.latestStrategy === 'local-source') {
-      const source = await this.installer.locateLocalSource(tool)
-      return { toolId, latestVersion: source?.version }
-    }
     if (!tool.npmPackage) return { toolId }
     return { toolId, latestVersion: await fetchLatestVersion(tool.npmPackage) }
   }
