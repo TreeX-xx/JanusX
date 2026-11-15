@@ -19,7 +19,7 @@ export function ConversationFileChanges({ turnId, files, incomplete, openFile, o
       <span>{t('conversation.changedFiles', { count: files.length })}</span>
       {countsKnown && <DiffCounts additions={files.reduce((sum, file) => sum + file.additions, 0)} deletions={files.reduce((sum, file) => sum + file.deletions, 0)} />}
       <span className={styles.turnFilesAction}>{t('conversation.viewChanges')}</span>
-    </summary>}>{() => <>
+    </summary>}>{() => <div className={styles.turnFilesBody}>
     <p className={styles.notice}>{t('conversation.changeScope')}</p>
     {onReview && <button type="button" onClick={onReview}>{t('conversation.feedback.review')}</button>}
     {incomplete && <p className={styles.notice} role="status">{t('conversation.truncated')}</p>}
@@ -44,5 +44,5 @@ export function ConversationFileChanges({ turnId, files, incomplete, openFile, o
         }
       }}>{patch.split('\n').map((line, lineIndex) => <span key={lineIndex} data-change={line.startsWith('+') && !line.startsWith('+++') ? 'add' : line.startsWith('-') && !line.startsWith('---') ? 'delete' : undefined}>{onFeedback && <button type="button" className={styles.diffFeedback} aria-label={t('conversation.feedback.line', { line: lineIndex + 1 })} title={t('conversation.feedback.line', { line: lineIndex + 1 })} onClick={() => onFeedback(file.path, `Patch ${index + 1}, row ${lineIndex + 1}:\n${line}`)}>+</button>}{line}{'\n'}</span>)}</pre> : <p className={styles.notice} key={index}>{t('conversation.diffUnavailable')}</p>)}
     </>}</LazyDetails>)}
-  </>}</LazyDetails>
+  </div>}</LazyDetails>
 }

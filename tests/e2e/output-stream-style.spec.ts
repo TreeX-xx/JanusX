@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('native output uses row highlights and keeps plan history with its turn', async ({ page }) => {
+test('native output uses row highlights and keeps a single plan per turn', async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
   await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
   await page.evaluate(() => (window as any).codexFixture.workPreview('start'))
@@ -16,18 +16,9 @@ test('native output uses row highlights and keeps plan history with its turn', a
   const step = plan.locator('[data-current=true]')
   await expect(step).toHaveCSS('border-left-width', '0px')
   expect(await step.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
-  const history = page.locator('[data-plan-history]')
-  await expect(history).toHaveCount(0)
   await page.evaluate(() => (window as any).codexFixture.revisePlan())
-  await expect(history).toHaveCount(1)
-  expect(await history.evaluate(el => !!el.closest('[data-history-key]'))).toBe(true)
-  await history.locator(':scope > summary').click()
-  await expect(history.getByRole('region', { name: 'Previous plan', exact: true })).toHaveCount(1)
-  const version = history.getByRole('region', { name: 'Previous plan', exact: true })
-  await version.getByRole('button').click()
-  await history.locator(':scope > summary').click()
-  await history.locator(':scope > summary').click()
-  await expect(version.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('region', { name: 'Execution plan', exact: true })).toHaveCount(1)
+  await expect(page.locator('[data-plan-history]')).toHaveCount(0)
   for (const [theme, width] of [['dark', 1100], ['white', 390], ['planche', 760]] as const) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
     await page.setViewportSize({ width, height: 850 })

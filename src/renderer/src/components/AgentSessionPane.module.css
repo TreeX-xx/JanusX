@@ -53,14 +53,6 @@
 .planExplanation, .planStatus { font-size: 11px; line-height: 1.6; margin: 0 0 8px; overflow-wrap: anywhere; }
 .planStatus { padding: 0 12px; }
 .planSpinner { animation: modeSpin 1.6s linear infinite; }
-.planGroup { display: grid; gap: 8px; }
-.planHistory { margin: 0; font-size: 12px; color: var(--shell-muted); border: 1px solid var(--shell-border); border-radius: 9px; }
-.planHistory > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 11px 12px; list-style: none; }
-.planHistory > summary::-webkit-details-marker { display: none; }
-.planHistory[open] > summary .chevron { transform: rotate(90deg); }
-.planVersionCount { margin-left: auto; color: var(--shell-muted); font-size: 11px; }
-.planHistory .plan { margin-top: 8px; }
-.planHistory > .plan { margin: 0 10px 10px; background: transparent; }
 .readOnly { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--shell-muted); font-size: 12px; }
 .readOnly button { padding: 6px 10px; background: var(--shell-hover); color: var(--shell-text); }
 .readingArea { position: relative; flex: 1; min-height: 0; min-width: 0; display: flex; overflow: hidden; }
@@ -138,6 +130,8 @@
 .turnFiles > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; flex-wrap: wrap; font-size: 12px; }
 .turnFiles > summary::-webkit-details-marker { display: none; }
 .turnFiles[open] > summary .chevron { transform: rotate(90deg); }
+.turnFilesBody { max-height: min(360px, 45vh); margin-top: 8px; overflow: auto; }
+.turnFilesBody > .notice:first-child { margin-top: 4px; }
 .turnFile > summary { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; list-style: none; font-size: 12px; border-radius: 6px; }
 .turnFile > summary::-webkit-details-marker { display: none; }
 .turnFile > summary:hover { background: var(--shell-hover); }

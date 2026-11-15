@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-14T03:23:25Z",
+  "updated": "2026-11-15T15:56:45Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -1030,6 +1030,14 @@ AgentSessionPane 先投影计划再分配活动轮次与历史；ConversationPla
 Main 执行 `npx vitest run --project=unit tests/unit/conversation-plans.test.ts --maxWorkers=1`，5 项通过，覆盖 50 次状态更新合并、步骤内容／数量／顺序变化、结果和 stale 保留、跨 turn 隔离以及清空／恢复。`npx playwright test tests/e2e/conversation-native-plans.spec.ts tests/e2e/output-stream-style.spec.ts --project=island --workers=1`，5 项通过，覆盖当前计划开合、完成归档、异常进度、实质调整默认折叠及历史手动状态。深／浅／石板和窄窗截图沿用输出流场景；已查看 `artifacts/plan-history/final-plan.png`，最终计划与一次折叠调整分开展示，无进度版本堆叠。
 
 严格未使用类型检查、三个修改源码文件的 ESLint、双语检查及 npm run build:check 通过，构建输出为 artifacts/build-check。Notes 检查为 346 篇、0 errors、17 条既有外链诊断。浏览器日志、构建与最终检查记录归 `artifacts/plan-history/verification.json`。本轮仅改变展示投影及交互，没有重新执行用户任务、修改原生计划账本或替换运行中的安装版；未执行真实 CLI、云模型端到端或完整 verify。
+
+## 计划调整入口移除与修改文件列表限高（2026-11-15）
+
+用户反馈“执行计划”与“计划调整”两个概念难以区分。输出流不再展示“计划调整”：每个轮次只显示一份计划，步骤被改写时原位替换，结束轮次保留最终计划。此前两节关于折叠调整记录、调整次数计数和“调整前计划”的描述由本节取代。被替换的版本仍在原生快照中，`compactConversationPlans` 的合并规则和单测不变；文案键 planChanges、planPrevious 及未使用的 planHistory 已删除。历史计划的折叠状态键改为按轮次固定，不再随版本变化。
+
+“本轮修改文件”展开后的内容放入 turnFilesBody 滚动容器，最高 min(360px, 45vh)，超出部分在容器内滚动，摘要行保持可见。计划正文原有 min(220px, 28vh) 上限不变。
+
+验证：`npx playwright test tests/e2e/conversation-native-plans.spec.ts tests/e2e/output-stream-style.spec.ts tests/e2e/conversation-file-changes.spec.ts tests/e2e/conversation-context.spec.ts tests/e2e/conversation-virtual-history.spec.ts --project=island --workers=1` 15 项通过，覆盖计划改写后仍只有一份、无调整入口、跨轮各留一份，以及文件列表容器的滚动与高度上限。conversation-plans 单测 5 项、严格未使用类型检查、两个组件的 ESLint 和双语检查通过。验证使用 worktree 和浏览器夹具，未运行完整 verify、真实 CLI 或安装版。
 
 ## 工具调用三处视觉对齐（2026-11-13）
 
