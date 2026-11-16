@@ -13,6 +13,49 @@ const { AgentHookConfigManager } = await import('../../src/main/notifications/ag
 
 const bin = process.env.JANUSX_TEST_CODEX_BIN
 describe.skipIf(!bin || process.platform !== 'win32')('managed Codex native TUI integration (local model only)', () => {
+  it('pages native originals read-only and reads a truncated first item in bounded chunks', async () => {
+    const fixture = await hookCliFixture()
+    await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+      'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+      '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false',
+      `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+    ].join('\n'))
+    const c = new CodexConversation('history-test', () => {})
+    let terminal: pty.IPty | undefined
+    try {
+      const launch = await c.start({ command: bin!, args: [], cwd: fixture.cwd, env: fixture.env })
+      terminal = pty.spawn(launch.command, [...launch.args, '--no-alt-screen'], { cwd: fixture.cwd, env: { ...fixture.env, ...launch.env } as Record<string, string>, cols: 120, rows: 35, useConpty: true, useConptyDll: true })
+      terminal.onData(data => { if (data.includes('\x1b[6n')) terminal?.write('\x1b[1;1R') })
+      await vi.waitFor(() => expect(c.state.connection).toBe('ready'), { timeout: 15000 })
+      const { controlEpoch } = await c.command({ type: 'mode', mode: 'conversation' })
+      const original = 'Original user input\n' + 'Historical context. '.repeat(900) + 'END OF ORIGINAL'
+      await c.command({ type: 'send', commandId: 'history-first', text: original, controlEpoch })
+      await vi.waitFor(() => expect(c.state.turnId).toBeNull(), { timeout: 15000 })
+      await c.command({ type: 'send', commandId: 'history-second', text: 'Second historical input', controlEpoch })
+      await vi.waitFor(() => expect(c.state.turnId).toBeNull(), { timeout: 15000 })
+      const before = c.snapshot(), requests = fixture.responseRequests.length, threadId = before.threadId!
+      const page = await c.readHistory({ type: 'page', threadId, beforeItemId: before.items[0].id })
+      if (page.type !== 'page') throw Error('Expected native page')
+      const first = page.items.find(item => item.type === 'userMessage')!
+      expect(first).toMatchObject({ truncated: true, editable: false, textLength: original.length })
+      expect(first.text.length).toBeLessThanOrEqual(8000)
+      for (const item of page.items.filter(item => item.type === 'userMessage' || item.type === 'agentMessage')) {
+        let offset = 0, content = '', version: string | undefined
+        while (true) {
+          const chunk = await c.readHistory({ type: 'text', threadId, turnId: item.turnId, itemId: item.id, offset, version })
+          if (chunk.type !== 'text') throw Error('Expected native text')
+          expect(chunk.text.length).toBeLessThanOrEqual(16000)
+          content += chunk.text; version = chunk.version
+          if (chunk.nextOffset === null) break
+          offset = chunk.nextOffset
+        }
+        if (item.id === first.id) expect(content).toBe(original)
+        else expect(content).toBe(item.text)
+      }
+      expect(c.snapshot()).toEqual(before)
+      expect(fixture.responseRequests).toHaveLength(requests)
+    } finally { terminal?.kill(); await c.dispose(); await fixture.close() }
+  })
   it('clears a real native retry after recovery without another user message', async () => {
     const fixture = await hookCliFixture({ codexRetryProbe: true })
     await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [

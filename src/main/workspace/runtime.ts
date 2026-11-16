@@ -8,11 +8,11 @@ import { promisify } from 'node:util'
 import { app } from 'electron'
 import { fetch as fetchRuntime, EnvHttpProxyAgent } from 'undici'
 import type { Workspace } from '../../shared/ipc/workspace'
-import { parseRuntimeResource, runtimeResource, type WorkspaceRuntime } from '../../shared/workspace-runtime'
+import { parseRuntimeResource, runtimeResource, normalizeWorkspaceRuntime, isExternalWorkspaceRuntime, type ExternalWorkspaceRuntime } from '../../shared/workspace-runtime'
 import { assertApplicationRunning } from '../shutdown/quit-state'
 
 const execute = promisify(execFile)
-type ExternalRuntime = Exclude<WorkspaceRuntime, { kind: 'windows' }>
+type ExternalRuntime = ExternalWorkspaceRuntime
 export const workspaceRecordsDirectory = () => join(app.getPath('userData'), 'janusx', 'workspaces')
 const connections = new Map<string, RuntimeClient>()
 const preparing = new Map<string, Promise<void>>()
@@ -274,18 +274,19 @@ export async function disconnectRuntimeTransports(): Promise<void> {
 }
 export async function readWorkspaceRecord(id: string): Promise<Workspace> {
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) throw new Error('Invalid workspace id')
-  return JSON.parse(await readFile(join(workspaceRecordsDirectory(), `${id}.json`), 'utf8'))
+  const record = JSON.parse(await readFile(join(workspaceRecordsDirectory(), `${id}.json`), 'utf8'))
+  return { ...record, runtime: normalizeWorkspaceRuntime(record.runtime) }
 }
 export function projectWorkspace(workspace: Workspace): Workspace {
-  return workspace.runtime && workspace.runtime.kind !== 'windows'
+  return isExternalWorkspaceRuntime(workspace.runtime)
     ? { ...workspace, path: runtimeResource(workspace.id, workspace.runtime.root) }
-    : workspace
+    : { ...workspace, runtime: normalizeWorkspaceRuntime(workspace.runtime) }
 }
 export async function resolveRuntimeResource(value: unknown): Promise<{ runtime: ExternalRuntime; root: string; path: string; relative: string; workspaceId: string } | null> {
   const resource = parseRuntimeResource(value)
   if (!resource) return null
   const workspace = await readWorkspaceRecord(resource.workspaceId)
-  if (!workspace.runtime || workspace.runtime.kind === 'windows') throw new Error('Workspace environment is unavailable')
+  if (!isExternalWorkspaceRuntime(workspace.runtime)) throw new Error('Workspace environment is unavailable')
   const runtime = validateRuntime(workspace.runtime)
   let root = posix.normalize(runtime.root)
   let path = posix.normalize(resource.path)
@@ -321,8 +322,11 @@ export async function listSshHosts(): Promise<string[]> {
   await visit(join(home, '.ssh', 'config'), 0)
   return [...hosts].sort()
 }
-export async function registeredExternalWorkspaces(): Promise<Workspace[]> {
+export async function registeredWorkspaces(): Promise<Workspace[]> {
   const files = await readdir(workspaceRecordsDirectory()).catch(() => [])
   const records = await Promise.all(files.filter(name => name.endsWith('.json')).map(name => readWorkspaceRecord(name.slice(0, -5)).catch(() => null)))
-  return records.filter((record): record is Workspace => Boolean(record?.runtime && record.runtime.kind !== 'windows'))
+  return records.filter((record): record is Workspace => Boolean(record))
+}
+export async function registeredExternalWorkspaces(): Promise<Workspace[]> {
+  return (await registeredWorkspaces()).filter(record => isExternalWorkspaceRuntime(record.runtime))
 }

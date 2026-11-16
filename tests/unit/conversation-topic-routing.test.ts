@@ -15,6 +15,23 @@ const route = (request: unknown) => fixture.handlers.get(JANUS_CHAT_CHANNELS.rou
 const input = { text: 'Continue the earlier analysis', context: [{ role: 'assistant', content: 'Frozen context' }],
   candidates: [{ id: 'one', title: 'Analysis', messages: [{ role: 'user', content: 'Analyze the interface' }] }] }
 
+it('rejects an idle routing request before calling the model', async () => {
+  await expect(route({ ...input, candidates: [] })).rejects.toThrow('Invalid topic routing request')
+  expect(fixture.generate).not.toHaveBeenCalled()
+})
+
+it('distinguishes an independent parallel input from a request waiting for multiple results', async () => {
+  fixture.generate.mockResolvedValueOnce({ text: '{"kind":"new"}' })
+  expect(await route(input)).toEqual({ kind: 'new' })
+  expect(fixture.generate.mock.calls[0][0].system).toContain('while an earlier analysis is still unfinished')
+  expect(fixture.generate.mock.calls[0][0].system).toContain('Do not require an explicit request to run in parallel')
+  fixture.generate.mockResolvedValue({ text: '{"kind":"wait"}' })
+  await expect(route(input)).rejects.toThrow('未返回有效结果')
+  expect(await route({ ...input, candidates: [...input.candidates, { ...input.candidates[0], id: 'two' }] })).toEqual({ kind: 'wait' })
+  fixture.generate.mockResolvedValue({ text: '{"kind":"parallel","branches":[]}' })
+  await expect(route(input)).rejects.toThrow('未返回有效结果')
+})
+
 it('uses a bounded tool-free model call with shared context and validates its target', async () => {
   fixture.generate.mockResolvedValue({ text: '{"kind":"continue","targetId":"one"}' })
   expect(await route(input)).toEqual({ kind: 'continue', targetId: 'one' })

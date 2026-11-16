@@ -1,4 +1,35 @@
 {
+  "historySources": {
+    "title": "历史数据位置",
+    "description": "会话管理与用量统计共用的数据来源。自动识别 CLI 配置，也可添加其他历史位置。",
+    "close": "关闭",
+    "automatic": "自动识别",
+    "add": "添加位置",
+    "remove": "移除位置",
+    "reset": "恢复自动识别",
+    "done": "完成",
+    "busy": "正在检查并刷新历史…",
+    "refreshFailed": "位置已保存，部分历史刷新失败：",
+    "note": "移除位置不会删除文件或已统计数据。继续会话仍需原工作目录、CLI 和有效配置；仅用于读取的备份不能保证续接。",
+    "path": {
+      "claude": "选择 .claude 下的 projects 历史目录",
+      "codex": "选择 .codex 下的 sessions 或 archived_sessions 目录",
+      "pi": "选择 sessions 目录或自定义历史目录",
+      "opencode": "选择 opencode.db 数据库文件"
+    },
+    "status": {
+      "ready": "已识别历史",
+      "missing": "位置不存在",
+      "unreadable": "无法读取",
+      "empty": "未发现历史",
+      "invalid": "未识别到对应 CLI 的历史格式"
+    },
+    "resume": {
+      "native-layout": "支持续接路径检查",
+      "active-store": "当前 CLI 数据库",
+      "read-only": "仅用于读取"
+    }
+  },
   "workerDefaults": {
     "isDefault": "默认执行",
     "makeDefault": "设为默认",
@@ -560,8 +591,7 @@
       "refreshing": "检测中...",
       "working": "处理中..."
     },
-    "notice": {
-      "existingTerminal": "已打开的终端需重启，新版本与 PATH 才会生效。",
+    "notice": {      "existingTerminal": "已打开的终端需重启，新版本与 PATH 才会生效。",
       "installed": "安装完成，重启终端后生效。"
     },
     "visibility": {

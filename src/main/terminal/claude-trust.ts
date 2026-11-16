@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFi
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { sameRuntimePath } from '../../shared/runtime/path-identity'
 import { applyEdits, modify } from 'jsonc-parser'
 
 // Native Claude 2.1.318 project consent storage; see
@@ -24,8 +25,7 @@ export function acceptClaudeWorkspaceTrust(directory: string, env: NodeJS.Proces
   const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value))
   if (!object(config) || (config.projects !== undefined && !object(config.projects))) throw new Error('Invalid Claude configuration; trust was not changed')
   const projects = (config.projects ?? {}) as Record<string, unknown>
-  const sameDirectory = (key: string) => process.platform === 'win32'
-    ? key.replaceAll('\\', '/').toLowerCase() === directory.toLowerCase() : key === directory
+  const sameDirectory = (key: string) => sameRuntimePath(key, directory)
   const keys = [...new Set([directory, ...Object.keys(projects).filter(sameDirectory)])]
   let next = before ?? '{}'
   for (const key of keys) {

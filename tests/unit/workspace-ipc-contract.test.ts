@@ -1,7 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { join, normalize } from 'node:path'
 import { tmpdir } from 'node:os'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, truncate, rm } from 'node:fs/promises'
+import { MAX_EDITOR_TEXT_BYTES, MAX_HTML_PREVIEW_BYTES } from '../../src/shared/editor'
 import {
   FILE_CHANNELS,
   FILE_TREE_CHANNELS,
@@ -114,6 +115,28 @@ describe('Workspace/File IPC contract', () => {
 
     unsubscribe()
     expect(removeListener).toHaveBeenCalledWith(FILE_TREE_CHANNELS.changed, handler)
+  })
+
+  it('reads complete HTML above 1 MiB and accepts the editor ceiling while rejecting larger files', async () => {
+    const read = handle.mock.calls.find(([channel]) => channel === FILE_CHANNELS.read)![1]
+    const directory = await mkdtemp(join(tmpdir(), 'janusx-large-editor-'))
+    const path = join(directory, 'large.HTML')
+    const content = '<!doctype html><title>并行分析</title><!--' + '登录与部署\n'.repeat(100_000) + '--><p>完整结尾</p>'
+    expect(Buffer.byteLength(content)).toBeGreaterThan(1024 * 1024)
+    try {
+      await writeFile(path, content)
+      await expect(read({}, path)).resolves.toMatchObject({ content, size: Buffer.byteLength(content) })
+      await writeFile(path, Buffer.alloc(MAX_HTML_PREVIEW_BYTES, 65))
+      const boundary = await read({}, path)
+      expect(boundary.error).toBeUndefined()
+      expect(boundary.content.length).toBe(MAX_HTML_PREVIEW_BYTES)
+      await truncate(path, MAX_HTML_PREVIEW_BYTES + 1)
+      await expect(read({}, path)).resolves.toEqual({ error: `File exceeds ${MAX_HTML_PREVIEW_BYTES} bytes` })
+      const textPath = join(directory, 'large.txt')
+      await writeFile(textPath, '')
+      await truncate(textPath, MAX_EDITOR_TEXT_BYTES + 1)
+      await expect(read({}, textPath)).resolves.toEqual({ error: `File exceeds ${MAX_EDITOR_TEXT_BYTES} bytes` })
+    } finally { await rm(directory, { recursive: true, force: true }) }
   })
 
   it('does not expose a generic bridge', () => {

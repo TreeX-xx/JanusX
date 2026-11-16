@@ -1,3 +1,4 @@
+import { HistorySourcesButton } from './HistorySourcesButton'
 import { ModalCloseButton } from './ModalCloseButton'
 import { memo, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -247,6 +248,7 @@ export function SessionPanel({ active = true }: { active?: boolean }) {
             aria-label={t('terminal:agentSession.searchPlaceholder')}
           />
         </div>
+        <HistorySourcesButton compact />
         <div className={styles.scopeFilters}>
           {(Object.keys(SCOPE_KEYS) as Scope[]).map((key) => (
             <button
@@ -582,6 +584,7 @@ const SessionCard = memo(function SessionCard({
       <div className={styles.sessionMeta}>
         <span style={{ textTransform: 'capitalize' }}>{session.engine}</span>
         {session.external === true && <span>{t('terminal:agentSession.external')}</span>}
+        {session.identityConflict && <span title={t('terminal:agentSession.identityConflictHint')}>{t('terminal:agentSession.identityConflict')}</span>}
         <span>{t('terminal:agentSession.turns', { count: session.turnCount })}</span>
         <span style={{ marginLeft: 'auto' }}>{formatDate(session.updatedAt, t)}</span>
       </div>

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { chromium, type Browser, type Page } from 'playwright'
 import { build } from 'esbuild'
-import { mkdir, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 const artifactRoot = process.env.JANUS_TOPICS_TEST_ARTIFACTS ?? 'artifacts'
 
 let browser: Browser, script: string, css: string
@@ -33,7 +33,7 @@ beforeAll(async () => {
       const tab=type==='terminal'?{type:'terminal',id:'terminal:fixture',terminalId:'fixture',workspaceId:'preview'}:{type:'markdown',id:'markdown:fixture',panelId:'fixture'}
       useWorkspaceStore.setState({paneTree:type?{type:'leaf',id:'fixture-pane',tabs:[tab],activeTabId:tab.id}:null})
     }
-    window.requests=[];window.saved=window.preloaded??null;window.errors=[];window.routeCalls=[];window.answerCalls=[];window.steerCalls=[]
+    window.requests=[];window.saved=window.preloaded??null;window.errors=[];window.routeCalls=[];window.newTopicInputs=[];window.answerCalls=[];window.steerCalls=[]
     window.previewWorkers=(workspaceName='JanusX')=>{
       window.electron.agentRuntime.createSession=async()=>({id:'preview-session',status:'running'})
       const work={id:'W-01',sourceInputId:'source-input',workspaceId:'preview',title:'Refine conversation layout',goal:'Align the interface with the HTML design',createdAt:1,revision:1,closedAt:null}
@@ -68,7 +68,8 @@ beforeAll(async () => {
     window.electron.janusChat={load:async()=>{if(window.deferStartup)await new Promise(resolve=>{window.releaseStartup=resolve});return window.saved},save:async value=>{window.saved=structuredClone(value)},
       routeTopic:async request=>{window.routeCalls.push(request);await new Promise(r=>setTimeout(r,80));
         if(window.rejectRoute)throw new Error('Routing model returned no valid result')
-        return request.text==='Follow-up'?{kind:'continue',targetId:request.candidates[0].id}:request.text==='Ambiguous'?{kind:'choice'}:{kind:'new'}}}
+        if(window.newTopicInputs.includes(request.text))return{kind:'new'}
+        return request.text==='Ambiguous'?{kind:'choice'}:request.text==='Follow-up'||request.candidates.length===1?{kind:'continue',targetId:window.autoRouteTarget??request.candidates[0].id}:{kind:'wait'}}}
     window.finish=index=>{const requestId=window.requests[index].requestId;listeners.done.forEach(fn=>fn({requestId}));listeners.agent.forEach(fn=>fn({requestId,type:'stream_end'}))}
     window.delta=(index,text)=>listeners.agent.forEach(fn=>fn({requestId:window.requests[index].requestId,type:'text_delta',delta:text}))
     window.tool=(index,event)=>listeners.agent.forEach(fn=>fn({requestId:window.requests[index].requestId,...event}))
@@ -399,6 +400,169 @@ async function send(page: Page, text: string, separate = false) {
   const input = page.locator('.janus-chat-input:visible')
   await input.fill(text); await input.press('Enter')
 }
+async function sendIndependentInputs(page: Page, texts: string[]) {
+  await page.evaluate(inputs => { (window as any).newTopicInputs = inputs }, texts)
+  const before = await page.evaluate(() => (window as any).requests.length)
+  for (const [index, text] of texts.entries()) {
+    await send(page, text)
+    await page.waitForFunction(count => (window as any).requests.length === count, before + index + 1)
+  }
+  await page.evaluate(() => { (window as any).routeCalls = [] })
+}
+it('runs four real panes, preserves shared history and routes explicit and automatic branch messages', async()=>{
+  const page=await open(),errors:string[]=[]
+  page.on('pageerror',error=>errors.push(error.message))
+  try {
+    await page.setViewportSize({width:1440,height:1000})
+    await send(page, 'Shared prior discussion')
+    await page.waitForFunction(() => (window as any).requests.length === 1)
+    await page.evaluate(() => (window as any).finish(0))
+    await page.waitForFunction(() => (window as any).saved.conversations.some((c: any) => c.topic && c.messages.length === 2 && !c.topic.inputs.length))
+    await page.evaluate(()=>{(window as any).requests=[]})
+    await page.locator('.janus-chat-input:visible').evaluate(el=>{(window as any).originalInput=el})
+    await sendIndependentInputs(page,['Analyze four areas in parallel, preserving existing changes','Deploy','Test','API'])
+    await page.waitForFunction(()=>(window as any).requests.length===4)
+    const stage=page.locator('[data-parallel-stage]'),grid=stage.locator('[data-parallel-grid]')
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('analyzing')
+    const boxes=await stage.locator('[data-topic-id]').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return{x:Math.round(r.x),y:Math.round(r.y),width:r.width,height:r.height}}))
+    expect(new Set(boxes.map(box=>box.x)).size).toBe(2);expect(new Set(boxes.map(box=>box.y)).size).toBe(2)
+    expect(boxes.every(box=>box.width>300&&box.height>150)).toBe(true)
+    expect(await page.locator('.janus-chat-input:visible').count()).toBe(1)
+    expect(await page.locator('.janus-chat-message.user').filter({hasText:'Analyze four areas in parallel, preserving existing changes'}).count()).toBe(1)
+    const ids=await stage.locator('[data-topic-id]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-topic-id')))
+    await page.evaluate(()=>{const w=window as any;for(let i=0;i<4;i++)w.delta(i,('Output for branch '+i+'\n\n').repeat(40))})
+    const columns=grid.getByRole('separator',{name:'Resize analysis columns'}),rows=grid.getByRole('separator',{name:'Resize analysis rows'})
+    await columns.focus();await columns.press('ArrowRight');await rows.focus();await rows.press('ArrowDown')
+    expect(await columns.getAttribute('aria-valuenow')).toBe('55');expect(await rows.getAttribute('aria-valuenow')).toBe('55')
+    const input=page.locator('.janus-chat-input:visible');await input.fill('Keep this draft')
+    const positions=await stage.locator('[data-topic-body]').evaluateAll(nodes=>nodes.map((node,index)=>{node.scrollTop=50+index*30;return node.scrollTop}))
+    await page.getByRole('button',{name:'Previous conversation',exact:true}).click()
+    await expect.poll(()=>stage.getAttribute('data-view')).toBe('history')
+    await expect.poll(()=>page.locator('.janus-chat-message.user:visible').textContent()).toContain('Shared prior discussion')
+    await page.evaluate(()=>(window as any).delta(1,' Updated deployment analysis'))
+    expect(await stage.getAttribute('data-view')).toBe('history')
+    await page.getByRole('button',{name:'Back to analysis',exact:true}).click()
+    await expect.poll(()=>stage.getAttribute('data-view')).toBe('panes')
+    await expect.poll(()=>stage.locator('[data-topic-body]').evaluateAll(nodes=>nodes.map(node=>node.scrollTop))).toEqual(positions)
+    expect(await input.textContent()).toBe('Keep this draft')
+    await stage.locator('[data-branch-supplement]').nth(2).click()
+    expect(await page.locator('[data-branch-target]').getAttribute('data-branch-target')).toBe(ids[2])
+    expect(await input.textContent()).toBe('Keep this draft')
+    await input.fill('Only adjust the Test branch');await input.press('Enter')
+    await page.waitForFunction(()=>(window as any).steerCalls.length===1)
+    expect(await page.evaluate(()=>(window as any).steerCalls[0].conversationId)).toBe(ids[2])
+    await expect.poll(()=>page.locator('[data-branch-target]').count()).toBe(0)
+    await page.evaluate(id=>{(window as any).autoRouteTarget=id},ids[1])
+    await send(page,'Follow-up');await page.waitForFunction(()=>(window as any).steerCalls.length===2)
+    expect(await page.evaluate(()=>(window as any).steerCalls[1].conversationId)).toBe(ids[1])
+    expect(await page.evaluate(()=>(window as any).routeCalls.length)).toBe(1)
+    await page.evaluate(()=>(window as any).finish(0))
+    expect(await stage.locator('[data-topic-id]:visible').count()).toBe(4)
+    await mkdir(`${artifactRoot}/superagent-production`,{recursive:true})
+    await page.screenshot({path:`${artifactRoot}/superagent-production/four-running.png`})
+    for(const theme of ['white','planche']){
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme)
+      await page.screenshot({path:`${artifactRoot}/superagent-production/four-${theme}.png`})
+    }
+    await page.evaluate(()=>document.documentElement.dataset.theme='dark')
+    await page.setViewportSize({width:480,height:850})
+    await expect.poll(()=>stage.getAttribute('data-narrow')).toBe('true')
+    expect(await stage.getByRole('navigation',{name:'Select an analysis branch'}).getByRole('button').count()).toBe(4)
+    await stage.getByRole('navigation').getByRole('button',{name:'API',exact:true}).click()
+    expect(await stage.locator('[data-topic-id]:visible').getAttribute('data-topic-id')).toBe(ids[3])
+    await page.screenshot({path:`${artifactRoot}/superagent-production/four-narrow.png`})
+    await page.setViewportSize({width:1440,height:1000})
+    await page.evaluate(()=>{const w=window as any;w.finish(1);w.finish(2);w.finish(3)})
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('held')
+    await stage.locator('[data-parallel-merge]').click()
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('merging')
+    await expect.poll(()=>stage.getAttribute('data-view')).toBe('conversation')
+    const cards=await stage.locator('[data-topic-id]').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return{x:Math.round(r.x),y:Math.round(r.y)}}))
+    expect(new Set(cards.map(card=>card.x)).size).toBe(1);expect(new Set(cards.map(card=>card.y)).size).toBe(4)
+    expect(await input.evaluate(el=>el===(window as any).originalInput)).toBe(true)
+    await page.waitForTimeout(300)
+    await expect.poll(()=>stage.evaluate(el=>el.closest('.janus-chat-messages')!.scrollTop)).toBe(0)
+    await page.screenshot({path:`${artifactRoot}/superagent-production/four-merged.png`})
+    expect(errors).toEqual([])
+  } finally {await page.close()}
+},30000)
+it('returns an untouched analysis group to four independent cards with loading and no focus change',async()=>{
+  const page=await open()
+  try{
+    await page.setViewportSize({width:1440,height:1000})
+    await sendIndependentInputs(page,['One','Two','Three','Four'])
+    await page.waitForFunction(()=>(window as any).requests.length===4)
+    const stage=page.locator('[data-parallel-stage]')
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('analyzing')
+    await page.evaluate(()=>{const w=window as any;for(let i=0;i<4;i++)w.finish(i)})
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('gathering')
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('merging')
+    await expect.poll(()=>stage.getAttribute('data-view')).toBe('conversation')
+    expect(await stage.locator('[data-topic-id]').count()).toBe(4)
+    expect(await page.locator('.janus-chat-input:visible').evaluate(el=>el===document.activeElement)).toBe(true)
+    const before=await page.evaluate(()=>(window as any).requests.length)
+    const id=await stage.locator('[data-topic-id]').first().getAttribute('data-topic-id')
+    await stage.locator('[data-branch-supplement]').first().click();await send(page,'Continue this completed branch')
+    await page.waitForFunction(n=>(window as any).requests.length===n+1,before)
+    expect(await page.evaluate(()=>(window as any).requests.at(-1).conversationId)).toBe(id)
+    expect(await stage.getAttribute('data-view')).toBe('conversation')
+    await page.evaluate(()=>(window as any).finish(4))
+    const resumed=stage.locator('[data-topic-id]').first()
+    await expect.poll(()=>resumed.locator('.superagent-reply').last().getAttribute('open')).not.toBeNull()
+    await expect.poll(()=>resumed.locator('.superagent-reply').last().textContent()).toContain('Continue this completed branch')
+  }finally{await page.close()}
+},20000)
+it('keeps completed parallel history in the conversation after merging, navigation and reopening', async () => {
+  const page = await open()
+  try {
+    await send(page, 'Shared discussion before parallel analysis')
+    await page.waitForFunction(() => (window as any).requests.length === 1)
+    await page.evaluate(() => (window as any).finish(0))
+    await page.waitForFunction(() => (window as any).saved.conversations.some((c: any) => c.topic && c.messages.length === 2 && !c.topic.inputs.length))
+    await sendIndependentInputs(page, ['Analyze first area', 'Analyze second area'])
+    const stage = page.locator('[data-parallel-stage]')
+    await expect.poll(() => stage.getAttribute('data-phase')).toBe('analyzing')
+    await page.evaluate(() => { (window as any).finish(1); (window as any).finish(2) })
+    await expect.poll(() => stage.getAttribute('data-phase')).toMatch(/held|merging|merged/)
+    if (await stage.getAttribute('data-phase') === 'held') await stage.locator('[data-parallel-merge]').click()
+    await expect.poll(() => stage.getAttribute('data-view')).toBe('conversation')
+    const assertContinuousHistory = async () => {
+      expect(await page.getByRole('button', { name: /^(Previous conversation|Back to conversation|此前对话|返回对话)$/ }).count()).toBe(0)
+      expect(await page.locator('.janus-chat-message.user:visible').filter({ hasText: 'Shared discussion before parallel analysis' }).count()).toBe(1)
+      expect(await page.locator('.janus-chat-message.user:visible').filter({ hasText: 'Analyze first area' }).count()).toBe(1)
+      expect(await stage.locator('[data-topic-id]:visible').count()).toBe(2)
+    }
+    await assertContinuousHistory()
+    await page.locator('[data-input-navigation] button').first().click()
+    await assertContinuousHistory()
+    expect(await stage.getAttribute('data-view')).toBe('conversation')
+    const saved = await page.evaluate(() => (window as any).saved)
+    await page.reload(); await page.evaluate(snapshot => { (window as any).preloaded = snapshot }, saved)
+    await page.addStyleTag({ content: css }); await page.addScriptTag({ content: script })
+    await page.locator('.janus-chat-input:visible').waitFor()
+    await expect.poll(() => stage.getAttribute('data-view')).toBe('conversation')
+    await page.evaluate(() => (window as any).previewChinese())
+    await assertContinuousHistory()
+    expect(await page.evaluate(() => (window as any).requests.length)).toBe(0)
+    await mkdir(`${artifactRoot}/superagent-continuous-history`, { recursive: true })
+    await page.screenshot({ path: `${artifactRoot}/superagent-continuous-history/reopened.png` })
+  } finally { await page.close() }
+}, 20000)
+it('holds an automatic merge when the reader enters a pane during its loading stage',async()=>{
+  const page=await open()
+  try{
+    await page.setViewportSize({width:1440,height:1000})
+    await sendIndependentInputs(page,['One','Two']);await page.waitForFunction(()=>(window as any).requests.length===2)
+    const stage=page.locator('[data-parallel-stage]')
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('analyzing')
+    await page.evaluate(()=>{(window as any).finish(0);(window as any).finish(1)})
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('merging')
+    await stage.locator('[data-topic-body]').first().focus()
+    await expect.poll(()=>stage.getAttribute('data-phase')).toBe('held')
+    await page.waitForTimeout(1100)
+    expect(await stage.getAttribute('data-view')).toBe('panes')
+  }finally{await page.close()}
+},20000)
 it('adds real context through picker and drag, preserves a rejected draft, and sends references through the topic stream', async () => {
   const page = await open(), errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -581,6 +745,62 @@ it('waits for request registration before steering input sent during startup', a
     expect(await page.evaluate(() => (window as any).requests.length)).toBe(1)
   } finally { await page.close() }
 })
+
+it('animates reply height in both directions, reverses immediately, and respects reduced motion', async () => {
+  const page = await open()
+  try {
+    await send(page, 'Review reply disclosure')
+    await page.waitForFunction(() => (window as any).requests.length === 1)
+    await page.evaluate(() => {
+      const w = window as any
+      w.delta(0, '\n\n' + 'Keep each section readable while opening and closing.\n\n'.repeat(14)); w.finish(0)
+    })
+    const reply = page.locator('.superagent-reply'), summary = reply.locator(':scope > summary')
+    await expect.poll(() => summary.getAttribute('aria-expanded')).toBe('true')
+    // Let the default latest-reply reveal finish before measuring user interaction.
+    await expect.poll(() => reply.evaluate(el => el.getAnimations({ subtree: true }).length)).toBe(0)
+    const frames = await reply.evaluate(async el => {
+      const summary = el.querySelector('summary')!, body = el.querySelector<HTMLElement>(':scope > div')!
+      const startHeight = el.getBoundingClientRect().height, header = summary.getBoundingClientRect().height
+      summary.click()
+      await new Promise(requestAnimationFrame)
+      const inert = body.inert, values: number[] = [], start = performance.now()
+      while (performance.now() - start < 300) { await new Promise(requestAnimationFrame); values.push(el.getBoundingClientRect().height) }
+      return { startHeight, header, inert, values }
+    })
+    expect(frames.inert).toBe(true)
+    expect(frames.values.some(h => h > frames.header + 2 && h < frames.startHeight - 2)).toBe(true)
+    expect(frames.values.at(-1)).toBeCloseTo(frames.header, 0)
+    expect(await summary.textContent()).toContain('Latest reply')
+    await summary.focus(); await summary.press('Enter')
+    await expect.poll(() => summary.getAttribute('aria-expanded')).toBe('true')
+    await expect.poll(() => reply.evaluate(el => el.getAnimations({ subtree: true }).length)).toBe(0)
+    expect((await reply.boundingBox())!.height).toBeGreaterThan(frames.header + 100)
+    const reversed = await reply.evaluate(async el => {
+      const summary = el.querySelector('summary')!; summary.click()
+      const start = performance.now()
+      while (performance.now() - start < 75) await new Promise(requestAnimationFrame)
+      const before = el.getBoundingClientRect().height; summary.click()
+      return { before, after: el.getBoundingClientRect().height }
+    })
+    expect(Math.abs(reversed.before - reversed.after)).toBeLessThan(2)
+    await expect.poll(() => summary.getAttribute('aria-expanded')).toBe('true')
+    await expect.poll(() => reply.evaluate(el => el.getAnimations({ subtree: true }).length)).toBe(0)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await summary.press('Space')
+    await expect.poll(() => summary.getAttribute('aria-expanded')).toBe('false')
+    expect(await reply.evaluate(el => getComputedStyle(el, '::details-content').transitionDuration)).toBe('0s')
+    await page.evaluate(() => (window as any).previewChinese())
+    await page.setViewportSize({ width: 320, height: 720 })
+    await mkdir(`${artifactRoot}/disclosures`, { recursive: true })
+    for (const theme of ['dark', 'white', 'planche']) {
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
+      expect(await summary.textContent()).toContain('展开')
+      expect(await summary.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+      await page.screenshot({ path: `${artifactRoot}/disclosures/reply-${theme}-320.png` })
+    }
+  } finally { await page.close() }
+})
 it('withdraws an unconsumed supplement from history and persistence without replaying it', async () => {
   const page = await open()
   try {
@@ -595,7 +815,7 @@ it('withdraws an unconsumed supplement from history and persistence without repl
     expect(await page.evaluate(() => (window as any).requests.length)).toBe(1)
   } finally { await page.close() }
 })
-it('applies consecutive input to the live response without waiting for completion or classification', async () => {
+it('classifies consecutive input and applies related input without waiting for completion', async () => {
   const page = await open()
   try {
     await page.evaluate(() => { (window as any).holdSteer = true })
@@ -603,7 +823,7 @@ it('applies consecutive input to the live response without waiting for completio
     await send(page, 'Keep it short'); await send(page, 'Use Chinese')
     await page.waitForFunction(() => (window as any).steerCalls.length === 2)
     expect(await page.evaluate(() => (window as any).requests.length)).toBe(1)
-    expect(await page.evaluate(() => (window as any).routeCalls.length)).toBe(0)
+    expect(await page.evaluate(() => (window as any).routeCalls.length)).toBe(2)
     const inputs = await page.evaluate(() => (window as any).steerCalls)
     expect(inputs.map((i: any) => i.text)).toEqual(['Keep it short', 'Use Chinese'])
     expect(inputs.every((i: any) => i.expectedRequestId === inputs[0].expectedRequestId)).toBe(true)
@@ -709,7 +929,7 @@ it('steers on the active model and applies changed Settings only to the next tur
     await page.evaluate(() => { (window as any).configuredModel = { provider: { id: 'next' }, modelId: 'routing-model' } })
     await send(page, 'Follow-up')
     await page.waitForFunction(() => (window as any).saved.conversations.some((c: any) => c.topic?.inputs.length === 2))
-    expect(await page.evaluate(() => (window as any).routeCalls)).toHaveLength(0)
+    expect(await page.evaluate(() => (window as any).routeCalls)).toHaveLength(1)
     expect(await page.evaluate(() => (window as any).requests)).toHaveLength(1)
     expect(await page.evaluate(() => (window as any).saved.conversations.find((c: any) => c.topic).modelId)).toBe('model')
     await page.evaluate(() => {
@@ -727,7 +947,7 @@ it('steers on the active model and applies changed Settings only to the next tur
   } finally { await page.close() }
 })
 
-it('offers pure model and context controls in both languages without a clear button or reasoning selector', async () => {
+it('shares searchable model and context controls, keyboard selection and focus restoration in both languages', async () => {
   const page = await open()
   try {
     await mkdir(`${artifactRoot}/superagent-model-settings`, { recursive: true })
@@ -736,19 +956,37 @@ it('offers pure model and context controls in both languages without a clear but
       expect(await page.getByRole('button', { name: /^(Separate question|独立提问)$/ }).count()).toBe(0)
       expect(await page.locator('[data-superagent-design] > header').count()).toBe(0)
       expect(await page.locator('[data-conversation-welcome] [data-active=true] h2').textContent()).toBe(language === 'en' ? 'Where would you like to start?' : '想从哪里开始？')
-      expect(await page.locator('.janus-chat-model-tag').count()).toBe(1)
+      expect(await page.locator('[data-selection-trigger="model"]').count()).toBe(1)
       expect(await page.locator('.janus-chat-clear-button, [data-selection-trigger="permission"], [data-selection-trigger="effort"]').count()).toBe(0)
       const input = page.locator('.janus-chat-input:visible')
       await input.fill('Keep this draft'); await input.press('Tab')
       expect(await input.evaluate(el => document.activeElement === el)).toBe(false)
       await input.focus(); await input.press('Control+p')
-      await page.locator('[data-selection-menu="model"]').waitFor()
-      expect(await page.getByRole('option').filter({hasText:'alternate'}).count()).toBe(1)
-      await page.getByRole('option').filter({hasText:'alternate'}).click()
-      await expect.poll(() => page.locator('.janus-chat-model-tag').innerText()).toContain('alternate')
+      const menu = page.locator('[data-composer-options][data-panel="model"]')
+      await menu.waitFor()
+      const search = menu.getByRole('combobox').first()
+      await expect.poll(()=>search.evaluate(el=>document.activeElement===el)).toBe(true)
+      await menu.locator('select').selectOption('second')
+      expect(await menu.getByRole('listbox').getByRole('option').count()).toBe(1)
+      await search.fill('no-matching-model')
+      expect(await menu.getByRole('listbox').getByRole('option').count()).toBe(0)
+      await search.fill('alternate')
+      expect(await menu.getByRole('listbox').getByRole('option').count()).toBe(1)
+      await search.press('Enter')
+      await expect.poll(() => page.locator('[data-selection-trigger="model"]').innerText()).toContain('alternate')
+      await expect.poll(()=>input.evaluate(el=>document.activeElement===el)).toBe(true)
       await input.press('Control+p')
       await page.keyboard.press('Escape')
+      expect(await page.locator('[data-selection-trigger="model"]').evaluate(el=>document.activeElement===el)).toBe(true)
       expect(await input.textContent()).toBe('Keep this draft')
+      await page.locator('[data-selection-trigger="model"]').click()
+      await page.getByRole('button',{name:language==='en'?'Add context':'添加上下文',exact:true}).click()
+      expect(await menu.count()).toBe(0)
+      await page.getByRole('dialog').waitFor()
+      await page.locator('[data-selection-trigger="model"]').click()
+      await menu.waitFor()
+      expect(await page.getByRole('dialog').count()).toBe(0)
+      await page.keyboard.press('Escape')
       await page.screenshot({ path: `${artifactRoot}/superagent-model-settings/composer-${language}.png` })
     }
     await send(page,'Use the selected model'); await page.waitForFunction(() => (window as any).requests.length===1)
@@ -1025,7 +1263,6 @@ it('shows routing failure separately from ambiguity and retains the input for ma
   try {
     await send(page, 'Discuss the plan')
     await page.waitForFunction(() => (window as any).requests.length === 1)
-    await send(page, 'Another plan', true); await page.waitForFunction(() => (window as any).requests.length === 2)
     await page.evaluate(() => { (window as any).rejectRoute = true })
     await send(page, 'Implement that plan')
     const choice = page.locator('[data-topic-state="choice"]')
@@ -1038,7 +1275,7 @@ it('shows routing failure separately from ambiguity and retains the input for ma
     await choice.getByRole('button', { name: 'Join: Discuss the plan', exact: true }).click()
     await page.waitForFunction(() => (window as any).steerCalls.length === 1)
     await page.evaluate(() => (window as any).finish(0))
-    await page.waitForFunction(() => (window as any).requests.length === 2)
+    await page.waitForFunction(() => (window as any).requests.length === 1)
   } finally { await page.close() }
 })
 it('restores a report as a compact card in the real SuperAgent transcript with Workers still reachable', async () => {
@@ -1068,7 +1305,14 @@ it('restores a report as a compact card in the real SuperAgent transcript with W
     expect(await report.count()).toBe(1); expect((await report.boundingBox())!.height).toBeLessThan(220)
     await mkdir(`${artifactRoot}/superagent-hifi`, { recursive: true })
     await page.screenshot({ path: `${artifactRoot}/superagent-hifi/workspace.png` })
-    await report.getByRole('button', { name: 'View report' }).click()
+    const opening = await report.getByRole('button', { name: 'View report' }).evaluate(async button => {
+      const reveal = document.getElementById(button.getAttribute('aria-controls')!)!
+      ;(button as HTMLButtonElement).click()
+      const values: number[] = [], start = performance.now()
+      while (performance.now() - start < 360) { await new Promise(requestAnimationFrame); values.push(reveal.getBoundingClientRect().height) }
+      return values
+    })
+    expect(opening.some(h => h > 2 && h < opening.at(-1)! - 2)).toBe(true)
     const drawer = page.locator('[data-worker-report-drawer]')
     expect(await drawer.count()).toBe(1)
     expect(await drawer.evaluate(el => !!el.closest('.janus-chat-messages'))).toBe(true)
@@ -1081,7 +1325,32 @@ it('restores a report as a compact card in the real SuperAgent transcript with W
     }
     await page.getByRole('button', { name: 'View original report' }).click()
     expect(await page.locator('[data-worker-report-drawer]').innerText()).toContain('REPORT_END')
+    const reverse = await report.getByRole('button', { name: 'Collapse report' }).evaluate(async button => {
+      const reveal = document.getElementById(button.getAttribute('aria-controls')!)!, reader = reveal.querySelector('[data-worker-report-drawer]')!
+      const expandedHeight = reveal.getBoundingClientRect().height
+      ;(button as HTMLButtonElement).click()
+      await new Promise(requestAnimationFrame)
+      const inert = reveal.inert, hidden = reveal.getAttribute('aria-hidden'), start = performance.now()
+      while (performance.now() - start < 65) await new Promise(requestAnimationFrame)
+      const height = reveal.getBoundingClientRect().height; (button as HTMLButtonElement).click()
+      const immediate = reveal.getBoundingClientRect().height
+      while (performance.now() - start < 350) await new Promise(requestAnimationFrame)
+      return { inert, hidden, expandedHeight, height, immediate, sameReader: reveal.querySelector('[data-worker-report-drawer]') === reader }
+    })
+    expect(reverse.inert).toBe(true); expect(reverse.hidden).toBe('true')
+    expect(reverse.height).toBeGreaterThan(0)
+    expect(reverse.height).toBeLessThan(reverse.expandedHeight - 2)
+    expect(Math.abs(reverse.height - reverse.immediate)).toBeLessThan(2)
+    expect(reverse.sameReader).toBe(true)
+    expect(await drawer.innerText()).toContain('REPORT_END')
     await page.keyboard.press('Escape')
+    await drawer.waitFor({ state: 'detached' })
+    expect(await report.getByRole('button', { name: 'View report' }).evaluate(el => el === document.activeElement)).toBe(true)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await report.getByRole('button', { name: 'View report' }).click()
+    await drawer.waitFor()
+    expect(await drawer.evaluate(el => getComputedStyle(el.closest('[data-report-reveal]')!).transitionDuration)).toBe('0s')
+    await page.keyboard.press('Escape'); await drawer.waitFor({ state: 'detached' })
     await page.setViewportSize({ width: 390, height: 844 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `${artifactRoot}/superagent-hifi/workspace-mobile.png` })
@@ -1228,9 +1497,11 @@ it('forks only while busy, joins both full results, then resumes a normal transc
     await send(page, 'Feature A'); await page.waitForFunction(() => (window as any).requests.length === 2)
     expect(await page.locator('[data-parallel-section]').count()).toBe(0)
     expect(await page.evaluate(() => (window as any).routeCalls.length)).toBe(0)
-    await send(page, 'Feature B', true); await page.waitForFunction(() => (window as any).requests.length === 3)
+    await page.evaluate(()=>{(window as any).newTopicInputs=['Feature B']})
+    await send(page, 'Feature B'); await page.waitForFunction(() => (window as any).requests.length === 3)
     const section = page.locator('[data-parallel-section]')
-    expect(await section.locator('[data-parallel="true"]').count()).toBe(2)
+    await expect.poll(()=>section.locator('[data-parallel="true"]').count()).toBe(2)
+    await expect.poll(()=>section.getAttribute('data-phase')).toBe('analyzing')
     const initial = await page.evaluate(() => (window as any).requests)
     expect(initial[1].messages.slice(0, -1)).toEqual(initial[2].messages.slice(0, -1))
     expect(initial[2].messages.at(-1).content).toBe('Feature B')
@@ -1240,7 +1511,7 @@ it('forks only while busy, joins both full results, then resumes a normal transc
     await page.getByText('Waiting for parallel results', { exact: true }).first().waitFor()
     await page.evaluate(() => (window as any).finish(2))
     expect(await page.evaluate(() => (window as any).requests.length)).toBe(3)
-    expect(await section.getAttribute('open')).not.toBeNull()
+    expect(await section.getAttribute('data-view')).toBe('panes')
     await mkdir(`${artifactRoot}/superagent-topics`, { recursive: true })
     await page.screenshot({ path: `${artifactRoot}/superagent-topics/fork-active.png`, fullPage: true })
     await page.setViewportSize({ width: 480, height: 850 })
@@ -1252,12 +1523,14 @@ it('forks only while busy, joins both full results, then resumes a normal transc
     const texts = continued.messages.map((m: any) => m.content)
     expect(texts).toEqual(['Prior discussion', 'Response: Prior discussion', 'Feature A', 'Response: Feature A',
       'Feature B', 'Response: Feature B', 'Compare both results'])
-    expect(await section.getAttribute('open')).toBeNull()
+    await expect.poll(()=>section.getAttribute('data-phase')).toMatch(/held|merging|merged/)
+    if(await section.getAttribute('data-phase')==='held')await section.getByRole('button',{name:'Return to conversation',exact:true}).click()
+    await expect.poll(()=>section.getAttribute('data-view'),{timeout:5000}).toBe('conversation')
     await page.evaluate(() => (window as any).finish(3))
     await page.waitForFunction(() => (window as any).saved.conversations.some((c: any) => c.messages.some((m: any) => m.content === 'Response: Compare both results') && !c.topic.inputs.length))
     await send(page, 'Continue normally')
     await page.waitForFunction(() => (window as any).requests.length === 5)
-    expect(await page.evaluate(() => (window as any).routeCalls.length)).toBe(1)
+    expect(await page.evaluate(() => (window as any).routeCalls.length)).toBe(2)
     expect(await page.evaluate(() => (window as any).requests[4].conversationId)).toBe(continued.conversationId)
     await page.setViewportSize({ width: 1100, height: 850 })
     await page.screenshot({ path: `${artifactRoot}/superagent-topics/fork-joined.png`, fullPage: true })
@@ -1277,7 +1550,8 @@ it('keeps errors and unresolved input visible and stops only the selected topic'
     await send(page, 'Independent topic', true); await page.waitForFunction(() => (window as any).requests.length === 2)
     await page.evaluate(() => (window as any).fail(0))
     await page.getByText('Fixture stream failure', { exact: true }).first().waitFor()
-    await send(page, 'Continue after both'); await page.waitForFunction(() => (window as any).steerCalls.length === 1)
+    await page.evaluate(()=>{const w=window as any;w.autoRouteTarget=w.requests[1].conversationId})
+    await send(page, 'Follow-up'); await page.waitForFunction(() => (window as any).steerCalls.length === 1)
     expect(await page.evaluate(() => (window as any).requests.length)).toBe(2)
     await page.locator('[data-topic-state="running"]').getByRole('button', { name: 'Stop this topic and pause its queue' }).click()
     await page.locator('[data-topic-state="paused"]').first().waitFor()
@@ -1293,25 +1567,48 @@ it('keeps errors and unresolved input visible and stops only the selected topic'
   } finally { await page.close() }
 }, 15000)
 
-it('keeps question drafts when deferred, surfaces rejected answers and prevents double submission', async () => {
+it('matches question typography, sends Enter answers and keeps multiline, IME and deferred drafts isolated', async () => {
   const page = await open()
   try {
     await send(page, 'First topic'); await page.waitForFunction(() => (window as any).requests.length === 1)
     await page.evaluate(() => (window as any).question(0))
     await page.getByRole('radio', { name: 'Refine Improve the layout' }).check()
     const custom = page.locator('.janus-question-custom')
+    const draft = page.locator('.janus-chat-input:visible')
+    await draft.fill('Keep the main draft')
+    expect(await custom.evaluate(el=>el.tagName)).toBe('TEXTAREA')
+    for (const theme of ['dark','white','planche']) {
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme)
+      expect(await custom.evaluate(el=>getComputedStyle(el).fontSize)).toBe(await draft.evaluate(el=>getComputedStyle(el).fontSize))
+      expect(await custom.evaluate(el=>getComputedStyle(el).lineHeight)).toBe(await draft.evaluate(el=>getComputedStyle(el).lineHeight))
+    }
     await custom.fill('Preserve keyboard access')
+    await custom.press('End'); await custom.press('Shift+Enter'); await custom.pressSequentially('Keep multiline answers')
+    await custom.press('Control+j'); await custom.pressSequentially('Keep the main draft')
+    const text = 'Preserve keyboard access\nKeep multiline answers\nKeep the main draft'
+    expect(await custom.inputValue()).toBe(text)
+    await custom.dispatchEvent('keydown',{key:'Enter',isComposing:true})
+    await custom.dispatchEvent('keydown',{key:'Enter',keyCode:229})
+    await custom.dispatchEvent('compositionstart'); await custom.press('Enter')
+    expect(await page.evaluate(()=>(window as any).answerCalls.length)).toBe(0)
+    await custom.dispatchEvent('compositionend')
     await page.getByRole('button', { name: 'Answer later' }).click()
     await page.getByRole('button', { name: 'Answer now' }).click()
-    expect(await custom.inputValue()).toBe('Preserve keyboard access')
+    expect(await custom.inputValue()).toBe(text)
     expect(await page.getByRole('radio', { name: 'Refine Improve the layout' }).isChecked()).toBe(true)
     await page.evaluate(() => { (window as any).rejectAnswer = true })
-    await page.getByRole('button', { name: 'Answer', exact: true }).click()
+    await custom.press('Enter')
     await page.getByRole('alert').filter({ hasText: 'Answer transport failed' }).waitFor()
     await page.evaluate(() => { (window as any).rejectAnswer = false })
-    await page.getByRole('button', { name: 'Answer', exact: true }).click()
+    await custom.dispatchEvent('keydown',{key:'Enter',repeat:true})
+    expect(await page.evaluate(()=>(window as any).answerCalls.length)).toBe(1)
+    await custom.press('Enter')
     expect(await page.getByRole('button', { name: 'Submitted, awaiting response' }).isDisabled()).toBe(true)
     expect(await page.evaluate(() => (window as any).answerCalls.length)).toBe(2)
+    expect(await page.evaluate(()=>(window as any).answerCalls[1].answer.answers[0].custom)).toBe(text)
+    expect(await draft.textContent()).toBe('Keep the main draft')
+    expect(await page.evaluate(()=>(window as any).requests.length)).toBe(1)
+    expect(await page.evaluate(()=>(window as any).steerCalls.length)).toBe(0)
     await page.screenshot({ path: `${artifactRoot}/superagent-topics/question.png`, fullPage: true })
   } finally { await page.close() }
 }, 15000)
@@ -1350,12 +1647,12 @@ it('aligns the composer footer and interrupts active conversation branches', asy
     await expect.poll(() => composer.evaluate(el => getComputedStyle(el).borderColor)).not.toBe(border)
     expect(await composer.locator('.janus-chat-input-hint').textContent()).toContain('Enter')
     await expect.poll(() => composer.locator('.janus-chat-input-hint').evaluate(el => getComputedStyle(el).opacity)).toBe('1')
-    expect(await composer.locator('.janus-chat-model-tag strong').evaluate(el => getComputedStyle(el).fontSize)).toBe('11px')
+    expect(await composer.locator('[data-selection-trigger="model"] span').evaluate(el => getComputedStyle(el).fontSize)).toBe('11px')
     const add = await composer.getByRole('button', { name: 'Add context', exact: true }).boundingBox()
     const editor = await input.boundingBox()
     expect(Math.abs(add!.x - editor!.x)).toBeLessThan(1)
-    await composer.locator('.janus-chat-model-tag').click()
-    expect(await composer.locator('.janus-chat-model-tag').getAttribute('aria-expanded')).toBe('true')
+    await composer.locator('[data-selection-trigger="model"]').click()
+    expect(await composer.locator('[data-selection-trigger="model"]').getAttribute('aria-expanded')).toBe('true')
     await input.press('Escape')
     await input.press('Enter')
     await page.waitForFunction(() => (window as any).requests.length === 1)
@@ -1394,15 +1691,13 @@ it('aligns the composer footer and interrupts active conversation branches', asy
     await page.screenshot({ path: artifactRoot + '/composer-footer/narrow.png' })
   } finally { await page.close() }
 }, 15000)
-it('aligns Worker dock hover and active feedback across production and prototype themes', async () => {
+it('keeps the shared Worker dock hover and active feedback consistent across themes', async () => {
   const output = `${artifactRoot}/dock-hover`
   await mkdir(output, { recursive: true })
-  for (const source of ['production', 'prototype']) {
-    const page = source === 'production' ? await open() : await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const source = 'production', page = await open()
     try {
-      if (source === 'prototype') await page.setContent(await readFile('design/superagent-bubbles/SuperAgent Bubbles.html', 'utf8'))
-      const toggle = () => page.locator(source === 'production' ? '[data-dock-toggle]' : '.dock-toggle:visible').first()
-      const edge = page.locator(source === 'production' ? '[role=separator][aria-label="Resize Worker panel"]' : '#worker-divider')
+      const toggle = () => page.locator('[data-dock-toggle]:visible').first()
+      const edge = page.locator('[data-superagent-workspace] [role=separator][aria-valuemin="280"]')
       const style = (part: string, pseudo?: string) => (part === 'toggle' ? toggle() : edge).evaluate((el, pseudo) => {
         const s = getComputedStyle(el, pseudo)
         return { background: s.backgroundColor, radius: s.borderRadius, border: s.borderTopColor, shadow: s.boxShadow, opacity: s.opacity, transform: s.transform, transition: s.transitionDuration }
@@ -1428,6 +1723,7 @@ it('aligns Worker dock hover and active feedback across production and prototype
           await page.screenshot({ path: `${output}/${source}-${theme}-${expanded ? 'open' : 'closed'}-active.png` })
           await page.mouse.up()
         }
+        if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click()
         await edge.hover()
         await expect.poll(async () => (await style('edge', '::before')).opacity).toBe('1')
         expect((await style('edge', '::before')).background).toBe(expected)
@@ -1447,5 +1743,4 @@ it('aligns Worker dock hover and active feedback across production and prototype
       expect((await style('toggle')).transition).toBe('0s')
       expect((await style('edge', '::after')).transition).toBe('0s')
     } finally { await page.close() }
-  }
 })

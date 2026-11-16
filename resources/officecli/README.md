@@ -27,6 +27,7 @@ On a Mac, after installing/building the normal project dependencies for the targ
 ```bash
 # Apple Silicon; use x64 in both commands for Intel.
 npm run officecli:prepare -- --platform darwin --arch arm64
+npm run check:macos-resources -- --arch arm64
 npm run package:mac -- --arm64
 ```
 
@@ -36,6 +37,11 @@ package copies only its target binary outside `app.asar`. Windows keeps its
 existing installed path. macOS uses `<resources>/officecli/darwin-<arch>/officecli`,
 matching the Node/Electron process architecture (including x64 under Rosetta).
 Universal bundles are not supported; build separate x64 and arm64 packages.
+
+The current distribution configuration requires macOS 15.0 or later. The resource
+check also verifies node-pty's Mach-O architecture and deployment target; it does
+not load Mac binaries when run on Windows. The dependency rationale and pending
+minimum-version acceptance are recorded in [macOS compatibility](../../.agents/notes/desktop/macos-compatibility.md).
 
 The macOS signing configuration preserves OfficeCLI's upstream signature because
 re-signing it changes the bytes checked by the broker. App signing and notarization

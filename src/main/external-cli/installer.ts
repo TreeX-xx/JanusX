@@ -1,6 +1,6 @@
-import { delimiter } from 'node:path'
+import { targetPath, envValue } from '../platform/environment'
 import type { ExternalCliToolDescriptor } from './tool-registry'
-import { claudeKnownBinDirs, findExecutableOnPath, quotePowerShellPath, readPathValue } from './cli-detector'
+import { claudeKnownBinDirs, findExecutableOnPath, quotePowerShellPath } from './cli-detector'
 
 const INSTALL_TIMEOUT_MS = 5 * 60_000
 
@@ -18,7 +18,12 @@ interface CliInstallerDependencies {
   run(file: string, args: readonly string[], options: { timeout: number; pathDirs: string[]; cwd?: string }): Promise<RunResult>
   prepareNpm?: (candidate: { path: string; pathDirs: string[] } | undefined) => Promise<{ path: string; pathDirs: string[] }>
   installPrefix?: () => string | undefined
+  prepareInstall?: (tool: ExternalCliToolDescriptor, located: { path: string; pathDirs: string[] }, replace?: ExternalCliToolDescriptor) => Promise<void>
+  installExisting?: (tool: ExternalCliToolDescriptor, version: string) => Promise<CliInstallOutcome | undefined>
+  verifyInstall?: (tool: ExternalCliToolDescriptor, version: string, located: { path: string; pathDirs: string[] }) => Promise<{ path: string; version: string }>
 }
+
+export interface CliInstallOutcome { success: boolean; command?: string; error?: string; target?: { path: string; version: string } }
 
 function npmBinaryNames(platform: NodeJS.Platform): readonly string[] {
   return platform === 'win32' ? ['npm.cmd', 'npm.exe', 'npm'] : ['npm']
@@ -50,7 +55,7 @@ export class CliInstaller {
   /** 定位 npm 并给出执行期 PATH 补齐目录；找不到则调用方只能展示手动命令。 */
   async locateNpm(): Promise<{ path: string; pathDirs: string[] } | undefined> {
     const names = npmBinaryNames(this.deps.platform)
-    const pathDirs = readPathValue(this.deps.env).split(delimiter).filter(Boolean)
+    const pathDirs = (envValue(this.deps.env, 'PATH', this.deps.platform) ?? '').split(targetPath(this.deps.platform).delimiter).filter(Boolean)
     const isFile = async (candidate: string): Promise<boolean> => {
       try {
         return await this.deps.isRegularFile(candidate)
@@ -58,27 +63,28 @@ export class CliInstaller {
         return false
       }
     }
-    const onPath = await findExecutableOnPath(names, pathDirs, isFile)
+    const onPath = await findExecutableOnPath(names, pathDirs, isFile, this.deps.platform)
     const knownDirs = claudeKnownBinDirs(this.deps.env, this.deps.platform, this.deps.homeDir)
-    const npmPath = onPath ?? await findExecutableOnPath(names, knownDirs, isFile)
+    const npmPath = onPath ?? await findExecutableOnPath(names, knownDirs, isFile, this.deps.platform)
     if (!npmPath) return undefined
-    return { path: npmPath, pathDirs: [...knownDirs, ...pathDirs] }
+    return { path: npmPath, pathDirs: [...new Set([...pathDirs, ...knownDirs])] }
   }
 
   buildCommand(npmPath: string, tool: ExternalCliToolDescriptor, version = 'latest'): { file: string; args: readonly string[]; display: string } {
     if (!tool.npmPackage) throw new Error(`${tool.displayName} is not npm-distributed.`)
     if (version !== 'latest' && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.')
     const target = `${tool.npmPackage}@${version}`
+    const packages = [target, ...(tool.companionPackages ?? [])].join(' ')
     if (this.deps.platform === 'win32') {
       // 与探测同理走 PowerShell：npm 报错与缺 node 的 cmd 报错都是 GBK，固定 UTF-8 才可读。
-      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} i -g ${target}${this.prefixScript()}; exit $LASTEXITCODE`
+      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} i -g ${packages}${this.prefixScript()}; exit $LASTEXITCODE`
       return {
         file: 'powershell.exe',
         args: ['-NoProfile', '-NonInteractive', '-Command', script],
-        display: `& "${npmPath}" i -g ${target}`,
+        display: `& "${npmPath}" i -g ${packages}${this.prefixScript()}`,
       }
     }
-    return { file: npmPath, args: ['i', '-g', target, ...this.prefixArgs()], display: `${npmPath} i -g ${target}` }
+    return { file: npmPath, args: ['i', '-g', target, ...(tool.companionPackages ?? []), ...this.prefixArgs()], display: `${npmPath} i -g ${packages}${this.deps.installPrefix?.() ? ` --prefix ${JSON.stringify(this.deps.installPrefix())}` : ''}` }
   }
 
   /** Codex self-heal half: `uninstall || install` starts by removing the broken bits. */
@@ -95,15 +101,19 @@ export class CliInstaller {
     return { file: npmPath, args: ['rm', '-g', tool.npmPackage, ...this.prefixArgs()], display: `${npmPath} rm -g ${tool.npmPackage}` }
   }
 
-  async install(tool: ExternalCliToolDescriptor, version = 'latest', replace?: ExternalCliToolDescriptor): Promise<{ success: boolean; command?: string; error?: string }> {
+  async install(tool: ExternalCliToolDescriptor, version = 'latest', replace?: ExternalCliToolDescriptor): Promise<CliInstallOutcome> {
     if (this.running) return { success: false, error: 'Another install is already running.' }
+    if (version !== 'latest' && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.')
     // 同步置位：检查与置位之间不允许 await，否则两次同步进入的调用会同时通过检查。
     this.running = true
     try {
+      const existing = await this.deps.installExisting?.(tool, version)
+      if (existing) return existing
       const candidate = await this.locateNpm()
       const located = this.deps.prepareNpm ? await this.deps.prepareNpm(candidate) : candidate
       if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
       if (!tool.npmPackage) return { success: false, command: tool.manualInstallCommand, error: 'No install strategy for this tool.' }
+      await this.deps.prepareInstall?.(tool, located, replace)
       const command = this.buildCommand(located.path, tool, version)
       // Only remove a conflicting npm package after reading its actual installed version.
       // The same lock covers inspection, removal, installation and failure recovery.
@@ -137,7 +147,13 @@ export class CliInstaller {
       }
       displays.push(command.display)
       const result = await this.deps.run(command.file, command.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs: located.pathDirs })
-      if (result.exitCode !== 0) {
+      let target: { path: string; version: string } | undefined
+      let installError = result.exitCode !== 0 ? lastLines(`${result.stderr}\n${result.stdout}`, 8) || `Install exited with code ${result.exitCode}.` : undefined
+      if (!installError) {
+        try { target = await this.deps.verifyInstall?.(tool, version, located) }
+        catch (error) { installError = error instanceof Error ? error.message : String(error) }
+      }
+      if (installError) {
         let recovery = ''
         if (restore && replace) {
           // Remove a partially installed target before restoring the old command shims.
@@ -152,10 +168,12 @@ export class CliInstaller {
         return {
           success: false,
           command: displays.join(' && '),
-          error: (lastLines(`${result.stderr}\n${result.stdout}`, 8) || `Install exited with code ${result.exitCode}.`) + recovery,
+          error: installError + recovery,
         }
       }
-      return { success: true, command: displays.join(' && ') }
+      return { success: true, command: displays.join(' && '), ...(target ? { target } : {}) }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     } finally {
       this.running = false
     }
@@ -170,9 +188,11 @@ export class CliInstaller {
     if (this.running) return { success: false, error: 'Another install is already running.' }
     this.running = true
     try {
-      const located = await this.locateNpm()
+      const candidate = await this.locateNpm()
+      const located = this.deps.prepareNpm ? await this.deps.prepareNpm(candidate) : candidate
       if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
       if (!tool.npmPackage) return { success: false, command: tool.manualInstallCommand, error: 'No uninstall strategy for this tool.' }
+      await this.deps.prepareInstall?.(tool, located)
       const command = this.buildUninstallCommand(located.path, tool)
       const result = await this.deps.run(command.file, command.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs: located.pathDirs })
       if (result.exitCode !== 0) {

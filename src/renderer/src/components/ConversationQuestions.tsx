@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { MessageCircleQuestion } from 'lucide-react'
 import { validateConversationAnswer, type ConversationQuestionAnswer, type ConversationQuestionRequest } from '../../../shared/conversation-questions'
 import styles from './ConversationQuestions.module.css'
+import { QuestionAnswerInput } from './QuestionAnswerInput'
 
 // Note: .agents/notes/workbench/terminal-dialog-dual-mode.md — answer the waiting native request, never enqueue a prompt.
 export function ConversationQuestions({ request, disabled, answer }: {
@@ -36,16 +37,10 @@ export function ConversationQuestions({ request, disabled, answer }: {
         </div>}
         {question.allowText && <label className={styles.custom}>
           <span>{question.options.length ? t('conversation.question.other') : t('conversation.question.answer')}</span>
-          {(question.multiline || question.options.length > 0) && !question.secret ? <textarea value={value.text ?? ''} rows={3} maxLength={32000} aria-label={t('conversation.question.customAria', { question: label })}
-            placeholder={question.placeholder ?? t('conversation.question.placeholder')} spellCheck={false}
-            onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)}
-            onChange={event => update(question.id, { text: event.target.value, ...(!question.multiple ? { selected: [] } : {}) })}
-            onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing && !composing && event.keyCode !== 229) { event.preventDefault(); submit() } }} />
-            : <input type={question.secret ? 'password' : 'text'} value={value.text ?? ''} maxLength={32000} aria-label={t('conversation.question.customAria', { question: label })}
-              placeholder={question.placeholder ?? t('conversation.question.placeholder')} autoComplete="off" spellCheck={false}
-              onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)}
-              onChange={event => update(question.id, { text: event.target.value, ...(!question.multiple ? { selected: [] } : {}) })}
-              onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || composing || event.keyCode === 229)) event.preventDefault() }} />}
+          <QuestionAnswerInput value={value.text ?? ''} label={t('conversation.question.customAria', { question: label })}
+            placeholder={question.placeholder ?? t('conversation.question.placeholder')} multiline={Boolean(question.multiline || question.options.length)} secret={question.secret}
+            disabled={locked} onComposingChange={setComposing} onSubmit={submit}
+            onChange={text => update(question.id, { text, ...(!question.multiple ? { selected: [] } : {}) })} />
         </label>}
       </fieldset>
     })}

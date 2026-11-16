@@ -804,12 +804,13 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--surface-shade) 25%, transparent);
   color: var(--shell-text);
-  font-size: 12px;
   outline: none;
 }
 
 .janus-question-custom:focus {
-  border-color: color-mix(in srgb, var(--status-warning) 50%, transparent);
+  border-color: var(--conversation-focus-border);
+  outline: 1px solid var(--conversation-focus-ring);
+  outline-offset: 1px;
 }
 
 .janus-question-gate-actions {
@@ -971,8 +972,6 @@
 .janus-chat[data-compact-navigation] .janus-chat-composer-row { display: flex; align-items: flex-end; gap: 6px; min-width: 0; }
 .janus-chat[data-compact-navigation] .janus-chat-input { flex: 1; min-width: 0; border-radius: 4px; }
 .janus-chat[data-compact-navigation] .janus-chat-status-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
-.janus-chat[data-compact-navigation] .janus-chat-model-tag { display: flex; gap: 4px; min-width: 0; max-width: 100%; }
-.janus-chat[data-compact-navigation] .janus-chat-model-tag strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .janus-chat[data-compact-navigation] .janus-chat-status-actions, .janus-chat[data-compact-navigation] .janus-chat-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Compact navigation and minimal composer are shared JanusChat variants. */
 .janus-chat[data-minimal-composer] .janus-chat-input-wrapper {

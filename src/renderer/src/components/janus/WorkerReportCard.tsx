@@ -1,12 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ClipboardList, Maximize2, Minimize2, X } from 'lucide-react'
+import { ChevronRight, ClipboardList, Maximize2, Minimize2, X } from 'lucide-react'
 import { useSuperAgentHighlight, useSuperAgentPresentation, workerReportKey, type ReportTarget } from './SuperAgentPresentation'
 import { useSuperAgentUIStore } from '../../stores/superagent-ui'
 import { isUserFacingReportSummary, parseWorkerReport, type WorkerReportDocument } from '@janus-agent/janus-agent/superagent/contracts/worker-report'
 import { WorkerReportContent } from './WorkerReportContent'
 import { MarkdownContent } from '../chat/ChatContent'
+import { useAnimatedOpen } from '../shared/CardFrame'
 import styles from './WorkerReportCard.module.css'
 
 interface Props extends ReportTarget { workId?: string; buttonOnly?: boolean | 'icon' }
@@ -15,9 +16,10 @@ interface Props extends ReportTarget { workId?: string; buttonOnly?: boolean | '
 export function WorkerReportCard({ title, summary, content, workspaceId, resourceId, workId, buttonOnly }: Props) {
   const { t } = useTranslation('janus'), presentation = useSuperAgentPresentation()
   const [open, setOpen] = useState(false), trigger = useRef<HTMLElement | null>(null)
+  const bodyId = useId()
   const host = useRef<HTMLElement>(null), register = presentation?.registerReport
   const cardReport = useMemo(() => parseWorkerReport(content ?? ''), [content])
-  const target = { title, summary, content, workspaceId, resourceId }
+  const target = useMemo(() => ({ title, summary, content, workspaceId, resourceId }), [title, summary, content, workspaceId, resourceId])
   const key = workId ? workerReportKey(workId, target) : ''
   useLayoutEffect(() => {
     if (!key || buttonOnly || !register) return
@@ -27,27 +29,43 @@ export function WorkerReportCard({ title, summary, content, workspaceId, resourc
   const highlight = useSuperAgentHighlight(!buttonOnly && workId ? { workIds: [workId] } : null)
   const shown = workId && presentation ? presentation.report?.workId === workId
     && (resourceId ? presentation.report.target.resourceId === resourceId : presentation.report.target.content === content) : open
+  const managedReport = presentation?.report
+  const localReader = !buttonOnly || !workId || !presentation
+  const report = useMemo(() => shown && localReader ? workId && managedReport ? managedReport : { workId, target } : null,
+    [shown, localReader, workId, managedReport, target])
   const show = (element: HTMLElement) => {
     trigger.current = element
     if (workId && presentation) { if (shown) presentation.closeReport(); else presentation.openReport(workId, target, element) }
     else setOpen(value => !value)
   }
   return <>
-    {buttonOnly ? <button type="button" className={buttonOnly === 'icon' ? styles.iconButton : undefined} title={t('superagent.viewReport')} aria-label={t('superagent.viewReport')} aria-expanded={!!shown} onClick={event => show(event.currentTarget)}>
+    {buttonOnly ? <button type="button" className={buttonOnly === 'icon' ? styles.iconButton : undefined} title={t('superagent.viewReport')} aria-label={t('superagent.viewReport')} aria-expanded={!!shown} aria-controls={localReader ? bodyId : undefined} onClick={event => show(event.currentTarget)}>
       {buttonOnly === 'icon' ? <ClipboardList size={14} aria-hidden="true" /> : t('superagent.viewReport')}</button> :
       <article ref={host} className={styles.card} data-worker-report="" data-report-key={key || undefined} {...highlight}>
         <small>{t('superagent.report')}</small><h2>{title}</h2>
         {cardReport ? <><p>{isUserFacingReportSummary(cardReport.summary) ? cardReport.summary : t('superagent.reportLegacyCard')}</p><ReportCardChecks document={cardReport} /></>
           : <p>{content || !isUserFacingReportSummary(summary) ? t('superagent.reportLegacyCard') : summary}</p>}
-        <footer><button type="button" aria-expanded={!!shown} onClick={event => show(event.currentTarget)}>{t('superagent.viewReport')}</button></footer>
+        <footer><button type="button" aria-expanded={!!shown} aria-controls={bodyId} onClick={event => show(event.currentTarget)}><ChevronRight size={12} aria-hidden="true" />{t(shown ? 'superagent.collapseReport' : 'superagent.viewReport')}</button></footer>
       </article>}
-    {!buttonOnly && shown && workId && presentation ? <WorkerReportReader key={key} {...presentation.report!.target} workId={workId} onClose={presentation.closeReport} />
-      : open && <WorkerReportReader {...target} workId={workId} onClose={() => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })) }} />}
+    {localReader && <WorkerReportDisclosure id={bodyId} report={report} onClose={workId && presentation ? presentation.closeReport
+      : () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })) }} />}
   </>
 }
 
+/** Retain the current document through exit and reversals; closed reports do not fetch. */
+function WorkerReportDisclosure({ id, report, onClose }: { id?: string; report: { target: ReportTarget; workId?: string } | null; onClose(): void }) {
+  const motion = useAnimatedOpen(!!report, 220)
+  const [displayed, setDisplayed] = useState(report)
+  if (report && report !== displayed) setDisplayed(report)
+  const visible = !!report && motion.visible
+  return <div id={id} className={styles.reveal} data-report-reveal="" data-open={visible} aria-hidden={!report} {...(!report ? { inert: '' } : {})}>
+    <div className={styles.revealClip}>{motion.rendered && displayed && <WorkerReportReader
+      key={workerReportKey(displayed.workId ?? '', displayed.target)} {...displayed.target} workId={displayed.workId} visible={visible} onClose={onClose} />}</div>
+  </div>
+}
+
 /** In-place by default. Enlarging is explicit, with the same fetched document and original-view state. */
-export function WorkerReportReader({ title, content, workspaceId, resourceId, workId, onClose }: ReportTarget & { workId?: string; onClose(): void }) {
+export function WorkerReportReader({ title, content, workspaceId, resourceId, workId, visible = true, onClose }: ReportTarget & { workId?: string; visible?: boolean; onClose(): void }) {
   const { t } = useTranslation('janus')
   const [enlarged, setEnlarged] = useState(false), [body, setBody] = useState(content ?? ''), [error, setError] = useState('')
   const [loading, setLoading] = useState(false), [original, setOriginal] = useState(false)
@@ -68,6 +86,7 @@ export function WorkerReportReader({ title, content, workspaceId, resourceId, wo
     return () => { cancelled = true }
   }, [content, workspaceId, resourceId, workId, retry])
   useLayoutEffect(() => {
+    if (!visible) { dialog.current?.close(); return }
     if (enlarged) dialog.current?.showModal()
     else if (reader.current) {
       // Reveal the heading inside its transcript, without scrolling the whole tool pane.
@@ -79,7 +98,7 @@ export function WorkerReportReader({ title, content, workspaceId, resourceId, wo
       }
       reader.current.focus({ preventScroll: true })
     }
-  }, [enlarged])
+  }, [enlarged, visible])
   const contents = <>
       <header><div><small>{t('superagent.report')}</small><h2 id={heading}>{title}</h2></div><div className={styles.readerActions}>
         <button type="button" aria-label={t(enlarged ? 'superagent.shrinkReport' : 'superagent.enlargeReport')} title={t(enlarged ? 'superagent.shrinkReport' : 'superagent.enlargeReport')} onClick={() => setEnlarged(value => !value)}>{enlarged ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
@@ -98,7 +117,7 @@ export function WorkerReportReader({ title, content, workspaceId, resourceId, wo
 /** A sidebar report may arrive before its persisted conversation message is visible. */
 export function SuperAgentReportFallback() {
   const presentation = useSuperAgentPresentation(), report = presentation?.report
-  return report && !report.inline ? <WorkerReportReader key={workerReportKey(report.workId, report.target)} {...report.target} workId={report.workId} onClose={presentation.closeReport} /> : null
+  return <WorkerReportDisclosure report={report && !report.inline ? report : null} onClose={() => presentation?.closeReport()} />
 }
 
 function ReportCardChecks({ document }: { document: WorkerReportDocument }) {

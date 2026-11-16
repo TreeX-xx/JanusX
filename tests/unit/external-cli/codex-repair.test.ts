@@ -12,14 +12,15 @@ const { DefaultExternalCliService } = await import('../../../src/main/external-c
 
 function createHarness(probe: ExternalCliDetectResult) {
   const calls: string[] = []
-  let probes = 0
   const healthy = { toolId: 'codex', installed: true, runnable: true, version: '9.9.9' } as const
-  // First probe drives the heal decision; the post-install re-probe is healthy.
-  const detector = { detect: vi.fn(async () => (probes++ === 0 ? probe : healthy)) }
+  // System repairs reinstall in place; never pre-uninstall another source.
+  let current: ExternalCliDetectResult = probe
+  const detector = { detect: vi.fn(async () => current) }
   const installer = {
     isBusy: vi.fn(() => false),
     install: vi.fn(async () => {
       calls.push('install')
+      current = healthy
       return { success: true, command: 'npm i -g @openai/codex@latest' }
     }),
     uninstall: vi.fn(async () => {
@@ -37,8 +38,8 @@ function createHarness(probe: ExternalCliDetectResult) {
   return { service, detector, installer, calls }
 }
 
-describe('codex self-heal on install', () => {
-  it('removes a broken install before reinstalling', async () => {
+describe('codex in-place repair', () => {
+  it('reinstalls without removing a system installation', async () => {
     const { service, calls } = createHarness({
       toolId: 'codex',
       installed: true,
@@ -47,11 +48,11 @@ describe('codex self-heal on install', () => {
     })
 
     const result = await service.install('codex')
-    expect(calls).toEqual(['uninstall', 'install'])
+    expect(calls).toEqual(['install'])
     expect(result).toMatchObject({ success: true })
   })
 
-  it('falls through to install when the removal itself fails', async () => {
+  it('does not call the old uninstall path even if it would fail', async () => {
     const { service, installer, calls } = createHarness({
       toolId: 'codex',
       installed: true,
@@ -64,7 +65,7 @@ describe('codex self-heal on install', () => {
     })
 
     const result = await service.install('codex')
-    expect(calls).toEqual(['uninstall', 'install'])
+    expect(calls).toEqual(['install'])
     expect(result).toMatchObject({ success: true })
   })
 

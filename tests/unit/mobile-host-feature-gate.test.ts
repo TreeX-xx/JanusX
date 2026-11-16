@@ -7,7 +7,7 @@ vi.mock('../../src/main/ipc/terminal-handlers', () => ({ createCompanionTerminal
 vi.mock('../../src/main/companion/workspace-registry', () => ({ listRegisteredWorkspaces: async () => [], resolveRegisteredWorkspace: mocks.workspace }))
 vi.mock('qrcode', () => ({ default: { toDataURL: mocks.qr } }))
 vi.mock('../../src/main/remote/signaling', () => ({ startSignaling: mocks.signal }))
-vi.mock('node:os', () => ({ networkInterfaces: () => ({ Ethernet: [{ family: 'IPv4', internal: false, address: '192.168.31.5' }] }) }))
+vi.mock('node:os', async importOriginal => ({ ...(await importOriginal<typeof import('node:os')>()), networkInterfaces: () => ({ Ethernet: [{ family: 'IPv4', internal: false, address: '192.168.31.5' }] }) }))
 import { startMobileHost, stopMobileHost, mobileHostStatus, approveMobile, refreshMobileQr } from '../../src/main/remote/mobile-host'
 
 describe('mobile host experimental feature gate', () => {

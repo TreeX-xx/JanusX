@@ -1,3 +1,4 @@
+import { localDefaultShell } from '../platform/local-shell'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
@@ -97,7 +98,7 @@ async function createHost(selected: MobileHostOptions, activation: number): Prom
     async create(id, workspaceId) {
       const record = await resolveRegisteredWorkspace(workspacesRoot(), workspaceId)
       const result = await createCompanionTerminal({ id, workspaceId, cwd: record.path, preset: 'claude',
-        shell: process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash', cols: 80, rows: 30 })
+        shell: localDefaultShell(), cols: 80, rows: 30 })
       terminalManager.getInstance(id)?.pty.onExit(({ exitCode }) => active.exited(id, exitCode))
       return result
     },

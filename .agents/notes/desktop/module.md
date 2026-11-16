@@ -53,7 +53,9 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 [开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。[OfficeCLI](./officecli-bundled.md) 已接入 macOS arm64/x64 的资源解析、校验与打包，Mac 实机和签名安装包尚未验证。统一输入与其余平台交付仍在设计阶段，具体取舍与实施验收由该草案维护。
 
-[macOS 兼容性分析](./macos-compatibility.md)记录窗口 IPC 重复注册、隐藏窗口阻断 Dock 恢复、CLI 检测与启动规则分歧的隔离复现，以及 Claude 双模式和自动更新的平台限制；原生依赖、架构混用、进程回收、最低系统版本和签名交付仍需目标系统验证。该专题维护问题优先级及实施顺序，不能以已有 OfficeCLI 适配或 Windows-hosted 模拟作为 Mac 完整支持证据。
+[macOS 兼容性分析](./macos-compatibility.md)维护源码探针、Windows 宿主实测和 Mac not-run 矩阵。窗口 IPC 一次注册，Dock／重复启动共用主窗恢复路径，回归与 Windows Electron 重开通过。CLI 环境、Homebrew 解析、私有安装核验／恢复和架构隔离已修复，Claude 默认降级 TUI，Pi/DSH 包定位及 profile 准备已补齐；managed Worker 平台门保留。POSIX 回收已实现并通过模拟，Mac 资源已校验。原生加载、真实窗口／PTY／CLI、最低系统版本、签名安装和升级仍待目标系统验证；宿主回归不代表 Mac 完整支持。
+
+[跨平台运行时边界与实施计划](./platform-runtime-boundaries.md)对照 Orca 的进程包、环境恢复、路径身份与导入门禁，维护 P0—P7 和 13 项验收。P0—P5 已实施：local 旧记录兼容、公共进程／PTY／CLI、provider 目录、路径比较和能力策略已迁移，剩余原生／桌面／外部包边界逐文件说明。P6 完整检查已尝试并修复本轮 CLI 优先级回归，会话续接三项、CLI 安装启动和窗口重开复验通过；Planche 与插件窗口两项 UI 断言仍失败。P7 最终 Windows 目录包在仓库外启动通过，Mac 资源门禁已接入、最低发行配置为 15.0；真实 Mac、远端及签名安装升级未验收，DSH 历史等新增能力单列。
 
 [退出与资源回收](./application-shutdown.md)对照 dev、SuperAgent 工作树和实际 0.9.9 安装包，记录 Windows 独立安装副本的关闭、真实 Office 预览、进程管理和故障注入证据。正常测试可以释放所测资源，但退出中的异常重启会产生新实例并继续占用程序文件；串行清理预算、进程树确认和退出事件覆盖仍需改造。该专题维护共用退出实施计划及 Windows／Mac 验收边界，修复尚未实施。
 

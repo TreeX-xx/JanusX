@@ -461,7 +461,7 @@ export function installElectronApiFallback(): void {
       onEditorEmbedded: () => () => {},
       onEditorRefresh: () => () => {},
     },
-    system: { getDefaultShell: unavailable, getPlatform: unavailable, openVSCode: unavailable, getRuntimeTelemetry: unavailable, listUsageLedger: unavailable, getLanguage: () => Promise.resolve(null), setLanguage: unavailable, onPrepareQuit: () => () => {} },
+    system: { getDefaultShell: unavailable, getPlatform: unavailable, openVSCode: unavailable, getRuntimeTelemetry: unavailable, listUsageLedger: unavailable, getHistorySources: unavailable, saveHistorySources: unavailable, pickHistorySource: unavailable, getLanguage: () => Promise.resolve(null), setLanguage: unavailable, onPrepareQuit: () => () => {} },
     shellProfiles: {
       list: unavailable,
       save: unavailable,

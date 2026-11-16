@@ -544,6 +544,9 @@ portable:
   requestExecutionLevel: user
 
 mac:
+  # Distribution policy includes OfficeCLI's .NET 10 support range, not only Electron.
+  # Note: .agents/notes/desktop/macos-compatibility.md (MAC-11; native acceptance pending)
+  minimumSystemVersion: '15.0'
   extraResources:
     - from: resources/officecli/darwin-${arch}/officecli
       to: officecli/darwin-${arch}/officecli

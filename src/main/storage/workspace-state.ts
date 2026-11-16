@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { randomUUID, createHash } from 'node:crypto'
 import { lstat, realpath, opendir, mkdir, open, readFile, rename, unlink, rmdir } from 'node:fs/promises'
@@ -12,7 +13,7 @@ interface Manifest { schema: 1; storageId: string; path: string; retentionStarte
 export const WORKSPACE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const CATEGORIES = ['janusX.launch.json', 'checkpoints', 'logs'] as const
 const COPY_CATEGORIES = ['janusX.launch.json', 'logs'] as const
-const normalize = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
+const normalize = (path: string) => runtimePathKey(resolve(path))
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
 
 async function exists(path: string): Promise<boolean> {

@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 /**
  * @file Harness IPC Handlers (S4)
  * @description Project-note resolve/graph/apply/bind/share channels over the
@@ -212,7 +213,7 @@ export function registerHarnessHandlers(getWindow: () => BrowserWindow | null): 
   // Lease tokens never cross IPC; the renderer passes intent and evidence only.
 
   const inFlight = new Map<string, AbortController>()
-  const executionKey = (root: string, runId: string) => JSON.stringify([process.platform === 'win32' ? root.toLowerCase() : root, runId])
+  const executionKey = (root: string, runId: string) => JSON.stringify([runtimePathKey(root), runId])
 
   handle(HARNESS_COMMAND_CHANNELS.runTranscript, async (_e, cwd: string, runId: string) => {
     const root = await withRoot(cwd)

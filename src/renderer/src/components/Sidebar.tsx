@@ -1,3 +1,4 @@
+import { isExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 // Note: .agents/notes/terminal/terminal-sidebar-states.md
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -134,7 +135,7 @@ function WorkspaceContextMenu({
           <button type="button" className={itemClassName} onClick={() => onRunConfiguration(target.workspace)}>
             {t('common:workspace.runConfiguration')}
           </button>
-          {(!target.workspace.runtime || target.workspace.runtime.kind === 'windows') && <button type="button" className={itemClassName} onClick={() => onIntegrations(target.workspace)}>{t('integrations:title')}</button>}
+          {(!isExternalWorkspaceRuntime(target.workspace.runtime)) && <button type="button" className={itemClassName} onClick={() => onIntegrations(target.workspace)}>{t('integrations:title')}</button>}
           <button type="button" className={itemClassName} onClick={() => onCreateWorktree(target.workspace)}>
             {t('common:workspace.createWorktree')}
           </button>
@@ -1427,7 +1428,7 @@ export function Sidebar() {
                       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
                         {ws.name}
                       </span>
-                      {ws.runtime && ws.runtime.kind !== 'windows' && <span
+                      {isExternalWorkspaceRuntime(ws.runtime) && <span
                         data-runtime-kind={ws.runtime.kind}
                         title={ws.runtime.kind === 'wsl' ? ws.runtime.distro : ws.runtime.host}
                         className="shrink-0 text-[9px] font-mono"

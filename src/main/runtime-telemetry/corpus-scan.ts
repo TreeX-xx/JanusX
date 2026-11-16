@@ -1,16 +1,13 @@
 // Note: usage accounting is hook-free and covers never-opened history — see .agents/notes/terminal/usage-telemetry-hook-decoupling.md
-import { readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { stat } from 'node:fs/promises'
 import os from 'node:os'
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import {
-  listJsonlFiles,
   listJsonlFilesRecursive,
   parseClaudeSession,
   parseCodexSession,
   parsePiSession,
   parseJsonObject,
-  readJsonConfig,
   readJsonlLinesWithCursor,
   readString,
   type SessionFileRef,
@@ -19,13 +16,16 @@ import {
 import { collectCodexEvents } from './history-usage'
 import { isCodexAccountingRecord, readProjectedJsonl } from './projected-jsonl'
 import { OpenCodeUsageSource } from './opencode-source'
-import { resolveOpencodeDbPath } from '../sessions/opencode-store-path'
+import { resolveHistorySources } from '../sessions/history-sources'
+import { providerPathContext } from '../external-cli/provider-paths'
+import type { HistorySource } from '../../shared/history-sources'
 import type { UsageLedger } from './usage-ledger'
 import type { UsageEngine, UsageObservation, UsageSourceCheckpoint } from '../../shared/usage'
 
 type CheckpointLookup = (engine: UsageEngine, namespace: string, sessionId: string) => UsageSourceCheckpoint | undefined
 
 export interface CorpusScanSummary {
+  errors?: string[]
   /** Files examined, including cursor hits. */
   scanned: number
   /** Observations handed to the ledger (idempotent on re-scan). */
@@ -49,22 +49,6 @@ function codexSessionIdFromPath(path: string): string | undefined {
   return /^rollout-.*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(base)?.[1]
 }
 
-function resolveCodexHome(): string {
-  return process.env.CODEX_HOME?.trim() || join(os.homedir(), '.codex')
-}
-
-/** Pi keeps sessions under the globally configured dir; project overrides stay with their terminal. */
-async function resolvePiCorpusRoots(): Promise<string[]> {
-  const fallback = join(os.homedir(), '.pi', 'agent', 'sessions')
-  const settings = await readJsonConfig(join(os.homedir(), '.pi', 'agent', 'settings.json'))
-  const configured = readString(settings?.sessionDir)
-  if (!configured) return [fallback]
-  const expanded = configured.startsWith('~/') || configured === '~'
-    ? join(os.homedir(), configured.slice(configured === '~' ? 1 : 2))
-    : configured
-  return [expanded]
-}
-
 /**
  * Reads every native session store and feeds the usage ledger. Sessions the
  * ledger has never seen are imported in event mode with their real event
@@ -78,12 +62,14 @@ async function resolvePiCorpusRoots(): Promise<string[]> {
  */
 export async function scanNativeSessionCorpus(options: {
   ledger: UsageLedger
+  sources?: HistorySource[]
   checkpointLookup?: CheckpointLookup
   now?: number
   signal?: AbortSignal
 }): Promise<CorpusScanSummary> {
   const { ledger, checkpointLookup, signal, now = Date.now() } = options
   signal?.throwIfAborted()
+  const sources = (options.sources ?? resolveHistorySources(undefined, providerPathContext({ home: os.homedir() }))).filter(source => source.enabled)
   const summary: CorpusScanSummary = { scanned: 0, recorded: 0, skipped: 0, unavailable: 0 }
 
   const record = (observation: UsageObservation | undefined, sourceSize?: number) => {
@@ -98,12 +84,13 @@ export async function scanNativeSessionCorpus(options: {
       summary.recorded += 1
     } catch (error) {
       summary.unavailable += 1
+      if ((summary.errors?.length ?? 0) < 20) (summary.errors ??= []).push(error instanceof Error ? error.message : String(error))
       console.error('Corpus scan:', error instanceof Error ? error.message : String(error))
     }
   }
 
-  const opencodePath = resolveOpencodeDbPath(os.homedir())
-  if (await stat(opencodePath).catch(() => null)) {
+  for (const { path: opencodePath } of sources.filter(source => source.engine === 'opencode')) {
+    if (!await stat(opencodePath).catch(() => null)) continue
     let source: OpenCodeUsageSource | undefined
     try {
       source = new OpenCodeUsageSource(opencodePath)
@@ -129,18 +116,8 @@ export async function scanNativeSessionCorpus(options: {
   }
 
   // Claude: one JSONL per session under cwd-keyed project directories.
-  const claudeNamespace = join(os.homedir(), '.claude')
-  const projectsRoot = join(claudeNamespace, 'projects')
-  let projectDirs: string[] = []
-  try {
-    projectDirs = (await readdir(projectsRoot, { withFileTypes: true }))
-      .filter(entry => entry.isDirectory())
-      .map(entry => join(projectsRoot, entry.name))
-  } catch {
-    projectDirs = []
-  }
-  for (const dir of projectDirs) {
-    for (const file of await listJsonlFiles(dir, name => name.endsWith('.jsonl'))) {
+  for (const { path: dir, namespace: claudeNamespace } of sources.filter(source => source.engine === 'claude')) {
+    for (const file of await listJsonlFilesRecursive(dir, name => name.endsWith('.jsonl'))) {
       await yieldToEventLoop()
       signal?.throwIfAborted()
       summary.scanned += 1
@@ -160,14 +137,13 @@ export async function scanNativeSessionCorpus(options: {
         summary.unavailable += 1
         continue
       }
-      const snapshot = await parseClaudeSession(file, undefined, read.lines)
+      const snapshot = await parseClaudeSession({ ...file, namespace: claudeNamespace }, undefined, read.lines)
       record(snapshot?.usageObservation, read.completeBytes)
     }
   }
 
   // Codex: rollout files under date-partitioned sessions plus archived_sessions.
-  const codexHome = resolveCodexHome()
-  for (const root of [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')]) {
+  for (const { path: root, namespace: codexHome } of sources.filter(source => source.engine === 'codex')) {
     for (const file of await listJsonlFilesRecursive(root, name => name.startsWith('rollout-') && name.endsWith('.jsonl'))) {
       await yieldToEventLoop()
       signal?.throwIfAborted()
@@ -226,7 +202,7 @@ export async function scanNativeSessionCorpus(options: {
 
   // Pi: message tree under the global session dir; namespace is the root the
   // file was found under, matching the bound-terminal path.
-  for (const root of await resolvePiCorpusRoots()) {
+  for (const { path: root } of sources.filter(source => source.engine === 'pi')) {
     for (const file of await listJsonlFilesRecursive(root, name => name.endsWith('.jsonl'))) {
       await yieldToEventLoop()
       signal?.throwIfAborted()

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { TerminalSquare } from 'lucide-react'
+import { TerminalSquare, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useSuperAgentUIStore } from '@/stores/superagent-ui'
@@ -28,8 +28,11 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   const [startupComplete, setStartupComplete] = useState(false)
   const finishStartup = useCallback(() => setStartupComplete(true), [])
   const [sendError, setSendError] = useState('')
+  const [targetId,setTargetId]=useState<string|null>(null)
   const agentMode = useSuperAgentUIStore(state => state.agentMode)
   const workspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
+  const target=registry.topicConversations.find(c=>c.id===targetId&&c.topic?.rootId===chat.conversationId&&c.topic.workspaceId===workspaceId)
+  useEffect(()=>setTargetId(null),[chat.conversationId,workspaceId])
   const activeTopics = registry.topicConversations.filter(c => c.topic?.rootId === chat.conversationId && c.topic.workspaceId === workspaceId
     && (registry.getController(c.id).isStreaming || c.topic.inputs.some(input => ['running', 'queued', 'steering', 'accepted'].includes(input.state))))
   const canStop = chat.isStreaming || activeTopics.length > 0
@@ -93,23 +96,28 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
         : `minmax(0, 1fr) ${expanded ? 9 : 0}px ${expanded ? sidebarWidth : WORKER_RAIL_WIDTH}px` }}>
         <div className={styles.chat} data-superagent-design="multi-input" hidden={compact && narrowOpen}>
           <JanusChat key={chat.conversationId + ':' + workspaceId} docked conversationStyle emptyState={false} showConversationNavigation={false} showWorkspaceScope={false} showContextIndicator={false}
-            aboveComposer={<SuperAgentWelcome rootId={chat.conversationId} workspaceId={workspaceId} error={sendError} active={visible && !(compact && narrowOpen)} />}
+            aboveComposer={<>{target&&<div className={styles.branchTarget} data-branch-target={target.id}>
+              <span>{t('topics.target',{title:target.title})}</span><button type="button" aria-label={t('topics.cancelTarget')} onClick={()=>{setTargetId(null);requestAnimationFrame(()=>root.current?.querySelector<HTMLElement>('.janus-chat-input')?.focus({preventScroll:true}))}}><X size={13}/></button>
+            </div>}<SuperAgentWelcome rootId={chat.conversationId} workspaceId={workspaceId} error={sendError} active={visible && !(compact && narrowOpen)} /></>}
             contextComposer={{ id: 'superagent:' + chat.conversationId + ':' + workspaceId, workspacePath }}
             workerShortcuts={agentMode === 'superagent' ? { workspaceId } : undefined}
             modelOptions={chat.modelOptions} activeModel={chat.activeModel} modelNotice={chat.modelNotice} onSelectModel={(provider, model) => chat.selectModel(provider, model, true)}
-            inputPlaceholderOverride={t('topics.placeholder')}
+            inputPlaceholderOverride={target?t('topics.targetPlaceholder',{title:target.title}):t('topics.placeholder')}
             visible={visible && !(compact && narrowOpen)} focused={focused && !(compact && narrowOpen)} modeColor="var(--interaction-accent)"
             messages={[]} pendingContent="" isStreaming={canStop} error={sendError || null}
             onSend={async (text, context) => {
               try {
                 if (!registry.persistenceReady) throw new Error(t('topics.loading'))
                 setSendError('')
-                await registry.topics.submit(chat.conversationId, workspaceId, text, false, context)
+                if(targetId&&!target)throw new Error(t('topics.targetUnavailable'))
+                if(target&&context?.worker?.kind==='worker')throw new Error(t('topics.targetConflict'))
+                await registry.topics.submit(chat.conversationId, workspaceId, text, false, context, target ? { targetId: target.id } : undefined)
+                setTargetId(null)
               } catch (error) { setSendError(String(error)); throw error }
             }} onRewrite={chat.rewrite} onStop={stopConversation}
             onRetry={chat.retry} onClear={chat.clear} conversationController={chat} resourceController={chat.resourceController}
             toolTraces={chat.toolTraces}
-            transcriptContent={<><SuperAgentTopics rootId={chat.conversationId} workspaceId={workspaceId} /><SuperAgentWorkflowPlans conversationId={chat.conversationId}
+            transcriptContent={<><SuperAgentTopics rootId={chat.conversationId} workspaceId={workspaceId} onSupplement={id=>{setTargetId(id);requestAnimationFrame(()=>root.current?.querySelector<HTMLElement>('.janus-chat-input')?.focus({preventScroll:true}))}} /><SuperAgentWorkflowPlans conversationId={chat.conversationId}
               relatedConversationIds={registry.topicConversations.filter(c => c.topic?.rootId === chat.conversationId && c.topic.workspaceId === workspaceId).map(c => c.id)}
             /><SuperAgentReportFallback /><SuperAgentDecisions conversationId={chat.conversationId} />{sendError && <p role="alert">{sendError}</p>}</>} />
         </div>

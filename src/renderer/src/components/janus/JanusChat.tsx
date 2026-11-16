@@ -3,7 +3,7 @@
  * @description �?Janus 数字形象风格一致的对话界面
  */
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Check, ChevronDown, CircleCheck, CircleX, Copy, LoaderCircle, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Send, ShieldX, Trash2, X } from 'lucide-react'
 import { JanusIcon } from '../ui/JanusIcon'
@@ -26,6 +26,7 @@ import { TranscriptNavigation } from './TranscriptNavigation'
 import { useWorkerShortcuts } from './useWorkerShortcuts'
 import { SuperAgentReply, messageRounds } from './SuperAgentReply'
 import { ConversationInput, type ConversationInputHandle } from '../ConversationInput'
+import { QuestionAnswerInput } from '../QuestionAnswerInput'
 import { JanusContextComposer } from './JanusContextComposer'
 import { useConversationContext } from '../../stores/conversation-context'
 import { activeConversationReferences, conversationPrompt, referenceToken, type ConversationReference, type MessageContext } from '../../../../shared/conversation-context'
@@ -44,6 +45,7 @@ import { AgentModeSelect } from './AgentModeSelect'
 import { useMemoStore } from '@/stores/memo'
 import { useIslandStore } from '@/stores/island'
 import nativeScrollbars from '../../styles/native-scrollbars.module.css'
+import { ComposerOptions, ComposerOptionTrigger, composerOptionIndex, type ComposerChoice } from '../ComposerOptions'
 
 type SelectionMenu = 'provider' | 'model' | 'permission'
 type PermissionOption = { value: AgentApprovalMode; label: string }
@@ -295,6 +297,7 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
   const [custom, setCustom] = useState<Record<number, string>>({})
   const [deferred, setDeferred] = useState(false)
   const [sending, setSending] = useState(false)
+  const [composing, setComposing] = useState(false)
   const [answerError, setAnswerError] = useState('')
   const submitting = useRef(false)
   const deliver = async (answer: ChatQuestionAnswer) => {
@@ -321,7 +324,7 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
   })
 
   const submit = () => {
-    if (!submittable) return
+    if (!submittable || sending || composing) return
     void deliver({
       status: 'answered',
       answers: gate.questions.map((question, index) => {
@@ -364,19 +367,13 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
             )
           })}
           {gate.allowCustom && (
-            <input
-              type="text"
+            <QuestionAnswerInput
               className="janus-question-custom"
               value={custom[questionIndex] ?? ''}
               placeholder={t('janus:chat.question.customPlaceholder')}
-              aria-label={t('janus:chat.question.customAria', { header: question.header })}
-              onChange={(event) => setCustom((current) => ({ ...current, [questionIndex]: event.target.value }))}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  submit()
-                }
-              }}
+              label={t('janus:chat.question.customAria', { header: question.header })}
+              disabled={sending} onComposingChange={setComposing} onSubmit={submit}
+              onChange={text => setCustom(current => ({ ...current, [questionIndex]: text }))}
             />
           )}
         </fieldset>
@@ -385,7 +382,7 @@ function QuestionGate({ gate, onAnswer }: { gate: JanusPendingQuestion; onAnswer
         <button type="button" className="janus-question-cancel" disabled={sending} onClick={() => void deliver({ status: 'cancelled' })}>
           {t('janus:chat.question.cancel')}
         </button>
-        <button type="button" className="janus-question-submit" disabled={!submittable || sending} onClick={submit}>
+        <button type="button" className="janus-question-submit" disabled={!submittable || sending || composing} onClick={submit}>
           {t(sending ? 'janus:topics.submitted' : 'janus:chat.question.submit')}
         </button>
       </div>
@@ -515,6 +512,9 @@ export function JanusChat({
   const [showLatest, setShowLatest] = useState(false)
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenu | null>(null)
   const [menuIndex, setMenuIndex] = useState(0)
+  const [menuSearch, setMenuSearch] = useState(''), [menuProvider, setMenuProvider] = useState('')
+  const menuId = useId()
+  const modelButtonRef = useRef<HTMLButtonElement>(null)
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
@@ -606,7 +606,10 @@ export function JanusChat({
     { value: 'auto-run', label: t('janus:chat.permission.autoRun') },
     { value: 'plan', label: t('janus:chat.permission.plan') },
   ], [t])
-  const menuOptions = selectionMenu === 'provider' ? providerOptions : activeProviderModels
+  const menuProviders = [...new Map(activeProviderModels.map(option => [option.providerId, {id:option.providerId,name:option.providerName}])).values()]
+  const menuOptions = (selectionMenu === 'provider' ? providerOptions : activeProviderModels).filter(option =>
+    (!contextComposer || selectionMenu !== 'model' || !menuProvider || option.providerId === menuProvider)
+    && `${option.modelId} ${option.providerName}`.toLowerCase().includes(menuSearch.toLowerCase()))
   const workspaceNames = new Map((resourceController?.resources ?? []).map((resource) => [resource.workspaceId, resource.workspaceName]))
   const attachedWorkspaceIds = new Set(resourceController?.resources.map((resource) => resource.workspaceId) ?? [])
   const attachableWorkspaces = resourceController?.availableWorkspaces.filter((workspace) =>
@@ -649,6 +652,7 @@ export function JanusChat({
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const container = messagesContainerRef.current
     if (!container || transcriptOnly) return
+    container.dispatchEvent(new Event('janus:cancel-location'))
     if (behavior === 'auto') {
       // Bypass CSS scroll-behavior so history hydration never animates.
       container.scrollTop = container.scrollHeight
@@ -661,6 +665,7 @@ export function JanusChat({
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current
     if (!container) return
+    if (container.dataset.transcriptView==='panes') return
     const threshold = 20
     const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= threshold
     isAtBottomRef.current = atBottom
@@ -673,10 +678,22 @@ export function JanusChat({
   // Topic transcripts grow independently of the outer chat's message array.
   // Observe their layout, following only while the reader remains at the end.
   const hasTranscriptContent = transcriptContent != null
+  useEffect(()=>{
+    const container=messagesContainerRef.current
+    if(!hasTranscriptContent||!container)return
+    const change=(event:Event)=>{
+      container.dataset.transcriptView=(event as CustomEvent<{view:string}>).detail.view
+      isAtBottomRef.current=false
+      setShowLatest(false);setShowNewMessageBadge(false)
+    }
+    container.addEventListener('janus:transcript-view',change)
+    return()=>{container.removeEventListener('janus:transcript-view',change);delete container.dataset.transcriptView}
+  },[hasTranscriptContent])
   useLayoutEffect(() => {
     const content = transcriptContentRef.current, container = messagesContainerRef.current
     if (!visible || !hasTranscriptContent || !content || !container) return
     const observer = new ResizeObserver(() => {
+      if(container.dataset.transcriptView==='panes')return
       if (isAtBottomRef.current) container.scrollTop = container.scrollHeight
       handleScroll()
     })
@@ -863,6 +880,7 @@ export function JanusChat({
 
   const openSelectionMenu = useCallback((menu: SelectionMenu) => {
     if (minimalComposer || (!showModelSelector && menu !== 'permission')) return
+    setMenuSearch(''); setMenuProvider('')
     if (menu === 'permission') {
       const activeIndex = permissionOptions.findIndex((option) => option.value === activeApprovalMode)
       setSelectionMenu(menu)
@@ -880,7 +898,7 @@ export function JanusChat({
       : option.providerId === activeModel?.providerId && option.modelId === activeModel?.modelId)
     setSelectionMenu(menu)
     setMenuIndex(activeIndex >= 0 ? activeIndex : 0)
-    window.requestAnimationFrame(() => composerInput.current?.focus())
+    window.requestAnimationFrame(() => selectionMenuRef.current?.querySelector('input')?.focus())
   }, [activeApprovalMode, activeModel, minimalComposer, modelOptions, permissionOptions, showModelSelector, composerInput, contextComposer])
 
   const selectMenuOption = useCallback((option: ChatModelOption | { value: AgentApprovalMode; label: string }) => {
@@ -901,29 +919,42 @@ export function JanusChat({
       onSelectModel(modelOption.providerId, modelOption.modelId)
     }
     setSelectionMenu(null)
-  }, [conversations, modelOptions, onApprovalModeChange, onSelectModel, selectionMenu])
+    window.requestAnimationFrame(() => composerInput.current?.focus())
+  }, [conversations, modelOptions, onApprovalModeChange, onSelectModel, selectionMenu, composerInput])
+
+  const closeSelectionMenu = useCallback(() => {
+    setSelectionMenu(null)
+    if (selectionMenu === 'model') modelButtonRef.current?.focus()
+    else composerInput.current?.focus()
+  }, [selectionMenu, composerInput])
 
   const handleMenuKey = useCallback((key: string): boolean => {
     if (!selectionMenu) return false
-    if (key === 'Escape') {
-      setSelectionMenu(null)
+    if (key === 'Escape' || contextComposer && key === 'Tab') {
+      closeSelectionMenu()
       return true
     }
-    if (['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(key)) {
-      const direction = key === 'ArrowUp' || key === 'ArrowLeft' ? -1 : 1
-      const optionsLength = selectionMenu === 'permission' ? permissionOptions.length : menuOptions.length
-      setMenuIndex((current) => optionsLength
-        ? (current + direction + optionsLength) % optionsLength
-        : 0)
+    const optionsLength = selectionMenu === 'permission' ? permissionOptions.length : menuOptions.length
+    const navigationKey = !contextComposer && key === 'ArrowRight' ? 'ArrowDown' : !contextComposer && key === 'ArrowLeft' ? 'ArrowUp' : key
+    const nextIndex = composerOptionIndex(navigationKey, menuIndex, optionsLength)
+    if (nextIndex !== undefined) {
+      setMenuIndex(nextIndex)
       return true
     }
     if (key === 'Enter') {
-      const option = selectionMenu === 'permission' ? permissionOptions[menuIndex] : menuOptions[menuIndex]
+      const index = Math.min(menuIndex, optionsLength - 1)
+      const option = selectionMenu === 'permission' ? permissionOptions[index] : menuOptions[index]
       if (option) selectMenuOption(option)
       return true
     }
     return false
-  }, [menuIndex, menuOptions, permissionOptions, selectMenuOption, selectionMenu])
+  }, [menuIndex, menuOptions, permissionOptions, selectMenuOption, selectionMenu, closeSelectionMenu, contextComposer])
+
+  const composerChoices: ComposerChoice[] = selectionMenu === 'permission'
+    ? permissionOptions.map(option => ({id:option.value,label:option.label,description:'',selected:activeApprovalMode===option.value,run:()=>selectMenuOption(option)}))
+    : menuOptions.map(option => ({id:JSON.stringify([option.providerId,option.modelId]),label:option.modelId,description:contextComposer?'':option.providerName,
+      provider:contextComposer && selectionMenu==='model'?{id:option.providerId,name:option.providerName}:undefined,
+      selected:activeModel?.providerId===option.providerId && (selectionMenu==='provider'||activeModel.modelId===option.modelId),run:()=>selectMenuOption(option)}))
 
   const replaceInput = useCallback((value: string) => {
     setInput(value)
@@ -961,7 +992,8 @@ export function JanusChat({
   }, [cancelMessageEdit, editingMessageId, messages])
 
   const handleChatKeyDownCapture = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if ((event.target as Element).closest('[data-island-companion]')) return
+    if ((event.target as Element).closest('[data-island-companion], [data-question-answer-input]')) return
+    if ((event.target as Element).closest('[data-composer-options]') || event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.target === richInputRef.current?.element && shortcuts.keyDown(event)) return
     if (contextComposer && event.key === 'Tab') { setSelectionMenu(null); return }
     const shortcutMenu = resolveChatSelectionShortcut({
@@ -1072,7 +1104,8 @@ export function JanusChat({
       if (!chatRoot) return
 
       const activeElement = document.activeElement
-      if (activeElement?.closest('[data-island-companion]')) return
+      if (activeElement?.closest('[data-island-companion], [data-question-answer-input]')) return
+      if (activeElement?.closest('[data-composer-options]') || event.isComposing || event.keyCode === 229) return
       const activeChat = activeElement instanceof Element
         ? activeElement.closest('.janus-chat')
         : null
@@ -1129,7 +1162,7 @@ export function JanusChat({
       if (
         selectionMenu
         && !selectionMenuRef.current?.contains(target)
-        && !(target instanceof Element && target.closest('[data-selection-trigger], .janus-chat-model-tag'))
+        && !(target instanceof Element && target.closest('[data-selection-trigger]'))
       ) {
         setSelectionMenu(null)
       }
@@ -1137,7 +1170,7 @@ export function JanusChat({
     const closeMenusOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       setThreadMenuOpen(false)
-      setSelectionMenu(null)
+      if (selectionMenu && !selectionMenuRef.current?.contains(event.target as Node)) closeSelectionMenu()
     }
 
     // Let menu items receive their pointer/click sequence before handling
@@ -1149,7 +1182,7 @@ export function JanusChat({
       document.removeEventListener('pointerdown', closeMenusOutside)
       document.removeEventListener('keydown', closeMenusOnEscape, true)
     }
-  }, [selectionMenu, threadMenuOpen])
+  }, [selectionMenu, threadMenuOpen, closeSelectionMenu])
 
   // 停止生成
   const handleStop = useCallback(() => {
@@ -1550,6 +1583,7 @@ export function JanusChat({
       <div
         ref={messagesContainerRef}
         className="janus-chat-messages"
+        data-following={showLatest?'false':'true'}
         style={messagesHidden ? { display: 'none' } : transcriptOnly ? { overflow: 'visible', height: 'auto', flex: 'none', padding: '12px 16px', maxHeight: 'none' } : undefined}
         onScroll={handleScroll}
       >
@@ -1818,20 +1852,16 @@ export function JanusChat({
         </div>
         {!discussionOnly && !minimalComposer && <div className="janus-chat-status-bar">
           {contextControl}
-          {showModelSelector && <button
-            type="button"
-            className="janus-chat-model-tag"
-            aria-haspopup="listbox" aria-expanded={selectionMenu === 'model'}
-            data-selection-trigger={conversationStyle ? 'model' : undefined}
-            aria-label={conversationStyle ? t('janus:chat.selectionMenu.aria', { kind: 'model' }) : undefined}
-            onPointerDown={(event) => handleSelectionTriggerPointerDown(event, 'model')}
-            onClick={() => openSelectionMenu('model')}
+          {showModelSelector && <ComposerOptionTrigger
+            ref={modelButtonRef}
+            aria-expanded={selectionMenu === 'model'}
+            data-selection-trigger="model"
+            aria-label={t('terminal:conversation.chooseModel')}
+            onClick={() => selectionMenu === 'model' ? closeSelectionMenu() : openSelectionMenu('model')}
             title={t('janus:chat.model.menuShortcutTitle')}
           >
-            <span>{t('janus:chat.model.tagLabel')}</span>
-            <strong>{activeModelLabel}</strong>
-            {conversationStyle && <ChevronDown size={12} aria-hidden="true" />}
-          </button>}
+            <span>{activeModelLabel}</span><ChevronDown size={12} aria-hidden="true" />
+          </ComposerOptionTrigger>}
           {!contextComposer && <div className="janus-chat-status-actions">
             {showAgentMode && <AgentModeSelect disabled={isStreaming} />}
             {conversations && <MemoPanel compactTrigger onBindMemo={conversations.bindMemo} />}
@@ -1878,48 +1908,21 @@ export function JanusChat({
           </div>}
           {conversationStyle && contextComposer && <span className="janus-chat-input-hint" role="status">{t(isStreaming ? 'janus:chat.stop.title' : 'terminal:conversation.inputHint')}</span>}
           {conversationStyle && <div className="janus-chat-composer-submit">{sendControls}</div>}
-          {selectionMenu && (
-            <div
-              ref={selectionMenuRef}
-              className="janus-chat-model-menu"
-              role="listbox"
-              data-selection-menu={selectionMenu}
-              aria-label={t('janus:chat.selectionMenu.aria', { kind: selectionMenu })}
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <div className="janus-chat-model-menu-heading">
-                <strong>{selectionMenu === 'provider' ? t('janus:chat.model.providersHeading') : selectionMenu === 'model' ? t('janus:chat.model.modelsHeading') : t('janus:chat.permission.label')}</strong>
-                <span>{t('janus:chat.model.menuNavHint')}</span>
-              </div>
-              {(selectionMenu === 'permission' ? permissionOptions : menuOptions).map((option, index) => {
-                const permissionOption = option as PermissionOption
-                const modelOption = option as ChatModelOption
-                return (
-                <button
-                  key={selectionMenu === 'permission' ? permissionOption.value : `${modelOption.providerId}:${modelOption.modelId}`}
-                  type="button"
-                  role="option"
-                  aria-selected={index === menuIndex}
-                  data-active={selectionMenu === 'permission'
-                    ? activeApprovalMode === permissionOption.value
-                    : selectionMenu === 'provider'
-                    ? activeModel?.providerId === modelOption.providerId
-                    : activeModel?.providerId === modelOption.providerId && activeModel.modelId === modelOption.modelId}
-                  data-highlighted={index === menuIndex}
-                  onMouseEnter={() => setMenuIndex(index)}
-                  onClick={() => selectMenuOption(option)}
-                >
-                  {selectionMenu === 'permission' ? <strong>{permissionOption.label}</strong> : <><span>{modelOption.providerName}</span><strong>{modelOption.modelId}</strong></>}
-                </button>
-                )
-              })}
-              {selectionMenu !== 'permission' && menuOptions.length === 0 && (
-                <div className="janus-chat-model-menu-empty">
-                  {t('janus:chat.model.noConfigured', { kind: selectionMenu })}
-                </div>
-              )}
-            </div>
-          )}
+          {selectionMenu && <ComposerOptions id={menuId} kind={selectionMenu} selectionMenu={selectionMenu} containerRef={selectionMenuRef}
+            title={selectionMenu === 'model'?t('terminal:conversation.picker.model'):selectionMenu === 'provider'?t('janus:chat.model.providersHeading'):t('janus:chat.permission.label')}
+            options={composerChoices} active={menuIndex} onActiveChange={setMenuIndex} autoFocus
+            onKeyDown={event=>{
+              if(event.nativeEvent.isComposing || event.keyCode===229)return
+              const next=resolveChatSelectionShortcut({...event,isComposing:false},showModelSelector)
+              if(next && (!contextComposer || next==='model')){event.preventDefault();event.stopPropagation();openSelectionMenu(next);return}
+              if(handleMenuKey(event.key)){event.preventDefault();event.stopPropagation()}
+            }}
+            search={selectionMenu !== 'permission'?{value:menuSearch,onChange:value=>{setMenuSearch(value);setMenuIndex(0)},label:t('terminal:conversation.searchOptions')}:undefined}
+            providers={contextComposer && selectionMenu==='model'?{label:t('terminal:conversation.modelProvider'),allLabel:t('terminal:conversation.allProviders'),value:menuProvider,options:menuProviders,onChange:value=>{setMenuProvider(value);setMenuIndex(0)}}:undefined}
+            hint={{label:t('terminal:conversation.compactCommandKeys'),title:t('terminal:conversation.commandKeys')}}
+            footer={selectionMenu!=='permission'&&<span title={t('terminal:conversation.nextTurnSettings')}>{t('terminal:conversation.nextTurnShort')}</span>}>
+            {!composerChoices.length && <p role="status">{t('terminal:conversation.noOptions')}</p>}
+          </ComposerOptions>}
           </div>
         }
       </div>

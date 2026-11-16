@@ -41,7 +41,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-14T05:53:26.665Z",
+  "updated": "2026-11-14T12:51:18Z",
   "moduleState": "partial"
 }
 ---
@@ -214,6 +214,8 @@ Docker 环境选择不跟随代码工作区。独立发行版隔离文件、依�
 运行与测试目标探索：[按当前 worktree 运行与测试项目](./worktree-run-test-target.md)记录现有快捷启动使用工作区根目录的限制，以及目标跟随、进程归属和测试结果标识的建议，作为 0.9.2 候选，尚未实现。
 
 渲染与编辑器：[emphasis](./markdown-emphasis-orange-text.md)（强调色去填充块）、[standalone-refresh](./standalone-editor-auto-refresh.md)（独立编辑器外部变更自刷新）。[文件编辑窗口与预览体验](./file-editor-experience.md)记录普通编辑默认、按需 HEAD 对比、自定义关闭确认、Markdown 单向同步滚动与安全 HTML 图片预览，以及 HTML 虚拟视口、缩放和工作区只读资源服务。
+
+普通对话与SuperAgent的输入选项由同一ComposerOptions和ComposerOptionTrigger维护，统一搜索、供应商筛选、键盘选择与草稿保留；模型目录和确认回调由各会话适配提供，支持的强度／快速档位沿用真实能力。当前实现与验证归[双模式共用输入选项](./terminal-dialog-dual-mode.md#共用输入选项2026-11-14)。
 
 ## Acceptance criteria
 

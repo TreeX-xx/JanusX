@@ -37,6 +37,7 @@ import {
 import { AgentSteeringPort } from '@janus-agent/agent-core'
 import {
   prepareJanusChatRecall as prepareCoreRecall,
+  type CompactionSummarizer,
 } from '@janus-agent/chat-core'
 import {
   buildJanusChatTurnPorts,
@@ -562,12 +563,14 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
       superAgentService(event.sender?.id).reviews?.register(workspaceId, conversationId,
         createReportReviewer({ model: { resolve: async () => endpoint, getMaxTurns: () => 12 }, streamTextFn: ports.streamTextFn }))
     }
-    const summarize = async (input: { system?: string; prompt: string }, signal: AbortSignal) => {
-      const result = await modelStream({ model: endpoint.model, abortSignal: signal, maxTokens: endpoint.maxOutputTokens ?? 4096,
+    // Summary budgets and recovery belong to chat-core; see .agents/notes/agent/superagent-context.md.
+    const summarize: CompactionSummarizer = async (input, signal) => {
+      const result = await modelStream({ model: endpoint.model, abortSignal: signal, maxTokens: input.maxOutputTokens ?? Math.min(endpoint.maxOutputTokens ?? 4096, 4096),
         messages: [{ role: 'system', content: input.system ?? '' }, { role: 'user', content: input.prompt }] } as never)
       let text = ''
       for await (const delta of result.textStream) { signal.throwIfAborted(); text += delta }
-      return text
+      const finishReason = 'finishReason' in result ? await result.finishReason : undefined
+      return { text, ...(typeof finishReason === 'string' ? { finishReason } : {}) }
     }
 
     let projectContext: string | undefined

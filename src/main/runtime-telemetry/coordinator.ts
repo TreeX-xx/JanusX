@@ -181,23 +181,31 @@ export class TerminalContextCoordinator {
    * independent of terminals. A pass with zero open terminals still imports
    * history, which is what closed terminals and never-opened sessions need.
    */
+  async refreshHistorySources(): Promise<void> {
+    await this.corpusPending?.catch(() => undefined)
+    if (this.stopping) return
+    await this.scanCorpusNow()
+  }
+
+  private scanCorpusNow(): Promise<unknown> {
+    if (this.corpusScanning) return this.corpusPending ?? Promise.resolve()
+    this.corpusScanning = true
+    this.corpusPending = import('../sessions/history-source-service').then(service => service.localHistorySources())
+      .then(sources => scanNativeSessionCorpus({ ledger: this.usageLedger, sources, signal: this.corpusAbort.signal }))
+      .then(summary => {
+        if (summary.errors?.length) throw new Error(summary.errors.join('\n'))
+        return summary
+      })
+      .catch(error => { if (!this.corpusAbort.signal.aborted) this.reportUsageError(error); throw error })
+      .finally(() => { this.corpusScanning = false })
+    return this.corpusPending
+  }
+
   startCorpusScan(): void {
     if (this.stopping || this.corpusTimer) return
     const run = () => {
       if (this.stopping || this.corpusScanning) return
-      this.corpusScanning = true
-      this.corpusPending = scanNativeSessionCorpus({
-        ledger: this.usageLedger,
-        signal: this.corpusAbort.signal,
-        checkpointLookup: (engine, namespace, nativeId) => {
-          try { return this.usageLedger.sourceCheckpoint(engine, namespace, nativeId) }
-          catch (error) {
-            this.failedSessions.set(this.sessionKey(engine, nativeId), error instanceof Error ? error.message : String(error))
-            return undefined
-          }
-        },
-      }).catch(error => { if (!this.corpusAbort.signal.aborted) this.reportUsageError(error) })
-        .finally(() => { this.corpusScanning = false })
+      void this.scanCorpusNow().catch(() => undefined)
     }
     this.corpusInitialTimer = setTimeout(run, CORPUS_INITIAL_DELAY_MS)
     this.corpusInitialTimer.unref?.()

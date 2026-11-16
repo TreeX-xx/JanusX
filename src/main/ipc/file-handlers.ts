@@ -11,6 +11,7 @@ import { janusWorkspaceFs } from '@janus-agent/agent-core'
 import { htmlPreviewServer } from '../preview/html-preview-server'
 import { saveEditorText } from '../lib/editor-save'
 import type { HtmlPreviewRequest } from '../../shared/ipc/workspace'
+import { editorTextByteLimit } from '../../shared/editor'
 
 const MIME_MAP: Record<string, string> = {
   '.png': 'image/png',
@@ -66,7 +67,7 @@ export function registerFileHandlers(authorize: RendererActionAuthorizer = autho
   })
   ipcMain.handle(FILE_CHANNELS.closeHtmlPreview, (event, id: string) => htmlPreviewServer.release(event.sender.id, id))
   workspaceFileIpc.handle(FILE_CHANNELS.read, async (_event, filePath: string) => {
-    const result = await janusWorkspaceFs.readText(filePath)
+    const result = await janusWorkspaceFs.readText(filePath, editorTextByteLimit(filePath))
     return result.ok
       ? { content: result.value.content, encoding: 'utf-8', size: result.value.size, mtime: result.value.mtime }
       : { error: result.error.message || 'Failed to read file' }

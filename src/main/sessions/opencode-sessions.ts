@@ -138,7 +138,7 @@ function messagesOf(database: DatabaseSync, sessionId: string, limit: number): M
  * count resolved per session. One bad session never fails the list; a missing
  * or unreadable database resolves empty so callers skip the engine.
  */
-export async function listOpencodeSessions(dbPath: string, limit: number): Promise<OpencodeSessionRow[]> {
+export async function listOpencodeSessions(dbPath: string, limit: number, onError?: (error: unknown) => void): Promise<OpencodeSessionRow[]> {
   let database: DatabaseSync | undefined
   try {
     database = new DatabaseSync(dbPath, { readOnly: true })
@@ -190,7 +190,8 @@ export async function listOpencodeSessions(dbPath: string, limit: number): Promi
       }
     }
     return rows
-  } catch {
+  } catch (error) {
+    onError?.(error)
     return []
   } finally {
     try {

@@ -11,7 +11,7 @@ const routeExcerpt = (text: string) => text.length <= 2400 ? text : text.slice(0
 export function registerJanusChatHandlers(): void {
   ipcMain.handle(JANUS_CHAT_CHANNELS.routeTopic, async (_, request: TopicRouteRequest) => {
     if (!request || typeof request.text !== 'string' || request.text.length > 100_000
-      || !Array.isArray(request.candidates) || request.candidates.length > 100
+      || !Array.isArray(request.candidates) || request.candidates.length === 0 || request.candidates.length > 100
       || (request.context !== undefined && !Array.isArray(request.context))
       || request.candidates.some(c => !c || typeof c.id !== 'string' || typeof c.title !== 'string' || !Array.isArray(c.messages))) throw new Error('Invalid topic routing request')
     const fallback = await llmService.getDefaultModel()

@@ -1322,7 +1322,7 @@ body.is-running[data-theme='planche'] {
 }
 
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-question-custom:focus {
-  border-color: var(--planche-red, var(--shell-accent));
+  border-color: var(--conversation-focus-border);
 }
 
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'] .janus-question-cancel {
@@ -1825,20 +1825,7 @@ body.is-running[data-theme='planche'] {
   color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
 }
 
-/* ── 模型行 / 快捷键 / 模型菜单（压过 05 Dev Studio (0,4,0) 白字黑底） ── */
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-tag {
-  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-tag::before {
-  background: var(--planche-green-deep, var(--status-success));
-  box-shadow: none;
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-tag strong {
-  color: var(--ink, var(--shell-text));
-}
-
+/* ── 快捷键配色 ── */
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-shortcuts {
   color: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
@@ -1849,27 +1836,6 @@ body.is-running[data-theme='planche'] {
 
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-shortcuts kbd {
   color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu {
-  background: var(--paper, var(--shell-canvas));
-  border: 1px solid var(--line, var(--shell-text));
-  box-shadow: 3px 3px 0 var(--line, var(--shell-text));
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu button {
-  color: var(--ink-soft, color-mix(in srgb, var(--shell-text) 62%, transparent));
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu button:hover,
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu button[data-active='true'],
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu button[data-highlighted='true'] {
-  background: var(--paper-deep, var(--shell-hover));
-  color: var(--ink, var(--shell-text));
-}
-
-[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu strong {
-  color: var(--planche-red, var(--shell-accent));
 }
 
 [data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-notice {

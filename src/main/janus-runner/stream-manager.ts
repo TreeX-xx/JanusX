@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process'
+import { spawnProcess } from '../platform/process-host'
 import { randomUUID } from 'node:crypto'
 import type { AgentEngine, AgentEvent, AgentSpawnOptions, StreamSession } from './types'
 import { normalizeAgentApprovalMode } from '../../shared/ipc/agent-runtime'
 import { resolveCLIPath } from './cli-resolver'
+import { assertLocalLaunch, localRuntimeContext } from '../platform/runtime-context'
 import { createParser } from './parsers'
 import { stopProcessTree } from '../shutdown/process-tree'
 import { assertApplicationRunning } from '../shutdown/quit-state'
@@ -75,7 +76,8 @@ export class AgentStreamManager {
   }
 
   private async runTask(id: string, options: AgentSpawnOptions): Promise<void> {
-    const cliPath = await resolveCLIPath(options.engine)
+    const context = localRuntimeContext()
+    const cliPath = await resolveCLIPath(options.engine, context)
     assertApplicationRunning()
     if (this.stopping || this.cancelled.has(id)) throw new Error('Agent stream cancelled before spawn')
     if (!cliPath) {
@@ -86,12 +88,11 @@ export class AgentStreamManager {
     const abortController = new AbortController()
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
-    const proc = spawn(cliPath, args, {
+    assertLocalLaunch({ identity: context.identity, program: cliPath, args, env: context.env, source: 'cli' }, localRuntimeContext())
+    const proc = spawnProcess(cliPath, args, {
+      env: context.env,
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: process.platform === 'win32',
-      detached: process.platform !== 'win32',
-      windowsHide: true,
     })
 
     const parser = createParser(options.engine)

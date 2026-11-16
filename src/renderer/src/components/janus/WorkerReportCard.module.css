@@ -5,6 +5,14 @@
 .cardChecks { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--shell-dim); font-size: 11px; margin-top: 8px; }
 .cardChecks [data-status='failed'] { color: var(--status-danger); }
 .card footer { display: flex; justify-content: flex-end; margin-top: 6px; }
+.card footer button { display:inline-flex; align-items:center; gap:5px; }
+.card footer button svg { transition:transform 220ms cubic-bezier(.2,.8,.2,1); }
+.card footer button[aria-expanded=true] svg { transform:rotate(90deg); }
+.card button { transition:background-color 150ms ease,color 150ms ease; }
+.card button:hover { background:var(--shell-hover); color:var(--shell-text); }
+.reveal { display:grid; grid-template-rows:0fr; opacity:0; visibility:hidden; min-width:0; flex-shrink:0; transition:grid-template-rows 220ms cubic-bezier(.2,.8,.2,1),opacity 160ms ease,visibility 0s 220ms; }
+.reveal[data-open=true] { grid-template-rows:1fr; opacity:1; visibility:visible; transition-delay:0s; }
+.revealClip { min-height:0; min-width:0; overflow:hidden; }
 .card button, .dialog button { color: var(--shell-muted); font: inherit; font-size: 11px; padding: 6px 9px; cursor: pointer; border: 1px solid var(--shell-border); border-radius: 5px; background: var(--shell-chrome); }
 .card button:focus-visible, .dialog button:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: 2px; }
 .iconButton[aria-label] { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--shell-muted); cursor: pointer; }
@@ -59,3 +67,4 @@
 .body :global(.conversation-markdown h3) { font-size: 13px; }
 @media (max-width: 480px) { .body { padding: 16px; } .toolbar { padding-inline: 16px; } .checkHeading { align-items: flex-start; flex-direction: column; gap: 6px; } }
 .card[data-cross-highlight="true"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shell-text) 32%, var(--shell-border)); }
+@media (prefers-reduced-motion:reduce) { .reveal, .card button, .card footer button svg { transition:none; } }

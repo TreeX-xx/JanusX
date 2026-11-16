@@ -1,4 +1,4 @@
-import { dirname, resolve } from 'node:path'
+import { posix, win32 } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { CliInstaller } from '../../../src/main/external-cli/installer'
 import { EXTERNAL_CLI_TOOLS } from '../../../src/main/external-cli/tool-registry'
@@ -7,18 +7,26 @@ const v1 = { ...EXTERNAL_CLI_TOOLS.opencode, npmPackage: 'opencode-ai' }
 const v2 = { ...v1, npmPackage: '@opencode/cli' }
 const ok = { exitCode: 0, stdout: '', stderr: '' }
 
-function harness(platform: NodeJS.Platform = 'linux') {
-  const npmPath = platform === 'win32' ? resolve('npm-test/npm.cmd') : resolve('npm-test/npm')
+function harness(platform: NodeJS.Platform = 'linux', verifyInstall?: () => Promise<{ path: string; version: string }>) {
+  const { dirname, resolve } = platform === 'win32' ? win32 : posix
+  const npmPath = platform === 'win32' ? 'C:\\npm-test\\npm.cmd' : '/npm-test/npm'
   const run = vi.fn(async (_file: string, _args: readonly string[], _options: unknown) => ok)
   run.mockResolvedValueOnce({ ...ok, stdout: JSON.stringify({ dependencies: { 'opencode-ai': { version: '1.19.3' } } }) })
   const installer = new CliInstaller({
     platform, env: { PATH: dirname(npmPath) }, homeDir: dirname(npmPath),
-    isRegularFile: async candidate => resolve(candidate) === npmPath, run,
+    isRegularFile: async candidate => resolve(candidate) === npmPath, run, verifyInstall,
   })
   return { installer, run }
 }
 
 describe('OpenCode npm package migration', () => {
+  it('restores the old package when npm exits zero but target verification fails', async () => {
+    const { installer, run } = harness('linux', async () => { throw new Error('wrong installed version') })
+    expect(await installer.install(v2, '2.1.4', v1)).toMatchObject({ success: false, error: expect.stringContaining('Previous npm package restored') })
+    const commands = run.mock.calls.map(([, args]) => args.join(' '))
+    expect(commands.at(-2)).toContain('rm -g @opencode/cli')
+    expect(commands.at(-1)).toContain('i -g opencode-ai@1.19.3')
+  })
   it.each(['linux', 'win32'] as const)('replaces the conflicting package under one lock on %s', async platform => {
     const { installer, run } = harness(platform)
     expect(await installer.install(v2, '2.1.4', v1)).toMatchObject({ success: true })

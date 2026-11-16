@@ -1148,7 +1148,8 @@ it('centers the shared report reader from sidebar and output messages despite th
           await trigger.focus(); await page.keyboard.press('Enter')
         } else await trigger.click()
         expect(await page.getByRole('dialog').count()).toBe(0)
-        await page.locator('[data-worker-report-drawer]').waitFor()
+        // A closing reader may still be painting its exit; only the active one is interactive.
+        await page.locator('[data-report-reveal][aria-hidden=false] [data-worker-report-drawer]').waitFor()
         await page.getByRole('button', { name: 'Enlarge report' }).click()
         const dialog = page.getByRole('dialog'); await dialog.waitFor()
         if (source === 'sidebar') await dialog.getByText('Persisted Worker result', { exact: true }).waitFor()

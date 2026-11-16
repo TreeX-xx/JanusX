@@ -245,7 +245,8 @@ describe('external session scanner', () => {
     const registry = new AgentSessionRegistry(data)
     registries.push(registry)
     const summary = await scanExternalSessions(registry, { env: {}, home })
-    expect(summary).toEqual({ scanned: 0, imported: 0, updated: 0, skipped: 0 })
+    expect(summary).toMatchObject({ scanned: 0, imported: 0, updated: 0, skipped: 0 })
+    expect(summary.issues.every(issue => issue.reason === 'missing')).toBe(true)
     expect(registry.listSessions()).toEqual([])
   })
 

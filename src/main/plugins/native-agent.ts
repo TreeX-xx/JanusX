@@ -60,7 +60,10 @@ export function nativeAgentHost(record: InstalledPlugin, service: () => NativePl
         const result = await nativeAbortable(runChatTurn({ requestId: input.runId, sourceTag: 'harness', providerId: input.providerId, modelId: input.modelId, callerId,
           messages: input.messages, systemPromptPrefix: input.system, chatSession: new ManagedChatSession(), toolAllowlist: input.tools.map(tool => tool.name),
           workspaceResources: [{ workspaceId, workspacePath: project.root, workspaceName: project.name, agentSessionId: session.id }],
-          compactionSummarizer: async (request, abort) => (await generateText({ model, system: request.system, prompt: request.prompt, maxTokens: 4096, maxRetries: 0, abortSignal: abort })).text,
+          compactionSummarizer: async (request, abort) => {
+            const summary = await generateText({ model, system: request.system, prompt: request.prompt, maxTokens: request.maxOutputTokens ?? 4096, maxRetries: 0, abortSignal: abort })
+            return { text: summary.text, finishReason: summary.finishReason }
+          },
         }, ports, { onEvent: event => progress?.push(event) }, signal), signal)
         signal.throwIfAborted()
         if (provider.apiKey && result.text.includes(provider.apiKey)) throw new NativeServiceError('MODEL_UNAVAILABLE')

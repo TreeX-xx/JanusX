@@ -28,19 +28,25 @@ export function TranscriptNavigation({ scrollRef, following, onNavigate }: {
         const message = scroll.querySelector<HTMLElement>(`[data-user-message="${CSS.escape(id)}"]`)
         if (!message) return
         following.current = false
+        message.dispatchEvent(new CustomEvent('janus:reveal-input',{bubbles:true,detail:{id}}))
         for (let parent = message.parentElement; parent && parent !== scroll; parent = parent.parentElement) {
           if (parent instanceof HTMLDetailsElement && !parent.open) parent.querySelector<HTMLElement>(':scope > summary')?.click()
         }
         jumpFrame = requestAnimationFrame(() => {
+          jumpFrame = requestAnimationFrame(() => {
           jumpFrame = 0
-          scroll.scrollTop += message.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12
+          const pane=message.closest<HTMLElement>('[data-topic-body]')
+          const target=pane?.closest('[data-parallel-stage][data-view="panes"]')?pane:scroll
+          target.scrollTop += message.getBoundingClientRect().top - target.getBoundingClientRect().top - 12
+          })
         })
       },
     }
     read()
+    scroll.addEventListener('janus:cancel-location',cancel)
     const observer = new MutationObserver(() => { if (!readFrame) readFrame = requestAnimationFrame(read) })
     observer.observe(scroll, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-user-message', 'data-navigation-text'] })
-    return () => { observer.disconnect(); cancelAnimationFrame(readFrame); cancel(); navigationRef.current = null }
+    return () => { scroll.removeEventListener('janus:cancel-location',cancel);observer.disconnect(); cancelAnimationFrame(readFrame); cancel(); navigationRef.current = null }
   }, [scrollRef, following])
   return <ConversationNavigation items={items} scrollRef={scrollRef} navigationRef={navigationRef} following={following} onNavigate={onNavigate} />
 }

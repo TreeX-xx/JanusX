@@ -1514,7 +1514,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       if (!window.electron.janusChat) throw new Error('Chat storage unavailable')
       const rootId = conversationsRef.current.find(row => row.id === request.candidates[0]?.id)?.topic?.rootId
       const selected = conversationsRef.current.find(row => row.id === rootId)?.superAgentModel
-      return window.electron.janusChat.routeTopic({ ...request, ...await getSuperAgentModel(selected) })
+      return window.electron.janusChat.routeTopic({ ...request, ...(request.providerId && request.modelId
+        ? {providerId:request.providerId,modelId:request.modelId} : await getSuperAgentModel(selected)) })
     },
     run: (conversation, message) => new Promise<void>((resolve, reject) => {
       if (getHandles(conversation.id).active) { reject(new Error('Conversation is busy')); return }

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-11-06",
-  "updated": "2026-11-14T07:08:33.497Z",
+  "updated": "2026-11-16T07:10:07Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -39,6 +39,52 @@
 ---
 
 # SuperAgent 一期验收证据与限制
+
+## 上下文修复Windows交付（2026-11-16）
+
+按用户补充要求，本轮成品统一归档到`release/11-16-superagent`，采用日期与功能命名子目录，不散放release根目录。版本保持0.9.9，当前固定引擎为d61fe00183e9ffdb。安装版`JanusX-0.9.9-x64-setup.exe`为154087209 bytes，SHA256为6373ac92554083548d7180d0ca1b1069ff3f746453ce57dcafa0bd6a1f3e4f16；便携版`JanusX-0.9.9-x64-portable.exe`为153880548 bytes，SHA256为93566464b31c5fb00db3ac70072a48bffe40fdfcf11e180c960d7c14137c9d5e。blockmap、latest.yml、BUILDINFO.json、SHA256SUMS.txt、builder-debug.yml及win-unpacked一并迁入，历史版本目录保留；移动后校验和全部匹配，位置回执为`artifacts/compaction-recovery/release-location.json`。
+
+`package:win:build -- --config.directories.output=release`完成资源、prepackage、构建、包边界、排除清单和双目标封装。包内193个引擎运行文件及489个构建输出与当前输入逐字节一致；安装包解出的275个文件与win-unpacked全量一致，便携载荷的app.asar和主程序一致，更新清单的SHA512及size正确。载荷219.2 MiB、unpacked12.3 MiB及便携版146.8 MiB满足现有预算。
+
+隔离目录和配置下，unpacked及portable payload均通过LLM runtime、模块图、可见GUI、preload及正常GPU启动；便携启动器也实际启动并完成smoke。首轮Shell退出码与成功日志不一致，后续由Node父进程记录检查程序真实退出码0；两次日志均保留。独立证据在`artifacts/compaction-recovery/release-runtime-result.json`、`release-runtime-final.log`、`release-verification.json`及`packaged-gui-release.json`。安装包解包核验首次假定必须存在外层app-64.7z，补充支持7za直接提取嵌入载荷后复验通过，没有修改成品包。
+
+本次交付包含当前工作区源码、连续输入关联／并行规则和上下文压缩修复；未安装、替换正在运行的客户端、上传公开版本或调用真实模型。构建清单明确记录当前工作树有未提交修改，不将其冒充纯提交构建。
+
+## 上下文压缩恢复（2026-11-16）
+
+摘要生成与验收使用同一独立预算，桌面聊天和原生插件Agent传递maxOutputTokens及finishReason。共享引擎兼容已知中文章节；空输出、缺章节、估算超长、生成截断分别诊断，最多带具体反馈纠正一次。只在全部批次通过后保存检查点，失败保留原文和上次成功检查点。选择历史时核算引用及最小摘要空间；无法释放必要空间则报告容量明细。当前设计与交付边界归[上下文决策](superagent-context.md)。
+
+共享chat-core全量77项、引擎回合／恢复25项通过；桌面`managed-chat-session`12项、`janus-agent-ports`24项、`chat-turn-guard`26项及`plugin-agent-services`12项共74项通过，总计176项。新增9个共享恢复用例及桌面截断恢复用例，覆盖额度、格式、截断、容量与检查点；最终宿主预算／截断专项2项复跑通过。旧、新引擎对同一引用压力fixture的对比显示：旧版提前报“必要上下文与来源引用仍超出预算”，新版继续选择可压缩历史后完成。没有读取或修改用户会话来生成此对比。
+
+当前固定构建d61fe00183e9ffdb以原1f045892a8b95cce为基底，只覆盖三个chat-core模块的编译产物；其余包只有统一版本与内部依赖变化。六包安装完整性、主仓／蓝图npm锁、独立分发锁及蓝图归档逐项一致。根安装和蓝图锁更新均离线完成；首次蓝图锁更新遇到Windows临时文件打开错误，重试通过，没有变更网络设置。基底归档、逐文件差异与对比结果在`artifacts/compaction-recovery/`，共享测试日志在相邻引擎`artifacts/summary-recovery-*.log`。
+
+共享包构建／类型检查、桌面严格未用项类型检查、定向ESLint、应用build:check与diff检查通过。主仓Notes348篇、0错误、17条既有外部引用诊断；共享仓全量Notes仍有2个既有错误，分别为omp-tooling-design缺Intent及旧工具面调研引用失效，均不在本次修改范围，当前维护的agent/module.md无错误。没有执行真实供应商网络验收、重打安装程序或替换正在运行的安装版；不能据此断言历史那次供应商摘要究竟缺项还是超长。
+
+## 连续输入触发并行（2026-11-16）
+
+用户澄清并行由上一轮未结束时的连续输入触发，替代空闲输入拆分计划。空闲普通发送直接续聊；运行中先判断同一问题与独立问题，再投递steer或加入并行组。只有一路运行也需要判断，显式分支目标与Worker直投免判断。依赖多路结果的请求独立返回wait并保留等待关系；主进程拒绝无候选路由。当前规则归[界面决策](superagent-interface.md#多输入话题与调度)。
+
+调度、路由与持久化首轮51项通过；增加无候选IPC边界后，路由6项复跑通过，共覆盖52个不同单测。包含同题有序补充、普通发送自动分叉到四路、第三路加入复用会话时的完整共同历史、容量排队、部分完成分支续聊、路由失败保留原文、判断期间原回合结束、停止与消费回执、重启不重放。Worker快捷路由5项集成测试通过，覆盖引擎约束、直接补充去重及编排依赖。日志为`artifacts/superagent-busy-input-unit-final.log`、`superagent-busy-input-route-final.log`及`superagent-busy-input-worker-shortcuts.log`。
+
+真实组件39项浏览器首轮38项通过、1项失败；该失败来自仍按单输入拆四路断言的夹具。夹具改为连续独立输入并补充真实共同前文，修正选择可见输入框及历史文字断言后，四路分屏、连续同题补充、单活动分析判断故障保留、分叉后普通续聊4项分批复测通过。日志为`artifacts/superagent-busy-input-browser.log`、`superagent-busy-input-browser-final.log`及`superagent-busy-input-four-panes-final.log`。最终四路场景仍覆盖显式目标、自动关联、历史返回、分隔比例与草稿恢复、窄窗、三主题和加载回流；截图在`artifacts/superagent-production/`。
+
+严格未用项类型与生产文件定向ESLint通过，Notes检查348篇、0错误，保留17条既有外部引用诊断。Main已目视检查本轮四路运行截图。浏览器构建保留既有AgentSessionPane／滚动条CSS组合警告。本轮只修改当前checkout；未替换安装版、未调用真实云模型验证相关性质量，也未处理另行讨论的历史“返回对话”入口和压缩故障。
+
+## 四路分屏与双路径补充（2026-11-15）
+
+按用户确认的Bubbles HTML接入真实会话。39项`conversation-topics-ui.test.ts`浏览器回归通过，覆盖真实四路请求与2×2几何、单输入框、横纵调宽、共享原文与历史、四路位置／草稿恢复、显式目标优先、取消指定后的自动归属、部分完成、窄窗标签、加载收回及独立四卡。无阅读交互时自动回流；自动合并过程中开始阅读会保留分屏。新增完成分支续聊后回复保持展开的断言及相关三项复跑通过。源码角色、工具和输出都由真实组件及事件驱动，未引入HTML固定计时状态。
+
+调度与主进程路由、持久化及Worker快捷输入相关53项测试通过，命令覆盖`conversation-topics.test.ts`、`conversation-topic-routing.test.ts`、`superagent-persistence.test.ts`、`worker-shortcut-routing.test.ts`。证明2–4路有界计划、共享完整请求和独立输入身份、保存失败回退、跨工作区目标拒绝、显式分支不走分类、剩单路时仍能自动定位已完成分支；已有steer／消费回执、停止、恢复及Worker目标路径保持。复查中修复了回到最新时迟到历史定位抢回滚动，以及Ctrl+J换行后延迟光标更新干扰紧接着输入的竞态；39项浏览器回归和11项`conversation-questions.spec.ts --project=island`端到端问答回归通过。
+
+严格未用项类型、定向ESLint（0错误、4处既有中文文案警告）、i18n检查和应用构建通过。三主题、四屏、窄窗与统一卡片的真实组件截图在`artifacts/superagent-production/`，Main已目视复核；日志为`artifacts/superagent-production-*.log`。Bubbles HTML也从当前源码重建，15组离线检查通过，仍是演示夹具。以上验证不代表已对配置的真实模型完成四路网络联调；没有启动真实Worker或改动执行容量，本轮未重装正在运行的桌面版本。
+
+## 回复与汇报开合（2026-11-14）
+
+回复保留原生details和历史开合状态，以details-content插值高度；对话汇报复用useAnimatedOpen，在退出结束后卸载阅读器。两者均使用220 ms过渡，支持快速反向和减少动态效果。汇报退出期间立即禁用交互；放大的dialog先关闭再归焦，避免延迟卸载挡住原入口。当前规则归[界面决策](superagent-interface.md)。
+
+`conversation-topics-ui.test.ts`与`superagent-work-ui.test.ts`定向9项通过、64项未选中，日志为`artifacts/superagent-disclosure/browser.log`。覆盖高度中间帧、连续反向、原文模式保留、手动开合跨轮次、键盘与焦点、资源失败重试、独立查看、三主题及320 px中文窄窗。退出中的阅读器仍保留DOM，既有定位断言改为只选择aria-hidden=false的活动阅读区。严格未用项类型检查、生产组件定向ESLint、双语i18n检查通过；构建夹具仍有AgentSessionPane与原生滚动条的既有CSS组合告警。
+
+`node artifacts/superagent-disclosure/check-electron.mjs`在项目Electron 35.7.5／Chromium 134中验证真实SuperAgentReply组件的高度插值与Enter展开，23个采样帧通过；为离屏测试窗口，未启动完整工作区或外部模型。Main已目视检查深色回复、浅色汇报、窄窗与Electron展开截图。脚本、`electron.json`与截图均在同目录。本轮未构建或替换安装包，未重跑完整Electron工作区套件。
 
 ## 合入 dev 的检查与资料保留（2026-11-14）
 

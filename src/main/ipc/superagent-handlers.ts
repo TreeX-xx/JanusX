@@ -1,3 +1,5 @@
+import { runtimeCapability } from '../../shared/runtime/capabilities'
+import { localRuntimeContext } from '../platform/runtime-context'
 import { app, ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { SUPERAGENT_CHANNELS } from '../../shared/ipc/superagent'
@@ -29,8 +31,9 @@ function createService(options: SuperAgentHandlerOptions): SuperAgentService {
   const environments = new SuperAgentEnvironments(new SuperAgentEnvironmentStore(directory), store, options.resolveWorkspaceRoot, options.getOccupiedPaths)
   const settings = new WorkerSettingsEngines(new WorkerSettingsStore(directory))
   const workers = new SuperAgentWorkers(store, environments, directory, async backend => {
-    if (process.platform !== 'win32') throw new Error('Managed Workers are currently verified on Windows; this platform is not enabled yet')
     const selected = await settings.defaults.resolveBackend(backend)
+    const capability = runtimeCapability('managed-worker', selected, localRuntimeContext().identity)
+    if (capability.status !== 'available') throw new Error(capability.message)
     const binary = await new CliDetector(selected).findCandidate()
     if (!binary) throw new Error(selected + ' is not installed. Use the existing terminal management setup first.')
     // IPC registration is emitted under main/chunks in both development and packaged builds.

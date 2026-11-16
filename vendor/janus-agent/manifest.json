@@ -1,23 +1,25 @@
 {
   "schema": 1,
-  "build": "42cab7549f5deefd425203784740863570d5f720bd3711060527e06a927b490a",
+  "build": "d61fe00183e9ffdb823ff7b6c00dfa1c405821fbc37c637d3f01907c6e26e457",
   "source": {
     "revision": "c2f24ee4f52316520594175c8823c9ebe7bf1f93",
     "dirty": true,
-    "baselineBuild": "fa3c08e9910333b86df949f2691ab7dbbadb4969d5592ee1dfd03d41c16037e4",
+    "baselineBuild": "1f045892a8b95cce1423912b1ea105eb8c3499057189995ea42cbff1c9f7d986",
     "overlay": [
-      "scheduler"
+      "compaction-recovery"
     ],
     "sources": {
-      "scheduler": "b7ac4382b488c1c6f8dc6237d1436d4430c01f3d8f19642d87503ba7b946793e"
+      "packages/chat-core/src/main/llm/managed-chat-session.ts": "900654a566f6bb2dba76fad23dc52b61095b705a4dc4cd277f38b9d56b3b95d2",
+      "packages/chat-core/src/main/llm/chat-session-runtime.ts": "e805742f1c1a0113c871aadc538de8b9dfff2d2f3cfd0be50c70c574bbc04270",
+      "packages/chat-core/src/main/llm/compaction-summary.ts": "90048d8f65b918274b838f2b6ad8a0629d3be35614049fac5882375296be4d29"
     }
   },
   "packages": [
     {
       "name": "@janus-agent/agent-core",
-      "version": "0.1.0-engine.42cab7549f5deefd",
-      "archive": "janus-agent-agent-core-0.1.0-engine.42cab7549f5deefd.tgz",
-      "sha256": "edf06994a3c10dd6d7d88b887498ab65705961952148518d0b1f9843f2edefbe",
+      "version": "0.1.0-engine.d61fe00183e9ffdb",
+      "archive": "janus-agent-agent-core-0.1.0-engine.d61fe00183e9ffdb.tgz",
+      "sha256": "97f0d4f8f5b2e2817aaccd9ec423d0a0f347b0d7ffbf4e65b9ee2723ff51e360",
       "files": {
         "dist/index.d.ts": "0248e997fae3898fc43b4fd2055657d58025f370f1c7c360eebf2301f7ff7ee2",
         "dist/index.d.ts.map": "178b61bd1ce76c3ab3ca861669a431424055379f9aef236e00e08f050c9ce459",
@@ -148,14 +150,14 @@
         "dist/shared/team/types.d.ts": "6fbd0b07ac5d8e50df0f46ecaedb0e1a7e0ea613d4293303c2e1e8982aaa39aa",
         "dist/shared/team/types.d.ts.map": "fa97c0c61dc00fe447b12e93c8c7c9cf3bdfd10358d238098716086e0f62a62c",
         "dist/shared/team/types.js": "a7f6def09ebc3623174c2e20b89e72ee44d015c2ded0db806ee519e117ba1b7b",
-        "package.json": "740f8e94e3d3e53a20b9c8cf91b7a6575a77653c03e82445ca5987c161fc88a0"
+        "package.json": "d03395f7f90e6f87279ca7a95efcdcfc8822d2c210871b4f117f356c3da3f254"
       }
     },
     {
       "name": "@janus-agent/chat-core",
-      "version": "0.1.0-engine.42cab7549f5deefd",
-      "archive": "janus-agent-chat-core-0.1.0-engine.42cab7549f5deefd.tgz",
-      "sha256": "2b8929bd67bdb521d751cca8136fb7367421e779950c4d42ac3e9adfb4c205a4",
+      "version": "0.1.0-engine.d61fe00183e9ffdb",
+      "archive": "janus-agent-chat-core-0.1.0-engine.d61fe00183e9ffdb.tgz",
+      "sha256": "126cc5e37a64faf9dd2d2eb78a60c9a975c074ef0c0c52dd9beba3d11c51e263",
       "files": {
         "dist/index.d.ts": "e1d9e412250d70ac63f829e47e30ff0d1113739d143bc511c08e5577a069b701",
         "dist/index.d.ts.map": "69bb6eea83a60e776d5e526f35e6d57d6ff2794c92b71edcd4d32352eccec51d",
@@ -169,18 +171,21 @@
         "dist/main/llm/chat-pure.d.ts": "bb5356f6189fb907e6c9dece7e45878baf576b6bc0d200b1586f37a00fce6edb",
         "dist/main/llm/chat-pure.d.ts.map": "4278d6bd653d0c9e31daa68110aa231cf122c565646d65d540a329e4a0bb11cb",
         "dist/main/llm/chat-pure.js": "d0e0a20abbf91ad1fc3cd6e954f7de8199bdc3b06541f532685d1019b887c906",
-        "dist/main/llm/chat-session-runtime.d.ts": "80adf7c1254d82d76f5d303c4eb91f284051881276d7947af30b7faf6ff179ee",
-        "dist/main/llm/chat-session-runtime.d.ts.map": "2412c218cf4d8115fd7a51ea0b7e8966b090856ef9464d0ed297671db5b999bb",
-        "dist/main/llm/chat-session-runtime.js": "15d92f5d8e65dd175eaa12613a1433eded5127b4df7ec29265e56d117158dd48",
+        "dist/main/llm/chat-session-runtime.d.ts": "be3e3b926c7e85cb391b6abe8f7ac39bf1d09d6abccc8cfa13c1726517766ec4",
+        "dist/main/llm/chat-session-runtime.d.ts.map": "2a06615a7bd85279345e3bee6982e5215279da4f556e8c606b3ee504e5bd7150",
+        "dist/main/llm/chat-session-runtime.js": "5c971af890ab89c74f38c279efc54e46c208fe8ec44fa5f4e2df5bf1c34ac75f",
         "dist/main/llm/chat-todo.d.ts": "7afb946b21750044fe8266cbeb88039f8401a1874c7d2c7a4b2d8d9a9dc310a6",
         "dist/main/llm/chat-todo.d.ts.map": "4a461d138cad3af3d39d148d086f8bcb8f6df9ba0e1aa29278f835871519ea94",
         "dist/main/llm/chat-todo.js": "9a9501e031b46009c6d6888aa8ba5536a741b2b0a92dbb4221a11605893db451",
+        "dist/main/llm/compaction-summary.d.ts": "89028c724e6e3fe8f0473df5b578056617d722861f5de15fac4a6a25d56b3563",
+        "dist/main/llm/compaction-summary.d.ts.map": "54ad31848d4b02894092caf891b6a6a3efae81acb736510d9a6c730e616a4cf8",
+        "dist/main/llm/compaction-summary.js": "72a5cdec242fdbf1fb51d1a08be9e05d8473b438bab73d0ffcc9d04102fc10d6",
         "dist/main/llm/context-budget.d.ts": "cc1461d3a34aa93f934159c6974722ae66fe285e76c612cebd39ba3b7de18d69",
         "dist/main/llm/context-budget.d.ts.map": "5e436a014e20520823de0728ea845867cf934e2f482499391c7c28679eb49224",
         "dist/main/llm/context-budget.js": "6e6d00074028e412cceceab027521976ed2a0ee243417bdebf46221ef673996f",
         "dist/main/llm/managed-chat-session.d.ts": "582586d271bb00780a62061731724f453eff379429ab00a721bbbea52fe454f3",
-        "dist/main/llm/managed-chat-session.d.ts.map": "3e900c3b1598a4fa96e4c4cdd9115ce6a65b311f0507d25dd545d50df5a0546a",
-        "dist/main/llm/managed-chat-session.js": "7e9a183ce0d1295b4f5fca55db4c1c91102a8a093594889d1f000d35a91e73e2",
+        "dist/main/llm/managed-chat-session.d.ts.map": "0f0328c2ef840af5d8ad43fdbacf13a045cfb3846fc6b9939fffacfce7d7f6ee",
+        "dist/main/llm/managed-chat-session.js": "fb18928d1afaff4fce94154aad7455b94a98336256a22c2f9f9f92de50308c80",
         "dist/main/llm/system-prompt-builder.d.ts": "d43dfbb5efc47318b67d22df6d935458e60440f9bb77bf343cfcff989e296e39",
         "dist/main/llm/system-prompt-builder.d.ts.map": "043a1710f4ee5b3dd8d681ba2182f1a190b753fa097b0270bf66af54b0d32d7f",
         "dist/main/llm/system-prompt-builder.js": "44d398c47694a659ae12508d3a8caff3cfb4aaa150b97312aa8a288e8fa1148d",
@@ -202,14 +207,14 @@
         "dist/shared/knowledge.d.ts": "7b65f9bd978692bc81062c7ebcfd7e62cab7e1cc466c8f2f5c0e6985ddc1918c",
         "dist/shared/knowledge.d.ts.map": "06573c32668e51669fd3be6919bf8d3cc7755d0c1d11a652b93def911ce4e9ef",
         "dist/shared/knowledge.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
-        "package.json": "5a209e0d7b8543257af8442767c5268f043ac5d5c439aef6359ea3c81460a6d8"
+        "package.json": "ef32df2f60495fb859768c2f5468bd89225303d0c9e0ca37ce74517e0af392a5"
       }
     },
     {
       "name": "@janus-agent/harness-core",
-      "version": "0.2.0-engine.42cab7549f5deefd",
-      "archive": "janus-agent-harness-core-0.2.0-engine.42cab7549f5deefd.tgz",
-      "sha256": "0e76027bdc8ed3ef0f7b44370861dcee9f7e7e820b00ccbadab533343935d423",
+      "version": "0.2.0-engine.d61fe00183e9ffdb",
+      "archive": "janus-agent-harness-core-0.2.0-engine.d61fe00183e9ffdb.tgz",
+      "sha256": "374584f31fefc81931da42fd47aee96f13d1f508b8bb1adbdf57d81f2615342b",
       "files": {
         "dist/changeset.d.ts": "7802bd3304c96151846c9078955d567ee432766c11dada726179af19b6d9af8d",
         "dist/changeset.d.ts.map": "fb22cd6766e4a5a42b78b2df80fbd2981f537bfae359c4a7ce3154d2b8fb09fe",
@@ -265,14 +270,14 @@
         "dist/workflowx-v2/schema.d.ts": "4dc656d4d8ebbe78563d905dea8d94475802e84be9f4a346300ad00bfea4fa89",
         "dist/workflowx-v2/schema.d.ts.map": "09ebf0773cddb571b85513b8a45cda2ccf3916625b4e9bd3b0a6474951a1c78a",
         "dist/workflowx-v2/schema.js": "4a7cc838f2237ebc5b28b951f5ca40c31aab539795e003601d4aeee1457617ec",
-        "package.json": "c72e8fe1c79553c46cb5da2f998bbe95452d86b8d67f1b86cfd71a79891f357a"
+        "package.json": "f2d5e445cbf98fd981eb392ca2d651a9640ab14d952d70237ab96363c08cbb6d"
       }
     },
     {
       "name": "@janus-agent/harness-node",
-      "version": "0.2.0-engine.42cab7549f5deefd",
-      "archive": "janus-agent-harness-node-0.2.0-engine.42cab7549f5deefd.tgz",
-      "sha256": "28bbaa0744190c81a6aefdc06f291f9398128cbb0f4026a0014e4781f642409d",
+      "version": "0.2.0-engine.d61fe00183e9ffdb",
+      "archive": "janus-agent-harness-node-0.2.0-engine.d61fe00183e9ffdb.tgz",
+      "sha256": "0c07d8c0ec3cdca2402e098b1934b9529c015bc712bafcc8ee56f2c9df7e0aef",
       "files": {
         "dist/baseline.d.ts": "b20d635fb1c778d769aaf3a9303b4d3805b431ba4bad9c09301d05488d4d8aca",
         "dist/baseline.d.ts.map": "b47f32e393aa3a87f53fe24211c157539dd181740bc6392186f7d8e5e55d316a",
@@ -346,14 +351,14 @@
         "dist/watcher.d.ts": "2f78d9d87be35583fc367d4c012bd5ffc98999af3a5f3301fc3a4d0fecb9d037",
         "dist/watcher.d.ts.map": "4638fb9bc0c7a6ebcdbb18957392d15f99238946540950d504407a0bc0cd9871",
         "dist/watcher.js": "04a3cae39825f46e813e6df6dc66073dcddbddba7121a4299f2bce979359287d",
-        "package.json": "d85145ae74d20207ba8170d8b032c95abc18de073c57d26dd65d5a04e998c27f"
+        "package.json": "e3e74d99a44a0a37653d8f8fbcd6867831a14b545341d56a7547929d009f1750"
       }
     },
     {
       "name": "@janus-agent/node-hosts",
-      "version": "0.1.0-engine.42cab7549f5deefd",
-      "archive": "janus-agent-node-hosts-0.1.0-engine.42cab7549f5deefd.tgz",
-      "sha256": "10b6d36d688016e1dfb146c712d0ae29b9395dfa1b274c3bc54f934b424136bc",
+      "version": "0.1.0-engine.d61fe00183e9ffdb",
+      "archive": "janus-agent-node-hosts-0.1.0-engine.d61fe00183e9ffdb.tgz",
+      "sha256": "8ce5ebfb58df331c66c521be4c16420bb9113b17302406607974e31e71e47a40",
       "files": {
         "dist/command.d.ts": "273617e1598e4e36db21a3a0648cb8fe6ff6ceb7d7a886fda48dcbdc137ee8c5",
         "dist/command.d.ts.map": "b0b3116e52e1ce7422556faf4d5370404814031fde5377009f59e27bf8fec0c6",
@@ -388,14 +393,14 @@
         "dist/workflowx-detection.d.ts": "e08ee72a94589f5de602d814cc90870926457807751a282e90d9ac7f9f578068",
         "dist/workflowx-detection.d.ts.map": "2814bd06a6bf3b9fbaa96af1e3220bd8f0374ae7c2b8d40258ff1212c46fe0de",
         "dist/workflowx-detection.js": "47577b35db68d06b4431eb28db6db936450d3c2aa3a26149f4035b76a16bf07b",
-        "package.json": "f29db3feb183c8653495aa871347e9b13983eaee8df19ed6650f84b39c29ff63"
+        "package.json": "2729bae3cb52bc8237b59fd64bdf5a6f7c64c1b8748921d32c5abc5aa001d072"
       }
     },
     {
       "name": "@janus-agent/janus-agent",
-      "version": "0.1.0-engine.42cab7549f5deefd",
-      "archive": "janus-agent-janus-agent-0.1.0-engine.42cab7549f5deefd.tgz",
-      "sha256": "f46590f47859b096c73469c9f0bbebcac505f6e62755b33ec7d499fbf89bf50e",
+      "version": "0.1.0-engine.d61fe00183e9ffdb",
+      "archive": "janus-agent-janus-agent-0.1.0-engine.d61fe00183e9ffdb.tgz",
+      "sha256": "0835e2d11a272a7395b65fa3ea074fe4f042ecfcbdc82d2ed99fcdade3a686d9",
       "files": {
         "dist/harness/dispatcher.d.ts": "111a329d27c954b98f35c5e562d98db7057385d64a199481af312db44b998370",
         "dist/harness/dispatcher.d.ts.map": "cef201528c73bb83445a732fe548d4435f12a2d4f72b207f67cf20cbf64ffb59",
@@ -439,6 +444,9 @@
         "dist/superagent/contracts/conversation-display.d.ts": "5ceeb09f66c3d39f46c4ad13945c893d8d11376397bd2fb96fa0b918308730f8",
         "dist/superagent/contracts/conversation-display.d.ts.map": "4d4e5543a121a7b15afec71c0bfde2a42f4bed267dc2c03f11bdd1eb8e2d99d7",
         "dist/superagent/contracts/conversation-display.js": "e7c53ac2a88679ba04aa0904e847643bdeef631df8528e387c2b04b4cd469d8e",
+        "dist/superagent/contracts/conversation-history.d.ts": "4f965470775d78150d6fd914fa8e6552c25a39dbf46c29ed0737f822bb501104",
+        "dist/superagent/contracts/conversation-history.d.ts.map": "4be3c41babb2e654493382b34197800c632842539a36dc3fc101ca15f291f839",
+        "dist/superagent/contracts/conversation-history.js": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
         "dist/superagent/contracts/conversation-images.d.ts": "79e8f345f4f75e74ecb4129cf62678fc61d5c46b2a7006bec136af616cd42816",
         "dist/superagent/contracts/conversation-images.d.ts.map": "bcb72cb52cc934cc309c80d4fe77467ab2f0e6e879170e9c11d6eae01408e231",
         "dist/superagent/contracts/conversation-images.js": "54cc2448bbe0dc116149480b6481de50e41777a01750f6c614bdd540ed1bb04e",
@@ -490,12 +498,15 @@
         "dist/superagent/native-log.d.ts": "4daa62742c4c8e44aa6a8853f2bccbc486b1f7f4793424d364337c3478bb97e9",
         "dist/superagent/native-log.d.ts.map": "67c2c3d4b9de8c1585c3ade7ae690329ed6dd9cff46cb3d9768d99e279d82a88",
         "dist/superagent/native-log.js": "3c3ddec65fcbda7759d908010b7f8ace89ef370e4a94a6b1d09d2d9b9dbfdc4b",
-        "dist/superagent/native/codex-conversation.d.ts": "4dc4f14e8910200bdda0679f25257e4153435f59deaac4aa77fad94fddb59aec",
-        "dist/superagent/native/codex-conversation.d.ts.map": "ff79c268b13d23782352c608e724d7ab7dffb9f82222efd1614f905ae8d594c4",
-        "dist/superagent/native/codex-conversation.js": "79f2beb9d0f1fe51cbf6f01a18a2360e35abfeb0ca2c1488d913bc4efd5c0ba0",
+        "dist/superagent/native/codex-conversation.d.ts": "29e4ab61bce9f44ebf36373c1558b8666ed1c75636a5fd065caf0aacc87eca64",
+        "dist/superagent/native/codex-conversation.d.ts.map": "5fad021f19e1471e992a1a692f8748d72b37634a82ca7fd70f5db2de5837d7e0",
+        "dist/superagent/native/codex-conversation.js": "ff7b6e1f3aff6412f2a1bae9f46b7835e370e94f2c7fddd575f42c5c8ef2d93d",
         "dist/superagent/native/codex-elicitation.d.ts": "2e7d05786b5b334ee34c7df9dede09539f779865e38006ff9a39d59083072bb7",
         "dist/superagent/native/codex-elicitation.d.ts.map": "9107240e541a5e742327787b41ef0e45c2a2d2509bbaad6b70965893a4a79e14",
         "dist/superagent/native/codex-elicitation.js": "fa446130e255a9bba0708f58ac01568e1c9091354b02b914fbfba354512a18dc",
+        "dist/superagent/native/codex-history.d.ts": "735aab92bf41b35b58ecf61413c34f5aa3ec113272368ea47c3d3a9b60cabb68",
+        "dist/superagent/native/codex-history.d.ts.map": "f2398233858d41d94e11de560936951416965127671cd80faf5f445da9956765",
+        "dist/superagent/native/codex-history.js": "d8da7112ae40328dee670c69709d5cb1b69afd8d0c57d9c657cd8bb220a69602",
         "dist/superagent/native/codex-managed-transport.d.ts": "9aa2cbee7f60f25c9c80dd6c3adc345b7fa1f7676e0d20ef277782f88bd30379",
         "dist/superagent/native/codex-managed-transport.d.ts.map": "ac0428a4cb995fb4c0997e8e640ea3100e590b920929816840aebb6626974c41",
         "dist/superagent/native/codex-managed-transport.js": "bdbf9bd32bb4c008ac330d995b3c8a38ce5c130840061d63aee5d1bdda79a643",
@@ -616,7 +627,7 @@
         "dist/workflowx.d.ts": "3dfa2eb0ec184950f06c38d485741f30144ced543bcd0dbdc78b92947c68b5a2",
         "dist/workflowx.d.ts.map": "3b39dd91c7fc2cc32970a8aa1dbf7949046c035f5176dbc8c69457c0766b429b",
         "dist/workflowx.js": "00a48c0ff32245a24d4a83df6c5c8ffe735dbe6f9721ceb0145d7b78175915cf",
-        "package.json": "b2d1d12c59b6d14e40d0fec10921199e06fbedd8c89635ece2a3fda018788e66"
+        "package.json": "8a5f142d5f2f6fa14c526f95a58ec925ccb3c5da8aa0b4bb7f38d05a8ee36550"
       }
     }
   ]

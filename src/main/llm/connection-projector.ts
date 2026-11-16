@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { providerPathContext, resolveProviderPaths } from '../external-cli/provider-paths'
 import { dirname, join } from 'node:path'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
@@ -103,8 +104,10 @@ export class ConnectionProjector {
   private journalPath(tool: ExternalAgent): string { return join(this.stateDir, 'llm-connections', tool + '.json') }
   private async plans(tool: ExternalAgent, provider: ProviderSettings, model: string): Promise<Array<{ path: string; format: ManagedFile['format']; fields: Field[] }>> {
     const protocol = channelProtocol(provider)
+    const configHome = resolveProviderPaths(tool, providerPathContext({ home: this.home, env: this.env })).configHome
+    if (!configHome) throw new Error('Provider configuration directory is unresolved')
     if (tool === 'claude') return [{
-      path: join(this.env.CLAUDE_CONFIG_DIR || join(this.home, '.claude'), 'settings.json'), format: 'json',
+      path: join(configHome, 'settings.json'), format: 'json',
       fields: [
         { path: ['env', 'ANTHROPIC_BASE_URL'], value: provider.baseURL },
         { path: ['env', 'ANTHROPIC_AUTH_TOKEN'], value: undefined },
@@ -113,7 +116,7 @@ export class ConnectionProjector {
       ],
     }]
     if (tool === 'codex') return [{
-      path: join(this.env.CODEX_HOME || join(this.home, '.codex'), 'config.toml'), format: 'toml',
+      path: join(configHome, 'config.toml'), format: 'toml',
       fields: [{ path: ['model'], value: model }, { path: ['model_provider'], value: PROVIDER_KEY },
         { path: ['model_providers', PROVIDER_KEY], value: { name: provider.name, base_url: provider.baseURL,
           wire_api: 'responses', experimental_bearer_token: provider.apiKey || '', requires_openai_auth: false } }],
@@ -122,7 +125,7 @@ export class ConnectionProjector {
     if (tool === 'pi') {
       // Pi interprets !-prefixed credentials as shell commands.
       if (provider.apiKey?.trimStart().startsWith('!')) throw new Error('Pi requires a literal API key')
-      const dir = this.env.PI_CODING_AGENT_DIR || join(this.home, '.pi', 'agent')
+      const dir = configHome
       return [
         { path: join(dir, 'models.json'), format: 'json', fields: [{ path: ['providers', PROVIDER_KEY], value: {
           baseUrl: provider.baseURL, apiKey: provider.apiKey || 'janusx-no-key',

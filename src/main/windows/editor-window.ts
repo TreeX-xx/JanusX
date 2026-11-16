@@ -1,5 +1,6 @@
 import { BrowserWindow, shell, type WebContents } from 'electron'
 import { join, normalize } from 'node:path'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { loadRendererWindow } from './renderer-loader'
 import { SYSTEM_CHANNELS } from '../../shared/ipc/system'
 import { configService } from '../config/service'
@@ -17,9 +18,7 @@ interface EditorWindowEntry {
 }
 
 function identityPath(value: string): string {
-  if (value.startsWith('janusx-workspace://')) return value.replace(/\/+$/, '')
-  const normalized = normalize(value).replace(/[\\/]+$/, '')
-  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+  return runtimePathKey(value.startsWith('janusx-workspace://') ? value : normalize(value))
 }
 
 export class EditorWindowManager {

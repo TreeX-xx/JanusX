@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, rm, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, delimiter } from 'node:path'
 import { execa } from 'execa'
@@ -13,7 +13,7 @@ import { CliDetector } from '../../../src/main/external-cli/cli-detector'
 import { clearCache, resolveCLIPath } from '../../../src/main/janus-runner/cli-resolver'
 
 beforeEach(async () => { fixture.root = await mkdtemp(join(tmpdir(), 'janusx-cli-runtime-')); clearCache() })
-afterEach(async () => { vi.unstubAllGlobals(); await rm(fixture.root, { recursive: true, force: true }) })
+afterEach(async () => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); await rm(fixture.root, { recursive: true, force: true }) })
 
 describe('managed CLI runtime', () => {
   it('accepts only the expected checksum', () => {
@@ -35,18 +35,32 @@ describe('managed CLI runtime', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('adds private directories only to child environments', async () => {
+  it('does not inject existing private directories into the system environment', async () => {
     const paths = managedCliPaths()
     await mkdir(paths.bin, { recursive: true })
     await mkdir(paths.toolsBin, { recursive: true })
     const original = { Path: 'system-path', EXAMPLE: 'preserved' }
     const child = managedCliEnv(original)
     expect(original).toEqual({ Path: 'system-path', EXAMPLE: 'preserved' })
-    expect(child.Path).toBeUndefined()
-    expect(child.PATH).toBe([paths.toolsBin, paths.bin, 'system-path'].join(delimiter))
+    expect(child).toEqual(original)
+  })
+
+  it('preserves an incomplete runtime if a repair download fails', async () => {
+    const paths = managedCliPaths()
+    await mkdir(paths.runtime, { recursive: true })
+    const marker = join(paths.runtime, 'old-content')
+    await writeFile(marker, 'preserve me')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad archive')))
+    await expect(ensureManagedRuntime()).rejects.toThrow('checksum mismatch')
+    expect(await readFile(marker, 'utf8')).toBe('preserve me')
+    expect((await readdir(paths.base)).filter(name => name.startsWith('download-'))).toEqual([])
   })
 
   it.runIf(process.env.JANUS_TEST_RUNTIME_DOWNLOAD === '1')('downloads official Node, installs a fixture with private npm, detects and resolves it without system Node', async () => {
+    // Begin with a partial installation: the real download must replace it safely.
+    const partial = managedCliPaths()
+    await mkdir(partial.runtime, { recursive: true })
+    await writeFile(join(partial.runtime, 'incomplete-marker'), 'partial install')
     const paths = await ensureManagedRuntime()
     const source = join(fixture.root, 'fixture-package')
     await mkdir(source)
@@ -55,6 +69,8 @@ describe('managed CLI runtime', () => {
     const npmJs = process.platform === 'win32' ? join(paths.runtime, 'node_modules/npm/bin/npm-cli.js') : join(paths.runtime, 'lib/node_modules/npm/bin/npm-cli.js')
     const env = { ...process.env, PATH: paths.bin, npm_config_prefix: paths.prefix }
     await execa(paths.node, [npmJs, 'install', '-g', source, '--prefix', paths.prefix, '--ignore-scripts', '--no-audit', '--no-fund'], { env, timeout: 60_000, windowsHide: true })
+    // Legacy runtime is exercised only when explicitly selected by the caller's PATH.
+    vi.stubEnv('PATH', [paths.toolsBin, paths.bin].join(delimiter))
     const probe = await new CliDetector('pi').detect()
     expect(probe).toMatchObject({ installed: true, runnable: true, version: '1.2.3' })
     expect(probe.path).toContain(paths.toolsBin)

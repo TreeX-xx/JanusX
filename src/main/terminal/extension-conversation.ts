@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import type { NativeCatalogEntry } from './conversation-catalog'
 import { NativeConversation, type NativeEvent, type NativeLaunch, type NativeCommand } from './native-conversation'
 import type { ConversationCommand, ConversationSnapshot } from '../../shared/conversation-display'
@@ -11,6 +11,7 @@ import imageSource from './conversation-images.js?raw'
 import dshSource from './dsh-extension.js?raw'
 import questionSource from './native-questions.js?raw'
 import { pathToFileURL } from 'node:url'
+import { cliPackageFile, requiredCliPackageFile } from '../external-cli/package-location'
 
 class ExtensionConversation extends NativeConversation {
   private server?: Server
@@ -35,7 +36,7 @@ class ExtensionConversation extends NativeConversation {
     // CLI versions are not launch gates; the live extension handshake owns readiness.
     // Note: .agents/notes/workbench/terminal-dialog-dual-mode.md — CLI version policy.
     const dsh = this.state.engine === 'dsh'
-    const packageRoot = join(dirname(options.command), 'node_modules', ...(dsh ? ['@deepseek-ai', 'dsh'] : ['@earendil-works', 'pi-coding-agent']))
+    const dshLlm = dsh ? requiredCliPackageFile(cliPackageFile(options.command, '@deepseek-ai/dsh', 'package.json'), '@deepseek-ai/dsh-llm', 'lib/index.js') : undefined
     if (this.disposed) throw new Error('Native launch cancelled')
     if (dsh) {
       const profile = options.args[options.args.indexOf('--profile') + 1]
@@ -91,9 +92,9 @@ class ExtensionConversation extends NativeConversation {
     await writeFile(join(this.directory, 'conversation-images.mjs'), imageSource)
     const extension = join(this.directory, 'extension.mjs')
     await writeFile(extension, dsh ? dshSource
-      .replace('__DSH_LLM_URL__', pathToFileURL(join(packageRoot, 'node_modules/@deepseek-ai/dsh-llm/lib/index.js')).href)
-      .replace('__DSH_COMMANDS_URL__', pathToFileURL(join(dirname(options.command), 'node_modules/@deepseek-harness-tui/dsh-tui/lib/types/commands.js')).href)
-      : piSource.replace('__PI_COMMANDS_URL__', pathToFileURL(join(packageRoot, 'dist/core/slash-commands.js')).href))
+      .replace('__DSH_LLM_URL__', pathToFileURL(dshLlm!).href)
+      .replace('__DSH_COMMANDS_URL__', pathToFileURL(cliPackageFile(options.command, '@deepseek-harness-tui/dsh-tui', 'lib/types/commands.js')).href)
+      : piSource.replace('__PI_COMMANDS_URL__', pathToFileURL(cliPackageFile(options.command, '@earendil-works/pi-coding-agent', 'dist/core/slash-commands.js')).href))
     if (this.disposed) throw new Error('Native launch cancelled')
     this.lastSeen = Date.now()
     this.heartbeat = setInterval(() => { if (Date.now() - this.lastSeen > (this.state.connection === 'starting' ? 60000 : 6000)) this.fail('Native bridge unavailable. Use the terminal; commands will not be resent.') }, 1000)

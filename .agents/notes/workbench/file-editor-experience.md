@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-19",
-  "updated": "2026-11-12T17:37:13.313Z",
+  "updated": "2026-11-14T11:41:31Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -38,7 +38,15 @@ Markdown 双栏默认开启左侧带动右侧的同步滚动，可手动关闭�
 
 HTML 共用 HtmlPreviewFrame，默认 1280×800 虚拟视口与适合窗口缩放，可选桌面／移动尺寸、响应式模式、50%–150% 和刷新。固定视口在父容器中缩放；100% 等实际比例允许外层双向滚动，长文仍由 iframe 内部按原页面规则滚动。响应式模式采用实际面板尺寸，不改写文档 overflow。
 
-主进程提供 127.0.0.1 随机端口的只读资源服务，以随机 capability 和 renderer 所属租约限定工作区。HTML 草稿内存更新，CSS、模块脚本、CSS 内图片及 fetch 等保留浏览器原生相对路径解析；根相对路径通过同源 Referer 归入租约。只读 GET/HEAD，限制文件类型和 32MB 大小，真实路径检查拒绝工作区外资源；关闭预览或销毁窗口释放租约。HTTP iframe 与应用来源隔离，不提供 preload。建立租约期间显示加载提示，避免先运行 srcDoc 再运行 HTTP 页面；服务不可用时回退有限媒体解析，并移除 allow-same-origin 保持脚本隔离。
+主进程提供 127.0.0.1 随机端口的只读资源服务，以随机 capability 和 renderer 所属租约限定工作区。HTML 草稿内存更新，CSS、模块脚本、CSS 内图片及 fetch 等保留浏览器原生相对路径解析；根相对路径通过同源 Referer 归入租约。只读 GET/HEAD，限制文件类型和 64 MiB 大小，真实路径检查拒绝工作区外资源；关闭预览或销毁窗口释放租约。HTTP iframe 与应用来源隔离，不提供 preload。建立租约期间显示加载提示，避免先运行 srcDoc 再运行 HTTP 页面；服务不可用时回退有限媒体解析，并移除 allow-same-origin 保持脚本隔离。
+
+## 大型本机文本与HTML（2026-11-14）
+
+用户打开约3.64 MiB的自包含HTML时遇到“File exceeds 1048576 bytes”。原因是file:read调用JanusWorkspaceFs.readText时没有传入上限，提前套用了底层默认1 MiB；HTML资源服务原先的32 MiB额度尚未生效。按用户继续放宽大型HTML的要求，当前HTML／HTM本机读取与保存上限为64 MiB，普通文本为32 MiB，均按UTF-8字节计。共享editorTextByteLimit根据扩展名分级，版本化保存的基线读取采用同一额度，超额写入在调用写入器前拒绝；冲突保护继续生效。HTML资源服务同步使用64 MiB，打开、更新及资源响应保持一致。
+
+该额度用于本机编辑与HTML资源服务；远端文件继续服从各自运行时上限。闭合文件缓存仍限每项约2 MiB、总量16 MiB和128项，较大文件关闭后不额外缓存。当前仍全文读取和传输，64 MiB是允许打开的额度，不是流畅度保证；更大HTML适合另行实现磁盘直出预览与按需源码，而非持续扩大整篇IPC载荷。
+
+验证：workspace-ipc-contract、plugin-document-editing、html-preview-server、editor-cache共36项通过，覆盖完整读取、64 MiB边界、普通文本32 MiB边界、UTF-8字节计数、较大HTML基线的版本保存及外部冲突、超额拒绝、超过32 MiB的HTTP完整响应与缓存策略。严格unused类型检查、触达生产源码ESLint与应用构建通过。editor-window-tabs的真实Electron专项使用约33 MiB HTML，读取、本地CSS／模块／图片、未保存修改预览、主题／窗口尺寸及租约释放通过，耗时约21.4秒；这不是长期性能压测。日志与截图在artifacts/editor-large-html-build.log、artifacts/editor-large-html-desktop.log及artifacts/editor-large-html-desktop。未替换正在运行的旧安装版。
 
 ## PDF 阅读预览
 

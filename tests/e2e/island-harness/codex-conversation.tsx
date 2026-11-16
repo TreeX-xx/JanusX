@@ -8,6 +8,7 @@ import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useThemeStore } from '../../../src/renderer/src/stores/theme'
 import { changeLanguage, initI18n } from '../../../src/renderer/src/i18n'
 import { CODEX_CONVERSATION_CAPABILITIES, type ConversationCommand, type ConversationSnapshot } from '../../../src/shared/conversation-display'
+import type { ConversationHistoryRequest, ConversationHistoryResult, ConversationHistoryItem } from '../../../src/shared/conversation-history'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
 
@@ -75,6 +76,27 @@ let newGate: Promise<void> | null = null
 let rejectNew: (() => void) | null = null
 let historyReads = 0
 let trackHistoryReads = false
+const archiveRequests: ConversationHistoryRequest[] = []
+let archiveFailure = false
+let archiveGate: Promise<void> | undefined, releaseArchive: (() => void) | undefined
+const archiveBody = 'Complete native original\n' + 'Long historical paragraph.\n'.repeat(4000) + 'END OF NATIVE ORIGINAL'
+const archiveItems: ConversationHistoryItem[] = Array.from({ length: 1000 }, (_, index) => ({
+  id: `archive-${index}:item-${index}`, turnId: `archive-${index}`, type: index % 2 ? 'agentMessage' : 'userMessage',
+  text: `Archived message ${index}\n\n` + 'Historical context. '.repeat(30), textLength: 630, status: 'completed', editable: false,
+}))
+async function archiveRead(_id: string, request: ConversationHistoryRequest): Promise<ConversationHistoryResult> {
+  archiveRequests.push(structuredClone(request))
+  if (archiveGate) await archiveGate
+  if (archiveFailure) throw new Error('Fixture history unavailable')
+  if (request.type === 'text') {
+    const offset = request.offset, end = Math.min(archiveBody.length, offset + 16000)
+    return { type: 'text', threadId: request.threadId, itemId: request.itemId, text: archiveBody.slice(offset, end), offset, total: archiveBody.length,
+      version: 'fixture-version', previousOffset: offset ? Math.max(0, offset - 16000) : null, nextOffset: end < archiveBody.length ? end : null }
+  }
+  const start = request.cursor ? Number(request.cursor) : Math.floor(Math.max(0, archiveItems.findIndex(item => item.id === request.beforeItemId)) / 40) * 40
+  return { type: 'page', threadId: request.threadId, items: structuredClone(archiveItems.slice(start, start + 40)),
+    olderCursor: start ? String(Math.max(0, start - 40)) : null, newerCursor: start + 40 < archiveItems.length ? String(start + 40) : null }
+}
 const measuredSnapshot = () => {
   const next = structuredClone(state)
   if (trackHistoryReads) for (const item of next.items) {
@@ -169,6 +191,17 @@ Object.assign(window.electron.window, { openEditor: async ({ filePath }: { fileP
 Object.assign(window.electron.fileTree, { children: async (_root: string, directory: string) => directory === 'src/' ? [{ name: 'app.ts', path: 'src/app.ts', type: 'file' }] : [{ name: 'src', path: 'src', type: 'directory' }] })
 Object.assign(window.electron.file, { importConversationAttachment: async (name: string) => ({ id: crypto.randomUUID(), name, path: 'C:/attachments/' + name, kind: name.endsWith('.png') ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
 Object.assign(window, { codexFixture: {
+  pagedHistory: () => {
+    window.electron.terminal.conversationHistory = archiveRead
+    state.items = structuredClone(archiveItems.slice(-100)); state.truncated = true; state.turnId = null; state.approvals = []; state.plans = []
+    state.items[state.items.length - 1] = { ...state.items.at(-1)!, text: 'Complete native original preview', truncated: true }
+    publish()
+  },
+  archiveRequests,
+  archiveFailure: (value: boolean) => { archiveFailure = value },
+  holdArchive: () => { archiveGate = new Promise(resolve => { releaseArchive = resolve }) },
+  releaseArchive: () => { releaseArchive?.(); archiveGate = undefined },
+  changeThread: () => { state.threadId = 'replacement-thread'; state.items = []; state.truncated = false; state.controlEpoch++; publish() },
   providerModels: () => {
     state.models = [
       ['opencode-go', 'OpenCode Go', 'shared', 'Shared model'],

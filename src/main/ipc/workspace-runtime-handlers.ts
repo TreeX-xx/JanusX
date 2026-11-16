@@ -1,6 +1,6 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import { appShutdown } from '../shutdown/AppShutdown'
-import { WORKSPACE_RUNTIME_CHANNELS, type RuntimeProbe, type RuntimeDirectory, type RuntimeTerminal } from '../../shared/workspace-runtime'
+import { WORKSPACE_RUNTIME_CHANNELS, isExternalWorkspaceRuntime, type RuntimeProbe, type RuntimeDirectory, type RuntimeTerminal } from '../../shared/workspace-runtime'
 import { disconnectRuntimeTransports, listSshHosts, listWslDistributions, readWorkspaceRecord, runtimeRequest, validateRuntime } from '../workspace/runtime'
 import { detectRemoteCli, installRemoteCli, remoteCliInstallStatus } from '../workspace/remote-cli'
 
@@ -18,7 +18,7 @@ export function registerWorkspaceRuntimeHandlers(getAllowedWindows: () => readon
   handle(WORKSPACE_RUNTIME_CHANNELS.browse, (runtime, path) => runtimeRequest<{ path: string; entries: RuntimeDirectory[] }>(validateRuntime(runtime), 'browse', { path }))
   handle(WORKSPACE_RUNTIME_CHANNELS.terminals, async id => {
     const workspace = await readWorkspaceRecord(id)
-    if (!workspace.runtime || workspace.runtime.kind === 'windows') return []
+    if (!isExternalWorkspaceRuntime(workspace.runtime)) return []
     return runtimeRequest<RuntimeTerminal[]>(workspace.runtime, 'terminal.list', { workspaceId: id })
   })
   appShutdown.configure({ disconnectWorkspaceTransports: disconnectRuntimeTransports })

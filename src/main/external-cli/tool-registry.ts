@@ -11,6 +11,8 @@ export interface ExternalCliToolDescriptor {
   binaryNames: readonly string[]
   /** npm 分发包名；不走 npm 的工具为空。 */
   npmPackage?: string
+  /** Additional components needed by this preset's actual launch command. */
+  companionPackages?: readonly string[]
   /** 手动安装命令或指引（展示与复制用，静默执行侧按平台重算）。 */
   manualInstallCommand: string
   latestStrategy: 'npm-dist-tags'
@@ -74,6 +76,7 @@ export const EXTERNAL_CLI_TOOLS: Record<Exclude<ExternalCliToolId, 'janus'>, Ext
     displayName: 'DeepSeek Harness',
     binaryNames: ['dsh'],
     npmPackage: '@deepseek-ai/dsh',
+    companionPackages: ['@deepseek-harness-tui/dsh-tui', 'pnpm@10'],
     // 上游 TUI 安装口径（ccch1mneyyy/dsh-TUI README）：dsh 与 TUI 启动器一起装全局，
     // 首次运行 `dsh-tui` 自动初始化 dsh-tui profile；终端启动命令见 shared/terminalLaunch。
     manualInstallCommand: 'npm i -g @deepseek-ai/dsh @deepseek-harness-tui/dsh-tui && dsh-tui',

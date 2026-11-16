@@ -62,6 +62,16 @@ describe('TerminalManager OfficeCLI PATH integration', () => {
     expect(process.env.PATH).toBe(originalProcessPath)
   })
 
+  it('keeps an explicit private PATH ahead of an inherited Windows Path without duplicate keys', async () => {
+    const { TerminalManager } = await import('../../src/main/terminal/manager')
+    const manager = new TerminalManager()
+    manager.create({ id: 'private-env', workspaceId: 'workspace', cwd: process.cwd(), shell: 'powershell.exe',
+      env: { Path: 'system-node', PATH: 'private-node' } }, 'verified-office')
+    const env = spawn.mock.calls[0][2].env
+    expect(env.PATH).toBe(`verified-office${delimiter}private-node`)
+    expect(Object.keys(env).filter(key => key.toLowerCase() === 'path')).toEqual(['PATH'])
+  })
+
   it('spawns agent CLI program directly without shell auto-command typing', async () => {
     const { TerminalManager } = await import('../../src/main/terminal/manager')
     const manager = new TerminalManager()

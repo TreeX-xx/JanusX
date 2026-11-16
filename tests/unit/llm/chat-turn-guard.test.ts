@@ -465,9 +465,30 @@ describe('chat turn guard (S6-a)', () => {
     expect(state?.checkpoint.coveredMessages).toBe(10)
     expect(streamText).toHaveBeenCalledTimes(1)
     expect(streamText.mock.calls[0][0].tools).toBeUndefined()
+    expect(streamText.mock.calls[0][0].maxTokens).toBeGreaterThan(0)
+    expect(streamText.mock.calls[0][0].maxTokens).toBeLessThanOrEqual(4096)
+    expect(streamText.mock.calls[0][0].messages[1].content).toContain('hard output limit is ' + streamText.mock.calls[0][0].maxTokens)
     expect(executeFunctionCall).not.toHaveBeenCalled()
     expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: 'manual-compact' })
     expect(JSON.stringify(messages)).toBe(original)
+  })
+  it('repairs a truncated summary with a dedicated output allowance before saving the checkpoint', async () => {
+    const text = '## Goal\nPreserve decisions.\n## Progress\nReviewed.\n## Next Steps\nContinue.'
+    streamText.mockImplementationOnce(async () => ({ textStream: (async function* () { yield text })(), finishReason: Promise.resolve('length') }))
+    streamText.mockImplementationOnce(async () => ({ textStream: (async function* () { yield text })(), finishReason: Promise.resolve('stop') }))
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, {
+      requestId: 'repair-compact', conversationId: 'repair-compact', providerId: 'provider-a',
+      messages: [{ role: 'user', content: 'Earlier constraints' }, { role: 'assistant', content: 'Earlier result' },
+        { role: 'user', content: 'Current task' }], compact: { keepRecentUnits: 1 }, domain: 'personal',
+    })
+    expect(streamText).toHaveBeenCalledTimes(2)
+    const [first, repair] = streamText.mock.calls.map(call => call[0])
+    expect(repair.maxTokens).toBe(first.maxTokens)
+    expect(repair.messages[1].content).toContain('SUMMARY_TRUNCATED')
+    expect(reply.mock.calls.some(([, event]) => event.type === 'context_state' && event.state.phase === 'compacted')).toBe(true)
+    expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+    expect(executeFunctionCall).not.toHaveBeenCalled()
   })
 })
 

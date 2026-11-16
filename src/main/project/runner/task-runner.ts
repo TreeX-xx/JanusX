@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { runProcess } from '../../platform/process-host'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -42,42 +42,22 @@ export async function runProjectTest(projectPath: string, requestedScript?: stri
   if (/\bvitest\b/i.test(selected.command) && !/\b(run|watch)\b/i.test(selected.command)) args.push('--', '--run')
   const startedAt = Date.now()
   const output: string[] = []
-  const isWindows = process.platform === 'win32'
-  const child = spawn(isWindows ? (process.env.ComSpec || 'cmd.exe') : manager, isWindows
-    ? ['/d', '/s', '/c', `${manager} ${args.join(' ')}`]
-    : args, {
-    cwd: projectPath,
-    env: process.env,
-    shell: false,
-    windowsHide: true,
-  })
-  let timedOut = false
-
-  const capture = (chunk: Buffer) => {
+  const capture = (chunk: string) => {
     for (const line of chunk.toString().split(/\r?\n/)) {
       if (!line.trim()) continue
       output.push(line)
       if (output.length > MAX_OUTPUT_LINES) output.splice(0, output.length - MAX_OUTPUT_LINES)
     }
   }
-  child.stdout?.on('data', capture)
-  child.stderr?.on('data', capture)
-
-  const exitCode = await new Promise<number | null>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      timedOut = true
-      child.kill()
-    }, TASK_TIMEOUT_MS)
-    child.once('error', (error) => { clearTimeout(timer); reject(error) })
-    child.once('exit', (code) => { clearTimeout(timer); resolve(code) })
-  })
+  const outcome = await runProcess(manager, args, { cwd: projectPath, timeoutMs: TASK_TIMEOUT_MS, maxOutputBytes: 16 * 1024 * 1024, onStdout: capture, onStderr: capture })
+  if (outcome.status !== 'exited' && outcome.status !== 'timed-out') throw outcome.error ?? new Error(`Project task ${outcome.status}`)
 
   return {
     command: `${manager} run ${script}`,
     script,
-    exitCode,
+    exitCode: outcome.exitCode,
     output,
     durationMs: Date.now() - startedAt,
-    timedOut,
+    timedOut: outcome.status === 'timed-out',
   }
 }

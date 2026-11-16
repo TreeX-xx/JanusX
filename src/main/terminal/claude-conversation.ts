@@ -2,8 +2,8 @@ import { captureWindowsProcessTree, terminateWindowsProcessTree, verifyWindowsPr
 import { ManagedInputDeferred } from './codex-conversation'
 import { ConversationCatalog } from './conversation-catalog'
 import { ConversationSession, conversationState } from './conversation-session'
-import { execFile } from 'node:child_process'
-import { isDeepStrictEqual, promisify } from 'node:util'
+import { runChecked } from '../platform/process-host'
+import { isDeepStrictEqual } from 'node:util'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createConnection } from 'node:net'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
@@ -18,7 +18,6 @@ import { readClaudeCatalog } from './claude-models'
 import { acceptClaudeWorkspaceTrust, claudeTrustDirectory } from './claude-trust'
 
 type Json = Record<string, any> // Native versioned Mods/daemon boundary; normalized before IPC.
-const exec = promisify(execFile)
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const MAX_TEXT = 32000
 const caps = { submit: true, cancel: true, settings: true, approvals: true, liveText: true, liveInput: true }
@@ -236,11 +235,8 @@ export class ClaudeConversation {
     throw new Error('Claude delivery unknown; input will not be replayed')
   }
   private cli(args: string[], timeout = 10000) {
-    const pending = exec(this.binary, args, { cwd: this.cwd, env: this.env, windowsHide: true, timeout, maxBuffer: 2 * 1024 * 1024 })
-    // These control commands never accept piped prompts. Leaving their stdin
-    // open makes native --bg wait for possible input before dispatching.
-    pending.child.stdin?.end()
-    return pending
+    // The common host closes stdin; native --bg must not wait for piped prompts.
+    return runChecked(this.binary, args, { cwd: this.cwd, env: this.env, timeoutMs: timeout, maxOutputBytes: 2 * 1024 * 1024 })
   }
   private loadModels(): Promise<void> {
     if (this.loadingModels) return this.loadingModels

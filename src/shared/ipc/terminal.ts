@@ -1,5 +1,6 @@
 import type { RuntimeTelemetrySnapshot } from './system'
 import type { ConversationCommand, ConversationSnapshot } from '../conversation-display'
+import type { ConversationHistoryRequest, ConversationHistoryResult } from '../conversation-history'
 
 export const TERMINAL_INVOKE_CHANNELS = {
   warmup: 'terminal:warmup',
@@ -7,6 +8,7 @@ export const TERMINAL_INVOKE_CHANNELS = {
   replay: 'terminal:replay',
   kill: 'terminal:kill',
   conversation: 'terminal:conversation-snapshot',
+  conversationHistory: 'terminal:conversation-history',
   conversationCommand: 'terminal:conversation-command',
   inputHistory: 'terminal:input-history',
   saveConversationImage: 'terminal:save-conversation-image',
@@ -167,6 +169,7 @@ export interface TerminalReplayResult {
 }
 
 export interface TerminalAPI {
+  conversationHistory?(id: string, request: ConversationHistoryRequest): Promise<ConversationHistoryResult>
   saveConversationImage?(id: string, itemId: string, imageId: string): Promise<{ canceled: boolean }>
   inputHistory?(id: string): Promise<Array<{ text: string; time: number }>>
   conversation(id: string): Promise<ConversationSnapshot | null>

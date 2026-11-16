@@ -1,9 +1,7 @@
-import { exec } from 'node:child_process'
-import { promisify } from 'node:util'
+import { findLocalCommands, localDefaultShell } from '../platform/local-shell'
 import { getTerminalPresetMeta, resolveTerminalLaunchCommand } from '../../shared/terminalLaunch'
 import type { TerminalPreset, TerminalPresetConfig } from './types'
 
-const execAsync = promisify(exec)
 
 function createPresetConfig(
   preset: TerminalPreset,
@@ -39,18 +37,11 @@ export function getPresetName(preset: TerminalPreset): string {
 }
 
 export async function checkCommandExists(command: string): Promise<boolean> {
-  try {
-    const checkCmd = process.platform === 'win32' ? `where ${command}` : `which ${command}`
-    await execAsync(checkCmd)
-    return true
-  } catch {
-    return false
-  }
+  return findLocalCommands(command).length > 0
 }
 
 export function getDefaultShell(): string {
-  if (process.platform === 'win32') return 'powershell.exe'
-  return process.env.SHELL || '/bin/bash'
+  return localDefaultShell()
 }
 
 export function getShellName(shell: string): string {

@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/planning/blueprint-official-plugin.md — shared Note consumers do not load the blueprint plugin.
 import { resolve } from 'node:path'
 import { NoteService, type LoadedNoteEntry, type NoteIndex } from '@janus-agent/harness-node'
@@ -14,7 +15,7 @@ export class HarnessNoteService extends NoteService {
 
   protected override refreshIndex(root: string): Promise<{ rev: number; index: NoteIndex }> {
     const path = resolve(root)
-    const key = process.platform === 'win32' ? path.toLowerCase() : path
+    const key = runtimePathKey(path)
     const pending = this.indexReads.get(key)
     if (pending) return pending
     const read = super.refreshIndex(path).finally(() => {

@@ -46,6 +46,8 @@ export interface AgentSessionSummary {
   checkpointCount: number
   status: AgentSessionStatus
   providerSessionId?: string
+  /** Conflicting source paths were preserved instead of merging their history. */
+  identityConflict?: boolean
   transcriptPath?: string
   continuedFrom?: string
   createdAt: string
@@ -182,8 +184,8 @@ export function isNativeResumeEngine(engine: string): boolean {
 }
 
 /** Archive removes JanusX checkpoints, not the provider's conversation history. */
-export function canOfferSessionResume(source: { engine: string; external?: boolean; archived: boolean }): boolean {
-  return isNativeResumeEngine(source.engine) || (source.external === true && !source.archived)
+export function canOfferSessionResume(source: { engine: string; external?: boolean; archived: boolean; identityConflict?: boolean }): boolean {
+  return !source.identityConflict && (isNativeResumeEngine(source.engine) || (source.external === true && !source.archived))
 }
 
 export interface SessionAPI {

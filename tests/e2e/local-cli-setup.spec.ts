@@ -80,7 +80,7 @@ test('leaving setup prevents a late install from opening a terminal', async ({ p
   await page.evaluate(() => { (window as any).localCliFixture.delayed = true })
   await page.getByRole('button', { name: 'New Codex' }).click()
   await page.getByRole('button', { name: 'Install and open' }).click()
-  await expect(page.getByRole('status')).toContainText('Preparing and installing')
+  await expect(page.getByRole('status')).toContainText('Installing, please wait')
   await page.getByRole('button', { name: 'Back', exact: true }).click()
   await page.evaluate(() => (window as any).localCliFixture.complete())
   await expect(page.getByRole('img', { name: 'Not installed. Click to install' })).toHaveCount(0)

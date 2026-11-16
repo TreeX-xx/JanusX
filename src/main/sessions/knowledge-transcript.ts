@@ -1,7 +1,7 @@
 // Note: capture bounded turn evidence, not UI excerpts or a mutable history mirror — see .agents/notes/knowledge/hook-evidence-extraction.md
 import { createHash } from 'node:crypto'
 import { open } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { sameRuntimePath } from '../../shared/runtime/path-identity'
 import type { MemorySpeaker } from '../../shared/knowledge'
 import { isRuntimeNotification } from '../knowledge/personal-memory-content'
 import { claudeUserText, claudeAssistantText, codexUserText, codexAssistantText, piUserText, piAssistantText } from './external-session-scanner'
@@ -74,8 +74,7 @@ export async function readKnowledgeTurn(path: string, engine: string, sessionId?
       try {
         if (workspacePath) {
           const session = db.prepare('SELECT directory FROM session WHERE id = ?').get(sessionId)
-          const normalize = (value: string) => process.platform === 'win32' ? resolve(value).toLowerCase() : resolve(value)
-          if (!session || typeof session.directory !== 'string' || normalize(session.directory) !== normalize(workspacePath)) return { messages: [], reason: 'transcript-workspace-mismatch' }
+          if (!session || typeof session.directory !== 'string' || !sameRuntimePath(session.directory, workspacePath)) return { messages: [], reason: 'transcript-workspace-mismatch' }
         }
         const cutoff = endedAt && Number.isFinite(Date.parse(endedAt)) ? Date.parse(endedAt) : Number.MAX_SAFE_INTEGER
         const rows = db.prepare('SELECT id, data, time_created FROM message WHERE session_id = ? AND time_created <= ? ORDER BY time_created DESC LIMIT 257').all(sessionId, cutoff).reverse()

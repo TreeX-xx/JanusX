@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — local development lifecycle and broker.
 import { randomUUID, createHash } from 'node:crypto'
 import { readFile, mkdir, writeFile, rm, realpath } from 'node:fs/promises'
@@ -505,10 +506,10 @@ export class PluginService {
       || this.current.projectId !== projectId || this.current.root !== project.root)) error('CONTEXT_UNAVAILABLE', 'Project scope is unavailable.')
     if (this.instances.size >= 64 || [...this.instances.values()].filter(instance => instance.plugin === id).length >= 8) error('RATE_LIMITED', 'Too many plugin pages.')
     const scope = project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : 'application'
-    const documentKey = document ? JSON.stringify([document.viewer, process.platform === 'win32' ? document.path.toLowerCase() : document.path]) : ''
+    const documentKey = document ? JSON.stringify([document.viewer, runtimePathKey(document.path)]) : ''
     const existing = [...this.instances.values()].find(instance => instance.plugin === id && instance.view === viewId && instance.scope === scope
       && instance.context.instanceKey === instanceKey
-      && (instance.context.document ? JSON.stringify([instance.context.document.viewer, process.platform === 'win32' ? instance.context.document.path.toLowerCase() : instance.context.document.path]) : '') === documentKey)
+      && (instance.context.document ? JSON.stringify([instance.context.document.viewer, runtimePathKey(instance.context.document.path)]) : '') === documentKey)
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,

@@ -17,7 +17,7 @@ export interface TopicPorts {
   pendingReply?(id: string): string
 }
 
-/** Desktop presentation coordinator. The engine's one-active-turn guard remains authoritative. */
+/** Busy-input routing follows .agents/notes/agent/superagent-interface.md; the engine guards each active turn. */
 export class TopicScheduler {
   private routes = new Map<string, Promise<void>>()
   private running = new Set<string>()
@@ -38,6 +38,7 @@ export class TopicScheduler {
     const all = this.ports.read(), before = all.slice(0, all.findIndex(other => other.id === c.id))
     const history = [...(this.find(c.topic!.rootId)?.messages ?? [])]
     for (const prior of before.filter(other => other.topic?.rootId === c.topic!.rootId && other.topic.workspaceId === c.topic!.workspaceId)) {
+      if (prior.topic!.fork?.request) history.push(prior.topic!.fork.request)
       history.push(...prior.messages)
       for (const input of prior.topic!.inputs.filter(i => i.state === 'failed' || i.state === 'paused')) {
         history.push(input.message, { id: `status:${input.message.id}`, role: 'assistant', timestamp: prior.updatedAt,
@@ -76,7 +77,7 @@ export class TopicScheduler {
     const delivery = run(); this.deliveries.set(id, delivery)
     try { await delivery } finally { this.deliveries.delete(id) }
   }
-  async submit(rootId: string, workspaceId: string | null, text: string, separate = false, context?: JanusChatMessage['context']): Promise<void> {
+  async submit(rootId: string, workspaceId: string | null, text: string, separate = false, context?: JanusChatMessage['context'], options?: { targetId?: string }): Promise<void> {
     if (this.closed) return
     const root = this.find(rootId), content = text.trim()
     if (!root || !content) return
@@ -84,6 +85,14 @@ export class TopicScheduler {
     const id = crypto.randomUUID(), now = Date.now()
     const settings = this.ports.settings?.(root) ?? root
     const message: JanusChatMessage = { id: crypto.randomUUID(), role: 'user', content, timestamp: now, workspaceId, ...(context ? { context } : {}) }
+    if (options?.targetId) {
+      const target = this.find(options.targetId)
+      if (!target?.topic || target.topic.rootId !== rootId || target.topic.workspaceId !== workspaceId || target.topic.state !== 'ready' || target.topic.direct || target.topic.afterGroup) throw new Error('Topic is no longer available')
+      if (context?.worker?.kind === 'worker') throw new Error('Cancel the conversation branch target before sending directly to a Worker')
+      this.change(target.id, c => ({...c,topic:{...c.topic!,inputs:[...c.topic!.inputs,{message,state:'queued'}]}}))
+      try { await this.ports.save(); await this.deliver(target.id); this.pump() } catch (error) { this.fail(target.id,error) }
+      return
+    }
     if (context?.worker?.kind === 'worker') {
       if (!workspaceId || context.worker.workspaceId !== workspaceId) throw new Error('Worker workspace changed')
       if (this.ports.read().length >= 95) throw new Error('Conversation storage limit reached')
@@ -96,14 +105,6 @@ export class TopicScheduler {
       return
     }
     const scope = this.ports.read().filter(c => c.topic?.rootId === rootId && c.topic.workspaceId === workspaceId)
-    const active = scope.filter(c => c.topic!.state === 'ready' && !c.topic!.afterGroup && this.busy(c))
-    // The ordinary send path steers immediately. Classification is only needed
-    // when several branches leave the destination ambiguous.
-    if (!separate && active.length === 1) {
-      this.change(active[0].id, c => ({ ...c, topic: { ...c.topic!, inputs: [...c.topic!.inputs, { message, state: 'queued' }] } }))
-      try { await this.ports.save(); await this.deliver(active[0].id); this.pump() } catch (error) { this.fail(active[0].id, error) }
-      return
-    }
     const last = scope.at(-1)
     if (last?.topic?.state === 'ready' && !last.topic.direct && !last.topic.fork && !last.topic.inputs.length
       && !scope.some(c => this.busy(c) || c.topic!.state === 'routing')) {
@@ -114,13 +115,18 @@ export class TopicScheduler {
       return
     }
     if (this.ports.read().length >= 95) throw new Error('Conversation storage limit reached')
+    const needsRouting = scope.some(c => this.busy(c) || c.topic!.state === 'routing')
     const provisional: Conversation = { id, title: content.replace(/\s+/g, ' ').slice(0, 80), createdAt: now, updatedAt: now,
       messages: [], attachedWorkspaceIds: workspaceId ? [workspaceId] : [], toolTraces: [],
       providerId: settings.providerId, modelId: settings.modelId, engineeringContext: structuredClone(root.engineeringContext),
       topic: { rootId, workspaceId, base: [],
         approvalMode: 'approvalMode' in settings ? settings.approvalMode : undefined,
-        state: 'routing', inputs: [{ message, state: 'queued' }] } }
+        state: needsRouting ? 'routing' : 'ready', inputs: [{ message, state: 'queued' }] } }
     this.ports.update(all => [...all, provisional])
+    if (!needsRouting) {
+      try { await this.ports.save(); this.pump() } catch (error) { this.fail(id, error) }
+      return
+    }
     const key = `${rootId}:${workspaceId ?? ''}`
     const prior = this.routes.get(key) ?? Promise.resolve()
     const next = prior.then(async () => {
@@ -131,7 +137,6 @@ export class TopicScheduler {
         const active = siblings.filter(c => this.busy(c) && !c.topic!.afterGroup)
         const group = active.find(c => c.topic!.fork)?.topic!.fork?.id
         if (separate) { await this.resolve(id, { kind: 'new' }); return }
-        if (active.length === 1) { await this.resolve(id, { kind: 'continue', targetId: active[0].id }); return }
         if (!active.length) {
           const last = siblings.at(-1)
           if (last && !last.topic!.direct && !last.topic!.fork && !last.topic!.inputs.length) {
@@ -139,7 +144,7 @@ export class TopicScheduler {
           }
           await this.resolve(id, { kind: 'new' }); return
         }
-        const candidates = active
+        const candidates = (group?siblings.filter(c=>c.topic!.fork?.id===group):active)
           .sort((a, b) => b.updatedAt - a.updatedAt).map(c => {
             const seen = new Set(c.messages.map(m => m.id))
             const pending = c.topic!.inputs.filter(i => !seen.has(i.message.id))
@@ -154,7 +159,7 @@ export class TopicScheduler {
           context: active[0].topic!.base.slice(-6).map(m => ({ role: m.role, content: m.content })),
           providerId: provisional.providerId, modelId: provisional.modelId }) : { kind: 'new' as const }
         if (this.find(id)?.topic?.state !== 'routing') return
-        if (group && result.kind === 'new') {
+        if (group && result.kind === 'wait') {
           const waiting = siblings.find(c => c.topic!.afterGroup === group && c.topic!.inputs[0]?.state === 'queued')
           if (waiting) { await this.resolve(id, { kind: 'continue', targetId: waiting.id }); return }
           this.change(id, c => ({ ...c, topic: { ...c.topic!, afterGroup: group } }))
@@ -175,14 +180,16 @@ export class TopicScheduler {
         if (!target?.topic || target.id === id || target.topic.state !== 'ready'
           || target.topic.rootId !== source.topic.rootId || target.topic.workspaceId !== source.topic.workspaceId) throw new Error('Topic is no longer available')
         this.ports.update(all => all.filter(c => c.id !== id).map(c => c.id === target.id ? { ...c, updatedAt: Date.now(),
-          topic: { ...c.topic!, inputs: [...c.topic!.inputs, ...source.topic!.inputs.map(i => ({ ...i, state: 'queued' as const }))] } } : c))
+          topic: { ...c.topic!, ...(!this.busy(c)?{approvalMode:source.topic!.approvalMode??c.topic!.approvalMode}:{}), inputs: [...c.topic!.inputs, ...source.topic!.inputs.map(i => ({ ...i, state: 'queued' as const }))] } } : c))
         try { await this.ports.save() } catch (e) { this.fail(target.id, e); return }
         await this.deliver(target.id)
       } else {
         if (result.kind === 'new' && !source.topic.afterGroup) {
           const target = this.siblings(source).find(c => c.topic!.state === 'ready' && !c.topic!.afterGroup && this.busy(c))
           if (target?.topic?.fork) {
-            this.change(id, c => ({ ...c, topic: { ...c.topic!, afterGroup: target.topic!.fork!.id } }))
+            this.change(id, c => ({ ...c, topic: { ...c.topic!, base: structuredClone([
+              ...target.topic!.base, ...target.messages.slice(0, target.topic!.fork!.start)]),
+              fork: { id: target.topic!.fork!.id, start: 0 } } }))
           } else if (target) {
             const input = target.topic!.inputs[0]?.message
             const index = target.messages.findIndex(m => m.id === input?.id)

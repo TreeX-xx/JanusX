@@ -2,6 +2,7 @@
  * 外部 CLI 工具的版本检测、安装与模型投影契约。
  * 主进程与渲染进程共享：通道名、结果类型、工具元数据，以及两端对称的 semver 比较。
  */
+import type { CapabilityResult } from '../runtime/capabilities'
 export const EXTERNAL_CLI_CHANNELS = {
   detect: 'external-cli:detect',
   latest: 'external-cli:latest',
@@ -42,6 +43,9 @@ export type ExternalCliBinarySource = 'path' | 'known-location'
 
 export interface ExternalCliDetectResult {
   toolId: ExternalCliToolId
+  capability?: CapabilityResult
+  installCapability?: CapabilityResult
+  conversationCapability?: CapabilityResult
   /** false = 未安装；true 但 runnable=false = 装了但跑不起来（与 external-cli installed_but_broken 同义）。 */
   installed: boolean
   runnable: boolean

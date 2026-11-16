@@ -1,3 +1,5 @@
+import { isExternalWorkspaceRuntime, storedWorkspaceRuntime } from '../../shared/workspace-runtime'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { app, ipcMain, type BrowserWindow } from 'electron'
 import { opendir, readFile, writeFile, rename, unlink } from 'node:fs/promises'
@@ -28,8 +30,8 @@ export async function workspaceStorageRecords(): Promise<Workspace[]> {
   }, { background: true })
 }
 const records = workspaceStorageRecords
-const localRecords = async () => (await records()).filter(item => !item.runtime || item.runtime.kind === 'windows')
-const pathKey = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
+const localRecords = async () => (await records()).filter(item => !isExternalWorkspaceRuntime(item.runtime))
+const pathKey = (path: string) => runtimePathKey(resolve(path))
 
 export async function syncWorkspaceStorageRecords(): Promise<void> {
   await workspaceIo.run(workspaceStateStore().root, async () => workspaceStateStore().sync(await localRecords()))
@@ -51,12 +53,12 @@ export async function detachDeletedWorktreeData(paths: string[]): Promise<void> 
 async function saveRecord(workspace: Workspace): Promise<void> {
   const path = join(app.getPath('userData'), 'janusx', 'workspaces', `${workspace.id}.json`)
   const temporary = `${path}.${randomUUID()}.tmp`
-  try { await writeFile(temporary, JSON.stringify(workspace, null, 2), { flag: 'wx' }); await rename(temporary, path) }
+  try { await writeFile(temporary, JSON.stringify({ ...workspace, runtime: storedWorkspaceRuntime(workspace.runtime) }, null, 2), { flag: 'wx' }); await rename(temporary, path) }
   finally { await unlink(temporary).catch(() => {}) }
 }
 
 async function inspect(workspace: Workspace): Promise<WorkspaceMigrationItem> {
-  if (workspace.runtime && workspace.runtime.kind !== 'windows') return {
+  if (isExternalWorkspaceRuntime(workspace.runtime)) return {
     id: workspace.id, name: workspace.name, source: workspace.path, target: '', categories: [], status: 'unsupported',
     error: '远程工作区需在其运行环境内迁移；本机迁移不会访问远程路径。 Remote migration is not available from this local profile.',
   }

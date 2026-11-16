@@ -1,6 +1,8 @@
-"""Per-user Linux CLI discovery and durable installation. No daemon restart needed."""
+"""System Linux CLI discovery and durable installation. No daemon restart needed.
+
+Note: .agents/notes/sessions/workspace-runtime-import.md
+"""
 import fcntl
-import glob
 import json
 import os
 import pathlib
@@ -30,17 +32,16 @@ def environment(tool):
     except (OSError, subprocess.TimeoutExpired, UnicodeError):
         pass
     known = [str(home / p) for p in ('.local/bin', '.npm-global/bin', '.volta/bin', '.bun/bin', '.opencode/bin')]
-    nvm = sorted(glob.glob(str(home / '.nvm/versions/node/*/bin')),
-                 key=lambda p: tuple(int(n) for n in re.findall(r'\d+', p)), reverse=True)
-    candidates = [str(BASE / tool / 'bin'), str(home / '.local/share/janusx/runtime-v1/node/bin'),
-                  *paths, *env.get('PATH', '').split(':'), *known, *nvm, '/usr/local/bin', '/usr/bin', '/bin']
+    # Respect the shell-selected Node version. Never inject a private runtime or
+    # guess the newest nvm installation instead of the user's active version.
+    candidates = [*paths, *env.get('PATH', '').split(':'), *known, '/usr/local/bin', '/usr/bin', '/bin']
     # WSL may inherit the Windows PATH. Never launch a Windows npm/agent for a Linux workspace.
     env['PATH'] = ':'.join(dict.fromkeys(p for p in candidates if p.startswith('/') and not re.match(r'^/mnt/[a-zA-Z]/', p)))
     return env
 
 
-def locate(tool):
-    env = environment(tool)
+def locate(tool, env=None):
+    env = environment(tool) if env is None else env
     executable = shutil.which(tool, path=env['PATH'])
     result = dict(installed=False, environment=f'{os.environ.get("USER", "user")}@{platform.node()}',
                   architecture=platform.machine(), platform=sys.platform,
@@ -88,30 +89,69 @@ def read_status(tool):
     return state
 
 
+def system_target(npm, env):
+    values = []
+    for command in ('prefix', 'root'):
+        result = subprocess.run([npm, command, '-g'], env=env, cwd=str(pathlib.Path.home()),
+                                capture_output=True, text=True, timeout=30)
+        value = result.stdout.strip()
+        if result.returncode or not value.startswith('/') or '\n' in value or '\r' in value:
+            raise ValueError(result.stderr.strip() or 'Cannot determine system npm global location.')
+        values.append(pathlib.Path(value))
+    prefix, modules = values
+    if modules.resolve() != (prefix / 'lib/node_modules').resolve():
+        raise ValueError('System npm prefix and package root disagree; check your Node environment.')
+    return prefix, modules
+
+
+def install_system(tool, packages, env):
+    # Recheck under the shared npm lock: another request may have installed it.
+    existing = locate(tool, env)
+    if existing['installed']:
+        return existing
+    npm = existing['npm']
+    if not npm or not existing['node'] or existing['nodeMajor'] < 22:
+        raise ValueError('Install compatible Node.js 22+ and npm in this Linux environment, then retry.')
+    prefix, modules = system_target(npm, env)
+    env.update(npm_config_update_notifier='false', npm_config_fund='false', npm_config_audit='false', npm_config_engine_strict='true')
+    print('Installing ' + tool + ' into ' + str(prefix), flush=True)
+    process = subprocess.Popen([npm, 'install', '--global', '--prefix', str(prefix), *packages],
+                               cwd=str(pathlib.Path.home()), env=env, start_new_session=True)
+    try:
+        code = process.wait(timeout=900)
+    except subprocess.TimeoutExpired:
+        import signal
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+        raise ValueError('Installation timed out. Check the target network and retry.')
+    if code:
+        raise ValueError(f'Installer exited ({code}). Check permissions and installation output; no private fallback was used.')
+    package = modules / packages[0]
+    metadata = json.loads((package / 'package.json').read_text())
+    if metadata.get('name') != packages[0] or not metadata.get('version'):
+        raise ValueError('Installed npm package identity or version does not match.')
+    command = prefix / 'bin' / tool
+    if not command.is_file() or package.resolve() not in command.resolve().parents:
+        raise ValueError('Installed command does not belong to the target npm package.')
+    check = subprocess.run([str(command), '--version'], env=env, capture_output=True, text=True, timeout=20)
+    version = re.search(r'(?<![\w.])v?(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)', check.stdout)
+    if check.returncode or not version or version.group(1) != metadata['version']:
+        raise ValueError('Installed command did not report the expected package version.')
+    result = locate(tool, env)
+    if not result['installed'] or pathlib.Path(result['executable']).resolve() != command.resolve():
+        raise ValueError('System installation is not the active command. Check the target shell PATH and retry.')
+    return result
+
+
 def worker(tool, packages, lockfd):
     directory = BASE / tool
     statefile = directory / 'install.json'
     try:
         env = environment(tool)
-        npm = shutil.which('npm', path=env['PATH'])
-        if not npm:
-            raise ValueError('Node.js and npm are unavailable in this Linux environment.')
-        env.update(npm_config_update_notifier='false', npm_config_fund='false', npm_config_audit='false', npm_config_engine_strict='true')
-        print('Installing ' + tool + ' for ' + str(pathlib.Path.home()), flush=True)
-        process = subprocess.Popen([npm, 'install', '--global', '--prefix', str(directory), *packages],
-                                   cwd=str(directory), env=env, start_new_session=True)
-        try:
-            code = process.wait(timeout=900)
-        except subprocess.TimeoutExpired:
-            import signal
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            raise ValueError('Installation timed out. Check the target network and retry.')
-        if code:
-            raise ValueError(f'Installer exited ({code}). See installation output.')
-        result = locate(tool)
-        if not result['installed']:
-            raise ValueError('Installer finished but the CLI executable was not found.')
+        # All tools now share a global npm prefix, so serialize across tools too.
+        with (BASE / 'npm-install.lock').open('a') as npm_lock:
+            fcntl.flock(npm_lock, fcntl.LOCK_EX)
+            result = install_system(tool, packages, env)
         save(statefile, dict(state='complete', installed=True))
         print('Ready: ' + result['executable'], flush=True)
     except Exception as error:

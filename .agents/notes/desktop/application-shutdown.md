@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-12T17:13:34.898Z",
+  "updated": "2026-11-14T16:55:17Z",
   "class": "architecture",
   "tags": ["shutdown", "windows", "macos", "superagent"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
@@ -23,6 +23,12 @@
 ---
 
 # 应用退出、进程回收与安装占用
+
+## 公共运行时接入（2026-11-15）
+
+当前 JanusX 工作区已将既有 Windows 身份核验和 POSIX 自有进程组清理抽到 `platform/process-host/owned-tree.ts`；`shutdown/process-tree.ts` 保留桌面诊断装配和兼容导出，Node 独立入口不再因进程回收加载 Electron。普通进程、CLI、Git、项目与 Office 等消费者经公共服务启动／停止；协议原生驱动、SSH/WSL transport 和外部引擎仍按[运行时边界](./platform-runtime-boundaries.md)逐项列明。
+
+这是公共入口归属调整，不表示本篇所有历史限制或独立安装包验收已解决。真实 Windows 参数／超时／取消及后代退出确认回归通过，Mac TERM／升级 KILL／权限失败仅有模拟证据；父节点提前消失、脱离组的后代、Mac Cmd+Q 和实际升级占用仍需对应环境验证。下文 2026-11-12 的提交、安装副本和构建来源保留其当时边界，不作为本次产物证据。
 
 ## 当前交付记录（2026-11-12）
 

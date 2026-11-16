@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-11-13T09:38:28Z",
+  "updated": "2026-11-14T16:53:48Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -56,6 +56,8 @@ Verification on 2026-11-12 (Windows host): the full Office unit directory passed
 - Do nothing and reuse the manual-install guidance (`manualInstallSuffix`, release URL, copy-item steps). The cost is the status quo: new users meet `NOT_INSTALLED` on first Office preview and must leave the app to fix it, while the product workspace promises generation-to-preview in one click.
 
 ## Consequences
+
+The 2026-11-15 runtime consolidation routes the manager/watch processes through the common process host; the standalone broker and launcher use its Node-only composition. The Mac packaging hook now checks actual Mach-O architecture/deployment targets and the declared macOS 15.0 distribution floor, then sets the Office and PTY helper executable bits. Both real resource sets passed static inspection on Windows; 8 Office resource tests and 4 native-resource validator tests passed. macOS execution, signed package checks and minimum-OS acceptance remain not-run. The dependency-policy rationale and current evidence are maintained in [macOS compatibility](./macos-compatibility.md).
 
 The runtime remains free of managed downloads, PATH fallback, installer dialogs and a separate OfficeCLI update channel. Each package grows by one target binary. Unsupported targets fail closed, and packaging checks catch missing or mismatched assets before producing a package. Development still needs explicit preparation. Adding Linux, universal macOS apps, or changing OfficeCLI's upstream signing/release process requires extending the manifest and packaging contract; it must not weaken the broker checksum to accommodate altered binaries.
 

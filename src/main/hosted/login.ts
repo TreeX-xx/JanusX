@@ -5,6 +5,7 @@ import type { HostedLoginSession } from '../../shared/ipc/hosted'
 import { terminalManager } from '../terminal/manager'
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
 import { resolveHostedRepository } from './repository'
+import { localDefaultShell } from '../platform/local-shell'
 
 interface Session { owner: number; state: HostedLoginSession; timer: ReturnType<typeof setTimeout> }
 const sessions = new Map<string, Session>()
@@ -31,7 +32,7 @@ export async function startHostedLogin(workspacePath: string, owner: number): Pr
   const state: HostedLoginSession = { id, provider: repo.provider, output: '', finished: false }
   const terminal = terminalManager.create({
     id, workspaceId: '__hosted_login__', cwd: homedir(),
-    shell: process.platform === 'win32' ? 'powershell.exe' : 'bash', program,
+    shell: localDefaultShell(), program,
     programArgs: ['auth', 'login', '--hostname', repo.provider === 'github' ? 'github.com' : 'gitlab.com', '--web',
       ...(repo.provider === 'github' ? ['--git-protocol', 'https', '--skip-ssh-key'] : [])],
     env: { GH_HOST: 'github.com', GITLAB_HOST: 'gitlab.com', GITLAB_API_HOST: 'gitlab.com', GLAB_API_PROTOCOL: 'https' },

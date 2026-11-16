@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { z } from 'zod'
 import { NOTE_URI_RE } from '@janus-agent/harness-core'
 import { NOTE_TOOL_DEFINITIONS } from '@janus-agent/node-hosts'
@@ -12,7 +13,7 @@ import { harnessNoteService } from './service'
 import { NOTE_FOCUS_SCHEMA, NOTE_SCOPE_SCHEMA, resolveNoteFocus } from './note-focus'
 import type { NoteChatChange, NoteFocusEvent } from '../../shared/note-chat'
 import { mentionsMemoWorkspace } from '../../shared/memo-chat-target'
-const rootKey = (root: string) => process.platform === 'win32' ? resolve(root).toLowerCase() : resolve(root)
+const rootKey = (root: string) => runtimePathKey(resolve(root))
 const fail = (error: unknown) => error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error)
 
 // Note: module browsing actions and passive scope — see .agents/notes/blueprint/navigation/requirements/module-focus-navigation.md

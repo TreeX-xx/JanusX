@@ -1,7 +1,7 @@
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { findTerminalInState, useWorkspaceStore } from '../stores/workspace'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ArrowUp, Check, ChevronDown, Search, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowUp, Check, ChevronDown, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap } from 'lucide-react'
 import { parseConversationSlashCommand, type ConversationCommand, type ConversationSnapshot } from '../../../shared/conversation-display'
 import styles from './AgentSessionPane.module.css'
 import { ConversationContext } from './ConversationContext'
@@ -9,11 +9,12 @@ import { ConversationInput, type ConversationInputHandle } from './ConversationI
 import { activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
 import { insertConversationNewline } from '../lib/conversation-input'
 import { InputHistoryCursor, rememberConversationInput, mergeInputHistory, useConversationInputHistory, type InputHistoryEntry } from '../stores/conversation-input-history'
-import { EffortActivation, EffortGlyph, effortToneClass, effortVisualLevel } from './ReasoningEffort'
+import { EffortActivation, EffortGlyph, effortToneClass } from './ReasoningEffort'
+import { ComposerOptions, ComposerOptionTrigger, composerOptionIndex, type ComposerChoice as Choice } from './ComposerOptions'
+import optionStyles from './ComposerOptions.module.css'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort'
-interface Choice { icon?: LucideIcon; source?: string; completion?: string; provider?: { id: string; name: string }; title?: string; id: string; label: string; description: string; selected?: boolean; disabled?: boolean; run(): void }
 const effortOrder = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
 
 export function AgentComposer({ terminalId, historyScope, workspacePath, references, snapshot, setDraft, inputRef, canSend, hasOutgoing, busy, switching, send, action, changeMode }: {
@@ -250,14 +251,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       }
     }
     if (event.key === 'Escape' && currentPanel) { event.preventDefault(); event.stopPropagation(); if (!panel && currentPanel !== 'commands') { setDraft('/'); inputRef.current?.focus() } else close(true); return }
-    if (currentPanel === 'effort' && (event.key === 'Home' || event.key === 'End')) {
-      event.preventDefault(); setActive(event.key === 'Home' ? 0 : Math.max(0, choices.length - 1))
-    } else if (currentPanel && (event.key === 'ArrowDown' || event.key === 'ArrowUp' || (currentPanel === 'effort' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')))) {
-      event.preventDefault()
-      const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
-      setActive(value => !choices.length ? 0 : currentPanel === 'effort'
-        ? Math.max(0, Math.min(choices.length - 1, value + step))
-        : (value + step + choices.length) % choices.length)
+    const nextIndex = currentPanel ? composerOptionIndex(event.key, active, choices.length, currentPanel === 'effort') : undefined
+    if (nextIndex !== undefined) {
+      event.preventDefault(); setActive(nextIndex)
     } else if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       if (panel) { if (activeChoice && !activeChoice.disabled) activeChoice.run() }
@@ -269,40 +265,19 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       else close(true)
     }
   }
-  useEffect(() => {
-    document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [active, listId, currentPanel, choices.length])
 
   return <form ref={root} className={styles.composer} onSubmit={event => { event.preventDefault(); submit() }}>
     {effortFeedback.id > 0 && <EffortActivation key={effortFeedback.id} effort={effortFeedback.effort} suppressed={Boolean(currentPanel)}
       label={effortFeedback.effort && effortFeedback.effort !== 'default' ? t(`conversation.efforts.${effortFeedback.effort}`, { defaultValue: effortFeedback.effort }) : t('conversation.defaultEffort')}
       status={t('conversation.effortActivated')} />}
-    {currentPanel && <div className={styles.commandPanel} data-panel={currentPanel} style={{ maxHeight: pickerHeight }}>
-      <div className={styles.commandHeader}>{!panel && currentPanel !== 'commands' && <button type="button" aria-label={t('conversation.picker.commands')} onClick={() => { setDraft('/'); inputRef.current?.focus() }}><ArrowLeft size={15} /></button>}<span>{t(`conversation.picker.${currentPanel}`)}</span>{currentPanel !== 'effort' && <span title={t('conversation.commandKeys')}>{t('conversation.compactCommandKeys')}</span>}</div>
-      {(currentPanel === 'model' || panel === 'commands') && <label className={styles.pickerSearch}><Search size={14} aria-hidden="true" /><input ref={searchRef} value={query} onChange={event => panel ? setSearch(event.target.value) : setDraft('/model ' + event.target.value)} onKeyDown={keyboard}
-        role="combobox" aria-label={t('conversation.searchOptions')} aria-expanded aria-controls={listId} aria-activedescendant={activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined} placeholder={t(groupedModels && currentPanel === 'model' ? 'conversation.searchModels' : 'conversation.searchOptions')} /></label>}
-      {currentPanel === 'model' && groupedModels && <label className={styles.modelProviderFilter}>
-        <span>{t('conversation.modelProvider')}</span>
-        <select aria-label={t('conversation.modelProvider')} value={providerFilter} onChange={event => { setModelProvider(event.target.value); searchRef.current?.focus() }}>
-          <option value="">{t('conversation.allProviders')}</option>
-          {modelProviders.map(provider => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-        </select><ChevronDown size={12} aria-hidden="true" />
-      </label>}
-      <div className={currentPanel === 'effort' ? styles.effortScale : styles.commandList} role="listbox" id={listId} aria-label={t(`conversation.picker.${currentPanel}`)}
-        ref={currentPanel === 'effort' ? effortRef : undefined} tabIndex={panel === 'effort' ? 0 : undefined} onKeyDown={panel === 'effort' ? keyboard : undefined}
-        aria-orientation={currentPanel === 'effort' ? 'horizontal' : 'vertical'} aria-activedescendant={panel === 'effort' && activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined}>
-        <div className={currentPanel === 'effort' ? styles.effortTrack : undefined} style={currentPanel === 'effort' ? { '--effort-count': Math.max(1, choices.length), '--effort-active': Math.min(active, Math.max(0, choices.length - 1)) } as CSSProperties : undefined}>
-        {currentPanel === 'effort' && choices.length > 0 && <span className={styles.effortIndicator} aria-hidden="true" />}
-        {choices.map((option, index) => <Fragment key={option.id}>
-          {option.provider && option.provider.id !== choices[index - 1]?.provider?.id && <div className={styles.modelGroupLabel} aria-hidden="true" data-provider={option.provider.id}>{option.provider.name}</div>}
-          <button id={`${listId}-${index}`} type="button" role="option" aria-selected={Boolean(option.selected)} aria-disabled={option.disabled || undefined}
-          className={currentPanel === 'effort' ? `${styles.effortOption} ${effortToneClass(option.id)}` : styles.commandOption} data-active={index === Math.min(active, choices.length - 1)} tabIndex={-1} onMouseEnter={() => setActive(index)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
-          title={currentPanel === 'effort' ? undefined : option.title ?? option.description} aria-label={option.provider ? `${option.label} · ${option.provider.name}` : currentPanel === 'effort' ? option.label : undefined}>
-          {currentPanel === 'effort' ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + (effortVisualLevel(option.id) ?? 0) * 3 }} data-filled={index === active} /></span><span>{option.label}</span><i className={styles.effortSelected} aria-hidden="true" /></>
-            : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}</>}
-        </button></Fragment>)}
-        </div>
-      </div>
+    {currentPanel && <ComposerOptions id={listId} kind={currentPanel} title={t(`conversation.picker.${currentPanel}`)} options={choices} active={active} onActiveChange={setActive} onKeyDown={keyboard}
+      maxHeight={pickerHeight} searchRef={searchRef} listRef={currentPanel === 'effort' ? effortRef : undefined} focusList={panel === 'effort'}
+      back={!panel && currentPanel !== 'commands' ? {label:t('conversation.picker.commands'),run:()=>{setDraft('/');inputRef.current?.focus()}} : undefined}
+      hint={currentPanel !== 'effort' ? {label:t('conversation.compactCommandKeys'),title:t('conversation.commandKeys')} : undefined}
+      search={currentPanel === 'model' || panel === 'commands' ? {value:query,onChange:value=>panel?setSearch(value):setDraft('/model '+value),label:t('conversation.searchOptions'),placeholder:t(groupedModels && currentPanel === 'model'?'conversation.searchModels':'conversation.searchOptions')} : undefined}
+      providers={currentPanel === 'model' && groupedModels ? {label:t('conversation.modelProvider'),allLabel:t('conversation.allProviders'),value:providerFilter,options:modelProviders,onChange:setModelProvider} : undefined}
+      footer={currentPanel !== 'commands' && <><span title={t(snapshot?.engine === 'claude'?'conversation.claudeSessionSettings':'conversation.nextTurnSettings')}>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}
+        {currentPanel === 'model' && snapshot?.engine === 'opencode' && <button className={styles.modelRefresh} type="button" disabled={!available || snapshot.modelsLoading} title={t('conversation.refreshModels')} onClick={()=>void action({type:'models',controlEpoch:snapshot.controlEpoch})}><RefreshCw size={12} aria-hidden="true" />{t('conversation.refreshModels')}</button>}</>}>
       {currentPanel === 'commands' && snapshot?.capabilities.commands && <div className={styles.pickerMessage}>
         {snapshot.commandsLoading ? <span role="status">{t('conversation.catalog.loading')}</span> : <button type="button" disabled={!available} onClick={() => void action({ type: 'commands', controlEpoch: snapshot.controlEpoch })}><RefreshCw size={12} aria-hidden="true" /> {t('conversation.catalog.refresh')}</button>}
         {snapshot.commandsError && <span role="alert">{t('conversation.catalog.failed')}</span>}
@@ -312,11 +287,8 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       {unsupportedArguments && <p className={styles.pickerMessage} role="status">{t('conversation.commandArgumentsUnsupported')}</p>}
       {!choices.length && (currentPanel === 'commands' || (!snapshot?.modelsLoading && !snapshot?.modelsError)) && <p className={styles.pickerMessage}>{t(currentPanel === 'commands' ? 'conversation.unsupportedCommand' : currentPanel === 'effort' && !model ? 'conversation.effortUnavailable' : 'conversation.noOptions')}</p>}
       {currentPanel === 'commands' && !choices.length && <button className={styles.terminalCommand} type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button>}
-      {currentPanel !== 'commands' && <div className={styles.pickerFootnote} title={t(snapshot?.engine === 'claude' ? 'conversation.claudeSessionSettings' : 'conversation.nextTurnSettings')}><span>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}
-        {currentPanel === 'model' && snapshot?.engine === 'opencode' && <button className={styles.modelRefresh} type="button" disabled={!available || snapshot.modelsLoading} title={t('conversation.refreshModels')} onClick={() => void action({ type: 'models', controlEpoch: snapshot.controlEpoch })}><RefreshCw size={12} aria-hidden="true" />{t('conversation.refreshModels')}</button>}
-      </div>}
       {selectionFailed && currentPanel !== 'commands' && <p className={styles.pickerMessage} role="status">{t('conversation.settingsFailed')}</p>}
-    </div>}
+    </ComposerOptions>}
     {acceptedCommand && !draft && !snapshot?.turnId && <p className={styles.pickerMessage} role="status">{t('conversation.catalog.accepted', { command: acceptedCommand })}</p>}
     <ConversationContext inputRef={inputRef} terminalId={terminalId} workspacePath={workspacePath} references={references} draft={draft} setDraft={setDraft} disabled={busy || switching} onImporting={setImporting} open={contextOpen} onOpenChange={changeContextOpen} pickerActive={Boolean(currentPanel)}>
     {addControl => <>
@@ -327,24 +299,24 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     <div className={styles.composerActions}>
       {addControl}
       <div className={styles.modelControls}>
-        {snapshot?.engine === 'claude' && <button type="button" className={styles.modelControl}
+        {snapshot?.engine === 'claude' && <button type="button" className={optionStyles.control}
           aria-label={t('conversation.ultracode.label')} aria-pressed={snapshot.ultracode?.enabled}
           title={t(!snapshot.ultracode ? 'conversation.ultracode.unknown' : !snapshot.ultracode.available || snapshot.model !== snapshot.ultracode.model
             ? 'conversation.ultracode.unavailable' : 'conversation.ultracode.hint')}
           disabled={!canConfigure || !snapshot.ultracode || !snapshot.ultracode.enabled && (!snapshot.ultracode.available || snapshot.model !== snapshot.ultracode.model)}
           onClick={() => void action({ type: 'ultracode', enabled: !snapshot.ultracode!.enabled, controlEpoch: snapshot.controlEpoch })}>
           <Sparkles size={12} aria-hidden="true" /><span>Ultracode</span>{snapshot.ultracode?.enabled && <Check size={12} aria-hidden="true" />}</button>}
-        {snapshot?.engine === 'codex' && <button type="button" className={`${styles.modelControl} ${styles.speedControl}`}
+        {snapshot?.engine === 'codex' && <button type="button" className={`${optionStyles.control} ${styles.speedControl}`}
           aria-label={speedTitle} title={speedTitle} aria-pressed={speedKnown ? fastEnabled : undefined}
           disabled={!canConfigure || !speedKnown || (!fastEnabled && !model?.fastTier)}
           onClick={() => void action({ type: 'speed', fast: !fastEnabled, controlEpoch: snapshot.controlEpoch })}>
           <Zap size={12} strokeWidth={1.75} aria-hidden="true" /></button>}
-        {(!snapshot || snapshot.capabilities.settings) ? <><button type="button" ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={styles.modelControl} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-haspopup="listbox" aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
+        {(!snapshot || snapshot.capabilities.settings) ? <><ComposerOptionTrigger ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
           {groupedModels && model?.provider && <small className={styles.modelProviderTag} title={model.provider.name}>{model.provider.name}</small>}
-          <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></button>
-        <button type="button" ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={`${styles.modelControl} ${styles.effortControl} ${effortToneClass(snapshot?.effort)}`} aria-label={t('conversation.chooseEffort')} aria-haspopup="listbox" aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
-          <EffortGlyph effort={snapshot?.effort} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></button></>
-          : <><span className={styles.modelControl}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={`${styles.modelControl} ${styles.effortControl} ${effortToneClass(snapshot.effort)}`}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
+          <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></ComposerOptionTrigger>
+        <ComposerOptionTrigger ref={effortButton} disabled={!snapshot || snapshot.connection !== 'ready'} className={`${styles.effortControl} ${effortToneClass(snapshot?.effort)}`} aria-label={t('conversation.chooseEffort')} aria-expanded={panel === 'effort'} onClick={() => panel === 'effort' ? close() : open('effort')}>
+          <EffortGlyph effort={snapshot?.effort} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></ComposerOptionTrigger></>
+          : <><span className={optionStyles.control}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={`${optionStyles.control} ${styles.effortControl} ${effortToneClass(snapshot.effort)}`}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
       <div className={styles.composerSubmit} data-composer-submit>

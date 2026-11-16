@@ -1,4 +1,35 @@
 {
+  "historySources": {
+    "title": "History locations",
+    "description": "Shared sources for sessions and usage. Detect CLI configuration automatically or add another history location.",
+    "close": "Close",
+    "automatic": "Auto-detect",
+    "add": "Add location",
+    "remove": "Remove location",
+    "reset": "Restore automatic detection",
+    "done": "Done",
+    "busy": "Checking and refreshing history…",
+    "refreshFailed": "Locations saved. Some history could not be refreshed:",
+    "note": "Removing a location keeps files and recorded usage. Resuming still requires the original workspace, CLI and valid configuration; readable backups may not be resumable.",
+    "path": {
+      "claude": "Select the projects history directory inside .claude",
+      "codex": "Select sessions or archived_sessions inside .codex",
+      "pi": "Select sessions or a custom history directory",
+      "opencode": "Select the opencode.db database file"
+    },
+    "status": {
+      "ready": "History recognized",
+      "missing": "Location missing",
+      "unreadable": "Cannot read",
+      "empty": "No history found",
+      "invalid": "No matching CLI history format found"
+    },
+    "resume": {
+      "native-layout": "Eligible for resume checks",
+      "active-store": "Active CLI database",
+      "read-only": "Read only"
+    }
+  },
   "workerDefaults": {
     "isDefault": "Default",
     "makeDefault": "Set as default",
@@ -560,8 +591,7 @@
       "refreshing": "Detecting...",
       "working": "Working..."
     },
-    "notice": {
-      "existingTerminal": "Restart open terminals for the new version and PATH to take effect.",
+    "notice": {      "existingTerminal": "Restart open terminals for the new version and PATH to take effect.",
       "installed": "Install finished. Restart terminals to take effect."
     },
     "visibility": {

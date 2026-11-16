@@ -1,4 +1,4 @@
-import { app, BrowserWindow, crashReporter, dialog, ipcMain } from 'electron'
+import { app, type BrowserWindow, crashReporter, dialog, ipcMain } from 'electron'
 import { isAgentHookClientInvocation, runAgentHookClient } from './notifications/agent-hook-client'
 import { configureApplicationProfile, configureChromiumSessionPaths } from './bootstrap/session'
 import { migrateLegacyPortableProfile } from './bootstrap/profile-migration'
@@ -184,6 +184,8 @@ async function bootstrapApp(): Promise<void> {
     app.quit()
     return
   }
+  const { restoreMacLoginEnvironment } = await import('./external-cli/login-environment')
+  await restoreMacLoginEnvironment()
   const portableRoot = process.env.PORTABLE_EXECUTABLE_DIR?.trim()
   const explicitProfile = process.argv.some(arg => arg === '--user-data-dir' || arg.startsWith('--user-data-dir='))
   if (app.isPackaged && portableRoot && !explicitProfile && app.getPath('userData') === join(app.getPath('appData'), 'JanusX-Portable')) {
@@ -222,6 +224,9 @@ async function bootstrapApp(): Promise<void> {
   let quitAck: (() => void) | null = null
   ipcMain.on('app:prepareQuitAck', () => { quitAck?.(); quitAck = null })
   const editorWindows = new EditorWindowManager()
+  // Application handlers survive macOS window closes; their getter follows each new main window.
+  // Note: .agents/notes/desktop/macos-compatibility.md
+  registerWindowIpc(editorWindows, () => mainWindow)
   const browserSurfaces = new BrowserSurfaceManager({ getMainWindow: () => mainWindow })
   const getOfficeWindows = (): BrowserWindow[] => [
     ...(mainWindow && !mainWindow.isDestroyed() ? [mainWindow] : []),
@@ -266,7 +271,6 @@ async function bootstrapApp(): Promise<void> {
       officeArtifactIndex,
       browserSurfaces,
     })
-    registerWindowIpc(editorWindows, () => mainWindow)
     feishuInboundRuntime.configure(mainWindow)
     // Win P0 自动更新：读持久化开关，延迟首检 + 6h 轮询；其余形态内部降级。
     void Promise.all([import('./updater/service'), import('./config/service')]).then(
@@ -286,7 +290,7 @@ async function bootstrapApp(): Promise<void> {
     void feishuInboundRuntime.reconfigure()
   }
 
-  app.on('second-instance', () => {
+  function showMainWindow(): void {
     if (appShutdown.isQuitting) return
     if (!mainWindow || mainWindow.isDestroyed()) {
       if (app.isReady()) createWindow()
@@ -294,8 +298,11 @@ async function bootstrapApp(): Promise<void> {
     }
 
     if (mainWindow.isMinimized()) mainWindow.restore()
+    if (!mainWindow.isVisible()) mainWindow.show()
     mainWindow.focus()
-  })
+  }
+
+  app.on('second-instance', showMainWindow)
 
   app.on('window-all-closed', () => {
     // Keep macOS app alive until explicit quit; other platforms exit.
@@ -343,7 +350,5 @@ async function bootstrapApp(): Promise<void> {
   createWindow()
   void refreshLlmRuntimeStatus()
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
+  app.on('activate', showMainWindow)
 }

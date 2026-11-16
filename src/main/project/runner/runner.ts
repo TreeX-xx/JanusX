@@ -9,14 +9,17 @@
  * 4. 流式输出日志，提取关键信息（端口号等）
  */
 
-import { spawn, ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+import { spawnProcess } from '../../platform/process-host'
+import { requiresCommandShell } from '../../platform/process-host/core'
+export { requiresCommandShell } from '../../platform/process-host/core'
 import { stopProcessTree } from '../../shutdown/process-tree'
 import { assertApplicationRunning } from '../../shutdown/quit-state'
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
 import { mkdir, rm } from 'node:fs/promises'
 import { workspaceIo, writeIoFile, resolveWorkspaceStorage, assertWorkspaceStorageAvailable, useWorkspaceStorage as acquireWorkspaceStorage } from '@janus-agent/agent-core'
-import { extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { ProjectType, type LaunchConfiguration, type ProcessHandle, type ProjectRunOptions } from '../types'
 import ProjectConfig from '../config/project-config'
 import CommandBuilder from './command-builder'
@@ -64,7 +67,6 @@ export interface ExitedAdhocProject {
   logPath?: string
 }
 
-const WINDOWS_SHELL_COMMANDS = new Set(['npm', 'yarn', 'pnpm', 'bun'])
 const WINDOWS_SHELL_META = /[&|<>^\r\n]/
 
 // Note: 后台 adhoc 与同步 command.run 共享 shell 判定，启动失败落盘、win32 整树强杀 — see .agents/notes/terminal/adhoc-shell-parity.md
@@ -73,11 +75,6 @@ const WINDOWS_SHELL_META = /[&|<>^\r\n]/
 const MAX_OUTPUT_LINE_BUFFER_CHARS = 256 * 1024
 const MAX_STORED_OUTPUT_LINE_CHARS = 16 * 1024
 
-export function requiresCommandShell(command: string, platform: NodeJS.Platform = process.platform): boolean {
-  if (platform !== 'win32') return false
-  return WINDOWS_SHELL_COMMANDS.has(command.toLowerCase())
-    || ['.bat', '.cmd'].includes(extname(command).toLowerCase())
-}
 
 /** Shared with the sync command-tools path so both start failures carry the same hint. */
 export function spawnHint(program: string): string {
@@ -408,12 +405,9 @@ export class ProjectRunner extends EventEmitter {
   ): ChildProcess {
     assertApplicationRunning()
     assertWorkspaceStorageAvailable(options.cwd)
-    return spawn(command, args, {
+    return spawnProcess(command, args, {
       ...options,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: requiresCommandShell(command),
-      detached: process.platform !== 'win32',
-      windowsHide: true,
     })
   }
 

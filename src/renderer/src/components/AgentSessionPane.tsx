@@ -30,6 +30,7 @@ import { ConversationDuration } from './ConversationDuration'
 import { ConversationMessageActions } from './ConversationMessageActions'
 import { ConversationMessageEditor } from './ConversationMessageEditor'
 import { ConversationPrompt } from './ConversationPrompt'
+import { ConversationHistoryBrowser, type ConversationHistoryBookmark } from './ConversationHistoryBrowser'
 import styles from './AgentSessionPane.module.css'
 import { conversationPrompt, activeConversationReferences, MAX_CONVERSATION_ATTACHMENTS, type ConversationReference } from '../../../shared/conversation-context'
 import type { ConversationInputHandle } from './ConversationInput'
@@ -53,6 +54,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const [switching, setSwitching] = useState(false)
   const [modeTransition, setModeTransition] = useState<'terminal' | 'conversation' | null>(null)
   const [showLatest, setShowLatest] = useState(false)
+  const [historyView, setHistoryView] = useState<(ConversationHistoryBookmark & { threadId: string; pid?: number | null }) | null>(null)
   const busyRef = useRef(false)
   const latest = useRef<ConversationSnapshot | null>(null)
   const visibleRef = useRef(visible)
@@ -99,6 +101,19 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
   const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.plans?.length
   const showWelcome = empty && !startupActive && !error && !snapshot?.error
+  const canReadHistory = snapshot?.engine === 'codex' && Boolean(window.electron.terminal.conversationHistory)
+  const openHistory = (item?: ConversationItem) => {
+    if (!canReadHistory || !snapshot?.threadId) return
+    follow.current = false
+    setHistoryView({ threadId: snapshot.threadId, pid: terminal?.pid, ...(item ? { item: { id: item.id, turnId: item.turnId } } : { anchorId: snapshot.items.find(row => row.type !== 'turnError' && row.type !== 'error')?.id }) })
+  }
+  const closeHistory = useCallback(() => {
+    setHistoryView(null); follow.current = true; setShowLatest(false)
+    requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight })
+  }, [])
+  const fullContent = (item: ConversationItem) => item.truncated && canReadHistory
+    ? <button type="button" className={styles.historyReadMore} onClick={() => openHistory(item)}>{t('conversation.readFullContent')}</button> : null
+  useEffect(() => { setHistoryView(null) }, [terminalId, terminal?.pid, snapshot?.threadId])
 
   const accept = useCallback((next: ConversationSnapshot) => {
     if (next.id !== terminalId || (latest.current && next.revision < latest.current.revision)) return
@@ -248,6 +263,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     rememberConversationInput(historyScope, prompt)
     setConversationReferences(terminalId, () => [])
     setDraft('')
+    setHistoryView(null)
     follow.current = true
     setShowLatest(false)
   }
@@ -288,12 +304,13 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const editor = editing && <ConversationMessageEditor text={editing.text} setText={text => setEditing(current => current && { ...current, text })}
     busy={Boolean(pendingSend)} disabled={!canSend} error={error || snapshot?.error || ''} cancel={cancelEdit} submit={() => submitEdit()}
     sendAsNew={snapshot?.engine === 'codex' && snapshot.capabilities.edit === false ? () => submitEdit(true) : undefined} />
-  const openFile = async (filePath: string) => {
-    if (!terminal) return
-    const resolvedPath = /^(?:[a-z]:[\\/]|[\\/])/i.test(filePath) ? filePath : `${terminal.cwd.replace(/[\\/]+$/, '')}/${filePath}`
-    try { await window.electron.window.openEditor({ filePath: resolvedPath, workspacePath: terminal.cwd }) }
+  const fileWorkspacePath = terminal?.cwd
+  const openFile = useCallback(async (filePath: string) => {
+    if (!fileWorkspacePath) return
+    const resolvedPath = /^(?:[a-z]:[\\/]|[\\/])/i.test(filePath) ? filePath : `${fileWorkspacePath.replace(/[\\/]+$/, '')}/${filePath}`
+    try { await window.electron.window.openEditor({ filePath: resolvedPath, workspacePath: fileWorkspacePath }) }
     catch (e) { setError(String(e)) }
-  }
+  }, [fileWorkspacePath])
   useLayoutEffect(() => {
     if (terminalHost.current) terminalHost.current.inert = !terminalVisible || !visible || transitioning
     if (conversationHost.current) conversationHost.current.inert = !conversation || !visible || transitioning
@@ -316,11 +333,12 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
       </div>
       <div ref={conversationHost} className={`${styles.conversation} ${modeTransition === 'conversation' ? styles.viewEntering : ''}`} hidden={!conversation} data-empty={empty} data-welcome={showWelcome}>
         <div className={styles.readingArea}>
-        <div className={styles.scroll} ref={scrollRef} role="region" aria-label={t('conversation.history')} tabIndex={0} onScroll={event => {
+        <div className={styles.scroll} {...(historyView ? { inert: '' } : {})} ref={scrollRef} role="region" aria-label={t('conversation.history')} tabIndex={0} onScroll={event => {
           const el = event.currentTarget
           readingTop.current = el.scrollTop
           follow.current = !navigationRef.current?.isLocating() && el.scrollHeight - el.scrollTop - el.clientHeight < 64
           setShowLatest(!follow.current)
+          if (el.scrollTop < 100 && !follow.current && snapshot?.truncated && canReadHistory && !historyView) openHistory()
         }} onBlur={() => {
           if (scrollRef.current) useWorkspaceStore.getState().updateTerminal(terminalId, { conversationScrollTop: scrollRef.current.scrollTop })
         }}>
@@ -329,14 +347,14 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             {showWelcome && <ConversationWelcome brand={identityPreset}
               workspacePath={terminal?.cwd || welcomeWorkspace?.path} workspaceName={welcomeWorkspace?.name}
               loading={starting} active={visible && conversation} />}
-            {snapshot?.truncated && <p className={styles.notice}>{t('conversation.truncated')}</p>}
-            {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} navigationRef={navigationRef} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
+            {snapshot?.truncated && <p className={styles.notice}>{t(canReadHistory ? 'conversation.historyPreview' : 'conversation.truncated')}{canReadHistory && <button type="button" onClick={() => openHistory()}>{t('conversation.loadEarlier')}</button>}</p>}
+            {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} navigationRef={navigationRef} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation && !historyView} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
               const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
               onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                 if (!canSend || working || outgoing.length || busyRef.current) return
                 follow.current = false; setError('')
                 setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
-              } : undefined} /></>}</div>
+              } : undefined} />{fullContent(item)}</>}</div>
               : item.type === 'error' ? <p className={styles.error} key={item.id} role="alert">{item.text}</p>
               : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
                 <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
@@ -351,10 +369,10 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </article>
               : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
                 {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
-                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t('conversation.truncated')}</p>}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
+                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t(canReadHistory ? 'conversation.contentPreview' : 'conversation.truncated')}</p>}{fullContent(item)}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
               </article>
               : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
-                : <ConversationToolCall key={item.id} item={item} openFile={path => void openFile(path)} />)
+                : <div key={item.id}><ConversationToolCall item={item} openFile={path => void openFile(path)} />{fullContent(item)}</div>)
               const turnId = group.items[0].turnId
               const changes = turn.changes
               const lastGroup = turn.groups[groupIndex + 1]?.items[0].turnId !== turnId
@@ -399,11 +417,12 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             {!editing && (error || snapshot?.error) && <ConversationNotice kind={!error && snapshot?.connection === 'disconnected' ? 'connection' : 'error'} message={error || snapshot?.error || ''} />}
           </div>
         </div>
-        {snapshot && visible && conversation && !transitioning && <ConversationNavigation key={terminalId + ':' + snapshot.threadId} items={snapshot.items} scrollRef={scrollRef} navigationRef={navigationRef} following={follow} onNavigate={() => { follow.current = false; setShowLatest(true) }} />}
+        {snapshot && visible && conversation && !transitioning && !historyView && <ConversationNavigation key={terminalId + ':' + snapshot.threadId} items={snapshot.items} scrollRef={scrollRef} navigationRef={navigationRef} following={follow} onNavigate={() => { follow.current = false; setShowLatest(true) }} />}
+        {historyView && historyView.threadId === snapshot?.threadId && historyView.pid === terminal?.pid && visible && conversation && <ConversationHistoryBrowser key={`${terminalId}:${terminal?.pid}:${snapshot.threadId}:${snapshot.controlEpoch}`} terminalId={terminalId} threadId={snapshot.threadId} workspacePath={terminal?.cwd} bookmark={historyView} openFile={openFile} close={closeHistory} />}
         </div>
-        <div className={styles.latestAnchor}>{showLatest && <button type="button" className={styles.latest} aria-label={t('conversation.latest')} title={t('conversation.latest')} onClick={() => {
+        <div className={styles.latestAnchor}>{showLatest && !historyView && <button type="button" className={styles.latest} aria-label={t('conversation.latest')} title={t('conversation.latest')} onClick={() => {
           navigationRef.current?.cancel()
-          follow.current = true; setShowLatest(false)
+          closeHistory()
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
         }}><ArrowDown size={16} aria-hidden="true" /></button>}</div>
         {currentPlan && <div className={styles.planDock}><ConversationPlanPanel key={`${terminalId}:${snapshot?.threadId}:${currentPlan.turnId}`} plan={currentPlan} connection={snapshot!.connection} /></div>}

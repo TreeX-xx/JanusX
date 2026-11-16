@@ -1,7 +1,8 @@
 // Note: OfficeCLI is a bundled asset, not a managed download — see .agents/notes/desktop/officecli-bundled.md
 import { stat } from 'node:fs/promises'
 import { dirname, isAbsolute, resolve } from 'node:path'
-import { execa } from 'execa'
+import { runProcess } from '../platform/process-host'
+import { localSystem } from '../platform/runtime-context'
 import type { OfficecliInfo } from '../../shared/office'
 import { OFFICECLI_BUNDLED_VERSION } from './office-bundled-path'
 
@@ -47,13 +48,11 @@ function boundedRuntimeDiagnostic(result: CommandResult): string {
 
 async function defaultRun(binary: string, args: readonly string[], signal?: AbortSignal): Promise<CommandResult> {
   try {
-    const result = await execa(binary, args, {
-      timeout: PROBE_TIMEOUT_MS,
-      reject: false,
-      windowsHide: true,
-      cancelSignal: signal,
+    const result = await runProcess(binary, args, {
+      timeoutMs: PROBE_TIMEOUT_MS,
+      signal,
     })
-    return { exitCode: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
+    return { exitCode: result.status === 'exited' ? result.exitCode ?? 1 : 1, stdout: result.stdout, stderr: result.stderr, timedOut: result.status === 'timed-out' }
   } catch (error) {
     const failure = error as { exitCode?: number; stdout?: string; stderr?: string; timedOut?: boolean }
     return {
@@ -67,7 +66,7 @@ async function defaultRun(binary: string, args: readonly string[], signal?: Abor
 
 const defaultDependencies: OfficecliManagerDependencies = {
   env: process.env,
-  platform: process.platform,
+  platform: localSystem().platform,
   bundledBinaryPath: undefined,
   isRegularFile: async path => (await stat(path)).isFile(),
   run: defaultRun,

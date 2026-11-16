@@ -12,6 +12,7 @@ import { app } from 'electron'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { isEnvironmentInjectionText } from './transcript-kernel'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
+import { sameRuntimePath, withinRuntimePath } from '../../shared/runtime/path-identity'
 import type {
   AgentSessionDetail,
   AgentSessionStatus,
@@ -29,6 +30,8 @@ export interface AgentSessionRecord extends AgentSessionDetail {
   preset?: string
   command?: string
   args?: string[]
+  /** Effective store at launch; optional for old records, never contains env. */
+  providerStorePath?: string
   lastPrompt: string
   checkpointIds: string[]
 }
@@ -304,6 +307,7 @@ export class AgentSessionRegistry {
     preset?: string
     command?: string
     args?: string[]
+    providerStorePath?: string
     branch?: string
     providerSessionId?: string
     transcriptPath?: string
@@ -327,6 +331,7 @@ export class AgentSessionRegistry {
       preset: input.preset,
       command: input.command,
       args: input.args,
+      providerStorePath: input.providerStorePath,
       firstPrompt: history?.firstPrompt ?? '',
       lastPrompt: history?.lastPrompt ?? '',
       turnCount: history?.turnCount ?? 0,
@@ -357,10 +362,15 @@ export class AgentSessionRegistry {
       branch?: string
       providerSessionId?: string
       transcriptPath?: string
+      providerStorePath?: string
       continuedFrom?: string
     },
   ): AgentSessionRecord {
     let changed = false
+    if (!record.providerStorePath && input.providerStorePath) {
+      record.providerStorePath = input.providerStorePath
+      changed = true
+    }
     if (!record.branch && input.branch) {
       record.branch = input.branch
       changed = true
@@ -523,6 +533,8 @@ export class AgentSessionRegistry {
     if (scanRow.external !== true) return false
     if (hookRow.engine !== scanRow.engine) return false
     if (parseRuntimeResource(hookRow.cwd)?.workspaceId !== parseRuntimeResource(scanRow.cwd)?.workspaceId) return false
+    if (!sameRuntimePath(hookRow.cwd, scanRow.cwd)) return false
+    if (hookRow.transcriptPath && scanRow.transcriptPath && !sameRuntimePath(hookRow.transcriptPath, scanRow.transcriptPath)) return false
     if (hookRow.providerSessionId && hookRow.providerSessionId === scanRow.providerSessionId) {
       return true
     }
@@ -676,7 +688,9 @@ export class AgentSessionRegistry {
     const existing =
       Array.from(this.sessions.values()).find(
         (record) => record.engine === engine && record.providerSessionId === providerSessionId
-          && parseRuntimeResource(record.cwd)?.workspaceId === parseRuntimeResource(cwd)?.workspaceId,
+          && parseRuntimeResource(record.cwd)?.workspaceId === parseRuntimeResource(cwd)?.workspaceId
+          && sameRuntimePath(record.cwd, cwd)
+          && (!record.transcriptPath || sameRuntimePath(record.transcriptPath, transcriptPath)),
       ) ??
       // A hook-owned row may know the transcript before it learns the provider
       // id, or never learn it at all. Match on either shared key so the same
@@ -769,6 +783,9 @@ export class AgentSessionRegistry {
       return existing
     }
 
+    const conflicts = [...this.sessions.values()].filter(record => record.engine === engine && record.providerSessionId === providerSessionId
+      && parseRuntimeResource(record.cwd)?.workspaceId === parseRuntimeResource(cwd)?.workspaceId)
+    for (const record of conflicts) record.identityConflict = true
     const record: AgentSessionRecord = {
       id: randomUUID(),
       workspaceId: input.workspaceId ?? '',
@@ -820,6 +837,7 @@ export class AgentSessionRegistry {
       updatedAt,
       archived: false,
       external: true,
+      ...(conflicts.length ? { identityConflict: true } : {}),
     }
     this.updateTranscriptProjection(record, input, updatedAt, turnCount)
     this.sessions.set(record.id, record)
@@ -948,6 +966,7 @@ function toSummary(record: AgentSessionRecord): AgentSessionSummary {
     checkpointCount: record.checkpointIds.length,
     status: toStatus(record),
     providerSessionId: record.providerSessionId,
+    ...(record.identityConflict ? { identityConflict: true } : {}),
     transcriptPath: record.transcriptPath,
     continuedFrom: record.continuedFrom,
     createdAt: record.createdAt,
@@ -957,11 +976,6 @@ function toSummary(record: AgentSessionRecord): AgentSessionSummary {
   }
 }
 
-function normalizeCwd(value: string): string {
-  if (parseRuntimeResource(value)) return value.replace(/\/+$/g, '')
-  return value.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
-}
-
 /**
  * Exact match still wins; external sessions may live under a child path of a
  * workspace scope, so fall back to a path-boundary prefix after normalizing
@@ -969,12 +983,7 @@ function normalizeCwd(value: string): string {
  * directory sharing a name prefix must never leak into the scope.
  */
 function matchesCwdScope(recordCwd: string, scopeCwd: string): boolean {
-  if (recordCwd === scopeCwd) return true
-  const record = normalizeCwd(recordCwd)
-  const scope = normalizeCwd(scopeCwd)
-  if (!record || !scope) return false
-  if (record === scope) return true
-  return record.startsWith(`${scope}/`)
+  return withinRuntimePath(recordCwd, scopeCwd)
 }
 
 function toStatus(record: AgentSessionRecord): AgentSessionStatus {

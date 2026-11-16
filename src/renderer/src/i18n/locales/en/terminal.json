@@ -261,6 +261,8 @@
     "copied": "Copied",
     "detailHint": "{{count}} turns · read the full conversation in the detail window",
     "externalHint": "External session from a terminal outside JanusX; its transcript is read-only.",
+    "identityConflict": "Conflicting history ID",
+    "identityConflictHint": "Multiple history files share this session ID and have been kept separately. Review the original files before continuing from a terminal.",
     "resumeCopy": "Copy resume command",
     "resumeUnavailable": "Resume is not supported for this engine yet.",
     "resume": "Resume",
@@ -649,6 +651,25 @@
       "failed": "Command discovery failed. Refresh to retry.",
       "terminalRun": "Run in the native terminal and continue any interaction there",
       "accepted": "Native accepted: {{command}}"
-    }
+    },
+    "historyPreview": "Recent content is shown here. Scroll up to load earlier history.",
+    "contentPreview": "This content is a preview.",
+    "loadEarlier": "Load earlier content",
+    "loadNewer": "Load newer content",
+    "readFullContent": "Read full content",
+    "fullHistory": "Conversation history",
+    "fullContent": "Full content",
+    "historyLatest": "Back to latest",
+    "historyBack": "Back to history",
+    "historyLoading": "Loading history",
+    "historyRetry": "Retry",
+    "historyBeginning": "Beginning of conversation",
+    "historyUnavailable": "Native history pagination is unavailable. Retry or check the native CLI version.",
+    "historyUser": "You",
+    "historyAgent": "Codex",
+    "historyActivity": "Activity",
+    "previousContent": "Previous section",
+    "nextContent": "Next section",
+    "contentRange": "{{start}}–{{end}} / {{total}} characters"
   }
 }

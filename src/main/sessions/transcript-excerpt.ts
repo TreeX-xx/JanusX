@@ -6,6 +6,7 @@ import { basename, join } from 'node:path'
 import { AGENT_ENGINE_CAPABILITIES, resolveSessionStorePath } from '../notifications/agent-engine-capabilities'
 import type { AgentHookSource } from '../notifications/agent-hook-types'
 import { readTranscriptSnapshot } from './transcript-snapshot'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 
 // Bounded read: backward chunk reads with a hard cap; full history never loads.
 const TRANSCRIPT_TAIL_BYTES = 64 * 1024
@@ -29,7 +30,7 @@ function truncate(text: string): string {
 }
 
 function normalizePath(value?: string): string | undefined {
-  const normalized = value?.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase()
+  const normalized = value ? runtimePathKey(value) : undefined
   return normalized || undefined
 }
 

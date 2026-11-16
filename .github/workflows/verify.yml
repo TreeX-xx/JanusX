@@ -52,6 +52,10 @@ jobs:
 
       # 下述步骤与 package.json 的 verify 同序，拆步只为失败归因；
       # 改链时以 package.json 为准并同步此处。
+      - name: Runtime boundaries
+        working-directory: JanusX
+        run: npm run check:runtime-boundaries
+
       - name: Theme check
         working-directory: JanusX
         run: npm run theme:check

@@ -9,9 +9,10 @@ import { launchTerminalPreset } from '@/lib/terminal-launch'
 import type { TerminalPreset } from '@/types'
 import { usePluginSnapshot } from './plugin-runtime'
 import styles from './PluginWorkspaceHandoffHost.module.css'
+import { runtimePathKey } from '../../../shared/runtime/path-identity'
 
 interface Draft { pluginId: string; name: string; projectId: string; root: string; text: string }
-const canonical = (path: string) => window.electron.platform === 'win32' ? path.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase() : path.replace(/\/+$/, '')
+const canonical = runtimePathKey
 function currentProject(projectId: string, root: string) {
   const state = useWorkspaceStore.getState(), workspace = state.workspaces.find(item => item.id === projectId)
   const path = useWorktreeStore.getState().activePaths[projectId] ?? workspace?.path

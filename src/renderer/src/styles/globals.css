@@ -31,6 +31,15 @@ body.desktop-toast-body {
 
 /* 文本选中颜色走主题 definition（::selection，见 themes.generated.css） */
 
+/* Shared, subdued focus cues for native conversation and SuperAgent inputs. */
+:root {
+  --conversation-input-font-size: 13px;
+  --conversation-input-line-height: 1.85;
+  --conversation-focus-ring: color-mix(in srgb, var(--shell-muted) 30%, transparent);
+  --conversation-focus-border: color-mix(in srgb, var(--shell-muted) 30%, var(--shell-border));
+  --conversation-focus-shadow: color-mix(in srgb, var(--shell-text) 5%, transparent);
+}
+
 /* 输入提示色走主题 dim 令牌：行内样式输入（会话搜索、Git 提交框、文件树搜索等）
    没有自己的 ::placeholder 声明时会吃到 Tailwind preflight 的冷灰 #9ca3af，
    落在纸面主题上发白难读；这里统一兜底。已有类级声明的

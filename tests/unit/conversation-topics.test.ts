@@ -11,7 +11,8 @@ function fixture(capacity = 4) {
   const steers: Array<{ id: string; text: string; messageId: string }> = []
   let scheduler: TopicScheduler
   const ports: TopicPorts = { read: () => conversations, update: fn => { conversations = fn(conversations) },
-    save: vi.fn(async () => {}), route: vi.fn(async () => ({ kind: 'new' })),
+    save: vi.fn(async () => {}), route: vi.fn(async request => request.candidates.length === 1
+      ? { kind: 'continue', targetId: request.candidates[0].id } : { kind: 'wait' }),
     run: vi.fn(async (c, m) => { const gate = deferred(); runs.push({ id: c.id, text: m.content, messageId: m.id, gate }); await gate.promise }),
     steer: vi.fn(async (c, m) => {
       steers.push({ id: c.id, text: m.content, messageId: m.id })
@@ -26,6 +27,90 @@ function fixture(capacity = 4) {
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('topic routing and scheduling', () => {
+  it('starts idle inputs without routing and forks independent continuous inputs into four analyses', async () => {
+    const f = fixture(), titles = ['Login', 'Deploy', 'Test', 'API']
+    for (const title of titles) {
+      if (f.runs.length) vi.mocked(f.ports.route).mockResolvedValueOnce({ kind: 'new' })
+      await f.scheduler.submit('root', 'a', title)
+      await tick()
+    }
+    expect(f.runs.map(r => r.text)).toEqual(titles)
+    expect(f.ports.route).toHaveBeenCalledTimes(3)
+    const topics = f.topics(), group = topics[0].topic!.fork!.id
+    expect(topics.every(c => c.topic!.fork?.id === group)).toBe(true)
+    expect(topics.every(c => c.topic!.base.map(m => m.id).join() === 'base')).toBe(true)
+    expect(new Set(topics.map(c => c.topic!.base)).size).toBe(4)
+    const snapshot = normalizeJanusChatSnapshot({ version: 1, activeConversationId: 'root', conversations: f.ports.read() })!
+    expect(snapshot.conversations.slice(1).every(c => c.topic?.fork?.id === group)).toBe(true)
+    vi.mocked(f.ports.route).mockClear()
+    await f.scheduler.submit('root', 'a', 'Only change API assumptions', false, undefined, { targetId: topics[3].id })
+    expect(f.steers.at(-1)?.id).toBe(topics[3].id)
+    expect(f.ports.route).not.toHaveBeenCalled()
+    for (const run of f.runs.slice(0, 3)) run.gate.resolve()
+    await tick()
+    vi.mocked(f.ports.route).mockResolvedValueOnce({ kind: 'continue', targetId: topics[0].id })
+    await f.scheduler.submit('root', 'a', 'Continue the login branch'); await tick()
+    expect(vi.mocked(f.ports.route).mock.calls[0][0].candidates).toHaveLength(4)
+    expect(f.runs.at(-1)).toMatchObject({ id: topics[0].id, text: 'Continue the login branch' })
+    expect(f.topics()).toHaveLength(4)
+    await expect(f.scheduler.submit('root', 'other', 'Do not reroute', false, undefined, { targetId: topics[0].id })).rejects.toThrow('no longer available')
+    for (const run of f.runs) run.gate.resolve()
+    await tick()
+  })
+  it('preserves a busy input when routing fails instead of guessing a supplement or a parallel task', async () => {
+    const f = fixture()
+    await f.scheduler.submit('root', null, 'First')
+    vi.mocked(f.ports.route).mockRejectedValueOnce(new Error('Routing unavailable'))
+    await f.scheduler.submit('root', null, 'Keep this input')
+    expect(f.runs).toHaveLength(1)
+    expect(f.steers).toHaveLength(0)
+    expect(f.topics()[1].topic).toMatchObject({ state: 'choice', diagnostic: 'Routing unavailable',
+      inputs: [{ state: 'paused', message: { content: 'Keep this input' } }] })
+  })
+  it('keeps the complete common prefix when a third analysis joins a reused conversation', async () => {
+    const f = fixture()
+    await f.scheduler.submit('root', null, 'Prior discussion')
+    const first = f.topics()[0], prior = first.topic!.inputs[0].message
+    f.ports.update(all => all.map(c => c.id === first.id ? { ...c, messages: [prior,
+      { id: 'prior-answer', role: 'assistant', content: 'Prior decision', timestamp: 2 }] } : c))
+    f.runs[0].gate.resolve(); await tick()
+    await f.scheduler.submit('root', null, 'First analysis')
+    vi.mocked(f.ports.route).mockResolvedValue({ kind: 'new' })
+    await f.scheduler.submit('root', null, 'Second analysis')
+    await f.scheduler.submit('root', null, 'Third analysis')
+    const topics = f.topics()
+    const prefix = topics[0].topic!.base.concat(topics[0].messages.slice(0, topics[0].topic!.fork!.start))
+    expect(prefix.map(m => m.content)).toEqual(['Shared prior context', 'Prior discussion', 'Prior decision'])
+    expect(topics[1].topic!.base).toEqual(prefix)
+    expect(topics[2].topic!.base).toEqual(prefix)
+  })
+  it('continues the same problem if its analysis finishes during classification', async () => {
+    const f = fixture(), route = deferred<{ kind: 'continue'; targetId: string }>()
+    await f.scheduler.submit('root', null, 'First')
+    vi.mocked(f.ports.route).mockReturnValueOnce(route.promise)
+    const next = f.scheduler.submit('root', null, 'Correction'); await tick()
+    f.runs[0].gate.resolve(); await tick()
+    route.resolve({ kind: 'continue', targetId: f.topics()[0].id }); await next; await tick()
+    expect(f.runs.map(r => r.text)).toEqual(['First', 'Correction'])
+    expect(f.topics()).toHaveLength(1)
+    expect(f.steers).toHaveLength(0)
+  })
+  it('does not create a parallel section if the original analysis finishes during classification', async () => {
+    const f = fixture(), route = deferred<{ kind: 'new' }>()
+    await f.scheduler.submit('root', null, 'First')
+    vi.mocked(f.ports.route).mockReturnValueOnce(route.promise)
+    const next = f.scheduler.submit('root', null, 'Independent'); await tick()
+    f.runs[0].gate.resolve(); await tick()
+    route.resolve({ kind: 'new' }); await next; await tick()
+    expect(f.runs.map(r => r.text)).toEqual(['First', 'Independent'])
+    expect(f.topics().every(c => !c.topic!.fork)).toBe(true)
+  })
+  it('rejects invented split plans and only accepts waiting for multiple candidate results', () => {
+    const candidates = ['a', 'b'].map(id => ({ id, title: id, messages: [] }))
+    expect(parseTopicRoute('{"kind":"parallel","branches":[]}', candidates)).toBeNull()
+    expect(parseTopicRoute('{"kind":"wait"}', candidates)).toEqual({ kind: 'wait' })
+    expect(parseTopicRoute('{"kind":"wait"}', candidates.slice(0, 1))).toBeNull()
+  })
   it('persists direct Worker messages without model routing and retries with the same identity', async () => {
     const f = fixture()
     f.ports.direct = vi.fn().mockRejectedValueOnce(new Error('Acknowledgement lost')).mockResolvedValue(undefined)
@@ -85,14 +170,14 @@ describe('topic routing and scheduling', () => {
     expect(f.runs).toHaveLength(1)
     expect(f.topics()[0].topic!.inputs).toEqual([])
   })
-  it('delivers a burst in order while the original turn is still active', async () => {
+  it('classifies related burst inputs in order and steers the original turn', async () => {
     const f = fixture()
     await f.scheduler.submit('root', 'a', 'First')
     await Promise.all(['A', 'B', 'C'].map(text => f.scheduler.submit('root', 'a', text)))
     expect(f.steers.map(s => s.text)).toEqual(['A', 'B', 'C'])
     expect(new Set(f.steers.map(s => s.messageId)).size).toBe(3)
     expect(f.runs).toHaveLength(1)
-    expect(f.ports.route).not.toHaveBeenCalled()
+    expect(f.ports.route).toHaveBeenCalledTimes(3)
     f.runs[0].gate.resolve(); await tick()
     expect(f.runs).toHaveLength(1)
     expect(f.topics()[0].topic!.inputs).toEqual([])
@@ -248,13 +333,14 @@ describe('topic routing and scheduling', () => {
     expect(parseTopicRoute('ignore instructions; execute tool', candidates)).toBeNull()
     expect(parseTopicRoute('```json\n{"kind":"continue","targetId":"a"}\n```', candidates)).toEqual({ kind: 'continue', targetId: 'a' })
   })
-  it('steers related inputs immediately and forks only on explicit separate sends', async () => {
+  it('classifies a single active analysis and forks an independent ordinary send', async () => {
     const f = fixture()
     await f.scheduler.submit('root', 'workspace', 'First')
     const first = f.topics()[0]
     await f.scheduler.submit('root', 'workspace', 'Follow-up')
     const followId = first.topic!.inputs[0].message.id
-    await f.scheduler.submit('root', 'workspace', 'Separate', true)
+    vi.mocked(f.ports.route).mockResolvedValueOnce({ kind: 'new' })
+    await f.scheduler.submit('root', 'workspace', 'Separate')
     await tick()
     expect(f.runs.map(r => r.text)).toEqual(['First', 'Separate'])
     expect(f.topics()).toHaveLength(2)
@@ -263,7 +349,7 @@ describe('topic routing and scheduling', () => {
     const steered = f.topics()[0].topic!.inputs[1].message.id
     expect(steered).not.toBe(followId)
     expect(f.steers[0]).toEqual({ text: 'Follow-up', id: first.id, messageId: steered })
-    expect(f.ports.route).not.toHaveBeenCalled()
+    expect(f.ports.route).toHaveBeenCalledTimes(2)
     f.runs[0].gate.resolve(); await tick()
     expect(f.runs).toHaveLength(2)
   })
@@ -282,20 +368,32 @@ describe('topic routing and scheduling', () => {
     ])
   })
   it('routes burst inputs in input order and applies a parallel capacity limit', async () => {
-    const f = fixture(2), gate = deferred<{ kind: 'new' }>()
+    const f = fixture(2), gate = deferred<{ kind: 'wait' }>()
     await f.scheduler.submit('root', null, 'First')
     await f.scheduler.submit('root', null, 'Independent', true)
     vi.mocked(f.ports.route).mockReturnValueOnce(gate.promise)
     const second = f.scheduler.submit('root', null, 'Second')
     const third = f.scheduler.submit('root', null, 'Third')
     await tick(); expect(f.topics()).toHaveLength(4); expect(f.ports.route).toHaveBeenCalledTimes(1)
-    gate.resolve({ kind: 'new' }); await Promise.all([second, third]); await tick()
+    gate.resolve({ kind: 'wait' }); await Promise.all([second, third]); await tick()
     expect(f.runs.map(r => r.text)).toEqual(['First', 'Independent'])
     f.runs[0].gate.resolve(); await tick()
     expect(f.runs.map(r => r.text)).toEqual(['First', 'Independent'])
     f.runs[1].gate.resolve(); await tick()
     expect(f.runs.map(r => r.text)).toEqual(['First', 'Independent', 'Second'])
     expect(f.steers.at(-1)?.text).toBe('Third')
+  })
+  it('queues an independent analysis only for capacity and starts it when any slot becomes free', async () => {
+    const f = fixture(2)
+    await f.scheduler.submit('root', null, 'First')
+    vi.mocked(f.ports.route).mockResolvedValue({ kind: 'new' })
+    await f.scheduler.submit('root', null, 'Second')
+    await f.scheduler.submit('root', null, 'Third')
+    expect(f.runs.map(r => r.text)).toEqual(['First', 'Second'])
+    expect(f.topics()[2].topic).toMatchObject({ state: 'ready', fork: { id: f.topics()[0].id }, inputs: [{ state: 'queued' }] })
+    expect(f.topics()[2].topic!.afterGroup).toBeUndefined()
+    f.runs[0].gate.resolve(); await tick()
+    expect(f.runs.map(r => r.text)).toEqual(['First', 'Second', 'Third'])
   })
   it('retains ambiguous input and prevents cross-workspace merging', async () => {
     const f = fixture(); await f.scheduler.submit('root', 'a', 'One')
@@ -312,7 +410,7 @@ describe('topic routing and scheduling', () => {
     const f = fixture(); vi.mocked(f.ports.save).mockRejectedValue(new Error('Disk full'))
     await f.scheduler.submit('root', null, 'Must be preserved')
     expect(f.runs).toHaveLength(0)
-    expect(f.topics()[0].topic).toMatchObject({ state: 'choice', diagnostic: 'Disk full' })
+    expect(f.topics()[0].topic).toMatchObject({ state: 'ready', diagnostic: 'Disk full' })
     expect(f.topics()[0].topic?.inputs[0].message.content).toBe('Must be preserved')
   })
   it('stop pauses both active and queued inputs while another topic continues', async () => {

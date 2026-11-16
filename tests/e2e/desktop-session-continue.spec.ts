@@ -76,6 +76,11 @@ function fixtureEnv(fixtureRoot: string, binDir: string): NodeJS.ProcessEnv {
       return true
     })
   env[pathKey] = [binDir, ...cleaned].join(';')
+  // Removing a fixture CLI must leave it absent, including known-directory
+  // fallbacks outside PATH; never launch the developer's global installation.
+  env.APPDATA = join(fixtureRoot, 'appdata')
+  env.LOCALAPPDATA = join(fixtureRoot, 'localappdata')
+  env.ProgramFiles = join(fixtureRoot, 'program-files')
   env.CLAUDE_CONFIG_DIR = join(fixtureRoot, '.claude')
   env.CODEX_HOME = join(fixtureRoot, '.codex')
   env.XDG_DATA_HOME = join(fixtureRoot, '.local', 'share')

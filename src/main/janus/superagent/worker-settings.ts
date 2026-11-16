@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises'
+import { runtimeCapability } from '../../../shared/runtime/capabilities'
+import { localRuntimeContext } from '../../platform/runtime-context'
 import { join } from 'node:path'
 import { SerialQueue, writeFileAtomic } from '../../lib/atomic-file'
 import { CodexConversation, ManagedInputDeferred } from '../../terminal/codex-conversation'
@@ -104,6 +106,8 @@ export class WorkerSettingsEngine implements ManagedWorkerEngine {
   command(...args: Parameters<ManagedWorkerEngine['command']>) { return this.engine.command(...args) }
   dispose() { this.disposed = true; return this.engine.dispose() }
   async startManaged(options: Parameters<ManagedWorkerEngine['startManaged']>[0]) {
+    const capability = runtimeCapability('managed-worker', this.backend(), localRuntimeContext().identity)
+    if (capability.status !== 'available') throw new Error(capability.message)
     const defaults = await this.defaults.get(this.backend())
     if (this.disposed) throw new Error('Worker is unavailable')
     const previous = options.threadId ? this.sessions?.get(this.backend() + ':' + options.threadId) : undefined

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 const context = vi.hoisted(() => ({ homeDir: '' }))
 vi.mock('os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('os')>()
-  return { ...actual, default: { ...actual.default, homedir: () => context.homeDir } }
+  return { ...actual, homedir: () => context.homeDir, default: { ...actual.default, homedir: () => context.homeDir } }
 })
 const { getRuntimeTelemetrySnapshot } = await import('../../src/main/runtime-telemetry/history')
 const { UsageLedger } = await import('../../src/main/runtime-telemetry/usage-ledger')
@@ -17,8 +17,11 @@ function createLedger(...args: ConstructorParameters<typeof UsageLedger>) {
   openLedgers.push(value)
   return value
 }
-beforeEach(async () => { context.homeDir = await mkdtemp(join(tmpdir(), 'janusx-usage-source-')) })
-afterEach(async () => { for (const value of openLedgers.splice(0)) value.close(); await rm(context.homeDir, { recursive: true, force: true }) })
+beforeEach(async () => {
+  for (const key of ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'PI_CODING_AGENT_DIR', 'PI_CODING_AGENT_SESSION_DIR']) vi.stubEnv(key, undefined)
+  context.homeDir = await mkdtemp(join(tmpdir(), 'janusx-usage-source-'))
+})
+afterEach(async () => { vi.unstubAllEnvs(); for (const value of openLedgers.splice(0)) value.close(); await rm(context.homeDir, { recursive: true, force: true }) })
 const now = () => new Date().toISOString()
 const claude = (id: string, input: number, extra: object = {}) => ({ timestamp: now(), sessionId: 's1', message: { id, role: 'assistant', stop_reason: 'end_turn', model: 'm', usage: { input_tokens: input, output_tokens: 0, cache_read_input_tokens: 0 } }, ...extra })
 

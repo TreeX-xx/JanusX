@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-11-06",
-  "updated": "2026-11-14T01:55:52.098Z",
+  "updated": "2026-11-16T06:38:29Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -21,7 +21,10 @@
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/janus/superagent/context-store.ts", "role": "implementation" },
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/janus/superagent/chat-tools.ts", "role": "entry" },
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/janus/superagent/workers.ts", "role": "entry" },
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/superagent-context.test.ts", "role": "test" }
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/superagent-context.test.ts", "role": "test" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/llm/chat-orchestrator.ts", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/managed-chat-session.test.ts", "role": "test" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/llm/chat-turn-guard.test.ts", "role": "test" }
   ]
 }
 ---
@@ -71,6 +74,12 @@ Janus 资源页随模型剩余空间缩小，普通材料能放下时完整返�
 真实 Codex 0.166.0 检查发现：直接返回 48,000 字符会在原生 MCP 输出处理处再次缩短长字符串，范围字段却保持原值。现在仅在新建的 `janus_worker.read_work/read_resource` 上声明与传输匹配的原生输出上限，保留更小的既有 `tool_output_token_limit`，并以实际 JSON／UTF-8 序列化字节数缩小页正文、重算范围。没有修改用户配置文件或外部 Codex 的全会话窗口。单工具输出设置的接口依据见[官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)，兼容结论以真实版本和哈希验证为准。
 
 共享 janus-agentX 的 ManagedChatSession 压缩时保留资源／工作／输入／报告身份、版本及范围，失败保持原文与原视图。摘要批次和输出按请求真实预算分配，移除 6000／2000 的固定分块。同一 1M 窗口 fixture 的摘要调用从 21 次降到 1 次，这是调用数回归，不是云模型耗时承诺。共享源码通过固定六包归档交付，node_modules 不作为修改源。
+
+2026-11-16摘要恢复修复将摘要生成额度与压缩后的可用空间统一：摘要独立上限为模型输出上限、4096 token及实际余量的最小值，正文目标留25%余量；正常回答仍使用自己的模型输出额度。选择待压缩历史时同时核算保留内容、精确引用与摘要预留，不能只在固定占比处停止。摘要请求按独立额度预留输出、前次摘要、格式提示和纠正反馈，不受普通回答的大输出预留挤占。
+
+摘要返回允许兼容旧字符串或携带text／finishReason。只规范化已识别的中文章节和外层Markdown围栏，不补造缺失事实；空输出、缺章节、估算超长、生成达到输出上限分别诊断。校验失败最多纠正一次，反馈具体原因并降低正文目标；截断结果即使含必需标题也不提交。全部批次验证通过后才保存检查点，后续失败保留上次成功检查点、原消息和精确引用，取消不再继续请求。若必要内容和引用仍无法留出最小摘要空间，直接报告输入预算、保留内容、引用与摘要余量，不重复请求或暗中删除材料。
+
+桌面聊天与原生插件Agent均传递摘要专用输出额度和结束原因。交付基于原固定构建1f045892a8b95cce，仅覆盖chat-core的managed-chat-session、chat-session-runtime及新增compaction-summary编译产物；其余包只更新统一版本与内部依赖。当前固定构建为d61fe00183e9ffdb，变更及基底清单在`artifacts/compaction-recovery/engine-overlay.json`，没有把相邻引擎工作区的其他未完成修改纳入运行包。
 
 ## Alternatives considered
 

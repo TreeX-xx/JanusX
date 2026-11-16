@@ -1,9 +1,10 @@
+import { isExternalWorkspaceRuntime } from '../../shared/workspace-runtime'
 import { randomUUID } from 'node:crypto'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { workspaceIo } from '@janus-agent/agent-core'
 import { projectWorkspace, validateRuntime, runtimeRequest } from '../workspace/runtime'
 import { workspaceFileIpc } from '../workspace/runtime-ipc'
-import { spawn } from 'node:child_process'
+import { spawnProcess as spawn } from '../platform/process-host'
 import { getGitIgnoredPaths } from './file-tree-ignore'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { watch, type FSWatcher } from 'node:fs'
@@ -415,7 +416,7 @@ export function registerWorkspaceHandlers(
   })
 
   ipcMain.handle(WORKSPACE_CHANNELS.create, async (event, dto: WorkspaceCreateInput) => workspaceIo.run(STORAGE_LANE, async () => {
-    const runtime = dto.runtime && dto.runtime.kind !== 'windows' ? validateRuntime(dto.runtime) : undefined
+    const runtime = isExternalWorkspaceRuntime(dto.runtime) ? validateRuntime(dto.runtime) : undefined
     if (runtime) {
       const info = await runtimeRequest<{ isDirectory: boolean }>(runtime, 'fs.stat', { root: runtime.root })
       if (!info.isDirectory) throw new Error('Select a Linux project directory')

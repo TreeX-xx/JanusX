@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import type { TranscriptTurn } from '../../shared/ipc/session'
 import { kernelMessagesFromRecords, parseJsonLine, type KernelMessage, type TranscriptKernelEngine } from './transcript-kernel'
+import { sessionReadFailure, type SessionReadIssue } from './read-issue'
 
 export const SNAPSHOT_TURN_CAP = 100
 export const SNAPSHOT_TEXT_CAP = 200_000
@@ -77,6 +78,7 @@ export async function readTranscriptSnapshot(
   path: string,
   engine: TranscriptKernelEngine,
   keepTurns = SNAPSHOT_TURN_CAP,
+  onIssue?: (reason: SessionReadIssue['reason']) => void,
 ): Promise<TranscriptSnapshot | null> {
   try {
     const info = await stat(path)
@@ -90,9 +92,14 @@ export async function readTranscriptSnapshot(
     let createdAt: string | undefined
     let title: string | undefined
     let customTitle: string | undefined
+    let parsedRecords = 0, knownRecords = 0
     const consume = (line: Buffer) => {
       const record = parseJsonLine(line.toString('utf8'))
       if (!record) return
+      parsedRecords++
+      if (engine === 'codex' ? ['session_meta', 'turn_context', 'response_item', 'event_msg'].includes(String(record.type))
+        : engine === 'pi' ? ['session', 'session_info', 'message'].includes(String(record.type))
+          : ['user', 'assistant', 'system', 'custom-title', 'ai-title'].includes(String(record.type))) knownRecords++
       // Provider-authored titles are metadata, never conversation turns.
       if (engine === 'claude') {
         if (record.type === 'custom-title') customTitle = string(record.customTitle) ?? customTitle
@@ -158,13 +165,16 @@ export async function readTranscriptSnapshot(
     if (!skipping && bytes) consume(Buffer.concat(parts, bytes))
     const collector = engine === 'codex' && !hasSource ? mirror : source
     collector.finish()
+    if (!parsedRecords) onIssue?.('corrupt')
+    else if (!knownRecords) onIssue?.('unsupported-schema')
     return {
       providerSessionId, cwd, createdAt, updatedAt: new Date(info.mtimeMs).toISOString(),
       firstPrompt: collector.firstPrompt, title: customTitle ?? title, lastExcerpt: collector.lastExcerpt,
       totalTurns: collector.totalTurns, turns: collector.turns,
       truncated: dropped || collector.truncated,
     }
-  } catch {
+  } catch (error) {
+    onIssue?.(sessionReadFailure(error))
     return null
   }
 }
