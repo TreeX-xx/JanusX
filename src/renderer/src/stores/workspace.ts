@@ -102,7 +102,8 @@ type TerminalLookupState = {
   terminalSnapshots: Record<string, TerminalSnapshot>
 }
 
-function findTerminalInState(state: TerminalLookupState, terminalId: string): Terminal | null {
+// Cross-workspace pane lookup: .agents/notes/workbench/terminal-dialog-dual-mode.md
+export function findTerminalInState(state: TerminalLookupState, terminalId: string): Terminal | null {
   const activeTerminal = state.terminals.find((item) => item.id === terminalId)
   if (activeTerminal) return activeTerminal
 

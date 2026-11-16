@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-15T15:56:45Z",
+  "updated": "2026-11-16T07:53:53Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -18,6 +18,12 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## 跨工作区分屏的对话草稿
+
+跨工作区分屏保留终端在所属工作区的 `terminalSnapshots` 中，不把它复制进当前工作区的 `terminals`。输入框订阅、终端身份读取、发送和失败消息恢复共用 `workspace.ts` 的 `findTerminalInState`，先查当前终端，再查工作区快照。发送在操作瞬间同步读取最新草稿，避免连续回车重复发送；恢复消息追加到该终端现有草稿，保留用户新输入的文字。
+
+回归入口为 `tests/e2e/conversation-cross-workspace.spec.ts`，使用两个分屏，其中外部终端仅存在于所属工作区快照，覆盖回车与按钮发送、当前工作区草稿隔离，以及失败消息恢复时保留新草稿。浏览器夹具验证前端到发送 IPC 调用的链路，不代表真实模型或桌面拖拽验收。
 
 ## 后续共用界面提案
 

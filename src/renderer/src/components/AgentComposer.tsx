@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
-import { useWorkspaceStore } from '../stores/workspace'
+import { findTerminalInState, useWorkspaceStore } from '../stores/workspace'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ArrowUp, Check, ChevronDown, Search, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap, type LucideIcon } from 'lucide-react'
 import { parseConversationSlashCommand, type ConversationCommand, type ConversationSnapshot } from '../../../shared/conversation-display'
@@ -34,8 +34,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   changeMode(mode: 'terminal' | 'conversation'): Promise<void>
 }) {
   const { t } = useTranslation('terminal')
-  const draft = useWorkspaceStore(state => (state.terminals.find(item => item.id === terminalId)
-    ?? Object.values(state.terminalSnapshots).flatMap(entry => entry.terminals).find(item => item.id === terminalId))?.conversationDraft ?? '')
+  const draft = useWorkspaceStore(state => findTerminalInState(state, terminalId)?.conversationDraft ?? '')
   const activeReferences = activeConversationReferences(draft, references)
   const hasDraft = Boolean(draft.trim() || activeReferences.length)
   const localHistory = useConversationInputHistory(state => state.entries[historyScope])

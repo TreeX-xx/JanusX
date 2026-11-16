@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { Clock, LoaderCircle, CircleAlert, Undo2, Trash2, ArrowDown, Check, ShieldCheck, TerminalSquare, MessageSquare } from 'lucide-react'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../../shared/conversation-display'
-import { useWorkspaceStore } from '@/stores/workspace'
+import { findTerminalInState, useWorkspaceStore } from '@/stores/workspace'
 import { useRightToolStore } from '@/stores/right-tools'
 import { useConversationOutbox, bindConversationOutbox, conversationOutbox, enqueueConversationMessage, observeConversationOutbox, removeOutgoingMessage } from '@/stores/conversation-outbox'
 import { WorkDisclosure } from './chat/WorkDisclosure'
@@ -72,8 +72,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   // Draft changes belong to AgentComposer; do not subscribe the history tree to them.
   // Contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
   const terminal = useWorkspaceStore(useShallow(s => {
-    const row = s.terminals.find(item => item.id === terminalId)
-      ?? Object.values(s.terminalSnapshots).flatMap(entry => entry.terminals).find(item => item.id === terminalId)
+    const row = findTerminalInState(s, terminalId)
     return row && { pid: row.pid, cwd: row.cwd, workspaceId: row.workspaceId, preset: row.preset,
       conversationInitialView: row.conversationInitialView, conversationScrollTop: row.conversationScrollTop }
   }))
@@ -240,7 +239,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const send = async (delivery?: 'queue' | 'steer') => {
     if (editing || !canEnqueue || !snapshot || busyRef.current || switchLocked.current) return
     // Read synchronously: a second Enter before React renders must not send the old draft again.
-    const text = useWorkspaceStore.getState().terminals.find(item => item.id === terminalId)?.conversationDraft ?? ''
+    const text = findTerminalInState(useWorkspaceStore.getState(), terminalId)?.conversationDraft ?? ''
     const refs = activeConversationReferences(text, useConversationContext.getState().entries[terminalId] ?? [])
     const prompt = conversationPrompt(text, refs)
     if (prompt.length > 32000) { setError(t('conversation.context.tooLong')); return }
@@ -375,7 +374,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 <span title={t(`conversation.delivery.${item.status}`)} aria-label={t(`conversation.delivery.${item.status}`)} role="img">{item.status === 'queued' ? <Clock size={14} /> : item.status === 'sending' ? <LoaderCircle size={14} /> : item.status === 'accepted' ? <Check size={14} /> : <CircleAlert size={14} />}</span>
                 {(item.status === 'queued' || item.status === 'failed') && <button type="button" title={t('conversation.delivery.restore')} aria-label={t('conversation.delivery.restore')} onClick={() => {
                   if (references.length + (item.references?.filter(ref => !references.some(old => old.id === ref.id)).length ?? 0) > MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
-                  const draft = useWorkspaceStore.getState().terminals.find(terminal => terminal.id === terminalId)?.conversationDraft ?? ''
+                  const draft = findTerminalInState(useWorkspaceStore.getState(), terminalId)?.conversationDraft ?? ''
                   setDraft(draft ? `${draft}\n\n${item.draftText ?? item.text}` : item.draftText ?? item.text)
                   if (item.references?.length) setConversationReferences(terminalId, current => [...current, ...item.references!.filter(ref => !current.some(old => old.id === ref.id))])
                   removeOutgoingMessage(terminalId, item.id); inputRef.current?.focus()
