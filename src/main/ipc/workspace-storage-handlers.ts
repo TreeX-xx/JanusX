@@ -36,6 +36,18 @@ export async function syncWorkspaceStorageRecords(): Promise<void> {
   requestWorkspaceMaintenance()
 }
 
+/** Git deletion and application data have separate owners; bridge their lifecycle explicitly. */
+export async function detachDeletedWorktreeData(paths: string[]): Promise<void> {
+  const store = workspaceStateStore()
+  await workspaceIo.run(store.root, async () => {
+    const current = await localRecords()
+    for (const item of await store.data(current)) {
+      if (!item.workspaceIds.length && paths.some(path => pathKey(path) === pathKey(item.path)) && item.actions.detach) await store.detach(item.id, current)
+    }
+  })
+  requestWorkspaceMaintenance()
+}
+
 async function saveRecord(workspace: Workspace): Promise<void> {
   const path = join(app.getPath('userData'), 'janusx', 'workspaces', `${workspace.id}.json`)
   const temporary = `${path}.${randomUUID()}.tmp`
@@ -85,11 +97,23 @@ export function registerWorkspaceStorageHandlers(getAllowedWindows: () => readon
     if (typeof id !== 'string') throw new Error('Invalid storage id')
     return workspaceStateStore().measure(id)
   })
+  ipcMain.handle(WORKSPACE_STORAGE_CHANNELS.detach, async (event, id: unknown) => {
+    authorize(event.sender)
+    if (typeof id !== 'string') throw new Error('Invalid storage id')
+    return workspaceIo.run(workspaceStateStore().root, async () => {
+      const current = await localRecords()
+      await workspaceStateStore().sync(current)
+      await workspaceStateStore().detach(id, current)
+      requestWorkspaceMaintenance()
+    })
+  })
   ipcMain.handle(WORKSPACE_STORAGE_CHANNELS.cleanup, async (event, id: unknown, category: unknown) => {
     authorize(event.sender)
     if (typeof id !== 'string' || !['logs', 'checkpoints', 'all'].includes(String(category))) throw new Error('Invalid cleanup selection')
     return workspaceIo.run(workspaceStateStore().root, async () => {
-      await workspaceStateStore().sync(await localRecords())
+      const current = await localRecords()
+      await workspaceStateStore().sync(current)
+      if (category === 'all') await workspaceStateStore().detach(id, current)
       await workspaceStateStore().cleanup(id, category as WorkspaceCleanupCategory)
       requestWorkspaceMaintenance()
     }, { background: true })

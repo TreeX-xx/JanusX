@@ -251,33 +251,67 @@ export class WorkspaceStateStore {
       for (const entry of (await this.load()).entries) {
         const workspaceIds: string[] = []
         for (const record of records) if (await this.associated(entry, record)) workspaceIds.push(record.id)
-        const item: WorkspaceDataItem = { id: entry.id, name: entry.name ?? basename(entry.path), path: entry.path, target: join(this.root, entry.id), workspaceIds, legacy: entry.legacy, status: 'associated' }
+        const item: WorkspaceDataItem = { id: entry.id, name: entry.name ?? basename(entry.path), path: entry.path, target: join(this.root, entry.id), workspaceIds, legacy: entry.legacy, status: 'associated', actions: { relocate: false, restore: false, detach: false, cleanup: false, purge: false } }
         try {
           const manifest = await this.manifest(entry)
           item.legacy = entry.legacy && !manifest?.migration
+          let available = false
+          try {
+            const info = await lstat(await realpath(entry.path), { bigint: true })
+            available = `${info.dev}:${info.ino}:${info.birthtimeNs}` === entry.identity
+          } catch { /* Missing source directories do not prevent private data removal. */ }
           if (manifest?.detachedAt) {
             item.detachedAt = manifest.detachedAt
             item.expiresAt = new Date(Date.parse(manifest.detachedAt) + WORKSPACE_RETENTION_MS).toISOString()
             item.status = 'detached'
-          } else {
-            try {
-              const info = await lstat(await realpath(entry.path), { bigint: true })
-              if (`${info.dev}:${info.ino}:${info.birthtimeNs}` !== entry.identity) item.status = 'offline'
-            } catch { item.status = 'offline' }
-          }
+          } else if (!available) item.status = 'offline'
           if (manifest?.purging || entry.purging) item.status = 'purging'
           if (manifest?.cleanupError) {
             if (item.status !== 'purging') item.status = 'failed'
             item.error = manifest.cleanupError
           }
+          const purging = item.status === 'purging'
+          item.actions = {
+            relocate: !purging && workspaceIds.length > 0,
+            restore: !purging && !!manifest?.detachedAt && available,
+            detach: !purging && !manifest?.detachedAt,
+            cleanup: !purging && !!manifest && !item.legacy,
+            purge: workspaceIds.length === 0 && (!!manifest || !!entry.purging || !await exists(item.target)),
+          }
         } catch (error) { item.status = 'failed'; item.error = String(error) }
         items.push(item); await batch.step()
       }
       for (const record of records) if (!items.some(item => item.workspaceIds.includes(record.id))) {
-        items.push({ id: `unavailable:${record.id}`, name: record.name, path: record.path, target: '', workspaceIds: [record.id], legacy: false, status: 'offline' })
+        items.push({ id: `unavailable:${record.id}`, name: record.name, path: record.path, target: '', workspaceIds: [record.id], legacy: false, status: 'offline', actions: { relocate: false, restore: false, detach: true, cleanup: false, purge: false } })
       }
       return items
     }, { background: true })
+  }
+
+  /** Explicit removal of an unreferenced association; never needs the project directory. */
+  async detach(id: string, records: WorkspaceDataRecord[], now = Date.now()): Promise<void> {
+    await workspaceIo.run(this.root, async () => {
+      const registry = await this.load(), entry = registry.entries.find(item => item.id === id)
+      if (!entry) return
+      for (const record of records) if (await this.associated(entry, record)) throw new Error('Remove the workspace before detaching its data')
+      if (workspaceStorageInUse(entry.path)) throw new Error('Close workspace commands before clearing data')
+      await this.beforeMigration(entry.path)
+      const release = suspendWorkspaceStorage(entry.path)
+      try {
+        const manifest = await this.manifest(entry)
+        if (entry.purging || manifest?.purging) return
+        if (manifest) {
+          if (!manifest.detachedAt) await this.saveManifest(entry, { ...manifest, detachedAt: new Date(now).toISOString() })
+          entry.managed = true
+        } else {
+          if (await exists(join(this.root, entry.id))) throw new Error('No verified private data manifest')
+          registry.entries = registry.entries.filter(item => item !== entry)
+        }
+        this.registryDirty = true
+        await this.saveRegistry()
+        this.maintenanceAt.delete(id)
+      } finally { release() }
+    })
   }
 
   async relocate(id: string, destination: string, commitRecords: (oldPath: string, newPath: string) => Promise<void>): Promise<void> {
@@ -347,7 +381,7 @@ export class WorkspaceStateStore {
   async cleanup(id: string, category: WorkspaceCleanupCategory): Promise<void> {
     await workspaceIo.run(this.root, async () => {
       const registry = await this.load(), entry = registry.entries.find(item => item.id === id)
-      if (!entry) throw new Error('Workspace storage is no longer registered')
+      if (!entry) { if (category === 'all') return; throw new Error('Workspace storage is no longer registered') }
       const manifest = await this.manifest(entry) ?? (entry.purging ? { schema: 1 as const, storageId: entry.id, path: entry.path, purging: true } : undefined)
       if (!manifest) throw new Error('No verified private data manifest')
       if (workspaceStorageInUse(entry.path)) throw new Error('Close workspace commands before clearing data')

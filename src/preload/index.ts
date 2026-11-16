@@ -756,6 +756,7 @@ contextBridge.exposeInMainWorld('electron', {
   } satisfies ControlAPI,
   automations: automationsAPI,
   workspaceStorage: {
+    detach: (id: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.detach, id),
     retireHooks: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.retireHooks),
     data: () => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.data),
     measure: (id: string) => ipcRenderer.invoke(WORKSPACE_STORAGE_CHANNELS.measure, id),

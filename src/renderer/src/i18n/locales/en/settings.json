@@ -65,7 +65,7 @@
     },
     "general": {
       "title": "General",
-      "subtitle": "General · Language and appearance preferences",
+      "subtitle": "Language, default session view and remote control",
       "nav": "General",
       "navMeta": "Language"
     },
@@ -150,7 +150,7 @@
       "conversation": "Conversation"
     },
     "section": {
-      "preferences": "Appearance & language",
+      "preferences": "Language preferences",
       "environment": "Development environment",
       "application": "Application maintenance"
     },

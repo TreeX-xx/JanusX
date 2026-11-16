@@ -262,6 +262,9 @@ export function registerWorktreeHandlers(getMainWindow: () => BrowserWindow | nu
     for (const cwd of [input.worktreePath, removed.path]) {
       for (const id of agentSessionRegistry.archiveSessionsByCwd(cwd)) archived.add(id)
     }
+    // Note: .agents/notes/desktop/workspace-state-storage.md — Git removal also retires tool-only storage.
+    const { detachDeletedWorktreeData } = await import('./workspace-storage-handlers')
+    await detachDeletedWorktreeData([input.worktreePath, removed.path]).catch(error => console.error('[workspace-data] worktree detach failed:', error))
     return { ...removed, archivedSessions: [...archived] }
   })
 

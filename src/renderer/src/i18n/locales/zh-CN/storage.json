@@ -1,4 +1,8 @@
 {
+  "navigation": {
+    "appearance": { "title": "外观", "subtitle": "选择界面主题，调整回答的强调显示。" },
+    "storage": { "title": "数据管理", "subtitle": "管理工作区关联和应用数据，处理失效记录与旧版数据。" }
+  },
   "dataManagement": "数据管理",
   "retentionPolicy": "保留与清理规则",
   "hooks": {
@@ -13,6 +17,15 @@
     "retained": "已保留的项目及原因"
   },
   "maintenance": {
+    "filterLabel": "筛选工作区数据",
+    "filter": { "all": "全部", "attention": "需要处理", "detached": "已移除" },
+    "filterEmpty": "此分类下暂无工作区数据。",
+    "offlineHelp": "文件夹可能已移动或删除。可重新定位，或移除失效记录。",
+    "processing": "正在处理…",
+    "removeRecord": "移除记录",
+    "confirmRemoveAction": "确认移除",
+    "confirmRemove": "将移除此目录的工作区登记。已保存的应用数据进入 30 天恢复期；没有应用数据的记录会直接移除。项目文件、Git 分支和聊天记录不受影响。",
+    "removeFailed": "工作区记录未能移除，请重试。",
     "addNew": "作为新工作区添加",
     "title": "工作区数据", "policy": "命令日志保留 30 天。移除后的应用数据可在 30 天内恢复关联。普通升级不会重置时间。旧还原点已退场，可直接清除，不再迁移或按时间、数量保留。",
     "empty": "暂无已登记的本地工作区数据。", "expires": "计划清理：{{date}}", "details": "存储与清理", "measure": "计算占用",

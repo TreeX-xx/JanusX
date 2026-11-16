@@ -11,12 +11,12 @@ import { AnswerEmphasisSettings } from './AnswerEmphasisSettings'
 import { DEFAULT_APP_THEME } from '../../../shared/ipc/theme'
 import type { AppTheme } from '../../../shared/ipc/theme'
 import styles from './AppSettingsModal.module.css'
-import { WorkspaceStoragePanel } from './WorkspaceStoragePanel'
 import { useConversationPreferences } from '@/stores/conversation-preferences'
 import { useExperimentalStore } from '@/stores/experimental'
 import { updateExperimentalFeatures } from '@/services/experimental-features'
 
-export function GeneralSettingsPanel() {
+// Note: .agents/notes/desktop/workspace-state-storage.md
+export function GeneralSettingsPanel({ view = 'general' }: { view?: 'general' | 'appearance' }) {
   const { t, currentLanguage, setLanguage } = useI18n('settings')
   const theme = useThemeStore((s) => s.theme)
   const themeLoaded = useThemeStore((s) => s.loaded)
@@ -37,7 +37,7 @@ export function GeneralSettingsPanel() {
   useEffect(() => {
     void loadTheme()
   }, [loadTheme])
-  useEffect(() => { void loadFeatures() }, [loadFeatures])
+  useEffect(() => { if (view === 'general') void loadFeatures() }, [loadFeatures, view])
 
   const setRemoteEnabled = async () => {
     if (remoteSavingRef.current || !featuresLoaded) return
@@ -68,8 +68,8 @@ export function GeneralSettingsPanel() {
   return (
     <SettingsSurface className={styles.generalPanel}>
       <SettingsSection className={styles.generalSection}>
-        <h3 className={styles.generalSectionTitle}>{t('settings:general.section.preferences')}</h3>
-        <div className={`${styles.generalRow} ${styles.themeRow}`}>
+        <h3 className={styles.generalSectionTitle}>{t(view === 'appearance' ? 'settings:general.theme.label' : 'settings:general.section.preferences')}</h3>
+        {view === 'appearance' && <><div className={`${styles.generalRow} ${styles.themeRow}`}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.theme.label')}</div>
             <div className={styles.generalHelp}>{t('settings:general.theme.help')}</div>
@@ -85,8 +85,8 @@ export function GeneralSettingsPanel() {
             />
           </div>
         </div>
-        <AnswerEmphasisSettings disabled={!themeLoaded || themeSaving} />
-        <SettingsRow className={styles.generalRow}>
+        <AnswerEmphasisSettings disabled={!themeLoaded || themeSaving} /></>}
+        {view === 'general' && <SettingsRow className={styles.generalRow}>
           <div className={styles.generalLabelCol}>
             <div className={styles.generalLabel}>{t('settings:general.language.label')}</div>
             <div className={styles.generalHelp}>{t('settings:general.language.help')}</div>
@@ -100,11 +100,11 @@ export function GeneralSettingsPanel() {
               ariaLabel={t('settings:general.language.label')}
             />
           </div>
-        </SettingsRow>
+        </SettingsRow>}
         <div className={styles.generalHelp}>{t('settings:general.autoSave')}</div>
       </SettingsSection>
 
-      <SettingsSection className={styles.generalSection}>
+      {view === 'general' && <><SettingsSection className={styles.generalSection}>
         <h3 className={styles.generalSectionTitle}>{t('settings:general.session.section')}</h3>
         <SettingsRow className={styles.generalRow}>
           <div className={styles.generalLabelCol}>
@@ -132,13 +132,12 @@ export function GeneralSettingsPanel() {
         </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection className={styles.generalSection}>
-        <h3 className={styles.generalSectionTitle}>{t('settings:general.section.environment')}</h3>
+      <details className={styles.environmentSection}>
+        <summary>{t('settings:general.section.environment')}</summary>
         <div className={`${styles.generalRow} ${styles.generalRowWide}`}>
           <WorkflowXStatus surface="settings" />
         </div>
-      </SettingsSection>
-      <WorkspaceStoragePanel />
+      </details></>}
     </SettingsSurface>
   )
 }

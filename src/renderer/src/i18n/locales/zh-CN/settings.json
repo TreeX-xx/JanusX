@@ -65,7 +65,7 @@
     },
     "general": {
       "title": "通用",
-      "subtitle": "外观、语言与开发环境",
+      "subtitle": "语言、默认会话与远程控制",
       "nav": "通用",
       "navMeta": "Language"
     },
@@ -150,7 +150,7 @@
       "conversation": "对话"
     },
     "section": {
-      "preferences": "外观与语言",
+      "preferences": "语言偏好",
       "environment": "开发环境",
       "application": "应用维护"
     },

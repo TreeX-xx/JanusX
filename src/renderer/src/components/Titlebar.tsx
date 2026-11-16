@@ -271,7 +271,7 @@ export function Titlebar() {
       />
       <WorkspaceMigrationNotice onOpen={() => {
         focusWorkspaceStorageSettings()
-        setSettingsInitialTab('general')
+        setSettingsInitialTab('storage')
         setSettingsModalOpen(true)
       }} />
 
