@@ -1,3 +1,4 @@
+import { isExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 // Note: .agents/notes/workbench/local-skills-mcp.md
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, ChevronRight, CircleCheck, FileCode2, FolderOpen, Monitor, Plus, RefreshCw, Search, Server, Trash2, X } from 'lucide-react'
@@ -110,7 +111,7 @@ export function LocalIntegrationsPanel({ initialWorkspaceId, onManagePlugins }: 
   return <section className={styles.panel} aria-label={t('title')}>
     <div className={styles.context}>
       <label><span>{t('scope')}</span><Select value={scope} onChange={setScope} disabled={locked} ariaLabel={t('scope')}
-        options={[{ value: 'user', label: t('userScope') }, ...workspaces.filter(workspace => !workspace.runtime || workspace.runtime.kind === 'windows').map(workspace => ({ value: `workspace:${workspace.id}`, label: workspace.name }))]} /></label>
+        options={[{ value: 'user', label: t('userScope') }, ...workspaces.filter(workspace => !isExternalWorkspaceRuntime(workspace.runtime)).map(workspace => ({ value: `workspace:${workspace.id}`, label: workspace.name }))]} /></label>
       <label><span>{t('client')}</span><Select value={client} onChange={value => setClient(value as LocalIntegrationClient)} disabled={locked} ariaLabel={t('client')} prefix={<img src={EXTERNAL_CLI_TOOL_ICONS[client]} width={18} height={18} alt="" />} options={LOCAL_INTEGRATION_CLIENTS.map(value => ({ value, label: clientNames[value], icon: <img src={EXTERNAL_CLI_TOOL_ICONS[value]} width={18} height={18} alt="" /> }))} /></label>
       <span className={styles.environment}><Monitor size={14} />{t('localEnvironment')}</span>
     </div>

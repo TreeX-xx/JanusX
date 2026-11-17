@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { layoutAutomationIsland } from '../../src/renderer/src/components/automations/automationIslandLayout'
 import { useIslandStore } from '../../src/renderer/src/stores/island'
+import { useSuperAgentUIStore } from '../../src/renderer/src/stores/superagent-ui'
+import { useGlobalToolsStore } from '../../src/renderer/src/stores/global-tools'
 
-afterEach(() => useIslandStore.getState().dispatch({ type: 'dismiss' }))
+afterEach(() => {
+  useIslandStore.setState({ automationLocked: false })
+  useIslandStore.getState().releaseCompanion()
+  useIslandStore.getState().dispatch({ type: 'dismiss' })
+  useSuperAgentUIStore.setState({ started: false })
+})
 
 describe('automation companion geometry', () => {
   for (const [viewportWidth, viewportHeight, panelLeft] of [[1400, 900, 932], [1024, 720, 556], [680, 780, 212], [480, 640, 12]]) {
@@ -38,18 +45,42 @@ describe('Island companion lifetime', () => {
     useIslandStore.getState().dispatch({ type: 'dismiss' })
     expect(useIslandStore.getState().openSequence).toBe(sequence + 2)
   })
-  it('opens without a prefill and releases the lock on dismissal', () => {
+  it('opens without a prefill and stays locked until the panel releases it', () => {
+    useIslandStore.setState({ automationLocked: true })
     useIslandStore.getState().openChat('', 'automations')
     expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations', chatRequest: { prefill: '' } })
     useIslandStore.getState().dispatch({ type: 'dismiss' })
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations' })
+    useIslandStore.getState().releaseCompanion()
+    useIslandStore.setState({ automationLocked: false })
+    useIslandStore.getState().dispatch({ type: 'dismiss' })
     expect(useIslandStore.getState()).toMatchObject({ stage: 'collapsed', companionToolId: null })
   })
-  it('releases when the terminal changes or another chat entry takes over', () => {
+  it('keeps the connection across terminal changes and other chat requests', () => {
+    useIslandStore.setState({ automationLocked: true })
     useIslandStore.getState().openChat('', 'automations')
     useIslandStore.getState().dispatch({ type: 'terminal-changed' })
-    expect(useIslandStore.getState().companionToolId).toBeNull()
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations' })
     useIslandStore.getState().openChat('', 'automations')
     useIslandStore.getState().openChat('Another request')
-    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: null, chatRequest: { prefill: 'Another request' } })
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations', chatRequest: { prefill: 'Another request' } })
+  })
+  it('keeps chat pinned while memo temporarily owns the companion geometry', () => {
+    useIslandStore.setState({ automationLocked: true })
+    useIslandStore.getState().openChat('', 'automations')
+    useIslandStore.getState().releaseCompanion()
+    useIslandStore.getState().dispatch({ type: 'dismiss' })
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', automationLocked: true, companionToolId: null })
+  })
+  it('retains the connection when chat is hosted by SuperAgent rather than expanded Island', () => {
+    useSuperAgentUIStore.setState({ started: true })
+    useIslandStore.getState().openChat('', 'automations')
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'collapsed', companionToolId: 'automations', chatRequest: { prefill: '' } })
+    expect(useGlobalToolsStore.getState()).toMatchObject({ focusedTabId: 'superagent', collapsed: false })
+    useIslandStore.getState().dispatch({ type: 'dismiss' })
+    expect(useIslandStore.getState().companionToolId).toBe('automations')
+    useIslandStore.getState().releaseCompanion()
+    expect(useIslandStore.getState().companionToolId).toBeNull()
+    expect(useGlobalToolsStore.getState().focusedTabId).toBe('superagent')
   })
 })

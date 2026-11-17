@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
 
 it('exposes typed migration and maintenance channels with exact payloads', async () => {
   await import('../../src/preload/index')
-  expect(Object.keys(host.api!.workspaceStorage).sort()).toEqual(['cleanup', 'data', 'dismiss', 'list', 'measure', 'migrate', 'relocate', 'restore', 'retireHooks'])
+  expect(Object.keys(host.api!.workspaceStorage).sort()).toEqual(['cleanup', 'data', 'detach', 'dismiss', 'list', 'measure', 'migrate', 'relocate', 'restore', 'retireHooks'])
   await host.api!.workspaceStorage.list()
   await host.api!.workspaceStorage.migrate(['w'])
   await host.api!.workspaceStorage.dismiss()
@@ -18,5 +18,6 @@ it('exposes typed migration and maintenance channels with exact payloads', async
   await host.api!.workspaceStorage.relocate('s', 'D:/moved')
   await host.api!.workspaceStorage.restore('s')
   await host.api!.workspaceStorage.retireHooks()
-  expect(host.invoke.mock.calls).toEqual([[channels.list], [channels.migrate, ['w']], [channels.dismiss], [channels.data], [channels.measure, 's'], [channels.cleanup, 's', 'logs'], [channels.relocate, 's', 'D:/moved'], [channels.restore, 's'], [channels.retireHooks]])
+  await host.api!.workspaceStorage.detach('s')
+  expect(host.invoke.mock.calls).toEqual([[channels.list], [channels.migrate, ['w']], [channels.dismiss], [channels.data], [channels.measure, 's'], [channels.cleanup, 's', 'logs'], [channels.relocate, 's', 'D:/moved'], [channels.restore, 's'], [channels.retireHooks], [channels.detach, 's']])
 })

@@ -16,19 +16,14 @@ vi.mock('../../src/main/config/service', () => ({
     updateShellProfiles: async (settings: unknown) => settings,
   },
 }))
-// where/which 探测按可执行名回放预制输出，检测候选区与 Git Bash 择优据此验证；
-// key 只取命令末段，测试不依赖 where / which 的平台差异。
-vi.mock('node:child_process', async () => {
-  const { promisify } = await import('node:util')
-  const exec = vi.fn()
-  Object.defineProperty(exec, promisify.custom, {
-    value: (command: string) => {
-      const parts = command.trim().split(/\s+/)
-      const name = parts[parts.length - 1]
-      return Promise.resolve({ stdout: mocks.probeOutput[name] ?? '', stderr: '' })
-    },
-  })
-  return { exec }
+// Domain tests mock the public command resolver; native resolution is covered separately.
+vi.mock('../../src/main/platform/local-shell', async () => {
+  const actual = await vi.importActual<typeof import('../../src/main/platform/local-shell')>('../../src/main/platform/local-shell')
+  const { existsSync } = await import('node:fs')
+  return { ...actual, findLocalCommands: (command: string) => {
+    if (command.includes('/') || command.includes('\\')) return existsSync(command) ? [command] : []
+    return (mocks.probeOutput[command] ?? '').split(/\r?\n/).filter(Boolean)
+  } }
 })
 
 const {
@@ -69,7 +64,7 @@ describe('resolveShellProfileLaunch', () => {
       { id: 'other', name: 'Bash', command: 'bash', suffix: '-i', visible: true, isDefault: false },
     ])
     await expect(resolveShellProfileLaunch({ id: 'other' })).resolves.toEqual({
-      program: { command: 'bash', args: ['-i'] },
+      program: { command: 'C:\\Program Files\\Git\\cmd\\bash.exe', args: ['-i'] },
     })
     expect(getShellProfileEntry('default')?.id).toBe('default')
   })
@@ -97,14 +92,15 @@ describe('resolveShellProfileLaunch', () => {
     mocks.probeOutput = { pwsh: '/usr/bin/pwsh\n' }
     setEntries([{ id: 'a', name: 'PowerShell 7', command: 'pwsh', visible: true, isDefault: true }])
     await expect(resolveShellProfileLaunch({})).resolves.toEqual({
-      program: { command: 'pwsh', args: [] },
+      program: { command: '/usr/bin/pwsh', args: [] },
     })
   })
 
-  it('restores a cold-restored launch line verbatim', async () => {
+  it('resolves a restored command while preserving its arguments', async () => {
+    mocks.probeOutput = { bash: '/usr/bin/bash' }
     setEntries([])
     await expect(resolveShellProfileLaunch({ commandLine: 'bash --login -i' })).resolves.toEqual({
-      program: { command: 'bash', args: ['--login', '-i'] },
+      program: { command: '/usr/bin/bash', args: ['--login', '-i'] },
     })
   })
 
@@ -122,7 +118,7 @@ describe('default shell command', () => {
 
   it('falls back to the platform shell with no entries', () => {
     setEntries([])
-    expect(getDefaultShellCommand()).toMatch(/powershell\.exe|bash/)
+    expect(getDefaultShellCommand()).toMatch(/powershell\.exe|bash|zsh/)
   })
 })
 

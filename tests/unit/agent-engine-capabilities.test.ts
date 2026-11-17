@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_ENGINE_CAPABILITIES,
@@ -39,7 +39,7 @@ describe('agent engine capabilities', () => {
   })
 
   it('resolves session store paths from env with home fallbacks', () => {
-    const home = join('home', 'user')
+    const home = resolve('home', 'user')
     expect(resolveSessionStorePath('claude', {}, home)).toBe(join(home, '.claude', 'projects'))
     expect(resolveSessionStorePath('codex', {}, home)).toBe(join(home, '.codex', 'sessions'))
     expect(

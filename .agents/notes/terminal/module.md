@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-11-04T16:41:08.726Z",
+  "updated": "2026-11-16T08:24:00Z",
   "moduleState": "partial"
 }
 ---
@@ -42,9 +42,15 @@
 
 管理 PTY 进程、终端输入输出、外部 CLI 的启动与终端界面。终端 IPC 通过会话模块的 AgentSessionRegistry 关联会话与终端事件；终端模块不拥有会话持久化或 Task 验收规则。
 
+2026-11-14 起，node-pty／ConPTY 资源与 spawn 由 `terminal/pty-driver.ts` 拥有；普通进程、命令解析、目标环境及默认 shell 统一消费 `platform/` 服务，CLI 安装与 provider 策略保留在 external-cli。TerminalManager 管理终端生命周期和 main-only 启动快照。迁移与各平台证据见[跨平台运行时边界](../desktop/platform-runtime-boundaries.md)，尚未进行 Mac 原生验收。
+
 下列链接保留已有决策、阶段需求和交付记录的阅读路径；正文及生命周期由原 Note 负责。当前目录和蓝图归属以最近模块的 module 声明为准；历史 parent 关系保留旧阅读脉络，不参与模块层级，跨模块关联由本声明的 related-to 补充。模块声明只在职责、接口、明确依赖或代码入口变化时维护。
 
 ## Design
+
+“历史数据位置”统一为本机会话管理和用量扫描提供来源，支持自动识别及手动补充、停用和移除；两处入口使用相同设置弹窗。历史扫描与新终端启动配置分离，新增位置不会改变账号配置或 CLI 保存位置。具体目录类型、来源冲突及去重边界见[会话源单源化](./requirements/usage-telemetry-single-source.md#历史数据位置)。
+
+[macOS 安装、启动与会话读取](macos-cli-sessions.md)区分 Shell、CLI 安装、PTY／双形态启动、历史发现、正文和原生续接。本地 CLI 使用系统登录环境与查找规则；新装进入当前 npm 的全局位置，升级先核对现有安装来源，不再创建或优先注入私有副本。Claude 默认降级 TUI，Pi/DSH 包定位和 DSH profile 准备已补齐。历史读取、Windows 桌面与两架构模拟的验证边界由该专题维护，真实 Mac 验收待进行。
 
 Codex 上下文统计从自有双视图连接的成功新建／恢复响应取得准确原生会话身份，数值仍读取原生历史；同工作目录多开不再依赖时间猜测。旧终端的相关性兜底排除已占用会话，并以原生事件时间识别 Windows mtime 不更新的日志增长；证据不足时保留未知。绑定、换会话、退出与验证边界见[统计与 Hook 解耦](./usage-telemetry-hook-decoupling.md)。
 
@@ -60,9 +66,9 @@ OpenCode 双形态按原生新建／查看会话的成功响应和身份回读�
 
 [工作区与终端侧栏](./terminal-sidebar-states.md)提供完整树形导航与 52px 紧凑导航。收起态保留固定操作区和可滚动项目列表，统一使用文字双字缩写，并以路径及状态提示区分项目，不显示仓库头像；终端快捷浮层定位已有终端，不启动进程或撑开主布局。整栏、分组及项目展开状态按本机记忆，隐藏内容退出键盘导航；存储失败降级为当前会话有效，工作区删除后清理相关偏好。
 
-Windows CLI 启动解析先将 npm shim 展开到存在的同名原生 exe，再按可执行类型排序；同级保留 lookup 顺序，不按路径长度选择。这样 PATH 中靠前的 npm OpenCode 不会被后面的 WinGet exe 抢占；私有安装优先级保持不变。`tests/unit/agent/cli-resolver.test.ts` 覆盖 npm／WinGet 共存与同级路径顺序，相关启动测试共 21 项通过；另一台机器的桌面启动仍待验证。
+Windows CLI 启动解析先将 npm shim 展开到存在的同名原生 exe，再按可执行类型排序；同级保留 lookup 顺序，不按路径长度选择。这样 PATH 中靠前的 npm OpenCode 不会被后面的 WinGet exe 抢占；默认不再注入私有安装路径。`tests/unit/agent/cli-resolver.test.ts` 覆盖 npm／WinGet 共存与同级路径顺序，相关启动测试共 21 项通过；另一台机器的桌面启动仍待验证。
 
-首次使用的 CLI 新建入口按目标环境检测可运行状态；未安装图标带下载角标，点击进入安装并打开引导，本地安装缺少 Node/npm 时准备私有运行环境，并保留 Node.js LTS 手动安装与重新检测兜底。关闭引导后不会因后台安装完成而自动打开终端。终端管理使用独立眼睛按钮控制显隐，品牌图标不再切换状态。私有目录、npm prefix 隔离和验证边界见 [多 CLI 安装专题](./cc-switch-multi-terminal.md#first-use-setup-and-private-node-runtime)。
+首次使用的 CLI 新建入口按目标环境检测可运行状态；未安装图标带下载角标，点击进入安装并打开引导，本地缺少 Node/npm 时提供 Node.js LTS 手动安装与重新检测。关闭引导后不会因后台安装完成而自动打开终端。终端管理使用独立眼睛按钮控制显隐，品牌图标不再切换状态。系统安装来源核对和验证边界见 [多 CLI 安装专题](./cc-switch-multi-terminal.md#first-use-setup-and-system-installation)。
 
 Codex 双形态的本机 WebSocket 通信在后端和原生 TUI 两侧都补充 NO_PROXY／no_proxy，合并已有排除项并绕过 loopback；宿主就绪探测与正式 WebSocket 显式直连，避免全局 HTTP 代理 hook 接管内部通道。外部模型访问仍沿用用户代理，不改全局环境。具体传输错误保留，断线不自动重发请求；真实 CLI 与 Electron 代理场景证据见[双模式专题](../workbench/terminal-dialog-dual-mode.md)。
 
@@ -78,11 +84,11 @@ Claude 的主 Agent 任务通过成功的 TaskCreate／TaskUpdate 后读取 Task
 
 新建终端立即显示终端风格启动占位（提示符、呼吸光标、淡色文本骨架和细流动线），文案按进程状态区分启动与等待输出，不模拟百分比；动效遵循减少动画偏好，直到 xterm 实际绘出文字后退场；等待期间隐藏空白光标与终端画面，但保持解析、布局和能力回应。进程创建、首屏文字和会话可用分别表达。启动链路只读应用启动时已验证的 OfficeCLI 缓存，不因 Office 能力探测等待；AI 终端的文件基线保留在进程创建之前，采用最多八文件并发、按路径顺序提交与 16 MiB 文本保留上限。分段计时、dev 实测瓶颈、验证结果和大目录限制见 [turn-history](./terminal-right-island-turn-history.md)。
 
-WSL／SSH 新建 Agent 终端在目标 Linux 检测 CLI：已安装直接打开，缺失则在终端内显示“安装并打开”，完成后继续原启动；错误、重试、安装日志及普通 Linux 终端入口保持在同一面板。安装使用目标用户目录，兼容 WSL 登录 PATH／nvm，缺少依赖时按 Linux 架构准备私有 Node，不使用 Windows npm 或 sudo。已启动的安装 worker 和既有 PTY 均不随桌面断开退出；依赖准备阶段仍需桌面连接。实现、真实 Codex/Pi 安装证据和未测边界见[工作区运行时](../sessions/workspace-runtime-import.md)。
+WSL／SSH 新建 Agent 终端在目标 Linux 检测 CLI：已安装直接打开，缺失则在终端内显示“安装并打开”，完成后继续原启动；错误、重试、安装日志及普通 Linux 终端入口保持在同一面板。安装使用目标系统 npm 的全局位置，复用登录 PATH／nvm 当前版本；缺少兼容 Node/npm 时提示手动安装，不再为 CLI 准备或注入私有运行时，不使用 Windows npm 或 sudo。已启动的安装 worker 和既有 PTY 均不随桌面断开退出；前置探测与部署仍需桌面连接。实现、文档后端内部运行时边界及验证见[工作区运行时](../sessions/workspace-runtime-import.md)。
 
 已有终端标签切换保留实例和输出缓冲；同尺寸直接请求绘制，避免每次激活两轮适配与整屏刷新。尺寸变化、工作区返回和显式恢复仍保留适配及滚动意图恢复；标签和终端视图通过稳定参数隔离无关渲染。多终端基准、TUI／后台输出回归及限制见[工作区标签](../workbench/pane-tab-reorder.md)。隐藏终端继续解析输出，尚无跨终端总预算。
 
-[终端原生滚动与 island 快速翻屏](./terminal-scrollback-navigation.md)保留各 CLI 的原生渲染方式及固定输入区，移除模式选择和会话阅读面板。文件 island 上方独立的两个按钮支持点击翻屏、按住连续滚动及切换／失焦停止；普通缓冲翻动真实历史，全屏按鼠标能力转发原生滚轮或翻页。滚轮支持 Alt 加速，不伪造全屏比例轨道或精确提交跳转。窄分屏、小高度及输入焦点已通过浏览器验证，真实 CLI 持续长输出与打包现场使用仍待验收。
+[终端原生滚动与 island 快速翻屏](./terminal-scrollback-navigation.md)保留各 CLI 的原生渲染方式及固定输入区，移除模式选择和会话阅读面板。文件 island 上方独立的两个按钮支持点击翻屏、按住连续滚动及切换／失焦停止；普通缓冲翻动真实历史，全屏按鼠标能力转发原生滚轮或翻页。滚轮支持 Alt 加速，不伪造全屏比例轨道或精确提交跳转。窄分屏、小高度及输入焦点已通过浏览器验证，真实 CLI 持续长输出与打包现场使用仍待验收。对话模式另由左侧输入刻度按稳定消息身份导航，复用共享虚拟列表；居中刻度列独立滚动，预览按每个分屏阅读区限界，右侧滚动条继续负责连续阅读，具体交互和验证边界由同篇维护。
 
 状态显示链（路由与投影分层，互链不合并）：[model-lifecycle](./terminal-model-lifecycle.md)、[sidebar-states](./terminal-sidebar-states.md)、[status-display](./terminal-status-display.md)、[idle-prompt](./terminal-status-display.md)、[status-ring](./terminal-status-display.md)、[sidebar-hierarchy](./terminal-sidebar-states.md)、[context-telemetry](./claude-opencode-context-telemetry.md)。
 
@@ -98,13 +104,17 @@ P3 已清除 Hook 对遥测的绑定、刷新和调度，保留[独立扫描与�
 
 LLM 配置以共享渠道目录和各 Agent 独立模型选择为入口，官方 API、CPA、自定义服务共用一份渠道信息。协议兼容检查、旧配置迁移与完整连接写回由 [共享渠道设计](./terminal-provider-collections.md) 维护；原生登录沿用各 Agent 自身状态——设置面板按 [登录在前](./native-login-first.md)（2026-10-17 实施）探测凭据存在性，未登录时以终端引导该 Agent 自己的登录并阻塞应用，不代持令牌；路由、故障转移和远程环境留在后续阶段。
 
+[LLM 配置产品研究](./llm-configuration-product-research.md)（draft）记录 CC Switch／Magpie 固定源码、官方截图与 JanusX 浏览器夹具对照，提出接入流程、模型选择、生效状态及服务商推广的改进建议；尚未替代当前设计或形成实施验收。
+
+[会话模型连接隔离](./session-model-connections.md)（draft）记录共享渠道、逐 Agent 控制权及同一 Claude Code 多会话分渠道的探索；两条本机模拟 API 的真实 CLI 并发探针通过，产品启动/后台调度、模式切换与恢复链路尚未接入验证。
+
 cc-switch 机制从[port 总纲](./requirements/cc-switch-port.md)进入，detect-install、cli-matrix、multi-terminal、pi-janus 四篇维护具体能力；总纲与专题都直接归属终端模块，历史 parent 只表示原交付脉络，不形成子模块。profile-switch 与 llm-sync 两篇 archived 历史保留在 history/，不复活或改写。
 
 OpenCode 更新按 npm 包区分维护线：v1 使用 `opencode-ai`，v2 使用 `@opencode/cli`；常规更新留在本地所属分支，v1 另提供显式升级 v2，新装默认 v2。精确版本安装、冲突包迁移、失败恢复及 PATH 遮挡限制由[多 CLI 生命周期](./cc-switch-multi-terminal.md)维护。
 
 Shell 语义与外围：[adhoc-parity](./adhoc-shell-parity.md)、[self-heal-parity](./command-error-self-heal-parity.md)、[cold-restore](./shell-cold-restore.md)、[orca-parsing](./orca-terminal-acquisition-parsing.md)、[ime-drift](./ime-candidate-drift.md)、[pane-tree](./pane-tree-subagent.md)、[monaco-diff](./monaco-diff-single-line-number.md)、[turn-history](./terminal-right-island-turn-history.md)。
 
-Shell 入口探索：[可选择的普通终端 Shell](./shell-profiles.md)已定稿终端管理设计（用户自建条目、自由命令与启动后缀、显隐与检测候选区、全局默认 PowerShell 种子），P1–P5 已实现；Janus CLI 新建入口默认隐藏，设置仍可开启，已有显隐偏好及运行中会话保留；`--login -i` 建议后缀与 Git Bash 落位待 Windows 实测定型（见 Task Results）。工作区运行时方向（WSL 与 SSH 连接途径，`kind: 'windows' | 'wsl' | 'ssh'` 三态）与两条分阶段适配线见 [wsl-support-direction](./wsl-support-direction.md)（accepted，取代首版 WSL 留白；手机远控经桌面转发、不直连 SSH 的边界同篇维护）。
+Shell 入口探索：[可选择的普通终端 Shell](./shell-profiles.md)已定稿终端管理设计（用户自建条目、自由命令与启动后缀、显隐与检测候选区），P1–P5 已实现。跨平台重构后新配置按 Windows PowerShell、Mac `/bin/zsh`、Linux Bash 提供种子，既有用户配置保留；Janus CLI 新建入口默认隐藏，设置仍可开启；`--login -i` 建议后缀与 Git Bash 落位待 Windows 实测定型（见 Task Results）。工作区内部身份已规范为 `local | wsl | ssh`，旧 `windows` 和缺省记录继续兼容读取，本地持久化保持旧缺省格式；当前契约见[跨平台运行时边界](../desktop/platform-runtime-boundaries.md)。WSL／SSH 方向与历史分阶段适配线见 [wsl-support-direction](./wsl-support-direction.md)（accepted；手机远控经桌面转发、不直连 SSH 的边界同篇维护）。
 
 island 一词两义（pane 姿态层与 turn 历史浮层）为术语债，改名消歧前两篇并存，不合并。
 

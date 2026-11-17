@@ -5,14 +5,16 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-22",
-  "updated": "2026-10-22T10:52:13.448Z",
+  "updated": "2026-11-11T09:40:44Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
   "codeRefs": [
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/CLITerminal.tsx","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/lib/terminal-tui-wheel.ts","role":"implementation"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/TurnChangeIsland.tsx","role":"implementation"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/TerminalScrollControls.tsx","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/lib/terminal-navigation.ts","role":"implementation"}
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/lib/terminal-navigation.ts","role":"implementation"},
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/ConversationNavigation.tsx","role":"implementation"},
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/chat/VirtualHistory.tsx","role":"implementation"}
   ]
 }
 ---
@@ -78,6 +80,49 @@ Claude 的普通聊天 PageUp 同样保留固定输入区和草稿，但没有�
 因此，“两个 CLI 均精确跳提问且输入框始终可见”的完整目标目前没有可靠的原生接法。Claude 单独适配其原生浏览视图需要接受输入框暂时隐藏，并可靠识别浏览／编辑上下文及自定义快捷键，本阶段不实施。用户确认优先保留固定输入区与跨 CLI 一致性，现有两个按钮保持点击翻页、长按持续滚动，不能静默改成一套未经支持的按键宏。
 
 官方依据：[Claude fullscreen](https://code.claude.com/docs/en/fullscreen)、[Claude keybindings](https://code.claude.com/docs/en/keybindings)、OpenAI Docs 的 [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-interactive-shortcuts)。调查保存了官方原文、本机帮助及 keymap 截图；没有发现能力不等于证明不存在任何未公开实现。
+
+### 双模式输入导航复核（2026-11-11）
+
+双模式的结构化消息身份并不提供原生 TUI 的阅读坐标。输入刻度和悬停预览可以共用消息记录；留在原生终端中点击任意输入并可靠定位，仍需逐引擎验证，不能用终端提交时的光标位置代替消息锚点。本次仅验证能力，不改产品导航与既有验收范围。
+
+复现入口为 `node scripts/native-input-navigation-probe.mjs`，可追加 `claude`、`codex`、`pi` 或 `opencode` 单独运行。证据写入忽略目录 `artifacts/native-input-navigation/`，包含逐步屏幕 JSON、截图、ANSI、报告、OpenCode OpenAPI 与另行生成的 Codex app-server schema。使用独立临时 home、真实 node-pty/ConPTY 和 Chromium xterm；Claude/Pi 恢复自建 30 轮历史，Codex 通过 localhost Responses 夹具生成 16 轮历史。没有使用真实账号、模型服务或已有用户会话。宽屏 100×30，Claude/Pi 另测 45×18。
+
+| 引擎 | 本次实际证据 | 对任意输入点击跳转的判断 |
+|---|---|---|
+| Claude Code 2.1.319 | 全屏 `Ctrl+O` 后 `{`、`}` 的首个可见输入按 28→27→28 变化；窄屏仍可移动。退出浏览器保留 `DRAFT_NAV_CHECK`，但回到聊天底部 | 仍只验证了原生 transcript 内跳转；未获得保持普通聊天输入区的消息定位接口 |
+| Codex CLI 0.166.0 | 恢复 16 轮真实本地夹具历史，普通 PageUp 能滚动且保留草稿。`/keymap` 实际显示 154 个动作；分别搜索 prompt、previous、scroll、message，只有 prompt stack、输入历史、翻页和队列编辑等动作。当前生成的 ClientRequest schema 未发现 TUI 阅读位置或消息滚动命令 | 在已检查的原生动作和协议中仍未找到按消息身份定位；不能把该负面证据推广为所有未公开实现均不存在 |
+| Pi 0.85.1，全屏模式 | 独立配置 `tuiMode=fullscreen`，Ctrl+Up/Down 移动原生语义提问边界，宽窄屏保留输入框和草稿。Home 可到顶；窄屏从顶连续四次 next 落到输入 03，部分相邻操作仍停靠同一输入的不同渲染行 | 比 Codex/Claude 有更直接的原生适配基础，但不能假设 N 次按键等于第 N 条消息；尚未验证按消息 ID 的直接寻址、当前阅读身份回读及工作中并发输出 |
+| OpenCode 2.2.5 | 启动隔离服务并认证读取 `/openapi.json`；未发现 TUI scroll/jump 定位端点，`session.view` 只标记 idle 已读，terminal 系列属于 persistent PTY | 本次仅检查服务协议，没有执行恢复长会话后的 TUI 按键实验，不能据此判定其所有原生快捷键均不支持 |
+
+Pi 的语义边界在本机安装的 `pi-tui/dist/tui-alt-screen.js` 中由渲染内容的 OSC133 prompt 标记查找，不是公开的消息 ID→阅读位置映射。重复正文不作为身份依据，`/tree`、恢复输入历史、编辑／分叉也不算只读定位。Pi 常规模式、DSH 原生 TUI、恢复分页、compaction、运行中输出、自定义键位和产品实际双模式桌面组合均未验收。此次证据不支持承诺所有原生终端统一实现任意输入精确跳转；对话视图的消息定位仍可独立建设。
+
+### 对话模式输入刻度导航（已实施）
+
+用户在原生 TUI 复核后明确将本功能限定为对话模式，并在讨论后确认记录左侧独立细刻度方案。对话正文左侧增加按输入导航的刻度，保留右侧滚动条：刻度负责按提问定位，滚动条负责连续阅读及长回答内部拖动，不用刻度替换滚动条。当前已接入对话显示层，原生终端导航保持原有范围。
+
+- 每次已提交且进入会话消息记录的用户输入对应一个刻度，沿输入顺序以 18px 固定间距排列，不按回答长度分配位置。刻度列在消息阅读区内垂直居中，不延伸到输入框旁。
+- 常态为低对比度灰色短横线；当前阅读轮次的刻度略长、略亮，以主题中性色 `--interaction-accent` 轻微突出，键盘焦点使用同一颜色。右侧滚动条可在空闲时淡出。
+- 鼠标靠近刻度列时增强可见性和命中范围；悬停某条刻度显示该次输入前 3～4 行。悬停只预览，点击才跳转，鼠标经过不改变阅读位置。
+- 点击后将对应输入定位在阅读区上方，下面接对应回答；暂停跟随新输出，沿用“回到最新”入口。手动阅读时，刻度高亮随当前轮次更新。
+- 刻度列最多展示 12 条的高度，超过后独立滚动，仍保留每条输入的直接选择。当前项变化时尽可能滚至列中央；滚动刻度列不改变正文阅读位置。
+
+以上方向已在现有主题内实施，定位使用稳定消息身份并适配虚拟列表，不依赖正文匹配；具体规则与验证边界见下文。右侧合并轨道和圆点目录是讨论过的备选，当前选择左侧细刻度。本方案不扩展至原生终端，也不将下方既有终端验收项视为此功能已完成的证据。
+
+### 对话输入导航实现与分屏适配
+
+`AgentSessionPane` 在消息阅读区左侧接入 `ConversationNavigation`，只从当前快照的 `userMessage` 建立索引；同轮多次输入分别可选，待发送队列不计入，历史截断提示继续保留。右侧滚动条、输入框和原生终端维持各自职责。入口与虚拟列表均反向注释到本 Note。
+
+`VirtualHistory` 提供会话内按轮次键与消息 ID 定位的接口，先挂载目标轮次，再将对应用户消息尽可能对齐阅读区上方 12px；最新轮次仍走正常流，导航和编辑各最多额外固定一个历史行。ResizeObserver、正文结构变化与滚动校正共同处理动态高度，不靠固定等待时间或正文匹配。点击暂停跟随，手动滚轮、触摸、指针操作及阅读按键取消定位，“回到最新”清除目标并恢复跟随；隐藏视图、会话替换或目标移除使旧请求失效。
+
+当前刻度依据阅读区顶部 16px 参考线之前最近的用户输入判定；参考线位于长回答内时使用所属轮次及其输入顺序。常态刻度低对比度，当前项使用主题中性色，悬停与键盘聚焦显示至多四行纯文本预览。空正文保留附件输入提示。
+
+分屏适配以每个 pane 的实际阅读区 ResizeObserver 测量为依据，不依赖整个窗口宽度。轨道宽 24px，居中列表最大高度取 216px 与阅读区高度减 24px 的较小值；每条刻度固定 18px，一条对应一次输入。列表独立滚动并阻止滚动链传入正文；当前项、阅读区高度或输入数量变化时，将当前刻度尽可能移至列表中央，首尾按实际滚动范围停靠。
+
+预览在所属阅读区内绝对定位，按当前宽高限宽、限高及上下停靠，不跨入相邻 pane 或输入框；无需 portal。预览位置跟随刻度列滚动，目标刻度离开可见列时隐藏。正文窄屏左侧留出轨道空间，右侧连续阅读轨道保留。拖动分隔线、输入框增高或窗口缩放时，阅读中的已挂载消息按稳定身份和可见偏移同步恢复，避免延迟恢复覆盖下一次滚动；主动跳转期间由目标实测几何继续校正。每个实例独立拥有高亮、浮层和定位状态，跨 terminalId 与会话不复用。刻度支持键盘聚焦、Enter／Space 定位及 Esc 关闭预览，不改写草稿；动效遵循减少动画偏好。
+
+初版验证覆盖长历史未挂载定位、重复正文、同轮多输入、目标之前内容变高、流式更新、回到最新、短历史和视图切换；分屏覆盖 230px 宽容器、小高度、容器宽高变化、左右与上下双 pane，检查浮层边界、草稿及阅读状态隔离，并回归共享虚拟列表和输入编辑。`conversation-navigation.spec.ts`、`conversation-virtual-history.spec.ts` 和 `conversation-input-editing.spec.ts` 最终共 14 项通过，轮次投影单测 2 项通过；strict-unused 类型检查、三个变更 TSX 的 ESLint、双语检查、生产构建及 diff 检查通过，Note 检查 0 错误、17 条既有跨仓库链接诊断。产物在忽略目录 `artifacts/input-navigation/`，最终 Playwright 输出为 `final-verified/`，截图包括深色正常视图及纸色双 pane。尚未执行打包 Electron 现场使用、三层嵌套分屏或真实延迟图片加载验证；这些边界不以终端既有 AC 替代。原生终端 AC-6 状态不变。
+
+2026-11-11 将 dev 工作区基于 `ed66abc0` 的后续输入刻度及侧栏指示颜色改动同步至 SuperAgent 分支，六个实现／测试文件与来源一致。以 `JANUS_E2E_PORT=41756` 执行 `npx playwright test tests/e2e/conversation-navigation.spec.ts tests/e2e/sidebar-design.spec.ts tests/e2e/conversation-virtual-history.spec.ts tests/e2e/conversation-input-editing.spec.ts --project=island --workers=1 --output=artifacts/dev-cursor-sync/playwright`，28 项通过，覆盖三主题、1／4／12／13 条刻度、长列表独立滚动、当前项居中、键盘及减少动画偏好、窄分屏和侧栏拖拽反馈。严格类型检查、两个变更 TSX 的 ESLint 与 diff 检查通过；Notes 校验 340 篇、0 错误、17 条既有外链诊断。Main 查看了深色四条刻度、窄短窗及纸色收起侧栏截图；这是浏览器夹具验证，未重新构建安装包或验收真实桌面。
 
 ## Acceptance criteria
 

@@ -1,13 +1,11 @@
-import { execFile } from 'node:child_process'
+import { runChecked } from '../platform/process-host'
 import { createHash } from 'node:crypto'
 import { lstat, open, opendir } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { promisify } from 'node:util'
 import { diffLines } from 'diff'
 import type { TurnChangedFile } from '../../shared/ipc/terminal'
 import { workspaceIo, readIoFile } from '@janus-agent/agent-core'
 
-const execFileAsync = promisify(execFile)
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_TEXT_BYTES = 16 * 1024 * 1024
 const SKIP = new Set(['.git', '.janusX', 'node_modules', 'out', 'dist', 'build', '.cache', '.next', '.vite', '.turbo', 'coverage'])
@@ -56,8 +54,8 @@ async function walk(cwd: string, dir = cwd): Promise<string[]> {
 
 async function filePaths(cwd: string): Promise<string[]> {
   try {
-    const { stdout } = await execFileAsync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
-      cwd, timeout: 15_000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+    const { stdout } = await runChecked('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
+      cwd, timeoutMs: 15_000, maxOutputBytes: 16 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
     })
     return [...new Set(stdout.split('\0').filter(Boolean))].sort()
   } catch (error) {

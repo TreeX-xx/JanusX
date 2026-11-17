@@ -1,14 +1,12 @@
-import { execFile, spawn } from 'node:child_process'
+import { runChecked, spawnProcess as spawn, stopOwnedProcess } from '../platform/process-host'
 import { lstat, readFile, rm } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep, posix } from 'node:path'
-import { promisify } from 'node:util'
 import { createHash } from 'node:crypto'
 import type { GitFileChange, GitStatus, GitHistoryQuery, GitHistoryPage, GitRef } from '../../shared/ipc/git'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { runWorkspaceProcess } from '../workspace/runtime-process'
 
-const execFileAsync = promisify(execFile)
 const LOCAL_GIT_TIMEOUT_MS = 10000
 const REMOTE_GIT_TIMEOUT_MS = 120000
 const DEFAULT_GIT_OUTPUT_BYTES = 1024 * 1024
@@ -40,7 +38,7 @@ async function runGit(
       if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git exited with code ${result.exitCode}`)
       return result.stdout
     }
-    const { stdout } = await execFileAsync('git', args, { cwd, timeout, maxBuffer, signal, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
+    const { stdout } = await runChecked('git', args, { cwd, timeoutMs: timeout, maxOutputBytes: maxBuffer, signal, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })
     return stdout
   } catch (err: any) {
     const detail: string = err.stderr?.trim() || err.message
@@ -386,17 +384,18 @@ function runBoundedGit(cwd: string, args: string[], maxBytes: number, signal?: A
     let errorBytes = 0
     let truncated = false
     let timedOut = false
-    const timer = setTimeout(() => { timedOut = true; child.kill() }, LOCAL_GIT_TIMEOUT_MS)
-    const abort = () => child.kill()
+    const stop = () => { void stopOwnedProcess(child).catch(reject) }
+    const timer = setTimeout(() => { timedOut = true; stop() }, LOCAL_GIT_TIMEOUT_MS)
+    const abort = stop
     signal?.addEventListener('abort', abort, { once: true })
 
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout?.on('data', (chunk: Buffer) => {
       const remaining = maxBytes - bytes
       if (remaining > 0) chunks.push(chunk.subarray(0, remaining))
       bytes += Math.min(chunk.length, Math.max(remaining, 0))
       if (chunk.length > remaining) truncated = true
     })
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr?.on('data', (chunk: Buffer) => {
       const remaining = 64 * 1024 - errorBytes
       if (remaining > 0) errors.push(chunk.subarray(0, remaining))
       errorBytes += Math.min(chunk.length, Math.max(remaining, 0))

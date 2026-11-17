@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import { spawn } from 'node:child_process'
+import { runProcess } from '../platform/process-host'
 import { configService } from '../config/service'
 import { BrowserControlBroker } from './control-broker'
 import { createDevtoolsClient, DEVTOOLS_VERSION, checkBrowserEndpoint } from './devtools-runtime'
@@ -30,16 +30,9 @@ export async function controlStatus(): Promise<ControlStatus> {
 }
 export async function checkComputerRuntime(): Promise<{ available: boolean; version?: string; error?: string }> {
   const settings = await configService.getControlSettings()
-  return new Promise(resolve => {
-    const child = spawn(settings.computer.executable || 'cua-driver', ['--version'], { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
-    let output = '', settled = false
-    const finish = (result: { available: boolean; version?: string; error?: string }) => { if (settled) return; settled = true; clearTimeout(timer); resolve(result) }
-    const timer = setTimeout(() => { child.kill(); finish({ available: false, error: 'Driver detection timed out' }) }, 5000)
-    child.stdout.on('data', data => { output = (output + data).slice(0, 4096) })
-    child.stderr.on('data', data => { output = (output + data).slice(0, 4096) })
-    child.once('error', error => finish({ available: false, error: error.message }))
-    child.once('close', code => finish(code === 0 && /cua[-\s_]*driver/i.test(output)
-      ? { available: true, version: output.trim() }
-      : { available: false, error: output.trim() || `Cua Driver unavailable (exit ${code})` }))
-  })
+  const result = await runProcess(settings.computer.executable || 'cua-driver', ['--version'], { timeoutMs: 5000, maxOutputBytes: 4096 })
+  const output = `${result.stdout}${result.stderr}`.trim()
+  return result.status === 'exited' && result.exitCode === 0 && /cua[-\s_]*driver/i.test(output)
+    ? { available: true, version: output }
+    : { available: false, error: result.status === 'exited' ? output || `Cua Driver unavailable (exit ${result.exitCode})` : `Driver detection ${result.status}` }
 }

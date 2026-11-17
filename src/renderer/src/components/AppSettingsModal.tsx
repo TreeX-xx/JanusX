@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, BookOpen, Brain, ChartNoAxesCombined, Globe, Monitor, Info, ListFilter, Puzzle, Settings, ShieldCheck, SlidersHorizontal, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
+import { Bell, BookOpen, Brain, ChartNoAxesCombined, Database, Globe, Monitor, Info, ListFilter, Palette, Puzzle, Settings, ShieldCheck, SlidersHorizontal, SquareTerminal, Users, X, type LucideIcon } from 'lucide-react'
 import { ModalFrame } from '@/components/shared/ModalFrame'
 import { GeneralSettingsPanel } from './GeneralSettingsPanel'
+import { OPEN_STORAGE_SETTINGS, WorkspaceStoragePanel } from './WorkspaceStoragePanel'
 import { AboutSettingsPanel } from './AboutSettingsPanel'
 import { TerminalManagerPanel } from './TerminalManagerPanel'
 import { NotificationSettingsPanel } from './NotificationSettingsPanel'
@@ -26,7 +27,7 @@ import { SettingsSurface, Button as SettingsButton } from '@janusx/ui'
 import { LocalIntegrationsPanel } from './LocalIntegrationsPanel'
 import { ControlSettingsPanel } from './ControlSettingsPanel'
 
-type BuiltinSettingsTab = 'general' | 'terminal' | 'integrations' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'about' | 'browser-control' | 'computer-control'
+type BuiltinSettingsTab = 'general' | 'appearance' | 'storage' | 'terminal' | 'integrations' | 'plugins' | 'notifications' | 'personal' | 'agent' | 'llm' | 'usage' | 'models' | 'team' | 'about' | 'browser-control' | 'computer-control'
 export type SettingsTab = BuiltinSettingsTab | ExtensionViewId
 
 interface AppSettingsModalProps {
@@ -41,7 +42,7 @@ interface AppSettingsModalProps {
 // Note: grouped navigation preserves independent feature gates — see .agents/notes/knowledge/assistant-persona-layout.md
 const TAB_GROUPS: { id: string; tabs: SettingsTab[] }[] = [
   // Experimental opt-in retired: .agents/notes/workbench/experimental-preview-features.md
-  { id: 'application', tabs: ['general', 'terminal', 'integrations', 'plugins', 'notifications'] },
+  { id: 'application', tabs: ['general', 'appearance', 'terminal', 'integrations', 'plugins', 'notifications', 'storage'] },
   { id: 'control', tabs: ['browser-control', 'computer-control'] },
   { id: 'memory', tabs: ['personal'] },
   { id: 'models', tabs: ['llm', 'models', 'usage'] },
@@ -49,7 +50,7 @@ const TAB_GROUPS: { id: string; tabs: SettingsTab[] }[] = [
   { id: 'about', tabs: ['about'] },
 ]
 const TAB_ICONS: Record<BuiltinSettingsTab, LucideIcon> = {
-  general: Settings, terminal: SquareTerminal, notifications: Bell,
+  general: Settings, appearance: Palette, storage: Database, terminal: SquareTerminal, notifications: Bell,
   personal: Brain, llm: SlidersHorizontal,
   models: ListFilter, usage: ChartNoAxesCombined, agent: ShieldCheck,
   team: Users, about: Info,
@@ -68,6 +69,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
   const { t: tPlugins } = useI18n('plugins')
   const { t: tIntegrations } = useI18n('integrations')
   const { t: tControl } = useI18n('control')
+  const { t: tStorage } = useI18n('storage')
   // 「终端管理」文案走 terminal 命名空间：settings.json 有历史编码损坏，不再追加 key。
   const { t: tTerminal } = useI18n('terminal')
   const [selectedTab, setActiveTab] = useState<SettingsTab>(initialTab)
@@ -119,17 +121,23 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
     return () => window.removeEventListener(PLUGIN_SETTINGS_EVENT, open)
   }, [isOpen, pluginPages])
 
+  useEffect(() => {
+    const open = () => { if (isOpen) setActiveTab('storage') }
+    window.addEventListener(OPEN_STORAGE_SETTINGS, open)
+    return () => window.removeEventListener(OPEN_STORAGE_SETTINGS, open)
+  }, [isOpen])
+
   if (!isOpen) return null
 
   // team 页文案走 team 命名空间（settings.json 存在历史编码损坏，不再追加 key）。
-  const builtinTabNav = (tab: BuiltinSettingsTab) =>
+  const builtinTabNav = (tab: BuiltinSettingsTab) => tab === 'appearance' || tab === 'storage' ? tStorage(`navigation.${tab}.title`) :
     tab === 'browser-control' ? tControl('browser.nav') : tab === 'computer-control' ? tControl('computer.nav') : tab === 'integrations' ? tIntegrations('title') : tab === 'plugins' ? tPlugins('plugins:nav') : tab === 'personal' ? tKnowledge('knowledge:memorySettings.title') : tab === 'team'
       ? tTeam('team:settingsTab.nav')
       : tab === 'terminal'
         ? tTerminal('terminal:shellSettings.nav')
         : t(`settings:tab.${tab}.nav`)
   const tabNav = (tab: SettingsTab) => pluginPages.find(page => page.id === tab)?.title ?? builtinTabNav(tab as BuiltinSettingsTab)
-  const meta = activeTab === 'browser-control' || activeTab === 'computer-control' ? { title: tControl(`${activeTab === 'browser-control' ? 'browser' : 'computer'}.title`), subtitle: tControl(`${activeTab === 'browser-control' ? 'browser' : 'computer'}.subtitle`) } : activeTab === 'integrations' ? { title: tIntegrations('title'), subtitle: tIntegrations('subtitle') } : pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
+  const meta = activeTab === 'appearance' || activeTab === 'storage' ? { title: tStorage(`navigation.${activeTab}.title`), subtitle: tStorage(`navigation.${activeTab}.subtitle`) } : activeTab === 'browser-control' || activeTab === 'computer-control' ? { title: tControl(`${activeTab === 'browser-control' ? 'browser' : 'computer'}.title`), subtitle: tControl(`${activeTab === 'browser-control' ? 'browser' : 'computer'}.subtitle`) } : activeTab === 'integrations' ? { title: tIntegrations('title'), subtitle: tIntegrations('subtitle') } : pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
     ? { title: tTeam('team:settingsTab.title'), subtitle: tTeam('team:settingsTab.subtitle') }
     : activeTab === 'terminal'
       ? { title: tTerminal('terminal:shellSettings.title'), subtitle: tTerminal('terminal:shellSettings.subtitle') }
@@ -199,6 +207,8 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
             <SettingsSurface as="main" className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
               {pluginPage && <PluginSettingsView page={pluginPage} active={contentVisible} onManage={() => setActiveTab('plugins')} />}
               {activeTab === 'general' && <GeneralSettingsPanel />}
+              {activeTab === 'appearance' && <GeneralSettingsPanel view="appearance" />}
+              {activeTab === 'storage' && <WorkspaceStoragePanel />}
               {activeTab === 'browser-control' && <ControlSettingsPanel key="browser" kind="browser" onManageIntegrations={() => setActiveTab('integrations')} />}
               {activeTab === 'computer-control' && <ControlSettingsPanel key="computer" kind="computer" />}
               {activeTab === 'integrations' && <LocalIntegrationsPanel key={initialIntegrationWorkspaceId ?? 'user'} initialWorkspaceId={initialIntegrationWorkspaceId} onManagePlugins={() => setActiveTab('plugins')} />}

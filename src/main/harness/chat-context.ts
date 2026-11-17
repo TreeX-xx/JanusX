@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { NOTE_URI_RE } from '@janus-agent/harness-core'
@@ -13,7 +14,7 @@ export async function projectChatContext(
   directEditing = false,
 ): Promise<string> {
   if (refs.length > 64) throw new Error('SCHEMA_INVALID: too many selected Notes')
-  const pathKey = (path: string): string => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
+  const pathKey = (path: string): string => runtimePathKey(resolve(path))
   const authorizedRoots = new Map(roots.map(root => [pathKey(root), root]))
   const selectedRefs = new Map<string, typeof refs[number]>()
   for (const ref of refs) {

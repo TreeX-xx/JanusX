@@ -1,5 +1,7 @@
 import { readdir, open, readFile, stat } from 'node:fs/promises'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
+import { providerPathContext, resolveProviderPaths } from '../external-cli/provider-paths'
+import { runtimePathFlavor, sameRuntimePath } from '../../shared/runtime/path-identity'
 import os from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
 import { createHash } from 'node:crypto'
@@ -86,7 +88,9 @@ export async function getRuntimeTelemetrySnapshot(
 }
 
 async function scanClaudeHistory(cwd: string, startedAt?: number, sessionId?: string): Promise<HistoryTelemetrySnapshot | null> {
-  const projectDir = join(os.homedir(), '.claude', 'projects', toClaudeProjectKey(cwd))
+  const configHome = resolveProviderPaths('claude', providerPathContext({ cwd })).configHome
+  if (!configHome) return null
+  const projectDir = join(configHome, 'projects', toClaudeProjectKey(cwd))
   const files = (await listJsonlFiles(projectDir, (name) => name.endsWith('.jsonl')))
     .filter((file) => !sessionId || file.path.toLowerCase().includes(sessionId.toLowerCase()))
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -195,7 +199,7 @@ export async function parseClaudeSession(file: SessionFileRef, startedAt?: numbe
 
   if (snapshot.sessionId) {
     const values = lines.map(parseJsonObject).filter((value): value is JsonRecord => value !== null)
-    const observation = collectUsageEvents('claude', join(os.homedir(), '.claude'), snapshot.sessionId, values, Date.now())
+    const observation = collectUsageEvents('claude', file.namespace ?? resolveProviderPaths('claude', providerPathContext()).configHome ?? '', snapshot.sessionId, values, Date.now())
     snapshot.usageObservation = observation
     // Complete native response identities replace the per-line sum when available.
     if (!observation.issue && observation.events?.length) {
@@ -504,13 +508,13 @@ function snapshotMatchesCwd(snapshot: RuntimeTelemetrySnapshot & { cwd?: string 
 }
 
 function pathsEqual(a: string, b: string): boolean {
-  return normalizePath(a).toLowerCase() === normalizePath(b).toLowerCase()
+  return sameRuntimePath(a, b)
 }
 
 // Note: Windows backslash vs provider forward-slash directory spellings must compare equal — see .agents/notes/terminal/claude-opencode-context-telemetry.md
 function normalizePath(value?: string): string {
   if (!value) return ''
-  return value.replace(/\\/g, '/').replace(/\/+$/g, '')
+  return (runtimePathFlavor(value) === 'windows' ? value.replace(/\\/g, '/') : value).replace(/\/+$/g, '') || '/'
 }
 
 function hasTelemetry(snapshot: RuntimeTelemetrySnapshot): boolean {
@@ -548,7 +552,9 @@ async function readCodexBootstrapTelemetry(codexHome: string): Promise<RuntimeTe
 }
 
 async function readClaudeBootstrapTelemetry(): Promise<RuntimeTelemetrySnapshot | null> {
-  const settings = await readJsonConfig(join(os.homedir(), '.claude', 'settings.json'))
+  const configHome = resolveProviderPaths('claude', providerPathContext()).configHome
+  if (!configHome) return null
+  const settings = await readJsonConfig(join(configHome, 'settings.json'))
   if (!settings) return null
   const env = asRecord(settings.env)
   // Proxy-managed installs carry no top-level model; the ANTHROPIC_DEFAULT_*
@@ -738,7 +744,8 @@ async function readPiBootstrapTelemetry(cwd: string): Promise<RuntimeTelemetrySn
 }
 
 async function readPiDeclaredModel(cwd: string): Promise<string | undefined> {
-  const global = await readJsonConfig(join(os.homedir(), '.pi', 'agent', 'settings.json'))
+  const configHome = resolveProviderPaths('pi', providerPathContext({ cwd })).configHome
+  const global = configHome ? await readJsonConfig(join(configHome, 'settings.json')) : undefined
   const project = await readJsonConfig(join(cwd, '.pi', 'settings.json'))
   const provider = readString(project?.defaultProvider) ?? readString(global?.defaultProvider)
   const model = readString(project?.defaultModel) ?? readString(global?.defaultModel)
@@ -747,22 +754,14 @@ async function readPiDeclaredModel(cwd: string): Promise<string | undefined> {
   return model
 }
 
-function resolvePiSessionRoots(cwd: string, globalSettings: JsonRecord | undefined, projectSettings: JsonRecord | undefined): string[] {
-  const configured = readString(projectSettings?.sessionDir) ?? readString(globalSettings?.sessionDir)
-  if (configured) {
-    const expanded = configured.startsWith('~/') || configured === '~'
-      ? join(os.homedir(), configured.slice(configured === '~' ? 1 : 2))
-      : configured
-    return [isAbsolute(expanded) || /^[A-Za-z]:[\\/]/.test(expanded) ? expanded : join(cwd, expanded)]
-  }
-  return [join(os.homedir(), '.pi', 'agent', 'sessions')]
+function resolvePiSessionRoots(cwd: string): string[] {
+  const store = resolveProviderPaths('pi', providerPathContext({ cwd })).store
+  return store ? [store] : []
 }
 
 async function scanPiHistory(cwd: string, startedAt?: number, sessionId?: string): Promise<HistoryTelemetrySnapshot | null> {
   if (!sessionId) return readPiBootstrapTelemetry(cwd)
-  const globalSettings = await readJsonConfig(join(os.homedir(), '.pi', 'agent', 'settings.json'))
-  const projectSettings = await readJsonConfig(join(cwd, '.pi', 'settings.json'))
-  const roots = resolvePiSessionRoots(cwd, globalSettings, projectSettings)
+  const roots = resolvePiSessionRoots(cwd)
   const candidates: SessionFileRef[] = []
   for (const root of roots) {
     candidates.push(...(await listJsonlFilesRecursive(root, (name) => name.endsWith('.jsonl'))).map(file => ({ ...file, namespace: root })))

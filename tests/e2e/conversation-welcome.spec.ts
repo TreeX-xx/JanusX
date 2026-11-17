@@ -1,0 +1,67 @@
+import { test, expect } from '@playwright/test'
+
+const artifacts = 'artifacts/conversation-welcome-production-20261113/native'
+for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) test(`${engine} keeps the welcome aligned with its mounted composer across themes and pane sizes`, async ({ page }) => {
+  test.setTimeout(45000)
+  await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)
+  const welcome = page.locator('[data-conversation-welcome]')
+  const input = page.locator('form [data-conversation-input]')
+  const heading = welcome.locator('[data-active=true] h2')
+  await expect(welcome).toHaveAttribute('data-brand', engine)
+  await expect(heading).toHaveText('Where would you like to start?')
+  await expect(welcome.getByRole('img')).toHaveCount(1)
+  await page.evaluate(() => (window as any).codexFixture.reviewProject('C:/fixture'))
+  await expect(welcome.locator('[data-welcome-workspace]')).toContainText('Fixture')
+  await expect(welcome.locator('[data-welcome-workspace]')).toHaveAttribute('title', 'C:/fixture')
+  await input.fill('Keep this welcome draft')
+  await input.evaluate(el => { (window as any).originalWelcomeInput = el })
+  for (const [theme, width, height] of [['dark', 1100, 850], ['white', 380, 720], ['planche', 520, 400]] as const) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
+    await page.setViewportSize({ width, height })
+    await expect.poll(async () => Math.abs((await heading.boundingBox())!.x - (await input.boundingBox())!.x)).toBeLessThan(1)
+    await expect.poll(() => welcome.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await expect(input).toHaveText('Keep this welcome draft')
+    await expect(input).toBeFocused()
+    await expect.poll(() => input.evaluate(el => el === (window as any).originalWelcomeInput)).toBe(true)
+    await input.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `${artifacts}/${engine}-${theme}-${width}.png` })
+    if (width === 1100) {
+      const unit = await welcome.boundingBox(), composer = await input.locator('xpath=ancestor::form').boundingBox()
+      const pane = await page.locator('[data-welcome=true]').boundingBox()
+      expect(Math.abs((unit!.y + composer!.y + composer!.height) / 2 - (pane!.y + pane!.height / 2))).toBeLessThan(35)
+      expect(composer!.width).toBe(744)
+    }
+  }
+  await page.setViewportSize({ width: 1100, height: 850 })
+  await input.press('Enter')
+  await expect(welcome).toHaveCount(0)
+  await expect(page.getByText('Keep this welcome draft', { exact: true })).toBeVisible()
+  expect(await input.evaluate(el => el === (window as any).originalWelcomeInput)).toBe(true)
+})
+
+test('short stacked panes can scroll between the welcome and composer', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation&split=stacked')
+  const pane = page.locator('[data-fixture-pane=first]')
+  const input = pane.locator('form [data-conversation-input]')
+  await input.fill('Draft in a short split')
+  await input.scrollIntoViewIfNeeded()
+  await expect(input).toBeInViewport()
+  const brand = pane.locator('[data-conversation-welcome] [role=img]')
+  await brand.scrollIntoViewIfNeeded()
+  await expect(brand).toBeInViewport()
+  await input.scrollIntoViewIfNeeded()
+  await expect(input).toHaveText('Draft in a short split')
+})
+
+test('restored history takes precedence over the welcome while reconnecting', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.locator('form [data-conversation-input]')
+  await input.fill('Keep my reconnect draft')
+  await page.evaluate(() => { const fixture = (window as any).codexFixture; fixture.editPreview(); fixture.starting() })
+  await expect(page.getByText('Earlier question', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-conversation-welcome]')).toHaveCount(0)
+  await expect(input).toHaveText('Keep my reconnect draft')
+  await page.evaluate(() => (window as any).codexFixture.ready())
+  await expect(page.locator('[data-conversation-welcome]')).toHaveCount(0)
+  await expect(input).toHaveText('Keep my reconnect draft')
+})

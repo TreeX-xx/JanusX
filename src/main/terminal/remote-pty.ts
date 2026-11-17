@@ -1,13 +1,13 @@
 // Note: .agents/notes/sessions/workspace-runtime-import.md
 import { StringDecoder } from 'node:string_decoder'
 import type { TerminalCreateRequest } from '../../shared/ipc/terminal'
-import type { RuntimeTerminal, WorkspaceRuntime } from '../../shared/workspace-runtime'
+import type { RuntimeTerminal, ExternalWorkspaceRuntime } from '../../shared/workspace-runtime'
 import { resolveTerminalLaunchProgram } from '../../shared/terminalLaunch'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { detectRemoteCli } from '../workspace/remote-cli'
 import type { TerminalInstance } from './types'
 
-type ExternalRuntime = Exclude<WorkspaceRuntime, { kind: 'windows' }>
+type ExternalRuntime = ExternalWorkspaceRuntime
 type Poll = RuntimeTerminal & { data: string; truncated: boolean }
 
 /** Client adapter only; the Linux daemon owns the PTY and its lifetime. */

@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-15",
-  "updated": "2026-11-02T08:01:00Z",
+  "updated": "2026-11-14T09:30:00Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/80f207b2-591b-5a1d-824e-e169dc5b80c0" }
@@ -17,6 +17,14 @@
 
 ## 长对话显示与滚动（2026-11-02）
 
+Codex 对话现在支持原生历史按需读取（2026-11-14）：保留原实时快照上限，向上滚到截断边界时打开历史阅读视图，通过 `thread/items/list` 每批取 40 条，前后双向加载。阅读缓存最多 3 批，每条正文预览最多 8,000 字符，继续由 `VirtualHistory` 限制挂载节点；前插和淘汰远端批次时保存可见记录的位置。长正文以 16,000 字符分段读取，只保留当前段，内容哈希防止读取过程中拼接不同版本。回到最新内容保留输入草稿，隐藏面板释放历史批次和正文，只留下游标、记录 ID 与位置书签。
+
+原生读取器属于 agentX，桌面仅提供 IPC 和显示。读取只允许当前拥有的 thread，拒绝会话切换后的迟到结果；后端最多保留 64 个游标元数据，不缓存原生批次或完整正文。首次从实时边界查找最多扫描 64 批，找不到时显示错误并允许重试，不退回全量读取。此边界约束常驻缓存和返回数据，不能消除原生单条巨型内容在解析时的瞬时内存，也不代表已完成长时堆内存压测。其他引擎暂保留原有截断提示。
+
+新增 `tests/e2e/conversation-history.spec.ts`，用 1,000 条模拟原生记录验证 3 批淘汰、前插位置、双向重读、长正文单段、草稿保留、隐藏释放、失败重试与跨 thread 隔离；连同原虚拟历史、输入隔离和 Codex 对话回归共 24 个独立场景分批通过。刷新旧测试对 Work log 文案及输入元素的过时定位，不改变验证行为。冷启动夹具的编译曾占满测试时限，追踪确认定位调用只剩约 20ms；分页场景给予独立启动预算后重跑 3 例通过，未放宽位置误差和缓存断言。
+
+`tests/unit/codex-conversation-cli.test.ts` 的 `pages native originals` 在真实 Windows Codex 与本地模型夹具上通过，验证首条和后续条目的原生游标语义、完整正文分段且不触发模型请求或改变实时快照。`desktop-codex-conversation.spec.ts` 的双模式场景通过真实预加载、IPC 和原生会话读取历史，确认完整输入与当前快照不变。严格类型、应用构建、国际化、lint、包边界和 Notes 检查通过；lint 仅保留既有文案警告。`npm run verify` 在 4,507 项单测通过后遇到 3 项时序失败，涉及的两份文件单独复测 47 项全通过；随后浏览器组件 141 项和 llm-core 80 项通过。这是分批验证，不是一次完整 verify 全绿记录，完整桌面套件未重跑。
+
 用户反馈同一应用中长对话输入、上下滚动迟钝，切到短对话立即恢复。共享显示层此前一直挂载历史正文和折叠的工具/diff；输入隔离只避免草稿更新重算历史，不能降低这些常驻节点的布局成本。本次参考 [ZCode ConversationTimeline](https://github.com/zai-org/ZCode/blob/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1/packages/ui/src/v4/ConversationTimeline.tsx) 的历史窗口、正常流最新内容和阅读锚点方向，在 JanusX 公共层实现，未复制其业务控制器。
 
 `VirtualHistory` 供 `AgentSessionPane` 与 `JanusChat` 共用，后者覆盖 Chat、项目讨论与 Launch。超过 20 个显示单元后，只挂载可视历史及前后各 2 项缓冲，最新单元保持正常文档流；终端以轮次为单元，Chat 以消息/业务卡为单元，正在生成的 Chat 内容继续由原实时区域展示。测量实际高度，旧消息前插按稳定 key 保持位置；只补偿视口上方的估算误差和高度变化，当前阅读行内部增长不拉动位置。窗口宽度变化重测可见节点，不清空所有历史高度估算。正在编辑的消息额外保留挂载，底部跟随继续服从原有阅读状态。
@@ -27,7 +35,13 @@
 
 验证结果：27 项单测、65 项不重复浏览器用例通过；新增历史编辑测试确认滚出视口时草稿和焦点保留，返回后可取消。Vitest 文件为 `conversation-turns`、`conversation-output`、`conversation-file-changes`、`chat-timeline`、`janus-reasoning`、`tool-call-group`，命令 `npx vitest run tests/unit/<name>.test.ts`。Playwright 文件为 `conversation-virtual-history`、`conversation-typing-isolation`、`conversation-file-changes`、`chat-work-timeline`、`janus-context`、`codex-conversation`、`conversation-context`，分批执行 `npx playwright test tests/e2e/<name>.spec.ts --project=island --workers=2 --timeout=60000`。类型检查通过；定向 ESLint 为 0 errors，保留 JanusChat 既有 4 条中文文案警告；Note 检查为 321 篇、0 errors、17 条既有外部链接诊断。窄窗与长 Chat 截图分别位于 `artifacts/conversation-virtual-history.png`、`artifacts/chat-virtual-history.png`。未重打安装包或测试用户实际运行实例。
 
-边界：完整已接收数据仍在内存中，原生历史分页和全量 IPC 传输未改。单个超大且展开的最新轮次仍有渲染成本；原生浏览器查找及跨离屏记录的长距离文本选择不能覆盖未挂载 DOM。测试证明显示树有界和交互语义，尚未测用户实际 Electron 会话的长时帧率、输入延迟分位数或内存曲线，不能据此承诺所有软件卡顿已消除。
+边界：实时快照仍按原有容量限制传输和保留；Codex 历史改由上文的独立分页阅读器读取，其他引擎未接入原生分页。单个超大且展开的最新轮次仍有渲染成本；原生浏览器查找及跨离屏记录的长距离文本选择不能覆盖未挂载 DOM。测试证明显示树有界和交互语义，尚未测用户实际 Electron 会话的长时帧率、输入延迟分位数或内存曲线，不能据此承诺所有软件卡顿已消除。
+
+### 按需历史缓存采样（2026-11-14）
+
+完整集成回归记录为 355 项通过、1 项超时、42 项按环境跳过；超时的 Worker 直接补充场景单独复测通过（约 6.6 秒），未改变超时或业务实现。`integration.log` 与 `integration-recheck.log` 保留两次原始结果。引擎构建产物的 6 包完整性和 3 个来源文件哈希核对通过，只有历史读取模块与必要声明进入此次引擎增量。
+
+在 Chromium 的 1,000 条记录夹具中连续翻页并强制 GC：第 6/15/24 次请求时均保留 3 批、挂载 8 项，JS 堆约 16.02/16.47/16.68 MiB，DOM 所属堆约 2.93/2.92/2.94 MiB。成功后的重试回调会释放旧批次引用，书签只复制 ID 和位置字段。先启动 `npx vite --config tests/e2e/island-vite.config.ts --host 127.0.0.1 --port 41874 --strictPort`，再运行 `node artifacts/conversation-history-20261114/heap-probe.cjs`；采样脚本、JSON、测试日志和截图保存在同一证据目录。模拟结果不代表 Electron 实际会话长期内存曲线，已运行的客户端未被替换。
 
 ## Intent
 

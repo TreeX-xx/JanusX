@@ -1,7 +1,9 @@
+import { captureWindowsProcessTree, terminateWindowsProcessTree, verifyWindowsProcessTree, type WindowsProcessTree } from '@janus-agent/janus-agent/superagent/native/windows-process-tree'
+import { ManagedInputDeferred } from './codex-conversation'
 import { ConversationCatalog } from './conversation-catalog'
 import { ConversationSession, conversationState } from './conversation-session'
-import { execFile } from 'node:child_process'
-import { isDeepStrictEqual, promisify } from 'node:util'
+import { runChecked } from '../platform/process-host'
+import { isDeepStrictEqual } from 'node:util'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createConnection } from 'node:net'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
@@ -16,11 +18,11 @@ import { readClaudeCatalog } from './claude-models'
 import { acceptClaudeWorkspaceTrust, claudeTrustDirectory } from './claude-trust'
 
 type Json = Record<string, any> // Native versioned Mods/daemon boundary; normalized before IPC.
-const exec = promisify(execFile)
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const MAX_TEXT = 32000
 const caps = { submit: true, cancel: true, settings: true, approvals: true, liveText: true, liveInput: true }
-type LaunchOptions = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string; assetsDir: string }
+type ManagedHooks = { onProcessTree(tree: WindowsProcessTree): Promise<void>; onEvent(event: Json): void }
+type LaunchOptions = { managed?: ManagedHooks; command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string; assetsDir: string }
 
 export function resolveClaudeBinary(command: string): string {
   if (process.platform !== 'win32' || extname(command).toLowerCase() === '.exe') return command
@@ -57,6 +59,12 @@ export class ClaudeConversation {
   private catalogAbort = new AbortController()
   private loadingModels?: Promise<void>
   private approvals = new Map<string, { response: ServerResponse; toolId: string; timer: ReturnType<typeof setTimeout> }>()
+  private resumedFrom?: string
+  resumedHistorySource(): string | undefined { return this.resumedFrom }
+  private managed?: ManagedHooks
+  private ownedTree?: WindowsProcessTree
+  private dispatchUnknown = false
+  private lastTurnInputs: string[] = []
   private lastTurn?: string
   private lastTurnSequence = 0
   private changingSession = false
@@ -101,6 +109,7 @@ export class ClaudeConversation {
 
   async start(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
     if (this.startup || this.disposed) throw new Error('Claude session already started or closed')
+    this.managed = options.managed
     this.startup = this.launch(options)
     try { return await this.startup } catch (error) {
       await this.dispose()
@@ -145,7 +154,7 @@ export class ClaudeConversation {
       } else args.push(options.args[i])
     }
     const workerEnv = Object.fromEntries(Object.entries(this.env).filter(([key, value]) => value !== undefined &&
-      /^(JANUSX_|ANTHROPIC_|CLAUDE_CODE_|DISABLE_AUTOUPDATER$|HTTPS?_PROXY$|ALL_PROXY$|NO_PROXY$|PATH$)/i.test(key)))
+      /^(JANUSX_|ANTHROPIC_|CLAUDE_CODE_|DISABLE_AUTOUPDATER$|TMP$|TEMP$|TMPDIR$|HTTPS?_PROXY$|ALL_PROXY$|NO_PROXY$|PATH$)/i.test(key)))
     settings.env = { ...(settings.env ?? {}), ...workerEnv }
     settings.hooks = { ...(settings.hooks ?? {}), PermissionRequest: [...(settings.hooks?.PermissionRequest ?? []),
       { hooks: [{ type: 'http', url: `${endpoint}/permission`, headers: { 'X-JanusX-Token': this.token }, timeout: 300 }] }] }
@@ -159,13 +168,14 @@ export class ClaudeConversation {
     const dispatchArgs = [...args, '--settings', settingsPath, '--plugin-dir', plugin, '--bg']
     let dispatch
     for (;;) {
-      try { dispatch = await this.cli(dispatchArgs, 20000); break }
+      try { this.dispatchUnknown = true; dispatch = await this.cli(dispatchArgs, 20000); break }
       catch (error) {
         // Native --bg is authoritative. Never infer consent from a UI setting,
         // automatically trust a folder, or retry an uncertain dispatch.
         const stderr = (error as { stderr?: unknown }).stderr
         if (this.disposed || this.state.mode !== 'conversation' || typeof stderr !== 'string' ||
           !stderr.trim().startsWith('Workspace not trusted. Run `claude` in ')) throw error
+        this.dispatchUnknown = false
         const directory = claudeTrustDirectory(this.cwd)
         const target = stderr.trim().match(/^Workspace not trusted\. Run `claude` in (.+) once and accept the trust prompt, then retry\.$/)?.[1]
         if (!target || claudeTrustDirectory(target) !== directory) throw error
@@ -181,6 +191,12 @@ export class ClaudeConversation {
     this.state.startup = undefined; this.changed()
     this.short = /backgrounded\s*·\s*([a-f0-9]+)/.exec(dispatch.stdout)?.[1]
     if (!this.short) throw new Error(`Claude did not create a background session. ${dispatch.stderr || dispatch.stdout}`)
+    this.dispatchUnknown = false
+    const resumeIndex = args.indexOf('--resume'), resume = resumeIndex >= 0 ? args[resumeIndex + 1] : undefined
+    // Native --bg deliberately copies resumed history when new execution options are supplied.
+    // Accept only an explicit receipt tied to the requested source and newly owned job.
+    const copied = /background session ([a-f0-9]+) keeps its own saved options, so the flags you passed started a copy as ([a-f0-9]+)/.exec(dispatch.stderr)
+    if (resume && copied && resume.replaceAll('-', '').startsWith(copied[1]) && copied[2] === this.short) this.resumedFrom = resume
     if (this.disposed) throw new Error('Claude launch cancelled')
     // No startup prompt: session.start is sufficient, and creates no model call.
     for (let i = 0; i < 200 && !this.state.threadId && !this.disposed; i++) await pause(100)
@@ -190,6 +206,10 @@ export class ClaudeConversation {
     const job = jobs.find(value => value.id === this.short)
     if (!job?.pid || job.sessionId !== this.state.threadId) throw new Error('Claude background identity did not match its bridge')
     if (this.disposed) throw new Error('Claude launch cancelled')
+    if (this.managed) {
+      this.ownedTree = await captureWindowsProcessTree(job.pid)
+      await this.managed.onProcessTree(this.ownedTree)
+    }
     this.state.connection = 'ready'; this.bind(this.state.threadId); this.changed()
     void this.loadModels()
     this.heartbeat = setInterval(() => {
@@ -197,12 +217,26 @@ export class ClaudeConversation {
     }, 1000)
     return { command: this.binary, args: ['attach', this.short] }
   }
+  /** Native queue acceptance is delivery, never proof that a supplement was incorporated. */
+  async managedInput(text: string, expectedTurnId: string | null): Promise<{ turnId: string }> {
+    if (!this.managed || this.disposed || this.broken || this.state.connection !== 'ready') throw new Error('Claude worker is unavailable')
+    if (this.state.turnId !== expectedTurnId) throw new ManagedInputDeferred('turn-changed')
+    if (this.state.approvals.length || hasBlockingQuestions(this.state) || this.state.needsTerminal) throw new ManagedInputDeferred('waiting')
+    if (!text.trim()) throw new Error('Worker input is empty')
+    const before = this.sequence
+    const ack = await this.reply({ op: 'reply', short: this.short, text, nextTurn: !expectedTurnId })
+    if (!ack.ok) throw new Error(String(ack.error ?? 'Claude refused submission'))
+    if (expectedTurnId) return { turnId: expectedTurnId }
+    const deadline = Date.now() + 10000
+    while (!this.disposed && !this.broken && Date.now() < deadline) {
+      if (this.lastTurnSequence > before && this.lastTurn && this.lastTurnInputs.includes(text)) return { turnId: this.lastTurn }
+      await pause(50)
+    }
+    throw new Error('Claude delivery unknown; input will not be replayed')
+  }
   private cli(args: string[], timeout = 10000) {
-    const pending = exec(this.binary, args, { cwd: this.cwd, env: this.env, windowsHide: true, timeout, maxBuffer: 2 * 1024 * 1024 })
-    // These control commands never accept piped prompts. Leaving their stdin
-    // open makes native --bg wait for possible input before dispatching.
-    pending.child.stdin?.end()
-    return pending
+    // The common host closes stdin; native --bg must not wait for piped prompts.
+    return runChecked(this.binary, args, { cwd: this.cwd, env: this.env, timeoutMs: timeout, maxOutputBytes: 2 * 1024 * 1024 })
   }
   private loadModels(): Promise<void> {
     if (this.loadingModels) return this.loadingModels
@@ -346,6 +380,7 @@ export class ClaudeConversation {
     else if (event.type === 'turn.start') {
       this.state.turnStartedAt = Date.now(); this.state.turnId = e.turnId; this.lastTurn = e.turnId
       this.lastTurnSequence = event.seq
+      this.lastTurnInputs = (Array.isArray(e.inputs) && e.inputs.length ? e.inputs : [e.text]).filter((text: unknown) => typeof text === 'string')
       this.state.needsTerminal = false
       if (e.model && !this.state.settingsOverride) this.state.model = typeof e.model === 'string' ? e.model : e.model.model ?? this.state.model
       if (!e.isMeta && e.text) {
@@ -430,6 +465,7 @@ export class ClaudeConversation {
       for (const [id, tool] of this.tools) if (tool.turnId === e.turnId) { this.expireToolApproval(id); this.questionReplies.delete(id) }
       if (e.reason === 'error') this.state.error = 'Claude turn failed. See the native terminal for details.'
     }
+    this.managed?.onEvent(event)
     this.state.backgroundTasks = [...this.tools.values()].filter(value => value.active).length
     this.changed(false)
   }
@@ -616,7 +652,24 @@ export class ClaudeConversation {
       // The supervisor can host unrelated terminals. Stop only our recorded job;
       // never daemon stop --any, and never remove native user configuration.
       let stopped = !this.short
-      try { if (this.short) await this.cli(['stop', this.short], 10000); stopped = true }
+      try {
+        if (this.managed && this.dispatchUnknown) throw new Error('Claude dispatch ownership is unknown; stop cannot be confirmed')
+        if (this.managed && this.short) {
+          if (!this.ownedTree) {
+            const jobs = JSON.parse((await this.cli(['agents', '--json', '--all'])).stdout) as Json[]
+            const job = jobs.find(row => row.id === this.short)
+            if (!job?.pid || (this.state.threadId && job.sessionId !== this.state.threadId)) throw new Error('Claude process ownership is unconfirmed')
+            this.ownedTree = await captureWindowsProcessTree(job.pid)
+          }
+          // Discover descendants before native stop; preserve proof even when stop fails.
+          await verifyWindowsProcessTree(this.ownedTree).catch(() => {})
+          await this.managed.onProcessTree(this.ownedTree)
+          await this.cli(['stop', this.short], 10000).catch(() => {})
+          await terminateWindowsProcessTree(this.ownedTree)
+          await this.managed.onProcessTree(this.ownedTree)
+        } else if (this.short) await this.cli(['stop', this.short], 10000)
+        stopped = true
+      }
       catch (error) { this.state.error = `Claude worker ${this.short} could not be stopped. Use the native terminal to stop it. ${String(error).slice(0, 500)}`; throw error }
       finally {
         this.server?.closeAllConnections(); this.server?.close()
@@ -624,6 +677,7 @@ export class ClaudeConversation {
         this.state.connection = stopped ? 'closed' : 'disconnected'; this.state.turnId = null; this.state.approvals = []; this.changed()
       }
     })()
+    if (this.managed) this.stopping = this.stopping.catch(error => { this.stopping = undefined; throw error })
     return this.stopping
   }
 }

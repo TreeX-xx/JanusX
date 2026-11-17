@@ -9,6 +9,10 @@ import { conversationCitationMarkdown } from '@/lib/conversation-citations'
 
 const CHAT_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
   ...MARKDOWN_COMPONENTS,
+  strong: ({ children }) => <strong>{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
+  mark: ({ children }) => <mark>{children}</mark>,
+  code: ({ className, children }) => <code className={className}>{children}</code>,
   a: function ChatLink({ href, children, title }) {
     const { workspacePath } = useContext(MarkdownAssetContext)
     const [error, setError] = useState('')
@@ -21,7 +25,7 @@ const CHAT_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
         setError('')
       } catch (error) { setError(String(error)) }
     }
-    return <><a href={href} title={title} className={href?.startsWith('file:') ? 'conversation-file-link' : undefined} style={{ color: 'var(--shell-accent-strong)', overflowWrap: 'break-word' }}
+    return <><a href={href} title={title} className={href?.startsWith('file:') ? 'conversation-file-link' : undefined} style={{ overflowWrap: 'break-word' }}
       onClick={event => { event.preventDefault(); void open() }}
       onAuxClick={event => { event.preventDefault(); if (event.button === 1) void open() }}>{children}</a>
       {error && <span role="alert">{error}</span>}</>
@@ -36,7 +40,6 @@ const CONVERSATION_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
   h3: ({ children }) => <h3>{children}</h3>,
   h4: ({ children }) => <h4>{children}</h4>,
   p: ({ children }) => <p>{children}</p>,
-  strong: ({ children }) => <strong>{children}</strong>,
   ul: ({ children }) => <ul>{children}</ul>,
   ol: ({ children, start }) => <ol start={start}>{children}</ol>,
   blockquote: ({ children }) => <blockquote>{children}</blockquote>,
@@ -51,7 +54,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, variant,
   const context = useContext(MarkdownAssetContext)
   return (
     <MarkdownAssetContext.Provider value={workspacePath ? { workspacePath } : context}>
-    <div className={`markdown-preview${variant === 'conversation' ? ' conversation-markdown' : ''}`}>
+    <div className={`markdown-preview chat-markdown${variant === 'conversation' ? ' conversation-markdown' : ''}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         urlTransform={(url, key) => key === 'href' && (/^(?:file:\/\/|[a-z]:[\\/])/i.test(url) || /^[^:/]+\.[^/:]+:\d+(?::\d+)?$/.test(url)) ? url : defaultUrlTransform(url)}

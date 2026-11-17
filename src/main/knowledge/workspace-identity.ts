@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 /**
  * @file Workspace identity for knowledge provenance (Phase 0).
  * @description Resolves the registered workspace record id from a filesystem
@@ -44,9 +45,7 @@ function workspacesDir(): string {
 
 /** Normalizes a path for equality: absolute, forward slashes, no trailing slash, case-folded on Windows. */
 export function workspacePathKey(path: string): string {
-  let key = resolve(path.trim()).replace(/\\/g, '/').replace(/\/+$/, '')
-  if (process.platform === 'win32') key = key.toLowerCase()
-  return key
+  return runtimePathKey(resolve(path.trim()))
 }
 
 async function loadRecords(): Promise<NonNullable<typeof cache>['records']> {

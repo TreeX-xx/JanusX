@@ -114,6 +114,20 @@ describe('terminal-launch', () => {
     expect(window.electron.terminal.create).toHaveBeenLastCalledWith(expect.objectContaining({ initialView: 'conversation' }))
   })
 
+  it('opens Claude as a working terminal on Mac while retaining other engines dual mode', async () => {
+    Object.assign(window.electron, { platform: 'darwin' })
+    preference.initialView = 'conversation'
+    vi.mocked(window.electron.system.getDefaultShell).mockResolvedValue('/bin/zsh')
+    vi.mocked(window.electron.terminal.create).mockResolvedValue({ pid: 123 })
+    const { launchTerminalPreset } = await import('../../src/renderer/src/lib/terminal-launch')
+    await launchTerminalPreset({ preset: 'claude', workspaceId: 'ws', workspacePath: '/Users/中文/Project' })
+    expect(vi.mocked(window.electron.terminal.create).mock.calls.at(-1)?.[0].conversationEnabled).toBeUndefined()
+    for (const preset of ['codex', 'opencode', 'pi', 'dsh'] as const) {
+      await launchTerminalPreset({ preset, workspaceId: 'ws', workspacePath: '/Users/中文/Project' })
+      expect(window.electron.terminal.create).toHaveBeenLastCalledWith(expect.objectContaining({ preset, conversationEnabled: true }))
+    }
+  })
+
   it('caches default shell after ensureDefaultShell', async () => {
     const getDefaultShell = window.electron.system.getDefaultShell as ReturnType<typeof vi.fn>
     getDefaultShell.mockResolvedValueOnce('pwsh.exe')

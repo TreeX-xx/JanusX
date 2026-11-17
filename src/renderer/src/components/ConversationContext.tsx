@@ -7,10 +7,11 @@ import { setConversationReferences } from '../stores/conversation-context'
 import { readWorkspaceFileDragData, hasWorkspaceFileDrag } from '../lib/terminal-file-reference'
 import styles from './AgentSessionPane.module.css'
 import type { ConversationInputHandle } from './ConversationInput'
+import { ChatErrorCard } from './chat/ChatErrorCard'
 
-export function ConversationContext({ inputRef, terminalId, workspacePath, references, draft, setDraft, disabled, onImporting, open, onOpenChange, pickerActive, children }: {
+export function ConversationContext({ inputRef, terminalId, workspacePath, references, draft, setDraft, disabled, onImporting, open, onOpenChange, pickerActive, dropHighlight = false, children }: {
   inputRef: RefObject<ConversationInputHandle>
-  open: boolean; onOpenChange(value: boolean): void; pickerActive: boolean
+  open: boolean; onOpenChange(value: boolean): void; pickerActive: boolean; dropHighlight?: boolean
   terminalId: string; workspacePath?: string; references: ConversationReference[]; draft: string; setDraft(text: string): void; disabled: boolean; onImporting(value: boolean): void; children(addControl: ReactNode): ReactNode
 }) {
   const { t } = useTranslation('terminal')
@@ -24,6 +25,12 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
   const [nodes, setNodes] = useState<FileNode[]>([])
   const [active, setActive] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [dragging, setDragging] = useState(false), dragDepth = useRef(0)
+  useEffect(() => {
+    const clear = () => { dragDepth.current = 0; setDragging(false) }
+    window.addEventListener('dragend', clear); window.addEventListener('blur', clear)
+    return () => { window.removeEventListener('dragend', clear); window.removeEventListener('blur', clear) }
+  }, [])
   const picker = useRef<HTMLInputElement>(null)
   const area = useRef<HTMLDivElement>(null)
   const addControl = useRef<HTMLDivElement>(null)
@@ -81,9 +88,10 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     })
     inputRef.current?.insertReferences(inline, range)
   }
-  const add = (ref: ConversationReference, range?: [number, number]) => addReferences([ref], range)
+  const add = (ref: ConversationReference, range?: [number, number]) => { setError(''); addReferences([ref], range) }
   const importFiles = async (files: File[]) => {
     if (disabled || importLock.current || !files.length) return
+    setError('')
     if (activeReferences.length + files.length > MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
     if (files.some(file => !file.size || file.size > MAX_CONVERSATION_ATTACHMENT_BYTES)) { setError(t('conversation.context.size')); return }
     const editor = inputRef.current
@@ -138,7 +146,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
         {!matches.length && !error && <p className={styles.pickerMessage}>{t('conversation.context.empty')}</p>}
       </>}
     </div>
-    {error && <p className={styles.pickerMessage} role="alert">{error}</p>}
+    {error && <ChatErrorCard message={error} onDismiss={() => { setError(''); focusInput() }} />}
   </>
   const attachmentControl = <div ref={addControl} className={styles.contextAdd} onBlur={event => {
     if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
@@ -169,7 +177,10 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
       </>}
     </div>}
   </div>
-  return <div ref={area} className={styles.contextArea} onKeyDownCapture={event => {
+  return <div ref={area} className={styles.contextArea} data-context-drag={dropHighlight && dragging} onDragEnter={event => {
+    if (!disabled && (hasWorkspaceFileDrag(event.dataTransfer) || event.dataTransfer.types.includes('Files'))) { dragDepth.current++; setDragging(true) }
+  }} onDragLeave={() => { if (--dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false) } }} onKeyDownCapture={event => {
+    if (event.key === 'Escape') { dragDepth.current = 0; setDragging(false) }
     if (!browsing || event.target !== inputRef.current?.element || event.nativeEvent.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.shiftKey) return
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setMentionDismissed(draft); return }
     if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key)) {
@@ -183,6 +194,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
   }} onDragOver={event => {
     if (hasWorkspaceFileDrag(event.dataTransfer) || event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'; if (!disabled) inputRef.current?.setDropPoint(event.clientX, event.clientY) }
   }} onDrop={event => {
+    dragDepth.current = 0; setDragging(false)
     if (!hasWorkspaceFileDrag(event.dataTransfer) && !event.dataTransfer.files.length) return
     event.preventDefault(); event.stopPropagation()
     if (disabled) return
@@ -190,13 +202,14 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     const payload = readWorkspaceFileDragData(event.dataTransfer)
     if (payload) {
       if (activeReferences.length >= MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
-      add({ id: crypto.randomUUID(), name: payload.name, path: `${payload.workspacePath.replace(/[\\/]+$/, '')}/${payload.path}`, kind: payload.type === 'file' && /\.(png|jpe?g|webp|gif)$/i.test(payload.name) ? 'image' : payload.type })
+      add({ id: crypto.randomUUID(), name: payload.name, path: `${payload.workspacePath.replace(/[\\/]+$/, '')}/${payload.path}`, quote: payload.quote, kind: payload.type === 'file' && /\.(png|jpe?g|webp|gif)$/i.test(payload.name) ? 'image' : payload.type })
     } else void importFiles(Array.from(event.dataTransfer.files))
   }}>
     <input ref={picker} type="file" multiple hidden onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />
     {importing && <span role="status">{t('conversation.context.importing')}</span>}
     {browsing && !open && <div className={styles.commandPanel} aria-label={t('conversation.context.reference')}>{fileList}</div>}
-    {error && !browsing && <p className={styles.error} role="alert">{error}</p>}
+    {error && !browsing && <ChatErrorCard message={error} onDismiss={() => { setError(''); focusInput() }} />}
     {children(attachmentControl)}
+    {dropHighlight && dragging && <div className={styles.contextDropHint} aria-hidden="true"><Paperclip size={16} /><span>{t('conversation.context.drop')}</span></div>}
   </div>
 }

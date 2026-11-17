@@ -1,8 +1,14 @@
 import { toolActivity } from '../../shared/work-output'
-import { spawn, execFile, type ChildProcess } from 'node:child_process'
-import { promisify } from 'node:util'
+import type { ChildProcess } from 'node:child_process'
+import { spawnProcess as spawn } from '../platform/process-host'
+import { localRuntimeContext } from '../platform/runtime-context'
+import { resolveCliExecutable } from '../platform/cli-launch'
+import { environmentWithPath } from '../platform/environment'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
+import { stopProcessTree } from '../shutdown/process-tree'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 import { randomBytes } from 'node:crypto'
-import { dirname, extname, join, delimiter, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { createServer, request as httpRequest, type Server } from 'node:http'
 import type { Socket } from 'node:net'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
@@ -69,13 +75,13 @@ export class OpenCodeConversation extends NativeConversation {
     const terminalConfig = openCodeTerminalConfig(options.env.OPENCODE_CLI_CONFIG_CONTENT)
     this.session.configureImages(join(options.assetsDir, 'images'), options.cwd)
     this.directory = options.cwd
-    const binary = process.platform === 'win32' && extname(options.command) !== '.exe'
-      ? join(dirname(options.command), 'node_modules/@opencode/cli/bin/opencode.exe') : options.command
-    const env: NodeJS.ProcessEnv = { ...options.env, OPENCODE_SERVER_PASSWORD: this.password }
-    const pathKey = Object.keys(env).find(k => k.toLowerCase() === 'path') ?? 'PATH'
-    if (options.pathDir) env[pathKey] = `${options.pathDir}${delimiter}${env[pathKey] ?? ''}`
+    const context = localRuntimeContext()
+    const binary = resolveCliExecutable(options.command, { ...context, env: options.env })
+    if (!binary) throw new Error('OpenCode executable is unavailable')
+    const env = environmentWithPath({ ...options.env, OPENCODE_SERVER_PASSWORD: this.password }, context.identity.platform!, options.pathDir ? [options.pathDir] : [])
     if (this.disposed) throw new Error('OpenCode launch cancelled')
-    this.child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd: options.cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    assertApplicationRunning()
+    this.child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', '0'], { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
     let log = ''
     const record = (bytes: Buffer) => { log = (log + bytes).slice(-4000); this.endpoint ||= /http:\/\/127\.0\.0\.1:\d+/.exec(log)?.[0] ?? '' }
     this.child.stdout?.on('data', record); this.child.stderr?.on('data', record)
@@ -225,7 +231,7 @@ export class OpenCodeConversation extends NativeConversation {
     if (info.data?.id !== id) throw new Error('OpenCode session readback did not match')
     const directory = info.data?.location?.directory
     if (typeof directory === 'string') {
-      const normalize = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
+      const normalize = (path: string) => runtimePathKey(resolve(path))
       if (normalize(directory) !== normalize(this.directory)) throw new Error('OpenCode selected a different workspace')
     }
     this.nativeSelectionUncertain = false
@@ -446,12 +452,11 @@ export class OpenCodeConversation extends NativeConversation {
       this.sockets.clear()
       this.proxy?.closeAllConnections(); this.proxy?.close()
       if (this.child?.pid && this.child.exitCode === null && this.child.signalCode === null) {
-        if (process.platform === 'win32') await promisify(execFile)('taskkill', ['/PID', String(this.child.pid), '/T', '/F'], { windowsHide: true, timeout: 5000 }).catch(() => { this.child?.kill() })
-        else this.child.kill()
+        await stopProcessTree(this.child, { processGroup: true })
       }
       await this.polling
       await this.loadingModels
-    })()
+    })().catch(error => { this.stopping = undefined; throw error })
     return this.stopping
   }
 }

@@ -29,7 +29,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"tests/unit/launch-config-chat.test.ts","role":"test"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"tests/e2e/run-config-assistant.spec.ts","role":"test"}
   ],
-  "updated": "2026-10-18T13:03:08Z",
+  "updated": "2026-11-09T11:49:31.244Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10"
 }
 ---
@@ -45,6 +45,8 @@
 产品诉求是一句话生成运行配置文件——用户说「运行 debug 版 start.exe」，助手读取工作区证据后生成对应运行配置文件；右侧可附带工作区讨论。能力边界经产品裁决：读工作区理解与 chat 板块同款，不能运行脚本，不能使用通用编辑工具，编辑运行配置只能经专属扩展工具。
 
 ## Decision
+
+当前实现已迁入 [agentX 工具模块](note://62b44166-82f0-41ff-838d-e2b02388ed06/df09fc5b-5cbb-4282-875c-3268459044e5)：launch-config.get/edit/apply、局部操作／脱敏、项目检测／配置生成与校验均由引擎维护。JanusX 旧文件保留兼容导出，仍负责工具轮次接入、审批 UI 与 config_change 表单桥接；实际进程由既有 ProjectRunner 通过窄端口提供。下文历史实施路径指向这些兼容入口，授权与固定工具面不变。
 
 **右栏助手定为「只读理解 + 专属写入」的受限工具面**。能力矩阵：
 

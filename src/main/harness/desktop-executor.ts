@@ -13,7 +13,7 @@
  *  only the contract and the receipt validator.
  *  No Electron import, so unit tests drive real temp checkouts.
  */
-import { spawn } from 'node:child_process'
+import { runProcess } from '../platform/process-host/node'
 import { randomUUID } from 'node:crypto'
 import { relative, resolve } from 'node:path'
 import {
@@ -144,28 +144,20 @@ export function runDesktopCommand(
     return Promise.resolve({ ok: false, summary: `verification cwd escapes the checkout: ${step.cwd}` })
   }
   const timeoutMs = opts?.timeoutMs ?? 120_000
-  return new Promise<DesktopCommandOutcome>((promiseResolve) => {
-    const child = spawn(step.program as string, (step.args ?? []) as string[], { cwd, shell: false, windowsHide: true, timeout: timeoutMs, signal: opts?.signal })
+  return (async () => {
     let output = ''
-    const append = (chunk: Buffer | string): void => {
-      output += chunk.toString('utf8')
+    const append = (chunk: string): void => {
+      output += chunk
       if (output.length > SUMMARY_LIMIT) output = output.slice(-SUMMARY_LIMIT)
     }
-    child.stdout?.on('data', append)
-    child.stderr?.on('data', append)
-    let failure: Error | undefined
-    child.on('error', (error: Error) => { failure = error })
-    child.on('close', (code: number | null, signalName: NodeJS.Signals | null) => {
-      const timedOut = signalName === 'SIGTERM' && (opts?.signal?.aborted ?? false) === false && code === null
-      const aborted = opts?.signal?.aborted ?? false
-      promiseResolve({
-        ok: !failure && aborted === false && timedOut === false && code === 0,
-        ...(code === null ? {} : { exitCode: code }),
-        ...(timedOut || aborted ? { timedOut: true } : {}),
-        summary: failure ? `command failed: ${failure.message}\n${output}` : output || 'Command produced no output',
-      })
-    })
-  })
+    const result = await runProcess(step.program as string, step.args, { cwd, timeoutMs, signal: opts?.signal, maxOutputBytes: 16 * 1024 * 1024, onStdout: append, onStderr: append })
+    return {
+      ok: result.status === 'exited' && result.exitCode === 0,
+      ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
+      ...(['timed-out', 'cancelled'].includes(result.status) ? { timedOut: true } : {}),
+      summary: result.status !== 'exited' ? `command ${result.status}\n${output}` : output || 'Command produced no output',
+    }
+  })()
 }
 
 export function checkCoverageClaims(

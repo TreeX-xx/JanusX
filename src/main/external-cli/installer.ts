@@ -1,8 +1,6 @@
-import { app } from 'electron'
-import { readFile } from 'node:fs/promises'
-import { delimiter, join, resolve } from 'node:path'
+import { targetPath, envValue } from '../platform/environment'
 import type { ExternalCliToolDescriptor } from './tool-registry'
-import { claudeKnownBinDirs, findExecutableOnPath, quotePowerShellPath, readPathValue } from './cli-detector'
+import { claudeKnownBinDirs, findExecutableOnPath, quotePowerShellPath } from './cli-detector'
 
 const INSTALL_TIMEOUT_MS = 5 * 60_000
 
@@ -18,15 +16,14 @@ interface CliInstallerDependencies {
   homeDir: string
   isRegularFile(path: string): Promise<boolean>
   run(file: string, args: readonly string[], options: { timeout: number; pathDirs: string[]; cwd?: string }): Promise<RunResult>
-  resolveSiblingRoot?: () => string | undefined
   prepareNpm?: (candidate: { path: string; pathDirs: string[] } | undefined) => Promise<{ path: string; pathDirs: string[] }>
   installPrefix?: () => string | undefined
+  prepareInstall?: (tool: ExternalCliToolDescriptor, located: { path: string; pathDirs: string[] }, replace?: ExternalCliToolDescriptor) => Promise<void>
+  installExisting?: (tool: ExternalCliToolDescriptor, version: string) => Promise<CliInstallOutcome | undefined>
+  verifyInstall?: (tool: ExternalCliToolDescriptor, version: string, located: { path: string; pathDirs: string[] }) => Promise<{ path: string; version: string }>
 }
 
-export interface LocalToolSource {
-  packageDir: string
-  version?: string
-}
+export interface CliInstallOutcome { success: boolean; command?: string; error?: string; target?: { path: string; version: string } }
 
 function npmBinaryNames(platform: NodeJS.Platform): readonly string[] {
   return platform === 'win32' ? ['npm.cmd', 'npm.exe', 'npm'] : ['npm']
@@ -34,14 +31,6 @@ function npmBinaryNames(platform: NodeJS.Platform): readonly string[] {
 
 function lastLines(text: string, count: number): string {
   return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-count).join('\n')
-}
-
-function defaultSiblingRoot(): string | undefined {
-  try {
-    return resolve(app.getAppPath(), '..', 'janus-agentX')
-  } catch {
-    return undefined
-  }
 }
 
 export class CliInstaller {
@@ -66,7 +55,7 @@ export class CliInstaller {
   /** 定位 npm 并给出执行期 PATH 补齐目录；找不到则调用方只能展示手动命令。 */
   async locateNpm(): Promise<{ path: string; pathDirs: string[] } | undefined> {
     const names = npmBinaryNames(this.deps.platform)
-    const pathDirs = readPathValue(this.deps.env).split(delimiter).filter(Boolean)
+    const pathDirs = (envValue(this.deps.env, 'PATH', this.deps.platform) ?? '').split(targetPath(this.deps.platform).delimiter).filter(Boolean)
     const isFile = async (candidate: string): Promise<boolean> => {
       try {
         return await this.deps.isRegularFile(candidate)
@@ -74,47 +63,28 @@ export class CliInstaller {
         return false
       }
     }
-    const onPath = await findExecutableOnPath(names, pathDirs, isFile)
+    const onPath = await findExecutableOnPath(names, pathDirs, isFile, this.deps.platform)
     const knownDirs = claudeKnownBinDirs(this.deps.env, this.deps.platform, this.deps.homeDir)
-    const npmPath = onPath ?? await findExecutableOnPath(names, knownDirs, isFile)
+    const npmPath = onPath ?? await findExecutableOnPath(names, knownDirs, isFile, this.deps.platform)
     if (!npmPath) return undefined
-    return { path: npmPath, pathDirs: [...knownDirs, ...pathDirs] }
-  }
-
-  /**
-   * 定位自有 sibling 源码包目录并校验包名；顺带读出源码版本号（最新版比对用）。
-   * 打包后或目录缺失时返回 undefined，调用方降级为手动指引。
-   */
-  async locateLocalSource(tool: ExternalCliToolDescriptor): Promise<LocalToolSource | undefined> {
-    const lifecycle = tool.localLifecycle
-    if (!lifecycle) return undefined
-    const root = this.deps.resolveSiblingRoot?.() ?? defaultSiblingRoot()
-    if (!root) return undefined
-    try {
-      const packageDir = join(root, 'packages', lifecycle.packageDirName)
-      const raw = await readFile(join(packageDir, 'package.json'), 'utf8')
-      const parsed = JSON.parse(raw) as { name?: unknown; version?: unknown }
-      if (parsed.name !== lifecycle.packageName) return undefined
-      return { packageDir, version: typeof parsed.version === 'string' ? parsed.version : undefined }
-    } catch {
-      return undefined
-    }
+    return { path: npmPath, pathDirs: [...new Set([...pathDirs, ...knownDirs])] }
   }
 
   buildCommand(npmPath: string, tool: ExternalCliToolDescriptor, version = 'latest'): { file: string; args: readonly string[]; display: string } {
     if (!tool.npmPackage) throw new Error(`${tool.displayName} is not npm-distributed.`)
     if (version !== 'latest' && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.')
     const target = `${tool.npmPackage}@${version}`
+    const packages = [target, ...(tool.companionPackages ?? [])].join(' ')
     if (this.deps.platform === 'win32') {
       // 与探测同理走 PowerShell：npm 报错与缺 node 的 cmd 报错都是 GBK，固定 UTF-8 才可读。
-      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} i -g ${target}${this.prefixScript()}; exit $LASTEXITCODE`
+      const script = `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} i -g ${packages}${this.prefixScript()}; exit $LASTEXITCODE`
       return {
         file: 'powershell.exe',
         args: ['-NoProfile', '-NonInteractive', '-Command', script],
-        display: `& "${npmPath}" i -g ${target}`,
+        display: `& "${npmPath}" i -g ${packages}${this.prefixScript()}`,
       }
     }
-    return { file: npmPath, args: ['i', '-g', target, ...this.prefixArgs()], display: `${npmPath} i -g ${target}` }
+    return { file: npmPath, args: ['i', '-g', target, ...(tool.companionPackages ?? []), ...this.prefixArgs()], display: `${npmPath} i -g ${packages}${this.deps.installPrefix?.() ? ` --prefix ${JSON.stringify(this.deps.installPrefix())}` : ''}` }
   }
 
   /** Codex self-heal half: `uninstall || install` starts by removing the broken bits. */
@@ -131,59 +101,19 @@ export class CliInstaller {
     return { file: npmPath, args: ['rm', '-g', tool.npmPackage, ...this.prefixArgs()], display: `${npmPath} rm -g ${tool.npmPackage}` }
   }
 
-  /** 自有源码更新：包目录内 build 后全局 link；两步任一步失败即停并透出尾部输出。 */
-  private async installLocal(
-    npmPath: string,
-    pathDirs: string[],
-    source: LocalToolSource,
-  ): Promise<{ success: boolean; command?: string; error?: string }> {
-    const steps: Array<{ display: string; file: string; args: readonly string[] }> = this.deps.platform === 'win32'
-      ? (['run build', 'link'] as const).map(args => ({
-        display: `npm ${args} (${source.packageDir})`,
-        file: 'powershell.exe',
-        args: [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new(); & ${quotePowerShellPath(npmPath)} ${args}${args === 'link' ? this.prefixScript() : ''}; exit $LASTEXITCODE`,
-        ],
-      }))
-      : ([
-        { display: `npm run build (${source.packageDir})`, args: ['run', 'build'] as const },
-        { display: `npm link (${source.packageDir})`, args: ['link', ...this.prefixArgs()] },
-      ]).map(step => ({ ...step, file: npmPath }))
-    const displays: string[] = []
-    for (const step of steps) {
-      displays.push(step.display)
-      const result = await this.deps.run(step.file, step.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs, cwd: source.packageDir })
-      if (result.exitCode !== 0) {
-        return {
-          success: false,
-          command: displays.join(' && '),
-          error: lastLines(`${result.stderr}\n${result.stdout}`, 8) || `${step.display} exited with code ${result.exitCode}.`,
-        }
-      }
-    }
-    return { success: true, command: displays.join(' && ') }
-  }
-
-  async install(tool: ExternalCliToolDescriptor, version = 'latest', replace?: ExternalCliToolDescriptor): Promise<{ success: boolean; command?: string; error?: string }> {
+  async install(tool: ExternalCliToolDescriptor, version = 'latest', replace?: ExternalCliToolDescriptor): Promise<CliInstallOutcome> {
     if (this.running) return { success: false, error: 'Another install is already running.' }
+    if (version !== 'latest' && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version.')
     // 同步置位：检查与置位之间不允许 await，否则两次同步进入的调用会同时通过检查。
     this.running = true
     try {
+      const existing = await this.deps.installExisting?.(tool, version)
+      if (existing) return existing
       const candidate = await this.locateNpm()
       const located = this.deps.prepareNpm ? await this.deps.prepareNpm(candidate) : candidate
       if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
-      if (tool.localLifecycle) {
-        const source = await this.locateLocalSource(tool)
-        if (source) return this.installLocal(located.path, located.pathDirs, source)
-        if (!tool.npmPackage) {
-          return { success: false, command: tool.manualInstallCommand, error: 'Local janus-agentX source was not found. Follow the manual steps in a terminal.' }
-        }
-        // 无源码回退到 npm 安装（janus 已发布到 registry）。
-      }
       if (!tool.npmPackage) return { success: false, command: tool.manualInstallCommand, error: 'No install strategy for this tool.' }
+      await this.deps.prepareInstall?.(tool, located, replace)
       const command = this.buildCommand(located.path, tool, version)
       // Only remove a conflicting npm package after reading its actual installed version.
       // The same lock covers inspection, removal, installation and failure recovery.
@@ -217,7 +147,13 @@ export class CliInstaller {
       }
       displays.push(command.display)
       const result = await this.deps.run(command.file, command.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs: located.pathDirs })
-      if (result.exitCode !== 0) {
+      let target: { path: string; version: string } | undefined
+      let installError = result.exitCode !== 0 ? lastLines(`${result.stderr}\n${result.stdout}`, 8) || `Install exited with code ${result.exitCode}.` : undefined
+      if (!installError) {
+        try { target = await this.deps.verifyInstall?.(tool, version, located) }
+        catch (error) { installError = error instanceof Error ? error.message : String(error) }
+      }
+      if (installError) {
         let recovery = ''
         if (restore && replace) {
           // Remove a partially installed target before restoring the old command shims.
@@ -232,10 +168,12 @@ export class CliInstaller {
         return {
           success: false,
           command: displays.join(' && '),
-          error: (lastLines(`${result.stderr}\n${result.stdout}`, 8) || `Install exited with code ${result.exitCode}.`) + recovery,
+          error: installError + recovery,
         }
       }
-      return { success: true, command: displays.join(' && ') }
+      return { success: true, command: displays.join(' && '), ...(target ? { target } : {}) }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     } finally {
       this.running = false
     }
@@ -250,9 +188,11 @@ export class CliInstaller {
     if (this.running) return { success: false, error: 'Another install is already running.' }
     this.running = true
     try {
-      const located = await this.locateNpm()
+      const candidate = await this.locateNpm()
+      const located = this.deps.prepareNpm ? await this.deps.prepareNpm(candidate) : candidate
       if (!located) return { success: false, command: tool.manualInstallCommand, error: 'npm was not found. Install Node.js LTS (including npm), then retry.' }
       if (!tool.npmPackage) return { success: false, command: tool.manualInstallCommand, error: 'No uninstall strategy for this tool.' }
+      await this.deps.prepareInstall?.(tool, located)
       const command = this.buildUninstallCommand(located.path, tool)
       const result = await this.deps.run(command.file, command.args, { timeout: INSTALL_TIMEOUT_MS, pathDirs: located.pathDirs })
       if (result.exitCode !== 0) {

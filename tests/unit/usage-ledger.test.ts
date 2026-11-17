@@ -25,6 +25,15 @@ beforeEach(async () => { directory = await mkdtemp(join(tmpdir(), 'janusx-usage-
 afterEach(async () => { for (const value of openLedgers.splice(0)) value.close(); await rm(directory, { recursive: true, force: true }) })
 
 describe('persistent native usage accounting', () => {
+  it('deduplicates a copied source and continues a moved history only with matching native events', () => {
+    ledger.record(events(2000))
+    ledger.record({ ...events(3000), namespace: '/backup' })
+    expect(all().records).toHaveLength(1)
+    ledger.record({ ...events(4000), namespace: '/moved', events: [...events(4000).events!, { ...counts(2, 1), id: 'response-2', at: 4000 }] })
+    expect(all().records.reduce((sum, item) => sum + item.totalTokens, 0)).toBe(18)
+    expect(() => ledger.record({ ...events(5000), namespace: '/conflict', events: [{ ...counts(99), id: 'response-1', at: 1000 }] })).toThrow('Conflicting history sources')
+    expect(all().records.reduce((sum, item) => sum + item.totalTokens, 0)).toBe(18)
+  })
   it('enriches a source-matched legacy model without changing ids, dates, tokens or known models', () => {
     const observation: UsageObservation = { ...events(2000), engine: 'codex', events: [{ ...counts(10, 5), id: 'response-1', at: 1000 }] }
     ledger.record(observation)

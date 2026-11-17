@@ -4,9 +4,9 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, relative, resolve, sep, posix } from 'node:path'
 import type { HtmlPreviewRequest, HtmlPreviewLease } from '../../shared/ipc/workspace'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
-import type { WorkspaceRuntime } from '../../shared/workspace-runtime'
+import type { ExternalWorkspaceRuntime } from '../../shared/workspace-runtime'
+import { MAX_HTML_PREVIEW_BYTES as MAX_BYTES } from '../../shared/editor'
 
-const MAX_BYTES = 32 * 1024 * 1024
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -17,7 +17,7 @@ const MIME: Record<string, string> = {
   '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml', '.map': 'application/json',
 }
 
-interface Entry { owner: number; root: string; document: string; content: string; runtime?: Exclude<WorkspaceRuntime, { kind: 'windows' }> }
+interface Entry { owner: number; root: string; document: string; content: string; runtime?: ExternalWorkspaceRuntime }
 
 function isInside(root: string, file: string): boolean {
   const path = relative(root, file)
@@ -50,7 +50,7 @@ export class HtmlPreviewServer {
 
   async open(owner: number, request: HtmlPreviewRequest): Promise<HtmlPreviewLease> {
     if (typeof request?.workspacePath !== 'string' || typeof request.documentPath !== 'string' || typeof request.content !== 'string') throw new Error('Invalid HTML preview request')
-    if (Buffer.byteLength(request.content) > MAX_BYTES) throw new Error('HTML preview exceeds 32 MB')
+    if (Buffer.byteLength(request.content) > MAX_BYTES) throw new Error('HTML preview exceeds 64 MiB')
     const remote = await resolveRuntimeResource(request.workspacePath)
     let root: string, document: string
     if (remote) {

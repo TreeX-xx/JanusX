@@ -10,6 +10,10 @@
     {
       "type": "related-to",
       "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c23ebb35-2d89-4c56-8dee-03bb7e277a22"
+    },
+    {
+      "type": "related-to",
+      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/91dac1f7-1814-400f-802e-5229ff6b0228"
     }
   ],
   "extensions": {
@@ -43,7 +47,7 @@
       }
     }
   },
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-11-05T17:44:35.000Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/35d88be6-50e5-466b-9514-9ecd7ac8ba7e"
 }
 ---
@@ -61,6 +65,10 @@ A finished worktree had no delivery path inside JanusX: reviewing meant shelling
 `src/main/git/worktrees.ts` creates linked worktrees on new branches from a verified start point into a collision-proof sibling directory, then shares dependencies best-effort: `node_modules` arrives as a link and `.env` files as owned copies, with every step reported rather than failing creation. Creation runs cancellable in the background through a tracked child process with prune plus partial-directory cleanup on cancel. Removal refuses the main checkout, deletes disk plus branch by default, keeps branches git will not drop for explicit review, never deletes the main checkout's own branch, and archives the removed path's sessions. Dirty and locked states surface through a dedicated status query instead of failing silently.
 
 The composer closes at submit while progress, cancel, and retry live on the sidebar row, and the submitting workspace expands automatically so the row is visible. New terminals open in the active worktree directory through an optional launch override; retry keeps the recorded directory. The workspace context menu carries the single creation entry, and worktree rows carry a hover delete entry with a confirm dialog covering dirty warnings and force deletion. Preserved branches render inline with two-step deletion that escalates to force only after a clean delete fails.
+
+### SuperAgent controlled modes (2026-11-06)
+
+Optional `isolated` creation pins the approved commit, branch and exact path without dependency sharing or configuration copying. Optional `worktree-only` removal refuses dirty or active Git states and preserves the branch without force or implicit prune. These modes leave the manual defaults above unchanged; real Git regression tests cover both paths. SuperAgent environment ownership, approval persistence, execution leases and its controlled merge live in the [Agent environment decision](../../agent/superagent-environments.md), not the manual sidebar flow.
 
 ### Local Ship merge flow for worktrees
 `WorktreeShipDialog` runs the local Ship in one place: branch diff against the base with per-file counts, commit box for worktree leftovers through the existing stage and commit channels, merge into the base with optional push, and delete-and-archive to finish. Creation records the start point per worktree path in `worktree-meta.ts`, so the base resolves without asking twice; external checkouts fall back to an editable `origin/main`. The merge refuses dirty main checkouts and self merges, returns conflicts as an explicit list with abort instead of merging silently, and reports up-to-date reruns as no-ops. Push failures never roll back a completed merge. The worktree row carries the Ship entry beside delete, gated to branched non-main checkouts, and the dialog closes the loop by reusing the delete flow that archives sessions.

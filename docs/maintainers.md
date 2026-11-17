@@ -62,6 +62,8 @@ git push origin v0.9.3
 
 `npm run package:win:portable` 用于便携版迭代检查，可追加 `-- --release-dir artifacts/portable-check`。它使用较低压缩级别但保留包边界、依赖排除、体积预算和运行时检查。`npm run package:win` 生成完整 Windows 产物；macOS/Linux 的命令要求相应构建环境，公开支持范围以 Releases 附件为准。
 
+macOS 的 OfficeCLI 已接入 arm64/x64 独立资源。先在 Mac 上运行 `npm run officecli:prepare -- --platform darwin --arch arm64`，再运行 `npm run package:mac -- --arm64`；Intel 将两处架构都改为 `x64`。该命令只生成本地产物，不发布。资源布局、校验与签名约束见 [OfficeCLI 准备说明](../resources/officecli/README.md)。Mac 实机预览、原生依赖及签名安装包仍需验证，不能以资源适配代替整机支持验收。
+
 本地发布须准备已构建的固定 sibling、内置 OfficeCLI 和 GitHub CLI 登录，并使用与远端 tag 指向相同提交的干净 checkout。先完成版本提交，再构建；准备步骤若改变锁文件或打包清单，应将变化纳入版本提交并重新构建，不能忽略输入变化。
 
 ```bash

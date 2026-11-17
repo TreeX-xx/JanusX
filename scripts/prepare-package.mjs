@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { verifyEnginePackages } from './verify-engine-packages.mjs'
 
 export function runNpm(args, root, options = {}) {
   const cli = process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
@@ -43,6 +44,10 @@ export function packageMatches(source, installed, files) {
 export function preparePackage(root = process.cwd(), { npm = runNpm, installArgs = [] } = {}) {
   root = resolve(root)
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  const engineReferences = Object.entries(manifest.dependencies ?? {}).filter(([name]) => name.startsWith('@janus-agent/'))
+  if (engineReferences.length && engineReferences.every(([, reference]) => reference.endsWith('.tgz'))) {
+    return verifyEnginePackages(root, manifest.dependencies)
+  }
   const siblings = Object.entries(manifest.dependencies ?? {}).filter(([name]) => name.startsWith('@janus-agent/')).map(([name, reference]) => {
     if (!/^@janus-agent\/[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error(`Invalid sibling package name: ${name}`)
     if (!reference.startsWith('file:')) throw new Error(`${name} must be a local file: package`)

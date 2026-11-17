@@ -1,3 +1,4 @@
+import { isExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 // Note: .agents/notes/terminal/terminal-sidebar-states.md
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -105,7 +106,7 @@ function WorkspaceContextMenu({
     })
   }, [menu.x, menu.y])
 
-  const itemClassName = 'block w-full border-0 bg-transparent px-3 py-1.5 text-left text-[12px] text-[var(--shell-text)] transition-colors hover:bg-[var(--popover-hover)] hover:text-[var(--shell-text)] focus-visible:bg-[var(--popover-hover)] focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-[var(--shell-accent)]'
+  const itemClassName = 'block w-full border-0 bg-transparent px-3 py-1.5 text-left text-[12px] text-[var(--shell-text)] transition-colors hover:bg-[var(--popover-hover)] hover:text-[var(--shell-text)] focus-visible:bg-[var(--popover-hover)] focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-[var(--interaction-accent)]'
   const separatorClassName = 'my-1 h-px bg-[var(--shell-border)]'
   const target = menu.target
 
@@ -134,7 +135,7 @@ function WorkspaceContextMenu({
           <button type="button" className={itemClassName} onClick={() => onRunConfiguration(target.workspace)}>
             {t('common:workspace.runConfiguration')}
           </button>
-          {(!target.workspace.runtime || target.workspace.runtime.kind === 'windows') && <button type="button" className={itemClassName} onClick={() => onIntegrations(target.workspace)}>{t('integrations:title')}</button>}
+          {(!isExternalWorkspaceRuntime(target.workspace.runtime)) && <button type="button" className={itemClassName} onClick={() => onIntegrations(target.workspace)}>{t('integrations:title')}</button>}
           <button type="button" className={itemClassName} onClick={() => onCreateWorktree(target.workspace)}>
             {t('common:workspace.createWorktree')}
           </button>
@@ -154,7 +155,7 @@ function WorkspaceContextMenu({
           <div className={separatorClassName} />
           <button
             type="button"
-            className={`${itemClassName} !text-[var(--shell-diff-del)] hover:!bg-[var(--shell-accent-soft)]`}
+            className={`${itemClassName} !text-[var(--shell-diff-del)] hover:!bg-[color-mix(in_srgb,_var(--interaction-accent)_10%,_transparent)]`}
             onClick={() => onDelete(target.workspace)}
           >
             {t('common:workspace.deleteWorkspace')}
@@ -1265,7 +1266,7 @@ export function Sidebar() {
                   onDrop={(event) => handleBoundaryDrop('start', event)}
                 >
                   {dropIntent?.mode === 'start' && (
-                    <div className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
+                    <div className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded bg-[var(--interaction-accent)] shadow-[0_0_7px_color-mix(in_srgb,_var(--interaction-accent)_70%,_transparent)]" />
                   )}
                 </div>
                 {orderedWorkspaces.map((ws, workspaceIndex) => {
@@ -1296,8 +1297,8 @@ export function Sidebar() {
                           className="group/group-header mx-1 mb-0.5 mt-1 flex h-7 items-center gap-1 rounded px-1.5 text-[11px] transition-colors"
                           style={{
                             color: hasActiveGroupMember ? 'var(--shell-text)' : 'var(--shell-dim)',
-                            background: isHeaderGroupTarget ? 'var(--shell-accent-soft)' : 'transparent',
-                            boxShadow: isHeaderGroupTarget ? 'inset 0 0 0 1px var(--shell-accent-border)' : 'none',
+                            background: isHeaderGroupTarget ? 'color-mix(in srgb, var(--interaction-accent) 10%, transparent)' : 'transparent',
+                            boxShadow: isHeaderGroupTarget ? 'inset 0 0 0 1px color-mix(in srgb, var(--interaction-accent) 42%, transparent)' : 'none',
                           }}
                           onContextMenu={(event) => handleGroupContextMenu(group, event)}
                           onDragOver={(event) => handleGroupDragOver(groupMembers[0]!.id, event)}
@@ -1328,7 +1329,7 @@ export function Sidebar() {
                               onKeyDown={handleGroupNameKeyDown}
                               onBlur={() => commitGroupRename(group.id)}
                               onClick={(event) => event.stopPropagation()}
-                              className="min-w-0 flex-1 rounded-sm border border-[color-mix(in_srgb,_var(--primary)_35%,_transparent)] bg-[color-mix(in_srgb,_var(--surface-shade)_28%,_transparent)] px-1.5 py-0.5 text-[11px] text-[var(--shell-text)] outline-none"
+                              className="min-w-0 flex-1 rounded-sm border border-[color-mix(in_srgb,_var(--interaction-accent)_35%,_transparent)] bg-[color-mix(in_srgb,_var(--surface-shade)_28%,_transparent)] px-1.5 py-0.5 text-[11px] text-[var(--shell-text)] outline-none"
                               aria-label={t('common:workspace.groupNameAria')}
                             />
                           ) : (
@@ -1348,7 +1349,7 @@ export function Sidebar() {
                             </ThemedTooltip>
                           )}
                           {isGroupCollapsed && hasActiveGroupMember && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] shadow-[0_0_5px_color-mix(in_srgb,_var(--primary)_65%,_transparent)]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--interaction-accent)] shadow-[0_0_5px_color-mix(in_srgb,_var(--interaction-accent)_65%,_transparent)]" />
                           )}
                           <span className="font-mono text-[9px] text-[var(--shell-dim)]">{groupMembers.length}</span>
                         </div>
@@ -1376,7 +1377,7 @@ export function Sidebar() {
                             style={{
                               color: isActive ? 'var(--shell-text)' : 'var(--shell-muted)',
                               background: isGroupTarget
-                                ? 'var(--shell-accent-soft)'
+                                ? 'color-mix(in srgb, var(--interaction-accent) 10%, transparent)'
                                 : isGroupPending
                                   ? 'var(--shell-hover)'
                                   : isActive
@@ -1384,17 +1385,17 @@ export function Sidebar() {
                                     : undefined,
                               opacity: isDragged ? 0.42 : 1,
                               boxShadow: isGroupTarget
-                                ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 48%, transparent), 0 0 12px color-mix(in srgb, var(--primary) 8%, transparent)'
+                                ? 'inset 0 0 0 1px color-mix(in srgb, var(--interaction-accent) 48%, transparent), 0 0 12px color-mix(in srgb, var(--interaction-accent) 8%, transparent)'
                                 : isGroupPending
                                   ? 'inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 7%, transparent)'
                                   : 'none',
                             }}
                           >
                             {isDropBefore && (
-                              <div className="pointer-events-none absolute -top-px inset-x-1 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
+                              <div className="pointer-events-none absolute -top-px inset-x-1 h-0.5 rounded bg-[var(--interaction-accent)] shadow-[0_0_7px_color-mix(in_srgb,_var(--interaction-accent)_70%,_transparent)]" />
                             )}
                             {isDropAfter && (
-                              <div className="pointer-events-none absolute -bottom-px inset-x-1 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
+                              <div className="pointer-events-none absolute -bottom-px inset-x-1 h-0.5 rounded bg-[var(--interaction-accent)] shadow-[0_0_7px_color-mix(in_srgb,_var(--interaction-accent)_70%,_transparent)]" />
                             )}
                       <ThemedTooltip label={isExpanded ? t('common:workspace.terminalListCollapseShort', { count: terminalCount }) : t('common:workspace.terminalListExpandShort', { count: terminalCount })}>
                       <button
@@ -1412,7 +1413,7 @@ export function Sidebar() {
                           event.stopPropagation()
                           handleToggleWorkspaceExpand(ws.id, event)
                         }}
-                        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent text-[var(--shell-dim)] transition-colors duration-150 hover:bg-[var(--shell-hover)] hover:text-[var(--shell-muted)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--primary)_24%,_transparent)]"
+                        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent text-[var(--shell-dim)] transition-colors duration-150 hover:bg-[var(--shell-hover)] hover:text-[var(--shell-muted)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--interaction-accent)_24%,_transparent)]"
                       >
                         <ChevronRight
                           size={12}
@@ -1427,7 +1428,7 @@ export function Sidebar() {
                       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
                         {ws.name}
                       </span>
-                      {ws.runtime && ws.runtime.kind !== 'windows' && <span
+                      {isExternalWorkspaceRuntime(ws.runtime) && <span
                         data-runtime-kind={ws.runtime.kind}
                         title={ws.runtime.kind === 'wsl' ? ws.runtime.distro : ws.runtime.host}
                         className="shrink-0 text-[9px] font-mono"
@@ -1490,7 +1491,7 @@ export function Sidebar() {
                   onDrop={(event) => handleBoundaryDrop('end', event)}
                 >
                   {dropIntent?.mode === 'end' && (
-                    <div className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded bg-[var(--primary)] shadow-[0_0_7px_color-mix(in_srgb,_var(--primary)_70%,_transparent)]" />
+                    <div className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded bg-[var(--interaction-accent)] shadow-[0_0_7px_color-mix(in_srgb,_var(--interaction-accent)_70%,_transparent)]" />
                   )}
                 </div>
               </>
@@ -1565,12 +1566,12 @@ export function Sidebar() {
                 onDragOver={(event) => handleWorkspaceDragOver(ws, event)}
                 onDrop={(event) => handleWorkspaceDrop(ws, event)}
                 onDragEnd={() => handleWorkspaceDragEnd(ws.id)}
-                className={`ws ${styles.railWorkspace} relative flex h-9 w-9 cursor-grab items-center justify-center rounded-[4px] transition-colors active:cursor-grabbing focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--primary)_38%,_transparent)]`}
+                className={`ws ${styles.railWorkspace} relative flex h-9 w-9 cursor-grab items-center justify-center rounded-[4px] transition-colors active:cursor-grabbing focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--interaction-accent)_38%,_transparent)]`}
                 style={{
                   color: isActive ? 'var(--shell-text)' : 'var(--shell-muted)',
                   marginTop: isGroupStart && workspaceIndex > 0 ? 5 : 0,
                   background: isGroupTarget
-                    ? 'var(--shell-accent-soft)'
+                    ? 'color-mix(in srgb, var(--interaction-accent) 10%, transparent)'
                     : isGroupPending
                       ? 'var(--shell-hover)'
                       : isActive
@@ -1578,17 +1579,17 @@ export function Sidebar() {
                         : undefined,
                   opacity: isDragged ? 0.42 : 1,
                   boxShadow: isGroupTarget
-                    ? 'inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent)'
+                    ? 'inset 0 0 0 1px color-mix(in srgb, var(--interaction-accent) 45%, transparent)'
                     : isGroupPending
                       ? 'inset 0 0 0 1px color-mix(in srgb, var(--surface-tint) 7%, transparent)'
                       : 'none',
                 }}
               >
                 {isDropBefore && (
-                  <div className="pointer-events-none absolute -top-px inset-x-0 h-0.5 rounded bg-[var(--primary)]" />
+                  <div className="pointer-events-none absolute -top-px inset-x-0 h-0.5 rounded bg-[var(--interaction-accent)]" />
                 )}
                 {isDropAfter && (
-                  <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 rounded bg-[var(--primary)]" />
+                  <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 rounded bg-[var(--interaction-accent)]" />
                 )}
                 <WorkspaceRailLabel workspace={ws} />
                 {collapsedDotColor && (

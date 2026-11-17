@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-11-06T03:26:58Z",
+  "updated": "2026-11-16T05:47:22.279Z",
   "moduleState": "partial"
 }
 ---
@@ -43,7 +43,7 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 免安装版配置使用用户目录下独立的 `JanusX-Portable`，不提供随身模式；旧同级 `data` 在应用数据服务打开前完成校验迁移，并清理已迁移文件及明确可重建的缓存。路径隔离、失败保护和重试语义见 [application-profile](./application-profile.md)。
 
-[工作区私有状态迁出项目目录](./workspace-state-storage.md)已完成本地 P2 和 P4：新数据接入 userData，旧数据主动迁移；稳定身份重新定位、最后关联移除后的 30 天恢复期、过期维护和按需统计从通用设置管理。终端与 Agent 的自动快照已退场，Island 差异独立保留；迁移只复制启动配置和日志，旧还原点连同已迁入 userData 的副本直接清除，不再按年龄或数量保留。P1 队列和三个常量继续复用；P3 Hook 资产采用 userData 单次启动注入，P5 的旧 Hook 主动清理与结果展示位于同一数据管理区块，未知文件保留。迁移不含源码、工程 Notes 和构建产物，远程迁移不支持；P6 已完成本机代表恢复和桌面迁移演练，正式安装器升级、物理慢盘及多日验收仍未完成。
+[工作区私有状态迁出项目目录](./workspace-state-storage.md)已完成本地 P2 和 P4：新数据接入 userData，旧数据主动迁移；稳定身份重新定位、最后关联移除后的 30 天恢复期、过期维护和按需统计从独立的数据管理设置页管理。终端与 Agent 的自动快照已退场，Island 差异独立保留；迁移只复制启动配置和日志，旧还原点连同已迁入 userData 的副本直接清除，不再按年龄或数量保留。P1 队列和三个常量继续复用；P3 Hook 资产采用 userData 单次启动注入，P5 的旧 Hook 主动清理与结果展示位于同一数据管理区块，未知文件保留。迁移不含源码、工程 Notes 和构建产物，远程迁移不支持；P6 已完成本机代表恢复和桌面迁移演练，正式安装器升级、物理慢盘及多日验收仍未完成。
 
 桌面执行史：[scoped implementation 与实施史](../agent/desktop-task-implementation.md)、[delegated-modes 与 xdo 宿主](../agent/desktop-delegated-modes.md)、[ade-survey](./desktop-ade-mit-survey.md)。
 
@@ -51,7 +51,13 @@ README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展�
 
 [发布门禁成本与冗余审计](./release-gate-redundancy-audit.md)实测完整 verify 约 27min，指出发布级验收占约六成、同一断言重复执行、排序倒置与 PR 全量执行三类冗余，并确认分支保护未绑定 required status check；建议按性价比排序，接入分层与重排顺序为前置。该审计为草案，未实施。
 
-[开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。统一输入与新增平台仍在设计阶段，具体取舍与实施验收由该草案维护。
+[开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。[OfficeCLI](./officecli-bundled.md) 已接入 macOS arm64/x64 的资源解析、校验与打包，Mac 实机和签名安装包尚未验证。统一输入与其余平台交付仍在设计阶段，具体取舍与实施验收由该草案维护。
+
+[macOS 兼容性分析](./macos-compatibility.md)维护源码探针、Windows 宿主实测和 Mac not-run 矩阵。窗口 IPC 一次注册，Dock／重复启动共用主窗恢复路径，回归与 Windows Electron 重开通过。CLI 环境、Homebrew 解析、私有安装核验／恢复和架构隔离已修复，Claude 默认降级 TUI，Pi/DSH 包定位及 profile 准备已补齐；managed Worker 平台门保留。POSIX 回收已实现并通过模拟，Mac 资源已校验。原生加载、真实窗口／PTY／CLI、最低系统版本、签名安装和升级仍待目标系统验证；宿主回归不代表 Mac 完整支持。
+
+[跨平台运行时边界与实施计划](./platform-runtime-boundaries.md)对照 Orca 的进程包、环境恢复、路径身份与导入门禁，维护 P0—P7 和 13 项验收。P0—P5 已实施：local 旧记录兼容、公共进程／PTY／CLI、provider 目录、路径比较和能力策略已迁移，剩余原生／桌面／外部包边界逐文件说明。P6 完整检查已尝试并修复本轮 CLI 优先级回归，会话续接三项、CLI 安装启动和窗口重开复验通过；Planche 与插件窗口两项 UI 断言仍失败。P7 最终 Windows 目录包在仓库外启动通过，Mac 资源门禁已接入、最低发行配置为 15.0；真实 Mac、远端及签名安装升级未验收，DSH 历史等新增能力单列。
+
+[退出与资源回收](./application-shutdown.md)对照 dev、SuperAgent 工作树和实际 0.9.9 安装包，记录 Windows 独立安装副本的关闭、真实 Office 预览、进程管理和故障注入证据。正常测试可以释放所测资源，但退出中的异常重启会产生新实例并继续占用程序文件；串行清理预算、进程树确认和退出事件覆盖仍需改造。该专题维护共用退出实施计划及 Windows／Mac 验收边界，修复尚未实施。
 
 正式 Windows 发布推荐 `package:win:stage`，避免打包和首次上传重复执行运行验证；上传先预检远端状态，运行检查后重新核对再续传。手动构建将版本及 OfficeCLI 资源检查前置，并复用本地资源哈希校验脚本。必要的构建、包边界与公开前字节核验保留，细节见上述解耦设计及维护者指南。
 
@@ -78,3 +84,6 @@ Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边
 - [ ] AC-3: github-maintenance 归属产品面，本域不重复收纳。
 
 [Public account migration](./account-migration.md) records the three repositories, Pages, release assets and old-client update limits. Isolated migration worktrees preserve unrelated uncommitted development changes.
+
+
+[应用退出、进程回收与安装占用](./application-shutdown.md)维护 Windows／Mac 退出边界、SuperAgent 清理实现、隔离故障复测及安装包交付证据。

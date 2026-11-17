@@ -16,7 +16,7 @@ const parameters = z.object({
 export function attachReminderChatTools(ports: ChatTurnPorts, signal: AbortSignal, onDraft: (draft: AutomationDraft) => void): void {
   let pending: AutomationDraft | undefined
   ports.localTools = [...(ports.localTools ?? []), {
-    name: 'automation_reminder', executionMode: 'sequential',
+    name: 'automation_reminder', executionMode: 'sequential', coordinatorAccess: 'coordinate',
     description: 'List reminders or propose/create/update a notification reminder draft. No project or model is needed to run reminders. Never saves or enables by itself. For pause propose enabled=false with saved id and revision. Application must remain running.',
     parameters,
     execute: async (call, toolSignal) => {

@@ -9,6 +9,8 @@
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e1bdfc5f-a4ff-4dea-b7e3-965ab2ffe161" },
+    { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e546b79c-cdf2-49e5-8efd-8dcf5c11b017" },
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10" },
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/0cb931e1-e33c-4e38-a9d9-9d652796d935" }
   ]
@@ -16,6 +18,50 @@
 ---
 
 # 终端与对话双显示模式：Codeg、ZCode 调研及 JanusX 融合方案
+
+## 跨工作区分屏的对话草稿
+
+跨工作区分屏保留终端在所属工作区的 `terminalSnapshots` 中，不把它复制进当前工作区的 `terminals`。输入框订阅、终端身份读取、发送和失败消息恢复共用 `workspace.ts` 的 `findTerminalInState`，先查当前终端，再查工作区快照。发送在操作瞬间同步读取最新草稿，避免连续回车重复发送；恢复消息追加到该终端现有草稿，保留用户新输入的文字。
+
+回归入口为 `tests/e2e/conversation-cross-workspace.spec.ts`，使用两个分屏，其中外部终端仅存在于所属工作区快照，覆盖回车与按钮发送、当前工作区草稿隔离，以及失败消息恢复时保留新草稿。浏览器夹具验证前端到发送 IPC 调用的链路，不代表真实模型或桌面拖拽验收。
+
+## 后续共用界面提案
+
+[普通对话与 SuperAgent 共用界面原型](./ideas/conversation-interface-prototype.md)记录用户要求后续同时接入 dev 与 superAgent 的 HTML 交互。普通对话保留原引擎身份、模型/信号格/闪电和终端切换；计划沿用现有机制，历史与文件跟随回复，底栏改为无数字圆环及不挤压上方的覆盖式统计。当前 checkout 已分步接入加载品牌、底部用量栏、两种模式的输入框与共用新会话欢迎页；其余外壳仍待后续。真实会话数据、引擎能力和生产验证仍沿用本专题已实现边界，不能将样例队列/模型目录当成新协议。
+
+## 共用输入选项（2026-11-14）
+
+按用户要求，AgentComposer与SuperAgent的JanusChat共用ComposerOptionTrigger、ComposerOptions和composerOptionIndex，统一按钮、弹层、搜索、供应商筛选／分组、选项行、强度刻度与键盘导航；ConversationInput和ConversationContext继续共用。模型菜单按输入框定位并受可用阅读高度约束，菜单与附件入口互斥，选择后聚焦输入框，Escape恢复触发按钮，草稿始终保留。已应用选项使用aria-selected，键盘预览使用data-active，移动高亮不提交配置。
+
+会话适配继续提供真实模型目录、能力、当前值和提交回调。CLI模型／强度／快速档位仍等待原生确认，失败保留已确认值；SuperAgent按供应商和模型身份保存API选择，现有活动回合沿用原请求。共用界面按实际能力显示选项，不新增模型字段或后台配置协议。旧Island四向键与Tab／Ctrl+P入口保留；SuperAgent搜索输入的左右键保留编辑光标行为，IME确认不提交选项。
+
+新组件沿用普通对话的选项布局与主题样式，删除SuperAgent独立模型菜单DOM和样式覆盖。强度颜色继续由ReasoningEffort统一提供；模型按钮的中性色悬停不会覆盖强度状态。指定SuperAgent Bubbles HTML直接打包同一份源码实现，不单独复制菜单。
+
+用户要求统一淡化输入区的聚焦高亮后，主输入框、自定义回答、问题选项、模型／供应商选择和附件入口改用globals.css的conversation-focus-ring／border／shadow派生变量。焦点光圈为1px、30%中性色，外扩1px；主输入框外层微光为5%，问题选项选中底色4%、边框25%。普通对话、SuperAgent及旧Island回答入口共用此反馈，保留焦点和已选身份。三主题的实际计算样式、截图及草稿／回答提交结果在artifacts/question-focus/all-results.json及同目录截图。
+
+淡化样式的验证：SuperAgent模型／问题／底栏3项、普通对话问题与输入区17项分批通过；首个普通对话页面在冷启动加载时超过20秒，30秒限时的单项复验通过，未修改仓库超时配置。三主题原型探针确认1px光圈、1px间距、草稿保留和自定义回答提交，页面错误为0；Main已目视复核。HTML打包与Notes校验通过。本轮只有CSS改动，完整应用构建和类型检查为not-run。
+
+验证：SuperAgent浏览器36项分批通过（整组35项及共享Worker补验1项），模型搜索／供应商筛选／中英文键盘确认、附件菜单互斥、焦点和草稿保留已覆盖；清理旧菜单CSS后，模型与底栏2项再次通过。普通输入／设置／OpenCode与Island选项回归25项分批通过（24项及流式模型菜单补验1项），三主题强度颜色、真实能力限制、拒绝配置保持原值、原生命令与窄窗均覆盖。测试断言对齐现有ConversationNotice的原始详情和欢迎页路径；Worker三主题测试直接读取共享组件，停止查找已退役原型DOM；流式菜单测试不再依赖100ms自动聚焦的时序。相关日志以artifacts/shared-composer-开头，原型11组检查通过且页面错误、外部请求为0。严格未使用类型检查、定向ESLint及build:app通过；ESLint保留JanusChat原有4条中文字面量警告。Notes校验347篇、0错误，17项跨仓库链接诊断保持。Main已目视复核共享模型菜单；未运行真实供应商模型设置或替换安装版。
+
+## 共用新会话与加载兼容
+
+2026-11-13 两种真实新会话已共用 ConversationWelcome：图形字标、标题“想从哪里开始？”、说明、实际工作区与输入文字左对齐，整组在可用 pane 内居中，默认最大宽744px。普通对话按当前引擎选取切角 SVG 并保留小图标；SuperAgent 使用 JanusX 和完整品牌色斜笔。字标按原始比例缩放，短名称不拉伸，颜色来自现有主题令牌；工作区缺失时明确显示尚未选择，不伪造就绪状态。窄 pane 缩减字标、字号和留白，矮窗／上下分屏可滚动访问字标及输入框。
+
+普通对话保留启动环、状态文案、trust/login/hooks 内联确认与减少动态偏好；加载和就绪内容使用等高叠层，同一输入框保留草稿、引用、焦点及首条消息移动动画。SuperAgent 全屏加载字标、扫描、真实 persistenceReady 守卫、可见计时及后台暂停不变；进入工作区后先等待工作数据恢复，再判断欢迎页。根历史、当前工作区话题（包括暂停／失败输入）、工作流计划、待处理 Worker 决策或错误均优先展示已有内容，不被新会话覆盖。欢迎页只负责呈现，模型、上下文、#／@ 操作仍归原输入框。
+
+## SuperAgent 的独立受管 Codex 通路
+
+SuperAgent 复用 CodexConversation 的原生事件／请求投影，通过独立 stdio 传输直接拥有 App Server 进程，无需 TUI。工作、执行与环境 lease 归 Agent 模块，原生权限、审批／问答及验证由[Worker 决策](../agent/superagent-workers.md)维护。P4 起现有 JanusChat 的正常输入由同一 Janus 分派工作，卡片按可变数量呈现并提供容量、停止和关闭；[分派与调度决策](../agent/superagent-scheduling.md)维护队列、输入归属及报告交付。
+
+该通路只允许当前工作 profile 内的原生决定，补充经过持久输入队列，未知请求明确显示阻塞并可停止，不提供终端兜底。原有终端双模式的启动、命令、回答和切换规则继续适用于下文范围，不因复用协议处理而改变。
+
+## Codex 重连提示恢复
+
+原生 Codex 适配器用 `willRetry` 追踪当前轮次的临时错误；同轮的新模型正文／推理输出或正常结束清除提示。工具活动、空增量、重复条目与其他线程不能证明网络恢复；旧轮次的延迟错误不能覆盖当前状态，最终失败及传输错误保留。切换原生线程会清除上个线程的错误。恢复逻辑与 dev 同步，实际实现位于 janus-agent 引擎包，本仓库通过固定制品消费。
+
+`tests/unit/codex-retry-recovery.test.ts` 在两侧保持一致，覆盖恢复、事件隔离、最终失败及线程切换。2026-11-09：本分支 codex-conversation、codex-retry-recovery、codex-managed-recovery、codex-async-questions 共 41 项通过，Worker 面板另 7 项浏览器测试通过；dev 的 codex-conversation 与 codex-retry-recovery 共 37 项通过。两侧类型检查、定向 ESLint、Notes 校验通过；引擎构建、六包固定制品校验与 SuperAgent build:check 通过。测试使用本地协议事件，不代表真实供应商断网重连验收。
+
+## Codex 异步提问
 
 ## Codex 重连提示恢复
 
@@ -84,6 +130,10 @@ Claude 对话优先启动时，原生 `--bg` 返回明确的目录未信任错�
 本轮验收：9 个相关单元文件 95 项通过；命令、设置和输入历史浏览器用例共 25 项分轮通过；上述 5 个真实 CLI 文件中 6 个代表性集成用例通过。Claude 完整流程 86.8 秒通过，额外覆盖终端模型指令、审批、原生 Esc、Bash 停止和 worker 隔离；其既有连续输入测试改为等待目标回复完成，避免把上一轮结束误当作后续投影已就绪。类型检查、相关 ESLint、双语键检查、diff 空白检查通过；Notes 校验 324 篇、0 errors、17 条既有外部链接诊断。主 Agent 自检，没有独立子 Agent 审阅。未逐条执行登录／登出、删除或发布类命令，不宣称所有参数、账户服务、CLI 版本均已验收。
 
 ## 对话内审批、选项和文字回答
+
+选项题的“其他”自定义回答与SuperAgent共用QuestionAnswerInput，字号和行高与主输入框共用conversation-input-font-size／line-height变量，当前13px／1.85。Enter提交当前问题答案，Shift+Enter／Ctrl+J换行，Ctrl／Cmd+Enter继续兼容提交；组词、keyCode229及重复按键不误提交，不添加多余换行。文本输入事件由问题控件自己处理，保留主输入草稿；一批问题仍需完整有效才提交。单选题输入自定义内容继续清除预设选项，多选题仍可组合选项与文字，密码继续遮罩，原生单行字段保留类型。聚焦反馈沿用上文共享的淡色变量。
+
+2026-11-14字体验证与Enter修复：普通问答10项、单行Enter及输入区相关8项、SuperAgent问答1项，共19项浏览器回归分批通过。覆盖三主题字号／行高相等、多行原文、Enter／换行、IME、延后再答、拒绝后重试、重复提交保护、独立主草稿与窄窗。生成HTML另在三主题下确认13px／24.05px和Enter提交，页面错误为0。严格未使用类型检查、定向ESLint及应用构建通过；ESLint保留JanusChat原有4条中文硬编码警告。日志、截图与html-results.json位于artifacts/question-answer-input。真实供应商输入法环境和运行中安装版未在本轮替换或验收。
 
 对话模式用独立请求卡片承载确认、单选、多选和 Type something 文字输入；一批问题完整提交，保留原生问题与选项身份。答案直接回应当前原生请求，不作为下一条聊天消息、不进入普通输入历史或待发队列。原生 CLI 仍可把已提交答案写入自己的工具结果与会话记录。底部草稿独立保留，阻塞问题未处理时暂停聊天发送与队列派发；不预选授权、不自动提交。
 
@@ -175,11 +225,15 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 
 ## 对话上下文、发送意图与差异反馈
 
+2026-11-13 已将 HTML 输入框方案落实到当前 checkout 的普通对话 AgentComposer 与 SuperAgent 根输入框：15px圆角（普通新会话16px）、13px正文、1.85行高、175px最大输入高度，统一浅表面、弱阴影和31px操作按钮。1px灰色分割线与输入文字对齐，颜色混合现有 shell-border 85%与 shell-chrome-raised 15%，聚焦和运行时不变色；桌面左右内缩17px、窄 pane 13px，快捷键提示移至框外下方。沿用生产三主题令牌，不导入 HTML 的固定色值。
+
+发送区按真实可取消状态收敛：空闲只显示向上箭头；运行且无有效草稿时只显示停止；运行有文字或有效引用时显示弱化停止与主发送。停止保留未发送草稿，补充发送后恢复单个停止。原生斜杠命令、能力限制、审批／问题守卫与实时投递路径保持，后台任务仍可停止；新布局不引入新的排队或暂停语义。 SuperAgent 的能力差异与完整证据归[界面决策](../agent/superagent-interface.md)和[本轮验证](../agent/superagent-verification.md#双模式输入框落地2026-11-13)。
+
 长对话输入隔离：`AgentComposer` 单独订阅草稿并负责输入框高度调整；`AgentSessionPane` 仅浅比较订阅工作区、路径、进程、初始视图和阅读位置，不订阅整个终端对象。逐字输入不再触发历史消息分组、diff 统计或节点构建。草稿仍同步写回原 store，发送与队列恢复直接读取最新值，保持重建恢复和连续发送语义。历史 DOM 常驻开销进一步由共用 `VirtualHistory`、最新轮次正常流和折叠内容按需渲染处理；机制、测试与剩余边界见[长对话显示与滚动](./long-session-performance.md)。
 
 验证：`conversation-typing-isolation.spec.ts` 使用 100 轮、400 条含工具与 diff 的合成记录，通过夹具 getter 统计历史正文读取。相同 31 字符逐字输入，修复前读取 62,000 次，修复后为 0；同时验证草稿重建恢复和发送。计数来自开发模式 StrictMode 浏览器夹具，不是现场输入延迟或整应用加速比。
 
-输入框快捷面板共用上沿锚点、背景、边框、阴影及列表行；模型与文件列表宽度上限 360px，添加上下文一级菜单为 280px，窄窗随输入框收缩。斜杠与工具栏模型入口均提供搜索；无查询时定位当前模型，勾选表示已应用，行背景表示待选择。斜杠模型页支持返回指令列表，提交失败保留原选择。
+输入框快捷面板共用上沿锚点、背景、边框、阴影及列表行；模型与文件列表宽度上限 360px，添加上下文一级菜单为 280px，窄窗随输入框收缩。斜杠与工具栏模型入口均提供搜索；无查询时定位当前模型；当前应用项以中性行底色与字重区分，键盘待选择项使用行底色，保留 aria-selected，不显示对号或左侧特殊高亮。斜杠模型页支持返回指令列表，提交失败保留原选择。
 
 “+ → 引用文件”在原弹层内搜索当前目录、进入子目录或引用整个目录，在正文光标处插入引用；直接输入 `@` 复用文件列表，选定后替换查询并回到正文。上下文菜单与模型／强度面板互斥，弹层不占正文布局。验证入口为 `tests/e2e/conversation-composer-layout.spec.ts`、`conversation-context.spec.ts` 和 `conversation-commands.spec.ts`。
 
@@ -188,6 +242,10 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 内联编辑器由浏览器保存选区与原生撤销栈；草稿仅存文本及引用标记，不存 HTML。引用元数据在草稿生命周期内保留以支持撤销，发送只采用正文仍存在的引用；全选覆盖或删除不会附带隐藏附件。同一编辑器复制／剪切粘贴保留已知引用，跨会话粘贴回退为可读路径文本。普通富文本粘贴只接收纯文本。Ctrl+J／Shift+Enter 使用原生换行操作，一次按键即将光标移入下一行；序列化忽略空行占位，草稿恢复保留首尾空行。IME、撤销／重做、输入历史、失败恢复与 pane 重建保持原有交互。
 
 文件导入开始时保存原生 live Range，拖入使用鼠标落点，粘贴／文件选择使用当前选区；导入期间移动光标不会改变目标，在目标前继续输入会让目标随正文移动。多文件按选择顺序批量插入，一次撤销即可移除整批；部分导入失败仍插入已成功文件并显示错误。原编辑器已卸载时不向另一个输入框写入。标签最大宽度 240px，并受输入区宽度约束；长名称省略，完整路径保留在悬停提示，缩略图与移除按钮不被名称挤出。短标签与文字同行，空间不足时自然换行。
+
+多行正文插入引用时，`ConversationInput` 将完整行结构作为一次原生 `insertHTML` 编辑写入，再按序列化偏移恢复光标，避免 Chromium 在段落边界把不可编辑标签移到行外。行首、行尾、空行及 pane 恢复后均沿用鼠标落点；撤销／重做仍由浏览器管理，发送保持原换行。代价是多行引用插入会重建编辑区的行节点，待导入附件的 live Range 因此按本次编辑的偏移重新锚定；普通文字输入及单行插入继续沿用局部编辑。此规则不改变目录引用与外部附件的类型处理。
+
+附件导入、大小及数量校验错误复用 SuperAgent 的 `ChatErrorCard`，统一主题边框、正文与操作按钮。附件错误可手动关闭，关闭后保留草稿并聚焦输入框；下一次导入或成功添加引用清除旧错误，批量导入部分成功时仍保留本次失败提示。三主题窄窗及 SuperAgent 重试由 `conversation-context.spec.ts`、`janus-chat-theme.spec.ts` 验证；多行落点、原生撤销／重做、恢复后发送及导入期间继续编辑由 `conversation-inline-reference.spec.ts` 验证，输入换行与历史边界由 `conversation-input-editing.spec.ts` 验证。浏览器夹具未覆盖操作系统原生拖拽。
 
 待发送与原生历史消息通过 `ConversationPrompt` 把 `file/directory/image/diff: JSON引号绝对路径` 显示为正文内文件名标签，原始消息及复制／编辑操作仍使用完整文本；相对路径示例保持原文。历史没有编辑器引用身份，因此这是路径语法投影：用户手写同样的绝对路径语法也会显示为标签，不能据此判断供应商是否读过文件。历史标签提供完整路径提示，不承担编辑器图片预览操作。
 
@@ -700,7 +758,7 @@ Codex 历史库读取失败与投递结果未知分别处理。仅当 `thread/re
 
 JanusX 只在受管 Codex 双模式后端与原生 TUI 的进程参数中启用此工具，不写入全局配置。工具可用不保证 Agent 每轮使用；无原生计划时不显示面板，不解析回答文字生成 todo。Claude 任务投影复用此面板，原生状态来源与验证范围见下一节。
 
-输入框上方显示可折叠执行计划、当前步骤和完成条目数。首次计划默认展开，用户收起后后续版本不强制展开；默认展开的计划全部完成后自动收起。每次非重复通知创建新版本，旧版本进入阅读流的计划历史。回答结束仅记录轮次结果，绝不自动完成步骤；中断、失败保留进度，断线显示最后已知计划并停止旋转。第一版只读，不提供用户直接勾选。
+当前轮次在输入框上方显示可折叠执行计划、当前步骤和完成条目数。首次计划默认展开，用户收起后后续更新不强制展开；默认展开的计划全部完成后自动收起。原生每次非重复通知仍保存快照，展示层将同一 turn 内步骤内容和顺序相同的快照合并为最新状态；进度、说明、同步状态及结果变化不增加可见版本。步骤增删、改写、重排或清空才保留调整记录。回答结束仅记录轮次结果，绝不自动完成步骤；中断、失败保留进度，断线显示最后已知计划并停止旋转。面板只读，不提供用户直接勾选。
 
 主进程按当前 threadId/turnId 校验消息，拒绝其它会话、迟到旧轮及无效状态；每版最多 100 步、每步 2000 字、说明 4000 字，保留最近 100 个计划版本。版本与步骤保留在当前 runtime 的快照中，切换视图和 renderer 重挂载可恢复；进程退出后的持久恢复、断线期间漏失版本补齐尚未实现。历史版本记录已接收的计划，不冒充完整原生账本，也不据完成勾选宣称测试或审阅通过。
 
@@ -747,7 +805,13 @@ Claude 同一原生轮可合并多条输入；Mods 在 prompt.submit 进入下�
 
 预览支持上下键定位、Enter 执行、Tab 仅补全、Esc 关闭及点击外部收起；输入法组合期间不提交。原生命令首次选择补入名称，用户可继续输入参数，再 Enter 调用；终端执行项在确认完整名称后切换视图，并将单条指令提交给所属原生终端，后续弹窗在终端处理。模型当前选项显示勾选，effort 用横向强度控件表达。切换模型时优先保留兼容的 effort，否则采用该模型的目录默认值；未知自定义模型仍显示真实模型名，但不猜测 effort 列表。目录失败可重试且不打断会话，设置失败保持草稿并显示反馈。模型与 effort 标签使用中英文文案；模型描述保留后端返回文本，effort 不显示描述或描述悬停提示。
 
-Codex `/new` 由主进程向所属原生 TUI 发出固定命令，仅放行一次非临时 thread/start；沿用原生客户端的选择与订阅，不另建一个终端未绑定的 thread。操作期间锁定提交，15 秒内没有原生新 thread 确认则显示失败并停用对话控制，可转终端检查；不自动重试。`codex-conversation-cli.test.ts` 的 `starts /new` 用例在 Windows/Codex 0.166.0 与 localhost 模型实测通过：新建本身没有模型请求，新建后的对话输入与终端输入投影到同一新 thread。该用例单独运行，真实供应商、其它版本和跨平台未验收。
+Codex `/new` 由主进程向所属原生 TUI 发出固定命令，仅放行一次非临时 thread/start；沿用原生客户端的选择与订阅，不另建一个终端未绑定的 thread。等待期间展示进度并允许转到终端，主动交接会取消尚未发出的回车。15 秒内没有新 thread 确认，或原生明确返回创建失败，自动显示终端和错误说明；仅新建失败不将健康连接标为 disconnected。旧 thread 与历史保留，迟到的新 thread 确认仍按原生身份绑定；不自动重试，也不盲发 Esc 关闭未知弹窗。真正断线继续保留 disconnected。`codex-conversation-cli.test.ts` 的正常新建与隐藏模型菜单阻塞恢复两项在 Windows/Codex 0.166.0、localhost 模型实跑通过；恢复后能继续发送消息，真实供应商、其它版本和跨平台未验收。
+
+2026-11-13 已修复指令等待与恢复：原故障在隐藏 `/model` 菜单中可复现，旧实现约 15011ms 后错误地把连接标为 disconnected，造成持续置灰。现实现将未知原生交互交还终端，保留活连接；原生弹窗仍由用户完成。用户报告的“立即报错”耗时未捕获，已检查源码和安装版的原超时均为 15000ms，不能断言用户当时也停在模型菜单。
+
+整体检查同时修复共享目录加载：只读 commands/models 不占用前端全局 busy；目录最多等待 15 秒，错误留在目录内，可重试；请求按 thread 与目录代次隔离，旧线程响应不得覆盖新目录。Codex 绑定新 thread 与共享 resetThread 清理目录，旧目录身份即使配上新代次也不能执行。Pi／DSH 的 catalog 读取超时不再使整条连接 broken，真实交付未知仍保留原保护。斜杠按名称前缀匹配，Enter 对不完整名称只补全；精确名称优先、保留内置名称所有权，避免描述文字导致误执行。`/new`、`/stop`、`/terminal` 的对话控制不接受参数时明确提示并保留草稿，带参数的原生用法仍在终端执行。
+
+验证：六个相关单测文件 90 项通过，包契约单测 1 项通过，`conversation-commands.spec.ts` 14 项通过，Codex `/new` 两项真实 CLI 回归通过；严格 unused 类型检查、定向 ESLint、双语键、桌面 `build:check` 与包边界检查通过。Notes 检查 346 篇、0 errors，保留 17 条既有外部引用诊断；主 Agent 已查看失败交接截图。较宽的 `codex-conversation.spec.ts` 中三条旧 Work log 选择器用例与已改版工作披露控件不匹配，未在本次指令修复中改动。引擎完整源码构建遇到既有 schema.ts 的 outcome.maxRepairRounds 类型不匹配；本次三模块独立编译通过，并仅覆盖原固定产物中的 codex-conversation、conversation-session、conversation-catalog 及声明映射。消费包固定为 33f6f3fe70882b60，安装哈希通过。诊断历史在 `artifacts/codex-new-diagnostic/`，修复与包证据在 `artifacts/command-recovery/`。没有替换运行中的安装版或终止用户会话，运行中的开发应用需重启主进程加载新包。
 
 协议依据为 [OpenAI 官方 app-server 文档](https://developers.openai.com/codex/app-server/)中的 `model/list`、模型能力字段，以及本机 Codex 0.166.0 生成 schema 的 `ThreadSettingsUpdateParams` / `ThreadSettingsUpdatedNotification`。controller 从 thread/start、thread/resume 响应获取初始 model/reasoningEffort；模型目录支持分页、隐藏项过滤与有界读取。选择通过 `thread/settings/update` 提交 model/effort，等待 `thread/settings/updated` 权威通知更新展示，通知继续转发原生 TUI；终端侧改动也由同一通知投影。仅更改当前 thread 的后续轮次设置，不写用户全局 config，不重启、不新建 thread、不取消在途回复。更新期间禁止新发送和重复设置；控制代次、模型目录和模型/effort 组合都在主进程校验。
 
@@ -951,7 +1015,7 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 
 ### 图片产物、预览与参考图复用
 
-输入区图片附件使用缩略图卡片，覆盖拖入、截图粘贴、文件选择、工作区图片引用与产物参考图。卡片保留文件名和移除按钮，点击可放大，Esc／关闭按钮／背景点击退出；关闭后焦点回到预览入口。图片从既有本地资源读取器加载，不向草稿存储写入图片字节；草稿重建时按引用路径恢复。加载或解码失败显示不可用提示，仍能移除；普通文件保持标签展示。预览不改变现有附件限额、提示词包装及原生图片发送路径。
+输入区图片附件使用缩略图卡片，覆盖拖入、截图粘贴、文件选择、工作区图片引用与产物参考图。行内图片引用由文件名提供文字基线，缩略图独立垂直居中，避免图片底边抬高标签、导致与相邻正文错位。卡片保留文件名和移除按钮，点击可放大，Esc／关闭按钮／背景点击退出；关闭后焦点回到预览入口。图片从既有本地资源读取器加载，不向草稿存储写入图片字节；草稿重建时按引用路径恢复。加载或解码失败显示不可用提示，仍能移除；普通文件保持标签展示。预览不改变现有附件限额、提示词包装及原生图片发送路径。
 
 2026-11-02 输入图片预览验证：`playwright test` 的 conversation-attachment-preview、conversation-attachment-recovery、conversation-context 与 conversation-composer-layout 共 10 个不同用例分轮通过；首轮两个 page.goto 加载超时的用例以单 worker、60 秒超时复跑通过。覆盖拖入／粘贴缩略图、放大关闭与焦点恢复、草稿重建、移除、不可用提示及原生图片路径发送。主 Agent 查看 `artifacts/conversation-composer/attachment-preview.png`，380px 窗口无横向溢出。`npm run typecheck` 和两个相关组件的 ESLint 通过。图片读取使用固定 PNG 浏览器夹具，未执行真实桌面拖拽或模型视觉调用。
 
@@ -972,3 +1036,35 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 浏览器 `conversation-images.spec.ts` 与 `conversation-context.spec.ts` 共 5 项通过，覆盖预览、保存请求、缺失文件、草稿保留和下一轮 localImage；真实系统保存窗口未自动操作，主进程导出函数另用真实文件测试身份校验、取消与复制。`codex-conversation-cli.test.ts` 的 generated image 用例及 `pi-conversation-cli.test.ts` 通过，使用真实安装 CLI、隔离目录、固定 PNG 和 localhost 模型，不代表调用了生产生图服务。
 
 收尾回归：图片、输出、四家适配器、命令、上下文和 outbox 共 9 个单元测试文件、77 项通过；缩略图按可视区域延迟加载后，图片浏览器用例 2 项复测通过。类型检查、相关实现 ESLint、国际化检查和 diff 空白检查通过；Note 检查 321 篇、0 errors，保留 17 条既有外部链接诊断。
+
+## 输出流呈现落地（2026-11-13）
+
+普通模式沿用真实 conversationOutputGroups 分组，过程默认折叠；摘要分两行显示最近／仍在执行的命令、状态、操作数量和已有耗时。展开后的工具使用紧凑行，当前执行以整行中性底色与字重区分；不使用左侧强调边缘。窄 pane 保留命令预览，原始输出、错误及完整 diff 继续按需展开。
+
+计划按 turnId 放在对应轮次末尾，与该轮修改文件同属附件区；尚未加载对应轮次的计划仍保留独立入口，不丢弃记录。只有活动轮次的最新计划在输入框上方；轮次结束后移入该轮附件区，默认保留一份最终计划。只有当前、连接可用且真实运行的步骤才高亮；历史计划不冒充正在执行。实质改动前的计划收进默认折叠的“计划调整”，计数表示调整次数；纯进度快照不进入此列表，也不显示 v1／v2／v3。计划和调整记录的手动折叠选择随历史行缓存。文件条目显示文件名、完整路径和已知增删数，保留逐文件展开、打开、反馈和 Git 检查；无可信计数时继续不显示计数。
+
+输出流定向验证：35项浏览器回归、5项真实 SuperAgent 组件浏览器场景和11项单测通过。覆盖过程默认收起、最近命令、手动开合、流式归档、失败／未知／截断状态、计划版本与中断保留、文件打开及 diff、文本选择复制、向上阅读、并行分支与 Worker 关联高亮；深色／纯白／石板色及390px窄窗截图已检查。严格类型、定向 lint、生产构建与 Notes 检查通过，Notes 保留17条既有外部引用诊断。证据为 artifacts/output-stream-20261113/；只更新当前 checkout，未覆盖安装版或执行真实模型／Worker CLI 验收。
+
+## 计划进度快照与调整记录合并（2026-11-14）
+
+用户指出 v1／v2／v3 实际只是同一计划的阶段更新，历史过多。`src/shared/conversation-plans.ts` 在展示层按 turnId 合并相邻的同内容、同顺序步骤，取每组最后一份快照；说明或完成状态变化更新原位，改变步骤、清空和恢复旧结构保留为真实调整。不同 turn 即使步骤完全相同也不合并。原生快照、版本号及现有保留上限保持原机制，不改事件接收或持久恢复契约。
+
+AgentSessionPane 先投影计划再分配活动轮次与历史；ConversationPlanHistory 展示结束轮次的最终计划，并将此前实质调整折叠。失败、中断、未完成和同步失败提示保留，历史步骤没有运行旋转或当前高亮。无对应已加载消息的计划按 turn 分开保存展示，避免将不同轮次混在同一版本列表。
+
+Main 执行 `npx vitest run --project=unit tests/unit/conversation-plans.test.ts --maxWorkers=1`，5 项通过，覆盖 50 次状态更新合并、步骤内容／数量／顺序变化、结果和 stale 保留、跨 turn 隔离以及清空／恢复。`npx playwright test tests/e2e/conversation-native-plans.spec.ts tests/e2e/output-stream-style.spec.ts --project=island --workers=1`，5 项通过，覆盖当前计划开合、完成归档、异常进度、实质调整默认折叠及历史手动状态。深／浅／石板和窄窗截图沿用输出流场景；已查看 `artifacts/plan-history/final-plan.png`，最终计划与一次折叠调整分开展示，无进度版本堆叠。
+
+严格未使用类型检查、三个修改源码文件的 ESLint、双语检查及 npm run build:check 通过，构建输出为 artifacts/build-check。Notes 检查为 346 篇、0 errors、17 条既有外链诊断。浏览器日志、构建与最终检查记录归 `artifacts/plan-history/verification.json`。本轮仅改变展示投影及交互，没有重新执行用户任务、修改原生计划账本或替换运行中的安装版；未执行真实 CLI、云模型端到端或完整 verify。
+
+## 计划调整入口移除与修改文件列表限高（2026-11-15）
+
+用户反馈“执行计划”与“计划调整”两个概念难以区分。输出流不再展示“计划调整”：每个轮次只显示一份计划，步骤被改写时原位替换，结束轮次保留最终计划。此前两节关于折叠调整记录、调整次数计数和“调整前计划”的描述由本节取代。被替换的版本仍在原生快照中，`compactConversationPlans` 的合并规则和单测不变；文案键 planChanges、planPrevious 及未使用的 planHistory 已删除。历史计划的折叠状态键改为按轮次固定，不再随版本变化。
+
+“本轮修改文件”展开后的内容放入 turnFilesBody 滚动容器，最高 min(360px, 45vh)，超出部分在容器内滚动，摘要行保持可见。计划正文原有 min(220px, 28vh) 上限不变。
+
+验证：`npx playwright test tests/e2e/conversation-native-plans.spec.ts tests/e2e/output-stream-style.spec.ts tests/e2e/conversation-file-changes.spec.ts tests/e2e/conversation-context.spec.ts tests/e2e/conversation-virtual-history.spec.ts --project=island --workers=1` 15 项通过，覆盖计划改写后仍只有一份、无调整入口、跨轮各留一份，以及文件列表容器的滚动与高度上限。conversation-plans 单测 5 项、严格未使用类型检查、两个组件的 ESLint 和双语检查通过。验证使用 worktree 和浏览器夹具，未运行完整 verify、真实 CLI 或安装版。
+
+## 工具调用三处视觉对齐（2026-11-13）
+
+普通对话现在通过 ConversationToolCall 将真实 ConversationItem 传给共享 ToolDisclosure；SuperAgent 的 ToolCallCard 使用同一组件。之前仅统一折叠和中性色，仍保留两套工具 DOM 的实现已替换。动作图标、动作词、等宽目标、状态／已有耗时与右侧箭头按确认的 HTML 排布；展开输出使用同一边框、间距与滚动高度。文件打开、逐行 diff、截断提示和历史手动开合仍由原生适配层提供。
+
+本轮验证：34 项浏览器交互回归、5 项真实 SuperAgent 组件场景、11 项工具／呈现单测及 1 项 HTML 对照测试通过。对照测试读取确认的 HTML 并比较两种生产适配器的运行／完成行内边距、32px 行高、8px 间距、图标、右侧箭头和输出框指标；深色、纯白、石板色及390px窄窗截图存于 artifacts/tool-presentation-unification-20261113/。严格类型、定向 ESLint、国际化、构建和 Notes 检查通过；Notes 保留17条既有外部引用诊断。验证为当前 checkout 和浏览器夹具，未替换安装版。

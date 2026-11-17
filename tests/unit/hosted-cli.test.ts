@@ -1,14 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { checkHostedConnection, runHostedCli } from '../../src/main/hosted/cli'
 
-const { execute, end } = vi.hoisted(() => ({ execute: vi.fn(), end: vi.fn() }))
-vi.mock('node:child_process', () => ({ execFile: execute }))
+const { execute } = vi.hoisted(() => ({ execute: vi.fn() }))
+vi.mock('../../src/main/platform/process-host', () => ({ runProcess: execute }))
 
 function respond(error: Error | null = null, stderr = '', stdout = '{}') {
-  execute.mockImplementation((_cli, _args, _options, callback) => {
-    queueMicrotask(() => callback(error, stdout, stderr))
-    return { stdin: { on: vi.fn(), end } }
-  })
+  execute.mockResolvedValue({ status: error && 'code' in error ? 'spawn-error' : 'exited', exitCode: error ? 1 : 0, stdout, stderr, error })
 }
 
 beforeEach(() => { vi.clearAllMocks(); respond() })
@@ -20,20 +17,16 @@ describe('hosted CLI credentials', () => {
       expect(await checkHostedConnection(provider)).toEqual({ provider, status: 'ready' })
       const args = ['auth', 'status', '--hostname', host, ...(provider === 'github' ? ['--active'] : [])]
       expect(execute).toHaveBeenCalledWith(cli, args, expect.objectContaining({
-        windowsHide: true, timeout: 30000,
-      }), expect.any(Function))
+        timeoutMs: 30000,
+      }))
     },
   )
 
   it('allows a valid active GitHub account when an inactive account has invalid credentials', async () => {
     const active = 'Logged in to github.com account TreeX-xx (keyring)\nActive account: true'
     const inactive = 'Failed to log in to github.com account TreeX-X (keyring)\nActive account: false\nThe token in keyring is invalid.'
-    execute.mockImplementation((_cli, args, _options, callback) => {
-      queueMicrotask(() => args.includes('--active')
-        ? callback(null, '', active)
-        : callback(new Error('exit 1'), '', active + '\n' + inactive))
-      return { stdin: { on: vi.fn(), end } }
-    })
+    execute.mockImplementation(async (_cli, args) => ({ status: 'exited', exitCode: args.includes('--active') ? 0 : 1,
+      stdout: '', stderr: args.includes('--active') ? active : active + '\n' + inactive }))
     expect(await checkHostedConnection('github')).toEqual({ provider: 'github', status: 'ready' })
   })
 
@@ -53,7 +46,7 @@ describe('hosted CLI credentials', () => {
     vi.stubEnv('GLAB_API_PROTOCOL', 'http')
     const body = JSON.stringify({ body: 'first\n$(shell)\n@file' })
     await runHostedCli('gitlab', ['api', 'projects/team%2Fapp/notes', '--input', '-'], body)
-    expect(end).toHaveBeenCalledWith(body)
+    expect(execute.mock.calls[0][2].input).toBe(body)
     const options = execute.mock.calls[0][2]
     expect(options.env).toMatchObject({ GITLAB_HOST: 'gitlab.com', GITLAB_API_HOST: 'gitlab.com', GLAB_API_PROTOCOL: 'https' })
     expect(options).not.toHaveProperty('shell')

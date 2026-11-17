@@ -1,0 +1,39 @@
+.indicator { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 5px; flex-shrink: 0; border: 0; border-radius: 5px; background: transparent; color: var(--shell-muted); cursor: pointer; }
+.indicator:hover { color: var(--shell-text); background: var(--shell-hover); }
+.indicator:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: -1px; }
+.indicator svg { flex-shrink: 0; }
+.indicator > span { min-width: 4.5ch; font-size: 11px; font-variant-numeric: tabular-nums; text-align: left; }
+.ringTrack { fill: none; stroke: var(--shell-border); stroke-width: 1.5; }
+.ringValue { fill: none; stroke: var(--shell-text); stroke-width: 2; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+.card { position: relative; min-width: 0; border: 1px solid var(--shell-border-soft); border-radius: 11px; background: var(--shell-chrome-raised); overflow: hidden; }
+.card[data-current='true']::before { content: ''; position: absolute; top: 18px; left: 0; width: 2px; height: 19px; border-radius: 1px; background: var(--shell-text); opacity: .8; pointer-events: none; }
+.cardMain { display: block; width: 100%; min-width: 0; padding: 15px; border: 0; background: transparent; color: var(--shell-text); text-align: left; cursor: pointer; border-radius: 10px; }
+.cardMain:hover { background: color-mix(in srgb, var(--shell-text) 3%, transparent); }
+.cardMain:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: -2px; }
+.cardTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.identity > span { min-width: 0; }
+.identity strong { font-size: 12px; font-weight: 550; }
+.identity > span > span { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--shell-muted); }
+.status { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 10px; color: var(--shell-muted); }
+.context { display: block; margin-top: 18px; }
+.contextHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 10px; color: var(--shell-muted); }
+.contextHead > span:first-child { margin-right: auto; }
+.contextHead strong { font-size: 10px; font-weight: 400; color: var(--shell-text); font-variant-numeric: tabular-nums; }
+.contextTrack { display: block; height: 3px; margin-top: 8px; border-radius: 2px; overflow: hidden; background: var(--shell-border-soft); }
+.contextTrack > span { display: block; height: 100%; background: var(--shell-muted); }
+.card[data-current='true'] .contextTrack > span { background: var(--shell-text); }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px 11px; margin-top: 19px; }
+.metrics > span { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.metrics > span > span { color: var(--shell-muted); font-size: 10px; overflow-wrap: anywhere; }
+.metrics strong { color: var(--shell-text); font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cardFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 18px; }
+.cardFoot > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--shell-muted); font-size: 10px; }
+.more { margin: 0 15px; border-top: 1px solid var(--shell-border-soft); padding-bottom: 12px; }
+.more > summary { display: flex; align-items: center; gap: 6px; padding-top: 10px; color: var(--shell-muted); font-size: 10px; cursor: pointer; list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: 3px; }
+.more > summary:hover { color: var(--shell-text); }
+.more[open] > summary svg { transform: rotate(90deg); }
+.more > span { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--shell-border-soft); font-size: 10px; }
+@container terminal-project (max-width: 380px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

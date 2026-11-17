@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-16",
-  "updated": "2026-11-07T12:46:03.452Z",
+  "updated": "2026-11-13T09:27:07Z",
   "class": "feature",
   "tags": ["chat", "timeline", "agentX-parity", "blueprint", "launch-assistant"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
@@ -76,6 +76,8 @@ Island 与 AgentSessionPane 共用 `work-output.ts` 的相邻活动分组、状�
 
 ## Retention and boundaries
 
+SuperAgent 的 context_diagnostic 复用 agent-event 与 version 1 timeline，按白名单只存请求序号、时间、callId、工具、预算、原因码及资源 ID／版本／范围。它不生成额外文本段、不复制原文、不进入模型历史；沿用既有块数和元数据预算。旧快照缺失该字段时保持没有诊断记录。
+
 agent-event 是过程增量的唯一来源；legacy delta 仅在未使用 agent-event 时回退。请求身份及 controller generation 隔离迟到事件。运行配置的模型历史显式只投影 role/content，Chat 也不把 timeline 发送给模型。工具上下文 trace 与展示专属回执分开；真实配置值不进入展示快照。
 
 单轮最多 256 块，累计文本保留 200,000 字符；每个推理段保留末尾 4,000 字符和开头 512 字符摘要预览，工具元数据另受约 1,000,000 字符预算。超限淘汰较早块并显示提示。只在阅读位置接近底部时跟随，向上阅读不强制滚动。
@@ -120,3 +122,17 @@ agent-event 是过程增量的唯一来源；legacy delta 仅在未使用 agent-
 最终验证：相关 13 个单测文件共 110 项通过；`npm run test:llm-core -- tests/stream-compat.test.ts` 的 6 项兼容回归通过。浏览器命令 `npx playwright test tests/e2e/chat-work-timeline.spec.ts tests/e2e/janus-chat-theme.spec.ts tests/e2e/blueprint-chat-recovery.spec.ts --project=island --workers=2` 共 25 项通过；桌面命令 `npx playwright test tests/e2e/run-config-assistant.spec.ts --project=desktop --workers=1` 对 `artifacts/build-check/main/index.js` 的最新构建有 1 项通过。Windows 本机验证设置 `NO_PROXY=127.0.0.1,localhost`，避免本地夹具经过系统 HTTP 代理。
 
 `npm run typecheck:strict-unused`、`npm run build:check`、`npm run i18n:check` 和 `npm run check:package-boundary` 通过。变更源文件定向 ESLint 为 0 errors，JanusChat 的既有中文文案有 4 warnings。`npm run check:notes` 为 315 篇、0 errors、17 项既有显式链接诊断；这些诊断不是本次需求的未解析引用。未执行全仓 verify、打包发布或外部真实模型请求。
+
+## 输出流展示补充（2026-11-13）
+
+按用户确认的 HTML 落实紧凑过程展示：默认折叠的摘要保留最近或仍在执行的操作、真实状态、数量和已有耗时；展开后每条工具仍可单独查看参数、结果及错误。当前执行高亮使用整行中性色，不使用左侧竖线。公开推理、工作说明、工具和业务证据维持既有时间顺序；错误数量及待审批状态不因收起而消失。
+
+摘要和工具详情的手动选择跨流式归档保留，SuperAgent 历史回复和 Worker 关联高亮单独适配。工具复制仍使用原摘要，业务结果保持各入口专有操作；没有过程内容时不生成伪造摘要。短回答中的时间线占满可用阅读宽度，避免折叠摘要改变固有宽度后把推理正文压成过窄的一列。
+
+输出流定向验证：35项浏览器回归、5项真实 SuperAgent 组件浏览器场景和11项单测通过。覆盖过程默认收起、最近命令、手动开合、流式归档、失败／未知／截断状态、计划版本与中断保留、文件打开及 diff、文本选择复制、向上阅读、并行分支与 Worker 关联高亮；深色／纯白／石板色及390px窄窗截图已检查。严格类型、定向 lint、生产构建与 Notes 检查通过，Notes 保留17条既有外部引用诊断。证据为 artifacts/output-stream-20261113/；只更新当前 checkout，未覆盖安装版或执行真实模型／Worker CLI 验收。
+
+## 工具调用三处视觉对齐（2026-11-13）
+
+针对用户指出的三套工具显示差异，将普通模式的 ConversationToolCall 与 Janus 的 ToolCallCard 接到同一个 ToolDisclosure。HTML 的紧凑行、右侧箭头和简单输出框是共享视觉基准，清除两处独立的工具行 CSS。只对已知协议类型／工具名映射动作词；未知调用保留原始数据，不从输出猜测进度或虚构目标。超级代理的工作区和复制功能移入展开区；业务证据及历史／并行折叠不变。代价是工具名的完整元信息需要展开查看，换取两种模式一致的阅读密度。若新增协议携带稳定动作元信息，再扩展动作映射而不另建卡片。
+
+本轮验证：34 项浏览器交互回归、5 项真实 SuperAgent 组件场景、11 项工具／呈现单测及 1 项 HTML 对照测试通过。对照测试读取确认的 HTML 并比较两种生产适配器的运行／完成行内边距、32px 行高、8px 间距、图标、右侧箭头和输出框指标；深色、纯白、石板色及390px窄窗截图存于 artifacts/tool-presentation-unification-20261113/。严格类型、定向 ESLint、国际化、构建和 Notes 检查通过；Notes 保留17条既有外部引用诊断。验证为当前 checkout 和浏览器夹具，未替换安装版。

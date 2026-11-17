@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { lstat, open, realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
-import { execa } from 'execa'
+import { runProcess } from '../platform/process-host/node'
 import { OFFICE_EXTENSIONS } from '../../shared/office'
 import { expectedBundledOfficecliSha256 } from './office-bundled-path'
 
@@ -25,16 +25,13 @@ const BROKER_MAX_OUTPUT_BYTES = 1024 * 1024
 
 const defaultDependencies: OfficeBrokerDependencies = {
   run: async (binary, args, options) => {
-    const result = await execa(binary, args, {
-      shell: false,
-      windowsHide: true,
-      reject: false,
-      timeout: options.timeout,
-      maxBuffer: options.maxBuffer,
+    const result = await runProcess(binary, args, {
+      timeoutMs: options.timeout,
+      maxOutputBytes: options.maxBuffer,
       input: options.input,
       cwd: options.cwd,
     })
-    return { exitCode: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
+    return { exitCode: result.status === 'exited' ? result.exitCode ?? 1 : 1, stdout: result.stdout, stderr: result.stderr || (result.status !== 'exited' ? `Office process ${result.status}` : '') }
   },
   verifyExecutable: async (binary) => {
     const expectedSha256 = expectedBundledOfficecliSha256()

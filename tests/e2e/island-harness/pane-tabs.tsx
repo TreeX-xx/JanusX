@@ -21,7 +21,7 @@ installElectronApiFallback()
 Object.assign(window.electron.system, { getLanguage: async () => 'en', setLanguage: async () => undefined })
 document.documentElement.dataset.theme = DEFAULT_APP_THEME
 const params = new URLSearchParams(location.search)
-useThemeStore.getState().applyExternal(params.get('theme') === 'dark' ? 'dark' : DEFAULT_APP_THEME)
+useThemeStore.getState().applyExternal(params.get('theme') === 'planche' ? 'planche' : params.get('theme') === 'white' ? 'white' : 'dark')
 const bounds: Record<string, BrowserBounds> = {}
 let kills = 0
 let creates = 0

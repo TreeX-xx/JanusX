@@ -25,7 +25,7 @@
       }
     }
   },
-  "updated": "2026-10-27T16:06:18Z",
+  "updated": "2026-11-14T05:20:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -57,6 +57,8 @@ Local Codex scratch directories `.codex-cache`, `.codex-session`, `.codex-sessio
 `scripts/check-packaged-runtime.mjs` asserts both directions against the same closure: every root-installed package in the closure must be present in the archive, and no package outside the closure may be present. The three closure-reported names that stay excluded are listed there with their reason — `electron` resolves to the built-in Electron module, `typescript` is declared by the MCP and Lark SDKs but required by neither at runtime, and `monaco-editor` ships as renderer assets. The script also enforces budgets on the asar payload (260 MiB), app.asar.unpacked (64 MiB) and the portable installer (200 MiB), each measured above the shipped shape with headroom for dependency growth.
 
 The exclusions keep the verbatim layout. They remove whole package directories instead of asking electron-builder to re-derive the tree, so hoisted packages stay where npm installed them and the archive root keeps every name a consumer resolves.
+
+Maintained `design/` prototypes and `vendor/janus-agent` archives are excluded from the application. The retired `_design` root remains excluded to protect older local material. The engine archives remain repository build inputs; runtime loads the installed packages under `node_modules`. Accumulating historical archives and prototype screenshots previously raised a local build to 274.5 MiB of asar payload. The package boundary gate requires these exclusions, preserving the existing 260 MiB budget. Design source consolidation does not change the runtime boundary.
 
 
 

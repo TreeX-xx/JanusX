@@ -12,7 +12,7 @@ export function conversationOutputGroups(items: ConversationItem[], activeTurnId
     const preview = latest?.activity || (latest?.type === 'commandExecution' ? latest.text.split('\n')[0].replace(/\s+/g, ' ').slice(0, 240)
       : latest?.files?.map(file => file.path).join(', ').slice(0, 240))
     return { ...group,
-      activity: preview ? { text: preview, running: latest?.status === 'inProgress',
+      activity: preview ? { text: preview, kind: latest?.type, running: latest?.status === 'inProgress',
         startedAt: latest?.status === 'inProgress' ? latest.receivedAt : undefined } : undefined,
       summary: summarizeWork(group.items),
       settled: group.process && activeTurnId !== group.items[0].turnId && group.items.every(item => item.status === 'completed' && !item.truncated),

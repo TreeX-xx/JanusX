@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { execa } from 'execa'
+import { isAbsolute, join, relative, resolve } from 'node:path'
+import { runChecked } from '../platform/process-host'
+import { downloadHostAsset } from '../lib/download'
 import { MANAGED_NODE_VERSION, managedCliPaths } from './managed-paths'
 
 // Pinned together from https://nodejs.org/dist/v24.22.2/SHASUMS256.txt.
@@ -20,8 +21,24 @@ export function verifyRuntimeArchive(bytes: Uint8Array, expected: string): void 
 }
 
 async function verifyNode(node: string): Promise<void> {
-  const result = await execa(node, ['--version'], { timeout: 15_000, windowsHide: true })
+  const result = await runChecked(node, ['--version'], { timeoutMs: 15_000 })
   if (result.stdout.trim() !== `v${MANAGED_NODE_VERSION}`) throw new Error('Private Node.js runtime verification failed.')
+}
+
+async function verifyRuntime(runtime: string): Promise<void> {
+  const node = join(runtime, process.platform === 'win32' ? 'node.exe' : 'bin/node')
+  await verifyNode(node)
+  const npm = join(runtime, process.platform === 'win32' ? 'node_modules/npm/bin/npm-cli.js' : 'lib/node_modules/npm/bin/npm-cli.js')
+  await readFile(npm)
+  const result = await runChecked(node, [npm, '--version'], { timeoutMs: 15_000 })
+  if (!/^\d+\.\d+\.\d+$/.test(result.stdout.trim())) throw new Error('Private npm verification failed.')
+}
+
+function assertOwned(base: string, target: string): void {
+  const child = relative(resolve(base), resolve(target))
+  if (!child || child === '..' || child.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || isAbsolute(child)) {
+    throw new Error('Refusing to modify a runtime path outside the private directory.')
+  }
 }
 
 const preparing = new Map<string, Promise<ReturnType<typeof managedCliPaths>>>()
@@ -37,8 +54,7 @@ export function ensureManagedRuntime(root?: string): Promise<ReturnType<typeof m
 
 async function prepare(paths: ReturnType<typeof managedCliPaths>) {
   if (existsSync(paths.node) && existsSync(paths.npm)) {
-    await verifyNode(paths.node)
-    return paths
+    try { await verifyRuntime(paths.runtime); return paths } catch { /* Stage and verify a replacement before touching the damaged runtime. */ }
   }
   const expected = hashes[`${process.platform}-${process.arch}`]
   if (!expected) throw new Error('Automatic Node.js setup is unavailable on this platform. Install Node.js LTS manually, then retry.')
@@ -48,29 +64,36 @@ async function prepare(paths: ReturnType<typeof managedCliPaths>) {
     const platform = process.platform === 'win32' ? 'win' : process.platform
     const folder = `node-v${MANAGED_NODE_VERSION}-${platform}-${process.arch}`
     const archive = `${folder}.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`
-    const response = await fetch(`https://nodejs.org/dist/v${MANAGED_NODE_VERSION}/${archive}`, { signal: AbortSignal.timeout(120_000) })
-    if (!response.ok) throw new Error(`Node.js download failed (${response.status}). Check your connection and retry.`)
-    const bytes = new Uint8Array(await response.arrayBuffer())
+    const bytes = await downloadHostAsset(`https://nodejs.org/dist/v${MANAGED_NODE_VERSION}/${archive}`, 160 * 1024 * 1024, AbortSignal.timeout(180_000))
     verifyRuntimeArchive(bytes, expected)
     const file = join(stage, archive)
     await writeFile(file, bytes)
     if (process.platform === 'win32') {
       const quote = (s: string) => `'${s.replace(/'/g, "''")}'`
-      await execa('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-        `$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath ${quote(file)} -DestinationPath ${quote(stage)}`], { windowsHide: true, timeout: 120_000 })
+      await runChecked('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath ${quote(file)} -DestinationPath ${quote(stage)}`], { timeoutMs: 120_000 })
     } else {
-      await execa('tar', ['-xzf', file, '-C', stage], { timeout: 120_000 })
+      await runChecked('tar', ['-xzf', file, '-C', stage], { timeoutMs: 120_000 })
     }
     const extracted = join(stage, folder)
-    const bin = process.platform === 'win32' ? extracted : join(extracted, 'bin')
-    await verifyNode(join(bin, process.platform === 'win32' ? 'node.exe' : 'node'))
-    // The archive must include npm, not just the standalone Node binary.
-    await readFile(join(extracted, process.platform === 'win32' ? 'node_modules/npm/bin/npm-cli.js' : 'lib/node_modules/npm/bin/npm-cli.js'))
-    if (existsSync(paths.runtime)) throw new Error('The private runtime is incomplete. Install Node.js LTS manually and retry.')
-    await rename(extracted, paths.runtime)
+    await verifyRuntime(extracted)
+    const backup = join(stage, 'previous-runtime')
+    assertOwned(paths.base, paths.runtime)
+    assertOwned(paths.base, backup)
+    const replacing = existsSync(paths.runtime)
+    if (replacing) await rename(paths.runtime, backup)
+    try {
+      await rename(extracted, paths.runtime)
+    } catch (error) {
+      // A failed swap must retain the old runtime, including when files are locked.
+      if (replacing) await rename(backup, paths.runtime)
+      throw error
+    }
     return paths
   } finally {
     // stage is created by mkdtemp directly inside our owned runtime directory.
-    await rm(stage, { recursive: true, force: true })
+    assertOwned(paths.base, stage)
+    // Keep the backup if restoration failed; a subsequent retry can recover it manually.
+    if (!existsSync(join(stage, 'previous-runtime')) || existsSync(paths.node)) await rm(stage, { recursive: true, force: true })
   }
 }

@@ -1,7 +1,8 @@
 import { createServer } from 'node:net'
 import { isAbsolute, relative, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { execa } from 'execa'
+import { spawnProcess, stopOwnedProcess } from '../platform/process-host'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 import type { OfficePreviewLease, OfficeWatchErrorCode, OfficeWatchEvictedEvent } from '../../shared/office'
 import { officecliManager } from './officecli-manager'
 import { createOfficePreviewProxy } from './office-preview-proxy'
@@ -77,21 +78,14 @@ async function allocateFreePort(): Promise<number> {
 }
 
 function spawnWatch(binary: string, filePath: string, port: number): WatchChild {
-  const subprocess = execa(binary, ['watch', filePath, '--port', String(port)], {
-    shell: false,
-    reject: false,
-    windowsHide: true,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    forceKillAfterDelay: 1_000,
-  })
-  const exited = subprocess.then(() => undefined, () => undefined)
+  const subprocess = spawnProcess(binary, ['watch', filePath, '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const exited = new Promise<void>(resolve => { subprocess.once('close', () => resolve()); subprocess.once('error', () => resolve()) })
   return {
     stdout: subprocess.stdout!,
     stderr: subprocess.stderr!,
     exited,
     isAlive: () => isOfficeWatchProcessRunning(subprocess),
-    stop: () => stopOfficeWatchProcess(subprocess, exited),
+    stop: async () => { await stopOwnedProcess(subprocess); await exited },
   }
 }
 
@@ -163,6 +157,7 @@ export class OfficeWatchPool {
   }
 
   async acquire(file: TrustedOfficeFile): Promise<OfficePreviewLease> {
+    assertApplicationRunning()
     const key = file.filePath
     if (this.stoppingAll || Array.from(this.stoppingRoots).some((root) => isWithinRoot(root, key))) {
       throw new OfficeWatchPoolError('START_FAILED')

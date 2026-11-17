@@ -1,4 +1,4 @@
-import { supportsConversation } from '../../../shared/conversation-display'
+import { executionCapability, localShellSeed } from './execution-capabilities'
 import type { Terminal, TerminalPreset } from '@/types'
 import { ensureRemoteAgent } from './remote-agent-setup'
 import { ensureLocalCli } from '@/stores/cli-readiness'
@@ -27,7 +27,7 @@ let cachedDefaultShell: string | null = null
 let shellFetchPromise: Promise<string> | null = null
 
 function fallbackShell(): string {
-  return window.electron?.platform === 'win32' ? 'powershell.exe' : 'bash'
+  return localShellSeed().command
 }
 
 export function getCachedDefaultShell(): string | null {
@@ -203,7 +203,7 @@ export async function launchTerminalPreset(
   const cwd = cwdOverride ?? workspacePath
   const remote = Boolean(parseRuntimeResource(cwd))
   if (!remote && preset !== 'shell' && !options.attachOnly && !await ensureLocalCli(preset)) return null
-  const conversationEnabled = supportsConversation(preset) && !remote && !options.attachOnly
+  const conversationEnabled = executionCapability('conversation', preset, cwd).status === 'available' && !options.attachOnly
   const initialView = conversationEnabled ? useConversationPreferences.getState().initialView : 'terminal'
   const nativeInput = initialView === 'terminal' ? initialInput : undefined
 

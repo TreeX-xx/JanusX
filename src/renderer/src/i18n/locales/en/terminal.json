@@ -20,6 +20,7 @@
     "contextUnknown": "ctx unknown"
   },
   "context": {
+    "moreStats": "More statistics",
     "row": {
       "runtimeWindow": "Runtime window",
       "modelCapacity": "Model capacity",
@@ -169,6 +170,7 @@
     "terminalRuntime": "Usage",
     "noTelemetryData": "No usage data",
     "focusWorkspaceTitle": "Focused terminal workspace: {{name}} · {{path}}",
+    "closeRuntimePanel": "Close usage panel",
     "runtimePanelToggle": "Toggle usage panel",
     "janusChatFallback": "Janus Chat",
     "runtimeAria": "Usage",
@@ -259,6 +261,8 @@
     "copied": "Copied",
     "detailHint": "{{count}} turns · read the full conversation in the detail window",
     "externalHint": "External session from a terminal outside JanusX; its transcript is read-only.",
+    "identityConflict": "Conflicting history ID",
+    "identityConflictHint": "Multiple history files share this session ID and have been kept separately. Review the original files before continuing from a terminal.",
     "resumeCopy": "Copy resume command",
     "resumeUnavailable": "Resume is not supported for this engine yet.",
     "resume": "Resume",
@@ -405,7 +409,6 @@
     },
     "planTitle": "Execution plan",
     "planUnavailable": "Task sync unavailable · showing last confirmed progress",
-    "planHistory": "Plan history",
     "planCleared": "The agent cleared this plan",
     "planInterrupted": "Execution stopped · progress preserved",
     "planCount": "{{done}} / {{total}} completed",
@@ -489,6 +492,9 @@
     "emptyTitle": "What will you build?",
     "emptyHint": "Start with an idea, a task, or something to fix.",
     "latest": "Back to latest",
+    "inputNavigation": "Navigate inputs",
+    "inputNumber": "Input {{number}}",
+    "inputAttachment": "Attachment input",
     "history": "Conversation history",
     "truncated": "Some older or long content is omitted from this view. Full details remain in the native session.",
     "activity": "Agent activity",
@@ -496,9 +502,10 @@
     "approval": "Pending approval",
     "approvalChoices": {
       "accept": "Allow once",
+      "acceptForTurn": "Allow permissions for this turn",
       "acceptForSession": "Allow for this session",
       "decline": "Decline",
-      "cancel": "Decline and stop"
+      "cancel": "Decline and stop this turn"
     },
     "question": {
       "heading": "Your response is needed",
@@ -546,6 +553,8 @@
     "retryModels": "Retry",
     "unsupportedCommand": "This command is not available in conversation view. Use it in the terminal.",
     "openTerminalCommand": "Switch to terminal",
+    "newPending": "Waiting for Codex to open a new conversation. You can switch to the terminal to complete any pending interaction.",
+    "commandArgumentsUnsupported": "This conversation control does not accept arguments. Your draft is kept; use the terminal for native command arguments.",
     "effortUnavailable": "The current model has no effort information in the catalog. Choose a listed model or use the terminal.",
     "noOptions": "No matching options available.",
     "nextTurnSettings": "Applies to the next turn in this session. Your current response continues.",
@@ -579,6 +588,14 @@
     "inputHint": "Enter to send · Ctrl+J / Shift+Enter for a new line",
     "stop": "Stop response",
     "send": "Send",
+    "toolAction": {
+      "run": "Run",
+      "read": "Read",
+      "search": "Search",
+      "edit": "Edit",
+      "think": "Think",
+      "tool": "Tool"
+    },
     "kind": {
       "commandExecution": "Command",
       "fileChange": "File changes",
@@ -596,6 +613,7 @@
       "back": "Back",
       "search": "Search files or enter a path",
       "attachHint": "Choose files from your computer",
+      "drop": "Drop to add context",
       "referenceHint": "Choose files or folders in this workspace",
       "add": "Add context",
       "attach": "Attach files",
@@ -635,6 +653,25 @@
       "failed": "Command discovery failed. Refresh to retry.",
       "terminalRun": "Run in the native terminal and continue any interaction there",
       "accepted": "Native accepted: {{command}}"
-    }
+    },
+    "historyPreview": "Recent content is shown here. Scroll up to load earlier history.",
+    "contentPreview": "This content is a preview.",
+    "loadEarlier": "Load earlier content",
+    "loadNewer": "Load newer content",
+    "readFullContent": "Read full content",
+    "fullHistory": "Conversation history",
+    "fullContent": "Full content",
+    "historyLatest": "Back to latest",
+    "historyBack": "Back to history",
+    "historyLoading": "Loading history",
+    "historyRetry": "Retry",
+    "historyBeginning": "Beginning of conversation",
+    "historyUnavailable": "Native history pagination is unavailable. Retry or check the native CLI version.",
+    "historyUser": "You",
+    "historyAgent": "Codex",
+    "historyActivity": "Activity",
+    "previousContent": "Previous section",
+    "nextContent": "Next section",
+    "contentRange": "{{start}}–{{end}} / {{total}} characters"
   }
 }

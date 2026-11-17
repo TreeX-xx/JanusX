@@ -1,4 +1,12 @@
 // Note: .agents/notes/workbench/unified-file-window.md
+/** Full-file ceilings, measured in UTF-8 bytes rather than JavaScript characters. */
+export const MAX_EDITOR_TEXT_BYTES = 32 * 1024 * 1024
+export const MAX_HTML_PREVIEW_BYTES = 64 * 1024 * 1024
+
+export function editorTextByteLimit(filePath: string): number {
+  return /\.html?$/i.test(filePath) ? MAX_HTML_PREVIEW_BYTES : MAX_EDITOR_TEXT_BYTES
+}
+
 export type FileViewType = 'code' | 'markdown' | 'html' | 'image' | 'pdf' | 'binary'
 export interface FileViewState {
   pdfPage?: number

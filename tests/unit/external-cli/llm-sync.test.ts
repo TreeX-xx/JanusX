@@ -112,7 +112,7 @@ describe('ExternalCliService provider sync', () => {
     expect(resolver).not.toHaveBeenCalled()
   })
 
-  it('reads the janus latest version from npm dist-tags', async () => {
+  it('does not query or install the retired Janus CLI', async () => {
     const { CliInstaller } = await import('../../../src/main/external-cli/installer')
     const homeDir = await createTempDir('janusx-cc-janus-latest-home-')
     const userDataDir = await createTempDir('janusx-cc-janus-latest-data-')
@@ -127,7 +127,6 @@ describe('ExternalCliService provider sync', () => {
         homeDir,
         isRegularFile: async () => false,
         run: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
-        resolveSiblingRoot: () => undefined,
       }),
     )
     vi.stubGlobal('fetch', vi.fn(async () => ({
@@ -136,15 +135,15 @@ describe('ExternalCliService provider sync', () => {
     })))
 
     try {
-      await expect(service.latest('janus')).resolves.toEqual({ toolId: 'janus', latestVersion: '0.2.0' })
-      expect(vi.mocked(fetch)).toHaveBeenCalledOnce()
-      expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('%2f')
+      await expect(service.latest('janus')).resolves.toEqual({ toolId: 'janus' })
+      await expect(service.install('janus')).resolves.toMatchObject({ success: false, error: 'Unsupported tool.' })
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
     }
   })
 
-  it('reports unknown janus latest when dist-tags is unreachable', async () => {
+  it('keeps retired Janus CLI queries local when offline', async () => {
     const { CliInstaller } = await import('../../../src/main/external-cli/installer')
     const homeDir = await createTempDir('janusx-cc-janus-absent-home-')
     const userDataDir = await createTempDir('janusx-cc-janus-absent-data-')
@@ -159,7 +158,6 @@ describe('ExternalCliService provider sync', () => {
         homeDir,
         isRegularFile: async () => false,
         run: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
-        resolveSiblingRoot: () => undefined,
       }),
     )
     vi.stubGlobal('fetch', vi.fn(async () => {

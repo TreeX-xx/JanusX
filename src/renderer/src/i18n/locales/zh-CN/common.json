@@ -1,4 +1,10 @@
 {
+  "conversationWelcome": {
+    "title": "想从哪里开始？",
+    "hint": "聊一个问题，或从项目文件开始。",
+    "workspace": "当前工作区",
+    "noWorkspace": "尚未选择工作区"
+  },
   "learning": {
     "title": "帮助与学习",
     "introTitle": "首次入门",
@@ -442,6 +448,8 @@
     "openIsland": "唤出 Island",
     "openIslandHint": "展开 Island，保持自动化面板可见",
     "closeIsland": "收起 Island",
+    "companionLocked": "SuperAgent 已连接",
+    "companionLockedHint": "自动化侧栏打开期间保持连接，可随时通过对话创建或调整任务。",
     "localOnly": "本机应用运行期间执行；退出应用后暂停调度。",
     "unavailable": "自动化服务不可用",
     "empty": "新建卡片来收纳任务，再添加提醒或代码审查。每个任务独立设置运行时间。",

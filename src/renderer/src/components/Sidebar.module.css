@@ -106,7 +106,7 @@
 .worktreeRow[aria-current='true'] .worktreeName { color: var(--shell-text); }
 
 .sidebar [role='button']:focus-visible,
-.sidebar button:focus-visible { outline: 1px solid var(--shell-accent); outline-offset: -1px; }
+.sidebar button:focus-visible { outline: 1px solid var(--interaction-accent); outline-offset: -1px; }
 
 .terminalName,
 .worktreeName {
@@ -173,7 +173,7 @@
 .quickTerminalText { min-width: 0; }
 .quickTerminalPath { display: block; color: var(--shell-dim); font-size: 10px; overflow-wrap: anywhere; }
 .quickTerminalStatus { display: block; margin-top: 2px; color: var(--shell-muted); font-size: 10px; }
-.terminalPopover button:focus-visible { outline: 1px solid var(--shell-accent); outline-offset: -1px; }
+.terminalPopover button:focus-visible { outline: 1px solid var(--interaction-accent); outline-offset: -1px; }
 
 @media (prefers-reduced-motion: reduce) {
   .workspaceRow,

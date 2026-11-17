@@ -14,6 +14,8 @@ directories:
 # whose smartUnpack flags no reimplementation reproduces faithfully.
 # Note: entry — see .agents/notes/2026-09-20-packaged-hoisted-deps--39f58575.md
 beforeBuild: ./scripts/electron-before-pack.cjs
+# Note: .agents/notes/desktop/officecli-bundled.md
+beforePack: ./scripts/officecli-before-pack.cjs
 includeSubNodeModules: true
 
 files:
@@ -23,6 +25,7 @@ files:
   # because node_modules/@janusx/llm-core is a symlink into it.
   - "**/*"
   - package.json
+  - "!resources/officecli{,/**/*}"
   - "!.cache{,/**/*}"
   - "!.claude{,/**/*}"
   - "!.codex{,/**/*}"
@@ -44,6 +47,9 @@ files:
   - "!scripts/android-lab{,/**/*}"
   - "!scripts/remote-lab{,/**/*}"
   - "!design{,/**/*}"
+  # Keep the retired prototype root excluded as well as design/ for older local material.
+  - "!_design{,/**/*}"
+  - "!vendor/janus-agent{,/**/*}"
   - "!release{,/**/*}"
   - "!src{,/**/*}"
   # Downloadable features have their own signed packages, including build caches
@@ -500,10 +506,6 @@ files:
   - "!node_modules/zod-validation-error{,/**/*}"
   # --- END dev-only node_modules ---
 
-extraResources:
-  - from: resources/officecli
-    to: officecli
-
 asarUnpack:
   - node_modules/node-pty/**/*
 
@@ -518,6 +520,9 @@ publish:
   releaseType: release
 
 win:
+  extraResources:
+    - from: resources/officecli/officecli.exe
+      to: officecli/officecli.exe
   target:
     - nsis
     - portable
@@ -539,10 +544,19 @@ portable:
   requestExecutionLevel: user
 
 mac:
+  # Distribution policy includes OfficeCLI's .NET 10 support range, not only Electron.
+  # Note: .agents/notes/desktop/macos-compatibility.md (MAC-11; native acceptance pending)
+  minimumSystemVersion: '15.0'
+  extraResources:
+    - from: resources/officecli/darwin-${arch}/officecli
+      to: officecli/darwin-${arch}/officecli
+  # Preserve the upstream signature: re-signing changes the broker's pinned hash.
+  signIgnore:
+    - '/Contents/Resources/officecli/darwin-(arm64|x64)/officecli$'
   target:
     - dmg
     - zip
-  icon: resources/icon.icns
+  icon: resources/icon.png
   category: public.app-category.developer-tools
 
 linux:

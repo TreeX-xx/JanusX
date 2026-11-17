@@ -2,7 +2,6 @@
 .dialog::backdrop { background: color-mix(in srgb, var(--surface-shade) 40%, transparent); }
 .dialog h2 { margin: 16px 0 10px; font-size: 19px; font-weight: 600; }
 .dialog p { font-size: 13px; line-height: 1.7; color: var(--shell-muted); margin: 10px 0; }
-.environment { padding: 12px; background: var(--shell-chrome); border-radius: 8px; font-size: 12px; line-height: 1.7; }
 .actions { display: flex; gap: 8px; margin-top: 20px; }
 .dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 8px 14px; border: 1px solid var(--shell-border-soft); border-radius: 7px; color: var(--shell-text); background: transparent; cursor: pointer; font-size: 13px; }
 .dialog button:disabled { opacity: .5; cursor: default; }

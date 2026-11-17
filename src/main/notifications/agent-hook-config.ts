@@ -1,17 +1,15 @@
 // Note: launch-only assets and native trust — .agents/notes/terminal/terminal-hook-launch-isolation.md
 import { workspaceIo, writeIoFile } from '@janus-agent/agent-core'
 import { app } from 'electron'
-import { execFile } from 'node:child_process'
+import { runChecked } from '../platform/process-host'
 import { dirname, isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { access, mkdir, readFile, rm, stat } from 'node:fs/promises'
-import { promisify } from 'node:util'
 import type { AgentEngine } from '../janus-runner/types'
 import type { AgentHookBridgeEnv } from './agent-hook-bridge'
 import { JANUSX_HOOK_MATCHER_FLAG } from './agent-hook-types'
 import { CliDetector } from '../external-cli/cli-detector'
 
-const execFileAsync = promisify(execFile)
 
 export const JANUSX_HOOK_COMMAND_MARKER = 'janusx-agent-hook-v2'
 const JANUSX_LEGACY_HOOK_COMMAND_MARKERS = [
@@ -1091,13 +1089,13 @@ export class AgentHookConfigManager {
     // One-time cost: Add-Type shells out to the framework C# compiler.
     // Hidden like every other JanusX spawn; hook-time flashing is unaffected.
     const quote = (value: string): string => `'${value.replace(/'/g, "''")}'`
-    await execFileAsync('powershell.exe', [
+    await runChecked('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
       `Add-Type -Path ${quote(sourcePath)} -OutputAssembly ${quote(runnerPath)} -OutputType WindowsApplication`,
-    ], { windowsHide: true, timeout: 120000 })
+    ], { timeoutMs: 120000 })
   }
 
   private async ensureHookClientScript(): Promise<string | undefined> {

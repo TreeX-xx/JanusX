@@ -89,7 +89,7 @@ export async function hookCliFixture(options: { codexRetryProbe?: boolean; codex
       event('response.output_item.added', { output_index: 0, item: { ...item, status: 'in_progress', content: [] } })
       event('response.content_part.added', { item_id: item.id, output_index: 0, content_index: 0, part: { type: 'output_text', text: '', annotations: [] } })
       event('response.output_text.delta', { item_id: item.id, output_index: 0, content_index: 0, delta: outputText })
-      if (options.codexLiveProbe && responseRequests.length === 1) await new Promise(resolve => setTimeout(resolve, 5000))
+      if (options.codexLiveProbe && responseRequests.length === (options.codexAsyncQuestionProbe ? 2 : 1)) await new Promise(resolve => setTimeout(resolve, 5000))
       event('response.output_item.done', { output_index: 0, item })
       event('response.completed', { response }); res.end()
     } else if (req.url?.includes('chat/completions')) {

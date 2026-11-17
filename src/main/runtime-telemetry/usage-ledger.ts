@@ -67,6 +67,7 @@ export class UsageLedger {
         COMMIT;
       `)
       this.database = database
+      database.exec("CREATE INDEX IF NOT EXISTS sessions_native_identity ON sessions(json_extract(key,'$[0]'), json_extract(key,'$[2]'))")
       this.databasePath = path
       return database
     } catch (error) { database.close(); throw error }
@@ -77,6 +78,29 @@ export class UsageLedger {
     const database = this.open()
     try {
       database.exec('BEGIN IMMEDIATE')
+      // A copied/moved source is the same accounting stream only when native
+      // event identities and counters prove overlap. Never merge solely by path or id.
+      const exact = database.prepare('SELECT key FROM sessions WHERE key=?').get(JSON.stringify([observation.engine, observation.namespace, observation.sessionId]))
+      if (!exact) {
+        const candidates = database.prepare("SELECT key, data FROM sessions WHERE json_extract(key,'$[0]')=? AND json_extract(key,'$[2]')=?").all(observation.engine, observation.sessionId) as Array<{ key: string; data: string }>
+        if (candidates.length) {
+          const compatible = candidates.filter(candidate => {
+            const namespace = (JSON.parse(candidate.key) as string[])[1]
+            const state = JSON.parse(candidate.data) as SessionState
+            if (observation.mode === 'cumulative') return !!observation.sourceHash && observation.sourceHash === state.sourceHash
+            let overlap = false
+            for (const event of observation.events ?? []) {
+              const prior = database.prepare('SELECT tokens FROM identities WHERE key=?').get(JSON.stringify([observation.engine, namespace, event.id])) as { tokens: string } | undefined
+              if (!prior) continue
+              if (!sameTokens(JSON.parse(prior.tokens) as UsageTokens, event)) return false
+              overlap = true
+            }
+            return overlap
+          })
+          if (compatible.length !== 1) throw new Error(`Conflicting history sources for ${observation.engine} session ${observation.sessionId}`)
+          observation = { ...observation, namespace: (JSON.parse(compatible[0].key) as string[])[1] }
+        }
+      }
       const key = JSON.stringify([observation.engine, observation.namespace, observation.sessionId])
       const stored = database.prepare('SELECT data FROM sessions WHERE key=?').get(key) as { data: string } | undefined
       const previous = stored ? JSON.parse(stored.data) as SessionState : undefined

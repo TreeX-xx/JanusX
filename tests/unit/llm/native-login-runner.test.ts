@@ -27,11 +27,11 @@ describe('background native login renderer', () => {
     vi.useFakeTimers()
     vi.stubEnv('CLAUDE_CODE_NO_FLICKER', '1')
     expect(await startNativeLogin('claude')).toEqual({ success: true })
-    expect(terminalManager.create).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'native-login-claude',
-      program: '/cli/claude',
-      env: { CLAUDE_CODE_NO_FLICKER: '0' },
-    }))
+    const config = vi.mocked(terminalManager.create).mock.calls.at(-1)?.[0]
+    expect(config?.id).toBe('native-login-claude')
+    expect(config?.program).toBe('/cli/claude')
+    expect(config?.launch?.env.PATH).toEqual(expect.any(String))
+    expect(config?.launch?.env.CLAUDE_CODE_NO_FLICKER).toBe('0')
     expect(process.env.CLAUDE_CODE_NO_FLICKER).toBe('1')
     // Classic mode retains the existing slash-command login flow.
     await vi.advanceTimersByTimeAsync(2500)
@@ -41,7 +41,9 @@ describe('background native login renderer', () => {
   it.each(['codex', 'opencode'] as const)('keeps %s login free of Claude renderer overrides', async consumer => {
     vi.useFakeTimers()
     expect(await startNativeLogin(consumer)).toEqual({ success: true })
-    expect(terminalManager.create).toHaveBeenCalledWith(expect.objectContaining({ env: undefined }))
+    const config = vi.mocked(terminalManager.create).mock.calls.at(-1)?.[0]
+    expect(config?.launch?.env.PATH).toEqual(expect.any(String))
+    expect(config?.launch?.env.CLAUDE_CODE_NO_FLICKER).toBeUndefined()
   })
 
   it('recognizes the classic ConPTY login menu across output chunks and confirms only once', async () => {

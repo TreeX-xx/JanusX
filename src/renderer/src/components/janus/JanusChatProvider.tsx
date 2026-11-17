@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import type { EngineeringContext } from '../../../../shared/ipc/janus-chat'
+import { useSuperAgentNotices } from './useSuperAgentNotices'
 import {
   useJanusChat,
   type UseJanusChatRegistryReturn,
@@ -16,6 +17,7 @@ export function useJanusChatRegistry(): UseJanusChatRegistryReturn {
 
 export function JanusChatProvider({ children }: { children: ReactNode }) {
   const registry = useJanusChat()
+  useSuperAgentNotices()
   return <JanusChatContext.Provider value={registry}>{children}</JanusChatContext.Provider>
 }
 

@@ -1,0 +1,16 @@
+.selection { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; color: var(--shell-text); font-size: 12px; }
+.hint { display: block; color: var(--shell-muted); font-size: 11px; padding-bottom: 5px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 4px 7px; border: 1px solid var(--shell-border); border-radius: 6px; background: var(--shell-chrome); }
+.tag > svg, .tag > img { flex-shrink: 0; }
+.tag > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selection small, .menu small { color: var(--shell-muted); font-size: 11px; }
+.selection button { border: 0; background: transparent; color: inherit; padding: 4px; cursor: pointer; }
+.menu { position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; z-index: 50; padding: 6px; max-height: 260px; overflow: auto; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-chrome-raised); color: var(--shell-text); font-size: 12px; box-shadow: 0 4px 16px var(--shell-border); }
+.menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px; text-align: left; border: 0; border-radius: 6px; color: inherit; background: transparent; cursor: pointer; }
+.menu button[aria-selected=true] { background: var(--shell-chrome); }
+.menu button:disabled { opacity: .5; cursor: not-allowed; }
+.menu span { overflow-wrap: anywhere; min-width: 0; }
+.icon { display: flex; align-items: center; justify-content: center; flex: 0 0 30px; height: 30px; border: 1px solid var(--shell-border); border-radius: 7px; background: var(--shell-chrome); }
+.copy { display: flex; flex: 1; flex-direction: column; gap: 3px; line-height: 1.4; }
+.label { font-weight: 500; }
+.menu button:focus-visible, .selection button:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: -2px; }

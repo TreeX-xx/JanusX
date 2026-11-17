@@ -1,4 +1,5 @@
 import type { IPty } from 'node-pty'
+import type { ResolvedLaunch } from '../platform/runtime-context'
 
 export type TerminalPreset = 'shell' | 'claude' | 'codex' | 'opencode' | 'janus' | 'pi' | 'dsh'
 
@@ -10,6 +11,9 @@ export interface TerminalConfig {
   /** When set, spawn this program directly instead of a shell. */
   program?: string
   programArgs?: string[]
+  /** Main-only launch snapshot; never accepted from a renderer DTO. */
+  launch?: ResolvedLaunch
+  providerStorePath?: string
   cols?: number
   rows?: number
   env?: Record<string, string>

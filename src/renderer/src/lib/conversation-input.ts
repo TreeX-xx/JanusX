@@ -9,7 +9,7 @@ export function insertConversationNewline(event: KeyboardEvent, update: (value: 
   const start = input.selectionStart
   const value = `${input.value.slice(0, start)}\n${input.value.slice(input.selectionEnd)}`
   if (input.maxLength >= 0 && value.length > input.maxLength) return true
+  input.setRangeText('\n',start,input.selectionEnd,'end')
   update(value)
-  requestAnimationFrame(() => { if (input.isConnected) input.setSelectionRange(start + 1, start + 1) })
   return true
 }

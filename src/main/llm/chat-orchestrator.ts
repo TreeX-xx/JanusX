@@ -16,7 +16,8 @@
 
 // Note: policy-neutral loop core with shell-side duties only — see .agents/notes/agent/agent-loop-refactor.md
 import { llmService } from './LlmService'
-import { configService, DEFAULT_AGENT_MAX_STEPS } from '../config/service'
+import { configService } from '../config/service'
+import { INTERACTIVE_RUN_LIMIT } from '@janus-agent/janus-agent'
 import { captureEngineeringUserMemory } from '../knowledge/engineering-user-memory'
 import { knowledgeProcessingQueue } from '../knowledge/processing-queue'
 import { knowledgeContextService } from '../knowledge/context-service'
@@ -36,6 +37,7 @@ import {
 import { AgentSteeringPort } from '@janus-agent/agent-core'
 import {
   prepareJanusChatRecall as prepareCoreRecall,
+  type CompactionSummarizer,
 } from '@janus-agent/chat-core'
 import {
   buildJanusChatTurnPorts,
@@ -49,6 +51,8 @@ import type { ChatContextCheckpoint, ChatContextStatus } from '../../shared/chat
 import type { UserMemoryDelivery } from '../../shared/memory-strength'
 import { containsMemoryDelivery, recordUserMemoryAccessBestEffort, trackMemoryStream } from '../knowledge/memory-access'
 import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
+import { createSuperAgentChatTurn } from '../janus/superagent/desktop-chat-turn'
+import { superAgentService } from '../janus/superagent/host'
 import { endBrowserTurn } from '../browser/control-service'
 
 /** 对话消息类型 */
@@ -59,6 +63,9 @@ export interface ChatMessage {
 
 /** 流式对话请求参数 */
 export interface ChatStreamRequest {
+  workerBackend?: 'codex' | 'claude'
+  agentMode?: 'ordinary' | 'superagent'
+  inputEventId?: string
   memoBinding?: import('../../shared/memo').MemoBinding
   memoMessageId?: string
   contextCheckpoint?: ChatContextCheckpoint
@@ -176,9 +183,6 @@ export function gateFromToolAllowlist(allowlist: string[] | undefined, policy?: 
     return policy?.(call)
   }
 }
-/** P6：默认 40（P6 前硬编码 20），经 agentMaxSteps 配置可调，仅 janus-chat 通道。 */
-const CHAT_MAX_STEPS = DEFAULT_AGENT_MAX_STEPS
-
 /** Active streaming chat abort controllers (module-scoped for shutdown). */
 const abortControllers = new Map<string, AbortController>()
 const chatSessions = new Map<string, ManagedChatSession>()
@@ -220,13 +224,14 @@ export function abortChatStream(requestId: string): void {
 /**
  * R6-full：进行中流的 steering 目标注册（key = conversationId ?? requestId）。
  * 队列只活在请求生命周期内：renderer 历史已乐观追加用户原文并随会话落盘，
- * 主侧无需另行落盘；请求结束（成功/失败/取消）即丢弃未消费条目——下次发送
- * 会从渲染端历史自然带上这些文本，不丢不重。
+ * 端口条目随请求结束丢弃；SuperAgent 先持久保存原文与固定工作区，再允许本轮分派。
+ * 其余对话沿用渲染端历史和原有 steering 规则。
  */
-const activeSteerTargets = new Map<string, { requestId: string; port: AgentSteeringPort; entries: Map<string, string>; memoId?: string }>()
+const activeSteerTargets = new Map<string, { requestId: string; port: AgentSteeringPort; entries: Map<string, string>; memoId?: string;
+  workspaceId?: string; superAgent?: Promise<Awaited<ReturnType<typeof createSuperAgentChatTurn>>> }>()
 const MAX_STEER_ENTRIES_PER_REQUEST = 10
 
-export function steerChatStream(input: ChatSteerInput): { accepted: boolean; error?: string } {
+export function steerChatStream(input: ChatSteerInput, hostContext?: string): { accepted: boolean; error?: string } {
   let content = typeof input.text === 'string' ? input.text.trim() : ''
   if (!content) return { accepted: false, error: 'Empty steering text' }
   if (typeof input.entryId !== 'string' || !input.entryId) return { accepted: false, error: 'Invalid steering entry id' }
@@ -236,7 +241,11 @@ export function steerChatStream(input: ChatSteerInput): { accepted: boolean; err
     if (key) activeSteerTargets.delete(key)
     return { accepted: false, error: 'No active stream for this conversation' }
   }
+  if (input.expectedRequestId && input.expectedRequestId !== target.requestId) {
+    return { accepted: false, error: 'Active stream changed' }
+  }
   if (target.memoId) content += '\n\n' + memoSteeringContext(target.memoId, input.entryId, input.memoBinding)
+  if (hostContext) content += '\n\n' + hostContext
   const previous = target.entries.get(input.entryId)
   if (previous !== undefined) return previous === content ? { accepted: true } : { accepted: false, error: 'Steering identity conflicts with an earlier message' }
   if (target.port.size >= MAX_STEER_ENTRIES_PER_REQUEST) {
@@ -248,19 +257,37 @@ export function steerChatStream(input: ChatSteerInput): { accepted: boolean; err
   return { accepted: true }
 }
 
+/** Production steering saves the original user input before acknowledging it to the renderer. */
+export async function submitChatSteer(input: ChatSteerInput): Promise<{ accepted: boolean; error?: string }> {
+  const target = activeSteerTargets.get(input.conversationId ?? '')
+  if (input.expectedRequestId && target && input.expectedRequestId !== target.requestId) return { accepted: false, error: 'Active stream changed' }
+  if (!target?.superAgent) return steerChatStream(input)
+  if (input.workspaceId !== target.workspaceId) return { accepted: false, error: 'Workspace changed; this message cannot steer the previous workspace turn' }
+  try {
+    const scope = await target.superAgent
+    const context = await scope.steering(input.entryId, input.text, input.workerBackend)
+    if (activeSteerTargets.get(input.conversationId ?? '') !== target) return { accepted: false, error: 'No active stream for this conversation' }
+    return steerChatStream({ ...input, text: context })
+  } catch (error) { return { accepted: false, error: String(error) } }
+}
+
 export function cancelChatSteer(input: { conversationId?: string; entryId: string }): { cancelled: boolean } {
   const key = input.conversationId || ''
   const target = key ? activeSteerTargets.get(key) : undefined
   if (!target) return { cancelled: false }
   const cancelled = target.port.remove(input.entryId)
-  if (cancelled) target.entries.delete(input.entryId)
+  if (cancelled) {
+    target.entries.delete(input.entryId)
+    void target.superAgent?.then(scope => scope.revoke(input.entryId)).catch(() => undefined)
+  }
   return { cancelled }
 }
 
 /** 单向 send/on 模式的 chatStream 事件端点（渲染端按 requestId 过滤） */
 interface ChatStreamReplyTarget {
   reply: (channel: string, payload: unknown) => void
-  sender?: { id?: number; isDestroyed?: () => boolean }
+  sender?: { id?: number; isDestroyed?: () => boolean; mainFrame?: unknown }
+  senderFrame?: unknown
 }
 
 /** Pending mid-turn ask_user answers, keyed by tool call id. */
@@ -345,7 +372,7 @@ function defaultChatTurnPorts(callerId: string, requestId: string, domain?: 'per
       }
       return typeof catalog.listModels === 'function' ? catalog.listModels('janus', providerId) : Promise.resolve([])
     },
-    getMaxTurns: () => configService.getAgentMaxSteps().catch(() => CHAT_MAX_STEPS),
+    getMaxTurns: async () => INTERACTIVE_RUN_LIMIT,
     getAgentSession: (agentSessionId) => workspaceAgentRuntime.getSession(agentSessionId),
     forkAgentSession: async (parentId, caller) => {
       const child = await workspaceAgentRuntime.forkSession(parentId, caller)
@@ -353,7 +380,8 @@ function defaultChatTurnPorts(callerId: string, requestId: string, domain?: 'per
       return { sessionId: child.id, ...child.workspace, status: child.status }
     },
     closeAgentSession: async id => { try { await workspaceAgentRuntime.cancelSession(id) } finally { workflowSessionParents.delete(id) } },
-    executeFunctionCall: (input, caller) => workspaceAgentRuntime.executeFunctionCall(input, caller),
+    executeFunctionCall: (input, caller, signal) => workspaceAgentRuntime.executeFunctionCall(input, caller, signal),
+    awaitBackground: (refs, options, caller) => workspaceAgentRuntime.awaitBackground(refs, options, caller),
     listRegistryTools: () => workspaceAgentRuntime.registry.list(),
     listRegistryManifests: () => workspaceAgentRuntime.registry.listManifests?.(),
     knowledgeSearch: async (input) => {
@@ -441,6 +469,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
   const steerKey = conversationId || requestId
   const steeringPort = new AgentSteeringPort()
   activeSteerTargets.set(steerKey, { requestId, port: steeringPort, entries: new Map(),
+    workspaceId,
     memoId: sourceTag === 'janus-chat' && !request.compact && !request.maintenanceTaskId && !request.noteRepairId ? request.memoBinding?.memoId : undefined })
 
   // 窗口销毁后 event.reply 会抛异常并造成 unhandled rejection，统一守卫
@@ -486,6 +515,16 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     const turnAllowlist = toolAllowlist
     let turnToolGate = gateFromToolAllowlist(toolAllowlist, toolGate)
     const userText = [...messages].reverse().find(message => message.role === 'user')?.content ?? ''
+    let superAgentTurn: Awaited<ReturnType<typeof createSuperAgentChatTurn>> | undefined
+    if (request.agentMode !== undefined && !['ordinary', 'superagent'].includes(request.agentMode)) throw new Error('Invalid Agent mode')
+    if (request.agentMode !== 'ordinary' && sourceTag === 'janus-chat' && !request.compact && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
+      if (event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
+      const admission = createSuperAgentChatTurn({ service: superAgentService(event.sender?.id), workspaceId, conversationId,
+        eventId: request.inputEventId, text: userText, signal: controller.signal, workerBackend: request.workerBackend,
+        onDiagnostic: data => sendAgentEvent({ type: 'context_diagnostic', requestId, data }) })
+      activeSteerTargets.get(steerKey)!.superAgent = admission
+      superAgentTurn = await admission
+    }
     const ordinaryMemoTurn = sourceTag === 'janus-chat' && conversationId && !request.compact
     if (ordinaryMemoTurn && mentionsMemoWorkspace(userText)) {
       const previousGate = turnToolGate
@@ -510,17 +549,28 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     const source = (endpoint as typeof endpoint & { source?: ChatContextStatus['source'] }).source ?? 'estimated'
     const scopeKey = JSON.stringify([domain ?? 'personal', request.contextEpoch ?? 0,
       (workspaceResources ?? []).map(item => [item.workspaceId, item.workspacePath]).sort(), request.memoBinding?.memoId ?? null])
-    const turnMessages = chatSession.beginTurn(messages, scopeKey, request.contextCheckpoint,
+    let turnMessages = chatSession.beginTurn(messages, scopeKey, request.contextCheckpoint,
       state => sendAgentEvent({ type: 'context_state', requestId, state }), source)
+    if (superAgentTurn && endpoint.supportsFunctionCalling !== false) {
+      superAgentTurn.configure(endpoint)
+      turnMessages = await superAgentTurn.prepareMessages(turnMessages)
+    }
     const modelStream = ports.streamTextFn
     ports.streamTextFn = (async (options: Record<string, unknown>) => modelStream({ ...options,
       maxTokens: options.maxTokens ?? endpoint.maxOutputTokens } as never)) as typeof modelStream
-    const summarize = async (input: { system?: string; prompt: string }, signal: AbortSignal) => {
-      const result = await modelStream({ model: endpoint.model, abortSignal: signal, maxTokens: Math.min(endpoint.maxOutputTokens ?? 4096, 4096),
+    if (superAgentTurn && endpoint.supportsFunctionCalling !== false && workspaceId && conversationId) {
+      const { createReportReviewer } = await import('@janus-agent/janus-agent/superagent/report-reviewer')
+      superAgentService(event.sender?.id).reviews?.register(workspaceId, conversationId,
+        createReportReviewer({ model: { resolve: async () => endpoint, getMaxTurns: () => 12 }, streamTextFn: ports.streamTextFn }))
+    }
+    // Summary budgets and recovery belong to chat-core; see .agents/notes/agent/superagent-context.md.
+    const summarize: CompactionSummarizer = async (input, signal) => {
+      const result = await modelStream({ model: endpoint.model, abortSignal: signal, maxTokens: input.maxOutputTokens ?? Math.min(endpoint.maxOutputTokens ?? 4096, 4096),
         messages: [{ role: 'system', content: input.system ?? '' }, { role: 'user', content: input.prompt }] } as never)
       let text = ''
       for await (const delta of result.textStream) { signal.throwIfAborted(); text += delta }
-      return text
+      const finishReason = 'finishReason' in result ? await result.finishReason : undefined
+      return { text, ...(typeof finishReason === 'string' ? { finishReason } : {}) }
     }
 
     let projectContext: string | undefined
@@ -554,6 +604,12 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
         })
       }
       if (!roots.length) ports.knowledgeCapture = undefined
+    }
+
+    if (superAgentTurn) {
+      const context = endpoint.supportsFunctionCalling !== false ? await superAgentTurn.attach(ports)
+        : 'Worker delegation is unavailable for this model because tool calling is disabled. The user input was saved; do not claim execution started.'
+      projectContext = [projectContext, context].filter(Boolean).join('\n\n')
     }
 
     // 运行配置专属工具族（照 attachNoteChatTools 端口拦截样板，只挂助手轮次）：
@@ -636,6 +692,8 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
         requestId,
         messages: turnMessages,
         workflowMode: resolveWorkflowXMode(messages),
+        agentMode: request.agentMode ?? (superAgentTurn ? 'superagent' : 'ordinary'),
+        runPolicy: 'interactive',
         providerId,
         modelId,
         sourceTag: turnSourceTag,
@@ -650,6 +708,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
         chatSession,
         steeringPort,
         compactionSummarizer: summarize,
+        ...(superAgentTurn ? { workspaceMutationRecovery: false } : {}),
         ...(projectContext ? {
           systemPromptPrefix: projectContext,
         } : {}),

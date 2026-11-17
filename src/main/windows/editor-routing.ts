@@ -1,6 +1,7 @@
 import type { BrowserWindow, WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { normalize } from 'node:path'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import type { EditorDelivery, EditorOpenRequest, EditorOpenResult } from '../../shared/editor'
 import { SYSTEM_CHANNELS } from '../../shared/ipc/system'
 import type { EditorWindowManager } from './editor-window'
@@ -34,8 +35,7 @@ export class EditorRouting {
   private enqueue(payload: EditorOpenRequest, action: () => Promise<EditorOpenResult>): Promise<EditorOpenResult> {
     if (!payload.filePath || !payload.workspacePath) return Promise.resolve({ success: false, error: 'Missing file scope' })
     const remote = payload.workspacePath.startsWith('janusx-workspace://')
-    const normalized = (remote ? payload.workspacePath : normalize(payload.workspacePath)).replace(/[\\/]+$/, '')
-    const key = !remote && process.platform === 'win32' ? normalized.toLowerCase() : normalized
+    const key = runtimePathKey(remote ? payload.workspacePath : normalize(payload.workspacePath))
     const previous = this.queues.get(key) ?? Promise.resolve({ success: true })
     const next = previous.catch(() => ({ success: false })).then(action).catch(error => ({ success: false, error: String(error) }))
     this.queues.set(key, next)

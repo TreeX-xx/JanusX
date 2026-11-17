@@ -2,7 +2,9 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import os from 'node:os'
-import { listJsonlFiles, listJsonlFilesRecursive, parseJsonObject, readJsonConfig, readJsonlLinesWithCursor, readString, toClaudeProjectKey } from './history'
+import { listJsonlFiles, listJsonlFilesRecursive, parseJsonObject, readJsonlLinesWithCursor, readString, toClaudeProjectKey } from './history'
+import { providerPathContext, resolveProviderPaths } from '../external-cli/provider-paths'
+import { sameRuntimePath } from '../../shared/runtime/path-identity'
 import type { UsageEngine } from '../../shared/usage'
 import { OpenCodeUsageSource } from './opencode-source'
 import { resolveOpencodeDbPath } from '../sessions/opencode-store-path'
@@ -72,7 +74,8 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
   }
 
   if (query.engine === 'claude') {
-    const namespace = join(os.homedir(), '.claude')
+    const namespace = resolveProviderPaths('claude', providerPathContext({ cwd })).configHome
+    if (!namespace) return
     const projectDir = join(namespace, 'projects', toClaudeProjectKey(cwd))
     for (const file of await listJsonlFiles(projectDir, name => name.endsWith('.jsonl'))) {
       // The project directory is keyed by cwd, so no content read is needed.
@@ -104,7 +107,7 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
     } catch { /* Missing or unreadable database cannot establish attribution. */ }
     finally { source?.close() }
   } else {
-    for (const root of await piSessionRoots()) {
+    for (const root of piSessionRoots(cwd)) {
       for (const file of await listJsonlFilesRecursive(root, name => name.endsWith('.jsonl'))) {
         await consider(file.path, root, lines => {
           const header = parseJsonObject(lines[0] ?? '')
@@ -121,17 +124,11 @@ export async function findCorrelatedSession(query: AttributionQuery): Promise<Co
   return unique.length === 1 ? unique[0] : undefined
 }
 
-async function piSessionRoots(): Promise<string[]> {
-  const fallback = join(os.homedir(), '.pi', 'agent', 'sessions')
-  const settings = await readJsonConfig(join(os.homedir(), '.pi', 'agent', 'settings.json'))
-  const configured = readString(settings?.sessionDir)
-  if (!configured) return [fallback]
-  const expanded = configured.startsWith('~/') || configured === '~'
-    ? join(os.homedir(), configured.slice(configured === '~' ? 1 : 2))
-    : configured
-  return [expanded]
+function piSessionRoots(cwd: string): string[] {
+  const store = resolveProviderPaths('pi', providerPathContext({ cwd })).store
+  return store ? [store] : []
 }
 
 function pathsEqual(a: string, b: string): boolean {
-  return a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  return sameRuntimePath(a, b)
 }

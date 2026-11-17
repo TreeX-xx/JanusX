@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { referenceToken, conversationPrompt, type ConversationReference } from '../../../shared/conversation-context'
 import { loadLocalAssetDataUrl } from './viewers/local-asset'
 import styles from './ConversationInput.module.css'
+import { EXTERNAL_CLI_TOOL_ICONS } from '../lib/cli-tool-icons'
 
 // Inline reference editing contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 
@@ -17,6 +18,7 @@ export interface ConversationInputHandle {
   setSelectionRange(start: number, end: number): void
   isHistoryBoundary(key: 'ArrowUp' | 'ArrowDown'): boolean
   insertReferences(refs: ConversationReference[], range?: [number, number]): void
+  insertEngine(backend: 'codex' | 'claude', range: [number, number]): void
   captureInsertionRange(): () => [number, number]
   setDropPoint(x: number, y: number): void
 }
@@ -96,12 +98,14 @@ function select(root: HTMLElement, start: number, end: number) {
 }
 
 export const ConversationInput = forwardRef<ConversationInputHandle, {
-  value: string; references: ConversationReference[]; disabled: boolean; placeholder: string; label: string; title: string
+  value: string; references: ConversationReference[]; disabled: boolean; placeholder: string; label: string; title: string; className?: string
+  engineShortcuts?: boolean
   onChange(value: string): void; onKeyDown(event: KeyboardEvent<HTMLDivElement>): void
-} & AriaAttributes>(function ConversationInput({ value, references, disabled, placeholder, label, title, onChange, onKeyDown, ...aria }, ref) {
+} & AriaAttributes>(function ConversationInput({ value, references, disabled, placeholder, label, title, className, engineShortcuts = false, onChange, onKeyDown, ...aria }, ref) {
   const { t } = useTranslation('terminal')
   const root = useRef<HTMLDivElement>(null)
   const caret = useRef<[number, number]>([value.length, value.length])
+  const pendingInsertion = useRef<{ range: Range } | null>(null)
   const composing = useRef(false)
   const latest = useRef({ value, references, onChange }); latest.current = { value, references, onChange }
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null)
@@ -111,32 +115,48 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   const remember = () => { if (root.current) caret.current = offsets(root.current) ?? caret.current }
   const fragment = (text: string, refs = latest.current.references) => {
     const result = document.createElement('div')
-    for (const part of text.split(/(\[\[ref:[^\]]+\]\])/g)) {
-      const reference = refs.find(item => referenceToken(item) === part)
+    for (const part of text.split(/(\[\[ref:[^\]]+\]\]|\[\[engine:(?:codex|claude)\]\])/g)) {
+      const backend = engineShortcuts ? /^\[\[engine:(codex|claude)\]\]$/.exec(part)?.[1] as 'codex' | 'claude' | undefined : undefined
+      const reference = backend ? { id: part, name: backend === 'claude' ? '#Claude Code' : '#Codex', path: backend, kind: 'engine' } : refs.find(item => referenceToken(item) === part)
       if (!reference) { result.append(document.createTextNode(part)); continue }
       const chip = document.createElement('span')
       chip.contentEditable = 'false'; chip.draggable = true; chip.className = styles.reference
-      chip.dataset.referenceToken = part; chip.dataset.referenceId = reference.id; chip.title = reference.path + (reference.quote ? '\n' + reference.quote : '')
+      chip.dataset.referenceToken = part; chip.dataset.referenceId = reference.id; chip.title = reference.path + ('quote' in reference && reference.quote ? '\n' + reference.quote : '')
       const name = document.createElement('span'); name.textContent = reference.name
+      if (backend) {
+        chip.dataset.engine = backend
+        const icon = document.createElement('img'); icon.src = EXTERNAL_CLI_TOOL_ICONS[backend]!; icon.alt = ''; icon.setAttribute('aria-hidden', 'true'); icon.style.width = '14px'; icon.style.height = '14px'
+        if (backend === 'codex') icon.style.filter = 'var(--sidebar-codex-filter)'
+        chip.append(icon)
+      }
       if (reference.kind === 'image') {
         const image = document.createElement('img'); image.alt = reference.name; image.hidden = true
         const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.dataset.preview = reference.id
         previewButton.disabled = true
         previewButton.setAttribute('aria-label', `${t('conversation.images.preview')}: ${reference.name}`); previewButton.append(image, name); chip.append(previewButton)
       } else chip.append(name)
-      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.dataset.remove = part
+      const remove = document.createElement('button'); remove.type = 'button'; remove.dataset.remove = part
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      for (const [key, value] of Object.entries({ viewBox:'0 0 24 24', width:'12', height:'12', fill:'none', stroke:'currentColor', 'stroke-width':'1.5', 'stroke-linecap':'round', 'aria-hidden':'true' })) icon.setAttribute(key, value)
+      const path = document.createElementNS(icon.namespaceURI, 'path'); path.setAttribute('d', 'M6 6l12 12M18 6L6 18'); icon.append(path); remove.append(icon)
       remove.setAttribute('aria-label', t('conversation.context.remove', { name: reference.name })); chip.append(remove)
       result.append(chip)
     }
     return result
   }
-  const restore = (editor: HTMLElement, text: string) => {
+  const draftFragment = (text: string, refs = latest.current.references) => {
     const lines = text.split('\n')
-    editor.replaceChildren(...(lines.length === 1 ? Array.from(fragment(text).childNodes) : lines.map(line => {
-      const block = fragment(line)
+    if (lines.length === 1) return fragment(text, refs)
+    const result = document.createElement('div')
+    for (const line of lines) {
+      const block = fragment(line, refs)
       if (!line) block.replaceChildren(document.createElement('br'))
-      return block
-    })))
+      result.append(block)
+    }
+    return result
+  }
+  const restore = (editor: HTMLElement, text: string) => {
+    editor.replaceChildren(...Array.from(draftFragment(text).childNodes))
     editor.dataset.inputEmpty = String(text.length === 0)
   }
   const publish = () => {
@@ -152,9 +172,35 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   }
   const insert = (text: string, refs = latest.current.references, range = caret.current) => {
     if (!root.current || disabled) return
-    root.current.focus(); select(root.current, ...range)
+    const editor = root.current
+    const content = fragment(text, refs)
+    const current = read(editor)
+    editor.focus()
+    if (content.querySelector('[data-reference-token]') && (current.includes('\n') || text.includes('\n'))) {
+      // Chromium lifts non-editable chips out of a paragraph at its boundaries.
+      // Insert complete lines in one native undo transaction instead of replacing
+      // the DOM directly, which would bypass the browser's undo history.
+      const next = current.slice(0, range[0]) + text + current.slice(range[1])
+      const pending = pendingInsertion.current
+      const pendingOffsets = pending && offsets(editor, pending.range)
+      const all = document.createRange(); all.selectNodeContents(editor)
+      const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(all)
+      document.execCommand('insertHTML', false, draftFragment(next, refs).innerHTML)
+      // A directory reference can be dropped while an attachment is importing.
+      // Re-anchor its live range after rebuilding lines, then restore our caret.
+      if (pending && pendingOffsets) {
+        const rebase = (offset: number) => offset <= range[0] ? offset
+          : offset >= range[1] ? offset + text.length - (range[1] - range[0]) : range[0] + text.length
+        select(editor, rebase(pendingOffsets[0]), rebase(pendingOffsets[1]))
+        pending.range = window.getSelection()!.getRangeAt(0).cloneRange()
+      }
+      select(editor, range[0] + text.length, range[0] + text.length)
+      publish()
+      return
+    }
+    select(editor, ...range)
     // Chromium's editing command keeps insertion/deletion in its native undo stack.
-    document.execCommand('insertHTML', false, fragment(text, refs).innerHTML)
+    document.execCommand('insertHTML', false, content.innerHTML)
     publish()
   }
   useImperativeHandle(ref, () => ({
@@ -165,14 +211,24 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     setSelectionRange(start, end) { caret.current = [start, end]; if (root.current) select(root.current, start, end) },
     isHistoryBoundary(key) { return !!root.current && isHistoryBoundary(root.current, key) },
     insertReferences(refs, range) { insert(refs.map(referenceToken).join(' ') + ' ', [...latest.current.references, ...refs], range) },
+    insertEngine(backend, range) {
+      if (!engineShortcuts) return
+      const token = `[[engine:${backend}]] `
+      insert(token, latest.current.references, range)
+      if (root.current) { select(root.current, range[0] + token.length, range[0] + token.length); remember() }
+    },
     captureInsertionRange() {
       const editor = root.current!
       remember()
       select(editor, ...caret.current)
       // A live DOM Range follows edits before the drop point without following
       // subsequent caret moves while the attachment is being imported.
-      const range = window.getSelection()!.getRangeAt(0).cloneRange()
-      return () => offsets(editor, range) ?? [read(editor).length, read(editor).length]
+      const pending = { range: window.getSelection()!.getRangeAt(0).cloneRange() }
+      pendingInsertion.current = pending
+      return () => {
+        if (pendingInsertion.current === pending) pendingInsertion.current = null
+        return offsets(editor, pending.range) ?? [read(editor).length, read(editor).length]
+      }
     },
     setDropPoint(x, y) {
       const range = document.caretRangeFromPoint(x, y)
@@ -209,7 +265,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     }
   })
   return <>
-    <div {...aria} ref={root} className={styles.editor} data-conversation-input contentEditable={!disabled} suppressContentEditableWarning
+    <div {...aria} ref={root} className={`${styles.editor} ${className ?? ''}`} data-conversation-input contentEditable={!disabled} suppressContentEditableWarning
       role="combobox" aria-multiline="true" aria-disabled={disabled} aria-label={label} title={title} data-placeholder={placeholder} spellCheck={false}
       onInput={publish} onBlur={remember} onKeyUp={remember} onMouseUp={remember}
       onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false; publish() }}

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-11-02T17:05:27.638Z",
+  "updated": "2026-11-14T06:09:01.216Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -17,6 +17,10 @@
 ---
 
 # 蓝图官方可下载插件实施计划
+
+## 固定引擎归档兼容（2026-11-14）
+
+SuperAgent 合入后，宿主的六个引擎包从相邻源码目录切为 vendor 下的固定tgz。独立构建先核验引擎清单哈希，再直接复制已有归档，保留其原始字节、版本和完整性；源码目录依赖继续使用原发布文件缓存。不能把tgz当目录读取，也不能从安装目录重打包替代固定制品。Blueprint 的依赖声明、构建锁和安装锁同步更新至42cab7549f5deefd及当前公开SDK。归档直通／完整性拒绝与缓存回归2项通过，严格锁模式的仓库外独立类型检查、双端构建和签名Electron综合回归通过。证据见 artifacts/merge-superagent-20261114/blueprint-update.log 与 verify-3.log；未发布插件。
 
 ## 目标与当前状态
 
