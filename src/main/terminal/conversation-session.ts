@@ -31,7 +31,7 @@ export class ConversationSession {
   setNativeInput(write: (text: string) => void): void { this.nativeInput = write }
   resetThread(): void {
     this.questions.clear()
-    Object.assign(this.state, { threadId: null, turnId: null, turnStartedAt: undefined, items: [], approvals: [], plans: [],
+    Object.assign(this.state, { threadId: null, turnId: null, turnStartedAt: undefined, turnDurations: undefined, items: [], approvals: [], plans: [],
       needsTerminal: false, truncated: false, retry: undefined, error: undefined, commands: undefined, commandsRevision: (this.state.commandsRevision ?? 0) + 1 })
     this.state.controlEpoch++
   }

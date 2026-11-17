@@ -429,7 +429,9 @@
     "copyMessage": "复制消息",
     "copiedMessage": "已复制",
     "editMessage": "重新编辑",
-    "thinking": "Thinking…",
+    "turnRunning": "运行中",
+    "runningActivity": "正在执行 {{activity}}",
+    "turnDuration": "本轮用时 {{duration}}",
     "notice": {
       "retry": "正在重试连接",
       "failure": "本次回复未完成",

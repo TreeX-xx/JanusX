@@ -257,7 +257,11 @@ Object.assign(window, { codexFixture: {
   },
   releaseMode: (fail = false) => settleMode?.(fail),
   delta: (text: string) => { state.items.filter(item => item.type === 'agentMessage').at(-1)!.text += text; publish() },
-  finish: () => { const answer = state.items.filter(item => item.type === 'agentMessage').at(-1)!; answer.durationMs = Date.now() - state.turnStartedAt!; state.turnStartedAt = undefined; state.turnId = null; answer.status = 'completed'; publish() },
+  finish: () => {
+    const answer = state.items.filter(item => item.type === 'agentMessage').at(-1)!
+    state.turnDurations = { ...state.turnDurations, [answer.turnId]: Date.now() - state.turnStartedAt! }
+    state.turnStartedAt = undefined; state.turnId = null; answer.status = 'completed'; publish()
+  },
   fileApproval: () => {
     state.items.push({ id: 'file', turnId: 'turn', type: 'fileChange', text: '', status: 'inProgress', files: [{ path: 'C:/fixture/report.html', diff: '+<h1>Release report</h1>' }] })
     state.approvals = [{ id: 7, itemId: 'file', kind: 'file', description: 'Create report.html' }]; publish()
@@ -293,7 +297,14 @@ Object.assign(window, { codexFixture: {
     state.turnId = null; publish()
   },
   workPreview: (stage: 'start' | 'update' | 'idle' | 'finish') => {
-    if (stage === 'start') state.turnStartedAt = Date.now()
+    if (stage === 'start') {
+      state.turnStartedAt = Date.now()
+      state.turnDurations = undefined
+    }
+    if (stage === 'finish' && state.turnStartedAt !== undefined) {
+      state.turnDurations = { work: Date.now() - state.turnStartedAt }
+      state.turnStartedAt = undefined
+    }
     state.items = [
       { id: 'work-user', turnId: 'work', type: 'userMessage', text: 'Check the workspace', status: 'completed' },
       { id: 'work-prose', turnId: 'work', type: 'agentMessage', phase: 'commentary', text: 'I will inspect the workspace.', status: 'completed' },

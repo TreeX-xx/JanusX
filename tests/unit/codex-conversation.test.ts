@@ -14,6 +14,55 @@ function setup() {
   return { controller, wire, emit, publish }
 }
 
+describe('Codex turn timing', () => {
+  it('prefers the native total and associates it with the turn across multiple messages', () => {
+    const { controller, emit } = setup()
+    emit('turn/started', { turn: { id: 't', startedAt: 1_763_000_000 } })
+    expect(controller.state.turnStartedAt).toBe(1_763_000_000_000)
+    for (const id of ['commentary', 'answer']) {
+      emit('item/completed', { turnId: 't', item: { id, type: 'agentMessage', text: id } })
+    }
+    emit('turn/completed', { turn: { id: 't', status: 'completed', durationMs: 2765 } })
+    expect(controller.state.turnDurations).toEqual({ t: 2765 })
+    expect(controller.state.items.map(item => item.durationMs)).toEqual([undefined, undefined])
+    expect(controller.state.turnStartedAt).toBeUndefined()
+  })
+
+  it('restores completed timing and the active start without assigning times to unknown history', () => {
+    const { controller, wire } = setup()
+    wire.attach({ id: 'resumed', turns: [
+      { id: 'old', status: 'completed', items: [{ id: 'first', type: 'agentMessage', text: 'Old' }] },
+      { id: 'known', status: 'completed', durationMs: 2765, items: [{ id: 'second', type: 'agentMessage', text: 'Known' }] },
+      { id: 'active', status: 'inProgress', startedAt: 1_763_000_000, items: [] },
+    ] })
+    expect(controller.state.turnDurations).toEqual({ known: 2765 })
+    expect(controller.state.turnId).toBe('active')
+    expect(controller.state.turnStartedAt).toBe(1_763_000_000_000)
+    wire.attach({ id: 'resumed', turns: [{ id: 'active', status: 'completed', durationMs: 3250,
+      items: [{ id: 'third', type: 'agentMessage', text: 'Finished while detached' }] }] })
+    expect(controller.state.turnId).toBeNull()
+    expect(controller.state.turnDurations).toEqual({ known: 2765, active: 3250 })
+    wire.attach({ id: 'different', turns: [] })
+    expect(controller.state.turnDurations).toBeUndefined()
+    expect(controller.state.turnStartedAt).toBeUndefined()
+  })
+
+  it('uses observed elapsed time when a live turn has no native timing', () => {
+    const { controller, wire, emit } = setup()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(100_000)
+    try {
+      emit('turn/started', { turn: { id: 't' } })
+      emit('item/completed', { turnId: 't', item: { id: 'answer', type: 'agentMessage', text: 'Answer' } })
+      now.mockReturnValue(104_500)
+      emit('turn/completed', { turn: { id: 't', status: 'completed' } })
+      wire.attach({ id: 'main', turns: [{ id: 't', status: 'completed', durationMs: null }] })
+      expect(controller.state.turnDurations).toEqual({ t: 4500 })
+    } finally {
+      now.mockRestore()
+    }
+  })
+})
+
 describe('Codex retry and turn failure lifecycle', () => {
   it('updates one retry status and clears it on model recovery without requiring new input', () => {
     const { controller, emit } = setup()

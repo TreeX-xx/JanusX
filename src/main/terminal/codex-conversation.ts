@@ -24,6 +24,10 @@ const MAX_TEXT = 32_000
 // transport ceiling; display limits must not truncate native protocol messages.
 const MAX_PAYLOAD = 100 * 1024 * 1024
 
+function nativeTurnTime(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
 /** Codex's native remote transport honors proxy variables, including for localhost. */
 export function codexLoopbackEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const bypass = [...new Set([
@@ -225,7 +229,7 @@ export class CodexConversation {
   private attach(thread: Json, settings: Json = {}): void {
     if (this.state.threadId !== thread.id) this.state.capabilities = { ...this.state.capabilities, edit: true }
     if (this.state.threadId && this.state.threadId !== thread.id) {
-      this.state.items = []; this.state.approvals = []; this.state.turnId = null; this.state.turnStartedAt = undefined
+      this.state.items = []; this.state.approvals = []; this.state.turnId = null; this.state.turnStartedAt = undefined; this.state.turnDurations = undefined
       this.state.plans = []
       this.state.retry = undefined; this.state.error = undefined
       this.state.needsTerminal = false; this.state.truncated = false; this.state.controlEpoch++
@@ -237,11 +241,28 @@ export class CodexConversation {
     this.state.serviceTier = undefined
     this.updateSettings(settings)
     this.bind(thread.id, thread.path ?? undefined)
+    // Native turn timing and the output UI are documented in .agents/notes/workbench/terminal-dialog-dual-mode.md.
+    const durations = new Map(Object.entries(this.state.turnDurations ?? {}))
     for (const turn of thread.turns ?? []) {
       for (const item of turn.items ?? []) this.item(item, turn.id, turn.status !== 'inProgress')
       if (turn.error) this.turnError(turn.id, turn.error.message ?? 'Turn failed')
-      if (turn.status === 'inProgress') this.state.turnId = turn.id
+      if (turn.status === 'inProgress') {
+        const startedAt = nativeTurnTime(turn.startedAt)
+        this.state.turnStartedAt = startedAt === undefined
+          ? (this.state.turnId === turn.id ? this.state.turnStartedAt : undefined)
+          : startedAt * 1000
+        this.state.turnId = turn.id
+      } else {
+        if (this.state.turnId === turn.id) {
+          this.state.turnId = null
+          this.state.turnStartedAt = undefined
+        }
+        const duration = nativeTurnTime(turn.durationMs)
+        if (duration !== undefined) durations.set(turn.id, duration)
+      }
     }
+    const visibleTurns = new Set(this.state.items.map(item => item.turnId))
+    if (durations.size) this.state.turnDurations = Object.fromEntries([...durations].filter(([turnId]) => visibleTurns.has(turnId)))
     this.state.connection = 'ready'; this.changed()
   }
 
@@ -307,7 +328,7 @@ export class CodexConversation {
         if (remaining.length) this.registerAsyncQuestions(`${request.turnId}:${request.itemId}`, request.itemId!, request.turnId!, remaining)
       }
     }
-    const normalized: ConversationItem = { id: key, turnId, type: raw.type, receivedAt: previous?.receivedAt ?? Date.now(), durationMs: previous?.durationMs,
+    const normalized: ConversationItem = { id: key, turnId, type: raw.type, receivedAt: previous?.receivedAt ?? Date.now(),
       phase: raw.phase === 'commentary' || raw.phase === 'final_answer' ? raw.phase : previous?.phase,
       editable: raw.type === 'userMessage' ? !replies && raw.content?.every((part: Json) => part.type === 'text') : undefined,
       text: typeof text === 'string' ? text.slice(0, MAX_TEXT) : '', status: raw.status ?? (done ? 'completed' : 'inProgress'),
@@ -380,16 +401,24 @@ export class CodexConversation {
       if (previous && JSON.stringify(previous.steps) === JSON.stringify(steps) && previous.explanation === explanation) return
       this.state.plans = [...plans, { turnId: p.turnId, version: (previous?.version ?? 0) + 1, steps, explanation, outcome: 'running' as const }].slice(-100)
     }
-    else if (method === 'turn/started') { this.state.turnStartedAt = Date.now(); this.state.turnId = p.turn.id; this.state.retry = undefined; this.state.error = undefined }
+    else if (method === 'turn/started') {
+      const startedAt = nativeTurnTime(p.turn.startedAt)
+      this.state.turnStartedAt = startedAt === undefined ? Date.now() : startedAt * 1000
+      this.state.turnId = p.turn.id; this.state.retry = undefined; this.state.error = undefined
+    }
     else if (method === 'turn/completed') {
       const retryMessage = this.state.retry && this.state.retry.turnId === p.turn.id ? this.state.retry.message : undefined
       if (this.state.retry?.turnId === p.turn.id) this.state.retry = undefined
       const outcome = ['completed', 'interrupted', 'failed'].includes(p.turn.status) ? p.turn.status : 'failed'
       this.state.plans = this.state.plans?.map(plan => plan.turnId === p.turn.id ? { ...plan, outcome } : plan)
-      if (this.state.turnId === p.turn.id && this.state.turnStartedAt !== undefined) {
-        const durationMs = Math.max(0, Date.now() - this.state.turnStartedAt)
-        for (const item of this.state.items) if (item.turnId === p.turn.id && item.type === 'agentMessage') item.durationMs = durationMs
+      let duration = nativeTurnTime(p.turn.durationMs)
+      if (this.state.turnId === p.turn.id) {
+        if (duration === undefined && this.state.turnStartedAt !== undefined) duration = Math.max(0, Date.now() - this.state.turnStartedAt)
         this.state.turnStartedAt = undefined
+      }
+      if (duration !== undefined) {
+        const durations: Record<string, number> = { ...this.state.turnDurations, [p.turn.id]: duration }
+        this.state.turnDurations = Object.fromEntries(Object.entries(durations).slice(-MAX_ITEMS))
       }
       this.lastCompletedTurnId = p.turn.id
       if (this.state.turnId === p.turn.id) this.state.turnId = null

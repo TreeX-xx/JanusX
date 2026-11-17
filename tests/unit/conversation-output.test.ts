@@ -8,10 +8,10 @@ describe('conversation output grouping', () => {
     const rows = [item('read', 'commandExecution', { activity: 'Read · src/main.ts', receivedAt: 10, status: 'inProgress' }),
       item('search', 'commandExecution', { activity: 'Grep · message', receivedAt: 20, text: 'Grep\nLarge result', status: 'completed' })]
     const live = conversationOutputGroups(rows, 'turn')[0]
-    expect(live.activity).toEqual({ text: 'Read · src/main.ts', startedAt: 10 })
+    expect(live.activity).toEqual({ text: 'Read · src/main.ts', running: true, startedAt: 10 })
     expect(live.items[0].id).toBe('read')
     rows[0].status = 'completed'
-    expect(conversationOutputGroups(rows, null)[0].activity).toEqual({ text: 'Grep · message', startedAt: undefined })
+    expect(conversationOutputGroups(rows, null)[0].activity).toEqual({ text: 'Grep · message', running: false, startedAt: undefined })
     expect(conversationOutputGroups([item('legacy', 'commandExecution')], null)[0].activity?.text).toBe('legacy')
   })
   it('keeps chronological process separate from final answer and user input', () => {
@@ -51,7 +51,7 @@ describe('conversation output grouping', () => {
   })
   it('retains the last operation when reasoning follows it and avoids using output as preview', () => {
     const rows = [item('cmd', 'commandExecution', { text: 'npm test\nlarge output' }), item('thinking', 'reasoning', { status: 'inProgress' })]
-    expect(conversationOutputGroups(rows, 'turn')[0].activity).toEqual({ text: 'npm test', startedAt: undefined })
+    expect(conversationOutputGroups(rows, 'turn')[0].activity).toEqual({ text: 'npm test', running: false, startedAt: undefined })
     expect(toolActivity('Bash', { command: 'npm\n test', description: 'Run checks', prompt: 'private prompt' })).toBe('Bash · npm test')
     expect(toolActivity('Agent', { prompt: 'private prompt' })).toBe('Agent')
   })

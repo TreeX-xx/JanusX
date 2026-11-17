@@ -120,8 +120,10 @@
 .messageActions time { margin-left: 4px; }
 .userMessage .messageActions { opacity: 0; transition: opacity 140ms; }
 .userMessage:hover .messageActions, .userMessage:focus-within .messageActions { opacity: 1; }
-.thinking { display: flex; align-items: center; gap: 8px; margin: 20px 0; color: var(--shell-muted); font-size: 13px; }
-.thinking .statusDot { animation: breathe 1.6s ease-in-out infinite; }
+.turnStatus { display: flex; align-items: center; gap: 7px; min-width: 0; margin: 16px 0; color: var(--shell-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.turnStatus .statusDot { animation: breathe 1.6s ease-in-out infinite; }
+.turnActivity { overflow: hidden; text-overflow: ellipsis; }
+.turnDuration { margin: 8px 0 16px; color: var(--shell-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 @media (hover: none) { .userMessage .messageActions { opacity: 1; } }
 .activity { margin: 0; padding-left: 12px; border-left: 1px solid var(--shell-border); font-size: 12px; }
 .activity[data-state=inProgress] { border-left-color: var(--shell-accent-border); }

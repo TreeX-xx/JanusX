@@ -90,6 +90,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const projectTurns = useMemo(() => createConversationTurns(), [terminalId, snapshot?.threadId])
   const turns = useMemo(() => projectTurns(snapshot?.items ?? [], snapshot?.turnId ?? null), [projectTurns, snapshot?.items, snapshot?.turnId])
+  const activeTurn = turns.find(turn => turn.active)
+  const runningActivity = activeTurn?.groups.slice().reverse().find(group => group.activity?.running)?.activity?.text
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
   const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.plans?.length
 
@@ -360,12 +362,16 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 </LazyDetails>)
               const turnId = group.items[0].turnId
               const changes = turn.changes
-              const lastGroup = turn.groups[groupIndex + 1]?.items[0].turnId !== turnId
+              const lastGroup = groupIndex === turn.groups.length - 1
+              const duration = lastGroup && !turn.active
+                ? snapshot.turnDurations?.[turn.key] ?? turn.items.find(item => item.durationMs !== undefined)?.durationMs
+                : undefined
               return <div key={group.items[0].id}>
                 {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
                   waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
                   }} settled={group.settled}>{renderNodes}</WorkDisclosure> : renderNodes()}
                 {lastGroup && changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
+                {duration !== undefined && <div className={styles.turnDuration} data-turn-duration={turn.key}><ConversationDuration durationMs={duration} turnTotal /></div>}
               </div>
             })} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
@@ -385,7 +391,14 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
             </div>)}
             {editing && !snapshot?.items.some(item => item.id === editing.item.id) && <div className={styles.userMessage}>{editor}</div>}
             {snapshot?.retry && snapshot.retry.turnId === snapshot.turnId && <ConversationNotice kind="retry" message={snapshot.retry.message} />}
-            {working && !snapshot?.retry && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal && <div className={styles.thinking} role="status"><span className={styles.statusDot} aria-hidden="true" /><span>{t('conversation.thinking')}</span>{visible && snapshot?.turnId && <ConversationDuration startedAt={snapshot.turnStartedAt} />}</div>}
+            {working && snapshot?.connection !== 'disconnected' && !snapshot?.retry && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.needsTerminal &&
+              <div className={styles.turnStatus} role="status" data-conversation-running>
+                <span className={styles.statusDot} aria-hidden="true" />
+                <span className={styles.turnActivity} title={runningActivity}>{runningActivity
+                  ? t('conversation.runningActivity', { activity: runningActivity })
+                  : t('conversation.turnRunning')}</span>
+                {visible && snapshot?.turnId && snapshot.turnStartedAt !== undefined && <><span aria-hidden="true">·</span><ConversationDuration startedAt={snapshot.turnStartedAt} /></>}
+              </div>}
             {pastPlans.length > 0 && <details className={styles.planHistory}><summary>{t('conversation.planHistory')}</summary>{pastPlans.map(plan => <ConversationPlanPanel key={`${snapshot?.threadId}:${plan.turnId}:${plan.version}`} plan={plan} connection={snapshot!.connection} historical />)}</details>}
             {snapshot?.approvals.map(approval => <div className={styles.approval} key={approval.id} role="group" aria-label={t('conversation.approval')}>
               <strong><ShieldCheck size={17} aria-hidden="true" />{t(approval.kind === 'file' ? 'conversation.approveFile' : 'conversation.approveCommand')}</strong>

@@ -108,6 +108,8 @@ export interface ConversationSnapshot {
   /** Bounded, immutable plan revisions observed during this runtime. */
   plans?: ConversationPlan[]
   turnStartedAt?: number
+  /** Completed durations indexed by native turn ID. Missing entries have unknown timing. */
+  turnDurations?: Record<string, number>
   engine: ConversationEngine
   capabilities: ConversationCapabilities
   id: string

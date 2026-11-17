@@ -429,7 +429,9 @@
     "copyMessage": "Copy message",
     "copiedMessage": "Copied",
     "editMessage": "Edit message",
-    "thinking": "Thinking…",
+    "turnRunning": "Running",
+    "runningActivity": "Running {{activity}}",
+    "turnDuration": "Turn time {{duration}}",
     "notice": {
       "retry": "Retrying connection",
       "failure": "This response could not be completed",
