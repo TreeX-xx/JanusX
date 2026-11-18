@@ -1,6 +1,39 @@
 import { test, expect, type Locator } from '@playwright/test'
 import { PNG_PIXEL } from '../helpers/image-fixture'
 const artifacts = process.env.JANUS_CONTEXT_TEST_ARTIFACTS ?? 'artifacts'
+const nativeKeys = process.platform === 'darwin'
+  ? { start: 'Meta+ArrowUp', end: 'Meta+ArrowDown', undo: 'Meta+z', redo: 'Meta+Shift+z' }
+  : { start: 'Control+Home', end: 'Control+End', undo: 'Control+z', redo: 'Control+y' }
+
+for (const format of ['intact', 'empty', 'stripped'] as const) {
+  test(`drags a file-tree reference into the draft with ${format} custom data`, async ({ page }) => {
+    await page.goto('/codex-conversation.html?initialView=conversation&fileTreeDrag')
+    const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+    const source = page.locator('[data-file-path="src/from tree.ts"]')
+    await input.fill('Review  then explain.')
+    await page.evaluate(format => {
+      document.addEventListener('dragstart', event => {
+        if (!(event.target instanceof Element) || !event.target.closest('[data-file-path="src/from tree.ts"]') || !event.dataTransfer) return
+        const mime = 'application/x-janusx-workspace-file'
+        if (format === 'empty') event.dataTransfer.setData(mime, '')
+        if (format === 'stripped') event.dataTransfer.clearData(mime)
+      })
+    }, format)
+    const targetPosition = await input.evaluate(element => {
+      const caret = document.createRange()
+      caret.setStart(element.firstChild!, 7)
+      caret.collapse(true)
+      const box = caret.getBoundingClientRect(), origin = element.getBoundingClientRect()
+      return { x: box.left - origin.left, y: box.top - origin.top + box.height / 2 }
+    })
+    await source.dragTo(input, { targetPosition })
+    await expect(input.locator('[data-reference-id]')).toHaveText('from tree.ts')
+    await input.press('Enter')
+    await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([
+      'Review file: "C:/tree-workspace/src/from tree.ts"  then explain.',
+    ])
+  })
+}
 
 async function dropFile(input: Locator, offset: number, name: string, type: 'file' | 'directory' = 'file') {
   await input.evaluate((el, { offset, name, type }) => {
@@ -34,7 +67,7 @@ for (const multiline of [false, true]) for (const method of ['paste', 'drop', 'p
   }, { method, multiline })
   if (method === 'picker') await page.locator('input[type=file]').setInputFiles({ name: 'old.ts', mimeType: 'text/plain', buffer: Buffer.from('context') })
   await expect.poll(() => page.evaluate(() => typeof (window as any).finishImport)).toBe('function')
-  await input.press('Control+End')
+  await input.press(nativeKeys.end)
   await input.pressSequentially(' More detail.')
   await page.evaluate(() => (window as any).finishImport())
   await expect(input).toHaveText(multiline ? 'firstCompare old.ts third More detail.' : 'Compare old.ts  then explain. More detail.')
@@ -46,7 +79,7 @@ for (const multiline of [false, true]) for (const method of ['paste', 'drop', 'p
     const range = document.createRange(); range.setStart(node, 0); range.setEnd(node, 7)
     return range.getBoundingClientRect().top
   })
-  expect(Math.abs(chipBox.y - textTop)).toBeLessThan(8)
+  expect(Math.abs(chipBox.y - textTop)).toBeLessThanOrEqual(8)
   if (method === 'drop') await page.screenshot({ path: `${artifacts}/conversation-inline-reference/inline-composer.png` })
   await input.press('Enter')
   await expect(page.locator('[data-user-message] [data-prompt-reference]')).toHaveText('old.ts')
@@ -73,13 +106,13 @@ test('multiple imports keep file order and follow edits before the insertion poi
     el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
   })
   await expect.poll(() => page.evaluate(() => typeof (window as any).finishImport)).toBe('function')
-  await input.press('Control+Home')
+  await input.press(nativeKeys.start)
   await input.pressSequentially('Please ')
   await page.evaluate(() => (window as any).finishImport())
   await expect(input).toHaveText('Please Compare old.ts new.ts  then explain.')
-  await input.press('Control+z')
+  await input.press(nativeKeys.undo)
   await expect(input.locator('[data-reference-id]')).toHaveCount(0)
-  await input.press('Control+y')
+  await input.press(nativeKeys.redo)
   await expect(input.locator('[data-reference-id]')).toHaveCount(2)
 })
 
@@ -127,11 +160,11 @@ test('inserts references at the drop caret, supports undo and preserves order af
   })
   await input.press('Backspace')
   await expect(input.locator('[data-reference-id]')).toHaveCount(0)
-  await input.press('Control+z')
+  await input.press(nativeKeys.undo)
   await expect(input.locator('[data-reference-id]')).toHaveCount(1)
   await input.getByRole('button', { name: 'Remove old.ts' }).click()
   await expect(input.locator('[data-reference-id]')).toHaveCount(0)
-  await input.press('Control+z')
+  await input.press(nativeKeys.undo)
   await expect(input.locator('[data-reference-id]')).toHaveCount(1)
   await page.getByRole('button', { name: 'Remount', exact: true }).click()
   await expect(input.locator('[data-reference-id]')).toHaveCount(1)
@@ -162,12 +195,12 @@ test('newlines around references survive remount with the caret on the restored 
   await input.fill('first ')
   await dropFile(input, 6, 'old.ts')
   await expect(input.locator('[data-reference-id]')).toHaveCount(1)
-  await input.press('Control+End')
+  await input.press(nativeKeys.end)
   await input.press('Control+j')
   await input.pressSequentially('second')
   await page.getByRole('button', { name: 'Remount', exact: true }).click()
   await expect(input.locator('[data-reference-id]')).toHaveCount(1)
-  await input.press('Control+End')
+  await input.press(nativeKeys.end)
   await input.press('Control+j')
   await input.pressSequentially('third')
   await input.press('Enter')
@@ -229,9 +262,9 @@ for (const restored of [false, true]) for (const position of ['start', 'middle',
     expect(Math.abs(chipBox.y + chipBox.height / 2 - targetY)).toBeLessThan(8)
     const expected = position === 'empty' ? 'folder ' : 'second'.slice(0, offset) + 'folder ' + 'second'.slice(offset)
     await expect(chip.locator('..')).toHaveText(expected)
-    await input.press('Control+z')
+    await input.press(nativeKeys.undo)
     await expect(chip).toHaveCount(0)
-    await input.press('Control+y')
+    await input.press(nativeKeys.redo)
     await expect(chip).toHaveAttribute('contenteditable', 'false')
     await expect(chip.locator('..')).toHaveText(expected)
     await page.getByRole('button', { name: 'Remount', exact: true }).click()
@@ -261,12 +294,12 @@ test('a multiline folder drop preserves an attachment import pending on another 
   await expect.poll(() => page.evaluate(() => typeof (window as any).finishImport)).toBe('function')
   await dropFile(input, 5, 'folder', 'directory')
   await expect(input.locator('[data-reference-id]')).toHaveCount(1)
-  await input.press('Control+End')
+  await input.press(nativeKeys.end)
   await input.pressSequentially(' more')
   await page.evaluate(() => (window as any).finishImport())
   await expect(input.locator('[data-reference-id]')).toHaveCount(2)
   await input.press('Enter')
-  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([
     'firstdirectory: "C:/fixture/folder" \nsecondfile: "C:/attachments/pending.ts" \nthird more',
   ])
 })

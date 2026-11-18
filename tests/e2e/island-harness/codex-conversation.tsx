@@ -18,6 +18,10 @@ const claude = new URLSearchParams(location.search).get('engine') === 'claude'
 const extraEngine = new URLSearchParams(location.search).get('engine')
 const initialView = new URLSearchParams(location.search).get('initialView') === 'conversation' ? 'conversation' : 'terminal'
 const split = new URLSearchParams(location.search).get('split')
+const FileDragSource = new URLSearchParams(location.search).has('fileTreeDrag')
+  ? (await import('../../../src/renderer/src/components/file-tree/FileTreeItem')).FileTreeItem
+  : undefined
+const fixtureNoop = () => {}
 let pendingStartup = new URLSearchParams(location.search).has('pendingStartup')
 useThemeStore.getState().applyExternal(new URLSearchParams(location.search).get('theme') === 'light' ? 'planche' : new URLSearchParams(location.search).get('theme') ?? 'dark')
 useWorkspaceStore.setState({ activeWorkspaceId: 'ws', terminals: [{ id: 'codex', workspaceId: 'ws', name: 'Codex', preset: 'codex', cwd: 'C:/fixture', shell: 'powershell.exe', pid: 42, status: 'wait', conversationEnabled: true, conversationInitialView: initialView }], activeTerminalId: 'codex' })
@@ -440,6 +444,12 @@ function Harness() {
   const [visible, setVisible] = useState(true)
   const [generation, setGeneration] = useState(0)
   return <><div style={{ height: 34, display: 'flex', gap: 20 }}><button onClick={() => setVisible(value => !value)}>Other workspace</button><button onClick={() => setGeneration(value => value + 1)}>Remount</button></div>
+    {FileDragSource && <aside style={{ position: 'fixed', top: 70, right: 12, width: 200, zIndex: 10 }}>
+      <FileDragSource node={{ name: 'from tree.ts', path: 'src/from tree.ts', type: 'file' }} workspacePath="C:/tree-workspace"
+        depth={0} activeFilePath={null} expanded={false} expandedPaths={new Set()} loading={false} loadingDirectoryPaths={new Set()}
+        fileChange={null} fileChangeMap={new Map()} changedDirs={new Map()} onSelect={fixtureNoop}
+        onToggleDirectory={fixtureNoop} onOpenFile={fixtureNoop} onMoveFile={fixtureNoop} onOpenContextMenu={fixtureNoop} />
+    </aside>}
     <div style={{ height: 'calc(100vh - 34px)', visibility: visible ? 'visible' : 'hidden', ...(split ? { display: 'flex', flexDirection: split === 'stacked' ? 'column' as const : 'row' as const } : {}) }}>
       <div data-fixture-pane="first" style={{ flex: 1, minWidth: 0, minHeight: 0, height: split ? undefined : '100%' }}><AgentSessionPane key={generation} terminalId="codex" visible={visible} focused={visible} workspaceVisible={visible} /></div>
       {split && <div data-fixture-pane="second" style={{ flex: 1, minWidth: 0, minHeight: 0 }}><AgentSessionPane terminalId="codex-second" visible={visible} focused={false} workspaceVisible={visible} /></div>}

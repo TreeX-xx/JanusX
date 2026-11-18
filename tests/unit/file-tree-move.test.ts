@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
   return { handlers }
 })
 
-vi.mock('fs', () => ({ watch: vi.fn() }))
+vi.mock('fs', async importOriginal => ({ ...(await importOriginal<typeof import('fs')>()), watch: vi.fn() }))
 vi.mock('electron', () => ({
   app: { getPath: () => tmpdir() },
   ipcMain: { handle: (channel: string, handler: (...args: any[]) => any) => mocks.handlers.set(channel, handler) },

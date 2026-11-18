@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronRight, FileText, Folder, Paperclip, Plus, Search } fr
 import type { FileNode } from '../../../shared/ipc/workspace'
 import { MAX_CONVERSATION_ATTACHMENTS, MAX_CONVERSATION_ATTACHMENT_BYTES, activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
 import { setConversationReferences } from '../stores/conversation-context'
-import { readWorkspaceFileDragData, hasWorkspaceFileDrag } from '../lib/terminal-file-reference'
+import { canDropWorkspaceFileReference, clearWorkspaceFileDragData, hasWorkspaceFileDrag, readWorkspaceFileReferenceDrop } from '../lib/terminal-file-reference'
 import styles from './AgentSessionPane.module.css'
 import type { ConversationInputHandle } from './ConversationInput'
 import { ChatErrorCard } from './chat/ChatErrorCard'
@@ -178,7 +178,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     </div>}
   </div>
   return <div ref={area} className={styles.contextArea} data-context-drag={dropHighlight && dragging} onDragEnter={event => {
-    if (!disabled && (hasWorkspaceFileDrag(event.dataTransfer) || event.dataTransfer.types.includes('Files'))) { dragDepth.current++; setDragging(true) }
+    if (!disabled && (canDropWorkspaceFileReference(event.dataTransfer) || event.dataTransfer.types.includes('Files'))) { dragDepth.current++; setDragging(true) }
   }} onDragLeave={() => { if (--dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false) } }} onKeyDownCapture={event => {
     if (event.key === 'Escape') { dragDepth.current = 0; setDragging(false) }
     if (!browsing || event.target !== inputRef.current?.element || event.nativeEvent.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.shiftKey) return
@@ -192,18 +192,23 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     const files = Array.from(event.clipboardData.files)
     if (files.length) { event.preventDefault(); void importFiles(files) }
   }} onDragOver={event => {
-    if (hasWorkspaceFileDrag(event.dataTransfer) || event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'; if (!disabled) inputRef.current?.setDropPoint(event.clientX, event.clientY) }
+    if (!canDropWorkspaceFileReference(event.dataTransfer) && !event.dataTransfer.types.includes('Files')) return
+    event.preventDefault(); event.stopPropagation()
+    event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'
+    if (!disabled) inputRef.current?.setDropPoint(event.clientX, event.clientY)
   }} onDrop={event => {
     dragDepth.current = 0; setDragging(false)
-    if (!hasWorkspaceFileDrag(event.dataTransfer) && !event.dataTransfer.files.length) return
+    const payload = readWorkspaceFileReferenceDrop(event.dataTransfer)
+    const files = event.dataTransfer.files
+    if (!payload && !files.length && !hasWorkspaceFileDrag(event.dataTransfer)) return
     event.preventDefault(); event.stopPropagation()
     if (disabled) return
     inputRef.current?.setDropPoint(event.clientX, event.clientY)
-    const payload = readWorkspaceFileDragData(event.dataTransfer)
     if (payload) {
+      clearWorkspaceFileDragData()
       if (activeReferences.length >= MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
       add({ id: crypto.randomUUID(), name: payload.name, path: `${payload.workspacePath.replace(/[\\/]+$/, '')}/${payload.path}`, quote: payload.quote, kind: payload.type === 'file' && /\.(png|jpe?g|webp|gif)$/i.test(payload.name) ? 'image' : payload.type })
-    } else void importFiles(Array.from(event.dataTransfer.files))
+    } else if (files.length) void importFiles(Array.from(files))
   }}>
     <input ref={picker} type="file" multiple hidden onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />
     {importing && <span role="status">{t('conversation.context.importing')}</span>}

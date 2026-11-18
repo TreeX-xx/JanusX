@@ -23,7 +23,13 @@ export function setWorkspaceFileDragData(
     path: normalizeWorkspaceFilePath(payload.path),
   }
 
+  clearWorkspaceFileDragData()
   activeWorkspaceFileDragPayload = normalizedPayload
+  if (typeof window !== 'undefined') {
+    window.addEventListener('dragstart', clearWorkspaceFileDragData, true)
+    window.addEventListener('dragend', clearWorkspaceFileDragData, true)
+    window.addEventListener('blur', clearWorkspaceFileDragData)
+  }
   dataTransfer.effectAllowed = payload.type === 'file' ? 'copyMove' : 'copy'
   dataTransfer.setData(WORKSPACE_FILE_DRAG_TYPE, JSON.stringify(normalizedPayload))
   dataTransfer.setData('text/plain', formatTerminalFileReference(normalizedPayload.path).trim())
@@ -39,6 +45,31 @@ export function getActiveWorkspaceFileDragData(): WorkspaceFileDragPayload | nul
 
 export function clearWorkspaceFileDragData(): void {
   activeWorkspaceFileDragPayload = null
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('dragstart', clearWorkspaceFileDragData, true)
+    window.removeEventListener('dragend', clearWorkspaceFileDragData, true)
+    window.removeEventListener('blur', clearWorkspaceFileDragData)
+  }
+}
+
+function activeWorkspaceFileTextDrag(dataTransfer: DataTransfer): WorkspaceFileDragPayload | null {
+  return dataTransfer.types.includes('text/plain') && !dataTransfer.types.includes('Files')
+    ? activeWorkspaceFileDragPayload
+    : null
+}
+
+// Note: verify the same-renderer drag when the native drag data loses its custom type.
+// .agents/notes/workbench/terminal-dialog-dual-mode.md
+export function canDropWorkspaceFileReference(dataTransfer: DataTransfer): boolean {
+  return hasWorkspaceFileDrag(dataTransfer) || activeWorkspaceFileTextDrag(dataTransfer) !== null
+}
+
+export function readWorkspaceFileReferenceDrop(dataTransfer: DataTransfer): WorkspaceFileDragPayload | null {
+  const payload = readWorkspaceFileDragData(dataTransfer)
+  if (payload) return payload
+  const active = activeWorkspaceFileTextDrag(dataTransfer)
+  const reference = active && formatTerminalFileReference(active.path).trim()
+  return reference && reference === dataTransfer.getData('text/plain') ? active : null
 }
 
 export function setTerminalDragData(dataTransfer: DataTransfer, terminalId: string): void {
