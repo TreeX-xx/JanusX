@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-17T08:18:15Z",
+  "updated": "2026-11-18T03:01:37Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -179,13 +179,15 @@ Claude Code 2.1.318 的旧实现已实测复现：问题出现后等待 12 秒�
 
 验证：6 项启动流程 Playwright 用例通过，含加载到就绪后输入框纵向位移小于 2px、草稿与焦点保留、减少动画及错误退出。深色就绪页及 390px 浅色截图已检查（artifacts/codex-startup/conversation-*.png）。
 
-## Codex 快速模式
+## Codex 响应速度
 
-JanusX 新建 Codex 主会话明确传 serviceTier=default，默认关闭 fast，不继承用户原生配置的快速档位；不修改全局配置。恢复已有会话保留其选择，后续手动切换正常透传。默认关闭及恢复／切换保留由真实 WebSocket 转发测试覆盖，Codex 单元测试共 18 项通过。
+新建 Codex 会话默认使用 Standard。恢复会话时读回原生速度设置。输入框通过闪电入口控制当前会话的后续轮次，Standard 通过 `thread/settings/update` 显式发送 `default`。当前档位由会话响应和 `thread/settings/updated` 确认，原生终端同步更新。切换被拒时保留上次确认的档位并显示原因。
 
-对话输入区在模型旁提供纯闪电图标按钮，不显示常驻“快速”文字；开启后实心点亮，悬停与无障碍标签说明状态及更高用量。模型目录的 serviceTiers（旧协议回退 additionalSpeedTiers）决定 fast／priority 可用性；未回传状态与不支持模型禁用入口。只通过 thread/settings/update 修改当前会话 serviceTier，关闭传 null；不改模型、推理强度或用户全局配置。状态来自原生会话响应及 thread/settings/updated，原生终端改动同步投影；请求失败保留已确认状态，切换会话清除未知旧状态。此标识表示会话请求档位，不承诺每次请求实际服务速度。
+Codex 适配器按会话提供商读取 `model/list`，使用 `serviceTiers`，旧版目录缺少该字段时使用 `additionalSpeedTiers`。适配器通过 `experimentalFeature/list` 按线程读取实际生效的速度开关。旧版以 Fast 开关共同控制加速档位。开关查询失败时沿用目录中的 Fast 能力，Ultrafast 需要可用性确认。账号更新或会话切换会使旧目录失效，迟到结果不能覆盖新目录。切换模型后，按钮使用新模型的有效档位。套餐和工作区授权由 Codex 决定。
 
-验证：本机 Codex 生成的协议 schema 确认设置、通知与模型目录字段；Codex 单元测试 17 项及纯图标／失败保留状态的 Playwright 测试 1 项通过，类型检查通过。未验证真实付费服务的加速或账号可用性；旧协议未报告档位时保持不可用。
+当前模型仅有标准档时隐藏闪电。支持 Fast 时可一键切换。支持 Ultrafast 时，闪电打开可用档位菜单，带有当前档位与更高用量提示。选择速度保留草稿。实际服务速度以服务端处理为准。
+
+固定引擎的变更记录在 [档位补丁](../../../vendor/janus-agent/conversation-speed.patch)。本机 Codex 0.169.0 的临时线程已验证启用／禁用 Ultrafast 时的目录筛选和原生确认，未发起付费推理。针对性验证覆盖 37 项单测及 14 项 Playwright 对话设置场景，包含权限刷新、失败保留、键盘操作及草稿。
 
 ## OpenCode 原生会话切换
 

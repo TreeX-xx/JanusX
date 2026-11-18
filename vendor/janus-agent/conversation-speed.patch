@@ -1,0 +1,192 @@
+--- a/dist/superagent/contracts/conversation-display.d.ts
++++ b/dist/superagent/contracts/conversation-display.d.ts
+@@ -78,7 +78,7 @@
+         id: string;
+         name: string;
+     };
+-    fastTier?: string;
++    speedTiers?: ConversationSpeedTier[];
+     model: string;
+     displayName: string;
+     description: string;
+@@ -156,6 +156,7 @@
+     };
+     error?: string;
+ }
++export type ConversationSpeedTier = 'fast' | 'priority' | 'ultrafast';
+ export type ConversationCommand = {
+     type: 'ultracode';
+     enabled: boolean;
+@@ -210,7 +211,7 @@
+     controlEpoch: number;
+ } | {
+     type: 'speed';
+-    fast: boolean;
++    serviceTier: ConversationSpeedTier | null;
+     controlEpoch: number;
+ } | {
+     type: 'settings';
+--- a/dist/superagent/native/codex-conversation.js
++++ b/dist/superagent/native/codex-conversation.js
+@@ -93,6 +93,8 @@
+     permissionRequests = new Set();
+     endpoint = '';
+     loadingModels;
++    modelCatalogRevision = 0;
++    modelProvider;
+     nativeInput;
+     managed;
+     managedEvent;
+@@ -408,6 +410,9 @@
+             this.state.commandsError = undefined;
+             this.state.commandsRevision = (this.state.commandsRevision ?? 0) + 1;
+         }
++        if (this.state.threadId !== thread.id || this.modelProvider !== thread.modelProvider)
++            this.invalidateModelCatalog();
++        this.modelProvider = thread.modelProvider;
+         this.state.threadId = thread.id;
+         this.state.serviceTier = undefined;
+         this.updateSettings(settings);
+@@ -432,9 +437,45 @@
+         if (typeof effort === 'string' || effort === null)
+             this.state.effort = effort;
+     }
++    invalidateModelCatalog() {
++        this.modelCatalogRevision++;
++        this.loadingModels = undefined;
++        this.state.models = [];
++        this.state.modelsLoading = false;
++        this.state.modelsError = undefined;
++    }
++    async loadSpeedFeatures(threadId) {
++        const features = new Map();
++        const cursors = new Set();
++        let cursor;
++        try {
++            do {
++                const result = await this.call('experimentalFeature/list', { threadId, limit: 500, ...(cursor ? { cursor } : {}) });
++                if (!Array.isArray(result.data))
++                    break;
++                for (const { name, enabled } of result.data) {
++                    if ((name === 'fast_mode' || name === 'ultrafast_mode') && typeof enabled === 'boolean')
++                        features.set(name, enabled);
++                }
++                cursor = result.nextCursor;
++                if (features.size === 2 || !cursor) {
++                    return {
++                        fast: features.get('fast_mode') !== false,
++                        ultrafast: features.get('ultrafast_mode') ?? (features.get('fast_mode') === true),
++                    };
++                }
++                if (cursors.has(cursor) || cursors.size >= 9)
++                    break;
++                cursors.add(cursor);
++            } while (cursor);
++        }
++        catch { /* Keep model selection available on older or unreachable feature endpoints. */ }
++        return { fast: features.get('fast_mode') !== false, ultrafast: false };
++    }
+     loadModels() {
+         if (this.loadingModels)
+             return this.loadingModels;
++        const revision = this.modelCatalogRevision, threadId = this.state.threadId, modelProvider = this.modelProvider;
+         this.state.modelsLoading = true;
+         this.state.modelsError = undefined;
+         this.changed();
+@@ -444,7 +485,7 @@
+                 const cursors = new Set();
+                 let cursor;
+                 do {
+-                    const result = await this.call('model/list', { limit: 100, ...(cursor ? { cursor } : {}) });
++                    const result = await this.call('model/list', { limit: 100, ...(modelProvider ? { modelProvider } : {}), ...(cursor ? { cursor } : {}) });
+                     if (!Array.isArray(result.data))
+                         throw new Error('Invalid Codex model catalog');
+                     for (const raw of result.data) {
+@@ -453,9 +494,16 @@
+                         const efforts = (Array.isArray(raw.supportedReasoningEfforts) ? raw.supportedReasoningEfforts : [])
+                             .filter((option) => typeof option.reasoningEffort === 'string')
+                             .map((option) => ({ effort: option.reasoningEffort, description: String(option.description ?? '').slice(0, 1000) }));
+-                        const tiers = Array.isArray(raw.serviceTiers) ? raw.serviceTiers.map((tier) => tier.id) : raw.additionalSpeedTiers ?? [];
+-                        const fastTier = Array.isArray(tiers) ? tiers.find((tier) => tier === 'fast' || tier === 'priority') : undefined;
+-                        models.set(raw.model, { model: raw.model, fastTier, displayName: String(raw.displayName || raw.model), description: String(raw.description ?? '').slice(0, 2000),
++                        const tiers = Array.isArray(raw.serviceTiers) ? raw.serviceTiers.map(tier => tier?.id) : raw.additionalSpeedTiers ?? [];
++                        const speedTiers = [];
++                        if (Array.isArray(tiers)) {
++                            const fastTier = tiers.find(tier => tier === 'fast' || tier === 'priority');
++                            if (fastTier)
++                                speedTiers.push(fastTier);
++                            if (tiers.includes('ultrafast'))
++                                speedTiers.push('ultrafast');
++                        }
++                        models.set(raw.model, { model: raw.model, speedTiers, displayName: String(raw.displayName || raw.model), description: String(raw.description ?? '').slice(0, 2000),
+                             defaultEffort: efforts.some((option) => option.effort === raw.defaultReasoningEffort) ? raw.defaultReasoningEffort : efforts[0]?.effort ?? null, efforts });
+                     }
+                     cursor = typeof result.nextCursor === 'string' && result.nextCursor ? result.nextCursor : undefined;
+@@ -464,18 +512,26 @@
+                     if (cursor)
+                         cursors.add(cursor);
+                 } while (cursor);
+-                if (!this.disposed)
+-                    this.state.models = [...models.values()];
++                const catalog = [...models.values()];
++                if (catalog.some(model => model.speedTiers.length) && !this.disposed && revision === this.modelCatalogRevision) {
++                    const features = await this.loadSpeedFeatures(threadId);
++                    for (const model of catalog)
++                        model.speedTiers = model.speedTiers.filter(tier => tier === 'ultrafast' ? features.ultrafast : features.fast);
++                }
++                if (!this.disposed && revision === this.modelCatalogRevision)
++                    this.state.models = catalog;
+             }
+             catch (error) {
+-                if (!this.disposed)
++                if (!this.disposed && revision === this.modelCatalogRevision)
+                     this.state.modelsError = String(error).slice(0, 2000);
+             }
+             finally {
+-                this.loadingModels = undefined;
+-                this.state.modelsLoading = false;
+-                if (!this.disposed)
+-                    this.changed();
++                if (revision === this.modelCatalogRevision) {
++                    this.loadingModels = undefined;
++                    this.state.modelsLoading = false;
++                    if (!this.disposed)
++                        this.changed();
++                }
+             }
+         })();
+         return this.loadingModels;
+@@ -657,6 +713,12 @@
+         const original = message.params ?? {};
+         const p = legacy ? { ...original, threadId: original.conversationId, itemId: original.callId,
+             command: Array.isArray(original.command) ? JSON.stringify(original.command) : original.command } : original;
++        if (method === 'account/updated' || method === 'account/gatewayOAuth/changed') {
++            this.invalidateModelCatalog();
++            if (this.state.threadId && !this.disposed)
++                void this.loadModels();
++            return;
++        }
+         // Only a native thread/start or thread/resume response selects the visible conversation.
+         // Global announcements can describe title generation or subagents and never select it.
+         if (method === 'serverRequest/resolved') {
+@@ -1006,15 +1068,15 @@
+         else if (command.type === 'speed') {
+             if (this.state.settingsUpdating || this.state.submitting)
+                 throw new Error('Codex settings update is busy');
+-            if (typeof command.fast !== 'boolean' || this.state.serviceTier === undefined)
++            if (this.state.serviceTier === undefined || this.state.modelsLoading || this.state.modelsError)
+                 throw new Error('Codex speed state is unavailable');
+-            const fastTier = this.state.models.find(model => model.model === this.state.model)?.fastTier;
+-            if (command.fast && !fastTier)
+-                throw new Error('Fast mode is not supported by the current model catalog');
++            const tiers = this.state.models.find(model => model.model === this.state.model)?.speedTiers;
++            if (command.serviceTier !== null && !tiers?.includes(command.serviceTier))
++                throw new Error('This speed is not available for the current Codex model and account');
+             this.state.settingsUpdating = true;
+             this.changed();
+             try {
+-                await this.call('thread/settings/update', { threadId: this.state.threadId, serviceTier: command.fast ? fastTier : null });
++                await this.call('thread/settings/update', { threadId: this.state.threadId, serviceTier: command.serviceTier ?? 'default' });
+             }
+             finally {
+                 this.state.settingsUpdating = false;

@@ -554,8 +554,15 @@
     },
     "speedOn": "快速模式已开启 · 点击关闭 · 用量消耗更高",
     "speedOff": "开启快速模式 · 用量消耗更高",
-    "speedUnknown": "尚未获取快速模式状态",
-    "speedUnavailable": "当前模型不支持快速模式",
+    "speedUnknown": "尚未获取响应速度状态",
+    "speedMenu": "选择响应速度 · 当前为{{speed}}",
+    "speedReset": "极速模式已开启 · 点击恢复标准速度",
+    "speed": {
+      "standard": "标准",
+      "fast": "快速",
+      "ultrafast": "极速",
+      "higherUsage": "用量消耗更高"
+    },
     "defaultEffort": "默认强度",
     "searchOptions": "搜索选项",
     "searchModels": "搜索模型或供应商",
@@ -584,7 +591,8 @@
     "picker": {
       "commands": "指令",
       "model": "模型",
-      "effort": "推理强度"
+      "effort": "推理强度",
+      "speed": "响应速度"
     },
     "commands": {
       "new": "空闲时新建对话",

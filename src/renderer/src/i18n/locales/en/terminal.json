@@ -535,8 +535,15 @@
     },
     "speedOn": "Fast mode enabled · Click to disable · Higher usage",
     "speedOff": "Enable fast mode · Higher usage",
-    "speedUnknown": "Fast mode status unavailable",
-    "speedUnavailable": "Fast mode is unavailable for this model",
+    "speedUnknown": "Response speed status unavailable",
+    "speedMenu": "Choose response speed · Current: {{speed}}",
+    "speedReset": "Ultrafast enabled · Click to return to Standard",
+    "speed": {
+      "standard": "Standard",
+      "fast": "Fast",
+      "ultrafast": "Ultrafast",
+      "higherUsage": "Higher usage"
+    },
     "defaultEffort": "Default effort",
     "searchOptions": "Search options",
     "searchModels": "Search models or providers",
@@ -565,7 +572,8 @@
     "picker": {
       "commands": "Commands",
       "model": "Model",
-      "effort": "Reasoning effort"
+      "effort": "Reasoning effort",
+      "speed": "Response speed"
     },
     "commands": {
       "new": "Start a new conversation when idle",

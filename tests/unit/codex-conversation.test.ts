@@ -218,38 +218,69 @@ describe('Codex conversation ownership and event projection', () => {
       await new Promise<void>(resolve => server.close(() => resolve()))
     }
   })
-  it('toggles native speed without changing model or effort and only projects confirmed settings', async () => {
+  it('chooses native speeds without changing model or effort and only projects confirmed settings', async () => {
     const { controller, wire, emit } = setup()
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
-    const call = vi.spyOn(wire, 'call').mockResolvedValue({ data: [{ model: 'probe', serviceTiers: [{ id: 'fast' }], supportedReasoningEfforts: [] }] })
+    const call = vi.spyOn(wire, 'call').mockImplementation(async (method: string) => {
+      if (method === 'model/list') return { data: [{ model: 'probe', serviceTiers: [{ id: 'priority' }, { id: 'ultrafast' }], supportedReasoningEfforts: [] }] }
+      return { data: [{ name: 'fast_mode', enabled: true }, { name: 'ultrafast_mode', enabled: true }] }
+    })
     await controller.command({ type: 'models', controlEpoch })
-    expect(controller.state.models[0].fastTier).toBe('fast')
-    await expect(controller.command({ type: 'speed', fast: true, controlEpoch })).rejects.toThrow('unavailable')
+    expect(controller.state.models[0].speedTiers).toEqual(['priority', 'ultrafast'])
+    await expect(controller.command({ type: 'speed', serviceTier: 'ultrafast', controlEpoch })).rejects.toThrow('unavailable')
     emit('thread/settings/updated', { threadSettings: { model: 'probe', effort: 'high', serviceTier: null } })
     call.mockImplementation(async () => {
       expect(controller.state.settingsUpdating).toBe(true)
       expect(controller.state.serviceTier).toBeNull()
-      emit('thread/settings/updated', { threadSettings: { serviceTier: 'fast' } })
+      emit('thread/settings/updated', { threadSettings: { serviceTier: 'ultrafast' } })
       return {}
     })
-    await controller.command({ type: 'speed', fast: true, controlEpoch })
-    expect(call).toHaveBeenLastCalledWith('thread/settings/update', { threadId: 'main', serviceTier: 'fast' })
-    expect(controller.state).toMatchObject({ model: 'probe', effort: 'high', serviceTier: 'fast', settingsUpdating: false })
+    await controller.command({ type: 'speed', serviceTier: 'ultrafast', controlEpoch })
+    expect(call).toHaveBeenLastCalledWith('thread/settings/update', { threadId: 'main', serviceTier: 'ultrafast' })
+    expect(controller.state).toMatchObject({ model: 'probe', effort: 'high', serviceTier: 'ultrafast', settingsUpdating: false })
     call.mockRejectedValue(new Error('Unavailable for account'))
-    await expect(controller.command({ type: 'speed', fast: false, controlEpoch })).rejects.toThrow('Unavailable')
-    expect(controller.state.serviceTier).toBe('fast')
+    await expect(controller.command({ type: 'speed', serviceTier: null, controlEpoch })).rejects.toThrow('Unavailable')
+    expect(controller.state.serviceTier).toBe('ultrafast')
     call.mockResolvedValue({})
-    await controller.command({ type: 'speed', fast: false, controlEpoch })
-    expect(call).toHaveBeenLastCalledWith('thread/settings/update', { threadId: 'main', serviceTier: null })
-    expect(controller.state.serviceTier).toBe('fast')
+    await controller.command({ type: 'speed', serviceTier: null, controlEpoch })
+    expect(call).toHaveBeenLastCalledWith('thread/settings/update', { threadId: 'main', serviceTier: 'default' })
+    expect(controller.state.serviceTier).toBe('ultrafast')
     emit('thread/settings/updated', { threadId: 'child', threadSettings: { serviceTier: null } })
-    expect(controller.state.serviceTier).toBe('fast')
+    expect(controller.state.serviceTier).toBe('ultrafast')
     emit('thread/settings/updated', { threadSettings: { serviceTier: null, model: 'unsupported' } })
-    await expect(controller.command({ type: 'speed', fast: true, controlEpoch })).rejects.toThrow('not supported')
+    await expect(controller.command({ type: 'speed', serviceTier: 'ultrafast', controlEpoch })).rejects.toThrow('not available')
     wire.attach({ id: 'next', turns: [] })
     expect(controller.state.serviceTier).toBeUndefined()
     await controller.dispose()
   })
+  it('filters speeds by effective features and discards a catalog superseded by an account update', async () => {
+    const { controller, wire, emit } = setup()
+    wire.attach({ id: 'main', modelProvider: 'example', turns: [] }, { model: 'probe', serviceTier: 'default' })
+    const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+    const models = { data: [
+      { model: 'probe', serviceTiers: [{ id: 'priority' }, { id: 'ultrafast' }] },
+      { model: 'old', additionalSpeedTiers: ['fast'] },
+      { model: 'standard', serviceTiers: [], additionalSpeedTiers: ['ultrafast'] },
+    ] }
+    let finishOldFeatures!: (value: object) => void
+    const oldFeatures = new Promise<object>(resolve => { finishOldFeatures = resolve })
+    const call = vi.spyOn(wire, 'call').mockImplementation(async (method: string) => method === 'model/list' ? models : oldFeatures)
+    const oldCatalog = controller.command({ type: 'models', controlEpoch })
+    await vi.waitFor(() => expect(call).toHaveBeenCalledWith('experimentalFeature/list', { threadId: 'main', limit: 500 }))
+    call.mockImplementation(async (method: string) => method === 'model/list' ? models : {
+      data: [{ name: 'fast_mode', enabled: true }, { name: 'ultrafast_mode', enabled: false }],
+    })
+    emit('account/updated', { threadId: undefined })
+    await vi.waitFor(() => expect(controller.state.models[0]?.speedTiers).toEqual(['priority']))
+    expect(call).toHaveBeenCalledWith('model/list', { limit: 100, modelProvider: 'example' })
+    finishOldFeatures({ data: [{ name: 'fast_mode', enabled: false }, { name: 'ultrafast_mode', enabled: true }] })
+    await oldCatalog
+    expect(controller.state.models.map(model => model.speedTiers)).toEqual([['priority'], ['fast'], []])
+    await expect(controller.command({ type: 'speed', serviceTier: 'ultrafast', controlEpoch })).rejects.toThrow('not available')
+    expect(call).not.toHaveBeenCalledWith('thread/settings/update', expect.anything())
+    await controller.dispose()
+  })
+
   it('steers the active turn once, pins its identity and never retries a failed steer as a new turn', async () => {
     const { controller, wire, emit } = setup()
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })

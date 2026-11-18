@@ -153,8 +153,8 @@
 .turnFile:last-child { border-bottom: 0; }
 .turnFiles :global(.diff-counts) { display: inline-flex; gap: 6px; flex-shrink: 0; }
 .modelControls .speedControl { flex-shrink: 0; justify-content: center; padding: 4px; border-radius: 5px; }
-.modelControls .speedControl[aria-pressed=true] { color: var(--shell-text); background: var(--shell-hover); }
-.speedControl[aria-pressed=true] svg { fill: currentColor; }
+.modelControls .speedControl[data-speed-active=true] { color: var(--shell-text); background: var(--shell-hover); }
+.speedControl[data-speed-active=true] svg { fill: currentColor; }
 .speedControl:disabled { opacity: .45; cursor: default; }
 .modelControls .effortControl, .modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { color: var(--effort-color); background: transparent; }
 .composer { position: relative; }

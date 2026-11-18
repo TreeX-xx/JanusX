@@ -31,13 +31,17 @@ if (split && new URLSearchParams(location.search).has('crossWorkspace')) useWork
 }))
 const state: ConversationSnapshot = { id: 'codex', engine: 'codex', capabilities: CODEX_CONVERSATION_CAPABILITIES, revision: 1, mode: 'terminal', controlEpoch: 0, connection: 'ready', threadId: 'native-thread', turnId: null, submitting: false, items: [], approvals: [], needsTerminal: false, truncated: false,
   serviceTier: null, model: 'fixture-fast', effort: 'medium', modelsLoading: false, settingsUpdating: false, models: [
-    { model: 'fixture-fast', fastTier: 'fast', displayName: 'Fixture Fast', description: 'A fast local test model', defaultEffort: 'medium', efforts: [
+    { model: 'fixture-fast', speedTiers: ['fast'], displayName: 'Fixture Fast', description: 'A fast local test model', defaultEffort: 'medium', efforts: [
       { effort: 'low', description: 'Quick responses for straightforward work' }, { effort: 'medium', description: 'Balanced reasoning' },
       { effort: 'high', description: 'More detailed reasoning' }, { effort: 'xhigh', description: 'Extra reasoning for complex tasks' },
       { effort: 'max', description: 'Maximum reasoning depth' }, { effort: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
     ] },
     { model: 'fixture-deep', displayName: 'Fixture Deep', description: 'A model for complex test tasks', defaultEffort: 'high', efforts: [{ effort: 'high', description: 'Detailed reasoning' }, { effort: 'xhigh', description: 'Extra reasoning' }] },
   ] }
+if (new URLSearchParams(location.search).has('ultrafast')) {
+  state.models[1].speedTiers = ['priority', 'ultrafast']
+  state.models.push({ model: 'fixture-standard', displayName: 'Fixture Standard', description: '', defaultEffort: null, efforts: [] })
+}
 state.mode = initialView
 if (claude) {
   state.capabilities = { ...state.capabilities, edit: false, newThread: false, steer: false }
@@ -142,7 +146,7 @@ Object.assign(window.electron.terminal, {
     }
     else if (command.type === 'speed') {
       if (settingsFailure) throw new Error('Fixture settings update failed')
-      state.serviceTier = command.fast ? 'fast' : null
+      state.serviceTier = command.serviceTier ?? 'default'
     }
     else if (command.type === 'ultracode') {
       if (settingsFailure) throw new Error('Fixture settings update failed')
@@ -355,6 +359,11 @@ Object.assign(window, { codexFixture: {
     publish()
   },
   settingsFail: (value: boolean) => { settingsFailure = value },
+  revokeUltrafast: () => {
+    const model = state.models.find(option => option.model === 'fixture-deep')
+    if (model) model.speedTiers = ['priority']
+    publish()
+  },
   ultracode: (value?: ConversationSnapshot['ultracode']) => { state.ultracode = value; publish() },
   catalogFail: () => { state.modelsError = 'Fixture catalog failed'; publish() },
   nativeSettings: () => { state.model = 'fixture-fast'; state.effort = 'high'; publish() },
