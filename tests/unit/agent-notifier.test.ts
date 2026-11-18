@@ -1,16 +1,34 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { notifyAgentEvent, notifyAgentAttention } from '../../src/main/notifications/agent-notifier'
 
+type ToastCallbacks = {
+  onClick(): void
+  onShown(): void
+  onError(error: string): void
+}
+
 const desktopToastMock = vi.hoisted(() => ({
-  show: vi.fn(() => true),
+  show: vi.fn<(payload: unknown, options: ToastCallbacks) => boolean>(() => true),
+}))
+const nativeMock = vi.hoisted(() => ({
+  supported: vi.fn(() => false),
+  created: vi.fn<(options: { title: string; body: string; silent: boolean }, notice: import('node:events').EventEmitter) => void>(),
+  show: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  BrowserWindow: class BrowserWindow {},
-  Notification: class Notification {
-    static isSupported() { return false }
-  },
-}))
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    Notification: class Notification extends EventEmitter {
+      static isSupported() { return nativeMock.supported() }
+      constructor(options: { title: string; body: string; silent: boolean }) {
+        super()
+        nativeMock.created(options, this)
+      }
+      show() { nativeMock.show(this) }
+    },
+  }
+})
 
 vi.mock('../../src/main/notifications/desktop-toast-window', () => ({
   desktopToastWindow: desktopToastMock,
@@ -40,12 +58,24 @@ const enabledSettings = {
   errorMessageMaxLength: 120,
 }
 
-describe('notifyAgentEvent', () => {
-  beforeEach(() => {
-    desktopToastMock.show.mockReturnValue(true)
-    vi.clearAllMocks()
-  })
+const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { ...originalPlatform, value: platform })
+}
 
+beforeEach(() => {
+  setPlatform('win32')
+  vi.clearAllMocks()
+  desktopToastMock.show.mockReturnValue(true)
+  nativeMock.supported.mockReturnValue(false)
+  nativeMock.show.mockReset()
+})
+
+afterEach(() => {
+  Object.defineProperty(process, 'platform', originalPlatform)
+})
+
+describe('notifyAgentEvent', () => {
   it('skips non-terminal agent events', async () => {
     const delivered = notifyAgentEvent(createWindowMock() as never, { sessionId: 's1', engine: 'codex' }, {
       type: 'text-chunk',
@@ -247,14 +277,20 @@ describe('notifyAgentEvent', () => {
       }),
     )
   })
+
+  it('delivers one renderer fallback when desktop window creation fails synchronously', () => {
+    const windowMock = createWindowMock()
+    desktopToastMock.show.mockImplementationOnce((_payload, options) => {
+      options.onError('window creation failed')
+      return false
+    })
+    const delivered = notifyAgentEvent(windowMock as never, { sessionId: 's1', engine: 'codex' }, { type: 'done' }, enabledSettings)
+    expect(delivered).toBe(true)
+    expect(windowMock.webContents.send).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('notifyAgentAttention', () => {
-  beforeEach(() => {
-    desktopToastMock.show.mockReturnValue(true)
-    vi.clearAllMocks()
-  })
-
   it('shows an attention notification', async () => {
     notifyAgentAttention(
       createWindowMock() as never,
@@ -271,5 +307,69 @@ describe('notifyAgentAttention', () => {
       }),
       expect.any(Object),
     )
+  })
+})
+
+describe('macOS agent notifications', () => {
+  beforeEach(() => {
+    setPlatform('darwin')
+    nativeMock.supported.mockReturnValue(true)
+  })
+
+  it('delivers a native notification without activating JanusX and restores the terminal only on click', () => {
+    const windowMock = createWindowMock({ isMinimized: vi.fn(() => true) })
+    const onClick = vi.fn()
+    const onDesktopToastShown = vi.fn()
+    expect(notifyAgentEvent(windowMock as never, { sessionId: 's1', engine: 'codex' }, { type: 'done' }, enabledSettings, {
+      terminalId: 'terminal-1', onClick, onDesktopToastShown,
+    })).toBe(true)
+    const [options, notice] = nativeMock.created.mock.calls[0]
+    expect(options).toMatchObject({ title: 'JanusX - Agent completed', silent: true })
+    expect(nativeMock.show).toHaveBeenCalledWith(notice)
+    notice.emit('show')
+    expect(onDesktopToastShown).toHaveBeenCalledTimes(1)
+    expect(desktopToastMock.show).not.toHaveBeenCalled()
+    expect(windowMock.webContents.send).not.toHaveBeenCalled()
+    expect(windowMock.restore).not.toHaveBeenCalled()
+    expect(windowMock.show).not.toHaveBeenCalled()
+    expect(windowMock.focus).not.toHaveBeenCalled()
+    expect(onClick).not.toHaveBeenCalled()
+    notice.emit('click')
+    notice.emit('click')
+    expect(windowMock.restore).toHaveBeenCalledTimes(1)
+    expect(windowMock.show).toHaveBeenCalledTimes(1)
+    expect(windowMock.focus).toHaveBeenCalledTimes(1)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes failed native delivery to the in-app notice with its terminal and workspace', () => {
+    const windowMock = createWindowMock()
+    const onDesktopToastFailure = vi.fn()
+    const onClick = vi.fn()
+    expect(notifyAgentAttention(windowMock as never, { sessionId: 's1', engine: 'codex' }, 'approval required', enabledSettings, {
+      terminalId: 'terminal-1', workspaceId: 'workspace-2', onDesktopToastFailure, onClick,
+    })).toBe(true)
+    const [, notice] = nativeMock.created.mock.calls[0]
+    notice.emit('failed', {}, 'notifications are disabled')
+    notice.emit('failed', {}, 'duplicate failure')
+    expect(onDesktopToastFailure).toHaveBeenCalledExactlyOnceWith('notifications are disabled')
+    expect(windowMock.webContents.send).toHaveBeenCalledExactlyOnceWith('agent-notification:show', expect.objectContaining({
+      type: 'attention', terminalId: 'terminal-1', workspaceId: 'workspace-2',
+    }))
+    expect(desktopToastMock.show).not.toHaveBeenCalled()
+    expect(windowMock.focus).not.toHaveBeenCalled()
+    expect(windowMock.show).not.toHaveBeenCalled()
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it.each(['unavailable', 'throws'])('delivers one in-app notice when the native API is %s', failure => {
+    const windowMock = createWindowMock()
+    if (failure === 'unavailable') nativeMock.supported.mockReturnValue(false)
+    else nativeMock.show.mockImplementationOnce(() => { throw new Error('native delivery error') })
+    expect(notifyAgentEvent(windowMock as never, { sessionId: 's1', engine: 'codex' }, { type: 'error', message: 'error' }, enabledSettings)).toBe(true)
+    expect(windowMock.webContents.send).toHaveBeenCalledTimes(1)
+    expect(desktopToastMock.show).not.toHaveBeenCalled()
+    expect(windowMock.focus).not.toHaveBeenCalled()
+    expect(windowMock.show).not.toHaveBeenCalled()
   })
 })

@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-30T05:18:12.832Z",
+  "updated": "2026-11-18T07:14:32Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -35,19 +35,19 @@ System notification delivery fails silently across packaging variants. Portal bu
 
 ## Decision
 
-Local reminders leave the system notification path for a dedicated toast window. An independent window renders Janus toast styling above minimized or backgrounded main frames, while in-app toasts keep serving active sessions. Activating a desktop toast restores and focuses the main window at the owning terminal. The remote notification channel stays independent and never renders through the local toast. Replacement semantics govern the window: the newest reminder supersedes the current one with no stacking and no history center.
+The Windows and Linux Agent notification path uses a dedicated toast window to display Janus styling above minimized or backgrounded main frames. macOS Agent notifications use Notification Center to avoid displaying a separate JanusX window in another Space. If the system rejects delivery, the app shows an in-app reminder. [Agent notification routing](../agent/agent-notifications.md#decision) owns the platform choice and its verification. Activating a desktop toast restores and focuses the main window at the owning terminal. The remote notification channel stays independent and never renders through the local toast. Replacement semantics govern the window: the newest reminder supersedes the current one with no stacking and no history center.
 
 The desktop card uses the standard A layout within the existing 380 × 112 window: terminal icon and name beside JanusX, status symbol beside the supplied title, then a two-line summary. Terminal icons reuse `TerminalPresetIcon` and preset display names; unknown engines retain their supplied name with a shell icon. Codex's dark glyph is inverted on the dark theme. Neutral theme surfaces, borders and text replace the colored side strip, colored engine labels and hover glow. Completion and attention symbols stay neutral; only the failure symbol uses the theme's failure color. Brand colors remain confined to their existing icons. The in-app notification styling remains independently owned.
 
 ## Alternatives considered
 
-- Repair system notification integration — strongest case stays native everywhere. The driver that rules it out is platform variance: each packaging quirk reopens the same failure class.
+- Use only system notifications on every platform. Packaging and permission differences make explicit error handling necessary. On macOS the system path lets the operating system display the banner without a separate JanusX window.
 - Third-party notification library — strongest case buys stacking and history. The driver that rules it out is dependency weight for a single-window need.
 - Do nothing / reuse system notifications — staying put keeps zero custom chrome. The cost is reminders that vanish by packaging luck.
 
 ## Consequences
 
-- **Gains**: Toast delivery stands independent of shortcut and permission state; styling and behavior stay consistent across installs.
+- **Gains**: The custom toast delivers independently of system notification permissions. macOS users get system placement and notification preferences.
 - **Costs and limits**: A second window joins the lifecycle with its own readiness handshake; stacking and history stay explicitly out.
 - **Transparency over blur**: The toast page carries transparent `html`/`body` from pre-paint (an inline `toast-prepaint` hook in the renderer entry plus a synchronous class attach before React mounts), the viewport carries zero padding so the card fills the window with no transparent ring for DWM to paint, the card paints as a solid surface without `backdrop-filter`, and the window opts out of native shadow, thick frame, DWM system backdrop (`backgroundMaterial:none`), and system rounded corners (rounding stays owned by the CSS card). These native composition options are set at creation and stay unchanged across show/hide; the earlier material reassertions around show have been removed to avoid composition resets while visible. The in-app twin paints the same solid card without `backdrop-filter`. The cost is the loss of background blur behind the card, which the near-opaque surface keeps visually negligible. Windows visual behavior still requires desktop verification; unit/browser checks cannot prove DWM transparency.
 - **Paint before show**: The renderer loads its initial theme before reporting subscription readiness. Main sends the cached theme before each payload and attaches a monotonically increasing delivery ID. After React commits the card, two animation frames precede `desktop-toast:painted`; main accepts only the current delivery from the toast renderer, then shows the window and starts its timeout. Hidden-window background throttling is disabled so that this handshake can complete. Replacements cancel the previous hide timeout and do not call show again on a visible window. The card has no entrance opacity/scale animation or hover translation. The trade-off is a short paint delay and a static entrance; two animation frames provide a paint opportunity, not a guarantee of Windows compositor presentation.

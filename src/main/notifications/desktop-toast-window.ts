@@ -1,4 +1,4 @@
-// Note: local reminders leave system notifications — see .agents/notes/desktop/desktop-toast.md
+// Note: custom desktop toast delivery on Windows and Linux — see .agents/notes/desktop/desktop-toast.md
 // Note: transparent toast needs pre-paint transparent page, solid card, shadowless window — see .agents/notes/desktop/desktop-toast.md
 import { BrowserWindow, app, ipcMain, screen, type IpcMainEvent } from 'electron'
 import { join } from 'node:path'
