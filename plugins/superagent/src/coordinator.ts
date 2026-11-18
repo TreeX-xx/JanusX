@@ -21,7 +21,7 @@ export function createCoordinator(host?: { call(method: string, value: JsonValue
   return {
     async call(method: string, value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
       signal.throwIfAborted()
-      if (method === 'settings.read' || method === 'settings.save' || method === 'workers.list') {
+      if (['settings.read', 'settings.save', 'settings.model', 'settings.models', 'settings.capacity', 'settings.idle', 'workers.list'].includes(method)) {
         const view = z.object({ instanceId: z.string().uuid(), input: z.unknown(), project: z.object({ id: identity }).passthrough().nullable() }).strict().parse(value)
         if (!host || method === 'workers.list' && !view.project) throw new NativeServiceError('STALE_CONTEXT')
         return host.call('superagent.' + method, { workspaceId: view.project?.id ?? null, input: view.input as JsonValue }, signal)

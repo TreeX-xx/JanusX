@@ -66,14 +66,18 @@ try {
   await page.locator('[data-tab="extension:official.superagent/settings"]').click()
   await expect.poll(() => app.context().pages().some(p => p.url().includes('settings.html'))).toBe(true)
   const settings = app.context().pages().find(p => p.url().includes('settings.html'))
-  await expect(settings.getByRole('combobox')).toHaveValue('codex')
-  await settings.getByRole('combobox').selectOption('claude')
+  try { await expect(settings.getByRole('combobox', { name: /^(Default Worker|默认 Worker)$/ })).toHaveValue('codex') }
+  catch (error) { throw new Error('Plugin settings did not load: ' + await settings.locator('body').innerText(), { cause: error }) }
+  await settings.getByRole('combobox', { name: /^(Default Worker|默认 Worker)$/ }).selectOption('claude')
   await settings.getByRole('button', { name: /^(Save|保存)$/ }).click()
   await expect(settings.getByRole('status')).toHaveText(/^(Saved|已保存)$/)
   await expect.poll(() => page.evaluate(() => window.electron.superAgent.workerPolicy())).toMatchObject({ defaultBackend: 'claude' })
-  await settings.getByRole('combobox').selectOption('codex')
+  await settings.getByRole('combobox', { name: /^(Default Worker|默认 Worker)$/ }).selectOption('codex')
   await settings.getByRole('button', { name: /^(Save|保存)$/ }).click()
   await expect.poll(() => page.evaluate(() => window.electron.superAgent.workerPolicy())).toMatchObject({ defaultBackend: 'codex' })
+  await settings.getByLabel(/^(Idle timeout \(minutes\)|空闲超时（分钟）)$/).fill('45')
+  await settings.getByRole('button', { name: /^(Save · Idle timeout \(minutes\)|保存 · 空闲超时（分钟）)$/ }).click()
+  await expect.poll(() => page.evaluate(() => window.electron.superAgent.workerIdleTimeoutMinutes())).toBe(45)
   const input = { eventId: randomUUID(), workspaceId, conversationId: 'test-conversation', text: 'Saved by the signed-plugin fixture.' }
   const submit = () => page.evaluate(row => window.electron.superAgent.submitInput(row), input)
   const first = await submit()

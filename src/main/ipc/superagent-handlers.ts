@@ -182,8 +182,16 @@ export function registerSuperAgentHandlers(options: SuperAgentHandlerOptions, in
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid SuperAgent request')
       const workspace = typeof value.workspaceId === 'string' ? value.workspaceId : undefined
       if (!available(workspace)) throw new Error('SuperAgent is unavailable')
-      if (method === 'superagent.settings.read') return { ...await defaults().policy() }
-      if (method === 'superagent.settings.save') return { ...await defaults().updatePolicy(value.input) }
+      if (method === 'superagent.settings.read') {
+        const [policy, codex, claude, idle, ledger] = await Promise.all([defaults().policy(), defaults().get('codex'), defaults().get('claude'),
+          defaults().getIdleMinutes(), getService(workspace).scheduler?.ledger.snapshot()])
+        return { ...policy, profiles: { codex: { ...codex }, claude: { ...claude } }, idle, capacity: ledger?.maxConcurrentWorkers ?? null }
+      }
+      if (method === 'superagent.settings.save') return { ...await configureDefaults().updatePolicy(value.input) }
+      if (method === 'superagent.settings.model') return { ...await configureDefaults().update(value.input) }
+      if (method === 'superagent.settings.models') return (await modelCatalog.get(value.input)).map(row => row.model)
+      if (method === 'superagent.settings.capacity') return admit(workspace).configureCapacity(value.input)
+      if (method === 'superagent.settings.idle') return configureDefaults().updateIdleMinutes(value.input)
       if (method === 'superagent.workers.list' && workspace) {
         const current = getService(workspace)
         const [list, records, queue] = await Promise.all([current.workerSnapshots(workspace), current.snapshot(workspace), current.scheduleSnapshot(workspace)])

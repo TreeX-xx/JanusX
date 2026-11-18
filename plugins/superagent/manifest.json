@@ -37,6 +37,10 @@
       "turn.close",
       "settings.read",
       "settings.save",
+      "settings.model",
+      "settings.models",
+      "settings.capacity",
+      "settings.idle",
       "workers.list",
       "turn.instructions",
       "scheduler.admit"

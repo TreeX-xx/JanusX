@@ -93,7 +93,8 @@ test('Island starts the shared workspace in the light theme without starting wor
     await mkdir('artifacts/superagent-migration', { recursive: true })
     await writeFile('artifacts/superagent-migration/desktop-startup.log', startup)
     if (application?.process().pid && application.process().exitCode === null) {
-      await promisify(execFile)('taskkill', ['/PID', String(application.process().pid), '/T', '/F'], { windowsHide: true }).catch(() => undefined)
+      if (process.platform === 'win32') await promisify(execFile)('taskkill', ['/PID', String(application.process().pid), '/T', '/F'], { windowsHide: true }).catch(() => undefined)
+      else await application.close().catch(() => { application?.process().kill('SIGTERM') })
     }
     await cli.close()
   }
@@ -492,7 +493,8 @@ for (const checkNavigation of [true, false]) test(checkNavigation
     hold?.destroy()
     // This test owns this isolated process. Also clean up a synchronous native startup error dialog.
     if (application?.process().pid && application.process().exitCode === null) {
-      await promisify(execFile)('taskkill', ['/PID', String(application.process().pid), '/T', '/F'], { windowsHide: true }).catch(() => undefined)
+      if (process.platform === 'win32') await promisify(execFile)('taskkill', ['/PID', String(application.process().pid), '/T', '/F'], { windowsHide: true }).catch(() => undefined)
+      else await application.close().catch(() => { application?.process().kill('SIGTERM') })
     }
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()))
     await cli.close()

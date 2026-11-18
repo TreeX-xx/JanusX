@@ -3,5 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "build": "node build.mjs" }
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@janusx/plugin-sdk": "file:../../packages/plugin-sdk",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  }
 }
