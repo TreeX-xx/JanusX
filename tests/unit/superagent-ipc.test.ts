@@ -61,10 +61,17 @@ describe('SuperAgent host admission and IPC', () => {
 
   it('registers IPC and closes an unused host without constructing an execution service', async () => {
     // This fixture supplies no app data path. Constructing the default service would fail.
-    const host = registerSuperAgentHandlers({ getAllowedWindows: () => [], resolveWorkspaceRoot: async () => undefined })
+    const sender = { id: 10, mainFrame: {}, isDestroyed: () => false }
+    const window = { webContents: sender, isDestroyed: () => false } as unknown as BrowserWindow
+    const event = { sender, senderFrame: sender.mainFrame }
+    const host = registerSuperAgentHandlers({ getAllowedWindows: () => [window], resolveWorkspaceRoot: async () => undefined })
+    const available = mocks.handle.mock.calls.find(([channel]) => channel === SUPERAGENT_CHANNELS.available)![1]
+    expect(await available(event)).toBe(true)
+    expect(() => available({ ...event, senderFrame: {} })).toThrow('main frames')
     const snapshot = mocks.handle.mock.calls.find(([channel]) => channel === SUPERAGENT_CHANNELS.snapshot)![1]
     await expect(snapshot({ sender: {}, senderFrame: {} }, scope)).rejects.toThrow('main frames')
     await host.close()
+    expect(await available(event)).toBe(false)
   })
 
   it('permits only allowed main frames and broadcasts minimal changes after saving', async () => {
@@ -81,7 +88,7 @@ describe('SuperAgent host admission and IPC', () => {
     await submit(event, input)
     expect(send).toHaveBeenCalledTimes(1)
     expect([...handlers.keys()]).toEqual([
-      SUPERAGENT_CHANNELS.workerModels,
+      SUPERAGENT_CHANNELS.available, SUPERAGENT_CHANNELS.workerModels,
       SUPERAGENT_CHANNELS.workerDefaults, SUPERAGENT_CHANNELS.workerPolicy, SUPERAGENT_CHANNELS.updateWorkerPolicy, SUPERAGENT_CHANNELS.updateWorkerIdleTimeoutMinutes, SUPERAGENT_CHANNELS.workerIdleTimeoutMinutes, SUPERAGENT_CHANNELS.updateWorkerDefaults, SUPERAGENT_CHANNELS.workerSettings,
       SUPERAGENT_CHANNELS.configureWorker, SUPERAGENT_CHANNELS.refreshWorkerModels,
       SUPERAGENT_CHANNELS.submitInput, SUPERAGENT_CHANNELS.snapshot, SUPERAGENT_CHANNELS.workDetail, SUPERAGENT_CHANNELS.readResource,

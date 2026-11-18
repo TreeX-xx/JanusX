@@ -41,6 +41,9 @@ import type { JanusChatStatus, JanusPendingQuestion } from './janusRuntimeState'
 import { Select } from '../ui/Select'
 import { ChatContextIndicator } from './ChatContextIndicator'
 import { MemoPanel } from '../memo/MemoPanel'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
+import { parseCompactCommand } from './janusChatConversations'
 import { AgentModeSelect } from './AgentModeSelect'
 import { useMemoStore } from '@/stores/memo'
 import { useIslandStore } from '@/stores/island'
@@ -560,6 +563,14 @@ export function JanusChat({
   const historyDraftRef = useRef('')
   const contextConversations = useOptionalJanusChatController()
   const conversations = controllerOverride ?? contextConversations
+  const explicitSuperAgent = useSuperAgentUIStore(state => !!workerShortcuts || (showAgentMode && state.agentMode === 'superagent'))
+  const availabilityCheck = useRef<symbol | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
+  // A late availability reply belongs to the draft and destination that requested it.
+  useLayoutEffect(() => {
+    setUnavailable(false)
+    return () => { availabilityCheck.current = null }
+  }, [explicitSuperAgent, input, visible, conversations?.conversationId, contextComposer?.id, inputPlaceholderOverride, shortcuts.selected, references, isStreaming])
   const rounds = useMemo(() => messageRounds(messages), [messages])
   const pendingRound = superAgentTranscript ? [...rounds.values()].at(-1) : undefined
   const activeApprovalMode = approvalMode ?? conversations?.approvalMode ?? 'per-action'
@@ -842,11 +853,25 @@ export function JanusChat({
   }, [autoGrowComposer, visible])
 
   const handleSend = useCallback(
-    (textOverride?: string) => {
+    async (textOverride?: string) => {
       const text = (textOverride ?? input).trim()
       // R6-lite：流式中发送由 hook 路由进排队（自然结束边界自动发出），此处不再拦截。
       if (!text || contextImporting || shortcutSendRef.current) return
 
+      if (explicitSuperAgent && (workerShortcuts || (!isStreaming && !parseCompactCommand(text)))) {
+        if (availabilityCheck.current) return
+        const workspaceId = useWorkspaceStore.getState().activeWorkspaceId
+        const check = Symbol()
+        availabilityCheck.current = check
+        let available = false
+        try { available = await window.electron?.superAgent?.available() === true }
+        catch { /* A disconnected host cannot accept this input. */ }
+        if (availabilityCheck.current !== check) return
+        availabilityCheck.current = null
+        if (workspaceId !== useWorkspaceStore.getState().activeWorkspaceId) return
+        setUnavailable(!available)
+        if (!available) return
+      }
       setInput('')
       setHistoryIndex(null)
       historyDraftRef.current = ''
@@ -868,7 +893,7 @@ export function JanusChat({
         .finally(() => { if (shortcuts.selected) { shortcutSendRef.current = false; setSendingShortcut(false) } })
       } catch { restore(); if (shortcuts.selected) { shortcutSendRef.current = false; setSendingShortcut(false) } }
     },
-    [input, onSend, scrollToBottom, discussionOnly, contextImporting, contextComposer, references, shortcuts]
+    [input, onSend, scrollToBottom, discussionOnly, contextImporting, contextComposer, references, shortcuts, explicitSuperAgent, workerShortcuts, isStreaming]
   )
 
   // 输入变化；高度由上面的 auto-grow effect 按 scrollHeight 调整，
@@ -1827,6 +1852,7 @@ export function JanusChat({
       ))}
 
       {aboveComposer}
+      {unavailable && <p role="alert">{t('janus:superagent.hostUnavailable')}</p>}
       {showContextIndicator && <ChatContextIndicator controller={conversations} />}
 
       {/* 输入区域：opencode 风格方框 composer；minimal 下加 › 前缀（对齐蓝图高保真） */}

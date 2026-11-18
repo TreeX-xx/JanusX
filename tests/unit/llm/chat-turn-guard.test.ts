@@ -67,6 +67,7 @@ vi.mock('../../../src/main/agent/runtime/shell-runtime', () => ({
 }))
 
 import { abortChatStream, answerChatQuestion, gateFromToolAllowlist, handleChatStream, prepareJanusChatRecall, steerChatStream } from '../../../src/main/llm/chat-orchestrator'
+import { bindSuperAgentService } from '../../../src/main/janus/superagent/host'
 import { llmService } from '../../../src/main/llm/LlmService'
 import { configService } from '../../../src/main/config/service'
 import { DEFAULT_EXPERIMENTAL_FEATURES } from '../../../src/shared/ipc/experimental'
@@ -122,13 +123,26 @@ describe('chat turn guard (S6-a)', () => {
   it.each(['ordinary', 'superagent'] as const)('honors %s mode through the installed engine package', async agentMode => {
     immediateStream('Done')
     const reply = vi.fn()
-    await handleChatStream({ reply } as never, {
-      requestId: `mode-${agentMode}`, conversationId: `mode-${agentMode}`, providerId: 'p', agentMode,
-      sourceTag: 'janus-chat', domain: 'project', messages: userMessages, memoMessageId: 'mode-input',
-    })
+    const frame = {}
+    const unbind = bindSuperAgentService(() => { throw new Error('No workspace service expected') }, id => id === 1)
+    try {
+      await handleChatStream({ reply, senderFrame: frame, sender: { id: 1, mainFrame: frame } } as never, {
+        requestId: `mode-${agentMode}`, conversationId: `mode-${agentMode}`, providerId: 'p', agentMode,
+        sourceTag: 'janus-chat', domain: 'project', messages: userMessages, memoMessageId: 'mode-input',
+      })
+    } finally { unbind() }
     const tools = Object.keys(streamText.mock.calls[0][0].tools ?? {})
     expect(tools.includes('memo_create')).toBe(agentMode === 'ordinary')
     expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+  })
+  it.each([undefined, 'project-one'])('rejects an explicit turn when the host is unavailable (workspace %s)', async workspaceId => {
+    const reply = vi.fn(), frame = {}
+    await handleChatStream({ reply, senderFrame: frame, sender: { id: 1, mainFrame: frame } } as never, {
+      requestId: 'unavailable', conversationId: 'unavailable', providerId: 'p', agentMode: 'superagent',
+      sourceTag: 'janus-chat', workspaceId, inputEventId: 'input', messages: userMessages,
+    })
+    expect(streamText).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith('llm:chat:error', expect.objectContaining({ error: 'SuperAgent is unavailable' }))
   })
   it('offers unbound memo creation and emits a binding for the originating message', async () => {
     const memo = { id: '00000000-0000-4000-8000-000000000300', title: '工程排期', revision: 0, nodes: [] }

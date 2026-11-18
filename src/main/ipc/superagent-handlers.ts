@@ -11,7 +11,7 @@ import { SuperAgentEnvironments } from '../janus/superagent/environments'
 import { SuperAgentWorkers } from '../janus/superagent/workers'
 import { CliDetector } from '../external-cli/cli-detector'
 import { managedCliEnv } from '../external-cli/managed-paths'
-import { bindSuperAgentService } from '../janus/superagent/host'
+import { bindSuperAgentService, superAgentAvailable } from '../janus/superagent/host'
 import { WorkerSettingsEngines, WorkerSettingsStore } from '../janus/superagent/worker-settings'
 import { DesktopSuperAgentService } from '../janus/superagent/desktop-service'
 import { WorkerModelCatalog } from '../janus/superagent/worker-model-catalog'
@@ -68,7 +68,7 @@ export function registerSuperAgentHandlers(options: SuperAgentHandlerOptions, in
     service = current
     return current
   }
-  bindSuperAgentService(getService, senderId => options.getAllowedWindows().some(window => !window.isDestroyed()
+  const unbind = bindSuperAgentService(getService, senderId => options.getAllowedWindows().some(window => !window.isDestroyed()
     && !window.webContents.isDestroyed() && window.webContents.id === senderId))
   const authorize = (event: IpcMainInvokeEvent): void => {
     const allowed = options.getAllowedWindows().some(window => !window.isDestroyed()
@@ -77,6 +77,7 @@ export function registerSuperAgentHandlers(options: SuperAgentHandlerOptions, in
       throw new Error('SuperAgent records are only available to application main frames')
     }
   }
+  ipcMain.handle(SUPERAGENT_CHANNELS.available, event => { authorize(event); return superAgentAvailable(event.sender.id) })
   const modelCatalog = new WorkerModelCatalog()
   ipcMain.handle(SUPERAGENT_CHANNELS.workerModels, async (event, backend: unknown) => { authorize(event); return modelCatalog.get(backend) })
   const executionSettings = (value: unknown) => {
@@ -132,6 +133,7 @@ export function registerSuperAgentHandlers(options: SuperAgentHandlerOptions, in
   return {
     async close() {
       closed = true
+      unbind()
       await service?.close()
     },
   }

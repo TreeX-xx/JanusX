@@ -455,6 +455,9 @@ beforeAll(async () => {
     import {WorkerQuestionCard} from './src/renderer/src/components/janus/WorkerQuestionCard'
     window.mountQuestion=()=>{document.getElementById('root').style.display='none';const target=document.createElement('div');target.id='question-fixture';target.style.cssText='max-width:600px;padding:20px;margin:auto';document.body.append(target);createRoot(target).render(<WorkerQuestionCard title='Input navigation' report={{id:'question-report',workId:'work-1',workspaceId:'workspace',resourceId:'report-body',summary:'Which input markers should be centered?',kind:'question'}} conversationId='chat' refresh={async()=>{window.calls.push(['refresh'])}}/>)}
     import {WorkerDefaultsSettings} from './src/renderer/src/components/WorkerDefaultsSettings'
+    import {useSuperAgentUIStore} from './src/renderer/src/stores/superagent-ui'
+    window.setSuperAgentStarted=started=>useSuperAgentUIStore.setState({started,agentMode:'ordinary'})
+    window.setSuperAgentStarted(true)
     import {AgentSettingsPanel} from './src/renderer/src/components/AgentSettingsPanel'
     import {SettingsSurface} from '@janusx/ui'
     import settingsModalStyles from './src/renderer/src/components/AppSettingsModal.module.css'
@@ -595,6 +598,30 @@ it('keeps combined Agent and Worker settings compact and all section actions rea
     await page.evaluate(() => (window as any).changeLanguage('zh-CN'))
     await workerSection.getByRole('button', { name: '恢复原生默认', exact: true }).waitFor()
     expect(await panel.innerText()).not.toContain('workerDefaults.')
+  } finally { await page.close() }
+})
+
+it('opens ordinary Agent settings without querying the Worker queue', async () => {
+  const page = await browser.newPage()
+  try {
+    await page.route('http://127.0.0.1/', route => route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' }))
+    await page.goto('http://127.0.0.1/')
+    await page.addScriptTag({ content: script })
+    await page.getByRole('button', { name: 'Toggle panel' }).click()
+    await page.evaluate(() => {
+      const w = window as any
+      w.setSuperAgentStarted(false)
+      w.queueReads = 0
+      const schedule = w.electron.superAgent.schedule
+      w.electron.superAgent.schedule = (...args: any[]) => { w.queueReads++; return schedule(...args) }
+      w.mountAgentSettings()
+    })
+    await page.locator('#agent-settings select, #agent-settings button').first().waitFor()
+    expect(await page.getByRole('region', { name: 'Worker concurrency' }).count()).toBe(0)
+    expect(await page.evaluate(() => (window as any).queueReads)).toBe(0)
+    await page.evaluate(() => (window as any).setSuperAgentStarted(true))
+    await page.getByRole('region', { name: 'Worker concurrency' }).waitFor()
+    await expect.poll(() => page.evaluate(() => (window as any).queueReads)).toBe(1)
   } finally { await page.close() }
 })
 

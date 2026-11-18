@@ -104,6 +104,7 @@
     "retryWorker": "重试启动"
   },
   "superagent": {
+    "hostUnavailable": "SuperAgent 当前不可用。草稿已保留，可稍后重试。",
     "agentMode": "Agent 模式（下一条消息生效）",
     "ordinaryMode": "普通模式",
     "open": "Super Agent",

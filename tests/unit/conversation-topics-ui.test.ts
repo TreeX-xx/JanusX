@@ -20,6 +20,7 @@ beforeAll(async () => {
     import zhCommon from './src/renderer/src/i18n/locales/zh-CN/common.json'
     import {installElectronApiFallback} from './src/renderer/src/lib/electron-api-fallback'
     import {JanusChatProvider,useJanusChatRegistry} from './src/renderer/src/components/janus/JanusChatProvider'
+    import {JanusChat} from './src/renderer/src/components/janus/JanusChat'
     import {SuperAgentWorkspace} from './src/renderer/src/components/janus/SuperAgentWorkspace'
     import {useSuperAgentUIStore} from './src/renderer/src/stores/superagent-ui'
     import {useWorkspaceStore} from './src/renderer/src/stores/workspace'
@@ -27,7 +28,12 @@ beforeAll(async () => {
     import './src/renderer/src/styles/globals.css'
     import './src/renderer/src/components/janus/janus-island.css'
     installElectronApiFallback();document.documentElement.dataset.theme='dark'
-    useSuperAgentUIStore.setState({agentMode:window.initialMode??'superagent',started:true})
+    const ordinaryProfile=['fresh-install','legacy-install'].includes(window.initialMode)
+    if (!ordinaryProfile) useSuperAgentUIStore.setState({agentMode:window.initialMode??'superagent',started:true})
+    const noEvents=()=>()=>{}
+    window.fixtureHost={available:async()=>true,onChanged:noEvents,onEnvironmentsChanged:noEvents,onWorkerChanged:noEvents,onScheduleChanged:noEvents,
+      snapshot:async()=>({works:[],reports:[],inputs:[]}),workers:async()=>[],environments:async()=>({operations:[],environments:[]}),schedule:async()=>({entries:[],occupied:0,maxConcurrentWorkers:2})}
+    if (!ordinaryProfile) window.electron.superAgent=window.fixtureHost
     window.setAgentMode=mode=>useSuperAgentUIStore.getState().setAgentMode(mode)
     window.setProjectPane=type=>{
       const tab=type==='terminal'?{type:'terminal',id:'terminal:fixture',terminalId:'fixture',workspaceId:'preview'}:{type:'markdown',id:'markdown:fixture',panelId:'fixture'}
@@ -39,7 +45,7 @@ beforeAll(async () => {
       const work={id:'W-01',sourceInputId:'source-input',workspaceId:'preview',title:'Refine conversation layout',goal:'Align the interface with the HTML design',createdAt:1,revision:1,closedAt:null}
       const worker={workId:work.id,workspaceId:'preview',executionId:'preview-run',phase:'running',stopConfirmed:false,disabledExtensions:[],conversation:{models:[],model:'gpt-6-astra',effort:'ultra',connection:'ready',turnId:'current',turnStartedAt:Date.now()-42000,items:[{turnId:'current',type:'agentMessage',text:'Checking spacing and keyboard access'}],approvals:[],questions:[]}}
       window.previewWork=work;window.previewWorker=worker
-      window.electron.superAgent={snapshot:async()=>({works:[work]}),workers:async()=>[worker],environments:async()=>({operations:[],environments:[{workId:work.id,removedAt:null,checkout:{branch:'feat/superagent-automation-exploration',path:'/fixture/superagent'}}]}),schedule:async()=>({maxConcurrentWorkers:2,occupied:1,entries:[{workId:work.id,status:'running'}]}),workDetail:async()=>({work,inputs:[],executions:[],reports:[],deliveries:[]}),onChanged:fn=>{window.workerRecordChanged=fn;return()=>{}},onWorkerChanged:fn=>{window.workerRuntimeChanged=fn;return()=>{}},onEnvironmentsChanged:()=>()=>{},onScheduleChanged:()=>()=>{}}
+      window.electron.superAgent={...window.fixtureHost,snapshot:async()=>({works:[work]}),workers:async()=>[worker],environments:async()=>({operations:[],environments:[{workId:work.id,removedAt:null,checkout:{branch:'feat/superagent-automation-exploration',path:'/fixture/superagent'}}]}),schedule:async()=>({maxConcurrentWorkers:2,occupied:1,entries:[{workId:work.id,status:'running'}]}),workDetail:async()=>({work,inputs:[],executions:[],reports:[],deliveries:[]}),onChanged:fn=>{window.workerRecordChanged=fn;return()=>{}},onWorkerChanged:fn=>{window.workerRuntimeChanged=fn;return()=>{}},onEnvironmentsChanged:()=>()=>{},onScheduleChanged:()=>()=>{}}
       useWorkspaceStore.setState({activeWorkspaceId:'preview',workspaces:[{id:'preview',name:workspaceName,path:'/fixture'}]})
     }
     window.previewChinese=()=>i18n.changeLanguage('zh-CN')
@@ -76,6 +82,11 @@ beforeAll(async () => {
     window.fail=index=>{const requestId=window.requests[index].requestId;listeners.error.forEach(fn=>fn({requestId,error:'Fixture stream failure'}));listeners.agent.forEach(fn=>fn({requestId,type:'stream_error',error:'Fixture stream failure'}))}
     window.question=index=>listeners.agent.forEach(fn=>fn({requestId:window.requests[index].requestId,type:'question_requested',callId:'question-1',questions:[{header:'Direction',question:'Which approach?',multiple:false,options:[{label:'Keep',description:'Keep the existing layout'},{label:'Refine',description:'Improve the layout'}]}],allowCustom:true}))
     function App(){const registry=useJanusChatRegistry();window.registry=registry;window.seedParallelInput=text=>registry.topics.submit(registry.getController().conversationId,useWorkspaceStore.getState().activeWorkspaceId,text,true);const [toolbarHost,setToolbarHost]=React.useState(null);const [visible,setVisible]=React.useState(true);window.setStartupVisible=setVisible;window.startupLanguage=language=>i18n.changeLanguage(language);
+      if (ordinaryProfile) {
+        const chat=registry.getController()
+        return <JanusChat {...chat} visible focused showAgentMode conversationStyle modeColor="blue" onSend={chat.send} onStop={chat.stop}
+          onRetry={chat.retry} onRewrite={chat.rewrite} onClear={chat.clear} conversationController={chat}/>
+      }
       return <div style={{height:'100vh',display:visible?'flex':'none',flexDirection:'column',margin:'auto',background:'var(--surface)',color:'var(--text)'}}>
         <div ref={setToolbarHost} style={{height:30,flexShrink:0,display:'flex',justifyContent:'flex-end'}}/><div style={{flex:1,minHeight:0}}><SuperAgentWorkspace visible={visible} focused={visible} toolbarHost={toolbarHost}/></div>
       </div>}
@@ -99,7 +110,11 @@ async function open(initialMode = 'superagent', deferStartup = false, controlled
   page.on('console', message => { if (message.type() === 'error') console.error(message.text()) })
   page.on('pageerror', error => { console.error(error.message) })
   await page.route('http://127.0.0.1/', route => route.fulfill({ contentType: 'text/html', body: '<style>body{margin:0;font-family:Arial}</style><div id="root"></div>' }))
-  await page.goto('http://127.0.0.1/'); await page.evaluate(({mode, defer}) => { (window as any).initialMode = mode; (window as any).deferStartup = defer }, {mode: initialMode, defer: deferStartup})
+  await page.goto('http://127.0.0.1/'); await page.evaluate(({mode, defer}) => {
+    if (mode === 'legacy-install') localStorage.setItem('janus:superagent-view', JSON.stringify({ started: true, agentMode: 'superagent' }))
+    ;(window as any).initialMode = mode
+    ;(window as any).deferStartup = defer
+  }, {mode: initialMode, defer: deferStartup})
   await page.addStyleTag({ content: css + '[data-superagent-workspace] > .janus-chat { flex:1; width:100%; }' }); await page.addScriptTag({ content: script })
   if (!deferStartup) {
     await page.waitForFunction(() => (window as any).registry?.persistenceReady)
@@ -1245,6 +1260,66 @@ it('shows distinct Worker panel states and returns to the draft from the narrow 
     expect(await draft.textContent()).toBe('Return to this draft')
   } finally { await page.close() }
 })
+it.each(['fresh-install', 'legacy-install'])('sends, steers and stops ordinary chat without a SuperAgent host on %s', async profile => {
+  const page = await open(profile)
+  try {
+    const input = page.locator('.janus-chat-input:visible')
+    const mode = page.getByRole('combobox', { name: 'Agent mode (next message)' })
+    expect(await mode.inputValue()).toBe('ordinary')
+    await input.fill('First ordinary turn')
+    await input.press('Enter')
+    await page.waitForFunction(() => (window as any).requests.length === 1)
+    expect(await page.evaluate(() => (window as any).requests[0].agentMode)).toBe('ordinary')
+    await input.fill('Add a detail')
+    await input.press('Enter')
+    await page.waitForFunction(() => (window as any).steerCalls.length === 1)
+    await page.locator('.janus-chat-stop').click()
+    await page.waitForFunction(() => (window as any).aborted === (window as any).requests[0].requestId)
+    await mode.selectOption('superagent')
+    await input.fill('Unsaved instructions')
+    await input.press('Enter')
+    await page.getByRole('alert').filter({ hasText: 'SuperAgent is unavailable' }).waitFor()
+    expect(await input.inputValue()).toBe('Unsaved instructions')
+    expect(await page.evaluate(() => (window as any).requests.length)).toBe(1)
+  } finally { await page.close() }
+})
+
+it('ignores duplicate sends and keeps newer edits while an availability check is pending', async () => {
+  const page = await open()
+  try {
+    const input = page.locator('.janus-chat-input:visible')
+    await page.evaluate(() => {
+      const w = window as any
+      w.checks = 0
+      w.electron.superAgent.available = () => new Promise(resolve => { w.checks++; w.finishCheck = resolve })
+    })
+    await input.fill('Original')
+    await input.press('Enter')
+    await input.press('Enter')
+    await input.fill('Revised instructions')
+    await page.evaluate(() => (window as any).finishCheck(true))
+    expect(await input.textContent()).toBe('Revised instructions')
+    expect(await page.evaluate(() => [(window as any).checks, (window as any).requests.length])).toEqual([1, 0])
+  } finally { await page.close() }
+})
+
+it('keeps the editable draft when the SuperAgent host is unavailable and submits it once after recovery', async () => {
+  const page = await open('ordinary')
+  try {
+    const input = page.locator('.janus-chat-input:visible')
+    await page.evaluate(() => { (window as any).electron.superAgent.available = async () => false })
+    await input.fill('Keep my original input')
+    await input.press('Enter')
+    await page.getByRole('alert').filter({ hasText: 'SuperAgent is unavailable' }).waitFor()
+    expect(await input.textContent()).toBe('Keep my original input')
+    expect(await page.evaluate(() => [(window as any).requests.length, (window as any).registry.topicConversations.length])).toEqual([0, 0])
+    await page.evaluate(() => { (window as any).electron.superAgent.available = async () => true })
+    await input.press('Enter')
+    await page.waitForFunction(() => (window as any).requests.length === 1)
+    expect(await page.evaluate(() => (window as any).requests[0].agentMode)).toBe('superagent')
+  } finally { await page.close() }
+})
+
 it('keeps the workspace in SuperAgent mode despite an ordinary preference and exposes no mode switch', async () => {
   const page = await open('ordinary')
   try {
@@ -1419,7 +1494,7 @@ it('blocks disabled shortcut choices and keeps unselected # text literal', async
   try {
     await page.evaluate(() => {
       const w = window as any
-      w.electron.superAgent = { workerPolicy: async () => ({ defaultBackend: 'codex', enabled: ['codex'] }) }
+      w.electron.superAgent = { ...w.fixtureHost, workerPolicy: async () => ({ defaultBackend: 'codex', enabled: ['codex'] }) }
     })
     const input = page.locator('.janus-chat-input:visible')
     await input.fill('#cla')

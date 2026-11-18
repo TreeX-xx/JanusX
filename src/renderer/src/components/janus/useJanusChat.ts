@@ -722,6 +722,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
     if (!conversation || (!recovery && runtime?.isStreaming) || handles.active) return
+    const agentMode = conversation.topic ? 'superagent' : useSuperAgentUIStore.getState().agentMode
     const requestMemoBinding = !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
     const generation = handles.generation + 1
     handles.generation = generation
@@ -869,7 +870,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           sourceTag: 'janus-chat',
           inputEventId: compact ? undefined : userMessage.id,
           workerBackend: userMessage.context?.worker?.kind === 'backend' ? userMessage.context.worker.backend : undefined,
-          agentMode: latest.topic ? 'superagent' : useSuperAgentUIStore.getState().agentMode,
+          agentMode,
           workspaceId: userMessage.workspaceId ?? undefined,
           conversationId: id,
           memoBinding: requestMemoBinding,

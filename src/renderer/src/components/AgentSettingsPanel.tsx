@@ -7,6 +7,7 @@ import { getAgentSettings, normalizeAgentMaxStepsInput, normalizeSafeCompileAuto
 import { normalizeAgentApprovalMode, type AgentApprovalMode } from '../../../shared/ipc/agent-runtime'
 import { settingsStyles as styles } from '@janusx/ui'
 import { ShieldCheck } from 'lucide-react'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { WorkerDefaultsSettings } from './WorkerDefaultsSettings'
 import { WorkerCapacitySettings } from './WorkerCapacitySettings'
 
@@ -15,6 +16,7 @@ const DEFAULT_SETTINGS: AgentSettings = { approvalMode: 'per-action', agentMaxSt
 
 export function AgentSettingsPanel() {
   const { t } = useI18n('settings')
+  const showWorkerSettings = useSuperAgentUIStore(state => state.started || state.agentMode === 'superagent')
   const [settings, setSettings] = useState<AgentSettings>(DEFAULT_SETTINGS)
   const [draft, setDraft] = useState<AgentSettings>(DEFAULT_SETTINGS)
   const [status, setStatus] = useState<StatusState>('loading')
@@ -105,8 +107,10 @@ export function AgentSettingsPanel() {
       </div>
     </SettingsFooter>
     </SettingsSection>
-    <WorkerCapacitySettings />
-    <WorkerDefaultsSettings />
+    {showWorkerSettings && window.electron?.superAgent && <>
+      <WorkerCapacitySettings />
+      <WorkerDefaultsSettings />
+    </>}
   </SettingsSurface>
 }
 

@@ -52,7 +52,7 @@ import type { UserMemoryDelivery } from '../../shared/memory-strength'
 import { containsMemoryDelivery, recordUserMemoryAccessBestEffort, trackMemoryStream } from '../knowledge/memory-access'
 import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 import { createSuperAgentChatTurn } from '../janus/superagent/desktop-chat-turn'
-import { superAgentService } from '../janus/superagent/host'
+import { superAgentAvailable, superAgentService } from '../janus/superagent/host'
 import { endBrowserTurn } from '../browser/control-service'
 
 /** 对话消息类型 */
@@ -517,8 +517,12 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     const userText = [...messages].reverse().find(message => message.role === 'user')?.content ?? ''
     let superAgentTurn: Awaited<ReturnType<typeof createSuperAgentChatTurn>> | undefined
     if (request.agentMode !== undefined && !['ordinary', 'superagent'].includes(request.agentMode)) throw new Error('Invalid Agent mode')
-    if (request.agentMode === 'superagent' && sourceTag === 'janus-chat' && !request.compact && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
-      if (event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
+    const explicitSuperAgent = request.agentMode === 'superagent' && !request.compact
+    if (explicitSuperAgent) {
+      if (!event.senderFrame || event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
+      if (!superAgentAvailable(event.sender.id)) throw new Error('SuperAgent is unavailable')
+    }
+    if (explicitSuperAgent && sourceTag === 'janus-chat' && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
       const admission = createSuperAgentChatTurn({ service: superAgentService(event.sender?.id), workspaceId, conversationId,
         eventId: request.inputEventId, text: userText, signal: controller.signal, workerBackend: request.workerBackend,
         onDiagnostic: data => sendAgentEvent({ type: 'context_diagnostic', requestId, data }) })

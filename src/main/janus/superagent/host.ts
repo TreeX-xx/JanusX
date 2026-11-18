@@ -1,10 +1,21 @@
 import type { SuperAgentService } from './service'
 
-let resolveService: (() => SuperAgentService) | undefined
-let authorize: ((senderId: number | undefined) => boolean) | undefined
-export function bindSuperAgentService(value: () => SuperAgentService, allow?: (senderId: number | undefined) => boolean): void { resolveService = value; authorize = allow }
+// Note: .agents/notes/agent/superagent-plugin-migration.md — checking admission never constructs a service.
+type ServiceFactory = () => SuperAgentService
+let host: { resolve: ServiceFactory; allow: (senderId?: number) => boolean } | undefined
+
+export function bindSuperAgentService(resolve: ServiceFactory, allow: (senderId?: number) => boolean) {
+  const binding = { resolve, allow }
+  host = binding
+  return () => { if (host === binding) host = undefined }
+}
+
+export function superAgentAvailable(senderId?: number): boolean {
+  return host?.allow(senderId) === true
+}
+
 export function superAgentService(senderId?: number): SuperAgentService {
-  if (!resolveService) throw new Error('SuperAgent is not initialized')
-  if (authorize && !authorize(senderId)) throw new Error('SuperAgent chat is only available to application windows')
-  return resolveService()
+  if (!host) throw new Error('SuperAgent is unavailable')
+  if (!host.allow(senderId)) throw new Error('SuperAgent chat is only available to application windows')
+  return host.resolve()
 }

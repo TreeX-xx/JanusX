@@ -104,6 +104,7 @@
     "retryWorker": "Retry startup"
   },
   "superagent": {
+    "hostUnavailable": "SuperAgent is unavailable. Your draft is ready to retry.",
     "agentMode": "Agent mode (next message)",
     "ordinaryMode": "Ordinary mode",
     "open": "Super Agent",
