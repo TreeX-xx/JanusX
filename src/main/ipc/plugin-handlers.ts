@@ -64,7 +64,7 @@ const inputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('islandAction'), pluginId: text, id: text, instanceId: text, command: text }).strict(),
 ])
 
-export function registerPluginHandlers(getWindow: () => BrowserWindow | null, resolveRoot: ResolveWorkspaceRoot): PluginService {
+export function registerPluginHandlers(getWindow: () => BrowserWindow | null, resolveRoot: ResolveWorkspaceRoot, superAgentCall?: import('@janusx/plugin-sdk').NativeHandler, prepareRemoval?: (choose: import('../janus/superagent/removal').ChooseRemoval) => Promise<boolean>): PluginService {
   configurePluginFileSystem(originalFiles)
   const send = (channel: string, payload?: unknown) => { const window = getWindow(); if (window && !window.isDestroyed()) window.webContents.send(channel, payload) }
   const resolvePluginProject = async (id: string, scopePath: string | null) => {
@@ -87,7 +87,13 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
     official: { keys: officialTrust.keys, nativePlugins: officialTrust.nativePlugins, hostVersion: app.getVersion(), platform: `${process.platform}-${process.arch}` },
     createNativeService: (record, directory, stopped, credentials) => {
       const desktop = new NativeDesktop(record, () => runtime, () => native, url => send(PLUGIN_CHANNELS.openBrowser, url))
-      const native = createOfficialNativeService(record, directory, code => { desktop.dispose(); stopped(code) }, resolvePluginProject, credentials, desktop.call)
+      const native = createOfficialNativeService(record, directory, code => { desktop.dispose(); stopped(code) }, resolvePluginProject, credentials, (method, value, signal) => {
+        if (record.manifest.id === 'official.superagent' && method.startsWith('superagent.') && superAgentCall) {
+          if (!native.active) throw new PluginError('PERMISSION_DENIED', 'Inactive SuperAgent plugin.')
+          return superAgentCall(method, value, signal)
+        }
+        return desktop.call(method, value, signal)
+      })
       return native
     },
     encryption: {
@@ -149,6 +155,21 @@ export function registerPluginHandlers(getWindow: () => BrowserWindow | null, re
       if (!checked.success) throw new PluginError('INVALID_REQUEST', 'Invalid plugin management request.')
       const request = checked.data as PluginManageRequest
       let data: unknown = null
+      if (['disable', 'reload', 'uninstall'].includes(request.type) && 'id' in request && request.id === 'official.superagent' && prepareRemoval) {
+        const activation = service.officialNative(request.id)
+        if (activation) {
+          const proceed = await prepareRemoval(async works => {
+            const zh = app.getLocale().startsWith('zh')
+            const { response } = await dialog.showMessageBox(window, {
+              type: 'question', title: 'SuperAgent', message: zh ? '如何处理未结束的工作？' : 'How should unfinished work be handled?',
+              detail: works.join('\n'), buttons: zh ? ['等待运行中的工作', '立即停止', '取消'] : ['Wait for running work', 'Stop now', 'Cancel'],
+              defaultId: 2, cancelId: 2,
+            })
+            return response === 0 ? 'wait' : response === 1 ? 'stop' : 'cancel'
+          })
+          if (!proceed || service.officialNative(request.id) !== activation) return { ok: true, data: null }
+        }
+      }
       switch (request.type) {
         case 'windowOpen': await runtime.openWindow(request.id, request.view, request.projectId, request.scopePath); break
         case 'windowCover': runtime.setCovered(request.covered); break

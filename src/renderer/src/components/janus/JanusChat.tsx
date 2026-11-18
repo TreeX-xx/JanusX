@@ -864,7 +864,7 @@ export function JanusChat({
         const check = Symbol()
         availabilityCheck.current = check
         let available = false
-        try { available = await window.electron?.superAgent?.available() === true }
+        try { available = await window.electron?.superAgent?.available(workspaceId ?? undefined) === true }
         catch { /* A disconnected host cannot accept this input. */ }
         if (availabilityCheck.current !== check) return
         availabilityCheck.current = null

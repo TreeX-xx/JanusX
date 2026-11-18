@@ -122,7 +122,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerWorkspaceRuntimeHandlers(options.getAllowedWindows)
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
-  pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
+  pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot, (method, value) => superAgent.pluginCall(method, value), choose => superAgent.prepareRemoval(choose))
   initializeBrowserTerminalClients(registerLocalIntegrationHandlers(options.getAllowedWindows, options.resolveWorkspaceRoot, () => pluginService))
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
@@ -141,6 +141,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerBlueprintReviewHandlers()
   registerJanusChatHandlers()
   const superAgent = registerSuperAgentHandlers({ ...options,
+    activation: workspaceId => pluginService?.officialNative('official.superagent', workspaceId),
     getOccupiedPaths: () => terminalManager.listInstances().map(instance => instance.config.cwd),
   })
   appShutdown.configure({ flushSuperAgentRecords: () => superAgent.close() })

@@ -66,7 +66,7 @@ describe('SuperAgent host admission and IPC', () => {
     const event = { sender, senderFrame: sender.mainFrame }
     const host = registerSuperAgentHandlers({ getAllowedWindows: () => [window], resolveWorkspaceRoot: async () => undefined })
     const available = mocks.handle.mock.calls.find(([channel]) => channel === SUPERAGENT_CHANNELS.available)![1]
-    expect(await available(event)).toBe(true)
+    expect(await available(event)).toBe(false)
     expect(() => available({ ...event, senderFrame: {} })).toThrow('main frames')
     const snapshot = mocks.handle.mock.calls.find(([channel]) => channel === SUPERAGENT_CHANNELS.snapshot)![1]
     await expect(snapshot({ sender: {}, senderFrame: {} }, scope)).rejects.toThrow('main frames')

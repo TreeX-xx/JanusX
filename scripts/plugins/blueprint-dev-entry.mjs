@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
-const directory = resolve(process.env.JANUSX_BLUEPRINT_LOCAL_DIRECTORY ?? resolve(root, '.cache/blueprint-local'))
+const directory = resolve(process.env.JANUSX_LOCAL_PLUGIN_DIRECTORY ?? process.env.JANUSX_BLUEPRINT_LOCAL_DIRECTORY ?? resolve(root, '.cache/blueprint-local'))
 const build = JSON.parse(readFileSync(resolve(directory, 'build.json'), 'utf8'))
 const metadata = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 if (app.isPackaged) throw new Error('The local Blueprint entry is for development only.')

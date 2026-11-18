@@ -52,7 +52,7 @@ import type { UserMemoryDelivery } from '../../shared/memory-strength'
 import { containsMemoryDelivery, recordUserMemoryAccessBestEffort, trackMemoryStream } from '../knowledge/memory-access'
 import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 import { createSuperAgentChatTurn } from '../janus/superagent/desktop-chat-turn'
-import { superAgentAvailable, superAgentService } from '../janus/superagent/host'
+import { superAgentAvailable, superAgentService, superAgentSignal } from '../janus/superagent/host'
 import { endBrowserTurn } from '../browser/control-service'
 
 /** 对话消息类型 */
@@ -491,6 +491,8 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
   const sendAgentEvent = (agentEvent: ChatAgentEvent) => sendEvent(LLM_CHANNELS.agentEvent, agentEvent)
 
   // delta 合批：累积增量，40ms 定时 flush；循环结束/异常前强制 flush
+  let releaseSuperAgentTurn: (() => Promise<unknown>) | undefined
+  let releaseActivationListener: (() => void) | undefined
   let pendingDelta = ''
   let deltaTimer: NodeJS.Timeout | null = null
   const flushDelta = () => {
@@ -515,19 +517,29 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     const turnAllowlist = toolAllowlist
     let turnToolGate = gateFromToolAllowlist(toolAllowlist, toolGate)
     const userText = [...messages].reverse().find(message => message.role === 'user')?.content ?? ''
+    let admittedService: ReturnType<typeof superAgentService> | undefined
     let superAgentTurn: Awaited<ReturnType<typeof createSuperAgentChatTurn>> | undefined
     if (request.agentMode !== undefined && !['ordinary', 'superagent'].includes(request.agentMode)) throw new Error('Invalid Agent mode')
     const explicitSuperAgent = request.agentMode === 'superagent' && !request.compact
     if (explicitSuperAgent) {
       if (!event.senderFrame || event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
-      if (!superAgentAvailable(event.sender.id)) throw new Error('SuperAgent is unavailable')
+      if (!superAgentAvailable(event.sender.id, workspaceId)) throw new Error('SuperAgent is unavailable')
+      const activation = superAgentSignal(workspaceId)
+      if (activation) {
+        activation.throwIfAborted()
+        const stop = () => controller.abort()
+        activation.addEventListener('abort', stop, { once: true })
+        releaseActivationListener = () => activation.removeEventListener('abort', stop)
+      }
     }
     if (explicitSuperAgent && sourceTag === 'janus-chat' && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
-      const admission = createSuperAgentChatTurn({ service: superAgentService(event.sender?.id), workspaceId, conversationId,
+      const service = admittedService = superAgentService(event.sender?.id, workspaceId)
+      const admission = createSuperAgentChatTurn({ service, workspaceId, conversationId,
         eventId: request.inputEventId, text: userText, signal: controller.signal, workerBackend: request.workerBackend,
         onDiagnostic: data => sendAgentEvent({ type: 'context_diagnostic', requestId, data }) })
       activeSteerTargets.get(steerKey)!.superAgent = admission
       superAgentTurn = await admission
+      releaseSuperAgentTurn = superAgentTurn.close
     }
     const ordinaryMemoTurn = sourceTag === 'janus-chat' && conversationId && !request.compact
     if (ordinaryMemoTurn && mentionsMemoWorkspace(userText)) {
@@ -564,7 +576,8 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
       maxTokens: options.maxTokens ?? endpoint.maxOutputTokens } as never)) as typeof modelStream
     if (superAgentTurn && endpoint.supportsFunctionCalling !== false && workspaceId && conversationId) {
       const { createReportReviewer } = await import('@janus-agent/janus-agent/superagent/report-reviewer')
-      superAgentService(event.sender?.id).reviews?.register(workspaceId, conversationId,
+      controller.signal.throwIfAborted()
+      admittedService?.reviews?.register(workspaceId, conversationId,
         createReportReviewer({ model: { resolve: async () => endpoint, getMaxTurns: () => 12 }, streamTextFn: ports.streamTextFn }))
     }
     // Summary budgets and recovery belong to chat-core; see .agents/notes/agent/superagent-context.md.
@@ -775,6 +788,8 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     sendAgentEvent({ type: 'stream_error', requestId, error: error.message || String(error) })
     sendError(error.message || String(error))
   } finally {
+    releaseActivationListener?.()
+    await releaseSuperAgentTurn?.()
     await endBrowserTurn(requestId).catch(error => console.warn('[browser] Turn cleanup failed:', error))
     if (deltaTimer) {
       clearTimeout(deltaTimer)

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-17",
-  "updated": "2026-11-18T06:53:25Z",
+  "updated": "2026-11-18T08:48:15Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
     {
@@ -30,7 +30,24 @@
 
 **验收范围。** 在缺少 SuperAgent 接口的浏览器环境中，新配置和保留旧偏好的配置均验证了普通回合的发送、补充和停止。其他回归覆盖宿主不可用、重复提交、草稿修改和 Worker 设置的加载时机。在 Apple Silicon 的本地 Electron 构建中，以隔离配置验证旧偏好不会重开工作台、手动打开后能查询宿主，以及断开可用性 IPC 后输入框仍保留原文。真实插件安装、停用后的历史读取与 Finder 启动发行包的验收分别随签名包、历史接口和 macOS 交付进行。
 
-下一阶段拆分只读历史与执行接口。独立签名包和 macOS 受管 Worker 待后续阶段交付。
+### 签名候选与平台进展
+
+阶段 2 的历史读取已独立。工作区注册信息约束快照、工作详情和原文访问，宿主沿用旧数据目录、执行身份及完整性校验。工作台的「已有记录」入口在插件停用后仍可打开。回归覆盖两次读取之间有新提交、相同 eventId 重投、跨工作区拒绝，以及重开旧记录后索引字节与修改时间保持一致。
+
+阶段 3 已生成 `official.superagent` 0.1.0 签名测试包。宿主按安装来源、签名、授权、项目和激活代次接入。插件用独立进程处理回合、补充输入、撤回、路由和后端约束，宿主执行获准的工具、保存原文并管理模型连接。旧宿主缺少清单必需能力 `agent.superagent.v1` 时拒绝安装。候选在隔离的 Electron 配置中通过安装、手动启用、停用、重启、重复提交、卸载及历史回读。测试公钥只用于测试宿主。
+
+阶段 4 接入停用、重载和卸载时的工作清单与等待、立即停止、取消选择。等待时冻结接单和自动出队，正在执行的 Worker 可以继续回答审批。插件生命周期结束会撤销回合并等待宿主收尾，未确认的收尾阻止当前宿主重建执行服务。单测覆盖等待、取消、立即停止、等待中崩溃和失败回执。升级沿用「先停用再安装」的签名包流程。在 Apple Silicon 的隔离 Electron 宿主中，真实运行中的 Codex 验证了等待期间拒绝新输入、原执行仍可停止，以及立即停止。另在实际插件进程验证崩溃后回读历史、签名包升级和回退。发行包中待审批时崩溃仍待组合实测。
+
+阶段 5 已在签名包提供项目 Worker 列表、引擎策略设置和工作流队列准入。凭据、检查工作区与交接校验值、执行身份、持久队列和停止回执仍由宿主管理。Janus 内嵌工作台、部分设置、工作流状态推进和驱动仍使用桌面适配及锁定的引擎包。旧执行装配的最终移除留在跨平台回归之后。发行版升级回退还未验收。
+
+| 实际环境 | 本轮结果 |
+| --- | --- |
+| Apple Silicon / Codex 0.169.0 | 本机 Codex 通过临时项目中的会话创建、真实 MCP 工具发现、用户决策协议、报告回传、原会话续接和进程组退出。测试使用本地模型响应，无外部模型凭据。签名测试宿主还跑通原 Janus 聊天派发、批准、文件写入、报告回读、退出恢复和两种停用路径。该组合开放受管 Worker。 |
+| Apple Silicon / Claude Code 2.1.327 | 在临时目录使用官方原生 CLI 和本地模型验证后台会话、MCP 工具发现、报告回传、拒绝写文件、原对话历史续接和进程组退出。Unix 控制套接字按已绑定会话及进程身份解析。该组合开放受管 Worker。 |
+| Intel Mac / Codex、Claude | 包签名、内容与 x64 平台声明通过静态验证，缺少 Intel 实机，两种受管驱动均保持不可用。 |
+| Windows / Codex、Claude | 沿用原平台能力。按用户决定记录为待 Windows 开发环境实测，本轮没有 Windows 运行结果。 |
+
+四个官方插件可用 `npm run plugins:package:mac` 生成测试签名包。桌面签名包回归可在 Windows 或 macOS 仓库根目录运行 `npm run build:plugin-sdk` 后运行 `node scripts/plugins/check-superagent-desktop.mjs`。设置 `JANUS_SUPERAGENT_CODEX_BINARY` 为 Codex 可执行文件绝对路径后附加 `--with-worker` 可运行带本地模型的桌面对话用例。本机用 LaunchServices 打开 arm64 .app，验证无插件时仍能读取已有工作区原文。该 .app 未使用发行证书签名。Windows 与 Intel 实机、正式签名和公证仍待验收。Claude 的独立回归用例为 `tests/unit/claude-worker-native.test.ts`，通过 `JANUS_SUPERAGENT_CLAUDE_BINARY` 指定原生 CLI。
 
 ## 迁移前的源码边界
 
@@ -74,4 +91,4 @@
 
 ## 验证基线
 
-优先复用现有的[路由](../../../tests/unit/superagent-routing.test.ts)、[持久化](../../../tests/unit/superagent-persistence.test.ts)、[生命周期](../../../tests/unit/superagent-lifecycle.test.ts)、[插件分发](../../../tests/unit/plugin-distribution.test.ts)与[native 服务](../../../tests/unit/plugin-native-service.test.ts)测试。桌面集成延用[桌面用例](../../../tests/e2e/desktop-superagent.spec.ts)和[真实引擎用例](../../../tests/e2e/desktop-superagent-live.spec.ts)。本次在 Apple Silicon 上跑前五组，69 项通过、2 项失败、3 项跳过；两个失败均为路由用例对临时目录的字符串比较，实际值带有 /private 前缀。将 TMPDIR 设为同一目录的 realpath 后，单独重跑路由组 12 项全部通过。迁移阶段另需覆盖真实签名包、旧 profile、Windows 回归及上述四项 Mac 架构与引擎组合。当前四项均待迁移实测。
+优先复用现有的[路由](../../../tests/unit/superagent-routing.test.ts)、[持久化](../../../tests/unit/superagent-persistence.test.ts)、[生命周期](../../../tests/unit/superagent-lifecycle.test.ts)、[插件分发](../../../tests/unit/plugin-distribution.test.ts)与[native 服务](../../../tests/unit/plugin-native-service.test.ts)测试。桌面集成延用[桌面用例](../../../tests/e2e/desktop-superagent.spec.ts)和[真实引擎用例](../../../tests/e2e/desktop-superagent-live.spec.ts)。本次在 Apple Silicon 上跑前五组，69 项通过、2 项失败、3 项跳过；两个失败均为路由用例对临时目录的字符串比较，实际值带有 /private 前缀。将 TMPDIR 设为同一目录的 realpath 后，单独重跑路由组 12 项全部通过。迁移阶段另需覆盖真实签名包、旧 profile、Windows 回归及上述四项 Mac 架构与引擎组合。此处为迁移前的基线；各平台当前实测结果见上表。

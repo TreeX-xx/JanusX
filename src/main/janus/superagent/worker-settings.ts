@@ -6,6 +6,7 @@ import { SerialQueue, writeFileAtomic } from '../../lib/atomic-file'
 import { CodexConversation, ManagedInputDeferred } from '../../terminal/codex-conversation'
 import type { ConversationSnapshot } from '../../../shared/conversation-display'
 import { DEFAULT_WORKER_MODEL_SETTINGS, DEFAULT_WORKER_IDLE_MINUTES, parseWorkerIdleMinutes, parseWorkerModelSettings, type WorkerModelSettings, type WorkerSettingsState } from '../../../shared/superagent-worker-settings'
+import { DarwinCodexWorker } from './darwin-codex'
 import { ClaudeWorkerEngine } from './claude-worker'
 import type { WorkerBackend } from '../../../shared/superagent'
 import { parseWorkerPolicy, type WorkerPolicy } from '../../../shared/superagent-worker-settings'
@@ -225,7 +226,7 @@ export class WorkerSettingsEngines {
   private readonly entries = new Map<string, WorkerSettingsEngine>()
   private readonly sessions = new Map<string, SessionSettings>()
   constructor(readonly defaults: WorkerSettingsStore,
-    private readonly factory: (id: string, publish: (snapshot: ConversationSnapshot) => void, backend?: WorkerBackend) => ManagedWorkerEngine = (id, publish, backend) => backend === 'claude' ? new ClaudeWorkerEngine(id, publish) : new CodexConversation(id, publish)) {}
+    private readonly factory: (id: string, publish: (snapshot: ConversationSnapshot) => void, backend?: WorkerBackend) => ManagedWorkerEngine = (id, publish, backend) => backend === 'claude' ? new ClaudeWorkerEngine(id, publish) : process.platform === 'darwin' ? new DarwinCodexWorker(id, publish) : new CodexConversation(id, publish)) {}
   create = (id: string, publish: (snapshot: ConversationSnapshot) => void, backend?: WorkerBackend): ManagedWorkerEngine => {
     const engine = new WorkerSettingsEngine(this.factory(id, publish, backend), this.defaults, this.sessions)
     this.entries.set(id, engine)

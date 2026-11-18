@@ -17,7 +17,7 @@ export async function environmentFixture() {
   await git(['config', 'user.email', 'p2@example.invalid'])
   await git(['config', 'core.autocrlf', 'false'])
   await writeFile(join(repo, 'feature.txt'), 'initial\n')
-  await writeFile(join(repo, '.gitignore'), 'node_modules/\n.env\n.env.local\n')
+  await writeFile(join(repo, '.gitignore'), 'node_modules\n.env\n.env.local\n')
   await git(['add', '.']); await git(['commit', '-m', 'Initial fixture'])
   const workspace = { workspaceId: 'workspace-p2', workspacePath: repo }
   let time = 1000

@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-14T17:40:42.058Z",
+  "updated": "2026-11-18T08:48:15Z",
   "class": "architecture",
   "tags": ["macos", "compatibility", "distribution"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
@@ -102,7 +102,7 @@ Electron 测试在独立 Windows profile 中临时拦截该测试进程的 `app.
 | MAC-04 / 高，入口已降级 | Mac 新建 Claude 默认走普通 TUI，平台能力判断不再自动开启 Windows 专属双形态 | 前端 supportsConversation 传入平台，后端同样校验；ClaudeConversation 的原平台门保留 | Mac 入口降级回归通过；Claude 双形态桥、登录／信任流程和真实 TUI 仍待 Mac 验收 |
 | MAC-05 / 中 | Mac 版即使成功安装，也不能沿用当前应用内自动更新 | [更新守卫](../../../src/main/updater/guards.ts)对非 Windows 返回 `non-windows-p0`，主动禁用更新 | 补 Mac 更新能力、附件和渠道验证；属于现有产品边界，未实施 |
 | MAC-06 / 中 | 生成 Mac 包后，没有等价的包运行及发布验收入口 | [verify](../../../.github/workflows/verify.yml)与 [release-win](../../../.github/workflows/release-win.yml)使用 Windows runner；[包运行检查](../../../scripts/check-packaged-runtime.mjs)硬编码 `win-unpacked`、`JanusX.exe`、`7za.exe`；[发布脚本](../../../scripts/publish-win.mjs)面向 Windows 附件。`package:mac` 已有本地产包入口，不等于 Mac 验收流程已完成 | 在 Mac 上增加实际安装包检查与按需构建入口，复用通用输入规则；未实施 |
-| MAC-13 / 高 | SuperAgent managed Worker 在 Mac 上不能启动，不能以桌面窗口打开代替核心工作流可用 | [桌面 Worker 装配](../../../src/main/ipc/superagent-handlers.ts)在准备后端前对非 Windows 抛错；arm64/x64 启动门模拟均为 blocked。Claude 双模式还另有 MAC-04 限制 | 适配并验证 Worker 启动、权限／sandbox、MCP、审批、恢复及取消；开放前保留能力门并给出明确入口提示，不能只删平台判断；未实施 |
+| MAC-13 / 高 | 受管 Worker 的平台能力按架构和引擎开放 | Apple Silicon 的 Codex 0.169.0 和 Claude Code 2.1.327 已实测会话、MCP 报告、审批、续接和进程组收尾。 | Apple Silicon 上通过 LaunchServices 启动本地 .app，验证无插件历史读取。Intel 两种驱动与生产签名发行包待验收。平台结果与复验命令见[迁移计划](../agent/superagent-plugin-migration.md)。 |
 | MAC-14 / 高，源码已修 | Pi/DSH 扩展定位解析真实命令和包身份，兼容 POSIX 全局布局、链接与提升依赖 | DSH 必需组件缺失时在创建桥前报错；安装补齐 TUI、pnpm 与精确版本 profile 核验 | 两架构文件夹具通过；DSH/Pi Mac 原生扩展握手与联网初始化未验证，详见专项 |
 | MAC-15 / 中，源码已修 | Pi 自定义会话目录与启动同源 | provider-paths 统一参数、环境、项目与全局 settings 优先级；扫描已注册工作区及历史保存的 store，配置错误有诊断 | P4 目录／启动／历史夹具通过；真实 Mac Pi 与自定义目录未运行 |
 | MAC-16 / 中，源码已修 | POSIX 路径不再无条件转小写 | 路径身份区分 Windows 与 POSIX，比较 key 不改写实际读写路径；冲突会话单独保留并禁止歧义继续 | 大小写、Unicode、旧记录及冲突夹具通过；大小写敏感 APFS 实机未运行 |

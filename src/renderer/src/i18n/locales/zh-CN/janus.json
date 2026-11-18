@@ -104,7 +104,10 @@
     "retryWorker": "重试启动"
   },
   "superagent": {
-    "hostUnavailable": "SuperAgent 当前不可用。草稿已保留，可稍后重试。",
+    "historyInput": "原始指令",
+    "historyReport": "Worker 报告",
+    "emptyHistory": "此工作区还没有保存的工作。",
+    "hostUnavailable": "草稿已保留。请在「设置 → 插件」中确认已安装并启用 SuperAgent。",
     "agentMode": "Agent 模式（下一条消息生效）",
     "ordinaryMode": "普通模式",
     "open": "Super Agent",

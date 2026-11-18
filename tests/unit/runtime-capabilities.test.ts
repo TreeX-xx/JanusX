@@ -9,11 +9,15 @@ describe('execution target capability contract', () => {
     expect(runtimeCapability('terminal', 'codex', { kind: 'local', platform: 'darwin' }, 'failed').status).toBe('probe-error')
     expect(runtimeCapability('terminal', 'codex', { kind: 'ssh', platform: null }).reason).toBe('target-platform-unknown')
   })
-  it('keeps Mac Claude TUI available without enabling its conversation or Worker driver', () => {
+  it('separates native Mac terminal display and verified managed Worker architectures', () => {
     const mac = { kind: 'local', platform: 'darwin' } as const
     expect(runtimeCapability('terminal', 'claude', mac, 'ready').status).toBe('available')
     expect(runtimeCapability('conversation', 'claude', mac).status).toBe('unsupported')
     expect(runtimeCapability('managed-worker', 'codex', mac).status).toBe('unsupported')
+    expect(runtimeCapability('managed-worker', 'codex', { ...mac, architecture: 'arm64' }).status).toBe('available')
+    expect(runtimeCapability('managed-worker', 'codex', { ...mac, architecture: 'x64' }).status).toBe('unsupported')
+    expect(runtimeCapability('managed-worker', 'claude', { ...mac, architecture: 'arm64' }).status).toBe('available')
+    expect(runtimeCapability('managed-worker', 'claude', { ...mac, architecture: 'x64' }).status).toBe('unsupported')
     expect(supportsConversation('claude', 'darwin')).toBe(false)
     expect(supportsConversation('claude', 'win32')).toBe(true)
     expect(createShellProfileSeed('darwin').command).toBe('/bin/zsh')

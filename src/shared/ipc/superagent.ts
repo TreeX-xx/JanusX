@@ -49,7 +49,7 @@ export const SUPERAGENT_CHANNELS = {
 
 /** Renderer can submit user input and read records, never forge worker reports or delivery. */
 export interface SuperAgentAPI {
-  available(): Promise<boolean>
+  available(workspaceId?: string): Promise<boolean>
   workerModels(backend: 'codex' | 'claude'): Promise<import('../conversation-display').ConversationModelOption[]>
   workflows(workspaceId: string): Promise<SuperAgentWorkflowSnapshot>
   controlWorkflow(control: SuperAgentWorkflowControl): Promise<SuperAgentWorkflow>

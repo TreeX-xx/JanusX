@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { TerminalSquare, X } from 'lucide-react'
+import { History, TerminalSquare, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useSuperAgentUIStore } from '@/stores/superagent-ui'
@@ -10,6 +10,7 @@ import { ConversationWelcome } from '../ConversationWelcome'
 import { JanusChat } from './JanusChat'
 import { useJanusChatController, useJanusChatRegistry } from './JanusChatProvider'
 import { SuperAgentTopics } from './SuperAgentTopics'
+import { SuperAgentHistory } from './SuperAgentHistory'
 import { SuperAgentStartup } from './SuperAgentStartup'
 import { SuperAgentDecisions, SuperAgentMonitorRail, SuperAgentWork, SuperAgentWorkHeader, SuperAgentWorkProvider, SuperAgentWorkflowPlans, useSuperAgentWelcomeState } from './SuperAgentWork'
 import { SuperAgentReportFallback } from './WorkerReportCard'
@@ -27,6 +28,7 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   const registry = useJanusChatRegistry()
   const [startupComplete, setStartupComplete] = useState(false)
   const finishStartup = useCallback(() => setStartupComplete(true), [])
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [sendError, setSendError] = useState('')
   const [targetId,setTargetId]=useState<string|null>(null)
   const workspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
@@ -82,6 +84,8 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   return <SuperAgentWorkProvider onViewChanges={openSuperAgentChanges} revealWork={expandDock} revealConversation={() => { if (compact) setNarrowOpen(false) }}>
     <section ref={root} className={styles.workspace} data-superagent-workspace="" data-compact={compact} aria-label={t('superagent.workspace')}>
       {startupComplete && visible && toolbarHost && createPortal(<div className={styles.toolbar} data-superagent-toolbar="">
+        {workspaceId && <button className={styles.terminalToggle} type="button" aria-label={t('superagent.history')} title={t('superagent.history')}
+          aria-expanded={historyOpen} onClick={() => setHistoryOpen(value => !value)}><History size={15} /></button>}
         {!hasProjectPanes && <button className={styles.terminalToggle} type="button" disabled={!workspaceId} aria-label={t(terminalLauncher ? 'superagent.hideTerminal' : 'superagent.showTerminal')}
           title={t(terminalLauncher ? 'superagent.hideTerminal' : 'superagent.showTerminal')} aria-expanded={terminalLauncher}
           onClick={() => {
@@ -90,7 +94,8 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
             if (terminalLauncher) window.requestAnimationFrame(() => root.current?.querySelector<HTMLTextAreaElement>('.janus-chat-input')?.focus({ preventScroll: true }))
           }}><TerminalSquare size={15} aria-hidden="true" /></button>}
       </div>, toolbarHost)}
-      {!startupComplete ? <SuperAgentStartup ready={registry.persistenceReady} active={visible} onComplete={finishStartup} /> : <div className={styles.body} data-resizing={resizing} style={{ gridTemplateColumns: compact
+      {historyOpen && workspaceId && <div className={styles.sidebarContent}><SuperAgentHistory key={workspaceId} workspaceId={workspaceId} /></div>}
+      {!startupComplete ? <SuperAgentStartup ready={registry.persistenceReady} active={visible} onComplete={finishStartup} /> : <div className={styles.body} hidden={historyOpen && !!workspaceId} data-resizing={resizing} style={{ gridTemplateColumns: compact
         ? `${narrowOpen ? '0px' : 'minmax(0, 1fr)'} 0px ${narrowOpen ? 'minmax(0, 1fr)' : `${WORKER_RAIL_WIDTH}px`}`
         : `minmax(0, 1fr) ${expanded ? 9 : 0}px ${expanded ? sidebarWidth : WORKER_RAIL_WIDTH}px` }}>
         <div className={styles.chat} data-superagent-design="multi-input" hidden={compact && narrowOpen}>

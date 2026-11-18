@@ -1,3 +1,5 @@
+import { claudeDarwinControlEndpoint } from './claude-darwin-control'
+import { confirmDarwinGroupExit, darwinGroupLeader } from '../janus/superagent/darwin-process'
 import { captureWindowsProcessTree, terminateWindowsProcessTree, verifyWindowsProcessTree, type WindowsProcessTree } from '@janus-agent/janus-agent/superagent/native/windows-process-tree'
 import { ManagedInputDeferred } from './codex-conversation'
 import { ConversationCatalog } from './conversation-catalog'
@@ -117,7 +119,7 @@ export class ClaudeConversation {
     }
   }
   private async launch(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
-    if (process.platform !== 'win32') throw new Error('Claude dual mode is currently validated on Windows only.')
+    if (process.platform !== 'win32' && !(process.platform === 'darwin' && options.managed)) throw new Error('Claude conversation mode is unavailable on this platform.')
     // Keep native startup, catalog discovery and trust confirmation on the same
     // on-disk path. See .agents/notes/workbench/terminal-dialog-dual-mode.md.
     this.cwd = claudeTrustDirectory(options.cwd)
@@ -207,7 +209,7 @@ export class ClaudeConversation {
     if (!job?.pid || job.sessionId !== this.state.threadId) throw new Error('Claude background identity did not match its bridge')
     if (this.disposed) throw new Error('Claude launch cancelled')
     if (this.managed) {
-      this.ownedTree = await captureWindowsProcessTree(job.pid)
+      this.ownedTree = process.platform === 'darwin' ? await darwinGroupLeader(job.pid) : await captureWindowsProcessTree(job.pid)
       await this.managed.onProcessTree(this.ownedTree)
     }
     this.state.connection = 'ready'; this.bind(this.state.threadId); this.changed()
@@ -252,10 +254,12 @@ export class ClaudeConversation {
   }
   private reply(message: Json): Promise<Json> {
     return (async () => {
-      const nonce = (await readFile(join(this.configDir, 'daemon/pipe.key'), 'utf8')).trim()
+      const endpoint = process.platform === 'darwin'
+        ? await claudeDarwinControlEndpoint(this.configDir, this.state.threadId, this.ownedTree?.[0]?.pid)
+        : `\\\\.\\pipe\\cc-daemon-${(await readFile(join(this.configDir, 'daemon/pipe.key'), 'utf8')).trim()}-control`
       const auth = (await readFile(join(this.configDir, 'daemon/control.key'), 'utf8')).trim()
       return new Promise<Json>((resolve, reject) => {
-        const socket = createConnection(`\\\\.\\pipe\\cc-daemon-${nonce}-control`)
+        const socket = createConnection(endpoint)
         let buffer = ''
         const timer = setTimeout(() => { socket.destroy(); reject(new Error('Claude delivery unknown; do not automatically resend.')) }, 8000)
         socket.on('error', error => { clearTimeout(timer); reject(error) })
@@ -659,13 +663,17 @@ export class ClaudeConversation {
             const jobs = JSON.parse((await this.cli(['agents', '--json', '--all'])).stdout) as Json[]
             const job = jobs.find(row => row.id === this.short)
             if (!job?.pid || (this.state.threadId && job.sessionId !== this.state.threadId)) throw new Error('Claude process ownership is unconfirmed')
-            this.ownedTree = await captureWindowsProcessTree(job.pid)
+            if (process.platform === 'darwin') {
+              try { this.ownedTree = await darwinGroupLeader(job.pid) }
+              catch (error) { await this.cli(['stop', this.short], 10000); throw error }
+            } else this.ownedTree = await captureWindowsProcessTree(job.pid)
           }
           // Discover descendants before native stop; preserve proof even when stop fails.
-          await verifyWindowsProcessTree(this.ownedTree).catch(() => {})
+          if (process.platform === 'win32') await verifyWindowsProcessTree(this.ownedTree).catch(() => {})
           await this.managed.onProcessTree(this.ownedTree)
           await this.cli(['stop', this.short], 10000).catch(() => {})
-          await terminateWindowsProcessTree(this.ownedTree)
+          if (process.platform === 'darwin') await confirmDarwinGroupExit(this.ownedTree[0].pid)
+          else await terminateWindowsProcessTree(this.ownedTree)
           await this.managed.onProcessTree(this.ownedTree)
         } else if (this.short) await this.cli(['stop', this.short], 10000)
         stopped = true

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useSuperAgentAvailability } from './useSuperAgentAvailability'
 import i18n from '@/i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useSuperAgentUIStore } from '@/stores/superagent-ui'
@@ -7,10 +8,12 @@ import type { SuperAgentWorkerSnapshot } from '../../../../shared/superagent-wor
 
 /** Application-owned subscriptions survive pane collapse, tab closure and workspace navigation. */
 export function useSuperAgentNotices() {
+  const optedIn = useSuperAgentUIStore(state => state.started || state.agentMode === 'superagent')
+  const available = useSuperAgentAvailability(undefined, optedIn)
   useEffect(() => { if (useSuperAgentUIStore.getState().started) openSuperAgent() }, [])
   useEffect(() => {
     const api = window.electron?.superAgent
-    if (!api) return
+    if (!api || !available) return
     let disposed = false
     const loaded = new Set<string>(), versions = new Map<string, number>(), environmentVersions = new Map<string, number>()
     const add = useSuperAgentUIStore.getState().addNotice
@@ -77,5 +80,5 @@ export function useSuperAgentNotices() {
     })
     loadWorkspaces()
     return () => { disposed = true; records(); workers(); environments(); workspaces(); activation() }
-  }, [])
+  }, [available])
 }

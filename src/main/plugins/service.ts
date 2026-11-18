@@ -317,7 +317,6 @@ export class PluginService {
     const projects = await this.registeredProjects(record)
     const native = this.deps.createNativeService!(structuredClone(record), record.packageDirectory, code => {
       if (this.nativeServices.get(id) !== native) return
-      this.nativeServices.delete(id)
       this.disableRecord(record, code)
       record.state = 'error'
       this.log(code, { pluginId: id }); this.publish()
@@ -350,6 +349,13 @@ export class PluginService {
     } catch (cause) {
       this.nativeServices.delete(id); native.stop(); throw cause
     }
+  }
+  officialNative(id: string, projectId?: string): NativePluginService | undefined {
+    const record = this.records.get(id)
+    const native = this.nativeServices.get(id)
+    if (record?.source.kind !== 'official' || !native?.active || (projectId && !hasPluginProjectAccess(record, projectId))) return
+    try { this.allowed(record) } catch { return }
+    return native
   }
   /** Shared services may call an installed feature through the same declared contract as its isolated UI. */
   async nativeCall(id: string, method: string, input: JsonValue, projectId: string | null = null, scopePath: string | null = null, signal?: AbortSignal, instanceId?: string): Promise<JsonValue> {
@@ -389,7 +395,7 @@ export class PluginService {
     })
   }
   disable(id: string): Promise<void> {
-    return this.queue.run(async () => { this.disableRecord(this.record(id)); await this.nativeStops.get(id); try { await this.persist() } finally { this.publish() } })
+    return this.queue.run(async () => { this.disableRecord(this.record(id)); try { await this.persist(); await this.nativeStops.get(id) } finally { this.publish() } })
   }
   private disableRecord(record: RecordData, reason?: string): void {
     this.revokePlugin(record.manifest.id)
@@ -622,10 +628,11 @@ export class PluginService {
     const native = this.nativeServices.get(id)
     this.nativeServices.delete(id)
     if (native) {
-      const finished = native.shutdown().catch(() => this.log('SERVICE_STOP_FAILED', { pluginId: id })).finally(() => {
+      const finished = native.shutdown().then(() => {
         if (this.nativeStops.get(id) === finished) this.nativeStops.delete(id)
       })
       this.nativeStops.set(id, finished)
+      void finished.catch(() => this.log('SERVICE_STOP_FAILED', { pluginId: id }))
     }
     this.background.revoke(id); this.network.revoke(id)
     const record = this.records.get(id)

@@ -23,6 +23,7 @@ import { workerHeadline, workerPrompt, workerReply, workerStream } from './worke
 import { WorkerBranch, WorkerElapsed } from './WorkerMetadata'
 import { WorkerQueueControls } from './WorkerQueueControls'
 import { WorkerScheduleContext } from './WorkerScheduleContext'
+import { useSuperAgentAvailability } from './useSuperAgentAvailability'
 import styles from './SuperAgentWork.module.css'
 
 interface WorkView { detail: SuperAgentWorkDetail; report?: string; environment?: SuperAgentEnvironment; operation?: SuperAgentGitOperation; schedule?: SuperAgentScheduleEntry; node?: SuperAgentWorkflowNode; workflow?: SuperAgentWorkflow }
@@ -32,7 +33,8 @@ function useWorkState() {
   const workspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
   const workspace = useWorkspaceStore(state => state.workspaces.find(row => row.id === workspaceId))
   const focusedWorkId = useSuperAgentUIStore(state => state.focusedWorkId)
-  const api = window.electron?.superAgent
+  const available = useSuperAgentAvailability(workspaceId)
+  const api = available ? window.electron?.superAgent : undefined
   const [views, setViews] = useState<WorkView[]>([])
   const [workers, setWorkers] = useState<SuperAgentWorkerSnapshot[]>([])
   const [schedule, setSchedule] = useState<SuperAgentScheduleSnapshot>()
@@ -94,7 +96,7 @@ function useWorkState() {
 
   useEffect(() => {
     const epoch = ++generation.current
-    setViews([]); setWorkers([]); setSchedule(undefined); setWorkflows([]); setRefreshError('')
+    setViews([]); setWorkers([]); setTotal(0); setSchedule(undefined); setWorkflows([]); setRefreshError('')
     visibleWorks.current.clear()
     if (!api || !workspaceId) return
     const read = () => { void refresh() }

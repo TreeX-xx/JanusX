@@ -4,13 +4,13 @@ import { fixtureWorkerReport } from '../helpers/worker-report'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createServer } from 'node:http'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { delimiter, dirname, join, resolve } from 'node:path'
 import { controlledGit } from '../../src/main/git/controlled-worktree'
 import { hookCliFixture } from '../helpers/hook-cli-fixture'
 import { seedIntroducedLearning } from './desktop-test-env'
 
-test.skip(!process.env.JANUS_SUPERAGENT_CODEX_BINARY || process.platform !== 'win32', 'Requires the explicitly selected local Codex binary')
+test.skip(!process.env.JANUS_SUPERAGENT_CODEX_BINARY || !(process.platform === 'win32' || process.platform === 'darwin' && process.arch === 'arm64'), 'Requires the explicitly selected local Codex binary')
 
 test('Island starts the shared workspace in the light theme without starting work', async () => {
   const cli = await hookCliFixture()
@@ -104,7 +104,7 @@ for (const checkNavigation of [true, false]) test(checkNavigation
   : 'context budget routes long originals once and preserves continuation, stop and restart', async () => {
   test.setTimeout(300000)
   const cli = await hookCliFixture(), f = { repo: '' }
-  f.repo = cli.cwd
+  f.repo = await realpath(cli.cwd)
   await controlledGit(f.repo, ['init', '-b', 'main'])
   await controlledGit(f.repo, ['config', 'user.name', 'P4 Desktop'])
   await controlledGit(f.repo, ['config', 'user.email', 'p4@example.invalid'])
@@ -125,6 +125,24 @@ for (const checkNavigation of [true, false]) test(checkNavigation
       const body = JSON.parse(Buffer.concat(chunks).toString() || '{}')
       if (req.url?.startsWith('/janus/')) {
         if (!body.stream) { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ id: 'health', object: 'chat.completion', choices: [{ index: 0, message: { role: 'assistant', content: 'OK' }, finish_reason: 'stop' }] })); return }
+        if (body.tools?.some((tool: any) => (tool.name ?? tool.function?.name) === 'submit_review')) {
+          // The scripted provider does not evaluate model quality. Let the host record an unverified review.
+          const message = 'This local fixture has no independent review verdict.'
+          res.writeHead(200, { 'content-type': 'text/event-stream' })
+          const emit = (value: unknown) => res.write('data: ' + JSON.stringify(value) + '\n\n')
+          if (req.url.endsWith('/responses')) {
+            const item = { type: 'message', id: 'review' }
+            emit({ type: 'response.created', response: { id: 'review', created_at: 1, model: 'fixture-model' } })
+            emit({ type: 'response.output_item.added', output_index: 0, item })
+            emit({ type: 'response.output_text.delta', item_id: item.id, delta: message })
+            emit({ type: 'response.output_item.done', output_index: 0, item })
+            emit({ type: 'response.completed', response: { usage: { input_tokens: 1, output_tokens: 1 } } })
+          } else {
+            emit({ id: 'review', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', content: message }, finish_reason: 'stop' }] })
+            res.write('data: [DONE]\n\n')
+          }
+          res.end(); return
+        }
         janusRequests.push(body)
         let context: any, card: any
         const walk = (value: any) => {
@@ -178,7 +196,12 @@ for (const checkNavigation of [true, false]) test(checkNavigation
           }
           reply = marker === 'P4_STOP' ? 'Stop requested' : 'Supplement arranged'
         }
-        if (previous === 'work_route' && result?.blocked) {
+        if (name === 'work_route' && ['new', 'continue', 'reopen'].includes((args as { action: string }).action)) {
+          args = { ...args as object, context: { goal: 'Create worker-desktop.txt in the isolated desktop fixture',
+            constraints: [], backgroundInputIds: [], outcome: { target: 'worker-desktop.txt', acceptance: ['The file contains DESKTOP_WORKER_EDIT'],
+              assumptions: [], maxRepairRounds: 0 } } }
+        }
+        if (previous === 'work_route' && result?.blocked && (result.requiredCard || result.required?.length)) {
           name = result.requiredCard ? 'work_read' : 'work_read_resource'; args = result.requiredCard ?? result.required[0]
         }
         if (name && !body.tools.some((tool: any) => (tool.name ?? tool.function?.name) === name)) throw new Error('Janus tool missing: ' + name)
@@ -217,7 +240,7 @@ for (const checkNavigation of [true, false]) test(checkNavigation
       const tool = name && tools.find((row: any) => row.name === name)
       if (name && !tool) throw new Error(`Tool missing: ${name}`)
       const id = name === 'exec_command' ? 'desktop_edit' : 'desktop_report'
-      const args = name === 'exec_command' ? { cmd: 'Set-Content -LiteralPath worker-desktop.txt -Value DESKTOP_WORKER_EDIT', shell: 'powershell.exe', login: false }
+      const args = name === 'exec_command' ? (process.platform === 'win32' ? { cmd: 'Set-Content -LiteralPath worker-desktop.txt -Value DESKTOP_WORKER_EDIT', shell: 'powershell.exe', login: false } : { cmd: 'echo DESKTOP_WORKER_EDIT > worker-desktop.txt', shell: '/bin/sh', login: false })
         : { reportId, kind: 'ready', summary: 'Desktop work ready', report: fixtureWorkerReport('Desktop Worker report: created worker-desktop.txt through the managed native process.') }
       const item = tool ? { id, call_id: id, type: 'function_call', name: tool.name, namespace: tool.namespace, status: 'completed', arguments: JSON.stringify(args) }
         : { id: 'desktop_message', type: 'message', status: 'completed', role: 'assistant', content: [{ type: 'output_text', text: 'Done', annotations: [] }] }
@@ -236,9 +259,9 @@ for (const checkNavigation of [true, false]) test(checkNavigation
       `[projects.${JSON.stringify(f.repo)}]`, 'trust_level="trusted"',
     ].join('\n')
     await writeFile(join(cli.env.CODEX_HOME!, 'config.toml'), config)
-    const env = { ...cli.env, NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(cli.root, 'knowledge') }
+    const env = { ...cli.env, JANUSX_LOCAL_PLUGIN_DIRECTORY: process.env.JANUSX_LOCAL_PLUGIN_DIRECTORY, NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(cli.root, 'knowledge') }
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
-    env[pathKey] = `${dirname(process.env.JANUS_SUPERAGENT_CODEX_BINARY!)};${env[pathKey] ?? ''}`
+    env[pathKey] = `${dirname(process.env.JANUS_SUPERAGENT_CODEX_BINARY!)}${delimiter}${env[pathKey] ?? ''}`
     application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(cli.root, 'profile')}`], env })
     application.process().stderr?.on('data', data => { startup = (startup + data.toString()).slice(-12000) })
     application.process().stdout?.on('data', data => { startup = (startup + data.toString()).slice(-12000) })
@@ -252,6 +275,9 @@ for (const checkNavigation of [true, false]) test(checkNavigation
       await window.electron.workspace.load(workspace.id)
       return workspace.id
     }, f.repo)
+    if (process.env.JANUSX_LOCAL_PLUGIN_DIRECTORY) {
+      expect(await page.evaluate(() => window.electron.plugins.request({ type: 'enable', id: 'official.superagent', projects: [] }))).toMatchObject({ ok: true })
+    }
     const saved = await page.evaluate(baseURL => window.electron.llm.saveTerminalProvider('janus', {
       id: 'openai-compatible', name: 'P4 Janus fixture', authType: 'api-key' as never, enabled: true,
       apiKey: 'fixture-key', baseURL, modelId: 'fixture-model', models: ['fixture-model'],
@@ -260,6 +286,7 @@ for (const checkNavigation of [true, false]) test(checkNavigation
     expect(saved.success).toBe(true)
     await page.reload()
     await page.locator('.ws').filter({ hasText: 'SuperAgent P4 fixture' }).first().click()
+    if (!await page.getByRole('button', { name: 'Super Agent', exact: true }).isVisible()) await page.locator('.janus-island').dblclick()
     await page.getByRole('button', { name: 'Super Agent', exact: true }).click()
     let work = page.getByRole('region', { name: 'SuperAgent work', exact: true })
     await expect(work).toBeVisible()
@@ -431,6 +458,29 @@ for (const checkNavigation of [true, false]) test(checkNavigation
     await expect(page.locator('[data-superagent-workspace]')).toContainText('Workspace stop requested', { timeout: 15000 })
     await expect.poll(async () => (await page.evaluate(scope => window.electron.superAgent.workers(scope), workspaceId))[0].stopConfirmed).toBe(true)
     expect(errors).toEqual([])
+    if (process.env.JANUSX_LOCAL_PLUGIN_DIRECTORY) {
+      // Drive Electron's actual management handler. Only the user's dialog choice is scripted.
+      for (const choice of ['wait', 'stop']) {
+        hold = undefined
+        await send('P4_CONTINUE: keep this Worker running for the ' + choice + ' lifecycle check')
+        await expect.poll(() => !!hold, { timeout: 30000 }).toBe(true)
+        const worker = (await page.evaluate(id => window.electron.superAgent.workers(id), workspaceId))[0]
+        await application.evaluate(({ dialog }, response) => {
+          dialog.showMessageBox = async () => ({ response, checkboxChecked: false })
+        }, choice === 'wait' ? 0 : 1)
+        const disabled = page.evaluate(() => window.electron.plugins.request({ type: 'disable', id: 'official.superagent' }))
+        if (choice === 'wait') {
+          const input = { workspaceId, eventId: randomUUID(), conversationId: 'frozen', text: 'Frozen admission probe' }
+          await expect.poll(() => page.evaluate(row => window.electron.superAgent.submitInput(row).then(() => '', e => String(e)), input)).toContain('preparing to stop')
+          await page.evaluate(row => window.electron.superAgent.controlWorker(row), {
+            workspaceId, workId: worker.workId, executionId: worker.executionId, type: 'stop' as const })
+        }
+        expect(await disabled).toMatchObject({ ok: true })
+        expect(await page.evaluate(id => window.electron.superAgent.available(id), workspaceId)).toBe(false)
+        expect((await page.evaluate(id => window.electron.superAgent.snapshot(id), workspaceId)).works).toHaveLength(1)
+        if (choice === 'wait') expect(await page.evaluate(() => window.electron.plugins.request({ type: 'enable', id: 'official.superagent' }))).toMatchObject({ ok: true })
+      }
+    }
   } finally {
     await mkdir('artifacts/superagent-p7', { recursive: true })
     if (application?.windows()[0]) {

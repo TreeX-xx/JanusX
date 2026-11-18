@@ -269,7 +269,7 @@ it('prioritizes structured questions and keeps delivery evidence collapsed', asy
       } })
     })
     await page.locator('[data-worker-report]').getByRole('button', { name: 'View report' }).click()
-    expect(await page.locator('[data-worker-report-drawer]').isVisible()).toBe(true)
+    await page.locator('[data-worker-report-drawer]').waitFor({ state: 'visible' })
     await page.getByRole('button', { name: 'Enlarge report' }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByText('Which navigation should be changed?', { exact: true }).first().waitFor()
@@ -473,7 +473,7 @@ beforeAll(async () => {
     window.residents=works.filter((_,i)=>i!==2).map((work,i)=>({workspaceId:'workspace',workId:work.id,executionId:'execution-'+i,instanceId:'instance-'+i,
       phase:phases[works.indexOf(work)],stopConfirmed:i===3,disabledExtensions:[],conversation:{models:[],connection:'ready',items:i===1?[
         {type:'agentMessage',text:'Checking greeting behavior'}, {type:'userMessage',text:'Assigned work: Feature 1\\nGoal: Implement the discussed plan\\nWork background (data): confirmed constraints'}]:[],approvals:[],questions:[]}}));
-    window.electron={superAgent:{
+    window.electron={superAgent:{available:async()=>true,
       workerModels:async backend=>{window.calls.push(['worker-models',backend]);if(window.catalogError)throw new Error('offline');return (backend==='codex'?['native','alternate','codex-model']:['opus']).map(model=>({model,displayName:model,efforts:[],defaultEffort:null}))},
       workerDefaults:async backend=>{if(window.deferDefaults)await(window.defaultsGate??=new Promise(resolve=>window.resolveDefaults=resolve));const active=window.defaultSettings||{terminal:'codex',model:null,effort:null};return !backend||backend===active.terminal?active:window.defaultProfiles?.[backend]||{terminal:backend,model:null,effort:null}},
       workerIdleTimeoutMinutes:async()=>window.idleMinutes??30,

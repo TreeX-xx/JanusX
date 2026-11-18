@@ -1,4 +1,4 @@
-import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { prepareControlledCommit, executeControlledCommit } from '../../src/main/git/controlled-commit'
@@ -40,6 +40,7 @@ describe('host commit with reviewed file bytes', () => {
   it('commits raw approved bytes without hooks or clean filters and preserves executable mode on Windows', async () => {
     const f = await environmentFixture()
     try {
+      if (process.platform !== 'win32') await chmod(join(f.repo, 'feature.txt'), 0o755)
       await f.git(['update-index', '--chmod=+x', 'feature.txt'])
       await f.git(['commit', '-m', 'Executable baseline'])
       await writeFile(join(f.repo, '.gitattributes'), 'feature.txt filter=blocked\n')

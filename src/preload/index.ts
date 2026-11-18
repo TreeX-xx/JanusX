@@ -507,7 +507,7 @@ const janusChatAPI: JanusChatAPI = {
 }
 
 const superAgentAPI: SuperAgentAPI = {
-  available: () => ipcRenderer.invoke(SUPERAGENT_CHANNELS.available),
+  available: workspaceId => ipcRenderer.invoke(SUPERAGENT_CHANNELS.available, workspaceId),
   workerModels: backend => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerModels, backend),
   workerDefaults: backend => backend === undefined ? ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerDefaults) : ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerDefaults, backend),
   workerPolicy: () => ipcRenderer.invoke(SUPERAGENT_CHANNELS.workerPolicy),

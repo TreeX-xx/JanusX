@@ -1,3 +1,4 @@
+import { createCoordinator } from '../../plugins/superagent/src/coordinator'
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -21,6 +22,9 @@ async function setup() {
   const workers = new SuperAgentWorkers(f.store, f.service, f.root, async backend => ({ backend: await policy.resolveBackend(backend), command: 'fixture', env: {}, mcpCommand: process.execPath, mcpEntry: entry }),
     (_id, publish) => { const engine = new ManagedEngineFixture(publish); engines.push(engine); return engine }, 60_000, () => 1000)
   const service = new DesktopSuperAgentService(f.store, async id => id === scope ? f.repo : undefined, f.service, workers)
+  const coordinator = createCoordinator()
+  const lifetime = new AbortController()
+  service.activation = { signal: lifetime.signal, active: true, call: (method, value, signal) => coordinator.call(method, value, signal ?? lifetime.signal) }
   service.workerPolicy = policy; cleanups.push(() => service.close())
   await service.configureCapacity(3)
   const turn = async (backend?: 'codex' | 'claude', text = 'Implement a small change') => {
@@ -64,7 +68,7 @@ it('pins # selection even when the model omits it, preserves the default and rej
   const f = await setup()
   await (await f.turn()).create('default')
   const claude = await f.turn('claude')
-  await expect(claude.create('conflict', 'codex')).rejects.toThrow('conflicts')
+  await expect(claude.create('conflict', 'codex')).rejects.toThrow('WORKER_BACKEND_CONFLICT')
   await claude.create('selected')
   await vi.waitFor(() => expect(f.engines).toHaveLength(2))
   const records = await f.service.snapshot(f.scope)
@@ -120,8 +124,8 @@ it('creates an idempotent workflow with # backend constraints and rejects a disa
   await vi.waitFor(() => expect(f.engines).toHaveLength(1), { timeout: 10000 })
   expect((await f.service.snapshot(f.scope)).works).toHaveLength(2)
   expect((await f.service.scheduleSnapshot(f.scope)).entries).toHaveLength(1)
-  await expect(turn.call('work_plan', { ...plan, nodes: plan.nodes.map(node => ({ ...node, workerBackend: 'codex' })) })).rejects.toThrow('conflicts')
-  await expect(turn.call('work_plan', { ...plan, inputId: randomUUID() })).rejects.toThrow('host-admitted')
+  await expect(turn.call('work_plan', { ...plan, nodes: plan.nodes.map(node => ({ ...node, workerBackend: 'codex' })) })).rejects.toThrow('WORKER_BACKEND_CONFLICT')
+  await expect(turn.call('work_plan', { ...plan, inputId: randomUUID() })).rejects.toThrow('INPUT_NOT_ADMITTED')
   await expect(f.service.startWorker(f.scope, flow.nodes[1].workId)).rejects.toThrow('dependencies')
   const input = { workspaceId: f.scope, workId: flow.nodes[1].workId, conversationId: 'direct', eventId: randomUUID(), text: 'Exact supplement for the future tester' }
   await f.service.continueWorker(input)

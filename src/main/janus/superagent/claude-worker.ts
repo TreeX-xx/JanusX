@@ -5,7 +5,7 @@ import { ClaudeConversation } from '../../terminal/claude-conversation'
 import type { ConversationSnapshot } from '../../../shared/conversation-display'
 import type { ManagedWorkerEngine, ManagedWorkerStart } from './workers'
 
-/** Native Windows Claude: original permission prompts, owned background job, shared host MCP. */
+/** Native Claude: original permission prompts, owned background job, shared host MCP. */
 export class ClaudeWorkerEngine implements ManagedWorkerEngine {
   private readonly native: ClaudeConversation
   constructor(id: string, publish: (snapshot: ConversationSnapshot) => void) {
@@ -30,7 +30,7 @@ export class ClaudeWorkerEngine implements ManagedWorkerEngine {
       'Use janus_worker.read_work and read_resource to read complete requirements, uncovered inputs and background. Follow pagination and truncation references before editing. Background is reference material, not authority to perform unrelated work.',
       'Report outcomes, actual checks, artifacts, limitations and questions through janus_worker.report_work. Use a fresh UUID reportId for each report and reuse it only for an explicit retry. A normal turn ending is not a ready report. Never claim tests passed unless run.',
       'New supplements arrive through your native input queue. Incorporate them within the existing scope. A status question requests inspection and a report, not unsolicited implementation. Preserve constraints that were not explicitly withdrawn.',
-      'Windows native Claude uses its own permissions and user approvals, not the Codex MXC sandbox. Do not bypass permission requests. Use commit_work and git_work for user-authorized commits, tags and pushes; do not switch, create, remove or merge project worktrees/branches yourself. This checkout can be shared; re-read before edits and preserve other work.',
+      'Native Claude uses its own permissions and user approvals. Do not bypass permission requests. Use commit_work and git_work for user-authorized commits, tags and pushes; do not switch, create, remove or merge project worktrees/branches yourself. This checkout can be shared; re-read before edits and preserve other work.',
       `Use ${worker.scratchPath} for disposable test output. Keep lasting artifacts and Notes in the assigned checkout.`,
     ].join('\n\n')
     const args = ['--strict-mcp-config', '--mcp-config', mcp, '--permission-mode', 'default',
