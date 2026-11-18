@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-11-05",
-  "updated": "2026-11-14T05:17:24.719Z",
+  "updated": "2026-11-18T05:40:35Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
     {
@@ -40,7 +40,7 @@
 
 ## Intent
 
-SuperAgent 就是升级后的 Janus：保持软件全局控制、统一对话身份，并能在后台执行期间持续接收输入。Router、Worker 调度、订阅投递、上下文资源和监督都是 Janus 内部的职责划分，不再表述为 Janus 调用另一个 SuperAgent。用户无需选择“新事项／跟进事项”才能说话；后台仍保存工作目标与执行记录，具体内部对象名称不作为用户交互前提。
+按已采纳的[实验插件决策](../superagent-plugin.md)，下述体验适用于主动启用 SuperAgent 的用户。启用后仍由 Janus 保持软件全局控制、统一对话身份，并能在后台执行期间持续接收输入。Router、Worker 调度、订阅投递、上下文资源和监督都是 Janus 内部的职责划分，不再表述为 Janus 调用另一个 SuperAgent。用户无需选择“新事项／跟进事项”才能说话；后台仍保存工作目标与执行记录，具体内部对象名称不作为用户交互前提。
 
 首版输入为开发者直接向 Janus 提问和要求修复。先在单工作区验证异步接收、语义归属和执行闭环，再扩展多个工作区。用户明确“不需要跟进事项”，并进一步要求以工作区为单位交互、由 Janus 生成管理分支；同工作区的基本补充判断必须进入 MVP。范围和验收草案由[需求 Note](../requirements/janus-superagent.md)维护。第四版 HTML 保留双入口和右侧 Worker 等历史演示；当前交付状态以[实施计划](./janus-superagent-mvp-plan.md)为准，P1 记录／输入、P2 环境／批准和 P3 受管 Codex／现有聊天闭环已交付；P4 自然分派与可配置容量队列、P5 共享工作卡与原文召回已交付，P6 生命周期回收、明确继续和应用恢复已接入，机制与边界见[生命周期决策](../superagent-lifecycle.md)；P7–P8 的完整 UI 与联合验收仍待后续步骤。
 

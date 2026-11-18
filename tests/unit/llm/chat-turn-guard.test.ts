@@ -109,6 +109,16 @@ describe('chat turn guard (S6-a)', () => {
     expect(createMemo).not.toHaveBeenCalled()
     expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
   })
+  it('keeps a legacy workspace request with an input event in ordinary chat', async () => {
+    immediateStream('Done')
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, {
+      requestId: 'legacy-mode', conversationId: 'legacy-mode', workspaceId: 'project-one',
+      inputEventId: 'legacy-input', providerId: 'p', sourceTag: 'janus-chat', domain: 'project', messages: userMessages,
+    })
+    expect(streamText).toHaveBeenCalled()
+    expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+  })
   it.each(['ordinary', 'superagent'] as const)('honors %s mode through the installed engine package', async agentMode => {
     immediateStream('Done')
     const reply = vi.fn()

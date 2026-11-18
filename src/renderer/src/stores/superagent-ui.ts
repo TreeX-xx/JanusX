@@ -7,13 +7,15 @@ interface Preferences { started: boolean; workersCollapsed: boolean; workersWidt
 function readPreferences(): Preferences {
   try {
     const value = JSON.parse(localStorage.getItem(preferenceKey) ?? '{}')
-    return { started: value.started === true, workersCollapsed: value.workersCollapsed === true, agentMode: value.agentMode === 'ordinary' ? 'ordinary' : 'superagent',
+    // Older builds persisted the implicit SuperAgent default as if it were a user choice.
+    const explicit = value.modeVersion === 1
+    return { started: explicit && value.started === true, workersCollapsed: value.workersCollapsed === true, agentMode: explicit && value.agentMode === 'superagent' ? 'superagent' : 'ordinary',
       workersWidth: Number.isFinite(value.workersWidth) ? Math.max(280, Math.min(440, value.workersWidth)) : 340,
       readWorkerReports: Object.fromEntries(Object.entries(value.readWorkerReports ?? {}).filter(([, id]) => typeof id === 'string').slice(-200)) as Record<string, string> }
-  } catch { return { started: false, workersCollapsed: false, workersWidth: 340, agentMode: 'superagent', readWorkerReports: {} } }
+  } catch { return { started: false, workersCollapsed: false, workersWidth: 340, agentMode: 'ordinary', readWorkerReports: {} } }
 }
 function savePreferences(value: Preferences) {
-  try { localStorage.setItem(preferenceKey, JSON.stringify({ started: value.started,
+  try { localStorage.setItem(preferenceKey, JSON.stringify({ modeVersion: 1, started: value.started,
     workersCollapsed: value.workersCollapsed, workersWidth: value.workersWidth, agentMode: value.agentMode, readWorkerReports: value.readWorkerReports })) } catch { /* Session preference remains usable. */ }
 }
 

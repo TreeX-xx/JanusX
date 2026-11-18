@@ -517,7 +517,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     const userText = [...messages].reverse().find(message => message.role === 'user')?.content ?? ''
     let superAgentTurn: Awaited<ReturnType<typeof createSuperAgentChatTurn>> | undefined
     if (request.agentMode !== undefined && !['ordinary', 'superagent'].includes(request.agentMode)) throw new Error('Invalid Agent mode')
-    if (request.agentMode !== 'ordinary' && sourceTag === 'janus-chat' && !request.compact && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
+    if (request.agentMode === 'superagent' && sourceTag === 'janus-chat' && !request.compact && !toolAllowlist && conversationId && workspaceId && request.inputEventId) {
       if (event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
       const admission = createSuperAgentChatTurn({ service: superAgentService(event.sender?.id), workspaceId, conversationId,
         eventId: request.inputEventId, text: userText, signal: controller.signal, workerBackend: request.workerBackend,

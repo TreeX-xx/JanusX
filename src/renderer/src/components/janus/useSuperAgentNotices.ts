@@ -58,6 +58,8 @@ export function useSuperAgentNotices() {
     }
     const logFailure = (error: unknown) => { if (!disposed) console.error('[superagent] notification read failed', error) }
     const loadWorkspaces = () => {
+      const { started, agentMode } = useSuperAgentUIStore.getState()
+      if (!started && agentMode !== 'superagent') return
       for (const workspace of useWorkspaceStore.getState().workspaces) {
         if (loaded.has(workspace.id)) continue
         loaded.add(workspace.id)
@@ -70,7 +72,10 @@ export function useSuperAgentNotices() {
     const workers = api.onWorkerChanged(worker => { void publishWorker(worker).catch(logFailure) })
     const environments = api.onEnvironmentsChanged(change => { void refreshEnvironments(change.workspaceId).catch(logFailure) })
     const workspaces = useWorkspaceStore.subscribe(loadWorkspaces)
+    const activation = useSuperAgentUIStore.subscribe((next, prev) => {
+      if (next.started !== prev.started || next.agentMode !== prev.agentMode) loadWorkspaces()
+    })
     loadWorkspaces()
-    return () => { disposed = true; records(); workers(); environments(); workspaces() }
+    return () => { disposed = true; records(); workers(); environments(); workspaces(); activation() }
   }, [])
 }

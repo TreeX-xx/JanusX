@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "draft",
   "created": "2026-11-05",
-  "updated": "2026-11-12T02:17:54.886Z",
+  "updated": "2026-11-18T05:40:35Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
     {
@@ -43,6 +43,8 @@
 # Janus SuperAgent：开发者直接输入与多事项修复
 
 ## Expected behavior
+
+[官方实验插件决策](../superagent-plugin.md)确定 SuperAgent 可选安装、默认关闭。以下编排行为适用于用户启用插件后。
 
 用户希望 Janus 保持控制软件全局的中心，参考 Super-agent 的机制建立持续协调与执行能力，并设计相应交互；Router 是 Janus 的一项职责。首版输入来自开发者直接向 Janus 提出问题，由 Router 关联项目、分发修复并汇总结果。用户无需在多个 Agent 会话之间手动搬运上下文。
 

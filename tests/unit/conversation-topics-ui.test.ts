@@ -1358,7 +1358,7 @@ it('restores a report as a compact card in the real SuperAgent transcript with W
   } finally { await page.close() }
 })
 it('inserts inline engines with # and sends @ messages directly without invoking SuperAgent', async () => {
-  const page = await open()
+  const page = await open('ordinary')
   try {
     await page.evaluate(() => {
       const w = window as any; w.previewWorkers(); w.directCalls = []
@@ -1381,7 +1381,7 @@ it('inserts inline engines with # and sends @ messages directly without invoking
     await page.keyboard.insertText('test the implementation')
     await input.locator('[data-engine="claude"] button[data-remove]').click()
     expect(await input.locator('[data-engine="claude"]').count()).toBe(0)
-    await input.press('Control+z')
+    await input.press('ControlOrMeta+z')
     await input.locator('[data-engine="claude"]').waitFor()
     await page.screenshot({ path: `${artifactRoot}/superagent-shortcuts/inline-orchestration.png` })
     await input.press('Enter')

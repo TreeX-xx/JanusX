@@ -59,6 +59,14 @@ describe('SuperAgent host admission and IPC', () => {
     return { handlers, event, send, closedWindow }
   }
 
+  it('registers IPC and closes an unused host without constructing an execution service', async () => {
+    // This fixture supplies no app data path. Constructing the default service would fail.
+    const host = registerSuperAgentHandlers({ getAllowedWindows: () => [], resolveWorkspaceRoot: async () => undefined })
+    const snapshot = mocks.handle.mock.calls.find(([channel]) => channel === SUPERAGENT_CHANNELS.snapshot)![1]
+    await expect(snapshot({ sender: {}, senderFrame: {} }, scope)).rejects.toThrow('main frames')
+    await host.close()
+  })
+
   it('permits only allowed main frames and broadcasts minimal changes after saving', async () => {
     const { handlers, event, send, closedWindow } = register()
     const submit = handlers.get(SUPERAGENT_CHANNELS.submitInput)!

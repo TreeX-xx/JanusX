@@ -29,7 +29,6 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
   const finishStartup = useCallback(() => setStartupComplete(true), [])
   const [sendError, setSendError] = useState('')
   const [targetId,setTargetId]=useState<string|null>(null)
-  const agentMode = useSuperAgentUIStore(state => state.agentMode)
   const workspaceId = useWorkspaceStore(state => state.activeWorkspaceId)
   const target=registry.topicConversations.find(c=>c.id===targetId&&c.topic?.rootId===chat.conversationId&&c.topic.workspaceId===workspaceId)
   useEffect(()=>setTargetId(null),[chat.conversationId,workspaceId])
@@ -100,7 +99,7 @@ export function SuperAgentWorkspace({ visible, focused, toolbarHost }: { visible
               <span>{t('topics.target',{title:target.title})}</span><button type="button" aria-label={t('topics.cancelTarget')} onClick={()=>{setTargetId(null);requestAnimationFrame(()=>root.current?.querySelector<HTMLElement>('.janus-chat-input')?.focus({preventScroll:true}))}}><X size={13}/></button>
             </div>}<SuperAgentWelcome rootId={chat.conversationId} workspaceId={workspaceId} error={sendError} active={visible && !(compact && narrowOpen)} /></>}
             contextComposer={{ id: 'superagent:' + chat.conversationId + ':' + workspaceId, workspacePath }}
-            workerShortcuts={agentMode === 'superagent' ? { workspaceId } : undefined}
+            workerShortcuts={{ workspaceId }}
             modelOptions={chat.modelOptions} activeModel={chat.activeModel} modelNotice={chat.modelNotice} onSelectModel={(provider, model) => chat.selectModel(provider, model, true)}
             inputPlaceholderOverride={target?t('topics.targetPlaceholder',{title:target.title}):t('topics.placeholder')}
             visible={visible && !(compact && narrowOpen)} focused={focused && !(compact && narrowOpen)} modeColor="var(--interaction-accent)"
