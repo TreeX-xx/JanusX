@@ -3,7 +3,7 @@ import { exportConversationImage } from '../terminal/conversation-image-export'
 import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
 import { readNativeInputHistory } from '../terminal/input-history'
-import { CodexConversation } from '../terminal/codex-conversation'
+import { DesktopCodexConversation } from '../terminal/codex-conversation'
 import { ClaudeConversation } from '../terminal/claude-conversation'
 import { PiConversation, DshConversation } from '../terminal/extension-conversation'
 import { OpenCodeConversation } from '../terminal/opencode-conversation'
@@ -834,7 +834,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       if (config.conversationEnabled) {
         if (!runtimeProgram || !hookEnvBase || (engine === 'claude' && !hookLaunchArgs.includes('--settings')) || (engine === 'codex' && !hookLaunchArgs.includes('--no-daemon')) || (engine === 'pi' && !hookLaunchArgs.includes('--extension'))) throw new Error('Dual mode requires working isolated launch hooks')
         if (!supportsConversation(engine, runtimeContext.identity.platform ?? 'unknown')) throw new Error('Conversation mode is unavailable for this engine on this platform. Open a terminal session instead.')
-        const adapter = { claude: ClaudeConversation, codex: CodexConversation, pi: PiConversation, opencode: OpenCodeConversation, dsh: DshConversation }[engine]
+        const adapter = { claude: ClaudeConversation, codex: DesktopCodexConversation, pi: PiConversation, opencode: OpenCodeConversation, dsh: DshConversation }[engine]
         let readyRecorded = false
         const managed = new adapter(id,
           snapshot => {

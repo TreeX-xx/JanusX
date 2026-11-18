@@ -24,8 +24,7 @@ import { AgentComposer } from './AgentComposer'
 import { ConversationQuestions } from './ConversationQuestions'
 import { ConversationNotice } from './ConversationNotice'
 import { hasBlockingQuestions } from '../../../shared/conversation-questions'
-import { ConversationPlanPanel, ConversationPlanHistory } from './ConversationPlanPanel'
-import { compactConversationPlans } from '../../../shared/conversation-plans'
+import { ConversationPlanPanel } from './ConversationPlanPanel'
 import { ConversationDuration } from './ConversationDuration'
 import { ConversationMessageActions } from './ConversationMessageActions'
 import { ConversationMessageEditor } from './ConversationMessageEditor'
@@ -91,15 +90,14 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const starting = !startup && (!snapshot || snapshot.connection === 'starting') && !error && !snapshot?.error
   const terminalVisible = !conversation
   const transitioning = switching || modeTransition !== null
-  const plans = useMemo(() => compactConversationPlans(snapshot?.plans ?? []), [snapshot?.plans])
-  const currentPlan = snapshot?.turnId ? plans.filter(plan => plan.turnId === snapshot.turnId).at(-1) : undefined
+  const plans = useMemo(() => new Map(snapshot?.plans?.map(plan => [plan.turnId, plan])), [snapshot?.plans])
+  const activePlanTurn = snapshot?.turnId && plans.has(snapshot.turnId) ? snapshot.turnId : undefined
   // Drop cached turn identities when the native session changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const projectTurns = useMemo(() => createConversationTurns(), [terminalId, snapshot?.threadId])
-  const turns = useMemo(() => projectTurns(snapshot?.items ?? [], snapshot?.turnId ?? null), [projectTurns, snapshot?.items, snapshot?.turnId])
+  const turns = useMemo(() => projectTurns(snapshot?.items ?? [], snapshot?.turnId ?? null, activePlanTurn), [projectTurns, snapshot?.items, snapshot?.turnId, activePlanTurn])
   const activeTurn = turns.find(turn => turn.active)
   const runningActivity = activeTurn?.groups.slice().reverse().find(group => group.activity?.running)?.activity?.text
-  const detachedPlans = plans.filter(plan => !turns.some(turn => turn.key === plan.turnId))
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
   const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.plans?.length
   const showWelcome = empty && !startupActive && !error && !snapshot?.error
@@ -350,48 +348,53 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               workspacePath={terminal?.cwd || welcomeWorkspace?.path} workspaceName={welcomeWorkspace?.name}
               loading={starting} active={visible && conversation} />}
             {snapshot?.truncated && <p className={styles.notice}>{t(canReadHistory ? 'conversation.historyPreview' : 'conversation.truncated')}{canReadHistory && <button type="button" onClick={() => openHistory()}>{t('conversation.loadEarlier')}</button>}</p>}
-            {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} navigationRef={navigationRef} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation && !historyView} pinnedKey={editing?.item.turnId} renderItem={turn => turn.groups.map((group, groupIndex) => {
-              const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
-              onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
-                if (!canSend || working || outgoing.length || busyRef.current) return
-                follow.current = false; setError('')
-                setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
-              } : undefined} />{fullContent(item)}</>}</div>
-              : item.type === 'error' ? <p className={styles.error} key={item.id} role="alert">{item.text}</p>
-              : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
-                <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
-                  <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
-                {item.text && <MarkdownContent content={conversationImageText(item.text, (item.images ?? []).flatMap(image => image.source ? [image.source] : []))} variant="conversation" workspacePath={terminal?.cwd} />}
-                <ConversationImages terminalId={terminalId} itemId={item.id} images={item.images ?? []} canReference={Boolean(canSend && !busy && !switching && references.length < MAX_CONVERSATION_ATTACHMENTS)}
-                  onReference={image => {
-                    if (!image.path) return
-                    setConversationReferences(terminalId, current => current.some(ref => ref.path === image.path) || current.length >= MAX_CONVERSATION_ATTACHMENTS ? current : [...current, { id: image.id, name: 'generated-image.' + (image.mimeType?.split('/')[1] ?? 'png'), path: image.path!, kind: 'image' }])
-                    inputRef.current?.focus()
-                  }} />
-              </article>
-              : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
-                {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
-                <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t(canReadHistory ? 'conversation.contentPreview' : 'conversation.truncated')}</p>}{fullContent(item)}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
-              </article>
-              : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
-                : <div key={item.id}><ConversationToolCall item={item} openFile={path => void openFile(path)} />{fullContent(item)}</div>)
-              const turnId = group.items[0].turnId
-              const changes = turn.changes
-              const lastGroup = groupIndex === turn.groups.length - 1
-              const duration = lastGroup && !turn.active
-                ? snapshot.turnDurations?.[turn.key] ?? turn.items.find(item => item.durationMs !== undefined)?.durationMs
-                : undefined
-              return <div key={group.items[0].id}>
-                {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
-                  waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
-                  }} settled={group.settled}>{renderNodes}</WorkDisclosure> : renderNodes()}
-                {lastGroup && <div className={styles.turnAttachments}>
-                  <ConversationPlanHistory plans={plans.filter(plan => plan.turnId === turnId)} connection={snapshot.connection} activeTurnId={snapshot.turnId} />
-                  {changes && snapshot.turnId !== turnId && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || snapshot.truncated} openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined} onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turnId) : undefined} />}
-                </div>}
-                {duration !== undefined && <div className={styles.turnDuration} data-turn-duration={turn.key}><ConversationDuration durationMs={duration} turnTotal /></div>}
-              </div>
-            })} />}
+            {snapshot && <VirtualHistory key={terminalId + ':' + snapshot.threadId} navigationRef={navigationRef} items={turns} itemKey={turn => turn.key} scrollRef={scrollRef} following={follow} active={visible && conversation && !historyView} pinnedKey={editing?.item.turnId} renderItem={turn => {
+              const plan = plans.get(turn.key)
+              const planDocument = turn.planDocument
+              const changes = !turn.active ? turn.changes : undefined
+              const timing = snapshot as ConversationSnapshot & { turnDurations?: Record<string, number> }
+              const duration = !turn.active ? timing.turnDurations?.[turn.key] ?? turn.items.find(item => item.durationMs !== undefined)?.durationMs : undefined
+              return <>{turn.groups.map((group, groupIndex) => {
+                const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
+                onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
+                  if (!canSend || working || outgoing.length || busyRef.current) return
+                  follow.current = false; setError('')
+                  setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
+                } : undefined} />{fullContent(item)}</>}</div>
+                : item.type === 'error' ? <p className={styles.error} key={item.id} role="alert">{item.text}</p>
+                : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
+                  <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
+                    <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
+                  {item.text && <MarkdownContent content={conversationImageText(item.text, (item.images ?? []).flatMap(image => image.source ? [image.source] : []))} variant="conversation" workspacePath={terminal?.cwd} />}
+                  <ConversationImages terminalId={terminalId} itemId={item.id} images={item.images ?? []} canReference={Boolean(canSend && !busy && !switching && references.length < MAX_CONVERSATION_ATTACHMENTS)}
+                    onReference={image => {
+                      if (!image.path) return
+                      setConversationReferences(terminalId, current => current.some(ref => ref.path === image.path) || current.length >= MAX_CONVERSATION_ATTACHMENTS ? current : [...current, { id: image.id, name: 'generated-image.' + (image.mimeType?.split('/')[1] ?? 'png'), path: image.path!, kind: 'image' }])
+                      inputRef.current?.focus()
+                    }} />
+                </article>
+                : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
+                  {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
+                  <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t(canReadHistory ? 'conversation.contentPreview' : 'conversation.truncated')}</p>}{fullContent(item)}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
+                </article>
+                : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
+                  : <div key={item.id}><ConversationToolCall item={item} openFile={path => void openFile(path)} />{fullContent(item)}</div>)
+                return <div key={group.items[0].id}>
+                  {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
+                    waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
+                    }} settled={group.settled}>{renderNodes}</WorkDisclosure> : renderNodes()}
+                </div>
+              })}
+              {(plan || planDocument || changes) && <div className={styles.turnAttachments}>
+                {(plan || planDocument) && <ConversationPlanPanel turnId={turn.key} plan={plan} document={planDocument?.text}
+                  connection={snapshot.connection} historical={!turn.active} workspacePath={terminal?.cwd} readMore={planDocument && fullContent(planDocument)} />}
+                {changes && <ConversationFileChanges turnId={turn.key} files={changes.files} incomplete={changes.incomplete || snapshot.truncated}
+                  openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined}
+                  onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turn.key) : undefined} />}
+              </div>}
+              {duration !== undefined && <div className={styles.turnDuration} data-turn-duration={turn.key}><ConversationDuration durationMs={duration} turnTotal /></div>}
+              </>
+            }} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
               <div className={styles.user}><ConversationPrompt text={item.text} /></div>
               <div className={styles.delivery} role="status">
@@ -417,7 +420,6 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                   : t('conversation.turnRunning')}</span>
                 {visible && snapshot?.turnId && snapshot.turnStartedAt !== undefined && <><span aria-hidden="true">·</span><ConversationDuration startedAt={snapshot.turnStartedAt} /></>}
               </div>}
-            <ConversationPlanHistory plans={detachedPlans} connection={snapshot?.connection ?? 'starting'} activeTurnId={snapshot?.turnId} />
             {snapshot?.approvals.map(approval => <div className={styles.approval} key={approval.id} role="group" aria-label={t('conversation.approval')}>
               <strong><ShieldCheck size={17} aria-hidden="true" />{t(approval.kind === 'file' ? 'conversation.approveFile' : 'conversation.approveCommand')}</strong>
               {approval.description && <pre>{approval.description}</pre>}
@@ -438,7 +440,6 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           closeHistory()
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
         }}><ArrowDown size={16} aria-hidden="true" /></button>}</div>
-        {currentPlan && <div className={styles.planDock}><ConversationPlanPanel key={`${terminalId}:${snapshot?.threadId}:${currentPlan.turnId}`} plan={currentPlan} connection={snapshot!.connection} /></div>}
         {(!snapshot || snapshot.capabilities.submit) ? <AgentComposer terminalId={terminalId} historyScope={historyScope} workspacePath={terminal?.cwd} references={references} snapshot={snapshot} visible={visible && conversation} setDraft={setDraft} inputRef={inputRef} canSend={Boolean(canEnqueue && !editing)} hasOutgoing={!!outgoing.length} busy={busy || !!editing} switching={transitioning} send={send} action={action} changeMode={changeMode} />
           : <div className={styles.readOnly}><span>{t('conversation.readOnly')}</span><button type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button></div>}
       </div>

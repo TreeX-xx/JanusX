@@ -34,7 +34,6 @@
 .terminal { position: absolute; inset: 0; }
 .conversation { composes: scope from '../styles/native-scrollbars.module.css'; height: 100%; display: flex; flex-direction: column; }
 .conversation[hidden] { display: none; }
-.planDock { flex-shrink: 0; width: calc(100% - 48px); max-width: 744px; margin: 0 auto; }
 .plan { border: 1px solid var(--shell-border); background: color-mix(in srgb, var(--shell-chrome-raised) 35%, var(--bg-deep)); border-radius: 12px; color: var(--shell-muted); font-size: 12px; overflow: hidden; }
 .plan .planToggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; text-align: left; }
 .planToggle:hover { background: var(--shell-hover); }
@@ -63,7 +62,7 @@
 .content { width: min(100%, 800px); margin: 0 auto; padding: 28px 28px 24px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.75; }
 /* Reading width and keyboard focus: .agents/notes/workbench/terminal-dialog-dual-mode.md. */
 .conversation[data-empty=false] .content { width: min(100%, 936px); }
-.conversation[data-empty=false] .composer, .conversation[data-empty=false] .planDock { max-width: 800px; }
+.conversation[data-empty=false] .composer { max-width: 800px; }
 .conversation[data-empty=true] { justify-content: center; padding-bottom: min(12vh, 96px); }
 .conversation[data-empty=true] .scroll { flex: 0 1 auto; }
 .answerIdentity { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--shell-muted); font-size: 12px; font-weight: 500; }
@@ -219,7 +218,6 @@
 .composerActions .submit[data-secondary=true]:hover:not(:disabled) { background: var(--shell-hover); color: var(--shell-text); opacity: 1; }
 .composerActions .submit:disabled { opacity: 1; color: var(--shell-dim); background: var(--shell-hover); }
 @container (max-width: 540px) {
-  .planDock { width: calc(100% - 24px); }
   .header { padding: 6px 12px; }
   .toggle button { padding: 5px 8px; }
   .content { padding: 20px 16px 24px 26px; }

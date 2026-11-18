@@ -6,6 +6,10 @@ import { VirtualHistory } from './chat/VirtualHistory'
 import { MarkdownContent } from './chat/ChatContent'
 import { ConversationPrompt } from './ConversationPrompt'
 import { ConversationToolCall } from './chat/ConversationToolCall'
+import { ConversationPlanPanel } from './ConversationPlanPanel'
+import { ConversationFileChanges } from './ConversationFileChanges'
+import { conversationFileChanges } from '../../../shared/conversation-file-changes'
+import turnStyles from './AgentSessionPane.module.css'
 import styles from './ConversationHistoryBrowser.module.css'
 
 const WINDOW_PAGES = 3
@@ -17,7 +21,7 @@ export interface ConversationHistoryBookmark {
 
 /** Only three native pages and one text chunk survive. Unmounting releases them. */
 export const ConversationHistoryBrowser = memo(function ConversationHistoryBrowser({ terminalId, threadId, workspacePath, bookmark, openFile, close }: {
-  terminalId: string; threadId: string; workspacePath?: string; bookmark: ConversationHistoryBookmark; openFile(path: string): void; close(): void
+  terminalId: string; threadId: string; workspacePath?: string; bookmark: ConversationHistoryBookmark; openFile(path: string): Promise<void>; close(): void
 }) {
   const { t } = useTranslation('terminal')
   const [pages, setPages] = useState<Page[]>([]), [loading, setLoading] = useState(false), [error, setError] = useState('')
@@ -29,6 +33,10 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     const seen = new Set<string>()
     return pages.flatMap(page => page.value.items).filter(item => !seen.has(item.id) && !!seen.add(item.id))
   }, [pages])
+  const changesByTurn = useMemo(() => conversationFileChanges(items), [items])
+  const plansByTurn = useMemo(() => new Map(pages.flatMap(page => page.value.plans ?? []).map(plan => [plan.turnId, plan])), [pages])
+  const documentsByTurn = useMemo(() => new Map(items.filter(item => item.type === 'plan' && item.text).map(item => [item.turnId, item])), [items])
+  const lastItemByTurn = useMemo(() => new Map(items.map(item => [item.turnId, item.id])), [items])
   const request = useCallback(async (value: ConversationHistoryRequest) => {
     const api = window.electron.terminal.conversationHistory
     if (!api) throw new Error(t('conversation.historyUnavailable'))
@@ -118,15 +126,33 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     setPinned(anchor.current?.id); setSelected(undefined); setBody(undefined); setError('')
     if (!pages.length) void load('initial')
   }
-  const render = (item: ConversationHistoryItem) => <article className={styles.message} data-history-item={item.id}>
-    <span className={styles.label}>{t(item.type === 'userMessage' ? 'conversation.historyUser' : item.type === 'agentMessage' ? 'conversation.historyAgent' : 'conversation.historyActivity')}</span>
-    {item.type === 'userMessage' ? <div className={styles.user}><ConversationPrompt text={item.text} /></div>
-      : item.type === 'agentMessage' || item.type === 'reasoning' || item.type === 'plan'
-        ? <MarkdownContent content={item.text} variant="conversation" workspacePath={workspacePath} />
-        : <ConversationToolCall item={item} openFile={openFile} />}
-    {item.truncated && <button type="button" className={styles.readMore} onClick={() => { remember(); void loadText(item) }} disabled={loading}>{t('conversation.readFullContent')}</button>}
-  </article>
-  return <section className={styles.browser} data-conversation-history-browser="" data-page-count={pages.length} aria-label={t('conversation.fullHistory')}>
+  const readMore = (item: ConversationHistoryItem) => item.truncated && <button type="button" className={styles.readMore}
+    onClick={() => { remember(); void loadText(item) }} disabled={loading}>{t('conversation.readFullContent')}</button>
+  const render = (item: ConversationHistoryItem) => {
+    const turnId = item.turnId
+    const last = lastItemByTurn.get(turnId) === item.id
+    const plan = last ? plansByTurn.get(turnId) : undefined
+    const document = last ? documentsByTurn.get(turnId) : undefined
+    const changes = last ? changesByTurn.get(turnId) : undefined
+    const partial = (!!older && items[0]?.turnId === turnId) || (!!newer && items.at(-1)?.turnId === turnId)
+    return <article className={styles.message} data-history-item={item.id} hidden={item.type === 'plan' && !plan && !document && !changes}>
+      {item.type !== 'plan' && <>
+        <span className={styles.label}>{t(item.type === 'userMessage' ? 'conversation.historyUser' : item.type === 'agentMessage' ? 'conversation.historyAgent' : 'conversation.historyActivity')}</span>
+        {item.type === 'userMessage' ? <div className={styles.user}><ConversationPrompt text={item.text} /></div>
+          : item.type === 'agentMessage' || item.type === 'reasoning'
+            ? <MarkdownContent content={item.text} variant="conversation" workspacePath={workspacePath} />
+            : <ConversationToolCall item={item} openFile={openFile} />}
+        {readMore(item)}
+      </>}
+      {(plan || document || changes) && <div className={turnStyles.turnAttachments}>
+        {(plan || document) && <ConversationPlanPanel turnId={turnId} plan={plan} document={document?.text} connection="ready"
+          historical workspacePath={workspacePath} readMore={document && readMore(document)} />}
+        {changes && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || partial} openFile={openFile} />}
+      </div>}
+    </article>
+  }
+  return <section className={styles.browser} data-conversation-history-browser="" data-page-count={pages.length}
+    aria-label={t('conversation.fullHistory')} aria-busy={loading || Boolean(pinned) || undefined}>
     <header className={styles.header}><div>{selected && <button type="button" disabled={loading} onClick={back}><ArrowLeft size={14} />{t('conversation.historyBack')}</button>}<strong>{t(selected ? 'conversation.fullContent' : 'conversation.fullHistory')}</strong>{loading && <LoaderCircle size={14} aria-label={t('conversation.historyLoading')} />}</div>
       <button type="button" onClick={close}><ArrowDown size={14} />{t('conversation.historyLatest')}</button></header>
     {error && <div className={styles.error} role="alert">{error}<button type="button" disabled={loading} onClick={() => retry.current()}>{t('conversation.historyRetry')}</button></div>}

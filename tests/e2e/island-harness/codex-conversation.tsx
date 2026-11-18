@@ -195,6 +195,21 @@ Object.assign(window.electron.window, { openEditor: async ({ filePath }: { fileP
 Object.assign(window.electron.fileTree, { children: async (_root: string, directory: string) => directory === 'src/' ? [{ name: 'app.ts', path: 'src/app.ts', type: 'file' }] : [{ name: 'src', path: 'src', type: 'directory' }] })
 Object.assign(window.electron.file, { importConversationAttachment: async (name: string) => ({ id: crypto.randomUUID(), name, path: 'C:/attachments/' + name, kind: name.endsWith('.png') ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
 Object.assign(window, { codexFixture: {
+  pagedTurnAttachments: () => {
+    const oldRows: ConversationHistoryItem[] = [
+      { id: 'older:prompt', turnId: 'older', type: 'userMessage', text: 'Archived request', textLength: 16, status: 'completed' },
+      { id: 'older:edit', turnId: 'older', type: 'fileChange', text: '', textLength: 0, status: 'completed',
+        files: [{ path: 'src/archived.ts', diff: '@@ -1 +1 @@\n-old\n+archived' }] },
+      { id: 'older:answer', turnId: 'older', type: 'agentMessage', text: 'Archived answer', textLength: 15, status: 'completed' },
+    ]
+    const latest: ConversationHistoryItem = { id: 'recent:answer', turnId: 'recent', type: 'agentMessage', text: 'Newest answer', textLength: 13, status: 'completed' }
+    window.electron.terminal.conversationHistory = async (_id, request) => ({
+      type: 'page', threadId: request.threadId, items: [...oldRows, latest], olderCursor: null, newerCursor: null,
+      plans: [{ turnId: 'older', version: 1, outcome: 'completed', explanation: '',
+        steps: [{ step: 'Inspect earlier work', status: 'completed' }] }],
+    })
+    state.items = [latest]; state.truncated = true; state.turnId = null; state.plans = []; publish()
+  },
   pagedHistory: () => {
     window.electron.terminal.conversationHistory = archiveRead
     state.items = structuredClone(archiveItems.slice(-100)); state.truncated = true; state.turnId = null; state.approvals = []; state.plans = []
@@ -318,6 +333,16 @@ Object.assign(window, { codexFixture: {
     state.plans = [...(state.plans ?? []), { turnId: state.turnId!, version: (state.plans?.at(-1)?.version ?? 0) + 1,
       explanation: 'Implement conversation improvements', outcome: 'running' as const,
       steps: [{ step: 'Inspect protocol', status: 'completed' as const }, { step: 'Build interface', status: complete ? 'completed' as const : 'inProgress' as const }, { step: 'Run checks', status: complete ? 'completed' as const : 'pending' as const }] }]
+    publish()
+  },
+  turnReceipts: (path: string) => {
+    const turnId = state.turnId
+    if (!turnId) return
+    state.items.push(
+      { id: `${turnId}:plan-1`, turnId, type: 'plan', text: 'Superseded plan draft', status: 'completed' },
+      { id: `${turnId}:plan-2`, turnId, type: 'plan', text: `Plan document for ${path}`, status: 'completed' },
+      { id: `${turnId}:file`, turnId, type: 'fileChange', text: '', status: 'completed', files: [{ path, diff: '@@ -1 +1 @@\n-old\n+new' }] },
+    )
     publish()
   },
   revisePlan: (steps = ['Inspect protocol', 'Build interface', 'Run checks', 'Review result']) => {

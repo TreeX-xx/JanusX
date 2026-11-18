@@ -6,6 +6,7 @@ export interface ConversationTurn {
   key: string
   items: ConversationItem[]
   active: boolean
+  planDocument?: ConversationItem
   groups: ReturnType<typeof conversationOutputGroups>
   changes: ReturnType<typeof conversationFileChanges> extends Map<string, infer T> ? T | undefined : never
 }
@@ -21,18 +22,27 @@ function equalValue(a: unknown, b: unknown): boolean {
 }
 export function createConversationTurns() {
   let previous = new Map<string, ConversationTurn>()
-  return (items: ConversationItem[], activeTurn: string | null): ConversationTurn[] => {
+  return (items: ConversationItem[], activeTurn: string | null, planOnlyTurn?: string): ConversationTurn[] => {
     const grouped = new Map<string, ConversationItem[]>()
     for (const item of items) {
       const rows = grouped.get(item.turnId)
       if (rows) rows.push(item)
       else grouped.set(item.turnId, [item])
     }
+    if (planOnlyTurn && !grouped.has(planOnlyTurn)) grouped.set(planOnlyTurn, [])
     const next = new Map<string, ConversationTurn>()
     for (const [key, rows] of grouped) {
       const old = previous.get(key), active = key === activeTurn
       if (old && old.active === active && equalValue(old.items, rows)) next.set(key, old)
-      else next.set(key, { key, items: rows, active, groups: conversationOutputGroups(rows, activeTurn), changes: conversationFileChanges(rows).get(key) })
+      else {
+        let planDocument: ConversationItem | undefined
+        const output = rows.filter(item => {
+          if (item.type !== 'plan') return true
+          if (item.text) planDocument = item
+          return false
+        })
+        next.set(key, { key, items: rows, active, planDocument, groups: conversationOutputGroups(output, activeTurn), changes: conversationFileChanges(rows).get(key) })
+      }
     }
     previous = next
     return [...next.values()]
