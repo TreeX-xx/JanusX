@@ -20,6 +20,8 @@ import { CLITerminal } from './CLITerminal'
 import { ConversationWelcome } from './ConversationWelcome'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TurnChangeIsland } from './TurnChangeIsland'
+import { ConversationSideChat } from './ConversationSideChat'
+import { discardSideChat, useSideChats } from '../stores/conversation-side-chat'
 import { AgentComposer } from './AgentComposer'
 import { ConversationQuestions } from './ConversationQuestions'
 import { ConversationNotice } from './ConversationNotice'
@@ -61,6 +63,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const scrollRef = useRef<HTMLDivElement>(null)
   const navigationRef = useRef<HistoryNavigation>(null)
   const inputRef = useRef<ConversationInputHandle>(null)
+  const [sideChatHeader, setSideChatHeader] = useState<HTMLDivElement | null>(null)
   const terminalHost = useRef<HTMLDivElement>(null)
   const conversationHost = useRef<HTMLDivElement>(null)
   const composerOrigin = useRef<{ terminalId: string; top: number } | null>(null)
@@ -117,10 +120,12 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
 
   const accept = useCallback((next: ConversationSnapshot) => {
     if (next.id !== terminalId || (latest.current && next.revision < latest.current.revision)) return
+    const side = useSideChats.getState().chats[terminalId]
+    if (side && (side.owner.threadId !== next.threadId || side.owner.pid !== terminal?.pid)) discardSideChat(terminalId)
     latest.current = next
     observeConversationOutbox(next)
     if (visibleRef.current) setSnapshot(latest.current)
-  }, [terminalId])
+  }, [terminalId, terminal?.pid])
   useEffect(() => {
     let mounted = true
     bindConversationOutbox(terminalId, terminal?.pid ?? undefined)
@@ -318,6 +323,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
 
   return <section className={styles.root} data-agent-session={terminalId} data-view-transition={modeTransition ?? undefined} data-switching={switching || undefined} aria-busy={switching || undefined}>
     <header className={styles.header}>
+      <div ref={setSideChatHeader} />
       <div className={styles.toggle} data-mode={requestedMode ?? (conversation ? 'conversation' : 'terminal')} data-switching={transitioning || undefined} role="group" aria-label={t('conversation.display')}>
         <span className={styles.toggleIndicator} aria-hidden="true" />
         <button type="button" aria-pressed={!conversation} disabled={transitioning || (busy && activeAction !== 'new') || !!editing || sending || !snapshot || (['codex', 'claude'].includes(snapshot.engine) && snapshot.connection === 'starting')} onClick={() => void changeMode('terminal')}><TerminalSquare size={14} aria-hidden="true" />{t('conversation.terminal')}</button>
@@ -355,14 +361,14 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               const timing = snapshot as ConversationSnapshot & { turnDurations?: Record<string, number> }
               const duration = !turn.active ? timing.turnDurations?.[turn.key] ?? turn.items.find(item => item.durationMs !== undefined)?.durationMs : undefined
               return <>{turn.groups.map((group, groupIndex) => {
-                const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
+                const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user} data-side-source="message" data-side-item={item.id} data-side-turn={item.turnId}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
                 onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                   if (!canSend || working || outgoing.length || busyRef.current) return
                   follow.current = false; setError('')
                   setEditing({ item, text: item.text, threadId: snapshot.threadId, epoch: snapshot.controlEpoch })
                 } : undefined} />{fullContent(item)}</>}</div>
                 : item.type === 'error' ? <p className={styles.error} key={item.id} role="alert">{item.text}</p>
-                : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} key={item.id}>
+                : item.images?.length || item.type === 'imageGeneration' ? <article className={styles.answer} data-side-source="reply" data-side-item={item.id} data-side-turn={item.turnId} key={item.id}>
                   <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
                     <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
                   {item.text && <MarkdownContent content={conversationImageText(item.text, (item.images ?? []).flatMap(image => image.source ? [image.source] : []))} variant="conversation" workspacePath={terminal?.cwd} />}
@@ -373,7 +379,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                       inputRef.current?.focus()
                     }} />
                 </article>
-                : item.type === 'agentMessage' ? <article className={styles.answer} key={item.id} hidden={!item.text}>
+                : item.type === 'agentMessage' ? <article className={styles.answer} data-side-source="reply" data-side-item={item.id} data-side-turn={item.turnId} key={item.id} hidden={!item.text}>
                   {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
                   <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t(canReadHistory ? 'conversation.contentPreview' : 'conversation.truncated')}</p>}{fullContent(item)}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
                 </article>
@@ -396,7 +402,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </>
             }} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
-              <div className={styles.user}><ConversationPrompt text={item.text} /></div>
+              <div className={styles.user} data-side-source="message" data-side-item={item.id}><ConversationPrompt text={item.text} /></div>
               <div className={styles.delivery} role="status">
                 <span title={t(`conversation.delivery.${item.status}`)} aria-label={t(`conversation.delivery.${item.status}`)} role="img">{item.status === 'queued' ? <Clock size={14} /> : item.status === 'sending' ? <LoaderCircle size={14} /> : item.status === 'accepted' ? <Check size={14} /> : <CircleAlert size={14} />}</span>
                 {(item.status === 'queued' || item.status === 'failed') && <button type="button" title={t('conversation.delivery.restore')} aria-label={t('conversation.delivery.restore')} onClick={() => {
@@ -443,6 +449,19 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
         {(!snapshot || snapshot.capabilities.submit) ? <AgentComposer terminalId={terminalId} historyScope={historyScope} workspacePath={terminal?.cwd} references={references} snapshot={snapshot} visible={visible && conversation} setDraft={setDraft} inputRef={inputRef} canSend={Boolean(canEnqueue && !editing)} hasOutgoing={!!outgoing.length} busy={busy || !!editing} switching={transitioning} send={send} action={action} changeMode={changeMode} />
           : <div className={styles.readOnly}><span>{t('conversation.readOnly')}</span><button type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button></div>}
       </div>
+      {snapshot && terminal && sideChatHeader && <ConversationSideChat key={JSON.stringify([terminalId, terminal.workspaceId, terminal.pid, snapshot.threadId])}
+        owner={{ terminalId, workspaceId: terminal.workspaceId, pid: terminal.pid, threadId: snapshot.threadId }}
+        snapshot={snapshot} visible={visible && conversation && !transitioning} focused={focused}
+        header={sideChatHeader} main={conversationHost} input={inputRef} canReturn={!!snapshot.capabilities.submit && !editing}
+        returnToMain={text => {
+          const row = findTerminalInState(useWorkspaceStore.getState(), terminalId)
+          if (!row || row.pid !== terminal.pid || row.workspaceId !== terminal.workspaceId || latest.current?.threadId !== snapshot.threadId) return false
+          const draft = row.conversationDraft
+          const next = draft ? draft + '\n\n' + text : text
+          if (next.length > 32000) return false
+          setDraft(next)
+          return true
+        }} />}
       {transitioning && <div className={styles.modeLoading} role="status" aria-live="polite"><span className={styles.modeSpinner} aria-hidden="true" />{t('conversation.switching')}</div>}
     </div>
 

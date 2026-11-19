@@ -1,0 +1,59 @@
+.launcher, .askSelection, .heading > div, .icon, .returnBtn, .model, .source summary, .controls, .send {
+  display: flex; align-items: center; gap: 6px;
+}
+.launcher { padding: 5px 8px; color: var(--shell-muted); white-space: nowrap; }
+.launcher:hover, .launcher[aria-expanded=true], .icon:hover, .returnBtn:hover { background: var(--shell-hover); color: var(--shell-text); }
+.askSelection { position: absolute; z-index: 8; min-height: 29px; padding: 4px 10px; color: var(--shell-text);
+  background: var(--shell-chrome-raised); border: 1px solid var(--shell-border); box-shadow: 0 3px 10px color-mix(in srgb, var(--shadow-color) 18%, transparent); }
+.panel { position: absolute; inset: 0 0 0 auto; z-index: 5; width: clamp(300px, 32cqw, 440px); max-width: 100%;
+  display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--bg-deep); color: var(--shell-text);
+  border-inline-start: 1px solid var(--shell-border); font: inherit; }
+.heading { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 9px 18px; min-height: 44px; }
+.heading > div { gap: 8px; }
+.heading h2, .empty h3 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
+.icon { justify-content: center; flex-shrink: 0; width: 28px; height: 28px; color: var(--shell-muted); }
+.history { composes: scope from '../styles/native-scrollbars.module.css'; overflow: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 7px 18px; }
+.empty { height: 100%; min-height: 90px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; max-width: 260px; margin: auto; }
+.empty svg { color: var(--shell-muted); margin-bottom: 4px; }
+.empty p, .status, .setup { font-size: 12px; line-height: 1.55; color: var(--shell-muted); margin: 0; }
+.turn { min-width: 0; margin: 3px 0 24px; font-size: 13px; overflow-wrap: anywhere; }
+.question { width: fit-content; max-width: 94%; margin: 0 0 16px auto; padding: 8px 12px; border-radius: 13px; background: var(--shell-hover); }
+.question p { margin: 0; white-space: pre-wrap; line-height: 1.6; }
+.model, .controls > span { color: var(--shell-muted); font-size: 11px; }
+.model { margin-bottom: 6px; overflow-wrap: anywhere; }
+.turn :global(.conversation-markdown) { font-size: 13px; line-height: 1.65; }
+.turn :global(.conversation-markdown) pre { max-width: 100%; overflow: auto; }
+.returnBtn { color: var(--shell-muted); padding: 4px 6px; margin: 5px 0 0 -5px; }
+.footer { padding: 8px 12px 12px; }
+.composer { border: 1px solid var(--shell-border); border-radius: 16px; padding: 9px 10px 7px; background: var(--shell-chrome-raised); }
+.composer:focus-within { border-color: color-mix(in srgb, var(--shell-muted) 65%, var(--shell-border)); }
+.composer textarea { display: block; width: 100%; resize: none; field-sizing: content; min-height: 38px; max-height: min(120px, 20vh); padding: 2px 3px;
+  background: transparent; color: var(--shell-text); border: 0; outline: 0; font: inherit; font-size: 13px; line-height: 1.5; }
+.composer textarea::placeholder { color: var(--shell-muted); }
+.controls { justify-content: space-between; min-height: 28px; padding-left: 3px; }
+.controls > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel .send { justify-content: center; flex-shrink: 0; border-radius: 50%; width: 28px; height: 28px; background: var(--shell-text); color: var(--bg-deep); }
+.pendingSource { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0 3px 9px; border-inline-start: 2px solid var(--shell-muted); margin: 1px 1px 8px; }
+.pendingSource > div { flex: 1; min-width: 0; }
+.quote .excerpt { color: var(--shell-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 1px 0 0; }
+.quote:has(details[open]) .excerpt { display: none; }
+.question .quote { padding-inline-start: 8px; border-inline-start: 2px solid var(--shell-border); margin: 2px 0 7px; }
+.source[open] summary svg:last-child { transform: rotate(180deg); }
+.pendingSource .icon { width: 22px; height: 22px; }
+.source { color: var(--shell-muted); font-size: 11px; margin-bottom: 2px; }
+.source summary { cursor: pointer; list-style: none; }
+.source summary span { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.source summary:hover { color: var(--shell-text); }
+.source pre { max-height: min(120px, 20vh); overflow: auto; white-space: pre-wrap; font: inherit; margin: 5px 0; }
+.setup, .error { margin: 0 0 8px; overflow-wrap: anywhere; }
+.error { color: var(--status-danger); font-size: 12px; }
+.setup button, .error button { text-decoration: underline; margin-inline-start: 6px; }
+.spin { animation: rotate 1.2s linear infinite; }
+@keyframes rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+@container (max-width: 799px) {
+  .panel { width: 100%; border-inline-start: 0; }
+}
+@container (max-width: 350px) {
+  .launcher span { display: none; }
+}

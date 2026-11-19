@@ -1,4 +1,29 @@
 {
+  "sideChat": {
+    "title": "Side chat",
+    "askSelection": "Ask in side chat",
+    "close": "Close side chat",
+    "empty": "Ask a side question",
+    "hint": "Explore this conversation while the terminal keeps working.",
+    "input": "Ask a side question…",
+    "send": "Send side question",
+    "stop": "Stop side response",
+    "return": "Add to main draft",
+    "returnError": "This answer could not be added. Check the main conversation and its draft length.",
+    "retry": "Retry",
+    "noAnswer": "The model returned no text.",
+    "stopped": "Response stopped",
+    "noModel": "Choose a JanusX model to ask a side question.",
+    "configure": "Model settings",
+    "removeSource": "Remove quote",
+    "sources": {
+      "turn": "Latest exchange",
+      "reply": "Quoted reply",
+      "message": "Quoted message",
+      "draft": "Main draft",
+      "diff": "File change"
+    }
+  },
   "startup": {
     "starting": "Starting terminal…",
     "waitingForOutput": "Waiting for terminal output…"

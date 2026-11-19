@@ -135,7 +135,8 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     const document = last ? documentsByTurn.get(turnId) : undefined
     const changes = last ? changesByTurn.get(turnId) : undefined
     const partial = (!!older && items[0]?.turnId === turnId) || (!!newer && items.at(-1)?.turnId === turnId)
-    return <article className={styles.message} data-history-item={item.id} hidden={item.type === 'plan' && !plan && !document && !changes}>
+    return <article className={styles.message} data-history-item={item.id} data-side-item={item.id} data-side-turn={turnId}
+      data-side-source={item.type === 'userMessage' ? 'message' : item.type === 'agentMessage' ? 'reply' : undefined} hidden={item.type === 'plan' && !plan && !document && !changes}>
       {item.type !== 'plan' && <>
         <span className={styles.label}>{t(item.type === 'userMessage' ? 'conversation.historyUser' : item.type === 'agentMessage' ? 'conversation.historyAgent' : 'conversation.historyActivity')}</span>
         {item.type === 'userMessage' ? <div className={styles.user}><ConversationPrompt text={item.text} /></div>
@@ -163,7 +164,7 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
       if (host.scrollTop < 100 && older) void load('older')
       else if (host.scrollHeight - host.scrollTop - host.clientHeight < 100 && newer) void load('newer')
     }}><div className={styles.content}>
-      {selected ? body && <pre className={styles.text} data-history-text-offset={body.offset}>{body.text}</pre> : <>
+      {selected ? body && <pre className={styles.text} data-history-text-offset={body.offset} data-side-item={selected.id} data-side-turn={selected.turnId} data-side-source="message">{body.text}</pre> : <>
         <div className={styles.boundary}>{older ? <button type="button" disabled={loading} onClick={() => void load('older')}>{t('conversation.loadEarlier')}</button> : pages.length > 0 && t('conversation.historyBeginning')}</div>
         <VirtualHistory items={items} itemKey={item => item.id} renderItem={render} scrollRef={scroll} following={following} pinnedKey={pinned} gap={8} />
         <div className={styles.boundary}>{newer && <button type="button" disabled={loading} onClick={() => void load('newer')}>{t('conversation.loadNewer')}</button>}</div>

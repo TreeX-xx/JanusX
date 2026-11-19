@@ -63,6 +63,7 @@ export interface ChatMessage {
 
 /** 流式对话请求参数 */
 export interface ChatStreamRequest {
+  sideChat?: true
   workerBackend?: 'codex' | 'claude'
   agentMode?: 'ordinary' | 'superagent'
   inputEventId?: string
@@ -454,7 +455,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
 
   // S6: same conversationId shares one active turn across assistant/blueprint entries.
   const activeTurn = activeSteerTargets.get(conversationId || requestId)
-  if (activeTurn?.requestId === requestId) return
+  if (activeTurn?.requestId === requestId || (request.sideChat && abortControllers.has(requestId))) return
   if (activeTurn || abortControllers.has(requestId)) {
     if (!event.sender?.isDestroyed?.()) {
       event.reply(LLM_CHANNELS.error, { requestId, error: 'BUSY: conversation already has an active turn' })
@@ -467,10 +468,6 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
   // S6 single-turn lock: the steering slot doubles as the turn owner, so a
   // second entry with the same conversationId steers instead of spawning.
   const steerKey = conversationId || requestId
-  const steeringPort = new AgentSteeringPort()
-  activeSteerTargets.set(steerKey, { requestId, port: steeringPort, entries: new Map(),
-    workspaceId,
-    memoId: sourceTag === 'janus-chat' && !request.compact && !request.maintenanceTaskId && !request.noteRepairId ? request.memoBinding?.memoId : undefined })
 
   // 窗口销毁后 event.reply 会抛异常并造成 unhandled rejection，统一守卫
   const sendEvent = (
@@ -511,6 +508,27 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
   }
 
   try {
+    // An explanatory side chat owns only a text stream. The terminal agent can keep working.
+    // Note: .agents/notes/workbench/terminal-dialog-dual-mode.md
+    if (request.sideChat) {
+      if (!modelId) throw new Error('No side chat model selected')
+      const model = await llmService.getLanguageModel('janus', providerId, modelId)
+      controller.signal.throwIfAborted()
+      const result = await streamText({ model, messages, abortSignal: controller.signal })
+      // The SDK exposes provider errors as full-stream parts, including after a partial answer.
+      for await (const part of result.fullStream!) {
+        controller.signal.throwIfAborted()
+        if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error ?? 'Side chat model request failed'))
+        if (part.type === 'text-delta' && part.textDelta) queueDelta(part.textDelta)
+      }
+      flushDelta()
+      sendEvent(LLM_CHANNELS.done, { requestId })
+      return
+    }
+    const steeringPort = new AgentSteeringPort()
+    activeSteerTargets.set(steerKey, { requestId, port: steeringPort, entries: new Map(),
+      workspaceId,
+      memoId: sourceTag === 'janus-chat' && !request.compact && !request.maintenanceTaskId && !request.noteRepairId ? request.memoBinding?.memoId : undefined })
     if (request.noteRepairId || request.maintenanceTaskId) requireBlueprintPlugin()
     const callerId = `renderer:${event.sender?.id ?? 'unknown'}`
     const ports = defaultChatTurnPorts(callerId, requestId, domain, conversationId)

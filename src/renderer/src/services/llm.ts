@@ -136,6 +136,7 @@ export function chatStream(
   onDone: () => void,
   onError: (error: string) => void,
   options?: {
+    sideChat?: true
     inputEventId?: string
     workerBackend?: 'codex' | 'claude'
     agentMode?: 'ordinary' | 'superagent'
@@ -164,7 +165,7 @@ export function chatStream(
     onToolTrace?: (entries: ChatToolTraceEntry[]) => void
   }
 ): { abort: () => void; requestId: string; started: Promise<boolean> } {
-  const requestId = `llm-chat-${Date.now()}-${++requestSeq}`
+  const requestId = options?.sideChat ? `side-chat-${crypto.randomUUID()}` : `llm-chat-${Date.now()}-${++requestSeq}`
   let settleStarted!: (started: boolean) => void
   const started = new Promise<boolean>(resolve => { settleStarted = resolve })
   let cleaned = false
@@ -281,6 +282,7 @@ export function chatStream(
       }
       window.electron.llm.startChatStream({
         requestId,
+        ...(options?.sideChat ? { sideChat: true as const } : {}),
         inputEventId: options?.inputEventId,
         workerBackend: options?.workerBackend,
         agentMode: options?.agentMode,

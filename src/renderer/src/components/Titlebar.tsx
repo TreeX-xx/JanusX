@@ -49,8 +49,13 @@ export function Titlebar() {
   const [integrationWorkspaceId, setIntegrationWorkspaceId] = useState<string>()
   useEffect(() => {
     const open = () => { setSettingsInitialTab('agent'); setSettingsModalOpen(true) }
+    const openModels = () => { setSettingsInitialTab('llm'); setSettingsModalOpen(true) }
+    window.addEventListener('janusx:open-llm-settings', openModels)
     window.addEventListener(SUPERAGENT_SETTINGS_EVENT, open)
-    return () => window.removeEventListener(SUPERAGENT_SETTINGS_EVENT, open)
+    return () => {
+      window.removeEventListener('janusx:open-llm-settings', openModels)
+      window.removeEventListener(SUPERAGENT_SETTINGS_EVENT, open)
+    }
   }, [])
   useEffect(() => {
     const open = (event: Event) => {

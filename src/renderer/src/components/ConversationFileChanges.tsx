@@ -37,7 +37,7 @@ export function ConversationFileChanges({ turnId, files, incomplete, openFile, o
         <button type="button" onClick={() => onFeedback(file.path, '')}>{t('conversation.feedback.file')}</button>
         {selection?.path === file.path && <button type="button" onClick={() => { onFeedback(file.path, selection.text); setSelection(null) }}>{t('conversation.feedback.selection')}</button>}
       </div>}
-      {file.patches.map((patch, index) => patch ? <pre className={styles.diff} key={index} onMouseUp={event => {
+      {file.patches.map((patch, index) => patch ? <pre className={styles.diff} data-side-source="diff" data-side-path={file.path} data-side-turn={turnId} key={index} onMouseUp={event => {
         const selected = window.getSelection()
         if (selected?.rangeCount && event.currentTarget.contains(selected.getRangeAt(0).commonAncestorContainer)) {
           const text = selected.toString(); setSelection(text ? { path: file.path, text } : null)

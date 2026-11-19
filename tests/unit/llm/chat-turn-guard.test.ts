@@ -92,6 +92,30 @@ function immediateStream(text: string) {
 }
 
 describe('chat turn guard (S6-a)', () => {
+  it('streams a terminal side question without agent tools, workflow routing or memory', async () => {
+    streamText.mockResolvedValue({ fullStream: (async function* () {
+      yield { type: 'text-delta', textDelta: 'Side answer' }
+    })() })
+    const reply = vi.fn()
+    const messages = [{ role: 'user' as const, content: 'xdo' }]
+    await handleChatStream({ reply } as never, { requestId: 'side-question', sideChat: true, providerId: 'p', modelId: 'side-model', messages })
+    expect(streamText).toHaveBeenCalledWith({ model: {}, messages, abortSignal: expect.any(AbortSignal) })
+    expect(reply).toHaveBeenCalledWith('llm:chat:delta', { requestId: 'side-question', delta: 'Side answer', done: false })
+    expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: 'side-question' })
+    expect(executeFunctionCall).not.toHaveBeenCalled()
+    expect(capturePersonTurn).not.toHaveBeenCalled()
+    expect(search).not.toHaveBeenCalled()
+  })
+  it('reports provider errors after partial side answers', async () => {
+    streamText.mockResolvedValue({ fullStream: (async function* () {
+      yield { type: 'text-delta', textDelta: 'Partial' }
+      yield { type: 'error', error: new Error('Connection lost') }
+    })() })
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, { requestId: 'side-error', sideChat: true, providerId: 'p', modelId: 'm', messages: userMessages })
+    expect(reply).toHaveBeenCalledWith('llm:chat:delta', { requestId: 'side-error', delta: 'Partial', done: false })
+    expect(reply).toHaveBeenCalledWith('llm:chat:error', { requestId: 'side-error', error: 'Connection lost' })
+  })
   it('offers memo tools despite retired disabled controls in persisted configuration', async () => {
     vi.mocked(configService.getExperimentalFeatures).mockResolvedValue({ ...DEFAULT_EXPERIMENTAL_FEATURES, memo: false, sessions: false } as never)
     const memoId = '00000000-0000-4000-8000-000000000400'

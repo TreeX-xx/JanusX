@@ -1,3 +1,4 @@
+import { discardSideChat, useSideChats } from './conversation-side-chat'
 import { create } from 'zustand'
 import type { Workspace, Terminal, FileNode } from '@/types'
 import {
@@ -235,6 +236,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   addWorkspace: (workspace) =>
     set((s) => ({ workspaces: [...s.workspaces, workspace] })),
   removeWorkspace: (id) => {
+    for (const chat of Object.values(useSideChats.getState().chats)) {
+      if (chat.owner.workspaceId === id) discardSideChat(chat.owner.terminalId)
+    }
     set((s) => {
       const { [id]: _, ...rest } = s.terminalSnapshots
       // 删掉的是活动工作区时一并清掉活动 pane 宿主：否则已删工作区的终端标签会
@@ -335,7 +339,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       } } }
     })
   },
-  removeTerminal: (id) =>
+  removeTerminal: (id) => {
+    discardSideChat(id)
     set((s) => {
       const terminals = s.terminals.filter((t) => t.id !== id)
       // Remove only the terminal view; non-terminal pane content such as Janus Chat
@@ -350,7 +355,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         focusedTabId: focus.tabId,
         terminalSnapshots: removeTerminalFromSnapshots(s.terminalSnapshots, id),
       }
-    }),
+    })
+  },
   setActiveTerminal: (id) =>
     set((s) => {
       const terminal = s.terminals.find((t) => t.id === id)

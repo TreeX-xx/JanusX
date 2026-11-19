@@ -1,4 +1,29 @@
 {
+  "sideChat": {
+    "title": "侧聊",
+    "askSelection": "在侧聊中问",
+    "close": "关闭侧聊",
+    "empty": "想追问哪一点？",
+    "hint": "在这里展开细节，终端会继续当前工作。",
+    "input": "在侧聊中提问…",
+    "send": "发送侧聊问题",
+    "stop": "停止侧聊回答",
+    "return": "带回主对话草稿",
+    "returnError": "无法加入主草稿，请检查当前会话和草稿长度。",
+    "retry": "重试",
+    "noAnswer": "模型没有返回文字。",
+    "stopped": "已停止回答",
+    "noModel": "选择 JanusX 模型后即可开始侧聊。",
+    "configure": "模型设置",
+    "removeSource": "移除引用",
+    "sources": {
+      "turn": "最近一轮对话",
+      "reply": "引用的回答",
+      "message": "引用的消息",
+      "draft": "主对话草稿",
+      "diff": "文件变更"
+    }
+  },
   "startup": {
     "starting": "正在启动终端…",
     "waitingForOutput": "正在等待终端输出…"
