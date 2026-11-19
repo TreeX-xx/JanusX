@@ -30,13 +30,21 @@ async function main() {
   const { npm_execpath: npm, JANUSX_PLUGIN_SIGNING_KEY: releaseKey, JANUSX_PLUGIN_KEY_ID: releaseKeyId, ...buildEnv } = process.env
   if (!npm) throw new Error('Run this command with npm run plugins:package:mac.')
 
+  const run = (args, env = buildEnv) => execFileSync(process.execPath, [npm, ...args], {
+    cwd: repository, env, stdio: 'inherit',
+  })
+  run(['run', 'build:plugin-sdk'])
+  run(['run', 'build:llm-core'])
+  const { PLUGIN_API_VERSION } = await import('@janusx/plugin-sdk')
+  const { version: hostVersion } = await readJson(join(repository, 'package.json'))
+  const api = await distributionLibrary()
+
   // A release.json can already point at the candidate. Compare it with the
   // signed public catalog to prevent repackaging an existing plugin version.
   const catalogPath = process.env.JANUSX_PLUGIN_PREVIOUS_CATALOG
   let previousCatalog
   if (releaseTag && catalogPath) {
     const { keys } = await readJson(join(repository, 'plugins/catalog/trust.json'))
-    const api = await distributionLibrary()
     previousCatalog = api.verifyPluginCatalog(await readJson(catalogPath), keys, 0, Date.now(), true)
   }
 
@@ -75,15 +83,6 @@ async function main() {
     trust = { catalogUrl: '', keys: { [keyId]: testKey.publicKey.export({ type: 'spki', format: 'pem' }) },
       nativePlugins: Object.fromEntries(plugins.map(({ manifest }) => [manifest.id, [keyId]])) }
   }
-
-  const run = (args, env = buildEnv) => execFileSync(process.execPath, [npm, ...args], {
-    cwd: repository, env, stdio: 'inherit',
-  })
-  run(['run', 'build:plugin-sdk'])
-  run(['run', 'build:llm-core'])
-  const { PLUGIN_API_VERSION } = await import('@janusx/plugin-sdk')
-  const { version: hostVersion } = await readJson(join(repository, 'package.json'))
-  const api = await distributionLibrary()
 
   const outputRoot = resolve(positionals[0] ?? join(repository, 'artifacts/plugins/macos'))
   await mkdir(outputRoot, { recursive: true })
