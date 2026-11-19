@@ -33,7 +33,7 @@ export function IslandNotificationCenter({ entries, unreadCount, selectedKey, on
     focusTarget?.focus({ preventScroll: true })
   }, [])
   return <section className="janus-notification-center" aria-label={t('janus:island.notif.title')}
-    onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+    onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
     <header className="janus-notif-head">
       <div><strong>{t('janus:island.notif.title')}</strong><span className="janus-notif-unread">{t('janus:island.notif.unreadCount', { count: unreadCount })}</span></div>
       <button type="button" className="janus-notif-close" aria-label={t('janus:island.aria.closeNotif')} onClick={onClose}><X size={15} /></button>

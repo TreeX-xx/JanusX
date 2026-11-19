@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 import { Download, X } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
@@ -118,6 +119,11 @@ export function JanusIsland({
   const companionVeil = useAutomationIslandLayout(shellRef, stage === 'expanded' && view === 'chat' && companionToolId === 'automations')
   const setView = useCallback((next: JanusExpandedView) => setStoredView(ISLAND_CHAT_ONLY ? 'chat' : next), [])
   const pluginSnapshot = usePluginSnapshot()
+  const superAgentOwnsChat = superAgentStarted && pluginSnapshot.plugins.some(plugin =>
+    plugin.manifest.id === 'official.superagent' && plugin.source.kind === 'official' && plugin.enabled
+    && (!activeWorkspace || hasPluginProjectAccess(plugin, activeWorkspace.id))
+    && (['ready', 'loading', 'active'].includes(plugin.state) || plugin.error === 'VIEW_LOAD_FAILED' && plugin.state === 'error'),
+  )
   const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
   const pluginViews = useExtensionViews()
   const pluginViewRequest = useIslandStore(s => s.pluginViewRequest)
@@ -282,10 +288,10 @@ export function JanusIsland({
     else { prepareNoticeReader(); setTrayOpen(true) }
   }, [trayOpen, closeNotifications, prepareNoticeReader])
   const handleDoubleTap = useCallback(() => {
-    if (superAgentStarted) { onDismiss(); openNotifCenter(); return }
+    if (superAgentOwnsChat) { onDismiss(); openNotifCenter(); return }
     closeNotifications(false)
     onDoubleActivate()
-  }, [superAgentStarted, onDismiss, openNotifCenter, closeNotifications, onDoubleActivate])
+  }, [superAgentOwnsChat, onDismiss, openNotifCenter, closeNotifications, onDoubleActivate])
   const handleSingleTap = useCallback(() => {
     if (stage === 'collapsed') {
       if (notifOpen) closeNotifCenter()
@@ -325,6 +331,8 @@ export function JanusIsland({
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
+    handleClickCapture,
+    handleDoubleClick,
   } = useIslandGesture({
     onSwipeDown: handleSwipeDown,
     onDoubleTap: handleDoubleTap,
@@ -737,6 +745,8 @@ export function JanusIsland({
         onMouseLeave={event => setPaused(event.currentTarget.contains(document.activeElement))}
         onFocusCapture={() => setPaused(true)}
         onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(event.currentTarget.matches(':hover')) }}
+        onClickCapture={handleClickCapture}
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -748,7 +758,7 @@ export function JanusIsland({
           </div>
         </div>
 
-        {speaking && <div className="janus-speak-strip" onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        {speaking && <div className="janus-speak-strip" onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
           <button type="button" className="janus-speak-read" onClick={() => openNotifCenter(speaking.key)} aria-label={t('janus:island.notif.readNotice', { title: speaking.title })}>
             <span className="janus-speak-kicker">{speaking.kicker}<time>{notificationClock(speaking.at)}</time>{speaking.count > 1 && <span>×{speaking.count}</span>}</span>
             <span className="janus-speak-body" role="status">{speaking.body}</span>

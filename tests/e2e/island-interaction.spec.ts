@@ -71,6 +71,9 @@ test('single activation opens the notification center sheet on the capsule', asy
   await expect(shell).toHaveAttribute('data-notif', 'true', { timeout: 1_000 })
   await expect(harness(page)).toHaveAttribute('data-single-count', '0')
   await expect(page.getByText('No notice history')).toBeVisible()
+  await nativeDoubleClick(shell.locator('.janus-notif-head strong'))
+  await expect(shell).toHaveAttribute('data-stage', 'collapsed')
+  await expect(shell).toHaveAttribute('data-notif', 'true')
 
   // 点空白处只收起；记录保留由通知专项回归覆盖。
   await page.mouse.click(30, 500)
@@ -132,6 +135,41 @@ test('pulling from peek returns to the capsule and opens notifications', async (
   await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-notif', 'true')
 })
 
+async function nativeDoubleClick(target: Locator) {
+  await target.dispatchEvent('click', { detail: 1 })
+  await target.dispatchEvent('click', { detail: 2 })
+  await target.dispatchEvent('dblclick', { detail: 2 })
+}
+
+test('macOS click-only double activation opens chat and respects nested controls', async ({ page }) => {
+  const island = page.locator('.janus-island')
+  await nativeDoubleClick(island.locator('.janus-eye-group').first())
+  await expect(page.locator('.janus-chat')).toBeVisible()
+  await nativeDoubleClick(page.locator('.janus-chat-input'))
+  await expect(harness(page)).toHaveAttribute('data-double-count', '1')
+  await nativeDoubleClick(island)
+  await expect(harness(page)).toHaveAttribute('data-stage', 'collapsed')
+  await expect(harness(page)).toHaveAttribute('data-double-count', '2')
+})
+
+test('Island uses notifications only with both a started workspace and an enabled SuperAgent plugin', async ({ page }) => {
+  await page.goto('/?superAgentPlugin=1')
+  const island = page.locator('.janus-island')
+  await nativeDoubleClick(island)
+  await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
+
+  await page.evaluate(() => localStorage.setItem('janus:superagent-view', JSON.stringify({ modeVersion: 1, started: true })))
+  await page.reload()
+  await nativeDoubleClick(island)
+  const shell = page.locator('.janus-island-shell')
+  await expect(shell).toHaveAttribute('data-stage', 'collapsed')
+  await expect(shell).toHaveAttribute('data-notif', 'true')
+  await page.goto('/')
+  await nativeDoubleClick(island)
+  await expect(page.locator('.janus-chat')).toBeVisible()
+  await expect(shell).toHaveAttribute('data-stage', 'expanded')
+})
+
 test('second pointerdown activates expanded exactly once and cancels single activation', async ({ page }) => {
   const island = page.locator('.janus-island')
   await tap(island, { x: 100, y: 20 })
@@ -140,6 +178,8 @@ test('second pointerdown activates expanded exactly once and cancels single acti
 
   await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
   await pointer(island, 'pointerup', { x: 108, y: 24, pointerId: 2 })
+  await island.dispatchEvent('click', { detail: 2 })
+  await island.dispatchEvent('dblclick', { detail: 2 })
   await page.waitForTimeout(500)
   await expect(harness(page)).toHaveAttribute('data-single-count', '0')
   await expect(harness(page)).toHaveAttribute('data-double-count', '1')
