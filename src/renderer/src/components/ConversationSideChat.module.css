@@ -22,7 +22,7 @@
 .empty svg { color: var(--shell-muted); margin-bottom: 4px; }
 .empty p, .status, .setup { font-size: 12px; line-height: 1.55; color: var(--shell-muted); margin: 0; }
 .turn { min-width: 0; margin: 3px 0 24px; font-size: 13px; overflow-wrap: anywhere; }
-.question { width: fit-content; max-width: 94%; margin: 0 0 16px auto; padding: 8px 12px; border-radius: 13px; background: var(--shell-hover); }
+.question { width: fit-content; max-width: 94%; margin: 0 0 16px auto; padding: 8px 12px; border-radius: 13px; background: light-dark(var(--conversation-user-light-background), var(--shell-hover)); }
 .question p { margin: 0; white-space: pre-wrap; line-height: 1.6; }
 .model, .controls > span { color: var(--shell-muted); font-size: 11px; }
 .model { margin-bottom: 6px; overflow-wrap: anywhere; }

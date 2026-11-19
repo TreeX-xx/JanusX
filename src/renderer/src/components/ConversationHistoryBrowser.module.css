@@ -9,7 +9,7 @@
 .content { max-width: 1000px; margin: 0 auto; }
 .message { min-width: 0; overflow-wrap: anywhere; padding: 10px 0; }
 .label { display: block; color: var(--shell-muted); font-size: 11px; margin-bottom: 6px; }
-.user { margin-left: auto; max-width: 90%; width: fit-content; padding: 10px 14px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-pane); }
+.user { margin-left: auto; max-width: 90%; width: fit-content; padding: 10px 14px; border: 1px solid var(--shell-border); border-radius: 12px; background: light-dark(var(--conversation-user-light-background), var(--shell-pane)); }
 .readMore { margin-top: 8px; font-size: 12px; }
 .boundary { display: flex; justify-content: center; padding: 8px; color: var(--shell-muted); font-size: 12px; }
 .error { padding: 10px 16px; color: var(--status-danger); font-size: 12px; }

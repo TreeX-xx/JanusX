@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-11-03",
-  "updated": "2026-11-14T07:08:33.500Z",
+  "updated": "2026-11-19T16:56:15Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -15,6 +15,8 @@
 ---
 
 # 主题机制与白色主题
+
+浅色主题的用户消息气泡以画布色混入 11% 的正文色，纯白主题呈浅灰，纸色主题保留暖调。普通对话、侧聊、历史回看和 SuperAgent 共用这一底色，正文沿用主题文字色。
 
 ## SuperAgent 合并后的主题边界（2026-11-14）
 

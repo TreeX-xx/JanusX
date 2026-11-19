@@ -35,6 +35,8 @@ body.desktop-toast-body {
 :root {
   --conversation-input-font-size: 13px;
   --conversation-input-line-height: 1.85;
+  --conversation-user-light-background: color-mix(in srgb, var(--shell-text) 11%, var(--shell-canvas));
+  --conversation-user-background: light-dark(var(--conversation-user-light-background), color-mix(in srgb, var(--shell-chrome-raised) 65%, var(--bg-deep)));
   --conversation-focus-ring: color-mix(in srgb, var(--shell-muted) 30%, transparent);
   --conversation-focus-border: color-mix(in srgb, var(--shell-muted) 30%, var(--shell-border));
   --conversation-focus-shadow: color-mix(in srgb, var(--shell-text) 5%, transparent);
