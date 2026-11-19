@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-14T06:40:25.504Z",
+  "updated": "2026-11-19T16:43:51Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e22d4cdb-c2aa-5a6c-ae54-945ea26e91ce" },
@@ -81,7 +81,7 @@
 
 真实模型探针命令为 `JANUS_AUTOMATION_LIVE=1 npx vitest run tests/unit/automations-live.test.ts -t 'real conversation model'`（PowerShell 用环境变量赋值）。当前配置服务返回“Request rejected in accordance with our terms of use and policies.”，没有获得草案，不能将替身结果表述为真实自然语言生成验收通过；未切换提供商或绕过拒绝。类型检查、定向 ESLint、双语检查通过，Note 检查 0 错误、17 项既有跨仓库链接诊断。所有启用的计划均在测试隔离目录，不在用户配置中留下提醒。完整通用 Agent 自动化仍未实施。
 
-回归入口：`npx vitest run tests/unit/automation-reminders.test.ts tests/unit/automations.test.ts tests/unit/automation-chat-tools.test.ts tests/unit/automation-intent.test.ts tests/unit/llm/chat-turn-guard.test.ts`；浏览器为 `npx playwright test tests/e2e/automations.spec.ts tests/e2e/automation-chat-routing.spec.ts --project=island --workers=1`；真实桌面为 `npx playwright test tests/e2e/desktop-automations.spec.ts --config playwright.desktop.config.ts --workers=1`。构建命令 `npm run build:app`。与构建并行复验时，原审查取消用例等待执行器的默认 1 秒超时；调整为 10 秒等待真实执行器进入后再验证取消，保留实际取消和基线断言。
+回归入口：`npx vitest run tests/unit/automation-reminders.test.ts tests/unit/automations.test.ts tests/unit/automation-chat-tools.test.ts tests/unit/automation-intent.test.ts tests/unit/llm/chat-turn-guard.test.ts`；浏览器为 `npx playwright test tests/e2e/automations.spec.ts tests/e2e/automation-chat-routing.spec.ts --project=island --workers=1`；真实桌面为 `npm run test:e2e:desktop -- tests/e2e/desktop-automations.spec.ts --workers=1`。构建命令 `npm run build:app`。与构建并行复验时，原审查取消用例等待执行器的默认 1 秒超时；调整为 10 秒等待真实执行器进入后再验证取消，保留实际取消和基线断言。
 
 2026-11-03 工作区默认加载与自动路由：`npx vitest run tests/unit/automation-intent.test.ts tests/unit/automation-island-layout.test.ts` 24 项通过。新增 `automation-chat-routing.spec.ts` 五项验证打开时项目顺序、历史保留、自动化消息在模型回复前切换工具并于 1280／680px 避让、普通聊天不切换、模型草案激活与无项目边界，使用真实组件和请求桥、LLM／宿主替身。与备忘录消息选择和项目附件合计 12 项在最终代码上通过；备忘录选择夹具改用 1600px，避免旧前置步骤在紧凑模式查找隐藏文件列表。自动化和 Island 表面另 13 项通过。真实桌面 `npx playwright test tests/e2e/desktop-automations.spec.ts --config playwright.desktop.config.ts` 一项通过，新增当前工作区标签断言，同时保留并排／窄窗、草案与重启回归。构建、类型检查、定向 ESLint 通过；Note 检查 0 错误、17 项既有跨仓库链接诊断。桌面回归发现并修复无效活动会话 ID 的资源附加空操作，调试探针已移除。截图为 `artifacts/automations/automatic-routing-1280.png`、`automatic-routing-680.png` 与 `island-companion-desktop.png`；本轮未调用真实模型或启用实际计划。
 

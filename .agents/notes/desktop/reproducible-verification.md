@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-16T17:48:14Z",
+  "updated": "2026-11-19T16:43:51Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -56,7 +56,7 @@ Windows 完整和便携打包在应用构建前检查 OfficeCLI 1.0.135 x64 文�
 
 Vitest retains all discovered tests in disjoint `unit`, `integration` and `browser` projects. New files enter `unit` unless explicitly assigned in `tests/helpers/test-suites.ts`; 15 observed slow integration files and 14 real Chromium files have separate commands. `test:related` uses Vitest's source dependency graph for local selection, while `test:unit` and the PR verification chain always run every project. Local workers are capped at four, CI remains serial, and every file retains isolation. The [testing guide](../../../docs/testing.md) defines preparation and the limits of quick feedback.
 
-Full verification runs the plugin platform and distribution-tool checks separately, then runs all plugin Vitest files once in the unified unit stage. Standalone plugin checks retain their complete coverage. Playwright browser and Electron file selections are disjoint; the desktop command uses its server-free configuration. No desktop, packaging or native integration check is removed from the full chain. Playwright appends loopback hosts to inherited NO_PROXY exclusions within the test process, so proxy responses cannot make an unused local fixture port appear occupied.
+Full verification runs the plugin platform and distribution-tool checks separately, then runs all plugin Vitest files once in the unified unit stage. Standalone plugin checks retain their complete coverage. Playwright browser and Electron file selections are disjoint; the root `playwright.config.ts` defines both projects for automatic discovery. Desktop and plugin commands select server-free configurations under `tests/playwright/`. No desktop, packaging or native integration check is removed from the full chain. Playwright appends loopback hosts to inherited NO_PROXY exclusions within the test process, so proxy responses cannot make an unused local fixture port appear occupied.
 
 Component layout tests use bounded fixtures rather than the developer's growing repository corpus; the interface-label test projects four fixed modules with a matching provider and consumer. The Note validator's unit test scans an isolated two-Note checkout, while `check:notes` remains the authoritative repository scan. Retired JSX wiring assertions, cosmetic radius locks and stateless reset smoke cases are replaced by existing behavioral coverage or removed when they assert no useful contract. Protocol, migration, permission and stateful reset regressions remain required. Theme status mapping uses a registered fixture theme, and native-title checks cover interactive DOM controls while allowing passive endpoint metadata. The document-save link guard uses the existing filesystem injection seam without Windows file-symlink privileges; real directory-link boundary regressions remain in the plugin suites.
 

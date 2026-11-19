@@ -8,7 +8,7 @@ feasibility evidence; product checks use the real adapter and shared UI:
 $env:JANUSX_TEST_CLAUDE_BIN = Join-Path $env:APPDATA 'npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe'
 npx vitest run tests/unit/claude-conversation-cli.test.ts --maxWorkers=1
 npm run build:app
-npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-claude-conversation.spec.ts
+npm run test:e2e:desktop -- tests/e2e/desktop-claude-conversation.spec.ts
 ```
 
 Those tests also use disposable config and a local fake model. The product

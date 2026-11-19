@@ -52,7 +52,7 @@ jobs:
       - name: Build desktop
         run: npm run build:app
       - name: Native Electron CLI and window lifecycle
-        run: npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-cli-chain.spec.ts tests/e2e/desktop-window-reopen.spec.ts
+        run: npm run test:e2e:desktop -- tests/e2e/desktop-cli-chain.spec.ts tests/e2e/desktop-window-reopen.spec.ts
       - name: Inspect Mac resources
         if: runner.os == 'macOS'
         run: node scripts/check-macos-resources.mjs --arch "$(node -p process.arch)" --report artifacts/platform-runtime/mac-resources.json

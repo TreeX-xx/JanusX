@@ -62,7 +62,6 @@ files:
   - "!tests{,/**/*}"
   - "!wiki{,/**/*}"
   - "!playwright.config.ts"
-  - "!playwright.blueprint.config.ts"
   - "!packaging-issues.md"
   - "!.tmp-*"
   - "!*.tmp.*"

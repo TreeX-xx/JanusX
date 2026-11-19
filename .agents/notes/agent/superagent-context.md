@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-11-06",
-  "updated": "2026-11-16T06:38:29Z",
+  "updated": "2026-11-19T16:43:51Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -112,4 +112,4 @@ P5 已形成可查询、可分页、可恢复来源的上下文链路，原始�
 
 2026-11-06 收口结果：主仓 13 个定向测试文件共 116 项通过，包含新增上下文与并发补充重试、原有存储／调度／Worker／IPC／MCP、聊天端口和真实原生权限回归；共享核心的压缩与会话运行时 36 项通过。最新应用构建上的 Electron 场景 1 项通过。严格未使用项类型检查、相关源码 ESLint、应用及共享包构建均通过；未运行整个仓库的 `npm run verify`。Notes 检查主仓 333 份、共享仓 71 份均为零错误，分别保留 17／9 条既有跨仓库引用诊断。
 
-主仓测试使用 `npx vitest run` 指定上述相关文件并加 `--maxWorkers=1`；桌面复现命令为 `npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-superagent.spec.ts`。构建／类型／文档入口分别为 `npm run build:app`、`npm run typecheck:strict-unused`、`npm run check:notes`；共享文档校验为在 janus-agentX 执行 `node scripts/verify-note-corpus.mjs`。Windows 原生与桌面测试串行运行；此前并行检查超时的诊断保留在本机产物目录，最终结果以上述完整断言通过为准。
+主仓测试使用 `npx vitest run` 指定上述相关文件并加 `--maxWorkers=1`；桌面复现命令为 `npm run test:e2e:desktop -- tests/e2e/desktop-superagent.spec.ts`。构建／类型／文档入口分别为 `npm run build:app`、`npm run typecheck:strict-unused`、`npm run check:notes`；共享文档校验为在 janus-agentX 执行 `node scripts/verify-note-corpus.mjs`。Windows 原生与桌面测试串行运行；此前并行检查超时的诊断保留在本机产物目录，最终结果以上述完整断言通过为准。

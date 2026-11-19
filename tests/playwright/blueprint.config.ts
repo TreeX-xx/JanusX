@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test'
-import base from './playwright.config'
+import base from '../../playwright.config'
 
 // Native plugin pages load from janusx-plugin:, with no island Vite server.
 // Keep the same desktop expectations and diagnostics as the application suite.

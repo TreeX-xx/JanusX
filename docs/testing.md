@@ -25,7 +25,7 @@
 
 独立的 `plugins:check`、`plugins:distribution:check` 保留专项完整验证。全量 `verify` 先运行平台与分发工具检查，再在统一单测阶段运行对应 Vitest 文件，避免 22 个插件测试文件各执行两遍。
 
-Playwright 的浏览器和 Electron 文件清单互斥；`blueprint-local` 使用自己的配置和命令。桌面入口使用 `playwright.desktop.config.ts`，不占用浏览器组的 Vite 端口。CI 保留单 worker；本地 Vitest 最多使用 4 个 worker，并保持文件隔离。
+根目录的 `playwright.config.ts` 是 Playwright 自动发现的入口，定义浏览器和 Electron 两组互斥的测试文件。桌面及插件专用配置集中在 [tests/playwright/](../tests/playwright/)，共用根配置中的测试目录，运行时无需启动浏览器组的 Vite 服务。`npm run test:e2e:desktop` 运行桌面组，`npm run test:blueprint:local` 单独运行本地蓝图用例。CI 保留单 worker；本地 Vitest 最多使用 4 个 worker，并保持文件隔离。
 
 Playwright 在测试进程中把 loopback 地址加入 `NO_PROXY`，保留已有排除项，使本地服务探测直接访问测试服务器。否则继承的 HTTP 代理可能对空闲端口返回页面，导致错误的“端口已占用”判断。
 

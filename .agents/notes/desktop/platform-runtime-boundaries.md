@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-14",
-  "updated": "2026-11-19T10:09:33.071Z",
+  "updated": "2026-11-19T16:43:51Z",
   "class": "architecture",
   "tags": [
     "cross-platform",
@@ -487,7 +487,7 @@ node scripts/probe-macos-compatibility.mjs
 npm run typecheck
 npm run build:check
 $env:JANUSX_CLI_TEST_ENTRY = 'artifacts/build-check/main/index.js'
-npx playwright test tests/e2e/desktop-cli-chain.spec.ts --config playwright.desktop.config.ts --workers=1
+npm run test:e2e:desktop -- tests/e2e/desktop-cli-chain.spec.ts --workers=1
 
 # 网络下载与真实 npm 单独开启，使用隔离目录
 $env:JANUS_TEST_RUNTIME_DOWNLOAD = '1'

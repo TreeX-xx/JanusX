@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test'
-import base from './playwright.blueprint.config'
+import base from './blueprint.config'
 
 export default defineConfig({
   ...base,

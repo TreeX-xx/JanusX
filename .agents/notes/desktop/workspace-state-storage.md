@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-10-29",
-  "updated": "2026-11-16T05:51:24.403Z",
+  "updated": "2026-11-19T16:43:51Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
   "relations": [
@@ -137,7 +137,7 @@ P2 时用户另行授权清理当前仓库 `.janusX/blueprints`、`design`、`sh
 
 `tests/e2e/desktop-workspace-storage.spec.ts` 使用真实 Electron／preload／IPC：从现有 0.9.4 Windows 解包实物建立旧配置，再切换当前 0.9.5 源码构建。原 P6 演练通过设置明确选择迁移；后续批量入口改为从提示确认两个工作区一起迁移，并验证两个目标日志。之后杀主进程、重启、重复迁移、切换 profile 并返回，目标配置及回执保持。同 profile 的第二个实际进程退出，未建立第二个写入者。重新打开旧 0.9.4 时原入口返回空配置，已迁入的 userData 内容不受损；这确认降级不可读，不能承诺旧版兼容或自动逆迁移。正式安装器覆盖升级与卸载流程未执行。
 
-复验时 PowerShell 设置 `JANUSX_DESKTOP_ENTRY=artifacts/build-check/main/index.js`，可选设置 `JANUSX_P6_OLD_EXE` 为旧实物绝对路径，再运行 `npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-workspace-storage.spec.ts --workers=1`。未提供旧实物时仅验当前桌面重启，不计跨版本通过。成功截图为 `artifacts/workspace-storage/p6-desktop-migrated.png`，本机报告 `p6-desktop.json` 记录各阶段载体；源码运行时的 app.getVersion 返回 Electron 35.7.5，源码 package 版本另记为 0.9.5，不能把它当正式 0.9.6／0.9.7 验收。
+复验时 PowerShell 设置 `JANUSX_DESKTOP_ENTRY=artifacts/build-check/main/index.js`，可选设置 `JANUSX_P6_OLD_EXE` 为旧实物绝对路径，再运行 `npm run test:e2e:desktop -- tests/e2e/desktop-workspace-storage.spec.ts --workers=1`。未提供旧实物时仅验当前桌面重启，不计跨版本通过。成功截图为 `artifacts/workspace-storage/p6-desktop-migrated.png`，本机报告 `p6-desktop.json` 记录各阶段载体；源码运行时的 app.getVersion 返回 Electron 35.7.5，源码 package 版本另记为 0.9.5，不能把它当正式 0.9.6／0.9.7 验收。
 
 同轮 15 文件存储／Hook／profile／UI 回归为 178 项通过、13 项跳过（包括未开启的真实远程套件），独立开启真实 WSL／SSH 后只选择断线 PTY 用例，一项通过、十项未选。远程 fixture 在结束后停止并清除其临时项目。主 Agent 自审，未委派独立审查；物理慢盘、正式安装器、多日资源观测及跨平台仍是 [P6 剩余出口](../planning/workspace-data-lifecycle-plan.md#p6-本机代表验收与剩余出口)。
 

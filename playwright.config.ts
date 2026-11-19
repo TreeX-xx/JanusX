@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 import { realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 
 const islandPort = Number(process.env.JANUS_E2E_PORT ?? 41731)
 
@@ -36,7 +37,7 @@ process.env.NO_PROXY = loopbackProxyBypass
 process.env.no_proxy = loopbackProxyBypass
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: fileURLToPath(new URL('./tests/e2e/', import.meta.url)),
   forbidOnly: Boolean(process.env.CI),
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   projects: [

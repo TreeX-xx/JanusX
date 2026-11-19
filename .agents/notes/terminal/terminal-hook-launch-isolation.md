@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-29",
-  "updated": "2026-10-31T13:12:07Z",
+  "updated": "2026-11-19T16:43:51Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -89,7 +89,7 @@ Claude 2.1.312 四类生命周期投递及移除参数后脱离；Pi 0.85.1 启�
 
 真实 CLI 全套四项有通过记录；OpenCode 1.2.27／2.1.4 补充双终端并发，先初始化原生 DB／provider 缓存。重负载并行构建时曾出现 OpenCode 2.1.4 的原生 standalone server 未就绪退出，单独复验通过；该外部启动竞态仍是限制，不能宣称任意并发启动稳定。Claude print 进程可能先于 SessionEnd 发送器退出，测试保留 Bridge 并等待实际事件，不把进程退出当作事件缺失。Electron 隔离验收通过一项：Claude、Codex、OpenCode 新建与两种原生历史恢复、续接回合；使用 CLI fixture 和真实 preload/IPC/PTY，不能替代真实提供方的恢复验收。Windows .cmd 恢复测试发现内联 TOML 双引号截断参数，已改用 TOML literal 字符串并通过真实 Codex 与 Electron 复验。
 
-复验命令为 `JANUSX_TEST_REAL_CLIS=1 npx vitest run tests/unit/agent-hook-cli.test.ts --maxWorkers=1`，以及 `JANUSX_DESKTOP_ENTRY=artifacts/build-check/main/index.js npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-session-continue.spec.ts -g "restore native history"`；Windows PowerShell 用 `$env:` 设置前述环境变量。主 Agent 对高风险启动引用、会话串线、旧绑定和停用竞态进行了自检，发现的问题已修复；没有独立审阅者，不宣称独立审阅 PASS。
+复验命令为 `JANUSX_TEST_REAL_CLIS=1 npx vitest run tests/unit/agent-hook-cli.test.ts --maxWorkers=1`，以及 `JANUSX_DESKTOP_ENTRY=artifacts/build-check/main/index.js npm run test:e2e:desktop -- tests/e2e/desktop-session-continue.spec.ts -g "restore native history"`；Windows PowerShell 用 `$env:` 设置前述环境变量。主 Agent 对高风险启动引用、会话串线、旧绑定和停用竞态进行了自检，发现的问题已修复；没有独立审阅者，不宣称独立审阅 PASS。
 
 真实 CLI 成功回合和应用内故障／中断回归不等于四 CLI 全交互 TUI、真实账号登录、每种审批、跨平台打包或长期多实例验收。这些场景及 OpenCode 1.19.5 是明确限制；P6 再做长期与跨环境验证，不以 mock 冒充真实 CLI。原探索 artifacts/hook-launch-review 被忽略且可清理，正式可重复测试才是维护入口。
 

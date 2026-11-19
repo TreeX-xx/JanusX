@@ -43,4 +43,4 @@ node scripts/codex-dual-mode/probe.mjs
 
 在应用中新建选择 **Codex 双模式（实验）**，完成原生信任审阅后使用同一区域上方的终端/对话按钮。原普通 Codex 入口保留。版本门控 0.166.x，实测 Windows 0.166.0；不迁移旧进程、不接入远程工作区。关闭终端标签会结束此会话，切换显示不会。
 
-`tests/unit/codex-conversation.test.ts` 覆盖投影与控制边界。设置 `JANUSX_TEST_CODEX_BIN` 后运行 `npx vitest run tests/unit/codex-conversation-cli.test.ts --project=integration`，使用真实受管 runtime、TUI、正式 Hook、两条并存会话与本地模拟模型；未设置时跳过。`npx playwright test tests/e2e/codex-conversation.spec.ts --project=island --workers=1` 使用真实 UI 和 IPC 替身。构建后用 `npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-codex-conversation.spec.ts` 验证 Electron 全链路，同样要求指定 CLI；这些测试不会使用真实账户或付费模型。
+`tests/unit/codex-conversation.test.ts` 覆盖投影与控制边界。设置 `JANUSX_TEST_CODEX_BIN` 后运行 `npx vitest run tests/unit/codex-conversation-cli.test.ts --project=integration`，使用真实受管 runtime、TUI、正式 Hook、两条并存会话与本地模拟模型；未设置时跳过。`npx playwright test tests/e2e/codex-conversation.spec.ts --project=island --workers=1` 使用真实 UI 和 IPC 替身。构建后用 `npm run test:e2e:desktop -- tests/e2e/desktop-codex-conversation.spec.ts` 验证 Electron 全链路，同样要求指定 CLI；这些测试不会使用真实账户或付费模型。
