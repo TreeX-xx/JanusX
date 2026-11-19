@@ -21,33 +21,45 @@
     },
     {
       "path": "src/renderer/src/components/WindowControls.css",
-      "key": "literal-color:rgb(255255255/18%)",
-      "count": 1,
-      "reason": "Platform window chrome keeps Windows close feedback and macOS traffic-light colors independent of the application theme."
-    },
-    {
-      "path": "src/renderer/src/components/WindowControls.css",
       "key": "literal-color:rgb(000/60%)",
       "count": 1,
       "reason": "Platform window chrome keeps Windows close feedback and macOS traffic-light colors independent of the application theme."
     },
     {
       "path": "src/renderer/src/components/WindowControls.css",
-      "key": "literal-color:#ff5f57",
+      "key": "literal-color:#ff8377",
       "count": 1,
-      "reason": "Platform window chrome keeps Windows close feedback and macOS traffic-light colors independent of the application theme."
+      "reason": "AppKit traffic-light gradient stop sampled from a standard macOS window button."
     },
     {
       "path": "src/renderer/src/components/WindowControls.css",
-      "key": "literal-color:#ffbd2e",
+      "key": "literal-color:#fa887ccc",
       "count": 1,
-      "reason": "Platform window chrome keeps Windows close feedback and macOS traffic-light colors independent of the application theme."
+      "reason": "AppKit traffic-light gradient stop sampled from a standard macOS window button."
     },
     {
       "path": "src/renderer/src/components/WindowControls.css",
-      "key": "literal-color:#28c840",
+      "key": "literal-color:#fec124",
       "count": 1,
-      "reason": "Platform window chrome keeps Windows close feedback and macOS traffic-light colors independent of the application theme."
+      "reason": "AppKit traffic-light gradient stop sampled from a standard macOS window button."
+    },
+    {
+      "path": "src/renderer/src/components/WindowControls.css",
+      "key": "literal-color:#ffd642ed",
+      "count": 1,
+      "reason": "AppKit traffic-light gradient stop sampled from a standard macOS window button."
+    },
+    {
+      "path": "src/renderer/src/components/WindowControls.css",
+      "key": "literal-color:#6cd434",
+      "count": 1,
+      "reason": "AppKit traffic-light gradient stop sampled from a standard macOS window button."
+    },
+    {
+      "path": "src/renderer/src/components/WindowControls.css",
+      "key": "literal-color:#89d75fbd",
+      "count": 1,
+      "reason": "AppKit traffic-light gradient stop sampled from a standard macOS window button."
     },
     {
       "path": "src/renderer/src/components/office/OfficePreviewFrame.tsx",

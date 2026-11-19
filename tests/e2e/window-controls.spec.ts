@@ -45,8 +45,8 @@ for (const platform of ['win32', 'darwin']) {
   }
 }
 
-test('Windows native window state and close confirmation follow the shared controls', async () => {
-  test.skip(process.platform !== 'win32')
+test('native window state and close confirmation follow the shared controls', async () => {
+  test.skip(process.platform !== 'win32' && process.platform !== 'darwin')
   test.setTimeout(90_000)
   const root = await mkdtemp(join(tmpdir(), 'janusx-window-controls-'))
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined
@@ -59,7 +59,27 @@ test('Windows native window state and close confirmation follow the shared contr
     const page = await app.firstWindow()
     await page.reload()
     const controls = page.locator('.window-controls')
-    await expect(controls).toHaveAttribute('data-platform', 'windows')
+    await expect(controls).toHaveAttribute('data-platform', process.platform === 'darwin' ? 'mac' : 'windows')
+    if (process.platform === 'darwin') {
+      const lights = controls.locator('button > span')
+      const centers = await lights.evaluateAll(nodes => nodes.map(node => {
+        const rect = node.getBoundingClientRect()
+        return [rect.x, rect.width]
+      }))
+      expect(centers).toEqual([[9, 14], [32, 14], [55, 14]])
+      const main = await app.browserWindow(page)
+      await main.evaluate(w => w.focus())
+      await expect(controls).toHaveAttribute('data-focused', 'true')
+      await controls.locator('button').first().hover()
+      await expect(controls.locator('svg').last()).toHaveCSS('opacity', '1')
+      await page.screenshot({ path: test.info().outputPath('mac-hover.png'), clip: { x: 0, y: 0, width: 210, height: 38 } })
+      await page.mouse.move(300, 150)
+      await main.evaluate(w => w.blur())
+      await expect(controls).toHaveAttribute('data-focused', 'false')
+      await expect(lights.first()).toHaveCSS('background-image', 'none')
+      await main.evaluate(w => w.focus())
+      await expect(controls).toHaveAttribute('data-focused', 'true')
+    }
     await expect(controls).toHaveAttribute('data-maximized', 'false')
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].maximize())
     await expect(controls).toHaveAttribute('data-maximized', 'true')
@@ -74,7 +94,7 @@ test('Windows native window state and close confirmation follow the shared contr
     await expect(page.getByRole('dialog').getByRole('button', { name: /cancel/i })).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: /cancel/i }).click()
     await expect(controls).toBeVisible()
-    await page.screenshot({ path: test.info().outputPath('windows-desktop-titlebar.png') })
+    await page.screenshot({ path: test.info().outputPath(process.platform + '-desktop-titlebar.png') })
   } finally {
     await app?.close()
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })

@@ -1,3 +1,4 @@
+import { enableSuperAgentPlugin } from './superagent-plugin'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { fixtureWorkerReport } from '../helpers/worker-report'
@@ -17,7 +18,7 @@ test('Island starts the shared workspace in the light theme without starting wor
   let application: ElectronApplication | undefined
   let startup = ''
   try {
-    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(cli.root, 'profile')}`],
+    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? '.'), `--user-data-dir=${join(cli.root, 'profile')}`],
       env: { ...cli.env, NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(cli.root, 'knowledge') } })
     application.process().stderr?.on('data', data => { startup = (startup + data.toString()).slice(-12000) })
     application.process().stdout?.on('data', data => { startup = (startup + data.toString()).slice(-12000) })
@@ -34,6 +35,7 @@ test('Island starts the shared workspace in the light theme without starting wor
     }, cli.cwd)
     await page.reload()
     await page.locator('.ws').filter({ hasText: 'Island launch fixture' }).first().click()
+    await enableSuperAgentPlugin(application, page)
     await page.locator('.janus-island').dblclick()
     await page.locator('.janus-island-shell').getByRole('button', { name: 'Super Agent', exact: true }).click()
     const surface = page.locator('[data-superagent-workspace]')
@@ -263,7 +265,7 @@ for (const checkNavigation of [true, false]) test(checkNavigation
     const env = { ...cli.env, JANUSX_LOCAL_PLUGIN_DIRECTORY: process.env.JANUSX_LOCAL_PLUGIN_DIRECTORY, NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(cli.root, 'knowledge') }
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     env[pathKey] = `${dirname(process.env.JANUS_SUPERAGENT_CODEX_BINARY!)}${delimiter}${env[pathKey] ?? ''}`
-    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(cli.root, 'profile')}`], env })
+    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? '.'), `--user-data-dir=${join(cli.root, 'profile')}`], env })
     application.process().stderr?.on('data', data => { startup = (startup + data.toString()).slice(-12000) })
     application.process().stdout?.on('data', data => { startup = (startup + data.toString()).slice(-12000) })
     await seedIntroducedLearning(application.context())
@@ -287,6 +289,7 @@ for (const checkNavigation of [true, false]) test(checkNavigation
     expect(saved.success).toBe(true)
     await page.reload()
     await page.locator('.ws').filter({ hasText: 'SuperAgent P4 fixture' }).first().click()
+    await enableSuperAgentPlugin(application, page)
     if (!await page.getByRole('button', { name: 'Super Agent', exact: true }).isVisible()) await page.locator('.janus-island').dblclick()
     await page.getByRole('button', { name: 'Super Agent', exact: true }).click()
     let work = page.getByRole('region', { name: 'SuperAgent work', exact: true })
@@ -430,7 +433,7 @@ for (const checkNavigation of [true, false]) test(checkNavigation
     // Exercise the actual AppShutdown path; only the finally fallback force-kills this test's PID.
     await Promise.all([application.waitForEvent('close'), application.evaluate(({ app }) => app.quit()).catch(() => undefined)])
     const nativeBeforeRestore = nativeRequests.length, janusBeforeRestore = janusRequests.length
-    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(cli.root, 'profile')}`], env })
+    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? '.'), `--user-data-dir=${join(cli.root, 'profile')}`], env })
     page = await application.firstWindow({ timeout: 45000 })
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1500, 1000))
     await page.waitForFunction(() => Boolean(window.electron?.superAgent))

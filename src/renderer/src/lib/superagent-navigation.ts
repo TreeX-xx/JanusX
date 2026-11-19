@@ -1,3 +1,4 @@
+import { isSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { useAppStore } from '@/stores/app'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { useIslandStore } from '@/stores/island'
@@ -5,6 +6,7 @@ import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 
 /** Both launchers reveal one global pane and reuse the existing Janus controller. */
 export function openSuperAgent() {
+  if (!isSuperAgentEnabled()) return
   useSuperAgentUIStore.getState().start()
   useAppStore.getState().setActiveWorkbench(null)
   const tools = useGlobalToolsStore.getState()

@@ -6,6 +6,7 @@ import type { ConversationSnapshot } from '../../../shared/conversation-display'
 import { getTerminalDefault } from '../services/llm'
 import { askSideChat, editSideChat, openSideChat, sameSideChatOwner, stopSideChat, useSideChats, type SideChatOwner, type SideChatSource } from '../stores/conversation-side-chat'
 import type { ConversationInputHandle } from './ConversationInput'
+import { useAnimatedOpen } from './shared/CardFrame'
 import { MarkdownContent } from './chat/ChatContent'
 import { recentSideChatSource, selectedSideChatSource } from './side-chat-selection'
 import styles from './ConversationSideChat.module.css'
@@ -29,6 +30,8 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
     return entry && sameSideChatOwner(owner, entry.owner) ? entry : undefined
   })
   const open = !!chat?.open && visible
+  const panelMotion = useAnimatedOpen(open, 180)
+  const LauncherIcon = open ? PanelRightClose : PanelRightOpen
   const [candidate, setCandidate] = useState<ReturnType<typeof selectedSideChatSource>>()
   const [model, setModel] = useState<{ providerId: string; modelId: string } | null>()
   const [returnError, setReturnError] = useState(false)
@@ -119,12 +122,13 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
   if (!visible) return null
   return <>
     {createPortal(<button type="button" className={styles.launcher} ref={launcher} aria-label={t('sideChat.title')} aria-expanded={open} aria-controls={open ? id : undefined}
-      title={t('sideChat.title')} onMouseDown={e => e.preventDefault()} onClick={() => open ? close() : show(candidate?.source)}>
-      <PanelRightOpen size={15} aria-hidden="true" /><span>{t('sideChat.title')}</span>
+      title={t(open ? 'sideChat.close' : 'sideChat.title')} onMouseDown={e => e.preventDefault()} onClick={() => open ? close() : show(candidate?.source)}>
+      <LauncherIcon size={15} aria-hidden="true" /><span>{t('sideChat.title')}</span>
     </button>, header)}
     {candidate && <button type="button" className={styles.askSelection} style={{ left: candidate.left, top: candidate.top }}
       onMouseDown={e => e.preventDefault()} onClick={() => show(candidate.source)}><MessageSquareText size={14} />{t('sideChat.askSelection')}</button>}
-    {open && chat && <aside id={id} className={styles.panel} data-side-chat-open="" aria-label={t('sideChat.title')}
+    {panelMotion.rendered && chat && <aside id={id} className={styles.panel} data-side-chat-open={open ? '' : undefined}
+      data-visible={open && panelMotion.visible} aria-hidden={!open} {...(!open ? { inert: '' } : {})} aria-label={t('sideChat.title')}
       onKeyDown={e => { if (e.key === 'Escape' && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); close() } }}>
       <header className={styles.heading}><div><MessageSquareText size={16} aria-hidden="true" /><h2>{t('sideChat.title')}</h2></div>
         <button type="button" className={styles.icon} title={t('sideChat.close')} aria-label={t('sideChat.close')} onClick={() => close()}><PanelRightClose size={16} /></button>
@@ -134,7 +138,8 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
           <h3>{t('sideChat.empty')}</h3><p>{t('sideChat.hint')}</p></div>}
         {chat.turns.map(turn => <article key={turn.id} className={styles.turn}>
           <div className={styles.question}>{turn.source && <Source source={turn.source} />}<p>{turn.question}</p></div>
-          <div className={styles.model}>{turn.status === 'streaming' ? <LoaderCircle className={styles.spin} size={12} /> : <MessageSquareText size={12} />}{turn.model}</div>
+          <div className={styles.model}>{turn.status === 'streaming' ? <LoaderCircle className={styles.spin} size={12} aria-hidden="true" /> : <MessageSquareText size={12} aria-hidden="true" />}{turn.model}
+            {turn.status === 'streaming' && !turn.answer && <span role="status">{t('sideChat.waitingReply')}</span>}</div>
           {turn.answer && <div data-side-answer=""><MarkdownContent content={turn.answer} variant="conversation" streaming={turn.status === 'streaming'} /></div>}
           {turn.status === 'stopped' && <p className={styles.status} role="status">{t('sideChat.stopped')}</p>}
           {turn.status === 'failed' && <div role="alert" className={styles.error}>{turn.error || t('sideChat.noAnswer')}
@@ -154,7 +159,10 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
             onChange={e => editSideChat(owner, { draft: e.target.value })} onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); send() }
             }} />
-          <div className={styles.controls}><span title={model?.modelId}>{model?.modelId}</span>
+          <div className={styles.controls}>
+            {model === undefined
+              ? <span className={styles.loadingModel} role="status"><LoaderCircle className={styles.spin} size={12} aria-hidden="true" />{t('sideChat.loadingModel')}</span>
+              : <span title={model?.modelId}>{model?.modelId}</span>}
             {busy ? <button type="button" className={styles.send} aria-label={t('sideChat.stop')} title={t('sideChat.stop')} onClick={() => stopSideChat(owner)}><Square size={12} fill="currentColor" /></button>
               : <button type="submit" className={styles.send} aria-label={t('sideChat.send')} title={t('sideChat.send')} disabled={!model || !chat.draft.trim()}><ArrowUp size={16} /></button>}</div>
         </form>

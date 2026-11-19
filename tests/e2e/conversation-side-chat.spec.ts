@@ -189,3 +189,45 @@ test('stopping one of two simultaneous side requests leaves the other running', 
     return f.requests.map((r: ChatStreamRequest) => f.aborted.includes(r.requestId))
   })).toEqual([true, false])
 })
+
+for (const motion of ['no-preference', 'reduce'] as const) {
+  test(`side chat reflects opening, model loading and the first reply with ${motion} motion`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: motion })
+    await setup(page)
+    await page.evaluate(() => {
+      const original = window.electron.llm.getTerminalDefault
+      let release!: () => void
+      const pending = new Promise<void>(resolve => { release = resolve })
+      Object.assign((window as any).sideFixture, { releaseModel: release })
+      window.electron.llm.getTerminalDefault = async (...args) => {
+        await pending
+        return original(...args)
+      }
+    })
+
+    const launcher = page.getByRole('button', { name: 'Side chat', exact: true })
+    await launcher.click()
+    const panel = page.getByRole('complementary', { name: 'Side chat' })
+    await expect(launcher).toHaveAttribute('aria-expanded', 'true')
+    await expect(launcher).toHaveAttribute('title', 'Close side chat')
+    await expect(panel).toHaveAttribute('data-visible', 'true')
+    await expect(panel).toHaveCSS('transition-duration', motion === 'reduce' ? '0s' : '0.18s, 0.15s')
+    const loading = panel.getByRole('status').filter({ hasText: 'Loading side chat model' })
+    await expect(loading).toBeVisible()
+    await expect(loading.locator('svg')).toHaveCSS('animation-name', motion === 'reduce' ? 'none' : /rotate/)
+    await panel.getByRole('textbox').fill('Why?')
+    await expect(panel.getByRole('button', { name: 'Send side question' })).toBeDisabled()
+
+    await page.evaluate(() => (window as any).sideFixture.releaseModel())
+    await expect(loading).toHaveCount(0)
+    await panel.getByRole('button', { name: 'Send side question' }).click()
+    const waiting = panel.getByRole('status').filter({ hasText: 'Waiting for reply' })
+    await expect(waiting).toBeVisible()
+    await page.evaluate(() => (window as any).sideFixture.emit('delta', { delta: 'First reply' }))
+    await expect(waiting).toHaveCount(0)
+    await expect(panel.getByText('First reply')).toBeVisible()
+    await launcher.click()
+    await expect(launcher).toHaveAttribute('aria-expanded', 'false')
+    await expect(panel).toBeHidden()
+  })
+}

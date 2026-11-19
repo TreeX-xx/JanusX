@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-11-06",
-  "updated": "2026-11-16T08:39:00Z",
+  "updated": "2026-11-19T10:58:58Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -61,6 +61,8 @@
 P6 的工作卡仍嵌在聊天消息中，完整执行能力尚无常驻工作界面。2026-11-06 用户授权一起实施 P7、P8，明确界面无需参考离线 HTML，Worker 面板必须能够展开收起，并遵守现有分屏规则，让用户继续唤出及操作普通终端。
 
 ## Decision
+
+终端选择页、工具菜单、Island 对话模式及面板恢复跟随官方 SuperAgent 插件的启用状态与工作区授权。停用或卸载后收起已开的 SuperAgent 标签，普通 Janus 对话仍可使用；已保存的视图偏好只在插件可用时生效。
 
 后续对话界面调整归[共用界面原型](../workbench/ideas/conversation-interface-prototype.md)：用户要求同时落实 dev 与 superAgent，保留现有执行计划、Janus 回复形象和数码加载结构，改进品牌、底部覆盖式统计与共用控件。2026-11-13 按用户要求分步落地，首批已接入 SuperAgent 全屏加载页的 JanusX 字标与扫描；项目区底部用量栏也已接入18px圆环、外置百分比和覆盖式统计；它读取已有终端会话数据，不新增 SuperAgent 独立用量来源。两种模式的输入框外观、弱灰分割线与发送／停止布局，以及共用新会话欢迎页也已接入；其余对话外壳仍待后续实施。Tab、终端选择及启动入口继续使用 Janus 双眼，不换成字标；回复形象保持。
 

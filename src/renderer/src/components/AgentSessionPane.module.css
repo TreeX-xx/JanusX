@@ -281,6 +281,11 @@
 @container (max-width: 540px) { .conversation[data-welcome=true] .content { width: calc(100% - 24px); } }
 @media (max-height: 650px) { .conversation[data-welcome=true] { padding-block: 12px 32px; } }
 
+@media (prefers-reduced-motion: no-preference) {
+  @container (min-width: 800px) {
+    .conversation { width: 100%; transition: opacity 140ms ease, width 180ms cubic-bezier(.2,.8,.2,1); }
+  }
+}
 /* Size against this terminal's pane, including cross-workspace splits. */
 @container (min-width: 800px) {
   .body:has(> [data-side-chat-open]) .conversation { width: calc(100% - clamp(300px, 32cqw, 440px)); }

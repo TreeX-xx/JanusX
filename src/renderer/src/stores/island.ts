@@ -1,5 +1,5 @@
+import { superAgentOwnsChat } from '@/lib/superagent-plugin'
 import { create } from 'zustand'
-import { useSuperAgentUIStore } from './superagent-ui'
 import { openSuperAgent } from '@/lib/superagent-navigation'
 let chatSequence = 0
 import {
@@ -36,7 +36,7 @@ export const useIslandStore = create<IslandStore>()((set) => ({
   releaseCompanion: () => set({ companionToolId: null }),
   chatRequest: null,
   openChat: (prefill = '', companionToolId) => {
-    if (useSuperAgentUIStore.getState().started) {
+    if (superAgentOwnsChat()) {
       openSuperAgent()
       set(current => ({ chatRequest: { prefill, sequence: ++chatSequence }, companionToolId: companionToolId ?? current.companionToolId }))
       return
@@ -61,7 +61,7 @@ export const useIslandStore = create<IslandStore>()((set) => ({
     const next = reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, action)
     // The automation panel owns this lock until it closes or another tool takes over.
     const companion = current.companionToolId === 'automations'
-    if (current.automationLocked && current.stage === 'expanded' && next.stage !== 'expanded' && !useSuperAgentUIStore.getState().started) return current
+    if (current.automationLocked && current.stage === 'expanded' && next.stage !== 'expanded' && !superAgentOwnsChat()) return current
     return { ...next, ...(next.stage === 'expanded' && current.stage !== 'expanded' ? { openSequence: current.openSequence + 1 } : {}), ...(!companion && next.stage !== 'expanded' ? { companionToolId: null } : {}) }
   }),
 }))

@@ -23,13 +23,24 @@ beforeAll(async () => {
     import {JanusChat} from './src/renderer/src/components/janus/JanusChat'
     import {SuperAgentWorkspace} from './src/renderer/src/components/janus/SuperAgentWorkspace'
     import {useSuperAgentUIStore} from './src/renderer/src/stores/superagent-ui'
+    import {usePluginSnapshot} from './src/renderer/src/extensions/plugin-snapshot'
+    import {SuperAgentLaunch} from './src/renderer/src/components/janus/SuperAgentLaunch'
+    import {openSuperAgent} from './src/renderer/src/lib/superagent-navigation'
+    import {useGlobalToolsStore} from './src/renderer/src/stores/global-tools'
+    import {getLeafPanes} from './src/renderer/src/lib/workspace-pane'
     import {useWorkspaceStore} from './src/renderer/src/stores/workspace'
     import './src/renderer/src/styles/themes.generated.css'
     import './src/renderer/src/styles/globals.css'
     import './src/renderer/src/components/janus/janus-island.css'
     installElectronApiFallback();document.documentElement.dataset.theme='dark'
-    const ordinaryProfile=['fresh-install','legacy-install'].includes(window.initialMode)
+    const ordinaryProfile=['fresh-install','legacy-install','remembered-install'].includes(window.initialMode)
     if (!ordinaryProfile) useSuperAgentUIStore.setState({agentMode:window.initialMode??'superagent',started:true})
+    window.pluginState=state=>usePluginSnapshot.setState({plugins:state==='missing'?[]:[{
+      manifest:{id:'official.superagent'},source:{kind:'official'},enabled:state==='active',state,projectScope:'all',
+    }]})
+    window.pluginState(ordinaryProfile?'missing':'active')
+    window.openSuperAgent=openSuperAgent
+    window.hasAgentPane=()=>getLeafPanes(useGlobalToolsStore.getState().paneTree).some(p=>p.tabs.some(t=>t.type==='superagent'))
     const noEvents=()=>()=>{}
     window.fixtureHost={available:async()=>true,onChanged:noEvents,onEnvironmentsChanged:noEvents,onWorkerChanged:noEvents,onScheduleChanged:noEvents,
       snapshot:async()=>({works:[],reports:[],inputs:[]}),workers:async()=>[],environments:async()=>({operations:[],environments:[]}),schedule:async()=>({entries:[],occupied:0,maxConcurrentWorkers:2})}
@@ -84,8 +95,8 @@ beforeAll(async () => {
     function App(){const registry=useJanusChatRegistry();window.registry=registry;window.seedParallelInput=text=>registry.topics.submit(registry.getController().conversationId,useWorkspaceStore.getState().activeWorkspaceId,text,true);const [toolbarHost,setToolbarHost]=React.useState(null);const [visible,setVisible]=React.useState(true);window.setStartupVisible=setVisible;window.startupLanguage=language=>i18n.changeLanguage(language);
       if (ordinaryProfile) {
         const chat=registry.getController()
-        return <JanusChat {...chat} visible focused showAgentMode conversationStyle modeColor="blue" onSend={chat.send} onStop={chat.stop}
-          onRetry={chat.retry} onRewrite={chat.rewrite} onClear={chat.clear} conversationController={chat}/>
+        return <><SuperAgentLaunch/><JanusChat {...chat} visible focused showAgentMode conversationStyle modeColor="blue" onSend={chat.send} onStop={chat.stop}
+          onRetry={chat.retry} onRewrite={chat.rewrite} onClear={chat.clear} conversationController={chat}/></>
       }
       return <div style={{height:'100vh',display:visible?'flex':'none',flexDirection:'column',margin:'auto',background:'var(--surface)',color:'var(--text)'}}>
         <div ref={setToolbarHost} style={{height:30,flexShrink:0,display:'flex',justifyContent:'flex-end'}}/><div style={{flex:1,minHeight:0}}><SuperAgentWorkspace visible={visible} focused={visible} toolbarHost={toolbarHost}/></div>
@@ -112,6 +123,7 @@ async function open(initialMode = 'superagent', deferStartup = false, controlled
   await page.route('http://127.0.0.1/', route => route.fulfill({ contentType: 'text/html', body: '<style>body{margin:0;font-family:Arial}</style><div id="root"></div>' }))
   await page.goto('http://127.0.0.1/'); await page.evaluate(({mode, defer}) => {
     if (mode === 'legacy-install') localStorage.setItem('janus:superagent-view', JSON.stringify({ started: true, agentMode: 'superagent' }))
+    if (mode === 'remembered-install') localStorage.setItem('janus:superagent-view', JSON.stringify({ modeVersion: 1, started: true, agentMode: 'superagent' }))
     ;(window as any).initialMode = mode
     ;(window as any).deferStartup = defer
   }, {mode: initialMode, defer: deferStartup})
@@ -1260,12 +1272,12 @@ it('shows distinct Worker panel states and returns to the draft from the narrow 
     expect(await draft.textContent()).toBe('Return to this draft')
   } finally { await page.close() }
 })
-it.each(['fresh-install', 'legacy-install'])('sends, steers and stops ordinary chat without a SuperAgent host on %s', async profile => {
+it.each(['fresh-install', 'legacy-install', 'remembered-install'])('sends, steers and stops ordinary chat without a SuperAgent host on %s', async profile => {
   const page = await open(profile)
   try {
     const input = page.locator('.janus-chat-input:visible')
     const mode = page.getByRole('combobox', { name: 'Agent mode (next message)' })
-    expect(await mode.inputValue()).toBe('ordinary')
+    expect(await mode.count()).toBe(0)
     await input.fill('First ordinary turn')
     await input.press('Enter')
     await page.waitForFunction(() => (window as any).requests.length === 1)
@@ -1275,12 +1287,28 @@ it.each(['fresh-install', 'legacy-install'])('sends, steers and stops ordinary c
     await page.waitForFunction(() => (window as any).steerCalls.length === 1)
     await page.locator('.janus-chat-stop').click()
     await page.waitForFunction(() => (window as any).aborted === (window as any).requests[0].requestId)
-    await mode.selectOption('superagent')
-    await input.fill('Unsaved instructions')
-    await input.press('Enter')
-    await page.getByRole('alert').filter({ hasText: 'SuperAgent is unavailable' }).waitFor()
-    expect(await input.inputValue()).toBe('Unsaved instructions')
-    expect(await page.evaluate(() => (window as any).requests.length)).toBe(1)
+    expect(await page.evaluate(() => (window as any).hasAgentPane())).toBe(false)
+  } finally { await page.close() }
+})
+
+it('shows SuperAgent after activation and closes its pane on disable or removal', async () => {
+  const page = await open('fresh-install')
+  try {
+    const launch = page.getByRole('button', { name: 'Super Agent', exact: true })
+    const mode = page.getByRole('combobox', { name: 'Agent mode (next message)' })
+    for (const inactive of ['disabled', 'missing']) {
+      await page.evaluate(() => { (window as any).openSuperAgent() })
+      expect(await page.evaluate(() => (window as any).hasAgentPane())).toBe(false)
+      expect(await launch.count()).toBe(0)
+      await page.evaluate(() => (window as any).pluginState('active'))
+      await launch.click()
+      await page.waitForFunction(() => (window as any).hasAgentPane())
+      await mode.waitFor()
+      await page.evaluate(state => (window as any).pluginState(state), inactive)
+      await launch.waitFor({ state: 'detached' })
+      await page.waitForFunction(() => !(window as any).hasAgentPane())
+      expect(await mode.count()).toBe(0)
+    }
   } finally { await page.close() }
 })
 
@@ -1310,7 +1338,7 @@ it('keeps the editable draft when the SuperAgent host is unavailable and submits
     await page.evaluate(() => { (window as any).electron.superAgent.available = async () => false })
     await input.fill('Keep my original input')
     await input.press('Enter')
-    await page.getByRole('alert').filter({ hasText: 'SuperAgent is unavailable' }).waitFor()
+    await page.getByRole('alert').filter({ hasText: 'Check that SuperAgent is installed and enabled' }).waitFor()
     expect(await input.textContent()).toBe('Keep my original input')
     expect(await page.evaluate(() => [(window as any).requests.length, (window as any).registry.topicConversations.length])).toEqual([0, 0])
     await page.evaluate(() => { (window as any).electron.superAgent.available = async () => true })

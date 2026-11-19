@@ -1,6 +1,8 @@
 {
   "sideChat": {
     "title": "侧聊",
+    "loadingModel": "正在加载侧聊模型…",
+    "waitingReply": "等待回复…",
     "askSelection": "在侧聊中问",
     "close": "关闭侧聊",
     "empty": "想追问哪一点？",

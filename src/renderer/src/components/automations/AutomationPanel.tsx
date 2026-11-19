@@ -1,3 +1,4 @@
+import { superAgentOwnsChat, useSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, Clock3, Folder, Pencil, Play, Plus, Power, Trash2, Workflow } from 'lucide-react'
@@ -21,7 +22,8 @@ export function AutomationPanel({ active = true }: { active?: boolean }) {
   const focus = useRightToolStore(state => state.focusRequest)
   const activeToolId = useRightToolStore(state => state.activeToolId)
   const panelCollapsed = useAppStore(state => state.panelCollapsed)
-  const superAgentStarted = useSuperAgentUIStore(state => state.started)
+  const enabled = useSuperAgentEnabled()
+  const superAgentStarted = useSuperAgentUIStore(state => enabled && state.started)
   const companionLinked = useIslandStore(state => state.companionToolId === 'automations')
   const panelOpen = active && activeToolId === 'automations' && !panelCollapsed
   const islandLinked = panelOpen || companionLinked
@@ -33,7 +35,7 @@ export function AutomationPanel({ active = true }: { active?: boolean }) {
       useIslandStore.setState({ automationLocked: false })
       const island = useIslandStore.getState()
       if (island.companionToolId === 'automations') island.releaseCompanion()
-      if (!useSuperAgentUIStore.getState().started) island.dispatch({ type: 'dismiss' })
+      if (!superAgentOwnsChat()) island.dispatch({ type: 'dismiss' })
     }
   }, [panelOpen, superAgentStarted])
   const [cards, setCards] = useState<AutomationCard[]>([]), [tasks, setTasks] = useState<AutomationDefinition[]>([])

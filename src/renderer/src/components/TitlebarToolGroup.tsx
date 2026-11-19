@@ -1,3 +1,4 @@
+import { useSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 // Note: .agents/notes/workbench/service-integrations.md — declared CPA launcher in the global tools menu.
 import { ChevronDown, Globe, Puzzle } from 'lucide-react'
@@ -38,6 +39,7 @@ import styles from './TitlebarToolGroup.module.css'
  * 全局工具只有一个实例；重复点击定位原工具，并展开已收起的工具区。
  */
 export function TitlebarToolGroup() {
+  const superAgentEnabled = useSuperAgentEnabled()
   const { t } = useI18n()
   const openBrowserInWorkspace = useWorkspaceStore((s) => s.openBrowserInWorkspace)
   const openMarkdownInWorkspace = useWorkspaceStore((s) => s.openMarkdownInWorkspace)
@@ -83,12 +85,12 @@ export function TitlebarToolGroup() {
     workbench?: boolean
     open: () => void | Promise<void>
   }> = [
-    {
+    ...(superAgentEnabled ? [{
       id: 'superagent', icon: <JanusIcon className={styles.menuIcon} size={16} />,
       label: 'Janus SuperAgent', actionLabel: t('janus:superagent.open'),
       opened: getLeafPanes(paneTree).some(leaf => leaf.tabs.some(tab => tab.type === 'superagent')),
       open: openSuperAgent,
-    },
+    }] : []),
     {
       id: 'browser',
       icon: <Globe className={styles.menuIcon} size={14} strokeWidth={1.5} aria-hidden="true" />,

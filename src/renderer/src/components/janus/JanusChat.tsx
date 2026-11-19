@@ -1,3 +1,4 @@
+import { useSuperAgentEnabled } from '@/lib/superagent-plugin'
 /**
  * @file JanusChat �?虚幻模糊风格的对话组�?
  * @description �?Janus 数字形象风格一致的对话界面
@@ -563,7 +564,8 @@ export function JanusChat({
   const historyDraftRef = useRef('')
   const contextConversations = useOptionalJanusChatController()
   const conversations = controllerOverride ?? contextConversations
-  const explicitSuperAgent = useSuperAgentUIStore(state => !!workerShortcuts || (showAgentMode && state.agentMode === 'superagent'))
+  const superAgentEnabled = useSuperAgentEnabled()
+  const explicitSuperAgent = useSuperAgentUIStore(state => !!workerShortcuts || (showAgentMode && superAgentEnabled && state.agentMode === 'superagent'))
   const availabilityCheck = useRef<symbol | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   // A late availability reply belongs to the draft and destination that requested it.
@@ -1889,7 +1891,7 @@ export function JanusChat({
             <span>{activeModelLabel}</span><ChevronDown size={12} aria-hidden="true" />
           </ComposerOptionTrigger>}
           {!contextComposer && <div className="janus-chat-status-actions">
-            {showAgentMode && <AgentModeSelect disabled={isStreaming} />}
+            {showAgentMode && superAgentEnabled && <AgentModeSelect disabled={isStreaming} />}
             {conversations && <MemoPanel compactTrigger onBindMemo={conversations.bindMemo} />}
             <div className="janus-chat-shortcuts">
               {showModelSelector && <button

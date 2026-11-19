@@ -1,3 +1,4 @@
+import { enableSuperAgentPlugin } from './superagent-plugin'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -58,7 +59,7 @@ test('live Janus and Codex develop a bounded fixture and distinguish recall from
     }
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
     env[pathKey] = `${dirname(process.env.JANUS_SUPERAGENT_CODEX_BINARY!)};${env[pathKey] ?? ''}`
-    application = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${profile}`], env })
+    application = await electron.launch({ args: [resolve('.'), `--user-data-dir=${profile}`], env })
     await seedIntroducedLearning(application.context())
     const page = await application.firstWindow({ timeout: 45000 })
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1500, 1000))
@@ -71,6 +72,7 @@ test('live Janus and Codex develop a bounded fixture and distinguish recall from
     }, cli.cwd)
     await page.reload()
     await page.locator('.ws').filter({ hasText: 'Live acceptance fixture' }).first().click()
+    await enableSuperAgentPlugin(application, page)
     await page.getByRole('button', { name: 'Super Agent', exact: true }).click()
     const chat = page.locator('[data-superagent-workspace] .janus-chat')
     const input = chat.locator('textarea.janus-chat-input')

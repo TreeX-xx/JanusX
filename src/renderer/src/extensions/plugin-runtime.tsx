@@ -1,6 +1,6 @@
 import { hasPluginProjectAccess } from '../../../shared/plugin-project-access'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — trusted shells only; plugin code stays in isolated native pages.
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PluginHostEvent, PluginHostSnapshot, PluginManageRequest, PluginMount } from '../../../shared/ipc/plugins'
 import type { ExtensionViewProps } from './types'
 import { extensionRegistry } from './registry'
@@ -24,8 +24,8 @@ import type { PluginDocument, PluginDraft } from '@janusx/plugin-sdk'
 import { openPluginConfiguration, reviewPluginAuthorization } from './plugin-configuration-navigation'
 import type { PluginConfigurationTarget } from './plugin-configuration-navigation'
 
-let snapshot: PluginHostSnapshot = { developmentMode: false, plugins: [], logs: [] }
-const listeners = new Set<() => void>()
+import { usePluginSnapshot } from './plugin-snapshot'
+export { usePluginSnapshot }
 const mounted = new Map<string, { digest: string; unregister: () => void }>()
 let refreshSequence = 0
 let started = false
@@ -35,14 +35,10 @@ export async function pluginRequest<T = unknown>(input: PluginManageRequest): Pr
   if (!result.ok) throw new Error(result.code)
   return result.data as T
 }
-export function usePluginSnapshot(): PluginHostSnapshot {
-  return useSyncExternalStore(listener => { listeners.add(listener); return () => listeners.delete(listener) }, () => snapshot, () => snapshot)
-}
 export async function refreshPlugins(): Promise<void> {
   const sequence = ++refreshSequence
   const next = await pluginRequest<PluginHostSnapshot>({ type: 'list' })
   if (sequence !== refreshSequence) return
-  snapshot = next
   const sourceAllowed = (record: PluginHostSnapshot['plugins'][number]) => record.source.kind === 'official' || next.developmentMode
   syncPluginThemes(next.plugins.filter(record => record.enabled && sourceAllowed(record)
     && (['ready', 'loading', 'active'].includes(record.state) || record.state === 'error' && record.error === 'VIEW_LOAD_FAILED')).map(record => record.manifest))
@@ -60,7 +56,7 @@ export async function refreshPlugins(): Promise<void> {
     const definition = manifestContribution(record.manifest, view => props => <PluginViewShell {...props} pluginId={id} localViewId={view.id} />)
     mounted.set(id, { digest: record.digest, unregister: extensionRegistry.register(definition) })
   }
-  for (const listener of listeners) listener()
+  usePluginSnapshot.setState(next, true)
   void syncPluginContext().catch(console.error)
 }
 function publicTheme() {
@@ -265,9 +261,9 @@ export function PluginViewShell({ pluginId, localViewId, workspaceId, workspaceP
     }
   }, [mount, visible])
   return <div className="h-full min-h-0 w-full flex flex-col" data-plugin-view={`${pluginId}/${localViewId}`}>
-    {snapshot.plugins.some(record => record.manifest.id === pluginId && record.manifest.contributes.settings?.length) && <button type="button" className="self-end text-xs px-2 py-1"
+    {pluginSnapshot.plugins.some(record => record.manifest.id === pluginId && record.manifest.contributes.settings?.length) && <button type="button" className="self-end text-xs px-2 py-1"
       onClick={() => openPluginConfiguration({ pluginId, scope: mount?.context.project ? 'project' : 'application' })}>{t('plugins:configuration')}</button>}
-    {mount && snapshot.developmentMode && !failure && <button type="button" className="self-end text-xs px-2 py-1" aria-label={t('plugins:devtools')}
+    {mount && pluginSnapshot.developmentMode && !failure && <button type="button" className="self-end text-xs px-2 py-1" aria-label={t('plugins:devtools')}
       onClick={() => { void pluginRequest({ type: 'devtools', instanceId: mount.instanceId, binding: mount.binding }).catch(cause => setFailure(cause.message)) }}>{t('plugins:devtools')}</button>}
     {failure ? <div role="alert" className="m-3 rounded-lg border border-[var(--shell-border)] bg-[var(--shell-card)] p-4 text-sm text-[var(--shell-text)]">
       <p className="mb-2">{needsProjectGrant ? t('plugins:projectGrantRequired') : failure}</p>
