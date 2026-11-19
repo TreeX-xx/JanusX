@@ -443,6 +443,8 @@ export function installElectronApiFallback(): void {
     roundtable: { start: unavailable, advance: unavailable, end: unavailable, getState: unavailable, restore: unavailable, export: unavailable, buildBundle: unavailable, applyBundle: unavailable, onEvent: () => () => {} },
     dialog: { openDirectory: unavailable, saveFile: unavailable, showMessageBox: unavailable },
     window: {
+      getFocused: () => Promise.resolve(document.hasFocus()),
+      onFocusChanged: () => () => {},
       getMaximized: () => Promise.resolve(false),
       onMaximizedChanged: () => () => {},
       minimize: unavailable,

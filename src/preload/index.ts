@@ -629,6 +629,8 @@ const dialogAPI: DialogAPI = {
   showMessageBox: (options) => ipcRenderer.invoke(SYSTEM_CHANNELS.showMessageBox, options),
 }
 const windowAPI: WindowAPI = {
+  getFocused: () => ipcRenderer.invoke(SYSTEM_CHANNELS.getFocused),
+  onFocusChanged: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.focusChanged, callback),
   getMaximized: () => ipcRenderer.invoke(SYSTEM_CHANNELS.getMaximized),
   onMaximizedChanged: (callback) => subscribeIpcEvent(SYSTEM_CHANNELS.maximizedChanged, callback),
   minimize: () => ipcRenderer.invoke(SYSTEM_CHANNELS.minimize),

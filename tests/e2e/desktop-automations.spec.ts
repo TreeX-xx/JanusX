@@ -1,3 +1,4 @@
+import { enableSuperAgentPlugin } from './superagent-plugin'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
@@ -15,13 +16,18 @@ test('desktop card contains independently editable tasks and persists changes th
   const directory = await mkdtemp(join(tmpdir(), 'janusx-task-edit-'))
   let application: ElectronApplication | undefined
   try {
-    application = await electron.launch({ args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${join(directory, 'profile')}`], env: createDesktopTestEnv(directory) })
+    application = await electron.launch({
+      args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? '.'), `--user-data-dir=${join(directory, 'profile')}`],
+      // This fixture exercises automations. Keep the OfficeCLI updater out of its Electron process tree.
+      env: { ...createDesktopTestEnv(directory), JANUSX_OFFICECLI_BINARY: join(directory, 'absent-officecli') },
+    })
     await seedIntroducedLearning(application.context())
     const page = await application.firstWindow()
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1600, 900))
     await page.waitForFunction(() => Boolean(window.electron?.automations))
     await page.evaluate(() => window.electron.system.setLanguage('en')); await page.reload()
     await page.emulateMedia({ reducedMotion: 'reduce' })
+    await enableSuperAgentPlugin(application, page)
     await page.locator('.janus-island').dblclick()
     await page.locator('.janus-island-shell').getByRole('button', { name: 'Super Agent', exact: true }).click()
     const superAgent = page.locator('[data-superagent-workspace]')

@@ -29,12 +29,37 @@
 .window-controls[data-platform='windows'] [data-window-action='close']:hover { background: #c42b1c; color: #fff; }
 .window-controls[data-platform='windows'] [data-window-action='close']:active { background: #a92316; color: #fff; }
 
-.window-controls[data-platform='mac'] { order: -1; align-items: center; gap: 8px; margin-right: 12px; }
-.window-controls[data-platform='mac'] button { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 1px 1px rgb(255 255 255 / 18%); color: rgb(0 0 0 / 60%); }
-.window-controls[data-platform='mac'] [data-window-action='close'] { background: #ff5f57; }
-.window-controls[data-platform='mac'] [data-window-action='minimize'] { background: #ffbd2e; }
-.window-controls[data-platform='mac'] [data-window-action='maximize'] { background: #28c840; }
-.window-controls[data-platform='mac'] svg { width: 8px; height: 8px; stroke-width: 2; opacity: 0; }
+/* AppKit places 14-point lights on 23-point centers. Keep a wider hit area
+   around each light while the title bar itself remains draggable. */
+.window-controls[data-platform='mac'] {
+  order: -1;
+  align-self: center;
+  gap: 1px;
+  margin-inline: calc(5px - var(--titlebar-inline-padding, 12px)) 6px;
+}
+.window-controls[data-platform='mac'] button {
+  width: 22px;
+  height: 24px;
+  border-radius: 6px;
+  color: rgb(0 0 0 / 60%);
+}
+.window-controls[data-platform='mac'] button > span {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(var(--light-top), var(--light-bottom));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent);
+}
+.window-controls[data-platform='mac'] [data-window-action='close'] { --light-top: #ff8377; --light-bottom: #fa887ccc; }
+.window-controls[data-platform='mac'] [data-window-action='minimize'] { --light-top: #fec124; --light-bottom: #ffd642ed; }
+.window-controls[data-platform='mac'] [data-window-action='maximize'] { --light-top: #6cd434; --light-bottom: #89d75fbd; }
+.window-controls[data-platform='mac'][data-focused='false']:not(:hover) button > span {
+  background: color-mix(in srgb, var(--shell-muted) 42%, transparent);
+}
+.window-controls[data-platform='mac'] svg { width: 10px; height: 10px; stroke-width: 2.6; opacity: 0; }
+.window-controls[data-platform='mac'] [data-window-action='maximize'] svg { stroke: none; }
 .window-controls[data-platform='mac']:hover svg,
 .window-controls[data-platform='mac'] button:focus-visible svg { opacity: 1; }
-.window-controls[data-platform='mac'] button:active { filter: brightness(0.85); }
+.window-controls[data-platform='mac'] button:active > span { filter: brightness(.82); }

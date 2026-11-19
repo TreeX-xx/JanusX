@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { parsePluginManifest } from '@janusx/plugin-sdk'
+import superAgentManifest from '../../plugins/superagent/manifest.json'
+import { usePluginSnapshot } from '../../src/renderer/src/extensions/plugin-snapshot'
 import { layoutAutomationIsland } from '../../src/renderer/src/components/automations/automationIslandLayout'
 import { useIslandStore } from '../../src/renderer/src/stores/island'
 import { useSuperAgentUIStore } from '../../src/renderer/src/stores/superagent-ui'
 import { useGlobalToolsStore } from '../../src/renderer/src/stores/global-tools'
 
 afterEach(() => {
+  usePluginSnapshot.setState({ plugins: [] })
   useIslandStore.setState({ automationLocked: false })
   useIslandStore.getState().releaseCompanion()
   useIslandStore.getState().dispatch({ type: 'dismiss' })
@@ -73,6 +77,10 @@ describe('Island companion lifetime', () => {
     expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', automationLocked: true, companionToolId: null })
   })
   it('retains the connection when chat is hosted by SuperAgent rather than expanded Island', () => {
+    usePluginSnapshot.setState({ plugins: [{
+      manifest: parsePluginManifest(JSON.stringify(superAgentManifest)), source: { kind: 'official', directory: 'fixture' },
+      enabled: true, state: 'active', projects: [], projectScope: 'all', failures: 0, digest: 'fixture',
+    }] })
     useSuperAgentUIStore.setState({ started: true })
     useIslandStore.getState().openChat('', 'automations')
     expect(useIslandStore.getState()).toMatchObject({ stage: 'collapsed', companionToolId: 'automations', chatRequest: { prefill: '' } })

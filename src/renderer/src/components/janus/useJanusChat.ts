@@ -1,3 +1,4 @@
+import { isSuperAgentEnabled, superAgentOwnsChat } from '@/lib/superagent-plugin'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import i18n from '@/i18n'
 import {
@@ -722,7 +723,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
     if (!conversation || (!recovery && runtime?.isStreaming) || handles.active) return
-    const agentMode = conversation.topic ? 'superagent' : useSuperAgentUIStore.getState().agentMode
+    const agentMode = conversation.topic || (isSuperAgentEnabled() && useSuperAgentUIStore.getState().agentMode === 'superagent') ? 'superagent' : 'ordinary'
     const requestMemoBinding = !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
     const generation = handles.generation + 1
     handles.generation = generation
@@ -783,7 +784,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     void (async () => {
       let latest = conversationsRef.current.find((item) => item.id === id)
       if (!latest) return
-      const automaticWorkspace = !!latest.topic || (id === islandConversationId && useSuperAgentUIStore.getState().started)
+      const automaticWorkspace = !!latest.topic || (id === islandConversationId && superAgentOwnsChat())
       const resources = workspaceResources(automaticWorkspace
         ? { ...latest, attachedWorkspaceIds: userMessage.workspaceId ? [userMessage.workspaceId] : [] }
         : latest, workspacesRef.current)

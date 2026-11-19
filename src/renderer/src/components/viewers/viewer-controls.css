@@ -1,5 +1,5 @@
 .editor-window { container: file-window / inline-size; min-width: 0; }
-.editor-titlebar { gap: 8px; padding-inline: 8px; }
+.editor-titlebar { --titlebar-inline-padding: 8px; gap: 8px; padding-inline: var(--titlebar-inline-padding); }
 .editor-titlebar .window-controls[data-platform='windows'] { margin-right: -8px; }
 .editor-toolbar, .viewer-toolbar {
   display: flex; flex-shrink: 0; align-items: center; gap: 8px;

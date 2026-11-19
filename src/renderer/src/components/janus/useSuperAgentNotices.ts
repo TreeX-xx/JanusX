@@ -1,16 +1,29 @@
+import { useSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { useEffect } from 'react'
 import { useSuperAgentAvailability } from './useSuperAgentAvailability'
 import i18n from '@/i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useSuperAgentUIStore } from '@/stores/superagent-ui'
+import { getLeafPanes } from '@/lib/workspace-pane'
+import { useGlobalToolsStore } from '@/stores/global-tools'
 import { openSuperAgent } from '@/lib/superagent-navigation'
 import type { SuperAgentWorkerSnapshot } from '../../../../shared/superagent-worker'
 
 /** Application-owned subscriptions survive pane collapse, tab closure and workspace navigation. */
 export function useSuperAgentNotices() {
   const optedIn = useSuperAgentUIStore(state => state.started || state.agentMode === 'superagent')
-  const available = useSuperAgentAvailability(undefined, optedIn)
-  useEffect(() => { if (useSuperAgentUIStore.getState().started) openSuperAgent() }, [])
+  const enabled = useSuperAgentEnabled()
+  const available = useSuperAgentAvailability(undefined, optedIn && enabled)
+  useEffect(() => {
+    if (enabled) {
+      if (useSuperAgentUIStore.getState().started) openSuperAgent()
+      return
+    }
+    const tools = useGlobalToolsStore.getState()
+    for (const pane of getLeafPanes(tools.paneTree)) {
+      for (const tab of pane.tabs) if (tab.type === 'superagent') tools.closePaneTab(pane.id, tab.id)
+    }
+  }, [enabled])
   useEffect(() => {
     const api = window.electron?.superAgent
     if (!api || !available) return

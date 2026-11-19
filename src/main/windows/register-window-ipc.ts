@@ -24,6 +24,20 @@ export function registerWindowIpc(editorWindows: EditorWindowManager, getMainWin
     }
     return window.isMaximized()
   })
+  const focusObserved = new WeakSet<BrowserWindow>()
+  ipcMain.handle(SYSTEM_CHANNELS.getFocused, event => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window.isDestroyed()) return false
+    if (!focusObserved.has(window)) {
+      focusObserved.add(window)
+      const publishFocus = () => {
+        if (!window.webContents.isDestroyed()) window.webContents.send(SYSTEM_CHANNELS.focusChanged, window.isFocused())
+      }
+      window.on('focus', publishFocus)
+      window.on('blur', publishFocus)
+    }
+    return window.isFocused()
+  })
   ipcMain.handle(SYSTEM_CHANNELS.minimize, event => BrowserWindow.fromWebContents(event.sender)?.minimize())
   ipcMain.handle(SYSTEM_CHANNELS.maximize, event => {
     const window = BrowserWindow.fromWebContents(event.sender)

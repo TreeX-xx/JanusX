@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
+import { isSuperAgentEnabled, useSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { Download, X } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
@@ -119,11 +119,8 @@ export function JanusIsland({
   const companionVeil = useAutomationIslandLayout(shellRef, stage === 'expanded' && view === 'chat' && companionToolId === 'automations')
   const setView = useCallback((next: JanusExpandedView) => setStoredView(ISLAND_CHAT_ONLY ? 'chat' : next), [])
   const pluginSnapshot = usePluginSnapshot()
-  const superAgentOwnsChat = superAgentStarted && pluginSnapshot.plugins.some(plugin =>
-    plugin.manifest.id === 'official.superagent' && plugin.source.kind === 'official' && plugin.enabled
-    && (!activeWorkspace || hasPluginProjectAccess(plugin, activeWorkspace.id))
-    && (['ready', 'loading', 'active'].includes(plugin.state) || plugin.error === 'VIEW_LOAD_FAILED' && plugin.state === 'error'),
-  )
+  const superAgentEnabled = useSuperAgentEnabled()
+  const superAgentOwnsChat = superAgentStarted && superAgentEnabled
   const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
   const pluginViews = useExtensionViews()
   const pluginViewRequest = useIslandStore(s => s.pluginViewRequest)
@@ -429,7 +426,7 @@ export function JanusIsland({
     if (actionId === 'open-superagent' && notification?.work) {
       const target = notification.work
       const workspace = useWorkspaceStore.getState().workspaces.find(row => row.id === target.workspaceId)
-      if (!workspace) { setPluginActionFailure(t('janus:superagent.workspaceUnavailable')); return }
+      if (!workspace || !isSuperAgentEnabled(target.workspaceId)) { setPluginActionFailure(t('janus:superagent.workspaceUnavailable')); return }
       useWorkspaceStore.getState().setActiveWorkspace(workspace.id)
       conversationController?.selectConversation(target.conversationId)
       useSuperAgentUIStore.setState({ focusedWorkId: target.workId })
@@ -497,7 +494,7 @@ export function JanusIsland({
   // peek/expanded surfaces render from IslandNotification only; the former
   // per-kind title/subtitle/status chains live in islandNotifications.ts.
   const notifications = useMemo(() => assembleNotifications([
-    ...workerNotices.map(notice => ({ id: notice.id, kind: 'agent' as const,
+    ...workerNotices.filter(notice => isSuperAgentEnabled(notice.workspaceId)).map(notice => ({ id: notice.id, kind: 'agent' as const,
       severity: notice.kind === 'failure' ? 'failed' as const : notice.kind === 'question' ? 'attention' as const : 'success' as const,
       copy: { titleKey: 'janus:superagent.heading', titleText: notice.title,
         subtitleText: `${workspaces.find(row => row.id === notice.workspaceId)?.name ?? notice.workspaceId} · ${notice.summary}` },

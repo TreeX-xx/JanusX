@@ -6,6 +6,7 @@ import type { HistoryEngine, HistorySourceSettings, HistorySourcesView } from '.
 export const SYSTEM_CHANNELS = {
   defaultShell: 'system:getDefaultShell', platform: 'system:getPlatform',
   openDirectory: 'dialog:openDirectory', saveFile: 'dialog:saveFile', showMessageBox: 'dialog:showMessageBox',
+  getFocused: 'window:get-focused', focusChanged: 'window:focus-changed',
   getMaximized: 'window:get-maximized', maximizedChanged: 'window:maximized-changed',
   minimize: 'window:minimize', maximize: 'window:maximize', close: 'window:close',
   openEditor: 'editor-window:open', refreshEditor: 'editor-window:refresh', editorReady: 'editor-window:ready', editorReceived: 'editor-window:received', editorHostReady: 'editor-window:host-ready', embedEditor: 'editor-window:embed', editorEmbedded: 'editor-window:embedded',
@@ -55,6 +56,8 @@ export interface DialogAPI {
   showMessageBox(options: { message: string; detail?: string; buttons: string[]; defaultId?: number; cancelId?: number }): Promise<{ response: number }>
 }
 export interface WindowAPI {
+  getFocused(): Promise<boolean>
+  onFocusChanged(callback: (focused: boolean) => void): () => void
   getMaximized(): Promise<boolean>
   onMaximizedChanged(callback: (maximized: boolean) => void): () => void
   minimize(): Promise<void>; maximize(): Promise<void>; close(): Promise<void>
