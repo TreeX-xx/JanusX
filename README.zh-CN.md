@@ -16,6 +16,7 @@
 
 [![Release](https://img.shields.io/github/v/release/TreeX-xx/JanusX?include_prereleases=&style=flat-square&color=D43D2A)](https://github.com/TreeX-xx/JanusX/releases)
 [![Windows x64](https://img.shields.io/badge/Windows-x64-1C343B?style=flat-square)](https://treex-xx.github.io/JanusX/)
+[![macOS arm64](https://img.shields.io/badge/macOS-Apple_Silicon-1C343B?style=flat-square)](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.10)
 [![Downloads](https://img.shields.io/github/downloads/TreeX-xx/JanusX/total?style=flat-square&color=1C343B)](https://github.com/TreeX-xx/JanusX/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1C343B?style=flat-square)](./LICENSE)
 
@@ -31,10 +32,11 @@
 
 ## 安装与开始使用
 
-前往 **[官方下载页](https://treex-xx.github.io/JanusX/)**，选择 Windows 10 / 11 的 x64 安装包。
+JanusX 支持 Windows 10 / 11 x64 和 macOS 15 及以上的 Apple Silicon Mac。[Mac 下载](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.10) · [Windows 下载](https://treex-xx.github.io/JanusX/)
 
 | 版本 | 适合场景 | 使用方式 |
 | --- | --- | --- |
+| macOS 磁盘映像 `*-arm64.dmg` | Apple Silicon Mac | 打开后将 JanusX 拖入“应用程序” |
 | 安装版 `*-x64-setup.exe` | 在电脑上日常使用 | 运行安装向导，选择安装目录，完成后启动 JanusX |
 | 便携版 `*-x64-portable.exe` | 希望免安装运行 | 下载后直接运行 `.exe` |
 
@@ -45,7 +47,7 @@
 
 </details>
 
-公开下载面向 Windows，安装与使用无需 Node.js 或克隆源码。其他平台的构建说明见[维护者指南](./docs/maintainers.md)。
+安装与使用无需 Node.js 或克隆源码。其他平台的构建说明见[维护者指南](./docs/maintainers.md)。
 
 **三步开始**
 
@@ -111,8 +113,9 @@
 | [蓝图](./plugins/blueprint/README.md) | 浏览项目模块与 Notes，通过对话维护项目约定，并按需开启 Git 提交审核。 |
 | [CPA](./plugins/cpa/README.md) | 托管本地 CLIProxyAPI 实例，或连接现有实例，在 JanusX 中打开管理页面。 |
 | [Docker](./plugins/docker/README.md)（实验） | 管理本地 Docker 容器，查看日志并打开容器终端。 |
+| SuperAgent（实验） | 在 Janus 对话中分派后台 Worker 并查看进度。 |
 
-[下载官方插件包](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.8)
+[下载官方插件包](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.10)
 
 <p align="center">
   <a href="./docs/assets/readme/blueprint-workbench.png"><img src="./docs/assets/readme/blueprint-workbench.png" alt="蓝图工作台左侧预览 Note，中间展示 Atlas 的 11 个节点，右侧显示 Janus 对话" width="840" /></a>

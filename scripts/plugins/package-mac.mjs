@@ -30,6 +30,16 @@ async function main() {
   const { npm_execpath: npm, JANUSX_PLUGIN_SIGNING_KEY: releaseKey, JANUSX_PLUGIN_KEY_ID: releaseKeyId, ...buildEnv } = process.env
   if (!npm) throw new Error('Run this command with npm run plugins:package:mac.')
 
+  // A release.json can already point at the candidate. Compare it with the
+  // signed public catalog to prevent repackaging an existing plugin version.
+  const catalogPath = process.env.JANUSX_PLUGIN_PREVIOUS_CATALOG
+  let previousCatalog
+  if (releaseTag && catalogPath) {
+    const { keys } = await readJson(join(repository, 'plugins/catalog/trust.json'))
+    const api = await distributionLibrary()
+    previousCatalog = api.verifyPluginCatalog(await readJson(catalogPath), keys, 0, Date.now(), true)
+  }
+
   const plugins = await Promise.all(['blueprint', 'cpa', 'docker', 'superagent'].map(async name => {
     const directory = join(repository, 'plugins', name)
     const manifest = await readJson(join(directory, 'manifest.json'))
@@ -40,8 +50,10 @@ async function main() {
     } }
 
     const publishedUrl = new URL(metadata.url)
-    const publishedVersion = basename(publishedUrl.pathname).slice(manifest.id.length + 1, -4)
-    if (metadata.firstRelease !== manifest.version && !semver.gt(manifest.version, publishedVersion)) {
+    const publishedVersion = previousCatalog
+      ? previousCatalog.releases.find(({ release }) => release.id === manifest.id)?.release.version
+      : metadata.firstRelease === manifest.version ? undefined : basename(publishedUrl.pathname).slice(manifest.id.length + 1, -4)
+    if (publishedVersion && !semver.gt(manifest.version, publishedVersion)) {
       throw new Error(`Increase ${name}'s manifest and package version above the published ${publishedVersion} before release signing.`)
     }
     const url = new URL(`../${releaseTag}/${filename}`, publishedUrl).href

@@ -85,9 +85,13 @@ npm run publish:win
 
 ### macOS 官方插件打包
 
-在已安装项目依赖的 Mac 上运行 `npm run plugins:package:mac`，构建 Blueprint、CPA 和 Docker，生成三份自包含的 `.jxp` 和对应的 `.release.json`。每次输出到 `artifacts/plugins/macos/test-*`，可追加 `-- <输出根目录>`。测试包默认声明 Apple Silicon 和 Intel 两种架构，输出的 `trust.json` 提供隔离测试宿主所需的公钥和 native 白名单。正式宿主使用仓库内预置的发布公钥。
+在已安装项目依赖的 Mac 上运行 `npm run plugins:package:mac`，构建 Blueprint、CPA、Docker 和 SuperAgent，生成四份自包含的 `.jxp` 和对应的 `.release.json`。每次输出到 `artifacts/plugins/macos/test-*`，可追加 `-- <输出根目录>`。测试包默认声明 Apple Silicon 和 Intel 两种架构，输出的 `trust.json` 提供隔离测试宿主所需的公钥和 native 白名单。正式宿主使用仓库内预置的发布公钥。
 
-正式签名前递增三个插件各自的 manifest、package 和 lock 版本，设置 `JANUSX_PLUGIN_KEY_ID` 与 `JANUSX_PLUGIN_SIGNING_KEY`，运行 `npm run plugins:package:mac -- --release-tag <新版本标签>`。正式包保留原平台声明，并默认加入构建机 Node.js 的 Mac 架构。可用 `--arch arm64` 或 `--arch x64` 指定已验收的目标，两种架构都验收后可传入两次。命令只生成本地文件，附件上传和目录签名另走正式发布流程。
+正式签名前递增已发行插件各自的 manifest、package 和 lock 版本，并更新 release.json 的下载地址与平台，设置 `JANUSX_PLUGIN_KEY_ID` 与 `JANUSX_PLUGIN_SIGNING_KEY`，运行 `npm run plugins:package:mac -- --release-tag <新版本标签>`。正式包保留原平台声明，并默认加入构建机 Node.js 的 Mac 架构。可用 `--arch arm64` 或 `--arch x64` 指定已验收的目标，两种架构都验收后可传入两次。命令只生成本地文件，附件上传和目录签名另走正式发布流程。
+
+从 `main` 手动运行 `release-plugins.yml`，输入已合入 `main` 的版本 tag。任务读取当前已签名目录核对版本，在 Apple Silicon runner 生成 Windows x64 和 macOS arm64 共用的正式插件包与新目录。维护者先将 .jxp 上传至该 tag 的 Release，确认附件可下载后再把同批 index.json 发布到 gh-pages 的 plugins 目录。
+
+macOS 先行发布时，可将该 Release 保持为公开稳定版，同时保留上一 Windows 版的 Latest 标记。后补 Windows 包时，在 Windows 从同一 tag 构建，执行 `npm run package:win` 和 `node scripts/publish-win.mjs --check`。将安装版、便携版、安装版 blockmap 和 latest.yml 作为新附件上传到已公开的同版 Release，核对远端摘要后再标记 Latest。已有 Mac 和插件附件保留原文件。
 
 ## 工作流维护
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1, "id": "official.docker", "name": "Docker", "version": "1.0.0",
+  "schemaVersion": 1, "id": "official.docker", "name": "Docker", "version": "1.0.1",
   "description": "Local containers, Compose groups, live logs and container terminals.",
   "engines": { "pluginApi": ">=1.0.0 <2.0.0" },
   "capabilities": { "required": ["runtime.native", "desktop.native", "desktop.containers", "views.workspace", "commands.openView", "menus.toolbox"], "optional": [] },
