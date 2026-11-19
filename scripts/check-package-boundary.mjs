@@ -10,6 +10,8 @@ const REQUIRED_TREE_EXCLUSIONS = [
   'tests',
   'wiki',
   'design',
+  '_design',
+  'vendor/janus-agent',
   'artifacts',
   'apps',
   'scripts/android-lab',
@@ -113,6 +115,7 @@ export function validateFilePatterns(patterns) {
   const EXTENSION_EXCLUSION = /^\*\*\/\*\.[A-Za-z0-9]{1,8}$/
   const allowedExclusion = (pattern) =>
     REQUIRED_TREE_EXCLUSIONS.includes(pattern) ||
+    pattern === 'resources/officecli' || // Platform binary ships through extraResources, outside app.asar.
     pattern.startsWith('node_modules/') ||
     pattern === '**/node_modules/@napi-rs/canvas' ||
     pattern === '**/node_modules/@napi-rs/canvas-*' ||

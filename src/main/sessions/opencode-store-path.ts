@@ -1,11 +1,9 @@
 import { homedir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { providerPathContext, resolveProviderPaths } from '../external-cli/provider-paths'
 
 /** Shared by session discovery, transcript recovery and usage accounting. */
 export function resolveOpencodeDbPath(home: string = homedir(), env: NodeJS.ProcessEnv = process.env): string {
-  const base = join(env.XDG_DATA_HOME?.trim() || join(home, '.local', 'share'), 'opencode')
-  const configured = env.OPENCODE_DB?.trim()
-  return configured && configured !== ':memory:'
-    ? isAbsolute(configured) ? configured : join(base, configured)
-    : join(base, 'opencode.db')
+  const store = resolveProviderPaths('opencode', providerPathContext({ env, home })).store
+  if (!store) throw new Error('OpenCode has no persistent session store in the active configuration')
+  return store
 }

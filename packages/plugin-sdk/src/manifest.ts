@@ -17,7 +17,7 @@ export const PLUGIN_CAPABILITIES = [
   'views.workspace', 'views.multiple', 'views.right', 'commands.openView', 'menus.toolbox', 'menus.workspace-add',
   'keybindings.local', 'context.project', 'files.readText', 'files.listDirectory', 'storage.kv', 'storage.watch', 'ui.toast',
   'views.workbench', 'views.workbench.frame', 'views.workbench.worktrees', 'views.workbench.rebind', 'views.settings', 'views.island', 'views.window', 'themes.palette', 'island.status',
-  'runtime.native', 'desktop.native', 'desktop.containers', 'models.agent.progress', 'workspace.handoff',
+  'runtime.native', 'agent.superagent.v1', 'desktop.native', 'desktop.containers', 'models.agent.progress', 'workspace.handoff',
   'documents.viewers', 'documents.readText', 'documents.applyEdit', 'documents.draft',
   'configuration.settings', 'configuration.open', 'configuration.migrations', 'configuration.customViews',
   'tasks.declarative', 'tasks.inputBindings', 'network.fetch', 'credentials.use', 'events.public', 'services.public', 'agent.services', 'agent.workflows', 'models.generate', 'agent.skills', 'agent.context',

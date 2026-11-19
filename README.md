@@ -16,6 +16,7 @@ Run projects and terminals side by side, switch between terminal and chat in the
 
 [![Release](https://img.shields.io/github/v/release/TreeX-xx/JanusX?include_prereleases=&style=flat-square&color=D43D2A)](https://github.com/TreeX-xx/JanusX/releases)
 [![Windows x64](https://img.shields.io/badge/Windows-x64-1C343B?style=flat-square)](https://treex-xx.github.io/JanusX/)
+[![macOS arm64](https://img.shields.io/badge/macOS-Apple_Silicon-1C343B?style=flat-square)](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.10)
 [![Downloads](https://img.shields.io/github/downloads/TreeX-xx/JanusX/total?style=flat-square&color=1C343B)](https://github.com/TreeX-xx/JanusX/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1C343B?style=flat-square)](./LICENSE)
 
@@ -31,10 +32,11 @@ Run projects and terminals side by side, switch between terminal and chat in the
 
 ## Install and get started
 
-Go to the **[download page](https://treex-xx.github.io/JanusX/)** and pick a Windows 10 / 11 x64 build.
+JanusX supports Windows 10 / 11 x64 and Apple Silicon Macs running macOS 15 or later. [Mac downloads](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.10) · [Windows downloads](https://treex-xx.github.io/JanusX/)
 
 | Build | Best for | How to use |
 | --- | --- | --- |
+| macOS disk image `*-arm64.dmg` | Apple Silicon Macs | Open the image and drag JanusX into Applications |
 | Installer `*-x64-setup.exe` | Daily use on your machine | Run the wizard, choose an install folder, then launch JanusX |
 | Portable `*-x64-portable.exe` | Run without installing | Download and run the `.exe` |
 
@@ -45,7 +47,7 @@ Portable builds keep data under `%APPDATA%\JanusX-Portable` for the current user
 
 </details>
 
-Public downloads target Windows. Installing and using JanusX requires neither Node.js nor a source clone. For other platforms, see the [maintainer guide](./docs/maintainers.md).
+Installing and using JanusX requires neither Node.js nor a source clone. For other platforms, see the [maintainer guide](./docs/maintainers.md).
 
 **Three steps to start**
 
@@ -111,8 +113,9 @@ Install official plugins as needed. Download a package, import it in **Settings 
 | [Blueprint](./plugins/blueprint/README.md) | Browse project modules and Notes, maintain conventions through chat, and optionally enable review on Git commits. |
 | [CPA](./plugins/cpa/README.md) | Host a local CLIProxyAPI instance or connect an existing instance and open its admin page in JanusX. |
 | [Docker](./plugins/docker/README.md) (experimental) | Manage local Docker containers, inspect logs, and open container terminals. |
+| SuperAgent (experimental) | Delegate work to background Workers and follow their progress in Janus conversations. |
 
-[Download official plugin packages](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.8)
+[Download official plugin packages](https://github.com/TreeX-xx/JanusX/releases/tag/v0.9.10)
 
 <p align="center">
   <a href="./docs/assets/readme/blueprint-workbench.png"><img src="./docs/assets/readme/blueprint-workbench.png" alt="Blueprint workbench with a Note preview on the left, the 11-node Atlas graph in the center, and a Janus conversation on the right" width="840" /></a>

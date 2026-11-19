@@ -14,6 +14,26 @@ export interface NativeServiceOptions {
 
 /** One activation owns one process and all pending calls. Shutdown cannot kill shared host sessions. */
 export class NativePluginService {
+  private readonly lifetime = new AbortController()
+  private cleanup?: () => Promise<void>
+  private draining?: Promise<void>
+  ownCleanup(close: () => Promise<void>) {
+    if (this.cleanup || !this.active) throw new NativeServiceError('INVALID_STATE')
+    this.cleanup = close
+  }
+  private retire() {
+    this.lifetime.abort()
+    if (this.cleanup) {
+      const close = this.cleanup
+      this.cleanup = undefined
+      this.draining = close()
+      // Crashes have no caller at this point. shutdown observes the same outcome.
+      void this.draining.catch(() => {})
+    }
+  }
+  private ready = false
+  get active() { return this.ready && !this.lifetime.signal.aborted }
+  get signal() { return this.lifetime.signal }
   private process?: NativeProcess
   private peer?: NativePeer
   private unlistenExit?: () => void
@@ -31,6 +51,7 @@ export class NativePluginService {
         this.peer = new NativePeer(child, generation, this.options.host, code => this.stop(code))
         this.unlistenExit = child.exited(() => this.stop('SERVICE_EXITED'))
         await this.peer.call('lifecycle.start', context, undefined, 15_000)
+        this.ready = true
       }
       catch (cause) { this.stop('SERVICE_START_FAILED'); throw cause }
     })()
@@ -47,14 +68,19 @@ export class NativePluginService {
   }
   shutdown(): Promise<void> {
     return this.shutdownFlight ??= (async () => {
-      if (this.stopReason) return
-      try { await this.peer?.call('lifecycle.stop', null, undefined, 3000) }
-      finally { this.stop('SERVICE_STOPPED') }
+      this.retire()
+      try {
+        if (!this.stopReason) await this.peer?.call('lifecycle.stop', null, undefined, 3000)
+      } finally {
+        this.stop('SERVICE_STOPPED')
+        await this.draining
+      }
     })()
   }
   stop(code = 'SERVICE_STOPPED'): void {
     if (this.stopReason) return
     this.stopReason = code
+    this.retire()
     this.peer?.close(); this.unlistenExit?.(); this.process?.terminate()
     this.peer = undefined; this.process = undefined; this.unlistenExit = undefined
     this.options.stopped(code)

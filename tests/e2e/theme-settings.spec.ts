@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('session startup preference persists and migrates the retired opt-in to terminal first', async ({ page }) => {
-  await page.goto('/theme-settings.html')
+  await page.goto('/theme-settings.html?general')
   await page.evaluate(() => localStorage.setItem('janusx-conversation-launch', JSON.stringify({ state: { enabled: false }, version: 0 })))
   await page.reload()
   const choice = page.getByRole('button', { name: 'Default view for new sessions', exact: true })

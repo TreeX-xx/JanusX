@@ -2,7 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { SUPPORTED_HARNESS_PROFILE } from '@janus-agent/harness-node'
@@ -11,7 +11,7 @@ import { getThemeDefinition } from '../../src/shared/theme/registry'
 
 test('signed Blueprint UI follows themes, preserves drafts, applies confirmed files without audit history, and restores data after reinstall', async () => {
   test.setTimeout(120_000)
-  const directory = await mkdtemp(join(tmpdir(), 'blueprint-ui-'))
+  const directory = await mkdtemp(join(await realpath(tmpdir()), 'blueprint-ui-'))
   let app: ElectronApplication | undefined
   let stderr = ''
   try {
@@ -213,7 +213,7 @@ test('signed Blueprint UI follows themes, preserves drafts, applies confirmed fi
       const composer = element.closest('.bp-maintenance-composer')!.getBoundingClientRect()
       const input = element.parentElement!.querySelector('textarea.janus-chat-input')!.getBoundingClientRect()
       const description = element.querySelector('p')!.getBoundingClientRect()
-      return { controls: controls.toJSON(), composer: composer.toJSON(), input: input.toJSON(), description: description.toJSON(), clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }
+      return { viewport: { width: innerWidth, height: innerHeight }, controls: controls.toJSON(), composer: composer.toJSON(), input: input.toJSON(), description: description.toJSON(), clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }
     })
     expect(scopeLayout.description.bottom).toBeLessThanOrEqual(scopeLayout.controls.bottom + 1)
     expect(scopeLayout.input.top).toBeGreaterThanOrEqual(scopeLayout.controls.bottom)
@@ -240,13 +240,16 @@ test('signed Blueprint UI follows themes, preserves drafts, applies confirmed fi
     expect(compactLayout.input.bottom).toBeLessThanOrEqual(compactLayout.composer.bottom)
     expect(compactLayout.composer.bottom).toBeLessThanOrEqual(compactLayout.panel.bottom)
     await page.screenshot({ path: 'artifacts/plugins/blueprint-maintenance-scope-compact.png' })
-    await app.evaluate(() => (globalThis as any).blueprintProbe.resize(1440, 920))
+    await app.evaluate((_electron, { width, height }) => (globalThis as any).blueprintProbe.resize(width, height), scopeLayout.viewport)
+    await expect.poll(() => page.evaluate(() => innerHeight)).toBe(scopeLayout.viewport.height)
     await page.locator('.bp-maintenance-controls').evaluate(element => { element.scrollTop = 0 })
     await page.locator('.bp-maintenance-models > summary').click()
     await page.getByLabel('维护范围', { exact: true }).selectOption('subtree')
+    const discussionInput = page.getByRole('textbox', { name: '讨论内容' })
+    const beforeCollapse = (await discussionInput.boundingBox())!.y
     await page.locator('.bp-maintenance-controls > summary').click()
     await expect(page.getByLabel('维护范围', { exact: true })).toBeHidden()
-    expect(Math.abs((await page.getByRole('textbox', { name: '讨论内容' }).boundingBox())!.y - scopeLayout.input.top)).toBeLessThanOrEqual(1)
+    expect(Math.abs((await discussionInput.boundingBox())!.y - beforeCollapse)).toBeLessThanOrEqual(1)
     await page.locator('.bp-maintenance-controls > summary').click()
     await expect(page.getByRole('textbox', { name: '讨论内容' })).toBeEnabled()
     await app.evaluate(() => (globalThis as any).blueprintProbe.editDiscussionDraft('Another page draft'))

@@ -50,6 +50,7 @@ export interface ShellCandidateProbe {
 export function createShellProfileSeed(platform: NodeJS.Platform): ShellProfileEntry {
   return platform === 'win32'
     ? { id: 'shell-powershell', name: 'PowerShell', command: 'powershell.exe', visible: true, isDefault: true }
+    : platform === 'darwin' ? { id: 'shell-zsh', name: 'Zsh', command: '/bin/zsh', visible: true, isDefault: true }
     : { id: 'shell-bash', name: 'Bash', command: 'bash', visible: true, isDefault: true }
 }
 

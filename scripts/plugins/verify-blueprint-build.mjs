@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dependencyDifferences, publicArchives } from './public-archives.mjs'
+import { verifyEnginePackages } from '../verify-engine-packages.mjs'
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const source = join(repository, 'plugins/blueprint')
@@ -22,6 +23,7 @@ await mkdir(vendor, { recursive: true })
 for (const file of ['src', 'manifest.json', 'package.json', 'tsconfig.json', 'build.mjs']) await cp(join(source, file), join(project, file), { recursive: true })
 const pkg = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
 const host = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8'))
+verifyEnginePackages(repository, host.dependencies, false)
 const names = Object.keys(pkg.dependencies).filter(name => name.startsWith('@janus'))
 const sources = names.map(name => {
   const reference = host.dependencies[name]

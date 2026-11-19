@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -161,6 +161,23 @@ describe('opencode sessions', async () => {
     expect(readOpencodeTurns(path, 'missing')).toBeNull()
     expect(readOpencodeTurns(join(tmpdir(), 'opencode-absent.db'), 's')).toBeNull()
     expect(readOpencodeTurns(path, '')).toBeNull()
+  })
+
+  it('reads committed live WAL data in place without modifying the database or WAL', async () => {
+    const path = await fixtureDb()
+    const writer = new DatabaseSync(path)
+    try {
+      writer.exec('PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; BEGIN')
+      writer.prepare('INSERT INTO session VALUES (?, ?, ?, ?, ?)').run('wal-live', '/Projects/Case', 'Live WAL', 1000, 2000)
+      insertMessage(writer, 'wal-live', 'user', ['live question'], 1000)
+      insertMessage(writer, 'wal-live', 'assistant', ['live answer'], 1100)
+      writer.exec('COMMIT')
+      const before = await Promise.all([readFile(path), readFile(`${path}-wal`)])
+      expect((await listOpencodeSessions(path, 10))[0]).toMatchObject({ providerSessionId: 'wal-live', lastExcerpt: 'live answer' })
+      expect(readOpencodeTurns(path, 'wal-live')?.turns[0]).toEqual({ prompt: 'live question', excerpt: 'live answer' })
+      expect(await readFile(path)).toEqual(before[0])
+      expect(await readFile(`${path}-wal`)).toEqual(before[1])
+    } finally { writer.close() }
   })
 
   it('probes presence without opening the message tables', async () => {

@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 const islandPort = Number(process.env.JANUS_E2E_PORT ?? 41731)
 
 const desktopTestFiles = [
+  'desktop-superagent.spec.ts',
+  'desktop-superagent-live.spec.ts',
   'browser-control-desktop.spec.ts',
   'pdf-preview-desktop.spec.ts',
   'desktop-claude-conversation.spec.ts',
@@ -12,6 +14,8 @@ const desktopTestFiles = [
   'desktop-automations.spec.ts',
   'blueprint-plugin.spec.ts', 'desktop-workspace-runtime.spec.ts', 'desktop-workspace-storage.spec.ts', 'desktop-plugins.spec.ts',
   'unified-file-window.spec.ts', 'desktop-global-tools.spec.ts', 'desktop-smoke.spec.ts',
+  'desktop-window-reopen.spec.ts',
+  'desktop-cli-chain.spec.ts',
   'desktop-harness-runtime.spec.ts', 'desktop-session-continue.spec.ts', 'editor-definition.spec.ts',
   'editor-find-widget.spec.ts', 'editor-window-tabs.spec.ts', 'run-config-assistant.spec.ts',
   'memo-desktop.spec.ts', 'memo-layout-desktop.spec.ts', 'memo-chat-desktop.spec.ts',

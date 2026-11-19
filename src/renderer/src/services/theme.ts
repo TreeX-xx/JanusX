@@ -1,6 +1,7 @@
 import { BUILT_IN_THEME_IDS, DEFAULT_APP_THEME, normalizeAppTheme, type AppTheme } from '../../../shared/ipc/theme'
 import { getThemeDefinition, subscribeThemeRegistry } from '../../../shared/theme/registry'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
+import { useConversationPreferences } from '@/stores/conversation-preferences'
 
 export type { AppTheme }
 export { normalizeAppTheme }
@@ -8,6 +9,16 @@ const ownedTokens = new Set<string>()
 let selectedTheme: AppTheme = DEFAULT_APP_THEME
 useBrowserOcclusionStore.subscribe(() => applyThemeToDocument(selectedTheme))
 subscribeThemeRegistry(() => applyThemeToDocument(selectedTheme))
+useConversationPreferences.subscribe((state, previous) => {
+  if (state.emphasisColors !== previous.emphasisColors) applyConversationEmphasis()
+})
+
+function applyConversationEmphasis(): void {
+  if (typeof document === 'undefined') return
+  const color = useConversationPreferences.getState().emphasisColors[getThemeDefinition(selectedTheme).id]
+  if (color) document.documentElement.style.setProperty('--conversation-emphasis', color)
+  else document.documentElement.style.removeProperty('--conversation-emphasis')
+}
 
 export function applyThemeToDocument(theme: AppTheme): void {
   selectedTheme = theme
@@ -33,6 +44,7 @@ export function applyThemeToDocument(theme: AppTheme): void {
     root.style.setProperty(`--${key}`, value); ownedTokens.add(key)
   }
   root.style.colorScheme = resolved.base
+  applyConversationEmphasis()
 }
 
 export async function getAppTheme(): Promise<AppTheme> {

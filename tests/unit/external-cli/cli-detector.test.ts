@@ -117,7 +117,7 @@ describe('CliDetector', () => {
   })
 
   it('resolves posix binaries directly from PATH and known dirs', async () => {
-    const pathBinary = resolve('/home/test/.local/bin/claude')
+    const pathBinary = '/home/test/.local/bin/claude'
     const { detector } = createHarness({
       files: [pathBinary],
       path: '/home/test/.local/bin',

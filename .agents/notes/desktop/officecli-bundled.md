@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-20T08:20:38Z",
+  "updated": "2026-11-14T16:53:48Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -31,17 +31,23 @@
 
 ## Problem
 
-Office preview depends on a version-pinned OfficeCLI, yet the app ships without it. The runtime probes PATH, a known location, and a user-data managed copy, then asks the user to download, confirm, repair, or remove that copy through a setup dialog and a settings section. Every new file type in the product workspace reuses this gate, so Office kinds carry install friction that markdown and html kinds never have. Pre-release is the last point where the download flow, its manifest, and its four installer channels can disappear without a migration.
+Office preview depends on a version-pinned OfficeCLI. The original runtime installation flow added user friction and a separate update channel; bundling removed those costs. The first bundle resolved only `officecli.exe` and selected checksums by architecture alone, so macOS could neither find its executable nor pass the broker's checksum check, even though upstream publishes macOS binaries.
 
 ## Decision
 
-OfficeCLI is a bundled asset at `resources/officecli/officecli.exe` (pinned `1.0.135`, per-arch binary placed before packaging). `office-bundled-path.ts` owns the version, the expected SHA256, and the single resolver (`JANUSX_OFFICECLI_BINARY` override for dev, otherwise `<resources>/officecli`). `officecli-manager.ts` verifies only that candidate with `--version` plus `watch/create/batch` capability probes and reports `source: 'bundled'`. The broker pins the same SHA256. Preview, terminal, agent, and launcher consumers read the verified bundled path. Missing or incompatible binaries surface reinstall copy ("reinstall JanusX"), never an install prompt.
+OfficeCLI remains a bundled asset pinned to `1.0.135`. `src/shared/officecli-release.json` owns asset names, paths and SHA256 values for Windows and macOS, each with x64 and arm64 targets. Windows keeps `resources/officecli/officecli.exe`; macOS stages separate `resources/officecli/darwin-<arch>/officecli` binaries. `office-bundled-path.ts` resolves the process platform/architecture and retains the absolute `JANUSX_OFFICECLI_BINARY` development override. The broker selects its pinned hash by both platform and architecture. `officecli-manager.ts` probes `--version` and `watch/create/batch` capabilities, and reports `source: 'bundled'`. Missing or incompatible binaries surface reinstall copy ("reinstall JanusX"), never an install prompt.
+
+`npm run officecli:prepare` downloads the selected official release at build time, verifies bytes before replacement, reuses valid files and sets executable permissions for macOS. `--check` performs no download. `scripts/officecli-before-pack.cjs` verifies the builder's actual target, so cross-architecture packaging cannot silently copy the host's binary. Platform-specific `extraResources` copies only that binary; all staged OfficeCLI files are excluded from `app.asar`. The Windows release workflow uses the same preparation command and manifest. Usage is maintained in [the resource README](../../../resources/officecli/README.md).
+
+macOS signing excludes only the bundled OfficeCLI executable from re-signing, preserving upstream's signature and the broker's byte-level pin. JanusX app signing and notarization still require a Mac environment and credentials. Universal packages are rejected; separate arm64 and x64 apps keep the resource and process architecture aligned, including an x64 app under Rosetta. Linux is outside this bundled target contract. This change adapts OfficeCLI integration, not the complete desktop/native-dependency release pipeline.
 
 Terminal creation reads `getVerifiedBinary()` synchronously. Application bootstrap already awaits `initializeOfficecliProvider()` before opening the window, so terminal registration, warmup and create do not repeat probes or refresh a missing result. A missing/incompatible OfficeCLI therefore cannot delay Shell or AI terminal startup; the terminal receives no verified OfficeCLI override in that case. Explicit Office consumers may still detect/refresh, and only subsequently created terminals receive a newly verified path. The Office manager and terminal IPC tests cover this behavior; the [startup investigation](../terminal/terminal-right-island-turn-history.md) owns timing evidence and UI feedback.
 
 Development bootstrap resolves the same pinned asset under `app.getAppPath()/resources/officecli`; packaged bootstrap uses `process.resourcesPath/officecli`. Electron's development `process.resourcesPath` points into `node_modules/electron/dist/resources`, which does not contain the checkout asset and previously caused a false missing-engine result. An explicit `JANUSX_OFFICECLI_BINARY` override retains precedence. Changing this bootstrap path requires restarting the development main process.
 
 Verification on 2026-10-20: the checkout binary matched the pinned x64 SHA256, reported `1.0.135`, and ran `watch/create/batch --help` successfully. The manager and launcher Vitest suites passed 13 tests. The running development process was not restarted and a real PPTX preview was not re-tested.
+
+Verification on 2026-11-12 (Windows host): the full Office unit directory passed 121 tests; the resource suite then passed 8 tests after adding two successful staging/offline-reuse cases (123 distinct tests in total). TypeScript, scoped ESLint, `build:check`, electron-builder configuration validation, Windows resource SHA256 and the Windows `beforePack` hook passed. Note validation reported zero errors and 17 existing external-link diagnostics. Real macOS asset downloads timed out on this network, including a proxy-enabled retry, without replacing local resources. macOS execution, POSIX permission enforcement, preview, signed DMG/ZIP creation and installation remain not-run; no Mac support claim follows from the Windows-hosted checks.
 
 ## Alternatives considered
 
@@ -51,4 +57,8 @@ Verification on 2026-10-20: the checkout binary matched the pinned x64 SHA256, r
 
 ## Consequences
 
-The installer, its policy, and its managed root disappear, with the setup gate, the settings section, the workspace auto-popup, the engine button, and the manual-install copy. `shared/office.ts` keeps six invoke channels and two events; installer types, guidance types, and request validators leave with them. Packaging gains an `extraResources` step and a `resources/officecli/README.md` placement contract, and the installer grows by one Windows binary per arch. Without the binary in `resources/officecli`, previews fail closed with reinstall copy, which the missing-binary smoke covers only when the file is present. A future revisit signal is a second supported platform or an OfficeCLI release cadence that outpaces JanusX releases, at which point the bundle needs per-arch staging or a versioned sidecar.
+The 2026-11-15 runtime consolidation routes the manager/watch processes through the common process host; the standalone broker and launcher use its Node-only composition. The Mac packaging hook now checks actual Mach-O architecture/deployment targets and the declared macOS 15.0 distribution floor, then sets the Office and PTY helper executable bits. Both real resource sets passed static inspection on Windows; 8 Office resource tests and 4 native-resource validator tests passed. macOS execution, signed package checks and minimum-OS acceptance remain not-run. The dependency-policy rationale and current evidence are maintained in [macOS compatibility](./macos-compatibility.md).
+
+The runtime remains free of managed downloads, PATH fallback, installer dialogs and a separate OfficeCLI update channel. Each package grows by one target binary. Unsupported targets fail closed, and packaging checks catch missing or mismatched assets before producing a package. Development still needs explicit preparation. Adding Linux, universal macOS apps, or changing OfficeCLI's upstream signing/release process requires extending the manifest and packaging contract; it must not weaken the broker checksum to accommodate altered binaries.
+
+Windows installer rebuild on 2026-11-13 exposed a boundary-check mismatch: the builder already excludes resources/officecli from app.asar, but the path validator rejected that known sidecar tree. The validator now allows that exact exclusion while continuing to reject other resource paths. The existing platform-specific extraResources and pinned-binary checks remain unchanged. Package-boundary tests passed 14 cases, including the sidecar regression; the actual boundary check and exclusion synchronization passed. Packaging evidence is under artifacts/superagent-installer-20261113-173230.

@@ -2,7 +2,7 @@ import { resolve } from 'path'
 import { describe, expect, it, vi } from 'vitest'
 import { CliDetector } from '../../../src/main/external-cli/cli-detector'
 import { CliInstaller } from '../../../src/main/external-cli/installer'
-import { EXTERNAL_CLI_TOOLS } from '../../../src/main/external-cli/tool-registry'
+import { EXTERNAL_CLI_TOOLS, getExternalCliTool } from '../../../src/main/external-cli/tool-registry'
 import { EXTERNAL_CLI_TOOL_ORDER, type ExternalCliToolId } from '../../../src/shared/ipc/external-cli'
 
 const VERSIONS: Record<ExternalCliToolId, string> = {
@@ -33,10 +33,10 @@ describe('external CLI tool matrix', () => {
       expect(tool.displayName.trim().length).toBeGreaterThan(0)
       expect(tool.binaryNames.length).toBeGreaterThan(0)
       expect(tool.manualInstallCommand.trim().length).toBeGreaterThan(0)
-      // 每个工具都有 npm 分发；janus 额外保留 sibling 源码 dev 回退。
+      // Active external tools use their npm distribution.
       expect(tool.npmPackage).toMatch(/^(@[^/]+\/[^/]+|[^/]+)$/)
     }
-    expect(EXTERNAL_CLI_TOOLS.janus.localLifecycle?.packageName).toBe('@janus-agent/cli')
+    expect(getExternalCliTool('janus')).toBeUndefined()
   })
 
   it.each(EXTERNAL_CLI_TOOL_ORDER)('detects %s on PATH with a parsed version', async (toolId) => {
@@ -62,7 +62,7 @@ describe('external CLI tool matrix', () => {
     })
   })
 
-  it('builds npm install commands for every tool, including janus', () => {
+  it('builds npm install commands for every active external tool', () => {
     const installer = new CliInstaller({
       platform: 'win32',
       env: { PATH: '' },
@@ -84,7 +84,7 @@ describe('external CLI tool matrix', () => {
       isRegularFile: async () => false,
       run: vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' })),
     })
-    const sourceless = { ...EXTERNAL_CLI_TOOLS.janus, npmPackage: undefined }
+    const sourceless = { ...EXTERNAL_CLI_TOOLS.codex, npmPackage: undefined }
     expect(() => installer.buildCommand('C:\\npm\\npm.cmd', sourceless)).toThrow()
   })
 })

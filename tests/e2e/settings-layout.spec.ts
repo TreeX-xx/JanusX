@@ -1,5 +1,20 @@
 import { expect, test } from '@playwright/test'
 
+test('daily preferences, appearance and data management have distinct destinations', async ({ page }) => {
+  await page.goto('/settings.html')
+  await expect(page.getByRole('heading', { name: '语言偏好', exact: true })).toBeVisible()
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '工作区数据', exact: true })).toHaveCount(0)
+  await page.locator('[data-tab="appearance"]').click()
+  await expect(page.getByRole('radio')).toHaveCount(3)
+  await expect(page.getByRole('heading', { name: '语言偏好', exact: true })).toHaveCount(0)
+  await page.locator('[data-tab="storage"]').click()
+  await expect(page.getByRole('heading', { name: '工作区数据', exact: true })).toBeVisible()
+  await page.locator('[data-tab="general"]').click()
+  await page.evaluate(() => window.dispatchEvent(new Event('janusx:open-storage-settings')))
+  await expect(page.locator('[data-tab="storage"]')).toHaveAttribute('aria-current', 'page')
+})
+
 test('notification disclosure keeps draft values through collapse, discard and save', async ({ page }) => {
   await page.goto('/settings.html?tab=notifications')
   const save = page.getByRole('button', { name: '保存', exact: true })
@@ -68,7 +83,7 @@ for (const theme of ['planche', 'dark', 'white']) {
     test(`settings fit ${theme} at ${width}px with reachable navigation and footer`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto(`/settings.html?theme=${theme}`)
-      await expect(page.getByRole('heading', { name: '外观与语言', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: '语言偏好', exact: true })).toBeVisible()
       const dialog = page.getByRole('dialog')
       const sidebar = dialog.locator('aside')
       const learning = sidebar.getByRole('button', { name: '帮助与学习', exact: true })

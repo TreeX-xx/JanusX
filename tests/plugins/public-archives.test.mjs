@@ -1,9 +1,37 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { dependencyDifferences, publicArchives } from '../../scripts/plugins/public-archives.mjs'
+
+test('pinned archives keep their publication bytes without repacking or stale cache reuse', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'pinned-public-archives-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const source = join(root, 'engine.tgz'), vendor = join(root, 'vendor'), cache = join(root, 'cache')
+  await mkdir(vendor)
+  let bytes = Buffer.from('pinned-publication')
+  let integrity = ''
+  const npm = args => {
+    assert.ok(args.includes('--dry-run'), 'an existing archive must never be repacked')
+    return JSON.stringify([{ name: 'engine', version: '1-engine.pinned', filename: 'engine.tgz', integrity,
+      files: [{ path: 'dist/index.js', mode: 420 }] }])
+  }
+  const build = () => publicArchives({ sources: [source], vendor, cache, npm })
+  await writeFile(source, bytes)
+  integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
+  const first = await build()
+  assert.deepEqual(await readFile(join(vendor, 'engine.tgz')), bytes)
+  assert.equal(first[0].integrity, integrity)
+  bytes = Buffer.from('updated-publication')
+  await writeFile(source, bytes)
+  await assert.rejects(build(), /Publication integrity changed/)
+  integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
+  const second = await build()
+  assert.deepEqual(await readFile(join(vendor, 'engine.tgz')), bytes)
+  assert.equal(dependencyDifferences({ dependencies: first }, { dependencies: second }).length, 1)
+})
 
 test('archive cache reuses identical publications and invalidates changed source or corrupted archives', async t => {
   const root = await mkdtemp(join(tmpdir(), 'public-archives-'))

@@ -1,0 +1,27 @@
+.startup { position: relative; isolation: isolate; flex: 1; min-width: 0; min-height: 0; width: 100%; overflow: auto; display: flex; background: var(--startup-background); color: var(--startup-text); container-type: inline-size; }
+.field { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; mask-image: linear-gradient(135deg, var(--startup-mask-solid) 20%, var(--startup-mask-soft) 52%, var(--startup-mask-faint) 85%, transparent); }
+.identity { position: relative; z-index: 1; width: min(480px, 44%); margin: auto clamp(32px, 7%, 104px) clamp(40px, 10%, 100px) auto; padding-top: 48px; text-align: right; animation: reveal 800ms cubic-bezier(.22, 1, .36, 1) 200ms both; }
+.overline { margin-bottom: 22px; color: var(--startup-overline); font: 10px Consolas, monospace; letter-spacing: 3px; }
+.name { position: relative; isolation: isolate; margin: 0; line-height: 0; --logo-reveal: 0%; --logo-scan-opacity: 0; }
+.name img { display: block; width: 100%; height: auto; }
+.name .logoGhost { position: absolute; inset: 0; filter: grayscale(1); opacity: .13; }
+.logoFace { position: relative; clip-path: inset(0 calc(100% - var(--logo-reveal)) 0 0); }
+.logoScan { position: absolute; inset: 0; pointer-events: none; mask-size: 100% 100%; mask-repeat: no-repeat; background: linear-gradient(90deg, transparent calc(var(--logo-scan-x) - 3%), var(--startup-scan) var(--logo-scan-x), transparent calc(var(--logo-scan-x) + 7%)); opacity: var(--logo-scan-opacity); }
+.subtitle { margin: 20px 0 44px; color: var(--startup-dot); font-size: 14px; line-height: 1.6; letter-spacing: 2px; }
+.status { margin: 0 0 14px; color: var(--startup-muted); font-size: 11px; line-height: 1.6; }
+.track { width: 164px; height: 2px; margin-left: auto; overflow: hidden; position: relative; background: var(--startup-track); }
+.track span { display: block; width: 40%; height: 100%; background: var(--startup-dot); animation: scan 2s cubic-bezier(.65, 0, .35, 1) infinite; }
+.startup[data-settled='true'] { animation: leave 420ms ease-in-out both; }
+.startup[data-settled='true'] .track span { width: 100%; animation: none; }
+.startup[data-active='false'], .startup[data-active='false'] .identity, .startup[data-active='false'] .track span { animation-play-state: paused; }
+@keyframes scan { from { transform: translateX(-100%); } to { transform: translateX(350%); } }
+@keyframes reveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes leave { to { opacity: 0; } }
+@container (max-width: 600px) {
+  .identity { width: calc(100% - 56px); max-width: 360px; margin: auto 28px 40px auto; padding-top: 40px; }
+  .field { mask-image: linear-gradient(155deg, var(--startup-mask-solid) 10%, var(--startup-mask-narrow) 45%, var(--startup-mask-faint) 80%, transparent); }
+  .overline { font-size: 8px; letter-spacing: 2px; margin-bottom: 18px; }
+  .subtitle { font-size: 12px; margin: 16px 0 32px; }
+}
+@media (max-height: 480px) { .identity { margin-bottom: 20px; padding-top: 20px; } .subtitle { margin-bottom: 20px; } }
+@media (prefers-reduced-motion: reduce) { .identity, .startup[data-settled='true'] { animation: none; } .track span { animation: none; width: 100%; opacity: .5; } .logoFace { clip-path: none; } .name .logoGhost, .logoScan { display: none; } }

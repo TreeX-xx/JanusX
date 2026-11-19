@@ -1,5 +1,59 @@
 import { test, expect } from '@playwright/test'
 
+for (const theme of ['dark', 'planche', 'white']) test(`Other matches composer typography, supports multiline text and submits with Enter in ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width: 480, height: 940 })
+  await page.goto(`/codex-conversation.html?initialView=conversation&theme=${theme}`)
+  const draft = page.getByRole('combobox')
+  await draft.fill('Keep this draft')
+  await page.evaluate(() => (window as any).codexFixture.questions('async'))
+  const form = page.getByRole('form', { name: 'Your response is needed' })
+  await form.getByRole('radio', { name: 'First', exact: true }).check()
+  const custom = form.getByRole('textbox', { name: 'Answer: Choose async' })
+  await expect(custom).toHaveJSProperty('tagName', 'TEXTAREA')
+  await expect(custom).toHaveCSS('font-size', await draft.evaluate(el => getComputedStyle(el).fontSize))
+  await expect(custom).toHaveCSS('line-height', await draft.evaluate(el => getComputedStyle(el).lineHeight))
+  await custom.fill('First line')
+  await custom.press('End')
+  await custom.press('Shift+Enter')
+  await custom.pressSequentially('Second line')
+  await expect(custom).toHaveValue('First line\nSecond line')
+  if (theme === 'dark') {
+    await custom.press('Control+j'); await custom.pressSequentially('Third line')
+    await expect(custom).toHaveValue('First line\nSecond line\nThird line')
+  }
+  const text = theme === 'dark' ? 'First line\nSecond line\nThird line' : 'First line\nSecond line'
+  await expect(form.getByRole('radio', { name: 'First', exact: true })).not.toBeChecked()
+  await expect(custom).toHaveCSS('outline-width', '1px')
+  expect(await custom.evaluate(el => getComputedStyle(el).outlineColor !== getComputedStyle(el).color)).toBe(true)
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.filter((c: any) => c.type === 'answer'))).toEqual([])
+  await page.screenshot({ path: `artifacts/conversation-interactions/other-focus-${theme}.png` })
+  await custom.dispatchEvent('compositionstart')
+  await custom.press('Enter')
+  await custom.press('Control+Enter')
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.filter((c: any) => c.type === 'answer'))).toEqual([])
+  await custom.dispatchEvent('compositionend')
+  await custom.press(theme === 'white' ? 'Meta+Enter' : 'Enter')
+  await expect(form).toHaveCount(0)
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.filter((c: any) => c.type === 'answer'))).toMatchObject([{
+    answer: { answers: [{ id: 'choice', selected: [], text }] },
+  }])
+  await expect(draft).toHaveText('Keep this draft')
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+})
+
+test('single-line answers submit once with Enter while preserving the main draft', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const draft = page.getByRole('combobox')
+  await draft.fill('Keep this draft')
+  await page.evaluate(() => (window as any).codexFixture.questions('text'))
+  const input = page.getByRole('textbox', { name: 'Answer: Type something' })
+  await input.fill('A direct answer'); await input.press('Enter')
+  await expect(input).toHaveCount(0)
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.commands.filter((c: any) => c.type === 'answer'))).toHaveLength(1)
+  await expect(draft).toHaveText('Keep this draft')
+  expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+})
+
 test('asynchronous Codex questions remain actionable during work and after completion', async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
   const draft = page.getByRole('combobox')

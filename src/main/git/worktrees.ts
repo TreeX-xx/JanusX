@@ -4,22 +4,23 @@
 // .agents/notes/sessions/worktrees/worktree-create-delete.md
 // Note: creation metadata plus local Ship diff/merge/abort — see
 // .agents/notes/sessions/worktrees/worktree-create-delete.md
-import { execFile, spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+import { runChecked, spawnProcess as spawn, stopOwnedProcess } from '../platform/process-host'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { access, copyFile, lstat, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve, posix } from 'node:path'
-import { promisify } from 'node:util'
 import type { RepoIdentity, WorktreeInfo } from '../../shared/ipc/worktree'
 import { worktreeMetaStore } from './worktree-meta'
 import { parseRuntimeResource, runtimeResource } from '../../shared/workspace-runtime'
 import { resolveRuntimeResource, runtimeRequest } from '../workspace/runtime'
 import { runWorkspaceProcess } from '../workspace/runtime-process'
+import { createControlledWorktree, removeControlledWorktree } from './controlled-worktree'
 
 const commandRoot = (value: string) => parseRuntimeResource(value) ? value : resolve(value)
 const remoteCreations = new Map<string, { workspacePath: string; operationId: string }>()
 
-const execFileAsync = promisify(execFile)
 const LOCAL_GIT_TIMEOUT_MS = 10000
 const AVATAR_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -95,7 +96,7 @@ async function runGit(cwd: string, args: string[]): Promise<string | null> {
       const result = await runWorkspaceProcess(cwd, ['git', ...args], { timeout: LOCAL_GIT_TIMEOUT_MS, maxBytes: 8 * 1024 * 1024 })
       return result.exitCode === 0 ? result.stdout : null
     }
-    const { stdout } = await execFileAsync('git', args, { cwd, timeout: LOCAL_GIT_TIMEOUT_MS })
+    const { stdout } = await runChecked('git', args, { cwd, timeoutMs: LOCAL_GIT_TIMEOUT_MS })
     return stdout
   } catch {
     return null
@@ -124,7 +125,7 @@ async function runGitCapture(cwd: string, args: string[]): Promise<GitCapture> {
       const result = await runWorkspaceProcess(cwd, ['git', ...args], { timeout: LOCAL_GIT_TIMEOUT_MS, maxBytes: 8 * 1024 * 1024 })
       return result.exitCode === 0 ? { ok: true, ...result } : { ok: false, ...result, message: result.stderr || 'Git command failed' }
     }
-    const { stdout, stderr } = await execFileAsync('git', args, { cwd, timeout: LOCAL_GIT_TIMEOUT_MS })
+    const { stdout, stderr } = await runChecked('git', args, { cwd, timeoutMs: LOCAL_GIT_TIMEOUT_MS })
     return { ok: true, stdout: stdout ?? '', stderr: (stderr as string | undefined) ?? '' }
   } catch (err) {
     const failure = err as { stdout?: unknown; stderr?: unknown; message?: unknown }
@@ -205,12 +206,12 @@ export function normalizeFsPath(value: string): string {
   } catch {
     // Keep the resolved spelling.
   }
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+  return resolved
 }
 
 export function samePath(left: string, right: string): boolean {
   try {
-    return normalizeFsPath(left) === normalizeFsPath(right)
+    return runtimePathKey(normalizeFsPath(left)) === runtimePathKey(normalizeFsPath(right))
   } catch {
     return left === right
   }
@@ -471,7 +472,18 @@ export async function createWorktree(
   workspacePath: string,
   input: CreateWorktreeInput,
   creationId?: string,
+  policy?: { mode: 'isolated'; targetPath: string },
 ): Promise<CreateWorktreeResult> {
+  if (policy) {
+    if (parseRuntimeResource(workspacePath)) throw new Error('Controlled worktrees currently require a local repository')
+    if (!input.branch || !input.startFrom) throw new Error('Controlled creation requires an explicit branch and pinned commit')
+    const checkout = await createControlledWorktree(workspacePath, policy.targetPath, input.branch, input.startFrom)
+    await worktreeMetaStore.set(safeNormalizeFsPath(checkout.path), {
+      startFrom: input.startFrom, branch: input.branch, createdAt: new Date().toISOString(),
+    }).catch(() => undefined)
+    return { worktree: { id: checkout.path, workspaceId: '', path: checkout.path, branch: checkout.branch,
+      detached: false, isMain: false, external: false, startFrom: input.startFrom }, shared: [], copied: [] }
+  }
   const resource = await resolveRuntimeResource(workspacePath)
   if (resource) {
     const operationId = randomUUID()
@@ -567,7 +579,7 @@ export async function cancelCreateWorktree(workspacePath: string, creationId: st
   if (!pending) return false
   pendingCreations.delete(creationId)
   try {
-    pending.child.kill('SIGTERM')
+    await stopOwnedProcess(pending.child)
   } catch {
     return false
   }
@@ -617,7 +629,15 @@ export async function removeWorktree(
   worktreePath: string,
   force = false,
   branchHint?: string | null,
+  policy?: { mode: 'worktree-only' },
 ): Promise<RemoveWorktreeResult> {
+  if (policy) {
+    if (parseRuntimeResource(workspacePath)) throw new Error('Controlled worktrees currently require a local repository')
+    if (force) throw new Error('Controlled removal does not discard uncommitted files')
+    const result = await removeControlledWorktree(workspacePath, worktreePath)
+    await removeMetaKeys(metaKeysFor(result.path, worktreePath))
+    return result
+  }
   const resource = await resolveRuntimeResource(workspacePath)
   if (resource) {
     const target = parseRuntimeResource(worktreePath)

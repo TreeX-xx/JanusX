@@ -1,6 +1,7 @@
 import type { EditorDelivery, EditorOpenRequest, EditorOpenResult } from '../editor'
 import type { OperationResult } from './workspace'
 import type { UsageLedgerPage, UsageLedgerQuery } from '../usage'
+import type { HistoryEngine, HistorySourceSettings, HistorySourcesView } from '../history-sources'
 
 export const SYSTEM_CHANNELS = {
   defaultShell: 'system:getDefaultShell', platform: 'system:getPlatform',
@@ -75,6 +76,9 @@ export interface SystemAPI {
   openVSCode(workspacePath: string): Promise<OperationResult>
   getRuntimeTelemetry(request: RuntimeTelemetryRequest): Promise<RuntimeTelemetrySnapshot | null>
   listUsageLedger(query: UsageLedgerQuery): Promise<UsageLedgerPage>
+  getHistorySources(): Promise<HistorySourcesView>
+  saveHistorySources(settings: HistorySourceSettings): Promise<HistorySourcesView>
+  pickHistorySource(engine: HistoryEngine): Promise<string | null>
   getLanguage(): Promise<string | null>
   setLanguage(lang: string): Promise<void>
   onPrepareQuit(callback: () => Promise<void> | void): () => void

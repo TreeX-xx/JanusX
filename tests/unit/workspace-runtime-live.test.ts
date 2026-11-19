@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { runtimeResource, type WorkspaceRuntime, type RuntimeTerminal } from '../../src/shared/workspace-runtime'
+import { runtimeResource, type ExternalWorkspaceRuntime, type RuntimeTerminal } from '../../src/shared/workspace-runtime'
 
 const settings = vi.hoisted(() => ({ data: '', config: '', home: '' }))
 vi.mock('electron', () => ({ app: { getPath: () => settings.data, getAppPath: () => process.cwd(), isPackaged: false }, net: { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) } }))
@@ -43,8 +43,8 @@ import { releaseRemoteOfficePreviews } from '../../src/main/office/remote-office
 const execute = promisify(execFile)
 const linux = async (...args: string[]) => (await execute('wsl.exe', ['-d', 'NewAPI-WSL', '--exec', ...args], { encoding: 'utf8', windowsHide: true, timeout: 20000 })).stdout
 let fixture: { directory: string; home: string; root: string; port: number; user: string }
-let runtime: Exclude<WorkspaceRuntime, { kind: 'windows' }>
-let ssh: Exclude<WorkspaceRuntime, { kind: 'windows' }>
+let runtime: ExternalWorkspaceRuntime
+let ssh: ExternalWorkspaceRuntime
 const terminalId = (kind: string) => `${kind}-persistent-${settings.data.split(/[\\/]/).pop()}`
 
 describe.skipIf(process.env.JANUSX_RUNTIME_LIVE !== '1')('real WSL and SSH workspace transports', () => {

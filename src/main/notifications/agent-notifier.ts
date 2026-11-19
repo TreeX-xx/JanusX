@@ -1,5 +1,6 @@
-// Note: native notifications with in-app fallback — see .agents/notes/agent/agent-notifications.md
-import { BrowserWindow } from 'electron'
+// Note: platform delivery and click routing — see .agents/notes/agent/agent-notifications.md
+import { localPlatform } from '../platform/local-platform'
+import type { BrowserWindow, Notification } from 'electron'
 import * as electron from 'electron'
 import type { AgentEvent, AgentSpawnOptions } from '../janus-runner/types'
 import {
@@ -33,6 +34,11 @@ interface AgentNotificationPayload {
   terminalId?: string
   workspaceId?: string
 }
+
+// Electron can remove a delivered notification when its JS object is collected.
+// Keep recent notifications clickable even on systems that omit close events.
+const MAX_NATIVE_NOTIFICATIONS = 64
+const activeNativeNotifications = new Set<Notification>()
 
 function getElapsedSeconds(startedAt?: string, endedAt?: string): number | null {
   if (!startedAt) return null
@@ -74,20 +80,33 @@ function sendNativeNotification(
   payload: DesktopToastPayload,
   options: AgentNotificationOptions,
 ): boolean {
-  const NativeNotification = (electron as typeof electron & {
-    Notification?: typeof import('electron').Notification
-  }).Notification
-  if (!NativeNotification || !NativeNotification.isSupported()) return false
+  const { Notification: NativeNotification } = electron
+  let notification: Notification | undefined
   try {
-    const notification = new NativeNotification({ title: payload.title, body: payload.body })
-    notification.on('click', () => focusMainWindow(mainWindow, options))
-    notification.on('failed', (_event, error) => {
+    if (!NativeNotification?.isSupported()) return false
+    const notice = new NativeNotification({ title: payload.title, body: payload.body, silent: localPlatform() === 'darwin' })
+    notification = notice
+    const release = () => { activeNativeNotifications.delete(notice) }
+    notice.once('show', () => options.onDesktopToastShown?.())
+    notice.once('click', () => {
+      release()
+      focusMainWindow(mainWindow, options)
+    })
+    notice.once('close', release)
+    notice.once('failed', (_event, error) => {
+      release()
       options.onDesktopToastFailure?.(String(error || 'native-notification-failed'))
       sendRendererNotification(mainWindow, payload)
     })
-    notification.show()
+    activeNativeNotifications.add(notice)
+    notice.show()
+    if (activeNativeNotifications.size > MAX_NATIVE_NOTIFICATIONS) {
+      const oldest = activeNativeNotifications.values().next()
+      if (!oldest.done) activeNativeNotifications.delete(oldest.value)
+    }
     return true
   } catch (error) {
+    if (notification) activeNativeNotifications.delete(notification)
     options.onDesktopToastFailure?.(error instanceof Error ? error.message : String(error))
     return false
   }
@@ -107,20 +126,24 @@ function showLocalNotification(
   options: AgentNotificationOptions,
 ): boolean {
   const payload = createNotificationPayload(input)
-  let desktopShown = false
-  const sendRendererFallback = (): boolean => sendRendererNotification(mainWindow, payload)
-  const sendFallback = (): boolean => {
-    const nativeDelivered = sendNativeNotification(mainWindow, payload, options)
-    if (nativeDelivered) {
-      console.warn(`[notifications] using native fallback for ${payload.type}`)
-      return true
-    }
+  // On macOS a separate BrowserWindow participates in Spaces. Leave display
+  // to Notification Center and activate JanusX only on a notification click.
+  if (localPlatform() === 'darwin') {
+    return sendNativeNotification(mainWindow, payload, options) || sendRendererNotification(mainWindow, payload)
+  }
 
-    const rendererDelivered = sendRendererFallback()
-    if (rendererDelivered) {
-      console.warn(`[notifications] using main-renderer fallback for ${payload.type}`)
+  let desktopShown = false
+  let fallbackDelivered: boolean | undefined
+  const sendFallback = (): boolean => {
+    if (fallbackDelivered !== undefined) return fallbackDelivered
+    if (sendNativeNotification(mainWindow, payload, options)) {
+      fallbackDelivered = true
+      console.warn(`[notifications] using native fallback for ${payload.type}`)
+    } else {
+      fallbackDelivered = sendRendererNotification(mainWindow, payload)
+      if (fallbackDelivered) console.warn(`[notifications] using main-renderer fallback for ${payload.type}`)
     }
-    return rendererDelivered
+    return fallbackDelivered
   }
   const desktopDelivered = desktopToastWindow.show(payload, {
     onClick: () => focusMainWindow(mainWindow, options),

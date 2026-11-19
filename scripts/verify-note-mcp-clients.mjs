@@ -1,11 +1,13 @@
 // Controlled transport acceptance through installed client binaries; no real model or user configuration.
-// Usage: node scripts/verify-note-mcp-clients.mjs claude|codex|opencode|janus|dsh
+// Usage: node scripts/verify-note-mcp-clients.mjs claude|codex|opencode|dsh
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import http from 'node:http'
 import {spawn} from 'node:child_process'
 import {randomUUID,createHash} from 'node:crypto'
 import {SUPPORTED_HARNESS_PROFILE} from '@janus-agent/harness-node'
+const target=process.argv[2]??'claude'
+if(!['claude','codex','opencode','dsh'].includes(target))throw new Error(`Unsupported client: ${target}. Expected claude, codex, opencode or dsh.`)
 const base=path.resolve('.cache/cli-note-acceptance');await fs.mkdir(base,{recursive:true})
 const workspace=path.join(base,process.argv[2]??'claude','workspace');await fs.mkdir(path.join(workspace,'.agents/notes'),{recursive:true})
 const repoId=randomUUID(),noteId=randomUUID()
@@ -29,7 +31,6 @@ const server=http.createServer(async(req,res)=>{
  const tool=chosen?.name??chosen?.function?.name
  const call=!!tool; if(call&&!discovering)run.step++
  let args=discovering?{server:'janusx-note'}:step?.[1]??{};const marker='NOTE_CLIENT_ACCEPTANCE_COMPLETE'
- if(client==='janus'&&call)args={workspaceId:'cli',arguments:args}
  const event=(type,data)=>res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
  res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache')
  if(req.url.includes('/messages')){
@@ -75,7 +76,6 @@ async function run(client,entry,args,extra={}){
 }
 function runIncomplete(report,calls){return report.sessions?.step!==plan.length||!report.tail.includes('NOTE_CLIENT_ACCEPTANCE_COMPLETE')||calls.length<plan.length}
 try{
- const target=process.argv[2]??'claude'
  if(target==='claude')await run('claude',path.join(npm,'@anthropic-ai/claude-code/bin/claude.exe'),async({config})=>['-p','Call the Note MCP note.list tool for workspacePath '+workspace+'. Then print NOTE_CLIENT_ACCEPTANCE_COMPLETE.','--bare','--mcp-config',config,'--strict-mcp-config','--allowedTools','mcp__janusx-note__*','--tools','','--model','claude-sonnet-4-6','--output-format','stream-json','--verbose','--no-session-persistence'])
  if(target==='codex'){
   const bin=path.join(npm,'@openai/codex/bin/codex.js')
@@ -89,10 +89,6 @@ try{
   await fs.mkdir(path.join(home,'opencode'),{recursive:true});await fs.writeFile(path.join(home,'opencode/opencode.json'),JSON.stringify({provider:{fixture:{npm:'@ai-sdk/openai-compatible',name:'fixture',options:{baseURL:`http://127.0.0.1:${port}/opencode/v1`,apiKey:'fixture-only'},models:{fixture:{name:'fixture',limit:{context:32000,output:4000}}}}},model:'fixture/fixture',permission:{'*':'deny','janusx-note*':'allow'},mcp:{'janusx-note':{type:'local',command:[launch.command,...launch.args],environment:launch.env,enabled:true}}}))
   return ['run','--pure','--format','json','-m','fixture/fixture','Call janusx-note note.list with workspacePath '+workspace+'.']
  })
- if(target==='janus')await run('janus',path.resolve('../janus-agentX/packages/cli/dist/cli.js'),async({home,launch,port})=>{
-  await fs.mkdir(path.join(home,'.janus'),{recursive:true});await fs.writeFile(path.join(home,'.janus/mcp.json'),JSON.stringify({mcpServers:{'janusx-note':launch}}))
-  return ['chat','--workspace',workspace,'--model','fixture','--base-url',`http://127.0.0.1:${port}/janus/v1`,'--api-key','fixture-only','--approval-mode','auto-run','--max-turns','10','--timeout-ms','40000','--','Use Note MCP on this disposable fixture.']
- },{USERPROFILE:path.join(base,'janus')})
  if(target==='dsh')await run('dsh',path.join(npm,'@deepseek-ai/dsh/lib/bin.js'),async({home,launch,port})=>{
   const patch=path.join(home,'fixture.patch.yml')
   await fs.writeFile(patch,JSON.stringify([{id:'llm-deepseek',config:{baseURL:`http://127.0.0.1:${port}/dsh`,apiKeyEnv:'NOTE_FIXTURE_KEY',thinking:'disabled'}},{id:'session-title-llm',disabled:true},{insert:[{id:'janusx-note',name:'@deepseek-ai/dsh-mcp-client',config:{serverName:'janusx-note',transport:'stdio',...launch}}]}]))

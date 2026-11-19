@@ -49,8 +49,8 @@ export async function ensureLocalCli(toolId: ExternalCliToolId): Promise<boolean
   const ready = new Promise<boolean>(resolve => { finish = resolve })
   const result = await probeCli(toolId)
   if (useLocalCliSetup.getState().request !== request) return ready
-  if (result.runnable) closeLocalCliSetup(true)
-  else useLocalCliSetup.setState({ request: { ...request, checking: false, broken: result.installed, error: result.error ?? (result.installed ? result.hint : undefined) } })
+  if (result.capability ? result.capability.status === 'available' : result.runnable) closeLocalCliSetup(true)
+  else useLocalCliSetup.setState({ request: { ...request, checking: false, broken: result.installed, error: result.error ?? (result.installed ? result.hint : undefined) ?? (result.capability?.status === 'probe-error' ? result.capability.message : undefined) } })
   return ready
 }
 
@@ -61,12 +61,14 @@ export async function prepareLocalCli(install: boolean): Promise<void> {
   useLocalCliSetup.setState({ request })
   try {
     if (install) {
+      const capability = useCliReadiness.getState().probes[`local:${request.toolId}`]?.installCapability
+      if (capability && capability.status !== 'available') throw new Error(capability.message)
       const result = await window.electron.externalCli.install(request.toolId)
       if (!result.success) throw new Error(result.error || 'Installation failed')
     }
     const probe = await probeCli(request.toolId, undefined, true)
     if (useLocalCliSetup.getState().request !== request) return
-    if (probe.runnable) closeLocalCliSetup(true)
+    if (probe.capability ? probe.capability.status === 'available' : probe.runnable) closeLocalCliSetup(true)
     else useLocalCliSetup.setState({ request: { ...request, busy: false, broken: probe.installed,
       error: probe.error ?? (probe.installed ? probe.hint : undefined) } })
   } catch (error) {

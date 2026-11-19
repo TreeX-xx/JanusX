@@ -25,7 +25,7 @@
       }
     }
   },
-  "updated": "2026-10-27T16:06:18Z",
+  "updated": "2026-11-18T02:25:50Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -43,7 +43,7 @@ The portable installer of 0.8.7 ships 301 MiB because app.asar carries the entir
 
 
 ## Decision
-`node_modules` is now copied exactly as npm installed it. `electron-builder.yml` sets `beforeBuild: ./scripts/electron-before-pack.cjs`, whose `false` return tells electron-builder that dependencies are prepared outside of it, which switches off `computeNodeModuleFileSets` entirely; `includeSubNodeModules: true` plus a `**/*` `files` pattern then copy the installed tree through the normal file walk. Nothing is re-derived, so no hoisted package can be nested away from the archive root, and the fix covers main, preload and renderer in one move.
+`node_modules` is now copied exactly as npm installed it. `electron-builder.yml` sets `beforeBuild: ./scripts/electron-before-pack.cjs`, whose `false` return tells electron-builder that dependencies are prepared outside of it, which switches off `computeNodeModuleFileSets` entirely; Electron-builder 26 skips the root `node_modules` during the main file walk. The `beforePack` hook adds a separate copy of that directory with the existing package exclusions. An explicit nested `node_modules` pattern retains dependencies beside workspace packages. Keep `npmRebuild` at its default so the `beforeBuild` hook runs and disables the dependency collector. Nothing is re-derived, so no hoisted package can be nested away from the archive root, and the fix covers main, preload and renderer in one move.
 
 `files` excludes only what provably cannot reach a packaged runtime: repository sources, caches and build outputs, and `packages` plus `node_modules/monaco-editor`, both of which are bundled into `out` (`electron.vite.config.ts` lists `@janusx/llm-core` under `externalizeDepsPlugin({ exclude })`, and Monaco ships as per-language renderer assets).
 
@@ -57,6 +57,8 @@ Local Codex scratch directories `.codex-cache`, `.codex-session`, `.codex-sessio
 `scripts/check-packaged-runtime.mjs` asserts both directions against the same closure: every root-installed package in the closure must be present in the archive, and no package outside the closure may be present. The three closure-reported names that stay excluded are listed there with their reason — `electron` resolves to the built-in Electron module, `typescript` is declared by the MCP and Lark SDKs but required by neither at runtime, and `monaco-editor` ships as renderer assets. The script also enforces budgets on the asar payload (260 MiB), app.asar.unpacked (64 MiB) and the portable installer (200 MiB), each measured above the shipped shape with headroom for dependency growth.
 
 The exclusions keep the verbatim layout. They remove whole package directories instead of asking electron-builder to re-derive the tree, so hoisted packages stay where npm installed them and the archive root keeps every name a consumer resolves.
+
+Maintained `design/` prototypes and `vendor/janus-agent` archives are excluded from the application. The retired `_design` root remains excluded to protect older local material. The engine archives remain repository build inputs; runtime loads the installed packages under `node_modules`. Accumulating historical archives and prototype screenshots previously raised a local build to 274.5 MiB of asar payload. The package boundary gate requires these exclusions, preserving the existing 260 MiB budget. Design source consolidation does not change the runtime boundary.
 
 
 
@@ -84,3 +86,7 @@ The portable branch of that check had been reporting success without launching a
 `electron-builder.yml` now carries 416 generated negations. They are refreshed by one command and no longer diverge in CI, but a reviewer reading the file sees a machine-maintained block rather than a hand-picked list. Each packaged-runtime check spends one `npm ls` (about 20s), one 7za extraction of the portable payload (about 15s and 600 MiB of temp disk) and six app launches. A package that the app uses while declaring it only as a devDependency now fails the launch gate instead of shipping silently, which is the intended direction but turns a latent bug into a failed build.
 
 `typescript` is excluded on an audit of its two declared consumers that found no runtime require. A future release of the MCP or Lark SDK that requires it fails the neutral-directory launch instead of shipping a missing module, and the fix is to drop its negation. The assembly is still the majority of the installer: the Electron runtime, its 55 locales and the bundled OfficeCLI hold 285 MiB of the 514 MiB that reaches the portable target, so further reduction needs a locale whitelist or a lighter editor bundle, neither of which this change attempts. `external-mcp.ts` resolves the knowledge MCP entry from app.asar.unpacked in a packaged build while `asarUnpack` names only node-pty, so that entry stays inside the archive; the gap predates this change and a caller verifies existence before reporting it.
+
+2026-11-17 本地合并远端 dev 的 9a585c54 后，electron-builder 26 由 OfficeCLI beforePack 顺序调用依赖复制钩子和资源校验；删除已移除的 includeSubNodeModules 配置，macOS 使用 ICNS 图标。ARM64 DMG/ZIP 位于 release/0.9.9。隔离临时目录中的主模块、AI 运行时、真实 PTY 与 OfficeCLI 版本检查通过，包未签名或公证。构建来源、产物 SHA256 和测试未通过项记录于同目录 build-info.json。
+
+本地分发产物统一使用 electron-builder 默认的 release/<版本>/，包括安装包、解包应用及其构建和安装记录。按用户要求将旧版备份、audit-mac、mac-compat-check 和 codex-install-fix 移入系统废纸篓，并弹出已挂载的安装镜像。当前包迁移后的 SHA256 与构建清单一致，安装版 SHA256 与安装回执一致。清理和原路径记录保存在 release/0.9.9/build-info.json。

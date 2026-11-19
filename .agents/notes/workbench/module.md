@@ -41,7 +41,7 @@
       "role": "implementation"
     }
   ],
-  "updated": "2026-11-10T02:18:00Z",
+  "updated": "2026-11-18T07:55:00Z",
   "moduleState": "partial"
 }
 ---
@@ -50,9 +50,13 @@
 
 ## Responsibility
 
+设计原型与调研源统一维护在 `design/`，本机入口为 `design/README.md`；原 `_design/` 已合并。维护源码、验证脚本和必要素材由 .gitignore 忽略并保留在本机；截图、视频、导出图片与采集结果进入 `artifacts/`，历史评审按批次归档。两个工作区的清理与证据边界见[可复现验证](../desktop/reproducible-verification.md#dev-design-consolidation-and-generated-output-ownership)。
+
 组织 Island、右侧工具栏、产物预览与共享编辑器的交互和视觉。RightDock 负责工具承载与布局，ProductWorkspacePanel 负责生成文件的预览，JanusIsland 负责工作状态及通知入口。文件事实由既有读取服务提供，会话耐久、Agent 执行与工程 Note 事务分别由对应模块负责。
 
 ## Design
+
+[普通对话与 SuperAgent 共用界面原型](./ideas/conversation-interface-prototype.md)记录已确认的计划、模型/信号格/闪电、轮次定位、无数字上下文圆环及底部覆盖式统计交互，并保留新版品牌与配色的待评审状态。用户明确后续落实到 dev 与 superAgent 两条分支；首批已在当前 checkout 接入 SuperAgent 全屏加载的 JanusX 字标和扫描效果，Tab 与终端选择入口保留 Janus 双眼；底部用量栏的18px圆环、外置百分比与覆盖式统计也已接入当前项目区，详见[底部用量栏](./runtime-drawer-cards-resize.md)；两种真实输入框与共用新会话欢迎页也已接入，普通启动确认、草稿和 SuperAgent 恢复门槛保持，详见[双模式专题](./terminal-dialog-dual-mode.md)；其余组件及另一分支验证仍待后续。底部展开不得挤压上方或改变阅读位置，普通对话与 Janus 各自身份继续保留。
 
 [工作区仓库侧栏](./ideas/repository-sidebar.md)默认展示简介、可见性、默认分支与 README 概览，另有仓库级 Issue／PR／MR 列表、搜索筛选分页、详情评论、创建编辑、关闭重开与按提交确认合并，并可从 Issue 预填任务盘。三栏导航和共享筛选控件适配窄面板，README 按需读取且支持浏览器跳转。仓库资源采用有容量限制的会话缓存和请求去重，切换标签保留筛选、分页与滚动位置，过期后台更新；写入按资源刷新，认证失效清空缓存。登录入口位于工作区三个点菜单，右侧仓库未登录时也提供可点击的登录提示，应用内展示 gh／glab 官方授权提示。仅支持 GitHub.com／GitLab.com，凭据仍由 CLI 管理；自建配置和托管设置页已移除。多远端、完整评审和对话上下文联动仍待实施。Git 面板继续拥有本地变更、提交与历史。
 
@@ -92,12 +96,12 @@ Codex 对话优先启动保持聊天布局，登录、目录信任以及新增�
 
 Codex、OpenCode 支持原消息位置编辑：编辑卡片独立保存文字，底部草稿保留，提交真实替换该回合起的后续对话并重新回答，工作区文件保留。编辑与提交期间锁定模式切换；不明确的原生结果停用控制且保留编辑文字，不自动重试。截断及含附件等非纯文本消息不提供编辑；Claude、Pi、DSH 尚未接入历史编辑。协议及本地真实 CLI 验证见[双模式专题](./terminal-dialog-dual-mode.md)。
 
-Codex 的原生执行计划与 Claude 的 TaskCreate／TaskUpdate／TodoWrite 共用输入框上方的只读任务面板，显示确认后的完成数、当前步骤和历史版本。Claude 通过原生 TaskList 或 TodoWrite 保存结果同步，读取失败显示最后确认的进度；轮次结束不自动勾选未完成项。工具可用不保证模型每轮规划，具体协议、版本与验证边界归双模式专题。
+Codex 原生计划和 Claude 任务共用只读计划卡。每个轮次在自己的内容下方显示最新计划和已确认的文件修改。下一轮开始后，上一轮卡片和修改记录留在原位置。Codex 还能从已确认的原生回执恢复历史计划，并在分页历史内按轮次显示文件。数据边界与验证见[轮次附件](./terminal-dialog-dual-mode.md#轮次附件的显示与历史恢复)。
 
 终端和对话的文件预览统一由用户点击入口后打开，包括生成的 HTML；生成完成、后续修改及模式切换只更新文件提示，不自动弹出或抢焦点。已打开预览的内容刷新与主动唤出分开处理，关闭后须再次点击才能打开；统一发现和版本刷新边界见双模式专题。
 Island 打开时默认附加当前工作区并保留其他资源与对话；发送明确自动化／定时提醒主题或收到自动化草案时，自动切换右侧面板、激活伴随态并完成避让定位。通知提醒可在无项目对话中生成草案，支持分钟间隔、面板编辑和显式保存启用；固定通知执行不调用模型，代码审查保留为专属任务链，通用 Agent 任意任务仍属后续方向。默认加载和自动切换的边界归[自动化界面](./ideas/automation-platform.md#承载方式与界面)，能力边界与验证归[自动化当前实现](./ideas/automation-platform.md#当前实现与验证)。
 
-自动化侧栏以小眼睛控件唤出 Island，通过中性轮廓、标题带和反色眼睛按钮提示临时伴随关系，展开时避让面板，保持对话和卡片编辑同时可用；窄窗上下排列。界面约定与验证归[自动化专题](./ideas/automation-platform.md#承载方式与界面)。
+自动化侧栏正式打开时默认连接对话，小眼睛点亮并锁定，通过中性轮廓、标题带和反色眼睛提示可随时调整任务。已启动 SuperAgent 时连接既有全局工作区，未启动时保持 Island 对话展开并避让面板，窄窗上下排列；关闭、显式收起或切换侧栏后解除连接，会话及草稿保留。界面约定与验证归[自动化专题](./ideas/automation-platform.md#承载方式与界面)。
 
 Island 展开改造已先于自动化实施：只展示 Chat，隐藏其他视图及 Tab 切换并保留代码；参考通知面调整外观、保留 Janus 眼睛，移除固定控件和行为。此片为 JanusX 后续通过对话串联软件功能准备入口，设计和验收归[Island 展开专题](./island-hifi-optimized-alignment.md#chat-单界面展开)。
 
@@ -183,7 +187,7 @@ Chat 会话删除确认框虽通过 portal 挂到 body，仍属于 island 的交
 
 Island 下滑展开通知（2026-10-27）：胶囊向下拖动 ≥60px 后松手打开既有通知面，已展开时再次下滑保持展开；未达阈值、反向拉回与取消不触发。单击、Esc 与点空白处收起，保留看过即焚。副黑板组件、中央列让位、板高状态与持久化、板缘拖拽、插件列表入口均已删除；蓝图继续使用插件声明的工作台入口。取舍与历史见[副黑板退役与通知手势](./island-blackboard.md)。
 
-眼睛行为与通知系统：折叠胶囊由注意力行为驱动凝视、摸头与事件原语；通知采用串行传话、左上角灰字计数和整体纵向展开的通知中心。通知可经下滑、岛体单击、灰字计数或传话条打开；peek 下滑先返回胶囊再展开通知，expanded 仍禁用复杂手势。单击开合、双击控制台及运行按钮维持现有语义。生产待机动作保留伸懒腰、环顾四周、小跳、打瞌睡和深呼吸；按用户审美偏好移除「歪头好奇」的动作定义与调度入口，其他动作间隔、交互让位及事件反应不变。参数与历史验收归[行为系统移植任务](./tasks/island-behavior-system.md)，历史设计原型在 `_design/janus-eye-behavior-lab/`，其中旧动作列表不代表当前生产范围。
+眼睛行为与通知系统：折叠胶囊由注意力行为驱动凝视、摸头与事件原语；通知采用串行传话、左上角灰字计数和整体纵向展开的通知中心。通知可经下滑、岛体单击、灰字计数或传话条打开；peek 下滑先返回胶囊再展开通知，expanded 仍禁用复杂手势。单击开合、双击控制台及运行按钮维持现有语义。生产待机动作保留伸懒腰、环顾四周、小跳、打瞌睡和深呼吸；按用户审美偏好移除「歪头好奇」的动作定义与调度入口，其他动作间隔、交互让位及事件反应不变。参数与历史验收归[行为系统移植任务](./tasks/island-behavior-system.md)，历史设计原型在 `design/janus-eye-behavior-lab/`，其中旧动作列表不代表当前生产范围。
 
 产物语义：[workspace 重构](./product-workspace.md)、[notice-matrix](./product-workspace.md)、[peek-race](./product-workspace.md)、[preview-p0](./product-workspace.md)、[tour](./product-tour.md)、[landing](../desktop/landing-page.md)。
 
@@ -210,6 +214,8 @@ Docker 环境选择不跟随代码工作区。独立发行版隔离文件、依�
 运行与测试目标探索：[按当前 worktree 运行与测试项目](./worktree-run-test-target.md)记录现有快捷启动使用工作区根目录的限制，以及目标跟随、进程归属和测试结果标识的建议，作为 0.9.2 候选，尚未实现。
 
 渲染与编辑器：[emphasis](./markdown-emphasis-orange-text.md)（强调色去填充块）、[standalone-refresh](./standalone-editor-auto-refresh.md)（独立编辑器外部变更自刷新）。[文件编辑窗口与预览体验](./file-editor-experience.md)记录普通编辑默认、按需 HEAD 对比、自定义关闭确认、Markdown 单向同步滚动与安全 HTML 图片预览，以及 HTML 虚拟视口、缩放和工作区只读资源服务。
+
+普通对话与SuperAgent的输入选项由同一ComposerOptions和ComposerOptionTrigger维护，统一搜索、供应商筛选、键盘选择与草稿保留；模型目录和确认回调由各会话适配提供，支持的强度／快速档位沿用真实能力。当前实现与验证归[双模式共用输入选项](./terminal-dialog-dual-mode.md#共用输入选项2026-11-14)。
 
 ## Acceptance criteria
 

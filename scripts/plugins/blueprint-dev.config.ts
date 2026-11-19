@@ -6,7 +6,7 @@ import base from '../../electron.vite.config'
 
 export default defineConfig(async env => {
   const root = resolve(process.cwd())
-  const directory = resolve(process.env.JANUSX_BLUEPRINT_LOCAL_DIRECTORY ?? resolve(root, '.cache/blueprint-local'))
+  const directory = resolve(process.env.JANUSX_LOCAL_PLUGIN_DIRECTORY ?? process.env.JANUSX_BLUEPRINT_LOCAL_DIRECTORY ?? resolve(root, '.cache/blueprint-local'))
   const build = JSON.parse(readFileSync(resolve(directory, 'build.json'), 'utf8'))
   const config = typeof base === 'function' ? await base(env) : await base
   config.main ??= {}

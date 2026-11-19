@@ -7,6 +7,7 @@ import { homedir } from 'node:os'
 import { isNativeResumeEngine } from '../../shared/ipc/session'
 import { resolveSessionStorePath } from '../notifications/agent-engine-capabilities'
 import { probeOpencodeSessionPresence } from './opencode-sessions'
+import { sameRuntimePath } from '../../shared/runtime/path-identity'
 
 export interface SessionRecoverySource {
   engine: string
@@ -74,8 +75,9 @@ export async function prepareSessionRecovery(
   if (!cwd?.isDirectory()) throw new Error(`Session working directory is unavailable: ${source.cwd}`)
 
   const store = resolveSessionStorePath(
-    source.engine as 'claude' | 'codex' | 'opencode', options.env ?? process.env, options.home ?? homedir(),
-  )!
+    source.engine as 'claude' | 'codex' | 'opencode', options.env ?? process.env, options.home ?? homedir(), source.cwd,
+  )
+  if (!store) throw new Error('The active provider configuration has no persistent session store')
   const path = source.transcriptPath?.trim() || (source.engine === 'opencode'
     ? store : await findSessionFile(store, source.engine, id)
       ?? (source.engine === 'codex' ? await findSessionFile(join(dirname(store), 'archived_sessions'), source.engine, id) : undefined))
@@ -86,8 +88,7 @@ export async function prepareSessionRecovery(
   if (source.engine === 'opencode') {
     // Opencode has no CLI store selector. An exported or foreign database
     // must not be mistaken for the database its resumed TUI actually uses.
-    const normalize = (value: string) => process.platform === 'win32' ? resolve(value).toLowerCase() : resolve(value)
-    if (normalize(path) !== normalize(store)) throw new Error('Opencode session history is outside the active session store')
+    if (!sameRuntimePath(resolve(path), resolve(store))) throw new Error('Opencode session history is outside the active session store')
     const presence = probeOpencodeSessionPresence(path, id)
     if (presence !== 'present') throw new Error(presence === 'absent'
       ? `Opencode session ${id} is no longer in the session store`

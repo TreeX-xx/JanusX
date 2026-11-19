@@ -211,14 +211,15 @@ test('native editor close uses the themed dialog and respects save failure and d
   }
 })
 
-test('HTML editor serves local styles, modules and images and previews unsaved changes', async () => {
+test('HTML editor opens files above 32 MiB, serves local resources and previews unsaved changes', async () => {
   const root = await mkdtemp(join(tmpdir(), 'janusx-html-editor-'))
   let application: ElectronApplication | undefined
   try {
     const workspacePath = join(root, 'workspace')
     await Promise.all(['docs/modules', 'styles', 'assets'].map(path => mkdir(join(workspacePath, path), { recursive: true })))
     const filePath = join(workspacePath, 'docs', 'page.html')
-    const original = '<!doctype html><meta charset="UTF-8"><link rel="stylesheet" href="/styles/theme.css"><main id="page"><h1>Local preview</h1><img alt="Local SVG" src="../assets/bg.svg"></main><script type="module" src="./modules/page.js"></script>'
+    const original = '<!doctype html><meta charset="UTF-8"><link rel="stylesheet" href="/styles/theme.css"><main id="page"><h1>Local preview</h1><img alt="Local SVG" src="../assets/bg.svg"></main><script type="module" src="./modules/page.js"></script><!--' + 'x'.repeat(33 * 1024 * 1024) + '-->'
+    expect(Buffer.byteLength(original)).toBeGreaterThan(32 * 1024 * 1024)
     await Promise.all([
       writeFile(filePath, original),
       writeFile(join(workspacePath, 'styles', 'theme.css'), 'html,body{margin:0}#page{width:100vw;height:100vh;color:white;background:#123456 url("../assets/bg.svg") no-repeat right bottom}'),
@@ -245,7 +246,7 @@ test('HTML editor serves local styles, modules and images and previews unsaved c
     await page.getByRole('radio', { name: /^(双栏|Split)$/ }).click()
     await page.locator('.monaco-editor').click()
     await page.keyboard.press('Control+End')
-    await page.keyboard.type('<p id="draft">Unsaved preview</p>')
+    await page.keyboard.insertText('<p id="draft">Unsaved preview</p>')
     await expect(frame.locator('#draft')).toHaveText('Unsaved preview')
     expect(await readFile(filePath, 'utf8')).toBe(original)
     for (const theme of ['planche', 'dark']) {

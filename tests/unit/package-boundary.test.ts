@@ -19,6 +19,8 @@ const treeExclusions = [
   '  - !scripts/android-lab{,/**/*}',
   '  - !scripts/remote-lab{,/**/*}',
   '  - !design{,/**/*}',
+  '  - !_design{,/**/*}',
+  '  - !vendor/janus-agent{,/**/*}',
   '  - !docs{,/**/*}',
   '  - !packages{,/**/*}',
   '  - !plugins{,/**/*}',
@@ -62,6 +64,12 @@ describe('package boundary parser', () => {
     ])
 
     expect(() => validateFilePatterns(parseFilesList(yaml))).not.toThrow()
+  })
+
+  it('allows the OfficeCLI sidecar exclusion without allowing arbitrary resource exclusions', () => {
+    const base = [...inclusions, ...treeExclusions.map(line => line.trim().slice(2))]
+    expect(() => validateFilePatterns([...base, '!resources/officecli{,/**/*}'])).not.toThrow()
+    expect(() => validateFilePatterns([...base, '!resources/other{,/**/*}'])).toThrow(/unknown paths/)
   })
 
   it('rejects an extension-wide exclusion that is not a plain file suffix', () => {

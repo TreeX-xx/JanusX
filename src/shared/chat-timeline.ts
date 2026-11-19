@@ -2,6 +2,7 @@
 import type { ChatAgentEvent, ChatToolTraceEntry } from './ipc/llm'
 import type { NoteFocusEvent } from './note-chat'
 import type { AgentRuntimeEvent } from './ipc/agent-runtime'
+import type { ContextDiagnostic } from '@janus-agent/chat-core'
 
 interface BlockBase { id: string; startedAt: number; endedAt?: number }
 export interface ChatTextBlock extends BlockBase { kind: 'text' | 'reasoning'; text: string; chars: number; preview?: string; truncated?: boolean }
@@ -20,6 +21,7 @@ export interface ChatTimelineSnapshot {
   version: 1
   requestId: string
   blocks: ChatTimelineBlock[]
+  contextDiagnostics?: ContextDiagnostic[]
   truncated?: boolean
 }
 export const MAX_TIMELINE_BLOCKS = 256
@@ -52,7 +54,26 @@ function bounded(snapshot: ChatTimelineSnapshot): ChatTimelineSnapshot {
       blocks = blocks.slice(1)
     }
   }
-  return blocks === snapshot.blocks ? snapshot : { ...snapshot, blocks, truncated: true }
+  let contextDiagnostics = snapshot.contextDiagnostics
+  if (contextDiagnostics) {
+    contextDiagnostics = contextDiagnostics.slice(-MAX_TIMELINE_BLOCKS)
+    while (contextDiagnostics.length && JSON.stringify({ blocks, contextDiagnostics }).length > MAX_TIMELINE_SNAPSHOT_CHARS) contextDiagnostics = contextDiagnostics.slice(1)
+  }
+  return { ...snapshot, blocks, ...(contextDiagnostics ? { contextDiagnostics } : {}),
+    ...(blocks !== snapshot.blocks || contextDiagnostics?.length !== snapshot.contextDiagnostics?.length ? { truncated: true } : {}) }
+}
+
+function normalizeContextDiagnostic(value: unknown): ContextDiagnostic | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as ContextDiagnostic
+  if (!['model-request', 'tool-result'].includes(row.phase) || !Number.isSafeInteger(row.modelRequest) || !Number.isFinite(row.at)) return undefined
+  const text = (value: unknown) => typeof value === 'string' ? value.slice(0, 256) : undefined
+  const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+  return { phase: row.phase, modelRequest: row.modelRequest, at: row.at, durationMs: number(row.durationMs),
+    callId: text(row.callId), toolName: text(row.toolName), workId: text(row.workId), reasonCode: text(row.reasonCode),
+    availableTokens: number(row.availableTokens), outputTokens: number(row.outputTokens),
+    resources: Array.isArray(row.resources) ? row.resources.slice(0, MAX_TIMELINE_BLOCKS).filter(resource => resource && typeof resource.resourceId === 'string' && typeof resource.version === 'string')
+      .map(resource => ({ resourceId: text(resource.resourceId)!, version: text(resource.version)!, offset: number(resource.offset), end: number(resource.end), total: number(resource.total) })) : undefined }
 }
 
 export function settleChatTimeline(snapshot: ChatTimelineSnapshot, now: number, cancelled = false): ChatTimelineSnapshot {
@@ -96,6 +117,10 @@ export function reduceTimelineRuntime(snapshot: ChatTimelineSnapshot, event: Age
 export function reduceChatTimeline(snapshot: ChatTimelineSnapshot, event: ChatAgentEvent, now = Date.now()): ChatTimelineSnapshot {
   if (snapshot.requestId && snapshot.requestId !== event.requestId) return snapshot
   if (!snapshot.requestId) snapshot = { ...snapshot, requestId: event.requestId }
+  if (event.type === 'context_diagnostic') {
+    const data = normalizeContextDiagnostic(event.data)
+    return data ? bounded({ ...snapshot, contextDiagnostics: [...(snapshot.contextDiagnostics ?? []), data] }) : snapshot
+  }
   if (event.type === 'text_delta' || event.type === 'reasoning_delta') {
     if (!event.delta) return snapshot
     const kind = event.type === 'text_delta' ? 'text' : 'reasoning'
@@ -185,5 +210,7 @@ export function normalizeChatTimeline(value: unknown): ChatTimelineSnapshot | un
     }
     ids.add(block.id)
   }
-  return bounded({ version: 1, requestId: str(source.requestId, 256), blocks, truncated: !!source.truncated || source.blocks.length > MAX_TIMELINE_BLOCKS })
+  const contextDiagnostics = Array.isArray(source.contextDiagnostics) ? source.contextDiagnostics.slice(-MAX_TIMELINE_BLOCKS)
+    .map(normalizeContextDiagnostic).filter((row): row is ContextDiagnostic => !!row) : undefined
+  return bounded({ version: 1, requestId: str(source.requestId, 256), blocks, contextDiagnostics, truncated: !!source.truncated || source.blocks.length > MAX_TIMELINE_BLOCKS })
 }

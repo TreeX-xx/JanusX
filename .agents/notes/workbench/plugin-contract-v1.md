@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-22",
-  "updated": "2026-11-10T03:04:00Z",
+  "updated": "2026-11-18T03:23:26Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -33,7 +33,11 @@
 
 主窗口管理接口增加无路径参数的 importPackage；仅由已验证主窗口顶层发起。宿主打开单选 .jxp 文件对话框并限量读取，取消返回 imported:false；成功返回 imported:true。选择的路径不从页面或插件传入。已安装页提供常驻导入按钮、忙碌反馈及本地化失败提示，导入后保持停用，再显式审阅权限及项目范围。开发目录的 linked／copied 入口及限制不变。
 
-新 jxp/2 包由固定头、32 KiB 内的签名发布描述和原压缩归档组成。发布描述中的 bytes／sha256 绑定内层归档，packageFormat 绑定新封装；目录展示及下载上限另计固定头和描述的实际 UTF-8 字节。在线安装核对包内描述与已签名目录条目一致；离线导入从包内取出描述，复用同一安装器、预置公钥、平台／API／宿主版本检查及 native signer allowlist，不访问目录或接受包内自授信公钥。原单文件／文件数／解压预算继续生效。旧 raw JXP 与签名目录仍可在线安装，新本地入口不接受缺描述的旧包或普通 ZIP。构建仍输出 release.json 供目录生成使用，用户只交付一个 .jxp；新包需要支持此封装的宿主。10-26 本地交付已在正常宿主预置 janusx-blueprint-20261026 公钥及 official.blueprint native allowlist；私钥不进入 Git 或安装包。Release／目录尚未上线。实施及验证归[官方蓝图插件](../planning/blueprint-official-plugin.md#单文件包与本地导入)。
+新 jxp/2 包由固定头、32 KiB 内的签名发布描述和原压缩归档组成。发布描述中的 bytes／sha256 绑定内层归档，packageFormat 绑定新封装；目录展示及下载上限另计固定头和描述的实际 UTF-8 字节。在线安装核对包内描述与已签名目录条目一致；离线导入从包内取出描述，复用同一安装器、预置公钥、平台／API／宿主版本检查及 native signer allowlist，不访问目录或接受包内自授信公钥。原单文件／文件数／解压预算继续生效。旧 raw JXP 与签名目录仍可在线安装，新本地入口不接受缺描述的旧包或普通 ZIP。构建仍输出 .release.json 供目录生成使用，用户只需 .jxp。宿主预置 janusx-blueprint-20261026 公钥与官方插件 native allowlist，发布私钥不进入 Git 或安装包。单文件封装最初的实施归[官方蓝图插件](../planning/blueprint-official-plugin.md#单文件包与本地导入)。
+
+已公开的 Blueprint、CPA、Docker 版本声明 Windows x64。[macOS 打包入口](../../../scripts/plugins/package-mac.mjs)在独立暂存目录构建同样的浏览器和 Node 资源，使用宿主的 jxp/2 签名、完整性和平台检查。测试包使用临时签名身份，默认声明 arm64/x64。正式候选要求递增插件版本，使用预置发布身份，保留现有平台并加入指定的 Mac 架构。命令及发布参数见[维护者指南](../../../docs/maintainers.md#macos-官方插件打包)。
+
+Apple Silicon 上三个测试包均完成构建、签名和双架构声明校验。实际 macOS Electron 中通过隔离的宿主导入服务安装三包，并启动、停用三个插件的后台进程。Intel 实机运行、正式签名和发布未执行。
 
 ## 工作区默认访问范围
 

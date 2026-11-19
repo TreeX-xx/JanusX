@@ -8,20 +8,19 @@ import { EXTERNAL_CLI_TOOLS, getExternalCliTool } from '../../../src/main/extern
 describe('external-cli tool registry', () => {
   it('keeps order, descriptors, and display metadata on the same id set', () => {
     expect([...EXTERNAL_CLI_TOOL_ORDER].sort()).toEqual(Object.keys(EXTERNAL_CLI_TOOLS).sort())
-    expect([...EXTERNAL_CLI_TOOL_ORDER].sort()).toEqual(Object.keys(EXTERNAL_CLI_TOOL_META).sort())
+    expect([...EXTERNAL_CLI_TOOL_ORDER].sort()).toEqual(Object.keys(EXTERNAL_CLI_TOOL_META).filter(id => id !== 'janus').sort())
     for (const id of EXTERNAL_CLI_TOOL_ORDER) {
       const tool = getExternalCliTool(id)
       expect(tool?.displayName).toBe(EXTERNAL_CLI_TOOL_META[id]?.displayName)
-      // 全工具 npm 分发走包名校验；janus 额外保留 localLifecycle 作 dev 回退。
+      // Only active external tools have install strategies.
       expect(tool?.npmPackage).toMatch(/^(@[^/]+\/[^/]+|[^/]+)$/)
-      if (tool?.localLifecycle) {
-        expect(tool.localLifecycle.packageName).toMatch(/^@[^/]+\/[^/]+$/)
-      }
     }
   })
 
   it('rejects unknown ids at the IPC boundary', () => {
     expect(getExternalCliTool('shell')).toBeUndefined()
     expect(getExternalCliTool('')).toBeUndefined()
+    expect(getExternalCliTool('janus')).toBeUndefined()
+    expect(EXTERNAL_CLI_TOOL_META.janus.displayName).toBe('Janus')
   })
 })

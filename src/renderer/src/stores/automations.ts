@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { AutomationDraft, AutomationRun } from '../../../shared/automations'
 import { useRightToolStore } from './right-tools'
 import { useIslandStore } from './island'
+import { useSuperAgentUIStore } from './superagent-ui'
 
 export const useAutomationsStore = create<{
   draft: AutomationDraft | null; notices: AutomationRun[]; draftSequence: number; removedIds: string[];
@@ -33,7 +34,7 @@ export function openAutomationRun(run: Pick<AutomationRun, 'definitionId' | 'id'
 export function activateAutomationCompanion(): void {
   useRightToolStore.getState().openTool('automations')
   const island = useIslandStore.getState()
-  if (island.stage !== 'expanded' || island.companionToolId !== 'automations') island.openChat('', 'automations')
+  if (island.companionToolId !== 'automations' || (!useSuperAgentUIStore.getState().started && island.stage !== 'expanded')) island.openChat('', 'automations')
 }
 export function subscribeAutomations(): () => void {
   const api = window.electron.automations

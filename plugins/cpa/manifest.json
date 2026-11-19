@@ -3,7 +3,7 @@
   "id": "official.cpa",
   "name": "CPA",
   "description": "Optional CLIProxyAPI account management and supervised local gateway.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "engines": {
     "pluginApi": ">=1.0.0 <2.0.0"
   },

@@ -1,0 +1,111 @@
+--- a/dist/superagent/contracts/conversation-display.d.ts
++++ b/dist/superagent/contracts/conversation-display.d.ts
+@@ -125,6 +125,7 @@
+     /** Bounded, immutable plan revisions observed during this runtime. */
+     plans?: ConversationPlan[];
+     turnStartedAt?: number;
++    turnDurations?: Record<string, number>;
+     engine: ConversationEngine;
+     capabilities: ConversationCapabilities;
+     id: string;
+--- a/dist/superagent/native/codex-conversation.js
++++ b/dist/superagent/native/codex-conversation.js
+@@ -30,6 +30,9 @@
+ // Native startup plugin/list catalogs can exceed 25 MiB. Match ws's default
+ // transport ceiling; display limits must not truncate native protocol messages.
+ const MAX_PAYLOAD = 100 * 1024 * 1024;
++function nativeTurnTime(value) {
++    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
++}
+ /** Codex's native remote transport honors proxy variables, including for localhost. */
+ export function codexLoopbackEnv(source) {
+     const bypass = [...new Set([
+@@ -390,6 +393,7 @@
+             this.state.approvals = [];
+             this.state.turnId = null;
+             this.state.turnStartedAt = undefined;
++            this.state.turnDurations = undefined;
+             this.state.plans = [];
+             this.state.retry = undefined;
+             this.state.error = undefined;
+@@ -412,14 +416,29 @@
+         this.state.serviceTier = undefined;
+         this.updateSettings(settings);
+         this.bind(thread.id, thread.path ?? undefined);
++        const durations = new Map(Object.entries(this.state.turnDurations ?? {}));
+         for (const turn of thread.turns ?? []) {
+             for (const item of turn.items ?? [])
+                 this.item(item, turn.id, turn.status !== 'inProgress', true);
+             if (turn.error)
+                 this.turnError(turn.id, turn.error.message ?? 'Turn failed');
+-            if (turn.status === 'inProgress')
++            if (turn.status === 'inProgress') {
++                const startedAt = nativeTurnTime(turn.startedAt);
++                this.state.turnStartedAt = startedAt === undefined
++                    ? (this.state.turnId === turn.id ? this.state.turnStartedAt : undefined)
++                    : startedAt * 1000;
+                 this.state.turnId = turn.id;
+-        }
++            } else {
++                if (this.state.turnId === turn.id) {
++                    this.state.turnId = null;
++                    this.state.turnStartedAt = undefined;
++                }
++                const duration = nativeTurnTime(turn.durationMs);
++                if (duration !== undefined) durations.set(turn.id, duration);
++            }
++        }
++        const visibleTurns = new Set(this.state.items.map(item => item.turnId));
++        if (durations.size) this.state.turnDurations = Object.fromEntries([...durations].filter(([turnId]) => visibleTurns.has(turnId)));
+         this.state.connection = 'ready';
+         this.changed();
+     }
+@@ -503,7 +522,7 @@
+                     this.registerAsyncQuestions(`${request.turnId}:${request.itemId}`, request.itemId, request.turnId, remaining);
+             }
+         }
+-        const normalized = { id: key, turnId, type: raw.type, receivedAt: previous?.receivedAt ?? Date.now(), durationMs: previous?.durationMs,
++        const normalized = { id: key, turnId, type: raw.type, receivedAt: previous?.receivedAt ?? Date.now(), 
+             phase: raw.phase === 'commentary' || raw.phase === 'final_answer' ? raw.phase : previous?.phase,
+             editable: raw.type === 'userMessage' ? !replies && raw.content?.every((part) => part.type === 'text') : undefined,
+             text: typeof text === 'string' ? text.slice(0, MAX_TEXT) : '', status: raw.status ?? (done ? 'completed' : 'inProgress'),
+@@ -700,7 +719,8 @@
+             this.state.plans = [...plans, { turnId: p.turnId, version: (previous?.version ?? 0) + 1, steps, explanation, outcome: 'running' }].slice(-100);
+         }
+         else if (method === 'turn/started') {
+-            this.state.turnStartedAt = Date.now();
++            const startedAt = nativeTurnTime(p.turn.startedAt);
++            this.state.turnStartedAt = startedAt === undefined ? Date.now() : startedAt * 1000;
+             this.state.turnId = p.turn.id;
+             this.state.error = undefined;
+             this.state.retry = undefined;
+@@ -711,12 +731,13 @@
+                 this.state.retry = undefined;
+             const outcome = ['completed', 'interrupted', 'failed'].includes(p.turn.status) ? p.turn.status : 'failed';
+             this.state.plans = this.state.plans?.map(plan => plan.turnId === p.turn.id ? { ...plan, outcome } : plan);
+-            if (this.state.turnId === p.turn.id && this.state.turnStartedAt !== undefined) {
+-                const durationMs = Math.max(0, Date.now() - this.state.turnStartedAt);
+-                for (const item of this.state.items)
+-                    if (item.turnId === p.turn.id && item.type === 'agentMessage')
+-                        item.durationMs = durationMs;
++            let duration = nativeTurnTime(p.turn.durationMs);
++            if (this.state.turnId === p.turn.id) {
++                if (duration === undefined && this.state.turnStartedAt !== undefined) duration = Math.max(0, Date.now() - this.state.turnStartedAt);
+                 this.state.turnStartedAt = undefined;
++            }
++            if (duration !== undefined) {
++                this.state.turnDurations = Object.fromEntries(Object.entries({ ...this.state.turnDurations, [p.turn.id]: duration }).slice(-MAX_ITEMS));
+             }
+             this.lastCompletedTurnId = p.turn.id;
+             if (this.state.turnId === p.turn.id)
+--- a/dist/superagent/native/conversation-session.js
++++ b/dist/superagent/native/conversation-session.js
+@@ -32,7 +32,7 @@
+     setNativeInput(write) { this.nativeInput = write; }
+     resetThread() {
+         this.questions.clear();
+-        Object.assign(this.state, { threadId: null, turnId: null, turnStartedAt: undefined, items: [], approvals: [], plans: [],
++        Object.assign(this.state, { threadId: null, turnId: null, turnStartedAt: undefined, turnDurations: undefined, items: [], approvals: [], plans: [],
+             needsTerminal: false, truncated: false, error: undefined, commands: undefined, commandsLoading: false, commandsError: undefined,
+             commandsRevision: (this.state.commandsRevision ?? 0) + 1 });
+         this.state.controlEpoch++;

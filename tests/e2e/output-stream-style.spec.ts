@@ -1,0 +1,29 @@
+import { expect, test } from '@playwright/test'
+
+test('native output uses row highlights and keeps a single plan per turn', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
+  await page.evaluate(() => (window as any).codexFixture.workPreview('start'))
+  const work = page.locator('.conversation-work-toggle')
+  await expect(work).toHaveAttribute('aria-expanded', 'false')
+  await work.click()
+  const active = page.locator('.conversation-work details[data-state="inProgress"]')
+  await expect(active).toBeVisible()
+  await expect(active).toHaveCSS('border-left-width', '0px')
+  expect(await active.locator('summary').evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
+  await page.evaluate(() => { (window as any).codexFixture.plan(); (window as any).codexFixture.plan() })
+  const plan = page.getByRole('region', { name: 'Execution plan', exact: true }).last()
+  const step = plan.locator('[data-current=true]')
+  await expect(step).toHaveCSS('border-left-width', '0px')
+  expect(await step.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
+  await page.evaluate(() => (window as any).codexFixture.revisePlan())
+  await expect(page.getByRole('region', { name: 'Execution plan', exact: true })).toHaveCount(1)
+  await expect(page.locator('[data-plan-history]')).toHaveCount(0)
+  for (const [theme, width] of [['dark', 1100], ['white', 390], ['planche', 760]] as const) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
+    await page.setViewportSize({ width, height: 850 })
+    await expect(active.locator('summary .conversation-tool-target')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `artifacts/tool-presentation-unification-20261113/native-${theme}.png` })
+  }
+})

@@ -1,8 +1,30 @@
-// Note: .agents/notes/sessions/workspace-runtime-import.md
-export type WorkspaceRuntime =
-  | { kind: 'windows' }
+// Note: .agents/notes/desktop/platform-runtime-boundaries.md
+export type ExternalWorkspaceRuntime =
   | { kind: 'wsl'; distro: string; root: string }
   | { kind: 'ssh'; host: string; user?: string; port?: number; identityFile?: string; root: string }
+export type LocalWorkspaceRuntime = { kind: 'local' }
+/** The windows spelling is accepted only for old records / clients. */
+export type WorkspaceRuntime = LocalWorkspaceRuntime | ExternalWorkspaceRuntime | { kind: 'windows' }
+
+export function normalizeWorkspaceRuntime(value: unknown): LocalWorkspaceRuntime | ExternalWorkspaceRuntime {
+  if (value === undefined || value === null) return { kind: 'local' }
+  if (typeof value !== 'object') throw new Error('Invalid workspace environment')
+  const kind = (value as { kind?: unknown }).kind
+  if (kind === 'local' || kind === 'windows') return { kind: 'local' }
+  // Connection fields are validated by the execution-side validateRuntime before use.
+  if (kind === 'wsl' || kind === 'ssh') return value as ExternalWorkspaceRuntime
+  throw new Error('Unknown workspace environment')
+}
+
+export function isExternalWorkspaceRuntime(value: unknown): value is ExternalWorkspaceRuntime {
+  return normalizeWorkspaceRuntime(value).kind !== 'local'
+}
+
+/** Keep native records readable by versions that predate the local spelling. */
+export function storedWorkspaceRuntime(value: unknown): ExternalWorkspaceRuntime | undefined {
+  const runtime = normalizeWorkspaceRuntime(value)
+  return runtime.kind === 'local' ? undefined : runtime
+}
 
 export interface RuntimeDirectory { name: string; path: string; directory: boolean }
 export interface RuntimeProbe {
@@ -29,8 +51,8 @@ export interface WorkspaceRuntimeAPI {
   cliInstallStatus(workspaceId: string, tool: string): Promise<RemoteCliInstallState>
   distributions(): Promise<string[]>
   hosts(): Promise<string[]>
-  connect(runtime: Exclude<WorkspaceRuntime, { kind: 'windows' }>): Promise<RuntimeProbe>
-  browse(runtime: Exclude<WorkspaceRuntime, { kind: 'windows' }>, path: string): Promise<{ path: string; entries: RuntimeDirectory[] }>
+  connect(runtime: ExternalWorkspaceRuntime): Promise<RuntimeProbe>
+  browse(runtime: ExternalWorkspaceRuntime, path: string): Promise<{ path: string; entries: RuntimeDirectory[] }>
   terminals(workspaceId: string): Promise<RuntimeTerminal[]>
 }
 

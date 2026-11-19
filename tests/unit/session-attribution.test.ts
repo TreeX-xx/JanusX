@@ -10,6 +10,7 @@ vi.mock('os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('os')>()
   return {
     ...actual,
+    homedir: () => testContext.homeDir,
     default: { ...actual.default, homedir: () => testContext.homeDir },
   }
 })
@@ -111,11 +112,13 @@ describe('session attribution', () => {
     db.close()
   })
   beforeEach(async () => {
+    for (const key of ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'PI_CODING_AGENT_DIR', 'PI_CODING_AGENT_SESSION_DIR']) vi.stubEnv(key, undefined)
     vi.stubEnv('CODEX_HOME', '')
     testContext.homeDir = await mkdtemp(join(tmpdir(), 'janusx-attribution-'))
   })
 
   afterEach(async () => {
+    vi.unstubAllEnvs()
     vi.unstubAllEnvs()
     await rm(testContext.homeDir, { recursive: true, force: true })
   })

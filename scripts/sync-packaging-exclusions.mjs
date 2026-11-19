@@ -76,7 +76,8 @@ if (blocked.length > 0) {
 // A scope whose every installed member is dev-only is negated as one directory.
 // Anything narrower stays per-package, so a single production package inside a
 // dev-only scope is never caught by a scope-wide negation.
-const devOnly = installed.filter((name) => !closureTopLevel.has(name)).sort()
+// fsevents is excluded explicitly so its host-specific presence cannot change the list.
+const devOnly = installed.filter((name) => !closureTopLevel.has(name) && name !== 'fsevents').sort()
 const scopes = new Map()
 for (const name of devOnly) {
   if (!name.startsWith('@')) continue

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Note: OfficeCLI is a bundled asset, not a managed download — see .agents/notes/desktop/officecli-bundled.md
-import { spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+import { spawnProcess as spawn } from '../platform/process-host/core'
 import { join } from 'node:path'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { OFFICECLI_BUNDLED_VERSION, resolveBundledOfficecliBinary } from './office-bundled-path'

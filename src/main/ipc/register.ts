@@ -20,6 +20,7 @@ import { registerJanusHandlers } from './janus-handlers'
 import { registerHarnessHandlers } from './harness-handlers'
 import { registerBlueprintReviewHandlers } from './blueprint-review-handlers'
 import { registerJanusChatHandlers } from './janus-chat-handlers'
+import { registerSuperAgentHandlers } from './superagent-handlers'
 import { registerMemoHandlers } from './memo-handlers'
 import { registerRoundtableHandlers } from './roundtable-handlers'
 import { registerKnowledgeHandlers } from './knowledge-handlers'
@@ -121,7 +122,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerWorkspaceRuntimeHandlers(options.getAllowedWindows)
   registerTerminalHandlers(getCurrentMainWindow)
   registerBrowserHandlers(getCurrentMainWindow, options.browserSurfaces)
-  pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot)
+  pluginService = registerPluginHandlers(getCurrentMainWindow, options.resolveWorkspaceRoot, (method, value) => superAgent.pluginCall(method, value), choose => superAgent.prepareRemoval(choose))
   initializeBrowserTerminalClients(registerLocalIntegrationHandlers(options.getAllowedWindows, options.resolveWorkspaceRoot, () => pluginService))
   registerGitHandlers()
   registerAgentHandlers(getCurrentMainWindow)
@@ -139,6 +140,11 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   registerHarnessHandlers(getCurrentMainWindow)
   registerBlueprintReviewHandlers()
   registerJanusChatHandlers()
+  const superAgent = registerSuperAgentHandlers({ ...options,
+    activation: workspaceId => pluginService?.officialNative('official.superagent', workspaceId),
+    getOccupiedPaths: () => terminalManager.listInstances().map(instance => instance.config.cwd),
+  })
+  appShutdown.configure({ flushSuperAgentRecords: () => superAgent.close() })
   registerMemoHandlers()
   registerRoundtableHandlers(getCurrentMainWindow)
   registerRuntimeTelemetryHandlers()

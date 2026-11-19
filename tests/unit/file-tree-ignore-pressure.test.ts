@@ -1,62 +1,58 @@
-import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProcessOutcome } from '../../src/main/platform/process-host'
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn() }))
-vi.mock('node:child_process', () => ({ spawn: mocks.spawn }))
+const mocks = vi.hoisted(() => ({ run: vi.fn() }))
+vi.mock('../../src/main/platform/process-host', () => ({ runProcess: mocks.run }))
 
+// Process ownership, timeout escalation and exit confirmation are covered by platform-process-host.test.ts.
+// This consumer owns batching, concurrency and failure handling.
 describe('file tree git process pressure', () => {
-  beforeEach(() => { vi.resetModules(); vi.useFakeTimers(); mocks.spawn.mockReset() })
+  beforeEach(() => { vi.resetModules(); vi.useFakeTimers(); mocks.run.mockReset() })
   afterEach(() => { vi.useRealTimers() })
 
-  function child() {
-    const process = Object.assign(new EventEmitter(), {
-      pid: 123, stdin: Object.assign(new EventEmitter(), { end: vi.fn() }),
-      stdout: Object.assign(new EventEmitter(), { setEncoding: vi.fn() }), kill: vi.fn(),
-    })
-    return process
+  function pendingRun() {
+    let finish!: (result: Partial<ProcessOutcome>) => void
+    const promise = new Promise<Partial<ProcessOutcome>>(resolve => { finish = resolve })
+    mocks.run.mockReturnValueOnce(promise)
+    return finish
   }
 
   it('batches 100 directories for a workspace into one git invocation', async () => {
-    const git = child()
-    mocks.spawn.mockReturnValue(git)
+    const finish = pendingRun()
     const { getGitIgnoredPaths } = await import('../../src/main/ipc/file-tree-ignore')
-    const pending = Array.from({ length: 100 }, (_, i) => getGitIgnoredPaths('root', [`dir${i}/file`]))
+    const pending = Array.from({ length: 100 }, (_, i) => getGitIgnoredPaths('root', ['dir' + i + '/file']))
     await vi.advanceTimersByTimeAsync(0)
-    expect(mocks.spawn).toHaveBeenCalledTimes(1)
-    expect(git.stdin.end.mock.calls[0][0].split('\0').filter(Boolean)).toHaveLength(100)
-    git.stdout.emit('data', 'dir3/file\0')
-    git.emit('close', 0)
+    expect(mocks.run).toHaveBeenCalledTimes(1)
+    expect(mocks.run.mock.calls[0][2].input.split('\0').filter(Boolean)).toHaveLength(100)
+    finish({ status: 'exited', exitCode: 0, stdout: 'dir3/file\0' })
     const results = await Promise.all(pending)
     expect(results[3].has('dir3/file')).toBe(true)
   })
 
   it('limits independent workspaces to two active git checks', async () => {
-    const children = Array.from({ length: 5 }, child)
-    children.forEach(git => mocks.spawn.mockReturnValueOnce(git))
+    const finishes = Array.from({ length: 5 }, pendingRun)
     const { getGitIgnoredPaths } = await import('../../src/main/ipc/file-tree-ignore')
-    const pending = children.map((_, i) => getGitIgnoredPaths(`root${i}`, ['file']))
+    const pending = finishes.map((_, i) => getGitIgnoredPaths('root' + i, ['file']))
     await vi.advanceTimersByTimeAsync(0)
-    expect(mocks.spawn).toHaveBeenCalledTimes(2)
-    children[0].emit('close', 1)
+    expect(mocks.run).toHaveBeenCalledTimes(2)
+    finishes[0]({ status: 'exited', exitCode: 1, stdout: '' })
     await vi.advanceTimersByTimeAsync(0)
-    expect(mocks.spawn).toHaveBeenCalledTimes(3)
-    children[1].emit('close', 1)
-    children[2].emit('close', 1)
+    expect(mocks.run).toHaveBeenCalledTimes(3)
+    finishes[1]({ status: 'exited', exitCode: 1, stdout: '' })
+    finishes[2]({ status: 'exited', exitCode: 1, stdout: '' })
     await vi.advanceTimersByTimeAsync(0)
-    children[3].emit('close', 1)
-    children[4].emit('close', 1)
+    finishes[3]({ status: 'exited', exitCode: 1, stdout: '' })
+    finishes[4]({ status: 'exited', exitCode: 1, stdout: '' })
     await Promise.all(pending)
   })
 
-  it('times out a stalled check and terminates its Windows process tree', async () => {
-    const git = child()
-    mocks.spawn.mockReturnValue(git)
+  it.each(['timed-out', 'exit-unconfirmed', 'spawn-error'] as const)('delegates bounded execution and ignores partial output after %s', async status => {
+    mocks.run.mockResolvedValue({ status, stdout: 'file\0' })
     const { getGitIgnoredPaths } = await import('../../src/main/ipc/file-tree-ignore')
     const pending = getGitIgnoredPaths('root', ['file'])
-    await vi.advanceTimersByTimeAsync(3001)
+    await vi.advanceTimersByTimeAsync(0)
     expect(await pending).toEqual(new Set())
-    if (process.platform === 'win32') expect(mocks.spawn).toHaveBeenCalledWith('taskkill',
-      ['/pid', '123', '/t', '/f'], expect.objectContaining({ windowsHide: true }))
-    else expect(git.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(mocks.run).toHaveBeenCalledWith('git', ['check-ignore', '--no-index', '--stdin', '-z'],
+      expect.objectContaining({ cwd: 'root', input: 'file\0', timeoutMs: 3000 }))
   })
 })

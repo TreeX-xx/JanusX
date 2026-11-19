@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { lstat, realpath, unlink, open, rename } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { applyEdits, modify, parse, parseTree, type ParseError, type Node } from 'jsonc-parser'
 import { workspaceIo, writeIoFile, readIoFile } from '@janus-agent/agent-core'
 import type { LegacyHookCleanupResult } from '../../shared/ipc/workspace-storage'
@@ -19,7 +20,7 @@ export function assertHookCleanupIdle(): void {
 }
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
-const key = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
+const key = (path: string) => runtimePathKey(resolve(path))
 const textFile = async (path: string) => (await readIoFile(path)).toString('utf8')
 
 /** No links, including redirected parents. Missing files are a successful no-op. */

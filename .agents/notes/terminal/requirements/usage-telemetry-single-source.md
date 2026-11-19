@@ -8,12 +8,26 @@
   "class": "feature",
   "tags": ["telemetry","usage-stats","terminal","session-files"],
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/61b5d05c-e1ad-4f7a-a3e9-57982fb78c4e",
-  "updated": "2026-10-22T07:55:52Z",
+  "updated": "2026-11-15T11:28:11.737Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
 
 # 终端上下文与用量统计单源化（会话文件路线）
+
+## 历史数据位置
+
+用量页和会话管理工具栏共用“历史数据位置”弹窗，沿用现有主题、CLI 图标和设置按钮。主进程 `sessions/history-sources.ts` 统一解析 Claude、Codex、Pi 和 OpenCode 的有效来源：默认遵循 CLI 环境和项目配置，未覆盖时使用官方默认位置；本机保存的历史 store 与用户补充位置一起去重。Codex 的 sessions 和 archived_sessions 均参与本机扫描。SSH/WSL 保留数据拥有端的原有扫描，不把本机路径传给远端。
+
+用户可以关闭某 CLI 的自动识别，添加手动目录、停用或移除手动来源，并恢复自动识别。Claude 选择 projects 目录，Codex 选择 sessions 或 archived_sessions，Pi 选择会话目录，OpenCode 选择数据库文件。新增或重新启用的手动来源先执行有界、只读的格式检查；无权限、缺失、无可识别历史时拒绝保存该变更，保留原配置。检查最多遍历 2000 个目录项、20 个 JSONL 文件，每文件最多读取 64 KiB；空目录或识别范围外的历史需在存在可识别文件后再添加。OpenCode 使用原位只读 SQLite，不复制活动库离开 WAL。
+
+配置保存在 userData/JanusX 对应的 `janusx/history-sources.json`，采用原子写与串行保存，不改 CLI 配置、登录凭据或新会话的保存位置。保存后等待旧扫描结束，再刷新会话发现和用量采集；刷新失败与保存失败分别提示。停用只停止该来源的历史扫描，不删除已导入会话、已统计消耗或原文件，运行中的终端仍有自身遥测。移除手动覆盖后，同路径若仍由 CLI 配置或已有终端记录自动识别，会恢复为自动来源。
+
+可读取历史不等同于可续接。弹窗仅标注原生目录结构是否具备进入续接检查的条件；真正执行仍校验原工作目录、会话身份和 CLI。Claude/Codex 沿用原路径推导配置根，Pi 按文件续接，OpenCode 继续要求当前活动库。任意备份不自动成为运行配置。
+
+用量账本跨目录遇到相同原生 sessionId 时，要求存在稳定事件 ID 且计数一致的重叠证据才复用既有记账来源，累计模式要求完整源哈希一致。复制和移动历史不因此重复入账；同 ID 内容冲突或没有足够证据时保留既有账本并报告来源冲突，不猜测合并。此前已分别计入多个来源的历史不自动重写。会话管理继续保留不同路径的冲突记录并禁止含糊续接，不用用量去重替代会话身份检查。
+
+Windows 宿主定向验证：10 个 Vitest 文件共 131 项通过，涵盖 history-sources、usage-ledger、corpus-scan、coordinator、accounting、history、session-attribution、external-session-scanner、provider-runtime-paths 和 session-recovery；最后整理会话入口后，来源与扫描两套 13 项复验通过。Playwright 的 history-sources 与 usage-stats 共 10 项通过，包含两主题、390px 窄屏、添加、停用、重开与恢复默认；截图保存在 artifacts/history-sources。严格 unused 类型检查、build:check、i18n、运行时边界和 Notes 校验通过；定向 ESLint 无错误，已有 UsageStatsPanel effect 依赖警告未改动。未运行全仓 verify，真实 macOS 文件权限、原生对话框和 CLI 续接仍为 not-run。
 
 ## Problem
 

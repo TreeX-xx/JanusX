@@ -1,3 +1,4 @@
+import { localHistorySources } from '../sessions/history-source-service'
 import { ipcMain, type BrowserWindow } from 'electron'
 import {
   SESSION_CHANNELS,
@@ -19,11 +20,15 @@ import { parseRuntimeResource } from '../../shared/workspace-runtime'
 // See .agents/notes/sessions/records/session-flicker-storm.md
 let scanInFlight: Promise<ExternalScanSummary> | null = null
 
-function runScanSerialized(): Promise<ExternalScanSummary> {
+export async function refreshExternalSessionSources(): Promise<void> {
+  await scanInFlight?.catch(() => undefined)
+  await runScanSerialized()
+}
+
+export function runScanSerialized(): Promise<ExternalScanSummary> {
   if (!scanInFlight) {
     scanInFlight = (async () => {
-      await agentSessionRegistry.load().catch(() => undefined)
-      const local = await scanExternalSessions(agentSessionRegistry)
+      const local = await scanExternalSessions(agentSessionRegistry, { sources: await localHistorySources() })
       const remote = await scanRemoteSessions()
       return { ...local, remote }
     })().finally(() => {

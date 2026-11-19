@@ -3,6 +3,7 @@ export const WORKSPACE_STORAGE_CHANNELS = {
   dismiss: 'workspace-storage:dismiss',
   data: 'workspace-storage:data', measure: 'workspace-storage:measure', cleanup: 'workspace-storage:cleanup',
   relocate: 'workspace-storage:relocate', restore: 'workspace-storage:restore',
+  detach: 'workspace-storage:detach',
   retireHooks: 'workspace-storage:retire-hooks',
 } as const
 export interface WorkspaceMigrationItem {
@@ -28,6 +29,7 @@ export interface WorkspaceStorageAPI {
   cleanup(id: string, category: WorkspaceCleanupCategory): Promise<void>
   relocate(id: string, destination: string): Promise<void>
   restore(id: string): Promise<void>
+  detach(id: string): Promise<void>
   retireHooks(): Promise<LegacyHookCleanupResult>
 }
 
@@ -43,4 +45,5 @@ export interface WorkspaceDataItem {
   id: string; name: string; path: string; target: string; workspaceIds: string[]; legacy: boolean
   status: 'associated' | 'offline' | 'detached' | 'purging' | 'failed'
   detachedAt?: string; expiresAt?: string; error?: string
+  actions: { relocate: boolean; restore: boolean; detach: boolean; cleanup: boolean; purge: boolean }
 }

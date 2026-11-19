@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { HtmlPreviewServer } from '../../src/main/preview/html-preview-server'
+import { MAX_EDITOR_TEXT_BYTES, MAX_HTML_PREVIEW_BYTES } from '../../src/shared/editor'
 
 describe('workspace HTML preview server', () => {
   let server: HtmlPreviewServer
@@ -48,6 +49,25 @@ describe('workspace HTML preview server', () => {
     expect((await fetch(new URL('/root.js', lease.url))).status).toBe(404)
     server.releaseOwner(1)
     expect((await fetch(lease.url)).status).toBe(404)
+  })
+
+  it('serves HTML above 32 MiB completely and rejects content above 64 MiB', async () => {
+    const content = '<!--' + 'x'.repeat(MAX_EDITOR_TEXT_BYTES) + '--><h1>Complete HTML</h1>'
+    const lease = await server.open(1, { workspacePath: workspace, documentPath: document, content })
+    const response = await fetch(lease.url), reader = response.body!.getReader()
+    expect(response.status).toBe(200)
+    let bytes = 0, tail = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bytes += value.byteLength
+      tail = Buffer.from(value).toString('utf8').slice(-80)
+    }
+    expect(bytes).toBe(Buffer.byteLength(content))
+    expect(tail).toContain('<h1>Complete HTML</h1>')
+    const oversized = 'x'.repeat(MAX_HTML_PREVIEW_BYTES + 1)
+    await expect(server.open(1, { workspacePath: workspace, documentPath: document, content: oversized })).rejects.toThrow('64 MiB')
+    expect(() => server.update(1, lease.id, oversized)).toThrow('Invalid HTML preview content')
   })
 
   it('rejects outside documents, hidden paths, traversal and symlink escapes', async () => {

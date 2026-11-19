@@ -77,7 +77,11 @@ npm run dev:blueprint
 
 源码放在 `src/`、`packages/` 和 `apps/`，自动化放在 `scripts/`，测试与固定 fixture 放在 `tests/`。贡献者说明由 `docs/` 维护，模块事实和验收记录由 `.agents/notes/` 维护；不要把临时报告、截图或手工测试文件放在根目录。
 
-`artifacts/` 收纳验证报告、截图及本地交付副本，`release/` 保留正式交付和校验清单。手工测试素材放在 `artifacts/manual-fixtures/`；需要跟随版本的测试样例应由测试引用并放入 `tests/fixtures/`。历史产物可归档到 `artifacts/archive/<批次>/`，同时记录原位置与归档位置。保留报告、日志、截图和必要的冻结基线，已结束测试生成的隔离 profile、重复暂存安装包及解包目录可以在核实后归档或清理。
+设计原型、调研说明与必要素材统一维护在 `design/`，由 .gitignore 忽略并保留在本机；本机入口为 `design/README.md`。维护源码、离线页面与必要素材放在同一主题目录，验证截图和采集结果写入 `artifacts/design-reviews/`，宣传图导出写入 `artifacts/design-exports/`，历史生成产物按批次归档到 `artifacts/archive/`。原 `_design/` 已合并，不再新建第二套原型目录。
+
+`artifacts/` 收纳验证报告、截图和手工测试素材。桌面安装包、ZIP、解包应用及对应的构建来源、校验和与安装记录统一放在 `release/<版本>/`，使用 `electron-builder.yml` 的默认输出目录；本地测试打包也沿用这一位置。后续版本建立各自的版本目录。已确认可清理的旧构建和旧版备份移入系统废纸篓。
+
+手工测试素材放在 `artifacts/manual-fixtures/`；需要跟随版本的测试样例应由测试引用并放入 `tests/fixtures/`。历史验证证据可归档到 `artifacts/archive/<批次>/`，同时记录原位置与归档位置。保留报告、日志、截图和必要的冻结基线，已结束测试生成的隔离 profile 可以在核实后归档或清理。
 
 Android 源码和 Gradle 配置由 `apps/android-lab/` 维护，构建及验证工具由 `scripts/android-lab/` 维护；Cloudflare Worker、Pages 入口、依赖锁文件、测试及部署说明放在 `scripts/remote-lab/cloudflare/`，应随源码提交以便复现和维护。APK/AAB、构建缓存、日志、`local.properties`、Wrangler 登录状态和签名密钥不进入 Git；安装包按需要单独交付，不与源码混放。
 
@@ -104,7 +108,7 @@ Android 源码和 Gradle 配置由 `apps/android-lab/` 维护，构建及验证�
 ## 常见环境问题
 
 - dev 提示缺少工具或命令 shim：在当前 checkout 运行 `npm ci --include=dev`。
-- Electron 二进制缺失（例如安装时跳过了脚本）：运行 `npm rebuild electron`。
+- Electron 二进制缺失或 macOS 终端启动助手缺少执行权限（例如安装时跳过了脚本）：运行 `npm run postinstall`。
 - `@janus-agent/*` 入口缺失或更新未生效：确认 sibling revision 和构建结果，再运行 `npm run prepackage`。
 - 测试报告 Chromium 缺失：运行 `npx playwright install chromium`。
 - 测试报告 `../WorkFlowX` 不存在：检查 sibling 位置及 CI 中固定的 revision。

@@ -29,14 +29,15 @@ beforeAll(async () => {
     state.storage=storage;state.canceled=false;state.mismatch=false;state.response=1;state.workspaces=[{id:'w',name:'中文项目',path:storage.path}];
     Object.assign(window.electron.workspaceStorage,{
       retireHooks:async()=>{state.calls.push('retireHooks');if(state.hookError)throw Error(state.hookError);return{commands:2,files:['C:/Users/Test/.janusx/hooks/janusx-agent-hook.ps1'],retained:[{path:'C:/Users/Test/.janusx/hooks/janusx-hook-runner.exe',reason:'Unknown binary retained'}]};},
-      data:async()=>{state.calls.push('data');return[{...storage}];},
+      data:async()=>{state.calls.push('data');return(state.removed?[]:[storage,...(state.extraStorage||[])]).map(row=>({...row,actions:{relocate:!!row.workspaceIds.length,restore:!!row.detachedAt,detach:!row.detachedAt,cleanup:!row.legacy,purge:!row.workspaceIds.length}}));},
+      detach:async(id)=>{state.calls.push(['detach',id]);storage.status='detached';storage.workspaceIds=[];storage.detachedAt='2026-11-16';},
       measure:async(id)=>{state.calls.push(['measure',id]);return 1024*1024;},
-      cleanup:async(id,category)=>{state.calls.push(['cleanup',id,category]);},
+      cleanup:async(id,category)=>{state.calls.push(['cleanup',id,category]);if(state.cleanupError)throw Error(state.cleanupError);if(category==='all')state.removed=true;},
       relocate:async(id,path)=>{state.calls.push(['relocate',id,path]);if(state.mismatch)throw Error('WORKSPACE_IDENTITY_MISMATCH');storage.path=path;storage.status='associated';state.workspaces[0].path=path;},
       restore:async(id)=>{state.calls.push(['restore',id]);storage.status='associated';storage.workspaceIds=['w'];delete storage.detachedAt;delete storage.expiresAt;},
     });
     window.electron.dialog={openDirectory:async()=>({canceled:state.canceled,filePaths:['D:/projects/moved']}),showMessageBox:async()=>({response:state.response})};
-    window.electron.workspace={list:async()=>state.workspaces,create:async(dto)=>{state.calls.push(['create',dto]);return dto;}};
+    window.electron.workspace={delete:async(id)=>{state.calls.push(['delete',id]);if(state.deleteError)return{success:false};state.workspaces=state.workspaces.filter(row=>row.id!==id);return{success:true};},list:async()=>state.workspaces,create:async(dto)=>{state.calls.push(['create',dto]);return dto;}};
     i18n.use(initReactI18next).init({lng:'zh-CN',resources:{'zh-CN':{storage:zh}},initImmediate:false});
     const target=createRoot(document.getElementById('root'));
     window.mount=(mode)=>target.render(mode==='notice'?<WorkspaceMigrationNotice onOpen={()=>state.opened++}/>:mode==='unavailable'?<WorkspaceUnavailableNotice/>:mode==='empty'?null:<WorkspaceStoragePanel/>);
@@ -46,7 +47,7 @@ beforeAll(async () => {
     builder.onResolve({ filter: /^@\/stores\/workspace$/ }, () => ({ path: 'workspace', namespace: 'fixture' }))
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ loader: 'ts', resolveDir: process.cwd(), contents: args.path === 'i18n'
       ? `import {useTranslation} from 'react-i18next'; export const useI18n=(ns)=>useTranslation(ns);`
-      : `const state=()=>({workspaces:window.fixture.workspaces,activeWorkspaceId:'w',setWorkspaces:(items)=>{window.fixture.workspaces=items;}});export const useWorkspaceStore=(select)=>select(state());useWorkspaceStore.getState=state;` }))
+      : `const state=()=>({workspaces:window.fixture.workspaces,activeWorkspaceId:'w',removeWorkspace:(id)=>{window.fixture.workspaces=window.fixture.workspaces.filter(item=>item.id!==id);},setWorkspaces:(items)=>{window.fixture.workspaces=items;}});export const useWorkspaceStore=(select)=>select(state());useWorkspaceStore.getState=state;` }))
   } }], bundle: true, write: false, outfile: 'storage-ui.js', jsx: 'automatic', format: 'iife' })
   script = result.outputFiles.find(file => file.path.endsWith('.js'))!.text
   css = result.outputFiles.find(file => file.path.endsWith('.css'))!.text
@@ -184,6 +185,52 @@ it('calculates size only on demand and confirms the selected cleanup category', 
     await confirm.getByRole('button', { name: '确认清除', exact: true }).click()
     await expect(confirm).toHaveCount(0)
     expect(await page.evaluate(() => (window as any).fixture.calls.filter(Array.isArray))).toEqual([['measure', 's'], ['cleanup', 's', 'checkpoints']])
+  } finally { await page.close() }
+})
+
+it('removes unavailable registrations with inline confirmation, then purges retained data', async () => {
+  const page = await mount()
+  try {
+    await page.evaluate(() => { (window as any).fixture.storage.status = 'offline' })
+    await page.getByRole('button', { name: '重新检查', exact: true }).first().click()
+    const row = page.getByRole('article', { name: '中文项目', exact: true })
+    await row.getByRole('button', { name: '移除记录', exact: true }).click()
+    const confirm = row.getByRole('group', { name: '确认清理' })
+    await expect(confirm).toContainText('30 天')
+    await expect(row.getByRole('button', { name: '永久清除', exact: true })).toHaveCount(0)
+    await page.evaluate(() => { (window as any).fixture.deleteError = true })
+    await confirm.getByRole('button', { name: '确认移除', exact: true }).click()
+    await expect(row.getByRole('alert')).toContainText('工作区记录未能移除')
+    await expect(confirm).toBeVisible()
+    await page.evaluate(() => { (window as any).fixture.deleteError = false })
+    await confirm.getByRole('button', { name: '确认移除', exact: true }).click()
+    await expect(row.getByText('待清理', { exact: true })).toBeVisible()
+    expect(await page.evaluate(() => (window as any).fixture.calls.filter((call: any) => Array.isArray(call) && call[0] === 'detach'))).toEqual([['detach', 's']])
+    await row.getByRole('button', { name: '永久清除', exact: true }).click()
+    await confirm.getByRole('button', { name: '确认清除', exact: true }).click()
+    await expect(row).toHaveCount(0)
+  } finally { await page.close() }
+})
+
+it('filters unavailable data and reports cleanup failure on the affected item', async () => {
+  const page = await mount('panel', 480)
+  try {
+    await page.evaluate(() => {
+      const state = (window as any).fixture
+      state.storage.workspaceIds = []; state.storage.status = 'offline'
+      state.extraStorage = [{ ...state.storage, id: 'other', name: 'Other project', status: 'associated', workspaceIds: ['other'] }]
+      state.cleanupError = 'Permission denied'
+    })
+    await page.getByRole('button', { name: '重新检查', exact: true }).first().click()
+    const row = page.getByRole('article', { name: '中文项目', exact: true })
+    await row.getByRole('button', { name: '永久清除', exact: true }).click()
+    await row.getByRole('button', { name: '确认清除', exact: true }).click()
+    await expect(row.getByRole('alert')).toContainText('Permission denied')
+    await expect(page.getByRole('article', { name: 'Other project' }).getByRole('alert')).toHaveCount(0)
+    await page.getByRole('button', { name: /需要处理/ }).click()
+    await expect(page.getByRole('article', { name: 'Other project' })).toHaveCount(0)
+    await expect(row.getByRole('group', { name: '确认清理' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   } finally { await page.close() }
 })
 
@@ -369,7 +416,7 @@ it('keeps multi-workspace lists compact and migration statuses on one line in a 
       state.items = ['pending', 'new', 'migrated', 'cleanup-pending', 'offline', 'unsupported', 'failed'].map((status, index) => ({
         id: 'w' + index, name: '很长的工作区名称用于检查状态不被挤压'.repeat(5), source: 'D:/projects/demo/.janusX', target: 'C:/app/workspace-state/' + index, categories: ['logs'], status,
       }))
-      ;(window as any).electron.workspaceStorage.data = async () => Array.from({ length: 5 }, (_, index) => ({ ...state.storage, id: 's' + index }))
+      ;(window as any).electron.workspaceStorage.data = async () => Array.from({ length: 5 }, (_, index) => ({ ...state.storage, id: 's' + index, actions: { relocate: true, restore: false, detach: true, cleanup: true, purge: false } }))
       ;(window as any).mount('panel')
     })
     await expect(page.getByText('无需迁移', { exact: true })).toBeVisible()

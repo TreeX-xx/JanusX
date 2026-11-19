@@ -3,6 +3,7 @@ import {
   cleanPromptText,
   extractKernelMessages,
   firstCleanPrompt,
+  isEnvironmentInjectionText,
   pairTurns,
   segmentTurns,
 } from '../../src/main/sessions/transcript-kernel'
@@ -97,6 +98,25 @@ describe('transcript kernel', () => {
     expect(firstCleanPrompt(messages)).toBe('创建一个 HTML 动画')
   })
 
+  it.each([
+    ['# AGENTS.md instructions\n\n<INSTRUCTIONS>\nnoise', undefined],
+    ['# AGENTS.md instructions\r\n\r\n<INSTRUCTIONS>\nnoise', {}],
+    ['# AGENTS.md instructions', { user_input_order: 0 }],
+    ['# AGENTS.md instructions for C:\\repo\n\n<INSTRUCTIONS>\nnoise', undefined],
+  ])('drops instruction header %s independently of metadata', (text, metadata) => {
+    const messages = extractKernelMessages([
+      JSON.stringify({ type: 'response_item', payload: { role: 'user', content: text }, metadata }),
+      JSON.stringify({ type: 'response_item', payload: { role: 'user', content: 'real question' }, metadata: { user_input_order: 0 } }),
+    ], 'codex')
+    expect(messages).toEqual([{ role: 'user', text: 'real question' }])
+  })
+
+  it('keeps ordinary questions mentioning AGENTS.md instructions', () => {
+    for (const text of ['Explain AGENTS.md instructions', '# AGENTS.md instructions need updating']) {
+      expect(isEnvironmentInjectionText(text)).toBe(false)
+    }
+  })
+
   it('falls back to content heuristics for legacy codex records without metadata', () => {
     const lines = [
       JSON.stringify({
@@ -106,6 +126,10 @@ describe('transcript kernel', () => {
       JSON.stringify({
         type: 'response_item',
         payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions for C:\\repo' }] },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        payload: { role: 'user', content: '# AGENTS.md instructions\n\n<INSTRUCTIONS>\nnoise' },
       }),
       JSON.stringify({
         type: 'response_item',

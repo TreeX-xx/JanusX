@@ -1,19 +1,25 @@
 // Shared host proxy routing; respects application and NO_PROXY settings.
+import { localPlatform } from '../platform/local-platform'
 import { randomBytes } from 'node:crypto'
 import { BlockList, isIP } from 'node:net'
 import { Agent as HttpAgent } from 'node:http'
 import { Agent as HttpsAgent } from 'node:https'
 import { Server } from 'proxy-chain'
 import { getProxyManager, getSystemProxy } from '@janusx/llm-core'
+import { macProxyEnvironment } from '@janusx/llm-core/mac-system-proxy'
 
 export function hostProxyEnvironment(): NodeJS.ProcessEnv {
-  const proxy = getProxyManager().getProxyUrl() ?? getSystemProxy()
+  const env = localPlatform() === 'darwin' ? macProxyEnvironment(process.env) : process.env
+  const proxy = getProxyManager().getProxyUrl() ?? (env === process.env ? getSystemProxy(env) : null)
+  const http = proxy ?? env.HTTP_PROXY
+  const https = proxy ?? env.HTTPS_PROXY
   const bypass = [...new Set([
-    ...(process.env.NO_PROXY ?? '').split(','), ...(process.env.no_proxy ?? '').split(','),
+    ...(env.NO_PROXY ?? '').split(','), ...(env.no_proxy ?? '').split(','),
     'localhost', '127.0.0.1', '::1',
   ].map((entry) => entry.trim()).filter(Boolean))].join(',')
   return {
-    ...(proxy ? { HTTP_PROXY: proxy, HTTPS_PROXY: proxy, http_proxy: proxy, https_proxy: proxy } : {}),
+    ...(http ? { HTTP_PROXY: http, http_proxy: http } : {}),
+    ...(https ? { HTTPS_PROXY: https, https_proxy: https } : {}),
     NO_PROXY: bypass, no_proxy: bypass,
   }
 }
@@ -52,11 +58,11 @@ export class HostProxy {
   async start(): Promise<string> {
     const password = randomBytes(32).toString('hex')
     const server = new Server({ host: '127.0.0.1', port: 0, verbose: false,
-      prepareRequestFunction: ({ username, password: supplied, hostname, port }) => {
+      prepareRequestFunction: ({ username, password: supplied, hostname, port, isHttp }) => {
         if (username !== 'janusx' || supplied !== password) return { requestAuthentication: true }
         const env = hostProxyEnvironment()
         return {
-          upstreamProxyUrl: hostBypassesProxy(hostname, port, env.NO_PROXY) ? undefined : env.HTTPS_PROXY,
+          upstreamProxyUrl: hostBypassesProxy(hostname, port, env.NO_PROXY) ? undefined : (isHttp ? env.HTTP_PROXY : env.HTTPS_PROXY),
           // These connections already target the chosen exit; never apply the host hook again.
           httpAgent: this.httpAgent, httpsAgent: this.httpsAgent,
         }

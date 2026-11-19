@@ -1,6 +1,8 @@
 // Note: transcript detail reads plus provider resume commands back the
 // windowed session reading — see
 // .agents/notes/sessions/records/session-resume-detail.md
+// Conversation titles and recent discussion preview:
+// .agents/notes/sessions/records/session-content-truth-kernel.md
 export const SESSION_CHANNELS = {
   list: 'session:list',
   get: 'session:get',
@@ -36,10 +38,16 @@ export interface AgentSessionSummary {
   cwd: string
   branch?: string
   firstPrompt: string
+  /** Provider-authored conversation title, independent of the first question. */
+  title?: string
+  /** Recent conversation prose; a preview, not a generated summary. */
+  conversationPreview?: string
   turnCount: number
   checkpointCount: number
   status: AgentSessionStatus
   providerSessionId?: string
+  /** Conflicting source paths were preserved instead of merging their history. */
+  identityConflict?: boolean
   transcriptPath?: string
   continuedFrom?: string
   createdAt: string
@@ -176,8 +184,8 @@ export function isNativeResumeEngine(engine: string): boolean {
 }
 
 /** Archive removes JanusX checkpoints, not the provider's conversation history. */
-export function canOfferSessionResume(source: { engine: string; external?: boolean; archived: boolean }): boolean {
-  return isNativeResumeEngine(source.engine) || (source.external === true && !source.archived)
+export function canOfferSessionResume(source: { engine: string; external?: boolean; archived: boolean; identityConflict?: boolean }): boolean {
+  return !source.identityConflict && (isNativeResumeEngine(source.engine) || (source.external === true && !source.archived))
 }
 
 export interface SessionAPI {

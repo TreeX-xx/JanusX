@@ -1,4 +1,29 @@
 {
+  "sideChat": {
+    "title": "侧聊",
+    "askSelection": "在侧聊中问",
+    "close": "关闭侧聊",
+    "empty": "想追问哪一点？",
+    "hint": "在这里展开细节，终端会继续当前工作。",
+    "input": "在侧聊中提问…",
+    "send": "发送侧聊问题",
+    "stop": "停止侧聊回答",
+    "return": "带回主对话草稿",
+    "returnError": "无法加入主草稿，请检查当前会话和草稿长度。",
+    "retry": "重试",
+    "noAnswer": "模型没有返回文字。",
+    "stopped": "已停止回答",
+    "noModel": "选择 JanusX 模型后即可开始侧聊。",
+    "configure": "模型设置",
+    "removeSource": "移除引用",
+    "sources": {
+      "turn": "最近一轮对话",
+      "reply": "引用的回答",
+      "message": "引用的消息",
+      "draft": "主对话草稿",
+      "diff": "文件变更"
+    }
+  },
   "startup": {
     "starting": "正在启动终端…",
     "waitingForOutput": "正在等待终端输出…"
@@ -20,6 +45,7 @@
     "contextUnknown": "上下文未知"
   },
   "context": {
+    "moreStats": "更多统计",
     "row": {
       "runtimeWindow": "运行窗口",
       "modelCapacity": "模型容量",
@@ -169,6 +195,7 @@
     "terminalRuntime": "用量",
     "noTelemetryData": "暂无用量数据",
     "focusWorkspaceTitle": "焦点终端工作区：{{name}} · {{path}}",
+    "closeRuntimePanel": "收起用量面板",
     "runtimePanelToggle": "切换用量面板",
     "janusChatFallback": "Janus 对话",
     "runtimeAria": "用量",
@@ -259,6 +286,8 @@
     "copied": "已复制",
     "detailHint": "共 {{count}} 轮 · 完整内容在详情窗阅读",
     "externalHint": "外部会话来自软件外终端，可只读查阅转录。",
+    "identityConflict": "历史标识冲突",
+    "identityConflictHint": "多个历史文件使用同一会话标识，已分别保留。核对原始文件后再从终端继续。",
     "resumeCopy": "复制续接命令",
     "resumeUnavailable": "该引擎暂不支持回到原会话。",
     "resume": "回到原会话",
@@ -405,7 +434,6 @@
     },
     "planTitle": "执行计划",
     "planUnavailable": "任务状态同步失败 · 显示最后确认的进度",
-    "planHistory": "计划历史",
     "planCleared": "Agent 已清空计划",
     "planInterrupted": "执行已停止 · 保留原有进度",
     "planCount": "已完成 {{done}} / {{total}}",
@@ -429,7 +457,9 @@
     "copyMessage": "复制消息",
     "copiedMessage": "已复制",
     "editMessage": "重新编辑",
-    "thinking": "Thinking…",
+    "turnRunning": "运行中",
+    "runningActivity": "正在执行 {{activity}}",
+    "turnDuration": "本轮用时 {{duration}}",
     "notice": {
       "retry": "正在重试连接",
       "failure": "本次回复未完成",
@@ -487,16 +517,39 @@
     "emptyTitle": "今天想做些什么？",
     "emptyHint": "从一个想法、一项任务或一个待解决的问题开始。",
     "latest": "回到最新",
+    "inputNavigation": "按输入导航",
+    "inputNumber": "第 {{number}} 条输入",
+    "inputAttachment": "附件输入",
     "history": "对话记录",
     "truncated": "此视图省略了部分较早或过长的内容，完整记录保留在原生会话中。",
+    "historyPreview": "当前显示最近的内容，向上滚动可按需加载更早记录。",
+    "contentPreview": "当前显示内容预览。",
+    "loadEarlier": "加载更早内容",
+    "loadNewer": "加载较新内容",
+    "readFullContent": "查看完整内容",
+    "fullHistory": "对话历史",
+    "fullContent": "完整内容",
+    "historyLatest": "回到最新",
+    "historyBack": "返回历史",
+    "historyLoading": "正在加载历史",
+    "historyRetry": "重试",
+    "historyBeginning": "已到对话开头",
+    "historyUnavailable": "当前无法分页读取原生历史，请重试或检查原生 CLI 版本。",
+    "historyUser": "你",
+    "historyAgent": "Codex",
+    "historyActivity": "过程记录",
+    "previousContent": "上一段",
+    "nextContent": "下一段",
+    "contentRange": "第 {{start}}–{{end}} / {{total}} 个字符",
     "activity": "Agent 活动",
     "openFile": "打开文件或预览",
     "approval": "待处理的审批",
     "approvalChoices": {
       "accept": "允许一次",
+      "acceptForTurn": "允许本轮权限",
       "acceptForSession": "本会话允许",
       "decline": "拒绝",
-      "cancel": "拒绝并停止"
+      "cancel": "拒绝并停止本轮"
     },
     "question": {
       "heading": "需要你的回答",
@@ -526,8 +579,15 @@
     },
     "speedOn": "快速模式已开启 · 点击关闭 · 用量消耗更高",
     "speedOff": "开启快速模式 · 用量消耗更高",
-    "speedUnknown": "尚未获取快速模式状态",
-    "speedUnavailable": "当前模型不支持快速模式",
+    "speedUnknown": "尚未获取响应速度状态",
+    "speedMenu": "选择响应速度 · 当前为{{speed}}",
+    "speedReset": "极速模式已开启 · 点击恢复标准速度",
+    "speed": {
+      "standard": "标准",
+      "fast": "快速",
+      "ultrafast": "极速",
+      "higherUsage": "用量消耗更高"
+    },
     "defaultEffort": "默认强度",
     "searchOptions": "搜索选项",
     "searchModels": "搜索模型或供应商",
@@ -543,7 +603,16 @@
     "modelsFailed": "模型列表加载失败，当前选择保持不变。",
     "retryModels": "重试",
     "unsupportedCommand": "对话视图尚未支持此指令，请在终端中使用。",
+    "codexUpdateTitle": "Codex CLI 有可用更新",
+    "codexUpdateVersions": "当前版本 {{current}} · 可用版本 {{latest}}",
+    "codexUpdateNow": "立即升级",
+    "codexSkipOnce": "本次跳过",
+    "codexSkipVersion": "跳过此版本",
+    "codexUpdating": "Codex 正在运行升级程序。如果会话关闭，请重新打开 Codex 对话。",
+    "codexContinuing": "正在继续此对话…",
     "openTerminalCommand": "切换到终端",
+    "newPending": "正在等待 Codex 新建对话。可切换到终端，完成尚未处理的原生交互。",
+    "commandArgumentsUnsupported": "此对话控制不接受参数。已保留草稿；带参数的原生命令请在终端中使用。",
     "effortUnavailable": "模型列表没有当前模型的推理强度信息，请选择列表中的模型或在终端中调整。",
     "noOptions": "没有匹配的可用选项。",
     "nextTurnSettings": "对当前会话的下一轮生效，正在进行的回复会继续。",
@@ -554,7 +623,8 @@
     "picker": {
       "commands": "指令",
       "model": "模型",
-      "effort": "推理强度"
+      "effort": "推理强度",
+      "speed": "响应速度"
     },
     "commands": {
       "new": "空闲时新建对话",
@@ -577,6 +647,14 @@
     "inputHint": "Enter 发送 · Ctrl+J / Shift+Enter 换行",
     "stop": "停止回复",
     "send": "发送",
+    "toolAction": {
+      "run": "执行",
+      "read": "读取",
+      "search": "搜索",
+      "edit": "修改",
+      "think": "思考",
+      "tool": "调用"
+    },
     "kind": {
       "commandExecution": "命令",
       "fileChange": "文件修改",
@@ -594,6 +672,7 @@
       "back": "返回",
       "search": "搜索文件或输入路径",
       "attachHint": "从电脑选择文件",
+      "drop": "松开以添加上下文",
       "referenceHint": "选择工作区中的文件或目录",
       "add": "添加上下文",
       "attach": "添加附件",

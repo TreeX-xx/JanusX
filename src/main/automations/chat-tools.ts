@@ -18,12 +18,13 @@ export function attachAutomationTools(ports: ChatTurnPorts, options: {
 }): void {
   const original = ports.tools
   ports.tools = {
+    ...original,
     registry: {
       list: () => [...original.registry.list(), ...definitions],
       listManifests: () => [...(original.registry.listManifests?.() ?? createToolManifests(original.registry.list())), ...createToolManifests(definitions)],
     },
-    executeFunctionCall: async (call, callerId): Promise<ToolResult> => {
-      if (!definitions.some(tool => tool.name === call.call.toolName)) return original.executeFunctionCall(call, callerId)
+    executeFunctionCall: async (call, callerId, signal): Promise<ToolResult> => {
+      if (!definitions.some(tool => tool.name === call.call.toolName)) return original.executeFunctionCall(call, callerId, signal)
       const startedAt = new Date().toISOString(), correlationId = call.call.correlationId ?? randomUUID()
       const result = { workspaceId: options.workspaceId, sessionId: call.sessionId, correlationId, toolName: call.call.toolName, startedAt }
       try {

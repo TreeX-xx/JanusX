@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — local development lifecycle and broker.
 import { randomUUID, createHash } from 'node:crypto'
 import { readFile, mkdir, writeFile, rm, realpath } from 'node:fs/promises'
@@ -316,7 +317,6 @@ export class PluginService {
     const projects = await this.registeredProjects(record)
     const native = this.deps.createNativeService!(structuredClone(record), record.packageDirectory, code => {
       if (this.nativeServices.get(id) !== native) return
-      this.nativeServices.delete(id)
       this.disableRecord(record, code)
       record.state = 'error'
       this.log(code, { pluginId: id }); this.publish()
@@ -349,6 +349,13 @@ export class PluginService {
     } catch (cause) {
       this.nativeServices.delete(id); native.stop(); throw cause
     }
+  }
+  officialNative(id: string, projectId?: string): NativePluginService | undefined {
+    const record = this.records.get(id)
+    const native = this.nativeServices.get(id)
+    if (record?.source.kind !== 'official' || !native?.active || (projectId && !hasPluginProjectAccess(record, projectId))) return
+    try { this.allowed(record) } catch { return }
+    return native
   }
   /** Shared services may call an installed feature through the same declared contract as its isolated UI. */
   async nativeCall(id: string, method: string, input: JsonValue, projectId: string | null = null, scopePath: string | null = null, signal?: AbortSignal, instanceId?: string): Promise<JsonValue> {
@@ -388,7 +395,7 @@ export class PluginService {
     })
   }
   disable(id: string): Promise<void> {
-    return this.queue.run(async () => { this.disableRecord(this.record(id)); await this.nativeStops.get(id); try { await this.persist() } finally { this.publish() } })
+    return this.queue.run(async () => { this.disableRecord(this.record(id)); try { await this.persist(); await this.nativeStops.get(id) } finally { this.publish() } })
   }
   private disableRecord(record: RecordData, reason?: string): void {
     this.revokePlugin(record.manifest.id)
@@ -505,10 +512,10 @@ export class PluginService {
       || this.current.projectId !== projectId || this.current.root !== project.root)) error('CONTEXT_UNAVAILABLE', 'Project scope is unavailable.')
     if (this.instances.size >= 64 || [...this.instances.values()].filter(instance => instance.plugin === id).length >= 8) error('RATE_LIMITED', 'Too many plugin pages.')
     const scope = project ? `${projectId}:${createHash('sha256').update(project.root).digest('hex')}` : 'application'
-    const documentKey = document ? JSON.stringify([document.viewer, process.platform === 'win32' ? document.path.toLowerCase() : document.path]) : ''
+    const documentKey = document ? JSON.stringify([document.viewer, runtimePathKey(document.path)]) : ''
     const existing = [...this.instances.values()].find(instance => instance.plugin === id && instance.view === viewId && instance.scope === scope
       && instance.context.instanceKey === instanceKey
-      && (instance.context.document ? JSON.stringify([instance.context.document.viewer, process.platform === 'win32' ? instance.context.document.path.toLowerCase() : instance.context.document.path]) : '') === documentKey)
+      && (instance.context.document ? JSON.stringify([instance.context.document.viewer, runtimePathKey(instance.context.document.path)]) : '') === documentKey)
     if (existing) error('INVALID_REQUEST', 'View already has an instance.')
     const instanceId = randomUUID(); const token = randomUUID(); const generation = randomUUID()
     const context: PluginContext = { project: project ? { projectId: projectId!, rootId: createHash('sha256').update(scope).digest('hex'), name: project.name } : null,
@@ -621,10 +628,11 @@ export class PluginService {
     const native = this.nativeServices.get(id)
     this.nativeServices.delete(id)
     if (native) {
-      const finished = native.shutdown().catch(() => this.log('SERVICE_STOP_FAILED', { pluginId: id })).finally(() => {
+      const finished = native.shutdown().then(() => {
         if (this.nativeStops.get(id) === finished) this.nativeStops.delete(id)
       })
       this.nativeStops.set(id, finished)
+      void finished.catch(() => this.log('SERVICE_STOP_FAILED', { pluginId: id }))
     }
     this.background.revoke(id); this.network.revoke(id)
     const record = this.records.get(id)

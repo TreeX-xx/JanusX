@@ -6,6 +6,8 @@ import { NATIVE_LOGIN_CAPABILITIES, nativeLoginLaunchPlan, type NativeLoginState
 import type { LlmConsumer } from '../../shared/llm-configuration'
 import { terminalManager } from '../terminal/manager'
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
+import { localRuntimeContext } from '../platform/runtime-context'
+import { providerPathContext, resolveProviderPaths, providerLaunchPaths } from '../external-cli/provider-paths'
 
 // Design and renderer compatibility evidence: .agents/notes/terminal/native-login-first.md
 // Presence-only probe: parse the credentials file just enough to confirm it is
@@ -20,10 +22,9 @@ export class NativeLoginService {
     if (consumer === 'janus') return null
     const capability = NATIVE_LOGIN_CAPABILITIES[consumer]
     if (!capability.detectable || !capability.credentials) return null
-    const { envOverride, baseSegments, path } = capability.credentials
-    const override = envOverride ? this.env[envOverride] : undefined
-    const base = override ? join(override) : join(this.home, ...baseSegments)
-    return join(base, ...path)
+    const base = resolveProviderPaths(consumer, providerPathContext({ home: this.home, env: this.env })).configHome
+    if (!base) return null
+    return join(base, ...capability.credentials.path.slice(consumer === 'opencode' ? 1 : 0))
   }
 
   async getStatus(consumer: LlmConsumer): Promise<NativeLoginState> {
@@ -84,7 +85,7 @@ function trustedCwdForClaude(home: string): string {
     const trusted = Object.entries(config.projects || {}).find(([, value]) => value?.hasTrustDialogAccepted)?.[0]
     if (!trusted) return existsSync(fallback) ? fallback : home
     // claude.json keys use forward slashes even on Windows.
-    return process.platform === 'win32' ? trusted.replace(/\//g, '\\') : trusted
+    return trusted
   } catch {
     return home
   }
@@ -123,9 +124,12 @@ export async function startNativeLogin(consumer: LlmConsumer): Promise<{ success
   const plan = nativeLoginLaunchPlan(consumer)
   if (!plan) return { success: false, error: 'No sign-in flow for this Agent' }
   try {
-    const command = await resolveCLIPath(plan.command)
+    const context = localRuntimeContext()
+    const command = await resolveCLIPath(plan.command, context)
     if (!command) return { success: false, error: `${plan.command} CLI not found on PATH` }
     const id = LOGIN_PTY_PREFIX + consumer
+    const cwd = consumer === 'claude' ? trustedCwdForClaude(homedir()) : homedir()
+    const provider = providerLaunchPaths(consumer, providerPathContext({ env: context.env, cwd, args: plan.args }))
     // create() kills any previous instance with the same id (AC5), so a
     // double-click restarts the login instead of leaking a second PTY.
     const instance = terminalManager.create({
@@ -134,15 +138,15 @@ export async function startNativeLogin(consumer: LlmConsumer): Promise<{ success
       // Claude's TUI blocks on a folder-trust dialog in an untrusted cwd,
       // which would swallow /login; run it in a directory the user already
       // trusted instead.
-      cwd: consumer === 'claude' ? trustedCwdForClaude(homedir()) : homedir(),
-      shell: process.platform === 'win32' ? 'powershell.exe' : 'bash',
+      cwd,
+      shell: context.shell,
       program: command,
-      programArgs: plan.args,
+      programArgs: provider.args,
+      launch: { identity: context.identity, program: command, args: provider.args, env: { ...provider.env, ...(consumer === 'claude' ? { CLAUDE_CODE_NO_FLICKER: '0' } : {}) }, source: 'native-login' },
       // This PTY has no visible renderer. Keep Claude's login in classic mode:
       // fullscreen boot canaries survive forced early termination and can
       // disable fullscreen for later, visible sessions sharing the same config.
       // Scope the override to this child; never rewrite the user's TUI setting.
-      env: consumer === 'claude' ? { CLAUDE_CODE_NO_FLICKER: '0' } : undefined,
       cols: 120,
       rows: 40,
     })

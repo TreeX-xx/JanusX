@@ -11,7 +11,7 @@ vi.mock('../../src/main/storage/service', () => ({ workspaceStateStore: () => ho
 vi.mock('../../src/main/terminal/manager', () => ({ terminalManager: { listInstances: () => host.terminals } }))
 vi.mock('../../src/main/project/runner/service', () => ({ getProjectRunner: () => ({ getAllRunning: () => host.tasks }) }))
 vi.mock('../../src/main/notifications/retire-legacy-hooks', () => ({ retireLegacyHooks: (...args: unknown[]) => host.retire(...args) }))
-import { registerWorkspaceStorageHandlers } from '../../src/main/ipc/workspace-storage-handlers'
+import { detachDeletedWorktreeData, registerWorkspaceStorageHandlers } from '../../src/main/ipc/workspace-storage-handlers'
 
 let base: string, cwd: string
 const call = (channel: string, ...args: unknown[]) => host.handlers.get(channel)!({ sender: { id: 7 } }, ...args)
@@ -84,6 +84,21 @@ it('exposes guarded maintenance operations and validates relocation selection', 
   await expect(host.handlers.get(channels.data)!({ sender: { id: 99 } })).rejects.toThrow('application windows')
   await expect(call(channels.measure, cwd)).rejects.toThrow('registered')
   await expect(call(channels.cleanup, '../escape', 'logs')).rejects.toThrow('registered')
+})
+
+it('retires deleted worktree storage, protects live associations and allows repeated purge', async () => {
+  const worktree = join(base, 'worktree'); await mkdir(worktree)
+  await host.store!.resolve(worktree, true)
+  const item = (await call(channels.data)).find((row: any) => row.path === worktree)
+  await rm(worktree, { recursive: true })
+  await detachDeletedWorktreeData([worktree])
+  expect((await call(channels.data)).find((row: any) => row.id === item.id)).toMatchObject({ status: 'detached', actions: { purge: true, restore: false } })
+  await call(channels.cleanup, item.id, 'all')
+  await call(channels.cleanup, item.id, 'all')
+  expect((await call(channels.data)).some((row: any) => row.id === item.id)).toBe(false)
+  const associated = (await call(channels.data)).find((row: any) => row.workspaceIds.includes('w'))
+  await expect(call(channels.detach, associated.id)).rejects.toThrow('Remove the workspace')
+  await expect(host.handlers.get(channels.detach)!({ sender: { id: 99 } }, item.id)).rejects.toThrow('application windows')
 })
 
 it('updates every local record sharing a relocated directory and retains its storage id', async () => {

@@ -1,4 +1,8 @@
 {
+  "navigation": {
+    "appearance": { "title": "Appearance", "subtitle": "Choose a theme and adjust answer emphasis." },
+    "storage": { "title": "Data management", "subtitle": "Manage workspace associations, unavailable records and legacy application data." }
+  },
   "dataManagement": "Data management",
   "retentionPolicy": "Retention and cleanup rules",
   "hooks": {
@@ -13,6 +17,15 @@
     "retained": "Retained items and reasons"
   },
   "maintenance": {
+    "filterLabel": "Filter workspace data",
+    "filter": { "all": "All", "attention": "Needs attention", "detached": "Removed" },
+    "filterEmpty": "No workspace data in this category.",
+    "offlineHelp": "The folder may have moved or been deleted. Locate it again or remove the unavailable record.",
+    "processing": "Processing…",
+    "removeRecord": "Remove record",
+    "confirmRemoveAction": "Confirm removal",
+    "confirmRemove": "Remove workspace registrations for this folder. Saved application data remains recoverable for 30 days; records without application data are removed immediately. Project files, Git branches and conversations are unaffected.",
+    "removeFailed": "Could not remove the workspace record. Please retry.",
     "addNew": "Add as new workspace",
     "title": "Workspace data", "policy": "Command logs are kept for 30 days. Removed workspace data can be reattached within 30 days. App updates do not reset these dates. Restore points are retired and can be cleared directly; they are no longer migrated or retained by age or count.",
     "empty": "No registered local workspace data.", "expires": "Scheduled removal: {{date}}", "details": "Storage and cleanup", "measure": "Calculate size",

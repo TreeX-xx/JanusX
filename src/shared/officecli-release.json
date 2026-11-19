@@ -1,0 +1,25 @@
+{
+  "version": "1.0.135",
+  "targets": {
+    "win32-x64": {
+      "asset": "officecli-win-x64.exe",
+      "path": "officecli.exe",
+      "sha256": "937db176b585e874aa5bff48d536bce78037665cd862b5deefe56e79977e6588"
+    },
+    "win32-arm64": {
+      "asset": "officecli-win-arm64.exe",
+      "path": "officecli.exe",
+      "sha256": "c818013023f83d3c9ec3dcba4dabaf824bdf861da6fa925d0557f508d3b11558"
+    },
+    "darwin-x64": {
+      "asset": "officecli-mac-x64",
+      "path": "darwin-x64/officecli",
+      "sha256": "77178c638ba5b12d21896f9b0091081079645089bc1d909e3b3097e1649bda5c"
+    },
+    "darwin-arm64": {
+      "asset": "officecli-mac-arm64",
+      "path": "darwin-arm64/officecli",
+      "sha256": "0d2a32c7dd460e275ddd8c442be33a8221a32021d4d5f7957cd44a70b2d927dd"
+    }
+  }
+}

@@ -3,17 +3,17 @@ import { createRoot } from 'react-dom/client'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Folder, FolderOpen, LoaderCircle, Monitor, Server, TerminalSquare, X } from 'lucide-react'
 import type { Workspace } from '../../../shared/ipc/workspace'
-import type { RuntimeDirectory, WorkspaceRuntime } from '../../../shared/workspace-runtime'
+import type { RuntimeDirectory, ExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 import styles from './WorkspaceImport.module.css'
 import { ModalFrame } from './shared/ModalFrame'
 
-type ExternalRuntime = Exclude<WorkspaceRuntime, { kind: 'windows' }>
+type ExternalRuntime = ExternalWorkspaceRuntime
 
 function WorkspaceImport({ finish }: { finish: (workspace: Workspace | null) => void }) {
   const { i18n } = useTranslation()
   const zh = i18n.language.startsWith('zh')
   const text = (cn: string, en: string) => zh ? cn : en
-  const [kind, setKind] = useState<'windows' | 'wsl' | 'ssh'>('windows')
+  const [kind, setKind] = useState<'local' | 'wsl' | 'ssh'>('local')
   const [distributions, setDistributions] = useState<string[]>([])
   const [hosts, setHosts] = useState<string[]>([])
   const [distro, setDistro] = useState('')
@@ -74,11 +74,11 @@ function WorkspaceImport({ finish }: { finish: (workspace: Workspace | null) => 
   })
 
   const sources = [
-    { kind: 'windows' as const, label: 'Local', icon: Monitor },
+    { kind: 'local' as const, label: 'Local', icon: Monitor },
     { kind: 'wsl' as const, label: 'WSL', icon: TerminalSquare },
     { kind: 'ssh' as const, label: 'SSH', icon: Server },
   ]
-  const activity = connected ? text('正在读取文件夹…', 'Reading folder…') : kind === 'windows'
+  const activity = connected ? text('正在读取文件夹…', 'Reading folder…') : kind === 'local'
     ? text('正在打开文件夹…', 'Opening folder…') : text('正在连接…', 'Connecting…')
 
   return <ModalFrame label={text('添加工作区', 'Add workspace')} onClose={() => finish(result.current)}
@@ -103,7 +103,7 @@ function WorkspaceImport({ finish }: { finish: (workspace: Workspace | null) => 
           onClick={() => { setKind(value); setConnected(null); setEntries([]); setPath(''); setError('') }}><Icon size={15} aria-hidden="true" />{label}</button>)}
       </div>
       <div className={styles.body}>
-      {kind === 'windows' ? <div className={styles.local}>
+      {kind === 'local' ? <div className={styles.local}>
         <span className={styles.folderIcon}><FolderOpen size={24} strokeWidth={1.5} /></span>
         <div><h3>{text('本机文件夹', 'A folder on this computer')}</h3><p>{text('选择已有项目，文件保留在原位置。', 'Open an existing project. Your files stay where they are.')}</p></div>
       </div> : !connected ? <div className={styles.form}>
@@ -138,8 +138,8 @@ function WorkspaceImport({ finish }: { finish: (workspace: Workspace | null) => 
       <footer className={styles.footer}>
         <span className={styles.status} role="status">{busy ? activity : connected ? text('打开当前文件夹', 'Open the current folder') : ''}</span>
         <button className={styles.cancel} disabled={busy} onClick={requestClose}>{text('取消', 'Cancel')}</button>
-        <button className={styles.primary} disabled={busy || (kind === 'wsl' && !distro) || (kind === 'ssh' && !host.trim())} onClick={() => void (kind === 'windows' ? addLocal(requestClose) : connected ? addRemote(requestClose) : connect())}>
-          {busy && <LoaderCircle className={styles.spinner} size={14} />}{kind === 'windows' ? text('选择文件夹', 'Choose folder') : connected ? text('添加并打开', 'Add and open') : text('连接', 'Connect')}
+        <button className={styles.primary} disabled={busy || (kind === 'wsl' && !distro) || (kind === 'ssh' && !host.trim())} onClick={() => void (kind === 'local' ? addLocal(requestClose) : connected ? addRemote(requestClose) : connect())}>
+          {busy && <LoaderCircle className={styles.spinner} size={14} />}{kind === 'local' ? text('选择文件夹', 'Choose folder') : connected ? text('添加并打开', 'Add and open') : text('连接', 'Connect')}
         </button>
       </footer>
     </div>}

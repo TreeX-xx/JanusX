@@ -62,6 +62,8 @@ git push origin v0.9.3
 
 `npm run package:win:portable` 用于便携版迭代检查，可追加 `-- --release-dir artifacts/portable-check`。它使用较低压缩级别但保留包边界、依赖排除、体积预算和运行时检查。`npm run package:win` 生成完整 Windows 产物；macOS/Linux 的命令要求相应构建环境，公开支持范围以 Releases 附件为准。
 
+macOS 的 OfficeCLI 已接入 arm64/x64 独立资源。先在 Mac 上运行 `npm run officecli:prepare -- --platform darwin --arch arm64`，再运行 `npm run package:mac -- --arm64`；Intel 将两处架构都改为 `x64`。该命令只生成本地产物，不发布。资源布局、校验与签名约束见 [OfficeCLI 准备说明](../resources/officecli/README.md)。Mac 实机预览、原生依赖及签名安装包仍需验证，不能以资源适配代替整机支持验收。
+
 本地发布须准备已构建的固定 sibling、内置 OfficeCLI 和 GitHub CLI 登录，并使用与远端 tag 指向相同提交的干净 checkout。先完成版本提交，再构建；准备步骤若改变锁文件或打包清单，应将变化纳入版本提交并重新构建，不能忽略输入变化。
 
 ```bash
@@ -80,6 +82,16 @@ npm run publish:win
 上传失败时保留本地候选和草稿，重跑 `stage:win` 续传，不需要重编译；公开失败时修复网络后重跑 `publish:win`。内容不同的残留附件需要维护者在仍未公开的草稿中核对并处理，脚本不会自动覆盖。禁止直接跳过完整性检查公开半成品。
 
 `release-win` 只接受手动 `workflow_dispatch`，指定已有 `release_tag` 后构建和验证，上传保留 14 天的 Actions 附件，不创建或公开 Release。任务只有只读仓库权限，没有发布 token；同 tag 构建串行。附件含安装包、便携包、清单、blockmap 和 `win-unpacked`，下载解压后可在匹配 tag 的本地 checkout 中检查，并通过 `--release-dir` 上传草稿。手动构建在打包后使用触发 revision 的外部检查工具，不修改不可变应用 tag。平台构建失败不会影响已保存的本地 Windows 候选。
+
+### macOS 官方插件打包
+
+在已安装项目依赖的 Mac 上运行 `npm run plugins:package:mac`，构建 Blueprint、CPA、Docker 和 SuperAgent，生成四份自包含的 `.jxp` 和对应的 `.release.json`。每次输出到 `artifacts/plugins/macos/test-*`，可追加 `-- <输出根目录>`。测试包默认声明 Apple Silicon 和 Intel 两种架构，输出的 `trust.json` 提供隔离测试宿主所需的公钥和 native 白名单。正式宿主使用仓库内预置的发布公钥。
+
+正式签名前递增已发行插件各自的 manifest、package 和 lock 版本，并更新 release.json 的下载地址与平台，设置 `JANUSX_PLUGIN_KEY_ID` 与 `JANUSX_PLUGIN_SIGNING_KEY`，运行 `npm run plugins:package:mac -- --release-tag <新版本标签>`。正式包保留原平台声明，并默认加入构建机 Node.js 的 Mac 架构。可用 `--arch arm64` 或 `--arch x64` 指定已验收的目标，两种架构都验收后可传入两次。命令只生成本地文件，附件上传和目录签名另走正式发布流程。
+
+从 `main` 手动运行 `release-plugins.yml`，输入已合入 `main` 的版本 tag。任务读取当前已签名目录核对版本，在 Apple Silicon runner 生成 Windows x64 和 macOS arm64 共用的正式插件包与新目录。维护者先将 .jxp 上传至该 tag 的 Release，确认附件可下载后再把同批 index.json 发布到 gh-pages 的 plugins 目录。
+
+macOS 先行发布时，可将该 Release 保持为公开稳定版，同时保留上一 Windows 版的 Latest 标记。后补 Windows 包时，在 Windows 从同一 tag 构建，执行 `npm run package:win` 和 `node scripts/publish-win.mjs --check`。将安装版、便携版、安装版 blockmap 和 latest.yml 作为新附件上传到已公开的同版 Release，核对远端摘要后再标记 Latest。已有 Mac 和插件附件保留原文件。
 
 ## 工作流维护
 

@@ -1,3 +1,4 @@
+import { localDefaultShell } from '../../platform/local-shell'
 import { createHash } from 'node:crypto'
 import { app, type BrowserWindow } from 'electron'
 import { join } from 'node:path'
@@ -171,7 +172,7 @@ export class FeishuInboundRuntime {
           id: terminalId,
           workspaceId,
           cwd: workspacePath,
-          shell: process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash'),
+          shell: localDefaultShell(),
           preset: engine,
         })
         return terminalId

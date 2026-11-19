@@ -3,7 +3,7 @@ import { chatStatusForEvent } from '../../src/renderer/src/components/janus/janu
 
 describe('janus chat turn status (agentX parity)', () => {
   it('maps lifecycle events to the status row', () => {
-    expect(chatStatusForEvent({ type: 'agent_start', requestId: 'r' })).toEqual({ kind: 'thinking' })
+    expect(chatStatusForEvent({ type: 'agent_start', requestId: 'r' })).toEqual({ kind: 'connecting' })
     expect(chatStatusForEvent({ type: 'reasoning_delta', requestId: 'r', delta: 'x' })).toEqual({ kind: 'thinking' })
     expect(chatStatusForEvent({ type: 'text_delta', requestId: 'r', delta: 'x' })).toEqual({ kind: 'writing' })
     expect(chatStatusForEvent({ type: 'tool_call_start', requestId: 'r', callId: 'c' })).toEqual({ kind: 'preparing' })

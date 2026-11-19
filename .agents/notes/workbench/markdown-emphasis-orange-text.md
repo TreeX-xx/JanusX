@@ -6,29 +6,35 @@
   "lifecycle": "implemented",
   "created": "2026-09-27",
   "class": "feature",
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-11-13T11:05:36Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
 
-# Markdown emphasis renders as orange text without fill blocks
+# Markdown 强调与行内代码的颜色边界
 
 ## Problem
 
-The shared Markdown renderer styles emphasis with filled blocks: inline code carries an orange-tinted background plus border pill, and blockquotes carry an orange-tinted background panel. Strong renders white bold, which competes with headings instead of reading as the product accent. The fills break CJK line rhythm and add visual weight every time an agent emphasizes a term, so emphasized text must read as orange type with no background.
+用户反馈正文强调与橙色行内代码混杂，难以辨认重点。此前仅调整 strong 的颜色遗漏了 em、行内代码及链接继承的旧橙色样式。
 
 ## Decision
 
-`src/renderer/src/components/viewers/markdown-components.tsx` owns the single emphasis language for every preview surface. Strong renders `#ff9159` at weight 700; em renders `#ff9159` italic; inline code renders `#ff9159` in the mono stack with transparent background, no border, and no padding; blockquote keeps the 3px `#ff7830` left rule on a transparent background with slim padding; `mark` renders transparent background with `#ff9159` text so raw `<mark>` passthrough cannot reintroduce a fill. Code fences, tables, headings, links, and task checkboxes keep their existing treatment. MarkdownViewer, LocalFileStage, QuickNote, chat MarkdownContent, and NoteWikiPanel inherit the change through the shared components with no call-site edits. Image resolution ownership stays with [markdown preview local assets](./markdown-preview-local-assets.md), and toolbar syntax production stays with [note drawer markdown toolbar](./note-drawer-markdown-toolbar.md).
+2026-11-13 输入84优化设置页的表达：色块与十六进制输入组合为一个中性边框控件，恢复默认保留独立操作；旧说明句改成并列的“正文重点 · 加粗／关键内容”和“行内代码 · 颜色／field_name”样例。只有代码样例使用当前配置色，标签使用弱化正文色，关键内容保持600字重。颜色存储、按主题隔离、无效输入恢复及跨窗口同步沿用原机制。证据见 artifacts/superagent-settings-e237da38/color/ 与浏览器回归记录。
+
+2026-11-13 回答文字规则（按用户最新反馈修订）：正文强调只通过600字重表达，strong／em／mark 不再染色；普通链接继承正文色并常驻下划线，链接内代码继续使用代码色。只有反引号形成的行内代码（字段名、命令等）使用 conversation-emphasis；列表、表格、引用和嵌套加粗中的行内代码遵循同一规则。有语言和无语言代码块都保持正文色，不能凭 className 是否为空将无语言代码块误判为行内代码。普通对话、SuperAgent 流式／完成回答及 Worker 报告共用此规则，辅助聊天也由 ChatContent 的 chat-markdown 统一覆盖。
+
+设置 → 常规 → 外观与语言的入口改名为“行内代码颜色”，示例同时展示正文加粗与彩色 field_name。已有按主题保存的自定义色直接沿用，不清空偏好；恢复默认只清除当前主题覆盖。默认仍从 status-info 70% 与 shell-text 30%混合得到蓝色，根 CSS 变量支持即时生效及同源窗口同步。HTML 原型同步加粗／行内代码／链接的显示边界。
+
+MarkdownViewer、LocalFileStage、QuickNote 和 NoteWikiPanel 仍使用共享 markdown-components.tsx 的原有预览规则：strong／em／行内代码读取 shell-accent-strong，背景透明。聊天通过 CHAT_COMPONENTS 和 conversation-output.css 覆盖这些语义元素；不修改原始 Markdown，不影响文件／网页链接的打开方式。
 
 ## Alternatives considered
 
-- Keep the pills but shrink padding and soften the fill — strongest case is that inline code stays visually distinct from strong text at a glance. The driver that rules it out is the explicit request: any fill reads as a color block in dense CJK prose, and a softer pill still interrupts line rhythm.
-- Assign one hue per emphasis kind (strong orange, code amber, em rose) — strongest case is faster scanning between semantic kinds. The driver that rules it out is accent multiplication: the shell speaks a single orange accent, and three hues turn routine agent emphasis into rainbow noise.
-- Do nothing / reuse — keeping the current fills and white strong costs no code. It leaves the reported problem in place: emphasis keeps rendering as blocks rather than orange type, so it answers nothing.
+- 继续让加粗文字使用自定义色：不符合用户最新要求，且仍会与代码争夺视觉重点。
+- 全部恢复橙色：保留了用户指出的辨识问题。
+- 同时修改所有文档预览：本次范围是回答输出，文档阅读器继续保留既有规则。
 
 ## Consequences
 
-- **Gains**: emphasis across chat, central preview, product column, QuickNote, and engineering wiki reads as one orange type language; CJK paragraphs keep even line rhythm with no pill interruptions; quote blocks keep their left-rule affordance without a tinted panel.
-- **Costs and limits**: inline code, strong, em, and links now share `#ff9159`, distinguished only by weight, slant, family, and link hover underline. The revisit signal is user confusion between code and strong in the same sentence; the fix then is a lighter code tone, never a restored fill.
-- **Verification**: `npx tsc --noEmit` passes with no output; `npx eslint src/renderer/src/components/viewers/markdown-components.tsx` reports nothing; `npx vitest run tests/unit/draft-card/quick-note-view.test.ts` passes 13/13.
+用户反馈彩色加粗与橙色代码混杂，难以辨认重点。字重承担正文强调，单一可配置颜色区分行内代码；链接使用下划线保留可点击性。chat-markdown 需要独立维护上述少量排版规则，共享图片、表格和代码块复制行为继续复用。文档预览与聊天的强调方式因此有明确边界。
+
+原先无底色的橙色强调决定已被聊天范围内的新规则取代。2026-10-08 的历史验证为类型、定向 lint 与 QuickNote 单测13项通过；该证据不代表本轮聊天规则的验证。当前验证记录归主题机制 Note 与 artifacts/inline-code-color-20261113/。

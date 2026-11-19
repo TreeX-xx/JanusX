@@ -1,9 +1,9 @@
 // A process boundary and Node's permission mode do not enforce our network contract.
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-const directory = await mkdtemp(join(tmpdir(), 'janusx-p5-probe-'))
+const directory = await mkdtemp(join(await realpath(tmpdir()), 'janusx-p5-probe-'))
 try {
   const entry = join(directory, 'probe.mjs')
   const secret = join(directory, 'outside.txt')

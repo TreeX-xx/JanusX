@@ -9,6 +9,7 @@ vi.mock('electron', () => ({
 }))
 
 import { AppShutdown } from '../../src/main/shutdown/AppShutdown'
+vi.mock('../../src/main/shutdown/diagnostics', () => ({ logShutdown: vi.fn() }))
 
 describe('AppShutdown', () => {
   beforeEach(() => {
@@ -94,6 +95,19 @@ describe('AppShutdown', () => {
     expect(appExit).toHaveBeenCalledTimes(1)
   })
 
+  it('waits beyond the ordinary step timeout for owned Worker process-tree settlement', async () => {
+    vi.useFakeTimers()
+    try {
+      const killTerminals = vi.fn(), shutdown = new AppShutdown()
+      shutdown.configure({ flushSuperAgentRecords: () => new Promise<void>(resolve => setTimeout(resolve, 8000)), killTerminals })
+      const quitting = shutdown.beginQuit()
+      await vi.advanceTimersByTimeAsync(4500)
+      expect(killTerminals).toHaveBeenCalledTimes(1); expect(appExit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(3500); await quitting
+      expect(killTerminals).toHaveBeenCalledTimes(1); expect(appExit).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+
   it('continues after a step failure', async () => {
     const failing = vi.fn(async () => {
       throw new Error('boom')
@@ -111,6 +125,31 @@ describe('AppShutdown', () => {
     expect(failing).toHaveBeenCalledTimes(1)
     expect(later).toHaveBeenCalledTimes(1)
     expect(appExit).toHaveBeenCalledTimes(1)
+    expect(appExit).toHaveBeenCalledWith(1)
+  })
+
+  it('marks quitting before renderer acknowledgement and starts critical stops despite a hung worker', async () => {
+    const shutdown = new AppShutdown(), terminals = vi.fn(), office = vi.fn(), transport = vi.fn()
+    expect(shutdown.requestQuit()).toBe(true)
+    expect(shutdown.requestQuit()).toBe(false)
+    shutdown.configure({ flushSuperAgentRecords: () => new Promise(() => {}), killTerminals: terminals,
+      stopOfficeWatches: office, disconnectWorkspaceTransports: transport })
+    const flight = shutdown.beginQuit({ timeoutMs: 50 })
+    await Promise.resolve(); await Promise.resolve()
+    expect(terminals).toHaveBeenCalledOnce(); expect(office).toHaveBeenCalledOnce(); expect(transport).toHaveBeenCalledOnce()
+    await flight
+    expect(appExit).toHaveBeenCalledWith(1)
+  })
+
+  it('does not finalize terminal records before asynchronous disposal completes', async () => {
+    const shutdown = new AppShutdown(), flush = vi.fn()
+    let release!: () => void
+    shutdown.configure({ killTerminals: () => new Promise<void>(resolve => { release = resolve }), flushAgentSessions: flush })
+    const flight = shutdown.beginQuit()
+    await Promise.resolve(); await Promise.resolve()
+    expect(flush).not.toHaveBeenCalled()
+    release(); await flight
+    expect(flush).toHaveBeenCalledOnce(); expect(appExit).toHaveBeenCalledWith(0)
   })
 
   it('destroys toast/editor early and kills terminals before flushing session records', async () => {
@@ -128,12 +167,14 @@ describe('AppShutdown', () => {
     const disposeOfficeArtifactIndexes = track('disposeOfficeArtifactIndexes')
     const disposeTerminalSession = track('disposeTerminalSession')
     const abortChatStreams = track('abortChatStreams')
+    const flushSuperAgentRecords = track('flushSuperAgentRecords')
 
     const shutdown = new AppShutdown()
     shutdown.configure({
       destroyToast,
       closeEditors,
       abortChatStreams,
+      flushSuperAgentRecords,
       flushAgentSessions,
       stopOfficeWatches,
       killTerminals,
@@ -146,6 +187,9 @@ describe('AppShutdown', () => {
 
     expect(order.indexOf('destroyToast')).toBeLessThan(order.indexOf('abortChatStreams'))
     expect(order.indexOf('closeEditors')).toBeLessThan(order.indexOf('abortChatStreams'))
+    expect(flushSuperAgentRecords).toHaveBeenCalledTimes(1)
+    expect(order.indexOf('abortChatStreams')).toBeLessThan(order.indexOf('flushSuperAgentRecords'))
+    expect(order.indexOf('flushSuperAgentRecords')).toBeLessThan(order.indexOf('killTerminals'))
     // AC9: kill terminals before finalizing checkpoints so no native pty
     // callback can fire sendToRenderer into a torn-down window during finalize.
     expect(order.indexOf('killTerminals')).toBeLessThan(order.indexOf('flushAgentSessions'))

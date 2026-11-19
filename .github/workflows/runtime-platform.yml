@@ -1,0 +1,73 @@
+# Optional native acceptance; does not enable PR/cron checks or publish packages.
+# Note: .agents/notes/desktop/platform-runtime-boundaries.md (P6/P7)
+name: runtime-platform
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Native target (macos-15 is arm64; macos-15-intel is x64)
+        required: true
+        default: windows-2022
+        type: choice
+        options: [windows-2022, macos-15, macos-15-intel]
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: JanusX
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: JanusX
+      - uses: actions/checkout@v4
+        with:
+          repository: TreeX-xx/WorkFlowX
+          ref: efaf5ae7aac24362286251dc931487d5cfd2e2a5
+          path: WorkFlowX
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: JanusX/.node-version
+          cache: npm
+          cache-dependency-path: JanusX/package-lock.json
+      - name: Install pinned dependencies
+        run: |
+          npm ci
+          npm run prepackage
+          npm run officecli:prepare
+      - name: Record native host
+        run: |
+          mkdir -p artifacts/platform-runtime
+          node -e 'const fs=require("fs"),os=require("os");fs.writeFileSync("artifacts/platform-runtime/host.json",JSON.stringify({platform:process.platform,arch:process.arch,release:os.release(),node:process.version,electron:require("electron/package.json").version,commit:process.env.GITHUB_SHA,run:process.env.GITHUB_RUN_ID},null,2))'
+      - name: Boundaries and native process/session contracts
+        run: |
+          npm run check:runtime-boundaries
+          node --test tests/packaging/macos-resources.test.mjs
+          npm run build:llm-core
+          npx vitest run --project=unit tests/unit/runtime-identity.test.ts tests/unit/runtime-capabilities.test.ts tests/unit/platform-process-host.test.ts tests/unit/platform-cli-resolution.test.ts tests/unit/provider-runtime-paths.test.ts tests/unit/provider-remote-sessions.test.ts tests/unit/external-cli --reporter=json --outputFile=artifacts/platform-runtime/contracts.json
+      - name: Build desktop
+        run: npm run build:app
+      - name: Native Electron CLI and window lifecycle
+        run: npx playwright test --config playwright.desktop.config.ts tests/e2e/desktop-cli-chain.spec.ts tests/e2e/desktop-window-reopen.spec.ts
+      - name: Inspect Mac resources
+        if: runner.os == 'macOS'
+        run: node scripts/check-macos-resources.mjs --arch "$(node -p process.arch)" --report artifacts/platform-runtime/mac-resources.json
+      - name: Package unsigned Mac directory for inspection
+        if: runner.os == 'macOS'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --dir --publish never --config.directories.output=artifacts/platform-runtime/package
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-${{ inputs.runner }}-${{ github.run_id }}
+          path: |
+            JanusX/artifacts/platform-runtime/*.json
+            JanusX/test-results
+          retention-days: 14
+          if-no-files-found: warn

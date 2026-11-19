@@ -1,12 +1,10 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { runChecked } from '../platform/process-host'
 import { realpath } from 'node:fs/promises'
 import type { AutomationPreview, AutomationReport, AutomationReview } from '../../shared/automations'
 
-const execute = promisify(execFile)
 export async function git(root: string, args: string[], signal?: AbortSignal): Promise<string> {
-  const result = await execute('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=', ...args],
-    { cwd: root, windowsHide: true, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 30_000, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' } })
+  const result = await runChecked('git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=', ...args],
+    { cwd: root, maxOutputBytes: 4 * 1024 * 1024, timeoutMs: 30_000, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' } })
   return result.stdout
 }
 export async function resolveRepository(root: string): Promise<string> {

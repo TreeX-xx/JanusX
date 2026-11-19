@@ -10,6 +10,7 @@ vi.mock('os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('os')>()
   return {
     ...actual,
+    homedir: () => testContext.homeDir,
     default: { ...actual.default, homedir: () => testContext.homeDir },
   }
 })
@@ -46,6 +47,9 @@ describe('runtime telemetry history', () => {
   })
   beforeEach(async () => {
     vi.stubEnv('CODEX_HOME', '')
+    vi.stubEnv('CLAUDE_CONFIG_DIR', '')
+    vi.stubEnv('PI_CODING_AGENT_DIR', '')
+    vi.stubEnv('PI_CODING_AGENT_SESSION_DIR', '')
     testContext.homeDir = await mkdtemp(join(tmpdir(), 'janusx-telemetry-'))
   })
 

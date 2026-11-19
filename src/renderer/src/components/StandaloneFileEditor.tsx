@@ -60,7 +60,7 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
   const saveFile = useEditorStore((state) => state.saveFile)
   const reloadOpenFile = useEditorStore((state) => state.reloadOpenFile)
   const activeFile = openFiles.find((file) => file.id === activeFileId) ?? null
-  const [pathActionMessage, setPathActionMessage] = useState<{ fileId: string; failed: boolean } | null>(null)
+  const [pathActionMessage, setPathActionMessage] = useState<{ fileId: string; failed: boolean; detail?: string } | null>(null)
   useEffect(() => { setPathActionMessage(null) }, [activeFileId])
   const handlePathAction = async (action: 'copy' | 'reveal') => {
     if (!activeFile) return
@@ -69,12 +69,12 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
       if (action === 'copy') {
         await navigator.clipboard.writeText(parseRuntimeResource(activeFile.absolutePath)?.path ?? activeFile.absolutePath)
         setPathActionMessage({ fileId: activeFile.id, failed: false })
-      } else if (editorParams) {
-        const result = await window.electron.fileTree.reveal(editorParams.workspacePath, activeFile.path)
+      } else {
+        const result = await window.electron.file.reveal(activeFile.absolutePath)
         if (!result.success) throw new Error(result.error)
       }
-    } catch {
-      setPathActionMessage({ fileId: activeFile.id, failed: true })
+    } catch (error) {
+      setPathActionMessage({ fileId: activeFile.id, failed: true, detail: error instanceof Error ? error.message : String(error) })
     }
   }
   const { confirmClose, closeDialog } = useEditorCloseDialog()
@@ -320,7 +320,7 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
             <button type="button" disabled={!activeFile} onClick={() => void handlePathAction('copy')}>
               <Copy size={15} />{t('editor:fileTree.contextMenu.copyAbsolutePath')}
             </button>
-            <button type="button" disabled={!activeFile || !editorParams || Boolean(parseRuntimeResource(editorParams.workspacePath))}
+            <button type="button" disabled={!activeFile || Boolean(parseRuntimeResource(activeFile.absolutePath))}
               onClick={() => void handlePathAction('reveal')}>
               <FolderOpen size={15} />{t('editor:fileTree.contextMenu.revealInExplorer')}
             </button>
@@ -362,6 +362,7 @@ export function StandaloneFileEditor({ embedded = false, active = true }: { embe
       {pathActionMessage?.fileId === activeFileId && <div role={pathActionMessage.failed ? 'alert' : 'status'} className="px-3 py-1 text-xs"
         style={{ color: pathActionMessage.failed ? 'var(--shell-diff-del)' : 'var(--shell-muted)' }}>
         {t(pathActionMessage.failed ? 'editor:fileTree.operationFailed' : 'editor:fileEditor.pathCopied')}
+        {pathActionMessage.failed && pathActionMessage.detail && `: ${pathActionMessage.detail}`}
       </div>}
       {activeFile?.saveConflict && <div role="alert" className="px-3 py-1 text-xs text-[var(--shell-diff-del)]">
         {t('plugins:documentConflict')}
