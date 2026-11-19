@@ -1,3 +1,4 @@
+import { localPlatform } from '../platform/local-platform'
 import { claudeDarwinControlEndpoint } from './claude-darwin-control'
 import { confirmDarwinGroupExit, darwinGroupLeader } from '../janus/superagent/darwin-process'
 import { captureWindowsProcessTree, terminateWindowsProcessTree, verifyWindowsProcessTree, type WindowsProcessTree } from '@janus-agent/janus-agent/superagent/native/windows-process-tree'
@@ -27,7 +28,7 @@ type ManagedHooks = { onProcessTree(tree: WindowsProcessTree): Promise<void>; on
 type LaunchOptions = { managed?: ManagedHooks; command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; pathDir?: string; assetsDir: string }
 
 export function resolveClaudeBinary(command: string): string {
-  if (process.platform !== 'win32' || extname(command).toLowerCase() === '.exe') return command
+  if (localPlatform() !== 'win32' || extname(command).toLowerCase() === '.exe') return command
   const binary = join(dirname(command), 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe')
   if (!existsSync(binary)) throw new Error('Claude dual mode requires native claude.exe (npm installation supported).')
   return binary
@@ -119,7 +120,8 @@ export class ClaudeConversation {
     }
   }
   private async launch(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
-    if (process.platform !== 'win32' && process.platform !== 'darwin') throw new Error('Claude conversation mode is unavailable on this platform.')
+    const platform = localPlatform()
+    if (platform !== 'win32' && platform !== 'darwin') throw new Error('Claude conversation mode is unavailable on this platform.')
     // Keep native startup, catalog discovery and trust confirmation on the same
     // on-disk path. See .agents/notes/workbench/terminal-dialog-dual-mode.md.
     this.cwd = claudeTrustDirectory(options.cwd)
@@ -176,7 +178,7 @@ export class ClaudeConversation {
         // Native --bg is authoritative. Never infer consent from a UI setting,
         // automatically trust a folder, or retry an uncertain dispatch.
         const stderr = (error as { stderr?: unknown }).stderr
-        const canPrompt = this.state.mode === 'conversation' || (process.platform === 'darwin' && !this.managed)
+        const canPrompt = this.state.mode === 'conversation' || (localPlatform() === 'darwin' && !this.managed)
         if (this.disposed || !canPrompt || typeof stderr !== 'string' ||
           !stderr.trim().startsWith('Workspace not trusted. Run `claude` in ')) throw error
         this.dispatchUnknown = false
@@ -217,7 +219,7 @@ export class ClaudeConversation {
     const job = jobs.find(value => value.id === this.short)
     if (!job?.pid || job.sessionId !== this.state.threadId) throw new Error('Claude background identity did not match its bridge')
     if (this.disposed) throw new Error('Claude launch cancelled')
-    if (process.platform === 'darwin') this.ownedTree = await darwinGroupLeader(job.pid)
+    if (localPlatform() === 'darwin') this.ownedTree = await darwinGroupLeader(job.pid)
     if (this.managed) {
       this.ownedTree ??= await captureWindowsProcessTree(job.pid)
       await this.managed.onProcessTree(this.ownedTree)
@@ -264,7 +266,7 @@ export class ClaudeConversation {
   }
   private reply(message: Json): Promise<Json> {
     return (async () => {
-      const endpoint = process.platform === 'darwin'
+      const endpoint = localPlatform() === 'darwin'
         ? await claudeDarwinControlEndpoint(this.configDir, this.state.threadId, this.ownedTree?.[0]?.pid)
         : `\\\\.\\pipe\\cc-daemon-${(await readFile(join(this.configDir, 'daemon/pipe.key'), 'utf8')).trim()}-control`
       const auth = (await readFile(join(this.configDir, 'daemon/control.key'), 'utf8')).trim()
@@ -673,21 +675,21 @@ export class ClaudeConversation {
             const jobs = JSON.parse((await this.cli(['agents', '--json', '--all'])).stdout) as Json[]
             const job = jobs.find(row => row.id === this.short)
             if (!job?.pid || (this.state.threadId && job.sessionId !== this.state.threadId)) throw new Error('Claude process ownership is unconfirmed')
-            if (process.platform === 'darwin') {
+            if (localPlatform() === 'darwin') {
               try { this.ownedTree = await darwinGroupLeader(job.pid) }
               catch (error) { await this.cli(['stop', this.short], 10000); throw error }
             } else this.ownedTree = await captureWindowsProcessTree(job.pid)
           }
           // Discover descendants before native stop; preserve proof even when stop fails.
-          if (process.platform === 'win32') await verifyWindowsProcessTree(this.ownedTree).catch(() => {})
+          if (localPlatform() === 'win32') await verifyWindowsProcessTree(this.ownedTree).catch(() => {})
           await this.managed.onProcessTree(this.ownedTree)
           await this.cli(['stop', this.short], 10000).catch(() => {})
-          if (process.platform === 'darwin') await confirmDarwinGroupExit(this.ownedTree[0].pid)
+          if (localPlatform() === 'darwin') await confirmDarwinGroupExit(this.ownedTree[0].pid)
           else await terminateWindowsProcessTree(this.ownedTree)
           await this.managed.onProcessTree(this.ownedTree)
         } else if (this.short) {
           await this.cli(['stop', this.short], 10000)
-          if (process.platform === 'darwin' && this.ownedTree) await confirmDarwinGroupExit(this.ownedTree[0].pid)
+          if (localPlatform() === 'darwin' && this.ownedTree) await confirmDarwinGroupExit(this.ownedTree[0].pid)
         }
         stopped = true
       }

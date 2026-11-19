@@ -1,4 +1,5 @@
 // Note: platform delivery and click routing — see .agents/notes/agent/agent-notifications.md
+import { localPlatform } from '../platform/local-platform'
 import type { BrowserWindow, Notification } from 'electron'
 import * as electron from 'electron'
 import type { AgentEvent, AgentSpawnOptions } from '../janus-runner/types'
@@ -83,7 +84,7 @@ function sendNativeNotification(
   let notification: Notification | undefined
   try {
     if (!NativeNotification?.isSupported()) return false
-    const notice = new NativeNotification({ title: payload.title, body: payload.body, silent: process.platform === 'darwin' })
+    const notice = new NativeNotification({ title: payload.title, body: payload.body, silent: localPlatform() === 'darwin' })
     notification = notice
     const release = () => { activeNativeNotifications.delete(notice) }
     notice.once('show', () => options.onDesktopToastShown?.())
@@ -127,7 +128,7 @@ function showLocalNotification(
   const payload = createNotificationPayload(input)
   // On macOS a separate BrowserWindow participates in Spaces. Leave display
   // to Notification Center and activate JanusX only on a notification click.
-  if (process.platform === 'darwin') {
+  if (localPlatform() === 'darwin') {
     return sendNativeNotification(mainWindow, payload, options) || sendRendererNotification(mainWindow, payload)
   }
 

@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-11-05",
-  "updated": "2026-11-18T05:40:35Z",
+  "updated": "2026-11-19T10:09:33.071Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
     {
@@ -37,6 +37,8 @@
 ---
 
 # Janus SuperAgent：统一身份、异步输入与执行协调
+
+历史审计产物和离线演示仅保存在当时的工作树。当前 Worker 回归见[测试用例](../../../../tests/unit/superagent-workers.test.ts)。
 
 ## Intent
 
@@ -444,7 +446,7 @@ Janus 对话负责全部输入、必要的澄清和结果交付；输入框在�
 
 独立协议探针验证 6 组断言：无 TUI 启动两个实例；分别发现 MCP；B 在 A 活动期间完成且汇报隔离；中断 ACK 后收到 interrupted；替换进程后恢复原线程但不自动启动轮次；显式续接保留旧输入并实际收到 A 两份、B 一份测试报告。模型响应由本机 HTTP 夹具提供，MCP 为临时测试工具，不消耗真实模型推理、不是生产 `report_work`，也不证明模型能正确判断工作归属或代码质量。初始探针按扁平工具格式读取，未适配本机版本的 MCP namespace；调整夹具后通过，此过程未修改产品代码。
 
-本地证据保存于 [unit-results.json](../../../../artifacts/superagent-audit/unit-results.json)、[cli-results.json](../../../../artifacts/superagent-audit/cli-results.json)、[protocol-results.json](../../../../artifacts/superagent-audit/protocol-results.json) 和 [protocol-probe.mjs](../../../../artifacts/superagent-audit/protocol-probe.mjs)。artifacts 为忽略目录，不作为受版本管理的长期资源；上述结论与测试边界保留在本 Note。未做完整应用构建／桌面 E2E、真实账号工作流验证、长期回收压力测试或 Worker Git 权限绕过验证，需求 AC 不因基础探针通过而勾选。
+本地证据保存于  `artifacts/superagent-audit/unit-results.json`、 `artifacts/superagent-audit/cli-results.json`、 `artifacts/superagent-audit/protocol-results.json` 和  `artifacts/superagent-audit/protocol-probe.mjs`。artifacts 为忽略目录，不作为受版本管理的长期资源；上述结论与测试边界保留在本 Note。未做完整应用构建／桌面 E2E、真实账号工作流验证、长期回收压力测试或 Worker Git 权限绕过验证，需求 AC 不因基础探针通过而勾选。
 
 官方 [App Server 文档](https://learn.chatgpt.com/docs/app-server) 与 [MCP 配置文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) 支持上述协议方向；本次兼容性结论以本机版本 schema 和运行结果为准，不假定后续版本行为完全相同。
 
@@ -462,7 +464,7 @@ Janus 对话负责全部输入、必要的澄清和结果交付；输入框在�
 
 P1–P5 未修改 HTML。第四版 HTML 尚未对齐现有对话模式、ready／手动关闭、回收后隐藏和按需拉起、Codex 可扩展 Worker 并发、worktree 创建／合并／删除需用户同意、即时补充、原生审批、MCP 与不自动重试等最新约定。下文及表格描述历史演示，其串行、无审批自动建目录、持久会话和条件验收器不作为当前需求；下一次修订以最新决策为准。
 
-2026-11-05 更新[离线 HTML 演示](../../../../design/janus-superagent/index.html)，包含四个页面：整体框架、交互体验、机制剖面和实施路线。图标、样式和脚本全部内嵌，可直接用浏览器打开；无 CDN、模型请求、真实执行或 Git 操作。localStorage 只保存演示数据，切换页面不会清空工作，重置按钮只清除本演示状态。
+2026-11-05 更新 `design/janus-superagent/index.html`，包含四个页面：整体框架、交互体验、机制剖面和实施路线。图标、样式和脚本全部内嵌，可直接用浏览器打开；无 CDN、模型请求、真实执行或 Git 操作。localStorage 只保存演示数据，切换页面不会清空工作，重置按钮只清除本演示状态。
 
 框架页可点击十个职责模块，查看输入、输出、约束和建议阶段；六步路径解释接收、判断、会话、执行、交付以及测试反馈续接。区分全局 Janus 身份、工作区上下文、内部工作、持久 Session、执行目录和单轮执行，不再以“每轮结束销毁 Worker”解释连续开发。
 

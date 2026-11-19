@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-14",
-  "updated": "2026-11-14T17:40:42.058Z",
+  "updated": "2026-11-19T10:09:33.071Z",
   "class": "architecture",
   "tags": [
     "cross-platform",
@@ -106,6 +106,8 @@
 # 跨平台运行时边界、Orca 参考与实施计划
 
 ## 目标与状态
+
+本机平台判断统一从 `src/main/platform/local-platform.ts` 读取，Claude 对话、通知、CLI 环境、代理和 Worker 共用该入口。macOS Worker 通过 Node 进程宿主运行 `ps` 验证进程组；远端执行仍读取目标的 RuntimeIdentity。
 
 用户要求 Windows/macOS 差异集中维护，避免每新增一个 JanusX 功能就重复写平台适配。建议在现有模块上建立可执行的调用边界：业务调用统一服务，环境、进程、PTY 和路径语义在各自基础模块收口，各家 CLI 的安装规则与会话格式由 provider 适配器拥有。桌面窗口、快捷键、系统集成及发行包仍需要平台实现。
 

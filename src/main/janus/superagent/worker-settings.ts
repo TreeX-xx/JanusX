@@ -1,3 +1,4 @@
+import { localPlatform } from '../../platform/local-platform'
 import { readFile } from 'node:fs/promises'
 import { runtimeCapability } from '../../../shared/runtime/capabilities'
 import { localRuntimeContext } from '../../platform/runtime-context'
@@ -226,7 +227,7 @@ export class WorkerSettingsEngines {
   private readonly entries = new Map<string, WorkerSettingsEngine>()
   private readonly sessions = new Map<string, SessionSettings>()
   constructor(readonly defaults: WorkerSettingsStore,
-    private readonly factory: (id: string, publish: (snapshot: ConversationSnapshot) => void, backend?: WorkerBackend) => ManagedWorkerEngine = (id, publish, backend) => backend === 'claude' ? new ClaudeWorkerEngine(id, publish) : process.platform === 'darwin' ? new DarwinCodexWorker(id, publish) : new CodexConversation(id, publish)) {}
+    private readonly factory: (id: string, publish: (snapshot: ConversationSnapshot) => void, backend?: WorkerBackend) => ManagedWorkerEngine = (id, publish, backend) => backend === 'claude' ? new ClaudeWorkerEngine(id, publish) : localPlatform() === 'darwin' ? new DarwinCodexWorker(id, publish) : new CodexConversation(id, publish)) {}
   create = (id: string, publish: (snapshot: ConversationSnapshot) => void, backend?: WorkerBackend): ManagedWorkerEngine => {
     const engine = new WorkerSettingsEngine(this.factory(id, publish, backend), this.defaults, this.sessions)
     this.entries.set(id, engine)

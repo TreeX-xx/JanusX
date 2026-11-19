@@ -1,14 +1,11 @@
 // Note: .agents/notes/agent/superagent-plugin-migration.md — a native stop receipt includes process-group exit.
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { runChecked } from '../../platform/process-host/node'
 import { setTimeout as delay } from 'node:timers/promises'
-
-const exec = promisify(execFile)
 
 /** Observe identity only. A persisted PID is never authority to signal a process. */
 export async function darwinGroupLeader(pid: number, parent?: number) {
   if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error('Invalid Worker process identity')
-  const { stdout } = await exec('/bin/ps', ['-p', String(pid), '-o', 'ppid=,pgid=,lstart='], { env: { ...process.env, LC_ALL: 'C' } })
+  const { stdout } = await runChecked('/bin/ps', ['-p', String(pid), '-o', 'ppid=,pgid=,lstart='], { env: { ...process.env, LC_ALL: 'C' } })
   const match = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(stdout)
   const started = match && Date.parse(match[3])
   if (!match || Number(match[2]) !== pid || (parent !== undefined && Number(match[1]) !== parent) || !Number.isSafeInteger(started))
@@ -24,7 +21,7 @@ export async function confirmDarwinGroupExit(pid: number) {
       if (code === 'ESRCH') return
       if (code !== 'EPERM') throw error
       // Darwin can deny a signal probe while sandboxed descendants exit. Inspect group membership independently.
-      const { stdout } = await exec('/bin/ps', ['-A', '-o', 'pgid='], { maxBuffer: 4 * 1024 * 1024 })
+      const { stdout } = await runChecked('/bin/ps', ['-A', '-o', 'pgid='], { maxOutputBytes: 4 * 1024 * 1024 })
       if (!stdout.split(/\s+/).includes(String(pid))) return
     }
     await delay(50)

@@ -1,4 +1,5 @@
 // Shared host proxy routing; respects application and NO_PROXY settings.
+import { localPlatform } from '../platform/local-platform'
 import { randomBytes } from 'node:crypto'
 import { BlockList, isIP } from 'node:net'
 import { Agent as HttpAgent } from 'node:http'
@@ -8,7 +9,7 @@ import { getProxyManager, getSystemProxy } from '@janusx/llm-core'
 import { macProxyEnvironment } from '@janusx/llm-core/mac-system-proxy'
 
 export function hostProxyEnvironment(): NodeJS.ProcessEnv {
-  const env = process.platform === 'darwin' ? macProxyEnvironment(process.env) : process.env
+  const env = localPlatform() === 'darwin' ? macProxyEnvironment(process.env) : process.env
   const proxy = getProxyManager().getProxyUrl() ?? (env === process.env ? getSystemProxy(env) : null)
   const http = proxy ?? env.HTTP_PROXY
   const https = proxy ?? env.HTTPS_PROXY

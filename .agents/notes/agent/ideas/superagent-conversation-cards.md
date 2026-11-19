@@ -5,13 +5,15 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-11-09",
-  "updated": "2026-11-14T18:11:30Z",
+  "updated": "2026-11-19T10:09:33.071Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [{ "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bf3a9f67-1cbe-42fe-92cb-aff46e2dc0e3" }]
 }
 ---
 
 # SuperAgent 多输入对话卡片
+
+下文的原型文件名用于定位历史设计稿。当前卡片实现见 [SuperAgentWork](../../../../src/renderer/src/components/janus/SuperAgentWork.tsx)。
 
 ## Intent
 
@@ -61,7 +63,7 @@ SuperAgent 主体只读取、分析和协调，不允许修改文件；真正的
 
 阅读保护优先于自动收起：分支内部上翻、键盘焦点、文字选择或明确补充保持当前展开与滚动，汇总可以就绪，但不抢焦点或强制移动历史。显示“汇总已就绪”及主动返回入口；用户返回统一讨论或明确开始下一轮后再收起。历史作为可再次展开的并行记录保留，不打散重排原文；手动展开后不被后台完成事件反复收起。
 
-离线演示中的分析、分配和耗时均为样例，不调用模型、创建Worker或更改真实工作状态。维护与验证入口见[原型说明](../../../../design/superagent-bubbles/README.md)。
+离线演示中的分析、分配和耗时均为样例，不调用模型、创建Worker或更改真实工作状态。维护与验证入口见 `design/superagent-bubbles/README.md`。
 
 原型已实现两路／三路演示，默认打开新场景，旧编排、气泡与汇报场景保留。准备加载700 ms，分屏展开560 ms，汇总加载1000 ms，回流加载450 ms后以约520 ms回收右屏，再在单列中保留折叠记录；这些都是离线演示时序，不作为生产响应时限。文字仅追加到原文本节点，选择、分栏滚动与补充目标保持；自动回流过程中开始阅读会保留展开状态。回看历史期间不重置隐藏分支的滚动位置。
 
@@ -79,7 +81,7 @@ SuperAgent 主体只读取、分析和协调，不允许修改文件；真正的
 
 第二步写回指定`SuperAgent Bubbles.html`，以真实组件取代旧近似外壳和控件。`source-preview.tsx`直接引用Titlebar、Sidebar、SuperAgentWorkspace、JanusChat、ConversationInput及现有回复、结构化汇报和Worker组件，连同CSS、主题、中文资源、图标打包；Pane标题栏复用TerminalArea CSS做静态适配。顶栏38px、工作区导航52px、Worker监视轨48px及输入框由源码决定。新分屏仍共用`parallel-preview.js/css`的第一步精简结果。默认经真实启动展示后保持分屏，顶部“当前实现 · 回复与汇报”可对照真实组件的单列流，支持真实输入流程与离线样例回复、展开回复、原文、独立阅读及焦点返回。
 
-两份HTML由`build.mjs`一次生成，无远程资源。源码还原版安装独立模拟bridge，模型回答、工作区和Worker均为夹具，不使用桌面bridge，不执行真实工作；生产自动分屏和调度仍未接入。主文件只对相关展示范围做还原，系统设置等非本轮交互沿用不可用回退。维护入口与版本说明见[原型说明](../../../../design/superagent-bubbles/README.md)。
+两份HTML由`build.mjs`一次生成，无远程资源。源码还原版安装独立模拟bridge，模型回答、工作区和Worker均为夹具，不使用桌面bridge，不执行真实工作；生产自动分屏和调度仍未接入。主文件只对相关展示范围做还原，系统设置等非本轮交互沿用不可用回退。维护入口与版本说明见 `design/superagent-bubbles/README.md`。
 
 简约版15组分屏专项、30组旧交互与10组编排检查通过；源码还原版8组浏览器检查通过，覆盖四种桌面宽度、三主题、375px、共享历史恢复、原生输入、加载与布局动画、真实回复和报告阅读器。页面／控制台错误和外部请求均为0。结果与截图分别位于`artifacts/superagent-minimal-step1/`和`artifacts/superagent-source-step2/verification/`。本轮未改产品源文件或运行安装版验收；打包出现四条既有AgentSessionPane/native-scrollbars CSS组合顺序警告，相关生产CSS未修改，展示范围已目视复核。
 
@@ -101,7 +103,7 @@ SuperAgent 主体只读取、分析和协调，不允许修改文件；真正的
 
 离线原型已以同样结构替换顶部附件条和全覆盖拖入提示。文件／目录／图片行内插入，行首、行中、行尾和空行落点保留；删除、撤销重做、图片预览、导入期间继续编辑以及消息内引用顺序可交互。代码摘录样例仍携带原文，错误统一为可关闭卡片。没有修改生产组件；文件只在页面内存中，`C:/offline-attachments/` 是模拟路径。
 
-12 组专项检查通过，覆盖多行、异步导入、导入期间目录交错、部分失败保留成功引用、撤销与顺序、图片、错误边界和窄屏；页面错误与外部请求为0。源码为 `reference-editor.js/css` 和 `context-preview.js`，截图及结果位于 `artifacts/dev-inline-reference-preview/`，入口与复现命令见[原型 README](../../../../design/superagent-bubbles/README.md)。以下2026-11-11附件条描述为历史状态。
+12 组专项检查通过，覆盖多行、异步导入、导入期间目录交错、部分失败保留成功引用、撤销与顺序、图片、错误边界和窄屏；页面错误与外部请求为0。源码为 `reference-editor.js/css` 和 `context-preview.js`，截图及结果位于 `artifacts/dev-inline-reference-preview/`，入口与复现命令见 `design/superagent-bubbles/README.md`。以下2026-11-11附件条描述为历史状态。
 
 ## 原型已落实到生产组件（输入78／79，2026-11-11）
 

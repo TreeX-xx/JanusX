@@ -6,13 +6,15 @@
   "lifecycle": "implemented",
   "class": "architecture",
   "created": "2026-11-12",
-  "updated": "2026-11-14T05:17:24.719Z",
+  "updated": "2026-11-19T10:09:33.071Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [{ "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e1bdfc5f-a4ff-4dea-b7e3-965ab2ffe161" }]
 }
 ---
 
 # SuperAgent 多 Worker 任务编排
+
+下文的离线演示记录来自原型工作树。当前编排规则可通过[工作流测试](../../../../tests/unit/superagent-workflows.test.ts)核对。
 
 ## Problem
 
@@ -24,11 +26,11 @@
 
 ## Prototype
 
-入口为 [design/superagent-bubbles/SuperAgent Bubbles.html](../../../../design/superagent-bubbles/SuperAgent%20Bubbles.html)，保留原对话与 Worker 场景，默认展示开发→独立测试→Janus 汇总。另提供前后端并行汇合、跨任务名额等待、测试返修场景。生产实现采用演示的一轮默认返修上限，实际执行规则见下文。
+入口为  `design/superagent-bubbles/SuperAgent Bubbles.html`，保留原对话与 Worker 场景，默认展示开发→独立测试→Janus 汇总。另提供前后端并行汇合、跨任务名额等待、测试返修场景。生产实现采用演示的一轮默认返修上限，实际执行规则见下文。
 
 可点击推进、暂停／恢复、停止确认、角色详情、@角色补充及自然语言样例。样例通过本地规则选择预设计划，所有版本、测试结果与 Worker 动态均为模拟；没有接入真实调度、引擎或新权限。
 
-本轮简化卡片后，10 组编排与共用样式检查、22 组原有交互检查通过，运行错误和外部请求为0。已查看编排与独立 Worker 同屏、原有独立卡片、深浅主题和窄屏截图。记录位于 `artifacts/orchestration-compact-preview/`，复现命令与源码入口见[原型 README](../../../../design/superagent-bubbles/README.md)。
+本轮简化卡片后，10 组编排与共用样式检查、22 组原有交互检查通过，运行错误和外部请求为0。已查看编排与独立 Worker 同屏、原有独立卡片、深浅主题和窄屏截图。记录位于 `artifacts/orchestration-compact-preview/`，复现命令与源码入口见 `design/superagent-bubbles/README.md`。
 
 ## Decision
 

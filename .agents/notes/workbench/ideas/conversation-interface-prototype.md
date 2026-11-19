@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-14T05:17:24.719Z",
+  "updated": "2026-11-19T10:09:33.071Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["conversation", "prototype", "superagent"],
   "relations": [
@@ -13,22 +13,19 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/f818911a-9077-46c0-9117-8e1fc1298eb3"}
   ],
   "codeRefs": [
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/SuperAgent Conversation.html","role":"entry"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/brand-controls.js","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/refinement.css","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/welcome.css","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/assets/codex-wordmark.svg","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/wordmarks.mjs","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"design/superagent-conversation/wordmark-family.mjs","role":"implementation"}
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/AgentSessionPane.tsx","role":"implementation"},
+    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/renderer/src/components/janus/SuperAgentWorkspace.tsx","role":"implementation"}
   ]
 }
 ---
 
 # 普通对话与 SuperAgent 共用界面原型
 
+下文保留原型工作树中的文件名。当前实现见[普通对话](../../../../src/renderer/src/components/AgentSessionPane.tsx)和 [SuperAgent 工作台](../../../../src/renderer/src/components/janus/SuperAgentWorkspace.tsx)。
+
 ## Intent
 
-用户要求用可交互 HTML 评审对话界面，并明确后续落实到 **dev 和 superAgent 两条分支**，覆盖普通界面的对话模式与 SuperAgent。完整界面的评审入口为[离线 HTML](../../../../design/superagent-conversation/SuperAgent%20Conversation.html)。2026-11-13 已将 SuperAgent 全屏加载的 JanusX 字标与扫描效果，以及项目区底部用量栏的圆环、覆盖式统计接入真实组件；两种模式的输入框与发送／停止布局也已同步，其余原型调整尚待实施。顶部“界面”切换两个外壳，场景、主题与设计说明用于评审；不作为未来产品导航。
+用户要求用可交互 HTML 评审对话界面，并明确后续落实到 **dev 和 superAgent 两条分支**，覆盖普通界面的对话模式与 SuperAgent。完整界面的评审入口为 `design/superagent-conversation/SuperAgent Conversation.html`。2026-11-13 已将 SuperAgent 全屏加载的 JanusX 字标与扫描效果，以及项目区底部用量栏的圆环、覆盖式统计接入真实组件；两种模式的输入框与发送／停止布局也已同步，其余原型调整尚待实施。顶部“界面”切换两个外壳，场景、主题与设计说明用于评审；不作为未来产品导航。
 
 本 Note 是这版原型的交互记录与后续接入入口；既有生产事实仍归[终端与对话双模式](../terminal-dialog-dual-mode.md)及[SuperAgent 界面](../../agent/superagent-interface.md)。旧 `superagent-bubbles` 多输入原型拥有独立历史，本版不覆盖其记录。当前原型工作树为 `feat/superagent-automation-exploration`；“superAgent”记录用户指定的目标线，实施前再核对实际 Git ref，本次未切换或合并分支。
 
@@ -81,7 +78,7 @@
 
 普通对话保留引擎身份、终端/对话切换；HTML 中终端是可返回的静态展示，不重启或创建会话。SuperAgent 保留 Janus 双眼与执行侧栏。两种外壳共享样例用于比较，生产仍分别绑定真实会话。
 
-本轮 HTML 将已获用户认可的 CODEX 切角字形扩展为8款字标：JanusX、Codex、Claude、OpenCode、Pi、DeepSeek（DSH）、Shell、Janus。终端名称依据 src/shared/terminalLaunch.ts，原始轮廓集中在 wordmarks.mjs；build.mjs 生成各自 SVG 与可切换的 Wordmark Family.html。各款共用64单位字高、12单位笔画和切角收口，短词保持自然字宽。JanusX 使用同家族切角轮廓，X 从右上到左下的完整斜笔保留浅杏橙，导航宽132px；用于两种界面的导航、SuperAgent 空态和加载。用户进一步确认新版 JanusX，现已同步到生产加载资产，复用既有扫描与布局；其余终端字标尚未同步生产。Tab、终端选择和启动入口保留现有图标，Janus 回复头像不变。两种模式的新会话共用 welcome.css 与等高身份容器，身份、标题、说明、工作区提示及输入文字左对齐。普通对话移除顶部重复的引擎图标、名称及项目路径，终端／对话开关并入标题栏右侧；新会话使用 `assets/codex-wordmark.svg` 定制大写字标，五个字母均为独立路径，没有文字节点或字体依赖。C/O/D 共用切角轮廓，E 的横画斜切收口，X 以留白区分交叉笔画；桌面/窄窗/矮窗宽190/170/151px，深浅主题分别使用正文中性色。原引擎图标保留25px、窄窗23px。SuperAgent 使用同家族 JanusX 字标，宽231/206/183px。标题统一为“想从哪里开始？”，说明统一为“聊一个问题，或从项目文件开始。”；工作区使用无胶囊底色的轻量文字。两种外壳的空态顶部总占位和内容间距一致，切换模式时标题与输入框保持原位。回复、Worker及底部统计的小尺寸引擎名称继续使用较轻的 Cascadia Code，回退 Cascadia Mono / Consolas。界面改为暖石墨灰/柔白，正文15px，卡片和输入框适当柔化。固定品牌点缀下，导航选中项保留细竖线；当前运行的工具/命令与计划步骤均移除左侧竖线，使用整行底色、字重和状态文案高亮，主要操作使用高对比实心按钮。强调模式切换入口与变体样式已移除。CODEX 与新版 JanusX 切角字形已获认可，其余新增字标与精确尺寸仍属**待评审提案**；详见[视觉规格](../../../../design/superagent-conversation/brand-spec.md)。
+本轮 HTML 将已获用户认可的 CODEX 切角字形扩展为8款字标：JanusX、Codex、Claude、OpenCode、Pi、DeepSeek（DSH）、Shell、Janus。终端名称依据 src/shared/terminalLaunch.ts，原始轮廓集中在 wordmarks.mjs；build.mjs 生成各自 SVG 与可切换的 Wordmark Family.html。各款共用64单位字高、12单位笔画和切角收口，短词保持自然字宽。JanusX 使用同家族切角轮廓，X 从右上到左下的完整斜笔保留浅杏橙，导航宽132px；用于两种界面的导航、SuperAgent 空态和加载。用户进一步确认新版 JanusX，现已同步到生产加载资产，复用既有扫描与布局；其余终端字标尚未同步生产。Tab、终端选择和启动入口保留现有图标，Janus 回复头像不变。两种模式的新会话共用 welcome.css 与等高身份容器，身份、标题、说明、工作区提示及输入文字左对齐。普通对话移除顶部重复的引擎图标、名称及项目路径，终端／对话开关并入标题栏右侧；新会话使用 `assets/codex-wordmark.svg` 定制大写字标，五个字母均为独立路径，没有文字节点或字体依赖。C/O/D 共用切角轮廓，E 的横画斜切收口，X 以留白区分交叉笔画；桌面/窄窗/矮窗宽190/170/151px，深浅主题分别使用正文中性色。原引擎图标保留25px、窄窗23px。SuperAgent 使用同家族 JanusX 字标，宽231/206/183px。标题统一为“想从哪里开始？”，说明统一为“聊一个问题，或从项目文件开始。”；工作区使用无胶囊底色的轻量文字。两种外壳的空态顶部总占位和内容间距一致，切换模式时标题与输入框保持原位。回复、Worker及底部统计的小尺寸引擎名称继续使用较轻的 Cascadia Code，回退 Cascadia Mono / Consolas。界面改为暖石墨灰/柔白，正文15px，卡片和输入框适当柔化。固定品牌点缀下，导航选中项保留细竖线；当前运行的工具/命令与计划步骤均移除左侧竖线，使用整行底色、字重和状态文案高亮，主要操作使用高对比实心按钮。强调模式切换入口与变体样式已移除。CODEX 与新版 JanusX 切角字形已获认可，其余新增字标与精确尺寸仍属**待评审提案**；详见 `design/superagent-conversation/brand-spec.md`。
 
 数码加载的原有构图保留。字标先显示低亮底形，再由左至右扫描填充，最后显现完整橙色 X；减少动态偏好直接显示完整字标。扫描和波场共用可见计时。HTML 为评审至少呈现2600ms后淡出420ms，隐藏页面暂停可见时长，切换场景会取消旧加载。本 checkout 已接入的生产加载继续由真实 persistenceReady 与可见计时共同控制，并保留减少动态偏好跳过视觉等待的既有规则；不要把 HTML 固定演示时序或状态文字当成后端阶段。
 
@@ -99,7 +96,7 @@
 
 ## 验证与复现
 
-构建和检查命令见[原型 README](../../../../design/superagent-conversation/README.md)。三份离线 Playwright 检查分别覆盖对话流程12组、品牌/控件/双界面9组、底部统计5组；报告为 artifacts/superagent-conversation-review 下 verification.json、brand-controls-verification.json、drawer-verification.json。
+构建和检查命令见 `design/superagent-conversation/README.md`。三份离线 Playwright 检查分别覆盖对话流程12组、品牌/控件/双界面9组、底部统计5组；报告为 artifacts/superagent-conversation-review 下 verification.json、brand-controls-verification.json、drawer-verification.json。
 
 此前一轮三份报告均通过，页面错误与外部请求为0；已目视检查深浅主题、两种界面、桌面/窄窗统计、新对话和数码加载。Notes 校验通过：346份 harness Note、0错误，17条既有跨仓库链接诊断均不涉及本次新 Note；结果保存在同证据目录 notes-check.txt。
 

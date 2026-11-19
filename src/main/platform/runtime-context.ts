@@ -1,4 +1,5 @@
 // Note: .agents/notes/desktop/platform-runtime-boundaries.md
+import { localPlatform } from './local-platform'
 import { homedir } from 'node:os'
 import { managedCliEnv } from '../external-cli/managed-paths'
 import type { RuntimeIdentity } from '../../shared/runtime/contracts'
@@ -20,7 +21,7 @@ export interface ResolvedLaunch {
   version?: string
 }
 
-export function localSystem() { return { platform: process.platform, architecture: process.arch, home: homedir() } }
+export function localSystem() { return { platform: localPlatform(), architecture: process.arch, home: homedir() } }
 
 /** Fresh snapshots make PATH/config changes invalidate resolutions, including misses. */
 export function localRuntimeContext(env: NodeJS.ProcessEnv = managedCliEnv()): RuntimeContext {
