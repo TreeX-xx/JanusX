@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('CLI rows retain install, upgrade, detection and visibility actions', async ({ page }) => {
   await page.goto('/shell-settings.html?cliStates')
   const cli = page.getByRole('region', { name: '外部 CLI', exact: true })
-  await expect(cli.locator('[data-cli-tool]')).toHaveCount(6)
+  await expect(cli.locator('[data-cli-tool]')).toHaveCount(5)
   const claude = cli.getByRole('group', { name: 'Claude Code', exact: true })
   const codex = cli.getByRole('group', { name: 'Codex', exact: true })
   await expect(claude.getByText('有新版', { exact: true })).toBeVisible()

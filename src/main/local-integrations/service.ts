@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: local source boundaries and conservative discovery — .agents/notes/workbench/local-skills-mcp.md
 import { createHash, randomUUID } from 'node:crypto'
 import { lstat, mkdir, open, readdir, realpath, rename, unlink, writeFile } from 'node:fs/promises'
@@ -168,7 +169,7 @@ export class LocalIntegrationService {
         // A broken user file must not hide otherwise valid project skills and servers.
         let projects: string[] = []
         try { projects = Object.keys(object(parseConfig(await readIntegrationFile(claudeJson), 'claude').projects ?? {})) } catch { /* The source exposes its parse error. */ }
-        const comparable = (path: string) => process.platform === 'win32' ? resolve(path).toLowerCase() : resolve(path)
+        const comparable = (path: string) => runtimePathKey(resolve(path))
         const projectKey = projects.find(path => isAbsolute(path) && comparable(path) === comparable(root)) || root
         await source(claudeJson, 'mcp', 'private', env.CLAUDE_CONFIG_DIR ? claude : home, ['projects', projectKey, 'mcpServers'])
       }

@@ -6,13 +6,15 @@
 .detail { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; margin: 8px 0 12px; font-size: 12px; font-family: inherit; line-height: 1.6; }
 .options { display: grid; gap: 7px; }
 .option { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--shell-border); border-radius: 7px; padding: 10px 12px; cursor: pointer; }
-.option[data-selected=true] { background: color-mix(in srgb, var(--shell-text) 6%, transparent); border-color: color-mix(in srgb, var(--shell-text) 40%, var(--shell-border)); }
+.option[data-selected=true] { background: color-mix(in srgb, var(--shell-text) 4%, transparent); border-color: color-mix(in srgb, var(--shell-text) 25%, var(--shell-border)); }
 .option input { flex: none; margin-top: 3px; accent-color: var(--shell-text); }
+.option input:focus-visible { outline: 1px solid var(--conversation-focus-ring); outline-offset: 1px; }
 .option strong { display: block; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
 .option small { display: block; margin-top: 3px; color: var(--shell-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .custom { display: grid; gap: 6px; margin-top: 12px; font-size: 12px; color: var(--shell-muted); }
-.custom input, .custom textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--shell-border); border-radius: 6px; padding: 9px 11px; color: var(--shell-text); background: var(--bg-deep); font: inherit; line-height: 1.6; resize: vertical; }
-.custom input:focus-visible, .custom textarea:focus-visible, .actions button:focus-visible { outline: 2px solid var(--shell-text); outline-offset: 2px; }
+.custom input, .custom textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--shell-border); border-radius: 6px; padding: 9px 11px; color: var(--shell-text); background: var(--bg-deep); }
+.custom :is(input, textarea):focus-visible { border-color: var(--conversation-focus-border); outline: 1px solid var(--conversation-focus-ring); outline-offset: 1px; }
+.request .actions button:focus-visible { outline: 1px solid var(--conversation-focus-ring); outline-offset: 1px; }
 .actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .actions button { border: 1px solid var(--shell-border); border-radius: 6px; padding: 7px 12px; background: transparent; color: var(--shell-text); font: inherit; font-size: 12px; cursor: pointer; }
 .actions .submit { background: var(--shell-text); color: var(--bg-deep); }

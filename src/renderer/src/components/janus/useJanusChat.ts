@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import i18n from '@/i18n'
 import {
   answerChatQuestion,
   chatStream,
@@ -13,6 +14,7 @@ import {
 } from '@/services/llm'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useIslandStore } from '@/stores/island'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { activateAutomationCompanion } from '@/stores/automations'
 import { isAutomationRequest } from '../automations/automationIntent'
 import { memoBinding, useMemoStore } from '@/stores/memo'
@@ -70,6 +72,8 @@ import {
   type JanusToolActivity,
 } from './janusRuntimeState'
 
+import { TopicScheduler, recoverTopics } from './topicScheduler'
+
 export type Message = JanusChatMessage
 
 export interface ConversationSummary {
@@ -90,6 +94,15 @@ export interface ChatModelOption {
   label: string
   isDefault: boolean
   isProviderDefault: boolean
+}
+
+async function getSuperAgentModel(selected?: PersistedJanusConversation['superAgentModel']): Promise<Pick<ChatModelOption, 'providerId' | 'modelId'>> {
+  if (selected) return selected
+  const configured = await getTerminalDefault('janus')
+  if (!configured?.provider.id || configured.provider.enabled === false || !configured.modelId) {
+    throw new Error(i18n.t('janus:chat.model.settingsRequired'))
+  }
+  return { providerId: configured.provider.id, modelId: configured.modelId }
 }
 
 export type { WorkspaceResource } from './janusResources'
@@ -142,7 +155,7 @@ export interface UseJanusChatReturn {
   /** Open mid-turn questions awaiting a renderer answer. */
   pendingQuestions: JanusPendingQuestion[]
   /** Answer (or cancel) one pending mid-turn question. */
-  answerQuestion: (callId: string, answer: ChatQuestionAnswer) => void
+  answerQuestion: (callId: string, answer: ChatQuestionAnswer) => void | Promise<void>
   resourceController: JanusResourceController
   send: (text: string) => void
   rewrite: (messageId: string, text: string) => void
@@ -155,7 +168,7 @@ export interface UseJanusChatReturn {
    */
   pendingSteerIds: string[]
   cancelSteeredMessage: (queueId: string) => void
-  selectModel: (providerId: string, modelId: string) => void
+  selectModel: (providerId: string, modelId: string, superAgent?: boolean) => void
   refreshModels: () => Promise<ChatModelOption[]>
   createConversation: () => string
   selectConversation: (conversationId: string) => void
@@ -168,6 +181,8 @@ export interface UseJanusChatReturn {
 }
 
 export interface UseJanusChatRegistryReturn {
+  topicConversations: PersistedJanusConversation[]
+  topics: TopicScheduler
   islandConversationId: string
   persistenceReady: boolean
   bindProject: (context: EngineeringContext, workspaceIds: string[], title: string) => string
@@ -203,6 +218,8 @@ interface ConversationRuntime {
 }
 
 interface RuntimeHandles {
+  ready: Promise<string | null>
+  settleReady: ((requestId: string | null) => void) | null
   timeline: ChatTimelineSnapshot
   usingAgentEvents: boolean
   generation: number
@@ -237,6 +254,8 @@ function emptyRuntime(approvalMode: AgentApprovalMode = 'per-action'): Conversat
 
 function createRuntimeHandles(): RuntimeHandles {
   return {
+    ready: Promise.resolve(null),
+    settleReady: null,
     timeline: emptyChatTimeline(),
     usingAgentEvents: false,
     generation: 0,
@@ -286,6 +305,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   const ephemeralIdsRef = useRef<Set<string>>(new Set())
   const panelWorkspaceRef = useRef<string | null>(null)
   const handlesRef = useRef(new Map<string, RuntimeHandles>())
+  const topicSettlements = useRef(new Map<string, { resolve(): void; reject(error: Error): void }>())
+  const topicSchedulerRef = useRef<TopicScheduler | null>(null)
   const legacyResourcesRef = useRef(parseJanusResourcePreferences(
     typeof localStorage === 'undefined' ? null : localStorage.getItem(JANUS_RESOURCE_STORAGE_KEY),
   ))
@@ -296,12 +317,11 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   modelOptionsRef.current = modelOptions
 
   const setRuntime = useCallback((id: string, update: (current: ConversationRuntime) => ConversationRuntime) => {
-    setRuntimeStates((current) => {
-      const nextRuntime = update(current[id] ?? emptyRuntime())
-      const next = { ...current, [id]: nextRuntime }
-      runtimesRef.current = next
-      return next
-    })
+    // Queue completion can start the next turn before React commits a render.
+    // The controller's imperative guards must see the same state immediately.
+    const next = { ...runtimesRef.current, [id]: update(runtimesRef.current[id] ?? emptyRuntime()) }
+    runtimesRef.current = next
+    setRuntimeStates(next)
   }, [])
 
   const updateConversations = useCallback((
@@ -336,6 +356,57 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       : { ...conversation, attachedWorkspaceIds: [activeWorkspaceId, ...conversation.attachedWorkspaceIds.filter(id => id !== activeWorkspaceId)], updatedAt: Date.now() })
   }, [islandConversationId, persistenceReady, updateConversation])
   useEffect(loadOpeningWorkspace, [islandOpenSequence, availableWorkspaces, loadOpeningWorkspace])
+
+  // Important Worker reports enter the owning conversation once, without starting a model turn.
+  // Ordinary native progress is handled only by the work cards.
+  useEffect(() => {
+    const api = window.electron.superAgent
+    if (!api || !persistenceReady) return
+    let cancelled = false
+    const unsubscribe = api.onChanged(change => {
+      if (change.kind !== 'report' && change.kind !== 'review' && change.kind !== 'work') return
+      void (async () => {
+        const [records, scheduling] = await Promise.all([api.snapshot(change.workspaceId), api.schedule(change.workspaceId)])
+        if (cancelled) return
+        for (const work of records.works) {
+          const review = work.review
+          if (!review || ['pending', 'reviewing'].includes(review.state)) continue
+          const conversationId = scheduling.entries.find(row => row.workId === work.id)?.conversationId
+            ?? records.inputs.find(row => row.id === work.sourceInputId)?.conversationId
+          const conversation = conversationsRef.current.find(row => row.id === conversationId)
+          if (!conversation) continue
+          const messageId = 'worker-review:' + review.reportId
+          const content = i18n.t(`janus:superagent.review.${review.state}`) + ' · ' + work.title + '\n\n' + review.summary
+            + (review.findings.length ? '\n\n' + review.findings.map(text => '- ' + text).join('\n') : '')
+          updateConversation(conversation.id, current => {
+            const previous = current.messages.find(row => row.id === messageId)
+            if (previous && previous.timestamp >= review.updatedAt) return current
+            const message = { id: messageId, role: 'assistant' as const, timestamp: review.updatedAt, workspaceId: change.workspaceId, content }
+            return { ...current, updatedAt: Math.max(current.updatedAt, review.updatedAt), messages: capChatMessages(previous
+              ? current.messages.map(row => row.id === messageId ? message : row) : [...current.messages, message]) }
+          })
+        }
+        for (const report of records.reports) {
+          const work = records.works.find(row => row.id === report.workId && row.latestReportId === report.id && row.closedAt === null)
+          if (!work) continue
+          const conversationId = scheduling.entries.find(row => row.workId === work.id)?.conversationId
+            ?? records.inputs.find(row => row.id === work.sourceInputId)?.conversationId
+          const conversation = conversationsRef.current.find(row => row.id === conversationId)
+          const messageId = 'worker-report:' + report.id
+          if (!conversation || conversation.messages.some(row => row.id === messageId)) continue
+          const body = await api.readResource(change.workspaceId, report.resourceId)
+          if (cancelled) return
+          updateConversation(conversation.id, current => current.messages.some(row => row.id === messageId) ? current : {
+            ...current, updatedAt: Date.now(), messages: capChatMessages([...current.messages, {
+              id: messageId, role: 'assistant', timestamp: report.receivedAt, workspaceId: change.workspaceId,
+              content: i18n.t('janus:superagent.report') + ' · ' + work.title + '\n\n' + body.text,
+            }]),
+          })
+        }
+      })().catch(error => { if (!cancelled) console.error('[superagent] report delivery failed', error) })
+    })
+    return () => { cancelled = true; unsubscribe() }
+  }, [persistenceReady, updateConversation])
 
   const routeIslandRequest = useCallback((id: string, text: string) => {
     const active = conversationsRef.current.find(item => item.id === islandConversationId)
@@ -432,6 +503,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   }, [])
 
   const invalidateRuntime = useCallback((id: string, cancelAgentSessions = false) => {
+    topicSettlements.current.get(id)?.reject(new Error('Conversation ended'))
+    topicSettlements.current.delete(id)
     const handles = getHandles(id)
     handles.generation += 1
     handles.active = false
@@ -460,11 +533,12 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       if (cancelled || !snapshot?.conversations.length) return
       // Discard old panel snapshots on restart and always retain a personal
       // fallback; an ephemeral panel must never become the island controller.
-      const visible = snapshot.conversations.filter((item) => item.engineeringContext?.viewRef?.viewId !== 'workspace-dialog')
+      const visible = recoverTopics(snapshot.conversations.filter((item) => item.engineeringContext?.viewRef?.viewId !== 'workspace-dialog'))
       if (!visible.length) visible.push(createJanusConversation())
-      const activeId = visible.some((item) => item.id === snapshot.activeConversationId)
+      if (!visible.some(item => !item.topic)) visible.unshift(createJanusConversation())
+      const activeId = visible.some((item) => !item.topic && item.id === snapshot.activeConversationId)
         ? snapshot.activeConversationId
-        : visible[0].id
+        : visible.find(item => !item.topic)!.id
       conversationsRef.current = visible
       setConversations(visible)
       setIslandConversationId(activeId)
@@ -574,19 +648,25 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     }
   }), [scheduleFlush, setRuntime])
 
-  useEffect(() => () => {
-    for (const handles of handlesRef.current.values()) {
-      handles.abort?.()
-      clearFlushTimer(handles)
-      if (handles.noticeTimer !== null) window.clearTimeout(handles.noticeTimer)
-      cancelSessions(handles)
+  useEffect(() => {
+    const topicScheduler = topicSchedulerRef.current, allHandles = handlesRef.current
+    topicScheduler?.activate()
+    return () => {
+      topicScheduler?.dispose()
+      for (const handles of allHandles.values()) {
+        handles.abort?.()
+        clearFlushTimer(handles)
+        if (handles.noticeTimer !== null) window.clearTimeout(handles.noticeTimer)
+        cancelSessions(handles)
+      }
+      allHandles.clear()
     }
-    handlesRef.current.clear()
   }, [cancelSessions, clearFlushTimer])
 
   const ensureAgentSessions = useCallback(async (
     id: string,
     requestedResources: WorkspaceResource[],
+    automaticWorkspace: boolean,
   ): Promise<ChatWorkspaceResource[]> => {
     const handles = getHandles(id)
     const approvalMode = runtimesRef.current[id]?.approvalMode ?? defaultApprovalMode
@@ -601,10 +681,12 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         handles.sessions.set(resource.workspaceId, session)
       }
       const conversation = conversationsRef.current.find((item) => item.id === id)
-      const current = conversation
-        ? workspaceResources(conversation, workspacesRef.current).find((item) =>
-            item.workspaceId === resource.workspaceId && item.workspacePath === resource.workspacePath)
-        : undefined
+      // Automatic scope is fixed at send time; switching the foreground must
+      // not cancel the session being created for an already submitted message.
+      const current = conversation && (automaticWorkspace
+        ? workspacesRef.current.some(item => item.id === resource.workspaceId && item.path === resource.workspacePath) && resource
+        : workspaceResources(conversation, workspacesRef.current).find((item) =>
+            item.workspaceId === resource.workspaceId && item.workspacePath === resource.workspacePath))
       if (!current) {
         handles.sessions.delete(resource.workspaceId)
         await window.electron.agentRuntime.cancelSession(session.id).catch(() => undefined)
@@ -634,15 +716,18 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   // Note: bounded recovery preserves evidence and avoids replaying writes — see .agents/notes/blueprint/tasks/blueprint-dialog-separation.md
   const startRequest = useCallback((id: string, history: Message[], userMessage: Message, recovery?: { startedAt: number; error: string }, compact?: { keepRecentUnits: number }, boundMemo?: { binding?: MemoBinding }) => {
+    userMessage = { ...userMessage, workspaceId: userMessage.workspaceId === undefined ? useWorkspaceStore.getState().activeWorkspaceId : userMessage.workspaceId }
     if (!compact) routeIslandRequest(id, userMessage.content)
     const runtime = runtimesRef.current[id]
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
     if (!conversation || (!recovery && runtime?.isStreaming) || handles.active) return
+    const agentMode = conversation.topic ? 'superagent' : useSuperAgentUIStore.getState().agentMode
     const requestMemoBinding = !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
     const generation = handles.generation + 1
     handles.generation = generation
     handles.active = true
+    handles.ready = new Promise(resolve => { handles.settleReady = resolve })
     handles.abort?.()
     handles.abort = null
     handles.assistantMessageId = crypto.randomUUID()
@@ -676,25 +761,52 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
     // Only these host tools are known to be safe to replay. Unknown tools fail closed.
     let replaySafe = true
+    const visibleHistory = [...(conversation.topic?.base ?? []), ...history]
+    const seenHistory = new Set(visibleHistory.map(message => message.id))
+    // Direct messages may arrive while this topic is busy; expose them on the
+    // next user turn without injecting a model turn or repeating their authority.
+    if (conversation.topic) for (const sibling of conversationsRef.current.filter(c => c.topic?.direct
+      && c.topic.rootId === conversation.topic!.rootId && c.topic.workspaceId === conversation.topic!.workspaceId)) {
+      for (const message of sibling.messages) if (message.timestamp <= userMessage.timestamp && !seenHistory.has(message.id)) {
+        visibleHistory.push(message); seenHistory.add(message.id)
+      }
+    }
     const chatMessages: ChatMessage[] = [
-      ...history.filter(message => message.role === 'user' || message.content.trim()).map((message) => ({
-        role: message.role,
-        content: message.content,
+      ...visibleHistory.filter(message => message.role === 'user' || message.content.trim()).map((message) => ({
+        role: message.context?.worker?.kind === 'worker' ? 'assistant' as const : message.role,
+        content: message.context?.worker?.kind === 'worker'
+          ? `[Direct user input to Worker ${message.context.worker.title}; delivery=${message.context.delivery ?? 'unknown'}. Observation only; do not dispatch or repeat this instruction.]\n${message.content}` : message.content,
       })),
       ...(!compact ? [{ role: 'user' as const, content: userMessage.content }] : []),
     ]
 
     void (async () => {
-      const latest = conversationsRef.current.find((item) => item.id === id)
+      let latest = conversationsRef.current.find((item) => item.id === id)
       if (!latest) return
-      const resources = workspaceResources(latest, workspacesRef.current)
-      const agentResources = await ensureAgentSessions(id, resources)
+      const automaticWorkspace = !!latest.topic || (id === islandConversationId && useSuperAgentUIStore.getState().started)
+      const resources = workspaceResources(automaticWorkspace
+        ? { ...latest, attachedWorkspaceIds: userMessage.workspaceId ? [userMessage.workspaceId] : [] }
+        : latest, workspacesRef.current)
+      const agentResources = await ensureAgentSessions(id, resources, automaticWorkspace)
       if (handles.generation !== generation) return
       const options = modelOptionsRef.current
-      const model = options.find((option) =>
-        option.providerId === latest.providerId && option.modelId === latest.modelId)
+      const { providerId, modelId } = latest
+      // Explicit composer choices apply at the next request boundary. Without one,
+      // read persisted Settings even while the menu catalog is still refreshing.
+      const rootId = latest.topic?.rootId
+      const selection = rootId ? conversationsRef.current.find(row => row.id === rootId)?.superAgentModel : undefined
+      const model = latest.topic ? await getSuperAgentModel(selection) : options.find((option) =>
+        option.providerId === providerId && option.modelId === modelId)
         ?? options.find((option) => option.isDefault)
         ?? options[0]
+      if (handles.generation !== generation) return
+      if (latest.topic && model && (latest.providerId !== model.providerId || latest.modelId !== model.modelId)) {
+        updateConversation(id, current => ({ ...current, ...model, contextCheckpoint: undefined,
+          contextEpoch: (current.contextEpoch ?? 0) + 1, updatedAt: Date.now() }))
+        setRuntime(id, current => ({ ...current, contextStatus: undefined }))
+        latest = conversationsRef.current.find(item => item.id === id)
+        if (!latest) return
+      }
 
       const stream = chatStream(
         chatMessages,
@@ -704,6 +816,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         () => {
           if (handles.generation !== generation) return
           handles.active = false
+          handles.settleReady?.(null)
           handles.abort = null
           const final = flushPending(id)
           handles.pendingBuffer = ''
@@ -711,18 +824,21 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
             ? Math.max(0, Date.now() - (runtimesRef.current[id]?.turnStartedAt ?? Date.now()))
             : undefined
           // R6-full：在途 steering badge 清除；文本早已在历史中保留。
-          setRuntime(id, (current) => ({ ...current, pendingContent: '', pendingTimeline: emptyChatTimeline(), isStreaming: false, turnStartedAt: null, turnStatus: INITIAL_JANUS_CHAT_STATUS, pendingSteerIds: [], error: null }))
+          setRuntime(id, (current) => ({ ...current, pendingContent: '', pendingTimeline: emptyChatTimeline(), isStreaming: false, turnStartedAt: null, turnStatus: INITIAL_JANUS_CHAT_STATUS, pendingSteerIds: [], error: null, agent: { ...current.agent, pendingQuestions: [] } }))
           commitAssistant(id, final, handles.assistantMessageId ?? undefined)
           snapshotReasoning(id, handles.assistantMessageId ?? undefined, final.trim().length > 0, durationMs)
           handles.assistantMessageId = null
+          topicSettlements.current.get(id)?.resolve()
+          topicSettlements.current.delete(id)
         },
         (error) => {
           if (handles.generation !== generation) return
           handles.active = false
+          handles.settleReady?.(null)
           handles.abort = null
           const startedAt = runtimesRef.current[id]?.turnStartedAt ?? Date.now()
           const latestUser = conversationsRef.current.find(item => item.id === id)?.messages.filter(message => message.role === 'user').at(-1)
-          const canRecover = !requestMemoBinding && !recovery && replaySafe
+          const canRecover = !conversation.topic && !requestMemoBinding && !recovery && replaySafe
             && latestUser?.id === userMessage.id
             && /function response parts|function call parts/i.test(error)
           const final = flushPending(id)
@@ -738,11 +854,13 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
             turnStartedAt: null,
             turnStatus: INITIAL_JANUS_CHAT_STATUS,
             error,
+            agent: { ...current.agent, pendingQuestions: [] },
             pendingSteerIds: [],
           }))
           commitAssistant(id, final, handles.assistantMessageId ?? undefined)
           snapshotReasoning(id, handles.assistantMessageId ?? undefined, final.trim().length > 0, durationMs)
           handles.assistantMessageId = null
+          if (!canRecover) { topicSettlements.current.get(id)?.reject(new Error(error)); topicSettlements.current.delete(id) }
           if (canRecover) {
             startRequest(id, history, userMessage, { startedAt, error })
           }
@@ -750,6 +868,10 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         {
           ...(model ? { providerId: model.providerId, modelId: model.modelId } : {}),
           sourceTag: 'janus-chat',
+          inputEventId: compact ? undefined : userMessage.id,
+          workerBackend: userMessage.context?.worker?.kind === 'backend' ? userMessage.context.worker.backend : undefined,
+          agentMode,
+          workspaceId: userMessage.workspaceId ?? undefined,
           conversationId: id,
           memoBinding: requestMemoBinding,
           memoMessageId: window.electron.memo && !compact ? userMessage.id : undefined,
@@ -822,6 +944,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
                 appendReasoning(id, agentEvent.delta)
               }
               if (agentEvent.type === 'steering_consumed') {
+                if (conversation.topic) topicSchedulerRef.current?.consume(id, agentEvent.keys)
                 // R6-full：主侧已注入本轮，badge 清除（文本本就在历史中）。
                 setRuntime(id, (current) => {
                   const next = consumeSteeredIds(current.pendingSteerIds, agentEvent.keys)
@@ -840,9 +963,15 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         },
       )
       handles.abort = stream.abort
+      void stream.started.then(started => {
+        if (handles.generation === generation) handles.settleReady?.(started ? stream.requestId : null)
+      })
     })().catch((reason: unknown) => {
       if (handles.generation !== generation) return
       handles.active = false
+      handles.settleReady?.(null)
+      topicSettlements.current.get(id)?.reject(reason instanceof Error ? reason : new Error(String(reason)))
+      topicSettlements.current.delete(id)
       handles.assistantMessageId = null
       setRuntime(id, (current) => ({
         ...current,
@@ -853,15 +982,18 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         pendingSteerIds: [],
       }))
     })
-  }, [appendPending, appendReasoning, clearFlushTimer, commitAssistant, ensureAgentSessions, flushPending, getHandles, routeIslandRequest, scheduleFlush, setRuntime, snapshotReasoning, updateConversation])
+  }, [appendPending, appendReasoning, clearFlushTimer, commitAssistant, ensureAgentSessions, flushPending, getHandles, islandConversationId, routeIslandRequest, scheduleFlush, setRuntime, snapshotReasoning, updateConversation])
 
   const stop = useCallback((id: string) => {
+    topicSettlements.current.get(id)?.reject(new Error('Stopped'))
+    topicSettlements.current.delete(id)
     const runtime = runtimesRef.current[id]
     const handles = handlesRef.current.get(id)
     if (!runtime?.isStreaming && !handles?.abort && !handles?.active) return
     if (!handles) return
     handles.generation += 1
     handles.active = false
+    handles.settleReady?.(null)
     handles.abort?.()
     handles.abort = null
     const final = flushPending(id)
@@ -870,7 +1002,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const stopDurationMs = runtimesRef.current[id]?.turnStartedAt
       ? Math.max(0, Date.now() - (runtimesRef.current[id]?.turnStartedAt ?? Date.now()))
       : undefined
-    setRuntime(id, (current) => ({ ...current, pendingContent: '', pendingTimeline: emptyChatTimeline(), isStreaming: false, turnStartedAt: null, turnStatus: INITIAL_JANUS_CHAT_STATUS, pendingSteerIds: [] }))
+    setRuntime(id, (current) => ({ ...current, pendingContent: '', pendingTimeline: emptyChatTimeline(), isStreaming: false, turnStartedAt: null, turnStatus: INITIAL_JANUS_CHAT_STATUS, pendingSteerIds: [], agent: { ...current.agent, pendingQuestions: [] } }))
     commitAssistant(id, final, handles.assistantMessageId ?? undefined, true)
     snapshotReasoning(id, handles.assistantMessageId ?? undefined, final.trim().length > 0, stopDurationMs)
     handles.assistantMessageId = null
@@ -907,7 +1039,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     if (runtimesRef.current[id]?.isStreaming || handlesRef.current.get(id)?.active) {
       // R6-full：流式中发送走 steering——乐观追加用户消息（随会话落盘即 durable），
       // 再向主侧投递抢占。主侧 accept 即入队；拒绝（流已结束/队满）按下述回退。
-      const entry: Message = { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: Date.now() }
+      const entry: Message = { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: Date.now(), workspaceId: useWorkspaceStore.getState().activeWorkspaceId }
       const entryMemoBinding = window.electron.memo ? memoBinding(id, entry.id) : undefined
       updateConversation(id, (current) => ({ ...current, messages: [...current.messages, entry], updatedAt: Date.now() }))
       setRuntime(id, (current) => current.pendingSteerIds.includes(entry.id)
@@ -915,12 +1047,12 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         : { ...current, pendingSteerIds: [...current.pendingSteerIds, entry.id] })
       const settleSteer = (result: { accepted: boolean; error?: string }) => {
         if (result.accepted) return
-        if (result.error === 'Steering queue is full for this stream') {
-          // 队满：文本留历史（下次发送自然带上），badge 消 + 短暂提示。
+        if (result.error !== 'No active stream for this conversation' || getHandles(id).generation !== generation) {
+          // An uncertain or stale delivery must never replay automatically.
           setRuntime(id, (current) => ({
             ...current,
             pendingSteerIds: current.pendingSteerIds.filter((item) => item !== entry.id),
-            modelNotice: 'Steering queue is full; message kept for next turn',
+            modelNotice: result.error || 'Follow-up delivery could not be confirmed',
           }))
           const handles = getHandles(id)
           if (handles.noticeTimer !== null) window.clearTimeout(handles.noticeTimer)
@@ -948,9 +1080,12 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           startRequest(id, latest.messages, entry, undefined, undefined, { binding: entryMemoBinding })
         }, 0)
       }
-      void steerChat({ conversationId: id, entryId: entry.id, text: trimmed, memoBinding: entryMemoBinding }).then(
+      const handles = getHandles(id), generation = handles.generation
+      void handles.ready.then(requestId => requestId && handles.active && handles.generation === generation
+        ? steerChat({ conversationId: id, expectedRequestId: requestId, entryId: entry.id, text: trimmed, memoBinding: entryMemoBinding, workspaceId: entry.workspaceId ?? undefined })
+        : { accepted: false, error: handles.generation === generation ? 'No active stream for this conversation' : 'Active stream changed' }).then(
         settleSteer,
-        () => settleSteer({ accepted: false }),
+        (error: unknown) => settleSteer({ accepted: false, error: error instanceof Error ? error.message : 'Follow-up delivery could not be confirmed' }),
       )
       return
     }
@@ -971,6 +1106,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           const next = removeMessageById(current.messages, queueId)
           return next === current.messages ? current : { ...current, messages: next, updatedAt: Date.now() }
         })
+        if (conversationsRef.current.find(c => c.id === id)?.topic) topicSchedulerRef.current?.withdraw(id, queueId)
       }
     }).catch(() => undefined)
   }, [setRuntime, updateConversation])
@@ -998,6 +1134,9 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   }, [startRequest, updateConversation])
 
   const clear = useCallback((id: string) => {
+    const children = conversationsRef.current.filter(c => c.topic?.rootId === id)
+    for (const child of children) { topicSchedulerRef.current?.stop(child.id); invalidateRuntime(child.id, true) }
+    updateConversations(all => all.filter(c => c.topic?.rootId !== id))
     useNoteFocusStore.getState().clear(id, true)
     const panel = ephemeralIdsRef.current.has(id)
     invalidateRuntime(id, panel)
@@ -1010,7 +1149,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       updatedAt: Date.now(),
     }))
     setRuntime(id, () => ({ ...emptyRuntime(), ...(panel ? { approvalMode: 'plan' as const } : {}) }))
-  }, [invalidateRuntime, setRuntime, updateConversation])
+  }, [invalidateRuntime, setRuntime, updateConversation, updateConversations])
 
   // Note: workspace lifetime survives panel unmounts — see .agents/notes/blueprint/maintenance/tasks/blueprint-workspace-dialog.md
   useEffect(() => useWorkspaceStore.subscribe((state) => {
@@ -1086,7 +1225,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     })
   }, [setRuntime])
 
-  const selectModel = useCallback((id: string, providerId: string, modelId: string) => {
+  const selectModel = useCallback((id: string, providerId: string, modelId: string, superAgent = false) => {
     const model = modelOptionsRef.current.find((option) =>
       option.providerId === providerId && option.modelId === modelId)
     if (!model) return
@@ -1094,6 +1233,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       ...conversation,
       providerId,
       modelId,
+      ...(superAgent ? { superAgentModel: {providerId, modelId} } : {}),
       updatedAt: Date.now(),
     }))
     const handles = getHandles(id)
@@ -1185,15 +1325,18 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     }))
   }, [updateConversation])
 
-  const answerQuestion = useCallback((id: string, callId: string, answer: ChatQuestionAnswer) => {
+  const answerQuestion = useCallback(async (id: string, callId: string, answer: ChatQuestionAnswer) => {
     const pending = runtimesRef.current[id]?.agent.pendingQuestions.find((item) => item.callId === callId)
-    if (!pending) return
-    void answerChatQuestion({ requestId: pending.requestId, callId, answer }).catch(() => {})
+    if (!pending) throw new Error('Question no longer available')
+    const result = await answerChatQuestion({ requestId: pending.requestId, callId, answer })
+    if (!result.accepted) throw new Error(result.error ?? 'Answer was not accepted')
   }, [])
 
   const deleteConversation = useCallback((id: string) => {
     const exists = conversationsRef.current.some((conversation) => conversation.id === id)
     if (!exists) return
+    const children = conversationsRef.current.filter(c => c.topic?.rootId === id)
+    for (const child of children) { topicSchedulerRef.current?.stop(child.id); invalidateRuntime(child.id, true) }
     invalidateRuntime(id, true)
     handlesRef.current.delete(id)
     setRuntimeStates((current) => {
@@ -1201,9 +1344,9 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       runtimesRef.current = next
       return next
     })
-    const remaining = conversationsRef.current.filter((conversation) => conversation.id !== id)
+    const remaining = conversationsRef.current.filter((conversation) => conversation.id !== id && conversation.topic?.rootId !== id)
     // The panel slot must never become the island fallback.
-    const visible = remaining.filter((conversation) => !ephemeralIdsRef.current.has(conversation.id))
+    const visible = remaining.filter((conversation) => !conversation.topic && !ephemeralIdsRef.current.has(conversation.id))
     const fallback = visible[0] ?? createJanusConversation()
     const next = visible.length > 0 ? remaining : [...remaining, fallback]
     conversationsRef.current = next
@@ -1212,7 +1355,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   }, [invalidateRuntime])
 
   const summaries = useMemo<ConversationSummary[]>(() => conversations
-    .filter((conversation) => !ephemeralIdsRef.current.has(conversation.id))
+    .filter((conversation) => !conversation.topic && !ephemeralIdsRef.current.has(conversation.id))
     .map((conversation) => ({
     id: conversation.id,
     title: conversation.title,
@@ -1298,7 +1441,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
       clear: () => clear(id),
       pendingSteerIds: runtime.pendingSteerIds,
       cancelSteeredMessage: (queueId) => cancelSteeredMessage(id, queueId),
-      selectModel: (providerId, modelId) => selectModel(id, providerId, modelId),
+      selectModel: (providerId, modelId, superAgent) => selectModel(id, providerId, modelId, superAgent),
       refreshModels: loadConfiguredModels,
       createConversation,
       selectConversation,
@@ -1345,5 +1488,66 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     return conversation ? getController(conversation.id) : null
   }
 
-  return { islandConversationId, getController, getProjectController, bindProject, bindPanelProject, persistenceReady }
+  const topicPorts = useRef({ startRequest, stop, islandConversationId, defaultApprovalMode })
+  topicPorts.current = { startRequest, stop, islandConversationId, defaultApprovalMode }
+  if (!topicSchedulerRef.current) topicSchedulerRef.current = new TopicScheduler({
+    direct: async (conversation, message) => {
+      const target = message.context?.worker
+      if (target?.kind !== 'worker' || target.workspaceId !== conversation.topic?.workspaceId) throw new Error('Invalid Worker target')
+      if (!window.electron.superAgent) throw new Error('Direct Worker delivery is unavailable')
+      await window.electron.superAgent.continueWorker({ workspaceId: target.workspaceId, workId: target.workId,
+        conversationId: conversation.id, eventId: message.id, text: message.content })
+    },
+    settings: root => {
+      const model = root.superAgentModel ?? modelOptionsRef.current.find(m => m.isDefault)
+      return { providerId: model?.providerId, modelId: model?.modelId,
+        approvalMode: runtimesRef.current[root.id]?.approvalMode ?? topicPorts.current.defaultApprovalMode }
+    },
+    read: () => conversationsRef.current,
+    update: updateConversations,
+    save: async () => {
+      if (!window.electron.janusChat) throw new Error('Chat storage unavailable')
+      await window.electron.janusChat.save({ version: 1, activeConversationId: topicPorts.current.islandConversationId,
+        conversations: conversationsRef.current.filter(c => !ephemeralIdsRef.current.has(c.id)) })
+    },
+    pendingReply: id => getHandles(id).pendingBuffer,
+    route: async request => {
+      if (!window.electron.janusChat) throw new Error('Chat storage unavailable')
+      const rootId = conversationsRef.current.find(row => row.id === request.candidates[0]?.id)?.topic?.rootId
+      const selected = conversationsRef.current.find(row => row.id === rootId)?.superAgentModel
+      return window.electron.janusChat.routeTopic({ ...request, ...(request.providerId && request.modelId
+        ? {providerId:request.providerId,modelId:request.modelId} : await getSuperAgentModel(selected)) })
+    },
+    run: (conversation, message) => new Promise<void>((resolve, reject) => {
+      if (getHandles(conversation.id).active) { reject(new Error('Conversation is busy')); return }
+      topicSettlements.current.set(conversation.id, { resolve, reject })
+      if (!runtimesRef.current[conversation.id]) setRuntime(conversation.id, current => ({ ...current,
+        approvalMode: conversation.topic?.approvalMode ?? topicPorts.current.defaultApprovalMode }))
+      const index = conversation.messages.findIndex(m => m.id === message.id)
+      const history = index < 0 ? conversation.messages : conversation.messages.slice(0, index)
+      if (index >= 0) updateConversation(conversation.id, c => ({ ...c, contextCheckpoint: undefined, contextEpoch: (c.contextEpoch ?? 0) + 1 }))
+      topicPorts.current.startRequest(conversation.id, history, message)
+    }),
+    steer: async (conversation, message) => {
+      const id = conversation.id, handles = getHandles(id), generation = handles.generation
+      const requestId = await handles.ready
+      if (!requestId || !handles.active || handles.generation !== generation) return { accepted: false, error: 'No active stream for this conversation' }
+      updateConversation(id, c => ({ ...c, messages: c.messages.some(m => m.id === message.id) ? c.messages : [...c.messages, message], updatedAt: Date.now() }))
+      setRuntime(id, c => ({ ...c, pendingSteerIds: [...new Set([...c.pendingSteerIds, message.id])] }))
+      const result = await steerChat({ conversationId: id, expectedRequestId: requestId, entryId: message.id,
+        text: message.content, workspaceId: message.workspaceId ?? undefined,
+        workerBackend: message.context?.worker?.kind === 'backend' ? message.context.worker.backend : undefined }).catch(error => {
+          setRuntime(id, c => ({ ...c, pendingSteerIds: c.pendingSteerIds.filter(key => key !== message.id) }))
+          throw error
+        })
+      if (!result.accepted) {
+        setRuntime(id, c => ({ ...c, pendingSteerIds: c.pendingSteerIds.filter(key => key !== message.id) }))
+        updateConversation(id, c => ({ ...c, messages: removeMessageById(c.messages, message.id) }))
+      }
+      return result
+    },
+    stop: id => topicPorts.current.stop(id),
+  })
+  return { islandConversationId, getController, getProjectController, bindProject, bindPanelProject, persistenceReady,
+    topicConversations: conversations.filter(c => c.topic), topics: topicSchedulerRef.current }
 }

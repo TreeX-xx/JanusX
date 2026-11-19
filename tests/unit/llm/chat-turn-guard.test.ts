@@ -67,6 +67,7 @@ vi.mock('../../../src/main/agent/runtime/shell-runtime', () => ({
 }))
 
 import { abortChatStream, answerChatQuestion, gateFromToolAllowlist, handleChatStream, prepareJanusChatRecall, steerChatStream } from '../../../src/main/llm/chat-orchestrator'
+import { bindSuperAgentService } from '../../../src/main/janus/superagent/host'
 import { llmService } from '../../../src/main/llm/LlmService'
 import { configService } from '../../../src/main/config/service'
 import { DEFAULT_EXPERIMENTAL_FEATURES } from '../../../src/shared/ipc/experimental'
@@ -91,6 +92,30 @@ function immediateStream(text: string) {
 }
 
 describe('chat turn guard (S6-a)', () => {
+  it('streams a terminal side question without agent tools, workflow routing or memory', async () => {
+    streamText.mockResolvedValue({ fullStream: (async function* () {
+      yield { type: 'text-delta', textDelta: 'Side answer' }
+    })() })
+    const reply = vi.fn()
+    const messages = [{ role: 'user' as const, content: 'xdo' }]
+    await handleChatStream({ reply } as never, { requestId: 'side-question', sideChat: true, providerId: 'p', modelId: 'side-model', messages })
+    expect(streamText).toHaveBeenCalledWith({ model: {}, messages, abortSignal: expect.any(AbortSignal) })
+    expect(reply).toHaveBeenCalledWith('llm:chat:delta', { requestId: 'side-question', delta: 'Side answer', done: false })
+    expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: 'side-question' })
+    expect(executeFunctionCall).not.toHaveBeenCalled()
+    expect(capturePersonTurn).not.toHaveBeenCalled()
+    expect(search).not.toHaveBeenCalled()
+  })
+  it('reports provider errors after partial side answers', async () => {
+    streamText.mockResolvedValue({ fullStream: (async function* () {
+      yield { type: 'text-delta', textDelta: 'Partial' }
+      yield { type: 'error', error: new Error('Connection lost') }
+    })() })
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, { requestId: 'side-error', sideChat: true, providerId: 'p', modelId: 'm', messages: userMessages })
+    expect(reply).toHaveBeenCalledWith('llm:chat:delta', { requestId: 'side-error', delta: 'Partial', done: false })
+    expect(reply).toHaveBeenCalledWith('llm:chat:error', { requestId: 'side-error', error: 'Connection lost' })
+  })
   it('offers memo tools despite retired disabled controls in persisted configuration', async () => {
     vi.mocked(configService.getExperimentalFeatures).mockResolvedValue({ ...DEFAULT_EXPERIMENTAL_FEATURES, memo: false, sessions: false } as never)
     const memoId = '00000000-0000-4000-8000-000000000400'
@@ -108,6 +133,40 @@ describe('chat turn guard (S6-a)', () => {
     expect(readMemo).toHaveBeenCalledWith(memoId)
     expect(createMemo).not.toHaveBeenCalled()
     expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+  })
+  it('keeps a legacy workspace request with an input event in ordinary chat', async () => {
+    immediateStream('Done')
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, {
+      requestId: 'legacy-mode', conversationId: 'legacy-mode', workspaceId: 'project-one',
+      inputEventId: 'legacy-input', providerId: 'p', sourceTag: 'janus-chat', domain: 'project', messages: userMessages,
+    })
+    expect(streamText).toHaveBeenCalled()
+    expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+  })
+  it.each(['ordinary', 'superagent'] as const)('honors %s mode through the installed engine package', async agentMode => {
+    immediateStream('Done')
+    const reply = vi.fn()
+    const frame = {}
+    const unbind = bindSuperAgentService(() => { throw new Error('No workspace service expected') }, id => id === 1)
+    try {
+      await handleChatStream({ reply, senderFrame: frame, sender: { id: 1, mainFrame: frame } } as never, {
+        requestId: `mode-${agentMode}`, conversationId: `mode-${agentMode}`, providerId: 'p', agentMode,
+        sourceTag: 'janus-chat', domain: 'project', messages: userMessages, memoMessageId: 'mode-input',
+      })
+    } finally { unbind() }
+    const tools = Object.keys(streamText.mock.calls[0][0].tools ?? {})
+    expect(tools.includes('memo_create')).toBe(agentMode === 'ordinary')
+    expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+  })
+  it.each([undefined, 'project-one'])('rejects an explicit turn when the host is unavailable (workspace %s)', async workspaceId => {
+    const reply = vi.fn(), frame = {}
+    await handleChatStream({ reply, senderFrame: frame, sender: { id: 1, mainFrame: frame } } as never, {
+      requestId: 'unavailable', conversationId: 'unavailable', providerId: 'p', agentMode: 'superagent',
+      sourceTag: 'janus-chat', workspaceId, inputEventId: 'input', messages: userMessages,
+    })
+    expect(streamText).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith('llm:chat:error', expect.objectContaining({ error: 'SuperAgent is unavailable' }))
   })
   it('offers unbound memo creation and emits a binding for the originating message', async () => {
     const memo = { id: '00000000-0000-4000-8000-000000000300', title: '工程排期', revision: 0, nodes: [] }
@@ -158,6 +217,7 @@ describe('chat turn guard (S6-a)', () => {
       memoBinding: { memoId, messageId: 'first-message', selectedNodeId: nodes[0] } })
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
     const input = { conversationId: 'memo-steer-chat', entryId: 'next-message', text: 'Record in this star', memoBinding: { memoId, messageId: 'next-message', selectedNodeId: nodes[1] } }
+    expect(steerChatStream({ ...input, expectedRequestId: 'previous-turn' })).toEqual({ accepted: false, error: 'Active stream changed' })
     expect(steerChatStream(input).accepted).toBe(true)
     expect(steerChatStream(input).accepted).toBe(true)
     expect(steerChatStream({ ...input, memoBinding: { ...input.memoBinding, selectedNodeId: nodes[0] } }).accepted).toBe(false)
@@ -453,9 +513,30 @@ describe('chat turn guard (S6-a)', () => {
     expect(state?.checkpoint.coveredMessages).toBe(10)
     expect(streamText).toHaveBeenCalledTimes(1)
     expect(streamText.mock.calls[0][0].tools).toBeUndefined()
+    expect(streamText.mock.calls[0][0].maxTokens).toBeGreaterThan(0)
+    expect(streamText.mock.calls[0][0].maxTokens).toBeLessThanOrEqual(4096)
+    expect(streamText.mock.calls[0][0].messages[1].content).toContain('hard output limit is ' + streamText.mock.calls[0][0].maxTokens)
     expect(executeFunctionCall).not.toHaveBeenCalled()
     expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: 'manual-compact' })
     expect(JSON.stringify(messages)).toBe(original)
+  })
+  it('repairs a truncated summary with a dedicated output allowance before saving the checkpoint', async () => {
+    const text = '## Goal\nPreserve decisions.\n## Progress\nReviewed.\n## Next Steps\nContinue.'
+    streamText.mockImplementationOnce(async () => ({ textStream: (async function* () { yield text })(), finishReason: Promise.resolve('length') }))
+    streamText.mockImplementationOnce(async () => ({ textStream: (async function* () { yield text })(), finishReason: Promise.resolve('stop') }))
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, {
+      requestId: 'repair-compact', conversationId: 'repair-compact', providerId: 'provider-a',
+      messages: [{ role: 'user', content: 'Earlier constraints' }, { role: 'assistant', content: 'Earlier result' },
+        { role: 'user', content: 'Current task' }], compact: { keepRecentUnits: 1 }, domain: 'personal',
+    })
+    expect(streamText).toHaveBeenCalledTimes(2)
+    const [first, repair] = streamText.mock.calls.map(call => call[0])
+    expect(repair.maxTokens).toBe(first.maxTokens)
+    expect(repair.messages[1].content).toContain('SUMMARY_TRUNCATED')
+    expect(reply.mock.calls.some(([, event]) => event.type === 'context_state' && event.state.phase === 'compacted')).toBe(true)
+    expect(reply.mock.calls.some(([channel]) => channel === 'llm:chat:error')).toBe(false)
+    expect(executeFunctionCall).not.toHaveBeenCalled()
   })
 })
 

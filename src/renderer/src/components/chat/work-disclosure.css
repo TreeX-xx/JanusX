@@ -1,8 +1,20 @@
-.conversation-work-toggle { flex-wrap: wrap; text-align: start; max-width: 100%; width: 100%; }
-.conversation-work-preview { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--shell-text); }
+.conversation-work { container-type: inline-size; }
+.conversation-work-toggle { align-items: flex-start; gap: 9px; padding: 7px 0; text-align: start; max-width: 100%; width: fit-content; border-radius: 7px; }
+.conversation-work-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.conversation-work-preview { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--shell-muted); font: 12px/1.4 var(--font-mono, Consolas, monospace); }
+.conversation-work-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; color: var(--shell-muted); font-size: 10px; line-height: 1.4; }
 .conversation-work-count { color: var(--shell-muted); }
-.conversation-work-toggle > svg { flex-shrink: 0; }
-.conversation-work-status { color: var(--shell-muted); }
+.conversation-work-toggle > svg { flex-shrink: 0; margin-top: 2px; }
+.conversation-work-status { display: inline-flex; align-items: center; gap: 5px; color: var(--shell-muted); }
 .conversation-work[data-status="running"] .conversation-work-status,
-.conversation-work[data-status="waiting"] .conversation-work-status { color: var(--shell-accent); }
+.conversation-work[data-status="waiting"] .conversation-work-status { color: var(--shell-text); }
+.conversation-work-error { color: var(--status-danger); }
+.conversation-work-spinner { animation: conversation-work-spin 1.4s linear infinite; }
+@keyframes conversation-work-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .conversation-work-spinner { animation: none; } }
 .janus-chat-tool-evidence:empty { display: none; }
+
+.conversation-work-activity { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1.4; }
+.conversation-work-verb { flex-shrink: 0; color: var(--shell-muted); font-size: 11px; }
+.conversation-work-toggle:hover .conversation-work-preview { color: var(--shell-text); }
+@container (max-width: 480px) { .conversation-work-body { padding-left: 7px; } .conversation-work-preview { font-size: 11px; } }

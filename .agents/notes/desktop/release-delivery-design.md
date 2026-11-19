@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-27",
-  "updated": "2026-10-29T15:58:58.182Z",
+  "updated": "2026-11-12T08:18:33Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -33,6 +33,8 @@
 本地验证：`npm run test:unit -- --run tests/unit/publish-win.test.ts tests/unit/updater tests/unit/app-shutdown.test.ts --maxWorkers=1` 首次通过 67 项；随后补充运行检查期间产物变化、远端无摘要时下载字节不符的回归，单独重跑发布文件通过 27 项。`npm run typecheck:strict-unused`、两个修改脚本的 `node --check`、版本脚本帮助和定向 diff 检查通过。GitHub 命令由测试替身驱动，未实际创建或公开远端 Release，未执行新的云端构建。本次 Notes 无格式或链接错误，仓库其他文档仍有两条旧插件附件断链和两条 entrance-choreography 要求/时间错误。
 
 ## 重构前的耦合与持续约束
+
+后续平台进展：OfficeCLI 已在 `5b142293` 接入 Windows/macOS 的共享目标清单、Mac arm64/x64 路径与哈希、资源准备和打包目标校验，具体实现与验证归[内置 OfficeCLI](./officecli-bundled.md)。这仅完成阶段四的一部分；[macOS 兼容性分析](./macos-compatibility.md)另记录窗口恢复、CLI 环境和功能限制等运行时缺口，以及签名、公证、最低系统版本和真实安装包验收要求。以下“重构前”描述保留历史成因，不代表 OfficeCLI 解析器仍只支持 Windows。
 
 `verify.yml` 在 PR 和 main/dev push 上跑完整 Windows 检查。同一次功能集成可能先验证 PR、再验证集成分支、再验证晋级 PR。`release-win.yml` 在版本 tag 推送后重新准备 sibling、下载 OfficeCLI、打包并直接公开 Release；因此标签同时承担版本身份和发布触发器。
 
@@ -146,7 +148,7 @@ Codeg 的官方脚本方案能降低它自己维护下载和 PATH 的工作量�
 | 一：停止重复发版 | release-win 触发器、Windows 上传/公开职责、维护文档 | push tag 不运行构建；本地候选可上传到草稿；公开不重新编译；上传失败可复用草稿恢复 |
 | 二：统一构建输入 | 新编排入口、依赖/工具清单、开发与正式准备分离 | 本地隔离目录和一次手动 Windows CI 使用相同应用/agentX SHA、锁文件和 Office 哈希；全新缓存也可准备；输入不匹配提前失败 |
 | 三：分层检查 | verify 工作流、快速/完整检查入口、ruleset 配套说明 | 普通 push 不重复完整验证；PR 仍产生必需状态；候选仍执行完整适用检查与真实运行验证；本地专属配置测试不进入通用门禁 |
-| 四：按需平台 | Office 目标解析、node-pty 准备、平台运行检查与手动 runner | 每个新增平台都有真实启动、终端交互、Office 创建编辑预览和安装/权限证据；macOS 完成签名公证，更新能力另行验收 |
+| 四：按需平台 | Office 目标解析已覆盖 Windows/macOS；node-pty 准备、Mac 运行时冲突修复、平台运行检查与手动 runner 待完善 | 每个新增平台都有真实启动、终端交互、Office 创建编辑预览和安装/权限证据；macOS 完成签名公证，更新能力另行验收；具体缺口见 [macOS 兼容性分析](./macos-compatibility.md) |
 
 针对这次重构，应新增有价值的流程契约检查：草稿断点恢复、哈希不匹配拒绝上传、远端 tag 与收据 SHA 不同拒绝发布、已公开版本拒绝覆盖、缺少必需平台拒绝公开，以及 Office 故障不阻断普通工作区。不要为 YAML 文本逐行镜像写测试，也不因流程拆分删掉已有包边界和运行检查。
 

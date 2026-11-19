@@ -1,3 +1,4 @@
+import { HistorySourcesButton } from './HistorySourcesButton'
 import { Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
 // Note: persistent native-session usage — see .agents/notes/terminal/requirements/usage-telemetry-single-source.md
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -456,6 +457,7 @@ export function UsageStatsPanel() {
           <h3 className={styles.title}>{t('settings:usageStats.title')}</h3>
           <p className={styles.subtitle}>{t('settings:usageStats.subtitle')}</p>
         </div>
+        <HistorySourcesButton onChanged={() => setNow(Date.now())} />
       </div>
       <div className={styles.rangeRow} role="group" aria-label={t('settings:usageStats.timeRange')}>
         {RANGES.map((candidate) => <SettingsButton variant="tab" key={candidate} type="button" className={`${styles.tab} ${candidate === range ? styles.tabActive : ''}`} aria-pressed={candidate === range} onClick={() => setRange(candidate)}>{t(`settings:usageStats.${RANGE_KEYS[candidate]}`)}</SettingsButton>)}

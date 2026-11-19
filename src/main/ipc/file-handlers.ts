@@ -1,5 +1,7 @@
 import { app, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { isAbsolute, join, normalize } from 'node:path'
+import { stat } from 'node:fs/promises'
+import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { saveConversationAttachment } from '../lib/conversation-attachment'
 import { workspaceFileIpc } from '../workspace/runtime-ipc'
 import { extname } from 'node:path'
@@ -9,6 +11,7 @@ import { janusWorkspaceFs } from '@janus-agent/agent-core'
 import { htmlPreviewServer } from '../preview/html-preview-server'
 import { saveEditorText } from '../lib/editor-save'
 import type { HtmlPreviewRequest } from '../../shared/ipc/workspace'
+import { editorTextByteLimit } from '../../shared/editor'
 
 const MIME_MAP: Record<string, string> = {
   '.png': 'image/png',
@@ -22,6 +25,21 @@ const MIME_MAP: Record<string, string> = {
 }
 
 export function registerFileHandlers(authorize: RendererActionAuthorizer = authorizeRendererAction): void {
+  // Preview tabs can point outside the workspace; use their actual file identity.
+  ipcMain.handle(FILE_CHANNELS.reveal, async (event, filePath: string) => {
+    try {
+      if (event.senderFrame !== event.sender.mainFrame) throw new Error('File reveal requires the application frame')
+      if (typeof filePath !== 'string' || filePath.includes('\0') || parseRuntimeResource(filePath) || !isAbsolute(filePath)) {
+        throw new Error('A local absolute file path is required')
+      }
+      const target = normalize(filePath)
+      await stat(target)
+      shell.showItemInFolder(target)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
   ipcMain.handle(FILE_CHANNELS.importConversationAttachment, async (event, name: string, bytes: Uint8Array) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid attachment frame')
     return saveConversationAttachment(join(app.getPath('userData'), 'conversation-attachments'), name, bytes)
@@ -49,7 +67,7 @@ export function registerFileHandlers(authorize: RendererActionAuthorizer = autho
   })
   ipcMain.handle(FILE_CHANNELS.closeHtmlPreview, (event, id: string) => htmlPreviewServer.release(event.sender.id, id))
   workspaceFileIpc.handle(FILE_CHANNELS.read, async (_event, filePath: string) => {
-    const result = await janusWorkspaceFs.readText(filePath)
+    const result = await janusWorkspaceFs.readText(filePath, editorTextByteLimit(filePath))
     return result.ok
       ? { content: result.value.content, encoding: 'utf-8', size: result.value.size, mtime: result.value.mtime }
       : { error: result.error.message || 'Failed to read file' }

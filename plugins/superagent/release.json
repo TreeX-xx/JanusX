@@ -1,0 +1,7 @@
+{
+  "publisher": "JanusX",
+  "firstRelease": "0.1.0",
+  "host": ">=0.9.9 <1.0.0",
+  "platforms": ["win32-x64"],
+  "url": "https://github.com/TreeX-xx/JanusX/releases/download/v0.9.9/official.superagent-0.1.0.jxp"
+}

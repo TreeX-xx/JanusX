@@ -1,0 +1,8 @@
+.panel { composes: commandPanel from './AgentSessionPane.module.css'; color: var(--shell-text); font-family: inherit; }
+[data-composer-options] button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+[data-composer-options] button:focus-visible, .control:focus-visible { outline: 1px solid var(--conversation-focus-ring); outline-offset: 1px; }
+button.control, span.control { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 190px; padding: 5px 6px; border: 0; border-radius: 6px; color: var(--shell-muted); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.control :is(span, strong) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+.control svg { flex-shrink: 0; }
+.control:where(:not(:disabled)):hover, .control[aria-expanded=true] { background: var(--shell-hover); color: var(--shell-text); }
+.control:disabled { opacity: .4; cursor: default; }

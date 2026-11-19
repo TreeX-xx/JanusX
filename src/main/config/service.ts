@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { localDefaultShell, localShellProfileSeed } from '../platform/local-shell'
 import { join } from 'node:path'
 import { readFile, rename } from 'node:fs/promises'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
@@ -29,7 +30,6 @@ import {
 import { normalizeAgentApprovalMode, type AgentApprovalMode } from '../../shared/ipc/agent-runtime'
 import { DEFAULT_APP_THEME, normalizeAppTheme, type AppTheme } from '../../shared/ipc/theme'
 import {
-  createShellProfileSeed,
   DEFAULT_HIDDEN_CLI_PRESETS,
   normalizeShellProfiles,
   type ShellProfilesSettings,
@@ -55,10 +55,10 @@ export function normalizeSafeCompileAutoAllow(value: unknown): boolean {
 const DEFAULT_CONFIG: GlobalConfig = {
   theme: DEFAULT_APP_THEME,
   defaultTerminalPreset: 'shell',
-  defaultShell: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash',
+  defaultShell: localDefaultShell(),
   // 首版种子：全新用户只预置 PowerShell 一条默认项，其余 shell 经检测候选区确认。
   shellProfiles: {
-    entries: [createShellProfileSeed(process.platform)],
+    entries: [localShellProfileSeed()],
     hiddenCliPresets: [...DEFAULT_HIDDEN_CLI_PRESETS],
   },
   registeredCLIs: [

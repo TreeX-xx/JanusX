@@ -1,0 +1,46 @@
+.welcome { --wordmark-height: 44px; flex: none; min-width: 0; width: 100%; padding: 0 18px 26px; color: var(--shell-text); text-align: left; }
+.identity { display: flex; align-items: center; gap: 13px; height: 56px; margin-bottom: 22px; }
+.icon { position: relative; display: grid; place-items: center; flex: 0 0 25px; width: 25px; height: 25px; color: var(--shell-muted); }
+.icon > :first-child { width: 25px; height: 25px; opacity: .8; }
+.ring { position: absolute; inset: -6px; border: 1px solid var(--shell-border); border-top-color: var(--shell-muted); border-radius: 50%; animation: connect 1.8s linear infinite; transition: opacity 220ms ease; }
+.welcome[data-loading=false] .ring { opacity: 0; animation: none; }
+.wordmark { position: relative; flex: 0 1 auto; width: calc(var(--wordmark-ratio) * var(--wordmark-height)); max-width: calc(100% - 38px); aspect-ratio: var(--wordmark-ratio); }
+.wordmark::before, .accent { content: ''; position: absolute; inset: 0; mask-image: var(--wordmark-mask); mask-size: 100% 100%; mask-repeat: no-repeat; background: var(--shell-text); }
+.accent { background: var(--shell-accent); }
+.welcome[data-brand=janusx] .wordmark { max-width: 100%; }
+.layers { display: grid; }
+.layers > div { grid-area: 1 / 1; min-width: 0; opacity: 0; visibility: hidden; transition: opacity 110ms ease, visibility 0s 110ms; }
+.layers > [data-active=true] { opacity: 1; visibility: visible; transition-delay: 110ms; }
+.welcome h2 { margin: 0 0 8px; font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei', sans-serif; font-size: 26px; font-weight: 500; line-height: 1.45; letter-spacing: -.035em; text-wrap: balance; }
+.welcome p { max-width: 36em; margin: 0; color: var(--shell-muted); font-size: 13px; line-height: 1.8; letter-spacing: .015em; text-wrap: pretty; }
+.workspace { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 19px; padding: 3px 0; color: var(--shell-muted); font-size: 10px; line-height: 16px; }
+.workspace > svg, .workspace > small { flex: none; }
+.workspace > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace > i { flex: 0 0 3px; width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .45; }
+.workspace > small { font: inherit; opacity: .75; }
+.lines { display: flex; flex-direction: column; gap: 5px; max-width: 240px; height: 22px; margin-top: 19px; padding: 3px 0; }
+.lines span { flex: none; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--shell-muted) 16%, transparent); animation: breathe 2.4s ease-in-out infinite; }
+.lines span:nth-child(2) { width: 84%; animation-delay: 160ms; }
+.lines span:nth-child(3) { width: 53%; animation-delay: 320ms; }
+.welcome[data-animate=false] .ring, .welcome[data-animate=false] .lines span { animation-play-state: paused; }
+@keyframes connect { to { transform: rotate(360deg); } }
+@keyframes breathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+@container (max-width: 760px) {
+  .welcome { --wordmark-height: 39.3px; padding-bottom: 23px; }
+  .identity { height: 49px; margin-bottom: 19px; gap: 12px; }
+  .icon, .icon > :first-child { width: 23px; height: 23px; flex-basis: 23px; }
+  .welcome h2 { font-size: 24px; }
+  .welcome p { font-size: 12px; }
+  .workspace, .lines { margin-top: 16px; }
+}
+@container (max-width: 540px) { .welcome { padding-inline: 14px; } }
+@media (max-height: 650px) {
+  .welcome { --wordmark-height: 34.9px; padding-bottom: 17px; }
+  .identity { height: 43px; margin-bottom: 14px; }
+  .welcome h2 { font-size: 22px; }
+  .workspace, .lines { margin-top: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring, .lines span { animation: none; }
+  .layers > div, .ring { transition: none; }
+}

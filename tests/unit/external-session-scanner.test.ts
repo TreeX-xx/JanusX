@@ -92,14 +92,24 @@ describe('external session scanner', () => {
     await writeJsonl(join(home, '.claude', 'projects', 'proj', 'sess-claude-1.jsonl'), [
       claudeUser('fix the login retry', 'sess-claude-1', 'C:/repo/proj', '2026-09-22T10:00:00.000Z'),
       claudeAssistant('login retry fixed', 'sess-claude-1', 'C:/repo/proj', '2026-09-22T10:01:00.000Z'),
+      { type: 'ai-title', aiTitle: 'Repair login retries', sessionId: 'sess-claude-1' },
+      { type: 'custom-title', customTitle: 'Authentication reliability', sessionId: 'sess-claude-1' },
+      { type: 'ai-title', aiTitle: 'Later automatic title', sessionId: 'sess-claude-1' },
     ])
     await writeJsonl(join(home, '.codex', 'sessions', 'rollout-20260922-thread-abc123.jsonl'), [
       { type: 'session_meta', payload: { id: 'thread-abc123', cwd: 'C:/repo/proj' } },
       // AGENTS.md environment context arrives as an unmarked user record; it
       // must never become the first prompt.
+      { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>\nnoise\n</INSTRUCTIONS>' }] } },
       { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions for C:\\repo\\proj\n\n<INSTRUCTIONS>\nnoise\n</INSTRUCTIONS>' }] }, metadata: {} },
       { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'add ship merge' }] }, metadata: { user_input_order: 0, retained_source: { revision: 'retained_1' } } },
       { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'ship merge added' }] }, metadata: { user_input_order: 0 } },
+    ])
+    const indexPath = join(home, '.codex', 'session_index.jsonl')
+    await writeJsonl(indexPath, [
+      '{broken',
+      { id: 'other-thread', thread_name: 'Unrelated conversation' },
+      { id: 'thread-abc123', thread_name: 'Ship merge workflow' },
     ])
     // Missing cwd stays invisible; corrupt lines never fail the scan.
     await writeJsonl(join(home, '.claude', 'projects', 'proj', 'no-cwd.jsonl'), [
@@ -122,6 +132,7 @@ describe('external session scanner', () => {
     }
     const claude = sessions.find((session) => session.engine === 'claude')
     expect(claude).toMatchObject({ cwd: 'C:/repo/proj', firstPrompt: 'fix the login retry', turnCount: 1 })
+    expect(claude?.title).toBe('Authentication reliability')
     const claudeDetail = registry.getSession(claude!.id)
     // Seed turns keep the question and the tail answer apart.
     expect(claudeDetail?.turns).toHaveLength(2)
@@ -130,12 +141,18 @@ describe('external session scanner', () => {
 
     const codex = sessions.find((session) => session.engine === 'codex')
     expect(codex).toMatchObject({ firstPrompt: 'add ship merge', turnCount: 1 })
+    expect(codex?.title).toBe('Ship merge workflow')
+    expect(codex?.conversationPreview).toContain('ship merge added')
     const codexDetail = registry.getSession(codex!.id)
     expect(codexDetail?.turns[0]).toMatchObject({ prompt: 'add ship merge' })
     expect(codexDetail?.turns[1]).toMatchObject({ excerpt: 'ship merge added' })
 
     // Parent workspace scope still surfaces child-path imports.
     expect(registry.listSessions({ cwd: 'C:/repo' })).toHaveLength(2)
+    // Index-only changes must bypass the unchanged-rollout cache.
+    await writeJsonl(indexPath, [{ id: 'thread-abc123', thread_name: 'Renamed merge discussion' }])
+    await scanExternalSessions(registry, { env: {}, home })
+    expect(registry.listSessions().find(row => row.engine === 'codex')?.title).toBe('Renamed merge discussion')
   })
 
   it('never duplicates repeat scans and refreshes excerpts on growth', async () => {
@@ -228,7 +245,8 @@ describe('external session scanner', () => {
     const registry = new AgentSessionRegistry(data)
     registries.push(registry)
     const summary = await scanExternalSessions(registry, { env: {}, home })
-    expect(summary).toEqual({ scanned: 0, imported: 0, updated: 0, skipped: 0 })
+    expect(summary).toMatchObject({ scanned: 0, imported: 0, updated: 0, skipped: 0 })
+    expect(summary.issues.every(issue => issue.reason === 'missing')).toBe(true)
     expect(registry.listSessions()).toEqual([])
   })
 
@@ -260,6 +278,7 @@ describe('external session scanner', () => {
       engine: 'opencode',
       cwd: 'C:/repo/proj',
       firstPrompt: 'opencode question',
+      title: 't',
       turnCount: 1,
       external: true,
     })
@@ -283,6 +302,7 @@ describe('external session scanner', () => {
       join(home, '.pi', 'agent', 'sessions', '--C--repo-proj--', '2026-09-22T10-00-00-000Z_pi-1.jsonl'),
       [
         { type: 'session', version: 3, id: 'pi-1', timestamp: '2026-09-22T10:00:00.000Z', cwd: 'C:/repo/proj' },
+        { type: 'session_info', id: 'name-1', name: 'Pi conversation overview' },
         { type: 'message', id: 'm-1', timestamp: '2026-09-22T10:01:00.000Z', message: { role: 'user', content: [{ type: 'text', text: 'pi question' }] } },
         { type: 'message', id: 'm-2', timestamp: '2026-09-22T10:02:00.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'pi answer' }] } },
       ],
@@ -303,6 +323,7 @@ describe('external session scanner', () => {
     const first = sessions.find((session) => session.providerSessionId === 'pi-1')
     expect(first).toMatchObject({ engine: 'pi', cwd: 'C:/repo/proj', firstPrompt: 'pi question', turnCount: 1, external: true })
     expect(first?.transcriptPath).toContain('pi-1.jsonl')
+    expect(first?.title).toBe('Pi conversation overview')
     const piSeeds = registry.getSession(first!.id)?.turns ?? []
     expect(piSeeds[0]).toMatchObject({ prompt: 'pi question' })
     expect(piSeeds[1]).toMatchObject({ excerpt: 'pi answer' })

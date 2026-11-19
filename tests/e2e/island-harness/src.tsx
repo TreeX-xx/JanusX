@@ -451,6 +451,15 @@ function Harness() {
 }
 
 async function boot() {
+  if (new URLSearchParams(location.search).has('superAgentPlugin')) {
+    const { default: manifest } = await import('../../../plugins/superagent/manifest.json')
+    const { refreshPlugins } = await import('../../../src/renderer/src/extensions/plugin-runtime')
+    const record = { manifest, source: { kind: 'official' }, enabled: true, state: 'ready', projectScope: 'all', projects: [] }
+    Object.assign(window.electron, { plugins: { request: async () => ({
+      ok: true, data: { developmentMode: false, logs: [], plugins: [record] },
+    }) } })
+    await refreshPlugins()
+  }
   const workflowxMode = new URLSearchParams(location.search).get('workflowx')
   if (workflowxMode) {
     const fixture = {

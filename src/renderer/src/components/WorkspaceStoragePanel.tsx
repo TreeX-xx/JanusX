@@ -53,10 +53,15 @@ export function WorkspaceStoragePanel() {
     try {
       const next = await list()
       setView(next)
+      setSelected(current => current.filter(id => next.items.some(item => item.id === id && canMigrate(item))))
       if (next.items.some(item => item.status !== 'new' && item.status !== 'migrated')) setMigrationOpen(true)
     } catch (failure) { setError(String(failure)); setMigrationOpen(true) }
   }, [])
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    void refresh()
+    window.addEventListener('janusx:workspace-data-changed', refresh)
+    return () => window.removeEventListener('janusx:workspace-data-changed', refresh)
+  }, [refresh])
   useEffect(() => {
     const focus = () => {
       const section = document.getElementById('workspace-data-migration')

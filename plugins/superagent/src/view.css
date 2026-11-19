@@ -1,0 +1,11 @@
+:root { color-scheme:light dark; font:14px/1.5 system-ui,sans-serif; color:var(--shell-text,CanvasText); background:var(--bg-deep,Canvas); }
+body { margin:0 auto; max-width:64rem; padding:1.5rem; }
+form,fieldset,li { display:grid; gap:.6rem; }
+form { max-width:28rem; gap:1rem; }
+fieldset,li { border:1px solid var(--shell-border,GrayText); border-radius:.5rem; padding:.8rem 1rem; }
+label { display:flex; align-items:center; gap:.6rem; }
+select,button { font:inherit; padding:.25rem .5rem; }
+button { justify-self:start; }
+ul { display:grid; gap:.6rem; list-style:none; padding:0; }
+li span { color:var(--shell-muted,GrayText); }
+main > fieldset { max-width:28rem; margin-top:1rem; }

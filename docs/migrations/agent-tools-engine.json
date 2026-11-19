@@ -1,0 +1,52 @@
+[
+  {
+    "source": "src/shared/memo.ts",
+    "target": "packages/janus-agent/src/tools/contracts/memo.ts",
+    "sha256": "35f84b000a29ea426aeae991282a2114cf009deab7f575ff1def7da8d5b659b1"
+  },
+  {
+    "source": "src/shared/memo-chat-target.ts",
+    "target": "packages/janus-agent/src/tools/contracts/memo-target.ts",
+    "sha256": "1ed5b3a2b6a3ce469511f7656d2fab09286895531745e83cb203c4a490548450"
+  },
+  {
+    "source": "src/main/memo/chat-tools.ts",
+    "target": "packages/janus-agent/src/tools/memo.ts",
+    "sha256": "7d5c234c380b9994d4e65a6785d2c491c3ec8af28142646925560ad548933b7a"
+  },
+  {
+    "source": "src/shared/ipc/project.ts",
+    "target": "packages/janus-agent/src/tools/contracts/project.ts",
+    "sha256": "1b7c31d83d6af91b549119add3cfb32c894eabcad187e8b65279d43ade1db3ad"
+  },
+  {
+    "source": "src/shared/launch-config-chat.ts",
+    "target": "packages/janus-agent/src/tools/contracts/launch-config.ts",
+    "sha256": "59f4d1eaf5e4b2b80bef421d13b239577359d86ea74fb08780f11996c8355c00"
+  },
+  {
+    "source": "src/main/project/config/project-config.ts",
+    "target": "packages/janus-agent/src/tools/project/config.ts",
+    "sha256": "f95c332ee0eed282108460494fefc2fea2ff2bee1d5f0307dd727b426f860518"
+  },
+  {
+    "source": "src/main/project/config/project-schemas.ts",
+    "target": "packages/janus-agent/src/tools/project/schemas.ts",
+    "sha256": "8cb3f07ca18a7458596928efb2e290c631e67ed576298bc475a6d5bbc8a3786b"
+  },
+  {
+    "source": "src/main/project/detector/detector.ts",
+    "target": "packages/janus-agent/src/tools/project/detector.ts",
+    "sha256": "2d7eb59a854dc4a1787922fec946d6036dd60641fe8afe4d4c54b3d284c62afd"
+  },
+  {
+    "source": "src/main/harness/launch-config-chat.ts",
+    "target": "packages/janus-agent/src/tools/launch-config.ts",
+    "sha256": "20636b2af804ec810e55d5f57678d9d0b68deb680765427c9c44f880a5475070"
+  },
+  {
+    "source": "src/main/agent/runtime/tools/project-tools.ts",
+    "target": "packages/janus-agent/src/tools/project/tools.ts",
+    "sha256": "ac0777c72e0d6e7b3d96174aafcf807201a454eeaf2bd9d753db6119ea0a5ab9"
+  }
+]

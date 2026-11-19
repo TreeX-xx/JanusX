@@ -1,0 +1,207 @@
+[
+  {
+    "source": "src/main/janus/superagent/chat-tools.ts",
+    "target": "src/superagent/chat-tools.ts",
+    "sha256": "0fcf9757cacb48f13ddb24c6542c5136e9246f2a641358f0276a996f2bbd3529"
+  },
+  {
+    "source": "src/shared/superagent-scheduling.ts",
+    "target": "src/superagent/contracts/superagent-scheduling.ts",
+    "sha256": "9b23c60ebd22c3905dd3b4d939572ed37139cc33b9a86dbc83dd0b26eb1ef876"
+  },
+  {
+    "source": "src/main/janus/superagent/service.ts",
+    "target": "src/superagent/service.ts",
+    "sha256": "137b42daa2c7c30178d9c9c383747f57136ff27b224445f6466cca1f3df06c91"
+  },
+  {
+    "source": "src/shared/superagent.ts",
+    "target": "src/superagent/contracts/superagent.ts",
+    "sha256": "d34d794ede8dca4c4677e6a9bca72a66bad11b834567c7341083230f780474a2"
+  },
+  {
+    "source": "src/main/janus/superagent/schema.ts",
+    "target": "src/superagent/schema.ts",
+    "sha256": "d84601583fcce89f0a00df9619357e729cbbbc76ab60b5622c21aa458a988c8a"
+  },
+  {
+    "source": "src/main/janus/superagent/store.ts",
+    "target": "src/superagent/store.ts",
+    "sha256": "352426c187e4d6e820952abfc46368bd6cfa88a9c97758f98804f262482896d8"
+  },
+  {
+    "source": "src/main/lib/atomic-file.ts",
+    "target": "src/superagent/storage.ts",
+    "sha256": "031103e560fb22d38906d1e2b05d150432a65ac1f1648538f40ef7dfbe7c12a8"
+  },
+  {
+    "source": "src/main/janus/superagent/persistence.ts",
+    "target": "src/superagent/persistence.ts",
+    "sha256": "c94e8d6ae8ce2d833eb0748c033e0b7f115b1f29a91ff9c867170b38498d95ba"
+  },
+  {
+    "source": "src/main/janus/superagent/environments.ts",
+    "target": "src/superagent/environments.ts",
+    "sha256": "0276429f04835b35f0e75f2e943420415bb74908053dd8e8f386406d4ba655d5"
+  },
+  {
+    "source": "src/main/git/controlled-worktree.ts",
+    "target": "src/superagent/git/controlled-worktree.ts",
+    "sha256": "acc0d79670ba04c82485f4a297ddda691dfc7a4ab30b2217d063864c6106e8c7"
+  },
+  {
+    "source": "src/shared/superagent-environment.ts",
+    "target": "src/superagent/contracts/superagent-environment.ts",
+    "sha256": "ffa7229c408566c36c5e7a1e57bfdc589c2a26228c13a6d8794bb2bdec9901f0"
+  },
+  {
+    "source": "src/main/janus/superagent/environment-schema.ts",
+    "target": "src/superagent/environment-schema.ts",
+    "sha256": "f886ea4fe78ac9a1c0b7e79025bec3b1517a5674530dec13200386ccdbba6a19"
+  },
+  {
+    "source": "src/main/janus/superagent/environment-store.ts",
+    "target": "src/superagent/environment-store.ts",
+    "sha256": "7eda75285f303b2d9bd64cc6a31602d1e47794d83b50dc95888db04d66205245"
+  },
+  {
+    "source": "src/main/janus/superagent/workers.ts",
+    "target": "src/superagent/workers.ts",
+    "sha256": "4213e13d21ba58272105bd89ae92cac6b6d0e55822ab3b000cd2eea6a5371c8a"
+  },
+  {
+    "source": "src/shared/conversation-display.ts",
+    "target": "src/superagent/contracts/conversation-display.ts",
+    "sha256": "a5d679c2b06addc2a33981e41646a88e640354697ef81dc391f4093773bff958"
+  },
+  {
+    "source": "src/shared/conversation-questions.ts",
+    "target": "src/superagent/contracts/conversation-questions.ts",
+    "sha256": "65d8fa75d34a13575d1584e9f282b8b60fd05ef2190b78ec7b692a26cb0e8b82"
+  },
+  {
+    "source": "src/shared/superagent-worker.ts",
+    "target": "src/superagent/contracts/superagent-worker.ts",
+    "sha256": "8a1d5094ce5b4b8e0906881a4947acdb7b4fa9b01c9f7243e4154f667affd0b6"
+  },
+  {
+    "source": "src/main/terminal/codex-conversation.ts",
+    "target": "src/superagent/native/codex-conversation.ts",
+    "sha256": "3c4d687f612a7e970aaf46994ee0570c6bcf4cf2388b8d2a62734dea7d9cc120"
+  },
+  {
+    "source": "src/shared/work-output.ts",
+    "target": "src/superagent/contracts/work-output.ts",
+    "sha256": "efed4113ea74c08d5888cc6ef4093e8f5813de5bb5f4a31d23db2a6db9dfdedb"
+  },
+  {
+    "source": "src/main/terminal/conversation-catalog.ts",
+    "target": "src/superagent/native/conversation-catalog.ts",
+    "sha256": "33038e60cc981babbec5d1d9c69e57f216941c367d7881e6f825a9a71c20b20d"
+  },
+  {
+    "source": "src/main/terminal/conversation-session.ts",
+    "target": "src/superagent/native/conversation-session.ts",
+    "sha256": "37b80727b9bb9f3a29f9f3698fdd8fb7a796bb731d614ac7a0e0e66ca301c30c"
+  },
+  {
+    "source": "src/main/terminal/conversation-images.js",
+    "target": "src/superagent/native/conversation-images.js",
+    "sha256": "b904bff0d444e54e37f1dc57f08885a205659dc7a2a8691e45bef20a9d4480ee"
+  },
+  {
+    "source": "src/shared/conversation-images.ts",
+    "target": "src/superagent/contracts/conversation-images.ts",
+    "sha256": "8c3ac77ab6b1f0af28c05841fbbde373cc8062dadf820502d900a39b84e35275"
+  },
+  {
+    "source": "src/main/terminal/conversation-questions.ts",
+    "target": "src/superagent/native/conversation-questions.ts",
+    "sha256": "044d68cf8b4077d5b118dec8528e8191b32988bf414b4475dfcedaedb2d905b9"
+  },
+  {
+    "source": "src/main/terminal/codex-startup.ts",
+    "target": "src/superagent/native/codex-startup.ts",
+    "sha256": "316e151fd99bdde17376a3452256ac6ecbb25e50c4252c1b886710b7c21e537a"
+  },
+  {
+    "source": "src/main/terminal/codex-questions.ts",
+    "target": "src/superagent/native/codex-questions.ts",
+    "sha256": "c68e8b6ff7591248a75a305bb9acc6c065c1eb8f2faaa7e44ba989a8cfe6846c"
+  },
+  {
+    "source": "src/main/terminal/codex-managed-transport.ts",
+    "target": "src/superagent/native/codex-managed-transport.ts",
+    "sha256": "3a46b80b27bf50342ae4f5f1963cba229889e934104131c30f05e9fb324c89f4"
+  },
+  {
+    "source": "src/main/terminal/codex-elicitation.ts",
+    "target": "src/superagent/native/codex-elicitation.ts",
+    "sha256": "f4e7327335e405653da57b36567fae236c6fdfc933180d7e3a128d842a32e99c"
+  },
+  {
+    "source": "src/main/git/controlled-commit.ts",
+    "target": "src/superagent/git/controlled-commit.ts",
+    "sha256": "0a67febd585890349ca6082141dc75f08cdd8695fd1e445e20b1dd6e72ebd672"
+  },
+  {
+    "source": "src/main/janus/superagent/worker-broker.ts",
+    "target": "src/superagent/worker-broker.ts",
+    "sha256": "27ab083e89c46dadc6cd9048146e8ac981ddbb8eb456bd8540d05049c3207068"
+  },
+  {
+    "source": "src/main/janus/superagent/native-log.ts",
+    "target": "src/superagent/native-log.ts",
+    "sha256": "61778be03fd4fd00094162948b59f79e357b5581ddce3452f73e1a6d66aba764"
+  },
+  {
+    "source": "src/main/janus/superagent/worker-permissions.ts",
+    "target": "src/superagent/worker-permissions.ts",
+    "sha256": "655d7cb8d81b3f030bd6ea10e27e95e6f848130e343dd549900ae732e309a5fe"
+  },
+  {
+    "source": "src/main/janus/superagent/worker-launch.ts",
+    "target": "src/superagent/worker-launch.ts",
+    "sha256": "a69f6a200bdc1160c61b7a2b131b7362992fdfd81143fad630f57f5a6bcbe148"
+  },
+  {
+    "source": "src/main/janus/superagent/context-reader.ts",
+    "target": "src/superagent/context-reader.ts",
+    "sha256": "835e72d3664a491dc2b6d7fa1430b0a789a8a982d7e3332616d023d86a325976"
+  },
+  {
+    "source": "src/main/janus/superagent/context.ts",
+    "target": "src/superagent/context.ts",
+    "sha256": "cc27228e2f65309b18e8d66f7742c89ee26b7ac9156cf7634b4de351dbd83ebb"
+  },
+  {
+    "source": "src/main/janus/superagent/context-store.ts",
+    "target": "src/superagent/context-store.ts",
+    "sha256": "448193f137dcfdd529dc6746045f4fd60d6dc3bf5b943e32358412d90265a01d"
+  },
+  {
+    "source": "src/main/janus/superagent/lifecycle-store.ts",
+    "target": "src/superagent/lifecycle-store.ts",
+    "sha256": "b8eec5dd72a5ecc497d6e2dbd0511d0c2aa55e6344abd50738a25223ba93e4b4"
+  },
+  {
+    "source": "src/main/janus/superagent/scheduler.ts",
+    "target": "src/superagent/scheduler.ts",
+    "sha256": "5d6486b03bd99ed69d666a5952261e7de323ff89c5e984eca4411234ef02a1e0"
+  },
+  {
+    "source": "src/main/janus/superagent/scheduling-store.ts",
+    "target": "src/superagent/scheduling-store.ts",
+    "sha256": "db1bb1d8dea1865ba3c9d94a5eb7bc3dc3ef3a55860b50e0f09ffb2b75bb98c2"
+  },
+  {
+    "source": "src/main/janus/superagent/worker-mcp.ts",
+    "target": "src/superagent/worker-mcp.ts",
+    "sha256": "d6b17d8d2f8f35878f847820110f210bd87b099eba66b99ac8370755c820f595"
+  },
+  {
+    "source": "src/shared/superagent-workflow.ts",
+    "target": "src/superagent/contracts/superagent-workflow.ts",
+    "sha256": "f93c7df61c63dfb09fdbe260f416fa135c75a042af4518bc8cfc54f64dfeece6"
+  }
+]

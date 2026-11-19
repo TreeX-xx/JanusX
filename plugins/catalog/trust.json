@@ -12,6 +12,9 @@
     ],
     "official.docker": [
       "janusx-blueprint-20261026"
+    ],
+    "official.superagent": [
+      "janusx-blueprint-20261026"
     ]
   }
 }

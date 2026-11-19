@@ -4,8 +4,7 @@
 // Note: external transcript backfill reads provider session stores — see
 // .agents/notes/sessions/records/external-session-transcript-backfill.md
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { resolveOpencodeDbPath } from '../sessions/opencode-store-path'
+import { providerPathContext, resolveProviderPaths } from '../external-cli/provider-paths'
 import type { AgentHookSource } from './agent-hook-types'
 
 export type TranscriptKind = 'claude-jsonl' | 'codex-rollout' | 'janus-history' | null
@@ -113,23 +112,10 @@ export function resolveSessionStorePath(
   source: AgentHookSource,
   env: NodeJS.ProcessEnv = process.env,
   home: string = homedir(),
+  cwd?: string,
 ): string | null {
-  const kind = AGENT_ENGINE_CAPABILITIES[source].sessionStore
-  if (kind === 'claude-projects') {
-    const configDir = env.CLAUDE_CONFIG_DIR?.trim()
-    return join(configDir && configDir.length > 0 ? configDir : join(home, '.claude'), 'projects')
-  }
-  if (kind === 'codex-sessions') {
-    const codeHome = env.CODEX_HOME?.trim()
-    return join(codeHome && codeHome.length > 0 ? codeHome : join(home, '.codex'), 'sessions')
-  }
-  if (kind === 'opencode-sqlite') {
-    return resolveOpencodeDbPath(home, env)
-  }
-  if (kind === 'pi-sessions') {
-    return join(home, '.pi', 'agent', 'sessions')
-  }
-  return null
+  if (!AGENT_ENGINE_CAPABILITIES[source].sessionStore) return null
+  return resolveProviderPaths(source, providerPathContext({ env, home, cwd })).store
 }
 
 /** Raw status candidates for status-shaped events (opencode plugin contract). */

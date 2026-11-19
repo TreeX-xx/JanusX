@@ -10,14 +10,14 @@
   },
   "dependencies": {
     "@janusx/plugin-sdk": "file:vendor/janusx-plugin-sdk-0.1.0.tgz",
-    "@janus-agent/agent-core": "file:vendor/janus-agent-agent-core-0.1.0.tgz",
-    "@janus-agent/chat-core": "file:vendor/janus-agent-chat-core-0.1.0.tgz",
-    "@janus-agent/janus-agent": "file:vendor/janus-agent-janus-agent-0.1.0.tgz",
+    "@janus-agent/agent-core": "file:vendor/janus-agent-agent-core-0.1.0-engine.d61fe00183e9ffdb.tgz",
+    "@janus-agent/chat-core": "file:vendor/janus-agent-chat-core-0.1.0-engine.d61fe00183e9ffdb.tgz",
+    "@janus-agent/janus-agent": "file:vendor/janus-agent-janus-agent-0.1.0-engine.d61fe00183e9ffdb.tgz",
     "@janusx/llm-core": "file:vendor/janusx-llm-core-0.1.0.tgz",
-    "@janus-agent/harness-core": "file:vendor/janus-agent-harness-core-0.2.0.tgz",
-    "@janus-agent/harness-node": "file:vendor/janus-agent-harness-node-0.2.0.tgz",
-    "@janus-agent/node-hosts": "file:vendor/janus-agent-node-hosts-0.1.0.tgz",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@janus-agent/harness-core": "file:vendor/janus-agent-harness-core-0.2.0-engine.d61fe00183e9ffdb.tgz",
+    "@janus-agent/harness-node": "file:vendor/janus-agent-harness-node-0.2.0-engine.d61fe00183e9ffdb.tgz",
+    "@janus-agent/node-hosts": "file:vendor/janus-agent-node-hosts-0.1.0-engine.d61fe00183e9ffdb.tgz",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@xyflow/react": "^12.11.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -47,7 +47,10 @@
     "@janusx/llm-core": "$@janusx/llm-core",
     "@janus-agent/harness-core": "$@janus-agent/harness-core",
     "@janus-agent/harness-node": "$@janus-agent/harness-node",
-    "@janus-agent/node-hosts": "$@janus-agent/node-hosts",
+    "@janus-agent/node-hosts": {
+      ".": "$@janus-agent/node-hosts",
+      "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk"
+    },
     "@janusx/note-tools": "$@janusx/note-tools"
   }
 }

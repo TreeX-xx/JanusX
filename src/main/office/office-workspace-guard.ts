@@ -1,13 +1,13 @@
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { OFFICE_EXTENSIONS, type OfficeFileRequest, type OfficeWatchErrorCode } from '../../shared/office'
-import { parseRuntimeResource, runtimeResource, type WorkspaceRuntime } from '../../shared/workspace-runtime'
+import { parseRuntimeResource, runtimeResource, isExternalWorkspaceRuntime, type ExternalWorkspaceRuntime, type WorkspaceRuntime } from '../../shared/workspace-runtime'
 import { remoteOfficeFile } from './remote-office-cache'
 
 export type ResolveWorkspaceRoot = (workspaceId: string) => Promise<string | undefined>
 
 export interface TrustedOfficeFile {
-  remote?: { runtime: Exclude<WorkspaceRuntime, { kind: 'windows' }>; root: string; path: string }
+  remote?: { runtime: ExternalWorkspaceRuntime; root: string; path: string }
   workspaceId: string
   relPath: string
   rootPath: string
@@ -46,7 +46,7 @@ export function createRegisteredWorkspaceRootResolver(workspacesDirectory: strin
         await readFile(join(workspacesDirectory, `${workspaceId}.json`), 'utf8'),
       ) as { id?: unknown; path?: unknown; runtime?: WorkspaceRuntime }
       return record.id === workspaceId && typeof record.path === 'string' && record.path.length > 0
-        ? record.runtime && record.runtime.kind !== 'windows' ? runtimeResource(workspaceId, record.runtime.root) : record.path
+        ? isExternalWorkspaceRuntime(record.runtime) ? runtimeResource(workspaceId, record.runtime.root) : record.path
         : undefined
     } catch {
       return undefined

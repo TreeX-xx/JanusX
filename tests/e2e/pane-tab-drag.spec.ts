@@ -108,6 +108,54 @@ for (const zone of ['left', 'right', 'top', 'bottom', 'center'] as const) {
   })
 }
 
+test('terminal close tracks the left button while a mouse side button stays down', async ({ page }) => {
+  const target = tab(page, 'terminal:b')
+  const close = await point(page, '[data-tab-id="terminal:b"] [data-tab-close]')
+  await page.mouse.move(close.x, close.y)
+  const cdp = await page.context().newCDPSession(page)
+  const press = (type: 'mousePressed' | 'mouseReleased', button: 'left' | 'back', buttons: number) =>
+    cdp.send('Input.dispatchMouseEvent', { type, button, buttons, ...close, clickCount: 1 })
+  try {
+    await press('mousePressed', 'back', 8)
+    await press('mousePressed', 'left', 9)
+    await press('mouseReleased', 'left', 8)
+    await page.waitForTimeout(1150)
+    await expect(target).toBeVisible()
+    expect((await state(page)).kills).toBe(0)
+
+    await press('mousePressed', 'left', 9)
+    await expect(target).toHaveCount(0, { timeout: 2500 })
+    expect((await state(page)).kills).toBe(1)
+  } finally {
+    await press('mouseReleased', 'left', 8)
+    await press('mouseReleased', 'back', 0)
+    await cdp.detach()
+  }
+})
+
+test('leaving the close button or losing window focus cancels a terminal hold', async ({ page }) => {
+  const target = tab(page, 'terminal:b')
+  const close = target.locator('[data-tab-close]')
+  for (const reason of ['leave', 'blur']) {
+    await close.hover()
+    await page.mouse.down()
+    if (reason === 'leave') await page.mouse.move(0, 0)
+    else await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+    await page.waitForTimeout(1150)
+    await page.mouse.up()
+    await expect(target).toBeVisible()
+    expect((await state(page)).kills).toBe(0)
+  }
+  await close.focus()
+  await page.keyboard.down('Space')
+  try {
+    await expect(target).toHaveCount(0, { timeout: 2500 })
+  } finally {
+    await page.keyboard.up('Space')
+  }
+  expect((await state(page)).kills).toBe(1)
+})
+
 test('click threshold, unchanged drop, close control and Escape have distinct outcomes', async ({ page }) => {
   const pos = await point(page, '[data-tab-id="terminal:b"]', .4)
   await page.mouse.move(pos.x, pos.y)

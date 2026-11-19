@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { saveEditorText } from '../../src/main/lib/editor-save'
 import { configurePluginFileSystem } from '../../src/main/plugins/files'
 import { invalidateEditorFileCache, useEditorStore } from '../../src/renderer/src/stores/editor'
+import { MAX_EDITOR_TEXT_BYTES } from '../../src/shared/editor'
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
 const cleanups: Array<() => Promise<unknown>> = []
@@ -34,6 +35,29 @@ describe('host-reviewed document draft saves', () => {
     await rm(f.path)
     expect(await saveEditorText(f.path, 'draft', hash('disk'), writer)).toMatchObject({ conflict: true })
     expect(writer).not.toHaveBeenCalled()
+  })
+  it('saves large versioned text and retains conflict protection above 1 MiB', async () => {
+    const f = await disk(), original = '中文'.repeat(200_000), draft = original + '\n修改'
+    await writeFile(f.path, original)
+    expect(await saveEditorText(f.path, draft, hash(original), () => writeFile(f.path, draft))).toEqual({ success: true, version: hash(draft) })
+    const changed = original + '\n外部修改', writer = vi.fn(async () => {})
+    await writeFile(f.path, changed)
+    expect(await saveEditorText(f.path, draft, hash(original), writer)).toMatchObject({ conflict: true, current: { text: changed, version: hash(changed) } })
+    expect(writer).not.toHaveBeenCalled()
+  })
+  it('rejects a UTF-8 save above the editor ceiling without writing', async () => {
+    const f = await disk(), writer = vi.fn(async () => {})
+    const oversized = '汉'.repeat(Math.floor(MAX_EDITOR_TEXT_BYTES / 3) + 1)
+    await expect(saveEditorText(f.path, oversized, undefined, writer)).rejects.toThrow(`File exceeds ${MAX_EDITOR_TEXT_BYTES} bytes`)
+    expect(writer).not.toHaveBeenCalled()
+    expect(await readFile(f.path, 'utf8')).toBe('disk')
+  })
+  it('checks a versioned HTML baseline larger than the ordinary text ceiling', async () => {
+    const f = await disk(), path = f.path + '.htm', original = 'x'.repeat(MAX_EDITOR_TEXT_BYTES + 1)
+    await writeFile(path, original)
+    const draft = '<h1>Updated HTML</h1>'
+    expect(await saveEditorText(path, draft, hash(original), () => writeFile(path, draft))).toEqual({ success: true, version: hash(draft) })
+    expect(await readFile(path, 'utf8')).toBe(draft)
   })
   it('rejects symbolic-link metadata before writing, without requiring native link privileges', async () => {
     const f = await disk(), writer = vi.fn(async () => {})

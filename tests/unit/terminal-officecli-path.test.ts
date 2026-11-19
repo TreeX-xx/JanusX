@@ -1,5 +1,6 @@
 import { delimiter } from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { stopProcessTree } from '../../src/main/shutdown/process-tree'
 
 const spawn = vi.fn(() => ({
   pid: 12345,
@@ -11,14 +12,14 @@ const spawn = vi.fn(() => ({
 }))
 
 vi.mock('node-pty', () => ({ spawn }))
+vi.mock('../../src/main/shutdown/process-tree', () => ({ stopProcessTree: vi.fn(async () => {}) }))
 
 describe('TerminalManager OfficeCLI PATH integration', () => {
-  beforeEach(() => spawn.mockClear())
+  beforeEach(() => { spawn.mockClear(); vi.mocked(stopProcessTree).mockClear() })
 
   it('waits for owned runtime cleanup on shutdown and invokes it once', async () => {
     const { TerminalManager } = await import('../../src/main/terminal/manager')
     const manager = new TerminalManager()
-    vi.spyOn(manager as any, 'killProcessTree').mockResolvedValue(undefined)
     const instance = manager.create({ id: 'owned', workspaceId: 'workspace', cwd: process.cwd(), shell: 'powershell.exe' })
     let release!: () => void
     instance.disposeRuntime = vi.fn(() => new Promise<void>(resolve => { release = resolve }))
@@ -29,6 +30,8 @@ describe('TerminalManager OfficeCLI PATH integration', () => {
     expect(finished).toBe(false)
     manager.kill('owned')
     expect(dispose).toHaveBeenCalledTimes(1)
+    expect(stopProcessTree).toHaveBeenCalledOnce()
+    expect(stopProcessTree).toHaveBeenCalledWith(instance.pty, { processGroup: true })
     release(); await stopped
     expect(finished).toBe(true)
     expect(manager.getInstance('owned')).toBeUndefined()
@@ -57,6 +60,16 @@ describe('TerminalManager OfficeCLI PATH integration', () => {
     expect(thirdEnv.PATH).toBe('C:\\user-bin')
     expect(firstEnv.PATH).toBe('C:\\user-bin')
     expect(process.env.PATH).toBe(originalProcessPath)
+  })
+
+  it('keeps an explicit private PATH ahead of an inherited Windows Path without duplicate keys', async () => {
+    const { TerminalManager } = await import('../../src/main/terminal/manager')
+    const manager = new TerminalManager()
+    manager.create({ id: 'private-env', workspaceId: 'workspace', cwd: process.cwd(), shell: 'powershell.exe',
+      env: { Path: 'system-node', PATH: 'private-node' } }, 'verified-office')
+    const env = spawn.mock.calls[0][2].env
+    expect(env.PATH).toBe(`verified-office${delimiter}private-node`)
+    expect(Object.keys(env).filter(key => key.toLowerCase() === 'path')).toEqual(['PATH'])
   })
 
   it('spawns agent CLI program directly without shell auto-command typing', async () => {

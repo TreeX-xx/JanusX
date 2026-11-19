@@ -25,6 +25,7 @@ export default defineConfig({
         find: new RegExp(`^@janus-agent/${name}$`),
         replacement: resolve(__dirname, `node_modules/@janus-agent/${name}/dist/index.js`),
       })),
+      { find: '@janusx/llm-core/mac-system-proxy', replacement: resolve(__dirname, 'packages/llm-core/src/utils/mac-system-proxy.ts') },
       { find: '@janusx/llm-core/model-registry', replacement: resolve(__dirname, 'packages/llm-core/src/registry/model-registry.ts') },
       { find: '@janusx/plugin-sdk/native', replacement: resolve(__dirname, 'packages/plugin-sdk/src/native.ts') },
       { find: '@janusx/plugin-sdk', replacement: resolve(__dirname, 'packages/plugin-sdk/src/index.ts') },
@@ -50,17 +51,11 @@ export default defineConfig({
     watch: false,
     pool: 'forks',
     maxWorkers: isCI ? 1 : Math.min(4, availableParallelism()),
-    minWorkers: 1,
     fileParallelism: !isCI,
+    isolate: true,
     // Do not shuffle CI test files; duration caching can still affect ordering.
     sequence: {
       shuffle: false,
-    },
-    poolOptions: {
-      forks: {
-        singleFork: isCI,
-        isolate: true,
-      },
     },
     // 未处理的 rejection 直接 fail 而不是静默吞掉尾部报告；Windows 下 worker 崩溃时
     // 至少保留可归因的用例级错误，而不是只有一句 `Channel closed`。

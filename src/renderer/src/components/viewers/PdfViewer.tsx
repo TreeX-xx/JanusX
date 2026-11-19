@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-// Electron 35 requires the compatibility build, including the worker polyfills.
+// Keep the core, viewer, and worker on the same compatibility build.
 import { AnnotationMode, getDocument, GlobalWorkerOptions, PasswordResponses } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import type { PDFViewer as Viewer } from 'pdfjs-dist/types/web/pdf_viewer'
@@ -13,6 +13,12 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 import './pdf-viewer.css'
 
 GlobalWorkerOptions.workerSrc = workerUrl
+
+function zoomOnCurrentPage(viewer: Viewer, scale: string) {
+  const page = viewer.currentPageNumber
+  viewer.currentScaleValue = scale
+  if (viewer.currentPageNumber !== page) viewer.currentPageNumber = page
+}
 
 export default function PdfViewer({ file }: { file: OpenFile }) {
   const { t } = useTranslation('editor')
@@ -73,7 +79,7 @@ export default function PdfViewer({ file }: { file: OpenFile }) {
       resize = new ResizeObserver(() => {
         if (instance?.pdfDocument) {
           const value = instance.currentScaleValue
-          if (value === 'page-width' || value === 'page-fit') instance.currentScaleValue = value
+          if (value === 'page-width' || value === 'page-fit') zoomOnCurrentPage(instance, value)
           instance.update()
         }
       })
@@ -87,7 +93,7 @@ export default function PdfViewer({ file }: { file: OpenFile }) {
   }, [file.id, file.base64])
 
   const go = (value: number) => { if (viewer.current && Number.isInteger(value) && value >= 1 && value <= count) viewer.current.currentPageNumber = value }
-  const zoom = (value: string) => { if (viewer.current) viewer.current.currentScaleValue = value }
+  const zoom = (value: string) => { if (viewer.current) zoomOnCurrentPage(viewer.current, value) }
   return <div className="pdf-preview">
     <ViewerToolbar>
       <div className="pdf-controls">

@@ -6,6 +6,11 @@
 import { getThemeDefinition, listThemeDefinitions } from './registry'
 
 export const SEMANTIC_TOKENS = [
+  'startup-background', 'startup-text', 'startup-overline', 'startup-muted', 'startup-dot', 'startup-track', 'startup-scan',
+  'startup-mask-solid', 'startup-mask-soft', 'startup-mask-faint', 'startup-mask-narrow',
+  'chat-error-background', 'chat-error-border', 'chat-error-edge', 'chat-error-edge-width', 'chat-error-text',
+  'chat-error-action-background', 'chat-error-action-border', 'chat-error-action-text',
+  'chat-error-action-hover-background', 'chat-error-action-hover-color',
   'effort-minimal-color',
   'effort-minimal-glow',
   'effort-minimal-highlight',

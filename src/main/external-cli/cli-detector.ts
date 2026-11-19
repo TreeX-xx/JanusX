@@ -1,8 +1,11 @@
 import { stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { delimiter, isAbsolute, join, resolve } from 'node:path'
-import { execa } from 'execa'
+import { targetPath, envValue } from '../platform/environment'
+import { runProcess } from '../platform/process-host'
+import { resolveCliExecutable } from '../platform/cli-launch'
+import { localRuntimeContext, localSystem } from '../platform/runtime-context'
 import { managedCliEnv } from './managed-paths'
+import { cliKnownBinDirs } from './search-paths'
+export { cliKnownBinDirs, readPathValue } from './search-paths'
 import type { ExternalCliBinarySource, ExternalCliDetectResult, ExternalCliToolId } from '../../shared/ipc/external-cli'
 import type { ExternalCliToolDescriptor } from './tool-registry'
 import { getExternalCliTool } from './tool-registry'
@@ -36,39 +39,7 @@ export interface ResolvedCliBinary {
 
 function binaryNames(tool: ExternalCliToolDescriptor, platform: NodeJS.Platform): readonly string[] {
   if (platform !== 'win32') return tool.binaryNames
-  return tool.binaryNames.flatMap(name => [`${name}.cmd`, `${name}.exe`, name])
-}
-
-/** 大小写不敏感地读取 PATH（win32 下键名可能是 Path）。 */
-export function readPathValue(env: NodeJS.ProcessEnv): string {
-  return Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? ''
-}
-
-function expandWindowsVars(raw: string, env: NodeJS.ProcessEnv): string {
-  return raw.replace(/%([^%]+)%/g, (_, name: string) => {
-    const hit = Object.entries(env).find(([key]) => key.toLowerCase() === String(name).toLowerCase())?.[1]
-    return hit ?? ''
-  })
-}
-
-export function cliKnownBinDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, homeDir: string, tool?: ExternalCliToolDescriptor): string[] {
-  if (platform === 'win32') {
-    const dirs: string[] = [join(homeDir, '.local', 'bin')]
-    if (env.APPDATA) dirs.push(join(env.APPDATA, 'npm'))
-    if (env.ProgramFiles) dirs.push(join(env.ProgramFiles, 'nodejs'))
-    for (const raw of tool?.extraKnownDirs?.win32 ?? []) {
-      const expanded = expandWindowsVars(raw, env)
-      if (expanded) dirs.push(expanded)
-    }
-    return [...new Set(dirs)]
-  }
-  const dirs = [
-    join(homeDir, '.local', 'bin'),
-    join(homeDir, '.npm-global', 'bin'),
-    '/usr/local/bin',
-    ...(platform === 'darwin' ? ['/opt/homebrew/bin'] : []),
-  ]
-  return [...new Set(dirs)]
+  return tool.binaryNames.flatMap(name => [`${name}.exe`, `${name}.cmd`, `${name}.bat`, `${name}.com`])
 }
 
 /** 兼容旧名：首个工具的已知目录（installer 共用 npm 目录时调用）。 */
@@ -79,8 +50,11 @@ export function claudeKnownBinDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Plat
 export async function findExecutableOnPath(  names: readonly string[],
   searchDirs: readonly string[],
   isRegularFile: (path: string) => Promise<boolean>,
+  platform: NodeJS.Platform = defaultDependencies.platform,
 ): Promise<string | undefined> {
+  const { resolve, isAbsolute } = targetPath(platform)
   for (const directory of searchDirs) {
+    if (!isAbsolute(directory)) continue
     for (const name of names) {
       const candidate = resolve(directory, name)
       if (!isAbsolute(candidate)) continue
@@ -99,9 +73,12 @@ export async function findAllExecutablesOnPath(
   names: readonly string[],
   searchDirs: readonly string[],
   isRegularFile: (path: string) => Promise<boolean>,
+  platform: NodeJS.Platform = defaultDependencies.platform,
 ): Promise<string[]> {
+  const { resolve, isAbsolute } = targetPath(platform)
   const found: string[] = []
   for (const directory of searchDirs) {
+    if (!isAbsolute(directory)) continue
     for (const name of names) {
       const candidate = resolve(directory, name)
       if (!isAbsolute(candidate)) continue
@@ -132,24 +109,10 @@ function parseVersion(output: string): string | undefined {
   return output.match(/\bv?(\d+\.\d+\.\d+(?:-[\w.]+)?)\b/)?.[1]
 }
 
-async function defaultRun(file: string, args: readonly string[]): Promise<CommandResult> {
-  try {
-    const result = await execa(file, args, {
-      timeout: PROBE_TIMEOUT_MS,
-      reject: false,
-      windowsHide: true,
-      env: managedCliEnv(),
-    })
-    return { exitCode: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr }
-  } catch (error) {
-    const failure = error as { exitCode?: number; stdout?: string; stderr?: string; timedOut?: boolean }
-    return {
-      exitCode: failure.exitCode ?? 1,
-      stdout: failure.stdout ?? '',
-      stderr: failure.stderr ?? '',
-      timedOut: failure.timedOut,
-    }
-  }
+async function defaultRun(file: string, args: readonly string[], env = managedCliEnv()): Promise<CommandResult> {
+  const result = await runProcess(file, args, { timeoutMs: PROBE_TIMEOUT_MS, env })
+  return { exitCode: result.status === 'exited' ? result.exitCode ?? 1 : 1, stdout: result.stdout,
+    stderr: result.stderr || (result.status !== 'exited' ? `CLI process ${result.status}` : ''), timedOut: result.status === 'timed-out' }
 }
 
 /**
@@ -171,8 +134,8 @@ function versionProbeCommand(platform: NodeJS.Platform, binaryPath: string): { f
 
 const defaultDependencies: CliDetectorDependencies = {
   get env() { return managedCliEnv() },
-  platform: process.platform,
-  homeDir: homedir(),
+  get platform() { return localSystem().platform },
+  get homeDir() { return localSystem().home },
   isRegularFile: async path => (await stat(path)).isFile(),
   run: defaultRun,
 }
@@ -189,14 +152,24 @@ export class CliDetector {
     return tool
   }
 
+  private launchCandidate(candidate: ResolvedCliBinary): ResolvedCliBinary {
+    // Injected detectors own their virtual filesystem; production shares the
+    // same native/shim resolution as launch, including the reported path.
+    if (this.deps !== defaultDependencies) return candidate
+    try {
+      const path = resolveCliExecutable(candidate.path, localRuntimeContext(this.deps.env))
+      return path ? { ...candidate, path } : candidate
+    } catch { return candidate } // broken forwarders remain visible as installed but unrunnable
+  }
+
   async findCandidate(): Promise<ResolvedCliBinary | undefined> {
     const names = binaryNames(this.tool, this.deps.platform)
-    const pathDirs = readPathValue(this.deps.env).split(delimiter).filter(Boolean)
-    const onPath = await findExecutableOnPath(names, pathDirs, path => this.isRegularAbsoluteFile(path))
-    if (onPath) return { path: onPath, source: 'path' }
+    const pathDirs = (envValue(this.deps.env, 'PATH', this.deps.platform) ?? '').split(targetPath(this.deps.platform).delimiter).filter(Boolean)
+    const onPath = await findExecutableOnPath(names, pathDirs, path => this.isRegularAbsoluteFile(path), this.deps.platform)
+    if (onPath) return this.launchCandidate({ path: onPath, source: 'path' })
     const knownDirs = cliKnownBinDirs(this.deps.env, this.deps.platform, this.deps.homeDir, this.tool)
-    const known = await findExecutableOnPath(names, knownDirs, path => this.isRegularAbsoluteFile(path))
-    if (known) return { path: known, source: 'known-location' }
+    const known = await findExecutableOnPath(names, knownDirs, path => this.isRegularAbsoluteFile(path), this.deps.platform)
+    if (known) return this.launchCandidate({ path: known, source: 'known-location' })
     return undefined
   }
 
@@ -208,12 +181,13 @@ export class CliDetector {
    */
   async listLocations(): Promise<CliBinaryLocation[]> {
     const names = binaryNames(this.tool, this.deps.platform)
-    const pathDirs = readPathValue(this.deps.env).split(delimiter).filter(Boolean)
+    const pathDirs = (envValue(this.deps.env, 'PATH', this.deps.platform) ?? '').split(targetPath(this.deps.platform).delimiter).filter(Boolean)
     const knownDirs = cliKnownBinDirs(this.deps.env, this.deps.platform, this.deps.homeDir, this.tool)
     const seen = new Set<string>()
     const locations: CliBinaryLocation[] = []
     for (const [source, dirs] of [['path', pathDirs], ['known-location', knownDirs]] as const) {
-      for (const path of await findAllExecutablesOnPath(names, dirs, candidate => this.isRegularAbsoluteFile(candidate))) {
+      for (const binary of await findAllExecutablesOnPath(names, dirs, candidate => this.isRegularAbsoluteFile(candidate), this.deps.platform)) {
+        const { path } = this.launchCandidate({ path: binary, source })
         if (seen.has(path)) continue
         seen.add(path)
         locations.push({ path, source, isDefault: locations.length === 0 })
@@ -225,12 +199,14 @@ export class CliDetector {
   async detect(candidateOverride?: ResolvedCliBinary): Promise<ExternalCliDetectResult> {
     const tool = this.tool
     const manualHint = tool.manualInstallCommand
-    const candidate = candidateOverride ?? await this.findCandidate()
+    const candidate = candidateOverride ? this.launchCandidate(candidateOverride) : await this.findCandidate()
     if (!candidate) {
       return { toolId: this.toolId, installed: false, runnable: false, hint: manualHint }
     }
     const probe = versionProbeCommand(this.deps.platform, candidate.path)
-    const result = await this.deps.run(probe.file, probe.args)
+    const result = this.deps === defaultDependencies
+      ? await defaultRun(probe.file, probe.args, this.deps.env)
+      : await this.deps.run(probe.file, probe.args)
     if (result.exitCode !== 0) {
       return {
         toolId: this.toolId,
@@ -268,7 +244,7 @@ export class CliDetector {
   }
 
   private async isRegularAbsoluteFile(candidate: string): Promise<boolean> {
-    if (!isAbsolute(candidate)) return false
+    if (!targetPath(this.deps.platform).isAbsolute(candidate)) return false
     try {
       return await this.deps.isRegularFile(candidate)
     } catch {

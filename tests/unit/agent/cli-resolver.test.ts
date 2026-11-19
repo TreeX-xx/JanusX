@@ -1,5 +1,5 @@
 import { win32 } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   claudeSpawnResult,
   clearCache,
@@ -278,176 +278,36 @@ describe('selectWindowsSpawnPath', () => {
   })
 })
 
-describe('resolveCLIPath (win32 integration via mocks)', () => {
-  afterEach(() => {
-    clearCache()
-    vi.restoreAllMocks()
-    vi.resetModules()
+describe('resolveCliExecutable Windows target contract', () => {
+  async function resolver(files: Map<string, string>, path: string) {
+    const { resolveCliExecutable } = await import('../../../src/main/platform/cli-launch')
+    const context = { identity: { id: 'local', kind: 'local' as const, platform: 'win32' as const, architecture: 'x64', home: 'C:/Users/fixture', revision: 'fixture' }, env: { PATH: path }, shell: 'powershell.exe' }
+    return (command: string) => resolveCliExecutable(command, context, file => files.has(file) ? 'executable' : 'missing', file => files.get(file) ?? '')
+  }
+  it('resolves a native OpenCode package from the first PATH shim', async () => {
+    const root = 'C:\\npm', shim = root + '\\opencode.cmd', exe = root + '\\node_modules\\opencode-ai\\bin\\opencode.exe'
+    const resolve = await resolver(new Map([[shim, '@ECHO off\r\n"' + exe + '" %*\r\n'], [exe, '']]), root)
+    expect(resolve('opencode')).toBe(exe)
   })
-
-  it('parses all where lines and returns a spawnable Windows path', async () => {
-    const npm = 'C:\\Users\\Tree\\AppData\\Roaming\\npm'
-    const whereStdout = [`${npm}\\opencode`, `${npm}\\opencode.cmd`].join('\r\n')
-
-    vi.resetModules()
-    vi.doMock('child_process', () => ({
-      exec: (
-        _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void,
-      ) => {
-        callback(null, { stdout: whereStdout, stderr: '' })
-        return {} as never
-      },
-    }))
-    vi.doMock('fs', async () => {
-      const actual = await vi.importActual<typeof import('fs')>('fs')
-      return {
-        ...actual,
-        existsSync: (p: string) =>
-          p === `${npm}\\opencode` ||
-          p === `${npm}\\opencode.cmd` ||
-          p === `${npm}\\node_modules\\opencode-ai\\bin\\opencode.exe`,
-        readFileSync: (p: string) => {
-          if (p === `${npm}\\opencode.cmd`) {
-            return `@ECHO off\r\n"${npm}\\node_modules\\opencode-ai\\bin\\opencode.exe"   %*\r\n`
-          }
-          return actual.readFileSync(p)
-        },
-      }
-    })
-
-    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
-    Object.defineProperty(process, 'platform', { value: 'win32' })
-
-    try {
-      const { resolveCLIPath, clearCache: clear } = await import(
-        '../../../src/main/janus-runner/cli-resolver'
-      )
-      clear()
-      const resolved = await resolveCLIPath('opencode')
-      expect(resolved).toBe(`${npm}\\node_modules\\opencode-ai\\bin\\opencode.exe`)
-    } finally {
-      if (platformDescriptor) {
-        Object.defineProperty(process, 'platform', platformDescriptor)
-      }
-    }
+  it('follows a Claude forwarder to the installed native binary', async () => {
+    const local = 'C:\\local\\claude.cmd', shim = 'C:\\npm\\claude.cmd', exe = 'C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe'
+    const resolve = await resolver(new Map([[local, '"' + shim + '" %*'], [shim, '"' + exe + '" %*'], [exe, '']]), 'C:\\local;C:\\npm')
+    expect(resolve('claude')).toBe(exe)
   })
-
-  it('resolves claude.exe from where output when the first hit is a forwarder', async () => {
-    const local = 'C:\\Users\\Tree\\.local\\bin\\claude.cmd'
-    const npm = 'C:\\Users\\Tree\\AppData\\Roaming\\npm'
-    const npmCmd = `${npm}\\claude.cmd`
-    const exe = `${npm}\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe`
-    const files = new Map<string, string>([
-      [local, `@ECHO off\r\n"${npmCmd}" %*\r\n`],
-      [npmCmd, `@ECHO off\r\n"${exe}" %*\r\n`],
-    ])
-
-    vi.resetModules()
-    vi.doMock('child_process', () => ({
-      exec: (
-        _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void,
-      ) => {
-        callback(null, { stdout: local, stderr: '' })
-        return {} as never
-      },
-    }))
-    vi.doMock('fs', async () => {
-      const actual = await vi.importActual<typeof import('fs')>('fs')
-      return {
-        ...actual,
-        existsSync: (p: string) => p === local || p === npmCmd || p === exe,
-        readFileSync: (p: string, enc?: BufferEncoding) => {
-          const text = files.get(p)
-          if (text !== undefined) return text
-          return actual.readFileSync(p, enc)
-        },
-      }
-    })
-
-    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
-    Object.defineProperty(process, 'platform', { value: 'win32' })
-    try {
-      const { resolveCLIPath, clearCache: clear } = await import(
-        '../../../src/main/janus-runner/cli-resolver'
-      )
-      clear()
-      await expect(resolveCLIPath('claude')).resolves.toBe(exe)
-    } finally {
-      if (platformDescriptor) Object.defineProperty(process, 'platform', platformDescriptor)
-    }
+  it('reports a broken Claude forwarder instead of falling back to a bare command', async () => {
+    const local = 'C:\\local\\claude.cmd'
+    const resolve = await resolver(new Map([[local, '@ECHO off\r\n"%~dp0claude.exe" %*\r\n']]), 'C:\\local')
+    expect(() => resolve('claude')).toThrow('native claude.exe')
+    expect(() => resolve('claude')).toThrow(local)
   })
-
-  it('throws the found command and tried exe when the forwarder has no native binary', async () => {
-    const local = 'C:\\Users\\Tree\\.local\\bin\\claude.cmd'
-
-    vi.resetModules()
-    vi.doMock('child_process', () => ({
-      exec: (
-        _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void,
-      ) => {
-        callback(null, { stdout: local, stderr: '' })
-        return {} as never
-      },
-    }))
-    vi.doMock('fs', async () => {
-      const actual = await vi.importActual<typeof import('fs')>('fs')
-      return {
-        ...actual,
-        existsSync: (p: string) => p === local,
-        readFileSync: (p: string, enc?: BufferEncoding) => {
-          if (p === local) return '@ECHO off\r\n"%~dp0claude.exe" %*\r\n'
-          return actual.readFileSync(p, enc)
-        },
-      }
-    })
-
-    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
-    Object.defineProperty(process, 'platform', { value: 'win32' })
-    try {
-      const { resolveCLIPath, clearCache: clear, ClaudeNativeBinaryError } = await import(
-        '../../../src/main/janus-runner/cli-resolver'
-      )
-      clear()
-      await expect(resolveCLIPath('claude')).rejects.toBeInstanceOf(ClaudeNativeBinaryError)
-      clear()
-      await expect(resolveCLIPath('claude')).rejects.toThrow(local)
-      clear()
-      await expect(resolveCLIPath('claude')).rejects.toThrow('claude.exe')
-    } finally {
-      if (platformDescriptor) Object.defineProperty(process, 'platform', platformDescriptor)
-    }
+  it('preserves a configured absolute native executable', async () => {
+    const exe = 'C:\\custom\\claude.exe'
+    const resolve = await resolver(new Map([[exe, '']]), '')
+    expect(resolve(exe)).toBe(exe)
   })
-
-  it('returns a configured absolute claude.exe without searching PATH', async () => {
-    const exe = 'C:\\Users\\Tree\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe'
-
-    vi.resetModules()
-    vi.doMock('child_process', () => ({
-      exec: () => {
-        throw new Error('where should not run for an absolute exe')
-      },
-    }))
-    vi.doMock('fs', async () => {
-      const actual = await vi.importActual<typeof import('fs')>('fs')
-      return {
-        ...actual,
-        existsSync: (p: string) => p === exe,
-      }
-    })
-
-    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
-    Object.defineProperty(process, 'platform', { value: 'win32' })
-    try {
-      const { resolveCLIPath, clearCache: clear } = await import(
-        '../../../src/main/janus-runner/cli-resolver'
-      )
-      clear()
-      await expect(resolveCLIPath(exe)).resolves.toBe(exe)
-    } finally {
-      if (platformDescriptor) Object.defineProperty(process, 'platform', platformDescriptor)
-    }
+  it('does not treat directories as executable candidates', async () => {
+    const { resolveCliExecutable } = await import('../../../src/main/platform/cli-launch')
+    const context = { identity: { id: 'local', kind: 'local' as const, platform: 'win32' as const, architecture: 'x64', home: 'C:/Users/fixture', revision: 'fixture' }, env: { PATH: 'C:\\bin' }, shell: 'powershell.exe' }
+    expect(resolveCliExecutable('pi', context, () => 'not-file')).toBeNull()
   })
 })

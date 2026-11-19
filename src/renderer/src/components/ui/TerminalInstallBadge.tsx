@@ -1,3 +1,4 @@
+import { isExternalWorkspaceRuntime } from '../../../../shared/workspace-runtime'
 import { useEffect } from 'react'
 import { Download, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +11,7 @@ export function TerminalInstallBadge({ preset, compact = false }: { preset: Term
   const { i18n } = useTranslation()
   const remoteId = useWorkspaceStore(s => {
     const workspace = s.workspaces.find(w => w.id === s.activeWorkspaceId)
-    return workspace?.runtime && workspace.runtime.kind !== 'windows' ? workspace.id : undefined
+    return workspace && isExternalWorkspaceRuntime(workspace.runtime) ? workspace.id : undefined
   })
   const key = `${remoteId ?? 'local'}:${preset}`
   const probe = useCliReadiness(s => s.probes[key])

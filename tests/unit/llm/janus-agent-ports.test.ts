@@ -220,8 +220,9 @@ describe('tools port', () => {  it('threads callerId through and passes registry
       listRegistryTools: () => tools as unknown as ReturnType<JanusChatTurnPortsDeps['listRegistryTools']>,
       listRegistryManifests: () => [{ providerName: 'workspace' }] as unknown as ReturnType<JanusChatTurnPortsDeps['listRegistryManifests']>,
     }))
-    await ports.tools.executeFunctionCall({ tool: 'x' } as never, 'renderer:7')
-    expect(execute).toHaveBeenCalledWith({ tool: 'x' }, 'renderer:7')
+    const signal = new AbortController().signal
+    await ports.tools.executeFunctionCall({ tool: 'x' } as never, 'renderer:7', signal)
+    expect(execute).toHaveBeenCalledWith({ tool: 'x' }, 'renderer:7', signal)
     expect(ports.tools.registry.list()).toEqual(tools)
     expect(ports.tools.registry.listManifests?.()).toEqual([{ providerName: 'workspace' }])
   })

@@ -79,7 +79,7 @@ describe('OpenCode update service', () => {
       const { service, installer } = harness(initial, '2.1.4', !!initial)
       expect(await service.install('opencode')).toMatchObject({ success: true })
       expect(installer.install.mock.calls[0][0].npmPackage).toBe('@opencode/cli')
-      if (initial) expect(installer.install.mock.calls[0][2]).toBeUndefined()
+      expect(installer.install.mock.calls[0][2]).toBeUndefined()
     }
   })
 

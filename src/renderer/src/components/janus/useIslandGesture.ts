@@ -5,7 +5,7 @@ import {
   type TapPoint,
 } from './islandInteraction'
 
-// Island gestures: click, double click and pull. Running uses the titlebar button.
+// Note: .agents/notes/workbench/island-hifi-optimized-alignment.md — Island activation.
 const SWIPE_THRESHOLD = 60          // 下滑展开通知的阈值 px
 
 interface IslandGestureOptions {
@@ -43,6 +43,7 @@ export function useIslandGesture({
   const lastTapTime = useRef(0)
   const lastTapPoint = useRef<TapPoint | null>(null)
   const pendingSingleTapTimer = useRef<number | null>(null)
+  const pointerConsumedDoubleClick = useRef(false)
   const singleTapCallbackRef = useRef(onSingleTap)
   const DOUBLE_TAP_DELAY = 420
   const DOUBLE_TAP_TOLERANCE = 18
@@ -53,14 +54,34 @@ export function useIslandGesture({
   const pullHintLabelsRef = useRef(pullHint)
   pullHintLabelsRef.current = pullHint
 
-  /*-- 清理 --*/
-  useEffect(() => {
-    return () => {
-
-      if (pendingSingleTapTimer.current) clearTimeout(pendingSingleTapTimer.current)
-
-    }
+  const clearPendingTap = useCallback(() => {
+    if (pendingSingleTapTimer.current !== null) clearTimeout(pendingSingleTapTimer.current)
+    pendingSingleTapTimer.current = null
+    lastTapTime.current = 0
+    lastTapPoint.current = null
   }, [])
+
+  useEffect(() => clearPendingTap, [clearPendingTap])
+
+  const activatePointerDoubleTap = useCallback(() => {
+    clearPendingTap()
+    pointerConsumedDoubleClick.current = true
+    onDoubleTap()
+  }, [clearPendingTap, onDoubleTap])
+
+  const handleClickCapture = useCallback((event: React.MouseEvent) => {
+    // A new native click sequence can start without any pointer events on macOS.
+    if (event.detail === 1) pointerConsumedDoubleClick.current = false
+  }, [])
+
+  const handleDoubleClick = useCallback((event: React.MouseEvent) => {
+    if (event.button !== 0 || isInteractiveIslandDescendant(event.target, event.currentTarget)) return
+    if (!pointerConsumedDoubleClick.current) {
+      clearPendingTap()
+      onDoubleTap()
+    }
+    pointerConsumedDoubleClick.current = false
+  }, [clearPendingTap, onDoubleTap])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -80,13 +101,7 @@ export function useIslandGesture({
         point,
         DOUBLE_TAP_TOLERANCE,
       )) {
-        if (pendingSingleTapTimer.current) {
-          clearTimeout(pendingSingleTapTimer.current)
-          pendingSingleTapTimer.current = null
-        }
-        lastTapTime.current = 0
-        lastTapPoint.current = null
-        onDoubleTap()
+        activatePointerDoubleTap()
         return
       }
 
@@ -99,7 +114,7 @@ export function useIslandGesture({
       currentDragY.current = 0
 
     },
-    [enableComplexGestures, onDoubleTap],
+    [enableComplexGestures, activatePointerDoubleTap],
   )
 
   const handlePointerMove = useCallback(
@@ -114,10 +129,8 @@ export function useIslandGesture({
         Math.abs(deltaY) > Math.abs(e.clientX - startX.current)
       ) {
         isDragging.current = true
-        if (pendingSingleTapTimer.current) clearTimeout(pendingSingleTapTimer.current)
-        pendingSingleTapTimer.current = null
-        lastTapTime.current = 0
-        lastTapPoint.current = null
+        clearPendingTap()
+        pointerConsumedDoubleClick.current = true
 
         const island = islandRef.current
         if (island) {
@@ -147,7 +160,7 @@ export function useIslandGesture({
         }
       }
     },
-    [isRunning, enableComplexGestures],
+    [isRunning, enableComplexGestures, clearPendingTap],
   )
 
   const handlePointerUp = useCallback(
@@ -194,13 +207,7 @@ export function useIslandGesture({
             tapPoint,
             DOUBLE_TAP_TOLERANCE,
           )) {
-            if (pendingSingleTapTimer.current) {
-              clearTimeout(pendingSingleTapTimer.current)
-              pendingSingleTapTimer.current = null
-            }
-            lastTapTime.current = 0
-            lastTapPoint.current = null
-            onDoubleTap()
+            activatePointerDoubleTap()
           } else {
             lastTapTime.current = now
             lastTapPoint.current = tapPoint
@@ -217,14 +224,12 @@ export function useIslandGesture({
         }
       }
     },
-    [enableComplexGestures, onSwipeDown, onDoubleTap, onSingleTap],
+    [enableComplexGestures, onSwipeDown, activatePointerDoubleTap, onSingleTap],
   )
 
   const handlePointerCancel = useCallback(() => {
-    if (pendingSingleTapTimer.current) clearTimeout(pendingSingleTapTimer.current)
-    pendingSingleTapTimer.current = null
-    lastTapTime.current = 0
-    lastTapPoint.current = null
+    clearPendingTap()
+    pointerConsumedDoubleClick.current = true
 
     isPointerDown.current = false
     isDragging.current = false
@@ -241,7 +246,7 @@ export function useIslandGesture({
     if (hint) hint.style.transform = 'translateX(-50%)' // 重置位置
 
     currentDragY.current = 0
-  }, [])
+  }, [clearPendingTap])
 
   return {
     islandRef,
@@ -251,5 +256,7 @@ export function useIslandGesture({
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
+    handleClickCapture,
+    handleDoubleClick,
   }
 }

@@ -17,13 +17,15 @@ registerHarnessDocumentHandlers((channel, handler) => handlers.set(channel, hand
 const sessions = new Map<string, ImportExternalSessionInput>()
 const collector: ExternalSessionSink = {
   listSessions: () => [...sessions.values()], beginBatch() {}, endBatch() {},
-  importExternalSession(input: ImportExternalSessionInput) { sessions.set(`${input.engine}:${input.providerSessionId}`, input); return input },
+  importExternalSession(input: ImportExternalSessionInput) { sessions.set(`${input.engine}:${input.providerSessionId}:${input.transcriptPath}`, input); return input },
 }
 
-async function scopedSession(root: string, key: string) {
+async function scopedSession(root: string, key: string, transcriptPath?: string) {
   sessions.clear()
-  await scanExternalSessions(collector)
-  const record = sessions.get(key)
+  await scanExternalSessions(collector, { cwdRoots: [root] })
+  const matches = [...sessions.values()].filter(item => `${item.engine}:${item.providerSessionId}` === key && (!transcriptPath || item.transcriptPath === transcriptPath))
+  if (matches.length > 1) throw new Error('Remote session identity is ambiguous; select an exact history file')
+  const record = matches[0]
   if (!record) throw new Error('Remote provider history is no longer available')
   const cwd = await realpath(record.cwd)
   const rel = relative(await realpath(root), cwd)
@@ -34,15 +36,16 @@ async function scopedSession(root: string, key: string) {
 async function dispatch(data: { method: string; root: string; owner: number; args: any[] }) {
   if (data.method === 'session.scan') {
     sessions.clear()
-    await scanExternalSessions(collector)
+    const scan = await scanExternalSessions(collector, { cwdRoots: [data.root] })
     const root = await realpath(data.root)
-    return [...sessions.values()].filter(record => {
+    const records = [...sessions.values()].filter(record => {
       const rel = relative(root, record.cwd)
       return rel !== '..' && !rel.startsWith('../') && !isAbsolute(rel)
     })
+    return { records, issues: scan.issues }
   }
   if (data.method === 'session.transcript' || data.method === 'session.resume') {
-    const record = await scopedSession(data.root, data.args[0])
+    const record = await scopedSession(data.root, data.args[0], data.args[1])
     if (data.method === 'session.transcript') return readTranscriptDetail(record.transcriptPath, record.engine, record.providerSessionId)
     const args = buildProviderResumeArgs(record.engine, record.providerSessionId, record.transcriptPath)
     if (!args || !['claude', 'codex', 'opencode', 'pi'].includes(record.engine)) throw new Error('This provider does not support native resume')
@@ -50,7 +53,7 @@ async function dispatch(data: { method: string; root: string; owner: number; arg
     if (!detail) throw new Error('Cannot read the original provider history; no process was started')
     if (!(await stat(record.cwd)).isDirectory()) throw new Error('Original session directory is unavailable')
     // The desktop's remote terminal adapter validates/resolves the CLI using the
-    // same Linux environment as installation, including JanusX's user prefix.
+    // same system Linux environment as installation and external terminals.
     return { args, cwd: record.cwd, engine: record.engine, command: record.engine }
   }
   if (data.method === 'blueprint.ui.save') return requireBlueprintPlugin()

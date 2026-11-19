@@ -1,3 +1,4 @@
+import { isExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 import type { ShellRestoreManifest } from '../../../shared/ipc/session'
 import { launchTerminalPreset } from '@/lib/terminal-launch'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -44,7 +45,7 @@ export async function restoreShells(): Promise<number> {
   const { workspaces, terminals } = useWorkspaceStore.getState()
   let restored = 0
   for (const workspace of workspaces) {
-    if (!workspace.runtime || workspace.runtime.kind === 'windows' || !window.electron.workspaceRuntime) continue
+    if (!isExternalWorkspaceRuntime(workspace.runtime) || !window.electron.workspaceRuntime) continue
     const saved = manifest?.workspaces.find(entry => entry.workspaceId === workspace.id)?.terminals ?? []
     try {
       const running = await window.electron.workspaceRuntime.terminals(workspace.id)
@@ -70,7 +71,7 @@ export async function restoreShells(): Promise<number> {
   }
   for (const entry of terminals.length === 0 ? manifest?.workspaces ?? [] : []) {
     const workspace = workspaces.find((item) => item.id === entry.workspaceId)
-    if (!workspace || (workspace.runtime && workspace.runtime.kind !== 'windows')) continue
+    if (!workspace || (isExternalWorkspaceRuntime(workspace.runtime))) continue
     for (const terminal of entry.terminals) {
       try {
         const result = await launchTerminalPreset({

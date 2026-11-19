@@ -10,7 +10,7 @@
   "relations": [
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/6813a52b-249b-556e-a0eb-55acc6930922"}
   ],
-  "updated": "2026-10-16T14:38:00.000Z",
+  "updated": "2026-11-12T07:58:32.622Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10"
 }
 ---
@@ -50,3 +50,9 @@ Host styles own placement, sizing and structural skins. They must not duplicate 
 Related contract alignment lives in [the chat contract alignment](./janus-agent-chat-alignment.md): that note owns event parity and the question gate, this note owns the streaming feedback surface.
 
 [Chat 工作时间线](./requirements/chat-work-timeline.md)已接入当时因范围限制排除的完整交错过程，并覆盖各入口扩展工具展示、调用级身份与展示快照恢复。新过程的容量、生命周期及验证由该需求维护；本文的 Verification 保留原反馈方案的历史证据。
+
+## Shared error cards (2026-11-12)
+
+`chat/ChatErrorCard` now owns the SuperAgent error card and conversation attachment feedback, including themed card, message and action styles. SuperAgent retains its retry callback and recovery status; attachment errors expose a Close action that preserves the draft and restores input focus. The old host-specific card selectors were removed. Backend retry and terminal connection notices continue to use `ConversationNotice` with their existing lifecycle.
+
+Validation: all 12 `janus-chat-theme.spec.ts` browser cases pass, including provider failures and retry in two independent hosts across dark, Planche and white. The attachment context, recovery and composer suites pass 11 cases, including dismissal and clearing on a successful reference in 390px panes. Type checking passes; targeted ESLint reports zero errors and four pre-existing Chinese-literal warnings in `JanusChat.tsx`. Real provider failures and native desktop dragging were not exercised.

@@ -2,6 +2,9 @@ import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { ChevronDown, ChevronRight, Globe, Minimize2, Puzzle, X } from 'lucide-react'
+import { SuperAgentWorkspace } from './janus/SuperAgentWorkspace'
+import { JanusIcon } from './ui/JanusIcon'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { GlobalToolsLayout } from './GlobalToolsLayout'
@@ -12,7 +15,7 @@ import { useAppStore } from '@/stores/app'
 import { useBrowserStore } from '@/stores/browser'
 import { BrowserSurface } from './browser/BrowserSurface'
 import { destroyBrowserSurface, popOutBrowserSurface } from '@/services/browser'
-import { TerminalContextTooltip, TerminalRuntime, TerminalUsageStats } from './TerminalUsageDetails'
+import { TerminalContextIndicator, TerminalUsageCard } from './TerminalUsageDetails'
 import { MarkdownPane } from './MarkdownPane'
 import { ExtensionViewHost } from '@/extensions/ExtensionViewHost'
 import { useExtensionCommands, useExtensionViews } from '@/extensions/react'
@@ -23,10 +26,8 @@ import { MarkdownIcon } from './ui/MarkdownIcon'
 import {
   applyTerminalDraftLifecycle,
   clampDrawerHeight,
-  DRAWER_DEFAULT_HEIGHT,
   DRAWER_MIN_HEIGHT,
   DRAWER_MIN_PANE_HEIGHT,
-  getDrawerHeight,
   getDrawerPanelId,
 } from './note/quick-note-behavior'
 import { CLITerminal } from './CLITerminal'
@@ -37,11 +38,6 @@ import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
 import { useI18n } from '@/i18n/useI18n'
 import { getContextPopoverPosition, type PopoverAnchorRect, type PopoverSize } from './context-popover-position'
 import {
-  contextExactLabel,
-  contextLabel,
-  contextPercentLabel,
-  contextRatio,
-  contextRatioColor,
   modelLabel,
   providerLabel,
 } from '@/lib/terminal-labels'
@@ -129,7 +125,7 @@ function buildTerminalMenuItems(settings: ShellProfilesSettings): TerminalPreset
   }))
   const cliPresets = listVisibleCliPresets(
     settings,
-    ['janus', 'claude', 'codex', 'opencode', 'pi', 'dsh'],
+    ['claude', 'codex', 'opencode', 'pi', 'dsh'],
   ).map(createPreset)
   return [...shellEntries, ...cliPresets]
 }
@@ -212,6 +208,7 @@ const PaneTab = memo(function PaneTab({ tab, terminal, isActive, paneId, tabNode
           ? `${providerLabel(terminal.preset, t)} · ${tabStatusLabel} · ${terminal.cwd}`
           : tab.type === 'browser'
             ? 'Browser'
+            : tab.type === 'superagent' ? 'Janus SuperAgent'
             : tab.type === 'markdown'
               ? t('terminal:tab.view.note')
               : tab.type === 'extension'
@@ -260,6 +257,8 @@ const PaneTab = memo(function PaneTab({ tab, terminal, isActive, paneId, tabNode
             {t('terminal:tab.view.note')}
           </span>
         </span>
+      ) : tab.type === 'superagent' ? (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5"><JanusIcon size={16} />Janus</span>
       ) : tab.type === 'extension' ? (
         <span className="min-w-0 flex-1 truncate">
           {extensionRegistry.getView(tab.viewId)?.title ?? tab.viewId}
@@ -773,6 +772,7 @@ function LeafPane({
   const { t } = useI18n('terminal')
   useExtensionViews()
   const [dragHint, setDragHint] = useState<{ zone: PaneDropHint; ratio: number } | null>(null)
+  const [superAgentToolbar, setSuperAgentToolbar] = useState<HTMLDivElement | null>(null)
   /*-- tab 条排序占位：插入位是摘除拖拽 tab 后的数组下标，与 reorderPaneTab 语义一致 --*/
   const [tabInsertIndex, setTabInsertIndex] = useState<number | null>(null)
   const tabNodeRefs = useRef(new Map<string, HTMLDivElement>())
@@ -1028,6 +1028,7 @@ function LeafPane({
           <div data-tab-drag-slot="" aria-hidden="true" className={styles.slot} />
         </div>
         <div className={styles.controls}>
+          {activeTab?.type === 'superagent' && <div ref={setSuperAgentToolbar} />}
           {toolsRegion && <AuxiliaryPanelCollapseButton label={t('common:toolGroup.collapseTools')}
             onCollapse={() => useGlobalToolsStore.getState().setCollapsed(true)} />}
           {showFocusChrome && (
@@ -1113,6 +1114,13 @@ function LeafPane({
             )
           }
 
+          if (tab.type === 'superagent') {
+            const isActive = tab.id === activeTabId
+            return <div key={tab.id} className="absolute inset-0" hidden={!isActive}
+              aria-hidden={!isActive} {...(!isActive ? { inert: '' } : {})}>
+              <SuperAgentWorkspace visible={workspaceVisible && isActive} focused={workspaceVisible && isActive && isFocused} toolbarHost={superAgentToolbar} />
+            </div>
+          }
           if (tab.type !== 'terminal') return null
           const terminal = terminalsById.get(tab.terminalId)
           if (!terminal) return null
@@ -1208,11 +1216,12 @@ function LeafPane({
 }
 
 export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?: boolean }) {
+  const terminalLauncher = useSuperAgentUIStore(state => state.terminalLauncher)
   const { t } = useI18n('terminal')
   // Geometry and collapse are owned by GlobalToolsLayout. Subscribing to them
   // here rerenders every terminal/editor on each outer splitter movement.
   const globalTools = useGlobalToolsStore(useShallow((s) => ({
-    paneTree: s.paneTree, focused: s.focused, focusedPaneId: s.focusedPaneId,
+    paneTree: s.paneTree, focused: s.focused, focusedPaneId: s.focusedPaneId, collapsed: s.collapsed,
     collapsePaneLayout: s.collapsePaneLayout, setFocusedPane: s.setFocusedPane,
     setPaneTab: s.setPaneTab, reorderPaneTab: s.reorderPaneTab,
     movePaneTabToIndex: s.movePaneTabToIndex, dropContent: s.dropContent, resizePane: s.resizePane,
@@ -1272,7 +1281,53 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
   const setLoadState = useAppStore((s) => s.setLoadState)
   const terminalAreaRef = useRef<HTMLDivElement>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerMounted, setDrawerMounted] = useState(false)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const drawerToggleRef = useRef<HTMLButtonElement>(null)
+  const drawerPanelRef = useRef<HTMLElement>(null)
+  const drawerScrollRef = useRef<HTMLDivElement>(null)
+  useBrowserOcclusion(drawerMounted)
+  const closeDrawer = useCallback((restoreFocus = false) => {
+    setDrawerOpen(false)
+    if (restoreFocus) drawerToggleRef.current?.focus({ preventScroll: true })
+  }, [])
+  useEffect(() => {
+    if (drawerOpen) { setDrawerMounted(true); return }
+    const timer = window.setTimeout(() => setDrawerMounted(false), window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 190)
+    return () => window.clearTimeout(timer)
+  }, [drawerOpen])
+  useLayoutEffect(() => {
+    if (drawerPanelRef.current) drawerPanelRef.current.inert = !drawerOpen
+    if (drawerOpen && drawerScrollRef.current) drawerScrollRef.current.scrollTop = 0
+  }, [drawerOpen, drawerMounted])
+  useEffect(() => {
+    if (!drawerOpen) return
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !drawerRef.current?.contains(event.target)) closeDrawer()
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closeDrawer(true) }
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('focusin', outside)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('focusin', outside)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [drawerOpen, closeDrawer])
   const [drawerHeight, setDrawerHeight] = useState<number | undefined>(undefined)
+  const [drawerMeasuredHeight, setDrawerMeasuredHeight] = useState(0)
+  useLayoutEffect(() => {
+    const panel = drawerPanelRef.current
+    if (!drawerMounted || !panel) return
+    const measure = () => setDrawerMeasuredHeight(Math.round(panel.getBoundingClientRect().height))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(panel)
+    return () => observer.disconnect()
+  }, [drawerMounted])
   const [drawerResizing, setDrawerResizing] = useState(false)
   const drawerResizeRef = useRef<{ pointerId: number; target: HTMLDivElement; startY: number; startHeight: number; maximum: number } | null>(null)
   const drawerBodyStyleRef = useRef<{ cursor: string; userSelect: string } | null>(null)
@@ -1554,11 +1609,10 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
   const focusedTerminalWorkspace = activeTerminal
     ? workspaces.find((workspace) => workspace.id === activeTerminal.workspaceId) ?? null
     : null
-  const otherTerminals = terminals.filter((terminal) => terminal.id !== activeTerminal?.id)
 
   const getDrawerMaxHeight = useCallback(() => {
     const areaHeight = terminalAreaRef.current?.clientHeight ?? 0
-    return Math.max(DRAWER_MIN_HEIGHT, areaHeight - DRAWER_MIN_PANE_HEIGHT)
+    return Math.max(DRAWER_MIN_HEIGHT, Math.min(window.innerHeight * .6, areaHeight - DRAWER_MIN_PANE_HEIGHT))
   }, [])
 
   const finishDrawerResize = useCallback(() => {
@@ -1589,7 +1643,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
       pointerId: event.pointerId,
       target: event.currentTarget,
       startY: event.clientY,
-      startHeight: Math.min(drawerHeight ?? DRAWER_DEFAULT_HEIGHT, maximum),
+      startHeight: Math.min(drawerPanelRef.current?.getBoundingClientRect().height || 360, maximum),
       maximum,
     }
     drawerBodyStyleRef.current = {
@@ -1615,7 +1669,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
 
   const handleDrawerResizeKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const maximum = getDrawerMaxHeight()
-    const current = Math.min(drawerHeight ?? DRAWER_DEFAULT_HEIGHT, maximum)
+    const current = Math.min(drawerPanelRef.current?.getBoundingClientRect().height || 360, maximum)
     const heights: Partial<Record<string, number>> = {
       ArrowUp: current + 16,
       ArrowDown: current - 16,
@@ -1641,7 +1695,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
         ref={terminalAreaRef}
         className={styles.area}
     >
-      <GlobalToolsLayout hasProject={activeWorkspaceId !== null || paneTree !== null} projectTree={paneTree} externalControls={auxiliaryControls}
+      <GlobalToolsLayout hasProject={paneTree !== null || (activeWorkspaceId !== null && (terminalLauncher || globalTools.collapsed || !getLeafPanes(globalTools.paneTree).some(leaf => leaf.tabs.some(tab => tab.type === 'superagent'))))} projectTree={paneTree} externalControls={auxiliaryControls}
         tools={(visible) => <PaneTreeView
           toolsRegion node={globalTools.paneTree} workspaceVisible={visible}
           terminalsById={terminalsById} focusedPaneId={globalTools.focused ? globalTools.focusedPaneId : null}
@@ -1707,17 +1761,34 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
         })}
       </div>
 
-      <div
-        data-runtime-drawer=""
-        data-open={drawerOpen}
-        className={styles.drawer}
-        style={{
-          height: getDrawerHeight(drawerOpen, drawerHeight),
-          maxHeight: `calc(100% - ${DRAWER_MIN_PANE_HEIGHT}px)`,
-          transition: drawerResizing ? 'none' : undefined,
-        }}
-      >
-        {drawerOpen && (
+      <div ref={drawerRef} data-runtime-drawer="" data-open={drawerOpen} className={styles.drawer}>
+        <div className={styles.drawerBar} onClick={(event) => {
+          if (!(event.target as Element).closest('button')) setDrawerOpen(value => !value)
+        }}>
+          <div className={styles.drawerPrimary}>
+            <button ref={drawerToggleRef} type="button" className={styles.drawerToggle}
+              aria-expanded={drawerOpen} aria-controls={getDrawerPanelId()}
+              aria-label={t('terminal:tab.runtimePanelToggle')} onClick={() => setDrawerOpen(value => !value)}>
+              <ChevronRight size={12} strokeWidth={1.6} aria-hidden="true" className={styles.drawerChevron} />
+              <span>{t('terminal:tab.runtimeAria')}</span>
+            </button>
+            {activeTerminal ? <>
+              <span className={styles.drawerDetails}>
+                <ThemedTooltip label={providerLabel(activeTerminal.preset, t) + ' · ' + activeTerminal.cwd}>
+                  <span className={styles.drawerProvider}><TerminalPresetIcon preset={activeTerminal.preset} className="h-3.5 w-3.5 shrink-0" /><span>{providerLabel(activeTerminal.preset, t)}</span></span>
+                </ThemedTooltip>
+                {focusedTerminalWorkspace && <span className={styles.drawerWorkspace} title={focusedTerminalWorkspace.path}>{focusedTerminalWorkspace.name}</span>}
+                <span className={styles.drawerModel} title={modelLabel(activeTerminal, t)}>{modelLabel(activeTerminal, t)}</span>
+              </span>
+              <TerminalContextIndicator terminal={activeTerminal} />
+            </> : <span className="truncate text-[var(--shell-dim)]">{t('terminal:tab.noTelemetryData')}</span>}
+          </div>
+          <span className={styles.drawerCount}>{terminals.length} {t('terminal:sessions.countSuffix')}</span>
+        </div>
+        <section ref={drawerPanelRef} id={getDrawerPanelId()} hidden={!drawerMounted} aria-hidden={!drawerOpen}
+          aria-label={t('terminal:tab.runtimeAria')} className={styles.drawerPanel} data-open={drawerOpen}
+          style={{ height: drawerHeight ?? 'auto', maxHeight: drawerHeight === undefined ? 'min(360px, 50dvh, calc(100dvh - 200px))' : 'min(60dvh, calc(100dvh - 200px))', transition: drawerResizing ? 'none' : undefined }}>
+          {drawerOpen && (
           <div
             className="term-drawer-resize"
             data-resizing={drawerResizing}
@@ -1726,7 +1797,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
             aria-orientation="horizontal"
             aria-valuemin={DRAWER_MIN_HEIGHT}
             aria-valuemax={Math.round(getDrawerMaxHeight())}
-            aria-valuenow={Math.round(Math.min(drawerHeight ?? DRAWER_DEFAULT_HEIGHT, getDrawerMaxHeight()))}
+            aria-valuenow={drawerMeasuredHeight || Math.round(Math.min(drawerHeight ?? 360, getDrawerMaxHeight()))}
             tabIndex={0}
             onPointerDown={handleDrawerResizeStart}
             onPointerMove={handleDrawerResizeMove}
@@ -1736,202 +1807,20 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
             onKeyDown={handleDrawerResizeKeyDown}
             onBlur={handleDrawerResizeBlur}
           />
-        )}
-        <button
-          type="button"
-          className={styles.drawerBar}
-          aria-expanded={drawerOpen}
-          aria-controls={getDrawerPanelId()}
-          aria-label={t('terminal:tab.runtimePanelToggle')}
-          onClick={() => setDrawerOpen((value) => !value)}
-        >
-          <span className={styles.drawerPrimary}>
-            <span className={styles.drawerToggle}>
-              <ChevronRight size={12} strokeWidth={1.6} aria-hidden="true" className={styles.drawerChevron} />
-              <span>{t('terminal:tab.runtimeAria')}</span>
-            </span>
-            {activeTerminal ? (
-              <span className={styles.drawerDetails}>
-                {/*-- 抽屉左端补一枚 preset 图标：抽屉条本身是"当前终端"的入口，
-                     收起时也要能一眼认出是哪个 CLI，展开时与中部 tab / 左侧栏同一套图标语言。 --*/}
-                <ThemedTooltip label={`${providerLabel(activeTerminal.preset, t)} · ${activeTerminal.cwd}`}>
-                <span
-                  className={`${styles.metadata} ${styles.drawerProvider} font-mono`}
-                >
-                  <TerminalPresetIcon
-                    preset={activeTerminal.preset}
-                    className="h-3.5 w-3.5 shrink-0"
-                  />
-                  <span className="truncate">{providerLabel(activeTerminal.preset, t)}</span>
-                </span>
-                </ThemedTooltip>
-                {focusedTerminalWorkspace && (
-                  <ThemedTooltip label={t('terminal:tab.focusWorkspaceTitle', { name: focusedTerminalWorkspace.name, path: focusedTerminalWorkspace.path })}>
-                  <span
-                    className={`${styles.drawerWorkspace} min-w-0 max-w-[150px] items-center gap-1.5 font-mono text-[10px]`}
-                    style={{
-                      color: 'var(--shell-dim)',
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="h-1 w-1 shrink-0 rounded-full"
-                      style={{ background: 'var(--shell-dim)' }}
-                    />
-                    <span className="truncate">{focusedTerminalWorkspace.name}</span>
-                  </span>
-                  </ThemedTooltip>
-                )}
-                <span
-                  className={`${styles.metadata} ${styles.drawerModel} font-mono`}
-                >
-                  <span className="truncate">{modelLabel(activeTerminal, t)}</span>
-                </span>
-                <TerminalContextTooltip terminal={activeTerminal}>
-                <span
-                  className={`${styles.contextBadge} group font-mono`}
-                  style={{
-                    background: `color-mix(in srgb, ${contextRatioColor(contextRatio(activeTerminal))} 7%, transparent)`,
-                    color: contextRatioColor(contextRatio(activeTerminal)),
-                  }}
-                >
-                  <span className={styles.contextFull}>{contextLabel(activeTerminal, t)}</span>
-                  <span className={styles.contextCompact}>{contextPercentLabel(activeTerminal)}</span>
-                </span>
-                </TerminalContextTooltip>
-              </span>
-            ) : (
-              <span className="truncate text-[var(--shell-dim)]">{t('terminal:tab.noTelemetryData')}</span>
-            )}
-          </span>
-            <span className={styles.drawerOthers}>
-              {otherTerminals.slice(0, 3).map((terminal) => {
-                return (
-                <ThemedTooltip key={terminal.id} label={`${providerLabel(terminal.preset, t)} · ${modelLabel(terminal, t)} · ${contextLabel(terminal, t)}`}>
-                <span
-                  className={`${styles.metadata} max-w-[126px] overflow-hidden font-mono`}
-                  style={{
-                    color: 'var(--shell-dim)',
-                  }}
-                >
-                  <TerminalStatusLight status={terminal.status} compact />
-                  <TerminalPresetIcon
-                    preset={terminal.preset}
-                    className="h-3.5 w-3.5 shrink-0"
-                  />
-                  <span className="truncate">{providerLabel(terminal.preset, t)}</span>
-                </span>
-                </ThemedTooltip>
-                )
-              })}
-              {otherTerminals.length > 3 && (
-                <span className="inline-flex h-5 items-center px-1.5 font-mono text-[var(--shell-dim)]">
-                  +{otherTerminals.length - 3}
-                </span>
-              )}
-            </span>
-        </button>
-        {/*-- Markdown 已迁为独立 pane，底部抽屉只留上下文监控 --*/}
-        <div
-          id={getDrawerPanelId()}
-          hidden={!drawerOpen}
-          className="overflow-hidden px-3 pb-3 pt-2 text-[11px] font-mono"
-          style={{ height: 'calc(100% - 28px)' }}
-        >
-          {drawerOpen && (
-            <section
-              className="flex h-full min-h-0 flex-col overflow-hidden"
-              aria-label={t('terminal:tab.runtimeAria')}
-            >
-              <div className="flex h-8 shrink-0 items-center justify-between px-2.5">
-                <span className="text-[var(--shell-muted)]">{t('terminal:tab.terminalRuntime')}</span>
-                <span className="text-[var(--shell-dim)]">{terminals.length} {t('terminal:sessions.countSuffix')}</span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-auto p-2">
-                {terminals.length === 0 ? (
-                  <div className="px-1 py-3 text-[var(--shell-dim)]">{t('terminal:tab.noTelemetryData')}</div>
-                ) : (
-                  <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))' }}>
-                    {terminals.map((terminal) => {
-                      const ratio = contextRatio(terminal)
-                      const ratioColor = contextRatioColor(ratio)
-                      const isActiveCard = terminal.id === activeTerminalId
-                      const cardVisual = getTerminalStatusVisual(terminal.status)
-                      const cardStatusLabel = cardVisual ? t(cardVisual.labelKey) : undefined
-                      const identityLabel = cardStatusLabel
-                        ? `${providerLabel(terminal.preset, t)} · ${cardStatusLabel} · ${terminal.cwd}`
-                        : `${providerLabel(terminal.preset, t)} · ${terminal.cwd}`
-                      return (
-                        <button
-                          key={terminal.id}
-                          type="button"
-                          className={`${styles.runtimeCard} group flex min-w-0 cursor-pointer flex-col gap-2 px-2.5 py-2 text-left`}
-                          aria-current={isActiveCard ? 'true' : undefined}
-                          aria-label={identityLabel}
-                          onClick={() => setActiveTerminal(terminal.id)}
-                        >
-                          {/* Current terminal is marked locally; no perimeter outline. */}
-                          {isActiveCard && (
-                            <span
-                              aria-hidden="true"
-                              className="absolute inset-y-0 left-0 w-0.5 rounded-l-md"
-                              style={{ background: 'var(--shell-accent-border)' }}
-                            />
-                          )}
-                          <span className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                            <ThemedTooltip label={identityLabel}>
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              <TerminalStatusLight status={terminal.status} compact />
-                              {/*-- 与抽屉条左端 / 中部 tab 同一枚 preset 图标：卡片只给名称时
-                                   分不清 codex 与 opencode，图标是唯一稳定的身份锚点。 --*/}
-                              <TerminalPresetIcon
-                                preset={terminal.preset}
-                                className="h-3.5 w-3.5 shrink-0"
-                              />
-                              <span
-                                className="truncate text-[12px] font-medium"
-                                style={{ color: isActiveCard ? 'var(--shell-accent)' : 'var(--shell-text)' }}
-                              >
-                                {providerLabel(terminal.preset, t)}
-                              </span>
-                            </span>
-                            </ThemedTooltip>
-                            <TerminalRuntime terminal={terminal} />
-                          </span>
-                          <span className="truncate text-[10px] text-[var(--shell-dim)]">{modelLabel(terminal, t)}</span>
-                          <TerminalContextTooltip terminal={terminal}>
-                          <span className="flex min-w-0 flex-col gap-1 pt-1">
-                            <span className="flex items-baseline justify-between gap-2">
-                              <span className="text-[10px] text-[var(--shell-muted)]">{t('terminal:context.row.context')}</span>
-                              <span className="flex items-baseline gap-1.5">
-                                <span className="tabular-nums text-[11px] text-[var(--shell-text)]">{contextExactLabel(terminal, t)}</span>
-                                <span className="shrink-0 tabular-nums text-[10px]" style={{ color: ratioColor }}>{contextPercentLabel(terminal)}</span>
-                              </span>
-                            </span>
-                            <span
-                              className="block h-1 w-full overflow-hidden rounded-full"
-                              style={{ background: 'var(--shell-border-soft)' }}
-                            >
-                              <span
-                                className="block h-full rounded-full transition-[width,background] duration-300"
-                                style={{
-                                  width: `${Math.round((ratio ?? 0) * 100)}%`,
-                                  background: ratioColor,
-                                }}
-                              />
-                            </span>
-                          </span>
-                          </TerminalContextTooltip>
-                          <TerminalUsageStats terminal={terminal} layout="grid" />
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
           )}
-        </div>
+          <header className={styles.drawerHeading}>
+            <div><strong>{t('terminal:tab.terminalRuntime')}</strong><span>{terminals.length} {t('terminal:sessions.countSuffix')}</span></div>
+            <button type="button" className={styles.drawerClose} aria-label={t('terminal:tab.closeRuntimePanel')} onClick={() => closeDrawer(true)}><X size={15} aria-hidden="true" /></button>
+          </header>
+          <div ref={drawerScrollRef} className={styles.drawerScroll}>
+            {terminals.length === 0 ? <div className={styles.drawerEmpty}>{t('terminal:tab.noTelemetryData')}</div> :
+              <div className={styles.runtimeGrid}>
+                {terminals.map(terminal => <TerminalUsageCard key={terminal.id} terminal={terminal} visible={drawerOpen}
+                  active={terminal.id === activeTerminalId} workspaceName={workspaces.find(workspace => workspace.id === terminal.workspaceId)?.name}
+                  onSelect={() => setActiveTerminal(terminal.id)} />)}
+              </div>}
+          </div>
+        </section>
       </div>
 
         </>}

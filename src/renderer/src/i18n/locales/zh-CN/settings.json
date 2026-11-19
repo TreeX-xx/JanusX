@@ -1,4 +1,85 @@
 {
+  "historySources": {
+    "title": "历史数据位置",
+    "description": "会话管理与用量统计共用的数据来源。自动识别 CLI 配置，也可添加其他历史位置。",
+    "close": "关闭",
+    "automatic": "自动识别",
+    "add": "添加位置",
+    "remove": "移除位置",
+    "reset": "恢复自动识别",
+    "done": "完成",
+    "busy": "正在检查并刷新历史…",
+    "refreshFailed": "位置已保存，部分历史刷新失败：",
+    "note": "移除位置不会删除文件或已统计数据。继续会话仍需原工作目录、CLI 和有效配置；仅用于读取的备份不能保证续接。",
+    "path": {
+      "claude": "选择 .claude 下的 projects 历史目录",
+      "codex": "选择 .codex 下的 sessions 或 archived_sessions 目录",
+      "pi": "选择 sessions 目录或自定义历史目录",
+      "opencode": "选择 opencode.db 数据库文件"
+    },
+    "status": {
+      "ready": "已识别历史",
+      "missing": "位置不存在",
+      "unreadable": "无法读取",
+      "empty": "未发现历史",
+      "invalid": "未识别到对应 CLI 的历史格式"
+    },
+    "resume": {
+      "native-layout": "支持续接路径检查",
+      "active-store": "当前 CLI 数据库",
+      "read-only": "仅用于读取"
+    }
+  },
+  "workerDefaults": {
+    "isDefault": "默认执行",
+    "makeDefault": "设为默认",
+    "enableWorker": "启用 {{name}}",
+    "refreshModels": "刷新模型",
+    "catalog": {"loading":"正在读取模型…","empty":"终端未返回可选模型，可使用原生默认","error":"终端模型读取失败，请刷新"},
+    "defaultBackend": "默认 Worker",
+    "defaultHint": "未指定引擎时使用。",
+    "enabledBackends": "允许使用的 Worker",
+    "enabledHint": "默认 Worker 必须启用。禁用后拦截新的派发，已运行的工作继续。",
+    "claudePermissions": "Claude Code 在 Windows 原生运行，沿用原生权限与用户审批，不使用 Codex MXC 沙箱。",
+    "idleTimeout": "空闲自动关闭时间",
+    "idleHint": "仅在工作完成且已确认停止后计时；运行中或待确认的 Worker 不自动关闭。可设置 1–10080 的整数分钟；保存后在下一次检查生效，已有空闲时间继续累计。",
+    "minutes": "分钟",
+    "title": "SuperAgent Worker",
+    "terminal": "配置引擎",
+    "supported": "编辑引擎配置不会改变默认 Worker。",
+    "model": "默认模型",
+    "modelHint": "输入所选引擎的模型 ID，留空使用原生默认；启动时通过原生模型目录校验。",
+    "effort": "推理强度",
+    "effortHint": "此处提供常见值；Worker 启动时会按原生模型目录校验模型与强度组合。",
+    "native": "原生默认",
+    "timing": "两种引擎分别保存默认配置。修改默认引擎只影响新工作；已有工作和后续继续仍使用原引擎。",
+    "restore": "恢复原生默认",
+    "error": "Worker 设置加载或保存失败",
+    "unavailable": "SuperAgent 当前不可用。",
+    "efforts": {
+      "none": "无",
+      "minimal": "最低",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "极高",
+      "max": "最大（max）",
+      "ultra": "超强（ultra）"
+    },
+    "errors": {
+      "idleTimeout": "请输入 1 到 10080 之间的整数分钟。",
+      "invalidSettings": "Worker 设置无效，请检查模型与推理强度。",
+      "backend": "请选择 Codex 或 Claude Code。",
+      "modelId": "请输入有效的模型 ID，不能包含空格。",
+      "effortId": "推理强度标识须以字母或数字开头，最多 64 字符，可包含点、连字符和下划线。",
+      "unsupportedEffort": "此模型不支持所选推理强度，请刷新模型列表并选择可用选项。",
+      "missingModel": "当前 Worker 的模型目录中没有此模型，请刷新列表并重新选择。",
+      "unavailable": "此 Worker 当前不可用，请选择运行中的 Worker 后重试。",
+      "loading": "Worker 设置仍在加载，请稍后重试。",
+      "changed": "Worker 执行已变化，请重新打开其模型设置后重试。",
+      "unconfirmed": "原生 Worker 尚未确认配置，请刷新并核对当前设置。"
+    }
+  },
   "title": "设置中心",
   "brand": "设置中心",
   "groups": {
@@ -15,7 +96,7 @@
     },
     "general": {
       "title": "通用",
-      "subtitle": "外观、语言与开发环境",
+      "subtitle": "语言、默认会话与远程控制",
       "nav": "通用",
       "navMeta": "Language"
     },
@@ -62,7 +143,30 @@
       "navMeta": "Models"
     }
   },
+  "workerCapacity": {
+    "title": "Worker 并发",
+    "limit": "并发上限",
+    "help": "所有工作区共用的 Worker 名额，超出上限的任务排队等待。",
+    "workspaceRequired": "请先打开一个工作区以读取当前上限。",
+    "invalid": "请输入大于或等于 1 的整数。",
+    "retry": "重新读取"
+  },
   "general": {
+    "emphasis": {
+      "label": "行内代码颜色",
+      "help": "设置字段名、命令等行内代码的颜色。普通对话与 SuperAgent 共用，按主题分别保存。",
+      "picker": "选择行内代码颜色",
+      "hex": "行内代码色值",
+      "reset": "恢复默认",
+      "automatic": "跟随主题",
+      "custom": "自定义颜色",
+      "invalid": "请输入十六进制色值，例如 #89BFFE 或 #8BF。",
+      "previewLabel": "文字效果预览",
+      "previewBefore": "正文重点 · 加粗",
+      "previewStrong": "关键内容",
+      "previewCode": "field_name",
+      "previewAfter": "行内代码 · 颜色"
+    },
     "remote": {
       "label": "手机远程",
       "enable": "启用手机远程",
@@ -77,7 +181,7 @@
       "conversation": "对话"
     },
     "section": {
-      "preferences": "外观与语言",
+      "preferences": "语言偏好",
       "environment": "开发环境",
       "application": "应用维护"
     },
@@ -487,8 +591,7 @@
       "refreshing": "检测中...",
       "working": "处理中..."
     },
-    "notice": {
-      "existingTerminal": "已打开的终端需重启，新版本与 PATH 才会生效。",
+    "notice": {      "existingTerminal": "已打开的终端需重启，新版本与 PATH 才会生效。",
       "installed": "安装完成，重启终端后生效。"
     },
     "visibility": {

@@ -45,7 +45,7 @@ export default defineConfig(async ({ command }) => {
         this.emitFile({ type: 'asset', fileName: 'workspace-host.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/host.py')) })
         this.emitFile({ type: 'asset', fileName: 'workspace-cli.py', source: readFileSync(resolve(__dirname, 'resources/workspace-runtime/cli.py')) })
       } }, externalizeDepsPlugin({
-        exclude: ['@janusx/llm-core', '@janusx/llm-core/model-registry', '@janusx/plugin-sdk', '@janusx/note-tools', 'proxy-chain']
+        exclude: ['@janusx/llm-core', '@janusx/llm-core/mac-system-proxy', '@janusx/llm-core/model-registry', '@janusx/plugin-sdk', '@janusx/note-tools', 'proxy-chain']
       })],
       resolve: { alias: { '@janusx/plugin-sdk/native': resolve(__dirname, 'packages/plugin-sdk/src/native.ts'), '@janusx/plugin-sdk': resolve(__dirname, 'packages/plugin-sdk/src/index.ts') } },
       build: {
@@ -56,6 +56,7 @@ export default defineConfig(async ({ command }) => {
             'note-mcp': resolve(__dirname, 'src/main/plugins/note-mcp-launcher.ts'),
             'plugin-mcp': resolve(__dirname, 'src/main/plugins/plugin-mcp-entry.ts'),
             'office-mcp': resolve(__dirname, 'src/main/office/office-mcp.ts'),
+            'worker-mcp': resolve(__dirname, 'src/main/janus/superagent/worker-mcp.ts'),
             'browser-mcp': resolve(__dirname, 'src/main/browser/terminal-mcp.ts'),
             'office-launcher': resolve(__dirname, 'src/main/office/office-launcher.ts')
           }

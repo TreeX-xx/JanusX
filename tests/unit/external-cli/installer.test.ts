@@ -1,6 +1,4 @@
-import { dirname, join, resolve } from 'path'
-import { mkdtemp, writeFile } from 'fs/promises'
-import { tmpdir } from 'os'
+import { dirname, resolve } from 'path'
 import { describe, expect, it, vi } from 'vitest'
 import { CliInstaller } from '../../../src/main/external-cli/installer'
 import { EXTERNAL_CLI_TOOLS } from '../../../src/main/external-cli/tool-registry'
@@ -92,77 +90,6 @@ describe('CliInstaller', () => {
     await expect(first).resolves.toMatchObject({ success: true })
   })
 
-  it('builds then links the janus sibling source in its own directory', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'janusx-janus-src-'))
-    const packageDir = join(root, 'packages', 'cli')
-    const { mkdir } = await import('fs/promises')
-    await mkdir(packageDir, { recursive: true })
-    await writeFile(join(packageDir, 'package.json'), JSON.stringify({ name: '@janus-agent/cli', version: '0.2.0' }), 'utf8')
-    const calls: Array<{ file: string; args: readonly string[]; cwd?: string }> = []
-    const installer = new CliInstaller({
-      platform: 'linux',
-      env: { PATH: '' },
-      homeDir: root,
-      isRegularFile: async () => true,
-      run: async (file, args, options) => {
-        calls.push({ file, args, cwd: options.cwd })
-        return { exitCode: 0, stdout: '', stderr: '' }
-      },
-      resolveSiblingRoot: () => root,
-    })
-
-    const result = await installer.install(EXTERNAL_CLI_TOOLS.janus)
-    expect(result.success).toBe(true)
-    expect(result.command).toContain('npm run build')
-    expect(result.command).toContain('npm link')
-    expect(calls.map(call => call.args)).toEqual([['run', 'build'], ['link']])
-    expect(calls.every(call => call.cwd === packageDir)).toBe(true)
-  })
-
-  it('falls back to npm install when the janus source is absent', async () => {
-    const npmPath = '/usr/bin/npm'
-    const run = vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' }))
-    const installer = new CliInstaller({
-      platform: 'linux',
-      env: { PATH: '/usr/bin' },
-      homeDir: '/nonexistent',
-      isRegularFile: async candidate => resolve(candidate) === resolve(npmPath),
-      run,
-      resolveSiblingRoot: () => undefined,
-    })
-
-    const result = await installer.install(EXTERNAL_CLI_TOOLS.janus)
-    expect(result).toMatchObject({ success: true })
-    expect(result.command).toContain('i -g @janus-agent/cli@latest')
-    expect(run).toHaveBeenCalledOnce()
-  })
-
-  it('stops before link when the janus build fails', async () => {    const root = await mkdtemp(join(tmpdir(), 'janusx-janus-fail-'))
-    const packageDir = join(root, 'packages', 'cli')
-    const { mkdir } = await import('fs/promises')
-    await mkdir(packageDir, { recursive: true })
-    await writeFile(join(packageDir, 'package.json'), JSON.stringify({ name: '@janus-agent/cli', version: '0.2.0' }), 'utf8')
-    let runs = 0
-    const installer = new CliInstaller({
-      platform: 'linux',
-      env: { PATH: '' },
-      homeDir: root,
-      isRegularFile: async () => true,
-      run: async () => {
-        runs += 1
-        return runs === 1
-          ? { exitCode: 1, stdout: '', stderr: 'tsc error TS0000' }
-          : { exitCode: 0, stdout: '', stderr: '' }
-      },
-      resolveSiblingRoot: () => root,
-    })
-
-    const result = await installer.install(EXTERNAL_CLI_TOOLS.janus)
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('tsc error TS0000')
-    expect(runs).toBe(1)
-  })
-
   it('removes the npm package on uninstall through the same silent shell', async () => {
     const npmPath = 'C:\\Users\\test\\AppData\\Roaming\\npm\\npm.cmd'
     const { installer, run } = createHarness({ npmPath })
@@ -184,15 +111,6 @@ describe('CliInstaller', () => {
     expect(failed.error).toContain('npm ERR! not found')
   })
 
-  it('uninstalls janus through npm like every other tool', async () => {
-    const npmPath = 'C:\\Users\\test\\AppData\\Roaming\\npm\\npm.cmd'
-    const { installer, run } = createHarness({ npmPath })
 
-    await expect(installer.uninstall(EXTERNAL_CLI_TOOLS.janus)).resolves.toEqual({
-      success: true,
-      command: `& "${npmPath}" rm -g @janus-agent/cli`,
-    })
-    expect(run.mock.calls[0][1].join(' ')).toContain('rm -g @janus-agent/cli')
-  })
 })
 

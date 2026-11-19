@@ -6,7 +6,7 @@
   "lifecycle": "implemented",
   "created": "2026-09-29",
   "class": "bug-fix",
-  "updated": "2026-10-21T15:37:53.642Z",
+  "updated": "2026-11-11T04:21:31Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -31,7 +31,7 @@ Detail-window SURFACE_CARD and SURFACE_INSET still mix shell-chrome toward shell
 Expanded list actions separate reading from continuation: View details is a quiet text button on its own row; resume and continue share two equal columns below. All action controls inherit the UI font at 12px, use 6px corners and at least 32px height. Resume uses a neutral hover-role fill when available; secondary actions use a neutral outline. Disabled resume has reduced opacity and retains its explanatory tooltip. When only one continuation choice exists it fills the row. The detail window reuses the same neutral button classes. Accent color is reserved for keyboard focus, rather than coloring both reading and resuming as primary actions. Labels, native-resume eligibility and continuation handlers retain their behavior.
 
 ### Session list summary prioritizes title and freshness
-`SessionCard` renders a 13px title beside the engine icon, a secondary status and a persistent chevron. The title derives from the first clause of `firstPrompt` (cut at the first CJK or ASCII punctuation, capped at 24 characters), without decorative quotation marks. A muted one-line prompt preview appears only when the full prompt differs from that title; short prompts no longer repeat. An 11px inherited-font meta row carries engine, optional external-source text and turns, with relative time aligned right. The chevron rotates 180° on the shared 240ms expand curve. The L2 region keeps cwd/branch and detailed prompt/turn content described in Session list surfaces; checkpoint counts remain absent. The header row and its keyboard-focusable chevron share one expand toggle.
+`SessionCard` renders a 13px provider-authored conversation title beside the engine icon, a secondary status and a persistent chevron. Missing titles fall back to the engine name. A muted one-line preview shows the latest discussion, independently of the first prompt; titles are no longer derived by cutting the first prompt. Search covers the title, recent discussion and original first prompt. The detail dialog shares the conversation title, while the original first prompt remains in expanded details. Provider sources, synchronization and cached injection repair belong to [transcript content truth](../sessions/records/session-content-truth-kernel.md). An 11px inherited-font meta row carries engine, optional external-source text and turns, with relative time aligned right. The L2 region keeps cwd/branch and detailed prompt/turn content described in Session list surfaces; checkpoint counts remain absent. The header row and its keyboard-focusable chevron share one expand toggle.
 
 
 ### Session card expansion and responsive toggles

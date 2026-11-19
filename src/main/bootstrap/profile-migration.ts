@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { createHash } from 'node:crypto'
 import {
   closeSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, openSync,
@@ -28,7 +29,7 @@ function isInside(root: string, path: string): boolean {
 }
 
 function samePath(first: string, second: string): boolean {
-  return process.platform === 'win32' ? first.toLowerCase() === second.toLowerCase() : first === second
+  return runtimePathKey(first) === runtimePathKey(second)
 }
 
 function digest(path: string): string {

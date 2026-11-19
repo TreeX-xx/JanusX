@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 118 80" fill="none" role="img" aria-label="Pi">
+  <title>Pi</title>
+  <!-- Original interface lettering; generated from wordmarks.mjs. No font dependency. -->
+  <g fill="#eae7e2" fill-rule="evenodd">
+    <g id="letter-p-0" transform="translate(0 0)">
+      <path d="M2 72V8H44L60 24V40L44 56H14V72Z M14 20V44H38L48 34V30L38 20Z"/>
+    </g>
+    <g id="letter-i-1" transform="translate(70 0)">
+      <path d="M2 8H38V20H26V60H38V72H2V60H14V20H2Z"/>
+    </g>
+  </g>
+</svg>

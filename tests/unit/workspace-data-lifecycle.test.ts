@@ -67,6 +67,37 @@ it('keeps offline records and tool storage, but separates a replaced directory',
   expect(JSON.parse(await readFile(join(toolRoot, 'manifest.json'), 'utf8')).detachedAt).toBeUndefined()
 })
 
+it('explicitly detaches missing tool-only worktree storage and purges without the source directory', async () => {
+  const { root, launchPath } = await store.resolve(cwd, true)
+  await writeFile(launchPath, 'config')
+  await rm(cwd, { recursive: true })
+  const [item] = await store.data([])
+  expect(item).toMatchObject({ status: 'offline', workspaceIds: [], actions: { detach: true, purge: true, cleanup: true } })
+  await store.detach(item.id, [], 1000)
+  store = new WorkspaceStateStore(profile)
+  expect((await store.data([]))[0]).toMatchObject({ detachedAt: new Date(1000).toISOString(), actions: { detach: false, restore: false, purge: true } })
+  await store.cleanup(item.id, 'all')
+  await store.cleanup(item.id, 'all')
+  expect(await store.data([])).toEqual([])
+  await gone(root)
+})
+
+it('removes metadata-only records without a manifest, but keeps unknown private data', async () => {
+  await store.sync(records())
+  const [item] = await store.data(records())
+  await rm(cwd, { recursive: true })
+  await expect(store.detach(item.id, records())).rejects.toThrow('Remove the workspace')
+  await store.detach(item.id, [])
+  expect(await store.data([])).toEqual([])
+  await mkdir(cwd)
+  await store.sync(records())
+  const [other] = await store.data(records())
+  await mkdir(other.target, { recursive: true })
+  await writeFile(join(other.target, 'unknown.json'), 'keep')
+  await expect(store.detach(other.id, [])).rejects.toThrow('No verified')
+  expect(await readFile(join(other.target, 'unknown.json'), 'utf8')).toBe('keep')
+})
+
 it('recognizes ownership of a P2 registry entry during an offline upgrade', async () => {
   const storage = await store.resolve(cwd, true)
   await rename(cwd, join(base, 'offline'))

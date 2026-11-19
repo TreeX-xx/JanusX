@@ -17,6 +17,7 @@ export type IslandNotificationActionId =
   | 'open-maintenance'
   | 'open-plugin'
   | 'open-automation'
+  | 'open-superagent'
 
 export interface IslandNotificationAction {
   id: IslandNotificationActionId
@@ -52,6 +53,8 @@ export interface IslandNotification {
   groupKey?: string
   automation?: Pick<AutomationRun, 'id' | 'definitionId'>
   productPath?: string
+  work?: { workspaceId: string; workId: string; conversationId: string }
+  silent?: boolean
 }
 
 /** Higher ranks interrupt more; ties break by newest. */
@@ -119,6 +122,7 @@ const ACTION_LABEL_KEYS: Record<IslandNotificationActionId, string> = {
   'open-maintenance': 'janus:island.capsule.action.openMaintenance',
   'open-plugin': 'plugins:open',
   'open-automation': 'janus:island.notif.openTask',
+  'open-superagent': 'janus:superagent.locateWork',
 }
 
 export function notificationActionLabelKey(id: IslandNotificationActionId): string {

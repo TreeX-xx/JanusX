@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-23T03:08:30Z",
+  "updated": "2026-11-15T11:26:44.325Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662",
   "moduleState": "partial",
   "codeRefs": [
@@ -46,6 +46,12 @@
 维护稳定的会话身份、终端绑定、回合记录、外部转录发现与有界读取，以及会话时间线和续接。提供 AgentSessionRegistry 给终端、检查点及其他调用方。
 
 ## Design
+
+本机会话发现与用量采集共用“历史数据位置”设置，支持自动目录和手动补充来源；用量页及会话工具栏打开同一弹窗。手动设置只管理历史读取，不更改 CLI 的配置和新会话保存位置。关闭来源后保留已导入记录，详情仍按记录中的原路径读取，续接保留独立前置检查。Codex 本机归档目录现与 sessions 一起发现，远端扫描范围不变。来源校验、持久化和跨目录用量去重由[会话源单源化](../../terminal/requirements/usage-telemetry-single-source.md#历史数据位置)维护。
+
+[macOS 终端与历史读取分析](../../terminal/macos-cli-sessions.md)记录 POSIX 存储、配置目录覆盖、正文解析及恢复前置检查。跨平台 P4 已统一 provider 有效目录、补 Pi 自定义目录与 POSIX 大小写 scope；冲突历史保留并禁止含糊续接。扫描返回缺失、权限、损坏及格式诊断，既有远端 backend 在数据拥有端读取。活动 SQLite/WAL 宿主夹具通过，真实 Mac 文件权限、活跃数据库及提供方续接尚未验收；DSH reader 仍在独立范围。详见[跨平台运行时边界](../../desktop/platform-runtime-boundaries.md)。
+
+会话标题来自提供方已有的会话概括，卡片另显示最近讨论预览，首次提示保留在详情。指令注入过滤、旧首问清理与标题同步边界见[会话内容真值](session-content-truth-kernel.md)。
 
 注册表先加载后写入并在退出前刷盘，外部扫描批量合并通知；各引擎的转录与续接能力显式判断。会话管理只读取账本回合和提供方转录，保留筛选、归档查阅、复制、实时预览、详情导航与原生续接；不显示还原点计数、文件变更、diff 或恢复操作，也不请求 checkpoint IPC。问题文本来自回合快照与转录合并，不再从检查点补齐。底层快照创建、数据与其他调用方仍归 [会话检查点](../checkpoints/module.md)，本次移除不迁移或删除历史记录。界面分层见 [窗口化阅读](session-windowed-reading.md)。Hook 能力表属于终端事件协作边界，知识证据提取由知识模块维护。
 

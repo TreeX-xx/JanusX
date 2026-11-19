@@ -3,13 +3,14 @@ import { exportConversationImage } from '../terminal/conversation-image-export'
 import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
 import { readNativeInputHistory } from '../terminal/input-history'
-import { CodexConversation } from '../terminal/codex-conversation'
+import { DesktopCodexConversation } from '../terminal/codex-conversation'
 import { ClaudeConversation } from '../terminal/claude-conversation'
 import { PiConversation, DshConversation } from '../terminal/extension-conversation'
 import { OpenCodeConversation } from '../terminal/opencode-conversation'
 import { supportsConversation } from '../../shared/conversation-display'
 import { conversations, type ConversationController } from '../terminal/conversations'
-import type { ConversationCommand } from '../../shared/conversation-display'
+import type { DesktopConversationCommand } from '../../shared/conversation-display'
+import type { ConversationHistoryRequest } from '../../shared/conversation-history'
 import { createRemoteTerminal } from '../terminal/remote-pty'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
 import { remoteBackendRequest } from '../workspace/remote-harness'
@@ -24,7 +25,8 @@ import { deliverHandoff, type HandoffTransport } from '../sessions/handoff-deliv
 import { prepareSessionRecovery, type SessionRecoveryEnvironment } from '../sessions/session-recovery'
 import { isTerminalPreset, resolveTerminalLaunchProgram } from '../../shared/terminalLaunch'
 import { resolveCLIPath } from '../janus-runner/cli-resolver'
-import { managedCliEnv } from '../external-cli/managed-paths'
+import { localRuntimeContext, localSystem } from '../platform/runtime-context'
+import { providerLaunchPaths, providerPathContext } from '../external-cli/provider-paths'
 import { subAgentRunRegistry } from '../janus-runner/subagent-run-registry'
 import type { SubAgentRunEngine } from '../../shared/subAgentRun'
 import { AgentHookBridge } from '../notifications/agent-hook-bridge'
@@ -49,8 +51,7 @@ import { agentTurnRecorder } from '../knowledge/agent-turn-recorder'
 import { readAssistantExcerpt } from '../sessions/transcript-excerpt'
 import { appShutdown } from '../shutdown/AppShutdown'
 import { officecliManager } from '../office/officecli-manager'
-import { existsSync } from 'node:fs'
-import { extname, isAbsolute, resolve, win32 } from 'node:path'
+import { isAbsolute, resolve, win32 } from 'node:path'
 import { buildOfficeAgentSession, mergeOfficeAgentEnv } from '../office/office-agent-policy'
 import {
   TERMINAL_EVENT_CHANNELS,
@@ -633,7 +634,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   }
 
   const createTerminalLifecycle = async (config: TerminalCreateRequest, recoveryEnv?: SessionRecoveryEnvironment) => {
-    if (config.conversationEnabled && (!supportsConversation(config.preset ?? '') || parseRuntimeResource(config.cwd) || config.extraArgs?.length || recoveryEnv)) {
+    if (config.conversationEnabled && (!supportsConversation(config.preset ?? '', localSystem().platform) || parseRuntimeResource(config.cwd) || config.extraArgs?.length || recoveryEnv)) {
       throw new Error('Dual mode requires a new local supported agent session')
     }
     if (parseRuntimeResource(config.cwd)) return createRemoteLifecycle(config)
@@ -722,6 +723,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
 
       // 普通终端按用户自建 shell 条目直启（默认条目或本次临时选择），CLI 预设仍走上面解析。
       // Shell errors and rejected preparation both use the same rollback below.
+      const runtimeContext = localRuntimeContext()
       const resolveProgramPromise = (async (): Promise<ResolvedLaunchProgram> => {
         if (engine === 'shell') {
           const shellLaunch = await resolveShellProfileLaunch({
@@ -733,21 +735,16 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         }
         if (!launchProgram) return undefined
         try {
-          const resolved = await resolveCLIPath(configuredClaudeCommand(launchProgram.command))
-          // Never pass a non-existent or extensionless Windows path to node-pty.
-          // Fall back to the bare command so CreateProcess can still search PATHEXT.
-          if (
-            resolved &&
-            (process.platform !== 'win32' ||
-              (existsSync(resolved) && Boolean(extname(resolved))))
-          ) {
+          const resolved = await resolveCLIPath(configuredClaudeCommand(launchProgram.command), runtimeContext)
+          // Launch the resolved installation, matching detection and post-install verification.
+          if (resolved) {
             return { command: resolved, args: launchProgram.args }
           }
         } catch (error) {
           if (error instanceof Error && error.name === 'ClaudeNativeBinaryError') throw error
-          // Fall back to bare command; PATH-based spawn may still succeed.
+          return { error: `Could not resolve ${launchProgram.command}: ${error instanceof Error ? error.message : String(error)}` }
         }
-        return launchProgram
+        return { error: `${launchProgram.command} CLI was not found. Install or repair it in CLI settings, then retry.` }
       })()
 
       let hookLaunchArgs: string[] = []
@@ -809,7 +806,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         preset,
         engine,
         program: launchProgramResolved?.command,
-        programArgs,
+        argumentCount: programArgs.length,
       })
 
       if (terminalStates.get(id)?.userKillRequested || appShutdown.isQuitting) throw new Error('Terminal launch cancelled')
@@ -824,18 +821,20 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
       const hookEnv = mergeOfficeAgentEnv(hookEnvBase, officeSession)
       const launchEnv = {
-        ...(engine !== 'shell' ? { PATH: managedCliEnv().PATH ?? managedCliEnv().Path ?? '' } : {}),
+        ...runtimeContext.env,
         ...hookEnv,
         ...(recoveryEnv?.claudeConfigDir ? { CLAUDE_CONFIG_DIR: recoveryEnv.claudeConfigDir } : {}),
         ...(recoveryEnv?.codexHome ? { CODEX_HOME: recoveryEnv.codexHome } : {}),
       }
+      const providerLaunch = providerLaunchPaths(engine, providerPathContext({ env: launchEnv, cwd, args: programArgs }))
+      Object.assign(launchEnv, providerLaunch.env)
       let runtimeProgram = launchProgramResolved?.command
-      let runtimeArgs = programArgs
+      let runtimeArgs = providerLaunch.args
       const runtimeStartedAt = performance.now()
       if (config.conversationEnabled) {
         if (!runtimeProgram || !hookEnvBase || (engine === 'claude' && !hookLaunchArgs.includes('--settings')) || (engine === 'codex' && !hookLaunchArgs.includes('--no-daemon')) || (engine === 'pi' && !hookLaunchArgs.includes('--extension'))) throw new Error('Dual mode requires working isolated launch hooks')
-        if (!supportsConversation(engine)) throw new Error('Unsupported conversation engine')
-        const adapter = { claude: ClaudeConversation, codex: CodexConversation, pi: PiConversation, opencode: OpenCodeConversation, dsh: DshConversation }[engine]
+        if (!supportsConversation(engine, runtimeContext.identity.platform ?? 'unknown')) throw new Error('Conversation mode is unavailable for this engine on this platform. Open a terminal session instead.')
+        const adapter = { claude: ClaudeConversation, codex: DesktopCodexConversation, pi: PiConversation, opencode: OpenCodeConversation, dsh: DshConversation }[engine]
         let readyRecorded = false
         const managed = new adapter(id,
           snapshot => {
@@ -854,7 +853,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         conversation = managed
         conversations.set(id, conversation)
         if (config.initialView === 'conversation') await managed.command({ type: 'mode', mode: 'conversation' })
-        const remote = await managed.start({ command: runtimeProgram, args: programArgs, cwd,
+        const remote = await managed.start({ command: runtimeProgram, args: runtimeArgs, cwd,
           env: { ...process.env, ...launchEnv }, pathDir: office.pathDir, assetsDir: resolve(app.getPath('userData'), 'janusx', 'conversations') })
         runtimeProgram = remote.command; runtimeArgs = remote.args
         if ('env' in remote) Object.assign(launchEnv, remote.env)
@@ -871,9 +870,11 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         shell,
         program: runtimeProgram,
         programArgs: runtimeArgs,
+        providerStorePath: providerLaunch.paths.store ?? undefined,
+        ...(runtimeProgram ? { launch: { identity: runtimeContext.identity, program: runtimeProgram, args: runtimeArgs, cwd, env: launchEnv, source: engine } } : {}),
         cols: typeof cols === 'number' ? cols : undefined,
         rows: typeof rows === 'number' ? rows : undefined,
-        env: launchEnv,
+        env: launchEnv as Record<string, string>,
       }, office.pathDir)
       const ptyMs = Math.round(performance.now() - ptyStartedAt)
       if (conversation) {
@@ -976,6 +977,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         preset,
         command,
         args,
+        providerStorePath: instance.config.providerStorePath,
       })
     }
 
@@ -1008,6 +1010,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
           })
         }
 
+        if (conversation instanceof DesktopCodexConversation) conversation.observeStartupOutput(data)
         const colorQueryResponse = colorQueryResponder?.push(data)
         if (colorQueryResponse) {
           terminalManager.write(id, colorQueryResponse)
@@ -1217,6 +1220,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   continueSessionImpl = async (sessionId, opts) => {
     const source = agentSessionRegistry.getSession(sessionId)
     if (!source) throw new Error(`Session not found: ${sessionId}`)
+    if (source.identityConflict) throw new Error('This provider session ID belongs to multiple history files. Review the original files before resuming.')
     if (parseRuntimeResource(source.cwd)) {
       if (opts?.engine && opts.engine !== source.engine) throw new Error('Remote session resume must use its original provider')
       const resource = (await resolveRuntimeResource(source.cwd))!
@@ -1323,6 +1327,12 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     createTerminalLifecycle(config)
   ))
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversation, (_event, { id }: { id: string }) => conversations.get(id)?.snapshot() ?? null)
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationHistory, (event, { id, request }: { id: string; request: ConversationHistoryRequest }) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid history frame')
+    const conversation = conversations.get(id)
+    if (!conversation?.readHistory) throw new Error('Native history pagination is unavailable for this session')
+    return conversation.readHistory(request)
+  })
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.saveConversationImage, async (event, { id, itemId, imageId }: { id: string; itemId: string; imageId: string }) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid image export frame')
     return exportConversationImage(conversations.get(id)?.state, itemId, imageId, extension =>
@@ -1334,9 +1344,14 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     if (!terminal || terminal.remote || !state) return []
     return readNativeInputHistory(state.engine, terminal.config.cwd, { ...process.env, ...terminal.config.env })
   })
-  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: ConversationCommand }) => {
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: DesktopConversationCommand }) => {
     const conversation = conversations.get(id)
     if (!conversation) throw new Error('No managed conversation for this terminal')
+    if (command.type === 'codexUpdate') {
+      const instance = terminalManager.getInstance(id)
+      if (!(conversation instanceof DesktopCodexConversation) || !instance) throw new Error('No live Codex update prompt')
+      return conversation.chooseUpdate(command, key => instance.pty.write(key))
+    }
     return conversation.command(command)
   })
 

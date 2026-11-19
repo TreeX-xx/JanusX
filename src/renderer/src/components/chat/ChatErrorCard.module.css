@@ -1,0 +1,39 @@
+.card {
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  margin: 4px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--chat-error-border);
+  border-left: var(--chat-error-edge-width) solid var(--chat-error-edge);
+  border-radius: 8px;
+  background: var(--chat-error-background);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 24%, transparent);
+}
+
+.text {
+  color: var(--chat-error-text);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.actions > button {
+  height: 26px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--chat-error-action-border);
+  background: var(--chat-error-action-background);
+  color: var(--chat-error-action-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.actions > button:hover:not(:disabled) {
+  background: var(--chat-error-action-hover-background);
+  border-color: var(--chat-error-action-hover-color);
+  color: var(--chat-error-action-hover-color);
+}
+.actions > button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+.actions > button:disabled { opacity: 0.5; cursor: default; }

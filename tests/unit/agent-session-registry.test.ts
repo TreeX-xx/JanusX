@@ -757,14 +757,14 @@ describe('agent session registry', () => {
     expect(registry.listSessions({ cwd: 'C:/repo-server' })).toHaveLength(1)
   })
 
-  it('heals a stale AGENTS.md first prompt on rescan for external rows', async () => {
+  it.each(['# AGENTS.md instructions', '# AGENTS.md instructions for C:\\repo'])('heals stale %s on rescan for external rows', async (header) => {
     const registry = track(new AgentSessionRegistry(await userDataDir()))
     const input = {
       engine: 'codex',
       cwd: '/repo',
       providerSessionId: 'sess-codex',
       transcriptPath: '/tmp/sess-codex.jsonl',
-      firstPrompt: '# AGENTS.md instructions for C:\\repo\n\n<INSTRUCTIONS>\nnoise',
+      firstPrompt: `${header}\n\n<INSTRUCTIONS>\nnoise`,
       turnCount: 1,
     }
     registry.importExternalSession(input)
@@ -781,15 +781,68 @@ describe('agent session registry', () => {
     expect(healed?.turns.some((turn) => (turn.prompt ?? '').includes('AGENTS.md'))).toBe(false)
   })
 
+  it('clears cached Codex injection titles without needing a transcript and persists the repair', async () => {
+    const data = await userDataDir()
+    const registry = track(new AgentSessionRegistry(data))
+    await registry.load()
+    const record = registry.importExternalSession({
+      engine: 'codex', cwd: '/repo', providerSessionId: 'missing-rollout',
+      transcriptPath: '/missing/rollout.jsonl',
+      firstPrompt: '# AGENTS.md instructions\n\n<INSTRUCTIONS>\nnoise', turnCount: 1,
+    })
+    const turns = structuredClone(record.turns)
+    const valid = registry.importExternalSession({
+      engine: 'codex', cwd: '/repo', providerSessionId: 'valid',
+      transcriptPath: '/missing/valid.jsonl', firstPrompt: 'real question', turnCount: 1,
+    })
+    await registry.flush()
+    const reloaded = track(new AgentSessionRegistry(data))
+    await reloaded.load()
+    expect(reloaded.listSessions().find((row) => row.id === record.id)?.firstPrompt).toBe('')
+    expect(reloaded.getSession(record.id)).toMatchObject({ firstPrompt: '', lastPrompt: '', turns })
+    expect(reloaded.getSession(valid.id)?.firstPrompt).toBe('real question')
+    await reloaded.flush()
+    const stored = JSON.parse(await readFile(join(data, 'janusx', 'agent-sessions.json'), 'utf8'))
+    expect(stored.sessions.find((row: { id: string }) => row.id === record.id).firstPrompt).toBe('')
+  })
+
+  it('keeps the provider title separate from the first prompt and previews the latest discussion', async () => {
+    const data = await userDataDir()
+    const registry = track(new AgentSessionRegistry(data))
+    await registry.load()
+    const hook = registry.createSession({ ...createInput('summary-term'), engine: 'codex' })
+    registry.notePrompt('summary-term', 'initial question')
+    registry.recordTurnEnd('summary-term', 'done', undefined, 'initial answer')
+    registry.notePrompt('summary-term', 'follow-up question')
+    registry.recordTurnEnd('summary-term', 'done', undefined, 'latest answer')
+    registry.noteProviderSession('summary-term', 'summary-provider')
+    registry.importExternalSession({
+      engine: 'codex', cwd: '/repo', providerSessionId: 'summary-provider',
+      transcriptPath: '/tmp/summary.jsonl', title: 'Conversation overview',
+      firstPrompt: 'initial question', turnCount: 2,
+    })
+    expect(registry.listSessions()[0]).toMatchObject({
+      title: 'Conversation overview', firstPrompt: 'initial question',
+      conversationPreview: 'follow-up question · latest answer',
+    })
+    await registry.flush()
+    const reloaded = track(new AgentSessionRegistry(data))
+    await reloaded.load()
+    expect(reloaded.getSession(hook.id)?.title).toBe('Conversation overview')
+  })
+
   it('heals an injection-shaped title on a hook row without touching its turns', async () => {
     const registry = track(new AgentSessionRegistry(await userDataDir()))
     const hook = registry.createSession({
       ...createInput('term-1'),
+      engine: 'codex',
       transcriptPath: '/tmp/sess-hook.jsonl',
     })
+    hook.firstPrompt = '# AGENTS.md instructions\n\n<INSTRUCTIONS>\nnoise'
     registry.recordTurnEnd('term-1', 'done', undefined, 'answer')
+    const turns = structuredClone(hook.turns)
     registry.importExternalSession({
-      engine: 'claude',
+      engine: 'codex',
       cwd: '/repo',
       providerSessionId: 'sess-hook',
       transcriptPath: '/tmp/sess-hook.jsonl',
@@ -797,5 +850,6 @@ describe('agent session registry', () => {
       turnCount: 1,
     })
     expect(registry.getSession(hook.id)?.firstPrompt).toBe('transcript question')
+    expect(registry.getSession(hook.id)?.turns).toEqual(turns)
   })
 })

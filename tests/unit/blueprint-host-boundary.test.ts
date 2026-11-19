@@ -26,9 +26,12 @@ async function bundleInputs(options: BuildOptions): Promise<string[]> {
     packages: 'external',
     format: 'esm',
     logLevel: 'silent',
-    plugins: [{ name: 'vite-raw-imports', setup(builder) {
+    plugins: [{ name: 'vite-imports', setup(builder) {
       builder.onResolve({ filter: /\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.slice(0, -4)), namespace: 'raw-text' }))
       builder.onLoad({ filter: /.*/, namespace: 'raw-text' }, args => ({ contents: readFileSync(args.path, 'utf8'), loader: 'text' }))
+      // Vite copies these assets and exports their runtime paths. They do not
+      // introduce code into the host graph inspected by this boundary test.
+      builder.onResolve({ filter: /\?asset$/ }, args => ({ path: resolve(args.resolveDir, args.path.slice(0, -6)), external: true }))
     } }],
     ...options,
   })

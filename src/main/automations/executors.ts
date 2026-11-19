@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { spawn, execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
-import { dirname, extname, join, resolve, sep } from 'node:path'
+import { runChecked } from '../platform/process-host'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createAgentRuntime } from '@janus-agent/agent-core'
 import { ManagedChatSession } from '@janus-agent/chat-core'
@@ -26,17 +25,12 @@ export function parseReviewText(text: string): unknown {
 export async function codexBinary(): Promise<string> {
   const path = await resolveCLIPath('codex')
   if (!path) throw new Error('CAPABILITY_UNAVAILABLE: Codex is not installed')
-  if (process.platform !== 'win32' || extname(path).toLowerCase() === '.exe') return path
-  const architecture = process.arch === 'arm64' ? 'arm64' : 'x64'
-  const triple = architecture === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc'
-  const binary = join(dirname(path), 'node_modules', '@openai', 'codex', 'node_modules', '@openai', `codex-win32-${architecture}`, 'vendor', triple, 'bin', 'codex.exe')
-  if (!(await stat(binary).catch(() => null))?.isFile()) throw new Error('CAPABILITY_UNAVAILABLE: a directly executable Codex binary is required')
-  return binary
+  return path
 }
 
 export async function runCodex(prompt: string, signal: AbortSignal, onSpawn?: (pid: number) => void): Promise<string> {
-  const binary = await codexBinary(), execute = promisify(execFile)
-  const { stdout: help } = await execute(binary, ['exec', '--help'], { windowsHide: true, timeout: 10_000, signal })
+  const binary = await codexBinary()
+  const { stdout: help } = await runChecked(binary, ['exec', '--help'], { timeoutMs: 10_000, signal })
   for (const flag of ['--sandbox', '--ignore-user-config', '--ignore-rules', '--ephemeral']) {
     if (!help.includes(flag)) throw new Error(`CAPABILITY_UNAVAILABLE: Codex must support ${flag}`)
   }
@@ -44,26 +38,11 @@ export async function runCodex(prompt: string, signal: AbortSignal, onSpawn?: (p
   if (!resolve(directory).startsWith(resolve(tmpdir()) + sep)) throw new Error('Unexpected snapshot directory')
   try {
     const output = join(directory, 'result.txt')
-    await new Promise<void>((resolve, reject) => {
-      signal.throwIfAborted()
-      const child = spawn(binary, ['exec', '--ignore-user-config', '--ignore-rules', '--ephemeral', '--sandbox', 'read-only',
+    let buffer = '', completed = false, failed = false
+    await runChecked(binary, ['exec', '--ignore-user-config', '--ignore-rules', '--ephemeral', '--sandbox', 'read-only',
         '-c', 'approval_policy="never"', '--skip-git-repo-check', '--json', '--color', 'never', '--output-last-message', output, '-'],
-      { cwd: directory, shell: false, windowsHide: true, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] })
-      let errors = '', buffer = '', completed = false, failed = false
-      const abort = () => {
-        if (!child.pid) return
-        if (process.platform === 'win32') {
-          const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, shell: false })
-          killer.on('error', () => child.kill())
-        } else { try { process.kill(-child.pid, 'SIGKILL') } catch { child.kill('SIGKILL') } }
-      }
-      signal.addEventListener('abort', abort, { once: true })
-      if (child.pid) onSpawn?.(child.pid)
-      child.on('error', error => { signal.removeEventListener('abort', abort); reject(error) })
-      child.stderr.on('data', chunk => { errors = (errors + chunk.toString()).slice(-4000) })
-      child.stdout.on('data', chunk => {
-        buffer += chunk.toString()
-        if (buffer.length > 2_000_000) { failed = true; abort(); return }
+      { cwd: directory, signal, input: prompt, onSpawn, maxOutputBytes: 2_000_000, onStdout: chunk => {
+        buffer += chunk
         const lines = buffer.split('\n'); buffer = lines.pop() ?? ''
         for (const line of lines) {
           try {
@@ -72,17 +51,9 @@ export async function runCodex(prompt: string, signal: AbortSignal, onSpawn?: (p
             if (event.type === 'turn.failed' || event.type === 'error') failed = true
           } catch { /* Progress lines are not completion evidence. */ }
         }
-      })
-      child.on('close', code => {
-        signal.removeEventListener('abort', abort)
-        if (signal.aborted) reject(signal.reason)
-        else if (code !== 0 || failed || !completed) reject(new Error(`Codex failed or incomplete: ${errors}`))
-        else resolve()
-      })
-      child.stdin.on('error', () => {})
-      child.stdin.end(prompt)
-      if (signal.aborted) abort()
-    })
+      } })
+    signal.throwIfAborted()
+    if (failed || !completed) throw new Error('Codex failed or incomplete')
     return await readFile(output, 'utf8')
   } finally {
     // The temporary directory is created by this function under the OS temp root.

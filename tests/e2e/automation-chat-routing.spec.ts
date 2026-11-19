@@ -2,9 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 test.setTimeout(60_000)
 
 type FixtureWindow = Window & { automationChatFixture: {
-  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; activeTool: string | null; saveCount: number };
-  selectWorkspace(id: string): void; showGit(): void; draft(): void; queuePreviousRunFocus(): void;
-  requests: Array<{ workspaceResources: Array<{ workspaceId: string; agentSessionId: string }> }>;
+  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; isStreaming: boolean; activeTool: string | null; companionToolId: string | null; superAgentTab: string | null; saveCount: number };
+  selectWorkspace(id: string | null): void; showGit(): void; showAutomations(): void; closeAutomations(): void; draft(): void; queuePreviousRunFocus(): void;
+  enableSuperAgent(): void; send(text: string): void; finish(): void;
+  requests: Array<{ workspaceId?: string; workspaceResources: Array<{ workspaceId: string; agentSessionId: string }> }>;
 } }
 const state = (page: Page) => page.evaluate(() => (window as FixtureWindow).automationChatFixture.state())
 async function open(page: Page, query = '') {
@@ -51,7 +52,35 @@ for (const width of [1280, 680]) {
     expect(await state(page)).toMatchObject({ activeTool: 'automations', saveCount: 0 })
     await page.screenshot({ path: `artifacts/automations/automatic-routing-${width}.png`, animations: 'disabled' })
     await page.keyboard.press('Escape')
-    await expect(automation).toHaveAttribute('data-island-linked', 'false')
+    await expect(automation).toHaveAttribute('data-island-linked', 'true')
+    await expect(island).toHaveAttribute('data-stage', 'expanded')
+  })
+}
+
+for (const superAgent of [false, true]) {
+  test(`opening the automation sidebar connects and locks the eyes with SuperAgent ${superAgent ? 'started' : 'not started'}`, async ({ page }) => {
+    await page.goto('/automation-chat.html')
+    await expect.poll(async () => (await state(page)).loaded).toBe(true)
+    if (superAgent) await page.evaluate(() => (window as FixtureWindow).automationChatFixture.enableSuperAgent())
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
+    const panel = page.locator('.automation-panel')
+    const eyes = panel.getByRole('button', { name: 'SuperAgent connected', exact: true })
+    await expect(panel).toBeVisible()
+    await expect(eyes).toHaveAttribute('aria-pressed', 'true')
+    await expect(eyes).toBeDisabled()
+    const initial = await state(page)
+    expect(initial).toMatchObject({ companionToolId: 'automations', saveCount: 0 })
+    if (superAgent) expect(initial.superAgentTab).toBe('superagent')
+    await page.keyboard.press('Escape')
+    await expect(eyes).toHaveAttribute('aria-pressed', 'true')
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showGit())
+    await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
+    await expect(eyes).toBeDisabled()
+    expect(await state(page)).toMatchObject({ conversationId: initial.conversationId, messages: initial.messages, saveCount: 0 })
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.closeAutomations())
+    await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+    if (superAgent) expect((await state(page)).superAgentTab).toBe('superagent')
   })
 }
 
@@ -78,4 +107,37 @@ test('opening without a selected workspace does not invent a project', async ({ 
   await expect(page.locator('.automation-panel')).toHaveAttribute('data-island-linked', 'true')
   await expect.poll(async () => page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.length)).toBe(1)
   expect(await page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests[0].workspaceResources)).toEqual([])
+})
+
+test('SuperAgent fixes each message and its tool scope to the selected workspace without manual attachment', async ({ page }) => {
+  await open(page)
+  const initial = await state(page)
+  expect(initial.resources).toEqual(['workspace-1'])
+  await page.evaluate(() => {
+    const fixture = (window as FixtureWindow).automationChatFixture
+    fixture.enableSuperAgent()
+    fixture.selectWorkspace('workspace-2')
+    fixture.send('Review this project')
+    // Switch before the asynchronous agent session has finished opening.
+    fixture.selectWorkspace('workspace-1')
+  })
+  await expect.poll(() => page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.length)).toBe(1)
+  expect(await page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests[0])).toMatchObject({
+    workspaceId: 'workspace-2',
+    workspaceResources: [{ workspaceId: 'workspace-2', agentSessionId: 'agent-workspace-2' }],
+  })
+  for (const [workspaceId, count] of [['workspace-1', 2], [null, 3]] as const) {
+    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.finish())
+    await expect.poll(async () => (await state(page)).isStreaming).toBe(false)
+    await page.evaluate(id => {
+      const fixture = (window as FixtureWindow).automationChatFixture
+      fixture.selectWorkspace(id)
+      fixture.send('Explain the current context')
+    }, workspaceId)
+    await expect.poll(() => page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.length)).toBe(count)
+    const request = await page.evaluate(() => (window as FixtureWindow).automationChatFixture.requests.at(-1)!)
+    expect(request.workspaceId).toBe(workspaceId ?? undefined)
+    expect(request.workspaceResources.map(resource => resource.workspaceId)).toEqual(workspaceId ? [workspaceId] : [])
+  }
+  expect(await state(page)).toMatchObject({ conversationId: initial.conversationId, resources: initial.resources })
 })

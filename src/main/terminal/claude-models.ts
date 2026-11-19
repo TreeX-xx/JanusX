@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawnProcess as spawn, stopOwnedProcess } from '../platform/process-host'
 import { randomUUID } from 'node:crypto'
 import type { ConversationModelOption, ConversationCatalogEntry } from '../../shared/conversation-display'
 
@@ -30,8 +30,9 @@ export function readClaudeCatalog(options: { binary: string; cwd: string; env: N
     const child = spawn(options.binary, ['--print', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
       '--no-session-persistence', '--tools', '', '--strict-mcp-config', '--settings', options.settings],
     { cwd: options.cwd, env: options.env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
-    const abort = () => { failure = new Error('Claude model catalog cancelled'); child.kill() }
-    const timer = setTimeout(() => { failure = new Error('Claude model catalog timed out'); child.kill() }, 15000)
+    const stop = () => { void stopOwnedProcess(child).catch(error => { failure = error; cleanup(); reject(error) }) }
+    const abort = () => { failure = new Error('Claude model catalog cancelled'); stop() }
+    const timer = setTimeout(() => { failure = new Error('Claude model catalog timed out'); stop() }, 15000)
     options.signal.addEventListener('abort', abort, { once: true })
     const cleanup = () => { clearTimeout(timer); options.signal.removeEventListener('abort', abort) }
     child.on('error', error => { cleanup(); reject(error) })
@@ -42,7 +43,7 @@ export function readClaudeCatalog(options: { binary: string; cwd: string; env: N
     child.stdout?.on('data', (data: string) => {
       if (result || failure) return
       size += data.length
-      if (size > 2_000_000) { failure = new Error('Claude model catalog exceeded its limit'); child.kill(); return }
+      if (size > 2_000_000) { failure = new Error('Claude model catalog exceeded its limit'); stop(); return }
       buffer += data
       let end: number
       while ((end = buffer.indexOf('\n')) >= 0) {
@@ -59,7 +60,7 @@ export function readClaudeCatalog(options: { binary: string; cwd: string; env: N
               argumentHint: row.argumentHint, kind: 'command' as const, source: 'claude', execution: 'terminal' as const })) }
 
         } catch (error) { failure = error instanceof Error ? error : new Error(String(error)) }
-        if (result || failure) { child.stdin?.end(); child.kill(); break }
+        if (result || failure) { child.stdin?.end(); stop(); break }
       }
     })
     child.stdin?.write(JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'initialize' } }) + '\n')

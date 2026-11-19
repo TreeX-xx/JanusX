@@ -1,4 +1,4 @@
-.panel { min-width: 0; margin-top: 0; padding-top: 24px; border-top: 1px solid var(--shell-border); scroll-margin-top: 16px; color: var(--shell-text); }
+.panel { min-width: 0; margin-top: 0; scroll-margin-top: 16px; color: var(--shell-text); }
 .panel h3 { margin: 0 0 16px; color: var(--shell-text); font-size: 14px; font-weight: 600; }
 .panel h4 { margin: 0; font-size: 13px; font-weight: 600; }
 .panel p, .notice p { line-height: 1.6; font-size: 12px; margin: 10px 0; }
@@ -50,7 +50,7 @@
 .sectionSummary::-webkit-details-marker { display: none; }
 .sectionSummary::after { content: ''; width: 6px; height: 6px; margin-right: 4px; border: solid var(--shell-muted); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); flex-shrink: 0; }
 .maintenanceSection[open] > .sectionSummary::after { transform: rotate(45deg); }
-.sectionBody { min-width: 0; padding: 8px 0 0 20px; }
+.sectionBody { min-width: 0; padding: 8px 0 0; }
 .sectionBody > .heading { align-items: flex-start; margin-bottom: 6px; }
 .sectionBody > p:first-child { margin-top: 0; }
 .panel [role='alert'] { color: var(--shell-diff-del); overflow-wrap: anywhere; }
@@ -79,3 +79,9 @@
 .helpContent p { margin: 0; line-height: 1.65; }
 .helpContent p + p { margin-top: 10px; }
 .screenReaderOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: pre-wrap; border: 0; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+.filters button { display: flex; align-items: center; gap: 8px; border-color: var(--shell-border); }
+.filters button[aria-pressed='true'] { background: var(--shell-active, var(--shell-pane)); color: var(--shell-text); border-color: var(--shell-muted); }
+.filters span { font-size: 11px; color: var(--shell-muted); }
+.dataItem > .actions > button { border-color: var(--shell-border); }
+.dataItem .confirm { margin-top: 12px; }

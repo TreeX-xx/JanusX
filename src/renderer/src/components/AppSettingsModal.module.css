@@ -371,7 +371,7 @@
   padding: 0;
 }
 
-.generalRow {
+.generalRow, .generalRow[data-jx-row] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
   gap: 24px;
@@ -386,7 +386,12 @@
   min-width: 0;
 }
 
-.generalSection { display: flex; flex-direction: column; min-width: 0; }
+.generalPanel .generalSection[data-jx-section] { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 0; border: 0; }
+.generalPanel .generalSection + .generalSection[data-jx-section] { padding-top: 24px; border-top: 1px solid var(--shell-border); }
+.environmentSection { padding-top: 20px; border-top: 1px solid var(--shell-border); }
+.environmentSection > summary { padding: 6px 0; font-size: 13px; font-weight: 600; cursor: pointer; }
+.environmentSection[open] > summary { margin-bottom: 12px; }
+.environmentSection > summary:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 
 .generalSectionTitle { margin: 0 0 18px; color: var(--shell-text); font-size: 14px; font-weight: 600; }
 .generalSection > .generalHelp { margin-top: 10px; }
@@ -403,7 +408,7 @@
   .themeRow { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
 @container general-settings (max-width: 420px) {
-  .generalRow { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .generalRow, .generalRow[data-jx-row] { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
 
 .generalLabel {
@@ -423,6 +428,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  width: 100%;
 }
 
 .generalSelect {
@@ -861,4 +867,4 @@
   overflow: hidden;
 }
 
-.generalRow.generalToggleRow { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.generalRow.generalToggleRow[data-jx-row] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }

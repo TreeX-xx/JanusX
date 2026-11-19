@@ -136,6 +136,10 @@ export function chatStream(
   onDone: () => void,
   onError: (error: string) => void,
   options?: {
+    sideChat?: true
+    inputEventId?: string
+    workerBackend?: 'codex' | 'claude'
+    agentMode?: 'ordinary' | 'superagent'
     memoBinding?: import('../../../shared/memo').MemoBinding
     memoMessageId?: string
     providerId?: string
@@ -160,8 +164,10 @@ export function chatStream(
     onRecallTrace?: (trace: KnowledgeRecallTrace) => void
     onToolTrace?: (entries: ChatToolTraceEntry[]) => void
   }
-): { abort: () => void } {
-  const requestId = `llm-chat-${Date.now()}-${++requestSeq}`
+): { abort: () => void; requestId: string; started: Promise<boolean> } {
+  const requestId = options?.sideChat ? `side-chat-${crypto.randomUUID()}` : `llm-chat-${Date.now()}-${++requestSeq}`
+  let settleStarted!: (started: boolean) => void
+  const started = new Promise<boolean>(resolve => { settleStarted = resolve })
   let cleaned = false
   let doneCalled = false
   let useAgentEvents = false
@@ -170,6 +176,7 @@ export function chatStream(
   const cleanup = () => {
     if (cleaned) return
     cleaned = true
+    settleStarted(false)
     if (idleTimer) clearTimeout(idleTimer)
     unsubDelta()
     unsubDone()
@@ -184,11 +191,14 @@ export function chatStream(
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = setTimeout(() => {
       cleanup()
+      // A disconnected UI must not leave an admitted turn dispatching work later.
+      void window.electron.llm.abortChat(requestId).catch(() => {})
       onError('流式响应空闲超时，已断开')
     }, STREAM_IDLE_TIMEOUT_MS)
   }
 
   const filterByRequest = (payload: unknown): ChatStreamEvent | null => {
+    if (cleaned) return null
     const p = payload as ChatStreamEvent | undefined
     return p?.requestId === requestId ? p : null
   }
@@ -221,7 +231,7 @@ export function chatStream(
 
   const agentEventSubscriber = (window.electron.llm as Partial<typeof window.electron.llm>).onAgentEvent
   const unsubAgentEvent = agentEventSubscriber?.((agentEvent) => {
-    if (agentEvent.requestId !== requestId) return
+    if (cleaned || agentEvent.requestId !== requestId) return
     useAgentEvents = true
     armIdleTimer()
     options?.onAgentEvent?.(agentEvent)
@@ -239,6 +249,7 @@ export function chatStream(
   }) ?? (() => {})
 
   const unsubRecallTrace = window.electron.llm.onRecallTrace((payload) => {
+    if (cleaned) return
     const trace = payload as KnowledgeRecallTrace | undefined
     if (trace?.requestId !== requestId) return
     armIdleTimer()
@@ -246,6 +257,7 @@ export function chatStream(
   })
 
   const unsubToolTrace = window.electron.llm.onToolTrace((payload) => {
+    if (cleaned) return
     const trace = payload as ChatToolTraceEvent | undefined
     if (trace?.requestId !== requestId || !Array.isArray(trace.entries)) return
     armIdleTimer()
@@ -270,6 +282,10 @@ export function chatStream(
       }
       window.electron.llm.startChatStream({
         requestId,
+        ...(options?.sideChat ? { sideChat: true as const } : {}),
+        inputEventId: options?.inputEventId,
+        workerBackend: options?.workerBackend,
+        agentMode: options?.agentMode,
         messages,
         providerId: def.providerId,
         modelId: def.modelId,
@@ -292,6 +308,7 @@ export function chatStream(
         ...(options?.noteRepairId ? { noteRepairId: options.noteRepairId } : {}),
         ...(options?.maintenanceTaskId ? { maintenanceTaskId: options.maintenanceTaskId } : {}),
       })
+      settleStarted(true)
     })
     .catch((err: unknown) => {
       if (cleaned) return
@@ -300,6 +317,8 @@ export function chatStream(
     })
 
   return {
+    requestId,
+    started,
     abort: () => {
       cleanup()
       window.electron.llm.abortChat(requestId).catch(() => {})
@@ -312,7 +331,13 @@ export function chatStream(
  * 主侧 accept 即已入 durable 语义的队列（渲染历史同时乐观追加，随会话落盘）。
  */
 export async function steerChat(input: ChatSteerInput): Promise<{ accepted: boolean; error?: string }> {
-  return window.electron.llm.steerChat(input)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      window.electron.llm.steerChat(input),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Follow-up delivery could not be confirmed')), 15_000) }),
+    ])
+  } finally { if (timer) clearTimeout(timer) }
 }
 
 /** R6-full：撤销尚未被主侧消耗的 steering 条目（已消耗返回 cancelled:false）。 */

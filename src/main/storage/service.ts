@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { app } from 'electron'
 import { workspaceIo, configureWorkspaceStorage, configureWorkspaceStorageEvents } from '@janus-agent/agent-core'
@@ -43,7 +44,7 @@ export function workspaceStateStore(): WorkspaceStateStore {
     const [{ terminalManager }, { getProjectRunner }] = await Promise.all([
       import('../terminal/manager'), import('../project/runner/service'),
     ])
-    const normalized = (value: string) => process.platform === 'win32' ? resolve(value).toLowerCase().replace(/\\/g, '/') : resolve(value)
+    const normalized = (value: string) => runtimePathKey(resolve(value))
     const under = (path: string) => normalized(path) === normalized(cwd) || normalized(path).startsWith(normalized(cwd) + '/')
     if (terminalManager.listInstances().some(t => t.status !== 'exited' && under(t.config.cwd)) || [...getProjectRunner().getAllRunning().entries()].some(([id, p]) => under(p.scopePath ?? id.split('::')[0]))) {
       throw new Error('请先关闭此工作区及子目录的终端和运行任务，再执行迁移。 Close workspace terminals and tasks before migrating.')

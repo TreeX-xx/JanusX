@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "official.superagent",
+  "name": "SuperAgent",
+  "description": "Experimental Worker orchestration in Janus conversations.",
+  "version": "0.1.0",
+  "engines": {
+    "pluginApi": "^1.0.0"
+  },
+  "capabilities": {
+    "required": [
+      "runtime.native",
+      "agent.superagent.v1",
+      "views.settings",
+      "views.workspace",
+      "commands.openView",
+      "menus.toolbox"
+    ],
+    "optional": []
+  },
+  "permissions": [
+    {
+      "name": "runtime.native"
+    },
+    {
+      "name": "ui.views.open"
+    }
+  ],
+  "native": {
+    "entry": "dist/service.cjs",
+    "dataVersion": 1,
+    "methods": [
+      "turn.open",
+      "turn.input",
+      "turn.withdraw",
+      "turn.route",
+      "turn.close",
+      "settings.read",
+      "settings.save",
+      "settings.model",
+      "settings.models",
+      "settings.capacity",
+      "settings.idle",
+      "workers.list",
+      "turn.instructions",
+      "scheduler.admit"
+    ]
+  },
+  "contributes": {
+    "views": [
+      {
+        "id": "settings",
+        "title": "SuperAgent",
+        "location": "settings",
+        "scope": "application",
+        "entry": "dist/ui/settings.html",
+        "instancePolicy": "single",
+        "icon": "list"
+      },
+      {
+        "id": "workers",
+        "title": "SuperAgent Workers",
+        "location": "workspace",
+        "scope": "project",
+        "entry": "dist/ui/workers.html",
+        "instancePolicy": "single",
+        "icon": "list"
+      }
+    ],
+    "commands": [
+      {
+        "id": "open-workers",
+        "title": "SuperAgent Workers",
+        "action": {
+          "type": "openView",
+          "view": "workers"
+        }
+      }
+    ],
+    "menus": [
+      {
+        "location": "toolbox",
+        "command": "open-workers",
+        "when": "projectOpen"
+      }
+    ]
+  }
+}

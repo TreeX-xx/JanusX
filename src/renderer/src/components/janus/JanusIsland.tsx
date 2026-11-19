@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { hasPluginProjectAccess } from '../../../../shared/plugin-project-access'
 import { Download, X } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
@@ -30,6 +31,10 @@ import '@/extensions/plugin-surfaces.css'
 import { useExtensionViews } from '@/extensions/react'
 import { openPluginManager } from '@/extensions/plugin-configuration-navigation'
 import { useIslandStore } from '@/stores/island'
+import { useSuperAgentUIStore } from '@/stores/superagent-ui'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { openSuperAgent } from '@/lib/superagent-navigation'
+import { getActiveScopePath, getScopePathForWorkspace, loadWorkspaceFileTree } from '@/features/workspace/actions'
 import { useAutomationIslandLayout } from '../automations/useAutomationIslandLayout'
 import { useAutomationsStore, subscribeAutomations, openAutomationRun } from '@/stores/automations'
 import { automationNotification } from './islandNotifications'
@@ -101,6 +106,9 @@ export function JanusIsland({
 }: JanusIslandProps) {
   const { t } = useI18n('janus')
   const automationNotices = useAutomationsStore(state => state.notices)
+  const superAgentStarted = useSuperAgentUIStore(state => state.started)
+  const workerNotices = useSuperAgentUIStore(state => state.notices)
+  const workspaces = useWorkspaceStore(state => state.workspaces)
   const removedAutomations = useAutomationsStore(state => state.removedIds)
   useEffect(subscribeAutomations, [])
   const { mode, isSwitching, activeWorkspace, eyeContainerRef, hasRunning } = useJanusState()
@@ -111,6 +119,11 @@ export function JanusIsland({
   const companionVeil = useAutomationIslandLayout(shellRef, stage === 'expanded' && view === 'chat' && companionToolId === 'automations')
   const setView = useCallback((next: JanusExpandedView) => setStoredView(ISLAND_CHAT_ONLY ? 'chat' : next), [])
   const pluginSnapshot = usePluginSnapshot()
+  const superAgentOwnsChat = superAgentStarted && pluginSnapshot.plugins.some(plugin =>
+    plugin.manifest.id === 'official.superagent' && plugin.source.kind === 'official' && plugin.enabled
+    && (!activeWorkspace || hasPluginProjectAccess(plugin, activeWorkspace.id))
+    && (['ready', 'loading', 'active'].includes(plugin.state) || plugin.error === 'VIEW_LOAD_FAILED' && plugin.state === 'error'),
+  )
   const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
   const pluginViews = useExtensionViews()
   const pluginViewRequest = useIslandStore(s => s.pluginViewRequest)
@@ -275,9 +288,10 @@ export function JanusIsland({
     else { prepareNoticeReader(); setTrayOpen(true) }
   }, [trayOpen, closeNotifications, prepareNoticeReader])
   const handleDoubleTap = useCallback(() => {
+    if (superAgentOwnsChat) { onDismiss(); openNotifCenter(); return }
     closeNotifications(false)
     onDoubleActivate()
-  }, [closeNotifications, onDoubleActivate])
+  }, [superAgentOwnsChat, onDismiss, openNotifCenter, closeNotifications, onDoubleActivate])
   const handleSingleTap = useCallback(() => {
     if (stage === 'collapsed') {
       if (notifOpen) closeNotifCenter()
@@ -317,6 +331,8 @@ export function JanusIsland({
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
+    handleClickCapture,
+    handleDoubleClick,
   } = useIslandGesture({
     onSwipeDown: handleSwipeDown,
     onDoubleTap: handleDoubleTap,
@@ -410,7 +426,17 @@ export function JanusIsland({
     const notification = record?.notification
     if (record) islandSpeakRef.current?.markRead(record.key)
     closeNotifications(false)
-    if (actionId === 'open-automation') {
+    if (actionId === 'open-superagent' && notification?.work) {
+      const target = notification.work
+      const workspace = useWorkspaceStore.getState().workspaces.find(row => row.id === target.workspaceId)
+      if (!workspace) { setPluginActionFailure(t('janus:superagent.workspaceUnavailable')); return }
+      useWorkspaceStore.getState().setActiveWorkspace(workspace.id)
+      conversationController?.selectConversation(target.conversationId)
+      useSuperAgentUIStore.setState({ focusedWorkId: target.workId })
+      openSuperAgent()
+      const scopePath = getScopePathForWorkspace(workspace.id, workspace.path)
+      void loadWorkspaceFileTree(scopePath, () => getActiveScopePath() === scopePath).catch(() => {})
+    } else if (actionId === 'open-automation') {
       const run = notification?.automation ?? useAutomationsStore.getState().notices.find(item => 'automation:' + item.id === notificationId)
       if (run) openAutomationRun(run)
       onDismiss()
@@ -433,7 +459,7 @@ export function JanusIsland({
     } else if (actionId === 'open-product' && notification?.productPath) {
       onOpenProductFile?.(notification.productPath)
     }
-  }, [closeNotifications, handleOpenPlugins, onDismiss, onOpenProductFile, setActiveWorkbench])
+  }, [closeNotifications, handleOpenPlugins, onDismiss, onOpenProductFile, setActiveWorkbench, conversationController, t])
 
   // Minimal stage-B tool trace for the agent-result detail: the pane owns the
   // full work projection, the Island only mirrors tool calls so the detail can
@@ -471,6 +497,12 @@ export function JanusIsland({
   // peek/expanded surfaces render from IslandNotification only; the former
   // per-kind title/subtitle/status chains live in islandNotifications.ts.
   const notifications = useMemo(() => assembleNotifications([
+    ...workerNotices.map(notice => ({ id: notice.id, kind: 'agent' as const,
+      severity: notice.kind === 'failure' ? 'failed' as const : notice.kind === 'question' ? 'attention' as const : 'success' as const,
+      copy: { titleKey: 'janus:superagent.heading', titleText: notice.title,
+        subtitleText: `${workspaces.find(row => row.id === notice.workspaceId)?.name ?? notice.workspaceId} · ${notice.summary}` },
+      work: { workspaceId: notice.workspaceId, workId: notice.workId, conversationId: notice.conversationId },
+      actions: [{ id: 'open-superagent' as const, primary: true }], createdAt: notice.createdAt, silent: notice.silent })),
     ...automationNotices.map(automationNotification),
     productNotification(productNotice),
     knowledgeNotification({
@@ -481,7 +513,7 @@ export function JanusIsland({
     }),
     personaEnabled ? memoryNotification({ pendingHabitCount: memoryPending }) : null,
     ...pluginIslandNotifications(pluginSnapshot),
-  ]), [automationNotices, knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, productNotice, personaEnabled, t, pluginSnapshot])
+  ]), [workerNotices, workspaces, automationNotices, knowledgePeekActive, knowledgePeekEmpty, knowledgeTrace, memoryPending, productNotice, personaEnabled, t, pluginSnapshot])
   const visibleNotifications = useMemo(() => {
     const retained = new Set(islandSpeak.snapshot.history.map(entry => entry.id))
     return notifications.filter(notification => retained.has(notification.id))
@@ -530,7 +562,7 @@ export function JanusIsland({
         at: notification.createdAt,
         groupKey: notification.groupKey,
         notification,
-      }, present)
+      }, present && !notification.silent)
     }
   }, [notifications, stage, notifOpen, trayOpen, enqueue, t])
 
@@ -713,6 +745,8 @@ export function JanusIsland({
         onMouseLeave={event => setPaused(event.currentTarget.contains(document.activeElement))}
         onFocusCapture={() => setPaused(true)}
         onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(event.currentTarget.matches(':hover')) }}
+        onClickCapture={handleClickCapture}
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -724,7 +758,7 @@ export function JanusIsland({
           </div>
         </div>
 
-        {speaking && <div className="janus-speak-strip" onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        {speaking && <div className="janus-speak-strip" onDoubleClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
           <button type="button" className="janus-speak-read" onClick={() => openNotifCenter(speaking.key)} aria-label={t('janus:island.notif.readNotice', { title: speaking.title })}>
             <span className="janus-speak-kicker">{speaking.kicker}<time>{notificationClock(speaking.at)}</time>{speaking.count > 1 && <span>×{speaking.count}</span>}</span>
             <span className="janus-speak-body" role="status">{speaking.body}</span>

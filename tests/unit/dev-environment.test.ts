@@ -38,7 +38,7 @@ describe('dev startup prerequisites', () => {
     rmSync(join(root, 'node_modules/@janus-agent/agent-core/dist/index.js'))
     const issues = checkDevEnvironment(root)
     expect(issues).toHaveLength(2)
-    expect(issues[0]).toContain('npm rebuild electron')
+    expect(issues[0]).toContain('npm run postinstall')
     expect(issues[1]).toContain('npm run prepackage')
   })
   it('accepts a locally installed toolchain, runtime and built sibling', () => {

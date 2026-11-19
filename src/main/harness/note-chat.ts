@@ -1,3 +1,4 @@
+import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { z } from 'zod'
 import { NOTE_URI_RE } from '@janus-agent/harness-core'
 import { NOTE_TOOL_DEFINITIONS } from '@janus-agent/node-hosts'
@@ -12,7 +13,7 @@ import { harnessNoteService } from './service'
 import { NOTE_FOCUS_SCHEMA, NOTE_SCOPE_SCHEMA, resolveNoteFocus } from './note-focus'
 import type { NoteChatChange, NoteFocusEvent } from '../../shared/note-chat'
 import { mentionsMemoWorkspace } from '../../shared/memo-chat-target'
-const rootKey = (root: string) => process.platform === 'win32' ? resolve(root).toLowerCase() : resolve(root)
+const rootKey = (root: string) => runtimePathKey(resolve(root))
 const fail = (error: unknown) => error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error)
 
 // Note: module browsing actions and passive scope — see .agents/notes/blueprint/navigation/requirements/module-focus-navigation.md
@@ -48,15 +49,16 @@ export function attachNoteChatTools(ports: ChatTurnPorts, options: {
   const isSharedNoteTool = (name: string) => NOTE_TOOL_DEFINITIONS.some(tool => tool.name === name)
   const definitions = NOTE_CHAT_TOOLS.filter(tool => authorized || tool.actionRisk === 'read')
   ports.tools = {
+    ...original,
     registry: { list: () => [...original.registry.list().filter(tool => !isSharedNoteTool(tool.name)), ...definitions],
       listManifests: () => [...(original.registry.listManifests?.() ?? createToolManifests(original.registry.list())).filter(tool => !isSharedNoteTool(tool.canonicalName)), ...createToolManifests(definitions)] },
-    executeFunctionCall: async (input, callerId): Promise<ToolResult> => {
+    executeFunctionCall: async (input, callerId, signal): Promise<ToolResult> => {
       // Isolated WorkflowX children use the shared runtime policy and their own session.
       if (!options.resources.some(item => item.agentSessionId === input.sessionId)) {
-        return original.executeFunctionCall(input, callerId)
+        return original.executeFunctionCall(input, callerId, signal)
       }
       if (!NOTE_CHAT_TOOLS.some(tool => tool.name === input.call.toolName)) {
-        const result = await original.executeFunctionCall(input, callerId)
+        const result = await original.executeFunctionCall(input, callerId, signal)
         if (input.call.toolName !== 'workspace.read' || result.status !== 'completed' || options.signal.aborted) return result
         const resource = options.resources.find(item => item.agentSessionId === input.sessionId)
         const output = result.output as { path?: string; content?: string; sha256?: string; truncated?: boolean } | undefined

@@ -1,6 +1,5 @@
-import { exec } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { promisify } from 'node:util'
+import { findLocalCommands, localDefaultShell, localShellProbes } from '../platform/local-shell'
 import { configService } from '../config/service'
 import {
   composeShellEntryLaunch,
@@ -9,14 +8,12 @@ import {
   getDefaultShellEntry,
   isShellEntryLaunchable,
   normalizeShellProfiles,
-  shellCandidateProbes,
   shellEntryExecutable,
   type ShellCandidate,
   type ShellProfileEntry,
   type ShellProfilesSettings,
 } from '../../shared/shellProfiles'
 
-const execAsync = promisify(exec)
 
 export function getShellProfilesSettings(): ShellProfilesSettings {
   return configService.getShellProfiles()
@@ -31,7 +28,7 @@ export function getDefaultShellCommand(): string {
   const settings = getShellProfilesSettings()
   const entry = getDefaultShellEntry(settings)
   if (entry) return describeShellEntry(entry)
-  return process.platform === 'win32' ? 'powershell.exe' : 'bash'
+  return localDefaultShell()
 }
 
 export function getShellProfileEntry(id: string | undefined): ShellProfileEntry | undefined {
@@ -61,7 +58,8 @@ export async function resolveShellProfileLaunch(input: {
   if (input.commandLine) {
     const program = composeShellLaunchFromCommandLine(input.commandLine)
     if (!program) return { error: 'Restored shell command is empty' }
-    return { program }
+    const resolved = findLocalCommands(program.command)[0]
+    return resolved ? { program: { ...program, command: resolved } } : { error: `Restored shell was not found: ${program.command}` }
   }
 
   const entry = getShellProfileEntry(input.id)
@@ -79,7 +77,8 @@ export async function resolveShellProfileLaunch(input: {
           : `Shell "${entry.name}" (${program.command}) was not found on this machine — install it or update the command in settings`,
     }
   }
-  return { program }
+  const resolved = findLocalCommands(program.command)[0]
+  return resolved ? { program: { ...program, command: resolved } } : { error: `Shell "${entry.name}" is not executable: ${program.command}` }
 }
 
 /** 'path' = explicit path does not exist, 'name' = executable not on PATH. */
@@ -92,17 +91,7 @@ async function findMissingExecutable(command: string): Promise<'path' | 'name' |
 }
 
 async function probeExecutable(executable: string): Promise<string | undefined> {
-  const probe = process.platform === 'win32' ? `where ${executable}` : `which ${executable}`
-  try {
-    const { stdout } = await execAsync(probe)
-    const lines = stdout
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-    return lines[0]
-  } catch {
-    return undefined
-  }
+  return findLocalCommands(executable)[0]
 }
 
 /**
@@ -112,7 +101,7 @@ async function probeExecutable(executable: string): Promise<string | undefined> 
 export async function detectShellCandidates(): Promise<ShellCandidate[]> {
   const settings = getShellProfilesSettings()
   const configuredExecutables = new Set(settings.entries.map(shellEntryExecutable))
-  const probes = shellCandidateProbes(process.platform)
+  const probes = localShellProbes()
   const candidates: ShellCandidate[] = []
   for (const probe of probes) {
     const resolvedPath = await probeExecutablePath(probe)
@@ -133,17 +122,7 @@ async function probeExecutablePath(probe: {
   executable: string
   preferPathPattern?: RegExp
 }): Promise<string | undefined> {
-  const command = process.platform === 'win32' ? `where ${probe.executable}` : `which -a ${probe.executable}`
-  let stdout: string
-  try {
-    ;({ stdout } = await execAsync(command))
-  } catch {
-    return undefined
-  }
-  const lines = stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+  const lines = findLocalCommands(probe.executable)
   if (lines.length === 0) return undefined
   if (probe.preferPathPattern) {
     const preferred = lines.find((line) => probe.preferPathPattern?.test(line))

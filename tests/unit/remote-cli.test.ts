@@ -20,15 +20,22 @@ it('reattaches to a durable installation without submitting another install', as
   expect(mocks.request).toHaveBeenCalledTimes(1)
   expect(mocks.prepare).not.toHaveBeenCalled()
 })
-it('prepares user-level Linux Node and installs the declared package when dependencies are missing', async () => {
-  mocks.request.mockResolvedValueOnce({ state: 'idle' }).mockResolvedValueOnce({ installed: false, platform: 'linux', architecture: 'x86_64', libc: ['glibc', '2.39'] }).mockResolvedValueOnce({ state: 'running' })
+it.each(['wsl', 'ssh'])('uses system Node/npm and installs the declared package on %s', async kind => {
+  mocks.read.mockResolvedValue({ runtime: kind === 'wsl' ? { kind, distro: 'Ubuntu', root: '/project' } : { kind, host: 'fixture', root: '/project' } })
+  mocks.request.mockResolvedValueOnce({ state: 'idle' }).mockResolvedValueOnce({ installed: false, platform: 'linux', architecture: 'x86_64', node: '/usr/bin/node', npm: '/usr/bin/npm', nodeMajor: 22 }).mockResolvedValueOnce({ state: 'running' })
   await installRemoteCli('ws', 'codex')
-  expect(mocks.prepare).toHaveBeenCalledOnce()
+  expect(mocks.prepare).not.toHaveBeenCalled()
   expect(mocks.request.mock.calls[2][1]).toEqual({ method: 'install', tool: 'codex', packages: ['@openai/codex'] })
 })
-it('does not attempt incompatible Node downloads or install on unsupported architectures', async () => {
-  mocks.request.mockResolvedValueOnce({ state: 'idle' }).mockResolvedValueOnce({ installed: false, platform: 'linux', architecture: 'aarch64', libc: ['musl', '1.2'] })
+it.each([{}, { node: '/usr/bin/node', npm: '/usr/bin/npm', nodeMajor: 20 }])('requires compatible system dependencies without a private download: %j', async dependencies => {
+  mocks.request.mockResolvedValueOnce({ state: 'idle' }).mockResolvedValueOnce({ installed: false, platform: 'linux', architecture: 'aarch64', ...dependencies })
   await expect(installRemoteCli('ws', 'codex')).rejects.toThrow('compatible Node.js')
   expect(mocks.prepare).not.toHaveBeenCalled()
   expect(mocks.request).toHaveBeenCalledTimes(2)
+})
+it('reuses an existing CLI without requiring npm or changing its installation', async () => {
+  mocks.request.mockResolvedValueOnce({ state: 'idle' }).mockResolvedValueOnce({ installed: true })
+  expect(await installRemoteCli('ws', 'claude')).toEqual({ state: 'complete', log: '' })
+  expect(mocks.request).toHaveBeenCalledTimes(2)
+  expect(mocks.prepare).not.toHaveBeenCalled()
 })

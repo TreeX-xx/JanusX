@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto'
 import { basename, dirname } from 'node:path'
 import type { FileSaveResult } from '../../shared/ipc/workspace'
+import { editorTextByteLimit } from '../../shared/editor'
 import { readPluginFile } from '../plugins/files'
 import { SerialQueue } from './atomic-file'
 
@@ -11,10 +12,12 @@ const saves = new SerialQueue()
 export function saveEditorText(path: string, content: string, expectedVersion: string | undefined,
   write: () => Promise<void>): Promise<FileSaveResult> {
   return saves.run(async () => {
+    const maxBytes = editorTextByteLimit(path)
+    if (Buffer.byteLength(content, 'utf8') > maxBytes) throw new Error(`File exceeds ${maxBytes} bytes`)
     if (expectedVersion !== undefined) {
       if (!/^[a-f0-9]{64}$/.test(expectedVersion)) throw new Error('Invalid document version')
       try {
-        const current = await readPluginFile(dirname(path), basename(path), 1024 * 1024)
+        const current = await readPluginFile(dirname(path), basename(path), maxBytes)
         const version = createHash('sha256').update(current).digest('hex')
         if (version !== expectedVersion) return { conflict: true, error: 'DOCUMENT_CONFLICT', current: { text: new TextDecoder('utf-8', { fatal: true }).decode(current), version } }
       } catch { return { conflict: true, error: 'DOCUMENT_CONFLICT' } }

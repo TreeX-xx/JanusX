@@ -3,8 +3,7 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { stopOwnedProcess } from '../platform/process-host'
 import type { LocalIntegrationProbe } from '../../shared/local-integrations'
 import { IntegrationError, mcpTransport, object } from './config'
 
@@ -60,8 +59,9 @@ export async function probeMcp(config: Record<string, unknown>, cwd: string, env
   } finally {
     if (timer) clearTimeout(timer)
     // npx/cmd wrappers can leave a descendant running if only the wrapper is closed.
-    if (process.platform === 'win32' && transport instanceof StdioClientTransport && transport.pid) {
-      await promisify(execFile)('taskkill', ['/PID', String(transport.pid), '/T', '/F'], { windowsHide: true, timeout: 3000 }).catch(() => {})
+    if (transport instanceof StdioClientTransport && transport.pid) {
+      // SDK owns spawn; only stop its reported local child, never a remote PID.
+      await stopOwnedProcess({ pid: transport.pid }).catch(() => {})
     }
     await client.close().catch(() => {})
     await transport?.close().catch(() => {})

@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-20",
-  "updated": "2026-10-30T10:22:15Z",
+  "updated": "2026-11-14T11:42:53Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
   "codeRefs": [
@@ -37,6 +37,8 @@ Main, standalone editor, browser and editor-loading windows share WindowControls
 
 Window IPC targets the requesting webContents rather than whichever window currently has focus. An initial query and native maximize/unmaximize events keep the restore affordance synchronized, including external window changes. Close callbacks retain the main exit confirmation and editor unsaved-file guard.
 
+Window IPC is registered once during application bootstrap; its main-window getter follows replacements. Dock activation and a second-instance request share the main-window restore path: create a missing window after readiness, otherwise restore/show/focus it, and do nothing during shutdown. Hidden auxiliary windows do not block this path. The [Mac compatibility Note](./macos-compatibility.md) owns implementation status and the remaining native Mac acceptance.
+
 主界面退出确认使用 PromptDialog，组件直接加载独立 PromptDialog.css，定位、遮罩、按钮及输入样式不再隐式依赖旧蓝图工作台的 blueprint.css。蓝图退出宿主入口后，旧依赖曾导致确认框没有 fixed／flex 居中样式，落在 body 内容末尾。样式随共用组件加载，颜色使用宿主主题令牌，遮罩保持 13500 层级；调用者继续负责原有 portal，取消／Esc／遮罩只取消，确认才调用窗口关闭。减少动画偏好关闭入场效果。
 
 Internal dialogs use a visible close mark at the right on both platforms. FloatingPanel offers its local expand/restore action only when supported, plus close; the misleading minimize action is removed. Session dialogs, blueprint and knowledge headers, and toast dismissal follow the same close affordance. Workbench target geometry is owned by [workbench-close-hit-slop](../workbench/workbench-close-hit-slop.md).
@@ -46,6 +48,8 @@ Internal dialogs use a visible close mark at the right on both platforms. Floati
 Keeping traffic lights everywhere preserves the previous appearance but conflicts with Windows placement and action expectations. Native system titlebars provide more OS behavior, but replacing the existing frameless chrome would require a separate layout and Island integration. The shared custom component keeps the current layout with one platform policy.
 
 ## Consequences
+
+The window-lifecycle change passed 21 scoped unit tests and the new desktop-window-reopen Electron test on Windows. The desktop test keeps a hidden auxiliary window, closes/reopens the main window three times, checks that editor event listener counts stay at one, exercises maximize state round trips, and restores minimized/hidden windows. The Mac arm64/x64 source probe passed 18 window checks, including ten reopen cycles per architecture. TypeScript, build:check and scoped entry ESLint passed. Evidence is in artifacts/macos-window-fix; the Windows fixture temporarily keeps only its own test process alive, so real macOS Dock and native focus remain not-run.
 
 Custom Windows buttons do not provide the native maximize-hover Snap Layout flyout. macOS green retains maximize/restore rather than native fullscreen. macOS styling is tested with a simulated platform, not on a macOS machine. Native titlebar double-click is not covered by browser-synthesized pointer input. Revisit if native fullscreen or Snap Layout support becomes a requirement.
 

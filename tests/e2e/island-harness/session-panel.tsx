@@ -12,6 +12,8 @@ installElectronApiFallback()
 const sessions: AgentSessionSummary[] = Array.from({ length: 200 }, (_, index) => ({
   id: `session-${index}`, workspaceId: 'sessions', engine: 'codex', cwd: 'C:/sessions',
   firstPrompt: `Session ${index}\n${'A long prompt for layout pressure. '.repeat(80)}`,
+  title: index === 1 ? undefined : `Conversation overview ${index}`,
+  conversationPreview: `Recent discussion ${index}: implementation and verification`,
   turnCount: 2, checkpointCount: 0, status: 'done',
   createdAt: '2026-10-16T00:00:00Z', updatedAt: '2026-10-16T00:00:00Z', archived: false,
 }))

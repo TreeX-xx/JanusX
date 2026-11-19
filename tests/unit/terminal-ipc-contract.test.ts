@@ -72,7 +72,7 @@ describe('overlapping launch preparation', () => {
     const { resolveCLIPath } = await import('../../src/main/janus-runner/cli-resolver')
     const { terminalManager } = await import('../../src/main/terminal/manager')
     const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]
-    let finishCapture!: () => void, finishResolve!: (value: null) => void
+    let finishCapture!: () => void, finishResolve!: (value: string | null) => void
     const capture = vi.spyOn(TerminalTurnChangeTracker.prototype, 'register').mockImplementation(() => new Promise(resolve => { finishCapture = resolve }))
     vi.mocked(resolveCLIPath).mockImplementationOnce(() => new Promise(resolve => { finishResolve = resolve }))
     const spawn = vi.mocked(terminalManager.create).mockImplementationOnce(() => { throw new Error('probe spawn boundary') })
@@ -82,7 +82,7 @@ describe('overlapping launch preparation', () => {
     try {
       expect(capture).toHaveBeenCalledWith('parallel-prepare', process.cwd())
       expect(finishResolve).toBeTypeOf('function')
-      finishResolve(null)
+      finishResolve(process.execPath)
       await new Promise(resolve => setImmediate(resolve))
       expect(spawn.mock.calls.length).toBe(previous)
       finishCapture()

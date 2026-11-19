@@ -220,115 +220,47 @@
 .resize:focus-visible::after,
 .resize[data-resizing='true']::after { background: var(--shell-accent); }
 
-.drawer {
-  position: relative;
-  flex-shrink: 0;
-  overflow: hidden;
-  border: 0;
-  background: var(--shell-canvas);
-  transition: height 180ms ease, background-color 140ms ease;
-}
-
-.drawer[data-open='true'] {
-  border-top: 1px solid var(--shell-border-soft);
-  background: color-mix(in srgb, var(--shell-text) 3%, var(--shell-canvas));
-}
-
-.drawerBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border: 0;
-  background: transparent;
-  color: var(--shell-muted);
-  font: inherit;
-  font-size: 11px;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.drawerPrimary, .drawerDetails {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-}
-
-.drawerToggle {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 4px;
-  height: 24px;
-  padding: 0 6px 0 4px;
-  border-radius: 5px;
-  color: var(--shell-muted);
-  transition: color 140ms ease, background-color 140ms ease;
-  white-space: nowrap;
-}
-
-.drawerBar:hover .drawerToggle {
-  background: color-mix(in srgb, var(--shell-text) 5%, transparent);
-  color: var(--shell-text);
-}
-
-.drawerBar[aria-expanded='true'] .drawerToggle {
-  background: var(--shell-accent-soft);
-  color: var(--shell-accent);
-}
-
-.drawerBar:focus-visible { outline: none; }
-.drawerBar:focus-visible .drawerToggle { outline: 1px solid var(--shell-accent-border); outline-offset: -1px; }
+.drawer { position: relative; flex: 0 0 28px; height: 28px; min-width: 0; z-index: 20; background: var(--shell-canvas); }
+.drawerBar { display: flex; align-items: center; gap: 12px; width: 100%; height: 28px; padding: 0 12px; color: var(--shell-muted); font-size: 10px; cursor: pointer; user-select: none; white-space: nowrap; }
+.drawerBar:hover { background: color-mix(in srgb, var(--shell-text) 3%, transparent); }
+.drawerPrimary { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.drawerDetails { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
+.drawerToggle { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 3px; flex-shrink: 0; border: 0; border-radius: 4px; background: transparent; color: var(--shell-muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.drawerToggle:hover, .drawerToggle[aria-expanded='true'] { color: var(--shell-text); }
+.drawerToggle:focus-visible, .drawerClose:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: -1px; }
 .drawerChevron { transition: transform 140ms ease; }
-.drawerBar[aria-expanded='true'] .drawerChevron { transform: rotate(90deg); }
-
-.drawerProvider { max-width: 140px; }
-.drawerWorkspace { display: inline-flex; }
-.drawerModel { flex: 0 1 auto; min-width: 0; max-width: 180px; overflow: hidden; }
-.drawerProvider { min-width: 0; overflow: hidden; }
-.drawerDetails { justify-content: flex-end; overflow: hidden; }
-.contextCompact { display: none; }
-.contextBadge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; flex-shrink: 0; border: 0; border-radius: 5px; }
-.drawerOthers { display: flex; align-items: center; flex-shrink: 0; gap: 6px; font-size: 10px; }
-
-.runtimeCard {
-  position: relative;
-  border: 0;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--shell-text) 3%, var(--shell-canvas));
-  transition: background-color 140ms ease;
+.drawerToggle[aria-expanded='true'] .drawerChevron { transform: rotate(90deg); }
+.drawerProvider { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 140px; overflow: hidden; }
+.drawerProvider > span, .drawerWorkspace, .drawerModel { overflow: hidden; text-overflow: ellipsis; }
+.drawerWorkspace { max-width: 150px; color: var(--shell-dim); }
+.drawerModel { min-width: 0; max-width: 180px; color: var(--shell-dim); }
+.drawerCount { flex-shrink: 0; margin-left: auto; color: var(--shell-dim); font-size: 10px; }
+.drawerPanel { min-height: 120px; position: absolute; bottom: 100%; left: 0; right: 0; display: flex; flex-direction: column; min-width: 0; border-top: 1px solid var(--shell-border); background: var(--shell-canvas); box-shadow: none; opacity: 0; transform: translateY(10px); transition: opacity 180ms ease, transform 180ms ease; pointer-events: none; font-size: 11px; }
+.drawerPanel[hidden] { display: none; }
+.drawerPanel[data-open='true'] { opacity: 1; transform: translateY(0); pointer-events: auto; animation: drawerEnter 180ms ease; }
+@keyframes drawerEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.drawerHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; min-height: 46px; padding: 10px 18px; }
+.drawerHeading > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.drawerHeading strong { color: var(--shell-text); font-size: 12px; font-weight: 550; }
+.drawerHeading span { color: var(--shell-muted); font-size: 10px; }
+.drawerClose { display: grid; place-items: center; width: 25px; height: 25px; flex-shrink: 0; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--shell-muted); cursor: pointer; }
+.drawerClose:hover { color: var(--shell-text); background: var(--shell-hover); }
+.drawerScroll { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 0 18px 14px; }
+.runtimeGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 1320px; align-items: start; }
+.drawerEmpty { padding: 10px 0; color: var(--shell-muted); }
+@container terminal-project (max-width: 1000px) { .runtimeGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container terminal-project (max-width: 760px) { .drawerCount { display: none; } }
+@container terminal-project (max-width: 600px) {
+  .runtimeGrid { grid-template-columns: minmax(0, 1fr); }
+  .drawerHeading { min-height: 44px; padding: 9px 15px; }
+  .drawerScroll { padding: 0 15px 12px; }
+  .drawerWorkspace { display: none; }
+  .drawerBar { padding-inline: 8px; }
+  .drawerPrimary, .drawerDetails { gap: 7px; }
 }
-
-.runtimeCard:hover { background: color-mix(in srgb, var(--shell-text) 5%, var(--shell-canvas)); }
-.runtimeCard[aria-current='true'] { background: color-mix(in srgb, var(--shell-text) 6%, var(--shell-canvas)); }
-.runtimeCard:focus-visible { outline: 1px solid var(--shell-accent-border); outline-offset: -1px; }
-
-@container terminal-project (max-width: 760px) { .drawerOthers { display: none; } }
-@container terminal-project (max-width: 560px) { .drawerWorkspace { display: none; } }
-@container terminal-project (max-width: 420px) { .drawerBar .drawerProvider { display: none; } }
-@container terminal-project (max-width: 360px) {
-  .drawerBar .drawerModel, .contextFull { display: none; }
-  .contextCompact { display: inline; }
-}
-
-.metadata {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 20px;
-  min-width: 0;
-  padding: 0 4px;
-  color: var(--shell-muted);
-}
+@container terminal-project (max-width: 420px) { .drawerProvider { display: none; } }
+@container terminal-project (max-width: 360px) { .drawerModel { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab, .tabIndicator, .action, .resize::after, .drawer, .drawerToggle, .drawerChevron, .runtimeCard { transition: none; }
+  .tab, .tabIndicator, .action, .resize::after, .drawerPanel, .drawerPanel[data-open='true'], .drawerToggle, .drawerChevron { transition: none; animation: none; }
 }

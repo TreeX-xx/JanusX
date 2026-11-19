@@ -21,7 +21,7 @@ async function transcriptPath(root: string, runId: string): Promise<string> {
   const relative = `.agents/.local/runs/${runId}/implementation.json`
   await assertAssetPath(root, relative)
   const path = resolve(await realpath(root), relative)
-  return process.platform === 'win32' ? path.toLowerCase() : path
+  return path
 }
 
 function isTurn(value: unknown): value is HarnessImplementationTurn {

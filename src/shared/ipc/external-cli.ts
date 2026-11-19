@@ -2,6 +2,7 @@
  * 外部 CLI 工具的版本检测、安装与模型投影契约。
  * 主进程与渲染进程共享：通道名、结果类型、工具元数据，以及两端对称的 semver 比较。
  */
+import type { CapabilityResult } from '../runtime/capabilities'
 export const EXTERNAL_CLI_CHANNELS = {
   detect: 'external-cli:detect',
   latest: 'external-cli:latest',
@@ -16,10 +17,10 @@ export const EXTERNAL_CLI_CHANNELS = {
 
 export type ExternalCliChannel = (typeof EXTERNAL_CLI_CHANNELS)[keyof typeof EXTERNAL_CLI_CHANNELS]
 
-/** 受管外部终端白名单；与 JanusX 终端预设的外部 CLI 对齐（claude/codex/opencode/pi 为第三方，janus 为自有 sibling 源码构建） */
+/** 受管外部终端白名单；与 JanusX 终端预设的外部 CLI 对齐；janus 仅保留内置模型配置与旧记录身份 */
 export type ExternalCliToolId = 'claude' | 'codex' | 'opencode' | 'pi' | 'janus' | 'dsh'
 
-export const EXTERNAL_CLI_TOOL_ORDER: readonly ExternalCliToolId[] = ['janus', 'claude', 'codex', 'opencode', 'pi', 'dsh']
+export const EXTERNAL_CLI_TOOL_ORDER: readonly Exclude<ExternalCliToolId, 'janus'>[] = [ 'claude', 'codex', 'opencode', 'pi', 'dsh']
 
 /** 两端共享的展示元数据：首字母徽标＋品牌色，不引入二进制图标资产。 */
 export interface ExternalCliToolMeta {
@@ -42,6 +43,9 @@ export type ExternalCliBinarySource = 'path' | 'known-location'
 
 export interface ExternalCliDetectResult {
   toolId: ExternalCliToolId
+  capability?: CapabilityResult
+  installCapability?: CapabilityResult
+  conversationCapability?: CapabilityResult
   /** false = 未安装；true 但 runnable=false = 装了但跑不起来（与 external-cli installed_but_broken 同义）。 */
   installed: boolean
   runnable: boolean

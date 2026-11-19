@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-19T06:35:15Z",
+  "updated": "2026-11-18T07:14:32Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10"
 }
 ---
@@ -35,7 +35,9 @@ Long agent runs finish while the user looks elsewhere. Completion, failure, and 
 
 ## Decision
 
-A main-side notification service pairs hook-lifecycle collection with renderer fallback. Agent completion, failure, and approval-waiting events raise native system notifications first and degrade to in-app notices when native delivery misses. Activating a notification restores, shows, and focuses the main window at the owning terminal. Hook bridges normalize Claude, Codex, and OpenCode events plus the headless start chain into one service. Users govern switches, success and failure toggles, minimum-duration thresholds, and failure-text truncation from settings.
+A main-side notification service handles Agent completion, failure, and approval-waiting events. On macOS it posts silent system notifications through Notification Center so posting leaves window presentation to macOS. An unavailable or rejected native notification falls back to the main renderer. On Windows and Linux the service tries the [custom desktop toast](../desktop/desktop-toast.md), then native and in-app delivery. A click on a desktop notification restores and focuses the main window at the owning terminal. Delivery and dismiss callbacks leave window focus alone.
+
+Hook bridges normalize Claude, Codex, and OpenCode events and the headless start chain. Settings control notification enablement, success and failure delivery, minimum duration, and failure-text truncation. The native path keeps a bounded set of recent notification objects alive for clicks and releases them on click, close, or failure.
 
 ## Alternatives considered
 
@@ -52,4 +54,10 @@ Desktop notifications default to enabled; remote notifications, the Feishu provi
 Validation: 22 targeted tests passed across runtime, defaults/normalization, SDK adapter, settings IPC and outbound dispatch; TypeScript passed. The isolated production build emits the SDK adapter as a separate dynamically imported chunk. No real notifications were sent and no existing profile settings were changed.
 
 - **Gains**: Every terminal state needing attention raises a notification with a click path back to its terminal; hook normalization covers all three engines plus headless runs.
-- **Costs and limits**: Native delivery varies by platform packaging, so the fallback path must stay first-class; settings surface grows with each new toggle.
+- **Costs and limits**: macOS system banners depend on a signed bundle and notification permission. The existing renderer receives a failed post while the current Space stays active. Focus modes and Notification Center determine whether an accepted post appears as a banner.
+
+## macOS notification verification
+
+The regression tests cover platform routing, click-only activation, unsupported and rejected native delivery, and single delivery when custom window creation fails. The notifier, toast controller, and hook coordinator passed 49 unit tests. Three toast browser tests passed.
+
+An isolated, ad hoc-signed Electron 45.3.3 host on macOS 27.0 exercised the real permission-denied path. One in-app IPC event was sent. The main window stayed hidden, no toast window was created, and the frontmost application was unchanged across 13 samples. Authorized banner delivery and click routing across ordinary and full-screen Spaces still require installed-app testing.

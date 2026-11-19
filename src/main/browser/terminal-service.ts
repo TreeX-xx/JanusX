@@ -6,11 +6,14 @@ import { BrowserTerminalClients } from './terminal-clients'
 import { startBrowserTerminalHost } from './terminal-host'
 import { browserControl } from './control-service'
 import { configService } from '../config/service'
+import { appShutdown } from '../shutdown/AppShutdown'
+import { assertApplicationRunning } from '../shutdown/quit-state'
 import type { LocalIntegrationService } from '../local-integrations/service'
 
 let clients: BrowserTerminalClients | undefined
 let host: ReturnType<typeof startBrowserTerminalHost> | undefined
 export function initializeBrowserTerminalClients(service: LocalIntegrationService) {
+  assertApplicationRunning()
   if (clients) return
   const directory = join(app.getPath('userData'), 'janusx', 'browser-control')
   const mainDirectory = app.isPackaged ? join(app.getAppPath(), 'out', 'main')
@@ -34,7 +37,7 @@ export function initializeBrowserTerminalClients(service: LocalIntegrationServic
     executable: process.execPath, piBundle: join(mainDirectory, 'pi-browser.mjs'), disconnect: async client => { await (await getHost()).disconnectClient(client) } })
   // The bridge must be available when an already registered terminal starts.
   void getHost().catch(error => console.error('Browser terminal host unavailable', error instanceof Error ? error.message : String(error)))
-  app.once('will-quit', () => { void host?.then(server => server.close()).catch(() => {}) })
+  appShutdown.configure({ stopBrowserTerminalHost: async () => { await (await host)?.close() } })
 }
 export function browserTerminalClients() {
   if (!clients) throw new Error('Browser terminal management unavailable')

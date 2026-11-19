@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-10-24T10:01:54Z",
+  "updated": "2026-11-15T15:25:19.259Z",
   "class": "architecture",
   "tags": ["workspace", "local", "wsl", "ssh", "blueprint", "session"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662",
@@ -33,7 +33,7 @@
 
 让用户将本地目录、WSL 发行版目录及 SSH 主机目录导入同一个工作区列表，并在正确的目标环境中完成文件编辑与预览、终端、Git、蓝图和会话管理。这五项是用户明确要求的首版范围；阶段性终端连通不能作为整体交付。
 
-本篇细化[既有运行时决策](../terminal/wsl-support-direction.md)，当前处于实施中，未创建 Task，完整首版尚未交付。延续 Windows 原生桌面宿主；UI 中的 Local 对应既有决策的 `kind: 'windows'`，WSL / SSH 是工作区连接途径。用户已确认首版 SSH 目标支持 Linux；远端 Windows、容器嵌套和跨来源文件搬运另行评估。
+本篇细化[既有运行时决策](../terminal/wsl-support-direction.md)，当前处于实施中，未创建 Task，完整首版尚未交付。2026-11-14 [跨平台重构 P1](../desktop/platform-runtime-boundaries.md)将内部本地身份统一为 `kind: 'local'`，缺省及旧 windows 记录在读取边界兼容，保存本地记录仍省略 runtime；WSL / SSH 是工作区连接途径。用户已确认首版 SSH 目标支持 Linux；远端 Windows、容器嵌套和跨来源文件搬运另行评估。
 
 2026-10-24 已确认三项产品约束：关闭 JanusX 后 SSH 远端任务继续执行；SSH 首版支持 Linux；Local / WSL / SSH 的文件预览以同版本本地现有体验为一致性基准。它们是实施和发布验收的约束，P0 只验证实现方法及具体平台兼容，不再决定是否包含这三项。
 
@@ -69,13 +69,15 @@ Office 缓存位于桌面 `userData/janusx/cache/workspace-office`，按工作�
 
 新建或重试 Agent 终端时在所选发行版／SSH 用户下检测可执行程序；已安装直接打开，缺失则在原终端区域展示“安装并打开”，保留原 cwd 和启动参数。失败仍在同一面板显示原因、安装输出和重试入口，也可切换到当前目录的普通 Linux 终端；关闭面板后不因迟到结果创建终端。Local 继续走原有启动链路。
 
-`resources/workspace-runtime/cli.py` 独立部署，不升级或重启已有 daemon。检测及启动共用登录 Shell PATH、用户目录和 nvm 候选，过滤 WSL 继承的 `/mnt/<drive>/` Windows PATH。安装包由主进程已有 CLI 注册表选择，renderer 只传 workspaceId/toolId；安装至目标用户 `~/.local/share/janusx/agents/<tool>`，不用 sudo，不修改全局 npm prefix，不迁移桌面凭据。新装 OpenCode 使用注册表的 v2 包。
+`resources/workspace-runtime/cli.py` 独立部署，不升级或重启已有 daemon。2026-11-15 起，CLI 检测及启动共用目标登录 Shell PATH 和用户目录兜底，过滤 WSL 继承的 `/mnt/<drive>/` Windows PATH；不再注入私有 CLI／Node 目录，也不自行挑选最新 nvm 版本。nvm 使用 Shell 已选定的版本。安装包由主进程已有 CLI 注册表选择，renderer 只传 workspaceId/toolId；新装查询系统 npm 的 global prefix/root，核对 Linux 布局后显式固定到该 prefix，不用 sudo，不重写 npm 配置。新装 OpenCode 使用注册表的 v2 包。
 
-Linux x64/arm64 可自动安装；Node/npm 缺失或 Node 低于 22 时，在 glibc >= 2.28 的目标复用固定版本、校验和验证的私有 Node 准备流程；不兼容目标保留手动终端入口。当前复用的准备流程也部署文档后端，目标仍需 Python、tar/xz，软件包安装需要目标网络可用。登录及模型配置由各 CLI 在目标自行完成。
+Linux x64/arm64 可自动安装 CLI；Node/npm 缺失或 Node 低于 22 时提示在目标终端安装兼容版本，不自动下载私有 Node。已有可运行 CLI 直接复用，不要求它由 npm 安装；损坏命令保留错误，不通过创建第二份安装掩盖。当前远端入口是按需安装，没有独立升级操作。JanusX 文档后端的内部运行时仍由 prepareRuntimeBackend 管理，与用户 CLI PATH 和安装解耦；既有私有文件不清理。软件包安装仍需目标网络和全局目录写权限，登录及模型配置由各 CLI 在目标自行完成。
 
-npm 安装由脱离连接的 Linux worker 执行，每工具文件锁防止重复提交，状态和尾部日志写入目标目录；退出桌面或关闭面板不终止已启动的 worker。依赖下载／传输准备仍由桌面持有，准备阶段退出需再次点击安装；不能把它描述成完整安装全程脱离桌面。安装完成后重新解析 PATH，旧 daemon 无需重启；原生会话续接也通过这一解析器启动，不再用后端旧 PATH 的 `command -v` 拒绝受管安装。已有终端附着不触发安装或重跑。
+npm 安装由脱离连接的 Linux worker 执行，每工具文件锁防止重复提交，额外共享 npm 锁串行化不同工具的全局安装。状态和日志仍存于 `~/.local/share/janusx/agents`，该目录不再作为新装 CLI 的 prefix。worker 获得共享锁后复检已有 CLI，避免排队期间重复安装；完成时核对目标 package.json、命令真实路径、版本和同一环境的默认解析结果。权限失败和 PATH 遮挡明确报错，不回退私有位置。退出桌面或关闭面板不终止已启动的 worker；部署脚本及前置探测仍需桌面连接。原生续接也通过相同解析器启动，已有终端附着不触发安装或重跑。
 
-2026-10-24 验证：`remote-cli`、`terminal-launch`、`workspace-runtime-terminal`、`workspace-runtime-restore` 共 17 项单测通过；Linux `tests/integration/workspace-cli.py` 4 项通过，覆盖用户目录、nvm、Windows PATH 过滤、损坏程序、重复安装与中断状态。`remote-agent-setup.spec.ts` 与 `terminal-startup.spec.ts` 共 8 项浏览器测试通过，包括安装后自动启动、失败保留日志并重试、普通终端退路、关闭后不误启动。截图为 `artifacts/remote-agent-wsl.png` 和 `artifacts/remote-agent-ssh.png`。
+2026-11-15 系统安装策略验证：`remote-cli`、`workspace-cli-transport`、`terminal-launch`、`workspace-runtime-terminal`、`workspace-runtime-restore` 共 28 项单测通过；`remote-agent-setup.spec.ts` 6 项浏览器回归通过。真实 WSL Linux 执行 `tests/integration/workspace-cli.py` 11 项通过，隔离 HOME 并使用 npm／CLI 夹具，覆盖系统 prefix、私有路径不注入、登录环境选中的 nvm、已有原生 CLI 复用、锁串行化、权限失败、目录不一致、版本不符、PATH 不可见和中断状态。严格未使用项类型检查、目标源码 ESLint 通过。本轮未下载真实第三方包，也未进行真实 SSH 端到端安装；既有 SSH 传输未改变，单测和界面测试覆盖 SSH 路由。
+
+历史私有安装策略验证（2026-10-24）：`remote-cli`、`terminal-launch`、`workspace-runtime-terminal`、`workspace-runtime-restore` 共 17 项单测通过；Linux `tests/integration/workspace-cli.py` 4 项通过，覆盖用户目录、nvm、Windows PATH 过滤、损坏程序、重复安装与中断状态。`remote-agent-setup.spec.ts` 与 `terminal-startup.spec.ts` 共 8 项浏览器测试通过，包括安装后自动启动、失败保留日志并重试、普通终端退路、关闭后不误启动。截图为 `artifacts/remote-agent-wsl.png` 和 `artifacts/remote-agent-ssh.png`。
 
 真实测试命令：先启动专用 SSH 夹具，再设置 `JANUSX_RUNTIME_LIVE=1`，执行 `npx vitest run tests/unit/workspace-runtime-live.test.ts -t 'installs missing Agent'`。Windows 经 WSL 实际安装 Codex、经回环 OpenSSH 实际安装 Pi，均经生产 RemotePty 执行 `--version` 成功；安装期间断开桌面传输后继续完成，原 PTY PID 不变。首轮测试末尾误用 `terminal.attach`，改为 `terminal.list` 并使用每轮唯一 ID 后复跑通过。首次私有 Node 下载也已实际完成。这里只验证 Ubuntu 24.04 x64、Codex/Pi 包安装和启动，未验证全部 CLI、arm64、异地网络或提供方登录／模型请求；浏览器安装面板使用替身 IPC，真实安装链路是独立服务测试。
 
@@ -172,18 +174,18 @@ Local 继续选择目录后直接打开；WSL 自动检测发行版，只有一�
 
 ### 1. 工作区身份与位置
 
-沿用既有 `kind: 'windows' | 'wsl' | 'ssh'` 方向，以判别联合约束必需字段，避免三个布尔开关组合。草案字段如下，最终结构由 P0 定型：
+当前使用 `kind: 'local' | 'wsl' | 'ssh'` 判别联合，系统名称由执行目标独立描述；旧 windows 仅作为输入兼容。以下是资源模型示意，实际持久化与 DTO 以 shared/workspace-runtime.ts 为准：
 
 ```ts
 type WorkspaceLocation =
-  | { kind: 'windows'; path: string }
+  | { kind: 'local'; path: string }
   | { kind: 'wsl'; path: string; wslDistro: string }
   | { kind: 'ssh'; path: string; connectionId: string }
 ```
 
 `path` 始终表示目标环境中的绝对路径：本地是 Windows 路径，WSL/SSH 是 POSIX 路径。UNC 只是 WSL 适配器的派生访问路径，不持久保存第二份根目录。SSH 连接描述独立保存 host/port/user/config 别名和凭据引用，工作区引用稳定的 connectionId；这是对既有决策中内嵌 ssh 描述的细化建议，尚未替换已确认字段。禁止出现可分别修改的 `path` 与 `remotePath` 两份真源。
 
-缺少 kind 的旧记录归为 windows，保留 UUID、排序、分组、布局及原路径。已用 UNC 导入的旧记录不静默转成 WSL：先辨认并提示转换预览，因为转换会改变 Git 与 CLI 执行环境。通过验证后显式保存；新版远端记录不能再流入仅理解本地路径的旧入口。
+缺少 runtime 或旧 windows 的记录在内存归为 local，保留 UUID、排序、分组、布局及原路径，不在读取时重写磁盘。已用 UNC 导入的旧记录不静默转成 WSL：先辨认并提示转换预览，因为转换会改变 Git 与 CLI 执行环境。通过验证后显式保存；新版远端记录不能再流入仅理解本地路径的旧入口。
 
 运行时身份区分本机、WSL 发行版及 SSH 连接的有效用户环境；修改 SSH 的主机/用户目标要建立新身份或执行显式迁移，不能让旧会话随 connectionId 被悄悄指向另一台主机。路径相等与大小写规则由目标 FS 决定，Linux 的 `/repo/A` 与 `/repo/a` 不经 Windows 小写归一化。
 

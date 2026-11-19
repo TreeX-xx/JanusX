@@ -63,6 +63,7 @@ export function installElectronApiFallback(): void {
       save: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
       readBinary: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
       stat: () => Promise.resolve({ error: 'Electron file API is unavailable' }),
+      reveal: () => Promise.resolve({ success: false, error: 'Electron file API is unavailable' }),
     },
     terminal: {
       conversation: () => Promise.resolve(null),
@@ -460,7 +461,7 @@ export function installElectronApiFallback(): void {
       onEditorEmbedded: () => () => {},
       onEditorRefresh: () => () => {},
     },
-    system: { getDefaultShell: unavailable, getPlatform: unavailable, openVSCode: unavailable, getRuntimeTelemetry: unavailable, listUsageLedger: unavailable, getLanguage: () => Promise.resolve(null), setLanguage: unavailable, onPrepareQuit: () => () => {} },
+    system: { getDefaultShell: unavailable, getPlatform: unavailable, openVSCode: unavailable, getRuntimeTelemetry: unavailable, listUsageLedger: unavailable, getHistorySources: unavailable, saveHistorySources: unavailable, pickHistorySource: unavailable, getLanguage: () => Promise.resolve(null), setLanguage: unavailable, onPrepareQuit: () => () => {} },
     shellProfiles: {
       list: unavailable,
       save: unavailable,
