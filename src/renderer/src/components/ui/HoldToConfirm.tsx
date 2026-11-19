@@ -40,6 +40,17 @@ export function HoldToConfirm({
 
   useEffect(() => () => controllerRef.current?.dispose(), [])
 
+  useEffect(() => {
+    if (!holding) return
+    const cancelHold = () => controllerRef.current?.cancel()
+    if (disabled) {
+      cancelHold()
+      return
+    }
+    window.addEventListener('blur', cancelHold)
+    return () => window.removeEventListener('blur', cancelHold)
+  }, [disabled, holding])
+
   const start = () => {
     if (!disabled) controllerRef.current?.start()
   }
@@ -56,11 +67,25 @@ export function HoldToConfirm({
     },
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
       if (event.button !== 0) return
+      event.stopPropagation()
+      // Mouse button chords only emit pointerdown for the first pressed button.
+      // Let Chromium deliver mousedown/up for each mouse button transition.
+      if (event.pointerType === 'mouse') return
+      event.preventDefault()
+      start()
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLElement>) => {
+      if (event.pointerType !== 'mouse') cancel()
+    },
+    onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
+      if (event.button !== 0) return
       event.preventDefault()
       event.stopPropagation()
       start()
     },
-    onPointerUp: cancel,
+    onMouseUp: (event: React.MouseEvent<HTMLElement>) => {
+      if (event.button === 0) cancel()
+    },
     onPointerLeave: cancel,
     onPointerCancel: cancel,
     onBlur: cancel,
