@@ -7,7 +7,7 @@ import { installElectronApiFallback } from '../../../src/renderer/src/lib/electr
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useThemeStore } from '../../../src/renderer/src/stores/theme'
 import { changeLanguage, initI18n } from '../../../src/renderer/src/i18n'
-import { CODEX_CONVERSATION_CAPABILITIES, type ConversationCommand, type ConversationSnapshot } from '../../../src/shared/conversation-display'
+import { CODEX_CONVERSATION_CAPABILITIES, type DesktopConversationCommand as ConversationCommand, type ConversationSnapshot } from '../../../src/shared/conversation-display'
 import type { ConversationHistoryRequest, ConversationHistoryResult, ConversationHistoryItem } from '../../../src/shared/conversation-history'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
@@ -131,6 +131,9 @@ Object.assign(window.electron.terminal, {
       if (modeGate) await modeGate
       state.mode = command.mode; state.controlEpoch++
     }
+    else if (command.type === 'codexUpdate' && state.codexUpdatePrompt) {
+      state.codexUpdatePrompt.choice = command.choice
+    }
     else if (command.type === 'commands') {
       state.commandsLoading = true; publish()
       if (catalogGate) await catalogGate
@@ -199,6 +202,12 @@ Object.assign(window.electron.window, { openEditor: async ({ filePath }: { fileP
 Object.assign(window.electron.fileTree, { children: async (_root: string, directory: string) => directory === 'src/' ? [{ name: 'app.ts', path: 'src/app.ts', type: 'file' }] : [{ name: 'src', path: 'src', type: 'directory' }] })
 Object.assign(window.electron.file, { importConversationAttachment: async (name: string) => ({ id: crypto.randomUUID(), name, path: 'C:/attachments/' + name, kind: name.endsWith('.png') ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
 Object.assign(window, { codexFixture: {
+  updateMenu(active: boolean) {
+    state.connection = active ? 'starting' : 'ready'
+    state.threadId = active ? null : 'native-thread'
+    state.codexUpdatePrompt = active ? { id: 'update-fixture', versions: { current: '0.169.0', latest: '0.170.0' } } : undefined
+    publish()
+  },
   pagedTurnAttachments: () => {
     const oldRows: ConversationHistoryItem[] = [
       { id: 'older:prompt', turnId: 'older', type: 'userMessage', text: 'Archived request', textLength: 16, status: 'completed' },

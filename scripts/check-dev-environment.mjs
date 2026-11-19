@@ -18,7 +18,7 @@ export function checkDevEnvironment(root) {
     const binary = readFileSync(join(modules, 'electron/path.txt'), 'utf8').trim()
     if (!binary || !existsSync(join(modules, 'electron/dist', binary))) throw new Error('missing binary')
   } catch {
-    issues.push('Electron runtime is missing. Run npm rebuild electron (install scripts must be enabled).')
+    issues.push('Electron runtime is missing. Run npm run postinstall.')
   }
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   for (const name of Object.keys(manifest.dependencies ?? {}).filter(name => name.startsWith('@janus-agent/'))) {

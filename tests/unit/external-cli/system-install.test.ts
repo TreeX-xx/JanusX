@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 const state = vi.hoisted(() => ({ root: '', prefix: '', active: undefined as string | undefined, version: '2.0.0', env: {} as NodeJS.ProcessEnv, fail: false, run: vi.fn() }))
 vi.mock('electron', () => ({ app: { getPath: () => state.root } }))
 vi.mock('../../../src/main/platform/runtime-context', () => ({ localSystem: () => ({ platform: process.platform, architecture: process.arch, home: state.root }) }))
-vi.mock('../../../src/main/external-cli/managed-paths', () => ({ managedCliEnv: () => state.env }))
+vi.mock('../../../src/main/external-cli/managed-paths', () => ({ managedCliEnv: () => state.env, setMacNpmPrefix: vi.fn() }))
 vi.mock('../../../src/main/platform/process-host', () => ({ runProcess: (...args: unknown[]) => state.run(...args) }))
 vi.mock('../../../src/main/platform/cli-launch', () => ({ resolveCliExecutable: (command: string) => command }))
 vi.mock('../../../src/main/external-cli/cli-detector', async original => {

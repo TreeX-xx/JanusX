@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runtimeCapability } from '../../shared/runtime/capabilities'
 import { localRuntimeContext } from '../platform/runtime-context'
@@ -169,7 +170,10 @@ export class DefaultExternalCliService implements ExternalCliService {
       }
       if (outcome.target) {
         const active = await this.detectorFor(toolId).findCandidate()
-        if (!active || resolve(active.path) !== resolve(outcome.target.path)) {
+        const targetPath = outcome.target.path
+        const sameCommand = active && (resolve(active.path) === resolve(targetPath)
+          || await Promise.all([realpath(active.path), realpath(targetPath)]).then(([a, b]) => a === b).catch(() => false))
+        if (!sameCommand) {
           return { toolId, success: false, command: outcome.command, error: `Installed ${tool.displayName} at ${outcome.target.path}, but the active command is ${active?.path ?? 'missing'}. Re-detect before launching.` }
         }
       }

@@ -23,6 +23,7 @@ vi.mock('../../plugins/cpa/src/main/desktop', async () => {
     async decrypt(value: Buffer) { return Buffer.from(value.toString().slice(10), 'base64').toString() },
   } }
 })
+vi.mock('@janusx/llm-core/mac-system-proxy', () => ({ macProxyEnvironment: (env: NodeJS.ProcessEnv) => env }))
 vi.mock('@janusx/llm-core', () => ({ getProxyManager: () => ({ getProxyUrl: h.proxy }), getSystemProxy: h.systemProxy }))
 vi.mock('node:child_process', () => ({ spawn: (...args: unknown[]) => h.spawn(...args) }))
 vi.mock('../../plugins/cpa/src/main/local-request', () => ({ cpaLocalRequest: vi.fn(async () => ({ ok: true })) }))

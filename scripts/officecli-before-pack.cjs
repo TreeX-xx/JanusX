@@ -2,6 +2,7 @@
 
 // Note: .agents/notes/desktop/officecli-bundled.md
 module.exports = async function beforePack(context) {
+  require('./electron-before-pack.cjs').beforePack(context)
   const platform = context.electronPlatformName
   // Linux OfficeCLI support is not part of the bundled platform contract yet.
   if (platform !== 'win32' && platform !== 'darwin') return

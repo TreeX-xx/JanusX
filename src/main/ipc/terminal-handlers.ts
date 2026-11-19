@@ -9,7 +9,7 @@ import { PiConversation, DshConversation } from '../terminal/extension-conversat
 import { OpenCodeConversation } from '../terminal/opencode-conversation'
 import { supportsConversation } from '../../shared/conversation-display'
 import { conversations, type ConversationController } from '../terminal/conversations'
-import type { ConversationCommand } from '../../shared/conversation-display'
+import type { DesktopConversationCommand } from '../../shared/conversation-display'
 import type { ConversationHistoryRequest } from '../../shared/conversation-history'
 import { createRemoteTerminal } from '../terminal/remote-pty'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
@@ -1010,6 +1010,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
           })
         }
 
+        if (conversation instanceof DesktopCodexConversation) conversation.observeStartupOutput(data)
         const colorQueryResponse = colorQueryResponder?.push(data)
         if (colorQueryResponse) {
           terminalManager.write(id, colorQueryResponse)
@@ -1343,9 +1344,14 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     if (!terminal || terminal.remote || !state) return []
     return readNativeInputHistory(state.engine, terminal.config.cwd, { ...process.env, ...terminal.config.env })
   })
-  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: ConversationCommand }) => {
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: DesktopConversationCommand }) => {
     const conversation = conversations.get(id)
     if (!conversation) throw new Error('No managed conversation for this terminal')
+    if (command.type === 'codexUpdate') {
+      const instance = terminalManager.getInstance(id)
+      if (!(conversation instanceof DesktopCodexConversation) || !instance) throw new Error('No live Codex update prompt')
+      return conversation.chooseUpdate(command, key => instance.pty.write(key))
+    }
     return conversation.command(command)
   })
 

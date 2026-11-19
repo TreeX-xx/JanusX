@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "build": "112cac497fd119c1b05d37c390791c149c9f82393878b42e39afd5f7ab0c06fc",
+  "build": "65ce5fd47cc4c88f2176b217768d5a0c50ee545ab6ed6385576ad05a4f3b498a",
   "source": {
     "revision": "c2f24ee4f52316520594175c8823c9ebe7bf1f93",
     "dirty": true,
-    "baselineBuild": "d61fe00183e9ffdb823ff7b6c00dfa1c405821fbc37c637d3f01907c6e26e457",
+    "baselineBuild": "405793a932a05e89a6fd68a28766fa375167f7df8720e2f62db1c75de5f5a986",
     "overlay": [
       "compaction-recovery",
+      "conversation-turn-timing",
       "codex-conversation-speed"
     ],
     "sources": {
@@ -15,8 +16,9 @@
       "packages/chat-core/src/main/llm/compaction-summary.ts": "90048d8f65b918274b838f2b6ad8a0629d3be35614049fac5882375296be4d29"
     },
     "artifactOverlay": {
-      "dist/superagent/contracts/conversation-display.d.ts": "b941739b3bec9b49849ed9a924ef269c6cad8cb3a10bc2363529b8f6d11fd829",
-      "dist/superagent/native/codex-conversation.js": "39d5567fac959861a96cc6218cf676316fdbcc838dcceaa46651d6268191e0c1"
+      "dist/superagent/contracts/conversation-display.d.ts": "d61497ade4f37b49613ba832f3b1877562695835c6edc4021d339e1a9193eb92",
+      "dist/superagent/native/codex-conversation.js": "021dfd083e60962c79cd7dec64cbe4792b88e6be37c36d19623a33d4de7580b6",
+      "dist/superagent/native/conversation-session.js": "b4359aed73136f6e01141bbc4d8489b44aa3828328684fc1b00d0c04c1af0ac0"
     }
   },
   "packages": [
@@ -403,9 +405,9 @@
     },
     {
       "name": "@janus-agent/janus-agent",
-      "version": "0.1.0-engine.112cac497fd119c1",
-      "archive": "janus-agent-janus-agent-0.1.0-engine.112cac497fd119c1.tgz",
-      "sha256": "b93e59d05664fcf0697b4cffbbdaf0214c7a68ea25b2b5d5f20fd5ba61e9d8d0",
+      "version": "0.1.0-engine.65ce5fd47cc4c88f",
+      "archive": "janus-agent-janus-agent-0.1.0-engine.65ce5fd47cc4c88f.tgz",
+      "sha256": "c265d8850dfd3006c101415405305f658cc1b6bc3cb77f9fef7972e191b2bfe5",
       "files": {
         "dist/harness/dispatcher.d.ts": "111a329d27c954b98f35c5e562d98db7057385d64a199481af312db44b998370",
         "dist/harness/dispatcher.d.ts.map": "cef201528c73bb83445a732fe548d4435f12a2d4f72b207f67cf20cbf64ffb59",
@@ -446,7 +448,7 @@
         "dist/superagent/context.d.ts": "9de2812c755daf2bcb9c68c7246914a843033daf149bcd609f7ffbc8319c39d5",
         "dist/superagent/context.d.ts.map": "869c4347792611ba76595fe6f51823d03fc74ad4a01bc24a32bcb0d45f581efe",
         "dist/superagent/context.js": "c2186f9b86b05b5e0edc3babe625e9341d644123c961d2304b2dcfb2b6b63d57",
-        "dist/superagent/contracts/conversation-display.d.ts": "b941739b3bec9b49849ed9a924ef269c6cad8cb3a10bc2363529b8f6d11fd829",
+        "dist/superagent/contracts/conversation-display.d.ts": "d61497ade4f37b49613ba832f3b1877562695835c6edc4021d339e1a9193eb92",
         "dist/superagent/contracts/conversation-display.d.ts.map": "4d4e5543a121a7b15afec71c0bfde2a42f4bed267dc2c03f11bdd1eb8e2d99d7",
         "dist/superagent/contracts/conversation-display.js": "e7c53ac2a88679ba04aa0904e847643bdeef631df8528e387c2b04b4cd469d8e",
         "dist/superagent/contracts/conversation-history.d.ts": "4f965470775d78150d6fd914fa8e6552c25a39dbf46c29ed0737f822bb501104",
@@ -505,7 +507,7 @@
         "dist/superagent/native-log.js": "3c3ddec65fcbda7759d908010b7f8ace89ef370e4a94a6b1d09d2d9b9dbfdc4b",
         "dist/superagent/native/codex-conversation.d.ts": "29e4ab61bce9f44ebf36373c1558b8666ed1c75636a5fd065caf0aacc87eca64",
         "dist/superagent/native/codex-conversation.d.ts.map": "5fad021f19e1471e992a1a692f8748d72b37634a82ca7fd70f5db2de5837d7e0",
-        "dist/superagent/native/codex-conversation.js": "39d5567fac959861a96cc6218cf676316fdbcc838dcceaa46651d6268191e0c1",
+        "dist/superagent/native/codex-conversation.js": "021dfd083e60962c79cd7dec64cbe4792b88e6be37c36d19623a33d4de7580b6",
         "dist/superagent/native/codex-elicitation.d.ts": "2e7d05786b5b334ee34c7df9dede09539f779865e38006ff9a39d59083072bb7",
         "dist/superagent/native/codex-elicitation.d.ts.map": "9107240e541a5e742327787b41ef0e45c2a2d2509bbaad6b70965893a4a79e14",
         "dist/superagent/native/codex-elicitation.js": "fa446130e255a9bba0708f58ac01568e1c9091354b02b914fbfba354512a18dc",
@@ -532,7 +534,7 @@
         "dist/superagent/native/conversation-questions.js": "2b499e395d3e48f3038913c09a8ffcd36e8be06dba5c3412961460cae9b17e02",
         "dist/superagent/native/conversation-session.d.ts": "8437355fb1af257d428c7b97b1c07082bcadefa0d53eceb087a79cb84749e4e4",
         "dist/superagent/native/conversation-session.d.ts.map": "a3b75fc2aa050217d877f7b9107d270e66d5dd5bb2c1864f1be5645b0277dcd2",
-        "dist/superagent/native/conversation-session.js": "6d224661e6f32b30ab2a757c06b7ccaad72509a8ed2c05228d7b709d0413e89d",
+        "dist/superagent/native/conversation-session.js": "b4359aed73136f6e01141bbc4d8489b44aa3828328684fc1b00d0c04c1af0ac0",
         "dist/superagent/native/windows-process-tree.d.ts": "d17e6d7ab8709e03fbdd30183f2aa450f1cb77941bbba05f8fda6a02d8817701",
         "dist/superagent/native/windows-process-tree.d.ts.map": "2c8f4539f633762ea42665232cd79b923008c3c07838a51ddfa5e0a1bd8e40d3",
         "dist/superagent/native/windows-process-tree.js": "abfbb95fb5364122237deb0e3d991dd3cec0378252fd5bf2e37b5d325bf7566a",
@@ -632,7 +634,7 @@
         "dist/workflowx.d.ts": "3dfa2eb0ec184950f06c38d485741f30144ced543bcd0dbdc78b92947c68b5a2",
         "dist/workflowx.d.ts.map": "3b39dd91c7fc2cc32970a8aa1dbf7949046c035f5176dbc8c69457c0766b429b",
         "dist/workflowx.js": "00a48c0ff32245a24d4a83df6c5c8ffe735dbe6f9721ceb0145d7b78175915cf",
-        "package.json": "2407c2cafda4bb3afddf517ff2b984b5bed9326296da9c0408141f27e804e58c"
+        "package.json": "9eccc1260f8b6ed90c6d701433608f9131128c0d6e916157954c0a0e20a6429c"
       }
     }
   ]

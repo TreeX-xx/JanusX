@@ -3,7 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { CliInstaller, type CliInstallOutcome } from './installer'
 import { CliDetector } from './cli-detector'
-import { managedCliEnv } from './managed-paths'
+import { managedCliEnv, setMacNpmPrefix } from './managed-paths'
 import { findCliPackage } from './package-location'
 import { dshProfileHint } from './managed-install'
 import { OPENCODE_PACKAGES, type ExternalCliToolDescriptor } from './tool-registry'
@@ -120,6 +120,7 @@ export function createSystemCliInstaller(): CliInstaller {
         const owned = await Promise.all(names.map(name => npmOwnsCommand(active.path, modules, name)))
         if (!owned.some(Boolean)) throw new Error(`${tool.displayName} resolves to ${active.path}, outside the active npm prefix ${prefix}. Use the Node/npm environment that owns this CLI; no installation was changed.`)
       }
+      setMacNpmPrefix(prefix)
       plan = { prefix, modules, command }
     },
     verifyInstall: async (tool, version, located) => {

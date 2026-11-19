@@ -11,6 +11,10 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     },
+    "./mac-system-proxy": {
+      "types": "./dist/utils/mac-system-proxy.d.ts",
+      "default": "./dist/utils/mac-system-proxy.js"
+    },
     "./model-registry": {
       "types": "./dist/registry/model-registry.d.ts",
       "import": "./dist/registry/model-registry.js",

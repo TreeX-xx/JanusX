@@ -12,13 +12,14 @@ describe('execution target capability contract', () => {
   it('separates native Mac terminal display and verified managed Worker architectures', () => {
     const mac = { kind: 'local', platform: 'darwin' } as const
     expect(runtimeCapability('terminal', 'claude', mac, 'ready').status).toBe('available')
-    expect(runtimeCapability('conversation', 'claude', mac).status).toBe('unsupported')
+    expect(runtimeCapability('conversation', 'claude', mac).status).toBe('available')
     expect(runtimeCapability('managed-worker', 'codex', mac).status).toBe('unsupported')
     expect(runtimeCapability('managed-worker', 'codex', { ...mac, architecture: 'arm64' }).status).toBe('available')
     expect(runtimeCapability('managed-worker', 'codex', { ...mac, architecture: 'x64' }).status).toBe('unsupported')
     expect(runtimeCapability('managed-worker', 'claude', { ...mac, architecture: 'arm64' }).status).toBe('available')
     expect(runtimeCapability('managed-worker', 'claude', { ...mac, architecture: 'x64' }).status).toBe('unsupported')
-    expect(supportsConversation('claude', 'darwin')).toBe(false)
+    expect(supportsConversation('claude', 'darwin')).toBe(true)
+    expect(supportsConversation('claude', 'linux')).toBe(false)
     expect(supportsConversation('claude', 'win32')).toBe(true)
     expect(createShellProfileSeed('darwin').command).toBe('/bin/zsh')
   })

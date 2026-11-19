@@ -119,7 +119,7 @@ export class ClaudeConversation {
     }
   }
   private async launch(options: LaunchOptions): Promise<{ command: string; args: string[] }> {
-    if (process.platform !== 'win32' && !(process.platform === 'darwin' && options.managed)) throw new Error('Claude conversation mode is unavailable on this platform.')
+    if (process.platform !== 'win32' && process.platform !== 'darwin') throw new Error('Claude conversation mode is unavailable on this platform.')
     // Keep native startup, catalog discovery and trust confirmation on the same
     // on-disk path. See .agents/notes/workbench/terminal-dialog-dual-mode.md.
     this.cwd = claudeTrustDirectory(options.cwd)
@@ -169,18 +169,25 @@ export class ClaudeConversation {
     if (this.disposed) throw new Error('Claude launch cancelled')
     const dispatchArgs = [...args, '--settings', settingsPath, '--plugin-dir', plugin, '--bg']
     let dispatch
+    let restoreTerminalAfterTrust = false
     for (;;) {
       try { this.dispatchUnknown = true; dispatch = await this.cli(dispatchArgs, 20000); break }
       catch (error) {
         // Native --bg is authoritative. Never infer consent from a UI setting,
         // automatically trust a folder, or retry an uncertain dispatch.
         const stderr = (error as { stderr?: unknown }).stderr
-        if (this.disposed || this.state.mode !== 'conversation' || typeof stderr !== 'string' ||
+        const canPrompt = this.state.mode === 'conversation' || (process.platform === 'darwin' && !this.managed)
+        if (this.disposed || !canPrompt || typeof stderr !== 'string' ||
           !stderr.trim().startsWith('Workspace not trusted. Run `claude` in ')) throw error
         this.dispatchUnknown = false
         const directory = claudeTrustDirectory(this.cwd)
         const target = stderr.trim().match(/^Workspace not trusted\. Run `claude` in (.+) once and accept the trust prompt, then retry\.$/)?.[1]
         if (!target || claudeTrustDirectory(target) !== directory) throw error
+        // --bg cannot render its trust prompt in an unattached terminal.
+        if (this.state.mode === 'terminal') {
+          restoreTerminalAfterTrust = true
+          this.session.mode({ type: 'mode', mode: 'conversation' }, this.disposed)
+        }
         await new Promise<void>((resolve, reject) => {
           this.trustWaiter = { resolve, reject }
           this.state.startup = { id: ++this.trustSequence, kind: 'trust', status: 'pending', directory,
@@ -190,7 +197,9 @@ export class ClaudeConversation {
         if (this.disposed) throw new Error('Claude launch cancelled')
       }
     }
-    this.state.startup = undefined; this.changed()
+    this.state.startup = undefined
+    if (restoreTerminalAfterTrust) this.session.mode({ type: 'mode', mode: 'terminal' }, this.disposed)
+    this.changed()
     this.short = /backgrounded\s*·\s*([a-f0-9]+)/.exec(dispatch.stdout)?.[1]
     if (!this.short) throw new Error(`Claude did not create a background session. ${dispatch.stderr || dispatch.stdout}`)
     this.dispatchUnknown = false
@@ -208,8 +217,9 @@ export class ClaudeConversation {
     const job = jobs.find(value => value.id === this.short)
     if (!job?.pid || job.sessionId !== this.state.threadId) throw new Error('Claude background identity did not match its bridge')
     if (this.disposed) throw new Error('Claude launch cancelled')
+    if (process.platform === 'darwin') this.ownedTree = await darwinGroupLeader(job.pid)
     if (this.managed) {
-      this.ownedTree = process.platform === 'darwin' ? await darwinGroupLeader(job.pid) : await captureWindowsProcessTree(job.pid)
+      this.ownedTree ??= await captureWindowsProcessTree(job.pid)
       await this.managed.onProcessTree(this.ownedTree)
     }
     this.state.connection = 'ready'; this.bind(this.state.threadId); this.changed()
@@ -675,7 +685,10 @@ export class ClaudeConversation {
           if (process.platform === 'darwin') await confirmDarwinGroupExit(this.ownedTree[0].pid)
           else await terminateWindowsProcessTree(this.ownedTree)
           await this.managed.onProcessTree(this.ownedTree)
-        } else if (this.short) await this.cli(['stop', this.short], 10000)
+        } else if (this.short) {
+          await this.cli(['stop', this.short], 10000)
+          if (process.platform === 'darwin' && this.ownedTree) await confirmDarwinGroupExit(this.ownedTree[0].pid)
+        }
         stopped = true
       }
       catch (error) { this.state.error = `Claude worker ${this.short} could not be stopped. Use the native terminal to stop it. ${String(error).slice(0, 500)}`; throw error }

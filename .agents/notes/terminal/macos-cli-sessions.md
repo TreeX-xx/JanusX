@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-14",
-  "updated": "2026-11-15T15:25:19.262Z",
+  "updated": "2026-11-18T16:38:31Z",
   "class": "architecture",
   "tags": ["macos", "cli", "sessions", "compatibility"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
@@ -60,13 +60,25 @@ P6 桌面回归还发现 Windows 多副本优先级问题：裸命令启动曾�
 | 安装目标与权限 | 本地新装使用当前系统 npm 的 global prefix，查询 prefix/root 并显式固定安装目标。已有 npm 命令须属于该 prefix；已确认的 Claude／OpenCode 原生安装及 Homebrew 安装按原来源更新 | 不再下载私有 Node 或创建私有 CLI 副本。缺少 npm 时提示安装 Node.js LTS；权限不足、不同 Node prefix 或来源未知时返回原因，不另建副本。Homebrew 不支持界面的 npm 精确版本选择，需使用 brew 更新 |
 | 安装后核验 | 读取目标 prefix 内的 package.json，核对包身份、实际版本和命令文件；以该绝对路径 --version 比较回报版本，再确认默认解析仍指向同一目标。锁覆盖准备、安装和核验；OpenCode 切包遇到 npm 或核验失败时清理目标并尝试恢复旧包精确版本 | npm exit 0 和另一个旧副本可运行均不能作为成功。没有承诺所有工具安装均可事务回滚 |
 | 旧私有运行时：MAC-09 | 原下载、校验与架构隔离辅助代码保留，但本地安装入口不再调用；现存目录不清理。用户显式配置的 PATH 仍被尊重 | SSH／WSL 用户 CLI 也已改用目标系统安装；仅文档后端保留独立内部运行时，见[工作区运行时](../sessions/workspace-runtime-import.md) |
-| 启动与平台：MAC-04 | IPC 启动解析出的绝对命令，缺失返回修复指引；终端、后台登录和 Agent 子进程共享系统基础 PATH。PTY 归一化 Windows Path／PATH。Mac Claude 默认走 TUI，后端保留能力校验 | 同一基础环境中的外部终端和 JanusX 复用同一安装；Shell 自行修改 PATH、切换 Node 版本或应用尚未重启时仍可能不同。Mac PTY、登录、协议和模型调用仍需实测 |
+| 启动与平台：MAC-04 | IPC 启动解析出的绝对命令，缺失返回修复指引；终端、后台登录和 Agent 子进程共享系统基础 PATH。PTY 归一化 Windows Path／PATH。Mac 本地 Claude 支持终端与对话双视图，后端校验会话身份 | 同一基础环境中的外部终端和 JanusX 复用同一安装；Shell 自行修改 PATH、切换 Node 版本或应用尚未重启时仍可能不同。Mac PTY、登录、协议和模型调用仍需实测 |
 | 扩展包：MAC-14 | package-location 解析真实命令路径与 package.json 身份，兼容 Windows prefix/node_modules、POSIX prefix/lib/node_modules、链接和提升依赖。DSH 必需 dsh-llm 缺失时在创建桥之前报错；Pi 可选命令来源仍可降级 | POSIX 与提升依赖文件夹具通过，没有执行 Mac Pi/DSH 原生进程。目录约定见 [npm 文档](https://docs.npmjs.com/cli/v11/configuring-npm/folders/#node-modules) |
 | DSH 完整安装 | npm 同装 dsh、dsh-tui 和 pnpm@10；读取 TUI 版本，调用 dsh plugin --profile dsh-tui add 包@精确版本，再核对 profile 版本和入口文件。仅 dsh 存在而 profile 不完整时报告待修复 | profile 安装会联网；依赖脚本、上游组合和已有复杂 profile 尚未真实安装验收。方式见 [dsh-TUI README](https://github.com/ccch1mneyyy/dsh-TUI#command-line-installation)，另核对 npm 0.20.0 启动器源码 |
 
 系统 Shell 仍由用户条目配置，CLI 安装不安装 Terminal.app、iTerm2 或 Zsh。登录环境恢复让直接子进程继承同一基础环境，但各引擎的历史目录支持仍由下文说明。Claude CLI 的 Mac 分发与 JanusX 双形态能力是两层，见[官方安装说明](https://code.claude.com/docs/en/setup#install-with-npm)。Janus CLI 已退出通用安装 registry，未在本轮重新加入。
 
 多位置列表尚未接入来源选择 UI；安装前核对命令归属，避免升级另一份安装。终端管理和首次安装弹层已移除私有副本提示。没有新增旧安装清理或系统配置重写。CLI 提高 Node 要求、包布局改变、WinGet 等未识别来源需要自动更新时，应扩充来源识别，而不是回退到私有副本。命令依据为 [npm prefix](https://docs.npmjs.com/cli/v11/commands/npm-prefix)、[Claude 安装与更新](https://code.claude.com/docs/en/setup)和 [OpenCode upgrade](https://opencode.ai/docs/cli/commands/)。
+
+## macOS 本地 CLI 的系统代理
+
+启动本地 CLI 时保留显式代理环境变量。缺少显式代理时，从 macOS 当前全局静态代理配置读取启用的 HTTP、HTTPS 地址、端口和可用 NO_PROXY 表示的例外。查询结果最多缓存一秒，新进程可以跟随代理端口变化或关闭；既有 CLI 需新开会话。PAC、SOCKS 专用配置和仅接口范围的代理不映射到 HTTP 变量。
+
+2026-11-18 在 Apple Silicon 打包应用中用隔离配置启动真实 Claude Code 2.1.327。检查 PTY 子进程环境，确认 Clash Verge 的 HTTP、HTTPS 和例外列表生效。用相同代理设置访问 Anthropic 模型目录，无凭据请求返回 401。此项验证不包含账号登录和模型调用。
+
+## macOS 的 npm 全局命令目录（2026-11-18）
+
+从 Finder 启动时，登录 PATH 可能只包含指向 node 和 npm 的软链接。JanusX 在恢复登录环境后查询当前 npm 的全局前缀，将其 bin 目录追加到应用内的命令搜索路径。安装器验证前缀与包目录后也会刷新这个位置。已有 PATH 命令保留优先级；验证安装目标时，指向同一实际文件的软链接视为同一安装。
+
+在 Apple Silicon Mac 的 0.9.9 打包应用中，通过桌面 IPC 将真实 Claude Code 2.1.327 安装到隔离的 npm 前缀，安装后与重启后的版本和路径一致。桌面 CLI 链路测试另用隔离的 Pi 夹具验证 PTY 启动、输入、输出和退出。
 
 ## 系统安装策略验证（2026-11-15）
 
@@ -97,7 +109,7 @@ Windows Electron 桌面测试 1 项通过：真实 npm 将本地夹具装到隔�
 | 类型 | 当前默认位置／格式 | Mac 读取与续接边界 |
 | --- | --- | --- |
 | JanusX 自身会话账本 | `<userData>/janusx/agent-sessions.json`；布局另存 shell-restore.json | 随 Electron userData 选取平台目录；序列化、原子写、加载均无 Windows 分支。Mac 风格 Library/Application Support 路径的保存／重新加载夹具通过；冷启动恢复布局不等于恢复 AI 原生对话 |
-| Claude | `~/.claude/projects/**/*.jsonl`；遵循 CLAUDE_CONFIG_DIR | 递归发现、流式正文读取、精确 ID 恢复前置检查通过 Mac 路径夹具；目录来自记录 cwd／原生字段，不要求 Windows 盘符。新建双形态的 Windows 限制不阻止已存在 JSONL 的只读解析 |
+| Claude | `~/.claude/projects/**/*.jsonl`；遵循 CLAUDE_CONFIG_DIR | 递归发现、流式正文读取、精确 ID 恢复前置检查通过 Mac 路径夹具；目录来自记录 cwd／原生字段，不要求 Windows 盘符。新建本地双视图会话与读取既有 JSONL 各自校验 |
 | Codex | `~/.codex/sessions/**/*.jsonl`；遵循 CODEX_HOME | 恢复以 `resume <id>` 续接并定位历史所属 CODEX_HOME。共享历史位置已使本机会话发现与用量采集同时扫描 sessions 和 archived_sessions；已知 ID 的前置检查也支持归档。真实 Mac 续接仍待验证 |
 | OpenCode | `~/.local/share/opencode/opencode.db`；遵循 XDG_DATA_HOME、OPENCODE_DB | 用内置 node:sqlite 只读查询 session/message/part；没有依赖 Windows sqlite.exe。POSIX 路径、现有支持 schema 的查询与精确 ID 检查通过宿主 SQLite 夹具。真实 Mac 内置 SQLite、活跃库锁/WAL 和实际 v1/v2 schema 仍需验证 |
 | Pi | 默认 `~/.pi/agent/sessions/**/*.jsonl`；遵循自定义 agent 根、session 环境、settings 和启动参数 | 带 session header cwd 的正常文件和自定义目录夹具通过，详见 MAC-15。外部记录有 `--session <file>` 参数映射，但不在 Claude/Codex/OpenCode 共用的 native preflight 集合，不能宣称内部 Continue 全覆盖 |

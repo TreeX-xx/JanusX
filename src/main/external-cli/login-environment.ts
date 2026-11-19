@@ -1,3 +1,6 @@
+import { homedir } from 'node:os'
+import { managedCliEnv, setMacNpmPrefix } from './managed-paths'
+import { resolveCommand } from '../platform/command-resolver'
 import { runChecked } from '../platform/process-host'
 import { defaultShell } from '../platform/environment'
 
@@ -31,5 +34,15 @@ export async function restoreMacLoginEnvironment(): Promise<void> {
   } catch {
     // Retain the launch environment and known-directory fallback; never log credentials.
     console.warn('[cli] Could not read the login shell environment; using launch environment and known CLI directories.')
+  }
+  const env = managedCliEnv()
+  const npm = resolveCommand('npm', { platform: 'darwin', env }).path
+  if (npm) {
+    try {
+      const result = await runChecked(npm, ['prefix', '-g'], { env, cwd: homedir(), timeoutMs: 5000, maxOutputBytes: 8192 })
+      setMacNpmPrefix(result.stdout.trim())
+    } catch {
+      // npm is optional. A later successful install refreshes its prefix.
+    }
   }
 }

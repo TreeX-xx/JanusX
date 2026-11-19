@@ -11,6 +11,7 @@ import { cpaLocalRequest } from '../../plugins/cpa/src/main/local-request'
 import { downloadCpaAsset } from '../../plugins/cpa/src/main/installer'
 
 const h = vi.hoisted(() => ({ proxy: null as string | null }))
+vi.mock('@janusx/llm-core/mac-system-proxy', () => ({ macProxyEnvironment: (env: NodeJS.ProcessEnv) => env }))
 vi.mock('@janusx/llm-core', () => ({ getProxyManager: () => ({ getProxyUrl: () => h.proxy }), getSystemProxy: () => null }))
 const servers: Server[] = [], relays: CpaProxy[] = []
 afterEach(async () => {

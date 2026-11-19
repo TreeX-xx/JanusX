@@ -19,6 +19,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "node scripts/install-desktop-runtime.mjs",
     "remote:signal:build": "node scripts/remote-lab/build-signal.mjs",
     "showcase": "node scripts/showcase/run.mjs",
     "test:showcase": "node --test tests/showcase/motion.test.mjs",
@@ -38,8 +39,8 @@
     "plugins:distribution:test:tools": "node --test tests/plugins/distribution-tools.test.mjs tests/plugins/public-archives.test.mjs tests/plugins/catalog-renewal.test.mjs",
     "plugins:audit-blueprint": "node scripts/plugins/audit-blueprint-boundary.mjs",
     "plugins:package": "node scripts/plugins/package-plugin.mjs",
-    "plugins:catalog": "node scripts/plugins/build-catalog.mjs",
     "plugins:package:mac": "node scripts/plugins/package-mac.mjs",
+    "plugins:catalog": "node scripts/plugins/build-catalog.mjs",
     "plugins:check": "npm run plugins:check:platform && npm run plugins:test",
     "plugins:check:platform": "npm run build:plugin-sdk && node scripts/probe-plugin-background.mjs && node packages/plugin-sdk/tools/cli.mjs contract && node scripts/verify-plugin-scaffold.mjs",
     "plugins:test": "vitest run tests/unit/plugin-sdk.test.ts tests/unit/plugin-tools.test.ts tests/unit/plugin-runtime.test.ts tests/unit/plugin-surfaces.test.ts tests/unit/plugin-documents.test.ts tests/unit/plugin-document-editing.test.ts tests/unit/plugin-configuration.test.ts tests/unit/plugin-background.test.ts tests/unit/plugin-agent-services.test.ts tests/unit/plugin-skills.test.ts tests/unit/plugin-workflows.test.ts tests/unit/plugin-context.test.ts tests/unit/plugin-windows.test.ts tests/unit/plugin-themes.test.ts tests/unit/plugin-directories.test.ts tests/unit/plugin-instances.test.ts tests/unit/plugin-models.test.ts tests/unit/plugin-network-transport.test.ts tests/unit/extension-commands.test.ts",
@@ -110,7 +111,7 @@
     "@janus-agent/chat-core": "file:vendor/janus-agent/janus-agent-chat-core-0.1.0-engine.d61fe00183e9ffdb.tgz",
     "@janus-agent/harness-core": "file:vendor/janus-agent/janus-agent-harness-core-0.2.0-engine.d61fe00183e9ffdb.tgz",
     "@janus-agent/harness-node": "file:vendor/janus-agent/janus-agent-harness-node-0.2.0-engine.d61fe00183e9ffdb.tgz",
-    "@janus-agent/janus-agent": "file:vendor/janus-agent/janus-agent-janus-agent-0.1.0-engine.112cac497fd119c1.tgz",
+    "@janus-agent/janus-agent": "file:vendor/janus-agent/janus-agent-janus-agent-0.1.0-engine.65ce5fd47cc4c88f.tgz",
     "@janus-agent/node-hosts": "file:vendor/janus-agent/janus-agent-node-hosts-0.1.0-engine.d61fe00183e9ffdb.tgz",
     "@janusx/llm-core": "file:packages/llm-core",
     "@janusx/note-tools": "file:packages/note-tools",
@@ -118,7 +119,7 @@
     "@langchain/core": "1.2.9",
     "@langchain/langgraph": "^1.4.13",
     "@larksuiteoapi/node-sdk": "^1.71.1",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.14.25",
     "@xterm/addon-fit": "^0.11.0",
@@ -137,7 +138,7 @@
     "lucide-react": "^0.468.0",
     "mdast-util-from-markdown": "^2.0.3",
     "node-pty": "^1.0.0",
-    "pdfjs-dist": "5.7.284",
+    "pdfjs-dist": "6.5.438",
     "proxy-chain": "^3.0.1",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
@@ -170,8 +171,8 @@
     "@xyflow/react": "^12.11.1",
     "acorn": "8.17.0",
     "autoprefixer": "^10.4.16",
-    "electron": "^35.0.0",
-    "electron-builder": "^25.0.0",
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^3.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "i18next-parser": "^9.0.2",
@@ -180,6 +181,14 @@
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.66.0",
     "vite": "^6.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "@janus-agent/node-hosts": {
+      "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk"
+    },
+    "@janusx/llm-core": {
+      "vitest": "$vitest"
+    }
   }
 }

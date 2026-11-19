@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { Clock, LoaderCircle, CircleAlert, Undo2, Trash2, ArrowDown, Check, ShieldCheck, TerminalSquare, MessageSquare } from 'lucide-react'
-import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../../shared/conversation-display'
+import type { DesktopConversationCommand as ConversationCommand, ConversationItem, ConversationSnapshot } from '../../../shared/conversation-display'
 import { findTerminalInState, useWorkspaceStore } from '@/stores/workspace'
 import { useRightToolStore } from '@/stores/right-tools'
 import { useConversationOutbox, bindConversationOutbox, conversationOutbox, enqueueConversationMessage, observeConversationOutbox, removeOutgoingMessage } from '@/stores/conversation-outbox'
@@ -15,6 +15,7 @@ import { createConversationTurns } from '../lib/conversation-turns'
 import { VirtualHistory, type HistoryNavigation } from './chat/VirtualHistory'
 import { ConversationNavigation } from './ConversationNavigation'
 import { MarkdownContent } from './chat/ChatContent'
+import { CodexUpdatePanel } from './CodexUpdatePanel'
 import { ConversationStartupPanel } from './ConversationStartupPanel'
 import { CLITerminal } from './CLITerminal'
 import { ConversationWelcome } from './ConversationWelcome'
@@ -91,7 +92,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const startup = snapshot?.startup
   const startupActive = Boolean(startup && startup.status !== 'cancelled')
   const starting = !startup && (!snapshot || snapshot.connection === 'starting') && !error && !snapshot?.error
-  const terminalVisible = !conversation
+  const updatePrompt = conversation ? snapshot?.codexUpdatePrompt : undefined
   const transitioning = switching || modeTransition !== null
   const plans = useMemo(() => new Map(snapshot?.plans?.map(plan => [plan.turnId, plan])), [snapshot?.plans])
   const activePlanTurn = snapshot?.turnId && plans.has(snapshot.turnId) ? snapshot.turnId : undefined
@@ -103,7 +104,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   const runningActivity = activeTurn?.groups.slice().reverse().find(group => group.activity?.running)?.activity?.text
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
   const empty = !outgoing.length && !editing && !working && !snapshot?.items.length && !snapshot?.approvals.length && !snapshot?.questions?.length && !snapshot?.plans?.length
-  const showWelcome = empty && !startupActive && !error && !snapshot?.error
+  const showWelcome = empty && !startupActive && !updatePrompt && !error && !snapshot?.error
   const canReadHistory = snapshot?.engine === 'codex' && Boolean(window.electron.terminal.conversationHistory)
   const openHistory = (item?: ConversationItem) => {
     if (!canReadHistory || !snapshot?.threadId) return
@@ -155,9 +156,9 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   }, [visible, conversation, snapshot?.revision, outgoing.length])
   useEffect(() => {
     if (!visible || !focused || transitioning) return
-    if (conversation && !startupActive) { if (!editing) inputRef.current?.focus() }
+    if (conversation && !startupActive && !updatePrompt) { if (!editing) inputRef.current?.focus() }
     else if (!conversation) terminalHost.current?.querySelector<HTMLTextAreaElement>('.xterm-helper-textarea')?.focus()
-  }, [visible, focused, conversation, startupActive, transitioning, snapshot?.capabilities.submit, editing])
+  }, [visible, focused, conversation, startupActive, updatePrompt, transitioning, snapshot?.capabilities.submit, editing])
   useEffect(() => {
     if (editing && snapshot && (snapshot.threadId !== editing.threadId || snapshot.controlEpoch !== editing.epoch)) setEditing(null)
   }, [editing, snapshot])
@@ -317,9 +318,9 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     catch (e) { setError(String(e)) }
   }, [fileWorkspacePath])
   useLayoutEffect(() => {
-    if (terminalHost.current) terminalHost.current.inert = !terminalVisible || !visible || transitioning
+    if (terminalHost.current) terminalHost.current.inert = conversation || !visible || transitioning
     if (conversationHost.current) conversationHost.current.inert = !conversation || !visible || transitioning
-  }, [conversation, terminalVisible, visible, transitioning])
+  }, [conversation, visible, transitioning])
 
   return <section className={styles.root} data-agent-session={terminalId} data-view-transition={modeTransition ?? undefined} data-switching={switching || undefined} aria-busy={switching || undefined}>
     <header className={styles.header}>
@@ -333,8 +334,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     {!conversation && (error || snapshot?.error) && <ConversationNotice kind="error" message={error || snapshot?.error || ''} />}
     {conversation && activeAction === 'new' && <p className={styles.notice} role="status">{t('conversation.newPending')} <button type="button" disabled={transitioning} onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button></p>}
     <div className={styles.body}>
-      <div ref={terminalHost} className={`${styles.terminal} ${modeTransition === 'terminal' ? styles.viewEntering : ''}`} style={{ visibility: terminalVisible ? 'visible' : 'hidden', pointerEvents: !terminalVisible || transitioning ? 'none' : 'auto' }} aria-hidden={!terminalVisible}>
-        <CLITerminal terminalId={terminalId} visible={visible && terminalVisible} focused={focused && terminalVisible && !transitioning} workspaceVisible={workspaceVisible} />
+      <div ref={terminalHost} className={`${styles.terminal} ${modeTransition === 'terminal' ? styles.viewEntering : ''}`} style={{ visibility: !conversation ? 'visible' : 'hidden', pointerEvents: conversation || transitioning ? 'none' : 'auto' }} aria-hidden={conversation}>
+        <CLITerminal terminalId={terminalId} visible={visible && !conversation} focused={focused && !conversation && !transitioning} workspaceVisible={workspaceVisible} />
         <TurnChangeIsland terminalId={terminalId} focused={visible && focused && !conversation && !transitioning} />
       </div>
       <div ref={conversationHost} className={`${styles.conversation} ${modeTransition === 'conversation' ? styles.viewEntering : ''}`} hidden={!conversation} data-empty={empty} data-welcome={showWelcome}>
@@ -349,6 +350,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           if (scrollRef.current) useWorkspaceStore.getState().updateTerminal(terminalId, { conversationScrollTop: scrollRef.current.scrollTop })
         }}>
           <div className={styles.content}>
+            {updatePrompt && snapshot && <CodexUpdatePanel prompt={updatePrompt} busy={busy} focused={visible && focused}
+              choose={choice => void action({ type: 'codexUpdate', choice, promptId: updatePrompt.id, controlEpoch: snapshot.controlEpoch })} />}
             {startupActive && startup && <ConversationStartupPanel key={startup.id} startup={startup} epoch={snapshot!.controlEpoch} busy={busy} action={action} engine={snapshot?.engine === 'claude' ? 'Claude' : 'Codex'} />}
             {showWelcome && <ConversationWelcome brand={identityPreset}
               workspacePath={terminal?.cwd || welcomeWorkspace?.path} workspaceName={welcomeWorkspace?.name}
@@ -446,7 +449,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           closeHistory()
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
         }}><ArrowDown size={16} aria-hidden="true" /></button>}</div>
-        {(!snapshot || snapshot.capabilities.submit) ? <AgentComposer terminalId={terminalId} historyScope={historyScope} workspacePath={terminal?.cwd} references={references} snapshot={snapshot} visible={visible && conversation} setDraft={setDraft} inputRef={inputRef} canSend={Boolean(canEnqueue && !editing)} hasOutgoing={!!outgoing.length} busy={busy || !!editing} switching={transitioning} send={send} action={action} changeMode={changeMode} />
+        {updatePrompt ? null : (!snapshot || snapshot.capabilities.submit) ? <AgentComposer terminalId={terminalId} historyScope={historyScope} workspacePath={terminal?.cwd} references={references} snapshot={snapshot} visible={visible && conversation} setDraft={setDraft} inputRef={inputRef} canSend={Boolean(canEnqueue && !editing)} hasOutgoing={!!outgoing.length} busy={busy || !!editing} switching={transitioning} send={send} action={action} changeMode={changeMode} />
           : <div className={styles.readOnly}><span>{t('conversation.readOnly')}</span><button type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button></div>}
       </div>
       {snapshot && terminal && sideChatHeader && <ConversationSideChat key={JSON.stringify([terminalId, terminal.workspaceId, terminal.pid, snapshot.threadId])}

@@ -5,6 +5,7 @@
  */
 
 // Note: fetch compatibility and explicit routing — see .agents/notes/workbench/service-integrations.md
+import { macProxyEnvironment } from './mac-system-proxy'
 import http from 'node:http'
 import https from 'node:https'
 import { HttpsProxyAgent } from 'https-proxy-agent'
@@ -55,9 +56,9 @@ function getWindowsSystemProxy(): string | null {
 
 /**
  * 获取系统代理配置
- * 优先级：环境变量 > Windows 注册表
+ * 优先使用显式环境，再检查系统静态代理
  */
-export function getSystemProxy(): string | null {
+export function getSystemProxy(env = macProxyEnvironment(process.env)): string | null {
   // 1. 检查环境变量
   const proxyKeys = [
     'HTTPS_PROXY',
@@ -69,7 +70,7 @@ export function getSystemProxy(): string | null {
   ]
 
   for (const key of proxyKeys) {
-    const value = process.env[key]
+    const value = env[key]
     if (value && value.trim()) {
       return value.trim()
     }
@@ -158,7 +159,9 @@ export class ProxyManager {
    * 自动检测并配置代理
    */
   autoDetect(): void {
-    const proxy = getSystemProxy()
+    // The global agent forces one route for every host. Keep native macOS
+    // settings in the per-launch environment so system bypass rules survive.
+    const proxy = getSystemProxy(process.env)
     if (proxy) {
       this.logger.info?.(`[ProxyManager] 检测到系统代理: ${proxy}`)
     } else {

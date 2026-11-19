@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-14T05:53:26.665Z",
+  "updated": "2026-11-16T17:48:14Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -22,7 +22,7 @@ Blueprint source tests can resolve dependencies from an ignored plugin-local ins
 
 An outdated ignored `plugins/blueprint/node_modules` also hid the current SDK theme export and bundled a second React into browser fixtures. Move that stale installation aside before repository verification rather than editing installed package files or treating UI timeouts as product failures. The November 10 local backup is `.cache/blueprint-node-modules-pre-v099`; the affected five native/browser files then passed 33 cases, with the Note lock regression passing separately. Independent plugin validation continues installing its own locked archives outside the repository.
 
-Blueprint lock refresh seeds npm with the existing lock and removes only changed local archive entries before installation. It retains unrelated registry versions while updating archive integrity and any newly required dependencies. Normal verification still rejects archive drift and uses npm ci; updating a lock does not count as a runtime pass. The November 10 refresh includes six changed public archives, identified by SHA256 and npm integrity in `plugins/blueprint/build-dependencies.lock.json`, and preserves the sibling checkout's unrelated edits.
+Blueprint lock refresh seeds npm with the existing lock and removes only changed local archive entries before installation. It retains unrelated registry versions while updating archive integrity and any newly required dependencies. Normal verification still rejects archive drift and uses npm ci; updating a lock does not count as a runtime pass. The JanusX and Blueprint manifests resolve the pinned sibling's MCP client to the same patched SDK as the host. This keeps clean builds compatible with the existing pinned agentX commit until the sibling's manifest update can be pinned by CI. The November 10 refresh includes six changed public archives, identified by SHA256 and npm integrity in `plugins/blueprint/build-dependencies.lock.json`, and preserves the sibling checkout's unrelated edits.
 
 A fresh checkout lacks the ignored personal `.codex` and `.claude` directories. Tests that discover the developer's config or compare their skill files produce different results on a runner. Shared temporary audit storage also exposes earlier test runs, while exact theme color assertions drift after intentional visual edits.
 
@@ -48,7 +48,7 @@ The first remote v0.9.6 verification passes 4,101 tests and exposes two fixture 
 
 The subsequent remote run passes 4,102 tests but times out waiting for the native page-release fixture's first host request. That wait now uses the same 15-second startup budget as other native reviews and includes the current job state in failure output; cancellation and the other page's filesystem-watch assertions remain intact. The complete native fixture passes all 19 cases locally in CI mode with Node 24.20.0. A complete remote run is still required before merging.
 
-本地依赖安装若使用 `--ignore-scripts`，Electron npm 包可能存在但缺少 `dist/` 与 `path.txt`，普通 `npm run dev` 会在前置检查失败，绕过检查的入口则构建完成后报 `Electron uninstall`。恢复运行时使用 `npm rebuild electron`；无法联网时仅可使用已核对相同版本、平台和架构的完整 Electron 运行目录，不改变依赖声明。2026-10-29 当前 checkout 恢复匹配的 Windows x64 Electron 35.7.5 后，普通 `npm run dev` 与 `npm run dev:cpa` 均实际打开响应正常的 JanusX 主窗口；运行日志位于 `.cache/dev-startup-fix.log` 和 `.cache/cpa-startup-fix.log`，开发环境检查四项单测通过。CPA 入口复用相同前置检查，签名包 prepare-only 保持无需启动 Electron。
+Electron 45 的 npm 包在首次调用时安装运行时。JanusX 的 postinstall 在依赖安装阶段显式准备 Electron，macOS 同时为 node-pty 的预编译启动助手恢复执行权限。依赖安装若使用 `--ignore-scripts`，通过 `npm run postinstall` 恢复同一准备步骤。无法联网时使用已核对版本、平台和架构的 Electron 运行目录。2026-10-29 当前 checkout 恢复匹配的 Windows x64 Electron 35.7.5 后，普通 `npm run dev` 与 `npm run dev:cpa` 均实际打开响应正常的 JanusX 主窗口；运行日志位于 `.cache/dev-startup-fix.log` 和 `.cache/cpa-startup-fix.log`，开发环境检查四项单测通过。CPA 入口复用相同前置检查，签名包 prepare-only 保持无需启动 Electron。
 
 插件独立构建按 npm 发布文件清单及其内容、权限和 Node 版本缓存归档，并在复用前验证归档摘要；npm 枚举和未命中打包分别批量执行。构建锁失配在安装前列出具体包及新旧摘要，不再只给笼统错误。Windows 草稿上传保存本地运行验证收据，以提交、工具环境、检查脚本、发布附件和解包文件全量摘要决定能否复用；源码或任一产物变化均重跑。签名、包校验、远端附件核对和受保护分支要求不变。
 

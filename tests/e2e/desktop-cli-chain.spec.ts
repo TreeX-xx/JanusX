@@ -17,7 +17,7 @@ test('system npm installation is shared by the external command and desktop IPC'
     await mkdir(source)
     await writeFile(join(source, 'package.json'), JSON.stringify({ name: 'janusx-desktop-cli-fixture', version: '1.2.3', bin: { pi: 'pi.js' } }))
     await writeFile(join(source, 'pi.js'), '#!/usr/bin/env node\nif(process.argv.includes("--version")){console.log("1.2.3");process.exit(0)}\nconsole.log("CLI_CHAIN_READY");process.stdin.setEncoding("utf8");process.stdin.on("data",value=>{if(value.includes("CLI_CHAIN_INPUT"))console.log("CLI_CHAIN_REPLY")});setInterval(()=>{},1000)\n')
-    const npm = join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
+    const npm = join(dirname(process.execPath), process.platform === 'win32' ? 'node_modules/npm/bin/npm-cli.js' : '../lib/node_modules/npm/bin/npm-cli.js')
     await execa(process.execPath, [npm, 'install', '-g', source, '--prefix', prefix, '--ignore-scripts', '--no-audit', '--no-fund'], { timeout: 60_000, windowsHide: true })
     const expected = join(prefix, process.platform === 'win32' ? 'pi.cmd' : 'bin/pi')
     const systemPath = [dirname(expected), dirname(process.execPath), process.env.PATH ?? ''].join(delimiter)
@@ -28,7 +28,8 @@ test('system npm installation is shared by the external command and desktop IPC'
     application = await electron.launch({
       args: [resolve(process.env.JANUSX_CLI_TEST_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${profile}`],
       env: { ...createDesktopTestEnv(root), APPDATA: join(root, 'appdata'), LOCALAPPDATA: join(root, 'local'),
-        PATH: systemPath, npm_config_prefix: prefix,
+        // macOS must find the npm prefix even when the login PATH only exposes node/npm.
+        PATH: process.platform === 'darwin' ? process.env.PATH : systemPath, npm_config_prefix: prefix,
         CODEX_HOME: join(root, 'codex'), CLAUDE_CONFIG_DIR: join(root, 'claude'), PI_CODING_AGENT_DIR: join(root, 'pi'), DSH_HOME: join(root, 'dsh'),
         JANUSX_OFFICECLI_BINARY: resolve(process.env.JANUSX_OFFICECLI_BINARY ?? (process.platform === 'darwin' ? `resources/officecli/darwin-${process.arch}/officecli` : 'resources/officecli/officecli.exe')) },
     })
@@ -55,7 +56,14 @@ test('system npm installation is shared by the external command and desktop IPC'
     }).toBe(false)
     expect((await page.evaluate(() => window.electron.externalCli.detect('pi'))).path).toBe(expected)
   } finally {
-    await application?.close()
+    if (application && process.platform === 'darwin') {
+      // Closing the final Mac window keeps JanusX running. Request an application quit.
+      const closed = application.waitForEvent('close', { timeout: 15_000 })
+      await application.evaluate(({ app }) => { setImmediate(() => app.quit()) })
+      await closed
+    } else {
+      await application?.close()
+    }
     await rm(root, { recursive: true, force: true })
   }
 })

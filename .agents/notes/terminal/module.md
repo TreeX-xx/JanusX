@@ -31,7 +31,7 @@
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e29da5b4-dc65-40a9-883d-9026e3b280b1"},
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a976752-d637-40c7-9fa3-bce52ac5dc15"}
   ],
-  "updated": "2026-11-16T08:24:00Z",
+  "updated": "2026-11-18T16:38:31Z",
   "moduleState": "partial"
 }
 ---
@@ -50,7 +50,7 @@
 
 “历史数据位置”统一为本机会话管理和用量扫描提供来源，支持自动识别及手动补充、停用和移除；两处入口使用相同设置弹窗。历史扫描与新终端启动配置分离，新增位置不会改变账号配置或 CLI 保存位置。具体目录类型、来源冲突及去重边界见[会话源单源化](./requirements/usage-telemetry-single-source.md#历史数据位置)。
 
-[macOS 安装、启动与会话读取](macos-cli-sessions.md)区分 Shell、CLI 安装、PTY／双形态启动、历史发现、正文和原生续接。本地 CLI 使用系统登录环境与查找规则；新装进入当前 npm 的全局位置，升级先核对现有安装来源，不再创建或优先注入私有副本。Claude 默认降级 TUI，Pi/DSH 包定位和 DSH profile 准备已补齐。历史读取、Windows 桌面与两架构模拟的验证边界由该专题维护，真实 Mac 验收待进行。
+[macOS 安装、启动与会话读取](macos-cli-sessions.md)区分 Shell、CLI 安装、PTY／双形态启动、历史发现、正文和原生续接。本地 CLI 使用系统登录环境与查找规则；新装进入当前 npm 的全局位置，升级先核对现有安装来源，不再创建或优先注入私有副本。macOS 与 Windows 的本地 Claude 均支持终端与对话双视图，Pi/DSH 包定位和 DSH profile 准备已补齐。该专题记录历史读取、Windows 桌面与两架构模拟的验证边界，以及 Apple Silicon 实机对 npm 安装、重启检测和 PTY 启动的验收。
 
 Codex 上下文统计从自有双视图连接的成功新建／恢复响应取得准确原生会话身份，数值仍读取原生历史；同工作目录多开不再依赖时间猜测。旧终端的相关性兜底排除已占用会话，并以原生事件时间识别 Windows mtime 不更新的日志增长；证据不足时保留未知。绑定、换会话、退出与验证边界见[统计与 Hook 解耦](./usage-telemetry-hook-decoupling.md)。
 

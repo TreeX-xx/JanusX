@@ -12,7 +12,7 @@ export function runtimeCapability(feature: RuntimeFeature, engine: string, targe
   if (target.kind !== 'local' && (feature === 'conversation' || feature === 'managed-worker')) return unavailable('remote-mode-unavailable')
   if (!target.platform) return { status: 'probe-error', reason: 'target-platform-unknown', message: 'The execution target could not be identified. Check the connection and retry.' }
   if (target.kind !== 'local' && target.platform !== 'linux') return unavailable('remote-platform-unavailable')
-  if (feature === 'conversation' && (!supportsConversation(engine) || engine === 'claude' && target.platform !== 'win32')) return unavailable('conversation-driver-unavailable')
+  if (feature === 'conversation' && (!supportsConversation(engine) || engine === 'claude' && target.platform !== 'win32' && target.platform !== 'darwin')) return unavailable('conversation-driver-unavailable')
   if (feature === 'managed-worker') {
     const supported = ['claude', 'codex'].includes(engine) && (target.platform === 'win32'
       || target.platform === 'darwin' && target.architecture === 'arm64')

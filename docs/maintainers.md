@@ -83,6 +83,12 @@ npm run publish:win
 
 `release-win` 只接受手动 `workflow_dispatch`，指定已有 `release_tag` 后构建和验证，上传保留 14 天的 Actions 附件，不创建或公开 Release。任务只有只读仓库权限，没有发布 token；同 tag 构建串行。附件含安装包、便携包、清单、blockmap 和 `win-unpacked`，下载解压后可在匹配 tag 的本地 checkout 中检查，并通过 `--release-dir` 上传草稿。手动构建在打包后使用触发 revision 的外部检查工具，不修改不可变应用 tag。平台构建失败不会影响已保存的本地 Windows 候选。
 
+### macOS 官方插件打包
+
+在已安装项目依赖的 Mac 上运行 `npm run plugins:package:mac`，构建 Blueprint、CPA 和 Docker，生成三份自包含的 `.jxp` 和对应的 `.release.json`。每次输出到 `artifacts/plugins/macos/test-*`，可追加 `-- <输出根目录>`。测试包默认声明 Apple Silicon 和 Intel 两种架构，输出的 `trust.json` 提供隔离测试宿主所需的公钥和 native 白名单。正式宿主使用仓库内预置的发布公钥。
+
+正式签名前递增三个插件各自的 manifest、package 和 lock 版本，设置 `JANUSX_PLUGIN_KEY_ID` 与 `JANUSX_PLUGIN_SIGNING_KEY`，运行 `npm run plugins:package:mac -- --release-tag <新版本标签>`。正式包保留原平台声明，并默认加入构建机 Node.js 的 Mac 架构。可用 `--arch arm64` 或 `--arch x64` 指定已验收的目标，两种架构都验收后可传入两次。命令只生成本地文件，附件上传和目录签名另走正式发布流程。
+
 ## 工作流维护
 
 `verify.yml` 和 `release-win.yml` 固定使用上游 `TreeX-xx/janus-agentX`，验证还固定使用 `TreeX-xx/WorkFlowX`，避免 Fork 在自己的账号下查找缺失的依赖仓库。升级 sibling 时检查提交在远端可读取，并同步两个工作流的 agentX pin、构建顺序和开发说明。修改 `package.json` 的 `verify` 检查链时，同步 `verify.yml` 的拆分步骤。

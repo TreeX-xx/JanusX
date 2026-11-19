@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-14",
-  "updated": "2026-10-30T07:43:43.593Z",
+  "updated": "2026-11-18T16:07:35Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -114,7 +114,7 @@ CPA 使用专用简洁外壳：中部 Tab 已标识 CPA，不再重复显示“C
 
 托管 CPA 复用 JanusX 代理，不新增独立网络设置。`src/main/cpa/proxy.ts` 用 `proxy-chain` 提供随机端口、仅监听 127.0.0.1、带每次启动随机认证的转发入口，随 CPA 停止、启动失败、异常退出和应用退出释放连接及监听。CPA 的 `requests.proxy-url` 与大小写 HTTP／HTTPS 环境变量均指向该入口，并删除旧版全局 `proxy-url`。原因是 CPA 8.0.31 的管理 `requests/api-call` 在没有显式代理时主动清除环境代理，原先仅继承环境的方案能登录却不能查询额度。此通道也用于订阅信息、重置次数查询和消费操作；不单独改写各供应商请求。
 
-每个新连接读取共享 `ProxyManager` 的当前有效地址；尚未配置时调用同一 `getSystemProxy` 检测逻辑，环境优先、Windows 系统代理次之。HTTP、HTTPS、SOCKS 上游和认证由转发库处理；无宿主代理时直连。合并大小写 NO_PROXY，支持域名、后缀、端口、通配符和 IP 网段，回环始终直连。宿主代理发生有效变更后，新连接跟随，已建立的隧道保持到结束。上游代理密码只在内存中使用，不写入 JanusX settings、状态、命令行或 CPA YAML；YAML 仅含本次本地入口的临时认证，旧入口停止后失效。CPA 显式请求／账号代理仍按上游优先级覆盖全局，不批量改写既有账号；原管理页手动改全局配置后重启 CPA 会恢复宿主管理值。已有实例模式不修改外部进程。
+每个新连接读取共享 `ProxyManager` 的当前有效地址；尚未配置时优先使用显式代理环境，再读取 Windows 系统代理或 macOS 启用的全局静态 HTTP/HTTPS 代理。macOS 额外合并可用 NO_PROXY 表示的系统绕过项。HTTP、HTTPS、SOCKS 上游和认证由转发库处理；无宿主代理时直连。合并大小写 NO_PROXY，支持域名、后缀、端口、通配符和 IP 网段，回环始终直连。宿主代理发生有效变更后，新连接跟随，已建立的隧道保持到结束。上游代理密码只在内存中使用，不写入 JanusX settings、状态、命令行或 CPA YAML；YAML 仅含本次本地入口的临时认证，旧入口停止后失效。CPA 显式请求／账号代理仍按上游优先级覆盖全局，不批量改写既有账号；原管理页手动改全局配置后重启 CPA 会恢复宿主管理值。已有实例模式不修改外部进程。
 
 主进程就绪探测和 OAuth 状态读取使用独立本地 HTTP 请求，绕过全局 fetch／HTTP 代理；托管管理 guest 分区固定 direct，系统浏览器仍负责供应商网页授权。共享 HTTP 钩子保留调用者显式指定的 agent（包括 false），避免转发器再代理一次自己的上游连接。管理密钥只用于本地接口，授权 state 仅用于对应会话状态检查，不读取页面认证头、回调码或账号令牌。兼容核对包括 CPA 的 `api_tools.go`、`proxy_helpers.go`、`codex_websockets_connection.go` 和 `sdk/proxyutil/proxy.go`：HTTP 执行及 WebSocket 均读取全局显式代理，但自定义插件网络实现未全部运行验收。
 

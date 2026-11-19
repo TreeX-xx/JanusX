@@ -35,6 +35,7 @@ function loader(arch) {
   for (const method of ['existsSync', 'statSync', 'readFileSync', 'accessSync']) syncFs[method] = (file, ...args) => fs[method](mapped(file), ...args)
   syncFs.realpathSync = file => '/' + path.relative(sandbox, fs.realpathSync(mapped(file))).replaceAll('\\', '/')
   const builtins = {
+    '@janusx/llm-core/mac-system-proxy': { macProxyEnvironment: env => env },
     'node:path': { ...path.posix, win32: path.win32 },
     'node:os': { homedir: () => home }, 'node:fs': syncFs, 'node:fs/promises': asyncFs,
     electron: { app: { getPath: () => home + '/Library/Application Support/JanusX-' + arch } },

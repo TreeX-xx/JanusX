@@ -1088,3 +1088,11 @@ Codex 桌面适配器在原生计划修订缓冲区更新时，按线程保留�
 普通对话现在通过 ConversationToolCall 将真实 ConversationItem 传给共享 ToolDisclosure；SuperAgent 的 ToolCallCard 使用同一组件。之前仅统一折叠和中性色，仍保留两套工具 DOM 的实现已替换。动作图标、动作词、等宽目标、状态／已有耗时与右侧箭头按确认的 HTML 排布；展开输出使用同一边框、间距与滚动高度。文件打开、逐行 diff、截断提示和历史手动开合仍由原生适配层提供。
 
 本轮验证：34 项浏览器交互回归、5 项真实 SuperAgent 组件场景、11 项工具／呈现单测及 1 项 HTML 对照测试通过。对照测试读取确认的 HTML 并比较两种生产适配器的运行／完成行内边距、32px 行高、8px 间距、图标、右侧箭头和输出框指标；深色、纯白、石板色及390px窄窗截图存于 artifacts/tool-presentation-unification-20261113/。严格类型、定向 ESLint、国际化、构建和 Notes 检查通过；Notes 保留17条既有外部引用诊断。验证为当前 checkout 和浏览器夹具，未替换安装版。
+
+2026-11-17 本地合并远端 dev 后，对话实现遵循引擎转导出入口。轮次计时改动保留在固定引擎包 405793a932a05e89，三份产物的补丁记录于 vendor/janus-agent/conversation-turn-timing.patch，归档和安装内容由 prepackage 校验 SHA256。此记录对应本地分发包补丁，agentX 源码尚未回写。
+
+## macOS Claude 对话与 Codex 升级菜单
+
+macOS 本地 Claude 会话使用原生后台任务。验证任务和会话身份后，JanusX 取得该任务的进程组，用它定位控制端点。两个视图共享同一个会话。首次进入未信任目录时，界面先展示信任请求，用户同意后继续原先选择的视图。实机回归见 `tests/unit/claude-macos-dialog-cli.test.ts`。
+
+Codex 可在连接 app-server 前显示原生升级菜单。对话页识别该菜单后显示本地化的升级面板，展示 CLI 提供的版本，并提供立即升级、本次跳过和跳过此版本三个按钮。主进程验证提示 ID 和视图控制代次后向该会话发送单个数字快捷键。Codex 执行升级或记录跳过决定。面板在等待结果时显示处理状态，进入启动审阅或绑定线程后退出。终端视图沿用 Codex 自身的菜单。回归见 `tests/unit/codex-update-prompt.test.ts` 和 `tests/e2e/codex-conversation.spec.ts`。
