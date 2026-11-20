@@ -16,8 +16,10 @@ export interface UseJanusGazeOptions {
   mode: JanusMode
   /** 眼睛可见时驱动 */
   enabled: boolean
-  /** 阅读态：通知中心或 Chat 面板展开中 */
+  /** 通知中心展开时进入阅读态 */
   panelOpen?: boolean
+  /** Chat 展开时即使系统减少动态效果也保留眼睛动作 */
+  chatOpen: boolean
   /** 下滑手势进行中：悬停判定挂起，不触发摸头 */
   suspendRef?: RefObject<boolean>
   /** 外部忙（传话中等）：待机动作让位 */
@@ -31,16 +33,14 @@ export interface JanusGazeControls {
 }
 
 export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
-  const { faceRef, islandRef, mode, enabled, panelOpen = false, suspendRef, busyRef } = options
+  const { faceRef, islandRef, mode, enabled, panelOpen = false, chatOpen, suspendRef, busyRef } = options
   const schedulerRef = useRef<JanusGazeScheduler | null>(null)
   if (!schedulerRef.current) schedulerRef.current = new JanusGazeScheduler()
   const scheduler = schedulerRef.current
 
   const pointerRef = useRef<{ x: number; y: number; movedAt: number } | null>(null)
-  const modeRef = useRef(mode)
-  modeRef.current = mode
-  const panelOpenRef = useRef(panelOpen)
-  panelOpenRef.current = panelOpen
+  const presentationRef = useRef({ mode, panelOpen, chatOpen })
+  presentationRef.current = { mode, panelOpen, chatOpen }
   const resumeRef = useRef<(() => void) | null>(null)
 
   const writeVars = useCallback((frame: JanusGazeFrame) => {
@@ -82,17 +82,18 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
         pointer.x >= rect.left - HOVER_PAD && pointer.x <= rect.right + HOVER_PAD &&
         pointer.y >= rect.top - HOVER_PAD && pointer.y <= rect.bottom + HOVER_PAD
 
+      const { mode, panelOpen, chatOpen } = presentationRef.current
       const frame = scheduler.step({
         now,
         dtMs,
-        mode: modeRef.current,
+        mode,
         pointer: pointer ? { x: pointer.x, y: pointer.y } : null,
         pointerFresh,
         islandCenter: center,
         hover,
-        panelOpen: panelOpenRef.current,
+        panelOpen: panelOpen || chatOpen,
         busy: suspendRef?.current === true || busyRef?.current === true,
-        reducedMotion: motionPreference.matches,
+        reducedMotion: motionPreference.matches && !chatOpen,
       })
       writeVars(frame)
 
@@ -153,7 +154,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
     }
   }, [busyRef, enabled, islandRef, scheduler, suspendRef, writeVars])
 
-  useEffect(() => { resumeRef.current?.() }, [mode, panelOpen])
+  useEffect(() => { resumeRef.current?.() }, [mode, panelOpen, chatOpen])
 
   const react = useCallback((kind: JanusReaction) => {
     scheduler.react(kind, performance.now())

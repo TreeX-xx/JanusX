@@ -362,7 +362,8 @@ export function JanusIsland({
     islandRef,
     mode: eyeMode,
     enabled: stage !== 'peek',
-    panelOpen: notifOpen || expanded,
+    panelOpen: notifOpen,
+    chatOpen: expanded,
     suspendRef: isDraggingRef,
     busyRef: speakBusyRef,
   })

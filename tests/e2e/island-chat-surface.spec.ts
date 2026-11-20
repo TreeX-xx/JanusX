@@ -38,7 +38,7 @@ test('reduced motion does not leave a delayed frame or content transition', asyn
 })
 
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
-  test(`expanded Janus eyes animate according to ${reducedMotion}`, async ({ page }) => {
+  test(`expanded Janus eyes stay animated with motion preference ${reducedMotion}`, async ({ page }) => {
     await page.addInitScript(() => { Math.random = () => .25 })
     await page.emulateMedia({ reducedMotion })
     await page.clock.install()
@@ -55,19 +55,19 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
       const style = getComputedStyle(el)
       return { gazeY: parseFloat(style.getPropertyValue('--gaze-y')), lid: parseFloat(style.getPropertyValue('--lid')) }
     })
+    expect((await pose()).gazeY).toBeGreaterThan(1)
+    let lowestLid = 1
+    // Sample the brief blink rather than relying on one animation frame.
+    for (let elapsed = 0; elapsed < 3600 && lowestLid > .8; elapsed += 40) {
+      await page.clock.runFor(40)
+      lowestLid = Math.min(lowestLid, (await pose()).lid)
+    }
+    expect(lowestLid).toBeLessThan(.8)
     if (reducedMotion === 'reduce') {
+      await page.keyboard.press('Escape')
+      await expect(shell).toHaveAttribute('data-stage', 'collapsed')
+      await page.clock.runFor(200)
       expect(await pose()).toEqual({ gazeY: 0, lid: 1 })
-      await page.clock.runFor(7000)
-      expect(await pose()).toEqual({ gazeY: 0, lid: 1 })
-    } else {
-      expect((await pose()).gazeY).toBeGreaterThan(1)
-      let lowestLid = 1
-      // Sample the brief blink rather than relying on one animation frame.
-      for (let elapsed = 0; elapsed < 3600 && lowestLid > .8; elapsed += 40) {
-        await page.clock.runFor(40)
-        lowestLid = Math.min(lowestLid, (await pose()).lid)
-      }
-      expect(lowestLid).toBeLessThan(.8)
     }
   })
 }
