@@ -77,8 +77,8 @@ export async function getRuntimeTelemetrySnapshot(
       : readPiBootstrapTelemetry(cwd)
   }
   // Note: dsh supplies only the declared model without an exact session id — see
-  // .agents/notes/terminal/dsh-terminal-integration.md (history binding). Session logs are
-  // zstd-compressed, so the scan binds id/path/recency without usage numbers.
+  // .agents/notes/terminal/dsh-terminal-integration.md (history binding).
+  // The corpus scanner accounts requests independently of terminal context.
   if (preset === 'dsh') {
     return sessionId
       ? scanDshHistory(cwd, startedAt, sessionId)
@@ -170,7 +170,7 @@ export async function parseClaudeSession(file: SessionFileRef, startedAt?: numbe
 
     if (model) snapshot.detectedModel = model
     if (sessionId) snapshot.sessionId = sessionId
-    if (!usage || (message?.role !== undefined && message.role !== 'assistant') || message?.stop_reason === null) continue
+    if (!usage || (message?.role !== undefined && message.role !== 'assistant')) continue
 
     const inputTokens = readNonNegativeNumber(usage.input_tokens ?? usage.inputTokens)
     const outputTokens = readNonNegativeNumber(usage.output_tokens ?? usage.outputTokens)
@@ -178,15 +178,15 @@ export async function parseClaudeSession(file: SessionFileRef, startedAt?: numbe
       readPositiveNumber(usage.cache_read_input_tokens ?? usage.cache_read_tokens ?? usage.cacheReadTokens) ?? 0
     const reportedCacheCreation = readNonNegativeNumber(usage.cache_creation_input_tokens ?? usage.cache_creation_tokens ?? usage.cacheCreationTokens)
     const cacheCreationTokens = reportedCacheCreation ?? 0
+    if (inputTokens !== undefined) snapshot.contextTokens = inputTokens + cacheReadTokens + cacheCreationTokens
+    if (!readString(message?.stop_reason)) continue
     hasCacheWrite ||= reportedCacheCreation !== undefined
-    const contextTokens = (inputTokens ?? 0) + cacheReadTokens + cacheCreationTokens
 
     totalInput += inputTokens ?? 0
     totalOutput += outputTokens ?? 0
     totalCacheRead += cacheReadTokens
     totalCacheWrite += cacheCreationTokens
     hasUsage = true
-    if (inputTokens !== undefined) snapshot.contextTokens = contextTokens
   }
 
   if (hasUsage) {
@@ -938,9 +938,8 @@ function inferDeclaredContextWindow(model: string, preset: 'claude' | 'opencode'
 
 /**
  * DSH (0.2.0 line, dsh-TUI) layout, verified on disk 2026-09-30:
- * - `~/.dsh/sessions/<workspace-key>/<uuid>/session.v4.jsonl.zstd` — the log
- *   itself is zstd-compressed (no decoder in this repo), so the scan only
- *   binds id/path/recency, never usage numbers.
+ * - `~/.dsh/sessions/<workspace-key>/<uuid>/session.v4.jsonl.zstd` supplies
+ *   request usage to the ledger. A request's input is not the live context.
  * - `~/.dsh-tui/model-recents.json` — the user's switched models (first entry
  *   wins); absent until the first `/model` switch.
  * - Composed profile default is `deepseek-flash` (`agent-default-model` row;
@@ -957,7 +956,8 @@ function toDshWorkspaceKey(cwd: string): string {
  * case-insensitive directory match before giving up.
  */
 async function resolveDshWorkspaceDir(cwd: string): Promise<string | null> {
-  const sessionsRoot = join(os.homedir(), '.dsh', 'sessions')
+  const sessionsRoot = resolveProviderPaths('dsh', providerPathContext({ home: os.homedir(), cwd })).store
+  if (!sessionsRoot) return null
   const exact = join(sessionsRoot, toDshWorkspaceKey(cwd))
   try {
     const info = await stat(exact)

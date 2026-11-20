@@ -15,6 +15,7 @@
       "claude": "选择 .claude 下的 projects 历史目录",
       "codex": "选择 .codex 下的 sessions 或 archived_sessions 目录",
       "pi": "选择 sessions 目录或自定义历史目录",
+      "dsh": "选择 DSH_HOME 或 .dsh 下的 sessions 目录以统计用量",
       "opencode": "选择 opencode.db 数据库文件"
     },
     "status": {
@@ -619,7 +620,9 @@
     "timeRange": "时间范围",
     "terminalType": "终端类型",
     "ledgerCoverage": "已记录的覆盖起点：",
-    "ledgerUnavailable": "Janus / DSH 暂无可读取的会话用量；已有累计会话首次接入仅建立基线。",
+    "ledgerBaseline": "已有累计会话首次接入时建立基线，之后按增量统计。",
+    "noDshHistory": "尚无 DSH 用量记录。可在「历史数据位置」检查 DSH 会话目录。",
+    "ledgerUnavailable": "Janus 暂无可读取的会话用量。",
     "ledgerPaused": "部分会话的来源缺失或计数异常，用量尚不完整。已确认的历史记录保留。",
     "ledgerError": "用量账本读取或保存失败，请检查应用数据目录与可用磁盘空间。",
     "breakdown": "模型使用明细",

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile, stat } from 'fs/promises'
 import { DatabaseSync } from 'node:sqlite'
+import { zstdCompressSync } from 'node:zlib'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -80,7 +81,50 @@ function readRecords() {
   return page.records
 }
 
+const dshLine = (value: object) => JSON.stringify(value) + '\n'
+const dshReply = (seq: number, output: number) => dshLine({ type: 'assistant/message', seq, time: Date.parse('2026-10-11T08:01:00Z') + seq, data: {
+  message: { source: { model: 'requested', replayState: { response: { responseModel: 'served' } } } },
+  usage: { inputTokens: 448, outputTokens: output, cacheReadTokens: 5504, reasoningTokens: 5, totalTokens: 5952 + output },
+} })
+
 describe('corpus usage scan', () => {
+  it('imports DSH frames once, prefers the latest format and waits for the end of a fork seed', async () => {
+    const home = join(testContext.homeDir, 'custom-dsh')
+    vi.stubEnv('DSH_HOME', home)
+    const dir = join(home, 'sessions', 'work', 'session-child')
+    await mkdir(dir, { recursive: true })
+    const header = { type: 'session', id: 'child', version: 4, isSeeded: true }
+    await writeFile(join(dir, 'session.v3.jsonl'), dshLine({ ...header, version: 3, isSeeded: false }) + dshReply(3, 999))
+    const file = join(dir, 'session.v4.jsonl.zstd')
+    await writeFile(file, Buffer.concat([zstdCompressSync(dshLine(header)), zstdCompressSync(dshReply(1, 90))]))
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords()).toEqual([])
+    const completed = zstdCompressSync(dshLine({ type: 'session/end-seed', seq: 2, data: { inherited: true } }) + dshReply(3, 203))
+    const next = zstdCompressSync(dshReply(4, 38))
+    await appendFile(file, Buffer.concat([completed, next.subarray(0, -2)]))
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords()).toEqual([expect.objectContaining({ engine: 'dsh', totalTokens: 6155, outputTokens: 203, model: 'served', timeBasis: 'event' })])
+    await appendFile(file, next.subarray(-2))
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords().map(r => r.outputTokens)).toEqual([203, 38])
+    expect((await scanNativeSessionCorpus({ ledger })).skipped).toBe(1)
+  })
+
+  it('keeps DSH version-zero seed events with the parent and retains history across a corrupt file', async () => {
+    const dir = join(testContext.homeDir, '.dsh', 'sessions', 'workspace', 'child')
+    await mkdir(dir, { recursive: true })
+    const file = join(dir, 'session.jsonl')
+    const original = dshLine({ type: 'session', id: 'child', version: 0, seedLength: 2 }) + dshReply(1, 99) + dshReply(2, 17)
+    await writeFile(file, original)
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords().map(r => r.outputTokens)).toEqual([17])
+    await appendFile(file, 'corrupt\n' + dshReply(3, 11))
+    expect((await scanNativeSessionCorpus({ ledger })).unavailable).toBe(1)
+    expect(readRecords().map(r => r.outputTokens)).toEqual([17])
+    await writeFile(file, original + dshReply(3, 11))
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords().map(r => r.outputTokens)).toEqual([17, 11])
+  })
   it('retains legacy handling of valid Codex files containing no accounting records', async () => {
     const id = 'aaaaaaaa-1111-4111-8111-111111111111'
     const root = join(testContext.homeDir, '.codex', 'sessions')
@@ -204,6 +248,7 @@ describe('corpus usage scan', () => {
   })
   beforeEach(async () => {
     vi.stubEnv('CODEX_HOME', '')
+    vi.stubEnv('DSH_HOME', '')
     testContext.homeDir = await mkdtemp(join(tmpdir(), 'janusx-corpus-'))
     ledgerPath = join(testContext.homeDir, 'ledger', 'usage-ledger.sqlite')
     ledger = createLedger(() => ledgerPath)
@@ -384,6 +429,65 @@ describe('corpus usage scan', () => {
     await scanNativeSessionCorpus({ ledger, now: Date.parse('2026-10-14T07:05:00Z') })
     expect(readRecords()).toHaveLength(2)
   })
+
+  it('waits for a Claude stop reason across scans and counts a completed reply once', async () => {
+    const dir = join(testContext.homeDir, '.claude', 'projects', 'C--repo')
+    await mkdir(dir, { recursive: true })
+    const path = join(dir, 's1.jsonl')
+    const row = (output: number, stop?: string | null) => JSON.stringify({
+      sessionId: 's1', timestamp: '2026-10-10T09:00:00Z',
+      message: { role: 'assistant', id: 'reply', stop_reason: stop, usage: { input_tokens: 10, output_tokens: output } },
+    }) + '\n'
+    await writeFile(path, row(6) + row(8, null))
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords()).toEqual([])
+    await appendFile(path, row(403, 'tool_use') + row(403, 'tool_use') + row(6))
+    await scanNativeSessionCorpus({ ledger })
+    expect(readRecords().map(r => r.totalTokens)).toEqual([413])
+    expect((await scanNativeSessionCorpus({ ledger })).skipped).toBe(1)
+  })
+
+  it.each(['exact', 'wrong time', 'missing booked response', 'conflicting final', 'another changed booking'] as const)(
+    'replays an unchanged quarantined Claude transcript with %s evidence', async scenario => {
+      const namespace = join(testContext.homeDir, '.claude')
+      const dir = join(namespace, 'projects', 'C--repo')
+      await mkdir(dir, { recursive: true })
+      const path = join(dir, 's1.jsonl')
+      const at = Date.parse('2026-10-10T09:00:00Z')
+      const row = (id: string, delta: number, output: number, stop?: string) => JSON.stringify({
+        timestamp: new Date(at + delta).toISOString(), sessionId: 's1',
+        message: { role: 'assistant', model: 'm', id, stop_reason: stop, usage: { input_tokens: 10, output_tokens: output } },
+      })
+      const lines = [row('reply', scenario === 'wrong time' ? 1 : 0, 6), row('reply', 2000, 403, 'tool_use'), row('later', 3000, 50, 'end_turn')]
+      if (scenario === 'conflicting final') lines.push(row('reply', 4000, 405, 'end_turn'))
+      if (scenario === 'another changed booking') lines.push(row('other', 4000, 19, 'end_turn'))
+      await writeFile(path, lines.join('\n') + '\n')
+      const sourceSize = (await stat(path)).size
+      const event = { id: 'reply', model: 'm', at, inputTokens: 10, outputTokens: 6, totalTokens: 16 }
+      const previous = [event]
+      if (scenario === 'missing booked response') previous.push({ ...event, id: 'lost' })
+      if (scenario === 'another changed booking') previous.push({ ...event, id: 'other' })
+      ledger.record({ engine: 'claude', namespace, sessionId: 's1', mode: 'events', collectedAt: at + 5000, events: previous })
+      const original = readRecords()
+      // Old builds wrote a size cursor and a quarantine without the offending id.
+      const db = new DatabaseSync(ledgerPath)
+      db.prepare("UPDATE sessions SET data=json_set(data,'$.sourceSize',?,'$.issue','event-changed')").run(sourceSize)
+      db.close()
+      const scan = await scanNativeSessionCorpus({ ledger })
+      expect(scan.recorded).toBe(1)
+      const page = ledger.list({ start: at - 1, end: Date.now(), engine: 'claude' })
+      if (scenario === 'exact') {
+        expect(page.hasIssues).toBe(false)
+        expect(page.records).toEqual([{ ...original[0], outputTokens: 403, totalTokens: 413 }, expect.objectContaining({ eventId: 'later', at: at + 3000, totalTokens: 60 })])
+        expect((await scanNativeSessionCorpus({ ledger })).skipped).toBe(1)
+        await appendFile(path, row('new', 6000, 100, 'end_turn') + '\n')
+        await scanNativeSessionCorpus({ ledger })
+        expect(readRecords().map(r => r.outputTokens)).toEqual([403, 50, 100])
+      } else {
+        expect(page.sessions[0].issue).toBe('event-changed')
+        expect(page.records).toEqual(original)
+      }
+    })
 
   it('scans archived codex sessions and ignores non-rollout files', async () => {
     await writeCodexRollout('01a44444-4444-4444-8444-444444444444', [

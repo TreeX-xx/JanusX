@@ -69,6 +69,11 @@ export function resolveProviderPaths(engine: string, context: ProviderPathContex
     result.configHome = configured(override || path.join(context.home, engine === 'claude' ? '.claude' : '.codex'))
     result.source = override ? 'environment' : 'default'
     if (result.configHome) result.store = path.join(result.configHome, engine === 'claude' ? 'projects' : 'sessions')
+  } else if (engine === 'dsh') {
+    const override = env.DSH_HOME?.trim()
+    result.configHome = configured(override || path.join(context.home, '.dsh'))
+    result.source = override ? 'environment' : 'default'
+    if (result.configHome) result.store = path.join(result.configHome, 'sessions')
   } else if (engine === 'opencode') {
     const base = configured(env.XDG_DATA_HOME?.trim() || path.join(context.home, '.local', 'share'))
     result.configHome = base ? path.join(base, 'opencode') : null

@@ -8,7 +8,7 @@
   "class": "feature",
   "tags": ["telemetry","usage-stats","terminal","session-files"],
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/61b5d05c-e1ad-4f7a-a3e9-57982fb78c4e",
-  "updated": "2026-11-15T11:28:11.737Z",
+  "updated": "2026-11-20T13:08:44.607Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -17,9 +17,9 @@
 
 ## 历史数据位置
 
-用量页和会话管理工具栏共用“历史数据位置”弹窗，沿用现有主题、CLI 图标和设置按钮。主进程 `sessions/history-sources.ts` 统一解析 Claude、Codex、Pi 和 OpenCode 的有效来源：默认遵循 CLI 环境和项目配置，未覆盖时使用官方默认位置；本机保存的历史 store 与用户补充位置一起去重。Codex 的 sessions 和 archived_sessions 均参与本机扫描。SSH/WSL 保留数据拥有端的原有扫描，不把本机路径传给远端。
+用量页和会话管理工具栏共用“历史数据位置”弹窗，沿用现有主题、CLI 图标和设置按钮。主进程 `sessions/history-sources.ts` 统一解析 Claude、Codex、Pi、OpenCode 和 DSH 的有效来源：默认遵循 CLI 环境和项目配置，未覆盖时使用官方默认位置；本机保存的历史 store 与用户补充位置一起去重。Codex 的 sessions 和 archived_sessions 均参与本机扫描。SSH/WSL 保留数据拥有端的原有扫描，不把本机路径传给远端。
 
-用户可以关闭某 CLI 的自动识别，添加手动目录、停用或移除手动来源，并恢复自动识别。Claude 选择 projects 目录，Codex 选择 sessions 或 archived_sessions，Pi 选择会话目录，OpenCode 选择数据库文件。新增或重新启用的手动来源先执行有界、只读的格式检查；无权限、缺失、无可识别历史时拒绝保存该变更，保留原配置。检查最多遍历 2000 个目录项、20 个 JSONL 文件，每文件最多读取 64 KiB；空目录或识别范围外的历史需在存在可识别文件后再添加。OpenCode 使用原位只读 SQLite，不复制活动库离开 WAL。
+用户可以关闭某 CLI 的自动识别，添加手动目录、停用或移除手动来源，并恢复自动识别。Claude 选择 projects 目录，Codex 选择 sessions 或 archived_sessions，Pi 和 DSH 选择会话目录，OpenCode 选择数据库文件。DSH 的位置用于用量统计。新增或重新启用的手动来源先执行有界、只读的格式检查；无权限、缺失、无可识别历史时拒绝保存该变更，保留原配置。检查最多遍历 2000 个目录项、20 个 JSONL 文件，每文件最多读取 64 KiB；空目录或识别范围外的历史需在存在可识别文件后再添加。OpenCode 使用原位只读 SQLite，不复制活动库离开 WAL。
 
 配置保存在 userData/JanusX 对应的 `janusx/history-sources.json`，采用原子写与串行保存，不改 CLI 配置、登录凭据或新会话的保存位置。保存后等待旧扫描结束，再刷新会话发现和用量采集；刷新失败与保存失败分别提示。停用只停止该来源的历史扫描，不删除已导入会话、已统计消耗或原文件，运行中的终端仍有自身遥测。移除手动覆盖后，同路径若仍由 CLI 配置或已有终端记录自动识别，会恢复为自动来源。
 
@@ -35,7 +35,7 @@ Windows 宿主定向验证：10 个 Vitest 文件共 131 项通过，涵盖 hist
 
 改动前，`UsageStatsPanel` 的 `aggregateUsageStats`（`src/renderer/src/lib/usage-stats.ts`）按当前终端 store 快照归桶，以 `telemetryUpdatedAt` 入桶。[用量统计修复与全局统计](./usage-telemetry-fix-and-stats.md) 记录了该阶段的快照口径。聚合没有独立持久账本，关闭、移除或重建终端会影响结果；恢复会话后能否重新读出数字，不能替代历史时间分布的持久化。
 
-用户确认本方案并要求 xdo 实施后，当前 worktree 已切换为原生会话源和持久账本。本文记录实现、验收证据及保留边界；Janus/DSH 原生用量接入仍属于后续扩展。
+用户确认本方案并要求 xdo 实施后，当前 worktree 已切换为原生会话源和持久账本。本文记录实现、验收证据及保留边界；Janus 原生用量接入仍属于后续扩展。
 
 > 2026-10-14：本文的 hook 归属与采集范围已被[hook 解耦决策](../usage-telemetry-hook-decoupling.md)（accepted，未实施）取代——统计链路将完全移除 hook，账本改纯会话扫描并覆盖未打开历史，归属改会话诞生/激活时刻的 pty×文件相关性。决策落地前，本文契约仍是现行实现；其中"Out of scope：无绑定的全磁盘历史普查"一条按决策移入范围，Codex 的累计基线差分将升级为事件模式重放（迁移政策见决策待定项）。
 
@@ -90,7 +90,7 @@ Windows 宿主定向验证：10 个 Vitest 文件共 131 项通过，涵盖 hist
 | opencode | opencode.db 的 assistant 消息用量；v2 同时读取 compaction | 全历史按原生 message id 和完成时间导入，推理计入输出；流式未完成消息重试，原有累计会话保持模式锁，只记后续差分 |
 | pi | JSONL 消息及 id/parentId 分支结构 | 消耗导入所有分支，按 entry.id 加 timestamp 去重；上下文取活跃叶路径最新 assistant 请求的 input 加缓存，标估算 |
 | janus | 已接入历史只存消息与工具轨迹，无 usage | 找到并验证原生用量落盘点，否则未知 |
-| dsh | session.v4.jsonl.zstd，当前只定位不解码 | 解码器加真实样本，并验证用量字段，否则未知 |
+| dsh | 会话目录中的 JSONL 或 Zstandard 多帧日志 | 按原生请求时间和序号入账；fork 继承段归原会话 |
 
 Codex 来源目录与启动一致：优先使用主进程为该终端登记的恢复目录，其次取 `CODEX_HOME`，最后回退 `~/.codex`。声明配置、会话扫描、账本 namespace 及 checkpoint 均使用所选目录；Hook 刷新和 renderer 读取不会覆盖启动目录，终端释放前最后采集仍使用原目录。renderer 不提供目录选择。`last_token_usage.total_tokens = 0` 是有效上下文读数，不再当作缺失。对应回归位于 `runtime-telemetry-history.test.ts` 与 `runtime-telemetry-coordinator.test.ts`，连同 renderer 合并测试共三文件 42 项通过。本机近期日志的结构仍包含 `token_count.info.last_token_usage/total_token_usage`；未以目录兼容性修复代替用户当前实例的绑定实测结论。
 
@@ -130,9 +130,9 @@ Claude 的 `cache_creation_input_tokens` 原已接入，本轮补充正数/零/�
 
 修复：hook 脚本改为读原始字节流并按 BOM 解码（UTF-16LE/BE/UTF-8 通吃），Node 版 hook client 同步加 BOM 探测。已实测两种编码的 stdin 经生成脚本都能正确解出 sessionId。codex 的 `hooks.state.trusted_hash` 只覆盖 hooks.json 中的命令、不覆盖脚本内容，更新脚本不需要用户重新信任 hooks；应用重启后创建终端即自动重部署脚本（`ensureHookClientScript` 每次安装都重写）。Claude stdin 为 UTF-8，走同一解码的 else 分支，行为不变。
 
-### janus / dsh 挂账：未解决，后续扩展
+### Janus 与 DSH 的用量来源
 
-已按用户确认的方案采用声明模型、带来源的窗口容量和「无用量数据」，当前占用无法读取时保持未知。Janus footer 和 DSH 文本数字不再参与统计；对应筛选没有已记录用量时显示「–」。关闭挂账需要原生会话源的真实样本、读取实现及回归验证；仅有解码器或未经验证的新文件不算完成。
+Janus 缺少持久化的原生请求用量，面板显示未知。DSH 从配置的会话目录导入带时间戳的原生请求；没有识别到会话用量时，面板提示检查历史位置。终端当前上下文占用单独处理。读取口径见 [DSH 遥测需求](dsh-telemetry-completion.md)。
 
 ### 解析功能去留清单
 
@@ -150,7 +150,7 @@ Claude 的 `cache_creation_input_tokens` 原已接入，本轮补充正数/零/�
 
 In scope：history 用量观测契约与适配、持久用量账本、coordinator 绑定版本与采集调度、`system` IPC 和 preload、`usage-stats.ts` 聚合换源、`UsageStatsPanel` 口径与缺数提示、`CLITerminal` 数字流解析退役、相关单测与 e2e。账本位于 `<userData>/janusx/usage-ledger.sqlite`，独立于绑定元数据的删除生命周期。
 
-Out of scope：DSH 解码、Janus 新增用量落盘协议、费用定价、无绑定的全磁盘历史普查、专门的重建 UI、`janus-runner/parsers` 无头解析和状态环协议调整。必要的消息/请求去重、异常诊断和源重放恢复能力属于账本正确性范围。
+Out of scope：Janus 新增用量落盘协议、费用定价、无绑定的全磁盘历史普查、专门的重建 UI、`janus-runner/parsers` 无头解析和状态环协议调整。必要的消息/请求去重、异常诊断和源重放恢复能力属于账本正确性范围。
 
 ## Implementation
 
@@ -162,7 +162,9 @@ Out of scope：DSH 解码、Janus 新增用量落盘协议、费用定价、无�
 
 首次接入已有累计值时只建立基线，不把此前全部消耗记到当前时间桶；若要补历史，必须从同一原生源按可验证事件时间重放。恢复同一会话使用原有基线；换绑只切换当前投影，保留两边账本。fork 继承的父历史不是新消耗，来源无法给出可靠边界时标缺口并暂停对应导入。
 
-事件模式由 `history-usage.ts` 归一化 Claude/Pi usage，同一引擎和原生存储命名空间内的响应身份幂等入账。Claude `stop_reason:null` 视为未完成，重复内容块选同响应的最大有效 usage；跨次读取同身份 usage 改变则暂停，不重复入账。Pi 消耗不因分支放弃而回吐，复制历史不重复入账。JSONL 每次全量读取，单文件上限 64MB；半写末行下次重试，完整坏行、读取中截断或超限作为不可用源。当前没有持久字节游标；Codex 校验文件身份与旧前缀 SHA-256，不依赖 mtime。
+Claude 按原生回复 ID 入账。只有带非空 `stop_reason` 的回复才确认消耗，同一回复重复的结束块保留首次完成时间。旧账本升级后会重读主会话日志。若同一回复的早期块与旧账的时间、输入、缓存及输出小计都吻合，且结束块只增加了输出，账本会原位校正该行。已暂停的会话还需覆盖此前入账的回复，并能解释计数冲突，才能在同一事务中恢复和补记。日志截断、回复归属不明或结束块相互矛盾时，原有记录保留。
+
+Pi 的分支消耗按原生事件身份去重，已放弃的分支保留实际消耗。Claude 和 Pi 的 JSONL 读取上限为每文件 64 MB，未写完的末行留到下次读取。语料扫描保存完整记录的字节位置以跳过未变化的文件。
 
 ### 身份、采集与持久化
 
@@ -227,4 +229,4 @@ IPC 每次查询最多 367 天、每页 2000 条；首批固定 throughId，后�
 - `tests/e2e/usage-stats.spec.ts` 三项通过，覆盖类型与日期筛选、键盘读数、曲线切换、缺数提示、宽窄窗口汇总区尺寸，以及浅深色主题下终端类型和输入输出的配色。汇总布局调整后重新通过 `npm run typecheck:strict-unused` 与组件 ESLint；此前账本改动的 `npm run i18n:check`、`npm run build:check` 均通过。
 - `npm run check:notes` 通过：297 篇 harness Notes、0 错误；17 条既有跨仓库链接诊断不涉及本次更新。
 - 初次账本验证临时借用相邻 JanusX 主目录现有 node_modules，结束后解除工作树链接。后续 dev 修复已在本 worktree 安装独立依赖并保留，启动检查与安装约定见[可复现验证](../../desktop/reproducible-verification.md)；package-lock.json 未改动。
-- 合并前复核：相关七个单测文件加 dev 环境检查共 86 项通过；最终 `npm run build:check` 通过。统计页三项 e2e、严格类型检查、组件 ESLint 与 Note 校验的验证结果保持有效。Janus/DSH 原生用量接入继续作为后续扩展，不纳入本次收尾。
+- 合并前复核：相关七个单测文件加 dev 环境检查共 86 项通过；最终 `npm run build:check` 通过。统计页三项 e2e、严格类型检查、组件 ESLint 与 Note 校验的验证结果保持有效。该次验证未覆盖 Janus 或 DSH 用量。

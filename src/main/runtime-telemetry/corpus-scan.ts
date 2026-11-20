@@ -1,6 +1,7 @@
 // Note: usage accounting is hook-free and covers never-opened history — see .agents/notes/terminal/usage-telemetry-hook-decoupling.md
 import { stat } from 'node:fs/promises'
 import os from 'node:os'
+import { basename, dirname } from 'node:path'
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import {
   listJsonlFilesRecursive,
@@ -14,6 +15,8 @@ import {
   type JsonlSourceRead,
 } from './history'
 import { collectCodexEvents } from './history-usage'
+import { isDshLog, latestDshLogs, readDshUsage } from './dsh-usage'
+import { sourceVersion } from './source-version'
 import { isCodexAccountingRecord, readProjectedJsonl } from './projected-jsonl'
 import { OpenCodeUsageSource } from './opencode-source'
 import { resolveHistorySources } from '../sessions/history-sources'
@@ -115,6 +118,26 @@ export async function scanNativeSessionCorpus(options: {
     } finally { source?.close() }
   }
 
+  for (const source of sources.filter(source => source.engine === 'dsh')) {
+    const files = latestDshLogs(await listJsonlFilesRecursive(source.path, isDshLog))
+    for (const file of files) {
+      await yieldToEventLoop()
+      signal?.throwIfAborted()
+      summary.scanned++
+      try {
+        const directory = basename(dirname(file.path))
+        const checkpoint = ledger.sourceCheckpoint('dsh', source.namespace, directory)
+          ?? (directory.startsWith('session-') ? ledger.sourceCheckpoint('dsh', source.namespace, directory.slice(8)) : undefined)
+        if (checkpoint?.sourceIdentity === sourceVersion(await stat(file.path))) { summary.skipped++; continue }
+        record(await readDshUsage(file.path, source.namespace, now, false, signal))
+      } catch (error) {
+        signal?.throwIfAborted()
+        summary.unavailable++
+        if ((summary.errors?.length ?? 0) < 20) (summary.errors ??= []).push(`DSH (${file.path}): ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+  }
+
   // Claude: one JSONL per session under cwd-keyed project directories.
   for (const { path: dir, namespace: claudeNamespace } of sources.filter(source => source.engine === 'claude')) {
     for (const file of await listJsonlFilesRecursive(dir, name => name.endsWith('.jsonl'))) {
@@ -138,7 +161,10 @@ export async function scanNativeSessionCorpus(options: {
         continue
       }
       const snapshot = await parseClaudeSession({ ...file, namespace: claudeNamespace }, undefined, read.lines)
-      record(snapshot?.usageObservation, read.completeBytes)
+      // A subagent transcript may carry its parent's sessionId. Its byte
+      // cursor cannot certify a full replay of the parent's main transcript.
+      const observation = snapshot?.usageObservation
+      record(observation, observation?.sessionId === sessionId && read.completeBytes === read.size ? read.completeBytes : undefined)
     }
   }
 

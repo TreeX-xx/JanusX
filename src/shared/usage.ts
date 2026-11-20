@@ -11,6 +11,8 @@ export interface UsageEvent extends UsageTokens {
   id: string
   at?: number
   model?: string
+  /** Earlier Claude blocks with identical input/cache counts, for repairing old bookings. */
+  partialOutputs?: Array<{ at: number; outputTokens: number }>
 }
 export interface UsageObservation {
   engine: UsageEngine
@@ -67,6 +69,7 @@ export interface UsageLedgerPage {
 }
 export interface UsageSourceCheckpoint {
   mode?: 'events' | 'cumulative'
+  sourceIdentity?: string
   sourceSize?: number
   sourceHash?: string
   updatedAt: number

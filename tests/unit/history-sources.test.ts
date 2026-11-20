@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { zstdCompressSync } from 'node:zlib'
 import { resolveHistorySources } from '../../src/main/sessions/history-sources'
 import { scanExternalSessions } from '../../src/main/sessions/external-session-scanner'
 import { AgentSessionRegistry } from '../../src/main/sessions/session-registry'
@@ -21,6 +22,15 @@ const roots: string[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
 
 describe('shared history locations', () => {
+  it('recognizes a custom compressed DSH history source as read-only', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'janusx-dsh-source-')); roots.push(root); host.home = root
+    const path = join(root, 'saved-sessions')
+    const dir = join(path, 'work', 'session-a')
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'session.v4.jsonl.zstd'), zstdCompressSync(JSON.stringify({ type: 'session', version: 4, id: 'a' }) + '\n'))
+    const saved = await saveHistorySources({ disabledAutomatic: ['dsh'], locations: [{ engine: 'dsh', path, enabled: true }] })
+    expect(saved.sources.find(source => source.path === path)).toMatchObject({ status: 'ready', resume: 'read-only', automatic: false })
+  })
   it('persists a validated Pi source and rejects invalid replacement without losing the previous settings', async () => {
     const root = await mkdtemp(join(tmpdir(), 'janusx-source-settings-')); roots.push(root); host.home = root
     const history = join(root, 'pi-history')
@@ -58,7 +68,7 @@ describe('shared history locations', () => {
     await mkdir(project, { recursive: true })
     const history = [
       { type: 'user', sessionId: 'session-custom', cwd: root, timestamp: '2026-11-15T01:00:00Z', message: { role: 'user', content: 'hello' } },
-      { type: 'assistant', sessionId: 'session-custom', cwd: root, timestamp: '2026-11-15T01:00:01Z', message: { id: 'response-custom', role: 'assistant', content: [{ type: 'text', text: 'answer' }], usage: { input_tokens: 12, output_tokens: 3 } } },
+      { type: 'assistant', sessionId: 'session-custom', cwd: root, timestamp: '2026-11-15T01:00:01Z', message: { id: 'response-custom', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'answer' }], usage: { input_tokens: 12, output_tokens: 3 } } },
     ].map(row => JSON.stringify(row)).join('\n') + '\n'
     await writeFile(join(project, 'session-custom.jsonl'), history)
     const sources = resolveHistorySources({ disabledAutomatic: ['claude', 'codex', 'pi', 'opencode'], locations: [{ engine: 'claude', path: custom, enabled: true }] },

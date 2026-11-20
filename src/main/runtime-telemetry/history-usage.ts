@@ -27,6 +27,7 @@ export function usageTokens(input: unknown, output: unknown, read: unknown, writ
 /** One response can appear in multiple content blocks. A row UUID is not a request identity. */
 export function collectUsageEvents(engine: 'claude' | 'pi', namespace: string, sessionId: string, values: RecordValue[], collectedAt: number): UsageObservation {
   const events = new Map<string, UsageEvent>()
+  const partials = new Map<string, UsageEvent[]>()
   let issue: string | undefined
   for (const value of values) {
     const message = record(value.message)
@@ -34,19 +35,43 @@ export function collectUsageEvents(engine: 'claude' | 'pi', namespace: string, s
     const usage = record(message.usage)
     if (!usage) continue
     if (engine === 'pi' && value.type !== 'message') continue
-    // A null stop reason indicates an unfinished Claude response. It will be retried on the next read.
-    if (engine === 'claude' && message.stop_reason === null) continue
     const at = time(value.timestamp) ?? time(message.timestamp)
     const responseId = engine === 'claude' ? text(message.id) ?? text(value.requestId) : text(value.id)
+    const partial = engine === 'claude' && !text(message.stop_reason)
+    if (partial && (!responseId || at === undefined || events.has(responseId))) continue
     if (!responseId) { issue = 'missing-event-identity'; continue }
     const id = engine === 'pi' ? JSON.stringify([responseId, at ?? null]) : responseId
     const tokens = engine === 'claude'
       ? usageTokens(usage.input_tokens, usage.output_tokens, usage.cache_read_input_tokens, usage.cache_creation_input_tokens)
       : usageTokens(usage.input, usage.output, usage.cacheRead, usage.cacheWrite, usage.totalTokens)
-    if (!tokens) { issue = 'invalid-event'; continue }
+    if (!tokens) {
+      if (!partial) issue = 'invalid-event'
+      continue
+    }
     const event: UsageEvent = { ...tokens, id, at, model: text(message.model) }
+    if (partial) {
+      const blocks = partials.get(id)
+      if (blocks) blocks.push(event)
+      else partials.set(id, [event])
+      continue
+    }
     const previous = events.get(id)
+    if (engine === 'claude' && previous) {
+      if (previous.inputTokens !== event.inputTokens || previous.outputTokens !== event.outputTokens ||
+        previous.cacheReadTokens !== event.cacheReadTokens || previous.cacheWriteTokens !== event.cacheWriteTokens) issue = 'event-changed'
+      // An identical repeated final block belongs to the original completion date.
+      continue
+    }
     if (!previous || event.totalTokens >= previous.totalTokens) events.set(id, event)
+  }
+  for (const [id, blocks] of partials) {
+    const final = events.get(id)
+    if (!final || final.at === undefined) continue
+    const completedAt = final.at
+    const evidence = blocks.flatMap(block => block.at !== undefined && block.at <= completedAt && block.outputTokens < final.outputTokens
+      && block.inputTokens === final.inputTokens && block.cacheReadTokens === final.cacheReadTokens && block.cacheWriteTokens === final.cacheWriteTokens
+      ? [{ at: block.at, outputTokens: block.outputTokens }] : [])
+    if (evidence.length) final.partialOutputs = evidence
   }
   return { engine, namespace, sessionId, collectedAt, mode: 'events', events: [...events.values()], issue }
 }

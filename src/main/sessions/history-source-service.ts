@@ -6,6 +6,7 @@ import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import { managedCliEnv } from '../external-cli/managed-paths'
 import { providerPathContext, resolveProviderPaths } from '../external-cli/provider-paths'
 import { OpenCodeUsageSource } from '../runtime-telemetry/opencode-source'
+import { isDshLog, readDshUsage } from '../runtime-telemetry/dsh-usage'
 import { sameRuntimePath } from '../../shared/runtime/path-identity'
 import { normalizeHistorySourceSettings, type HistorySource, type HistorySourceSettings, type HistorySourcesView, type HistorySourceStatus } from '../../shared/history-sources'
 import { resolveHistorySources } from './history-sources'
@@ -57,7 +58,11 @@ export async function inspectHistorySource(source: HistorySource): Promise<Histo
         if (++visited > 2000 || examined >= 20) break
         const path = join(dir, entry.name)
         if (entry.isDirectory()) pending.push(path)
-        else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        else if (entry.isFile() && source.engine === 'dsh' && isDshLog(entry.name)) {
+          examined++
+          const header = await readDshUsage(path, source.namespace, Date.now(), true).catch(() => undefined)
+          if (header) return { ...result, status: 'ready' }
+        } else if (entry.isFile() && source.engine !== 'dsh' && entry.name.endsWith('.jsonl')) {
           examined++
           const file = await open(path, 'r')
           let text: string

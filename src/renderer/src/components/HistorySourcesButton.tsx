@@ -7,7 +7,7 @@ import { HISTORY_ENGINES, type HistoryEngine, type HistorySourceSettings, type H
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import styles from './HistorySourcesButton.module.css'
 
-const names = { claude: 'Claude Code', codex: 'Codex', pi: 'Pi', opencode: 'OpenCode' }
+const names = { claude: 'Claude Code', codex: 'Codex', pi: 'Pi', opencode: 'OpenCode', dsh: 'DSH' }
 
 export function HistorySourcesButton({ compact = false, onChanged }: { compact?: boolean; onChanged?: () => void }) {
   const { t } = useI18n('settings')

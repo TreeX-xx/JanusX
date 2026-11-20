@@ -15,6 +15,7 @@
       "claude": "Select the projects history directory inside .claude",
       "codex": "Select sessions or archived_sessions inside .codex",
       "pi": "Select sessions or a custom history directory",
+      "dsh": "Select the sessions directory inside DSH_HOME or .dsh for usage statistics",
       "opencode": "Select the opencode.db database file"
     },
     "status": {
@@ -619,7 +620,9 @@
     "timeRange": "Time range",
     "terminalType": "Terminal type",
     "ledgerCoverage": "Recorded coverage starts at:",
-    "ledgerUnavailable": "Janus / DSH session usage is unavailable. Existing cumulative sessions establish a baseline on first collection.",
+    "ledgerBaseline": "Existing cumulative sessions establish a baseline on first collection.",
+    "noDshHistory": "No DSH usage has been recorded. Check the DSH sessions directory in History locations.",
+    "ledgerUnavailable": "Janus session usage is unavailable.",
     "ledgerPaused": "Some session sources are missing or their counters are inconsistent. Usage is incomplete; confirmed history is retained.",
     "ledgerError": "Usage history could not be read or saved. Check the application data directory and available disk space.",
     "breakdown": "Model usage breakdown",

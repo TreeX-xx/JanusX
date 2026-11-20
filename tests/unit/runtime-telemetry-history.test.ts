@@ -66,6 +66,7 @@ describe('runtime telemetry history', () => {
         timestamp: '2026-07-30T10:00:00Z',
         sessionId: 'session-1',
         message: {
+          stop_reason: 'end_turn',
           model: 'claude-sonnet-4-6',
           usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 300 },
         },
@@ -74,6 +75,7 @@ describe('runtime telemetry history', () => {
         timestamp: '2026-07-30T10:01:00Z',
         sessionId: 'session-1',
         message: {
+          stop_reason: 'end_turn',
           model: 'claude-sonnet-4-6',
           usage: { input_tokens: 150, output_tokens: 30, cache_read_input_tokens: 500 },
         },

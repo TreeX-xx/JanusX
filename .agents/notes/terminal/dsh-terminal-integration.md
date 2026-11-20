@@ -32,7 +32,7 @@
       "reason": "Git blob provenance before separating current facts and historical planning."
     }
   },
-  "updated": "2026-10-31T17:25:01.281Z",
+  "updated": "2026-11-20T13:08:44.608Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -51,13 +51,13 @@ DSH 的 hook 安装为 no-op，不能落到 OpenCode 插件分支。状态感知
 
 固定的 agent-core 依赖在运行时按原值保存检查点引擎，但其发布类型缺少 `dsh`。JanusX 的安装期兼容脚本精确扩展 `CheckpointEngine` 声明，并在上游声明形状不匹配时终止安装；已有补丁重复执行不改文件。只在本机修改 node_modules 无法覆盖 CI，宿主把 DSH 伪装为其他引擎则会污染检查点归属。该补丁沿用现有安装钩子，限制在类型声明，待两条工作流固定到原生支持 DSH 的上游提交时移除。
 
-无 sessionId 时，历史入口读取 `~/.dsh-tui/model-recents.json` 中的最近模型，缺失时回退声明默认 `deepseek-flash`；DeepSeek 模型窗口估计为 128,000，来源标记为 configuration/declared。有主进程精确绑定的 sessionId 时，扫描 `~/.dsh/sessions/<workspace-key>/<uuid>/`，workspace key 精确匹配失败后允许大小写不敏感回退；会话先精确 UUID，再兼容子串，并按 mtime 选择，返回 id、path、recency。coordinator 对恢复绑定不使用终端启动时间过滤。`session.v4.jsonl.zstd` 没有解码器，当前上下文与用量保持未知，声明配置不提供启动零用量。conpty 中间层 pid 与 `session-mounts.json` 内层 pid 不一致，不能据 pid 自动绑定；没有 hook 时不自动发现并绑定会话。
+无 sessionId 时，历史入口读取 `~/.dsh-tui/model-recents.json` 中的最近模型，缺失时回退声明默认 `deepseek-flash`；DeepSeek 模型窗口估计为 128,000，来源标记为 configuration/declared。有主进程精确绑定的 sessionId 时，扫描 `~/.dsh/sessions/<workspace-key>/<uuid>/`，workspace key 精确匹配失败后允许大小写不敏感回退；会话先精确 UUID，再兼容子串，并按 mtime 选择，返回 id、path、recency。coordinator 对恢复绑定不使用终端启动时间过滤。终端绑定与请求消耗分别采集；历史请求的输入量无法证明当前上下文占用。conpty 中间层 pid 与 `session-mounts.json` 内层 pid 不一致，不能据 pid 自动绑定；没有 hook 时不自动发现并绑定会话。
 
 后台执行使用 `dsh --profile headless --json <prompt>`。模型和 approval policy 由 profile 管理，宿主不透传其他引擎的 flag。DshParser 将 text 映射为 text-chunk、thinking 映射为有界 phase、tool_call/tool_result 映射为工具事件、turn_end 的 error reason 映射为错误。final 是已流式文本的重复输出，session 和未识别的成功 reason 不制造额外完成事件；进程关闭拥有 done。工作树隔离复用 activePaths 所决定的终端 cwd，不引入 DSH 专用隔离器。
 
 DSH 不做模型配置投影。其 bundle 默认值与 TUI `/model` 会话 fork 不等价于外部模型文件，`cordis.patch.yml` 的 `!!js` YAML 也不能按 JSON 或普通 YAML 键安全回写。`TERMINAL_FILE_META.dsh` 为 null，设置页隐藏 Live 文件行，`terminalModelUnsupported('dsh')` 指向 TUI `/model`。模型显示来自声明配置，不将 PTY 状态栏作为运行模型来源。
 
-`UsageStatsPanel` 已查询独立持久账本，日期与类型筛选保留；DSH 未接入原生 usage，因此没有已记录数据时显示「–」并说明来源边界，不从文本 token 行猜测用量。[全引擎统计需求](./requirements/usage-telemetry-fix-and-stats.md)保留历史检测门验收，当前数字契约和持久化证据以单源化 Note 为准。后续 DSH 数值接入仍需要压缩日志解码及真实 usage 样本。
+用量管理从 DSH 会话日志读取原生请求，支持历史回填和日期、模型筛选。设置中的「历史数据位置」支持配置 DSH 会话目录，默认依次采用 `DSH_HOME/sessions` 和 `~/.dsh/sessions`。分支归属和校验规则见 [DSH 遥测需求](./requirements/dsh-telemetry-completion.md)。
 
 ???????????[??????????](../workbench/terminal-dialog-dual-mode.md)??? DSH 0.2.0-rc.2 ? dsh-tui 0.12.0??????? --patch ???? Cordis ???????? session id????????????????? Agent ? followup/cancel????????????????????????????? hook????? usage ? Companion ????? profile + ???????? CLI ???????? Electron ????? profile ??????????????? Note?
 

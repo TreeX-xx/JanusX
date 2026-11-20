@@ -48,7 +48,8 @@ export function UsageHeatmap({ engine }: { engine?: UsageEngine }) {
   const selected = days.find(day => day.key === active) ?? [...days].reverse().find(day => !day.future)!
   const total = days.reduce((sum, day) => sum + day.totalTokens, 0)
   const activeDays = days.filter(day => day.totalTokens > 0).length
-  const unavailable = (snapshot?.engine === 'janus' || snapshot?.engine === 'dsh') && snapshot.page.records.length === 0
+  const missingDsh = snapshot?.engine === 'dsh' && !snapshot.page.sessions.some(session => session.engine === 'dsh')
+  const unavailable = (snapshot?.engine === 'janus' || missingDsh) && snapshot.page.records.length === 0
   const dateFormat = new Intl.DateTimeFormat(currentLanguage, { year: 'numeric', month: 'short', day: 'numeric' })
   const describe = (day: typeof selected) => `${dateFormat.format(day.at)} · ${unavailable ? '–' : !snapshot ? (loading ? t('settings:usageStats.heatmapLoading') : '–') : day.totalTokens.toLocaleString(currentLanguage) + ' tokens'}`
   return (
@@ -93,7 +94,7 @@ export function UsageHeatmap({ engine }: { engine?: UsageEngine }) {
           <span className={styles.heatmapScale}>{t('settings:usageStats.heatmapLess')}{[0, 1, 2, 3, 4].map(level => <i key={level} className={styles.heatmapDay} data-level={level} aria-hidden="true" />)}{t('settings:usageStats.heatmapMore')}</span>
         </div>
       </div>
-      <p className={styles.subtitle}>{unavailable ? t('settings:usageStats.ledgerUnavailable') : snapshot ? t('settings:usageStats.heatmapActiveDays', { count: activeDays }) : loading ? t('settings:usageStats.heatmapLoading') : '–'}</p>
+      <p className={styles.subtitle}>{unavailable ? t(missingDsh ? 'settings:usageStats.noDshHistory' : 'settings:usageStats.ledgerUnavailable') : snapshot ? t('settings:usageStats.heatmapActiveDays', { count: activeDays }) : loading ? t('settings:usageStats.heatmapLoading') : '–'}</p>
       {error && <p className={styles.error} role="status">{t('settings:usageStats.heatmapError')}</p>}
     </section>
   )

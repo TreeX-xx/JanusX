@@ -73,6 +73,7 @@ export class TerminalContextCoordinator {
   private readonly startedAt = new Map<string, number>()
   private readonly usageLedger = new UsageLedger(() => join(app.getPath('userData'), 'janusx', 'usage-ledger.sqlite'))
   private usageError?: string
+  private corpusError?: string
   private readonly failedSessions = new Map<string, string>()
 
   trackTerminal(terminalId: string, preset: RuntimeTelemetryRequest['preset'], cwd: string, notify?: (snapshot: RuntimeTelemetrySnapshot) => void, codexHome?: string, nativeIdentity = false): void {
@@ -194,9 +195,16 @@ export class TerminalContextCoordinator {
       .then(sources => scanNativeSessionCorpus({ ledger: this.usageLedger, sources, signal: this.corpusAbort.signal }))
       .then(summary => {
         if (summary.errors?.length) throw new Error(summary.errors.join('\n'))
+        this.corpusError = undefined
         return summary
       })
-      .catch(error => { if (!this.corpusAbort.signal.aborted) this.reportUsageError(error); throw error })
+      .catch(error => {
+        if (!this.corpusAbort.signal.aborted) {
+          this.corpusError = error instanceof Error ? error.message : String(error)
+          console.error('Usage scan:', this.corpusError)
+        }
+        throw error
+      })
       .finally(() => { this.corpusScanning = false })
     return this.corpusPending
   }
@@ -215,7 +223,7 @@ export class TerminalContextCoordinator {
 
   listUsage(query: UsageLedgerQuery): UsageLedgerPage {
     if (this.stopping) return { records: [], sessions: [], error: 'Usage collection is shutting down' }
-    try { return { ...this.usageLedger.list(query), warning: this.usageError ?? this.failedSessions.values().next().value } }
+    try { return { ...this.usageLedger.list(query), warning: this.corpusError ?? this.usageError ?? this.failedSessions.values().next().value } }
     catch (error) { this.reportUsageError(error); return { records: [], sessions: [], error: this.usageError } }
   }
 

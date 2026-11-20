@@ -4,7 +4,7 @@ import { providerPathContext, resolveProviderPaths, type ProviderPathContext } f
 import { runtimePathKey } from '../../shared/runtime/path-identity'
 import { HISTORY_ENGINES, normalizeHistorySourceSettings, type HistorySource, type HistorySourceSettings } from '../../shared/history-sources'
 
-/** Both discovery and accounting consume these exact stores. No launch settings are changed. */
+/** Native history readers share these locations. DSH currently uses them for usage only. */
 export function resolveHistorySources(
   settings: HistorySourceSettings = { disabledAutomatic: [], locations: [] },
   context: ProviderPathContext = providerPathContext(),

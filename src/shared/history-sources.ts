@@ -1,4 +1,4 @@
-export const HISTORY_ENGINES = ['claude', 'codex', 'pi', 'opencode'] as const
+export const HISTORY_ENGINES = ['claude', 'codex', 'pi', 'opencode', 'dsh'] as const
 export type HistoryEngine = typeof HISTORY_ENGINES[number]
 export interface HistoryLocation { engine: HistoryEngine; path: string; enabled: boolean }
 export interface HistorySourceSettings { disabledAutomatic: HistoryEngine[]; locations: HistoryLocation[] }

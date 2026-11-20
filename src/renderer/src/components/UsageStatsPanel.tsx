@@ -439,7 +439,8 @@ export function UsageStatsPanel() {
   const customErrorKey = range !== 'custom' ? undefined
     : normalized.error === 'invalid' ? 'customInvalid' : normalized.error === 'future' ? 'customFuture' : normalized.error === 'span' ? 'customSpan' : undefined
   const isEmpty = view.terminals === 0
-  const unavailableEngine = isEmpty && (activeType === 'janus' || activeType === 'dsh')
+  const missingDsh = activeType === 'dsh' && isEmpty && !ledger.sessions.some(session => session.engine === 'dsh')
+  const unavailableEngine = isEmpty && (activeType === 'janus' || missingDsh)
   // 趋势图只保留命中与输出两条曲线；未命中与未区分留在缓存环形与聚合口径中，不上趋势图。
   const metrics: TrendMetric[] = [
     { key: 'hits', label: t('settings:usageStats.hit'), color: hitColor },
@@ -529,7 +530,9 @@ export function UsageStatsPanel() {
       <UsageHeatmap engine={activeType === 'all' ? undefined : activeType} />
       <div className={`${styles.trendSection}${refreshing ? ' ' + styles.dimmed : ''}`}>
         <div className={styles.toolbar}><h4 className={styles.title}>{t('settings:usageStats.trend')}</h4><span className={styles.label}>tokens{trendBucketHint ? ` · ${trendBucketHint}` : ''}</span></div>
-        <p className={styles.hint}>{t('settings:usageStats.ledgerUnavailable')}</p>
+        {activeType === 'janus' ? <p className={styles.hint}>{t('settings:usageStats.ledgerUnavailable')}</p>
+          : missingDsh ? <p className={styles.hint}>{t('settings:usageStats.noDshHistory')}</p>
+          : (activeType === 'all' || activeType === 'codex' || activeType === 'opencode') && <p className={styles.hint}>{t('settings:usageStats.ledgerBaseline')}</p>}
         {ledger.coverageStart !== undefined && <p className={styles.hint}>{t('settings:usageStats.ledgerCoverage')} {new Date(ledger.coverageStart).toLocaleString()}</p>}
         {/* Codex 的压缩会重置其累计计数器，暂停的会话是已知 CLI 行为而非数据
             损坏；为该引擎显示不完整提示只是噪音，其他引擎的缺口仍然提示。 */}

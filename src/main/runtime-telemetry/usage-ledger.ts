@@ -2,7 +2,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { UsageLedgerPage, UsageLedgerQuery, UsageObservation, UsageRecord, UsageSessionStatus, UsageTokens, UsageSourceCheckpoint } from '../../shared/usage'
+import type { UsageEvent, UsageLedgerPage, UsageLedgerQuery, UsageObservation, UsageRecord, UsageSessionStatus, UsageTokens, UsageSourceCheckpoint } from '../../shared/usage'
 
 const FIELDS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'totalTokens'] as const
 const MAX_PAGE = 2000
@@ -20,6 +20,8 @@ function sameTokens(left: UsageTokens, right: UsageTokens): boolean {
   return FIELDS.every(field => left[field] === right[field])
 }
 interface SessionState extends UsageSessionStatus {
+  /** Byte cursor for the main transcript under completed-response accounting. */
+  claudeReplaySize?: number
   codexCacheWrites?: true
   codexEventModels?: true
   counters?: UsageTokens
@@ -30,6 +32,23 @@ interface SessionState extends UsageSessionStatus {
   /** Fixed at first record: a session never switches accounting mode, so a
    *  corpus event replay can never double-count an existing baseline. */
   mode?: 'events' | 'cumulative'
+}
+
+/** Repair an old booking only if the transcript reproduces the exact earlier
+ * block at the booked time, followed by the completed output for that id. */
+function repairClaudeBooking(database: DatabaseSync, key: string, identity: string, event: UsageEvent, old: UsageTokens, tokens: UsageTokens): boolean {
+  if (!event.partialOutputs?.length || old.inputTokens !== tokens.inputTokens || old.cacheReadTokens !== tokens.cacheReadTokens ||
+    old.cacheWriteTokens !== tokens.cacheWriteTokens || old.outputTokens >= tokens.outputTokens) return false
+  const times = new Set(event.partialOutputs.filter(block => block.outputTokens === old.outputTokens).map(block => block.at))
+  if (!times.size) return false
+  const rows = database.prepare(`SELECT id,at,data FROM records WHERE engine='claude'
+    AND json_extract(data,'$.sessionId')=? AND json_extract(data,'$.eventId')=? LIMIT 2`).all(key, event.id) as Array<{ id: number; at: number; data: string }>
+  if (rows.length !== 1 || !times.has(rows[0].at)) return false
+  const booked = JSON.parse(rows[0].data) as UsageRecord
+  if (booked.timeBasis !== 'event' || !sameTokens(booked, old)) return false
+  database.prepare('UPDATE records SET data=? WHERE id=?').run(JSON.stringify({ ...booked, ...tokens }), rows[0].id)
+  database.prepare('UPDATE identities SET tokens=? WHERE key=?').run(JSON.stringify(tokens), identity)
+  return true
 }
 
 /** SQLite commits dedup identities, baselines and deltas together, including across processes. */
@@ -112,8 +131,10 @@ export class UsageLedger {
         const record: UsageRecord = { ...tokens, id: '', engine: observation.engine, sessionId: key, at, timeBasis, model, intervalStart, eventId }
         insertRecord.run(record.engine, at, JSON.stringify(record))
       }
-      // Counter regressions/changed event identities remain paused until source-backed recovery.
-      if (state.issue?.startsWith('counter-') || state.issue === 'event-changed') {
+      // Only the full owning transcript can release a Claude quarantine.
+      const fullClaude = observation.engine === 'claude' && observation.mode === 'events' && observation.sourceSize !== undefined
+      const pausedClaude = fullClaude && state.issue === 'event-changed'
+      if (state.issue?.startsWith('counter-') || (state.issue === 'event-changed' && !pausedClaude)) {
         database.exec('COMMIT'); return
       }
       // Mode is fixed at first sighting (legacy rows infer it from their shape):
@@ -123,6 +144,22 @@ export class UsageLedger {
         ? observation.mode
         : state.mode ?? (state.counters ? 'cumulative' : 'events')
       if (lockedMode !== observation.mode) { database.exec('COMMIT'); return }
+      let repairedClaude = false
+      const rememberPausedReplay = () => {
+        database.prepare("UPDATE sessions SET data=json_set(data,'$.claudeReplaySize',?) WHERE key=?").run(observation.sourceSize!, key)
+        database.exec('COMMIT')
+      }
+      if (pausedClaude) {
+        // Old quarantines did not store the offending id. A truncated or
+        // unrelated transcript cannot prove that the original conflict is gone.
+        const ids = new Set(observation.events?.map(event => event.id))
+        const booked = database.prepare("SELECT json_extract(data,'$.eventId') AS id FROM records WHERE engine='claude' AND json_extract(data,'$.sessionId')=?").all(key)
+        if (observation.issue || observation.sourceSize! < (state.sourceSize ?? 0) || booked.some(row => !ids.has(row.id as string))) {
+          rememberPausedReplay()
+          return
+        }
+        database.exec('SAVEPOINT claude_replay')
+      }
       state.mode = lockedMode
       state.issue = observation.issue
       if (!observation.issue && observation.mode === 'events') {
@@ -139,8 +176,10 @@ export class UsageLedger {
               && sameTokens(oldTokens, withoutCodexWrites(tokens))
             // Preserve already booked history; a newly available breakdown is
             // not changed consumption and must not pause later event imports.
-            if (!sameTokens(oldTokens, tokens) && !legacyCodex) state.issue = 'event-changed'
-            else if (legacyCodex && tokens.cacheWriteTokens !== undefined) {
+            if (!sameTokens(oldTokens, tokens) && !legacyCodex) {
+              if (fullClaude && repairClaudeBooking(database, key, identity, event, oldTokens, tokens)) repairedClaude = true
+              else state.issue = 'event-changed'
+            } else if (legacyCodex && tokens.cacheWriteTokens !== undefined) {
               // Old records predate stored event identities. Locate one matching
               // booked event, preserve its id/date/model, and only repartition
               // its input. Identical events are upgraded one record at a time.
@@ -197,6 +236,7 @@ export class UsageLedger {
         }
         // Complete-byte cursor lets the corpus scanner skip unchanged files.
         if (observation.sourceSize !== undefined) state.sourceSize = observation.sourceSize
+        if (observation.engine === 'dsh') state.sourceIdentity = observation.sourceIdentity
       } else if (!observation.issue && observation.mode === 'cumulative') {
         const next = observation.counters
         const changedSource = state.sourceIdentity !== undefined && observation.sourceIdentity !== state.sourceIdentity
@@ -229,6 +269,12 @@ export class UsageLedger {
       }
       if (observation.engine === 'codex' && !state.issue) state.codexCacheWrites = true
       if (observation.engine === 'codex' && observation.mode === 'events' && !state.issue) state.codexEventModels = true
+      if (pausedClaude && (!repairedClaude || state.issue)) {
+        database.exec('ROLLBACK TO claude_replay')
+        rememberPausedReplay()
+        return
+      }
+      if (fullClaude) state.claudeReplaySize = observation.sourceSize
       state.updatedAt = observation.collectedAt
       database.prepare('INSERT OR REPLACE INTO sessions(key, data) VALUES (?, ?)').run(key, JSON.stringify(state))
       database.exec('COMMIT')
@@ -272,8 +318,8 @@ export class UsageLedger {
     const database = this.open()
     const row = database.prepare('SELECT data FROM sessions WHERE key=?').get(JSON.stringify([engine, namespace, sessionId])) as { data: string } | undefined
     if (!row) return undefined
-    const { sourceSize, sourceHash, updatedAt, model, mode, counters } = JSON.parse(row.data) as SessionState
-    return { sourceSize, sourceHash, updatedAt, model, mode: mode ?? (counters ? 'cumulative' : 'events') }
+    const { sourceSize, sourceHash, sourceIdentity, updatedAt, model, mode, counters } = JSON.parse(row.data) as SessionState
+    return { sourceSize, sourceHash, sourceIdentity, updatedAt, model, mode: mode ?? (counters ? 'cumulative' : 'events') }
   }
 
   /** Corpus scanner pre-flight: accounting mode already locked for a session, plus its read cursor. */
@@ -281,9 +327,11 @@ export class UsageLedger {
     const database = this.open()
     const row = database.prepare('SELECT data FROM sessions WHERE key=?').get(JSON.stringify([engine, namespace, sessionId])) as { data: string } | undefined
     if (!row) return undefined
-    const { counters, mode, sourceSize, codexCacheWrites, codexEventModels } = JSON.parse(row.data) as SessionState
+    const { counters, mode, sourceSize, codexCacheWrites, codexEventModels, claudeReplaySize } = JSON.parse(row.data) as SessionState
     const lockedMode = mode ?? (counters ? 'cumulative' : 'events')
-    // Re-read old events once for source-backed model/caching enrichment.
-    return { mode: lockedMode, sourceSize: engine === 'codex' && (!codexCacheWrites || (lockedMode === 'events' && !codexEventModels)) ? undefined : sourceSize }
+    // Old Claude cursors predate completed-response accounting.
+    if (engine === 'claude' && lockedMode === 'events') return { mode: lockedMode, sourceSize: claudeReplaySize }
+    const needsReplay = engine === 'codex' && (!codexCacheWrites || (lockedMode === 'events' && !codexEventModels))
+    return { mode: lockedMode, sourceSize: needsReplay ? undefined : sourceSize }
   }
 }

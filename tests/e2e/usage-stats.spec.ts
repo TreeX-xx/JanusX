@@ -59,6 +59,19 @@ test('model details fit narrow panes and English labels in both themes', async (
   }
 })
 
+test('shows DSH request usage and distinguishes an empty DSH history from Janus', async ({ page }) => {
+  await page.goto('/usage.html?dsh=yes')
+  await page.getByRole('button', { name: 'DeepSeek Harness', exact: true }).click()
+  await expect(page.getByTestId('usage-heatmap-total')).toHaveText('6,155 tokens')
+  await expect(page.getByTestId('usage-output')).toHaveText('203')
+  await expect(page.getByText('deepseek-v4-flash', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(/Janus 暂无|尚无 DSH/)).toHaveCount(0)
+  await page.goto('/usage.html')
+  await page.getByRole('button', { name: 'DeepSeek Harness', exact: true }).click()
+  await expect(page.getByTestId('usage-total')).toHaveText('–tokens')
+  await expect(page.getByText(/尚无 DSH 用量记录/).first()).toBeVisible()
+})
+
 test('annual activity follows terminal filters independently of summary dates', async ({ page }) => {
   await page.goto('/usage.html?history=yes')
   const heatmap = page.getByTestId('usage-heatmap')

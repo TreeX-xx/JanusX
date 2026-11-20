@@ -18,6 +18,9 @@ const records: UsageRecord[] = [
   { id: '1', engine: 'codex', sessionId: 'codex', at: now.getTime(), timeBasis: 'sample', totalTokens: 12000, inputTokens: 2000, outputTokens: 1000, cacheReadTokens: 8000, cacheWriteTokens: 1000, model: 'gpt-5.4' },
   { id: '2', engine: 'claude', sessionId: 'claude', at: Math.min(now.getTime(), new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8).getTime()), timeBasis: 'event', totalTokens: 4000, inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 2000, model: 'claude-sonnet-4-6' },
 ]
+if (new URLSearchParams(location.search).has('dsh')) records.push(
+  { id: 'dsh-call', engine: 'dsh', sessionId: 'dsh-session', at: now.getTime(), timeBasis: 'event', totalTokens: 6155, inputTokens: 448, outputTokens: 203, cacheReadTokens: 5504, model: 'deepseek-v4-flash' },
+)
 if (new URLSearchParams(location.search).get('mix') === 'all') records.push(
   { id: '3', engine: 'opencode', sessionId: 'opencode', at: now.getTime(), timeBasis: 'sample', totalTokens: 6000, inputTokens: 2000, outputTokens: 1000, cacheReadTokens: 3000, model: 'glm-5.2' },
   { id: '4', engine: 'pi', sessionId: 'pi', at: now.getTime(), timeBasis: 'event', totalTokens: 3000, inputTokens: 1000, outputTokens: 500, cacheReadTokens: 1500, model: 'gemini-3.1-pro' },

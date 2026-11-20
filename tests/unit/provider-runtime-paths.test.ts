@@ -23,7 +23,7 @@ describe('provider effective directory contract', () => {
     const ctx = { ...context, platform, home: platform === 'win32' ? 'C:\\Users\\test' : '/Users/test' }
     const value = resolveProviderPaths('pi', ctx, () => undefined)
     expect(value.store).toBe(platform === 'win32' ? 'C:\\Users\\test\\.pi\\agent\\sessions' : '/Users/test/.pi/agent/sessions')
-    expect(resolveProviderPaths('dsh', ctx).store).toBeNull()
+    expect(resolveProviderPaths('dsh', ctx).store).toBe(platform === 'win32' ? 'C:\\Users\\test\\.dsh\\sessions' : '/Users/test/.dsh/sessions')
   })
   it('honors Pi argument > environment > project settings > global settings', () => {
     const read = (file: string) => ({ sessionDir: file.startsWith('/Projects/') ? './project-history' : '~/global-history' })
