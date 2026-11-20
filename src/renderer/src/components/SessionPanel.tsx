@@ -967,14 +967,15 @@ function SessionDetailWindow({
                 <ThemedTooltip key={turn.id} label={turn.prompt ?? turn.excerpt ?? `turn ${index + 1}`}>
                 <button
                   data-nav={turn.id}
+                  aria-current={active ? 'location' : undefined}
                   onClick={() => jumpToTurn(turn.id)}
                   className="cursor-pointer"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                     padding: '5px 6px', borderRadius: 4, border: 0, cursor: 'pointer',
-                    background: active ? 'var(--shell-accent-soft)' : 'transparent',
+                    background: active ? 'var(--shell-active)' : 'transparent',
                     color: active ? 'var(--shell-text)' : 'var(--shell-muted)',
-                    fontFamily: "'SF Mono', monospace", fontSize: 10, lineHeight: 1.5, textAlign: 'left',
+                    fontFamily: "'SF Mono', monospace", fontSize: 10, fontWeight: active ? 600 : 400, lineHeight: 1.5, textAlign: 'left',
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: turn.kind === 'done' ? 'transparent' : turn.kind === 'failed' ? 'var(--shell-diff-del)' : 'var(--shell-accent)' }} />
@@ -1003,7 +1004,7 @@ function SessionDetailWindow({
                       ref={(node) => { turnRefs.set(turn.id, node) }}
                       style={{
                         background: SURFACE_CARD,
-                        border: activeTurnId === turn.id ? '1px solid var(--shell-accent-border)' : CARD_BORDER,
+                        border: activeTurnId === turn.id ? '1px solid var(--shell-dim)' : CARD_BORDER,
                         borderRadius: 8, padding: '11px 12px', marginBottom: 10,
                       }}
                     >
