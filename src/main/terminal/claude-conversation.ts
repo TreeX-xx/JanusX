@@ -1,3 +1,4 @@
+import { openClaudeSideChat } from './claude-side-chat'
 import { localPlatform } from '../platform/local-platform'
 import { claudeDarwinControlEndpoint } from './claude-darwin-control'
 import { confirmDarwinGroupExit, darwinGroupLeader } from '../janus/superagent/darwin-process'
@@ -232,6 +233,12 @@ export class ClaudeConversation {
     return { command: this.binary, args: ['attach', this.short] }
   }
   /** Native queue acceptance is delivery, never proof that a supplement was incorporated. */
+  openSideChat(threadId: string, signal: AbortSignal) {
+    if (this.state.threadId !== threadId) throw new Error('Claude parent session changed.')
+    return openClaudeSideChat({ binary: this.binary, cwd: this.cwd, env: this.env, configDir: this.configDir, settings: this.catalogSettings },
+      this.snapshot(), signal)
+  }
+
   async managedInput(text: string, expectedTurnId: string | null): Promise<{ turnId: string }> {
     if (!this.managed || this.disposed || this.broken || this.state.connection !== 'ready') throw new Error('Claude worker is unavailable')
     if (this.state.turnId !== expectedTurnId) throw new ManagedInputDeferred('turn-changed')

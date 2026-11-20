@@ -1,6 +1,7 @@
 import type { RuntimeTelemetrySnapshot } from './system'
 import type { DesktopConversationCommand, ConversationSnapshot } from '../conversation-display'
 import type { ConversationHistoryRequest, ConversationHistoryResult } from '../conversation-history'
+import type { NativeSideChatCommand, NativeSideChatResult, NativeSideChatUpdate } from '../conversation-side-chat'
 
 export const TERMINAL_INVOKE_CHANNELS = {
   warmup: 'terminal:warmup',
@@ -10,6 +11,7 @@ export const TERMINAL_INVOKE_CHANNELS = {
   conversation: 'terminal:conversation-snapshot',
   conversationHistory: 'terminal:conversation-history',
   conversationCommand: 'terminal:conversation-command',
+  sideChat: 'terminal:side-chat',
   inputHistory: 'terminal:input-history',
   saveConversationImage: 'terminal:save-conversation-image',
 } as const
@@ -29,6 +31,7 @@ export const TERMINAL_EVENT_CHANNELS = {
   telemetry: 'terminal:telemetry',
   turnChanges: 'terminal:turn-changes',
   conversation: 'terminal:conversation',
+  sideChat: 'terminal:side-chat-update',
 } as const
 
 export type TerminalAgentEngine = 'claude' | 'codex' | 'opencode' | 'janus' | 'pi' | 'dsh'
@@ -169,6 +172,8 @@ export interface TerminalReplayResult {
 }
 
 export interface TerminalAPI {
+  sideChat?(command: NativeSideChatCommand): Promise<NativeSideChatResult | undefined>
+  onSideChat?(callback: (update: NativeSideChatUpdate) => void): () => void
   conversationHistory?(id: string, request: ConversationHistoryRequest): Promise<ConversationHistoryResult>
   saveConversationImage?(id: string, itemId: string, imageId: string): Promise<{ canceled: boolean }>
   inputHistory?(id: string): Promise<Array<{ text: string; time: number }>>

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { chatStream, type ChatMessage } from '../services/llm'
+import type { NativeSideChatOwner } from '../../../shared/conversation-side-chat'
 
 // Note: .agents/notes/workbench/terminal-dialog-dual-mode.md
 export interface SideChatOwner {
@@ -49,7 +49,8 @@ export function discardSideChat(terminalId: string) {
   const chats = { ...useSideChats.getState().chats }
   delete chats[terminalId]
   useSideChats.setState({ chats })
-  chat.abort?.()
+  const owner = nativeOwner(chat.owner)
+  if (owner) void window.electron.terminal.sideChat?.({ type: 'dispose', owner }).catch(() => {})
 }
 export function openSideChat(owner: SideChatOwner, source?: SideChatSource) {
   const existing = getChat(owner)
@@ -61,28 +62,26 @@ export function editSideChat(owner: SideChatOwner, change: Partial<Pick<SideChat
   if (chat) save({ ...chat, ...change })
 }
 export function stopSideChat(owner: SideChatOwner) {
-  const chat = getChat(owner)
-  if (!chat?.abort) return
-  chat.abort()
-  save({ ...chat, abort: undefined, turns: chat.turns.map(turn => turn.status === 'streaming' ? { ...turn, status: 'stopped' } : turn) })
+  getChat(owner)?.abort?.()
 }
-export function askSideChat(owner: SideChatOwner, model: { providerId: string; modelId: string }, retry = false) {
+function nativeOwner({ terminalId, threadId }: SideChatOwner): NativeSideChatOwner | undefined {
+  return threadId ? { terminalId, threadId } : undefined
+}
+
+export function askSideChat(owner: SideChatOwner, model: string, retry = false) {
   const chat = getChat(owner)
-  if (!chat || chat.abort) return
+  const target = nativeOwner(owner)
+  const { sideChat, onSideChat } = window.electron.terminal
+  if (!chat || chat.abort || !target || !sideChat || !onSideChat) return
   const last = chat.turns.at(-1)
   if (retry && (!last || last.status !== 'failed')) return
   const question = (retry ? last!.question : chat.draft).trim()
   if (!question) return
   const history = retry ? chat.turns.slice(0, -1) : chat.turns
   const turn: SideChatTurn = { id: crypto.randomUUID(), question, source: retry ? last!.source : chat.source,
-    answer: '', model: model.modelId, status: 'streaming' }
-  const messages: ChatMessage[] = [{ role: 'system', content: 'Answer the user’s side questions in their language. Excerpts are quoted context from a separate terminal conversation. Explain using only the supplied text. You cannot inspect the workspace or perform actions.' }]
-  for (const item of [...history, turn]) {
-    const excerpt = item.source
-    const content = excerpt ? `Quoted ${excerpt.kind}${excerpt.path ? ' (' + excerpt.path + ')' : ''}:\n${excerpt.text}\n\nQuestion:\n${item.question}` : item.question
-    messages.push({ role: 'user', content })
-    if (item.answer) messages.push({ role: 'assistant', content: item.answer })
-  }
+    answer: '', model: history[0]?.model ?? model, status: 'streaming' }
+  const excerpt = turn.source
+  const text = excerpt ? `Quoted ${excerpt.kind}${excerpt.path ? ' (' + excerpt.path + ')' : ''}:\n${excerpt.text}\n\nQuestion:\n${question}` : question
   const update = (apply: (current: SideChatTurn) => SideChatTurn) => {
     const current = getChat(owner)
     const active = current?.turns.at(-1)
@@ -90,14 +89,16 @@ export function askSideChat(owner: SideChatOwner, model: { providerId: string; m
     const next = apply(active)
     save({ ...current, abort: next.status === 'streaming' ? current.abort : undefined, turns: [...current.turns.slice(0, -1), next] })
   }
-  save({ ...chat, ...(retry ? {} : { draft: '', source: undefined }), turns: [...history, turn] })
-  try {
-    const stream = chatStream(messages,
-      delta => update(active => ({ ...active, answer: active.answer + delta })),
-      () => update(active => ({ ...active, status: active.answer.trim() ? 'done' : 'failed' })),
-      error => update(active => ({ ...active, status: 'failed', error })),
-      { ...model, sideChat: true })
-    const current = getChat(owner)
-    if (current?.turns.at(-1)?.id === turn.id && current.turns.at(-1)?.status === 'streaming') save({ ...current, abort: stream.abort })
-  } catch (cause) { update(active => ({ ...active, status: 'failed', error: String(cause) })) }
+  const abort = () => {
+    void sideChat({ type: 'stop', owner: target, requestId: turn.id }).catch(error => update(active => ({ ...active, status: 'failed', error: String(error) })))
+  }
+  save({ ...chat, abort, ...(retry ? {} : { draft: '', source: undefined }), turns: [...history, turn] })
+  const unsubscribe = onSideChat(event => {
+    if (event.requestId === turn.id && event.owner.terminalId === target.terminalId && event.owner.threadId === target.threadId)
+      update(active => ({ ...active, answer: event.text }))
+  })
+  void sideChat({ type: 'ask', owner: target, requestId: turn.id, text }).then(result => {
+    update(active => ({ ...active, answer: result?.text ?? active.answer,
+      status: result?.status === 'stopped' ? 'stopped' : (result?.text ?? active.answer).trim() ? 'done' : 'failed' }))
+  }).catch(error => update(active => ({ ...active, status: 'failed', error: String(error) }))).finally(unsubscribe)
 }

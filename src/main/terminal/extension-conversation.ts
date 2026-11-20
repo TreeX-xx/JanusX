@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import type { NativeCatalogEntry } from './conversation-catalog'
 import { NativeConversation, type NativeEvent, type NativeLaunch, type NativeCommand } from './native-conversation'
 import type { ConversationCommand, ConversationSnapshot } from '../../shared/conversation-display'
@@ -11,7 +11,13 @@ import imageSource from './conversation-images.js?raw'
 import dshSource from './dsh-extension.js?raw'
 import questionSource from './native-questions.js?raw'
 import { pathToFileURL } from 'node:url'
+import { NativeSideTurnError, sideChatPolicy, type NativeSideSession } from './native-side-chat'
+import { runSideChatProcess } from './side-chat-process'
+import { environmentWithPath } from '../platform/environment'
+import { localPlatform } from '../platform/local-platform'
 import { cliPackageFile, requiredCliPackageFile } from '../external-cli/package-location'
+
+type DshSideUpdate = { sideId: string; requestId: string; text: string; status: 'streaming' | 'done' | 'failed' | 'stopped'; error?: string }
 
 class ExtensionConversation extends NativeConversation {
   private server?: Server
@@ -24,10 +30,13 @@ class ExtensionConversation extends NativeConversation {
   private lastSeen = Date.now()
   private startup?: Promise<{ command: string; args: string[] }>
   private stopping?: Promise<void>
+  private launchOptions?: NativeLaunch
+  private sideListeners = new Map<string, (event: DshSideUpdate) => void>()
   private pending = new Map<string, { command: unknown; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
   constructor(id: string, engine: 'pi' | 'dsh', publish: (value: ConversationSnapshot) => void, bind?: (id: string, path?: string) => void) { super(id, engine, publish, bind); this.state.capabilities.commands = true; this.state.capabilities.questions = true }
   start(options: NativeLaunch): Promise<{ command: string; args: string[] }> {
     if (this.startup || this.disposed) throw new Error('Native session already started')
+    this.launchOptions = options
     this.startup = this.launch(options)
     return this.startup
   }
@@ -71,7 +80,9 @@ class ExtensionConversation extends NativeConversation {
         for (const entry of body.events ?? []) {
           if (entry.seq <= this.seq) continue
           if (entry.seq !== this.seq + 1) throw new Error('Native event sequence gap')
-          this.receive(entry.event as NativeEvent); this.seq = entry.seq
+          if (entry.event?.type === 'side-update' && dsh) this.sideListeners.get(entry.event.sideId)?.(entry.event as DshSideUpdate)
+          else this.receive(entry.event as NativeEvent)
+          this.seq = entry.seq
         }
         if (this.snapshot().connection === 'disconnected') { reply(409, {}); return }
         for (const ack of body.acks ?? []) {
@@ -94,7 +105,8 @@ class ExtensionConversation extends NativeConversation {
     await writeFile(extension, dsh ? dshSource
       .replace('__DSH_LLM_URL__', pathToFileURL(dshLlm!).href)
       .replace('__DSH_COMMANDS_URL__', pathToFileURL(cliPackageFile(options.command, '@deepseek-harness-tui/dsh-tui', 'lib/types/commands.js')).href)
-      : piSource.replace('__PI_COMMANDS_URL__', pathToFileURL(cliPackageFile(options.command, '@earendil-works/pi-coding-agent', 'dist/core/slash-commands.js')).href))
+      : piSource.replace('__PI_SESSION_URL__', pathToFileURL(cliPackageFile(options.command, '@earendil-works/pi-coding-agent', 'dist/index.js')).href)
+        .replace('__PI_COMMANDS_URL__', pathToFileURL(cliPackageFile(options.command, '@earendil-works/pi-coding-agent', 'dist/core/slash-commands.js')).href))
     if (this.disposed) throw new Error('Native launch cancelled')
     this.lastSeen = Date.now()
     this.heartbeat = setInterval(() => { if (Date.now() - this.lastSeen > (this.state.connection === 'starting' ? 60000 : 6000)) this.fail('Native bridge unavailable. Use the terminal; commands will not be resent.') }, 1000)
@@ -120,12 +132,110 @@ class ExtensionConversation extends NativeConversation {
       const timer = setTimeout(() => {
         this.pending.delete(command.id)
         // A read-only catalog can fail independently of the live session.
-        if (command.type === 'catalog') { reject(new Error('Native command catalog timed out. Retry loading the commands.')); return }
+        if (command.type === 'catalog' || String(command.type).startsWith('side-')) {
+          reject(new Error(command.type === 'catalog' ? 'Native command catalog timed out. Retry loading the commands.' : 'Native side session did not respond.'))
+          return
+        }
         this.fail('Native delivery is unknown. Check the terminal before sending again.'); reject(new Error('Native delivery unknown'))
       }, 10000)
       this.pending.set(command.id, { command, resolve, reject, timer })
     })
   }
+  async openSideChat(threadId: string, signal: AbortSignal): Promise<NativeSideSession> {
+    const options = this.launchOptions
+    if (!options || this.state.threadId !== threadId) throw new Error('Native parent session changed.')
+    if (this.state.engine === 'dsh') return this.openDshSideChat(threadId, signal)
+    const directory = await mkdtemp(join(options.assetsDir, 'pi-side-'))
+    const dispose = () => rm(directory, { recursive: true, force: true })
+    let fork: { path: string; provider?: string; model?: string; thinking?: string }
+    try {
+      fork = await this.request({ id: randomUUID(), type: 'side-fork', sessionId: threadId, directory }) as typeof fork
+      if (typeof fork.path !== 'string' || dirname(resolve(fork.path)) !== resolve(directory))
+        throw new Error('Pi did not return an owned side session path.')
+      signal.throwIfAborted()
+    } catch (error) { await dispose(); throw error }
+    const path = fork.path
+    const env = options.pathDir ? environmentWithPath(options.env, localPlatform(), [options.pathDir]) : options.env
+    let first = true
+    return {
+      dispose,
+      async ask(text, publish, turnSignal) {
+        let answer = ''
+        let complete = false
+        await runSideChatProcess(options.command, ['--mode', 'json', '--print', '--session', path, '--no-tools',
+          '--no-extensions', '--no-skills', '--no-prompt-templates',
+          ...(fork.provider && fork.model ? ['--provider', fork.provider, '--model', fork.model] : []),
+          ...(fork.thinking ? ['--thinking', fork.thinking] : [])], options.cwd, env, turnSignal, frame => {
+          const event = frame.assistantMessageEvent
+          if (frame.type === 'message_update' && event?.type === 'text_delta' && typeof event.delta === 'string') {
+            answer = (answer + event.delta).slice(0, 64_000)
+            publish(answer)
+          }
+          if (frame.type === 'message_end' && frame.message?.role === 'assistant' && frame.message.stopReason === 'error')
+            throw new Error(frame.message.errorMessage ?? 'Pi side question failed.')
+          if (frame.type === 'agent_end') complete = true
+        }, first ? sideChatPolicy + '\n\n' + text : text)
+        if (!turnSignal.aborted && !complete) throw new Error('Pi did not complete the side question.')
+        if (complete) first = false
+        return answer
+      },
+    }
+  }
+
+  private async openDshSideChat(threadId: string, signal: AbortSignal): Promise<NativeSideSession> {
+    const sideId = 'session-' + randomUUID()
+    const request = (type: string, values: Record<string, unknown> = {}) =>
+      this.request({ id: randomUUID(), type, sessionId: threadId, sideId, ...values })
+    const dispose = async () => {
+      this.sideListeners.delete(sideId)
+      if (!this.disposed && this.state.threadId === threadId) await request('side-dispose')
+    }
+    try {
+      const confirmed = await request('side-fork', { policy: sideChatPolicy })
+      if (confirmed !== sideId) throw new Error('DSH did not confirm a separate side session.')
+      signal.throwIfAborted()
+    } catch (error) { await dispose().catch(() => {}); throw error }
+    return {
+      dispose,
+      ask: async (text, publish, turnSignal) => {
+        turnSignal.throwIfAborted()
+        const requestId = randomUUID()
+        let finish!: (answer: string) => void
+        let fail!: (error: Error) => void
+        const result = new Promise<string>((resolve, reject) => { finish = resolve; fail = reject })
+        void result.catch(() => {})
+        this.sideListeners.set(sideId, event => {
+          if (event.requestId !== requestId || typeof event.text !== 'string') return
+          if (event.status === 'streaming') publish(event.text)
+          else if (event.status === 'done' || event.status === 'stopped') finish(event.text.trimEnd())
+          else if (event.status === 'failed') fail(new NativeSideTurnError(event.error ?? 'DSH side question failed.'))
+        })
+        const timer = setTimeout(() => fail(new Error('DSH side question timed out.')), 10 * 60_000)
+        let stopTimer: ReturnType<typeof setTimeout> | undefined
+        let stopping: Promise<unknown> | undefined
+        const stop = () => {
+          if (stopping) return
+          stopTimer = setTimeout(() => fail(new Error('DSH did not confirm the side turn stopped.')), 10_000)
+          stopping = request('side-stop', { requestId })
+          void stopping.catch(fail)
+        }
+        try {
+          await request('side-ask', { requestId, text })
+          turnSignal.addEventListener('abort', stop, { once: true })
+          if (turnSignal.aborted) stop()
+          const answer = await result
+          await stopping
+          return answer
+        } finally {
+          clearTimeout(timer)
+          clearTimeout(stopTimer)
+          this.sideListeners.delete(sideId)
+          turnSignal.removeEventListener('abort', stop)
+        }
+      },
+    }
+  }
+
   protected async deliver(command: NativeCommand): Promise<void> {
     await this.request(command)
   }

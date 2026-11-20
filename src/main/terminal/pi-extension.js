@@ -4,9 +4,12 @@ import { bridge } from './native-bridge.mjs'
 import { nativeQuestions } from './native-questions.mjs'
 import { storeConversationImage } from './conversation-images.mjs'
 import { fileURLToPath, URL } from 'node:url'
+import { basename } from 'node:path'
 
 export default function (pi) {
-  let context, turnId = '', assistantId = '', userId = ''
+  let context, settledLeaf, turnId = '', assistantId = '', userId = ''
+  const completedLeaf = ctx => ctx?.sessionManager.getBranch?.().reverse().find(entry => entry.type === 'message' &&
+    entry.message.role === 'assistant' && entry.message.stopReason === 'stop')?.id
   const questions = nativeQuestions(event => link.emit(event))
   const wrapped = new WeakSet()
   let nativeDialogs = 0
@@ -14,6 +17,18 @@ export default function (pi) {
     if (!context) throw new Error('Pi is starting')
     if (command.type === 'display-mode') { questions.setMode(command.mode); return }
     if (command.type === 'answer') { questions.answer(command); return }
+    if (command.type === 'side-fork') {
+      if (typeof context.sessionManager.getBranch !== 'function') throw new Error('This Pi version does not expose native session branching')
+      const sessionFile = context.sessionManager.getSessionFile()
+      const { SessionManager } = await import('__PI_SESSION_URL__')
+      if (command.sessionId !== context.sessionManager.getSessionId()) throw new Error('Pi session changed')
+      const parent = sessionFile && SessionManager.open(sessionFile, command.directory)
+      const leaf = turnId ? settledLeaf : completedLeaf(context)
+      const path = leaf && parent ? parent.createBranchedSession(leaf) :
+        SessionManager.create(context.cwd, command.directory).getSessionFile()
+      if (!path || path === sessionFile || !basename(path).endsWith('.jsonl')) throw new Error('Pi did not create a separate side session')
+      return { path, provider: context.model?.provider, model: context.model?.id, thinking: pi.getThinkingLevel() }
+    }
     if (command.type === 'catalog') {
       // Builtin menu discovery is optional across CLI layouts; explicit native
       // commands still work when the installed version moves this module.
@@ -104,10 +119,10 @@ export default function (pi) {
   })
   pi.on('agent_start', (_event, ctx) => {
     context = ctx
-    if (!turnId) { turnId = randomUUID(); link.emit({ type: 'start', turnId }) }
+    if (!turnId) { settledLeaf = completedLeaf(context); turnId = randomUUID(); link.emit({ type: 'start', turnId }) }
   })
   pi.on('message_start', event => {
-    if (!turnId) { turnId = randomUUID(); link.emit({ type: 'start', turnId }) }
+    if (!turnId) { settledLeaf = completedLeaf(context); turnId = randomUUID(); link.emit({ type: 'start', turnId }) }
     if (event.message.role === 'assistant') assistantId = randomUUID()
     if (event.message.role === 'user') userId = randomUUID()
     message(event, false)

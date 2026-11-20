@@ -17,6 +17,7 @@ import { NativeConversation, type NativeLaunch } from './native-conversation'
 import type { ConversationCommand, ConversationItem, ConversationSnapshot } from '../../shared/conversation-display'
 import { openCodeAnswer, openCodeQuestions } from './opencode-questions'
 import { hasBlockingQuestions } from '../../shared/conversation-questions'
+import { NativeSideTurnError, sideChatPolicy, type NativeSideSession } from './native-side-chat'
 
 type Json = Record<string, any> // Native API boundary; validate actual responses rather than CLI versions.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -173,6 +174,69 @@ export class OpenCodeConversation extends NativeConversation {
     if (!response.ok) throw new Error(`OpenCode ${response.status}: ${(await response.text()).slice(0, 1000)}`)
     return response.status === 204 ? {} : await response.json() as Json
   }
+  async openSideChat(threadId: string, signal: AbortSignal): Promise<NativeSideSession> {
+    if (this.state.threadId !== threadId) throw new Error('OpenCode parent session changed.')
+    const parent = `/api/session/${encodeURIComponent(threadId)}`
+    const pendingUser = (messages: Json[]) => {
+      const idle = messages.findIndex(message => message.type === 'idle' && message.outcome === 'succeeded')
+      return [...messages.slice(0, idle < 0 ? undefined : idle)].reverse().find(message => message.type === 'user')
+    }
+    const messages = await this.api(`${parent}/message?limit=200&order=desc`)
+    const pending = pendingUser(messages.data)
+    const permissions = [{ action: '*', resource: '*', effect: 'deny' }]
+    signal.throwIfAborted()
+    const { data: child } = messages.data.length
+      ? await this.api(`${parent}/fork`, pending ? { before: pending.id } : {})
+      : await this.api('/api/session', { location: { directory: this.directory }, permissions })
+    if (typeof child?.id !== 'string' || child.id === threadId) throw new Error('OpenCode did not create a separate side session.')
+    const path = `/api/session/${encodeURIComponent(child.id)}`
+    const dispose = async () => { if (!this.disposed) await this.api(path, undefined, 'DELETE') }
+    try {
+      if (child.parentID) throw new Error('OpenCode returned a side session that reports back to its parent.')
+      const copied = await this.api(`${path}/message?limit=200&order=desc`)
+      if (pendingUser(copied.data)) throw new Error('The OpenCode parent started a turn while the side session was opening. Retry the question.')
+      if (messages.data.length) await this.api(path, { permissions }, 'PATCH')
+      else {
+        const { data: source } = await this.api(parent)
+        if (source?.model) await this.api(`${path}/model`, { model: source.model })
+      }
+      const confirmed = await this.api(path)
+      if (!confirmed.data?.permissions?.some((rule: Json) => rule.action === '*' && rule.resource === '*' && rule.effect === 'deny'))
+        throw new Error('OpenCode did not confirm side-session permissions.')
+      signal.throwIfAborted()
+    } catch (error) { await dispose(); throw error }
+    let first = true
+    return {
+      dispose,
+      ask: async (text, publish, turnSignal) => {
+        turnSignal.throwIfAborted()
+        const prompt = await this.api(`${path}/prompt`, { text: first ? sideChatPolicy + '\n\n' + text : text })
+        const id = prompt.data?.id
+        if (typeof id !== 'string') throw new Error('OpenCode did not confirm admission of the side question.')
+        first = false
+        const deadline = Date.now() + 10 * 60_000
+        let answer = ''
+        while (!turnSignal.aborted && Date.now() < deadline) {
+          const page = await this.api(`${path}/message?limit=200&order=desc`)
+          const index = page.data.findIndex((message: Json) => message.id === id && message.type === 'user')
+          if (index >= 0) {
+            const items: Json[] = page.data.slice(0, index).reverse()
+            const updated = items.flatMap(message => message.type === 'assistant' ? message.content ?? [] : [])
+              .filter(part => part.type === 'text').map(part => part.text).join('\n\n').slice(0, 64_000)
+            if (updated !== answer) { answer = updated; publish(answer) }
+            const idle = items.find(message => message.type === 'idle')
+            if (idle?.outcome === 'succeeded') return answer
+            if (idle) throw new NativeSideTurnError(idle.error?.message ?? 'OpenCode side question failed.')
+          }
+          await delay(250)
+        }
+        await this.api(`${path}/interrupt?resume=false`, {})
+        if (!turnSignal.aborted) throw new Error('OpenCode side question timed out.')
+        return answer
+      },
+    }
+  }
+
   private updateSettings(model?: Json): void {
     if (this.disposed) return
     const ref = model ?? this.defaultModel

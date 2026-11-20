@@ -1,25 +1,53 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import type { ChatStreamRequest } from '../../src/shared/ipc/llm'
+import type { NativeSideChatCommand, NativeSideChatResult, NativeSideChatUpdate } from '../../src/shared/conversation-side-chat'
 
 async function setup(page: Page, query = '') {
   await page.goto('/codex-conversation.html?initialView=conversation' + query)
   await expect(page.getByRole('button', { name: 'Side chat', exact: true }).first()).toBeVisible()
   await page.evaluate(() => {
-    const requests: ChatStreamRequest[] = [], aborted: string[] = []
-    const events = new EventTarget()
-    const listen = (name: string) => (callback: (payload: unknown) => void) => {
-      const listener = (e: Event) => callback((e as CustomEvent).detail)
-      events.addEventListener(name, listener)
-      return () => events.removeEventListener(name, listener)
-    }
-    Object.assign(window.electron.llm, {
-      getTerminalDefault: async () => ({ provider: { id: 'fixture' }, modelId: 'side-model' }),
-      onDelta: listen('delta'), onDone: listen('done'), onError: listen('error'),
-      startChatStream: (request: ChatStreamRequest) => requests.push(request),
-      abortChat: async (id: string) => { aborted.push(id) },
+    const requests: Extract<NativeSideChatCommand, { type: 'ask' }>[] = []
+    const disposed: string[] = [], aborted: string[] = []
+    const listeners = new Set<(update: NativeSideChatUpdate) => void>()
+    const turns = new Map<string, { text: string; resolve: (result: NativeSideChatResult) => void; reject: (error: Error) => void }>()
+    Object.assign(window.electron.terminal, {
+      onSideChat: (callback: (update: NativeSideChatUpdate) => void) => {
+        listeners.add(callback)
+        return () => listeners.delete(callback)
+      },
+      sideChat: async (command: NativeSideChatCommand) => {
+        if (command.type === 'dispose') {
+          disposed.push(command.owner.threadId)
+          for (const request of requests.filter(request => request.owner.threadId === command.owner.threadId)) {
+            const turn = turns.get(request.requestId)
+            turn?.resolve({ status: 'stopped', text: turn.text })
+            turns.delete(request.requestId)
+          }
+          return
+        }
+        if (command.type === 'stop') {
+          aborted.push(command.requestId)
+          const turn = turns.get(command.requestId)
+          turn?.resolve({ status: 'stopped', text: turn.text })
+          turns.delete(command.requestId)
+          return
+        }
+        requests.push(command)
+        return new Promise((resolve, reject) => turns.set(command.requestId, { text: '', resolve, reject }))
+      },
     })
-    Object.assign(window, { sideFixture: { requests, aborted, emit: (name: string, payload: object, index = requests.length - 1) =>
-      events.dispatchEvent(new CustomEvent(name, { detail: { requestId: requests[index].requestId, ...payload } })) } })
+    Object.assign(window, { sideFixture: { requests, aborted, disposed, emit: (name: string, payload: { delta?: string; error?: string }, index = requests.length - 1) => {
+      const { owner, requestId } = requests[index]
+      const turn = turns.get(requestId)
+      if (!turn) return
+      if (name === 'delta') {
+        turn.text += payload.delta ?? ''
+        for (const callback of listeners) callback({ owner, requestId, text: turn.text })
+      } else {
+        if (name === 'error') turn.reject(new Error(payload.error))
+        else turn.resolve({ status: 'done', text: turn.text })
+        turns.delete(requestId)
+      }
+    } } })
     ;(window as any).codexFixture.progressSnapshot({ turnId: 'working', items: [
       { id: 'q', turnId: 'working', type: 'userMessage', status: 'completed', text: 'Review the index.' },
       { id: 'a', turnId: 'working', type: 'agentMessage', status: 'inProgress', text: 'Rebuild the index before switching branches.' },
@@ -55,7 +83,7 @@ for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) {
     await expect(side.locator('pre')).toContainText('Review the index.')
     await page.evaluate(() => (window as any).codexFixture.delta(' New delta.'))
     await expect(side.locator('pre')).not.toContainText('New delta')
-    await expect(side).toContainText('side-model')
+    await expect(side).toContainText(engine === 'claude' ? 'claude-sonnet-4-6' : engine === 'opencode' ? 'fixture/fast' : 'fixture-fast')
     const pane = await page.locator('[data-agent-session]').boundingBox()
     expect((await side.boundingBox())!.width).toBeLessThan(pane!.width / 2)
   })
@@ -75,7 +103,7 @@ test('isolates an in-flight quote, follow-up and draft return across workspace p
   await inputB.fill('Keep B draft')
   await page.evaluate(() => {
     const { requests, emit } = (window as any).sideFixture
-    if (!requests[0].sideChat || requests[0].messages.at(-1).content.includes('before switching branches')) throw new Error('Incorrect side context')
+    if (requests[0].text !== 'Quoted reply:\nthe index\n\nQuestion:\nWhy rebuild?' || requests[0].owner.terminalId !== 'codex') throw new Error('Incorrect side context')
     ;(window as any).codexFixture.delta(' Continuing work.')
     emit('delta', { delta: 'Index entries are stale.' }); emit('done', {})
   })
@@ -83,9 +111,7 @@ test('isolates an in-flight quote, follow-up and draft return across workspace p
   await expect(side.getByText('Index entries are stale.')).toBeVisible()
   await side.getByRole('textbox').fill('What about new entries?')
   await side.getByRole('textbox').press('Enter')
-  await expect.poll(() => page.evaluate(() => (window as any).sideFixture.requests[1]?.messages)).toEqual(expect.arrayContaining([
-    { role: 'assistant', content: 'Index entries are stale.' }, { role: 'user', content: 'What about new entries?' },
-  ]))
+  await expect.poll(() => page.evaluate(() => (window as any).sideFixture.requests[1]?.text)).toBe('What about new entries?')
   await side.getByRole('button', { name: 'Stop side response' }).click()
   await selectText(side.locator('[data-side-answer] p'), 'entries are stale')
   await side.getByRole('button', { name: 'Add to main draft' }).click()
@@ -116,24 +142,29 @@ test('quotes unsent text, restores selection and isolates replacement threads', 
   await expect.poll(() => page.evaluate(() => (window as any).sideFixture.requests.length)).toBe(1)
   await page.evaluate(() => { (window as any).codexFixture.changeThread(); (window as any).sideFixture.emit('delta', { delta: 'Late old answer' }) })
   await expect(side).toBeHidden()
-  expect(await page.evaluate(() => (window as any).sideFixture.aborted.length)).toBe(1)
+  await expect.poll(() => page.evaluate(() => (window as any).sideFixture.disposed)).toContain('native-thread')
   await page.getByRole('button', { name: 'Side chat', exact: true }).click()
   await expect(side).not.toContainText('unpublished')
   await expect(side).not.toContainText('Late old answer')
 })
 
-test('keeps an unanswered draft through configuration and retries a failed request', async ({ page }) => {
+test('keeps an unanswered draft while the native conversation is unavailable and retries a failed request', async ({ page }) => {
   await setup(page)
-  await page.evaluate(() => Object.assign(window.electron.llm, { getTerminalDefault: async () => null }))
   await page.getByRole('button', { name: 'Side chat', exact: true }).click()
+  await page.evaluate(() => {
+    Object.assign((window as any).sideFixture, { sideChat: window.electron.terminal.sideChat })
+    delete window.electron.terminal.sideChat
+  })
   const side = page.getByRole('complementary', { name: 'Side chat' })
   await side.getByRole('textbox').fill('Keep my question')
   await expect(side.getByRole('button', { name: 'Send side question' })).toBeDisabled()
-  await expect(side.getByRole('button', { name: 'Model settings' })).toBeVisible()
+  await expect(side.getByRole('status')).toContainText('The terminal conversation must be ready')
   await page.evaluate(() => {
-    Object.assign(window.electron.llm, { getTerminalDefault: async () => ({ provider: { id: 'p' }, modelId: 'restored' }) })
-    window.dispatchEvent(new Event('janus:llm-config-changed'))
+    window.electron.terminal.sideChat = (window as any).sideFixture.sideChat
   })
+  await side.getByRole('button', { name: 'Close side chat' }).click()
+  await page.getByRole('button', { name: 'Side chat', exact: true }).click()
+  await expect(side.getByRole('textbox')).toHaveValue('Keep my question')
   await side.getByRole('button', { name: 'Send side question' }).click()
   await page.evaluate(() => (window as any).sideFixture.emit('error', { error: 'offline' }))
   await expect(side.getByRole('alert')).toContainText('offline')
@@ -162,7 +193,7 @@ test('quotes code and a file patch, keeping the original file path and text afte
   await page.getByRole('button', { name: 'Remount' }).click()
   await expect(side.getByRole('textbox')).toHaveValue('Why did this change?')
   await side.getByRole('button', { name: 'Send side question' }).click()
-  await expect.poll(() => page.evaluate(() => (window as any).sideFixture.requests[0]?.messages.at(-1).content)).toBe('Quoted diff (src/count.ts):\n+const count = 2\n\nQuestion:\nWhy did this change?')
+  await expect.poll(() => page.evaluate(() => (window as any).sideFixture.requests[0]?.text)).toBe('Quoted diff (src/count.ts):\n+const count = 2\n\nQuestion:\nWhy did this change?')
 })
 
 test('stopping one of two simultaneous side requests leaves the other running', async ({ page }) => {
@@ -186,25 +217,14 @@ test('stopping one of two simultaneous side requests leaves the other running', 
   await expect(panes.last().getByText('Answer B')).toBeVisible()
   expect(await page.evaluate(() => {
     const f = (window as any).sideFixture
-    return f.requests.map((r: ChatStreamRequest) => f.aborted.includes(r.requestId))
+    return f.requests.map((r: Extract<NativeSideChatCommand, { type: 'ask' }>) => f.aborted.includes(r.requestId))
   })).toEqual([true, false])
 })
 
 for (const motion of ['no-preference', 'reduce'] as const) {
-  test(`side chat reflects opening, model loading and the first reply with ${motion} motion`, async ({ page }) => {
+  test(`side chat reflects opening and the first native reply with ${motion} motion`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: motion })
     await setup(page)
-    await page.evaluate(() => {
-      const original = window.electron.llm.getTerminalDefault
-      let release!: () => void
-      const pending = new Promise<void>(resolve => { release = resolve })
-      Object.assign((window as any).sideFixture, { releaseModel: release })
-      window.electron.llm.getTerminalDefault = async (...args) => {
-        await pending
-        return original(...args)
-      }
-    })
-
     const launcher = page.getByRole('button', { name: 'Side chat', exact: true })
     await launcher.click()
     const panel = page.getByRole('complementary', { name: 'Side chat' })
@@ -212,14 +232,7 @@ for (const motion of ['no-preference', 'reduce'] as const) {
     await expect(launcher).toHaveAttribute('title', 'Close side chat')
     await expect(panel).toHaveAttribute('data-visible', 'true')
     await expect(panel).toHaveCSS('transition-duration', motion === 'reduce' ? '0s' : '0.18s, 0.15s')
-    const loading = panel.getByRole('status').filter({ hasText: 'Loading side chat model' })
-    await expect(loading).toBeVisible()
-    await expect(loading.locator('svg')).toHaveCSS('animation-name', motion === 'reduce' ? 'none' : /rotate/)
     await panel.getByRole('textbox').fill('Why?')
-    await expect(panel.getByRole('button', { name: 'Send side question' })).toBeDisabled()
-
-    await page.evaluate(() => (window as any).sideFixture.releaseModel())
-    await expect(loading).toHaveCount(0)
     await panel.getByRole('button', { name: 'Send side question' }).click()
     const waiting = panel.getByRole('status').filter({ hasText: 'Waiting for reply' })
     await expect(waiting).toBeVisible()

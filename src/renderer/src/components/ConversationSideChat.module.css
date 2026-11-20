@@ -52,8 +52,7 @@
 .source pre { max-height: min(120px, 20vh); overflow: auto; white-space: pre-wrap; font: inherit; margin: 5px 0; }
 .setup, .error { margin: 0 0 8px; overflow-wrap: anywhere; }
 .error { color: var(--status-danger); font-size: 12px; }
-.setup button, .error button { text-decoration: underline; margin-inline-start: 6px; }
-.loadingModel { display: inline-flex; align-items: center; gap: 6px; }
+.error button { text-decoration: underline; margin-inline-start: 6px; }
 .spin { flex-shrink: 0; animation: rotate 1.2s linear infinite; }
 @keyframes rotate { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {

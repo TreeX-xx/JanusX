@@ -161,3 +161,45 @@ describe('OpenCode session settings', () => {
     } finally { await controller.dispose(); await polling }
   })
 })
+
+it('cuts the side branch before an active OpenCode prompt and addresses the child only', async () => {
+  const { controller, wire } = await setup()
+  const permissions = [{ action: '*', resource: '*', effect: 'deny' }]
+  const parentItems = [
+    { id: 'running', type: 'assistant', content: [{ type: 'text', text: 'parent only' }] },
+    { id: 'active-input', type: 'user' },
+    { id: 'closed', type: 'idle', outcome: 'succeeded' },
+    { id: 'old-input', type: 'user' },
+  ]
+  const parent = '/api/session/session', child = '/api/session/child'
+  const messages = '/message?limit=200&order=desc'
+  let stopped = false
+  const api = vi.fn(async (path: string, body?: unknown, method?: string) => {
+    if (path === parent + messages) return { data: parentItems }
+    if (path === parent + '/fork') return { data: { id: 'child' } }
+    if (path === child && !method) return { data: { id: 'child', permissions } }
+    if (path === child + messages) return { data: stopped ? parentItems.slice(2) : [
+      { id: 'delta', type: 'assistant', content: [{ type: 'text', text: 'side only' }] },
+      { id: 'side-user', type: 'user' }, ...parentItems.slice(2),
+    ] }
+    if (path === child + '/prompt') { stopped = false; return { data: { id: 'side-user' } } }
+    if (path === child + '/interrupt?resume=false') return { data: { interrupted: true } }
+    if (path === child && method) return {}
+    throw new Error(`Unexpected request ${method ?? ''} ${path} ${JSON.stringify(body)}`)
+  })
+  stopped = true
+  wire.api = api
+  controller.state.turnId = 'active-input'
+  const stop = new AbortController()
+  const side = await controller.openSideChat('session', stop.signal)
+  try {
+    const publish = vi.fn(() => stop.abort())
+    await expect(side.ask('Explain the prior turn', publish, stop.signal)).resolves.toBe('side only')
+    expect(publish).toHaveBeenCalledWith('side only')
+    expect(api).toHaveBeenCalledWith(parent + '/fork', { before: 'active-input' })
+    expect(api).toHaveBeenCalledWith(child, { permissions }, 'PATCH')
+    expect(api).toHaveBeenCalledWith(child + '/interrupt?resume=false', {})
+    expect(controller.state).toMatchObject({ threadId: 'session', turnId: 'active-input' })
+  } finally { await side.dispose(); await controller.dispose() }
+  expect(api).toHaveBeenCalledWith(child, undefined, 'DELETE')
+})

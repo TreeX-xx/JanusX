@@ -1,7 +1,6 @@
 {
   "sideChat": {
     "title": "侧聊",
-    "loadingModel": "正在加载侧聊模型…",
     "waitingReply": "等待回复…",
     "askSelection": "在侧聊中问",
     "close": "关闭侧聊",
@@ -15,8 +14,7 @@
     "retry": "重试",
     "noAnswer": "模型没有返回文字。",
     "stopped": "已停止回答",
-    "noModel": "选择 JanusX 模型后即可开始侧聊。",
-    "configure": "模型设置",
+    "unavailable": "终端对话就绪后即可发送侧聊问题。",
     "removeSource": "移除引用",
     "sources": {
       "turn": "最近一轮对话",

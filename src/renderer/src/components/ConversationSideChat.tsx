@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowUp, ChevronDown, CornerDownLeft, LoaderCircle, MessageSquareText, PanelRightClose, PanelRightOpen, Quote, Square, X } from 'lucide-react'
 import type { ConversationSnapshot } from '../../../shared/conversation-display'
-import { getTerminalDefault } from '../services/llm'
 import { askSideChat, editSideChat, openSideChat, sameSideChatOwner, stopSideChat, useSideChats, type SideChatOwner, type SideChatSource } from '../stores/conversation-side-chat'
 import type { ConversationInputHandle } from './ConversationInput'
 import { useAnimatedOpen } from './shared/CardFrame'
@@ -33,7 +32,6 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
   const panelMotion = useAnimatedOpen(open, 180)
   const LauncherIcon = open ? PanelRightClose : PanelRightOpen
   const [candidate, setCandidate] = useState<ReturnType<typeof selectedSideChatSource>>()
-  const [model, setModel] = useState<{ providerId: string; modelId: string } | null>()
   const [returnError, setReturnError] = useState(false)
   const editor = useRef<HTMLTextAreaElement>(null)
   const history = useRef<HTMLDivElement>(null)
@@ -42,6 +40,8 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
   const follow = useRef(true)
   const busy = !!chat?.abort
   const last = chat?.turns.at(-1)
+  const model = chat?.turns[0]?.model ?? (snapshot.model || t(`provider.${snapshot.engine}`))
+  const canAsk = Boolean(owner.threadId && snapshot.connection === 'ready' && window.electron.terminal.sideChat && window.electron.terminal.onSideChat)
 
   useEffect(() => {
     const host = main.current
@@ -64,19 +64,6 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
       window.removeEventListener('resize', reposition)
     }
   }, [main, visible])
-  useEffect(() => {
-    if (!open) return
-    let revision = 0
-    const refresh = async () => {
-      const version = ++revision
-      setModel(undefined)
-      const target = await getTerminalDefault('janus').catch(() => null)
-      if (version === revision) setModel(target?.modelId ? { providerId: target.provider.id, modelId: target.modelId } : null)
-    }
-    void refresh()
-    window.addEventListener('janus:llm-config-changed', refresh)
-    return () => { revision++; window.removeEventListener('janus:llm-config-changed', refresh) }
-  }, [open])
   useEffect(() => {
     if (!open || !focused) return
     const frame = requestAnimationFrame(() => editor.current?.focus({ preventScroll: true }))
@@ -107,7 +94,7 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
     })
   }
   const send = (retry = false) => {
-    if (!model || busy) return
+    if (!canAsk || busy) return
     follow.current = true
     askSideChat(owner, model, retry)
     editor.current?.focus()
@@ -143,15 +130,14 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
           {turn.answer && <div data-side-answer=""><MarkdownContent content={turn.answer} variant="conversation" streaming={turn.status === 'streaming'} /></div>}
           {turn.status === 'stopped' && <p className={styles.status} role="status">{t('sideChat.stopped')}</p>}
           {turn.status === 'failed' && <div role="alert" className={styles.error}>{turn.error || t('sideChat.noAnswer')}
-            {turn === last && <button type="button" disabled={!model} onClick={() => send(true)}>{t('sideChat.retry')}</button>}</div>}
+            {turn === last && <button type="button" disabled={!canAsk} onClick={() => send(true)}>{t('sideChat.retry')}</button>}</div>}
           {turn.answer && turn.status !== 'streaming' && <button type="button" className={styles.returnBtn} disabled={!canReturn}
             onMouseDown={e => e.preventDefault()} onClick={e => bringBack(e.currentTarget, turn.answer)}><CornerDownLeft size={13} />{t('sideChat.return')}</button>}
         </article>)}
       </div>
       <footer className={styles.footer}>
         {returnError && <p className={styles.error} role="alert">{t('sideChat.returnError')}</p>}
-        {model === null && <div className={styles.setup} role="status">{t('sideChat.noModel')}
-          <button type="button" onClick={() => window.dispatchEvent(new Event('janusx:open-llm-settings'))}>{t('sideChat.configure')}</button></div>}
+        {!canAsk && <div className={styles.setup} role="status">{t('sideChat.unavailable')}</div>}
         <form className={styles.composer} onSubmit={e => { e.preventDefault(); send() }}>
           {chat.source && <div className={styles.pendingSource}><Source source={chat.source} />
             <button className={styles.icon} type="button" title={t('sideChat.removeSource')} aria-label={t('sideChat.removeSource')} onClick={() => editSideChat(owner, { source: undefined })}><X size={13} /></button></div>}
@@ -160,11 +146,9 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); send() }
             }} />
           <div className={styles.controls}>
-            {model === undefined
-              ? <span className={styles.loadingModel} role="status"><LoaderCircle className={styles.spin} size={12} aria-hidden="true" />{t('sideChat.loadingModel')}</span>
-              : <span title={model?.modelId}>{model?.modelId}</span>}
+            <span title={model}>{model}</span>
             {busy ? <button type="button" className={styles.send} aria-label={t('sideChat.stop')} title={t('sideChat.stop')} onClick={() => stopSideChat(owner)}><Square size={12} fill="currentColor" /></button>
-              : <button type="submit" className={styles.send} aria-label={t('sideChat.send')} title={t('sideChat.send')} disabled={!model || !chat.draft.trim()}><ArrowUp size={16} /></button>}</div>
+              : <button type="submit" className={styles.send} aria-label={t('sideChat.send')} title={t('sideChat.send')} disabled={!canAsk || !chat.draft.trim()}><ArrowUp size={16} /></button>}</div>
         </form>
       </footer>
     </aside>}

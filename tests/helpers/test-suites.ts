@@ -39,6 +39,7 @@ export const integrationTestFiles = [
   'tests/unit/opencode-tabs-cli.test.ts',
   'tests/unit/pi-conversation-cli.test.ts',
   'tests/unit/codex-conversation-cli.test.ts',
+  'tests/unit/native-side-chat-cli.test.ts',
   'tests/unit/codex-context-cli.test.ts',
   'tests/unit/claude-conversation-cli.test.ts',
   'tests/unit/agent-hook-shell.test.ts',

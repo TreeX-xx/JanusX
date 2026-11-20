@@ -7,6 +7,7 @@ export function bridge(execute, setMode = () => {}) {
   const instanceId = randomUUID()
   let sequence = 0, stopped = false, sessionId, timer, busy = false, overflow = false, lastSeen = Date.now()
   const events = [], acks = new Map(), executed = new Set()
+  let sideCommands = Promise.resolve()
   function emit(event) {
     if (stopped) return
     if (event.type === 'session') sessionId = event.sessionId
@@ -29,11 +30,15 @@ export function bridge(execute, setMode = () => {}) {
       for (const command of reply.commands ?? []) {
         if (executed.has(command.id)) continue
         executed.add(command.id)
-        try {
-          if (command.sessionId !== sessionId) throw new Error('Native session changed')
-          const result = await execute(command)
-          acks.set(command.id, { id: command.id, ok: true, result })
-        } catch (error) { acks.set(command.id, { id: command.id, ok: false, error: String(error) }) }
+        const dispatch = async () => {
+          try {
+            if (command.sessionId !== sessionId) throw new Error('Native session changed')
+            const result = await execute(command)
+            acks.set(command.id, { id: command.id, ok: true, result })
+          } catch (error) { acks.set(command.id, { id: command.id, ok: false, error: String(error) }) }
+        }
+        if (String(command.type).startsWith('side-')) sideCommands = sideCommands.then(dispatch)
+        else await dispatch()
         if (executed.size > 2500) { overflow = true; break }
       }
     } catch {

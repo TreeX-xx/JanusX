@@ -1,7 +1,6 @@
 {
   "sideChat": {
     "title": "Side chat",
-    "loadingModel": "Loading side chat model…",
     "waitingReply": "Waiting for reply…",
     "askSelection": "Ask in side chat",
     "close": "Close side chat",
@@ -15,8 +14,7 @@
     "retry": "Retry",
     "noAnswer": "The model returned no text.",
     "stopped": "Response stopped",
-    "noModel": "Choose a JanusX model to ask a side question.",
-    "configure": "Model settings",
+    "unavailable": "The terminal conversation must be ready before you can send a side question.",
     "removeSource": "Remove quote",
     "sources": {
       "turn": "Latest exchange",

@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
 import { readNativeInputHistory } from '../terminal/input-history'
 import { DesktopCodexConversation } from '../terminal/codex-conversation'
+import { openCodexSideChat } from '../terminal/codex-side-chat'
+import { NativeSideChats, validateSideChatCommand } from '../terminal/native-side-chat'
 import { ClaudeConversation } from '../terminal/claude-conversation'
 import { PiConversation, DshConversation } from '../terminal/extension-conversation'
 import { OpenCodeConversation } from '../terminal/opencode-conversation'
@@ -275,6 +277,13 @@ export function createCompanionTerminal(config: TerminalCreateRequest): Promise<
   return companionTerminalCreator(config)
 }
 
+const nativeSideChats = new NativeSideChats()
+
+async function disposeConversation(conversation: ConversationController): Promise<void> {
+  try { await nativeSideChats.dispose(conversation) }
+  finally { await conversation.dispose() }
+}
+
 function sendToRenderer(mainWindow: BrowserWindow | null, channel: string, payload: unknown): void {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
   try {
@@ -356,6 +365,11 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   // Single ingest point for CLI-origin (bridge) and main-process synthetic
   // (sentinel / pty-exit) hook payloads: identical diagnostics + coordinator path.
   function ingestHookPayload(payload: AgentHookPayload): void {
+    const parent = payload.terminalId && conversations.get(payload.terminalId)
+    // The managed OpenCode server reports events for all of its sessions.
+    // Only the TUI-selected session owns this terminal's lifecycle and ledger.
+    if (payload.source === 'opencode' && parent instanceof OpenCodeConversation &&
+      payload.sessionId && payload.sessionId !== parent.state.threadId) return
     hookDiagnostics.record(summarizeHookPayload(payload))
     hookCoordinator.handleHookPayload(payload)
   }
@@ -522,7 +536,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     flushAgentSessions: () => agentSessionRegistry.flush(),
     stopHookBridge: () => hookBridge.stop(),
     disposeTerminalSession: async () => {
-      await Promise.all([...conversations.values()].map(conversation => conversation.dispose()))
+      await Promise.all([...conversations.values()].map(disposeConversation))
       conversations.clear()
       for (const id of [...pendingTerminalData.keys()]) dropPendingTerminalData(id)
       terminalStates.clear()
@@ -842,6 +856,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
               readyRecorded = true
               logTerminalDiagnostic('terminal conversation ready', { id, engine, totalMs: Math.round(performance.now() - launchStartedAt) })
             }
+            void nativeSideChats.reconcile(managed, snapshot.threadId).catch(error => console.error('[terminal] side chat cleanup failed:', error))
             sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.conversation, snapshot)
           },
           (threadId, transcriptPath) => {
@@ -853,8 +868,14 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         conversation = managed
         conversations.set(id, conversation)
         if (config.initialView === 'conversation') await managed.command({ type: 'mode', mode: 'conversation' })
-        const remote = await managed.start({ command: runtimeProgram, args: runtimeArgs, cwd,
-          env: { ...process.env, ...launchEnv }, pathDir: office.pathDir, assetsDir: resolve(app.getPath('userData'), 'janusx', 'conversations') })
+        const managedLaunch = { command: runtimeProgram, args: runtimeArgs, cwd,
+          env: { ...process.env, ...launchEnv }, pathDir: office.pathDir, assetsDir: resolve(app.getPath('userData'), 'janusx', 'conversations') }
+        const remote = await managed.start(managedLaunch)
+        nativeSideChats.bind(managed, (threadId, signal) => managed instanceof DesktopCodexConversation
+          ? openCodexSideChat({ ...managedLaunch,
+            env: Object.fromEntries(Object.entries(managedLaunch.env).filter(([name]) => !name.startsWith('JANUSX_HOOK_'))),
+          }, managed.snapshot(), signal)
+          : managed.openSideChat(threadId, signal))
         runtimeProgram = remote.command; runtimeArgs = remote.args
         if ('env' in remote) Object.assign(launchEnv, remote.env)
       }
@@ -882,7 +903,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         const nativePty = instance.pty
         owned.setNativeInput(text => nativePty.write(text))
         instance.disposeRuntime = () => {
-          const stopped = owned.dispose()
+          const stopped = disposeConversation(owned)
           if (conversations.get(id) === owned) conversations.delete(id)
           return stopped
         }
@@ -899,7 +920,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     } catch (err) {
       turnChangeTracker.unregister(id)
       await baselinePromise?.catch(() => {})
-      await conversation?.dispose()
+      if (conversation) await disposeConversation(conversation)
       if (conversations.get(id) === conversation) conversations.delete(id)
       logTerminalDiagnostic('terminal create failed', {
         id,
@@ -1327,6 +1348,17 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     createTerminalLifecycle(config)
   ))
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversation, (_event, { id }: { id: string }) => conversations.get(id)?.snapshot() ?? null)
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.sideChat, (event, value: unknown) => {
+    const window = getMainWindow()
+    if (event.sender !== window?.webContents || event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid side chat frame')
+    const command = validateSideChatCommand(value)
+    const conversation = conversations.get(command.owner.terminalId)
+    if (!conversation) {
+      if (command.type === 'ask') throw new Error('The parent terminal conversation is unavailable.')
+      return
+    }
+    return nativeSideChats.command(conversation, command, update => sendToRenderer(window, TERMINAL_EVENT_CHANNELS.sideChat, update))
+  })
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationHistory, (event, { id, request }: { id: string; request: ConversationHistoryRequest }) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid history frame')
     const conversation = conversations.get(id)
@@ -1400,7 +1432,8 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       }
     }
     if (!terminalManager.getInstance(id)) {
-      await conversations.get(id)?.dispose()
+      const conversation = conversations.get(id)
+      if (conversation) await disposeConversation(conversation)
       conversations.delete(id)
     }
     dropPendingTerminalData(id)
