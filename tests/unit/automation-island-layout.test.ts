@@ -69,6 +69,14 @@ describe('Island companion lifetime', () => {
     useIslandStore.getState().openChat('Another request')
     expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations', chatRequest: { prefill: 'Another request' } })
   })
+  it('hides the Island on an outside press while keeping the automation connection', () => {
+    useIslandStore.setState({ automationLocked: true })
+    useIslandStore.getState().openChat('', 'automations')
+    useIslandStore.getState().dispatch({ type: 'outside-dismiss' })
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'collapsed', automationLocked: true, companionToolId: 'automations' })
+    useIslandStore.getState().openChat()
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations' })
+  })
   it('keeps chat pinned while memo temporarily owns the companion geometry', () => {
     useIslandStore.setState({ automationLocked: true })
     useIslandStore.getState().openChat('', 'automations')

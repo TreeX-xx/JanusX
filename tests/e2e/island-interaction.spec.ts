@@ -567,8 +567,7 @@ test('delayed single activation calls the latest callback identity', async ({ pa
   await page.getByTestId('open-peek').click()
   await expect(harness(page)).toHaveAttribute('data-stage', 'peek')
   await tap(island)
-  // dispatchEvent 而非真实点击：真实 pointerdown 落在岛外会触发 peek 隐式收起，
-  // 污染本用例要观察的延迟单击仲裁路径。
+  // Zero-detail activation changes the fixture without simulating a press outside the Island.
   await page.getByTestId('replace-single').dispatchEvent('click')
 
   await expect(harness(page)).toHaveAttribute('data-single-count', '1', { timeout: 1_000 })

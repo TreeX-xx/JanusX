@@ -155,3 +155,62 @@ test('native browser yields to preview menus and survives auxiliary collapse in 
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('clicking the HTML preview dismisses Island and the toolbox, then restores preview input', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'janusx-dismiss-preview-'))
+  let app: ElectronApplication | undefined
+  try {
+    const workspacePath = join(root, 'project')
+    const filePath = join(workspacePath, 'preview.html')
+    await mkdir(workspacePath)
+    await writeFile(filePath, '<!doctype html><body style="margin:0;height:100vh"><main>Preview</main></body>')
+    app = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${join(root, 'data')}`], env: createDesktopTestEnv(root) })
+    const main = await app.firstWindow()
+    await main.waitForFunction(() => Boolean(window.electron?.window?.openEditor))
+    await seedIntroducedLearning(main)
+    await main.reload()
+    await main.evaluate(async ({ workspacePath, filePath }) => {
+      await window.electron.workspace.create({ path: workspacePath, name: 'Preview' })
+      await window.electron.window.openEditor({ filePath, workspacePath })
+    }, { workspacePath, filePath })
+    const preview = main.locator('[data-editor-host="embedded"] iframe')
+    const body = preview.contentFrame().locator('body')
+    await expect(body).toHaveText('Preview')
+    await body.evaluate(el => el.addEventListener('pointerdown', () => { el.dataset.pressed = 'true' }))
+    const previewPoint = async (horizontal: number, vertical: number) => {
+      const bounds = (await preview.boundingBox())!
+      return [Math.floor(bounds.x + bounds.width * horizontal), Math.floor(bounds.y + bounds.height * vertical)] as const
+    }
+    // Let the embedded renderer finish attaching before testing either dismissal.
+    await expect(async () => {
+      await main.mouse.click(...await previewPoint(.5, .8))
+      await expect(body).toHaveAttribute('data-pressed', 'true', { timeout: 200 })
+    }).toPass({ timeout: 5000 })
+    await body.evaluate(el => { delete el.dataset.pressed })
+    const toolbox = main.locator('button[data-id="tool-menu"]')
+    const island = main.locator('.janus-island-shell')
+    for (const [trigger, surface, attribute, open, closed] of [
+      [() => toolbox.click(), toolbox, 'aria-expanded', 'true', 'false'],
+      [() => island.locator('.janus-island').dblclick(), island, 'data-stage', 'expanded', 'collapsed'],
+    ] as const) {
+      await trigger()
+      await expect(surface).toHaveAttribute(attribute, open)
+      await expect(preview).toHaveCSS('pointer-events', 'none')
+      const point = await previewPoint(.8, .9)
+      await expect.poll(() => main.evaluate(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('[data-html-preview]')), point)).toBe(true)
+      await main.mouse.click(...point)
+      await expect(surface).toHaveAttribute(attribute, closed)
+      await expect(preview).toHaveCSS('pointer-events', 'auto')
+    }
+    await expect(body).not.toHaveAttribute('data-pressed', 'true')
+    const point = await previewPoint(.5, .8)
+    await main.mouse.move(...point)
+    // Wait for the restored iframe hit region to reach the compositor.
+    await main.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    await main.mouse.click(...point)
+    await expect(body).toHaveAttribute('data-pressed', 'true')
+  } finally {
+    await app?.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})

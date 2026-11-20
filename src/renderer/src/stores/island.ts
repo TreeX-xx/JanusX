@@ -59,9 +59,10 @@ export const useIslandStore = create<IslandStore>()((set) => ({
   })),
   dispatch: (action) => set((current) => {
     const next = reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, action)
-    // The automation panel owns this lock until it closes or another tool takes over.
+    // An outside press closes the surface while the automation panel keeps its chat connection.
+    // Note: .agents/notes/workbench/ideas/automation-platform.md
     const companion = current.companionToolId === 'automations'
-    if (current.automationLocked && current.stage === 'expanded' && next.stage !== 'expanded' && !superAgentOwnsChat()) return current
+    if (current.automationLocked && action.type !== 'outside-dismiss' && current.stage === 'expanded' && next.stage !== 'expanded' && !superAgentOwnsChat()) return current
     return { ...next, ...(next.stage === 'expanded' && current.stage !== 'expanded' ? { openSequence: current.openSequence + 1 } : {}), ...(!companion && next.stage !== 'expanded' ? { companionToolId: null } : {}) }
   }),
 }))

@@ -180,7 +180,9 @@ export function Titlebar() {
   // Note: product discovery and jumps retired — .agents/notes/workbench/unified-file-window.md
   const handleIslandSingleActivate = useCallback(() => dispatchIsland({ type: 'single-activate' }), [dispatchIsland])
   const handleIslandDoubleActivate = useCallback(() => dispatchIsland({ type: 'double-activate' }), [dispatchIsland])
-  const handleIslandDismiss = useCallback(() => dispatchIsland({ type: 'dismiss' }), [dispatchIsland])
+  const handleIslandDismiss = useCallback((reason?: 'outside') => {
+    dispatchIsland({ type: reason === 'outside' ? 'outside-dismiss' : 'dismiss' })
+  }, [dispatchIsland])
 
   const handleChatClearAndInvalidatePeek = useCallback(() => {
     handleChatClear()

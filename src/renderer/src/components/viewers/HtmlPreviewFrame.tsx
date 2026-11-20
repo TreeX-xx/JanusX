@@ -43,6 +43,7 @@ export function HtmlPreviewFrame({ content, workspacePath, documentPath, scripts
     : Number(zoom) / 100
   const frame = <iframe
     key={`${scriptsEnabled}:${reload}`}
+    data-preview-frame=""
     src={url}
     srcDoc={url ? undefined : fallback}
     sandbox={[url ? 'allow-same-origin' : '', scriptsEnabled ? 'allow-scripts allow-forms allow-modals allow-popups' : ''].filter(Boolean).join(' ')}

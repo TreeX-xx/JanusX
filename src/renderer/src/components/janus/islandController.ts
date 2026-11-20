@@ -38,6 +38,7 @@ export type IslandControllerAction =
   | { type: 'double-activate' }
   | { type: 'plugin-peek' }
   | { type: 'dismiss' }
+  | { type: 'outside-dismiss' }
   | { type: 'timeout'; version: number }
   | { type: 'product-notice' }
   | { type: 'product-expire' }
@@ -73,6 +74,7 @@ export function reduceIslandController(
     case 'plugin-peek':
       return { stage: 'peek', knowledge: hideKnowledgePeek(state.knowledge) }
     case 'dismiss':
+    case 'outside-dismiss':
       if (state.stage === 'collapsed') return state
       return { stage: 'collapsed', knowledge: hideKnowledgePeek(state.knowledge) }
     case 'timeout': {

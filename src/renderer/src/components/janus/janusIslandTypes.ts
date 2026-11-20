@@ -13,7 +13,7 @@ export interface JanusIslandProps {
   stage?: JanusIslandStage
   onSingleActivate: () => void
   onDoubleActivate: () => void
-  onDismiss: () => void
+  onDismiss: (reason?: 'outside') => void
   messages: Message[]
   pendingContent: string
   isStreaming: boolean

@@ -39,6 +39,7 @@ import { useAutomationIslandLayout } from '../automations/useAutomationIslandLay
 import { useAutomationsStore, subscribeAutomations, openAutomationRun } from '@/stores/automations'
 import { automationNotification } from './islandNotifications'
 import { useBrowserOcclusionStore } from '@/stores/browser-occlusion'
+import { useOutsidePress } from '@/hooks/useOutsidePress'
 import {
   JanusAuxiliaryIsland,
   type JanusAuxiliaryModuleDescriptor,
@@ -372,26 +373,20 @@ export function JanusIsland({
   useEffect(() => {
     if (stage !== 'collapsed' || notifOpen || trayOpen) silence()
   }, [stage, notifOpen, trayOpen, silence])
+  useOutsidePress(!hostCovered && (notifOpen || trayOpen), target => {
+    const surface = trayOpen ? shellRef.current?.querySelector('.janus-notify-anchor') : shellRef.current
+    return Boolean(surface?.contains(target))
+  }, () => closeNotifications(false))
   useEffect(() => {
     if (!notifOpen && !trayOpen) return
-    const handleOutsideDown = (event: PointerEvent) => {
-      const target = event.target
-      const surface = trayOpen ? shellRef.current?.querySelector('.janus-notify-anchor') : shellRef.current
-      if (target instanceof Node && surface?.contains(target)) return
-      closeNotifications(false)
-    }
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
       event.stopImmediatePropagation()
       closeNotifications()
     }
-    document.addEventListener('pointerdown', handleOutsideDown, true)
     window.addEventListener('keydown', onKey, true)
-    return () => {
-      document.removeEventListener('pointerdown', handleOutsideDown, true)
-      window.removeEventListener('keydown', onKey, true)
-    }
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [notifOpen, trayOpen, closeNotifications])
   useEffect(() => {
     if (stage !== 'collapsed') setNotifOpen(false)
@@ -627,15 +622,13 @@ export function JanusIsland({
   }, [messageCount, stage, view, setView])
 
   // Collapsing does not stop the conversation stream.
+  useOutsidePress(stage !== 'collapsed' && !hostCovered, target => {
+    const targetElement = target instanceof Element ? target : target.parentElement
+    const shell = shellRef.current
+    return !shell || shell.contains(target) || Boolean(targetElement?.closest('[data-select-dropdown], [data-island-companion]'))
+  }, () => onDismiss('outside'))
   useEffect(() => {
     if (stage === 'collapsed') return
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null
-      const targetElement = target instanceof Element ? target : target?.parentElement
-      const shell = shellRef.current
-      if (!shell || !target || shell.contains(target) || targetElement?.closest('[data-select-dropdown], [data-island-companion]')) return
-      onDismiss()
-    }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       if (stage === 'expanded' && trayOpen) {
@@ -644,12 +637,8 @@ export function JanusIsland({
       }
       onDismiss()
     }
-    document.addEventListener('pointerdown', handlePointerDown, true)
     document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onDismiss, stage, trayOpen])
 
   const auxiliaryDescriptor: JanusAuxiliaryModuleDescriptor | null = displayedAuxiliary === 'roundtable-parchment'

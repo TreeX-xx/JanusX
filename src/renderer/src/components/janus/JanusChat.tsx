@@ -50,6 +50,7 @@ import { useMemoStore } from '@/stores/memo'
 import { useIslandStore } from '@/stores/island'
 import nativeScrollbars from '../../styles/native-scrollbars.module.css'
 import { ComposerOptions, ComposerOptionTrigger, composerOptionIndex, type ComposerChoice } from '../ComposerOptions'
+import { useOutsidePress } from '@/hooks/useOutsidePress'
 
 type SelectionMenu = 'provider' | 'model' | 'permission'
 type PermissionOption = { value: AgentApprovalMode; label: string }
@@ -1177,38 +1178,21 @@ export function JanusChat({
     }
   }, [discussionOnly, transcriptOnly, focused, handleMenuKey, openSelectionMenu, selectionMenu, showModelSelector, visible, contextComposer])
 
+  useOutsidePress(visible && threadMenuOpen, target => Boolean(threadSelectorRef.current?.contains(target)), () => setThreadMenuOpen(false))
+  useOutsidePress(visible && selectionMenu !== null, target => {
+    const element = target instanceof Element ? target : target.parentElement
+    return Boolean(selectionMenuRef.current?.contains(target) || element?.closest('[data-selection-trigger]'))
+  }, () => setSelectionMenu(null))
   useEffect(() => {
     if (!threadMenuOpen && !selectionMenu) return
-
-    const closeMenusOutside = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (threadMenuOpen && !threadSelectorRef.current?.contains(target)) {
-        setThreadMenuOpen(false)
-      }
-      if (
-        selectionMenu
-        && !selectionMenuRef.current?.contains(target)
-        && !(target instanceof Element && target.closest('[data-selection-trigger]'))
-      ) {
-        setSelectionMenu(null)
-      }
-    }
     const closeMenusOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       setThreadMenuOpen(false)
       if (selectionMenu && !selectionMenuRef.current?.contains(event.target as Node)) closeSelectionMenu()
     }
 
-    // Let menu items receive their pointer/click sequence before handling
-    // clicks outside the menu. Capture-phase closing can unmount the menu
-    // before the permission option's click handler runs.
-    document.addEventListener('pointerdown', closeMenusOutside)
     document.addEventListener('keydown', closeMenusOnEscape, true)
-    return () => {
-      document.removeEventListener('pointerdown', closeMenusOutside)
-      document.removeEventListener('keydown', closeMenusOnEscape, true)
-    }
+    return () => document.removeEventListener('keydown', closeMenusOnEscape, true)
   }, [selectionMenu, threadMenuOpen, closeSelectionMenu])
 
   // 停止生成

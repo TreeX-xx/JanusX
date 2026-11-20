@@ -52,6 +52,6 @@ export function OfficePreviewFrame({ port, status, errorCode, onRetry, onClose }
   }
   return <div className="relative h-full">
     {status === 'reloading' && <div className="absolute inset-x-0 top-0 z-10 bg-[var(--shell-chrome)] py-1 text-center text-[10px] text-[var(--shell-muted)]">{t('editor:office.reloading')}</div>}
-    <iframe title={t('editor:office.iframeTitle')} className="h-full w-full border-0 bg-white" src={`${src}?janusLanguage=${encodeURIComponent(currentLanguage)}`} sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" />
+    <iframe data-preview-frame="" title={t('editor:office.iframeTitle')} className="h-full w-full border-0 bg-white" src={`${src}?janusLanguage=${encodeURIComponent(currentLanguage)}`} sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" />
   </div>
 }

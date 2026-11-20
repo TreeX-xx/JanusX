@@ -18,6 +18,7 @@ import { installExtensionShortcuts } from '@/extensions/command-shortcuts'
 import { openExtensionView } from '@/extensions/workbench'
 import { getLeafPanes } from '@/lib/workspace-pane'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
+import { useOutsidePress } from '@/hooks/useOutsidePress'
 import { openGlobalTool, resolveGlobalToolOpenState } from '@/lib/global-tool-entry'
 import { useI18n } from '@/i18n/useI18n'
 import { useAppStore } from '@/stores/app'
@@ -57,21 +58,14 @@ export function TitlebarToolGroup() {
 
   const openState = { ...resolveGlobalToolOpenState(paneTree), browser: browserSurfaceId !== null }
 
-  // 展开后点外面或按 Esc 收起（与 ShellCard 的菜单同一套收合规则）。
+  useOutsidePress(menuOpen, target => Boolean(comboRef.current?.contains(target)), () => setMenuOpen(false))
   useEffect(() => {
     if (!menuOpen) return
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!comboRef.current?.contains(event.target as Node)) setMenuOpen(false)
-    }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMenuOpen(false)
     }
-    document.addEventListener('pointerdown', handlePointerDown)
     document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [menuOpen])
 
   // Built-in tools and declared extension launchers share the same opening and reveal semantics.

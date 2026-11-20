@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { findTerminalInState, useWorkspaceStore } from '../stores/workspace'
 import { useTranslation } from 'react-i18next'
+import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
+import { useOutsidePress } from '@/hooks/useOutsidePress'
 import { ArrowUp, Check, ChevronDown, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap } from 'lucide-react'
 import { parseConversationSlashCommand, type ConversationCommand, type ConversationSnapshot, type ConversationSpeedTier } from '../../../shared/conversation-display'
 import styles from './AgentSessionPane.module.css'
@@ -17,7 +19,7 @@ import optionStyles from './ComposerOptions.module.css'
 type Panel = 'commands' | 'model' | 'effort' | 'speed'
 const effortOrder = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
 
-export function AgentComposer({ terminalId, historyScope, workspacePath, references, snapshot, setDraft, inputRef, canSend, hasOutgoing, busy, switching, send, action, changeMode }: {
+export function AgentComposer({ terminalId, historyScope, workspacePath, references, snapshot, visible, setDraft, inputRef, canSend, hasOutgoing, busy, switching, send, action, changeMode }: {
   terminalId: string
   historyScope: string
   workspacePath?: string
@@ -61,6 +63,8 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const [acceptedCommand, setAcceptedCommand] = useState<string | null>(null)
   useEffect(() => { setAcceptedCommand(null) }, [terminalId, snapshot?.threadId])
   const root = useRef<HTMLFormElement>(null)
+  const picker = useRef<HTMLDivElement>(null)
+  const submitButton = useRef<HTMLButtonElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const optionList = useRef<HTMLDivElement>(null)
   const modelButton = useRef<HTMLButtonElement>(null)
@@ -115,8 +119,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const available = snapshot?.connection === 'ready' && !importing && !busy && !switching && !snapshot.settingsUpdating && !snapshot.submitting && !snapshot.questions?.some(request => request.blocking !== false)
   const canConfigure = available && snapshot?.capabilities.settings && !snapshot.modelsLoading && !snapshot.modelsError
     && !(['claude', 'opencode'].includes(snapshot.engine) && (snapshot.turnId || snapshot.approvals.length || snapshot.needsTerminal))
+  const panelTrigger = panel === 'model' ? modelButton : panel === 'effort' ? effortButton : panel === 'speed' ? speedButton : null
   const close = (restore = false) => {
-    if (restore) (panel === 'model' ? modelButton.current : panel === 'effort' ? effortButton.current : panel === 'speed' ? speedButton.current : inputRef.current)?.focus()
+    if (restore) (panelTrigger?.current ?? inputRef.current)?.focus()
     setPanel(null); setDismissed(draft)
   }
   const changeContextOpen = useCallback((value: boolean) => {
@@ -125,12 +130,13 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   }, [draft])
   const open = (next: Panel) => { setContextOpen(false); setPanel(next); setSearch(''); setActive(next === 'effort' ? Math.max(0, efforts.findIndex(option => option.effort === snapshot?.effort)) : 0) }
   useEffect(() => { if (panel === 'effort' || panel === 'speed') optionList.current?.focus(); else if (panel) searchRef.current?.focus() }, [panel])
-  useEffect(() => {
-    if (!currentPanel) return
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) { setPanel(null); setDismissed(draft) } }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [currentPanel, draft])
+  const pickerVisible = visible && currentPanel !== null
+  useBrowserOcclusion(pickerVisible)
+  useOutsidePress(pickerVisible, target => Boolean(
+    picker.current?.contains(target) || panelTrigger?.current?.contains(target)
+    // Apply command needs the highlighted option until the form submits.
+    || commandQuery && submitButton.current?.contains(target)
+  ), close)
   useEffect(() => {
     if (snapshot?.mode !== 'conversation') { setPanel(null); setDismissed(null) }
   }, [snapshot?.mode])
@@ -300,7 +306,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       label={effortFeedback.effort && effortFeedback.effort !== 'default' ? t(`conversation.efforts.${effortFeedback.effort}`, { defaultValue: effortFeedback.effort }) : t('conversation.defaultEffort')}
       status={t('conversation.effortActivated')} />}
     {currentPanel && <ComposerOptions id={listId} kind={currentPanel} title={t(`conversation.picker.${currentPanel}`)} options={choices} active={active} onActiveChange={setActive} onKeyDown={keyboard}
-      maxHeight={pickerHeight} searchRef={searchRef} listRef={optionList} focusList={panel === 'effort' || panel === 'speed'}
+      maxHeight={pickerHeight} containerRef={picker} searchRef={searchRef} listRef={optionList} focusList={panel === 'effort' || panel === 'speed'}
       back={!panel && currentPanel !== 'commands' ? {label:t('conversation.picker.commands'),run:()=>{setDraft('/');inputRef.current?.focus()}} : undefined}
       hint={currentPanel !== 'effort' ? {label:t('conversation.compactCommandKeys'),title:t('conversation.commandKeys')} : undefined}
       search={currentPanel === 'model' || panel === 'commands' ? {value:query,onChange:value=>panel?setSearch(value):setDraft('/model '+value),label:t('conversation.searchOptions'),placeholder:t(groupedModels && currentPanel === 'model'?'conversation.searchModels':'conversation.searchOptions')} : undefined}
@@ -354,7 +360,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
       <div className={styles.composerSubmit} data-composer-submit>
         {showStop && <button className={styles.submit} data-secondary={hasDraft || undefined} type="button" disabled={!available} aria-label={t('conversation.stop')} title={t('conversation.stop')} onClick={() => void action({ type: 'interrupt', controlEpoch: snapshot!.controlEpoch })}><Square size={12} fill="currentColor" aria-hidden="true" /></button>}
-        {(!showStop || hasDraft) && <button className={styles.submit} type="submit" disabled={slash ? unsupportedArguments || !activeChoice || activeChoice.disabled : !canSend || importing || !hasDraft} aria-label={t(slash ? 'conversation.runCommand' : 'conversation.send')} title={t(slash ? 'conversation.runCommand' : 'conversation.send')}><ArrowUp size={18} aria-hidden="true" /></button>}
+        {(!showStop || hasDraft) && <button ref={submitButton} className={styles.submit} type="submit" disabled={slash ? unsupportedArguments || !activeChoice || activeChoice.disabled : !canSend || importing || !hasDraft} aria-label={t(slash ? 'conversation.runCommand' : 'conversation.send')} title={t(slash ? 'conversation.runCommand' : 'conversation.send')}><ArrowUp size={18} aria-hidden="true" /></button>}
       </div>
     </div>
     </>}

@@ -1,0 +1,10 @@
+/* A press can dismiss the floating UI before the titlebar drags again. */
+[data-outside-press] .titlebar-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* An iframe's document cannot bubble to the host. Give this press to the
+   preview container until the floating UI is dismissed. */
+[data-outside-press] iframe[data-preview-frame] {
+  pointer-events: none;
+}
