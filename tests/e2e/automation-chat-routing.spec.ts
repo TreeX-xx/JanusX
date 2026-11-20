@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 test.setTimeout(60_000)
 
 type FixtureWindow = Window & { automationChatFixture: {
-  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; isStreaming: boolean; activeTool: string | null; companionToolId: string | null; superAgentTab: string | null; saveCount: number };
+  state(): { loaded: boolean; resources: string[]; conversationId: string; messages: string[]; isStreaming: boolean; activeTool: string | null; companionToolId: string | null; superAgentTab: string | null; superAgentCollapsed: boolean; saveCount: number };
   selectWorkspace(id: string | null): void; showGit(): void; showAutomations(): void; closeAutomations(): void; draft(): void; queuePreviousRunFocus(): void;
-  enableSuperAgent(): void; send(text: string): void; finish(): void;
+  makeSuperAgentAvailable(): void; enableSuperAgent(): void; hideSuperAgent(): void; closeSuperAgent(): void; send(text: string): void; finish(): void;
   requests: Array<{ workspaceId?: string; workspaceResources: Array<{ workspaceId: string; agentSessionId: string }> }>;
 } }
 const state = (page: Page) => page.evaluate(() => (window as FixtureWindow).automationChatFixture.state())
@@ -57,32 +57,77 @@ for (const width of [1280, 680]) {
   })
 }
 
-for (const superAgent of [false, true]) {
-  test(`opening the automation sidebar connects and locks the eyes with SuperAgent ${superAgent ? 'started' : 'not started'}`, async ({ page }) => {
-    await page.goto('/automation-chat.html')
-    await expect.poll(async () => (await state(page)).loaded).toBe(true)
-    if (superAgent) await page.evaluate(() => (window as FixtureWindow).automationChatFixture.enableSuperAgent())
-    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
-    const panel = page.locator('.automation-panel')
-    const eyes = panel.getByRole('button', { name: 'SuperAgent connected', exact: true })
-    await expect(panel).toBeVisible()
-    await expect(eyes).toHaveAttribute('aria-pressed', 'true')
-    await expect(eyes).toBeDisabled()
-    const initial = await state(page)
-    expect(initial).toMatchObject({ companionToolId: 'automations', saveCount: 0 })
-    if (superAgent) expect(initial.superAgentTab).toBe('superagent')
-    await page.keyboard.press('Escape')
-    await expect(eyes).toHaveAttribute('aria-pressed', 'true')
-    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showGit())
-    await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
-    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
-    await expect(eyes).toBeDisabled()
-    expect(await state(page)).toMatchObject({ conversationId: initial.conversationId, messages: initial.messages, saveCount: 0 })
-    await page.evaluate(() => (window as FixtureWindow).automationChatFixture.closeAutomations())
-    await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
-    if (superAgent) expect((await state(page)).superAgentTab).toBe('superagent')
+test('automations and its eye use Island when the SuperAgent tab is closed', async ({ page }) => {
+  await page.goto('/automation-chat.html')
+  await expect.poll(async () => (await state(page)).loaded).toBe(true)
+  await page.evaluate(() => {
+    const fixture = (window as FixtureWindow).automationChatFixture
+    fixture.makeSuperAgentAvailable()
+    fixture.showAutomations()
   })
-}
+  const panel = page.locator('.automation-panel')
+  const eye = panel.getByRole('button', { name: 'Open Island', exact: true })
+  const island = page.locator('.janus-island-shell')
+  await expect(island).toHaveAttribute('data-stage', 'expanded')
+  const initial = await state(page)
+  expect(initial).toMatchObject({ companionToolId: 'automations', superAgentTab: null, saveCount: 0 })
+  await page.keyboard.press('Escape')
+  await expect(island).toHaveAttribute('data-stage', 'expanded')
+  await page.mouse.click(10, 90)
+  await expect(island).toHaveAttribute('data-stage', 'collapsed')
+  await expect(panel).toHaveAttribute('data-island-linked', 'true')
+  await eye.click()
+  await expect(island).toHaveAttribute('data-stage', 'expanded')
+  await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showGit())
+  await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+  await page.evaluate(() => (window as FixtureWindow).automationChatFixture.showAutomations())
+  await expect(eye).toBeEnabled()
+  expect(await state(page)).toMatchObject({ conversationId: initial.conversationId, messages: initial.messages, superAgentTab: null, saveCount: 0 })
+  await page.evaluate(() => (window as FixtureWindow).automationChatFixture.closeAutomations())
+  await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+})
+
+test('only the eye reveals an existing SuperAgent tab and manual closure survives reload', async ({ page }) => {
+  await page.goto('/automation-chat.html')
+  await expect.poll(async () => (await state(page)).loaded).toBe(true)
+  await page.evaluate(() => {
+    const fixture = (window as FixtureWindow).automationChatFixture
+    fixture.enableSuperAgent()
+    fixture.hideSuperAgent()
+    fixture.showAutomations()
+  })
+  const panel = page.locator('.automation-panel')
+  const eye = panel.getByRole('button', { name: 'Super Agent', exact: true })
+  const island = page.locator('.janus-island-shell')
+  await expect.poll(async () => (await state(page)).companionToolId).toBe('automations')
+  expect(await state(page)).toMatchObject({ superAgentTab: 'superagent', superAgentCollapsed: true, saveCount: 0 })
+  await eye.click()
+  expect(await state(page)).toMatchObject({ superAgentTab: 'superagent', superAgentCollapsed: false })
+  await expect(island).toHaveAttribute('data-stage', 'collapsed')
+  await page.evaluate(() => (window as FixtureWindow).automationChatFixture.closeAutomations())
+  await expect.poll(async () => (await state(page)).companionToolId).toBeNull()
+  expect((await state(page)).superAgentTab).toBe('superagent')
+
+  await page.evaluate(() => {
+    const fixture = (window as FixtureWindow).automationChatFixture
+    fixture.showAutomations()
+    fixture.closeSuperAgent()
+  })
+  await expect(island).toHaveAttribute('data-stage', 'expanded')
+  await expect(panel.getByRole('button', { name: 'Open Island', exact: true })).toBeEnabled()
+  expect((await state(page)).superAgentTab).toBeNull()
+
+  await page.reload()
+  await expect.poll(async () => (await state(page)).loaded).toBe(true)
+  await page.evaluate(() => {
+    const fixture = (window as FixtureWindow).automationChatFixture
+    fixture.makeSuperAgentAvailable()
+    fixture.showAutomations()
+  })
+  await panel.getByRole('button', { name: 'Open Island', exact: true }).click()
+  await expect(island).toHaveAttribute('data-stage', 'expanded')
+  expect(await state(page)).toMatchObject({ superAgentTab: null, saveCount: 0 })
+})
 
 test('ordinary chat stays in place and a returned automation draft activates the panel', async ({ page }) => {
   await open(page)
@@ -113,9 +158,10 @@ test('SuperAgent fixes each message and its tool scope to the selected workspace
   await open(page)
   const initial = await state(page)
   expect(initial.resources).toEqual(['workspace-1'])
+  await page.evaluate(() => (window as FixtureWindow).automationChatFixture.enableSuperAgent())
+  await expect(page.locator('.janus-island-shell')).toHaveAttribute('data-stage', 'collapsed')
   await page.evaluate(() => {
     const fixture = (window as FixtureWindow).automationChatFixture
-    fixture.enableSuperAgent()
     fixture.selectWorkspace('workspace-2')
     fixture.send('Review this project')
     // Switch before the asynchronous agent session has finished opening.

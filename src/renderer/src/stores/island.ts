@@ -1,6 +1,6 @@
 import { superAgentOwnsChat } from '@/lib/superagent-plugin'
 import { create } from 'zustand'
-import { openSuperAgent } from '@/lib/superagent-navigation'
+import { revealSuperAgent } from '@/lib/superagent-navigation'
 let chatSequence = 0
 import {
   INITIAL_ISLAND_CONTROLLER_STATE,
@@ -36,16 +36,15 @@ export const useIslandStore = create<IslandStore>()((set) => ({
   releaseCompanion: () => set({ companionToolId: null }),
   chatRequest: null,
   openChat: (prefill = '', companionToolId) => {
-    if (superAgentOwnsChat()) {
-      openSuperAgent()
+    if (revealSuperAgent()) {
       set(current => ({ chatRequest: { prefill, sequence: ++chatSequence }, companionToolId: companionToolId ?? current.companionToolId }))
       return
     }
     set(current => ({
-    openSequence: current.openSequence + 1,
-    ...(current.stage === 'expanded' ? {} : reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, { type: 'double-activate' })),
-    chatRequest: { prefill, sequence: ++chatSequence },
-    companionToolId: companionToolId ?? current.companionToolId,
+      openSequence: current.openSequence + 1,
+      ...(current.stage === 'expanded' ? {} : reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, { type: 'double-activate' })),
+      chatRequest: { prefill, sequence: ++chatSequence },
+      companionToolId: companionToolId ?? current.companionToolId,
     }))
   },
   consumeChat: sequence => set(current => current.chatRequest?.sequence === sequence ? { chatRequest: null } : {}),

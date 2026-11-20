@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/app'
 import { useGlobalToolsStore } from '@/stores/global-tools'
 import { useIslandStore } from '@/stores/island'
 import { useSuperAgentUIStore } from '@/stores/superagent-ui'
+import { findPaneContent } from './workspace-pane'
 
 /** Both launchers reveal one global pane and reuse the existing Janus controller. */
 export function openSuperAgent() {
@@ -12,6 +13,23 @@ export function openSuperAgent() {
   const tools = useGlobalToolsStore.getState()
   if (!tools.paneTree) tools.setProjectRatio(.34)
   tools.openContent({ type: 'superagent', id: 'superagent' })
+  prepareJanusContext()
+}
+
+export function revealSuperAgent(): boolean {
+  if (!isSuperAgentEnabled()) return false
+  const tools = useGlobalToolsStore.getState()
+  const { paneId } = findPaneContent(tools.paneTree, 'superagent')
+  if (!paneId) return false
+
+  useAppStore.getState().setActiveWorkbench(null)
+  tools.setCollapsed(false)
+  tools.setPaneTab(paneId, 'superagent')
+  prepareJanusContext()
+  return true
+}
+
+function prepareJanusContext() {
   useIslandStore.getState().dispatch({ type: 'dismiss' })
   // Reuse the ordinary Janus opening-context path without opening the Island chat.
   useIslandStore.setState(current => ({ openSequence: current.openSequence + 1 }))

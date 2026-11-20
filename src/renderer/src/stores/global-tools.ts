@@ -1,6 +1,7 @@
 // Note: .agents/notes/workbench/global-tool-layout.md — global content has its own layout and lifetime.
 import { create } from 'zustand'
 import { useAuxiliaryPanelsStore } from './auxiliary-panels'
+import { useSuperAgentUIStore } from './superagent-ui'
 import {
   activatePaneTab, addPaneContentToTree, closePaneTab, collapsePaneTree,
   createBrowserPaneContent, createMarkdownPaneContent, findLeafPane, findPaneContent,
@@ -36,7 +37,7 @@ interface GlobalToolsStore {
   setFocused: (focused: boolean) => void
   setFocusedPane: (paneId: string) => void
   setPaneTab: (paneId: string, tabId: string) => void
-  closePaneTab: (paneId: string, tabId: string) => void
+  closePaneTab: (paneId: string, tabId: string, reason?: 'unavailable') => void
   collapsePaneLayout: () => void
   resizePane: (id: string, ratio: number) => void
   reorderPaneTab: (paneId: string, tabId: string, index: number) => void
@@ -117,8 +118,11 @@ export const useGlobalToolsStore = create<GlobalToolsStore>((set, get) => ({
     set({ ...treeState(activatePaneTab(get().paneTree, paneId, tabId), paneId, tabId), focused: true })
   },
   // Detaching the browser pane for pop-out deliberately retains its singleton identity.
-  closePaneTab: (paneId, tabId) => {
-    const paneTree = closePaneTab(get().paneTree, paneId, tabId)
+  closePaneTab: (paneId, tabId, reason) => {
+    const currentTree = get().paneTree
+    const tab = findLeafPane(currentTree, paneId)?.tabs.find(tab => tab.id === tabId)
+    if (tab?.type === 'superagent' && reason !== 'unavailable') useSuperAgentUIStore.getState().rememberTabClosed()
+    const paneTree = closePaneTab(currentTree, paneId, tabId)
     set({ ...treeState(paneTree, paneId, null), ...(!paneTree ? { focused: false } : {}) })
   },
   collapsePaneLayout: () => {

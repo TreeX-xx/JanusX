@@ -34,7 +34,12 @@ export function openAutomationRun(run: Pick<AutomationRun, 'definitionId' | 'id'
 export function activateAutomationCompanion(): void {
   useRightToolStore.getState().openTool('automations')
   const island = useIslandStore.getState()
-  if (island.companionToolId !== 'automations' || (!superAgentOwnsChat() && island.stage !== 'expanded')) island.openChat('', 'automations')
+  // Note: .agents/notes/workbench/ideas/automation-platform.md
+  if (superAgentOwnsChat()) {
+    if (island.companionToolId !== 'automations') useIslandStore.setState({ companionToolId: 'automations' })
+    return
+  }
+  if (island.companionToolId !== 'automations' || island.stage !== 'expanded') island.openChat('', 'automations')
 }
 export function subscribeAutomations(): () => void {
   const api = window.electron.automations

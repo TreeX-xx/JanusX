@@ -75,7 +75,7 @@ test('deleting the whole card removes its notification and rejects late completi
   await reader(page).getByRole('button', { name: 'View task', exact: true }).click()
   const card = page.locator('.automation-card').filter({ has: page.getByRole('button', { name: 'Phone reminder', exact: true }) })
   await expect(card.locator('.automation-report')).toContainText('Check your phone')
-  await expect(page.locator('.automation-panel').getByRole('button', { name: 'SuperAgent connected', exact: true })).toBeDisabled()
+  await expect(page.locator('.automation-panel').getByRole('button', { name: 'Open Island', exact: true })).toBeEnabled()
   await expect(shell(page)).toHaveAttribute('data-stage', 'expanded')
   await card.getByRole('button', { name: 'Delete card', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()

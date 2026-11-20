@@ -14,6 +14,7 @@ import { useIslandStore } from '../../../src/renderer/src/stores/island'
 import { usePluginSnapshot } from '../../../src/renderer/src/extensions/plugin-snapshot'
 import { openSuperAgent } from '../../../src/renderer/src/lib/superagent-navigation'
 import { useGlobalToolsStore } from '../../../src/renderer/src/stores/global-tools'
+import { findPaneContent } from '../../../src/renderer/src/lib/workspace-pane'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
 import { dailyReviewTemplate, reminderTemplate, type AutomationCard, type AutomationRun, type AutomationDefinition, type AutomationDraft, type AutomationsAPI } from '../../../src/shared/automations'
@@ -94,6 +95,13 @@ const api: AutomationsAPI = {
   onDraft: callback => { drafts.add(callback); return () => { drafts.delete(callback) } },
 }
 window.electron.automations = api
+function makeSuperAgentAvailable() {
+  usePluginSnapshot.setState({ plugins: [{
+    manifest: parsePluginManifest(JSON.stringify(superAgentManifest)), source: { kind: 'official', directory: 'fixture' },
+    enabled: true, state: 'active', projects: [], projectScope: 'all', failures: 0, digest: 'fixture',
+  }] })
+}
+
 Object.assign(window, { automationChatFixture: {
   requests,
   notify: (id: string, definitionId = 'phone', message = 'Check your phone', state: AutomationRun['state'] = 'succeeded') => {
@@ -111,14 +119,20 @@ Object.assign(window, { automationChatFixture: {
   focus: () => useRightToolStore.getState().focusRequest,
   state: () => ({ loaded, resources: controller?.resourceController?.resources.map(resource => resource.workspaceId), conversationId: controller?.conversationId,
     messages: controller?.messages.map(message => message.content), isStreaming: controller?.isStreaming, activeTool: useRightToolStore.getState().activeToolId,
-    companionToolId: useIslandStore.getState().companionToolId, superAgentTab: useGlobalToolsStore.getState().focusedTabId, saveCount }),
+    companionToolId: useIslandStore.getState().companionToolId,
+    superAgentTab: findPaneContent(useGlobalToolsStore.getState().paneTree, 'superagent').tabId,
+    superAgentCollapsed: useGlobalToolsStore.getState().collapsed, saveCount }),
   selectWorkspace: (id: string | null) => useWorkspaceStore.setState({ activeWorkspaceId: id }),
+  makeSuperAgentAvailable,
   enableSuperAgent: () => {
-    usePluginSnapshot.setState({ plugins: [{
-      manifest: parsePluginManifest(JSON.stringify(superAgentManifest)), source: { kind: 'official', directory: 'fixture' },
-      enabled: true, state: 'active', projects: [], projectScope: 'all', failures: 0, digest: 'fixture',
-    }] })
+    makeSuperAgentAvailable()
     openSuperAgent()
+  },
+  hideSuperAgent: () => useGlobalToolsStore.getState().setCollapsed(true),
+  closeSuperAgent: () => {
+    const tools = useGlobalToolsStore.getState()
+    const { paneId } = findPaneContent(tools.paneTree, 'superagent')
+    if (paneId) tools.closePaneTab(paneId, 'superagent')
   },
   showGit: () => useRightToolStore.getState().openTool('git'),
   showAutomations: () => useRightToolStore.getState().openTool('automations'),
@@ -147,7 +161,8 @@ function Harness() {
     </main>
     <div className="janus-island-cluster" style={{ zIndex: 2000 }}>
       <JanusIsland stage={stage} onSingleActivate={() => useIslandStore.getState().dispatch({ type: 'single-activate' })}
-        onDoubleActivate={() => useIslandStore.getState().dispatch({ type: 'double-activate' })} onDismiss={() => useIslandStore.getState().dispatch({ type: 'dismiss' })}
+        onDoubleActivate={() => useIslandStore.getState().dispatch({ type: 'double-activate' })}
+        onDismiss={reason => useIslandStore.getState().dispatch({ type: reason === 'outside' ? 'outside-dismiss' : 'dismiss' })}
         messages={controller.messages} pendingContent={controller.pendingContent} isStreaming={controller.isStreaming} error={controller.error}
         modelOptions={controller.modelOptions} activeModel={controller.activeModel} modelNotice={controller.modelNotice}
         onChatSelectModel={controller.selectModel} onChatSend={controller.send} onChatRewrite={controller.rewrite} onChatStop={controller.stop} onChatRetry={controller.retry} onChatClear={controller.clear}

@@ -1,4 +1,4 @@
-import { useSuperAgentEnabled } from '@/lib/superagent-plugin'
+import { superAgentOwnsChat, useSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { useEffect } from 'react'
 import { useSuperAgentAvailability } from './useSuperAgentAvailability'
 import i18n from '@/i18n'
@@ -16,12 +16,12 @@ export function useSuperAgentNotices() {
   const available = useSuperAgentAvailability(undefined, optedIn && enabled)
   useEffect(() => {
     if (enabled) {
-      if (useSuperAgentUIStore.getState().started) openSuperAgent()
+      if (useSuperAgentUIStore.getState().restoreTab && !superAgentOwnsChat()) openSuperAgent()
       return
     }
     const tools = useGlobalToolsStore.getState()
     for (const pane of getLeafPanes(tools.paneTree)) {
-      for (const tab of pane.tabs) if (tab.type === 'superagent') tools.closePaneTab(pane.id, tab.id)
+      for (const tab of pane.tabs) if (tab.type === 'superagent') tools.closePaneTab(pane.id, tab.id, 'unavailable')
     }
   }, [enabled])
   useEffect(() => {

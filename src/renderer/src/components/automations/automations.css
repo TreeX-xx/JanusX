@@ -30,10 +30,8 @@
 .automation-panel .automation-text-button:hover:not(:disabled), .automation-panel .automation-icon-button:hover:not(:disabled) { color: var(--shell-text); border-color: transparent; }
 .automation-header-actions { display: flex; align-items: center; gap: 6px; }
 .automation-panel .automation-island-control { width: 28px; min-height: 26px; padding: 4px; border-color: transparent; color: var(--shell-muted); background: transparent; }
-.automation-panel .automation-island-control[aria-pressed='true'],
-.automation-panel .automation-island-control[aria-pressed='true']:hover:not(:disabled) { color: var(--shell-canvas); border-color: transparent; background: var(--shell-text); }
+.automation-panel[data-island-linked='true'] .automation-island-control { color: var(--shell-canvas); background: var(--shell-text); }
 .automation-panel .automation-island-control:focus-visible { outline: 1px solid var(--shell-muted); }
-.automation-panel .automation-island-control:disabled { opacity: 1; }
 .automation-island-eyes .janus-eye-mini { width: 4px; height: 7px; border-radius: 1px; background: currentColor; box-shadow: none; animation: none; }
 .automation-panel[data-island-linked='true'] { border-radius: 8px; box-shadow: 0 6px 18px color-mix(in srgb, var(--dialog-shadow) 40%, transparent); }
 .automation-panel[data-island-linked='true']::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; border: 1px solid color-mix(in srgb, var(--shell-text) 28%, transparent); border-radius: 8px; box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--shell-text) 4%, transparent); }

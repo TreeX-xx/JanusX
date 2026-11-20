@@ -13,7 +13,7 @@ afterEach(() => {
   useIslandStore.setState({ automationLocked: false })
   useIslandStore.getState().releaseCompanion()
   useIslandStore.getState().dispatch({ type: 'dismiss' })
-  useSuperAgentUIStore.setState({ started: false })
+  useSuperAgentUIStore.setState({ started: false, restoreTab: false })
   useGlobalToolsStore.setState({ paneTree: null, focusedPaneId: null, focusedTabId: null, focused: false, collapsed: false })
 })
 
@@ -103,6 +103,7 @@ describe('Island companion lifetime', () => {
 
     const tools = useGlobalToolsStore.getState()
     tools.closePaneTab(tools.focusedPaneId!, 'superagent')
+    expect(useSuperAgentUIStore.getState()).toMatchObject({ started: true, restoreTab: false })
     useIslandStore.getState().openChat('', 'automations')
     expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations' })
     expect(useGlobalToolsStore.getState().paneTree).toBeNull()
