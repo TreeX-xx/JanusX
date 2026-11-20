@@ -1,7 +1,7 @@
 import { InputGroup } from '@janusx/ui'
 import { Button as SettingsButton, Input as SettingsInput, SettingsFooter, Textarea as SettingsTextarea } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Eye, EyeOff, LogIn, Network, Plug, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { ProviderSettings } from '@janusx/llm-core'
 import { useI18n } from '@/i18n/useI18n'
@@ -132,6 +132,9 @@ export function CliSyncSection() {
     {error ? <><p role="alert">{error}</p><SettingsButton className={styles.button} onClick={() => void act(load)}>{c('retry')}</SettingsButton></> : <p>{c('loading')}</p>}
   </section>
   const providers = Object.values(config.providers)
+  const searchTerm = query.trim().toLowerCase()
+  const matchingProviders = providers.filter(provider =>
+    [provider.name, ...channelModels(provider)].join(' ').toLowerCase().includes(searchTerm))
   const selected = drafts[active] || config.bindings[active]
   const selectedProvider = selected.providerId ? config.providers[selected.providerId] : undefined
   const usersOf = (id: string) => LLM_CONSUMERS.filter(consumer => config.bindings[consumer].providerId === id)
@@ -220,9 +223,12 @@ export function CliSyncSection() {
           <div className={styles.toolbar}><SettingsInput aria-label={c('search')} placeholder={c('search')} value={query} onChange={event => setQuery(event.target.value)} />
             <SettingsButton variant="primary" type="button" className={styles.primary} disabled={busy} onClick={() => { setNotice(''); setError(''); setEditing({ id: crypto.randomUUID(), name: 'OpenAI', authType: authTypeForProtocol('responses'), baseURL: 'https://api.openai.com/v1', models: [], extra: { presetId: 'openai', protocol: 'responses' } }) }}><Plus size={14} />{c('addChannel')}</SettingsButton>
           </div>
-          {!providers.length && <div className={styles.empty}><h4>{c('emptyTitle')}</h4><p>{c('emptyDescription')}</p></div>}
           <div className={styles.channelList}>
-            {providers.filter(provider => (provider.name + ' ' + channelModels(provider).join(' ')).toLowerCase().includes(query.toLowerCase())).map(provider => {
+            {!matchingProviders.length && <div className={styles.empty} role="status">
+              <h4>{c(providers.length ? 'noMatchingChannels' : 'emptyTitle')}</h4>
+              <p>{c(providers.length ? 'channelSearchHint' : 'emptyDescription')}</p>
+            </div>}
+            {matchingProviders.map(provider => {
               const users = usersOf(provider.id)
               return <div key={provider.id} className={styles.channelRow}>
                 <div className={styles.channelInfo}><div className={styles.channelTitle}><strong>{provider.name}</strong>{official(provider) && <span className={styles.badge}>{c('official')}</span>}{provider.enabled === false && <span className={styles.pending}>{c('disabled')}</span>}</div>
@@ -257,11 +263,12 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
   const [models, setModels] = useState(channelModels(initial).join('\n'))
   const [visible, setVisible] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState('')
+  const [result, setResult] = useState<{ field: 'models' | 'connection'; text: string } | null>(null)
+  const modelsHintId = useId()
   const [discovering, setDiscovering] = useState(false)
   const protocol = channelProtocol(draft)
   const modelIds = [...new Set(models.split(/[\n,]/).map(model => model.trim()).filter(Boolean))]
-  const update = (patch: Partial<ProviderSettings>) => { setDraft(previous => ({ ...previous, ...patch })); setError(''); setResult('') }
+  const update = (patch: Partial<ProviderSettings>) => { setDraft(previous => ({ ...previous, ...patch })); setError(''); setResult(null) }
   const vertex = (patch: Record<string, unknown>) => update({ vertexAI: { ...draft.vertexAI, ...patch } as ProviderSettings['vertexAI'] })
   const choosePreset = (value: string) => {
     if (value === draft.extra?.presetId) return
@@ -274,21 +281,24 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
       extra: { ...previous.extra, presetId: value, protocol: preset.protocol },
     }))
     setModels('')
-    setError(''); setResult('')
+    setError(''); setResult(null)
   }
   const discover = async () => {
-    setDiscovering(true); setError(''); setResult('')
+    setDiscovering(true); setError(''); setResult(null)
     try {
       const found = await window.electron.llm.discoverModels(draft)
-      if (!found.length) throw new Error(c('modelsEmpty'))
+      if (!found.length) {
+        setResult({ field: 'models', text: c('modelsEmpty') })
+        return
+      }
       const current = new Set(modelIds)
       found.forEach(id => current.add(id))
       setModels([...current].join('\n'))
-      setResult(t('llm:configuration.modelsFound', { count: found.length }))
+      setResult({ field: 'models', text: t('llm:configuration.modelsFound', { count: found.length }) })
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) } finally { setDiscovering(false) }
   }
   const saveOrTest = async (test: boolean) => {
-    setBusy(true); setError(''); setResult('')
+    setBusy(true); setError(''); setResult(null)
     const defaultModel = modelIds.includes(draft.defaultModelId || '') ? draft.defaultModelId! : modelIds[0] || ''
     const provider = { ...draft, name: draft.name.trim(), baseURL: draft.baseURL?.trim(), apiKey: draft.authType === 'none' ? undefined : draft.apiKey, models: modelIds, modelId: defaultModel, defaultModelId: defaultModel }
     try {
@@ -298,7 +308,7 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
       if (test) {
         const response = await window.electron.llm.testConnection({ ...provider, testModel: defaultModel })
         if (!response.success) throw new Error(response.error || c('testFailed'))
-        setResult(t('llm:configuration.testSuccess', { latency: response.latency || 0 }))
+        setResult({ field: 'connection', text: t('llm:configuration.testSuccess', { latency: response.latency || 0 }) })
       } else {
         const response = await window.electron.llm.saveProvider(provider)
         if (!response.success) throw new Error(response.error || c('saveFailed'))
@@ -310,7 +320,7 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
     <SettingsButton variant="ghost" type="button" className={styles.link} disabled={busy} onClick={onCancel}><ArrowLeft size={14} />{c('back')}</SettingsButton>
     <div className={styles.panelHeading}><h4>{initial.name ? c('editChannel') : c('addChannel')}</h4></div>
     {error && <p className={styles.error} role="alert">{error}</p>}
-    {result && <p className={styles.notice} role="status">{result}</p>}
+    {result?.field === 'connection' && <p className={styles.notice} role="status">{result.text}</p>}
     <div className={styles.fields}>
       <div className={styles.field + ' ' + styles.full}><span>{c('preset')}</span>
         <div className={styles.presetGrid} role="group" aria-label={c('preset')}>
@@ -340,7 +350,9 @@ function ChannelEditor({ initial, busy, setBusy, onCancel, onSaved }: {
         </div></details>
       </>}
       <div className={styles.field + ' ' + styles.full}><div className={styles.fieldHeader}><span>{c('models')}</span>{protocol !== 'vertex' && <SettingsButton variant="ghost" type="button" className={styles.link} disabled={busy || discovering} onClick={() => void discover()}><RefreshCw size={13} className={discovering ? styles.spinning : undefined} />{discovering ? c('modelsLoading') : c('fetchModels')}</SettingsButton>}</div>
-        <SettingsTextarea aria-label={c('models')} required rows={3} disabled={busy || discovering} value={models} placeholder={c('modelsPlaceholder')} onChange={event => { setModels(event.target.value); setResult(''); setError('') }} /><small>{c('modelsHint')}</small></div>
+        <SettingsTextarea aria-label={c('models')} aria-describedby={modelsHintId} required rows={3} disabled={busy || discovering} value={models} placeholder={c('modelsPlaceholder')} onChange={event => { setModels(event.target.value); setResult(null); setError('') }} />
+        <small id={modelsHintId} aria-live="polite">{result?.field === 'models' ? result.text : c('modelsHint')}</small>
+      </div>
       {modelIds.length > 1 && <label className={styles.field + ' ' + styles.full}><span>{c('defaultModel')}</span><Select ariaLabel={c('defaultModel')} disabled={busy} value={modelIds.includes(draft.defaultModelId || '') ? draft.defaultModelId! : modelIds[0]} options={modelIds.map(id => ({ value: id, label: id }))} onChange={value => update({ defaultModelId: value })} /></label>}
       <details className={styles.full}><summary>{c('advanced')}</summary><div className={styles.fields}>
         <label className={styles.field + ' ' + styles.full}><span>{c('protocol')}</span><Select ariaLabel={c('protocol')} disabled={busy} value={protocol} options={Object.entries(PROTOCOL_NAMES).map(([value, label]) => ({ value, label }))} onChange={value => update({

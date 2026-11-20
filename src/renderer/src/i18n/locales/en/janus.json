@@ -393,6 +393,8 @@
       "tagLabel": "Model:",
       "menuShortcutTitle": "Ctrl+P open model menu",
       "providersHeading": "Providers",
+      "noProviders": "No providers available",
+      "noMatchingProviders": "No matching providers",
       "modelsHeading": "Models",
       "menuNavHint": "↑ ↓ ← → · Enter",
       "noConfigured": "No configured {{kind}}",

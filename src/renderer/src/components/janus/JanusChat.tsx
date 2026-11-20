@@ -621,7 +621,8 @@ export function JanusChat({
     { value: 'plan', label: t('janus:chat.permission.plan') },
   ], [t])
   const menuProviders = [...new Map(activeProviderModels.map(option => [option.providerId, {id:option.providerId,name:option.providerName}])).values()]
-  const menuOptions = (selectionMenu === 'provider' ? providerOptions : activeProviderModels).filter(option =>
+  const unfilteredMenuOptions = selectionMenu === 'provider' ? providerOptions : activeProviderModels
+  const menuOptions = unfilteredMenuOptions.filter(option =>
     (!contextComposer || selectionMenu !== 'model' || !menuProvider || option.providerId === menuProvider)
     && `${option.modelId} ${option.providerName}`.toLowerCase().includes(menuSearch.toLowerCase()))
   const workspaceNames = new Map((resourceController?.resources ?? []).map((resource) => [resource.workspaceId, resource.workspaceName]))
@@ -980,7 +981,9 @@ export function JanusChat({
 
   const composerChoices: ComposerChoice[] = selectionMenu === 'permission'
     ? permissionOptions.map(option => ({id:option.value,label:option.label,description:'',selected:activeApprovalMode===option.value,run:()=>selectMenuOption(option)}))
-    : menuOptions.map(option => ({id:JSON.stringify([option.providerId,option.modelId]),label:option.modelId,description:contextComposer?'':option.providerName,
+    : menuOptions.map(option => ({id:JSON.stringify([option.providerId,option.modelId]),
+      label: selectionMenu === 'provider' ? option.providerName : option.modelId,
+      description: selectionMenu === 'provider' ? option.modelId : contextComposer ? '' : option.providerName,
       provider:contextComposer && selectionMenu==='model'?{id:option.providerId,name:option.providerName}:undefined,
       selected:activeModel?.providerId===option.providerId && (selectionMenu==='provider'||activeModel.modelId===option.modelId),run:()=>selectMenuOption(option)}))
 
@@ -1881,7 +1884,7 @@ export function JanusChat({
               {showModelSelector && <button
                 type="button"
                 data-selection-trigger="provider"
-                aria-label={t('janus:chat.selectionMenu.aria', { kind: 'provider' })}
+                aria-label={t('janus:chat.selectionMenu.aria', { kind: t('terminal:conversation.modelProvider') })}
                 onPointerDown={(event) => handleSelectionTriggerPointerDown(event, 'provider')}
                 onClick={() => openSelectionMenu('provider')}
               >
@@ -1890,7 +1893,7 @@ export function JanusChat({
               {showModelSelector && !conversationStyle && <button
                 type="button"
                 data-selection-trigger="model"
-                aria-label={t('janus:chat.selectionMenu.aria', { kind: 'model' })}
+                aria-label={t('janus:chat.selectionMenu.aria', { kind: t('terminal:conversation.picker.model') })}
                 onPointerDown={(event) => handleSelectionTriggerPointerDown(event, 'model')}
                 onClick={() => openSelectionMenu('model')}
               >
@@ -1930,11 +1933,12 @@ export function JanusChat({
               if(handleMenuKey(event.key)){event.preventDefault();event.stopPropagation()}
             }}
             search={selectionMenu !== 'permission'?{value:menuSearch,onChange:value=>{setMenuSearch(value);setMenuIndex(0)},label:t('terminal:conversation.searchOptions')}:undefined}
-            providers={contextComposer && selectionMenu==='model'?{label:t('terminal:conversation.modelProvider'),allLabel:t('terminal:conversation.allProviders'),value:menuProvider,options:menuProviders,onChange:value=>{setMenuProvider(value);setMenuIndex(0)}}:undefined}
+            providers={contextComposer && selectionMenu==='model' && menuProviders.length > 0?{label:t('terminal:conversation.modelProvider'),allLabel:t('terminal:conversation.allProviders'),value:menuProvider,options:menuProviders,onChange:value=>{setMenuProvider(value);setMenuIndex(0)}}:undefined}
+            emptyMessage={selectionMenu === 'provider'
+              ? t(unfilteredMenuOptions.length ? 'janus:chat.model.noMatchingProviders' : 'janus:chat.model.noProviders')
+              : t(unfilteredMenuOptions.length ? 'model:empty.noResultsTitle' : 'model:empty.emptyTitle')}
             hint={{label:t('terminal:conversation.compactCommandKeys'),title:t('terminal:conversation.commandKeys')}}
-            footer={selectionMenu!=='permission'&&<span title={t('terminal:conversation.nextTurnSettings')}>{t('terminal:conversation.nextTurnShort')}</span>}>
-            {!composerChoices.length && <p role="status">{t('terminal:conversation.noOptions')}</p>}
-          </ComposerOptions>}
+            footer={selectionMenu!=='permission'&&<span title={t('terminal:conversation.nextTurnSettings')}>{t('terminal:conversation.nextTurnShort')}</span>} />}
           </div>
         }
       </div>

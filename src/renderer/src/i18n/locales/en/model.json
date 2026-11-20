@@ -29,9 +29,9 @@
   },
   "empty": {
     "noResultsTitle": "No matching models",
-    "noResultsHint": "Try a model name or complete ID",
+    "noResultsHint": "Try a different model name or ID.",
     "emptyTitle": "No models available",
-    "emptyHint": "Use Update catalog to retry the latest snapshot"
+    "emptyHint": "Select Update catalog to fetch models."
   },
   "model": {
     "contextUnknown": "Context unknown",

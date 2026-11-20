@@ -32,6 +32,8 @@ for (const theme of ['dark', 'light']) test(`${theme}: OpenCode groups native pr
   await expect(search).toBeFocused()
   await expect(picker.locator('[role=option]')).toHaveCount(2)
   await search.fill('not-found')
+  await expect(picker.getByRole('status')).toHaveText('No matching models')
+  await expect(picker.getByRole('status')).toHaveCSS('font-size', '12px')
   await expect(picker.locator('[role=option]')).toHaveCount(0)
   await search.press('Enter')
   expect(await page.evaluate(() => (window as any).codexFixture.calls.settings)).toEqual([])

@@ -26,6 +26,8 @@ const catalog: ModelCatalogSnapshot = {
     id: 'example/minimal', name: 'Minimal', source: 'openrouter', providerAuthor: 'Example', aliases: [], normalizedKeys: [],
   }],
 }
-window.electron.llm.getModelCatalog = async () => catalog
+window.electron.llm.getModelCatalog = async () => new URLSearchParams(location.search).has('empty')
+  ? { ...catalog, models: [] }
+  : catalog
 window.electron.llm.refreshModelCatalog = async () => ({ success: true, catalog })
 createRoot(document.getElementById('root')!).render(<main style={{ maxWidth: 850, padding: 24, margin: 'auto', color: 'var(--shell-text)', '--so-field': 'var(--shell-card)', '--so-field-border': 'var(--shell-border)', '--so-control-h': '36px', '--so-rule-soft': 'var(--shell-border-soft)', '--so-radius': '8px' } as React.CSSProperties}><ModelCatalogPanel /></main>)

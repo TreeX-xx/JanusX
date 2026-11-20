@@ -31,7 +31,7 @@ export function composerOptionIndex(key: string, active: number, count: number, 
   return !count ? 0 : horizontal ? Math.max(0, Math.min(count - 1, active + step)) : (active + step + count) % count
 }
 
-export function ComposerOptions({ id, kind, title, options, active, onActiveChange, onKeyDown, search, searchRef, listRef, focusList = false, autoFocus = false, providers, back, hint, maxHeight, containerRef, selectionMenu, children, footer }: {
+export function ComposerOptions({ id, kind, title, options, active, onActiveChange, onKeyDown, search, searchRef, listRef, focusList = false, autoFocus = false, providers, back, hint, maxHeight, containerRef, selectionMenu, emptyMessage, children, footer }: {
   id: string; kind: string; title: string; options: ComposerChoice[]; active: number
   onActiveChange(index: number): void
   onKeyDown: KeyboardEventHandler<HTMLInputElement | HTMLTextAreaElement | HTMLDivElement>
@@ -39,7 +39,7 @@ export function ComposerOptions({ id, kind, title, options, active, onActiveChan
   searchRef?: RefObject<HTMLInputElement>; listRef?: RefObject<HTMLDivElement>; focusList?: boolean; autoFocus?: boolean
   providers?: { label: string; allLabel: string; value: string; options: { id: string; name: string }[]; onChange(value: string): void }
   back?: { label: string; run(): void }; hint?: { label: string; title?: string }; maxHeight?: number
-  containerRef?: RefObject<HTMLDivElement>; selectionMenu?: string; children?: ReactNode; footer?: ReactNode
+  containerRef?: RefObject<HTMLDivElement>; selectionMenu?: string; emptyMessage?: string; children?: ReactNode; footer?: ReactNode
 }) {
   const fallbackSearch = useRef<HTMLInputElement>(null), input = searchRef ?? fallbackSearch
   const fallbackContainer = useRef<HTMLDivElement>(null), container = containerRef ?? fallbackContainer
@@ -61,12 +61,12 @@ export function ComposerOptions({ id, kind, title, options, active, onActiveChan
       if (event.target instanceof HTMLSelectElement && event.key !== 'Escape') return
       onKeyDown(event)
     }}>
-    <div className={styles.commandHeader}>{back && <button type="button" aria-label={back.label} onClick={back.run}><ArrowLeft size={15} /></button>}<span>{title}</span>{hint && <span title={hint.title}>{hint.label}</span>}</div>
+    <div className={styles.commandHeader}>{back && <button type="button" aria-label={back.label} onClick={back.run}><ArrowLeft size={15} /></button>}<span>{title}</span>{hint && (!emptyMessage || options.length > 0) && <span title={hint.title}>{hint.label}</span>}</div>
     {search && <label className={styles.pickerSearch}><Search size={14} aria-hidden="true" /><input ref={input} value={search.value} onChange={event => search.onChange(event.target.value)}
       role="combobox" aria-label={search.label} aria-expanded aria-controls={id} aria-activedescendant={activeId} placeholder={search.placeholder ?? search.label} /></label>}
-    {providers && <label className={styles.modelProviderFilter}><span>{providers.label}</span><select aria-label={providers.label} value={providers.value} onChange={event => { providers.onChange(event.target.value); input.current?.focus() }}>
+    {providers && <label className={styles.modelProviderFilter}><span>{providers.label}</span><span className={styles.providerSelect}><select aria-label={providers.label} value={providers.value} onChange={event => { providers.onChange(event.target.value); input.current?.focus() }}>
       <option value="">{providers.allLabel}</option>{providers.options.map(provider => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-    </select><ChevronDown size={12} aria-hidden="true" /></label>}
+    </select><ChevronDown size={12} aria-hidden="true" /></span></label>}
     <div className={horizontal ? styles.effortScale : styles.commandList} role="listbox" id={id} aria-label={title} ref={listRef} tabIndex={focusList ? 0 : undefined} data-selection-menu={selectionMenu}
       aria-orientation={horizontal ? 'horizontal' : 'vertical'} aria-activedescendant={focusList ? activeId : undefined}>
       <div className={horizontal ? styles.effortTrack : undefined} style={horizontal ? { '--effort-count': Math.max(1, options.length), '--effort-active': index } as CSSProperties : undefined}>
@@ -83,6 +83,7 @@ export function ComposerOptions({ id, kind, title, options, active, onActiveChan
         </Fragment>)}
       </div>
     </div>
+    {!options.length && emptyMessage && <p className={shared.emptyMessage} role="status">{emptyMessage}</p>}
     {children}
     {footer && <div className={styles.pickerFootnote}>{footer}</div>}
   </div>

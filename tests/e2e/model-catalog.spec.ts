@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test'
 
 for (const theme of ['dark', 'planche']) {
+  test(`empty catalog and unmatched searches in ${theme}`, async ({ page }) => {
+    await page.goto(`/model-catalog.html?empty&theme=${theme}`)
+    const emptyCatalog = page.getByRole('status').filter({ hasText: '暂无模型' })
+    await expect(emptyCatalog).toContainText('点击“更新目录”获取模型')
+    await expect(emptyCatalog).toHaveCSS('align-items', 'flex-start')
+    await page.getByRole('button', { name: '更新目录' }).click()
+    await expect(page.getByText('Reasoning Pro', { exact: true })).toBeVisible()
+    const search = page.getByRole('searchbox')
+    await search.fill('unmatched')
+    await expect(page.getByRole('status').filter({ hasText: '未找到匹配的模型' })).toBeVisible()
+    await expect(emptyCatalog).toHaveCount(0)
+    await search.fill('')
+    await expect(page.getByText('Reasoning Pro', { exact: true })).toBeVisible()
+  })
+
   test(`model capabilities, cache prices and tier rules in ${theme}`, async ({ page }) => {
     await page.goto(`/model-catalog.html?theme=${theme}`)
     await page.getByText('Reasoning Pro', { exact: true }).click()

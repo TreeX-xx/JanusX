@@ -392,8 +392,10 @@
       "openLlmButton": "模型",
       "tagLabel": "模型：",
       "menuShortcutTitle": "Ctrl+P 打开模型菜单",
-      "providersHeading": "Providers",
-      "modelsHeading": "Models",
+      "providersHeading": "供应商",
+      "noProviders": "暂无可选供应商",
+      "noMatchingProviders": "未找到匹配的供应商",
+      "modelsHeading": "模型",
       "menuNavHint": "↑ ↓ ← → · Enter",
       "noConfigured": "未配置 {{kind}}",
       "notice": {
@@ -451,12 +453,12 @@
     },
     "shortcuts": {
       "janusMd": "JANUS.md",
-      "providers": "Providers",
-      "models": "Models",
+      "providers": "供应商",
+      "models": "模型",
       "permission": "Permission"
     },
     "selectionMenu": {
-      "aria": "{{kind}} 选择"
+      "aria": "选择{{kind}}"
     },
     "resource": {
       "scopeAria": "工作区资源",

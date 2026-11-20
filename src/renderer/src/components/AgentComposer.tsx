@@ -310,6 +310,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       back={!panel && currentPanel !== 'commands' ? {label:t('conversation.picker.commands'),run:()=>{setDraft('/');inputRef.current?.focus()}} : undefined}
       hint={currentPanel !== 'effort' ? {label:t('conversation.compactCommandKeys'),title:t('conversation.commandKeys')} : undefined}
       search={currentPanel === 'model' || panel === 'commands' ? {value:query,onChange:value=>panel?setSearch(value):setDraft('/model '+value),label:t('conversation.searchOptions'),placeholder:t(groupedModels && currentPanel === 'model'?'conversation.searchModels':'conversation.searchOptions')} : undefined}
+      emptyMessage={currentPanel === 'model' && !snapshot?.modelsLoading && !snapshot?.modelsError
+        ? t(orderedModels.length ? 'model:empty.noResultsTitle' : 'model:empty.emptyTitle')
+        : undefined}
       providers={currentPanel === 'model' && groupedModels ? {label:t('conversation.modelProvider'),allLabel:t('conversation.allProviders'),value:providerFilter,options:modelProviders,onChange:setModelProvider} : undefined}
       footer={currentPanel !== 'commands' && <><span title={t(snapshot?.engine === 'claude'?'conversation.claudeSessionSettings':'conversation.nextTurnSettings')}>{t('conversation.nextTurnShort')}</span>{currentPanel === 'effort' && <span>{t('conversation.effortKeys')}</span>}
         {currentPanel === 'model' && snapshot?.engine === 'opencode' && <button className={styles.modelRefresh} type="button" disabled={!available || snapshot.modelsLoading} title={t('conversation.refreshModels')} onClick={()=>void action({type:'models',controlEpoch:snapshot.controlEpoch})}><RefreshCw size={12} aria-hidden="true" />{t('conversation.refreshModels')}</button>}</>}>
@@ -320,7 +323,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       {currentPanel !== 'commands' && snapshot?.modelsLoading && <p className={styles.pickerMessage} role="status">{t('conversation.modelsLoading')}</p>}
       {currentPanel !== 'commands' && snapshot?.modelsError && <div className={styles.pickerMessage} role="alert">{t('conversation.modelsFailed')}<button type="button" disabled={!available} onClick={() => snapshot && void action({ type: 'models', controlEpoch: snapshot.controlEpoch })}>{t('conversation.retryModels')}</button></div>}
       {unsupportedArguments && <p className={styles.pickerMessage} role="status">{t('conversation.commandArgumentsUnsupported')}</p>}
-      {!choices.length && (currentPanel === 'commands' || (!snapshot?.modelsLoading && !snapshot?.modelsError)) && <p className={styles.pickerMessage}>{t(currentPanel === 'commands' ? 'conversation.unsupportedCommand' : currentPanel === 'effort' && !model ? 'conversation.effortUnavailable' : 'conversation.noOptions')}</p>}
+      {currentPanel !== 'model' && !choices.length && (currentPanel === 'commands' || (!snapshot?.modelsLoading && !snapshot?.modelsError)) && <p className={styles.pickerMessage}>{t(currentPanel === 'commands' ? 'conversation.unsupportedCommand' : currentPanel === 'effort' && !model ? 'conversation.effortUnavailable' : 'conversation.noOptions')}</p>}
       {currentPanel === 'commands' && !choices.length && <button className={styles.terminalCommand} type="button" onClick={() => void changeMode('terminal')}>{t('conversation.openTerminalCommand')}</button>}
       {selectionFailed && currentPanel !== 'commands' && <p className={styles.pickerMessage} role="status">{t('conversation.settingsFailed')}</p>}
     </ComposerOptions>}

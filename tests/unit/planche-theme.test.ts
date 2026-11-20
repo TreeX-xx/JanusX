@@ -410,7 +410,9 @@ describe('planche theme contract', () => {
     expect(select).toContain('var(--popover-background')
     expect(select).not.toMatch(/linear-gradient|--planche-red|--janus-order,/)
     // 模型菜单 / 作者行纸面化
-    expect(island).toContain("[data-theme='planche'] .janus-island-shell[data-stage='expanded'][data-view='chat'] .janus-chat-model-menu {")
+    const picker = read('components/ComposerOptions.module.css')
+    expect(picker).toMatch(/\.emptyMessage\s*\{[^}]*color:\s*var\(--shell-muted\)/)
+    expect(read('components/AgentSessionPane.module.css')).toMatch(/\.commandPanel\s*\{[^}]*background:\s*var\(--shell-chrome-raised\)/)
     const chat = read('components/janus/styles/03-janus-chat-core.css')
     expect(chat).toMatch(/\.janus-chat-message-author\s*\{\s*color:\s*var\(--shell-muted\)/)
     expect(chat).toMatch(/\.janus-chat-message\.assistant \.janus-chat-message-author\s*\{\s*color:\s*var\(--shell-accent\)/)

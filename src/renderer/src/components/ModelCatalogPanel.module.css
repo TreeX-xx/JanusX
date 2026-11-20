@@ -177,16 +177,15 @@
 
 .empty {
   display: flex;
-  min-height: 150px;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
   flex-direction: column;
-  gap: 5px;
-  color: var(--shell-dim);
-  font-size: 11px;
-  text-align: center;
+  gap: 4px;
+  padding: 16px 8px;
+  color: var(--shell-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
-.empty strong { color: var(--shell-text); font-size: 12px; }
+.empty strong { color: var(--shell-text); font-weight: 500; }
 .empty span { max-width: 100%; overflow-wrap: anywhere; }
 
 .srOnly {

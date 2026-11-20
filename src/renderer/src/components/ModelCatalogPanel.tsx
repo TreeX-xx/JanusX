@@ -9,7 +9,7 @@ import { useI18n } from '@/i18n/useI18n'
 import styles from './ModelCatalogPanel.module.css'
 
 export function ModelCatalogPanel() {
-  const { t } = useI18n('model')
+  const { t, currentLanguage } = useI18n('model')
   const [catalog, setCatalog] = useState<ModelCatalogSnapshot | null>(null)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -85,15 +85,18 @@ export function ModelCatalogPanel() {
         </SettingsButton>
       </div>
 
-      <div className={styles.summary} aria-live="polite">
-        <span>{loading ? t('model:summary.loading') : t('model:summary.count', { modelCount: resultCount, vendorCount: groups.length })}</span>
-        {catalog && (
-          <span>
-            {catalog.source === 'cache' ? t('model:summary.sourceOnline') : t('model:summary.sourceBundled')} / {formatDate(catalog.updatedAt, t)}
-            {catalog.isStale ? t('model:summary.stale') : ''}
-          </span>
-        )}
-      </div>
+      {(loading || catalog) && (
+        <div className={styles.summary} aria-live="polite">
+          {loading && <span>{t('model:summary.loading')}</span>}
+          {!loading && resultCount > 0 && <span>{t('model:summary.count', { modelCount: resultCount, vendorCount: groups.length })}</span>}
+          {catalog && (
+            <span>
+              {catalog.source === 'cache' ? t('model:summary.sourceOnline') : t('model:summary.sourceBundled')} / {formatDate(catalog.updatedAt, currentLanguage, t)}
+              {catalog.isStale ? t('model:summary.stale') : ''}
+            </span>
+          )}
+        </div>
+      )}
 
       {message && (
         <div className={`${styles.message} ${message.kind === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">
@@ -101,24 +104,24 @@ export function ModelCatalogPanel() {
         </div>
       )}
 
-      {emptyState === 'load-error' && (
-        <div className={styles.empty} role="alert">
-          <strong>{t('model:error.loadFailedTitle')}</strong>
-          <span>{loadError}</span>
-          <SettingsButton type="button" className={styles.inlineButton} onClick={handleRefresh} disabled={refreshing}>
-            {refreshing ? t('model:refresh.updating') : t('model:refresh.retryUpdate')}
-          </SettingsButton>
-        </div>
-      )}
-
-      {(emptyState === 'empty-catalog' || emptyState === 'no-results') && (
-        <div className={styles.empty}>
-          <strong>{emptyState === 'no-results' ? t('model:empty.noResultsTitle') : t('model:empty.emptyTitle')}</strong>
-          <span>{emptyState === 'no-results' ? t('model:empty.noResultsHint') : t('model:empty.emptyHint')}</span>
-        </div>
-      )}
-
       <div className={styles.groups}>
+        {emptyState === 'load-error' && (
+          <div className={styles.empty} role="alert">
+            <strong>{t('model:error.loadFailedTitle')}</strong>
+            <span>{loadError}</span>
+            <SettingsButton type="button" className={styles.inlineButton} onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? t('model:refresh.updating') : t('model:refresh.retryUpdate')}
+            </SettingsButton>
+          </div>
+        )}
+
+        {(emptyState === 'empty-catalog' || emptyState === 'no-results') && (
+          <div className={styles.empty} role="status">
+            <strong>{emptyState === 'no-results' ? t('model:empty.noResultsTitle') : t('model:empty.emptyTitle')}</strong>
+            <span>{emptyState === 'no-results' ? t('model:empty.noResultsHint') : t('model:empty.emptyHint')}</span>
+          </div>
+        )}
+
         {groups.map((group, index) => (
           <details className={styles.vendorGroup} key={group.vendor} open={hasSearch || index === 0}>
             <summary className={styles.vendorHeader}>
@@ -224,9 +227,9 @@ function formatOptionalTokens(value: number | undefined, t: TFunc): string | und
   return value ? t('model:model.tokensSuffix', { value: formatTokens(value) }) : undefined
 }
 
-function formatDate(value: string, t: TFunc): string {
+function formatDate(value: string, language: string, t: TFunc): string {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? t('model:model.updatedTimeUnknown') : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? t('model:model.updatedTimeUnknown') : date.toLocaleString(language)
 }
 
 function trimDecimal(value: number): string {

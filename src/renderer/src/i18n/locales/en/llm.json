@@ -187,8 +187,10 @@
     "scope": "Configures Agents on this computer. Choose DSH models with /model in the session.",
     "search": "Search channels or models",
     "addChannel": "Add channel",
-    "emptyTitle": "One channel, multiple Agents",
-    "emptyDescription": "Add an official API, CPA, or a custom service, then choose models in Agents.",
+    "noMatchingChannels": "No matching channels",
+    "channelSearchHint": "Try a different channel name or model ID.",
+    "emptyTitle": "No channels yet",
+    "emptyDescription": "Add a channel to choose models for your agents.",
     "official": "Official API",
     "disabled": "Disabled",
     "modelCount": "{{count}} models",
@@ -236,6 +238,6 @@
     "fetchModels": "Fetch models",
     "modelsLoading": "Fetching...",
     "modelsFound": "Found {{count}} models",
-    "modelsEmpty": "The service returned no models. Enter a model ID manually."
+    "modelsEmpty": "This service returned no models. You can enter a model ID manually."
   }
 }

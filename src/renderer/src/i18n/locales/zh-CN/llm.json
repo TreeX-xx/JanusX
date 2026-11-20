@@ -187,8 +187,10 @@
     "scope": "当前配置本机的 Agent。DSH 的模型在会话中通过 /model 选择。",
     "search": "搜索渠道或模型",
     "addChannel": "添加渠道",
-    "emptyTitle": "一个渠道，多个 Agent",
-    "emptyDescription": "添加官方 API、CPA 或自定义服务，然后在 Agent 使用中选择模型。",
+    "noMatchingChannels": "未找到匹配的渠道",
+    "channelSearchHint": "试试其他渠道名称或模型 ID",
+    "emptyTitle": "暂无渠道",
+    "emptyDescription": "添加渠道后，即可为 Agent 选择模型。",
     "official": "官方 API",
     "disabled": "已停用",
     "modelCount": "{{count}} 个模型",
@@ -236,6 +238,6 @@
     "fetchModels": "获取模型",
     "modelsLoading": "正在获取...",
     "modelsFound": "已获取 {{count}} 个模型",
-    "modelsEmpty": "服务未返回可用模型，请手动输入模型 ID"
+    "modelsEmpty": "该服务未返回模型，可手动输入模型 ID。"
   }
 }

@@ -28,10 +28,10 @@
     "loadFailedTitle": "无法加载模型目录"
   },
   "empty": {
-    "noResultsTitle": "没有匹配的模型",
-    "noResultsHint": "尝试输入模型名称或完整 ID",
-    "emptyTitle": "暂无可用模型",
-    "emptyHint": "使用「更新目录」重新获取最新快照"
+    "noResultsTitle": "未找到匹配的模型",
+    "noResultsHint": "试试其他模型名称或 ID",
+    "emptyTitle": "暂无模型",
+    "emptyHint": "点击“更新目录”获取模型"
   },
   "model": {
     "contextUnknown": "上下文未知",
