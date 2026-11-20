@@ -454,11 +454,22 @@ async function boot() {
   if (new URLSearchParams(location.search).has('superAgentPlugin')) {
     const { default: manifest } = await import('../../../plugins/superagent/manifest.json')
     const { refreshPlugins } = await import('../../../src/renderer/src/extensions/plugin-runtime')
+    const { openSuperAgent } = await import('../../../src/renderer/src/lib/superagent-navigation')
+    const { useGlobalToolsStore } = await import('../../../src/renderer/src/stores/global-tools')
     const record = { manifest, source: { kind: 'official' }, enabled: true, state: 'ready', projectScope: 'all', projects: [] }
     Object.assign(window.electron, { plugins: { request: async () => ({
       ok: true, data: { developmentMode: false, logs: [], plugins: [record] },
     }) } })
     await refreshPlugins()
+    Object.assign(window, { superAgentFixture: {
+      open: openSuperAgent,
+      close: () => {
+        const tools = useGlobalToolsStore.getState()
+        const pane = getLeafPanes(tools.paneTree).find(leaf => leaf.tabs.some(tab => tab.id === 'superagent'))
+        if (!pane) throw new Error('SuperAgent tab is not open')
+        tools.closePaneTab(pane.id, 'superagent')
+      },
+    } })
   }
   const workflowxMode = new URLSearchParams(location.search).get('workflowx')
   if (workflowxMode) {

@@ -37,6 +37,41 @@ test('reduced motion does not leave a delayed frame or content transition', asyn
   expect(Math.round((await shell.boundingBox())!.width)).toBe(52)
 })
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`expanded Janus eyes animate according to ${reducedMotion}`, async ({ page }) => {
+    await page.addInitScript(() => { Math.random = () => .25 })
+    await page.emulateMedia({ reducedMotion })
+    await page.clock.install()
+    await page.goto('/')
+    const shell = page.locator('.janus-island-shell')
+    await expect(shell.locator('.janus-face-mini')).toBeVisible()
+    // Open from idle without a pointer move waking the gaze scheduler.
+    await page.clock.runFor(200)
+    await page.getByTestId('reopen-island').evaluate((button: HTMLButtonElement) => button.click())
+    await expect(shell).toHaveAttribute('data-stage', 'expanded')
+    await page.clock.runFor(600)
+    const face = shell.locator('.janus-face-mini')
+    const pose = () => face.evaluate(el => {
+      const style = getComputedStyle(el)
+      return { gazeY: parseFloat(style.getPropertyValue('--gaze-y')), lid: parseFloat(style.getPropertyValue('--lid')) }
+    })
+    if (reducedMotion === 'reduce') {
+      expect(await pose()).toEqual({ gazeY: 0, lid: 1 })
+      await page.clock.runFor(7000)
+      expect(await pose()).toEqual({ gazeY: 0, lid: 1 })
+    } else {
+      expect((await pose()).gazeY).toBeGreaterThan(1)
+      let lowestLid = 1
+      // Sample the brief blink rather than relying on one animation frame.
+      for (let elapsed = 0; elapsed < 3600 && lowestLid > .8; elapsed += 40) {
+        await page.clock.runFor(40)
+        lowestLid = Math.min(lowestLid, (await pose()).lid)
+      }
+      expect(lowestLid).toBeLessThan(.8)
+    }
+  })
+}
+
 test('Chat is the only expanded surface and old pin state cannot prevent dismissal', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('janus:island-chat-pinned', '1'))
   await page.goto('/')

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { isSuperAgentEnabled, useSuperAgentEnabled } from '@/lib/superagent-plugin'
+import { isSuperAgentEnabled, useSuperAgentOwnsChat } from '@/lib/superagent-plugin'
 import { Download, X } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
@@ -107,7 +107,6 @@ export function JanusIsland({
 }: JanusIslandProps) {
   const { t } = useI18n('janus')
   const automationNotices = useAutomationsStore(state => state.notices)
-  const superAgentStarted = useSuperAgentUIStore(state => state.started)
   const workerNotices = useSuperAgentUIStore(state => state.notices)
   const workspaces = useWorkspaceStore(state => state.workspaces)
   const removedAutomations = useAutomationsStore(state => state.removedIds)
@@ -120,8 +119,7 @@ export function JanusIsland({
   const companionVeil = useAutomationIslandLayout(shellRef, stage === 'expanded' && view === 'chat' && companionToolId === 'automations')
   const setView = useCallback((next: JanusExpandedView) => setStoredView(ISLAND_CHAT_ONLY ? 'chat' : next), [])
   const pluginSnapshot = usePluginSnapshot()
-  const superAgentEnabled = useSuperAgentEnabled()
-  const superAgentOwnsChat = superAgentStarted && superAgentEnabled
+  const superAgentOwnsChat = useSuperAgentOwnsChat()
   const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
   const pluginViews = useExtensionViews()
   const pluginViewRequest = useIslandStore(s => s.pluginViewRequest)
@@ -281,6 +279,11 @@ export function JanusIsland({
     }
   }, [])
   const closeNotifCenter = useCallback(() => closeNotifications(), [closeNotifications])
+  const wasSuperAgentActive = useRef(superAgentOwnsChat)
+  useEffect(() => {
+    if (wasSuperAgentActive.current && !superAgentOwnsChat) closeNotifications(false)
+    wasSuperAgentActive.current = superAgentOwnsChat
+  }, [superAgentOwnsChat, closeNotifications])
   const toggleTray = useCallback(() => {
     if (trayOpen) closeNotifications()
     else { prepareNoticeReader(); setTrayOpen(true) }
@@ -349,15 +352,17 @@ export function JanusIsland({
         },
   })
 
-  // P1 行为系统：凝视/眨眼/摸头循环（折叠胶囊态）；P2 事件原语映射见下。
-  // 待机动作（2026-10-24 移植）：传话中让位（busyRef），摸头/点击/开面在内核让位。
+  // The expanded panel keeps the same eyes in a quiet reading pose with normal blinks.
+  // Note: .agents/notes/workbench/island-hifi-optimized-alignment.md
+  const expanded = stage === 'expanded'
+  const eyeMode = expanded && mode === 'sleep' ? 'order' : mode
   const speakBusyRef = useRef(false)
   const janusGaze = useJanusGaze({
     faceRef: eyeContainerRef,
     islandRef,
-    mode,
-    enabled: stage === 'collapsed',
-    panelOpen: notifOpen,
+    mode: eyeMode,
+    enabled: stage !== 'peek',
+    panelOpen: notifOpen || expanded,
     suspendRef: isDraggingRef,
     busyRef: speakBusyRef,
   })
@@ -740,7 +745,7 @@ export function JanusIsland({
       >
         <div className="janus-collapsed-core">
           <div ref={(el) => { eyeContainerRef.current = el }} className="janus-face-mini">
-            <JanusEye mode={stage === 'expanded' && mode === 'sleep' ? 'order' : mode} className="janus-eye-group" />
+            <JanusEye mode={eyeMode} className="janus-eye-group" />
           </div>
         </div>
 

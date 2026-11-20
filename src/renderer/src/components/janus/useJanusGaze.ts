@@ -14,9 +14,9 @@ export interface UseJanusGazeOptions {
   /** 胶囊本体（几何参照：中心/悬停判定） */
   islandRef: RefObject<HTMLElement | null>
   mode: JanusMode
-  /** 仅折叠态驱动 */
+  /** 眼睛可见时驱动 */
   enabled: boolean
-  /** 通知中心展开中（P4 接线） */
+  /** 阅读态：通知中心或 Chat 面板展开中 */
   panelOpen?: boolean
   /** 下滑手势进行中：悬停判定挂起，不触发摸头 */
   suspendRef?: RefObject<boolean>
@@ -64,6 +64,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
     let wakeTimer: ReturnType<typeof setTimeout> | null = null
     let lastT = performance.now()
     let running = true
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
 
     const stepOnce = () => {
       const now = performance.now()
@@ -81,7 +82,6 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
         pointer.x >= rect.left - HOVER_PAD && pointer.x <= rect.right + HOVER_PAD &&
         pointer.y >= rect.top - HOVER_PAD && pointer.y <= rect.bottom + HOVER_PAD
 
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const frame = scheduler.step({
         now,
         dtMs,
@@ -92,7 +92,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
         hover,
         panelOpen: panelOpenRef.current,
         busy: suspendRef?.current === true || busyRef?.current === true,
-        reducedMotion,
+        reducedMotion: motionPreference.matches,
       })
       writeVars(frame)
 
@@ -140,6 +140,7 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
       state: 'wander', settled: false, nextWakeupAt: performance.now() + 2000,
     })
     window.addEventListener('pointermove', onPointerMove, { passive: true })
+    motionPreference.addEventListener('change', resume)
     raf = requestAnimationFrame(tick)
 
     return () => {
@@ -148,8 +149,11 @@ export function useJanusGaze(options: UseJanusGazeOptions): JanusGazeControls {
       if (raf) cancelAnimationFrame(raf)
       if (wakeTimer) clearTimeout(wakeTimer)
       window.removeEventListener('pointermove', onPointerMove)
+      motionPreference.removeEventListener('change', resume)
     }
   }, [busyRef, enabled, islandRef, scheduler, suspendRef, writeVars])
+
+  useEffect(() => { resumeRef.current?.() }, [mode, panelOpen])
 
   const react = useCallback((kind: JanusReaction) => {
     scheduler.react(kind, performance.now())

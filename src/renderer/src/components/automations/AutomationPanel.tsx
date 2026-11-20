@@ -1,4 +1,4 @@
-import { superAgentOwnsChat, useSuperAgentEnabled } from '@/lib/superagent-plugin'
+import { superAgentOwnsChat, useSuperAgentOwnsChat } from '@/lib/superagent-plugin'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, Clock3, Folder, Pencil, Play, Plus, Power, Trash2, Workflow } from 'lucide-react'
@@ -9,7 +9,6 @@ import { AutomationTaskHistory } from './AutomationTaskHistory'
 import { isReminder, reminderTemplate, type AutomationCard, type AutomationDefinition, type AutomationRun } from '../../../../shared/automations'
 import { useRightToolStore } from '@/stores/right-tools'
 import { useAppStore } from '@/stores/app'
-import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { activateAutomationCompanion, receiveAutomationRemoval, useAutomationsStore } from '@/stores/automations'
 import { useIslandStore } from '@/stores/island'
 import { useI18n } from '@/i18n/useI18n'
@@ -22,8 +21,7 @@ export function AutomationPanel({ active = true }: { active?: boolean }) {
   const focus = useRightToolStore(state => state.focusRequest)
   const activeToolId = useRightToolStore(state => state.activeToolId)
   const panelCollapsed = useAppStore(state => state.panelCollapsed)
-  const enabled = useSuperAgentEnabled()
-  const superAgentStarted = useSuperAgentUIStore(state => enabled && state.started)
+  const ownsChat = useSuperAgentOwnsChat()
   const companionLinked = useIslandStore(state => state.companionToolId === 'automations')
   const panelOpen = active && activeToolId === 'automations' && !panelCollapsed
   const islandLinked = panelOpen || companionLinked
@@ -37,7 +35,7 @@ export function AutomationPanel({ active = true }: { active?: boolean }) {
       if (island.companionToolId === 'automations') island.releaseCompanion()
       if (!superAgentOwnsChat()) island.dispatch({ type: 'dismiss' })
     }
-  }, [panelOpen, superAgentStarted])
+  }, [panelOpen, ownsChat])
   const [cards, setCards] = useState<AutomationCard[]>([]), [tasks, setTasks] = useState<AutomationDefinition[]>([])
   const [selected, setSelected] = useState<string | null>(null), [closedCards, setClosedCards] = useState<string[]>([])
   const [runs, setRuns] = useState<AutomationRun[]>([]), [runId, setRunId] = useState<string | null>(null)

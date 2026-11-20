@@ -152,18 +152,23 @@ test('macOS click-only double activation opens chat and respects nested controls
   await expect(harness(page)).toHaveAttribute('data-double-count', '2')
 })
 
-test('Island uses notifications only with both a started workspace and an enabled SuperAgent plugin', async ({ page }) => {
+test('Island returns to chat after closing the SuperAgent tab', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('janus:superagent-view', JSON.stringify({ modeVersion: 1, started: true })))
   await page.goto('/?superAgentPlugin=1')
   const island = page.locator('.janus-island')
-  await nativeDoubleClick(island)
-  await expect(harness(page)).toHaveAttribute('data-stage', 'expanded')
-
-  await page.evaluate(() => localStorage.setItem('janus:superagent-view', JSON.stringify({ modeVersion: 1, started: true })))
-  await page.reload()
-  await nativeDoubleClick(island)
   const shell = page.locator('.janus-island-shell')
+  await page.waitForFunction(() => Boolean((window as any).superAgentFixture))
+  await page.evaluate(() => (window as any).superAgentFixture.open())
+  await nativeDoubleClick(island)
   await expect(shell).toHaveAttribute('data-stage', 'collapsed')
   await expect(shell).toHaveAttribute('data-notif', 'true')
+
+  await page.evaluate(() => (window as any).superAgentFixture.close())
+  await expect(shell).toHaveAttribute('data-notif', 'false')
+  await island.locator('.janus-eye-group').dblclick()
+  await expect(shell).toHaveAttribute('data-stage', 'expanded')
+  await expect(shell.locator('.janus-chat')).toBeVisible()
+
   await page.goto('/')
   await nativeDoubleClick(island)
   await expect(page.locator('.janus-chat')).toBeVisible()

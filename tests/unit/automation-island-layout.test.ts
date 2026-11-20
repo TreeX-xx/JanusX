@@ -6,6 +6,7 @@ import { layoutAutomationIsland } from '../../src/renderer/src/components/automa
 import { useIslandStore } from '../../src/renderer/src/stores/island'
 import { useSuperAgentUIStore } from '../../src/renderer/src/stores/superagent-ui'
 import { useGlobalToolsStore } from '../../src/renderer/src/stores/global-tools'
+import { openSuperAgent } from '../../src/renderer/src/lib/superagent-navigation'
 
 afterEach(() => {
   usePluginSnapshot.setState({ plugins: [] })
@@ -13,6 +14,7 @@ afterEach(() => {
   useIslandStore.getState().releaseCompanion()
   useIslandStore.getState().dispatch({ type: 'dismiss' })
   useSuperAgentUIStore.setState({ started: false })
+  useGlobalToolsStore.setState({ paneTree: null, focusedPaneId: null, focusedTabId: null, focused: false, collapsed: false })
 })
 
 describe('automation companion geometry', () => {
@@ -89,7 +91,7 @@ describe('Island companion lifetime', () => {
       manifest: parsePluginManifest(JSON.stringify(superAgentManifest)), source: { kind: 'official', directory: 'fixture' },
       enabled: true, state: 'active', projects: [], projectScope: 'all', failures: 0, digest: 'fixture',
     }] })
-    useSuperAgentUIStore.setState({ started: true })
+    openSuperAgent()
     useIslandStore.getState().openChat('', 'automations')
     expect(useIslandStore.getState()).toMatchObject({ stage: 'collapsed', companionToolId: 'automations', chatRequest: { prefill: '' } })
     expect(useGlobalToolsStore.getState()).toMatchObject({ focusedTabId: 'superagent', collapsed: false })
@@ -98,5 +100,11 @@ describe('Island companion lifetime', () => {
     useIslandStore.getState().releaseCompanion()
     expect(useIslandStore.getState().companionToolId).toBeNull()
     expect(useGlobalToolsStore.getState().focusedTabId).toBe('superagent')
+
+    const tools = useGlobalToolsStore.getState()
+    tools.closePaneTab(tools.focusedPaneId!, 'superagent')
+    useIslandStore.getState().openChat('', 'automations')
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations' })
+    expect(useGlobalToolsStore.getState().paneTree).toBeNull()
   })
 })

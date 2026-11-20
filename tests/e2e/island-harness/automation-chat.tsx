@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { parsePluginManifest } from '@janusx/plugin-sdk'
+import superAgentManifest from '../../../plugins/superagent/manifest.json'
 import { JanusIsland } from '../../../src/renderer/src/components/janus/JanusIsland'
 import { JanusChatProvider, useJanusChatRegistry } from '../../../src/renderer/src/components/janus/JanusChatProvider'
 import type { UseJanusChatReturn } from '../../../src/renderer/src/components/janus/useJanusChat'
@@ -9,7 +11,8 @@ import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useRightToolStore } from '../../../src/renderer/src/stores/right-tools'
 import { useAppStore } from '../../../src/renderer/src/stores/app'
 import { useIslandStore } from '../../../src/renderer/src/stores/island'
-import { useSuperAgentUIStore } from '../../../src/renderer/src/stores/superagent-ui'
+import { usePluginSnapshot } from '../../../src/renderer/src/extensions/plugin-snapshot'
+import { openSuperAgent } from '../../../src/renderer/src/lib/superagent-navigation'
 import { useGlobalToolsStore } from '../../../src/renderer/src/stores/global-tools'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
@@ -110,7 +113,13 @@ Object.assign(window, { automationChatFixture: {
     messages: controller?.messages.map(message => message.content), isStreaming: controller?.isStreaming, activeTool: useRightToolStore.getState().activeToolId,
     companionToolId: useIslandStore.getState().companionToolId, superAgentTab: useGlobalToolsStore.getState().focusedTabId, saveCount }),
   selectWorkspace: (id: string | null) => useWorkspaceStore.setState({ activeWorkspaceId: id }),
-  enableSuperAgent: () => useSuperAgentUIStore.getState().start(),
+  enableSuperAgent: () => {
+    usePluginSnapshot.setState({ plugins: [{
+      manifest: parsePluginManifest(JSON.stringify(superAgentManifest)), source: { kind: 'official', directory: 'fixture' },
+      enabled: true, state: 'active', projects: [], projectScope: 'all', failures: 0, digest: 'fixture',
+    }] })
+    openSuperAgent()
+  },
   showGit: () => useRightToolStore.getState().openTool('git'),
   showAutomations: () => useRightToolStore.getState().openTool('automations'),
   closeAutomations: () => useRightToolStore.getState().closeTool('automations'),
