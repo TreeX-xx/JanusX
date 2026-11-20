@@ -33,6 +33,12 @@ describe('right dock layout', () => {
     expect(getRightDockLayout({ ...input, availableWidth: 400, activeToolId: 'sessions' })).toMatchObject({ panelWidth: 340, effectiveCollapsed: true, dockWidth: 48 })
     expect(input.panelWidths.sessions).toBe(480)
   })
+  it('shrinks the file tree before collapsing it on a narrow viewport', () => {
+    const input = { panelCollapsed: false, panelWidth: 280, activeToolId: 'files', hasActiveTool: true }
+    expect(getRightDockLayout({ ...input, availableWidth: 800 })).toMatchObject({ panelWidth: 320, dockWidth: 368 })
+    expect(getRightDockLayout({ ...input, availableWidth: 660 })).toMatchObject({ panelWidth: 292, dockWidth: 340, effectiveCollapsed: false })
+    expect(getRightDockLayout({ ...input, availableWidth: 600 })).toMatchObject({ effectiveCollapsed: true, dockWidth: 48 })
+  })
 })
 
 describe('right dock lifecycle shell', () => {

@@ -53,7 +53,7 @@ export const BUILTIN_RIGHT_EXTENSIONS: readonly BuiltinRightExtension[] = [
     shortTitleKey: 'common:rightTool.tool.files.shortTitle',
     ariaLabelKey: 'common:rightTool.tool.files.ariaLabel',
     iconComponent: Files, order: 0, instancePolicy: 'single', mountPolicy: 'while-open',
-    panelWidth: { min: 240, default: 260, max: 420 },
+    panelWidth: { min: 240, default: 320, max: 420 },
   }, () => import('@/components/FileExplorerTool').then(({ FileExplorerTool }) => ({ default: FileExplorerTool }))),
   builtinRightExtension({
     id: 'git', title: 'Git',

@@ -409,9 +409,9 @@ describe('right tool panel width', () => {
     expect(persisted.panelWidths).toEqual({ sessions: 480, files: 310 })
   })
 
-  it('starts files narrower and gives Git the session width range', () => {
-    expect(FILES_PANEL_DEFAULT_WIDTH).toBe(260)
-    expect(preferredRightToolPanelWidth(280, undefined, 'files')).toBe(260)
+  it('starts files at 320px and gives Git the session width range', () => {
+    expect(FILES_PANEL_DEFAULT_WIDTH).toBe(320)
+    expect(preferredRightToolPanelWidth(280, undefined, 'files')).toBe(320)
     expect(preferredRightToolPanelWidth(280, undefined, 'git')).toBe(360)
     expect(clampRightToolPanelWidth(100, undefined, 'git')).toBe(340)
     expect(clampRightToolPanelWidth(999, undefined, 'git')).toBe(520)
