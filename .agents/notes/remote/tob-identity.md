@@ -22,20 +22,23 @@
       }
     }
   },
-  "updated": "2026-10-08T02:54:24.778Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5"
 }
 ---
+
 # Team identity with local email provider
 
 
 ## Problem
 
-The workspace model knows one machine and no organization. No tenant, user, team, role, or resource-level access list exists, so shared blueprints, shared knowledge, and team resources cannot open safely. Identity is the footing every sharing capability stands on.
+The desktop already has local identities. TeamService registers users, creates and switches tenants, handles invitations and member status. The outstanding product question is how to enforce those permissions across hosts when sharing project resources.
 
 ## Decision
 
 Ship a local email provider first with an adapter seam for the rest. Registration builds an account only; organizations come from an explicit create step, and invitation codes join accounts to organizations. One email maps to one user across many tenants with per-tenant roles (Owner, Maintainer, Contributor, Viewer); the client holds an active tenant id and authorizes every level beneath it. The login gate stays skippable so single-machine use never breaks, and team surfaces re-prompt only when touched. Add a pinned team footer with an organization switcher, a team tab in settings, and a setup gate mirroring the existing office gate. Define the `IdentityAdapter` contract now (login, user fetch, org sync, leave hook) and leave enterprise chat login plus standard-protocol providers as later implementations without remodeling.
+
+The current local implementation is in [TeamService](../../../src/main/team/service.ts). The shared-blueprint and knowledge access checks below remain proposed. Android pairs devices separately.
 
 ## Alternatives considered
 

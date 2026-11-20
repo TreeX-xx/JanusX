@@ -1,5 +1,5 @@
 """Post-run repeat diagnostics; preserves the frozen benchmark and original result.
-Note: see .agents/notes/2026-09-28-unified-memory-laya-primary--736081fc.md
+Note: see .agents/notes/knowledge/requirements/unified-memory-laya-primary.md
 """
 import argparse
 import importlib.util

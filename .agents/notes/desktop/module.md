@@ -16,7 +16,7 @@
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/index.ts","role":"entry"},
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/register.ts","role":"implementation"}
   ],
-  "updated": "2026-11-16T05:47:22.279Z",
+  "updated": "2026-11-20T12:06:46Z",
   "moduleState": "partial"
 }
 ---
@@ -25,55 +25,15 @@
 
 ## Responsibility
 
-负责 Electron 启动、窗口与宿主服务装配、应用 IPC 注册及桌面分发。它承载各子系统并管理应用生命周期，领域行为仍由终端、会话、执行和知识等模块维护。
-
-下列链接保留已有决策、阶段需求和交付记录的阅读路径；正文及生命周期由原 Note 负责。历史 parent 仅组织文档，跨模块关联由本声明的 related-to 补充。模块声明只在职责、接口、明确依赖或代码入口变化时维护。
+桌面宿主装配 Electron 启动、窗口、IPC、应用数据目录和退出清理。平台适配与分发在这里维护；终端、会话与插件各自定义领域行为。
 
 ## Design
 
-v0.9.6 的用户可见变化、主动迁移的还原点清理行为及实验性 Docker 限制见[版本说明](../../../docs/releases/v0.9.6.md)。本地候选与工作流固定 agentX `4df4c4457269e46a52b7ed430db379e194fac175`，在独立 checkout 构建，避免开发目录中的未提交 sibling 改动进入发布。原固定版本缺少工作区存储接口，无法通过类型检查。新依赖尚需在远端发布前确认可获取；正式远端晋级仍遵循维护者指南的 PR 流程，本地标签与候选不代表已公开发布。
+启动及退出时按[应用配置目录](application-profile.md)和[退出顺序](application-shutdown.md)组织宿主服务。工作区私有状态按稳定身份保存在应用数据目录；迁移条件、旧目录清理和恢复限制见[工作区存储](workspace-state-storage.md)。[窗口控件](window-controls.md)与[平台边界](platform-runtime-boundaries.md)维护 Windows 和 macOS 的差异。
 
-v0.9.4 的 Windows 启动修复采用调用者权限启动桌面程序与便携启动器，终端继承当前权限。用户已确认候选包在故障 Windows 10 上可以打开，并授权以正式名称替换 v0.9.4 的 Windows 附件与标签代码。包验证包含不带 GPU 绕过参数的真实窗口启动；启动日志保存于所选用户配置目录的 `logs`。原因、代价及验证范围由 [reproducible-verification](./reproducible-verification.md) 维护。
+发布流水线使用固定依赖和平台对应的打包输入。[交付设计](release-delivery-design.md)维护本地构建与发布的分工，[依赖闭包](packaged-hoisted-deps.md)维护安装包所需运行时，[验证入口](reproducible-verification.md)记录可复验的环境。插件的签名分发与宿主安装包分别验证；版本及具体资产可从[0.9.10 说明](../../../docs/releases/v0.9.10.md)追溯。
 
-v0.9.4 相较 v0.9.3 的用户可见变化及安装说明维护在[版本说明](../../../docs/releases/v0.9.4.md)，发布包限定 Android 局域网测试，开发构建保留跨网实现。旧 wiki 已删除，README 和相关专题中的历史素材链接固定至 v0.9.3 Git 存档，避免随 main 删除失效；当前工程文档继续由 `.agents/notes` 与 `docs` 维护。二维码扫描区的白底及其深色加载文字是主题无关的扫描对比度要求，主题例外随组件迁移至 StatusBar.module.css；操作按钮已使用主题变量，不保留旧的白字按钮例外。
-
-Window chrome follows the host platform: Windows uses right-side minimize/maximize/close and macOS uses left-side traffic lights. Internal dialogs keep a right-side close action; floating panels expose only supported actions. Shared state synchronization and limits are described in [window-controls](./window-controls.md).
-
-README 的内容架构、像素品牌形象与新 UI 多主题演示，见[展示与录制计划](./readme-presentation-plan.md)；10 条功能 GIF 已全部重录并接入，覆盖分屏两部曲、Island、运行配置、蓝图维护/自动审核、用量、会话、Worktree 与产物。八组静态素材齐备，工具四格、用量明细和外部会话补图已接入；录制机制、构建来源、数据边界及验证由 [readme-showcase](./readme-showcase.md) 维护。
-
-免安装版配置使用用户目录下独立的 `JanusX-Portable`，不提供随身模式；旧同级 `data` 在应用数据服务打开前完成校验迁移，并清理已迁移文件及明确可重建的缓存。路径隔离、失败保护和重试语义见 [application-profile](./application-profile.md)。
-
-[工作区私有状态迁出项目目录](./workspace-state-storage.md)已完成本地 P2 和 P4：新数据接入 userData，旧数据主动迁移；稳定身份重新定位、最后关联移除后的 30 天恢复期、过期维护和按需统计从独立的数据管理设置页管理。终端与 Agent 的自动快照已退场，Island 差异独立保留；迁移只复制启动配置和日志，旧还原点连同已迁入 userData 的副本直接清除，不再按年龄或数量保留。P1 队列和三个常量继续复用；P3 Hook 资产采用 userData 单次启动注入，P5 的旧 Hook 主动清理与结果展示位于同一数据管理区块，未知文件保留。迁移不含源码、工程 Notes 和构建产物，远程迁移不支持；P6 已完成本机代表恢复和桌面迁移演练，正式安装器升级、物理慢盘及多日验收仍未完成。
-
-桌面执行史：[scoped implementation 与实施史](../agent/desktop-task-implementation.md)、[delegated-modes 与 xdo 宿主](../agent/desktop-delegated-modes.md)、[ade-survey](./desktop-ade-mit-survey.md)。
-
-打包与发布：[hoisted-deps](./packaged-hoisted-deps.md)、[runtime-size](./packaged-hoisted-deps.md)、[cli-publish](./janus-cli-npm-publish.md)、[officecli](./officecli-bundled.md)、[runner-backflow](../agent/external-runner-backflow.md)、[ci-order](./ci-sibling-build-order.md)、[verify-repair](./release-verify-repair.md)（v0.8.8 双管线修复）。
-
-[发布门禁成本与冗余审计](./release-gate-redundancy-audit.md)实测完整 verify 约 27min，指出发布级验收占约六成、同一断言重复执行、排序倒置与 PR 全量执行三类冗余，并确认分支保护未绑定 required status check；建议按性价比排序，接入分层与重排顺序为前置。该审计为草案，未实施。
-
-[开发、构建与发布解耦设计](./release-delivery-design.md)针对本地可打包而远端反复失败的维护问题，第一阶段已在代码中取消 tag 自动构建和分支 push 重复验证，保留完整 PR 门禁及手动构建附件。Windows 本地上传草稿与核验公开分开，失败可续传；OfficeCLI 保持内置。[OfficeCLI](./officecli-bundled.md) 已接入 macOS arm64/x64 的资源解析、校验与打包，Mac 实机和签名安装包尚未验证。统一输入与其余平台交付仍在设计阶段，具体取舍与实施验收由该草案维护。
-
-[macOS 兼容性分析](./macos-compatibility.md)维护源码探针、Windows 宿主实测和 Mac not-run 矩阵。窗口 IPC 一次注册，Dock／重复启动共用主窗恢复路径，回归与 Windows Electron 重开通过。CLI 环境、Homebrew 解析、私有安装核验／恢复和架构隔离已修复，Claude 默认降级 TUI，Pi/DSH 包定位及 profile 准备已补齐；managed Worker 平台门保留。POSIX 回收已实现并通过模拟，Mac 资源已校验。原生加载、真实窗口／PTY／CLI、最低系统版本、签名安装和升级仍待目标系统验证；宿主回归不代表 Mac 完整支持。
-
-[跨平台运行时边界与实施计划](./platform-runtime-boundaries.md)对照 Orca 的进程包、环境恢复、路径身份与导入门禁，维护 P0—P7 和 13 项验收。P0—P5 已实施：local 旧记录兼容、公共进程／PTY／CLI、provider 目录、路径比较和能力策略已迁移，剩余原生／桌面／外部包边界逐文件说明。P6 完整检查已尝试并修复本轮 CLI 优先级回归，会话续接三项、CLI 安装启动和窗口重开复验通过；Planche 与插件窗口两项 UI 断言仍失败。P7 最终 Windows 目录包在仓库外启动通过，Mac 资源门禁已接入、最低发行配置为 15.0；真实 Mac、远端及签名安装升级未验收，DSH 历史等新增能力单列。
-
-[退出与资源回收](./application-shutdown.md)对照 dev、SuperAgent 工作树和实际 0.9.9 安装包，记录 Windows 独立安装副本的关闭、真实 Office 预览、进程管理和故障注入证据。正常测试可以释放所测资源，但退出中的异常重启会产生新实例并继续占用程序文件；串行清理预算、进程树确认和退出事件覆盖仍需改造。该专题维护共用退出实施计划及 Windows／Mac 验收边界，修复尚未实施。
-
-正式 Windows 发布推荐 `package:win:stage`，避免打包和首次上传重复执行运行验证；上传先预检远端状态，运行检查后重新核对再续传。手动构建将版本及 OfficeCLI 资源检查前置，并复用本地资源哈希校验脚本。必要的构建、包边界与公开前字节核验保留，细节见上述解耦设计及维护者指南。
-
-协作入口由 [CONTRIBUTING](../../../CONTRIBUTING.md)、[开发环境](../../../docs/development.md)和[维护者指南](../../../docs/maintainers.md)分别承担：功能 PR 进入 dev，晋级 PR 进入 main，两者均运行 Windows 验证；发布由维护者负责。分支、验证和反馈取舍分别见 [development-branch](./development-branch.md)、[reproducible-verification](./reproducible-verification.md)及 [github-maintenance](./github-maintenance.md)。
-
-早期基石（均保留，无孤儿）：[toast](./desktop-toast.md)、[model-registry](../agent/model-registry.md)、[llm-runtime](../agent/llm-tool-runtime.md)、[browser-surface](./browser-surface.md)、[auto-update](./app-auto-update-win.md)、[cli-scope](./cli-manager-scope.md)、[i18n](./i18n-pipeline.md)、[statusbar](./runtime-statusbar.md)。
-
-内嵌浏览器按实际可见性挂载原生网页视图：隐藏、加载失败和对话框遮挡时摘除，恢复后按布局重新挂载。错误提示保留失败地址与重试入口；退出确认和设置等共享弹窗通过窗口内计数协调遮挡，不能依靠 CSS 层级覆盖原生网页。具体行为及 Docker 入口回归证据见 [browser-surface](./browser-surface.md)。
-
-[浏览器控制](./browser-control.md)按用户选型内嵌固定版本 Chrome DevTools MCP，普通 Janus 聊天可操作用户可见的内置网页；宿主负责标签创建/激活、精确目标限定、会话归属及既有审批和取消。设置中心新增浏览器控制与电脑控制两栏，后者目前仅管理候选驱动路径和版本检测，实际电脑控制尚未接入。电脑控制已确认采用 Windows、macOS、Linux 三平台公共架构，优先实现与验证 Windows，复用通用驱动并按实测缺口补适配；人机同时操作与广泛应用覆盖保留为目标。终端浏览器接入通过同一 Broker，浏览器设置管理六种终端的接入、检测与移除，并与通用技能／MCP 管理共用配置。电脑控制方案、外部 CLI 兼容验证及先前 Edge/Chrome 与 Playwright 的对比证据由[探索专题](./browser-computer-use.md)维护；元素点选需求保持独立。
-
-预览选元素→AI 按元素改（已敲定、未实现）：内置浏览器与 HTML 预览（`HtmlPreviewFrame`）共用一份元素引用协议（selector／outerHTML／计算后 CSS／bbox／截图），取元素前端各面自建；用户点选后元素引用进会话输入，AI 按引用定位源码修改并刷新验证。注入只服务用户主动选取手势，不开放 agent 页面脚本；映射目标态为 sourcemap／组件树 `file:line`，本期文本检索、二期映射。范围、边界与验收归[选元素→AI 按元素改](./requirements/element-picker-ai-edit.md)。
-
-Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边界和同步排除清单。双目标打包与单目标 portable 迭代均禁用自动发布；迭代子进程使用压缩级别 1 并保留体积预算，正式发行保持默认压缩配置。独立上传入口检查运行时和更新清单，向草稿续传同一批产物；单独公开时核对远端附件，不重新构建。llm-core 的增量信息保存在 dist 内，清理 dist 同时清理缓存；verify 先构建 core 供测试使用，后续 build:app 仅构建 Electron 应用。
-
-本地 checkout/worktree 独立安装开发依赖，`.npmrc` 固定本地 sibling 包物化方式；`npm run dev` 先检查本地工具链、Electron 二进制和 sibling 发布入口，再编译 llm-core 并启动隔离的 `.cache` 开发输出。缺依赖给出明确修复命令，不自动安装或改动同级仓。环境契约和验证由 [reproducible-verification](./reproducible-verification.md) 维护，操作入口见 `CONTRIBUTING.md`。
+[README 展示](readme-showcase.md)、[账号迁移](account-migration.md)与[更新机制](app-auto-update-win.md)分别维护演示、公开来源和升级行为。
 
 ## Acceptance criteria
 
@@ -82,8 +42,3 @@ Windows 分发先刷新已构建的 sibling 发布文件，再构建、检查边
 - [x] AC-1: 本域 21 篇直接子全部携带有效 parent。
 - [ ] AC-2: 两篇正名文件后缀与 id 一致，无 flat-layout 违规残留。
 - [ ] AC-3: github-maintenance 归属产品面，本域不重复收纳。
-
-[Public account migration](./account-migration.md) records the three repositories, Pages, release assets and old-client update limits. Isolated migration worktrees preserve unrelated uncommitted development changes.
-
-
-[应用退出、进程回收与安装占用](./application-shutdown.md)维护 Windows／Mac 退出边界、SuperAgent 清理实现、隔离故障复测及安装包交付证据。

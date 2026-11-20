@@ -908,6 +908,46 @@
       "absorbedInto": ".agents/notes/blueprint/maintenance/blueprint-dispatch-panel.md",
       "survivingId": "f013beaa-bff7-4656-b086-d4816608f905",
       "reason": "同一主题的历史切片并入主题 Note；事实与取舍原文保留于幸存者正文。被吸收身份只在本清单与 Git 历史留存。"
+    },
+    {
+      "source": ".agents/notes/knowledge/history/reconstruction-index.md",
+      "id": "02a1e22f-5e82-4a47-917d-17e52a6eefc2",
+      "created": "2026-10-09",
+      "sourceSha256": "2efecb3b21fe7142d0f6a4754ea5e8ab959b5b7601e085240581ce3424d3e068",
+      "sourceRevision": "c376a8da0410b1a38ad9e1c71271532ebb0cf3e3",
+      "absorbedInto": ".agents/notes/knowledge/requirements/memory-knowledge.md",
+      "survivingId": "c0a75c6a-5d06-4088-b7ed-9ecdd835b3d3",
+      "reason": "纯索引与演进专题重复。三份历史方案由演进专题直接链接，原验收和 Task 保留。"
+    },
+    {
+      "source": ".agents/notes/agent/history/thread-close-confirmation.md",
+      "id": "abb1ccb3-be21-5f64-9b55-de5089e621e9",
+      "created": "2026-09-18",
+      "sourceSha256": "726d79220e4e402c25e2fd216d92c2254eafa83a3fe84c376dedf1235c989d1d",
+      "sourceRevision": "9c49dbabfa5f9ff1a1144fb23da0a7f3f6992204",
+      "absorbedInto": ".agents/notes/sessions/threads/thread-registry-activation.md",
+      "survivingId": "d9f1d453-d9cc-5fba-8655-6ac51f3cb75c",
+      "reason": "关闭提案的显式关闭与保留回执规则已由线程注册决策承接，旧面板已退役。"
+    },
+    {
+      "source": ".agents/notes/agent/history/legacy-loop-removal-plan.md",
+      "id": "cddc53a5-dcf8-5852-a83c-94dd90d02788",
+      "created": "2026-09-18",
+      "sourceSha256": "8a88c702b3002a331fa3c2d1364248bf7475e87f0e26a3be7d24855b12632f63",
+      "sourceRevision": "9c49dbabfa5f9ff1a1144fb23da0a7f3f6992204",
+      "absorbedInto": ".agents/notes/agent/legacy-loop-removal.md",
+      "survivingId": "b766003d-d1a9-5e67-9b92-d32167421cc4",
+      "reason": "旧循环切除清单已执行，现行决策保留迁移、显式修改与结算边界。"
+    },
+    {
+      "source": ".agents/notes/blueprint/documents/history/own-notes-namespace-proposal.md",
+      "id": "134ce6f7-07c1-55be-b2c4-b37bc216c37f",
+      "created": "2026-09-18",
+      "sourceSha256": "9cf591072e0e679e9ef2fd90c5b5cf37531b698abc997422a5258455baacca65",
+      "sourceRevision": "eed41bd3efbcc02ea97f1a5ccd8e5da97dec889b",
+      "absorbedInto": ".agents/notes/blueprint/documents/history/own-notes-namespace.md",
+      "survivingId": "5559a0b8-d437-5e79-8bb5-c593bf30e8fc",
+      "reason": "早期命名空间提案与所采纳决策为同一主题，历史设计、分类原因与限制保留于后者。"
     }
   ]
 }

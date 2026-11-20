@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-20T07:06:47Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -77,19 +77,13 @@ SuperAgent 复用 CodexConversation 的原生事件／请求投影，通过独�
 
 ## Codex 重连提示恢复
 
-原生 Codex 适配器用 `willRetry` 追踪当前轮次的临时错误；同轮的新模型正文／推理输出或正常结束清除提示。工具活动、空增量、重复条目与其他线程不能证明网络恢复；旧轮次的延迟错误不能覆盖当前状态，最终失败及传输错误保留。切换原生线程会清除上个线程的错误。恢复逻辑与 dev 同步，实际实现位于 janus-agent 引擎包，本仓库通过固定制品消费。
-
-`tests/unit/codex-retry-recovery.test.ts` 在两侧保持一致，覆盖恢复、事件隔离、最终失败及线程切换。2026-11-09：本分支 codex-conversation、codex-retry-recovery、codex-managed-recovery、codex-async-questions 共 41 项通过，Worker 面板另 7 项浏览器测试通过；dev 的 codex-conversation 与 codex-retry-recovery 共 37 项通过。两侧类型检查、定向 ESLint、Notes 校验通过；引擎构建、六包固定制品校验与 SuperAgent build:check 通过。测试使用本地协议事件，不代表真实供应商断网重连验收。
-
-## Codex 异步提问
-
-## Codex 重连提示恢复
-
 2026-11-10 发布集成保留 main 的结构化状态：临时重试写入 `snapshot.retry`，最终失败保存在所属轮次的 `turnError` 条目，宿主断连继续使用 `snapshot.error`。dev 的历史数据库恢复、操作预览与这套状态并存；折叠过程同时排除旧 `error` 和 `turnError`。合并后四组相关单测共 60 项通过。
 
 Codex 的 `error` 通知以 `willRetry` 区分重试提示与最终错误。对话适配器记录重试提示所属轮次；只有同一活动轮次的新模型正文／推理输出，或该轮正常结束才清除提示。工具活动、空增量、重复条目、其他线程及设置通知不能证明恢复；旧轮次的延迟错误不能覆盖当前状态。最终失败与传输错误保留，失败结束即使没有附带错误详情也不能被当成恢复。切换原生线程会清除上个线程的错误。依据为本机 `codex app-server generate-json-schema` 的 `ErrorNotification`。
 
 验证：`npx vitest run tests/unit/codex-conversation.test.ts tests/unit/codex-retry-recovery.test.ts` 共 37 项通过，覆盖恢复、工具活动隔离、重复输出、旧轮次延迟错误、线程切换及最终失败保留。恢复规则同步至 SuperAgent 引擎源及固定制品；未模拟真实供应商断网重连。
+
+`tests/unit/codex-retry-recovery.test.ts` 在两侧保持一致，覆盖恢复、事件隔离、最终失败及线程切换。2026-11-09：本分支 codex-conversation、codex-retry-recovery、codex-managed-recovery、codex-async-questions 共 41 项通过，Worker 面板另 7 项浏览器测试通过；dev 的 codex-conversation 与 codex-retry-recovery 共 37 项通过。两侧类型检查、定向 ESLint、Notes 校验通过；引擎构建、六包固定制品校验与 SuperAgent build:check 通过。测试使用本地协议事件，不代表真实供应商断网重连验收。
 
 ## Codex 异步提问
 

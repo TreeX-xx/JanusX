@@ -5,25 +5,13 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-27T07:15:00Z",
+  "updated": "2026-11-20T12:11:42Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
   "moduleState": "partial",
   "codeRefs": [
-    {
-      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "plugins/blueprint/src/main/service.ts",
-      "role": "entry"
-    },
-    {
-      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/main/harness/workspace-blueprint.ts",
-      "role": "implementation"
-    },
-    {
-      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "plugins/blueprint/src/ui/App.tsx",
-      "role": "implementation"
-    }
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/service.ts", "role": "entry"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/notes/workspace-blueprint.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/ui/App.tsx", "role": "implementation"}
   ]
 }
 ---
@@ -38,7 +26,7 @@
 
 HarnessNoteService.projectView 只投影当前根目录，不按引用发现或读取其他已注册、已绑定工作区。composeBlueprint 的 localOnly 装配保留本工作区接口与证据；本地 Note 的可读状态不取决于它声明的外部开发仓库。跨工作区 URI 与绑定记录仍保存在共同来源中，但不并入当前画布、数据来源和审核订阅。外部引用、外部接口提供方及其接入诊断不触发来源报错，本工作区的缺失目标、无提供方接口、无效文档和扫描失败仍可检查。显示与验证由[模块浏览](../navigation/requirements/module-browsing.md)维护。
 
-WorkspaceBlueprintService 调用 agentX 的初始化和撤销能力，打开工作区不自动生成文件；只读接入检测不替代数据初始化。
+插件的 WorkspaceBlueprintService 继承 @janusx/note-tools 的 WorkspaceNotesService，补充图身份。普通打开工作区只读取状态。用户预览并确认后才初始化；初始化服务还提供与该次操作绑定的撤回。普通维护对话的写入规则另见[维护模块](../maintenance/module.md)。
 
 插件先读取当前实际根的 workspace.status，只有 ok 才激活 Note 监听并读取图与审核。缺少 .agents、未接入 Notes 的 .agents 或无可显示 Note 时显示“未检测到蓝图 Note”；缺少接入时可预览初始化，不把正常空态解释为后台未运行。无效文档和读取失败保留来源诊断，显示“暂时无法读取蓝图 Note”。后台 workspace.activate 对非 ok 根安全返回，不启动会因缺失来源报错的监听。项目／worktree 切换保留页面与顶栏，内容按根重置；契约见[导航模块](../navigation/module.md)。
 

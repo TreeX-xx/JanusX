@@ -88,7 +88,7 @@
       "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/41a64d3c-2811-4dc8-a1ab-2c5c541ec123"
     }
   ],
-  "updated": "2026-11-03T08:04:01Z",
+  "updated": "2026-11-20T12:06:46Z",
   "moduleState": "partial"
 }
 ---
@@ -97,29 +97,19 @@
 
 ## Responsibility
 
-通过共享 Note 读取边界提供工程 wiki、文档关系与跨工作区蓝图。NoteReadSnapshot 保留原始身份、元数据、关系与诊断，视图在相同来源上组织信息。
+蓝图把当前工作区中的原始 Note 投影为可浏览的模块、正文与关系。agentX 的共享服务负责身份、读写和文件事务；JanusX 的官方插件负责画布、阅读、讨论、审核与建议。Task 的执行及其回执由[Agent 模块](../agent/module.md)维护。
 
 ## Design
 
-本模块由四项长期职责协作：[工程文档读取与 wiki](documents/module.md)提供同源正文和目录；[模块投影与导航](navigation/module.md)将来源组织为可逐层浏览的模块页；[蓝图维护对话](maintenance/module.md)承接讨论、文件变更与审批；[工作区组合与初始化](workspaces/module.md)处理明确 checkout 的装配和接入。
+[文档读取](documents/module.md)提供同源正文和可重建的索引。[模块导航](navigation/module.md)根据 module 和 parent 显示职责树与直接归属的内容。[工作区接入](workspaces/module.md)管理当前实际 checkout 的状态、初始化和切换。单根首页显示项目模块，进入子模块后可返回原浏览位置。
 
-单根首页采用根模块页，单击预览真实正文，双击进入并保留当前模块为本页父节点，返回恢复范围、预览和视口。具体交互与工具行为由导航子模块的[浏览需求](navigation/requirements/module-browsing.md)和[关注需求](navigation/requirements/module-focus-navigation.md)维护。
+[维护对话](maintenance/module.md)将只读讨论与文件预览、确认写入分开。[建议管理](maintenance/suggestions/module.md)按来源版本维护当前意见，目标删除后清理建议。外部客户端可通过[Note MCP](note-mcp.md)访问获准的工作区。
 
-Janus 负责产品投影和交互；agentX 的共享 harness 包拥有解析、身份、读取缓存、创建编辑、事务、监听、共享与撤销。任务执行和回执由 Agent 对话与执行模块承接，旧工程 Wiki 生成已退出，Note 内容审核与当前建议归本模块维护职责；个人记忆保留独立能力。[共享边界](agentx-harness-inheritance.md)记录取舍。
-
-宿主 HarnessNoteService 直接消费共享 NoteService。主进程、renderer、远程 workspace 三个入口均已断开插件业务源码；旧 CRUD、画布编辑、图投影和转换 IPC 返回插件必需提示。黑板使用通用插件入口，聊天证据和圆桌结果通过共享 Note API 读写。公共作者工具与工作区初始化归 @janusx/note-tools，公共聊天／提示组件移出蓝图目录；图身份、布局和旧 JSON 转换归插件。原始旧数据保留，转换必须先预览再确认。清理后的 Windows 安装器和便携包已验证仓库外启动，主包排除 React Flow；三态资源已有代表证据，新版本完整功能和故障矩阵仍未验收。
-
-应用设置不再内置蓝图页或“创新功能”蓝图开关。安装官方插件后，由包内 settings 贡献加入设置导航，授权启用后加载隔离页面；卸载撤下入口和页面，保留数据。旧设置快捷入口转到插件管理，生产目录仍未发布。`npm run dev:blueprint` 可用独立 profile 本地签名安装和测试，不需要 Release；设置自动保存及模块导航补齐的边界、命令与证据归[官方插件专项](../planning/blueprint-official-plugin.md)。
-
-插件界面通过公开 SDK 样式和上下文订阅跟随宿主主题。画布、阅读区、讨论区使用内容表面令牌；辅助文字和强调按钮直接使用语义文字色；MCP 客户端图标的中性笔画随主题调整。主题职责与验证边界归[主题机制](../workbench/theme-system.md)。
-
-[接入计划](workflowx-v2-adoption.md)与跨子模块的交付、性能专题保留在本层。它们引用各职责的实现和验收，不复制子模块正文。目录与旧文档的归属依据见[职责目录整理](module-responsibilities.md)。
+官方插件独立提供 UI、设置和受信后台；宿主提供通用插件和共享 Note 接口。插件清单与仓库的[0.9.10 发布记录](../../../docs/releases/v0.9.10.md)均列出 Blueprint 1.0.9。本地调试入口为 `npm run dev:blueprint`，分发、验证范围与尚待验收的场景见[插件实施计划](../planning/blueprint-official-plugin.md)。
 
 ## 当前演进方向
 
-[产品方向](product-direction.md)是蓝图融合讨论的入口，[交付计划](evolution-roadmap.md)集中维护阶段、依赖与待讨论清单。Note 与建议的变化联动由[建议管理模块](maintenance/suggestions/module.md)集中维护，目标删除后自动清理建议。专题分别由[内容审核](maintenance/note-content-review.md)、[独立 Note MCP](note-mcp.md)和[个人工作台](../knowledge/personal-memory-workspace.md)承载。用户已确认概念融合、设置由蓝图承接、个人画像保留，以及 MCP 模块化与一键导入；原文审核、当前建议、独立 MCP 与 Git 调度已实现，共享实现继续遵循 agentX 归属。实际测试、终端兼容性和未验收项见[实施基线](implementation-baseline.md)，不将实现接线等同完整版本发布。
-
-[官方可下载插件专项](../planning/blueprint-official-plugin.md)把蓝图专属界面与业务按需分发，保留共享引擎、原始 Notes 及独立 Note MCP 的既有契约。隔离 UI、签名分发、受信 native 服务、稳定 MCP 启动器、旧状态导入和显式 JSON 转换已有实现。仓库外锁定构建现在使用九个公开归档，原八个哈希保持不变；同产物真实页面回归接入本地与 CI，完整桌面验证使用隔离项目和 profile。宿主只保留拒绝旧调用的兼容通道，三个入口的实际业务输入由门禁约束为零。Windows 实物损坏导入、数据保留及重启已通过。用户已移除旧版升级兼容，暂缓撤销并取消蓝图修改审计；1.0.3 确认预览后直接写入 Note，无独立审计记录和维护撤销入口。新版本完整功能、故障、资源与真实发布继续按 BP-0–BP-6 推进，AC-20–27 未签收。
+[产品方向](product-direction.md)与[交付计划](evolution-roadmap.md)维护后续讨论。工程知识以原始 Note 为来源；个人画像、召回和备忘录归[个人记忆模块](../knowledge/module.md)。
 
 ## Acceptance criteria
 

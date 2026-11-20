@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-10-09",
-  "updated": "2026-11-11T04:40:00Z",
+  "updated": "2026-11-20T12:09:55Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf",
   "tags": ["memo","todo","milestone","assistant","workspace"],
   "codeRefs": [
@@ -54,7 +54,7 @@ MemoStore 在 userData/janusx/memos 保存独立 JSON 文件，使用串行读�
 
 ## 会话与共享工具轮次
 
-工具 schema、提示、绑定／选择／来源语义和备忘录操作规则由 [agentX 工具模块](note://62b44166-82f0-41ff-838d-e2b02388ed06/df09fc5b-5cbb-4282-875c-3268459044e5)维护。桌面 MemoStore 继续拥有现有文件、修订冲突与原子写入，经 MemoStorePort 接入；旧 chat-tools 与共享契约文件仅转导出。普通模式可以读写，SuperAgent 模式仅开放 memo_read，不直接创建／修改；本次未增加 Worker 访问备忘录的协议。Island 聊天与 SuperAgent 工具栏共享模式选择，作用于下一条消息，执行期间不可切换。
+工具 schema、提示、绑定／选择／来源语义和备忘录操作规则由 agentX 维护，具体源文件见[工具迁移清单](../../../docs/migrations/agent-tools-engine.json)。桌面 MemoStore 继续拥有现有文件、修订冲突与原子写入，经 MemoStorePort 接入；旧 chat-tools 与共享契约文件仅转导出。普通模式可以读写，SuperAgent 模式仅开放 memo_read，不直接创建／修改；本次未增加 Worker 访问备忘录的协议。Island 聊天与 SuperAgent 工具栏共享模式选择，作用于下一条消息，执行期间不可切换。
 
 备忘录入口与 Chat 工具默认可用，不受旧配置中的 memo 开关控制。Chat 工具仍要求模型支持工具调用，配置兼容见[创新功能管理](../workbench/experimental-preview-features.md)。
 

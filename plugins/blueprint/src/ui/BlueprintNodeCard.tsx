@@ -60,7 +60,7 @@ function BlueprintNodeCardImpl({ id, data, selected }: NodeProps<BlueprintRFNode
         d.searchDimmed ? 'bp-node-card--dimmed' : ''
       ].filter(Boolean).join(' ')}
     >
-      {/* Note: hierarchy edges use Top/Bottom, relation edges may exit Left/Right — see .agents/notes/2026-09-26-blueprint-edge-partial-refresh--edge-refresh.md */}
+      {/* Note: hierarchy edges use Top/Bottom, relation edges may exit Left/Right — see .agents/notes/blueprint/navigation/blueprint-edge-partial-refresh.md */}
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <Handle type="target" id="left" position={Position.Left} style={{ opacity: 0 }} />
       <Handle type="target" id="right" position={Position.Right} style={{ opacity: 0 }} />

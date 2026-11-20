@@ -53,7 +53,7 @@ export function getAdaptiveEdgeEndpoints(source: NodeRect, target: NodeRect): {
   }
 }
 
-// Note: hierarchy edges stay vertical so parent links read as clean S-curves — see .agents/notes/2026-09-26-blueprint-edge-partial-refresh--edge-refresh.md
+// Note: hierarchy edges stay vertical so parent links read as clean S-curves — see .agents/notes/blueprint/navigation/blueprint-edge-partial-refresh.md
 export function getHierarchicalEdgeEndpoints(source: NodeRect, target: NodeRect): {
   source: EdgeEndpoint
   target: EdgeEndpoint

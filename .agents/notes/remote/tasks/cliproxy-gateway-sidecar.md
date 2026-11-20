@@ -3,7 +3,7 @@
   "schema": "harness-note/2",
   "id": "23372e89-e580-446d-b345-05c8a5c31d87",
   "kind": "task",
-  "lifecycle": "proposed",
+  "lifecycle": "archived",
   "created": "2026-10-02",
   "class": "feature",
   "tags": ["cliproxy","llm","codex","external-cli","windows","deferred","dashboard","multi-account"],
@@ -51,11 +51,14 @@
     ],
     "review": "independent"
   },
-  "updated": "2026-10-08T02:54:24.778Z",
-  "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5"
+  "updated": "2026-11-20T12:06:46Z",
+  "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5",
+  "disposition": {"reason": "早期 Windows 宿主内置方案已由可选官方 CPA 插件取代。保留原 Task 契约与验收状态。"}
 }
 ---
 # CLIProxyAPI gateway sidecar (deferred, Windows-first)
+
+目前维护的是[独立 CPA 插件](../../../../plugins/cpa/README.md)。下文是原 Windows 宿主方案及其验收，插件分发不会自动完成其中的条款。
 
 ## Goal
 

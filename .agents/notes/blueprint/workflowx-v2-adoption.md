@@ -5,19 +5,15 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-10-08T14:39:00Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd",
   "codeRefs": [
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/harness/note-authoring.ts","role":"entry"},
-    {
-      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/renderer/src/features/blueprint/module-browsing.ts",
-      "role": "implementation"
-    },
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/ipc/harness-handlers.ts","role":"implementation"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"tests/unit/workflowx-v2.test.ts","role":"test"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"tests/e2e/blueprint-v2.spec.ts","role":"test"},
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"tests/e2e/desktop-harness-runtime.spec.ts","role":"test"}
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "packages/note-tools/src/authoring.ts", "role": "entry"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/ui/graph/module-browsing.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/ipc/harness-handlers.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/workflowx-v2.test.ts", "role": "test"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/e2e/blueprint-local.spec.ts", "role": "test"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/e2e/desktop-harness-runtime.spec.ts", "role": "test"}
   ]
 }
 ---
@@ -26,7 +22,7 @@
 
 ## 当前设计
 
-JanusX 使用 agentX 的共享读取、写入、wiki、工程工具和 Task 执行契约，固定 WorkflowX 2.0.0。共享包来自 agentX `5c41e2fc693a0f1fd6014a7893fa4a39616f1790`；规则源为 WorkflowX `4af8c1b`。版本摘要为 `b76f1d5e98fce7a8fa56f5f60b023b457640e7036c32096e430a8481ef83c5e8`。主程序与 renderer 通过同一 Note 快照显示元数据、正文、诊断和更新时间。
+JanusX 使用 agentX 的共享读取、写入、wiki、工程工具和 Task 执行契约，固定 WorkflowX 2.0.0。原接入验收时的共享包来自 agentX `5c41e2fc693a0f1fd6014a7893fa4a39616f1790`；规则源为 WorkflowX `4af8c1b`。版本摘要为 `b76f1d5e98fce7a8fa56f5f60b023b457640e7036c32096e430a8481ef83c5e8`。主程序与 renderer 通过同一 Note 快照显示元数据、正文、诊断和更新时间。
 
 蓝图使用统一浏览入口：单根项目首次即展示根模块页，包含根节点、直属子模块和直属文件，采用模块页的三列分行布局，面包屑从项目名开始；多根项目保留聚合入口。模块包括 planned、partial、implemented。单击模块在左侧预览共享来源的 module.md；双击进入模块页面，保留该模块自身作为本页父节点，下方显示直属文件和子模块入口。返回恢复范围、选中、正文与视口，重复进入当前根节点不增加层级。模块为带页签的容器卡片，普通文件按类型放入灰色虚线分组；不同归属的同类文档不合并。搜索和 Chat 从完整来源定位所属模块；未归属、历史文档和解析诊断保留入口。具体行为及自检证据见 [模块浏览交互](./navigation/requirements/module-browsing.md)。布局属于视图，不生成第二份文档身份。wiki 按 module 归属组织目录，历史 parent 仍可作为关系阅读。模块状态、文档生命周期和 Task 执行结果分别显示。
 

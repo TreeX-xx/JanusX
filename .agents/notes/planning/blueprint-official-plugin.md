@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-11-14T06:09:01.216Z",
+  "updated": "2026-11-20T12:06:46Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/1aef97e6-77fe-4bae-af51-ff560a737282",
   "relations": [
@@ -23,6 +23,8 @@
 SuperAgent 合入后，宿主的六个引擎包从相邻源码目录切为 vendor 下的固定tgz。独立构建先核验引擎清单哈希，再直接复制已有归档，保留其原始字节、版本和完整性；源码目录依赖继续使用原发布文件缓存。不能把tgz当目录读取，也不能从安装目录重打包替代固定制品。Blueprint 的依赖声明、构建锁和安装锁同步更新至42cab7549f5deefd及当前公开SDK。归档直通／完整性拒绝与缓存回归2项通过，严格锁模式的仓库外独立类型检查、双端构建和签名Electron综合回归通过。证据见 artifacts/merge-superagent-20261114/blueprint-update.log 与 verify-3.log；未发布插件。
 
 ## 目标与当前状态
+
+当前仓库的 `plugins/blueprint/manifest.json` 和 [0.9.10 发布说明](../../../docs/releases/v0.9.10.md) 均列出 Blueprint 1.0.9。下文的生产目录、依赖归档和功能矩阵按对应日期或候选版本理解。
 
 2026-10-30 本地交付：蓝图 `1.0.8`、CPA `1.0.0`、Docker `1.0.0` 统一以现有 `janusx-blueprint-20261026` 密钥签名，宿主保留蓝图信任并增加另两个插件的 native signer 白名单。配套安装器及三个自包含 `.jxp` 输出到 `release/10-30`，不上传 Release、不变更发现目录。蓝图公开依赖归档与旧锁存在差异，按当前相邻公开包和宿主包重新锁定，并通过仓库外独立类型检查与构建；构建记录在 `artifacts/plugins/blueprint-build.json`。相邻仓库现有修改纳入其公开包构建，未修改相邻源码。此轮不将包导入验证等同于全部业务功能验收。
 

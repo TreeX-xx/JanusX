@@ -55,7 +55,7 @@
     ],
     "review": "self"
   },
-  "updated": "2026-11-14T05:53:26.665Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/2a85ca64-bc0b-48b1-91b5-a89c44e13321" },
@@ -106,12 +106,12 @@
 
 ## Acceptance criteria
 
-- AC-1 调度器单测覆盖吸引/驻留/主动移开/疲劳/游荡/摸头循环/续播队列，默认参数=定稿值（V-2）。
-- AC-2 order 折叠胶囊支持鼠标跟随与摸头闭眼循环；reduced-motion 下静止降级无报错。
-- AC-3 通知串行传话不丢队（中途收起续播、面板打开清队语义固定）；左上角计数与历史条数一致。
-- AC-4 点击入口展开通知中心：眼在左上、内容完整不裁切；收起看过即焚清空历史与计数。
-- AC-5 下滑 ≥60px 松手展开通知，重复下滑保持展开；未达阈值、反向拉回及取消不触发。peek 下滑返回胶囊后打开通知，expanded 禁用复杂手势。副黑板及布局/板高状态删除；岛体单击、灰字计数、传话胶囊入口及双击语义保留。
-- AC-6 order 态不再使用 `mini-idle` 8s 循环；A/B 对照期后从 CSS 移除。
+- [ ] AC-1: 调度器单测覆盖吸引/驻留/主动移开/疲劳/游荡/摸头循环/续播队列，默认参数=定稿值（V-2）。
+- [ ] AC-2: order 折叠胶囊支持鼠标跟随与摸头闭眼循环；reduced-motion 下静止降级无报错。
+- [ ] AC-3: 通知串行传话不丢队（中途收起续播、面板打开清队语义固定）；左上角计数与历史条数一致。
+- [ ] AC-4: 点击入口展开通知中心：眼在左上、内容完整不裁切；收起看过即焚清空历史与计数。
+- [ ] AC-5: 下滑 ≥60px 松手展开通知，重复下滑保持展开；未达阈值、反向拉回及取消不触发。peek 下滑返回胶囊后打开通知，expanded 禁用复杂手势。副黑板及布局/板高状态删除；岛体单击、灰字计数、传话胶囊入口及双击语义保留。
+- [ ] AC-6: order 态不再使用 `mini-idle` 8s 循环；A/B 对照期后从 CSS 移除。
 
 ## Verification
 
@@ -130,6 +130,8 @@ P1–P5 全部落地（2026-10-24，feat/island-behavior-system，f8630f51→2d8
 合并后验证：`npm run typecheck` 通过；`npx vitest run tests/unit/janus-behavior.test.ts tests/unit/janus tests/unit/electron-dev-port.test.ts` 140 通过；`tests/unit/island-speak-queue.test.ts` 6 通过；通知中心单击、双击仲裁、延迟回调和视口几何 4 项 Playwright harness 回归通过；行为系统 4 个 TypeScript 实现文件 eslint 通过。本次未运行真机 Electron 视觉冒烟和完整回归，保留原 Verification 中的验证缺口。
 
 ## Evidence
+
+验收清单修复了索引语法。原文没有勾选状态，保留原编号、条文与执行记录；本次维护未重新验收。
 
 - 设计源：`design/janus-eye-behavior-lab/Janus Eye Behavior Lab.html`（verify-lab2–5.mjs 交互断言全绿，0 pageerror，2026-10-23；verify-lab2–5 记录的是下拉开面旧手势期证据）。
 - 原型跟进（2026-10-24）：lab 单击=通知中心开合/下拉开面退役/传话中轻点收起续播 + 自主动作切换（greet→nod 实测不连重、忙时让位），`verify-lab6.mjs` 全绿 0 pageerror（A 单击展开 / B 单击焚尽收起 / C 下拉不开面 / D 传话续播 / E 自主切换 / F 面板让位）。

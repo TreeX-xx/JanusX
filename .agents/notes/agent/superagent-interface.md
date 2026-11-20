@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-11-06",
-  "updated": "2026-11-19T10:58:58Z",
+  "updated": "2026-11-20T12:09:55Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -294,7 +294,7 @@ SuperAgent 底栏的加号与编辑区左边缘对齐，模型字号为 12px，�
 
 右侧订阅链路仍为原生会话快照 → SuperAgentWorkers.observe/publish → superagent:worker-changed → useWorkState → workerStream。记录与环境／调度变化触发重新读取，30 秒轮询补读快照；轮询不能补回适配器未消费的事件。最近输出只读取 agentMessage；当前命令只选择 running／starting Worker 当前 turn 中最后一个 inProgress 命令或带 activity 的事件，完成、等待、停止、恢复和断连时清空，两区默认折叠。
 
-原生适配器曾遗漏 item/commandExecution/outputDelta，导致执行期间正文不增长，完成事件写入完整输出时又被前端过滤。引擎现按 threadId／turnId／itemId 将有效增量追加到当前执行命令，复用 32ms 快照合并发布和 32,000 字符显示上限；已完成、旧轮次、其他线程、未知条目与非法增量均不会恢复活动显示。完成事件的 aggregatedOutput 替换流式正文，避免重复拼接；缺少最终汇总时保留已收正文及截断标记。工具输出不作为模型重试恢复证据。具体适配实现归 [SuperAgent 引擎](note://62b44166-82f0-41ff-838d-e2b02388ed06/648b9641-22d5-4804-b141-0929c93d0c70)。
+原生适配器曾遗漏 item/commandExecution/outputDelta，导致执行期间正文不增长，完成事件写入完整输出时又被前端过滤。引擎现按 threadId／turnId／itemId 将有效增量追加到当前执行命令，复用 32ms 快照合并发布和 32,000 字符显示上限；已完成、旧轮次、其他线程、未知条目与非法增量均不会恢复活动显示。完成事件的 aggregatedOutput 替换流式正文，避免重复拼接；缺少最终汇总时保留已收正文及截断标记。工具输出不作为模型重试恢复证据。桌面通过[Codex 原生适配入口](../../../src/main/terminal/codex-conversation.ts)消费固定引擎实现。
 
 桌面固定包为 5b830e07d355e7ea，锁文件及六包安装字节一致；相对前一构建，除包版本元数据外仅 Codex 适配器实现和声明映射变化。新增浏览器回归直接接收真实适配器发布的快照，再送入 Worker 订阅与 React 卡片，不再以直接修改文本代替原生增量。该用例在旧包上因无新快照失败，更新后与当前命令交互、光标检查共 3 项通过；引擎命令输出及受管请求测试 17 项、桌面 Codex／重试／呈现／固定包／Worker 回归 72 项通过，共 92 项。严格桌面类型检查、build:check、固定包及桌面 Notes 校验通过。命令与证据范围见 `artifacts/command-output-fix/verification.json`；引擎 Notes 全量检查仍有两项既有错误，本次修改的模块无错误。命令完成后仍清空活动区，最后一条已完成命令的保留展示尚未引入。此次未替换运行中安装版或进行真实 CLI 验收。
 

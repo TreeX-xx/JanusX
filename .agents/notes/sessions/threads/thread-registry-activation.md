@@ -26,63 +26,25 @@
       }
     }
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/0fc34aee-911c-44f3-b873-a1272d93631a"
 }
 ---
-# Thread registry with activation and confirmed close
 
+# Task 线程的列举、激活与关闭
 
 ## Problem
 
-Task threads persist per run but stay invisible: no surface lists background
-threads, threadless runs cannot be activated into threads, and closing a
-thread has no path at all. The close rule proposal,
-[thread close confirmation](../../agent/history/thread-close-confirmation.md),
-defines the only two legal doors but ships no UI. Without a registry,
-operators cannot tell idle threads from abandoned ones, and activation means
-re-reading the world.
+一次运行结束后，后续修复可能还需要它的尝试记录与模型端点。执行状态和线程生命周期需要分别维护。
 
 ## Decision
 
-`listTaskThreads` aggregates the registry from local runs plus thread files
-on every call with no persistent index: runs without a thread file appear
-threadless and activatable, and the registry never invents history.
-`openTaskThread` activates a thread, creating it on first touch and returning
-its model endpoint plus attempt history for reattachment. `closeTaskThread`
-destroys only the thread file and its briefs after the explicit user
-decision; Notes, receipts, and run records always survive, and actively
-owned running or verifying runs refuse with `BUSY`. New channels
-`runThreads`, `runThread`, and `runThreadClose` cross IPC as data or coded
-failure. The panel lists background threads with state, attempts, verdict,
-and model presence, activates into a detail view with the attempt timeline,
-and closes through a two-step confirm carrying the run and its receipt
-count. Completion alone never offers or performs a close.
+`listTaskThreads` 从本地运行记录与线程文件生成列表。`openTaskThread` 按需创建或载入线程，返回已有尝试与模型信息。关闭通过显式操作进入 `runThreadClose`：IPC 拒绝正在本机执行的 run，后端再检查运行状态；允许关闭时清理线程转录、thread.json 和 briefs。Task Note、运行记录和回执仍可追溯。
 
 ## Alternatives considered
 
-- Persist a registry index file: faster listing, but a second truth that
-  drifts from run records; rescan rebuild matches the index-free projection
-  rule the harness already follows.
-- Fold thread data into run states: fewer channels, but execution states
-  bloat with auxiliary history and every existing consumer re-verifies.
-- One-step thread delete buttons: fastest cleanup, but contradicts the
-  confirmed-close rule and risks invisible evidence-context loss.
-- Auto-close done threads: zero bookkeeping, but violates the parked-idle
-  decision the close rule exists to protect.
-- Do nothing / reuse: keep threads file-only; rejected because activation
-  stays undiscoverable and the close rule stays unenforced prose.
+单独持久化线程索引会引入需要与运行文件同步的状态。按空闲时间或完成状态自动关闭会让用户失去修复上下文，因此保留显式关闭。
 
 ## Consequences
 
-- **Gains**: background threads are glanceable, activatable with history and
-  endpoint intact, and closable only on decision with receipts preserved.
-  Adapter, mapping, contract, and island suites pin listing, activation
-  creation, owned-run refusal, missing-thread refusal, and the confirm flow.
-  Typecheck, production build, package boundaries, and bilingual key checks
-  pass.
-- **Costs and limits**: the registry scans run records per call; hundreds of
-  local runs will want pagination as a follow-up. Agent-proposed closure
-  still needs its chat proposal card; the panel confirm covers the user
-  door today. Threads on other checkouts stay out of view until their
-  checkouts bind.
+桌面后端保留这组 IPC，旧独立任务面板已退役。后续入口需要表达关闭意图，并处理占用拒绝。源码见[执行适配器](../../../../src/main/harness/execution-adapter.ts)及[IPC](../../../../src/main/ipc/harness-handlers.ts)。

@@ -8,7 +8,7 @@ import {
 } from '@xyflow/react'
 import { getHierarchicalEdgeEndpoints } from './graph/adaptive-edge-geometry'
 
-// Note: parent links use fixed vertical ports so hierarchy reads as S-curves — see .agents/notes/2026-09-26-blueprint-edge-partial-refresh--edge-refresh.md
+// Note: parent links use fixed vertical ports so hierarchy reads as S-curves — see .agents/notes/blueprint/navigation/blueprint-edge-partial-refresh.md
 
 const FALLBACK_WIDTH = 240
 const FALLBACK_HEIGHT = 110

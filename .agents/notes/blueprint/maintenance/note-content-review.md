@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "proposed",
   "created": "2026-10-09",
-  "updated": "2026-10-30T09:31:30.938Z",
+  "updated": "2026-11-20T12:06:46Z",
   "class": "architecture",
   "tags": ["blueprint", "note", "review", "automation", "jev"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/a09981f4-1a94-42ce-9255-2e1127cfa37b",
@@ -14,10 +14,10 @@
     {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3efc89cf-3aa2-4e1e-829f-a0abc4319691"}
   ],
   "codeRefs": [
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/blueprint/review/structure.ts", "role": "implementation" },
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/blueprint/review/runtime.ts", "role": "entry" },
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/ui/settings-autosave.ts", "role": "implementation" },
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/blueprint-review-engine.test.ts", "role": "test" }
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/blueprint/review/structure.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/blueprint/review/service.ts", "role": "entry"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/ui/settings-autosave.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "tests/unit/blueprint-review-engine.test.ts", "role": "test"}
   ]
 }
 ---

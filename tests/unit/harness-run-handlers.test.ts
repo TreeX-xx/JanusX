@@ -57,7 +57,7 @@ vi.mock('@janus-agent/harness-node', async importOriginal => ({
 }))
 vi.mock('../../plugins/blueprint/src/main/notes/note-authoring', () => ({ noteAuthoringContext: vi.fn(async () => ({ schema: 'harness-note/1' })) }))
 
-// Note: tests own config discovery — see .agents/notes/2026-09-20-reproducible-verification.md
+// Note: tests own config discovery — see .agents/notes/desktop/reproducible-verification.md
 vi.mock('node:fs', async (importOriginal) => {
   const fs = await importOriginal<typeof import('node:fs')>()
   return {

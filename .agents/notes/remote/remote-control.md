@@ -22,30 +22,27 @@
       }
     }
   },
-  "updated": "2026-10-08T02:54:24.778Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5"
 }
 ---
-# Remote control direction and gateway
 
+# 远程会话控制与宿主网关
 
 ## Problem
 
-Remote proposals pull toward full desktop sharing while the product needs session supervision. Pixel streams, key injection, and third-party kernels solve a different product and drag device-level risk into a workflow tool.
+远端操作需要把请求绑定到用户、工作区和终端。直接提供整机控制会越过这条授权边界。
 
 ## Decision
 
-The remote object is the session and workflow, never the machine desktop. Structured state plus a command whitelist replaces screen sharing; full desktop kernels stay rejected and pointer or pixel paths stay out of scope. Three entries share one execution core: a rich self-built control surface, a lightweight chat-channel entry, and a direct client-to-client link, all fronted by one host-side gateway as the sole trust boundary. Remote sides transmit authorized intents only and never touch shells or filesystems directly. Reads lead by default with graded, auditable, revocable writes. The account-system link edition continues in `../feature/2026-08-20-tob-lan-remote.md`.
+飞书入站运行时通过 `CompanionGateway` 处理允许的会话操作。网关结合调用方策略、终端绑定、动作令牌、请求去重和审计后交给宿主执行。具体入口为[飞书运行时](../../../src/main/remote-notifications/feishu-inbound/runtime.ts)和[网关](../../../src/main/companion/gateway.ts)。
 
-Orca (`stablyai/orca`, MIT) validates this direction and supplies the concrete reference: desktop remains the source of truth while mobile stays a read-mostly remote control (worktree status, terminal scrollback, short replies, Quick Commands, file tree, small source-control follow-ups), not a full editor. Its run modes split remote into Local, SSH worktrees, Remote Orca Server (`orca serve`), and per-workspace Cloud VM recipes (`orca.yaml`), with SSH for laptop-owned runtime and Server for shared persistent runtime. Transport is a versioned WebSocket RPC on `:6768` (pairing QR encodes endpoint plus device token plus TLS/X25519 fingerprint, `DESKTOP_PROTOCOL_VERSION`/`MOBILE_PROTOCOL_VERSION` gate incompatible pairs), LAN/Tailscale preferred with a relay cell plus director for NAT traversal, and a separate APNs/FCM push gateway where the desktop holds the credential. Local development uses `mobile/pnpm mock-server` plus `terminal.subscribe` repro scripts so UI work proceeds without a phone. See the Orca survey in [desktop ADE MIT survey](../desktop/desktop-ade-mit-survey.md).
+Android 使用[手机宿主](../../../src/main/remote/mobile-host.ts)及独立的 `MobileSession` 路径，按设备审批、终端所有权、请求身份和序号控制操作与输出恢复。[Android 配对握手](android-pairing-handshake.md)维护连接条件。
 
 ## Alternatives considered
 
-- Full desktop kernel inside the product — strongest case covers every remote need at once. The driver that rules it out is product mismatch: device control is not session supervision.
-- Chat-channel only — strongest case ships on existing messaging rails. The driver that rules it out is a capability ceiling: rich interaction never fits message cards.
-- Do nothing / reuse local-only operation — staying put avoids all pairing and relay machinery. The cost is no supervision beyond arm's reach.
+整机桌面共享能传递界面与按键，但扩大设备权限。仅通过聊天渠道接入可以复用消息平台，无法完整呈现持续变化的终端输出。
 
 ## Consequences
 
-- **Gains**: One gateway, one permission model, and one audit shape serve all three entries; new entries may only call the gateway. Orca confirms the borrowable mechanics: PTY lease surviving app close with grace-period reattach, port forwarding from remote listeners, revocable per-client tokens, and mock-server plus no-phone repro scripts for mobile UI work.
-- **Costs and limits**: Rich interaction concentrates on the self-built surface while the chat entry stays deliberately thin; relay transport swaps carriers without touching semantics. Mobile protocol lag (App Store review delay) requires a version compat gate from day one; iOS Simulator stays Mac-only so Windows-side iOS testing must rely on Expo Go physical devices plus EAS cloud builds plus mock, not on a local simulator. Current gateway scope (`status/terminals/bind/follow-up/stop/approve`, `lan` only) stays JS plus WebSocket text so Expo Go suffices for development; background push (APNs/FCM with killed-app delivery), pairing plus secure-store formalization, rich terminal or attachments or custom WebView engines, and TestFlight or internal distribution each require an EAS dev-client plus cloud build.
+两个入口共享宿主执行终端这一业务边界，各自验证调用身份、允许的动作和恢复语义。新的团队连接方式需要先确定成员及资源授权；原方案见[账号式 LAN 远控](tob-lan-remote.md)。

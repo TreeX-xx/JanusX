@@ -1,5 +1,5 @@
 """TypeSafe Jev adapter for the frozen local evidence benchmark; dry-run by default.
-Note: see .agents/notes/2026-09-28-unified-memory-laya-primary--736081fc.md
+Note: see .agents/notes/knowledge/requirements/unified-memory-laya-primary.md
 """
 import argparse
 import json

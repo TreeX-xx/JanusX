@@ -34,12 +34,14 @@
       }
     }
   },
-  "updated": "2026-10-08T03:25:17.788Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/f12d99b4-c116-48dc-96d9-e3ac74ae41cd"
 }
 ---
 # 统一 Note Harness 的实施契约与 Agent 交接
 
+
+本文是第一版设计的提案及验收输入。JanusX 现行写入规则以仓库固定的 [harness-note/2](../../../standards/harness-note/2/standard.md) 为准。旧 bundle、回执和 C4 条款仍按当时的输入解释，接入验证见[接入记录](workflowx-v2-adoption.md)。
 
 ## Problem
 

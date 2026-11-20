@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-11-08",
-  "updated": "2026-11-13T16:20:20.679Z",
+  "updated": "2026-11-20T12:09:55Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -125,7 +125,7 @@ Codex [App Server 文档](https://learn.chatgpt.com/docs/app-server)区分 Threa
 
 ## 工具能力追加迁移（2026-11-09）
 
-用户要求先读取确认，再继续处理备忘录与运行／生成工具。核对发现前一轮完成的是 SuperAgent 后端，memo、launch-config 与 project 工具执行仍在桌面；本轮将其与依赖契约、纯 Node 配置／检测实现共 10 个模块迁入 [agentX 工具模块](note://62b44166-82f0-41ff-838d-e2b02388ed06/df09fc5b-5cbb-4282-875c-3268459044e5)，映射及抽取前哈希记录于 docs/migrations/agent-tools-engine.json。
+用户要求先读取确认，再继续处理备忘录与运行／生成工具。核对发现前一轮完成的是 SuperAgent 后端，memo、launch-config 与 project 工具执行仍在桌面；本轮将其与依赖契约、纯 Node 配置／检测实现共 10 个模块迁入 agentX，文件映射及抽取前哈希见[工具迁移清单](../../../../docs/migrations/agent-tools-engine.json)。
 
 桌面保留 MemoStore 与共享 ProjectRunner，分别通过 MemoStorePort 与 ProjectProcessPort 提供现有存储和进程；不复制存储、不新建第二个进程调度器。项目配置仍沿用 agent-core 的工作区存储解析与 I/O 队列。工具规则、读取分页、路径限制、配置验证／生成、审批转接和编辑回执已由引擎拥有。command.run 的通用执行实现此前已在 node-hosts，本轮复测其后台启动、查询与停止接线。
 
@@ -340,7 +340,7 @@ Janus 首先核对要求覆盖、结果矛盾和证据缺口；需要代码调�
 
 ## 工具执行流畅度优化
 
-2026-11-11 用户要求参考 Codex CLI 与 OpenCode CLI，记录 Note 并以 xdo 实施、测试和修复。共享引擎的调度、长命令续接、完成通知和停滞判断由 [工具执行 Note](note://62b44166-82f0-41ff-838d-e2b02388ed06/1b5b3374-506b-46b5-a229-a4074baef96b) 维护。已修复同批 edit → read 被重排的问题；普通命令默认等待 10 秒后交回执行 ID，完成事件自动续接原任务，进程期限独立设置。真实运行等待不再触发重复停滞；重复发起尚在执行的同一调用等待原实例，恢复提示不要求盲目重跑。
+2026-11-11 用户要求参考 Codex CLI 与 OpenCode CLI，记录 Note 并以 xdo 实施、测试和修复。调度与长命令执行由共享引擎负责。JanusX 通过[命令工具端口](../../../../src/main/agent/runtime/tools/command-tools.ts)连接项目进程，宿主收到完成通知后的行为见[续接测试](../../../../tests/unit/llm/command-continuation.test.ts)。已修复同批 edit → read 被重排的问题；普通命令默认等待 10 秒后交回执行 ID，完成事件自动续接原任务，进程期限独立设置。真实运行等待不再触发重复停滞；重复发起尚在执行的同一调用等待原实例，恢复提示不要求盲目重跑。
 
 桌面端口与记忆、Note、自动化、启动配置、工具事件包装层保留续接能力和请求取消信号；初始回执显示 running，最终回执沿原 callId 更新卡片。引擎的最终工具记录替换初始 running 状态，供验证与收尾使用。Desktop Task、CLI 和共享 WorkflowX 验证流程等待真实完成结果。background:true 继续用于常驻服务，普通长命令无需模型预判并反复轮询；续接状态当前仅在宿主内存中，不提供应用重启后接管。
 

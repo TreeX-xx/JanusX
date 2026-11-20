@@ -5,7 +5,7 @@
   "kind": "task",
   "lifecycle": "accepted",
   "created": "2026-11-10",
-  "updated": "2026-11-10T10:04:06.404Z",
+  "updated": "2026-11-20T12:09:55Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "work": {
     "scope": [{"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","paths":["src/","tests/","docs/"]}],
@@ -29,10 +29,10 @@
 
 ## Acceptance criteria
 
-- AC-1：设置中展示 Worker 终端类型、默认模型和推理强度；配置持久化并被新 Worker 使用。仅实际支持的受管后端可选，不伪装支持 Claude 或 shell。
-- AC-2：右侧可独立调整 Worker 模型和推理强度，明确当前配置及生效时机，避免把保存偏好描述为已切换运行中的模型。
-- AC-3：复用既有设置组件、主题变量和终端图标，中英文齐全，不使用大脑图标或 Emoji。
-- AC-4：默认值、单 Worker 覆盖、恢复默认、配置验证与错误反馈可验证；不破坏受管权限、输入投递、停止和执行身份边界。
+- [ ] AC-1: 设置中展示 Worker 终端类型、默认模型和推理强度；配置持久化并被新 Worker 使用。仅实际支持的受管后端可选，不伪装支持 Claude 或 shell。
+- [ ] AC-2: 右侧可独立调整 Worker 模型和推理强度，明确当前配置及生效时机，避免把保存偏好描述为已切换运行中的模型。
+- [ ] AC-3: 复用既有设置组件、主题变量和终端图标，中英文齐全，不使用大脑图标或 Emoji。
+- [ ] AC-4: 默认值、单 Worker 覆盖、恢复默认、配置验证与错误反馈可验证；不破坏受管权限、输入投递、停止和执行身份边界。
 
 ## Verification
 
@@ -44,8 +44,10 @@
 
 ## Evidence
 
-固定验收仍为 AC-1 至 AC-4，规范为 harness-note/2；canonical contract hash 为 c90f9cdf02d87ed176b67a7cbe06600de6ce60662bebe5dded892a7773e67157。Janus 工作的七份原始输入已读取，最新 input 24 要求重新分配 Worker；Main 更新本 Task 后由新的 coderX 接续实现。当前分支 feat/superagent-automation-exploration，HEAD 742db250fd6588d2a93717c26705b8b40fcf7dc3。测试与人工截图证据见本 checkout 的 artifacts/superagent-worker-settings/。
+本次仅修复验收清单的 Markdown 标记，使共享索引能定位原编号。原交付证据对应修复前的 Task，重新执行须使用当时固定的输入或重新核对契约。
+
+固定验收仍为 AC-1 至 AC-4，规范为 harness-note/2；原交付记录所载的 canonical contract hash 为 c90f9cdf02d87ed176b67a7cbe06600de6ce60662bebe5dded892a7773e67157。Janus 工作的七份原始输入已读取，最新 input 24 要求重新分配 Worker；Main 更新本 Task 后由新的 coderX 接续实现。当前分支 feat/superagent-automation-exploration，HEAD 742db250fd6588d2a93717c26705b8b40fcf7dc3。测试与人工截图证据见本 checkout 的 artifacts/superagent-worker-settings/。
 
 ## Handoff
 
-实现与 Main 自查已收敛，返回 Janus 宿主审阅工作树。当前仅支持受管 Codex；默认配置持久化，逐工作覆盖随应用会话保留且有界，跨重启覆盖与其他终端后端未交付。保留所有原有未提交修改。
+实现与 Main 自查已收敛，返回 Janus 宿主审阅工作树。该次交付覆盖受管 Codex；默认配置持久化，逐工作覆盖随应用会话保留且有界，跨重启覆盖与其他终端后端未交付。保留所有原有未提交修改。

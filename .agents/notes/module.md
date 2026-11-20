@@ -7,7 +7,7 @@
   "created": "2026-10-03",
   "class": "architecture",
   "tags": [],
-  "updated": "2026-10-15T10:26:11.296Z",
+  "updated": "2026-11-20T12:09:55Z",
   "moduleState": "partial",
   "role": "project"
 }
@@ -17,17 +17,17 @@
 
 ## Responsibility
 
-在桌面工作区中组织 AI 编程终端、会话、Agent 执行、工程文档与知识。模块声明描述当前子系统边界；决策保存原因，需求与 Task 保存行为及交付契约。
+JanusX 在桌面工作区承载 AI 编程终端、会话与 Agent 执行。各模块入口维护职责、调用边界与当前实现，需求和 Task 保存交付范围与验收记录。
 
 ## Design
 
-项目入口组织终端与外部 CLI、会话与工作区、Agent 对话与执行、桌面与分发、工作台与产物界面、远程控制与托管协作、Note 与蓝图、记忆与知识。共享 Agent 包是外部依赖，其实现与决策由 janus-agentX 维护；各模块的 codeRefs 定位本仓入口。
+[桌面与分发](desktop/module.md)装配窗口、IPC 和应用生命周期。[终端与外部 CLI](terminal/module.md)管理进程、输入输出及状态，[会话与工作区](sessions/module.md)管理会话记录、工作树、对话线程和检查点。[工作台](workbench/module.md)把这些能力组织为分屏、侧栏与文件窗口。
 
-[Note 与蓝图](blueprint/module.md)按文档读取、模块导航、维护对话、工作区组合细分；[会话与工作区](sessions/module.md)按会话记录、检查点、对话线程、工作树细分。其余模块保持现有职责深度，后续出现独立维护边界时再拆分，不要求树形等深。
+[Agent 对话与执行](agent/module.md)连接共享引擎与桌面工具、审批和受管 Worker。[远程与托管协作](remote/module.md)维护手机配对、远程会话操作和 GitHub、GitLab 仓库协作。
 
-工程知识、蓝图与个人画像的后续讨论统一从[当前产品方向](blueprint/product-direction.md)和[交付计划](blueprint/evolution-roadmap.md)进入；跨模块版本演进与节点排期统一归[产品规划与版本排期](planning/module.md)，具体事项见[工程排期里程碑备忘录](planning/engineering-milestones.md)。排期记录是产品演进与版本节奏的对齐凭据，下属模块的实际实现状态仍由各自文档与验收维护。
+[Note 与蓝图](blueprint/module.md)读取选定 checkout 的原始工程文档，并承接导航、审核和确认写入。[个人记忆](knowledge/module.md)维护画像、个人召回及备忘录。[产品规划](planning/module.md)汇集跨模块安排，各专项的实际交付状态回到所属模块核对。
 
-Notes 根目录只保留项目 module.md；专题放入最近职责模块目录，模块层级来自最近上级的 parent，普通 Note 通过 module 归属。移动时同时维护路径、归属与活跃链接；仅移动到普通分组文件夹不会改变蓝图中的模块归属。单根蓝图首页就是项目模块页，进入子模块后显示它自身和直属内容；未归属文档及读取诊断保留访问入口。文件数量、Task 完成和模块状态分别表达，不据目录位置推断功能已经验收。整理依据与迁移证据见[职责目录整理](blueprint/module-responsibilities.md)。
+模块以各目录的 `module.md` 为入口，子模块声明最近上级的 parent，专题通过 module 指向归属。普通分组目录不增加模块层级。模块状态与 Task 验收分别维护；迁移与历史依据见[职责目录整理](blueprint/module-responsibilities.md)。
 
 ## Acceptance criteria
 

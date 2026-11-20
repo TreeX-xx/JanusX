@@ -22,7 +22,7 @@
       }
     }
   },
-  "updated": "2026-10-08T02:54:24.778Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5"
 }
 ---
@@ -31,7 +31,7 @@
 
 ## Problem
 
-Execution, blueprint, and knowledge storage all assume one disk. Blueprint and knowledge files sit under user data with no server source of truth, so no second endpoint can pull and no team host can serve. Multi-end consistency needs a channel before any sharing or remote feature can stand.
+工程 Note 保存在各自 checkout 的 .agents/notes，个人记忆由桌面本地服务维护。团队身份与终端连接已有各自入口。跨设备共享内容仍需要确定资源归属、版本和冲突处理，才能将一次修改安全地传播给其他成员。
 
 ## Decision
 

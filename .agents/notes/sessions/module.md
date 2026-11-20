@@ -32,28 +32,13 @@
     }
   ],
   "relations": [
-    {
-      "type": "related-to",
-      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/abb1ccb3-be21-5f64-9b55-de5089e621e9"
-    },
-    {
-      "type": "related-to",
-      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/22f762b8-1b14-522d-a971-b11e2dfc9af6"
-    },
-    {
-      "type": "related-to",
-      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/70beb72a-424d-5e96-a0d0-8e1a29635220"
-    },
-    {
-      "type": "related-to",
-      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/640a69dd-bbea-4606-b51a-f9b545de37a5"
-    },
-    {
-      "type": "related-to",
-      "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/97a21dee-2b5e-4cf8-8298-28263eeb02bb"
-    }
+    {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/d9f1d453-d9cc-5fba-8655-6ac51f3cb75c"},
+    {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/22f762b8-1b14-522d-a971-b11e2dfc9af6"},
+    {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/70beb72a-424d-5e96-a0d0-8e1a29635220"},
+    {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/640a69dd-bbea-4606-b51a-f9b545de37a5"},
+    {"type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/97a21dee-2b5e-4cf8-8298-28263eeb02bb"}
   ],
-  "updated": "2026-11-15T15:25:19.254Z",
+  "updated": "2026-11-20T12:06:46Z",
   "moduleState": "partial"
 }
 ---

@@ -7,7 +7,7 @@
   "created": "2026-09-26",
   "class": "architecture",
   "tags": ["memory","knowledge","parent","governance"],
-  "updated": "2026-10-09T08:23:28.326Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/c1c04881-a2fb-430f-bc26-528027d0e5cf"
 }
 ---
@@ -19,9 +19,9 @@
 
 ## Scope
 
-后续工程内容已确定在产品概念上与蓝图融合，个人画像继续保留；当前方向与排期见[蓝图产品方向](../../blueprint/product-direction.md)及[交付计划](../../blueprint/evolution-roadmap.md)。以下内容保留历史方案与现有实现引用，原阶段未完成项不自动进入新排期；历史资料集中见[旧重构入口](../history/reconstruction-index.md)。
+工程文档读取与审核现归[蓝图](../../blueprint/module.md)。旧方案按用途查阅[流水线重构讨论](../history/knowledge-pipeline-reconstruction.md)、[P0 规格](../history/knowledge-p0-spec.md)和[P0 测试设计](../history/knowledge-p0-validation.md)，旧 Task 的执行与验收记录保留在[审核交付 Task](../tasks/knowledge-review-status-audit-plan.md)。
 
-2026-09-30 规划修订：[统一记忆内核需求](./unified-memory-laya-primary.md)确立以 Qwen-4B 本地部署为基础方案，同时兼容多环节自由编排扩展（支持提取、条目审核、Wiki 生成与复核各环节在本地 Qwen、Jev、外置 LLM 或纯规则间可插拔组合）；规划要求将 Laya/mDeBERTa/Nimble 作为历史评测对照并退出部署；这是目标边界，不是当前安装或运行状态的证明。文档保持 draft，以多环节适配器与新验收标准推进。
+[统一内核需求](./unified-memory-laya-primary.md)保存早期多模型编排、工程 Wiki 和 Laya 校准的验收条件。工程生成与 Laya 部署已退出，原模型试验不进入当前排期。
 
 [MVP 总纲](./independent-knowledge-assistant.md)为本域直接子并兼 M 链链头：[M1 存储](../user-memory-m1.md)以总纲为父，[M2 召回](../user-recall-m2.md)以 M1 为父，[M3 工具](../user-memory-tools-m3.md)以 M2 为父，[M4 一瞥](../user-memory-surface-m4.md)以 M3 为父。
 

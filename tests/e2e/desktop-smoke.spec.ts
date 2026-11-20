@@ -438,7 +438,7 @@ test('built desktop exposes typed Workspace, Terminal, and Project critical path
     const centerBox = await page.getByRole('main').boundingBox()
     expect(terminalBox?.width).toBeGreaterThan(0)
     expect(terminalBox?.width).toBeLessThanOrEqual(centerBox?.width ?? 0)
-    // Note: wait for the shell, not only xterm's DOM — see .agents/notes/2026-09-20-reproducible-verification.md
+    // Note: wait for the shell, not only xterm's DOM — see .agents/notes/desktop/reproducible-verification.md
     await expect(page.locator('.xterm-rows').first()).toContainText(/[>$#]\s*$/, { timeout: 30_000 })
     await terminalInput.focus()
     await terminalInput.pressSequentially('echo JANUSX_DOCK_FIT')

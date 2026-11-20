@@ -3,15 +3,16 @@
   "schema": "harness-note/2",
   "id": "73984092-d377-4871-81bb-38d62c160f75",
   "kind": "requirement",
-  "lifecycle": "accepted",
+  "lifecycle": "archived",
   "created": "2026-10-11",
-  "updated": "2026-10-20T14:48:49.425Z",
+  "updated": "2026-11-20T12:06:46Z",
   "class": "feature",
   "tags": ["remote","web","public-network","cross-device"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/b653bb34-279f-45db-92d1-313d1c6bcdf5",
   "relations": [
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/8f5bcccb-5178-4d02-b43c-8e8fe6baeaf2"}
-  ]
+  ],
+  "disposition": {"reason": "Web 控制端属于前期方案，移动产品采用独立的 Android 需求与配对实现。保留 Web 原验收条款。"}
 }
 ---
 

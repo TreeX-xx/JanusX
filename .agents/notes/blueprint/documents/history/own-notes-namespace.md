@@ -29,36 +29,28 @@
       }
     }
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bd612cd8-0676-4c46-98ba-81d1dc008505",
   "disposition": {
     "reason": "Historical namespace policy; repository Notes are maintained v2 documents. Foreign-source diagnostics remain available for actual foreign files."
   }
 }
 ---
-# Own working notes live outside the harness graph
 
+# 早期工作笔记与 Harness 图的命名空间
 
 ## Problem
 
-The repository keeps agent working notes under `.agents/notes/` beside harness project assets. The project scanner judges every file against `harness-note/1`, so the working notes land in the invalid list. Operators stop reading an invalid list that fires on everything, and the real schema errors lose their signal. The working notes hold local thinking worth keeping, and rewriting them into harness shape destroys that history.
-
-The proposal lives in [own working notes proposal](./own-notes-namespace-proposal.md). The surrounding graph lane is described in [harness project graph lane](./harness-project-graph-s4.md), and the remaining cutover ledger is tracked in [Harness S9 readiness](../../../agent/harness-s9-readiness.md).
+接入初期，人工工作笔记与声明 Harness schema 的文件共用目录。把所有普通文件都显示为格式错误，使真正的坏文档难以发现。
 
 ## Decision
 
-`harness-node` owns the shared namespace detector and exposes `foreign` index entries. `HarnessNoteService` and the CLI consume the same classification. Files claiming any `harness-note/` schema version enter validation; supported valid Notes enter the graph, while unknown versions and malformed claimed documents remain diagnostics. Files without a Harness schema remain foreign: their paths and hashes are readable, but they stay outside graph, coverage, execution and share projections. BOM, CRLF and quoted schema keys or values are tolerated. No historical Note is moved or rewritten.
-
-Repository profile diagnostics also appear in the project invalid list, while compatible Note content stays browsable. Managed writes require the shared exact profile pin; the desktop share importer checks it before writing evidence.
+旧读取器先判断文件是否声明 Harness schema，再区分有效、无效和外来源。普通文件可保留路径及哈希，声明了不支持版本或损坏 schema 的文件则保留诊断。JanusX 的正式 Note 此后迁入 v2，当前读取边界见[所属模块](../module.md)。
 
 ## Alternatives considered
 
-- Keep the current noise: zero code and zero migration risk, but every project view drowns the diagnostics and operators stop reading the invalid list that real errors need.
-- Bulk-migrate working notes into the harness schema: silences the label in one pass, but rewrites history and forces ideas and local thinking into requirement, decision, or task shapes they never held.
-- Move working notes to a separate directory: gives the cleanest separation on disk, but breaks every relative link, note tooling, and trained lookup path for zero semantic gain.
-- Do nothing / reuse — keep treating absence of schema as failure: preserves the current scanner contract, but a label that fires on everything signals nothing and blocks the zero-diagnostic view the blueprint needs.
+整体搬离目录会打断既有引用；当时批量转换普通笔记也会为尚未定稿的讨论强加交付语义。
 
 ## Consequences
 
-- **Gains**: a checkout holding only well-formed working notes shows zero invalid diagnostics while keeping its graph empty. Files claiming `harness-note/1` with schema errors still report file and field diagnostics. Four new checks in `tests/unit/harness-service.test.ts` pin the claim detector, the zero-diagnostic view, the broken-harness refusal, and the mixed valid plus foreign plus broken separation with share exclusion. Typecheck passes; the neighboring `harness-s9-acceptance`, `harness-run-handlers`, and `harness-ipc-contract` suites stay green.
-- **Costs and limits**: a real harness asset missing its schema line hides as foreign instead of invalid; creation paths always write the schema, so absence means foreign by construction. The shared index classifies each file on its initial read; the desktop consumes the foreign marker without rereading it. No separate foreign list is exposed over `IPC` yet; a future namespace registry extends the label carried by the detector.
+缺少 schema 的文件不能仅凭路径认定为有效 Note。旧策略和迁移依据保存在 Git，原始验收见[迁移 Task](../tasks/migrate-notes-v2.md)。

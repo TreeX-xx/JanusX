@@ -8,13 +8,9 @@
   "class": "architecture",
   "tags": ["note","blueprint","wiki","migration","r2"],
   "codeRefs": [
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/main/notes/note-provider.ts","role":"entry"},
-    {
-      "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
-      "path": "src/main/notes/note-to-blueprint.ts",
-      "role": "implementation"
-    },
-    {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"scripts/migrate-agent-notes.mjs","role":"implementation"}
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/notes/note-provider.ts", "role": "entry"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/blueprint/src/main/notes/note-to-blueprint.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "scripts/migrate-agent-notes.mjs", "role": "implementation"}
   ],
   "relations": [
     {"type":"parent","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/e7c03317-8bb8-4d1d-a1b2-832be6c5a3c5"},
@@ -58,7 +54,7 @@
     ],
     "review": "independent"
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-11-20T12:06:46Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bd612cd8-0676-4c46-98ba-81d1dc008505"
 }
 ---

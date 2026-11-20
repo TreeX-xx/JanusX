@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-24",
-  "updated": "2026-11-15T15:25:19.259Z",
+  "updated": "2026-11-20T12:06:46Z",
   "class": "architecture",
   "tags": ["workspace", "local", "wsl", "ssh", "blueprint", "session"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662",
@@ -20,7 +20,7 @@
     {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/ipc/file-handlers.ts", "role": "implementation"},
     {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/ipc/terminal-handlers.ts", "role": "implementation"},
     {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/git/service.ts", "role": "implementation"},
-    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/harness/workspace-blueprint.ts", "role": "implementation"},
+    {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "packages/note-tools/src/workspace.ts", "role": "implementation"},
     {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/sessions/session-registry.ts", "role": "implementation"},
     {"repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/features/workspace/actions.ts", "role": "implementation"}
   ]
