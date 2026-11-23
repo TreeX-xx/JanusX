@@ -26,6 +26,47 @@ test('image stays visible, copies, previews, saves and becomes a reference on th
   await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.commands.find((c: any) => c.type === 'send')?.imagePaths)).toEqual(['C:/fixture/generated.png'])
 })
 
+test('output image preview centers the image and fits the window as it resizes', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await page.evaluate(() => {
+    ;(window as any).codexFixture.generatedImage()
+    const canvas = document.createElement('canvas')
+    canvas.width = 650
+    canvas.height = 1600
+    const base64 = canvas.toDataURL('image/png').split(',')[1]
+    window.electron.file.readBinary = async () => ({ base64, mimeType: 'image/png', size: atob(base64).length })
+  })
+  const trigger = page.getByRole('button', { name: 'Preview image', exact: true })
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Preview image' })
+  const image = dialog.locator('img')
+  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalHeight)).toBe(1600)
+
+  for (const viewport of [{ width: 1024, height: 768 }, { width: 380, height: 420 }]) {
+    await page.setViewportSize(viewport)
+    await expect.poll(() => dialog.evaluate(element => {
+      const panel = element.getBoundingClientRect()
+      const photo = element.querySelector('img')!.getBoundingClientRect()
+      return {
+        centered: [panel, photo].every(rect => Math.abs(rect.left + rect.width / 2 - innerWidth / 2) <= 1
+          && Math.abs(rect.top + rect.height / 2 - innerHeight / 2) <= 1),
+        fits: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight
+          && photo.left >= panel.left && photo.top >= panel.top && photo.right <= panel.right && photo.bottom <= panel.bottom,
+      }
+    })).toEqual({ centered: true, fits: true })
+  }
+
+  await dialog.getByRole('button', { name: 'Actual size', exact: true }).click()
+  await expect.poll(() => image.evaluate(element => element.getBoundingClientRect().height)).toBe(1600)
+  expect(await image.evaluate(element => element.parentElement!.scrollHeight > element.parentElement!.clientHeight)).toBe(true)
+  await dialog.getByRole('button', { name: 'Fit window', exact: true }).click()
+  await expect(image).toBeInViewport({ ratio: 1 })
+
+  await page.mouse.click(12, 12)
+  await expect(dialog).toBeHidden()
+  await expect(trigger).toBeFocused()
+})
+
 test('missing image leaves readable history and disables invalid actions', async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
   await page.evaluate(() => (window as any).codexFixture.generatedImage(true))

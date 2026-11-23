@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import type { PersistStorage, StateStorage } from 'zustand/middleware'
 import { useAppStore } from './app'
 import { useExperimentalStore } from './experimental'
+import { useIslandStore } from './island'
 import { canonicalRightToolId, getRightToolView, isRightToolEnabled } from '../right-tools/registry'
 import { extensionRegistry } from '@/extensions/registry'
 import { useWorkspaceStore } from './workspace'
@@ -100,6 +101,9 @@ export const useRightToolStore = create<RightToolStore>()(
       const applyTransition = (result: RightToolTransition): void => {
         set(result.preferences)
         applyPanelCollapseCommand(result.panelCollapseCommand)
+        if (result.preferences.activeToolId !== 'automations' || useAppStore.getState().panelCollapsed) {
+          useIslandStore.getState().disconnectAutomation()
+        }
       }
       const route = (toolId: RightToolId, transition: typeof openRightTool): void => {
         if (!isRightToolEnabled(toolId, useExperimentalStore.getState())) return

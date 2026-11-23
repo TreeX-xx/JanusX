@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Sidebar } from '../../../src/renderer/src/components/Sidebar'
 import { RightDock } from '../../../src/renderer/src/components/right-tools/RightDock'
+import { TitlebarToolGroup } from '../../../src/renderer/src/components/TitlebarToolGroup'
 import { ThemedTooltip } from '../../../src/renderer/src/components/ui/ThemedTooltip'
 import { useWorkspaceStore } from '../../../src/renderer/src/stores/workspace'
 import { useRightToolStore } from '../../../src/renderer/src/stores/right-tools'
@@ -25,8 +26,9 @@ const stagedPaths: string[][] = []
 let terminalKills = 0
 const killTerminal = window.electron.terminal.kill
 window.electron.terminal.kill = async (...args) => { terminalKills++; return killTerminal(...args) }
-const theme = new URLSearchParams(location.search).get('theme') ?? 'planche'
-const previewWidth = Number(new URLSearchParams(location.search).get('panel')) || null
+const params = new URLSearchParams(location.search)
+const theme = params.get('theme') ?? 'planche'
+const previewWidth = Number(params.get('panel')) || null
 useThemeStore.getState().applyExternal(theme)
 Object.assign(window.electron.worktree, { list: async () => [] })
 Object.assign(window.electron.git, {
@@ -55,7 +57,7 @@ Object.assign(window.electron.session, {
   id: 'session-worktree', workspaceId: 'palette', engine: 'codex', cwd: 'C:/palette',
   firstPrompt: '修复工作树切换后的文件列表刷新', turnCount: 5, checkpointCount: 0,
   status: 'completed', createdAt: new Date().toISOString(), updatedAt: new Date(Date.now() - 7200000).toISOString(), archived: false,
-}] }, get: async (id: string) => ({ id, engine: 'codex', cwd: 'C:/palette', firstPrompt: '优化文件管理和工作区菜单的视觉层级', turns: [], status: 'completed', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }) })
+}].map(session => ({ ...session, title: session.firstPrompt })) }, get: async (id: string) => ({ id, engine: 'codex', cwd: 'C:/palette', firstPrompt: '优化文件管理和工作区菜单的视觉层级', turns: [], status: 'completed', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }) })
 useWorkspaceStore.setState({
   workspaces: [{ id: 'palette', name: 'JanusX', path: 'C:/palette', clis: [], layout: { mode: 'tabs', positions: [] }, createdAt: '', updatedAt: '' }],
   activeWorkspaceId: 'palette', terminals: [],
@@ -105,6 +107,7 @@ function ToolPalette() {
   <main className={dockStyles.workbenchGrid} data-resizing={resizing} style={{ display: 'grid', gridTemplateColumns: `220px minmax(0, 1fr) ${layout.dockWidth}px`, height: '100vh', background: 'var(--shell-canvas)' }}>
     <Sidebar />
     <section style={{ padding: 32, color: 'var(--shell-text)', position: 'relative' }}>
+      {params.has('toolbox') && <div style={{ position: 'absolute', top: 8, right: 16 }}><TitlebarToolGroup /></div>}
       <h1 style={{ fontSize: 20 }}>JanusX</h1><p style={{ marginTop: 12 }}>中央内容保留暖纸色，工具与菜单使用更浅的中性色。</p>
       <button id="preview-underlay" style={{ position: 'absolute', right: 0, top: 80, bottom: 0, width: 288 }} onClick={(event) => { event.currentTarget.textContent = 'Underlay clicked' }}>Preview underlay</button>
       <div style={{ position: 'fixed', left: 0, bottom: 0 }}>

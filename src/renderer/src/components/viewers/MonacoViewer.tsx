@@ -141,7 +141,7 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
       const value = modifiedEditor.getValue()
       if (value !== contentRef.current) onChange(value)
     })
-    // Note: 行号染色走 decoration；竖条经视觉复核撤除 — .agents/notes/workbench/preview-editor-display-style.md
+    // Color the code and gutter together, using one decoration per changed range.
     diffIndicatorRef.current?.subscription.dispose()
     diffIndicatorRef.current?.numbering.dispose()
     diffIndicatorRef.current?.original.clear()
@@ -149,25 +149,23 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
     const originalIndicators = editor.getOriginalEditor().createDecorationsCollection([])
     const modifiedIndicators = modifiedEditor.createDecorationsCollection([])
     const updateDiffIndicators = () => {
-      setHasChanges(Boolean(editor.getLineChanges()?.length))
+      const changes = editor.getLineChanges() ?? []
+      const models = editor.getModel()
+      setHasChanges(changes.length > 0)
       const originalDecorations: MonacoEditor.IModelDeltaDecoration[] = []
       const modifiedDecorations: MonacoEditor.IModelDeltaDecoration[] = []
-      for (const change of editor.getLineChanges() ?? []) {
-        if (change.originalEndLineNumber >= change.originalStartLineNumber && change.originalEndLineNumber > 0) {
-          for (let line = change.originalStartLineNumber; line <= change.originalEndLineNumber; line += 1) {
-            originalDecorations.push({
-              range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
-              options: { isWholeLine: true, lineNumberClassName: 'diff-num-del' },
-            })
-          }
+      for (const change of changes) {
+        if (models && change.originalEndLineNumber > 0 && change.originalEndLineNumber <= models.original.getLineCount()) {
+          originalDecorations.push({
+            range: new monaco.Range(change.originalStartLineNumber, 1, change.originalEndLineNumber, models.original.getLineMaxColumn(change.originalEndLineNumber)),
+            options: { isWholeLine: true, inlineClassName: 'diff-code-del', lineNumberClassName: 'diff-num-del' },
+          })
         }
-        if (change.modifiedEndLineNumber >= change.modifiedStartLineNumber && change.modifiedEndLineNumber > 0) {
-          for (let line = change.modifiedStartLineNumber; line <= change.modifiedEndLineNumber; line += 1) {
-            modifiedDecorations.push({
-              range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
-              options: { isWholeLine: true, lineNumberClassName: 'diff-num-add' },
-            })
-          }
+        if (models && change.modifiedEndLineNumber > 0 && change.modifiedEndLineNumber <= models.modified.getLineCount()) {
+          modifiedDecorations.push({
+            range: new monaco.Range(change.modifiedStartLineNumber, 1, change.modifiedEndLineNumber, models.modified.getLineMaxColumn(change.modifiedEndLineNumber)),
+            options: { isWholeLine: true, inlineClassName: 'diff-code-add', lineNumberClassName: 'diff-num-add' },
+          })
         }
       }
       originalIndicators.set(originalDecorations)
@@ -248,6 +246,7 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
 
   const diffOptions = {
     ...commonOptions,
+    lineHeight: 20,
     lineNumbersMinChars: 3,
     glyphMargin: false,
     folding: false,
@@ -261,7 +260,7 @@ export function MonacoViewer({ content, language, onChange, readOnly = false, on
     // one row, so keep ordinary inline rows to show the original above the edit.
     compactMode: !sideBySide,
     experimental: { useTrueInlineView: false },
-    hideUnchangedRegions: { enabled: true, revealLineCount: 20, minimumLineCount: 20, contextLineCount: 20 },
+    hideUnchangedRegions: { enabled: true, revealLineCount: 20, minimumLineCount: 6, contextLineCount: 3 },
   }
 
   return (

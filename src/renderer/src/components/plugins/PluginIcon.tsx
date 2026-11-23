@@ -3,12 +3,14 @@ import { useState } from 'react'
 import cpaIcon from '@/assets/plugins/cpa.jpg'
 import dockerIcon from '@/assets/plugins/docker.svg'
 import blueprintIcon from '@/assets/plugins/blueprint.svg'
+import superagentIcon from '@/assets/plugins/superagent.svg'
 import styles from './PluginSettingsPanel.module.css'
 
 const officialIcons: Record<string, string> = {
   'official.cpa': cpaIcon,
   'official.docker': dockerIcon,
   'official.blueprint': blueprintIcon,
+  'official.superagent': superagentIcon,
 }
 
 export function PluginIcon({ id, name }: { id: string; name: string }) {

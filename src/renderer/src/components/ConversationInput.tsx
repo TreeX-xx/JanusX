@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { referenceToken, conversationPrompt, type ConversationReference } from '../../../shared/conversation-context'
 import { loadLocalAssetDataUrl } from './viewers/local-asset'
 import styles from './ConversationInput.module.css'
+import imageStyles from './ConversationImages.module.css'
 import { EXTERNAL_CLI_TOOL_ICONS } from '../lib/cli-tool-icons'
 
 // Inline reference editing contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
@@ -330,7 +331,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
         }
         dragging.current = null
       }} />
-    <dialog ref={dialog} className={styles.preview} aria-label={preview ? `${t('conversation.images.preview')}: ${preview.name}` : undefined} onClose={() => { setPreview(null); if (previewTrigger.current?.isConnected) previewTrigger.current.focus(); else root.current?.focus() }} onKeyDown={event => event.stopPropagation()}>
+    <dialog ref={dialog} className={imageStyles.dialog} aria-label={preview ? `${t('conversation.images.preview')}: ${preview.name}` : undefined} onClose={() => { setPreview(null); if (previewTrigger.current?.isConnected) previewTrigger.current.focus(); else root.current?.focus() }} onKeyDown={event => event.stopPropagation()}>
       <button type="button" onClick={() => dialog.current?.close()} aria-label={t('conversation.images.close')}>×</button>
       {preview && <img src={preview.url} alt={preview.name} />}
     </dialog>

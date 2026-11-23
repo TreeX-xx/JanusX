@@ -2,8 +2,10 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { SYSTEM_CHANNELS } from '../../shared/ipc/system'
 import { type EditorWindowManager, type EditorWindowPayload } from './editor-window'
 import { EditorRouting } from './editor-routing'
+import { registerMainWindowResize } from './main-window-resize'
 
 export function registerWindowIpc(editorWindows: EditorWindowManager, getMainWindow: () => BrowserWindow | null): void {
+  if (process.platform === 'darwin') registerMainWindowResize(getMainWindow)
   const routing = new EditorRouting(editorWindows, getMainWindow)
   ipcMain.on(SYSTEM_CHANNELS.editorHostReady, event => routing.embeddedReady(event.sender))
   ipcMain.on(SYSTEM_CHANNELS.editorReceived, (event, payload: { requestId: string; success: boolean }) => routing.received(event.sender, payload.requestId, payload.success))

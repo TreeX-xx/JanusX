@@ -13,6 +13,7 @@ import {
 } from '@/services/workspace-launch-assistant'
 import { useStreamingPrinter } from '@/hooks/useStreamingPrinter'
 import { MarkdownContent } from './chat/ChatContent'
+import { ConversationImagePreviewScope } from './ConversationImagePreview'
 import { ChatTimeline } from './janus/ChatTimeline'
 import { WorkDisclosureScope } from './chat/WorkDisclosure'
 import { emptyChatTimeline, settleChatTimeline } from '../../../shared/chat-timeline'
@@ -210,9 +211,12 @@ function ProjectLaunchAssistantSession({
     ? formatThinkingDuration(Math.max(0, now - turnStartRef.current))
     : null
   const workspaceNames = new Map(workspaceResources.map((resource) => [resource.workspaceId, resource.workspaceName]))
+  const workspacePath = workspaceResources.find(resource => resource.workspaceId === analysis?.workspaceId)?.workspacePath
+    ?? (workspaceResources.length === 1 ? workspaceResources[0].workspacePath : undefined)
 
   return (
     <WorkDisclosureScope scopeKey={historyKey}>
+    <ConversationImagePreviewScope scopeKey={historyKey}>
     <aside className={styles.assistant} style={style} aria-label="Janus workspace launch assistant">
       <div className={styles.assistantHeader}>
         <div className={styles.assistantIdentity}>
@@ -228,8 +232,8 @@ function ProjectLaunchAssistantSession({
         {messages.map((message, index) => (
           <div key={index} className={message.role === 'user' ? styles.userMessage : styles.assistantMessage}>
             {message.role === 'assistant' ? message.timeline?.blocks.length
-              ? <ChatTimeline snapshot={message.timeline} workspaceNames={workspaceNames} />
-              : <MarkdownContent content={message.content} /> : message.content}
+              ? <ChatTimeline snapshot={message.timeline} workspaceNames={workspaceNames} workspacePath={workspacePath} />
+              : <MarkdownContent content={message.content} workspacePath={workspacePath} /> : message.content}
           </div>
         ))}
         {(streaming || pendingContent) && (
@@ -238,7 +242,7 @@ function ProjectLaunchAssistantSession({
               {!pendingContent && <LoaderCircle size={11} className={styles.spinIcon} />}
               {elapsed && <span className={styles.turnElapsed} data-turn-elapsed>{elapsed}</span>}
             </div>
-            <ChatTimeline snapshot={timeline} streaming={streaming} workspaceNames={workspaceNames} />
+            <ChatTimeline snapshot={timeline} streaming={streaming} workspaceNames={workspaceNames} workspacePath={workspacePath} />
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -276,6 +280,7 @@ function ProjectLaunchAssistantSession({
         </div>
       </div>
     </aside>
+    </ConversationImagePreviewScope>
     </WorkDisclosureScope>
   )
 }

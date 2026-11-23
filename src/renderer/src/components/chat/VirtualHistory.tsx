@@ -2,7 +2,7 @@ import { createContext, memo, useCallback, useContext, useImperativeHandle, useL
 import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual'
 
 // Shared viewport/disclosure lifetime: .agents/notes/workbench/long-session-performance.md
-const DisclosureState = createContext<Map<string, boolean> | null>(null)
+export const DisclosureState = createContext<Map<string, boolean> | null>(null)
 export function useHistoryDisclosure(key: string, fallback: boolean) {
   const cache = useContext(DisclosureState)
   const [explicit, setExplicit] = useState<boolean | undefined>(() => cache?.get(key))
@@ -13,10 +13,12 @@ export function useHistoryDisclosure(key: string, fallback: boolean) {
   }] as const
 }
 
+export function detailsStateKey(key: string) { return `details:${key}` }
+
 export function LazyDetails({ stateKey, summary, children, ...props }: {
   stateKey: string; summary: ReactNode; children: () => ReactNode
 } & Omit<HTMLAttributes<HTMLDetailsElement>, 'children'>) {
-  const [open, setOpen] = useHistoryDisclosure(`details:${stateKey}`, false)
+  const [open, setOpen] = useHistoryDisclosure(detailsStateKey(stateKey), false)
   return <details {...props} open={open} onToggle={event => {
     if (event.target === event.currentTarget) setOpen(event.currentTarget.open)
   }}>{summary}{open ? children() : null}</details>

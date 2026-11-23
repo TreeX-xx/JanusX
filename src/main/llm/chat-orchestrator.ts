@@ -64,6 +64,7 @@ export interface ChatMessage {
 /** 流式对话请求参数 */
 export interface ChatStreamRequest {
   sideChat?: true
+  islandChat?: true
   workerBackend?: 'codex' | 'claude'
   agentMode?: 'ordinary' | 'superagent'
   inputEventId?: string
@@ -167,6 +168,13 @@ const DELTA_FLUSH_MS = 40
 type ChatToolGate = NonNullable<ChatStreamRequest['toolGate']>
 
 const normalizeToolName = (name: string) => name.toLowerCase().replace(/[._-]+/g, '')
+
+// Note: .agents/notes/workbench/island-hifi-optimized-alignment.md — only read and draft tools are available in Island.
+const ISLAND_CHAT_TOOLS = [
+  'workspace.read', 'workspace.list', 'workspace.search', 'workspace.overview',
+  'note.read', 'note.list', 'note.focus', 'note.scope', 'memo_read', 'ask_user',
+  'automation_reminder', 'automation.list', 'automation.get', 'automation.propose', 'automation.preview', 'automation.update',
+]
 
 /**
  * 双闸兜底：`toolAllowlist` 过滤工具供给之后，`toolGate` 在调用点拦截
@@ -532,13 +540,16 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     if (request.noteRepairId || request.maintenanceTaskId) requireBlueprintPlugin()
     const callerId = `renderer:${event.sender?.id ?? 'unknown'}`
     const ports = defaultChatTurnPorts(callerId, requestId, domain, conversationId)
-    const turnAllowlist = toolAllowlist
-    let turnToolGate = gateFromToolAllowlist(toolAllowlist, toolGate)
+    const islandChat = request.islandChat === true
+    const turnAllowlist = islandChat
+      ? ISLAND_CHAT_TOOLS.filter(name => !toolAllowlist || toolAllowlist.some(tool => normalizeToolName(tool) === normalizeToolName(name)))
+      : toolAllowlist
+    let turnToolGate = gateFromToolAllowlist(turnAllowlist, toolGate)
     const userText = [...messages].reverse().find(message => message.role === 'user')?.content ?? ''
     let admittedService: ReturnType<typeof superAgentService> | undefined
     let superAgentTurn: Awaited<ReturnType<typeof createSuperAgentChatTurn>> | undefined
     if (request.agentMode !== undefined && !['ordinary', 'superagent'].includes(request.agentMode)) throw new Error('Invalid Agent mode')
-    const explicitSuperAgent = request.agentMode === 'superagent' && !request.compact
+    const explicitSuperAgent = !islandChat && request.agentMode === 'superagent' && !request.compact
     if (explicitSuperAgent) {
       if (!event.senderFrame || event.senderFrame !== event.sender?.mainFrame) throw new Error('SuperAgent chat is only available to application main frames')
       if (!superAgentAvailable(event.sender.id, workspaceId)) throw new Error('SuperAgent is unavailable')
@@ -568,7 +579,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     }
     const modeCommand = parseWorkflowXCommand([...messages].reverse().find(message => message.role === 'user')?.content ?? '')
     if (modeCommand && !modeCommand.prompt) {
-      await runChatTurn({ requestId, messages, providerId, modelId, sourceTag: turnSourceTag, toolAllowlist, toolGate: turnToolGate }, ports, { onEvent: agentEvent => {
+      await runChatTurn({ requestId, messages, providerId, modelId, sourceTag: turnSourceTag, toolAllowlist: turnAllowlist, toolGate: turnToolGate }, ports, { onEvent: agentEvent => {
         sendAgentEvent(agentEvent)
         if (agentEvent.type === 'text_delta') queueDelta(agentEvent.delta)
       } }, controller.signal)
@@ -651,7 +662,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     // get/edit/apply 自处理，config_change 照 note_change 事件桥回表单 — see
     // .agents/notes/agent/run-config-assistant-edit-tools.md
     if (sourceTag === 'janus-chat' && !request.compact) {
-      if (endpoint.supportsFunctionCalling !== false) {
+      if (!islandChat && endpoint.supportsFunctionCalling !== false) {
         try {
           const { attachBrowserTools } = await import('../browser/chat-tools')
           const resource = workspaceResources?.map(resource => ports.sessions.getSession(resource.agentSessionId)).find(Boolean)
@@ -688,21 +699,27 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
       })
     }
 
-    if (ordinaryMemoTurn) projectContext = (projectContext ?? '') + '\n' + MEMO_TARGET_PROMPT
-    if ((request.memoBinding || request.memoMessageId) && ordinaryMemoTurn) {
+    if (ordinaryMemoTurn && !islandChat) projectContext = (projectContext ?? '') + '\n' + MEMO_TARGET_PROMPT
+    if (ordinaryMemoTurn && (request.memoBinding || (!islandChat && request.memoMessageId))) {
       // Note: memos are default tools; model support still applies — see .agents/notes/workbench/experimental-preview-features.md
       const { memoStore } = await import('../memo/service')
-      let memoContext = 'Memo editing unavailable: this model does not support tool calling. Do not claim memo updates.'
+      let memoContext = 'Memo tools unavailable: this model does not support tool calling.'
       if (endpoint.supportsFunctionCalling !== false) {
         try {
-          memoContext = await attachMemoChatTools(ports, {
-            store: memoStore(), binding: request.memoBinding, messageId: request.memoMessageId, conversationId: conversationId!, signal: controller.signal,
-            onCreated: binding => {
+          const store = memoStore()
+          const denyMemoWrite = async () => { throw new Error('Island memo access is read-only') }
+          const attachedMemoContext = await attachMemoChatTools(ports, {
+            store: islandChat ? { get: id => store.getReadOnly(id), create: denyMemoWrite, edit: denyMemoWrite } : store,
+            binding: request.memoBinding, messageId: request.memoMessageId, conversationId: conversationId!, signal: controller.signal,
+            onCreated: islandChat ? undefined : binding => {
               const target = activeSteerTargets.get(steerKey)
               if (target?.requestId === requestId) target.memoId = binding.memoId
               sendAgentEvent({ type: 'memo_created', requestId, conversationId: conversationId!, binding })
             },
           })
+          memoContext = islandChat && request.memoBinding
+            ? memoSteeringContext(request.memoBinding.memoId, request.memoBinding.messageId, request.memoBinding)
+            : attachedMemoContext
         } catch (error) {
           controller.signal.throwIfAborted()
           memoContext = `Memo unavailable: ${error instanceof Error ? error.message : String(error)}. Continue the reply without claiming memo updates.`
@@ -710,6 +727,9 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
       }
       projectContext = (projectContext ?? '') + '\n' + memoContext
     }
+    if (islandChat) projectContext = [projectContext,
+      'This is ordinary Island chat. Files and bound memos are read-only. You cannot run commands, make file changes, or delegate to Workers. Explain or suggest changes and distinguish drafts from completed actions.',
+    ].filter(Boolean).join('\n\n')
 
     attachChatToolEvents(ports, requestId, entry => {
       const note = [...chatSession.noteEvidence.values()].find(item => entry.argsDigest === item.path)
@@ -727,7 +747,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
         requestId,
         messages: turnMessages,
         workflowMode: resolveWorkflowXMode(messages),
-        agentMode: request.agentMode ?? (superAgentTurn ? 'superagent' : 'ordinary'),
+        agentMode: islandChat ? 'ordinary' : request.agentMode ?? (superAgentTurn ? 'superagent' : 'ordinary'),
         runPolicy: 'interactive',
         providerId,
         modelId,
@@ -743,7 +763,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
         chatSession,
         steeringPort,
         compactionSummarizer: summarize,
-        ...(superAgentTurn ? { workspaceMutationRecovery: false } : {}),
+        ...(islandChat || superAgentTurn ? { workspaceMutationRecovery: false } : {}),
         ...(projectContext ? {
           systemPromptPrefix: projectContext,
         } : {}),

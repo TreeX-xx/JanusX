@@ -13,7 +13,7 @@ export function openSuperAgent() {
   const tools = useGlobalToolsStore.getState()
   if (!tools.paneTree) tools.setProjectRatio(.34)
   tools.openContent({ type: 'superagent', id: 'superagent' })
-  prepareJanusContext()
+  useIslandStore.getState().dispatch({ type: 'outside-dismiss' })
 }
 
 export function revealSuperAgent(): boolean {
@@ -25,14 +25,8 @@ export function revealSuperAgent(): boolean {
   useAppStore.getState().setActiveWorkbench(null)
   tools.setCollapsed(false)
   tools.setPaneTab(paneId, 'superagent')
-  prepareJanusContext()
+  useIslandStore.getState().dispatch({ type: 'outside-dismiss' })
   return true
-}
-
-function prepareJanusContext() {
-  useIslandStore.getState().dispatch({ type: 'dismiss' })
-  // Reuse the ordinary Janus opening-context path without opening the Island chat.
-  useIslandStore.setState(current => ({ openSequence: current.openSequence + 1 }))
 }
 
 /** Browse the actual checkout through the existing Git/Diff tool; no Worker input is changed. */

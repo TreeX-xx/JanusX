@@ -53,10 +53,12 @@ for (const theme of ['dark', 'light']) test(`${theme}: OpenCode groups native pr
 
 test('slash model selection searches provider names and preserves the current choice on failure', async ({ page }) => {
   await page.goto('/codex-conversation.html?engine=opencode&initialView=conversation')
-  await page.evaluate(() => (window as any).codexFixture.providerModels())
+  await page.evaluate(() => (window as any).codexFixture.providerModels(true))
   const input = page.locator('[data-conversation-input]')
   await input.fill('/model Team gateway')
-  await expect(page.locator('[data-panel=model] [role=option]')).toHaveCount(2)
+  const options = page.getByRole('listbox', { name: 'Model', exact: true }).getByRole('option')
+  await expect(options).toHaveCount(2)
+  await expect(options.locator('small')).toHaveText(['team/shared', 'team/local/special'])
   await page.evaluate(() => (window as any).codexFixture.settingsFail(true))
   await input.press('Enter')
   await expect(input).toHaveText('/model Team gateway')

@@ -279,7 +279,7 @@ export function JanusExpanded({
             <JanusChat
               visible
               docked
-              showAgentMode
+              showPermissionSelector={false}
               modeColor={modeColor}
               messages={messages}
               pendingContent={pendingContent}

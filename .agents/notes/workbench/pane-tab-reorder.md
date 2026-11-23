@@ -6,7 +6,7 @@
   "lifecycle": "implemented",
   "created": "2026-10-04",
   "class": "feature",
-  "updated": "2026-10-19T16:12:31Z",
+  "updated": "2026-11-20T08:41:25Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -21,7 +21,9 @@ The middle workspace combines terminal and browser tabs in a tree of leaf panes.
 
 全局工具与项目采用[独立分屏树](./global-tool-layout.md)。指针拖拽根限定为源区域，原生拖拽和 store 拒绝跨区域落点；工具区内的浏览器、Markdown 与应用级扩展共享排序、边缘分屏和合并行为。项目终端保持项目区操作。
 
-`TerminalArea.tsx` delegates pointer gestures to `lib/pane-tab-drag.ts`. A primary-button movement of six pixels starts dragging; shorter movements retain ordinary tab selection. Close controls do not start a drag. The controller captures the pointer, hides the source label, and moves an inert DOM clone using animation frames. The source content stays mounted during the gesture. Siblings translate into their preview positions with a 160 ms transition, disabled when reduced motion is requested. Tabs retain a 144 px width and overflow horizontally; holding the pointer near a strip edge scrolls it without requiring further pointer events.
+SuperAgent 在工具区内移动时由 `TerminalArea` 保留同一个组件实例，分屏和合并只改变其 DOM 挂载位置。已有草稿、会话和入场状态随标签移动。启动与关闭的生命周期归[SuperAgent 界面](../agent/superagent-interface.md)。
+
+`TerminalArea.tsx` delegates pointer gestures to `lib/pane-tab-drag.ts`. The controller captures the pointer on a primary press so it keeps the gesture if the first movement leaves the strip. A six-pixel movement hides the source label and moves an inert DOM clone using animation frames. Shorter movements retain ordinary tab selection. Close controls keep their own interaction. The source content stays mounted during the gesture. Siblings translate into their preview positions with a 160 ms transition, disabled when reduced motion is requested. Tabs retain a 144 px width and overflow horizontally. Holding the pointer near a strip edge scrolls it without requiring further pointer events.
 
 Each pane header contains a flexible, horizontally scrolling tab strip and a separate action area that does not shrink. Keeping browser, new-terminal, and end-terminal controls outside the scroll container prevents long tab lists from carrying those controls beyond the pane boundary. The strip retains its drag markers, slot, and spacer, so insertion and edge scrolling measure only the space available to tabs. Browser surfaces are ordinary pane contents: moving them between panes or into an edge split works even when the workspace contains no terminals.
 
@@ -34,6 +36,8 @@ The clone and canvas hint share a fixed overlay attached directly to `document.b
 Insertion uses tab midpoints from their untransformed layout, adjusted for strip scrolling. The dragged tab is excluded from the candidate list, so the resulting index addresses the array after removal. A measured-width gap previews that index. The controller updates presentation without writing pointer coordinates into React state or changing the pane tree. A strip drop commits through `reorderPaneTab` or `movePaneTabToIndex`, then selects the dragged tab even when its order is unchanged. Pure reorder preserves the original tree reference for unchanged orders, including nested splits. A content-area drop appends at the center or splits equally at an edge, using the existing terminal and browser store actions. Moving the last tab out of a pane prunes that pane through the existing tree operations.
 
 `tabDragInFlight` hides native browser views while the pointer is dragging, allowing the DOM destination and preview to receive input. Release and cancellation restore that visibility state and remove clones, hints, transforms, capture, and listeners. Escape, pointer cancellation, lost capture, window blur, resize, document hiding, workspace changes, and pane-tree changes cancel the gesture. Dropping outside the workspace does not commit. Cancellation suppresses the click associated with the eventual pointer release; a fresh pointer gesture clears that suppression. Sidebar terminal drags retain their HTML5 transfer path, including indexed strip insertion and canvas merge/split.
+
+If a pointer move reports that the primary button is already up, the controller cancels the gesture and clears the captured pointer and preview. The browser regression reproduces a missed release, verifies that it does not move the tab, then successfully repeats the drag.
 
 ### Continuous workspace surface
 

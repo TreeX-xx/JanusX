@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { nativeEditingKeys } from '../helpers/native-editing-keys'
 
 for (const engine of ['claude', 'codex']) {
   test(`${engine} recalls submitted text after reopening, restores draft and preserves editing keys`, async ({ page }) => {
@@ -10,10 +11,10 @@ for (const engine of ['claude', 'codex']) {
     await page.reload()
     await expect(input).toBeVisible()
     await input.fill('unsent draft')
-    await input.press('Control+Home')
+    await input.press(nativeEditingKeys.start)
     await input.press('ArrowUp')
     await expect(input).toHaveText('Remember this\nsecond line', { useInnerText: true })
-    await input.press('Control+End')
+    await input.press(nativeEditingKeys.end)
     await input.press('ArrowDown')
     await expect(input).toHaveText('unsent draft')
     await input.fill('line one\nline two')

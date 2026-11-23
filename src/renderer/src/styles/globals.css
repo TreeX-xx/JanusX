@@ -31,8 +31,9 @@ body.desktop-toast-body {
 
 /* 文本选中颜色走主题 definition（::selection，见 themes.generated.css） */
 
-/* Shared, subdued focus cues for native conversation and SuperAgent inputs. */
 :root {
+  --conversation-emphasis: color-mix(in srgb, var(--status-info) 70%, var(--shell-text));
+  /* Shared focus cues for native conversation and SuperAgent inputs. */
   --conversation-input-font-size: 13px;
   --conversation-input-line-height: 1.85;
   --conversation-user-light-background: color-mix(in srgb, var(--shell-text) 11%, var(--shell-canvas));

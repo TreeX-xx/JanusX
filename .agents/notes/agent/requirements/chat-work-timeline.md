@@ -5,7 +5,7 @@
   "kind": "requirement",
   "lifecycle": "accepted",
   "created": "2026-10-16",
-  "updated": "2026-11-13T09:27:07Z",
+  "updated": "2026-11-20T09:55:33Z",
   "class": "feature",
   "tags": ["chat", "timeline", "agentX-parity", "blueprint", "launch-assistant"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
@@ -33,9 +33,11 @@
 
 分组使用首条活动的稳定身份，后续增量和完成事件不改变用户的展开选择。JanusChat 与运行配置助手在流式回复进入历史时保存该选择，会话切换时重置。推理正文在工作过程内部使用较浅主题文字和最大 240px 的滚动区；单段手动折叠时保留实时尾行，结束后停止光标及计时。摘要沿用模型公开返回的首个有效行，不额外生成推理内容。
 
+展开长过程后，原控件随内容滚出视野时，过程左侧缩进区显示与原控件对齐的上箭头，悬停提示「回到展开处」。点击会将对话滚动到原控件上方并聚焦原控件，用户可以继续阅读或按 Enter 收起。流式中和已归档的过程使用同一交互。独立展示的推理段也可回到自己的控件。
+
 思考、写入、执行工具和等待审批按实际阶段切换。推理段 A 在工具开始时已经结束，即使整个轮次仍在运行，也不能继续给它显示“思考中”或增长其耗时。后续推理段 B 独立追加；轮次总耗时与单段耗时分别计算。
 
-三个入口的输入框、用户消息和助手输出（包括公开推理）支持原生拖动框选及 Ctrl+C 复制。消息区与文本输入显式设置 `user-select: text` 和 `-webkit-app-region: no-drag`，覆盖浮层祖先的禁止选择规则；标题、按钮和拖拽手柄沿用各自交互。
+三个入口的输入框、用户消息和助手输出（包括公开推理）支持原生拖动框选及系统复制快捷键。消息区与文本输入显式设置 `user-select: text` 和 `-webkit-app-region: no-drag`，覆盖浮层祖先的禁止选择规则；标题、按钮和拖拽手柄沿用各自交互。
 
 ## Current implementation
 
@@ -102,6 +104,8 @@ agent-event 是过程增量的唯一来源；legacy delta 仅在未使用 agent-
 - [x] AC-12: 新过程数据验证真实模型适配链路，三个入口分别验证完整流式与结束后的界面。仅向 renderer 注入 `reasoning_delta` 的测试不能作为模型事件已打通的证据。
 
 ## Verification
+
+2026-11-20 回到展开处交互。`chat-work-timeline`、`conversation-work-disclosure` 和 `conversation-virtual-history` 共 35 项浏览器用例通过，覆盖流式增量、归档和键盘收起。SuperAgent 回跳及卡片键盘焦点的 2 项用例通过。已有的 SuperAgent 窄窗工具卡宽度断言在隐藏回跳按钮并恢复卡片原裁切样式后仍失败。类型、双语检查和 `npm run build:check` 通过。
 
 2026-11-07 操作摘要与状态归属调整：Main 直接 xdo 自检，`conversation-output`、`native-conversation`、`codex-conversation`、`claude-conversation`、`opencode-conversation` 单测 61 项通过，`conversation-turns`、`chat-timeline` 另 8 项通过。浏览器命令 `npx playwright test tests/e2e/conversation-work-disclosure.spec.ts tests/e2e/claude-progress.spec.ts tests/e2e/chat-work-timeline.spec.ts --project=island --workers=1 --timeout=60000` 覆盖五类 CLI、三个 Chat 入口、截断与未知状态分离、局部失败、展开选择、计时和长过程滚动。计时夹具先等待会话就绪，再暂停时钟并精确推进，避免冷启动丢事件与真实时间漂移。类型、双语和相关源码 ESLint 检查通过；Notes 为 0 errors、17 条既有外部链接诊断。已检查 `artifacts/claude-progress/activity-dark.png` 与 `activity-light.png` 的 380px 布局。未配置真实 CLI 证据的集成测试及原生快照回放跳过；未执行 Electron 打包或真实供应商验收。
 

@@ -150,6 +150,7 @@ export function resolveLocalAssetAbsolutePath(
     const normalized = normalizePosix(posix)
     return useBackslash ? normalized.replace(/\//g, '\\') : normalized
   }
+  if (fromFileScheme !== null && posix.startsWith('/')) return normalizePosix(posix)
   const workspacePosix = options.workspacePath ? toPosix(options.workspacePath) : ''
   const documentPosix = options.documentDir ? toPosix(options.documentDir) : ''
   // Leading `/` is workspace-root-relative while a workspace is known.

@@ -78,6 +78,10 @@
 /* 行号染色需覆盖 Monaco 主题注入的 .line-numbers 颜色，故限定在 .monaco-editor 内加权 */
 .monaco-editor .diff-num-add { color: var(--shell-diff-add) !important; }
 .monaco-editor .diff-num-del { color: var(--shell-diff-del) !important; }
+.monaco-editor .diff-code-add { color: var(--shell-diff-add); }
+/* Unified mode renders the original lines in a separate, read-only view zone. */
+.monaco-editor .diff-code-del,
+.monaco-editor .view-lines.line-delete .view-line span { color: var(--shell-diff-del); }
 /* ── 终端 + 菜单分区标题 ─────────────────────────────────────────────
    Shell 区与 CLI 区分组陈列：标题用小号大写弱化，只作分隔不抢菜单项。 */
 .terminal-menu-section {

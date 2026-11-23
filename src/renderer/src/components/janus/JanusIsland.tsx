@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { isSuperAgentEnabled, useSuperAgentOwnsChat } from '@/lib/superagent-plugin'
+import { isSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { Download, X } from 'lucide-react'
 import { useAppStore } from '@/stores/app'
 import { useI18n } from '@/i18n/useI18n'
@@ -119,7 +119,6 @@ export function JanusIsland({
   const companionVeil = useAutomationIslandLayout(shellRef, stage === 'expanded' && view === 'chat' && companionToolId === 'automations')
   const setView = useCallback((next: JanusExpandedView) => setStoredView(ISLAND_CHAT_ONLY ? 'chat' : next), [])
   const pluginSnapshot = usePluginSnapshot()
-  const superAgentOwnsChat = useSuperAgentOwnsChat()
   const hostCovered = useBrowserOcclusionStore(s => s.count > 0)
   const pluginViews = useExtensionViews()
   const pluginViewRequest = useIslandStore(s => s.pluginViewRequest)
@@ -279,20 +278,14 @@ export function JanusIsland({
     }
   }, [])
   const closeNotifCenter = useCallback(() => closeNotifications(), [closeNotifications])
-  const wasSuperAgentActive = useRef(superAgentOwnsChat)
-  useEffect(() => {
-    if (wasSuperAgentActive.current && !superAgentOwnsChat) closeNotifications(false)
-    wasSuperAgentActive.current = superAgentOwnsChat
-  }, [superAgentOwnsChat, closeNotifications])
   const toggleTray = useCallback(() => {
     if (trayOpen) closeNotifications()
     else { prepareNoticeReader(); setTrayOpen(true) }
   }, [trayOpen, closeNotifications, prepareNoticeReader])
   const handleDoubleTap = useCallback(() => {
-    if (superAgentOwnsChat) { onDismiss(); openNotifCenter(); return }
     closeNotifications(false)
     onDoubleActivate()
-  }, [superAgentOwnsChat, onDismiss, openNotifCenter, closeNotifications, onDoubleActivate])
+  }, [closeNotifications, onDoubleActivate])
   const handleSingleTap = useCallback(() => {
     if (stage === 'collapsed') {
       if (notifOpen) closeNotifCenter()

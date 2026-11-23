@@ -11,10 +11,16 @@ it.each([null, '{', JSON.stringify({ started: true, agentMode: 'superagent', wor
     })
     const load = async () => (await import('../../src/renderer/src/stores/superagent-ui')).useSuperAgentUIStore.getState()
     const state = await load()
-    expect(state).toMatchObject({ agentMode: 'ordinary', started: false })
+    expect(state).toMatchObject({ started: false, restoreTab: false })
     if (initial?.includes('390')) expect(state.workersWidth).toBe(390)
-    state.setAgentMode('superagent')
+    state.start()
     vi.resetModules()
-    expect((await load()).agentMode).toBe('superagent')
+    expect(await load()).toMatchObject({ started: true, restoreTab: true })
   },
 )
+
+it('keeps legacy Worker notifications available without restoring a tab the user never opened', async () => {
+  vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ modeVersion: 1, agentMode: 'superagent' }) })
+  const { useSuperAgentUIStore } = await import('../../src/renderer/src/stores/superagent-ui')
+  expect(useSuperAgentUIStore.getState()).toMatchObject({ started: true, restoreTab: false })
+})

@@ -232,6 +232,8 @@ for (const [theme, language] of [['planche', 'zh-CN'], ['dark', 'en']]) {
     const editor = page.locator('[data-editor-host="embedded"]')
     const toolsButton = region(page, 'tools').locator('[data-auxiliary-collapse]')
     const editorButton = editor.locator('[data-auxiliary-collapse]')
+    const toolsToggle = page.locator('[data-tools-toggle]')
+    const editorToggle = page.locator('[data-editor-toggle]')
     await expect(editorButton).toBeVisible()
     const appearance = (button: typeof toolsButton) => button.evaluate(el => {
       const style = getComputedStyle(el)
@@ -242,8 +244,8 @@ for (const [theme, language] of [['planche', 'zh-CN'], ['dark', 'en']]) {
     expect(await appearance(toolsButton)).toEqual(await appearance(editorButton))
     expect(await appearance(toolsButton)).toMatchObject({ width: '28px', height: '28px', background: 'rgba(0, 0, 0, 0)', icon: '16' })
     for (const [button, toggle, content] of [
-      [toolsButton, page.locator('[data-tools-toggle]'), region(page, 'tools')],
-      [editorButton, page.locator('[data-editor-toggle]'), editor],
+      [toolsButton, toolsToggle, region(page, 'tools')],
+      [editorButton, editorToggle, editor],
     ]) {
       await button.hover()
       await expect(page.getByRole('tooltip')).toHaveText((await button.getAttribute('aria-label'))!)
@@ -257,6 +259,27 @@ for (const [theme, language] of [['planche', 'zh-CN'], ['dark', 'en']]) {
     }
     await page.mouse.move(0, 0)
     await editorButton.blur()
+    const selectedMode = editor.getByRole('radio', { checked: true })
+    const defaultAccent = await selectedMode.evaluate(el => getComputedStyle(el).color)
+    await expect(editorToggle).toHaveCSS('color', defaultAccent)
+    const toolsColor = await toolsToggle.evaluate(el => getComputedStyle(el).color)
+    const settings = await page.context().newPage()
+    await settings.goto(`/theme-settings.html?theme=${theme}`)
+    const hex = settings.getByRole('textbox', { name: 'Content accent color hex value' })
+    await hex.fill('#6485AB')
+    await hex.press('Enter')
+    await expect(editorToggle).toHaveCSS('color', 'rgb(100, 133, 171)')
+    await expect(selectedMode).toHaveCSS('color', 'rgb(100, 133, 171)')
+    await expect(toolsToggle).toHaveCSS('color', toolsColor)
+    await editorToggle.press('Enter')
+    await expect(editorToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(editorToggle).not.toHaveCSS('color', 'rgb(100, 133, 171)')
+    await editorToggle.press('Enter')
+    await expect(editorToggle).toHaveCSS('color', 'rgb(100, 133, 171)')
+    await settings.getByRole('button', { name: 'Reset to default' }).click()
+    await expect(editorToggle).toHaveCSS('color', defaultAccent)
+    await settings.close()
+    await editorToggle.blur()
     await page.screenshot({ path: testInfo.outputPath(`${theme}-collapse-controls.png`) })
     await page.setViewportSize({ width: 800, height: 900 })
     await expect(region(page, 'tools')).toBeHidden()

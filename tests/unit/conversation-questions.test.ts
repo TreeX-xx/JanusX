@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { ConversationSession, conversationState } from '../../src/main/terminal/conversation-session'
 import { validateConversationAnswer, type ConversationQuestionRequest } from '../../src/shared/conversation-questions'
-import { CodexConversation } from '../../src/main/terminal/codex-conversation'
+import { codexFixture } from './codex-conversation.fixture'
 import { codexAsyncQuestions, codexAsyncReplies } from '../../src/main/terminal/codex-questions'
 import { OpenCodeConversation } from '../../src/main/terminal/opencode-conversation'
 import { ClaudeConversation } from '../../src/main/terminal/claude-conversation'
@@ -14,102 +14,114 @@ describe('Codex asynchronous questions', () => {
   const item = { id: 'async-message', type: 'agentMessage', text: 'Choose a direction', questions: [
     { title: 'Choose', options: ['First', 'Second'] }, { title: 'Notes' },
   ] }
-  async function setup() {
-    const c = new CodexConversation('test', () => {})
-    const wire = c as any
-    wire.attach({ id: 's', turns: [] })
-    await c.command({ type: 'mode', mode: 'conversation' })
-    wire.receive({ method: 'turn/started', params: { threadId: 's', turn: { id: 't' } } })
-    const emit = (method = 'item/completed', value = item) => wire.receive({ method, params: { threadId: 's', turnId: 't', item: value } })
-    const reply = () => {
-      const request = c.state.questions![0]
-      return c.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: c.state.controlEpoch,
-        answer: { answers: [{ id: '0', selected: ['1'] }, { id: '1', selected: [], text: '中文说明' }] } })
-    }
-    return { c, wire, emit, reply }
+  async function questionFixture(startTurn = true) {
+    const { controller, emit, wire } = codexFixture('s')
+    await controller.command({ type: 'mode', mode: 'conversation' })
+    if (startTurn) emit('turn/started', { turn: { id: 't' } })
+    const emitQuestion = (method = 'item/completed') => emit(method, { turnId: 't', item })
+    const reply = (request = controller.state.questions![0]) => controller.command({
+      type: 'answer', requestId: request.id, version: request.version, controlEpoch: controller.state.controlEpoch,
+      answer: { answers: [{ id: '0', selected: ['1'] }, { id: '1', selected: [], text: '中文说明' }] },
+    })
+    return { controller, emit, wire, emitQuestion, reply }
   }
   it('validates the native async shape without guessing questions from prose', () => {
     expect(codexAsyncQuestions(item.questions)?.[0]).toMatchObject({ allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] })
     for (const value of [undefined, [], [{ title: 'Choose', options: [{ label: 'Wrong schema' }] }], [{ title: 4 }]]) expect(codexAsyncQuestions(value)).toBeNull()
   })
-  it('steers a running turn once, accepts custom text and deduplicates started/completed events', async () => {
-    const { c, wire, emit, reply } = await setup()
-    try {
-      const call = vi.spyOn(wire, 'call').mockResolvedValue({})
-      emit('item/started'); const version = c.state.questions![0].version
-      emit(); expect(c.state.questions).toHaveLength(1)
-      expect(c.state.questions![0]).toMatchObject({ version, blocking: false })
-      await reply()
-      expect(call).toHaveBeenCalledExactlyOnceWith('turn/steer', { threadId: 's', expectedTurnId: 't', input: [{ type: 'text', text: expect.any(String), text_elements: [] }] })
-      expect(codexAsyncReplies((call.mock.calls[0][1] as any).input[0].text)).toEqual([
-        { questionItemId: JSON.stringify(['request_user_input_async', item.id, 0]), question: 'Choose', answer: 'Second' },
-        { questionItemId: JSON.stringify(['request_user_input_async', item.id, 1]), question: 'Notes', answer: '中文说明' },
-      ])
-      expect(c.state.questions).toEqual([])
-      emit(); expect(c.state.questions).toEqual([])
-    } finally { await c.dispose() }
+  const expectedReplies = [
+    { questionItemId: JSON.stringify(['request_user_input_async', item.id, 0]), question: 'Choose', answer: 'Second' },
+    { questionItemId: JSON.stringify(['request_user_input_async', item.id, 1]), question: 'Notes', answer: '中文说明' },
+  ]
+  const input = [{
+    type: 'text',
+    text: `<send_user_message_question_reply>\n${JSON.stringify(expectedReplies)}\n</send_user_message_question_reply>`,
+    text_elements: [],
+  }]
+  it.each([
+    ['turn/steer', { threadId: 's', expectedTurnId: 't', input }, 't'],
+    ['turn/start', expect.objectContaining({ threadId: 's', input }), 'next'],
+  ] as const)('delivers one async answer through %s and ignores replay', async (method, params, turnAfterReply) => {
+    const { controller, wire, emit, emitQuestion, reply } = await questionFixture()
+    const call = vi.spyOn(wire, 'call').mockResolvedValue({ turn: { id: 'next' } })
+    emitQuestion('item/started')
+    const version = controller.state.questions![0].version
+    emitQuestion()
+    expect(controller.state.questions).toHaveLength(1)
+    const pending = controller.state.questions![0]
+    expect(pending).toMatchObject({ version, blocking: false, cancelable: true })
+    expect(pending.questions[0]).toMatchObject({ allowText: true, options: [{ id: '0', label: 'First' }, { id: '1', label: 'Second' }] })
+    if (method === 'turn/start') {
+      emit('turn/completed', { turn: { id: 't', status: 'completed' } })
+      expect(controller.state.questions).toHaveLength(1)
+      await controller.command({ type: 'mode', mode: 'terminal' })
+      await controller.command({ type: 'mode', mode: 'conversation' })
+    }
+    await reply()
+    expect(call).toHaveBeenCalledExactlyOnceWith(method, params)
+    expect(controller.state.turnId).toBe(turnAfterReply)
+    const sent = (call.mock.calls[0][1] as { input: typeof input }).input
+    expect(codexAsyncReplies(sent[0].text)).toEqual(expectedReplies)
+    expect(controller.state.questions).toEqual([])
+    emit('item/completed', { turnId: 'reply', item: { id: 'reply', type: 'userMessage', content: sent } })
+    expect(controller.state.items.at(-1)).toMatchObject({ text: '> Choose\n\nSecond\n\n> Notes\n\n中文说明', editable: false })
+    emitQuestion()
+    expect(controller.state.questions).toEqual([])
+    await expect(reply(pending)).rejects.toThrow('expired')
   })
-  it('retains unanswered questions after completion and starts a new turn when idle', async () => {
-    const { c, wire, emit, reply } = await setup()
-    try {
-      emit()
-      wire.receive({ method: 'turn/completed', params: { threadId: 's', turn: { id: 't', status: 'completed' } } })
-      expect(c.state.questions).toHaveLength(1)
-      await c.command({ type: 'mode', mode: 'terminal' })
-      await c.command({ type: 'mode', mode: 'conversation' })
-      const call = vi.spyOn(wire, 'call').mockResolvedValue({ turn: { id: 'next' } })
-      await reply()
-      expect(call).toHaveBeenCalledWith('turn/start', expect.objectContaining({ threadId: 's' }))
-      expect(c.state.turnId).toBe('next')
-      expect(c.state.questions).toEqual([])
-    } finally { await c.dispose() }
-  })
-  it('keeps failed delivery unknown and never retries a steer into a new turn', async () => {
-    const { c, wire, emit, reply } = await setup()
-    try {
-      emit()
-      const call = vi.spyOn(wire, 'call').mockRejectedValue(new Error('Turn already completed'))
-      await expect(reply()).rejects.toThrow('Turn already completed')
-      expect(c.state.questions![0].status).toBe('unknown')
-      await expect(reply()).rejects.toThrow()
-      expect(call).toHaveBeenCalledTimes(1)
-    } finally { await c.dispose() }
+  it.each([
+    { error: 'Turn already completed', startTurn: true },
+    { error: 'connection lost', startTurn: false },
+  ])('keeps failed delivery unknown without resending after $error', async ({ error, startTurn }) => {
+    const { controller, wire, emit, emitQuestion, reply } = await questionFixture(startTurn)
+    emit('item/completed', { threadId: 'other', turnId: 't', item })
+    emit('item/completed', { turnId: 't', item: { ...item, questions: [{ title: 'Bad', options: [1] }] } })
+    expect(controller.state.questions ?? []).toEqual([])
+    emitQuestion()
+    const call = vi.spyOn(wire, 'call').mockRejectedValue(new Error(error))
+    await expect(reply()).rejects.toThrow(error)
+    expect(controller.state.questions![0].status).toBe('unknown')
+    emitQuestion()
+    expect(controller.state.questions![0].status).toBe('unknown')
+    await expect(reply()).rejects.toThrow()
+    expect(call).toHaveBeenCalledTimes(1)
+    wire.attach({ id: 'other', turns: [{ id: 't', status: 'completed', items: [item] }] })
+    expect(controller.state.questions).toEqual([])
   })
   it('does not revive historical questions; switching thread expires live requests', async () => {
-    const { c, wire, emit } = await setup()
-    try {
-      wire.attach({ id: 's', turns: [{ id: 'old', status: 'completed', items: [item] }] })
-      expect(c.state.questions ?? []).toEqual([])
-      emit(); expect(c.state.questions).toHaveLength(1)
-      wire.attach({ id: 'other', turns: [] })
-      expect(c.state.questions).toEqual([])
-    } finally { await c.dispose() }
+    const { controller, wire, emitQuestion } = await questionFixture()
+    wire.attach({ id: 's', turns: [{ id: 'old', status: 'completed', items: [item] }] })
+    expect(controller.state.questions ?? []).toEqual([])
+    emitQuestion()
+    expect(controller.state.questions).toHaveLength(1)
+    wire.attach({ id: 'other', turns: [] })
+    expect(controller.state.questions).toEqual([])
   })
   it('dismisses locally without sending input and preserves pending questions while busy', async () => {
-    const { c, wire, emit, reply } = await setup()
-    try {
-      emit(); const call = vi.spyOn(wire, 'call')
-      c.state.submitting = true
-      await expect(reply()).rejects.toThrow('busy')
-      expect(c.state.questions![0].status).toBe('pending')
-      c.state.submitting = false
-      const request = c.state.questions![0]
-      await c.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: c.state.controlEpoch, answer: { cancelled: true, answers: [] } })
-      expect(call).not.toHaveBeenCalled()
-      emit(); expect(c.state.questions).toEqual([])
-    } finally { await c.dispose() }
+    const { controller, wire, emitQuestion, reply } = await questionFixture()
+    emitQuestion()
+    const call = vi.spyOn(wire, 'call')
+    controller.state.submitting = true
+    await expect(reply()).rejects.toThrow('busy')
+    expect(controller.state.questions![0].status).toBe('pending')
+    controller.state.submitting = false
+    const request = controller.state.questions![0]
+    await controller.command({ type: 'answer', requestId: request.id, version: request.version, controlEpoch: controller.state.controlEpoch, answer: { cancelled: true, answers: [] } })
+    expect(call).not.toHaveBeenCalled()
+    emitQuestion()
+    expect(controller.state.questions).toEqual([])
   })
   it('consumes native terminal replies by question identity and displays readable answer text', async () => {
-    const { c, wire, emit } = await setup()
-    try {
-      emit(); const version = c.state.questions![0].version
-      const text = '<send_user_message_question_reply>\n' + JSON.stringify([{ questionItemId: JSON.stringify(['request_user_input_async', item.id, 0]), question: 'Choose', answer: 'First' }]) + '\n</send_user_message_question_reply>'
-      wire.receive({ method: 'item/completed', params: { threadId: 's', turnId: 't', item: { type: 'userMessage', id: 'native-answer', content: [{ type: 'text', text }] } } })
-      expect(c.state.questions![0].questions.map(q => q.id)).toEqual(['1'])
-      expect(c.state.questions![0].version).toBeGreaterThan(version)
-      expect(c.state.items.at(-1)).toMatchObject({ text: '> Choose\n\nFirst', editable: false })
-      emit(); expect(c.state.questions![0].questions.map(q => q.id)).toEqual(['1'])
-    } finally { await c.dispose() }
+    const { controller, emit, emitQuestion } = await questionFixture()
+    emitQuestion()
+    const version = controller.state.questions![0].version
+    const text = '<send_user_message_question_reply>\n' + JSON.stringify([{ questionItemId: JSON.stringify(['request_user_input_async', item.id, 0]), question: 'Choose', answer: 'First' }]) + '\n</send_user_message_question_reply>'
+    emit('item/completed', { turnId: 't', item: { type: 'userMessage', id: 'native-answer', content: [{ type: 'text', text }] } })
+    expect(controller.state.questions![0].questions.map(q => q.id)).toEqual(['1'])
+    expect(controller.state.questions![0].version).toBeGreaterThan(version)
+    expect(controller.state.items.at(-1)).toMatchObject({ text: '> Choose\n\nFirst', editable: false })
+    emitQuestion()
+    expect(controller.state.questions![0].questions.map(q => q.id)).toEqual(['1'])
   })
 })
 
@@ -211,6 +223,7 @@ describe('native question lifetime', () => {
 describe('provider question protocols', () => {
   it('binds the Claude permission callback to the exact human answer, ignoring JSON key order', async () => {
     const c = new ClaudeConversation('test', () => {})
+    onTestFinished(() => c.dispose())
     Object.assign(c.state, { connection: 'ready', threadId: 's' })
     const wire = c as any
     const call = vi.spyOn(wire, 'call').mockResolvedValue({})
@@ -233,36 +246,33 @@ describe('provider question protocols', () => {
     wire.receive({ type: 'tool.error', data: { toolUseId: 'tool', text: 'Native rejected the answer' } })
     expect(c.state.questions![0].status).toBe('unknown')
     expect(c.state.needsTerminal).toBe(true)
-    await c.dispose()
   })
   it('returns Codex request IDs and native answer labels; native resolution invalidates stale replies', async () => {
-    const c = new CodexConversation('test', () => {})
-    const wire = c as any
-    wire.attach({ id: 's', turns: [] })
+    const { controller: c, wire, emit } = codexFixture('s')
     const send = vi.spyOn(wire, 'send').mockImplementation(() => {})
     await c.command({ type: 'mode', mode: 'conversation' })
-    wire.receive({ id: 52, method: 'item/tool/requestUserInput', params: { threadId: 's', turnId: 't', itemId: 'tool', isBlocking: true,
-      questions: [{ id: 'q', question: 'Choose', header: 'Choice', isOther: true, options: [{ label: 'Native label', description: 'Detail' }] }] } })
+    emit('item/tool/requestUserInput', { turnId: 't', itemId: 'tool', isBlocking: true,
+      questions: [{ id: 'q', question: 'Choose', header: 'Choice', isOther: true, options: [{ label: 'Native label', description: 'Detail' }] }] }, 52)
     const q = c.state.questions![0]
     expect(c.state.needsTerminal).toBe(false)
     await c.command({ type: 'answer', requestId: 52, version: q.version, controlEpoch: c.state.controlEpoch, answer: { answers: [{ id: 'q', selected: [], text: 'custom 原文' }] } })
     expect(send).toHaveBeenLastCalledWith({ id: 52, result: { answers: { q: { answers: ['user_note: custom 原文'] } } } })
     expect(c.state.questions![0].status).toBe('submitting')
-    wire.receive({ method: 'serverRequest/resolved', params: { threadId: 's', requestId: 52 } })
+    emit('serverRequest/resolved', { requestId: 52 })
     expect(c.state.questions).toEqual([])
-    wire.receive({ id: 'late', method: 'item/tool/requestUserInput', params: { threadId: 's', questions: [{ id: 'q', question: 'Secret', isSecret: true }] } })
+    emit('item/tool/requestUserInput', { questions: [{ id: 'q', question: 'Secret', isSecret: true }] }, 'late')
     expect(c.state.questions![0].questions[0]).toMatchObject({ allowText: true, secret: true })
-    wire.receive({ method: 'serverRequest/resolved', params: { threadId: 's', requestId: 'late' } })
+    emit('serverRequest/resolved', { requestId: 'late' })
     await expect(c.command({ type: 'answer', requestId: 'late', version: 2, controlEpoch: c.state.controlEpoch, answer })).rejects.toThrow('expired')
-    wire.receive({ id: 54, method: 'item/commandExecution/requestApproval', params: { threadId: 's', itemId: 'command', proposedExecpolicyAmendment: ['npm', 'test'] } })
+    emit('item/commandExecution/requestApproval', { itemId: 'command', proposedExecpolicyAmendment: ['npm', 'test'] }, 54)
     await expect(c.command({ type: 'approve', requestId: 54, decision: 'invented', controlEpoch: c.state.controlEpoch })).rejects.toThrow()
     await c.command({ type: 'approve', requestId: 54, decision: 'execpolicy', controlEpoch: c.state.controlEpoch })
     expect(send).toHaveBeenLastCalledWith({ id: 54, result: { decision: { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['npm', 'test'] } } } })
-    await c.dispose()
   })
 
   it('maps OpenCode permission choices and typed form values to their specific endpoints', async () => {
     const c = new OpenCodeConversation('test', () => {})
+    onTestFinished(() => c.dispose())
     Object.assign(c.state, { connection: 'ready', threadId: 's' })
     const wire = c as any
     const api = vi.spyOn(wire, 'api').mockResolvedValue({ data: {} })
@@ -282,6 +292,5 @@ describe('provider question protocols', () => {
     wire.syncInteractions([], [{ id: 'unsupported', sessionID: 's', fields: [{ key: 'f', type: 'external', url: 'https://example.com' }] }])
     expect(c.state.needsTerminal).toBe(true)
     expect(c.state.questions).toEqual([])
-    await c.dispose()
   })
 })

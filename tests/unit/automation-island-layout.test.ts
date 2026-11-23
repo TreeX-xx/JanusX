@@ -86,14 +86,14 @@ describe('Island companion lifetime', () => {
     useIslandStore.getState().dispatch({ type: 'dismiss' })
     expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', automationLocked: true, companionToolId: null })
   })
-  it('retains the connection when chat is hosted by SuperAgent rather than expanded Island', () => {
+  it('opens Island Chat while a SuperAgent tab exists', () => {
     usePluginSnapshot.setState({ plugins: [{
       manifest: parsePluginManifest(JSON.stringify(superAgentManifest)), source: { kind: 'official', directory: 'fixture' },
       enabled: true, state: 'active', projects: [], projectScope: 'all', failures: 0, digest: 'fixture',
     }] })
     openSuperAgent()
     useIslandStore.getState().openChat('', 'automations')
-    expect(useIslandStore.getState()).toMatchObject({ stage: 'collapsed', companionToolId: 'automations', chatRequest: { prefill: '' } })
+    expect(useIslandStore.getState()).toMatchObject({ stage: 'expanded', companionToolId: 'automations', chatRequest: { prefill: '' } })
     expect(useGlobalToolsStore.getState()).toMatchObject({ focusedTabId: 'superagent', collapsed: false })
     useIslandStore.getState().dispatch({ type: 'dismiss' })
     expect(useIslandStore.getState().companionToolId).toBe('automations')

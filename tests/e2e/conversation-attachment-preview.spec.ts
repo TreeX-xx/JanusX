@@ -34,7 +34,13 @@ test('dropped and pasted images preview before sending and survive remount', asy
   await page.getByRole('button', { name: 'Remount', exact: true }).click()
   const preview = page.getByRole('button', { name: 'Preview image: drop.png', exact: true })
   await preview.click()
-  await expect(page.getByRole('dialog', { name: 'Preview image: drop.png' })).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: 'Preview image: drop.png' })
+  await expect(dialog).toBeVisible()
+  await expect.poll(() => dialog.evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return Math.abs(bounds.left + bounds.width / 2 - innerWidth / 2) <= 1
+      && Math.abs(bounds.top + bounds.height / 2 - innerHeight / 2) <= 1
+  })).toBe(true)
   await page.keyboard.press('Escape')
   await expect(preview).toBeFocused()
   await expect(input).toContainText('Keep my draft')

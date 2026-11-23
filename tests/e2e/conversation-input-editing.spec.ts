@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
+import { nativeEditingKeys } from '../helpers/native-editing-keys'
 
 for (const entry of ['typing', 'paste']) test(`placeholder follows the whole draft after ${entry}, deleting a second line, clearing and undoing`, async ({ page }) => {
   await page.goto('/codex-conversation.html?initialView=conversation')
@@ -22,10 +23,10 @@ for (const entry of ['typing', 'paste']) test(`placeholder follows the whole dra
   await input.press('Backspace')
   await expect(input).toHaveText('第一行仍有内容')
   await expect.poll(before).toBe('none')
-  await input.press('Control+a')
+  await input.press('ControlOrMeta+a')
   await input.press('Backspace')
   await expect.poll(before).toBe(placeholder)
-  await input.press('Control+z')
+  await input.press(nativeEditingKeys.undo)
   await expect(input).toHaveText('第一行仍有内容')
   await expect.poll(before).toBe('none')
   await page.getByRole('button', { name: 'Remount', exact: true }).click()
@@ -63,6 +64,20 @@ async function caretTop(input: Locator): Promise<number> {
   })
 }
 
+test('clearing the draft keeps the caret on the first line when the placeholder wraps', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex', exact: true })
+  await input.evaluate(el => { el.style.maxWidth = '140px' })
+  await input.fill('x')
+  const firstLine = await caretTop(input)
+  await input.press('Backspace')
+  await expect(input).toHaveAttribute('data-input-empty', 'true')
+  expect(await caretTop(input)).toBeCloseTo(firstLine, 0)
+  await input.pressSequentially('new')
+  await expect(input).toHaveText('new')
+  expect(await caretTop(input)).toBeCloseTo(firstLine, 0)
+})
+
 for (const shortcut of ['Control+j', 'Shift+Enter']) {
   test(`${shortcut} moves to a new line on the first press and preserves exact text`, async ({ page }) => {
     await page.goto('/codex-conversation.html?initialView=conversation')
@@ -87,12 +102,12 @@ test('newline in an empty draft survives undo, redo and remount without an extra
   await input.pressSequentially('second')
   await input.press('Control+j')
   const beforeUndo = await input.innerText()
-  await input.press('Control+z')
+  await input.press(nativeEditingKeys.undo)
   await expect.poll(() => input.innerText()).not.toBe(beforeUndo)
-  await input.press('Control+Shift+z')
+  await input.press(nativeEditingKeys.redo)
   await expect.poll(() => input.innerText()).toBe(beforeUndo)
   await page.getByRole('button', { name: 'Remount', exact: true }).click()
-  await input.press('Control+End')
+  await input.press(nativeEditingKeys.end)
   await input.pressSequentially('third')
   await input.press('Enter')
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual(['\nsecond\nthird'])
@@ -109,24 +124,25 @@ test('arrows edit wrapped lines before recalling history and allow editing a rec
   await page.evaluate(() => (window as any).codexFixture.finish())
   const draft = wrapped + ' Keep this draft.'
   await input.fill(draft)
-  await input.press('Control+Home')
-  await input.press('ArrowDown')
-  await input.press('ArrowRight')
+  const lineHeight = await input.evaluate(el => parseFloat(getComputedStyle(el).lineHeight))
+  const secondLinePoint = { x: 24, y: lineHeight * 1.5 }
+  await input.click({ position: secondLinePoint })
   const secondLine = await caretTop(input)
   await input.press('ArrowUp')
   await expect(input).toHaveText(draft)
   expect(await caretTop(input)).toBeLessThan(secondLine - 10)
   await input.press('ArrowUp')
   await expect(input).toHaveText(wrapped)
-  await input.press('ArrowDown')
-  await input.press('ArrowRight')
+  await input.click({ position: secondLinePoint })
   await expect(input).toHaveText(wrapped)
   await input.press('ArrowUp')
   await expect(input).toHaveText(wrapped)
-  await input.press('Control+End')
+  await input.press(nativeEditingKeys.end)
   await input.press('ArrowDown')
   await expect(input).toHaveText(draft)
-  await input.fill('first')
+  await input.press('ControlOrMeta+a')
+  await page.keyboard.insertText('first')
+  await expect(input).toHaveText('first')
   await input.press('Control+j')
   await input.pressSequentially('second')
   await input.press('ArrowUp')

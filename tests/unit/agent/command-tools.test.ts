@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkspaceAgentRuntime } from '@janus-agent/agent-core'
+import { approveToolRequests } from './tool-approval.fixture'
 import { commandExecutionMode, registerCommandTools } from '../../../src/main/agent/runtime/tools/command-tools'
 
 const temporaryDirectories: string[] = []
@@ -14,21 +15,6 @@ async function createRuntime() {
   registerCommandTools(runtime.registry)
   const session = await runtime.createSession({ workspaceId: 'workspace-1', workspaceRoot: root })
   return { root, runtime, session }
-}
-
-function approve(runtime: WorkspaceAgentRuntime): void {
-  runtime.onEvent((event) => {
-    if (event.type !== 'approval-requested') return
-    runtime.resolveApproval({
-      approvalId: event.request.id,
-      approved: true,
-      workspaceId: event.request.workspaceId,
-      sessionId: event.request.sessionId,
-      correlationId: event.request.correlationId,
-      toolName: event.request.toolName,
-      actionRisk: event.request.actionRisk,
-    })
-  })
 }
 
 afterEach(async () => {
@@ -45,7 +31,7 @@ describe('command Agent Runtime tool', () => {
 
   it('runs one structured command and returns bounded output and exit state', async () => {
     const { runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const program = basename(process.execPath)
     const result = await runtime.executeTool({
       sessionId: session.id,
@@ -66,7 +52,7 @@ describe('command Agent Runtime tool', () => {
 
   it('returns a nonzero exit without disguising it as a successful command', async () => {
     const { runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const result = await runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -85,7 +71,7 @@ describe('command Agent Runtime tool', () => {
       call: { toolName: 'command.run', input: { workspaceId: 'workspace-1', program: basename(process.execPath) } },
     })).resolves.toMatchObject({ status: 'failed', reasonCode: 'PREVIEW_REQUIRED' })
 
-    approve(runtime)
+    approveToolRequests(runtime)
     await expect(runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -106,7 +92,7 @@ describe('command Agent Runtime tool', () => {
 
   it('returns an 8KB tail preview and persists the full log for large command output', async () => {
     const { root, runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const result = await runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -132,7 +118,7 @@ describe('command Agent Runtime tool', () => {
 
   it('accepts up to 600s timeouts for long builds', async () => {
     const { runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const program = basename(process.execPath)
     const result = await runtime.executeTool({
       sessionId: session.id,
@@ -158,7 +144,7 @@ describe('command Agent Runtime tool', () => {
     const { getProjectRunner } = await import('../../../src/main/project/runner/service')
     const { runtime, session } = await createRuntime()
     registerProjectTools(runtime.registry)
-    approve(runtime)
+    approveToolRequests(runtime)
     const started = await runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -225,7 +211,7 @@ describe('command Agent Runtime tool', () => {
     const { getProjectRunner } = await import('../../../src/main/project/runner/service')
     const { runtime, session } = await createRuntime()
     registerProjectTools(runtime.registry)
-    approve(runtime)
+    approveToolRequests(runtime)
     const started = await runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -267,7 +253,7 @@ describe('command Agent Runtime tool', () => {
 
   it('R4: passes allowlisted env through to sync commands and echoes it back', async () => {
     const { runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const result = await runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -287,7 +273,7 @@ describe('command Agent Runtime tool', () => {
 
   it('surfaces a start-failure hint when the program cannot spawn', async () => {
     const { runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const result = await runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -303,7 +289,7 @@ describe('command Agent Runtime tool', () => {
 
   it('R4: rejects non-allowlisted env keys and malformed env shapes', async () => {
     const { runtime, session } = await createRuntime()
-    approve(runtime)
+    approveToolRequests(runtime)
     const program = basename(process.execPath)
     const preview = { summary: 'Run command with env', paths: [''], truncated: false }
     const run = (env: unknown) => runtime.executeTool({
@@ -329,7 +315,7 @@ describe('command Agent Runtime tool', () => {
     const { getProjectRunner } = await import('../../../src/main/project/runner/service')
     const { runtime, session } = await createRuntime()
     registerProjectTools(runtime.registry)
-    approve(runtime)
+    approveToolRequests(runtime)
     const started = await runtime.executeTool({
       sessionId: session.id,
       call: {

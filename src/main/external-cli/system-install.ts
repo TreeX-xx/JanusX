@@ -1,6 +1,6 @@
 // Note: .agents/notes/terminal/macos-cli-sessions.md (system CLI installation)
-import { readFile, realpath, stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, sep } from 'node:path'
+import { lstat, readFile, realpath, stat } from 'node:fs/promises'
+import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path'
 import { CliInstaller, type CliInstallOutcome } from './installer'
 import { CliDetector } from './cli-detector'
 import { managedCliEnv, setMacNpmPrefix } from './managed-paths'
@@ -35,6 +35,18 @@ export async function npmOwnsCommand(command: string, modules: string, packageNa
     && /%dp0%|\$basedir/.test(text)
 }
 
+/** Match the legacy local Codex launcher without interpreting or running shell code. */
+async function macCodexForwardTarget(tool: ExternalCliToolDescriptor, command: string): Promise<string | undefined> {
+  const host = localSystem()
+  if (host.platform !== 'darwin' || tool.id !== 'codex'
+    || !sameRuntimePath(command, join(host.home, '.local', 'bin', 'codex'))) return undefined
+  const info = await lstat(command).catch(() => undefined)
+  if (!info?.isFile() || info.size > 1024) return undefined
+  const script = await readFile(command, 'utf8').catch(() => '')
+  const match = /^#!\/bin\/sh\nPATH=(\/[-\w./]+\/bin):\$PATH exec \1\/codex "\$@"\n?$/.exec(script)
+  return match && normalize(match[1]) === match[1] ? join(match[1], 'codex') : undefined
+}
+
 export function nativeUpdateCommand(tool: string, command: string, physicalPath: string, home: string, platform: NodeJS.Platform, version: string, brew?: string): { file: string; args: string[] } | undefined {
   const path = targetPath(platform)
   const normalized = physicalPath.replaceAll('\\', '/')
@@ -55,7 +67,7 @@ export function nativeUpdateCommand(tool: string, command: string, physicalPath:
 }
 
 export function createSystemCliInstaller(): CliInstaller {
-  let plan: { prefix: string; modules: string; command: string } | undefined
+  let plan: { prefix: string; modules: string; command: string; forwarder?: string } | undefined
   const run = async (file: string, args: readonly string[], options: { timeout: number; pathDirs: string[]; cwd?: string }) => {
     const env = environmentWithPath(managedCliEnv(), localSystem().platform, [], options.pathDirs)
     const result = await runProcess(file, args, { env, cwd: options.cwd ?? localSystem().home, timeoutMs: options.timeout })
@@ -79,6 +91,7 @@ export function createSystemCliInstaller(): CliInstaller {
       plan = undefined
       const active = await new CliDetector(tool.id).findCandidate()
       if (!active) return undefined
+      if (await macCodexForwardTarget(tool, active.path)) return undefined
       const real = await physical(active.path)
       const host = localSystem()
       const brew = resolveCommand('brew', { platform: host.platform, env: managedCliEnv(), knownDirs: cliKnownBinDirs(managedCliEnv(), host.platform, host.home) }).path ?? undefined
@@ -115,13 +128,24 @@ export function createSystemCliInstaller(): CliInstaller {
       const bin = localSystem().platform === 'win32' ? prefix : join(prefix, 'bin')
       const command = join(bin, tool.binaryNames[0] + (localSystem().platform === 'win32' ? '.cmd' : ''))
       const active = await new CliDetector(tool.id).findCandidate()
+      let forwarder: string | undefined
       if (active) {
         const names = [tool.npmPackage!, ...(replace?.npmPackage ? [replace.npmPackage] : [])]
+        const forwarded = await macCodexForwardTarget(tool, active.path)
         const owned = await Promise.all(names.map(name => npmOwnsCommand(active.path, modules, name)))
-        if (!owned.some(Boolean)) throw new Error(`${tool.displayName} resolves to ${active.path}, outside the active npm prefix ${prefix}. Use the Node/npm environment that owns this CLI; no installation was changed.`)
+        if (forwarded && sameRuntimePath(await physical(dirname(forwarded)), await physical(bin))) {
+          const existing = await lstat(command).catch(error => {
+            if (error.code !== 'ENOENT') throw error
+            return undefined
+          })
+          // A missing entry can be restored. An unrelated entry at the same path retains its ownership.
+          if (existing && !await npmOwnsCommand(command, modules, tool.npmPackage!)) throw new Error(`Codex points to ${command}, but that command is not owned by the active npm installation.`)
+          forwarder = active.path
+        }
+        if (!forwarder && !owned.some(Boolean)) throw new Error(`${tool.displayName} resolves to ${forwarded ?? active.path}, outside the active npm prefix ${prefix}. Use the Node/npm environment that owns this CLI; no installation was changed.`)
       }
       setMacNpmPrefix(prefix)
-      plan = { prefix, modules, command }
+      plan = { prefix, modules, command, forwarder }
     },
     verifyInstall: async (tool, version, located) => {
       if (!plan || !tool.npmPackage) throw new Error('System install target was not resolved.')
@@ -129,6 +153,13 @@ export function createSystemCliInstaller(): CliInstaller {
       if (metadata.name !== tool.npmPackage || !metadata.version || version !== 'latest' && metadata.version !== version) throw new Error('The system npm package does not match the requested CLI version.')
       const target = await commandProbe(tool, plan.command)
       if (target.version !== metadata.version) throw new Error(`The installed package is ${metadata.version}, but its command reports ${target.version}.`)
+      if (plan.forwarder) {
+        const forwarded = await macCodexForwardTarget(tool, plan.forwarder)
+        if (!forwarded || !sameRuntimePath(await physical(forwarded), await physical(plan.command))) throw new Error(`The Codex launcher at ${plan.forwarder} no longer points to ${plan.command}.`)
+        const active = await commandProbe(tool, plan.forwarder)
+        if (active.version !== metadata.version) throw new Error(`The Codex launcher at ${plan.forwarder} reports ${active.version}, but the installed package is ${metadata.version}.`)
+        return active
+      }
       if (tool.id === 'dsh') {
         const companion = '@deepseek-harness-tui/dsh-tui'
         const tui = JSON.parse(await readFile(join(plan.modules, companion, 'package.json'), 'utf8')) as { version?: string }

@@ -68,6 +68,7 @@
     }
   },
   "action": {
+    "openPreview": "Open preview",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "save": "Save",

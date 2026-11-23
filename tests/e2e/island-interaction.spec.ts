@@ -152,7 +152,7 @@ test('macOS click-only double activation opens chat and respects nested controls
   await expect(harness(page)).toHaveAttribute('data-double-count', '2')
 })
 
-test('Island returns to chat after closing the SuperAgent tab', async ({ page }) => {
+test('Island double-click opens ordinary chat with or without a SuperAgent tab', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('janus:superagent-view', JSON.stringify({ modeVersion: 1, started: true })))
   await page.goto('/?superAgentPlugin=1')
   const island = page.locator('.janus-island')
@@ -160,9 +160,16 @@ test('Island returns to chat after closing the SuperAgent tab', async ({ page })
   await page.waitForFunction(() => Boolean((window as any).superAgentFixture))
   await page.evaluate(() => (window as any).superAgentFixture.open())
   await nativeDoubleClick(island)
-  await expect(shell).toHaveAttribute('data-stage', 'collapsed')
-  await expect(shell).toHaveAttribute('data-notif', 'true')
+  await expect(shell).toHaveAttribute('data-stage', 'expanded')
+  await expect(shell.locator('.janus-chat')).toBeVisible()
+  await expect(shell).toHaveAttribute('data-notif', 'false')
+  await expect(shell.getByRole('combobox', { name: 'Agent mode (next message)' })).toHaveCount(0)
+  await expect(shell.locator('[data-selection-trigger="permission"]')).toHaveCount(0)
+  await shell.locator('.janus-chat-input').press('Control+f')
+  await expect(shell.locator('[data-composer-options]')).toHaveCount(0)
 
+  await nativeDoubleClick(island)
+  await expect(shell).toHaveAttribute('data-stage', 'collapsed')
   await page.evaluate(() => (window as any).superAgentFixture.close())
   await expect(shell).toHaveAttribute('data-notif', 'false')
   await island.locator('.janus-eye-group').dblclick()
@@ -173,6 +180,33 @@ test('Island returns to chat after closing the SuperAgent tab', async ({ page })
   await nativeDoubleClick(island)
   await expect(page.locator('.janus-chat')).toBeVisible()
   await expect(shell).toHaveAttribute('data-stage', 'expanded')
+})
+
+test('expanded Island SuperAgent launcher responds to hover and keyboard focus', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/?superAgentPlugin=1')
+  await page.getByTestId('reopen-island').click()
+  const shell = page.locator('.janus-island-shell')
+  const launch = shell.getByRole('button', { name: 'Super Agent', exact: true })
+  await expect(launch).toBeVisible()
+  await expect(launch).toHaveCSS('transition-duration', '0s')
+
+  for (const theme of ['dark', 'white', 'planche']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
+    const idle = await launch.evaluate(button => getComputedStyle(button).backgroundColor)
+    await launch.hover()
+    await expect(launch).not.toHaveCSS('background-color', idle)
+    await expect(shell).toHaveAttribute('data-stage', 'expanded')
+    await page.mouse.move(20, 200)
+    await expect(launch).toHaveCSS('background-color', idle)
+  }
+
+  const idle = await launch.evaluate(button => getComputedStyle(button).backgroundColor)
+  await shell.locator('.janus-notify-badge').focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(launch).toBeFocused()
+  await expect(launch).toHaveCSS('outline-style', 'solid')
+  await expect(launch).not.toHaveCSS('background-color', idle)
 })
 
 test('second pointerdown activates expanded exactly once and cancels single activation', async ({ page }) => {

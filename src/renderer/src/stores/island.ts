@@ -1,6 +1,4 @@
-import { superAgentOwnsChat } from '@/lib/superagent-plugin'
 import { create } from 'zustand'
-import { revealSuperAgent } from '@/lib/superagent-navigation'
 let chatSequence = 0
 import {
   INITIAL_ISLAND_CONTROLLER_STATE,
@@ -14,6 +12,7 @@ interface IslandStore {
   automationLocked: boolean
   companionToolId: 'automations' | null
   releaseCompanion: () => void
+  disconnectAutomation: () => void
   chatRequest: { prefill: string; sequence: number } | null
   openChat: (prefill?: string, companionToolId?: 'automations') => void
   consumeChat: (sequence: number) => void
@@ -34,17 +33,20 @@ export const useIslandStore = create<IslandStore>()((set) => ({
   automationLocked: false,
   companionToolId: null,
   releaseCompanion: () => set({ companionToolId: null }),
+  disconnectAutomation: () => set(current => {
+    if (!current.automationLocked) return current
+    const next = current.stage === 'expanded'
+      ? reduceIslandController(current, { type: 'dismiss' }) : {}
+    return { ...next, automationLocked: false, companionToolId: null }
+  }),
   chatRequest: null,
   openChat: (prefill = '', companionToolId) => {
-    if (revealSuperAgent()) {
-      set(current => ({ chatRequest: { prefill, sequence: ++chatSequence }, companionToolId: companionToolId ?? current.companionToolId }))
-      return
-    }
+    const connection = companionToolId ? { companionToolId, automationLocked: true } : {}
     set(current => ({
       openSequence: current.openSequence + 1,
       ...(current.stage === 'expanded' ? {} : reduceIslandController({ stage: current.stage, knowledge: current.knowledge }, { type: 'double-activate' })),
       chatRequest: { prefill, sequence: ++chatSequence },
-      companionToolId: companionToolId ?? current.companionToolId,
+      ...connection,
     }))
   },
   consumeChat: sequence => set(current => current.chatRequest?.sequence === sequence ? { chatRequest: null } : {}),
@@ -61,7 +63,7 @@ export const useIslandStore = create<IslandStore>()((set) => ({
     // An outside press closes the surface while the automation panel keeps its chat connection.
     // Note: .agents/notes/workbench/ideas/automation-platform.md
     const companion = current.companionToolId === 'automations'
-    if (current.automationLocked && action.type !== 'outside-dismiss' && current.stage === 'expanded' && next.stage !== 'expanded' && !superAgentOwnsChat()) return current
+    if (current.automationLocked && action.type !== 'outside-dismiss' && current.stage === 'expanded' && next.stage !== 'expanded') return current
     return { ...next, ...(next.stage === 'expanded' && current.stage !== 'expanded' ? { openSequence: current.openSequence + 1 } : {}), ...(!companion && next.stage !== 'expanded' ? { companionToolId: null } : {}) }
   }),
 }))

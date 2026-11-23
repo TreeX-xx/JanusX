@@ -3,7 +3,7 @@ import { findTerminalInState, useWorkspaceStore } from '../stores/workspace'
 import { useTranslation } from 'react-i18next'
 import { useBrowserOcclusion } from '@/hooks/useBrowserOcclusion'
 import { useOutsidePress } from '@/hooks/useOutsidePress'
-import { ArrowUp, Check, ChevronDown, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw, Zap } from 'lucide-react'
+import { ArrowUp, Check, ChevronDown, Square, Sparkles, Terminal, FileText, Command, Plus, SlidersHorizontal, RefreshCw } from 'lucide-react'
 import { parseConversationSlashCommand, type ConversationCommand, type ConversationSnapshot, type ConversationSpeedTier } from '../../../shared/conversation-display'
 import styles from './AgentSessionPane.module.css'
 import { ConversationContext } from './ConversationContext'
@@ -12,11 +12,13 @@ import { activeConversationReferences, type ConversationReference } from '../../
 import { insertConversationNewline } from '../lib/conversation-input'
 import { InputHistoryCursor, rememberConversationInput, mergeInputHistory, useConversationInputHistory, type InputHistoryEntry } from '../stores/conversation-input-history'
 import { EffortActivation, EffortGlyph, effortToneClass } from './ReasoningEffort'
+import { SpeedGlyph, SpeedTrace, speedLevel, type SpeedLevel } from './ResponseSpeed'
 import { ComposerOptions, ComposerOptionTrigger, composerOptionIndex, type ComposerChoice as Choice } from './ComposerOptions'
 import optionStyles from './ComposerOptions.module.css'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort' | 'speed'
+type SpeedFeedback = { tier: SpeedLevel; phase: 'pending' | 'accepted' | 'confirmed' }
 const effortOrder = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']
 
 export function AgentComposer({ terminalId, historyScope, workspacePath, references, snapshot, visible, setDraft, inputRef, canSend, hasOutgoing, busy, switching, send, action, changeMode }: {
@@ -60,6 +62,8 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   const [active, setActive] = useState(0)
   const [selectionFailed, setSelectionFailed] = useState(false)
   const [effortFeedback, setEffortFeedback] = useState<{ id: number; effort: string | null }>({ id: 0, effort: null })
+  const [speedFeedback, setSpeedFeedback] = useState<SpeedFeedback | null>(null)
+  const speedRequest = useRef<SpeedFeedback | null>(null)
   const [acceptedCommand, setAcceptedCommand] = useState<string | null>(null)
   useEffect(() => { setAcceptedCommand(null) }, [terminalId, snapshot?.threadId])
   const root = useRef<HTMLFormElement>(null)
@@ -89,7 +93,26 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     && !snapshot.modelsLoading && !snapshot.modelsError && (Boolean(fastTier) || hasUltrafast)
   const hasSpeedMenu = showSpeed && hasUltrafast
   const currentTier = snapshot?.serviceTier
-  const speed = currentTier === 'ultrafast' ? 'ultrafast' : currentTier === 'fast' || currentTier === 'priority' ? 'fast' : 'standard'
+  const speed = speedLevel(currentTier)
+  const speedPending = !!speedFeedback && speedFeedback.phase !== 'confirmed'
+  const speedIcon = speedPending ? speedFeedback.tier : speed
+  const speedPhase = speedPending ? 'pending' : speedFeedback?.tier === speed ? 'confirmed' : null
+  useLayoutEffect(() => {
+    setSpeedFeedback(null)
+    return () => { speedRequest.current = null }
+  }, [terminalId, snapshot?.threadId, snapshot?.controlEpoch, snapshot?.model, showSpeed, visible])
+  useEffect(() => {
+    if (!speedFeedback || speedFeedback.phase === 'pending') return
+    if (speedFeedback.phase === 'accepted' && currentTier !== undefined && speed === speedFeedback.tier) {
+      setSpeedFeedback({ ...speedFeedback, phase: 'confirmed' })
+      return
+    }
+    // The settings notification may follow the IPC reply. Expire the decoration
+    // if it never arrives; the persistent icon always uses the native snapshot.
+    const delay = speedFeedback.phase === 'accepted' ? 3000 : 420
+    const timer = window.setTimeout(() => setSpeedFeedback(current => current === speedFeedback ? null : current), delay)
+    return () => window.clearTimeout(timer)
+  }, [speedFeedback, speed, currentTier])
   const speedTitle = currentTier === undefined ? t('conversation.speedUnknown')
     : hasSpeedMenu ? t('conversation.speedMenu', { speed: t(`conversation.speed.${speed}`) })
     : speed === 'ultrafast' ? t('conversation.speedReset')
@@ -153,10 +176,23 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     } else setSelectionFailed(true)
   }
   const selectSpeed = async (serviceTier: ConversationSpeedTier | null) => {
-    if (!snapshot || !canConfigure || currentTier === undefined || !showSpeed) return
-    if (await action({ type: 'speed', serviceTier, controlEpoch: snapshot.controlEpoch }) && panel === 'speed') {
+    if (!snapshot || !canConfigure || currentTier === undefined || !showSpeed || speedPending || speedRequest.current) return
+    const tier = speedLevel(serviceTier)
+    const menu = panel === 'speed' ? picker.current : null
+    if (tier !== speed) {
+      const request: SpeedFeedback = { tier, phase: 'pending' }
+      speedRequest.current = request
+      setSpeedFeedback(request)
+      const ok = await action({ type: 'speed', serviceTier, controlEpoch: snapshot.controlEpoch })
+      if (speedRequest.current !== request) return
+      speedRequest.current = null
+      setSpeedFeedback(ok ? { tier, phase: 'accepted' } : null)
+      if (!ok) return
+    }
+    if (menu && picker.current === menu && menu.dataset.panel === 'speed') {
+      const restoreFocus = menu.contains(document.activeElement)
       close()
-      inputRef.current?.focus()
+      if (restoreFocus) inputRef.current?.focus()
     }
   }
   const speedChoices = [
@@ -227,15 +263,16 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   // All engines retain the same option rows and keyboard navigation.
   const orderedModels = groupedModels ? [...modelProviders.flatMap(provider => (snapshot?.models ?? []).filter(option => option.provider?.id === provider.id)), ...snapshot.models.filter(option => !option.provider)] : snapshot?.models ?? []
   const modelNameCounts = new Map<string, number>()
-  if (groupedModels) for (const option of orderedModels) {
+  if (currentPanel === 'model') for (const option of orderedModels) {
     const key = JSON.stringify([option.provider?.id, option.displayName])
     modelNameCounts.set(key, (modelNameCounts.get(key) ?? 0) + 1)
   }
   const choices: Choice[] = (currentPanel === 'model' ? orderedModels.filter(option => !groupedModels || !providerFilter || option.provider?.id === providerFilter).map<Choice>(option => {
     const repeatedName = (modelNameCounts.get(JSON.stringify([option.provider?.id, option.displayName])) ?? 0) > 1
     return {
-      id: option.model, label: option.displayName, provider: groupedModels ? option.provider : undefined, title: groupedModels ? option.model : undefined,
-      description: groupedModels ? (repeatedName ? option.model : '') : option.description || (option.model === option.displayName ? '' : option.model),
+      id: option.model, label: option.displayName, provider: groupedModels ? option.provider : undefined,
+      title: option.description && option.description !== option.model ? `${option.model}\n${option.description}` : option.model,
+      description: repeatedName ? option.model : '',
       selected: option.model === snapshot?.model, disabled: !canConfigure,
       run: () => void selectSettings(option.model, option.efforts.some(value => value.effort === snapshot?.effort) ? snapshot!.effort : option.defaultEffort),
     }
@@ -246,11 +283,11 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   })) : currentPanel === 'speed' ? speedChoices.map<Choice>(option => ({
     id: option.id, label: t(`conversation.speed.${option.id}`),
     description: option.id === 'standard' ? '' : t('conversation.speed.higherUsage'),
-    selected: currentTier !== undefined && option.id === speed, disabled: !canConfigure || currentTier === undefined,
+    selected: currentTier !== undefined && option.id === speed, disabled: !canConfigure || currentTier === undefined || speedPending,
     run: () => void selectSpeed(option.tier),
   })) : [...commands, ...nativeChoices, ...terminalChoice]).filter(option => currentPanel === 'commands' && !panel
     ? option.label.toLowerCase().startsWith('/' + query.toLowerCase())
-    : `${option.id} ${option.label} ${option.description} ${option.provider?.name ?? ''} ${option.provider?.id === 'opencode' ? 'zen' : ''}`.toLowerCase().includes(query.toLowerCase()))
+    : `${option.id} ${option.label} ${option.title ?? option.description} ${option.provider?.name ?? ''} ${option.provider?.id === 'opencode' ? 'zen' : ''}`.toLowerCase().includes(query.toLowerCase()))
   const activeChoice = choices[Math.min(active, choices.length - 1)]
   const selectedIndex = currentPanel === 'commands' && slash?.name
     ? choices.findIndex(option => option.label === '/' + slash.name && !option.id.startsWith('terminal:'))
@@ -302,7 +339,9 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
   }
 
   return <form ref={root} className={styles.composer} onSubmit={event => { event.preventDefault(); submit() }}>
-    {effortFeedback.id > 0 && <EffortActivation key={effortFeedback.id} effort={effortFeedback.effort} suppressed={Boolean(currentPanel)}
+    {visible && showSpeed && speedPhase && <SpeedTrace tier={speedIcon} phase={speedPhase} />}
+    {showSpeed && <span className="sr-only" role="status">{speedPhase && t(speedPending ? 'conversation.speedChanging' : 'conversation.speedChanged', { speed: t(`conversation.speed.${speedIcon}`) })}</span>}
+    {effortFeedback.id > 0 && <EffortActivation key={effortFeedback.id} effort={effortFeedback.effort} suppressed={Boolean(currentPanel || speedFeedback)}
       label={effortFeedback.effort && effortFeedback.effort !== 'default' ? t(`conversation.efforts.${effortFeedback.effort}`, { defaultValue: effortFeedback.effort }) : t('conversation.defaultEffort')}
       status={t('conversation.effortActivated')} />}
     {currentPanel && <ComposerOptions id={listId} kind={currentPanel} title={t(`conversation.picker.${currentPanel}`)} options={choices} active={active} onActiveChange={setActive} onKeyDown={keyboard}
@@ -344,15 +383,15 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
           disabled={!canConfigure || !snapshot.ultracode || !snapshot.ultracode.enabled && (!snapshot.ultracode.available || snapshot.model !== snapshot.ultracode.model)}
           onClick={() => void action({ type: 'ultracode', enabled: !snapshot.ultracode!.enabled, controlEpoch: snapshot.controlEpoch })}>
           <Sparkles size={12} aria-hidden="true" /><span>Ultracode</span>{snapshot.ultracode?.enabled && <Check size={12} aria-hidden="true" />}</button>}
-        {showSpeed && <ComposerOptionTrigger ref={speedButton} className={styles.speedControl} data-speed-active={speed !== 'standard'}
+        {showSpeed && <ComposerOptionTrigger ref={speedButton} className={styles.speedControl} data-speed-active={speed !== 'standard'} data-speed-display={speedIcon} aria-busy={speedPending || undefined}
           aria-label={speedTitle} title={speedTitle} aria-pressed={!hasSpeedMenu && currentTier !== undefined ? speed !== 'standard' : undefined}
           aria-haspopup={hasSpeedMenu ? 'listbox' : undefined} aria-expanded={hasSpeedMenu ? currentPanel === 'speed' : undefined}
-          aria-controls={currentPanel === 'speed' ? listId : undefined} disabled={!canConfigure || currentTier === undefined}
+          aria-controls={currentPanel === 'speed' ? listId : undefined} disabled={!canConfigure || currentTier === undefined || speedPending}
           onClick={() => {
             if (hasSpeedMenu) panel === 'speed' ? close() : open('speed')
             else void selectSpeed(speed === 'standard' ? fastTier ?? null : null)
           }}>
-          <Zap size={12} strokeWidth={1.75} aria-hidden="true" /></ComposerOptionTrigger>}
+          <SpeedGlyph tier={speedIcon} phase={speedPhase} />{hasSpeedMenu && <ChevronDown size={10} aria-hidden="true" />}</ComposerOptionTrigger>}
         {(!snapshot || snapshot.capabilities.settings) ? <><ComposerOptionTrigger ref={modelButton} disabled={!snapshot || snapshot.connection !== 'ready'} aria-label={t('conversation.chooseModel')} title={snapshot?.model ?? t('conversation.chooseModel')} aria-expanded={currentPanel === 'model'} onClick={() => panel === 'model' ? close() : open('model')}>
           {groupedModels && model?.provider && <small className={styles.modelProviderTag} title={model.provider.name}>{model.provider.name}</small>}
           <span>{model?.displayName || snapshot?.model || t('conversation.chooseModel')}</span><ChevronDown size={12} aria-hidden="true" /></ComposerOptionTrigger>
@@ -360,7 +399,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
           <EffortGlyph effort={snapshot?.effort} /><span>{snapshot?.effort && snapshot.effort !== 'default' ? t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort }) : initializing ? t('conversation.chooseEffort') : t('conversation.defaultEffort')}</span><ChevronDown size={12} aria-hidden="true" /></ComposerOptionTrigger></>
           : <><span className={optionStyles.control}>{snapshot.model || t(`provider.${snapshot.engine}`)}</span>{snapshot.effort && <span className={`${optionStyles.control} ${styles.effortControl} ${effortToneClass(snapshot.effort)}`}><EffortGlyph effort={snapshot.effort} />{t(`conversation.efforts.${snapshot.effort}`, { defaultValue: snapshot.effort })}</span>}</>}
       </div>
-      <span className={styles.inputHint}>{t(snapshot?.settingsUpdating ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
+      <span className={styles.inputHint}>{t(snapshot?.settingsUpdating && !speedPending ? 'conversation.settingsUpdating' : 'conversation.inputHint')}</span>
       <div className={styles.composerSubmit} data-composer-submit>
         {showStop && <button className={styles.submit} data-secondary={hasDraft || undefined} type="button" disabled={!available} aria-label={t('conversation.stop')} title={t('conversation.stop')} onClick={() => void action({ type: 'interrupt', controlEpoch: snapshot!.controlEpoch })}><Square size={12} fill="currentColor" aria-hidden="true" /></button>}
         {(!showStop || hasDraft) && <button ref={submitButton} className={styles.submit} type="submit" disabled={slash ? unsupportedArguments || !activeChoice || activeChoice.disabled : !canSend || importing || !hasDraft} aria-label={t(slash ? 'conversation.runCommand' : 'conversation.send')} title={t(slash ? 'conversation.runCommand' : 'conversation.send')}><ArrowUp size={18} aria-hidden="true" /></button>}

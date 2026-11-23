@@ -61,15 +61,15 @@ export interface ThemeDefinition {
 
 /* ── 共用视觉令牌与默认经典黑 ────────────────────────────────────────────── */
 
-// Shared visual constants preserve the existing component artwork.
+// Shared visual roles follow the active palette; masks retain their alpha geometry.
 const SHARED_UI_TOKENS = {
-  'startup-background': '#181818',
-  'startup-text': '#f2f2f2',
-  'startup-overline': '#a6a6a6',
-  'startup-muted': '#969696',
-  'startup-dot': '#bcbcbc',
-  'startup-track': '#303030',
-  'startup-scan': '#ffffffb0',
+  'startup-background': 'var(--shell-pane)',
+  'startup-text': 'var(--shell-text)',
+  'startup-overline': 'var(--shell-muted)',
+  'startup-muted': 'var(--shell-muted)',
+  'startup-dot': 'var(--shell-muted)',
+  'startup-track': 'color-mix(in srgb, var(--shell-text) 12%, var(--shell-pane))',
+  'startup-scan': 'color-mix(in srgb, var(--shell-text) 70%, transparent)',
   'startup-mask-solid': '#000000',
   'startup-mask-soft': '#000000aa',
   'startup-mask-faint': '#00000022',

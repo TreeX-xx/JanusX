@@ -5,6 +5,7 @@ test('large Git worktrees keep offscreen file actions reachable after switching'
   await page.evaluate(() => (window as any).builtinExtensionFixture.largeGit())
   await page.locator('#right-tool-rail-git').click()
   await expect(page.locator('#right-tool-panel-git [data-workspace-transition]')).toHaveAttribute('aria-busy', 'false')
+  await page.getByRole('button', { name: /^工作区变更/ }).click()
   const lastFile = page.getByRole('button', { name: 'src/large/file-499.tsx', exact: true })
   await lastFile.scrollIntoViewIfNeeded()
   await expect(lastFile).toBeVisible()
@@ -28,7 +29,7 @@ test('different-width switches lay out content once while the shell animates', a
   const samples = await page.evaluate(async () => {
     const shell = document.querySelector<HTMLElement>('[data-testid="right-tool-panel-shell"]')!
     const result: { shell: number; content: number; target: number }[] = []
-    for (const [id, target] of [['sessions', 518], ['files', 258], ['git', 518], ['files', 258]] as const) {
+    for (const [id, target] of [['sessions', 518], ['files', 318], ['git', 518], ['files', 318]] as const) {
       document.querySelector<HTMLButtonElement>(`[data-rail-tool="${id}"]`)!.click()
       const start = performance.now()
       while (performance.now() - start < 450) {
@@ -40,7 +41,7 @@ test('different-width switches lay out content once while the shell animates', a
     return result
   })
   expect(samples.length).toBeGreaterThan(10)
-  expect(samples.some(({ shell }) => shell > 280 && shell < 500)).toBe(true)
+  expect(samples.some(({ shell }) => shell > 340 && shell < 500)).toBe(true)
   expect(Math.max(...samples.map(({ content, target }) => Math.abs(content - target)))).toBeLessThan(1)
   await test.info().attach('switch-layout-samples.json', { body: JSON.stringify(samples), contentType: 'application/json' })
 })
@@ -87,7 +88,7 @@ test('a cached return catches up missed changes without a new event', async ({ p
   await page.evaluate(() => {
     const original = window.electron.session.list
     window.electron.session.list = async (filter) => (await original(filter)).map((session) =>
-      session.id === 'session-review' ? { ...session, firstPrompt: '后台更新后的标题' } : session)
+      session.id === 'session-review' ? { ...session, title: '后台更新后的标题' } : session)
   })
   await page.locator('#right-tool-rail-sessions').click()
   await expect(card).toContainText('检查终端管理')

@@ -459,4 +459,4 @@ src/main/harness/service.ts 直接继承共享 NoteService，保留冷读合并�
 
 ## Discovery card artwork
 
-Discovery and installed cards share PluginIcon and use bundled artwork keyed by exact official plugin ID: CPA uses its management UI logo, Docker uses its documentation whale icon, and Blueprint uses an original engineering-sheet and connected-node SVG. Asset provenance is recorded in `src/renderer/src/assets/plugins/SOURCES.md`. Unknown IDs and failed loads fall back to the name initial. This keeps offline discovery independent of plugin installation and remote image services; adding official artwork requires a host update. The signed catalog and plugin manifest remain unchanged.
+Discovery and installed cards share PluginIcon, which maps the official IDs for CPA, Docker, Blueprint and SuperAgent to artwork bundled with the host. The designs and their sources are recorded in `src/renderer/src/assets/plugins/SOURCES.md`. Unknown IDs and failed loads fall back to the name initial. This keeps offline discovery independent of plugin installation and remote image services. Adding official artwork requires a host update.

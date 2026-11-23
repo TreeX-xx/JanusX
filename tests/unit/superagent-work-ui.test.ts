@@ -456,7 +456,7 @@ beforeAll(async () => {
     window.mountQuestion=()=>{document.getElementById('root').style.display='none';const target=document.createElement('div');target.id='question-fixture';target.style.cssText='max-width:600px;padding:20px;margin:auto';document.body.append(target);createRoot(target).render(<WorkerQuestionCard title='Input navigation' report={{id:'question-report',workId:'work-1',workspaceId:'workspace',resourceId:'report-body',summary:'Which input markers should be centered?',kind:'question'}} conversationId='chat' refresh={async()=>{window.calls.push(['refresh'])}}/>)}
     import {WorkerDefaultsSettings} from './src/renderer/src/components/WorkerDefaultsSettings'
     import {useSuperAgentUIStore} from './src/renderer/src/stores/superagent-ui'
-    window.setSuperAgentStarted=started=>useSuperAgentUIStore.setState({started,agentMode:'ordinary'})
+    window.setSuperAgentStarted=started=>useSuperAgentUIStore.setState({started})
     window.setSuperAgentStarted(true)
     import {AgentSettingsPanel} from './src/renderer/src/components/AgentSettingsPanel'
     import {SettingsSurface} from '@janusx/ui'

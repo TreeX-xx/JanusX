@@ -7,7 +7,7 @@ import { MarkdownContent } from './chat/ChatContent'
 import { ConversationPrompt } from './ConversationPrompt'
 import { ConversationToolCall } from './chat/ConversationToolCall'
 import { ConversationPlanPanel } from './ConversationPlanPanel'
-import { ConversationFileChanges } from './ConversationFileChanges'
+import { ConversationFileChanges, ConversationFileChangesPanel, useTurnFilesPanel } from './ConversationFileChanges'
 import { conversationFileChanges } from '../../../shared/conversation-file-changes'
 import turnStyles from './AgentSessionPane.module.css'
 import styles from './ConversationHistoryBrowser.module.css'
@@ -33,7 +33,10 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     const seen = new Set<string>()
     return pages.flatMap(page => page.value.items).filter(item => !seen.has(item.id) && !!seen.add(item.id))
   }, [pages])
+  const filePanel = useTurnFilesPanel()
+  const selectedTurn = filePanel.selection?.turnId
   const changesByTurn = useMemo(() => conversationFileChanges(items), [items])
+  const selectedChanges = selectedTurn ? changesByTurn.get(selectedTurn) : undefined
   const plansByTurn = useMemo(() => new Map(pages.flatMap(page => page.value.plans ?? []).map(plan => [plan.turnId, plan])), [pages])
   const documentsByTurn = useMemo(() => new Map(items.filter(item => item.type === 'plan' && item.text).map(item => [item.turnId, item])), [items])
   const lastItemByTurn = useMemo(() => new Map(items.map(item => [item.turnId, item.id])), [items])
@@ -119,6 +122,7 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     bookmark.cursor = page?.cursor; bookmark.anchorId = current.id; bookmark.offset = current.top
   }
   const older = pages[0]?.value.olderCursor, newer = pages.at(-1)?.value.newerCursor
+  const partialTurn = (turnId: string) => (!!older && items[0]?.turnId === turnId) || (!!newer && items.at(-1)?.turnId === turnId)
   const back = () => {
     if (!bookmark.anchorId && selected) { bookmark.anchorId = selected.id; bookmark.offset = 12 }
     bookmark.item = undefined; bookmark.textOffset = undefined; bookmark.textVersion = undefined
@@ -134,7 +138,6 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     const plan = last ? plansByTurn.get(turnId) : undefined
     const document = last ? documentsByTurn.get(turnId) : undefined
     const changes = last ? changesByTurn.get(turnId) : undefined
-    const partial = (!!older && items[0]?.turnId === turnId) || (!!newer && items.at(-1)?.turnId === turnId)
     return <article className={styles.message} data-history-item={item.id} data-side-item={item.id} data-side-turn={turnId}
       data-side-source={item.type === 'userMessage' ? 'message' : item.type === 'agentMessage' ? 'reply' : undefined} hidden={item.type === 'plan' && !plan && !document && !changes}>
       {item.type !== 'plan' && <>
@@ -148,7 +151,7 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
       {(plan || document || changes) && <div className={turnStyles.turnAttachments}>
         {(plan || document) && <ConversationPlanPanel turnId={turnId} plan={plan} document={document?.text} connection="ready"
           historical workspacePath={workspacePath} readMore={document && readMore(document)} />}
-        {changes && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || partial} openFile={openFile} />}
+        {changes && <ConversationFileChanges turnId={turnId} files={changes.files} incomplete={changes.incomplete || partialTurn(turnId)} panel={filePanel} />}
       </div>}
     </article>
   }
@@ -157,19 +160,24 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     <header className={styles.header}><div>{selected && <button type="button" disabled={loading} onClick={back}><ArrowLeft size={14} />{t('conversation.historyBack')}</button>}<strong>{t(selected ? 'conversation.fullContent' : 'conversation.fullHistory')}</strong>{loading && <LoaderCircle size={14} aria-label={t('conversation.historyLoading')} />}</div>
       <button type="button" onClick={close}><ArrowDown size={14} />{t('conversation.historyLatest')}</button></header>
     {error && <div className={styles.error} role="alert">{error}<button type="button" disabled={loading} onClick={() => retry.current()}>{t('conversation.historyRetry')}</button></div>}
-    <div className={styles.scroll} ref={scroll} role="region" aria-label={t('conversation.fullHistory')} tabIndex={0} onScroll={() => {
-      remember()
-      const host = scroll.current
-      if (!host || loading || error || selected || anchor.current) return
-      if (host.scrollTop < 100 && older) void load('older')
-      else if (host.scrollHeight - host.scrollTop - host.clientHeight < 100 && newer) void load('newer')
-    }}><div className={styles.content}>
-      {selected ? body && <pre className={styles.text} data-history-text-offset={body.offset} data-side-item={selected.id} data-side-turn={selected.turnId} data-side-source="message">{body.text}</pre> : <>
-        <div className={styles.boundary}>{older ? <button type="button" disabled={loading} onClick={() => void load('older')}>{t('conversation.loadEarlier')}</button> : pages.length > 0 && t('conversation.historyBeginning')}</div>
-        <VirtualHistory items={items} itemKey={item => item.id} renderItem={render} scrollRef={scroll} following={following} pinnedKey={pinned} gap={8} />
-        <div className={styles.boundary}>{newer && <button type="button" disabled={loading} onClick={() => void load('newer')}>{t('conversation.loadNewer')}</button>}</div>
-      </>}
-    </div></div>
+    <div className={turnStyles.readingArea}>
+      <div className={styles.scroll} ref={scroll} role="region" aria-label={t('conversation.fullHistory')} tabIndex={0} onScroll={() => {
+        remember()
+        const host = scroll.current
+        if (!host || loading || error || selected || anchor.current) return
+        if (host.scrollTop < 100 && older) void load('older')
+        else if (host.scrollHeight - host.scrollTop - host.clientHeight < 100 && newer) void load('newer')
+      }}><div className={styles.content}>
+        {selected ? body && <pre className={styles.text} data-history-text-offset={body.offset} data-side-item={selected.id} data-side-turn={selected.turnId} data-side-source="message">{body.text}</pre> : <>
+          <div className={styles.boundary}>{older ? <button type="button" disabled={loading} onClick={() => void load('older')}>{t('conversation.loadEarlier')}</button> : pages.length > 0 && t('conversation.historyBeginning')}</div>
+          <VirtualHistory items={items} itemKey={item => item.id} renderItem={render} scrollRef={scroll} following={following} pinnedKey={pinned} gap={8} />
+          <div className={styles.boundary}>{newer && <button type="button" disabled={loading} onClick={() => void load('newer')}>{t('conversation.loadNewer')}</button>}</div>
+        </>}
+      </div></div>
+      {!selected && selectedTurn && selectedChanges && <ConversationFileChangesPanel key={selectedTurn} panel={filePanel} turnId={selectedTurn}
+        files={selectedChanges.files} incomplete={selectedChanges.incomplete || partialTurn(selectedTurn)}
+        openFile={openFile} />}
+    </div>
     {selected && body && <nav className={styles.pagination} aria-label={t('conversation.fullContent')}><button type="button" disabled={loading || body.previousOffset === null} onClick={() => void loadText(selected, body.previousOffset!, body.version)}>{t('conversation.previousContent')}</button>
       <span>{t('conversation.contentRange', { start: body.total ? body.offset + 1 : 0, end: body.offset + body.text.length, total: body.total })}</span>
       <button type="button" disabled={loading || body.nextOffset === null} onClick={() => void loadText(selected, body.nextOffset!, body.version)}>{t('conversation.nextContent')}</button></nav>}

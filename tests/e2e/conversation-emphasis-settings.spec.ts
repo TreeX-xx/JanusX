@@ -4,8 +4,8 @@ const artifacts = process.env.JANUS_EMPHASIS_ARTIFACTS ?? 'artifacts/inline-code
 test('answer emphasis saves per theme, survives reload, and resets without changing other colors', async ({ page }) => {
   test.setTimeout(60000)
   await page.goto('/theme-settings.html?emphasis')
-  const setting = page.getByRole('group', { name: 'Inline code color', exact: true })
-  const hex = setting.getByRole('textbox', { name: 'Inline code color hex value' })
+  const setting = page.getByRole('group', { name: 'Content accent color', exact: true })
+  const hex = setting.getByRole('textbox', { name: 'Content accent color hex value' })
   const reset = setting.getByRole('button', { name: 'Reset to default' })
   const output = page.getByRole('region', { name: 'Conversation output' })
   const emphasis = output.getByText('important_field', { exact: true })
@@ -52,7 +52,7 @@ test('answer emphasis saves per theme, survives reload, and resets without chang
   await page.setViewportSize({ width: 320, height: 800 })
   await setting.scrollIntoViewIfNeeded()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  const label = await page.getByText('Inline code color', { exact: true }).boundingBox()
+  const label = await page.getByText('Content accent color', { exact: true }).boundingBox()
   const controls = await setting.boundingBox()
   expect(label!.y + label!.height).toBeLessThan(controls!.y)
   await setting.locator('..').screenshot({ path: `${artifacts}/settings-narrow.png` })
@@ -60,9 +60,9 @@ test('answer emphasis saves per theme, survives reload, and resets without chang
 
 test('swatch and hex form one control and the preview separates weight from code color in three themes', async ({ page }) => {
   await page.goto('/theme-settings.html?emphasis')
-  const setting=page.getByRole('group',{name:'Inline code color',exact:true})
+  const setting=page.getByRole('group',{name:'Content accent color',exact:true})
   const preview=setting.getByRole('group',{name:'Text appearance preview'})
-  const picker=setting.getByLabel('Choose inline code color'), hex=setting.getByRole('textbox',{name:'Inline code color hex value',exact:true})
+  const picker=setting.getByLabel('Choose content accent color'), hex=setting.getByRole('textbox',{name:'Content accent color hex value',exact:true})
   for(const theme of ['dark','white','planche']) {
     await page.locator(`input[value="${theme}"]`).locator('..').click()
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme)
@@ -93,21 +93,59 @@ test('Worker settings navigation opens the real application Agent settings tab',
   await expect(page.getByRole('spinbutton',{name:'Concurrency limit',exact:true})).toBeVisible()
 })
 
-test('color picker and other-window changes update the mounted output', async ({ page, context }) => {
+test('color picker and other-window changes update the mounted output and file previews', async ({ page, context }) => {
   await page.goto('/theme-settings.html?emphasis')
-  const picker = page.getByLabel('Choose inline code color', { exact: true })
+  const picker = page.getByLabel('Choose content accent color', { exact: true })
   await expect(picker).toBeEnabled()
+  const inlineCode = page.getByRole('region', { name: 'Conversation output' }).getByText('important_field', { exact: true })
+  const defaultColor = await inlineCode.evaluate(el => getComputedStyle(el).color)
+
+  const previews = await Promise.all(['embedded', 'floating'].map(async host => {
+    const preview = await context.newPage()
+    await preview.goto(`/editor-preview.html${host === 'embedded' ? '?embedded' : ''}`)
+    const editor = preview.locator(`[data-editor-host="${host}"]`)
+    await expect(editor).toBeVisible()
+    await preview.evaluate(() => (window as any).previewHarness.open('accent.md', 'A paragraph with **emphasis** and `field_name`.'))
+    await expect(editor.locator('[data-editor-tab][data-active=true]')).toHaveText('accent.md')
+    const mode = editor.getByRole('radio', { name: '预览', exact: true })
+    await mode.click()
+    const markdown = editor.locator('.markdown-preview')
+    return { mode, code: markdown.locator('code'), strong: markdown.locator('strong') }
+  }))
+  for (const { mode, code, strong } of previews) {
+    await expect(mode).toBeChecked()
+    await expect(mode).toHaveCSS('color', defaultColor)
+    await expect(code).toHaveCSS('color', defaultColor)
+    await expect(strong).toHaveCSS('color', defaultColor)
+  }
+
   await picker.evaluate((input: HTMLInputElement) => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '#74c7b8')
     input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true }))
   })
-  await expect(page.getByRole('region', { name: 'Conversation output' }).getByText('important_field', { exact: true })).toHaveCSS('color', 'rgb(116, 199, 184)')
+  await expect(inlineCode).toHaveCSS('color', 'rgb(116, 199, 184)')
+  for (const { mode, code, strong } of previews) {
+    await expect(mode).toHaveCSS('color', 'rgb(116, 199, 184)')
+    await expect(code).toHaveCSS('color', 'rgb(116, 199, 184)')
+    await expect(strong).toHaveCSS('color', 'rgb(116, 199, 184)')
+    expect(await mode.evaluate(el => getComputedStyle(el, '::after').backgroundColor)).toBe('rgb(116, 199, 184)')
+  }
   const other = await context.newPage()
   await other.goto('/theme-settings.html?emphasis')
-  await expect(other.getByLabel('Inline code color hex value')).toHaveValue('#74C7B8')
-  await other.getByLabel('Inline code color hex value').fill('#fab')
-  await other.getByLabel('Inline code color hex value').press('Enter')
-  await expect(page.getByLabel('Inline code color hex value')).toHaveValue('#FFAABB')
-  await expect(page.getByRole('region', { name: 'Conversation output' }).getByText('important_field', { exact: true })).toHaveCSS('color', 'rgb(255, 170, 187)')
+  await expect(other.getByLabel('Content accent color hex value')).toHaveValue('#74C7B8')
+  await other.getByLabel('Content accent color hex value').fill('#fab')
+  await other.getByLabel('Content accent color hex value').press('Enter')
+  await expect(page.getByLabel('Content accent color hex value')).toHaveValue('#FFAABB')
+  await expect(inlineCode).toHaveCSS('color', 'rgb(255, 170, 187)')
+  for (const { mode, code } of previews) {
+    await expect(mode).toHaveCSS('color', 'rgb(255, 170, 187)')
+    await expect(code).toHaveCSS('color', 'rgb(255, 170, 187)')
+  }
+  await other.getByRole('button', { name: 'Reset to default' }).click()
+  await expect(inlineCode).toHaveCSS('color', defaultColor)
+  for (const { mode, code } of previews) {
+    await expect(mode).toHaveCSS('color', defaultColor)
+    await expect(code).toHaveCSS('color', defaultColor)
+  }
   await other.close()
 })

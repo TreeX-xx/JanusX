@@ -4,7 +4,6 @@ import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { normalizeEmphasisColor, useConversationPreferences } from '@/stores/conversation-preferences'
 import { useThemeDefinition } from '@/stores/theme'
-import './chat/conversation-output.css'
 import settings from './AppSettingsModal.module.css'
 import styles from './AnswerEmphasisSettings.module.css'
 

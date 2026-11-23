@@ -33,7 +33,36 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-.dialog { max-width: 92vw; max-height: 92vh; padding: 36px 12px 12px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-canvas); color: var(--shell-text); }
+.dialog {
+  --preview-inline-padding: 12px;
+  --preview-block-padding: 36px;
+  margin: auto;
+  min-width: 48px;
+  max-width: 92vw;
+  max-height: 92vh;
+  padding: var(--preview-block-padding) var(--preview-inline-padding);
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  background: var(--shell-canvas);
+  color: var(--shell-text);
+}
 .dialog::backdrop { background: color-mix(in srgb, var(--surface-shade) 65%, transparent); }
 .dialog > button { position: absolute; right: 9px; top: 7px; }
-.dialog img { display: block; max-width: 85vw; max-height: 80vh; object-fit: contain; }
+.dialog img {
+  display: block;
+  margin-inline: auto;
+  max-width: min(85vw, calc(92vw - 2 * var(--preview-inline-padding) - 2px));
+  max-height: min(80vh, calc(92vh - 2 * var(--preview-block-padding) - 2px));
+  object-fit: contain;
+}
+.outputDialog { min-width: min(160px, 92vw); }
+.outputDialog > button { padding: 3px 5px; border: 0; border-radius: 5px; color: var(--shell-muted); }
+.outputDialog > button:hover { background: var(--shell-hover); color: var(--shell-text); }
+.outputDialog > button:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: 1px; }
+.outputDialog > .scale { right: auto; left: 9px; font-size: 11px; }
+.original {
+  max-width: calc(92vw - 2 * var(--preview-inline-padding) - 2px);
+  max-height: calc(92vh - 2 * var(--preview-block-padding) - 2px);
+  overflow: auto;
+}
+.original img { max-width: none; max-height: none; }

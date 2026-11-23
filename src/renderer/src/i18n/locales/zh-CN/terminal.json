@@ -412,12 +412,13 @@
     "hold": "按住连续滚动"
   },
   "conversation": {
-    "changedFiles": "本轮修改文件（{{count}}）",
+    "changedFiles": "已修改 {{count}} 个文件",
     "viewChanges": "查看改动",
     "changeScope": "仅展示本轮已完成的文件编辑记录。增删行数为各次补丁累计，不代表工作区净差异。",
     "diffUnavailable": "暂无差异内容",
     "workLog": "执行记录",
     "work": {
+      "returnToToggle": "回到展开处",
       "rejections": "{{count}} 项已拒绝",
       "parallel": "另有 {{count}} 项运行中",
       "analyzing": "正在分析",
@@ -580,6 +581,8 @@
     "speedOn": "快速模式已开启 · 点击关闭 · 用量消耗更高",
     "speedOff": "开启快速模式 · 用量消耗更高",
     "speedUnknown": "尚未获取响应速度状态",
+    "speedChanging": "正在切换至{{speed}}速度",
+    "speedChanged": "响应速度已切换至{{speed}}",
     "speedMenu": "选择响应速度 · 当前为{{speed}}",
     "speedReset": "极速模式已开启 · 点击恢复标准速度",
     "speed": {
@@ -696,6 +699,8 @@
     "images": {
       "result": "图片结果",
       "preview": "预览图片",
+      "fitWindow": "适合窗口",
+      "actualSize": "原尺寸",
       "copy": "复制图片",
       "copied": "已复制图片",
       "copyFailed": "无法复制图片",

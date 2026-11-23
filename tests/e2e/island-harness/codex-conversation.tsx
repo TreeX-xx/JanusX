@@ -72,6 +72,8 @@ if (extraEngine === 'opencode' || extraEngine === 'pi' || extraEngine === 'dsh')
 const calls = { commands: [] as ConversationCommand[], create: 0, kill: 0, sends: [] as string[], input: [] as string[], approvals: [] as string[], opens: [] as string[], settings: [] as Array<{ model: string; effort: string | null }> }
 const startupCalls: string[] = []
 let settingsFailure = false
+let speedGate: Promise<boolean> | undefined
+let settleSpeed: ((notify: boolean) => void) | undefined
 let editAfterRevertFailure = false
 let editHistoryFailure = false
 let sendGate: Promise<void> | null = null
@@ -152,8 +154,12 @@ Object.assign(window.electron.terminal, {
       state.mode = 'terminal'; state.controlEpoch++
     }
     else if (command.type === 'speed') {
-      if (settingsFailure) throw new Error('Fixture settings update failed')
-      state.serviceTier = command.serviceTier ?? 'default'
+      state.settingsUpdating = true; publish()
+      try {
+        const notify = speedGate ? await speedGate : true
+        if (settingsFailure) throw new Error('Fixture settings update failed')
+        if (notify) state.serviceTier = command.serviceTier ?? 'default'
+      } finally { state.settingsUpdating = false; publish() }
     }
     else if (command.type === 'ultracode') {
       if (settingsFailure) throw new Error('Fixture settings update failed')
@@ -234,13 +240,13 @@ Object.assign(window, { codexFixture: {
   holdArchive: () => { archiveGate = new Promise(resolve => { releaseArchive = resolve }) },
   releaseArchive: () => { releaseArchive?.(); archiveGate = undefined },
   changeThread: () => { state.threadId = 'replacement-thread'; state.items = []; state.truncated = false; state.controlEpoch++; publish() },
-  providerModels: () => {
+  providerModels: (duplicateName = false) => {
     state.models = [
       ['opencode-go', 'OpenCode Go', 'shared', 'Shared model'],
       ['opencode', 'OpenCode Zen', 'shared', 'Shared model'],
       ['team', 'Team gateway', 'shared', 'Shared model'],
       ['opencode-go', 'OpenCode Go', 'fast', 'Fast model'],
-      ['team', 'Team gateway', 'local/special', 'Local model'],
+      ['team', 'Team gateway', 'local/special', duplicateName ? 'Shared model' : 'Local model'],
       ['edge', 'Company gateway with a very long provider name', 'local', 'Long custom model display name for small panes'],
     ].map(([id, name, model, displayName]) => ({ model: `${id}/${model}`, provider: { id, name }, displayName, description: `${id}/${model}`,
       defaultEffort: 'default', efforts: [{ effort: 'default', description: '' }, ...(id === 'team' ? [{ effort: 'careful', description: '' }] : [])] }))
@@ -397,6 +403,9 @@ Object.assign(window, { codexFixture: {
     publish()
   },
   settingsFail: (value: boolean) => { settingsFailure = value },
+  holdSpeed: () => { speedGate = new Promise(resolve => { settleSpeed = resolve }) },
+  releaseSpeed: (notify = true) => { settleSpeed?.(notify); speedGate = undefined; settleSpeed = undefined },
+  nativeSpeed: (tier: ConversationSnapshot['serviceTier']) => { state.serviceTier = tier; publish() },
   revokeUltrafast: () => {
     const model = state.models.find(option => option.model === 'fixture-deep')
     if (model) model.speedTiers = ['priority']

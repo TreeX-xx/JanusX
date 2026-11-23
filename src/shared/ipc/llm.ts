@@ -74,7 +74,7 @@ export interface ChatRequest {
    */
   launchDraft?: { config: import('./project').LaunchConfig; projectPath: string }
 }
-export interface ChatStreamRequest extends ChatRequest { requestId: string; sideChat?: true }
+export interface ChatStreamRequest extends ChatRequest { requestId: string; sideChat?: true; islandChat?: true }
 export interface ChatStreamEvent { requestId: string; delta?: string; done?: boolean; error?: string }
 
 /** Tool-call status surfaced to the chat UI. Kept as a literal union so cards can branch on it. */

@@ -108,8 +108,6 @@
     "historyReport": "Worker 报告",
     "emptyHistory": "此工作区还没有保存的工作。",
     "hostUnavailable": "草稿已保留。请在「设置 → 插件」中确认已安装并启用 SuperAgent。",
-    "agentMode": "Agent 模式（下一条消息生效）",
-    "ordinaryMode": "普通模式",
     "open": "Super Agent",
     "launchHint": "与 Janus 对话安排开发，执行期间也能持续沟通。",
     "workspace": "Janus SuperAgent 工作界面",

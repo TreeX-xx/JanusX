@@ -12,20 +12,21 @@ export interface ChatTimelineProps {
   snapshot: ChatTimelineSnapshot
   streaming?: boolean
   workspaceNames: Map<string, string>
+  workspacePath?: string
   renderToolDetails?: (block: ChatToolBlock) => ReactNode
 }
 
-export function ChatTimeline({ snapshot, streaming = false, workspaceNames, renderToolDetails }: ChatTimelineProps) {
+export function ChatTimeline({ snapshot, streaming = false, workspaceNames, workspacePath, renderToolDetails }: ChatTimelineProps) {
   const { t } = useI18n('janus')
   const groups = groupWorkOutput(snapshot.blocks, block => block.kind !== 'text', () => snapshot.requestId)
   const renderNodes = (blocks: ChatTimelineBlock[]) => blocks.map(block => {
       const active = streaming && block.endedAt === undefined
       return <div key={block.id} className="janus-chat-timeline-block" data-kind={block.kind} data-phase={block.kind === 'text' ? 'answer' : undefined} data-call-id={block.kind === 'tool' ? block.callId : undefined}>
-        {block.kind === 'reasoning' ? <ThinkingRegion stateKey={block.id} streaming={active} startedAt={block.startedAt} preview={block.preview}
+        {block.kind === 'reasoning' ? <ThinkingRegion showReturn={false} stateKey={block.id} streaming={active} startedAt={block.startedAt} preview={block.preview}
           snapshot={{ text: block.text, chars: block.chars, truncated: !!block.truncated,
             ...(block.endedAt === undefined ? {} : { durationMs: Math.max(0, block.endedAt - block.startedAt) }) }} />
           : block.kind === 'text' ? <>
-            {active ? <StreamingText content={block.text} /> : <MarkdownContent content={block.text} variant="conversation" />}
+            {active ? <StreamingText content={block.text} workspacePath={workspacePath} /> : <MarkdownContent content={block.text} variant="conversation" workspacePath={workspacePath} />}
             {block.truncated && <p role="status">{t('janus:chat.timeline.truncated')}</p>}
           </> : block.kind === 'tool' ? <ToolCallCard entry={block.entry} workspaceNames={workspaceNames} /> : null}
       </div>

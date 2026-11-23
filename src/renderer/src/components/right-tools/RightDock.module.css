@@ -192,6 +192,7 @@
 .auxiliaryTools .railButton[data-visual-active='true'] {
   background: color-mix(in srgb, var(--shell-text) 8%, var(--shell-canvas));
 }
+.railButton[data-editor-toggle][data-visual-active='true'] { color: var(--conversation-emphasis); }
 
 .railIcon { display: block; }
 

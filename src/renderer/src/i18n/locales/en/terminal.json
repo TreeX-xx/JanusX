@@ -418,6 +418,7 @@
     "diffUnavailable": "Diff unavailable",
     "workLog": "Execution log",
     "work": {
+      "returnToToggle": "Back to process start",
       "rejections": "{{count}} denied",
       "parallel": "{{count}} more running",
       "analyzing": "Analyzing",
@@ -561,6 +562,8 @@
     "speedOn": "Fast mode enabled · Click to disable · Higher usage",
     "speedOff": "Enable fast mode · Higher usage",
     "speedUnknown": "Response speed status unavailable",
+    "speedChanging": "Switching response speed to {{speed}}",
+    "speedChanged": "Response speed set to {{speed}}",
     "speedMenu": "Choose response speed · Current: {{speed}}",
     "speedReset": "Ultrafast enabled · Click to return to Standard",
     "speed": {
@@ -677,6 +680,8 @@
     "images": {
       "result": "Image result",
       "preview": "Preview image",
+      "fitWindow": "Fit window",
+      "actualSize": "Actual size",
       "copy": "Copy image",
       "copied": "Image copied",
       "copyFailed": "Could not copy image",

@@ -1,4 +1,4 @@
-import { superAgentOwnsChat } from '@/lib/superagent-plugin'
+import { hasOpenSuperAgent } from '@/lib/superagent-plugin'
 import { create } from 'zustand'
 import type { AutomationDraft, AutomationRun } from '../../../shared/automations'
 import { useRightToolStore } from './right-tools'
@@ -35,8 +35,8 @@ export function activateAutomationCompanion(): void {
   useRightToolStore.getState().openTool('automations')
   const island = useIslandStore.getState()
   // Note: .agents/notes/workbench/ideas/automation-platform.md
-  if (superAgentOwnsChat()) {
-    if (island.companionToolId !== 'automations') useIslandStore.setState({ companionToolId: 'automations' })
+  if (island.stage !== 'expanded' && hasOpenSuperAgent()) {
+    if (island.companionToolId !== 'automations') useIslandStore.setState({ automationLocked: true, companionToolId: 'automations' })
     return
   }
   if (island.companionToolId !== 'automations' || island.stage !== 'expanded') island.openChat('', 'automations')

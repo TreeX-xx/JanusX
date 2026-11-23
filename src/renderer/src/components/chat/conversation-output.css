@@ -1,5 +1,4 @@
 /* Shared reading surface for Island and agent conversation mode. */
-:root { --conversation-emphasis: color-mix(in srgb, var(--status-info) 70%, var(--shell-text)); }
 .markdown-preview.chat-markdown :is(strong, mark) { color: inherit; font-weight: 600; background: transparent; }
 .markdown-preview.chat-markdown em { color: inherit; }
 .markdown-preview.chat-markdown a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
@@ -18,11 +17,19 @@
 .markdown-preview.conversation-markdown pre { max-height: none; white-space: pre; overflow-wrap: normal; overflow: auto; border: 1px solid var(--shell-border); border-radius: 10px; background: var(--shell-hover); }
 .markdown-preview.conversation-markdown blockquote { margin: 12px 0; padding: 2px 14px; border-left: 2px solid var(--shell-border); color: var(--shell-muted); }
 .conversation-file-link { display: inline-block; box-sizing: border-box; max-width: min(280px, 100%); padding: 0 6px; border: 1px solid var(--shell-border); border-radius: 5px; background: var(--shell-hover); vertical-align: text-bottom; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.6; }
+.markdown-preview.chat-markdown .conversation-artifact-link { display: inline-flex; align-items: baseline; gap: 10px; max-width: 100%; vertical-align: middle; padding: 2px 8px; border: 1px solid var(--shell-border); border-radius: 6px; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.conversation-artifact-link > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.conversation-artifact-link > :last-child { color: var(--shell-muted); }
+.conversation-artifact-link:hover { background: var(--shell-hover); }
+.conversation-inline-image { display: block; max-width: 100%; padding: 0; border: 0; border-radius: 8px; background: transparent; cursor: zoom-in; }
+.conversation-inline-image > img { max-height: 340px; object-fit: contain; }
+.conversation-inline-image:disabled { cursor: default; }
+.conversation-inline-image:focus-visible, .conversation-artifact-link:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: 2px; }
 .conversation-work { margin: 12px 0 20px; min-width: 0; }
 .conversation-work-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 0; border: 0; background: transparent; color: var(--shell-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .conversation-work-toggle:hover { color: var(--shell-text); }
 .conversation-work-toggle:focus-visible { outline: 2px solid var(--interaction-accent); outline-offset: 3px; }
 .conversation-work-toggle[aria-expanded=true] > svg { transform: rotate(90deg); }
-.conversation-work-body { padding: 6px 0 4px 22px; }
+.conversation-work-body { padding-block: 6px 4px; padding-inline-start: 22px; }
 .conversation-work-body[hidden] { display: none; }
 .conversation-work .markdown-preview.conversation-markdown { color: var(--shell-muted); }

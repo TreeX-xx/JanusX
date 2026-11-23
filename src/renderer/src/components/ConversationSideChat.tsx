@@ -18,8 +18,9 @@ function Source({ source }: { source: SideChatSource }) {
   </details><p className={styles.excerpt}>{source.text}</p></div>
 }
 
-export function ConversationSideChat({ owner, snapshot, visible, focused, header, main, input, canReturn, returnToMain }: {
+export function ConversationSideChat({ owner, snapshot, workspacePath, visible, focused, header, main, input, canReturn, returnToMain }: {
   owner: SideChatOwner; snapshot: ConversationSnapshot; visible: boolean; focused: boolean; header: HTMLElement
+  workspacePath?: string
   main: RefObject<HTMLDivElement>; input: RefObject<ConversationInputHandle>; canReturn: boolean; returnToMain: (text: string) => boolean
 }) {
   const { t } = useTranslation('terminal')
@@ -127,7 +128,7 @@ export function ConversationSideChat({ owner, snapshot, visible, focused, header
           <div className={styles.question}>{turn.source && <Source source={turn.source} />}<p>{turn.question}</p></div>
           <div className={styles.model}>{turn.status === 'streaming' ? <LoaderCircle className={styles.spin} size={12} aria-hidden="true" /> : <MessageSquareText size={12} aria-hidden="true" />}{turn.model}
             {turn.status === 'streaming' && !turn.answer && <span role="status">{t('sideChat.waitingReply')}</span>}</div>
-          {turn.answer && <div data-side-answer=""><MarkdownContent content={turn.answer} variant="conversation" streaming={turn.status === 'streaming'} /></div>}
+          {turn.answer && <div data-side-answer=""><MarkdownContent content={turn.answer} variant="conversation" workspacePath={workspacePath} streaming={turn.status === 'streaming'} /></div>}
           {turn.status === 'stopped' && <p className={styles.status} role="status">{t('sideChat.stopped')}</p>}
           {turn.status === 'failed' && <div role="alert" className={styles.error}>{turn.error || t('sideChat.noAnswer')}
             {turn === last && <button type="button" disabled={!canAsk} onClick={() => send(true)}>{t('sideChat.retry')}</button>}</div>}

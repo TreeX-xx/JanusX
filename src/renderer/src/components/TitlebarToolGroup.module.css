@@ -1,10 +1,6 @@
 /* ==========================================================================
    TitlebarToolGroup — 标题栏全局工具入口（可展开的工具菜单）
-   与 WorkbenchSwitcher 同一视觉语言：描边图标按钮，idle 灰 / hover 提亮。
-   触发器只有一枚通用工具图标 + 小箭头，不随工具数量变形；展开后菜单条目
-   各自置灰（.menuItem:disabled）并带"已打开"标记——关闭对应标签后恢复可点，
-   不做 active 指示条，避免和置灰语义重复。
-   菜单浮层沿用 TerminalSelector.shellMenu 的纸片语言（raised 底 + 橙发丝边）。
+   菜单沿用工作区侧栏的中性浮层样式，详见 .agents/notes/workbench/right-dock.md。
    ========================================================================== */
 
 .group {
@@ -38,14 +34,18 @@
   transition: color 140ms ease, background 140ms ease;
 }
 
-.trigger:hover,
-.triggerOpen {
-  color: color-mix(in srgb, var(--shell-text) 78%, transparent);
-  background: color-mix(in srgb, var(--surface-tint) 5%, transparent);
+.trigger:hover {
+  color: var(--shell-text);
+  background: var(--shell-hover);
+}
+
+.trigger.triggerOpen {
+  color: var(--shell-text);
+  background: var(--shell-active);
 }
 
 .trigger:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--primary) 65%, transparent);
+  outline: 1px solid var(--interaction-accent);
   outline-offset: 1px;
 }
 
@@ -80,39 +80,37 @@
   min-width: 152px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
-  border-radius: 10px;
-  background: var(--shell-chrome-raised);
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-color) 34%, transparent), inset 0 1px 0 color-mix(in srgb, var(--surface-tint) 8%, transparent);
+  overflow: hidden;
+  padding: 4px 0;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--popover-background);
+  box-shadow: var(--popover-shadow);
 }
 
 .menuItem {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border: 0;
   background: transparent;
   color: var(--shell-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
-.menuItem:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
+.menuItem:is(:hover, :focus-visible):not(:disabled) {
+  background: var(--popover-hover);
 }
 
 .menuItem:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--primary) 65%, transparent);
-  outline-offset: -1px;
+  outline: 1px solid var(--interaction-accent);
+  outline-offset: -2px;
 }
 
-/* 已开着：置灰且不吃指针事件，但不隐去图标与名称——位置稳定，关闭后才恢复 */
 .menuItem:disabled {
   cursor: default;
   color: var(--shell-dim);
@@ -147,46 +145,8 @@
   background: color-mix(in srgb, var(--surface-tint) 12%, transparent);
 }
 
-/* ── planche：纸面标题栏上的墨线图标，单朱红点睛 ── */
-:global([data-theme='planche']) .trigger {
-  color: color-mix(in srgb, var(--shell-text) 45%, transparent);
-}
-
-:global([data-theme='planche']) .trigger:hover,
-:global([data-theme='planche']) .triggerOpen {
-  color: var(--shell-text);
-  background: var(--shell-hover);
-}
-
-:global([data-theme='planche']) .trigger:focus-visible {
-  outline: 2px solid var(--shell-accent);
-}
-
 :global([data-theme='planche']) .trigger:active {
   transform: none;
-}
-
-:global([data-theme='planche']) .menu {
-  border-color: var(--shell-text);
-  background: var(--shell-canvas);
-  box-shadow: 3px 3px 0 var(--shell-accent);
-}
-
-:global([data-theme='planche']) .menuItem {
-  color: var(--shell-text);
-}
-
-:global([data-theme='planche']) .menuItem:hover:not(:disabled) {
-  border-color: var(--shell-accent);
-  background: var(--shell-hover);
-}
-
-:global([data-theme='planche']) .menuItem:disabled {
-  color: color-mix(in srgb, var(--shell-text) 28%, transparent);
-}
-
-:global([data-theme='planche']) .menuBadge {
-  color: color-mix(in srgb, var(--shell-text) 40%, transparent);
 }
 
 :global([data-theme='planche']) .separator {

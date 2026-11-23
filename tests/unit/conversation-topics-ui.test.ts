@@ -34,7 +34,7 @@ beforeAll(async () => {
     import './src/renderer/src/components/janus/janus-island.css'
     installElectronApiFallback();document.documentElement.dataset.theme='dark'
     const ordinaryProfile=['fresh-install','legacy-install','remembered-install'].includes(window.initialMode)
-    if (!ordinaryProfile) useSuperAgentUIStore.setState({agentMode:window.initialMode??'superagent',started:true})
+    if (!ordinaryProfile) useSuperAgentUIStore.setState({started:true})
     window.pluginState=state=>usePluginSnapshot.setState({plugins:state==='missing'?[]:[{
       manifest:{id:'official.superagent'},source:{kind:'official'},enabled:state==='active',state,projectScope:'all',
     }]})
@@ -45,7 +45,6 @@ beforeAll(async () => {
     window.fixtureHost={available:async()=>true,onChanged:noEvents,onEnvironmentsChanged:noEvents,onWorkerChanged:noEvents,onScheduleChanged:noEvents,
       snapshot:async()=>({works:[],reports:[],inputs:[]}),workers:async()=>[],environments:async()=>({operations:[],environments:[]}),schedule:async()=>({entries:[],occupied:0,maxConcurrentWorkers:2})}
     if (!ordinaryProfile) window.electron.superAgent=window.fixtureHost
-    window.setAgentMode=mode=>useSuperAgentUIStore.getState().setAgentMode(mode)
     window.setProjectPane=type=>{
       const tab=type==='terminal'?{type:'terminal',id:'terminal:fixture',terminalId:'fixture',workspaceId:'preview'}:{type:'markdown',id:'markdown:fixture',panelId:'fixture'}
       useWorkspaceStore.setState({paneTree:type?{type:'leaf',id:'fixture-pane',tabs:[tab],activeTabId:tab.id}:null})
@@ -95,7 +94,7 @@ beforeAll(async () => {
     function App(){const registry=useJanusChatRegistry();window.registry=registry;window.seedParallelInput=text=>registry.topics.submit(registry.getController().conversationId,useWorkspaceStore.getState().activeWorkspaceId,text,true);const [toolbarHost,setToolbarHost]=React.useState(null);const [visible,setVisible]=React.useState(true);window.setStartupVisible=setVisible;window.startupLanguage=language=>i18n.changeLanguage(language);
       if (ordinaryProfile) {
         const chat=registry.getController()
-        return <><SuperAgentLaunch/><JanusChat {...chat} visible focused showAgentMode conversationStyle modeColor="blue" onSend={chat.send} onStop={chat.stop}
+        return <><SuperAgentLaunch/><JanusChat {...chat} visible focused showPermissionSelector={false} conversationStyle modeColor="blue" onSend={chat.send} onStop={chat.stop}
           onRetry={chat.retry} onRewrite={chat.rewrite} onClear={chat.clear} conversationController={chat}/></>
       }
       return <div style={{height:'100vh',display:visible?'flex':'none',flexDirection:'column',margin:'auto',background:'var(--surface)',color:'var(--text)'}}>
@@ -251,6 +250,34 @@ it('keeps output tools compact and preserves workflow folds and Worker highlight
   } finally { await page.close() }
 }, 20000)
 
+it('returns to the process toggle inside a completed SuperAgent topic', async () => {
+  const page = await open()
+  try {
+    await send(page, 'Review the process in detail')
+    await page.waitForFunction(() => (window as any).requests.length === 1)
+    await page.evaluate(() => {
+      const w = window as any
+      for (let index = 0; index < 6; index++) {
+        w.tool(0, { type: 'reasoning_delta', delta: Array.from({ length: 26 }, (_, line) => `Step ${index + 1}.${line + 1}`).join('\n') })
+        w.tool(0, { type: 'tool_execution_start', callId: `search-${index}`, toolName: 'search_files' })
+        w.tool(0, { type: 'tool_execution_end', callId: `search-${index}`, toolName: 'search_files', status: 'completed' })
+      }
+      w.finish(0)
+    })
+    const topic = page.locator('[data-topic-id][data-topic-state="done"]')
+    const toggle = topic.locator('.conversation-work-toggle')
+    await toggle.click()
+    const scroller = page.locator('.janus-chat-messages').filter({ has: topic })
+    await scroller.evaluate(element => { element.scrollTop = element.scrollHeight / 2 })
+    const returnButton = topic.getByRole('button', { name: 'Back to process start' })
+    await returnButton.click()
+    expect(await toggle.evaluate(element => element === document.activeElement)).toBe(true)
+    await expect.poll(() => returnButton.count()).toBe(0)
+    await page.keyboard.press('Enter')
+    expect(await toggle.getAttribute('aria-expanded')).toBe('false')
+  } finally { await page.close() }
+}, 20000)
+
 it('keeps pending Worker decisions visible even with no conversation messages', async () => {
   const page = await open()
   const errors: string[] = []
@@ -271,7 +298,32 @@ it('keeps pending Worker decisions visible even with no conversation messages', 
   } finally { await page.close() }
 })
 
-it('keeps the selected neutral startup visible until restoration finishes, without starting work or replaying on tab changes', async () => {
+async function expectStartupPalette(page: Page) {
+  const palette = await page.locator('[data-superagent-startup]').evaluate(surface => {
+    const probe = document.createElement('span')
+    surface.append(probe)
+    const color = (value: string) => {
+      probe.style.color = value
+      return getComputedStyle(probe).color
+    }
+    const style = (selector: string) => getComputedStyle(surface.querySelector(selector)!)
+    const field = surface.querySelector('canvas')!.getContext('2d')!
+    const pairs = {
+      background: [getComputedStyle(surface).backgroundColor, color('var(--shell-pane)')],
+      wordmark: [style('[data-startup-wordmark]').backgroundColor, color('var(--shell-text)')],
+      accent: [style('[data-startup-wordmark] > span').backgroundColor, color('var(--shell-accent)')],
+      status: [style('[role=status]').color, color('var(--shell-muted)')],
+      tagline: [style('p:not([role])').color, color('var(--shell-muted)')],
+      field: [color(field.fillStyle as string), color('var(--shell-muted)')],
+      track: [style('[role=status] + div > span').backgroundColor, color('var(--shell-muted)')],
+    }
+    probe.remove()
+    return pairs
+  })
+  for (const [role, [actual, expected]] of Object.entries(palette)) expect(actual, role).toBe(expected)
+}
+
+it('adapts the startup palette until restoration finishes, without starting work or replaying on tab changes', async () => {
   const page = await open('superagent', true)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -290,7 +342,7 @@ it('keeps the selected neutral startup visible until restoration finishes, witho
     await mkdir(`${artifactRoot}/startup`, { recursive: true })
     for (const theme of ['dark', 'white', 'planche']) {
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
-      expect(await splash.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(24, 24, 24)')
+      await expectStartupPalette(page)
       await splash.screenshot({ path: `${artifactRoot}/startup/${theme}.png` })
     }
     for (const size of [{ name: 'wide', width: 1920, height: 1080 }, { name: 'short', width: 800, height: 280 }]) {
@@ -340,9 +392,12 @@ it('scans the JanusX wordmark during the full-screen entrance and then fades int
     const early = await reveal()
     expect(early).toBeGreaterThan(0)
     expect(early).toBeLessThan(100)
-    expect(await logo.locator('span').evaluate(el => getComputedStyle(el).maskImage)).not.toBe('none')
+    expect(await logo.locator('[data-startup-scan]').evaluate(el => getComputedStyle(el).maskImage)).not.toBe('none')
     await mkdir(`${artifactRoot}/startup`, { recursive: true })
     await splash.screenshot({ path: `${artifactRoot}/startup/logo-scan-early.png` })
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'white' })
+    await expectStartupPalette(page)
+    expect(await reveal()).toBe(early)
     await page.clock.runFor(700)
     expect(await reveal()).toBeGreaterThan(early)
     expect(await reveal()).toBeLessThan(100)
@@ -415,7 +470,32 @@ it('uses a static full-screen field with reduced motion and enters the ready wor
     expect(await splash.locator('canvas').evaluate((el: HTMLCanvasElement) => el.toDataURL())).toBe(frame)
     expect(await splash.getByRole('heading', { name: 'JanusX' }).evaluate(el => (el as HTMLElement).style.getPropertyValue('--logo-reveal'))).toBe('100%')
     expect(await splash.locator('[data-startup-wordmark]').evaluate(el => getComputedStyle(el).clipPath)).toBe('none')
-    expect(await splash.locator('h1 > span').evaluate(el => getComputedStyle(el).display)).toBe('none')
+    expect(await splash.locator('[data-startup-scan]').evaluate(el => getComputedStyle(el).display)).toBe('none')
+    let previousFrame = frame
+    for (const theme of ['white', 'planche', 'dark']) {
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
+      await expectStartupPalette(page)
+      const nextFrame = await splash.locator('canvas').evaluate((el: HTMLCanvasElement) => el.toDataURL())
+      expect(nextFrame).not.toBe(previousFrame)
+      await page.waitForTimeout(100)
+      expect(await splash.locator('canvas').evaluate((el: HTMLCanvasElement) => el.toDataURL())).toBe(nextFrame)
+      previousFrame = nextFrame
+    }
+    // Runtime/plugin palettes change inline tokens while retaining their base theme ID.
+    await page.evaluate(() => {
+      const root = document.documentElement
+      root.style.setProperty('--shell-pane', '#102030')
+      root.style.setProperty('--shell-text', '#f5f5f5')
+      root.style.setProperty('--shell-muted', '#b0c0d0')
+      root.style.setProperty('--shell-accent', '#80c0ff')
+    })
+    await expectStartupPalette(page)
+    expect(await splash.locator('canvas').evaluate((el: HTMLCanvasElement) => el.toDataURL())).not.toBe(previousFrame)
+    await splash.screenshot({ path: `${artifactRoot}/startup/runtime-palette-reduced-motion.png` })
+    await page.evaluate(() => {
+      for (const token of ['shell-pane', 'shell-text', 'shell-muted', 'shell-accent']) document.documentElement.style.removeProperty(`--${token}`)
+    })
+    await expectStartupPalette(page)
     await page.evaluate(() => (window as any).releaseStartup())
     await page.locator('.janus-chat-input:visible').waitFor({ timeout: 700 })
     expect(await splash.count()).toBe(0)
@@ -1119,6 +1199,11 @@ it('keeps a live 48px monitor rail, previews without dispatch, and reads reports
     await page.screenshot({ path: `${output}/inline-dark.png` })
     await inline.getByRole('button', { name: 'Enlarge report' }).click()
     const dialog = page.getByRole('dialog'), header = dialog.locator('header'), body = dialog.locator('[data-worker-report-body]')
+    await expect.poll(() => dialog.evaluate(element => {
+      const bounds = element.getBoundingClientRect()
+      return Math.abs(bounds.left + bounds.width / 2 - innerWidth / 2) <= 1
+        && Math.abs(bounds.top + bounds.height / 2 - innerHeight / 2) <= 1
+    })).toBe(true)
     const top = await header.evaluate(el => el.getBoundingClientRect().top)
     await body.evaluate(el => { el.scrollTop = el.scrollHeight })
     expect(await body.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
@@ -1303,7 +1388,7 @@ it('shows SuperAgent after activation and closes its pane on disable or removal'
       await page.evaluate(() => (window as any).pluginState('active'))
       await launch.click()
       await page.waitForFunction(() => (window as any).hasAgentPane())
-      await mode.waitFor()
+      expect(await mode.count()).toBe(0)
       await page.evaluate(state => (window as any).pluginState(state), inactive)
       await launch.waitFor({ state: 'detached' })
       await page.waitForFunction(() => !(window as any).hasAgentPane())
@@ -1348,7 +1433,7 @@ it('keeps the editable draft when the SuperAgent host is unavailable and submits
   } finally { await page.close() }
 })
 
-it('keeps the workspace in SuperAgent mode despite an ordinary preference and exposes no mode switch', async () => {
+it('keeps the dedicated workspace in SuperAgent mode and exposes no mode switch', async () => {
   const page = await open('ordinary')
   try {
     await page.locator('[data-superagent-toolbar]').waitFor()
@@ -1357,7 +1442,7 @@ it('keeps the workspace in SuperAgent mode despite an ordinary preference and ex
     await send(page, 'Implement the plan')
     await page.waitForFunction(() => (window as any).requests.length === 1)
     expect(await page.evaluate(() => (window as any).requests[0].agentMode)).toBe('superagent')
-    await page.evaluate(() => { (window as any).finish(0); (window as any).setAgentMode('ordinary') })
+    await page.evaluate(() => (window as any).finish(0))
     expect(await page.locator('[data-superagent-design="multi-input"]').count()).toBe(1)
   } finally { await page.close() }
 })

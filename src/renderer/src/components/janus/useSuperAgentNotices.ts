@@ -1,4 +1,4 @@
-import { superAgentOwnsChat, useSuperAgentEnabled } from '@/lib/superagent-plugin'
+import { hasOpenSuperAgent, useSuperAgentEnabled } from '@/lib/superagent-plugin'
 import { useEffect } from 'react'
 import { useSuperAgentAvailability } from './useSuperAgentAvailability'
 import i18n from '@/i18n'
@@ -11,12 +11,12 @@ import type { SuperAgentWorkerSnapshot } from '../../../../shared/superagent-wor
 
 /** Application-owned subscriptions survive pane collapse, tab closure and workspace navigation. */
 export function useSuperAgentNotices() {
-  const optedIn = useSuperAgentUIStore(state => state.started || state.agentMode === 'superagent')
+  const optedIn = useSuperAgentUIStore(state => state.started)
   const enabled = useSuperAgentEnabled()
   const available = useSuperAgentAvailability(undefined, optedIn && enabled)
   useEffect(() => {
     if (enabled) {
-      if (useSuperAgentUIStore.getState().restoreTab && !superAgentOwnsChat()) openSuperAgent()
+      if (useSuperAgentUIStore.getState().restoreTab && !hasOpenSuperAgent()) openSuperAgent()
       return
     }
     const tools = useGlobalToolsStore.getState()
@@ -74,8 +74,7 @@ export function useSuperAgentNotices() {
     }
     const logFailure = (error: unknown) => { if (!disposed) console.error('[superagent] notification read failed', error) }
     const loadWorkspaces = () => {
-      const { started, agentMode } = useSuperAgentUIStore.getState()
-      if (!started && agentMode !== 'superagent') return
+      if (!useSuperAgentUIStore.getState().started) return
       for (const workspace of useWorkspaceStore.getState().workspaces) {
         if (loaded.has(workspace.id)) continue
         loaded.add(workspace.id)
@@ -89,7 +88,7 @@ export function useSuperAgentNotices() {
     const environments = api.onEnvironmentsChanged(change => { void refreshEnvironments(change.workspaceId).catch(logFailure) })
     const workspaces = useWorkspaceStore.subscribe(loadWorkspaces)
     const activation = useSuperAgentUIStore.subscribe((next, prev) => {
-      if (next.started !== prev.started || next.agentMode !== prev.agentMode) loadWorkspaces()
+      if (next.started !== prev.started) loadWorkspaces()
     })
     loadWorkspaces()
     return () => { disposed = true; records(); workers(); environments(); workspaces(); activation() }

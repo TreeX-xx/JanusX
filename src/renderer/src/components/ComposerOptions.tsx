@@ -78,7 +78,12 @@ export function ComposerOptions({ id, kind, title, options, active, onActiveChan
             onMouseEnter={() => onActiveChange(row)} onMouseDown={event => event.preventDefault()} onClick={() => { if (!option.disabled) option.run() }}
             title={horizontal ? undefined : option.title ?? option.description} aria-label={option.provider ? `${option.label} · ${option.provider.name}` : horizontal ? option.label : undefined}>
             {horizontal ? <><span className={styles.effortStep} aria-hidden="true"><span style={{ height: 6 + (effortVisualLevel(option.id) ?? 0) * 3 }} data-filled={row === index} /></span><span>{option.label}</span><i className={styles.effortSelected} aria-hidden="true" /></>
-              : <>{option.icon && <option.icon size={16} aria-hidden="true" />}<span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{option.source && <em className={styles.commandKind}>{option.source}</em>}{kind === 'speed' && option.selected && <Check size={14} aria-hidden="true" />}</>}
+              : <>
+                {option.icon && <option.icon size={16} aria-hidden="true" />}
+                <span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>
+                {option.source && <em className={styles.commandKind}>{option.source}</em>}
+                {(kind === 'model' || kind === 'speed') && option.selected && <Check size={14} aria-hidden="true" />}
+              </>}
           </button>
         </Fragment>)}
       </div>

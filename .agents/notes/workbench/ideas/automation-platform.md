@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-20T08:56:55Z",
+  "updated": "2026-11-20T09:45:03Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/e22d4cdb-c2aa-5a6c-ae54-945ea26e91ce" },
@@ -121,9 +121,9 @@ Island 当前对话发送包含“自动化”、定时任务／提醒／通知�
 
 当前面板采用 RightDock 的 `shell-*`／`tool-*` 主题令牌和 30–32px 控件尺度：顶部工具栏固定，卡片分层显示项目、分支、周期与状态，选中后在列表下方展示运行记录和报告。编辑页按基本信息、周期、顺序任务与模型分组，任务使用可读名称和编号，输入绑定仍保存原始任务 ID；仅手动执行隐藏时间与时区控件，高级选项收纳重选基准。保存操作固定在面板底部，预览与试跑保留在表单末尾。宽度不超过 320px 时通过容器查询将并排字段转为单列，图标操作提供双语名称及键盘焦点，减少动态效果时关闭控件过渡。该调整不改变宿主调度、授权及持久化语义。
 
-正式打开自动化侧栏即连接当前对话，标题栏通过反色双眼、双层中性细框和标题带显示连接。SuperAgent 标签已打开且插件在当前工作区可用时，侧栏复用该会话并保持全局工具区原有显隐和焦点。点击眼睛可唤出这个标签。标签关闭时由 Island Chat 承载，点击眼睛会唤出 Island。眼睛的无障碍名称随目标切换，遵循[同一对话路由](../island-hifi-optimized-alignment.md#chat-单界面展开)。点击 Island 和伴随面板之外会收起 Island，侧栏继续持有会话连接。Esc 和终端切换也保留连接。显式收起、关闭或切换侧栏时释放连接。关闭侧栏不关闭 SuperAgent，也不清空会话或草稿；打开联动本身不保存、启用或运行自动化。
+从右栏打开自动化或从通知查看任务时，侧栏保持独立浏览状态，Eye 保持默认样式。点击标题栏 Eye 建立对话联动并点亮双眼，面板以双层中性细框和标题带提示连接。SuperAgent 标签已打开且在当前工作区可用时，Eye 唤出该标签，否则展开 Island Chat。Eye 的无障碍名称随目标切换。Island 内发起的请求使用[普通只读对话](../island-hifi-optimized-alignment.md#chat-单界面展开)生成草案，实际运行由用户在自动化面板启动。点击 Island 和伴随面板之外会收起 Island 并保留连接。Esc 和终端切换也保留连接。显式收起、关闭或切换侧栏时释放连接，会话和草稿均保留。
 
-`useAutomationIslandLayout` 继续只处理 Island 对话的临时几何：宽度足够时并排，左侧不足 360px（另预留边距和 48px 功能按钮列）时上下排列，右栏使用独立滚动区；背景遮罩避开自动化面板。响应式折叠时临时保持伴随浮动面板可见，显式收起侧栏则恢复几何；普通悬浮预览不主动打开对话。备忘录临时接管几何时保留连接锁，退场后仅在自动化侧栏仍打开时恢复自动化布局。2026-11-03 移除的“一句话生成”卡片及预设提示词继续保持移除，原有自然对话工具消费任务请求。下述 2026-11-03 的 Esc／重复激活解锁证据属于历史行为，由本轮侧栏锁定规则替代。
+`useAutomationIslandLayout` 继续只处理 Island 对话的临时几何：宽度足够时并排，左侧不足 360px（另预留边距和 48px 功能按钮列）时上下排列，右栏使用独立滚动区；背景遮罩避开自动化面板。响应式折叠时临时保持伴随浮动面板可见，显式收起侧栏则恢复几何；普通悬浮预览不主动打开对话。备忘录临时接管几何时保留连接，退场后恢复既有联动布局。2026-11-03 移除的“一句话生成”卡片及预设提示词继续保持移除，原有自然对话工具消费任务请求。下述 2026-11-03 的 Esc／重复激活解锁证据属于历史行为，由本轮侧栏锁定规则替代。
 
 联动验证（2026-11-03）：`npx vitest run tests/unit/automation-island-layout.test.ts tests/unit/right-tool-state.test.ts` 36 项通过，后续补充功能按钮列边界后布局六项复验通过。`npx playwright test tests/e2e/automations.spec.ts tests/e2e/island-chat-surface.spec.ts --project=island --workers=1` 13 项通过。`npx playwright test tests/e2e/desktop-automations.spec.ts --project=desktop --workers=1` 最终一项通过：真实构建桌面验证不注入提示词、并排／680px 窄窗上下排列、外侧按钮不越界、单列 Chat 与会话选择器、编辑时不收起、Esc／重复激活解锁、草案保留、恢复响应式显隐，以及原有保存和重启恢复。检查截图时修正了浮动面板 top 覆盖、功能按钮列预留和 Chat 网格／相对定位的选择器优先级。最终构建、类型检查、定向 ESLint、双语检查通过，未调用模型。人工复核 dark 宽窗／窄窗与 planche 宽窗，截图为 `artifacts/automations/island-locked-desktop.png`、`island-locked-narrow.png` 和 `island-locked-planche.png`。
 

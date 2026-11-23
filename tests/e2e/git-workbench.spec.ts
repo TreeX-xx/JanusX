@@ -17,6 +17,7 @@ for (const theme of ['dark', 'planche', 'white']) for (const width of [340, 520]
     const { panel, errors } = await open(page, theme, width)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     if (theme === 'white') await expect(panel).toHaveCSS('color', 'rgb(32, 41, 54)')
+    await panel.getByRole('button', { name: /^工作区变更/ }).click()
     const changes = panel.getByTestId('git-scroll-region')
     await changes.evaluate(el => { el.scrollTop = el.scrollHeight })
     await expect(panel.getByRole('button', { name: 'src/stores/file-499.tsx', exact: true })).toBeVisible()
@@ -81,6 +82,40 @@ test('search, list/tree and staging keep an explicit staged-only commit', async 
   await expect(panel.getByRole('button', { name: '提交已暂存 · 0', exact: true })).toBeDisabled()
   expect((await operations(page)).filter((op: any) => op.action === 'stage')).toHaveLength(1)
   expect((await operations(page)).filter((op: any) => op.action === 'commit').at(-1).value).toBe('Commit only staged files\n\nKeep unrelated changes')
+})
+
+test('working tree changes start collapsed and remember only manual toggles', async ({ page }) => {
+  const { panel } = await open(page)
+  const changes = panel.getByRole('button', { name: /^工作区变更/ })
+  const file = panel.getByRole('button', { name: 'src/components/file-003.tsx', exact: true })
+  const search = panel.getByRole('textbox', { name: '搜索文件…' })
+  await expect(changes).toHaveAttribute('aria-expanded', 'false')
+  await expect(changes).toContainText('497')
+  await expect(file).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: /^暂存区/ })).toHaveAttribute('aria-expanded', 'true')
+
+  await search.fill('file-003')
+  await expect(file).toBeVisible()
+  await search.clear()
+  await expect(changes).toHaveAttribute('aria-expanded', 'false')
+
+  await changes.click()
+  await expect(file).toBeVisible()
+  await page.evaluate(() => (window as any).gitWorkbenchFixture.selectWorkspace('other'))
+  await expect(panel.locator('[data-workspace-transition]')).toHaveAttribute('aria-busy', 'false')
+  await expect(changes).toHaveAttribute('aria-expanded', 'false')
+  await page.evaluate(() => (window as any).gitWorkbenchFixture.selectWorkspace('palette'))
+  await expect(panel.locator('[data-workspace-transition]')).toHaveAttribute('aria-busy', 'false')
+  await expect(changes).toHaveAttribute('aria-expanded', 'true')
+
+  await changes.click()
+  await search.fill('file-003')
+  await expect(changes).toHaveAttribute('aria-expanded', 'false')
+  await page.evaluate(() => (window as any).builtinExtensionFixture.close('git'))
+  await expect(panel).toHaveCount(0)
+  await page.locator('#right-tool-rail-git').click()
+  await expect(changes).toHaveAttribute('aria-expanded', 'false')
+  await expect(file).toHaveCount(0)
 })
 
 test('history pages, match navigation, filters, detail failure and keyboard tabs', async ({ page }) => {

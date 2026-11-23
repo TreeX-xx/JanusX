@@ -105,8 +105,6 @@
   },
   "superagent": {
     "hostUnavailable": "Your draft is saved. Check that SuperAgent is installed and enabled in Settings → Plugins.",
-    "agentMode": "Agent mode (next message)",
-    "ordinaryMode": "Ordinary mode",
     "open": "Super Agent",
     "launchHint": "Work with Janus. Keep coding tasks moving while you continue the conversation.",
     "workspace": "Janus SuperAgent workspace",

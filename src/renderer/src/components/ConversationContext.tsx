@@ -33,6 +33,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
   }, [])
   const picker = useRef<HTMLInputElement>(null)
   const area = useRef<HTMLDivElement>(null)
+  const mentionPanel = useRef<HTMLDivElement>(null)
   const addControl = useRef<HTMLDivElement>(null)
   const addButton = useRef<HTMLButtonElement>(null)
   const menuId = useId()
@@ -49,8 +50,8 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     if (!open) return
     addControl.current?.querySelector<HTMLButtonElement>('[role="dialog"] button')?.focus()
     const outside = (event: PointerEvent) => { if (!addControl.current?.contains(event.target as Node)) setOpen(false) }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
+    document.addEventListener('pointerdown', outside, true)
+    return () => document.removeEventListener('pointerdown', outside, true)
   }, [open, setOpen])
   useEffect(() => { if (!open) { setFilesOpen(false); setFileQuery('') } }, [open])
   useEffect(() => { if (filesOpen) searchRef.current?.focus() }, [filesOpen])
@@ -122,9 +123,9 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
   }
   useEffect(() => {
     if (!browsing || open) return
-    const outside = (event: PointerEvent) => { if (!area.current?.contains(event.target as Node)) setMentionDismissed(draft) }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
+    const outside = (event: PointerEvent) => { if (!mentionPanel.current?.contains(event.target as Node)) setMentionDismissed(draft) }
+    document.addEventListener('pointerdown', outside, true)
+    return () => document.removeEventListener('pointerdown', outside, true)
   }, [browsing, open, draft])
   useEffect(() => {
     area.current?.querySelector('[data-file-active="true"]')?.scrollIntoView({ block: 'nearest' })
@@ -212,7 +213,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
   }}>
     <input ref={picker} type="file" multiple hidden onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />
     {importing && <span role="status">{t('conversation.context.importing')}</span>}
-    {browsing && !open && <div className={styles.commandPanel} aria-label={t('conversation.context.reference')}>{fileList}</div>}
+    {browsing && !open && <div ref={mentionPanel} className={styles.commandPanel} aria-label={t('conversation.context.reference')}>{fileList}</div>}
     {error && !browsing && <ChatErrorCard message={error} onDismiss={() => { setError(''); focusInput() }} />}
     {children(attachmentControl)}
     {dropHighlight && dragging && <div className={styles.contextDropHint} aria-hidden="true"><Paperclip size={16} /><span>{t('conversation.context.drop')}</span></div>}

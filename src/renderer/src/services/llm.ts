@@ -137,6 +137,7 @@ export function chatStream(
   onError: (error: string) => void,
   options?: {
     sideChat?: true
+    islandChat?: true
     inputEventId?: string
     workerBackend?: 'codex' | 'claude'
     agentMode?: 'ordinary' | 'superagent'
@@ -283,6 +284,7 @@ export function chatStream(
       window.electron.llm.startChatStream({
         requestId,
         ...(options?.sideChat ? { sideChat: true as const } : {}),
+        ...(options?.islandChat ? { islandChat: true as const } : {}),
         inputEventId: options?.inputEventId,
         workerBackend: options?.workerBackend,
         agentMode: options?.agentMode,

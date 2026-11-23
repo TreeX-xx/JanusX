@@ -1,4 +1,3 @@
-import { isSuperAgentEnabled, superAgentOwnsChat } from '@/lib/superagent-plugin'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import i18n from '@/i18n'
 import {
@@ -15,7 +14,6 @@ import {
 } from '@/services/llm'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useIslandStore } from '@/stores/island'
-import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { activateAutomationCompanion } from '@/stores/automations'
 import { isAutomationRequest } from '../automations/automationIntent'
 import { memoBinding, useMemoStore } from '@/stores/memo'
@@ -347,7 +345,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const { activeWorkspaceId, workspaces } = useWorkspaceStore.getState()
     if (activeWorkspaceId && !workspaces.some(workspace => workspace.id === activeWorkspaceId)) return
     const conversation = conversationsRef.current.find(item => item.id === islandConversationId)
-      ?? conversationsRef.current.find(item => !ephemeralIdsRef.current.has(item.id))
+      ?? conversationsRef.current.find(item => !item.topic && !ephemeralIdsRef.current.has(item.id))
     if (!conversation) return
     if (conversation.id !== islandConversationId) setIslandConversationId(conversation.id)
     appliedIslandOpen.current = sequence
@@ -411,7 +409,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
 
   const routeIslandRequest = useCallback((id: string, text: string) => {
     const active = conversationsRef.current.find(item => item.id === islandConversationId)
-      ?? conversationsRef.current.find(item => !ephemeralIdsRef.current.has(item.id))
+      ?? conversationsRef.current.find(item => !item.topic && !ephemeralIdsRef.current.has(item.id))
     if (id !== active?.id) return
     if (isAutomationRequest(text)) activateAutomationCompanion()
     loadOpeningWorkspace()
@@ -723,7 +721,8 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     const conversation = conversationsRef.current.find((item) => item.id === id)
     const handles = getHandles(id)
     if (!conversation || (!recovery && runtime?.isStreaming) || handles.active) return
-    const agentMode = conversation.topic || (isSuperAgentEnabled() && useSuperAgentUIStore.getState().agentMode === 'superagent') ? 'superagent' : 'ordinary'
+    const agentMode = conversation.topic ? 'superagent' : 'ordinary'
+    const islandChat = !conversation.topic && !ephemeralIdsRef.current.has(id)
     const requestMemoBinding = !window.electron.memo || compact ? undefined : boundMemo ? boundMemo.binding : memoBinding(id, userMessage.id)
     const generation = handles.generation + 1
     handles.generation = generation
@@ -784,7 +783,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
     void (async () => {
       let latest = conversationsRef.current.find((item) => item.id === id)
       if (!latest) return
-      const automaticWorkspace = !!latest.topic || (id === islandConversationId && superAgentOwnsChat())
+      const automaticWorkspace = !!latest.topic
       const resources = workspaceResources(automaticWorkspace
         ? { ...latest, attachedWorkspaceIds: userMessage.workspaceId ? [userMessage.workspaceId] : [] }
         : latest, workspacesRef.current)
@@ -870,8 +869,9 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
           ...(model ? { providerId: model.providerId, modelId: model.modelId } : {}),
           sourceTag: 'janus-chat',
           inputEventId: compact ? undefined : userMessage.id,
-          workerBackend: userMessage.context?.worker?.kind === 'backend' ? userMessage.context.worker.backend : undefined,
+          workerBackend: conversation.topic && userMessage.context?.worker?.kind === 'backend' ? userMessage.context.worker.backend : undefined,
           agentMode,
+          ...(islandChat ? { islandChat: true } : {}),
           workspaceId: userMessage.workspaceId ?? undefined,
           conversationId: id,
           memoBinding: requestMemoBinding,
@@ -983,7 +983,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
         pendingSteerIds: [],
       }))
     })
-  }, [appendPending, appendReasoning, clearFlushTimer, commitAssistant, ensureAgentSessions, flushPending, getHandles, islandConversationId, routeIslandRequest, scheduleFlush, setRuntime, snapshotReasoning, updateConversation])
+  }, [appendPending, appendReasoning, clearFlushTimer, commitAssistant, ensureAgentSessions, flushPending, getHandles, routeIslandRequest, scheduleFlush, setRuntime, snapshotReasoning, updateConversation])
 
   const stop = useCallback((id: string) => {
     topicSettlements.current.get(id)?.reject(new Error('Stopped'))
@@ -1286,10 +1286,10 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   }, [updateConversations])
 
   const selectConversation = useCallback((id: string) => {
-    if (ephemeralIdsRef.current.has(id)) return
-    if (conversationsRef.current.some((conversation) => conversation.id === id)) {
-      setIslandConversationId(id)
-    }
+    const selected = conversationsRef.current.find(conversation => conversation.id === id)
+    const rootId = selected?.topic?.rootId ?? id
+    if (ephemeralIdsRef.current.has(rootId)) return
+    if (conversationsRef.current.some(conversation => conversation.id === rootId && !conversation.topic)) setIslandConversationId(rootId)
   }, [])
 
   /* One session maintains exactly one memo. Picking a memo in a session that
@@ -1370,7 +1370,7 @@ export function useJanusChat(): UseJanusChatRegistryReturn {
   const getController = useCallback((requestedId?: string): UseJanusChatReturn => {
     const conversation = conversations.find(item => item.id === (requestedId ?? islandConversationId))
       ?? conversations.find(item => item.id === islandConversationId)
-      ?? conversations.find(item => !ephemeralIdsRef.current.has(item.id))
+      ?? conversations.find(item => !item.topic && !ephemeralIdsRef.current.has(item.id))
     const id = conversation?.id ?? islandConversationId
     const runtime = runtimeStates[id] ?? emptyRuntime(defaultApprovalMode)
     const resources = conversation ? workspaceResources(conversation, availableWorkspaces) : []

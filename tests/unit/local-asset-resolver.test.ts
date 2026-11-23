@@ -36,6 +36,12 @@ describe('local asset src classification', () => {
 })
 
 describe('resolveLocalAssetAbsolutePath', () => {
+  it('keeps an explicit POSIX file URL absolute inside or outside a workspace', () => {
+    const src = 'file:///Users/tree/assets/my%20diagram.png'
+    expect(resolveLocalAssetAbsolutePath(src, {})).toBe('/Users/tree/assets/my diagram.png')
+    expect(resolveLocalAssetAbsolutePath(src, { workspacePath: '/workspace' })).toBe('/Users/tree/assets/my diagram.png')
+  })
+
   it('resolves document-relative paths with ./ and ../', () => {
     expect(resolveLocalAssetAbsolutePath('./a.png', {
       workspacePath: 'C:\\ws',

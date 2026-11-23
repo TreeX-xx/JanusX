@@ -4,8 +4,9 @@
  *              推理永不计入回答正文，仅 UI 展示。
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useHistoryDisclosure } from '../chat/VirtualHistory'
+import { DisclosureReturn } from '../chat/DisclosureReturn'
 import { ChevronDown, ChevronRight, LoaderCircle } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import {
@@ -24,6 +25,7 @@ export interface ThinkingRegionProps {
   preview?: string
   stateKey?: string
   defaultExpanded?: boolean
+  showReturn?: boolean
 }
 
 function useNowWhileStreaming(streaming: boolean): number {
@@ -37,9 +39,10 @@ function useNowWhileStreaming(streaming: boolean): number {
   return now
 }
 
-export function ThinkingRegion({ snapshot, streaming, startedAt = null, preview, stateKey = 'reasoning', defaultExpanded = true }: ThinkingRegionProps) {
+export function ThinkingRegion({ snapshot, streaming, startedAt = null, preview, stateKey = 'reasoning', defaultExpanded = true, showReturn = true }: ThinkingRegionProps) {
   const { t } = useI18n('janus')
   const [expanded, setExpanded] = useHistoryDisclosure(`thinking:${stateKey}`, defaultExpanded)
+  const toggleRef = useRef<HTMLButtonElement>(null)
   const now = useNowWhileStreaming(streaming)
   if (snapshot.chars === 0) return null
 
@@ -60,6 +63,7 @@ export function ThinkingRegion({ snapshot, streaming, startedAt = null, preview,
   return (
     <div className="janus-chat-thinking" data-streaming={streaming}>
       <button
+        ref={toggleRef}
         type="button"
         className="janus-chat-thinking-toggle"
         aria-expanded={expanded}
@@ -74,6 +78,7 @@ export function ThinkingRegion({ snapshot, streaming, startedAt = null, preview,
             : <ChevronRight size={11} aria-hidden="true" />}
         <span>{headerText}</span>
       </button>
+      {expanded && showReturn && <DisclosureReturn toggleRef={toggleRef} />}
       {!expanded && streaming && liveTail && (
         <div className="janus-chat-thinking-live" aria-live="polite">
           <span>{liveTail}</span>

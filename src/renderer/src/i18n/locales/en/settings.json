@@ -154,10 +154,10 @@
   },
   "general": {
     "emphasis": {
-      "label": "Inline code color",
-      "help": "Color for inline fields and commands. Shared by conversations and SuperAgent, saved separately for each theme.",
-      "picker": "Choose inline code color",
-      "hex": "Inline code color hex value",
+      "label": "Content accent color",
+      "help": "Colors inline code in conversations and highlights text and selected controls in file previews. Saved separately for each theme.",
+      "picker": "Choose content accent color",
+      "hex": "Content accent color hex value",
       "reset": "Reset to default",
       "automatic": "Follow theme",
       "custom": "Custom color",

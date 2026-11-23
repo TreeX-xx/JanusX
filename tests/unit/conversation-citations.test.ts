@@ -58,3 +58,30 @@ describe('conversation file citations', () => {
     }
   })
 })
+
+describe('conversation visualization references', () => {
+  const preview = (payload: unknown) => '\uE200visualize\uE202' + JSON.stringify(payload) + '\uE201'
+
+  it.each(['/Users/tree/速度 [demo] #1.html', 'C:\\work\\a (draft).HTM', 'artifacts/fast.html', 'artifacts/report.pdf', 'artifacts/report.markdown'])('opens the original preview path %s', path => {
+    const raw = preview({ title: '速度 [草稿]', path, mode: 'wide' })
+    const [link] = links(conversationCitationMarkdown(raw, false, '打开预览'))
+    expect(link.label).toBe('打开预览 · 速度 [草稿]')
+    expect(link.title).toBe(path)
+    expect(conversationLink(link.url, 'C:/work')).toEqual({ filePath: path.startsWith('artifacts/') ? 'C:/work/' + path : path.replace(/\\/g, '/') })
+  })
+
+  it('preserves examples, other marker types and invalid or incomplete visualization payloads', () => {
+    const ref = preview({ path: '/work/demo.html' })
+    const examples = [`\`${ref}\``, `\`\`\`text\n${ref}\n\`\`\``, `[${ref}](https://example.com)`, ref.replace('visualize', 'other')]
+    const invalid = [null, {}, { path: 'https://example.com/demo.html' }, { path: '//example.com/demo.html' },
+      { path: 'javascript:example.html' }, { path: '/work/a.sh' }, { path: '/work/a\u0000.html' }, { path: '/work/\uD800.html' }]
+    for (const raw of [...examples, ...invalid.map(preview), '\uE200visualize\uE202{bad}\uE201']) {
+      expect(conversationCitationMarkdown(raw, true)).toBe(raw)
+    }
+    const partial = ref.slice(0, -1)
+    expect(conversationCitationMarkdown(partial)).toBe(partial)
+    expect(conversationCitationMarkdown(partial, true)).toBe('')
+    expect(conversationCitationMarkdown(preview({ path: '/work/test.html', title: 'About :codex' }).slice(0, -1), true)).toBe('')
+    expect(conversationCitationMarkdown(partial + '\nNext paragraph', true)).toContain('Next paragraph')
+  })
+})

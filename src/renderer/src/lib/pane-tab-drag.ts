@@ -158,7 +158,6 @@ export function startPaneTabDrag({ root, source, event, onActiveChange, onDrop }
     remember(document.body)
     document.body.style.cursor = 'grabbing'
     document.body.style.userSelect = 'none'
-    source.setPointerCapture(pointerId)
     onActiveChange(true)
   }
   const update = (elapsed: number) => {
@@ -238,6 +237,7 @@ export function startPaneTabDrag({ root, source, event, onActiveChange, onDrop }
   }
   const move = (next: PointerEvent) => {
     if (next.pointerId !== pointerId) return
+    if (!(next.buttons & 1)) { cleanup(); return }
     pointer = { x: next.clientX, y: next.clientY }
     if (!active && Math.hypot(pointer.x - origin.x, pointer.y - origin.y) < 6) return
     if (next.cancelable) next.preventDefault()
@@ -275,5 +275,7 @@ export function startPaneTabDrag({ root, source, event, onActiveChange, onDrop }
   window.addEventListener('resize', cleanup)
   document.addEventListener('visibilitychange', visibility)
   source.addEventListener('lostpointercapture', cleanup)
+  // Keep the gesture with the tab from the first press, including a fast move off the strip.
+  source.setPointerCapture(pointerId)
   return cleanup
 }

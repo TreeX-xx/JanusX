@@ -1,5 +1,13 @@
-.editor { display: block; width: 100%; min-height: 52px; max-height: 200px; overflow-y: auto; outline: none; color: var(--shell-text); font-size: var(--conversation-input-font-size, 13px); line-height: var(--conversation-input-line-height, 1.85); white-space: pre-wrap; overflow-wrap: anywhere; }
-.editor[data-input-empty="true"]::before { content: attr(data-placeholder); color: var(--shell-muted); pointer-events: none; }
+.editor { position: relative; display: block; width: 100%; min-height: 52px; max-height: 200px; overflow-y: auto; outline: none; color: var(--shell-text); font-size: var(--conversation-input-font-size, 13px); line-height: var(--conversation-input-line-height, 1.85); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Keep the hint out of the line with the browser's empty caret placeholder. */
+.editor[data-input-empty="true"]::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  color: var(--shell-muted);
+  pointer-events: none;
+}
 .reference { display: inline-flex; align-items: center; vertical-align: baseline; gap: 5px; box-sizing: border-box; max-width: min(240px, calc(100% - 4px)); margin: 0 2px; padding: 0 6px; border: 1px solid var(--shell-border); border-radius: 6px; background: var(--shell-hover); font-size: 12px; line-height: 24px; white-space: nowrap; cursor: grab; user-select: all; }
 .reference > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .reference button { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 3px; color: var(--shell-muted); padding: 0 2px; background: none; line-height: 22px; cursor: pointer; }
@@ -11,7 +19,3 @@
 /* Let the filename supply the inline baseline; the thumbnail has no text baseline. */
 .reference img { align-self: center; flex-shrink: 0; width: 28px; height: 24px; object-fit: cover; border-radius: 3px; }
 .promptReference { cursor: default; user-select: text; }
-.preview { max-width: 90vw; max-height: 90vh; padding: 30px 12px 12px; background: var(--shell-chrome); color: var(--shell-text); border: 1px solid var(--shell-border); border-radius: 10px; }
-.preview img { display: block; max-width: 85vw; max-height: 80vh; object-fit: contain; }
-.preview button { position: absolute; right: 8px; top: 4px; }
-.preview::backdrop { background: color-mix(in srgb, var(--surface-shade) 60%, transparent); }

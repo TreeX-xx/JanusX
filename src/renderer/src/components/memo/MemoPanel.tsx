@@ -59,7 +59,9 @@ export function MemoPanel({ onBindMemo, compactTrigger = false }: MemoPanelProps
   const { placement, active, pane, setPane } = useMemoIslandLayout(trigger, present, collapsed, !open)
   useLayoutEffect(() => {
     const island = useIslandStore.getState()
-    if (!present && actionHost && island.automationLocked && island.companionToolId !== 'automations') island.openChat('', 'automations')
+    if (!present && actionHost && island.automationLocked && island.companionToolId !== 'automations') {
+      useIslandStore.setState({ companionToolId: 'automations' })
+    }
   }, [present, actionHost])
   const constrainedFiles = Boolean(placement && placement.memo.width < 460)
   const compactFiles = constrainedFiles || collapsed

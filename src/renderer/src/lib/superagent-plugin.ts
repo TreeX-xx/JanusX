@@ -24,12 +24,12 @@ export function useSuperAgentEnabled() {
 
 const hasSuperAgentTab = (tree: WorkspacePaneNode | null) => getPaneContentById(tree, 'superagent')?.type === 'superagent'
 
-// Note: .agents/notes/workbench/island-hifi-optimized-alignment.md — chat routing follows the open tab.
-export function superAgentOwnsChat() {
+// Note: .agents/notes/workbench/island-hifi-optimized-alignment.md — the SuperAgent tab is independent of Island Chat.
+export function hasOpenSuperAgent() {
   return isSuperAgentEnabled() && hasSuperAgentTab(useGlobalToolsStore.getState().paneTree)
 }
 
-export function useSuperAgentOwnsChat() {
+export function useHasOpenSuperAgent() {
   const enabled = useSuperAgentEnabled()
   const tabOpen = useGlobalToolsStore(state => hasSuperAgentTab(state.paneTree))
   return enabled && tabOpen

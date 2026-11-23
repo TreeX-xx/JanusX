@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, ImagePlus, X } from 'lucide-react'
+import { Download, ImagePlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ConversationImage } from '../../../shared/conversation-display'
 import { loadLocalAssetDataUrl } from './viewers/local-asset'
 import { ConversationImageCopy } from './ConversationImageCopy'
+import { useConversationImagePreview } from './ConversationImagePreview'
 import styles from './ConversationImages.module.css'
 
 export function ConversationImages({ terminalId, itemId, images, canReference, onReference }: {
@@ -24,7 +25,7 @@ function ImageCard({ terminalId, itemId, image, canReference, onReference }: {
   const [visible, setVisible] = useState(false)
   const card = useRef<HTMLElement>(null)
   const thumbnail = useRef<HTMLImageElement>(null)
-  const dialog = useRef<HTMLDialogElement>(null)
+  const { open, preview } = useConversationImagePreview()
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting) { setVisible(true); observer.disconnect() }
@@ -48,7 +49,7 @@ function ImageCard({ terminalId, itemId, image, canReference, onReference }: {
     finally { setSaving(false) }
   }
   return <figure ref={card} className={styles.card}>
-    {ready ? <button type="button" className={styles.preview} onClick={() => dialog.current?.showModal()} aria-label={t('conversation.images.preview')}>
+    {ready ? <button type="button" className={styles.preview} onClick={event => open(url, t('conversation.images.result'), event.currentTarget)} aria-label={t('conversation.images.preview')}>
       <img ref={thumbnail} src={url} alt={t('conversation.images.result')} onLoad={() => setLoadedUrl(url)} onError={() => setFailed(true)} />
     </button> : <p role="status" title={image.error}>{t(image.status === 'unavailable' || failed ? 'conversation.images.unavailable' : 'conversation.images.loading')}</p>}
     <figcaption className={styles.actions}>
@@ -57,9 +58,6 @@ function ImageCard({ terminalId, itemId, image, canReference, onReference }: {
       <button type="button" disabled={!ready || !canReference} onClick={() => onReference(image)}><ImagePlus size={14} />{t('conversation.images.reference')}</button>
     </figcaption>
     {error && <p role="alert">{error}</p>}
-    <dialog ref={dialog} className={styles.dialog} aria-label={t('conversation.images.preview')} onClick={event => { if (event.target === dialog.current) dialog.current.close() }}>
-      <button type="button" autoFocus onClick={() => dialog.current?.close()} aria-label={t('conversation.images.close')}><X size={20} /></button>
-      {ready && <img src={url} alt={t('conversation.images.result')} />}
-    </dialog>
+    {preview}
   </figure>
 }

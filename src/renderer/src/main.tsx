@@ -1,4 +1,5 @@
 import { WindowControls } from './components/WindowControls'
+import { MainWindowResize } from './components/MainWindowResize'
 import React, { lazy, Suspense, type ErrorInfo, type ReactNode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { installElectronApiFallback } from './lib/electron-api-fallback'
@@ -132,7 +133,7 @@ const rootContent = isEditorWindow ? (
   </EditorWindowErrorBoundary>
 ) : (
   <Suspense fallback={null}>
-    {isDesktopToast ? <DesktopToastApp /> : isBrowserWindow ? <StandaloneBrowser /> : <App />}
+    {isDesktopToast ? <DesktopToastApp /> : isBrowserWindow ? <StandaloneBrowser /> : <><App /><MainWindowResize /></>}
   </Suspense>
 )
 

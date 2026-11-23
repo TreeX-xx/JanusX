@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkspaceAgentRuntime } from '@janus-agent/agent-core'
+import { approveToolRequests } from './tool-approval.fixture'
 import { registerGitTools } from '../../../src/main/agent/runtime/tools/git-tools'
 
 const execFileAsync = promisify(execFile)
@@ -27,21 +28,6 @@ async function createRepository() {
   registerGitTools(runtime.registry)
   const session = await runtime.createSession({ workspaceId: 'workspace-1', workspaceRoot: root })
   return { root, runtime, session }
-}
-
-function approve(runtime: WorkspaceAgentRuntime): void {
-  runtime.onEvent((event) => {
-    if (event.type !== 'approval-requested') return
-    runtime.resolveApproval({
-      approvalId: event.request.id,
-      approved: true,
-      workspaceId: event.request.workspaceId,
-      sessionId: event.request.sessionId,
-      correlationId: event.request.correlationId,
-      toolName: event.request.toolName,
-      actionRisk: event.request.actionRisk,
-    })
-  })
 }
 
 afterEach(async () => {
@@ -75,7 +61,7 @@ describe('Git Agent Runtime tools', () => {
       output: { content: expect.stringContaining('+after'), truncated: false },
     })
 
-    approve(runtime)
+    approveToolRequests(runtime)
     await expect(runtime.executeTool({
       sessionId: session.id,
       call: {
@@ -110,7 +96,7 @@ describe('Git Agent Runtime tools', () => {
       call: { toolName: 'git.status', input: { workspaceId: 'workspace-1', path: '../outside' } },
     })).resolves.toMatchObject({ status: 'failed', reasonCode: 'PATH_TRAVERSAL' })
 
-    approve(runtime)
+    approveToolRequests(runtime)
     await expect(runtime.executeTool({
       sessionId: session.id,
       call: {

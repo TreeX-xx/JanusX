@@ -1,0 +1,76 @@
+.glyph[data-speed-icon] {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 16px;
+  overflow: visible;
+}
+.glyph:is([data-speed-icon=fast], [data-speed-icon=ultrafast]) { color: var(--effort-max-color); }
+.glyph svg { position: absolute; width: 15px; height: 15px; inset: 0; margin: auto; overflow: visible; }
+.glyph[data-speed-icon=ultrafast] .front { transform: translate(-1.5px, -1px); }
+.glyph .echo { transform: translate(2.5px, 1.5px); fill: none; opacity: .68; }
+.glyph:not([data-speed-icon=standard]) .front, .glyph .charge { fill: currentColor; }
+.glyph[data-speed-icon=fast][data-phase=pending] .front { fill: none; }
+.glyph .charge { display: none; }
+.glyph[data-phase=pending] .charge { display: block; clip-path: inset(50% 0 0); }
+
+.trace {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  border-radius: inherit;
+  color: var(--effort-max-color);
+  pointer-events: none;
+  z-index: 2;
+  transform: scaleY(-1);
+}
+.trace[data-speed-trace=standard] { color: var(--shell-muted); }
+.trace rect {
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  rx: var(--composer-radius);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+}
+.trace[data-phase=pending] .outbound { stroke-dasharray: 1 2; opacity: .45; }
+.trace .returnTrace { opacity: 0; }
+.trace[data-phase=confirmed] .outbound { opacity: .65; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .glyph[data-phase=pending] .charge { animation: charge-up 920ms ease-in-out infinite; }
+  .glyph[data-phase=pending] .echo { animation: echo-pulse 760ms ease-in-out infinite; }
+  .glyph[data-speed-icon=ultrafast][data-phase=pending] .front { animation: strike 760ms ease-in-out infinite; }
+  .glyph[data-speed-icon=standard][data-phase=pending] .front { animation: release 800ms ease-in-out infinite alternate; }
+  /* A native reply can arrive before the browser paints the pending frame. */
+  .glyph[data-speed-icon=fast][data-phase=confirmed] .front { fill: none; }
+  .glyph[data-phase=confirmed] .charge { display: block; animation: finish-charge 380ms ease-out both; }
+  .glyph[data-phase=confirmed] .echo { animation: finish-echo 380ms ease-out both; }
+  .glyph[data-speed-icon=ultrafast][data-phase=confirmed] .front { animation: finish-strike 380ms ease-out both; }
+  .glyph[data-speed-icon=standard][data-phase=confirmed] .front { animation: restore-outline 380ms ease-out both; }
+  .trace[data-phase=pending][data-speed-trace=fast] .outbound {
+    stroke-dasharray: 23 77; opacity: .8; animation: forward 920ms linear infinite;
+  }
+  .trace[data-phase=pending][data-speed-trace=ultrafast] .outbound {
+    stroke-dasharray: 18 82; opacity: .95; animation: forward 760ms linear infinite;
+  }
+  .trace[data-phase=pending] .returnTrace { stroke-dasharray: 10 90; opacity: .65; animation: reverse-trace 760ms linear infinite; }
+  .trace[data-phase=confirmed] rect { animation: settle 420ms ease-out both; }
+  .trace[data-phase=confirmed][data-speed-trace=fast] .outbound { stroke-dasharray: 35 65; --finish-offset: -46; }
+  .trace[data-phase=confirmed][data-speed-trace=ultrafast] .outbound { stroke-dasharray: 20 80; --finish-offset: -52; }
+  .trace[data-phase=confirmed] .returnTrace { stroke-dasharray: 12 88; --finish-offset: 52; }
+}
+@keyframes charge-up { 0%, 10% { clip-path: inset(78% 0 0); } 80%, 100% { clip-path: inset(0); } }
+@keyframes echo-pulse { 0%, 75%, 100% { opacity: .4; } 26% { opacity: 1; transform: translate(3px, 2px); } }
+@keyframes strike { 0%, 26%, 100% { opacity: .7; filter: none; } 52% { opacity: 1; filter: drop-shadow(0 0 2px currentColor); } }
+@keyframes release { from { opacity: 1; } to { opacity: .48; } }
+@keyframes finish-charge { from { clip-path: inset(68% 0 0); } to { clip-path: inset(0); } }
+@keyframes finish-echo { 0% { opacity: .4; } 35% { opacity: 1; transform: translate(3px, 2px); } 100% { opacity: .68; } }
+@keyframes finish-strike { 0%, 35% { opacity: .55; } 65% { opacity: 1; filter: drop-shadow(0 0 2px currentColor); } 100% { opacity: 1; filter: none; } }
+@keyframes restore-outline { from { opacity: .42; } to { opacity: 1; } }
+@keyframes forward { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -100; } }
+@keyframes reverse-trace { from { stroke-dashoffset: 10; } to { stroke-dashoffset: 110; } }
+@keyframes settle { from { opacity: .65; stroke-dashoffset: 0; } to { opacity: 0; stroke-dashoffset: var(--finish-offset, 0); } }

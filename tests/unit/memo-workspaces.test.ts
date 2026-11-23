@@ -24,6 +24,9 @@ describe('memo workspace retirement', () => {
     const store = new MemoStore(directory)
     const changes: unknown[] = []
     store.subscribe(change => changes.push(change))
+    expect(await store.getReadOnly(id)).toMatchObject({ version: 3, revision: 7, nodes: legacy.nodes })
+    expect(await readFile(path, 'utf8')).toBe(bytes)
+    expect(changes).toEqual([])
     const current = await store.get(id)
     expect(current).toEqual({ version: 3, id, title: 'Legacy', revision: 8, createdAt: 1, updatedAt: expect.any(Number), nodes: legacy.nodes })
     const upgraded = await readFile(path, 'utf8')

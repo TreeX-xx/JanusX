@@ -81,13 +81,13 @@ SuperAgent 复用 CodexConversation 的原生事件／请求投影，通过独�
 
 Codex 的 `error` 通知以 `willRetry` 区分重试提示与最终错误。对话适配器记录重试提示所属轮次；只有同一活动轮次的新模型正文／推理输出，或该轮正常结束才清除提示。工具活动、空增量、重复条目、其他线程及设置通知不能证明恢复；旧轮次的延迟错误不能覆盖当前状态。最终失败与传输错误保留，失败结束即使没有附带错误详情也不能被当成恢复。切换原生线程会清除上个线程的错误。依据为本机 `codex app-server generate-json-schema` 的 `ErrorNotification`。
 
-验证：`npx vitest run tests/unit/codex-conversation.test.ts tests/unit/codex-retry-recovery.test.ts` 共 37 项通过，覆盖恢复、工具活动隔离、重复输出、旧轮次延迟错误、线程切换及最终失败保留。恢复规则同步至 SuperAgent 引擎源及固定制品；未模拟真实供应商断网重连。
+重试恢复的协议回归统一在 `tests/unit/codex-conversation.test.ts`。用例分别检查重试提示、宿主错误和轮次错误，覆盖正文与推理输出、工具活动、事件重放、线程切换和延迟送达的失败通知。
 
-`tests/unit/codex-retry-recovery.test.ts` 在两侧保持一致，覆盖恢复、事件隔离、最终失败及线程切换。2026-11-09：本分支 codex-conversation、codex-retry-recovery、codex-managed-recovery、codex-async-questions 共 41 项通过，Worker 面板另 7 项浏览器测试通过；dev 的 codex-conversation 与 codex-retry-recovery 共 37 项通过。两侧类型检查、定向 ESLint、Notes 校验通过；引擎构建、六包固定制品校验与 SuperAgent build:check 通过。测试使用本地协议事件，不代表真实供应商断网重连验收。
+2026-11-09 两侧使用相同的重试恢复用例。本分支 codex-conversation、codex-retry-recovery、codex-managed-recovery、codex-async-questions 共 41 项通过，Worker 面板另 7 项浏览器测试通过，dev 的 codex-conversation 与 codex-retry-recovery 共 37 项通过。恢复规则同步至 SuperAgent 引擎源及固定制品。两侧类型检查、定向 ESLint、Notes 校验、引擎构建、六包固定制品校验与 SuperAgent build:check 通过。重试验证使用本地协议事件。
 
 ## Codex 异步提问
 
-发布集成沿用 main 的原生回复解析与局部问题状态同步；异步卡片可本地取消，取消不发送原生 RPC。回复协议保留包装换行和题目长度限制，回显仍转为可读问答。
+发布集成沿用 main 的原生回复解析与局部问题状态同步。异步卡片可本地取消，取消不发送原生 RPC。回复协议保留包装换行和题目长度限制，回显仍转为可读问答。运行中与空闲时的回答、重复投递和线程隔离由 `tests/unit/conversation-questions.test.ts` 验证。
 
 `request_user_input_async` 通过 `item/completed` 的 `agentMessage.questions` 下发 `title` 与字符串选项；它不是等待答案的 `item/tool/requestUserInput` RPC。此前归一化只保留消息正文，造成选项显示为文字。适配器现在把实时完成消息中的问题投影到公共问答卡，支持单选及自定义文字；问题不阻塞普通输入，也不会随原轮次完成而消失。重复事件不会重新打开已提交的卡片。
 
@@ -201,6 +201,10 @@ Codex 适配器按会话提供商读取 `model/list`，使用 `serviceTiers`，�
 
 当前模型仅有标准档时隐藏闪电。支持 Fast 时可一键切换。支持 Ultrafast 时，闪电打开可用档位菜单，带有当前档位与更高用量提示。选择速度保留草稿。实际服务速度以服务端处理为准。
 
+标准档显示空心闪电，快速档使用主题金色的实心闪电。极速档在实心闪电右下叠一枚半透明空心闪电。速度按钮沿用推理强度按钮的透明底，悬停、菜单展开和切换等待期间也保持透明，金色仅用于闪电图标。等待快速档时图标自下而上填充，一道光沿输入框圆角移动。等待极速档时后层先亮、前层随后亮起，两道光沿边缘反向移动。减少动态效果时显示静态轮廓，右下角不显示切换文案。收起菜单或切换成功都不会占用草稿空间。
+
+请求成功且原生快照确认目标档位后，闪电播放一次对应档位的收尾动效，输入框边缘短暂淡出。原生回执快于首个等待画面时仍能看到充满、双闪或空心轮廓恢复，按钮可立即操作。若回执先于档位通知，最多再显示三秒等待反馈，随后按当前原生值展示。后续通知仍可同步档位。点击已选档位直接收起菜单，切换失败沿用会话错误提示。回归入口为 `conversation-settings.spec.ts`。
+
 固定引擎的变更记录在 [档位补丁](../../../vendor/janus-agent/conversation-speed.patch)。本机 Codex 0.169.0 的临时线程已验证启用／禁用 Ultrafast 时的目录筛选和原生确认，未发起付费推理。针对性验证覆盖 37 项单测及 14 项 Playwright 对话设置场景，包含权限刷新、失败保留、键盘操作及草稿。
 
 ## OpenCode 原生会话切换
@@ -249,7 +253,7 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 
 验证：`conversation-typing-isolation.spec.ts` 使用 100 轮、400 条含工具与 diff 的合成记录，通过夹具 getter 统计历史正文读取。相同 31 字符逐字输入，修复前读取 62,000 次，修复后为 0；同时验证草稿重建恢复和发送。计数来自开发模式 StrictMode 浏览器夹具，不是现场输入延迟或整应用加速比。
 
-输入框快捷面板共用上沿锚点、背景、边框、阴影及列表行；模型与文件列表宽度上限 360px，添加上下文一级菜单为 280px，窄窗随输入框收缩。斜杠与工具栏模型入口均提供搜索；无查询时定位当前模型；当前应用项以中性行底色与字重区分，键盘待选择项使用行底色，保留 aria-selected，不显示对号或左侧特殊高亮。斜杠模型页支持返回指令列表，提交失败保留原选择。
+输入框快捷面板共用上沿锚点、背景、边框、阴影及列表行；模型与文件列表宽度上限 360px，添加上下文一级菜单为 280px，窄窗随输入框收缩。斜杠与工具栏模型入口均提供搜索。无查询时定位当前模型，当前项使用中性行底色、字重、右侧勾选和 `aria-selected`，键盘待选择项使用行底色。斜杠模型页支持返回指令列表，提交失败保留原选择。
 
 “+ → 引用文件”在原弹层内搜索当前目录、进入子目录或引用整个目录，在正文光标处插入引用；直接输入 `@` 复用文件列表，选定后替换查询并回到正文。上下文菜单与模型／强度面板互斥，弹层不占正文布局。验证入口为 `tests/e2e/conversation-composer-layout.spec.ts`、`conversation-context.spec.ts` 和 `conversation-commands.spec.ts`。
 
@@ -269,6 +273,8 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 
 助手回复中的 `:codex-file-citation{path="..." purpose="source"}` 在共享 `MarkdownContent` 展示前转换为文件名链接，完整路径保留为悬停提示；文件链接使用轻边框、单行截断，点击沿用既有 `conversationLink`／`openEditor`，打开失败在链接旁显示错误。来源标记不代表文件已经读取、修改或验证；未提供行号时不补造位置。原始消息、流式事件和复制结果保持原文，不更改提供方协议或历史存储。
 
+对话中的 `visualize` 标记显示为「打开预览」链接，可带设计标题。点击后由现有文件窗口打开对应的 HTML。流式标记收齐后才显示链接，历史消息使用同一规则。代码示例和格式错误的标记保留原文。
+
 转换器只对包含 `:codex` 的回复额外解析一次 Markdown，以原始源码偏移跳过代码块、行内代码、已有链接、图片、定义和 HTML，再把完整标记转换为经过转义的 Markdown 链接；这样路径中的 Markdown 符号、空格及 `#/?` 不会改变打开目标。不支持的协议、缺失路径或畸形属性保留原文；相对路径沿用当前工作目录解析。流式输出暂时隐藏末尾未完成标记，完成后转成链接；回复结束仍不完整时恢复原文，避免永久丢失输出。额外解析只用于带标记的回复，长回复若出现渲染性能问题再考虑专用 Markdown 语法扩展。
 
 助手文件引用验证（2026-11-05）：新增 `conversation-file-citations.spec.ts` 三项用例修复前均失败，修复后与 `codex-conversation.spec.ts` 共 21 项通过，文件链接样式调整后专项三项再次通过；覆盖用户提供的五个引用、逐项打开原路径、流式分段、代码示例保留、未完成回复和打开错误。`vitest run tests/unit/conversation-citations.test.ts tests/unit/conversation-link.test.ts` 11 项通过，覆盖 Windows／POSIX／UNC／相对路径、路径转义及畸形标记；类型检查与三个变更 TypeScript 组件／模块 ESLint 通过。主 Agent 查看 `artifacts/conversation-citations/file-sources-narrow.png`；这是当前 JanusX 工作区的浏览器夹具及主 Agent 自检，未运行真实供应商会话或验证另一个 worktree 的已安装应用。
@@ -276,6 +282,8 @@ CLI 对话与 JanusX 的普通 Chat、项目对话、运行配置助手共用相
 内嵌引用优化验证（2026-11-05）：`conversation-inline-reference.spec.ts` 新增用例先复现导入期间移动光标导致附件落到末尾，以及长名称占满窄窗的问题，修复后通过。Playwright 分两轮运行 inline-reference、attachment-preview、attachment-recovery、composer-layout、input-editing、input-history、context 七个文件，共 30 个不同用例通过；覆盖拖入／粘贴／文件选择期间继续输入、目标前编辑、多文件顺序与批量撤销、发送后的标签和转义路径、窄窗、图片预览及失败恢复。`vitest run tests/unit/conversation-context.test.ts tests/unit/conversation-outbox.test.ts` 14 项通过；类型检查及四个变更组件 ESLint 通过。主 Agent 查看 `artifacts/conversation-inline-reference/{inline-composer,inline-message,compact-narrow}.png`。这是浏览器夹具及主 Agent 自检，未验证真实桌面文件拖拽或供应商读取附件。
 
 占位提示按整个编辑器序列化后的内容是否为空判断，包含文字、引用和输入法尚未提交的组合文本；键入、删除、撤销与草稿恢复同步更新显示。CSS 的 `:only-child` 只统计元素节点，文字后仅剩一个换行元素时仍会命中，因此不再按这一 DOM 形状判空。编辑器仅剩浏览器维持光标的空占位时显示提示；实际换行和空格继续作为草稿内容保留。
+
+普通对话与 SuperAgent 共用的占位提示以绝对定位显示在编辑区起点，沿用输入文字的字号与行高，并随编辑区宽度换行。清空时，Chromium 留下的 `<br>` 仍位于实际首行，光标由浏览器在该处绘制。窄编辑区回归比较清空前、清空后和重新键入的光标高度。
 
 占位提示回归（2026-11-04）：新增多行粘贴后逐字删除用例在修复前复现误显示。`npx playwright test tests/e2e/conversation-input-editing.spec.ts tests/e2e/conversation-input-history.spec.ts tests/e2e/conversation-inline-reference.spec.ts tests/e2e/codex-conversation.spec.ts --project=island --workers=1 --timeout=30000` 共 28 项通过，覆盖键入／粘贴、删空第二行、清空、撤销、重建、发送及组合输入期间的提示；日志位于 `artifacts/release-11-4/placeholder-verified.log`。类型、组件 ESLint 与 Notes 检查通过；组合输入仍使用合成事件，不替代真实系统输入法验收。
 
@@ -825,7 +833,9 @@ Claude 同一原生轮可合并多条输入；Mods 在 prompt.submit 进入下�
 | 原生目录中的技能、模板及命令 | 按引擎展示类型图标；Codex/OpenCode/Pi 走结构化调用，Claude 标记终端执行。支持冒号命名空间和目录中的嵌套名称 |
 | 目录外的斜杠指令 | 显示尚未适配与终端入口；未命中原生目录的绝对路径继续作为正文 |
 
-预览支持上下键定位、Enter 执行、Tab 仅补全、Esc 关闭及点击外部收起；输入法组合期间不提交。原生命令首次选择补入名称，用户可继续输入参数，再 Enter 调用；终端执行项在确认完整名称后切换视图，并将单条指令提交给所属原生终端，后续弹窗在终端处理。模型当前选项显示勾选，effort 用横向强度控件表达。切换模型时优先保留兼容的 effort，否则采用该模型的目录默认值；未知自定义模型仍显示真实模型名，但不猜测 effort 列表。目录失败可重试且不打断会话，设置失败保持草稿并显示反馈。模型与 effort 标签使用中英文文案；模型描述保留后端返回文本，effort 不显示描述或描述悬停提示。
+模型、推理强度、速度和文件菜单展开后，点回文字编辑区会立即收起菜单并定位光标。点另一个工具可直接切换，点发送只发送一次。斜杠指令菜单收起后保留原文，继续输入可再次筛选。点击「应用指令」执行菜单中高亮的选项。
+
+预览支持上下键定位、Enter 执行、Tab 仅补全、Esc 关闭及点击外部收起；输入法组合期间不提交。原生命令首次选择补入名称，用户可继续输入参数，再 Enter 调用；终端执行项在确认完整名称后切换视图，并将单条指令提交给所属原生终端，后续弹窗在终端处理。模型列表默认只显示模型名，同一供应商的同名项补一行完整 ID，悬停和搜索仍可使用原生 ID 与描述。Effort 用横向强度控件表达。切换模型时优先保留兼容的 effort，否则采用该模型的目录默认值；未知自定义模型仍显示真实模型名，但不猜测 effort 列表。目录失败可重试且不打断会话，设置失败保持草稿并显示反馈。模型与 effort 标签使用中英文文案，effort 不显示描述或描述悬停提示。
 
 Codex `/new` 由主进程向所属原生 TUI 发出固定命令，仅放行一次非临时 thread/start；沿用原生客户端的选择与订阅，不另建一个终端未绑定的 thread。等待期间展示进度并允许转到终端，主动交接会取消尚未发出的回车。15 秒内没有新 thread 确认，或原生明确返回创建失败，自动显示终端和错误说明；仅新建失败不将健康连接标为 disconnected。旧 thread 与历史保留，迟到的新 thread 确认仍按原生身份绑定；不自动重试，也不盲发 Esc 关闭未知弹窗。真正断线继续保留 disconnected。`codex-conversation-cli.test.ts` 的正常新建与隐藏模型菜单阻塞恢复两项在 Windows/Codex 0.166.0、localhost 模型实跑通过；恢复后能继续发送消息，真实供应商、其它版本和跨平台未验收。
 
@@ -1037,6 +1047,10 @@ Claude 后台探针最初因临时工作区未信任而无法启动，补入仅�
 
 ### 图片产物、预览与参考图复用
 
+输出图片、附件卡片和输入框内的图片引用共用模态预览样式。弹窗和图片居中于当前窗口，窗口缩小时按比例缩小图片并保留关闭按钮的空间。
+
+正文中未附带链接的可读 Markdown 图片和输出图片卡片共用放大预览。默认适合窗口，原尺寸下可在弹窗内滚动。展开的预览随同一会话保留到流式归档之后，关闭时焦点返回图片，原缩略图已经卸载时返回对话区。独立的本地 HTML、PDF、Markdown 链接和显式可视化产物在正文显示为「文件名＋打开预览」，进入已有文件查看器。来源引用与正文中的普通链接保留原文和打开方式；Janus 对话按对应消息的工作区解析相对路径。
+
 输入区图片附件使用缩略图卡片，覆盖拖入、截图粘贴、文件选择、工作区图片引用与产物参考图。行内图片引用由文件名提供文字基线，缩略图独立垂直居中，避免图片底边抬高标签、导致与相邻正文错位。卡片保留文件名和移除按钮，点击可放大，Esc／关闭按钮／背景点击退出；关闭后焦点回到预览入口。图片从既有本地资源读取器加载，不向草稿存储写入图片字节；草稿重建时按引用路径恢复。加载或解码失败显示不可用提示，仍能移除；普通文件保持标签展示。预览不改变现有附件限额、提示词包装及原生图片发送路径。
 
 2026-11-02 输入图片预览验证：`playwright test` 的 conversation-attachment-preview、conversation-attachment-recovery、conversation-context 与 conversation-composer-layout 共 10 个不同用例分轮通过；首轮两个 page.goto 加载超时的用例以单 worker、60 秒超时复跑通过。覆盖拖入／粘贴缩略图、放大关闭与焦点恢复、草稿重建、移除、不可用提示及原生图片路径发送。主 Agent 查看 `artifacts/conversation-composer/attachment-preview.png`，380px 窗口无横向溢出。`npm run typecheck` 和两个相关组件的 ESLint 通过。图片读取使用固定 PNG 浏览器夹具，未执行真实桌面拖拽或模型视觉调用。
@@ -1089,7 +1103,9 @@ Main 执行 `npx vitest run --project=unit tests/unit/conversation-plans.test.ts
 
 ### 轮次附件的显示与历史恢复
 
-执行计划和“本轮修改文件”都归属于原生 turnId，显示在该轮内容下方。活动阶段的步骤更新在同一张计划卡内完成，计划文档和结构化步骤共用一个入口，只有最后一版计划文档进入该轮附件。完成、失败或中断后，卡片留在原轮次，手动展开状态随轮次保留，已完成的文件编辑也可在后续轮次运行期间查看。
+执行计划和“本轮修改文件”都归属于原生 turnId。活动阶段的步骤更新在同一张计划卡内完成，计划文档和结构化步骤共用一个入口，只有最后一版计划文档进入该轮附件。
+
+每轮回复底部用一行摘要显示已修改文件数量与可确认的增删行数。悬停或键盘聚焦可预览最多三个路径。点击「查看改动」或按 Enter，右侧按回执顺序列出文件，首次打开时全部收起。点击文件名或按 Enter 才展示该文件的红绿差异行或补丁缺失提示。各文件独立开合，同一轮重新打开面板时保留手动选择。面板独立滚动，窄窗覆盖阅读区，输入框仍可用。实时对话和分页历史共用这一交互，后续轮次开始时仍可查看此前的修改。
 
 Codex 桌面适配器在原生计划修订缓冲区更新时，按线程保留各轮最后确认的计划。恢复会话时，从原生绑定并通过会话 ID 校验的本地 rollout 读取成功的 update_plan 回执，只投影对应轮次。读取沿用 64 MiB 的有界 JSONL 读取和最近 500 条轮次计划上限。分页历史把计划和原生 fileChange 编辑回执一同汇总到对应轮次下方。分页或记录截断可能使文件汇总不完整，界面会标记该状态。工作区当前 Git 变更不作为历史回执。
 

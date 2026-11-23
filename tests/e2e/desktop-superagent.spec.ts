@@ -85,6 +85,32 @@ test('Island starts the shared workspace in the light theme without starting wor
     await expect(prompt).toHaveText('Keep this draft while toggling the terminal launcher')
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1800, 1000))
     await expect(surface.getByRole('button', { name: 'Hide Workers', exact: true })).toHaveAttribute('aria-expanded', 'true')
+    const mountedSurface = await surface.elementHandle()
+    const tools = page.locator('[data-pane-region="tools"]')
+    await page.getByRole('button', { name: 'Choose a tool to open', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Open a Markdown document', exact: true }).click()
+    const janusTab = tools.locator('[data-tab-id="superagent"]')
+    const markdownTab = tools.locator('[data-tab-id="markdown:global-markdown"]')
+    await expect(markdownTab).toBeVisible()
+    const source = (await janusTab.boundingBox())!
+    const destination = (await tools.locator('[data-pane-id]').boundingBox())!
+    const startX = source.x + source.width / 3
+    const startY = source.y + source.height / 2
+    await page.mouse.move(startX, startY)
+    await page.mouse.down()
+    try {
+      await page.mouse.move(startX + 12, startY)
+      await page.mouse.move(destination.x + destination.width / 2, destination.y + destination.height - 35, { steps: 8 })
+      await expect(page.locator('[data-tab-drag-hint]')).toHaveAttribute('data-zone', 'bottom')
+    } finally {
+      await page.mouse.up()
+    }
+    const panes = tools.locator('[data-pane-id]')
+    await expect(panes).toHaveCount(2)
+    await expect(panes.first().locator('[data-tab-id="markdown:global-markdown"]')).toBeVisible()
+    await expect(panes.last().locator('[data-tab-id="superagent"]')).toBeVisible()
+    await expect(prompt).toHaveText('Keep this draft while toggling the terminal launcher')
+    expect(await mountedSurface?.evaluate(element => element.isConnected)).toBe(true)
     const snapshot = await page.evaluate(id => window.electron.superAgent.snapshot(id), workspaceId)
     expect(snapshot.works).toHaveLength(0)
     await mkdir('artifacts/superagent-p7', { recursive: true })

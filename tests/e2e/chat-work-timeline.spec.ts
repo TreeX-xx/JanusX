@@ -18,6 +18,55 @@ async function openEntry(page: Page, query: string) {
 }
 const order = (host: Locator) => host.locator('.janus-chat-timeline-block').evaluateAll(elements => elements.map(element => element.getAttribute('data-kind')))
 
+test('chat output keeps an open Markdown image preview through completion and opens workspace artifacts', async ({ page }) => {
+  await openEntry(page, '')
+  await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 760; canvas.height = 1450
+    const base64 = canvas.toDataURL('image/png').split(',')[1]
+    window.electron.file.readBinary = async path => path === 'C:/fixture/assets/diagram.png'
+      ? { base64, mimeType: 'image/png', size: atob(base64).length } : { error: 'Missing image' }
+    window.electron.window.openEditor = async payload => {
+      ;(window as any).projectFixture.openedArtifact = payload
+      return { success: true }
+    }
+  })
+  const host = page.getByTestId('main-chat')
+  const input = host.locator('textarea')
+  await input.fill('Show the diagram and a printable report'); await input.press('Enter')
+  await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(1)
+  await emit(page, { type: 'text_delta', delta: '![Architecture](assets/diagram.png)\n\n[![Linked image](assets/diagram.png)](https://example.test)\n\n[Report](artifacts/report.pdf)' })
+  const trigger = host.getByRole('button', { name: 'Preview image · Architecture', exact: true })
+  const linkedImage = host.getByRole('link', { name: 'Linked image', exact: true })
+  await expect(linkedImage.locator('button')).toHaveCount(0)
+  await expect(linkedImage).toBeVisible()
+  await expect(trigger).toBeEnabled()
+  await trigger.focus()
+  await trigger.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Preview image' })
+  const image = dialog.getByRole('img', { name: 'Architecture' })
+  await expect(image).toBeInViewport({ ratio: 1 })
+  await expect.poll(() => dialog.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    return Math.abs(rect.left + rect.width / 2 - innerWidth / 2) <= 1 && Math.abs(rect.top + rect.height / 2 - innerHeight / 2) <= 1
+  })).toBe(true)
+  await dialog.getByRole('button', { name: 'Actual size', exact: true }).click()
+  await expect.poll(() => image.evaluate(element => element.getBoundingClientRect().height)).toBe(1450)
+  await emit(page, { type: 'stream_end', cancelled: false })
+  await expect(host.locator('.janus-chat-message.streaming')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Fit window', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await trigger.click()
+  await expect(dialog.getByRole('button', { name: 'Actual size', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(trigger).toBeFocused()
+  await host.getByRole('link', { name: 'report.pdf Open preview', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => (window as any).projectFixture.openedArtifact)).toEqual({
+    filePath: 'C:/fixture/artifacts/report.pdf', workspacePath: 'C:/fixture',
+  })
+})
+
 for (const entry of entries) {
   test(`${entry.name}: input, user messages and process output support native selection and copy`, async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -45,7 +94,7 @@ for (const entry of entries) {
     await page.mouse.move(inputBounds.x + inputBounds.width, inputBounds.y, { steps: 12 })
     await page.mouse.up()
     await expect.poll(() => input.evaluate(element => element.value.slice(element.selectionStart, element.selectionEnd))).toBe('Copy this prompt')
-    await input.press('Control+c')
+    await input.press('ControlOrMeta+c')
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('Copy this prompt')
     await input.press('End')
     await input.press('Enter')
@@ -73,7 +122,7 @@ for (const entry of entries) {
       await page.mouse.move(bounds.right - 1, bounds.y, { steps: 12 })
       await page.mouse.up()
       await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text)
-      await page.keyboard.press('Control+c')
+      await page.keyboard.press('ControlOrMeta+c')
       await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(text)
     }
   })
@@ -246,6 +295,54 @@ test('Project panel: Note business evidence stays inline, and undo checks curren
 })
 
 for (const entry of entries) {
+  test(`${entry.name}: long expanded reasoning can return to its toggle`, async ({ page }) => {
+    await openEntry(page, entry.query)
+    const host = page.locator(entry.selector)
+    await host.locator('textarea').fill('Review the long process')
+    await host.locator('textarea').press('Enter')
+    await expect.poll(() => page.evaluate(() => (window as any).projectFixture.streams.length)).toBe(1)
+    for (let index = 0; index < 5; index++) {
+      await emit(page, { type: 'reasoning_delta', delta: Array.from({ length: 28 }, (_, line) => `Review ${index + 1}, step ${line + 1}.`).join('\n') })
+      await emit(page, { type: 'tool_execution_start', callId: `read-${index}`, toolName: 'workspace.read' })
+      await emit(page, { type: 'tool_execution_end', callId: `read-${index}`, toolName: 'workspace.read', status: 'completed' })
+    }
+
+    const toggle = host.locator('.conversation-work-toggle')
+    const returnButton = host.getByRole('button', { name: /Back to process start|回到展开处/ })
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await toggle.click()
+    await expect(toggle).toBeInViewport()
+    await expect(returnButton).toBeHidden()
+    await expect(host.locator('.janus-chat-thinking-body')).toHaveCount(5)
+    const scroller = await toggle.evaluateHandle(element => {
+      let parent = element.parentElement
+      while (parent && !['auto', 'scroll'].includes(getComputedStyle(parent).overflowY)) parent = parent.parentElement
+      return parent!
+    })
+
+    const checkReturn = async () => {
+      await scroller.evaluate(element => { element.scrollTop = element.scrollHeight / 2 })
+      await expect(toggle).not.toBeInViewport()
+      await expect(returnButton).toBeInViewport()
+      await returnButton.click()
+      await expect(toggle).toBeInViewport({ ratio: 1 })
+      await expect(toggle).toBeFocused()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      await expect(returnButton).toBeHidden()
+    }
+    await checkReturn()
+    await emit(page, { type: 'reasoning_delta', delta: 'Final reasoning update.' })
+    await expect(host.locator('.janus-chat-thinking-body').last()).toContainText('Final reasoning update.')
+    await expect(toggle).toBeInViewport({ ratio: 1 })
+    await emit(page, { type: 'text_delta', delta: 'Review complete.' })
+    await emit(page, { type: 'stream_end', cancelled: false })
+    await expect(host.locator('[data-phase="answer"] .markdown-preview')).toContainText('Review complete.')
+    await checkReturn()
+    await page.keyboard.press('Enter')
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(returnButton).toBeHidden()
+  })
+
   test(`${entry.name}: long process does not pull an upward reader to the bottom`, async ({ page }) => {
     await openEntry(page, entry.query)
     const host = page.locator(entry.selector)

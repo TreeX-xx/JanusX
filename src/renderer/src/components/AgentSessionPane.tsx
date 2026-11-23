@@ -8,8 +8,9 @@ import { useRightToolStore } from '@/stores/right-tools'
 import { useConversationOutbox, bindConversationOutbox, conversationOutbox, enqueueConversationMessage, observeConversationOutbox, removeOutgoingMessage } from '@/stores/conversation-outbox'
 import { WorkDisclosure } from './chat/WorkDisclosure'
 import { ConversationToolCall } from './chat/ConversationToolCall'
-import { ConversationFileChanges } from './ConversationFileChanges'
+import { ConversationFileChanges, ConversationFileChangesPanel, useTurnFilesPanel } from './ConversationFileChanges'
 import { ConversationImages } from './ConversationImages'
+import { ConversationImagePreviewScope } from './ConversationImagePreview'
 import { conversationImageText } from '../../../shared/conversation-images'
 import { createConversationTurns } from '../lib/conversation-turns'
 import { VirtualHistory, type HistoryNavigation } from './chat/VirtualHistory'
@@ -100,6 +101,10 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const projectTurns = useMemo(() => createConversationTurns(), [terminalId, snapshot?.threadId])
   const turns = useMemo(() => projectTurns(snapshot?.items ?? [], snapshot?.turnId ?? null, activePlanTurn), [projectTurns, snapshot?.items, snapshot?.turnId, activePlanTurn])
+  const filePanel = useTurnFilesPanel()
+  const selectedFilesTurn = filePanel.selection && turns.find(turn => turn.key === filePanel.selection?.turnId && !turn.active)
+  const resetFilePanel = filePanel.select
+  useLayoutEffect(() => { resetFilePanel(null) }, [terminalId, terminal?.pid, snapshot?.threadId, resetFilePanel])
   const activeTurn = turns.find(turn => turn.active)
   const runningActivity = activeTurn?.groups.slice().reverse().find(group => group.activity?.running)?.activity?.text
   const working = Boolean(pendingSend || delivering || snapshot?.turnId || snapshot?.submitting || snapshot?.backgroundTasks)
@@ -322,7 +327,8 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     if (conversationHost.current) conversationHost.current.inert = !conversation || !visible || transitioning
   }, [conversation, visible, transitioning])
 
-  return <section className={styles.root} data-agent-session={terminalId} data-view-transition={modeTransition ?? undefined} data-switching={switching || undefined} aria-busy={switching || undefined}>
+  return <ConversationImagePreviewScope scopeKey={`${terminalId}:${snapshot?.threadId ?? ''}`} active={visible && conversation}>
+  <section className={styles.root} data-agent-session={terminalId} data-view-transition={modeTransition ?? undefined} data-switching={switching || undefined} aria-busy={switching || undefined}>
     <header className={styles.header}>
       <div ref={setSideChatHeader} />
       <div className={styles.toggle} data-mode={requestedMode ?? (conversation ? 'conversation' : 'terminal')} data-switching={transitioning || undefined} role="group" aria-label={t('conversation.display')}>
@@ -398,8 +404,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                 {(plan || planDocument) && <ConversationPlanPanel turnId={turn.key} plan={plan} document={planDocument?.text}
                   connection={snapshot.connection} historical={!turn.active} workspacePath={terminal?.cwd} readMore={planDocument && fullContent(planDocument)} />}
                 {changes && <ConversationFileChanges turnId={turn.key} files={changes.files} incomplete={changes.incomplete || snapshot.truncated}
-                  openFile={openFile} onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined}
-                  onFeedback={snapshot.capabilities.submit ? (path, quote) => addFeedback(path, quote, turn.key) : undefined} />}
+                  panel={filePanel} />}
               </div>}
               {duration !== undefined && <div className={styles.turnDuration} data-turn-duration={turn.key}><ConversationDuration durationMs={duration} turnTotal /></div>}
               </>
@@ -442,6 +447,11 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           </div>
         </div>
         {snapshot && visible && conversation && !transitioning && !historyView && <ConversationNavigation key={terminalId + ':' + snapshot.threadId} items={snapshot.items} scrollRef={scrollRef} navigationRef={navigationRef} following={follow} onNavigate={() => { follow.current = false; setShowLatest(true) }} />}
+        {!historyView && selectedFilesTurn?.changes && <ConversationFileChangesPanel key={selectedFilesTurn.key}
+          panel={filePanel} turnId={selectedFilesTurn.key} files={selectedFilesTurn.changes.files}
+          incomplete={selectedFilesTurn.changes.incomplete || !!snapshot?.truncated} openFile={openFile}
+          onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined}
+          onFeedback={snapshot?.capabilities.submit ? (path, quote) => addFeedback(path, quote, selectedFilesTurn.key) : undefined} />}
         {historyView && historyView.threadId === snapshot?.threadId && historyView.pid === terminal?.pid && visible && conversation && <ConversationHistoryBrowser key={`${terminalId}:${terminal?.pid}:${snapshot.threadId}:${snapshot.controlEpoch}`} terminalId={terminalId} threadId={snapshot.threadId} workspacePath={terminal?.cwd} bookmark={historyView} openFile={openFile} close={closeHistory} />}
         </div>
         <div className={styles.latestAnchor}>{showLatest && !historyView && <button type="button" className={styles.latest} aria-label={t('conversation.latest')} title={t('conversation.latest')} onClick={() => {
@@ -454,7 +464,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
       </div>
       {snapshot && terminal && sideChatHeader && <ConversationSideChat key={JSON.stringify([terminalId, terminal.workspaceId, terminal.pid, snapshot.threadId])}
         owner={{ terminalId, workspaceId: terminal.workspaceId, pid: terminal.pid, threadId: snapshot.threadId }}
-        snapshot={snapshot} visible={visible && conversation && !transitioning} focused={focused}
+        snapshot={snapshot} workspacePath={terminal.cwd} visible={visible && conversation && !transitioning} focused={focused}
         header={sideChatHeader} main={conversationHost} input={inputRef} canReturn={!!snapshot.capabilities.submit && !editing}
         returnToMain={text => {
           const row = findTerminalInState(useWorkspaceStore.getState(), terminalId)
@@ -469,4 +479,5 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     </div>
 
   </section>
+  </ConversationImagePreviewScope>
 })

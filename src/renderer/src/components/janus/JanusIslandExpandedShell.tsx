@@ -425,7 +425,7 @@ export function JanusIslandExpandedShell({
                   // it intercept Tab/Ctrl+P and open a menu outside the viewport.
                   visible={stage === 'expanded' && view === 'chat'}
                   docked
-                  showAgentMode
+                  showPermissionSelector={false}
                   conversationStyle
                   modeColor={modeColor}
                   messages={messages}

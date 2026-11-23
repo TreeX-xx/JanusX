@@ -3,6 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkspaceAgentRuntime } from '@janus-agent/agent-core'
+import { approveToolRequests } from './tool-approval.fixture'
 import { registerProjectTools } from '../../../src/main/agent/runtime/tools/project-tools'
 import { ProjectType, type LaunchConfig } from '../../../src/shared/ipc/project'
 import { getProjectRunner } from '../../../src/main/project/runner/service'
@@ -20,21 +21,6 @@ async function createRuntime(root: string) {
   registerProjectTools(runtime.registry)
   const session = await runtime.createSession({ workspaceId: 'workspace-1', workspaceRoot: root })
   return { runtime, session }
-}
-
-function resolveApproval(runtime: WorkspaceAgentRuntime) {
-  runtime.onEvent((event) => {
-    if (event.type !== 'approval-requested') return
-    runtime.resolveApproval({
-      approvalId: event.request.id,
-      approved: true,
-      workspaceId: event.request.workspaceId,
-      sessionId: event.request.sessionId,
-      correlationId: event.request.correlationId,
-      toolName: event.request.toolName,
-      actionRisk: event.request.actionRisk,
-    })
-  })
 }
 
 afterEach(async () => {
@@ -180,7 +166,7 @@ describe('project Agent Runtime tools', () => {
     }
     const { runtime, session } = await createRuntime(root)
     await import('../../../src/main/project/config/project-config').then(({ default: ProjectConfig }) => ProjectConfig.write(root, config))
-    resolveApproval(runtime)
+    approveToolRequests(runtime)
 
     const started = await runtime.executeTool({
       sessionId: session.id,
@@ -223,7 +209,7 @@ describe('project Agent Runtime tools', () => {
       projectName: 'demo',
       configurations: [{ name: 'dev', type: ProjectType.Vite, request: 'launch' }],
     }
-    resolveApproval(runtime)
+    approveToolRequests(runtime)
 
     const result = await runtime.executeTool({
       sessionId: session.id,

@@ -1,5 +1,40 @@
 import { expect, test } from '@playwright/test'
 
+test('terminal conversation can return to the top of a long expanded process', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 })
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toBeEnabled()
+  await page.evaluate(() => (window as any).codexFixture.progressSnapshot({
+    turnId: null,
+    items: Array.from({ length: 40 }, (_, index) => ({
+      id: `check-${index}`, turnId: 'process', type: 'commandExecution', text: `Check ${index}`, status: 'completed',
+    })),
+  }))
+  const toggle = page.locator('.conversation-work-toggle')
+  const returnButton = page.getByRole('button', { name: 'Back to process start' })
+  const scroller = page.getByRole('region', { name: 'Conversation history' })
+  await toggle.click()
+  await expect(returnButton).toBeInViewport()
+  await expect(returnButton).toHaveText('')
+  await expect(returnButton).toHaveAttribute('title', 'Back to process start')
+  expect(await returnButton.evaluate(button => {
+    const body = button.closest('.conversation-work')!.querySelector('.conversation-work-body')!
+    const textStart = body.getBoundingClientRect().left + parseFloat(getComputedStyle(body).paddingInlineStart)
+    return button.getBoundingClientRect().right <= textStart
+  })).toBe(true)
+  await scroller.evaluate(element => { element.scrollTop = 0 })
+  await expect(toggle).toBeInViewport()
+  await expect(returnButton).toBeHidden()
+  await scroller.evaluate(element => { element.scrollTop = element.scrollHeight / 2 })
+  await expect(toggle).not.toBeInViewport()
+  await expect(returnButton).toBeInViewport()
+  await returnButton.click()
+  await expect(toggle).toBeFocused()
+  await expect(toggle).toBeInViewport({ ratio: 1 })
+  await page.keyboard.press('Enter')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+})
+
 for (const engine of ['codex', 'claude', 'opencode', 'pi', 'dsh']) {
   test(`${engine}: history limits, output limits and unknown states stay distinct`, async ({ page }) => {
     await page.goto(`/codex-conversation.html?initialView=conversation&engine=${engine}`)

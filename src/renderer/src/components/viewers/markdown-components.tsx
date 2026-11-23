@@ -128,7 +128,7 @@ const tdStyle: CSSProperties = {
   verticalAlign: 'top',
 }
 
-function ResolvedMarkdownImage({ src, alt, srcSet, sizes, width, height, title }: Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'srcSet' | 'sizes' | 'width' | 'height' | 'title'>) {
+export function ResolvedMarkdownImage({ src, alt, srcSet, sizes, width, height, title, onLoad, onError }: Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'srcSet' | 'sizes' | 'width' | 'height' | 'title' | 'onLoad' | 'onError'>) {
   const absolutePath = useLocalAssetAbsolutePath(src)
   const resolved = useLocalAssetUrl(src)
   const resolvedSrcSet = useLocalAssetSrcSet(srcSet)
@@ -147,6 +147,8 @@ function ResolvedMarkdownImage({ src, alt, srcSet, sizes, width, height, title }
       title={title}
       alt={alt ?? ''}
       loading="lazy"
+      onLoad={onLoad}
+      onError={onError}
       style={{
         maxWidth: '100%',
         height: 'auto',

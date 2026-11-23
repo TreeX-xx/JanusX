@@ -9,6 +9,7 @@ export const SYSTEM_CHANNELS = {
   getFocused: 'window:get-focused', focusChanged: 'window:focus-changed',
   getMaximized: 'window:get-maximized', maximizedChanged: 'window:maximized-changed',
   minimize: 'window:minimize', maximize: 'window:maximize', close: 'window:close',
+  dragMainResize: 'window:drag-main-resize',
   openEditor: 'editor-window:open', refreshEditor: 'editor-window:refresh', editorReady: 'editor-window:ready', editorReceived: 'editor-window:received', editorHostReady: 'editor-window:host-ready', embedEditor: 'editor-window:embed', editorEmbedded: 'editor-window:embedded',
   setAlwaysOnTop: 'editor-window:set-always-on-top', runtimeTelemetry: 'runtime-telemetry:get', usageLedger: 'usage-ledger:list',
   editorViewed: 'editor-window:viewed',
@@ -55,12 +56,20 @@ export interface DialogAPI {
   saveFile(options: { defaultName?: string; extension?: string }): Promise<{ canceled: boolean; filePath?: string }>
   showMessageBox(options: { message: string; detail?: string; buttons: string[]; defaultId?: number; cancelId?: number }): Promise<{ response: number }>
 }
+export const WINDOW_RESIZE_EDGES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const
+export type WindowResizeEdge = typeof WINDOW_RESIZE_EDGES[number]
+export type WindowResizeGesture =
+  | { phase: 'start'; edge: WindowResizeEdge }
+  | { phase: 'move'; dx: number; dy: number }
+  | { phase: 'end' }
+
 export interface WindowAPI {
   getFocused(): Promise<boolean>
   onFocusChanged(callback: (focused: boolean) => void): () => void
   getMaximized(): Promise<boolean>
   onMaximizedChanged(callback: (maximized: boolean) => void): () => void
   minimize(): Promise<void>; maximize(): Promise<void>; close(): Promise<void>
+  dragMainResize?(gesture: WindowResizeGesture): void
   openEditor(payload: EditorOpenRequest): Promise<EditorOpenResult>
   editorReady(): void
   editorHostReady(): void

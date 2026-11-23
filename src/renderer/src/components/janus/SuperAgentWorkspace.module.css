@@ -41,7 +41,10 @@
 .launch span { display: grid; gap: 5px; }
 .launch strong { font-size: 14px; }
 .launch small { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
-.launchCompact { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; }
+.launchCompact { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; }
+.launchCompact:is(:hover, :focus-visible, :active) { background: var(--shell-hover); border-color: color-mix(in srgb, var(--shell-muted) 38%, var(--shell-border)); }
+.launchCompact:active { background: color-mix(in srgb, var(--shell-text) 10%, var(--shell-hover)); }
+@media (prefers-reduced-motion: reduce) { .launchCompact { transition: none; } }
 
 .workerCaption { margin: 0; padding: 0 16px 18px; font-size: 11px; color: var(--shell-dim); }
 .workspace .body .chat[data-superagent-design] > :global(.janus-chat[data-conversation-style] .janus-chat-messages) { padding: 0 24px 18px; overflow-anchor: none; }

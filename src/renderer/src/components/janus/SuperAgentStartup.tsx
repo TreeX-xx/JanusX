@@ -2,10 +2,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import wordmark from '../../assets/superagent-wordmark.svg'
+import wordmarkAccent from '../../assets/wordmarks/janusx-accent.svg'
 import styles from './SuperAgentStartup.module.css'
 
 const MIN_VISIBLE_MS = 2600
 const EXIT_MS = 420
+const wordmarkMask = { maskImage: `url(${JSON.stringify(wordmark)})` }
 
 export function SuperAgentStartup({ ready, active, onComplete }: { ready: boolean; active: boolean; onComplete: () => void }) {
   const { t } = useTranslation('janus')
@@ -49,12 +51,12 @@ export function SuperAgentStartup({ ready, active, onComplete }: { ready: boolea
       return
     }
     if (!running) return
-    const fieldColor = getComputedStyle(surface).getPropertyValue('--startup-dot').trim()
+    let fieldColor = getComputedStyle(surface).getPropertyValue('--startup-dot').trim()
     let frame = 0, width = 0, height = 0, dpr = 1, previous = performance.now()
     let cells: { x: number; y: number; seed: number }[] = []
     let pitch = 12
     // Full-bleed square-dot atmosphere, inspired by CPA's left-hand brand panel.
-    // A local wave field keeps the original SuperAgent palette and needs no external assets.
+    // A local wave field follows the active palette and needs no external assets.
     const paint = () => {
       // Reveal the accepted wordmark on the same visible-time clock as the field.
       // The visual sweep never represents restoration progress or starts execution.
@@ -104,8 +106,15 @@ export function SuperAgentStartup({ ready, active, onComplete }: { ready: boolea
     resize()
     const observer = new ResizeObserver(resize)
     observer.observe(surface)
+    // Repaint even a reduced-motion field when built-in or runtime palette tokens change.
+    // Keep the visible-time clock intact so a theme switch never restarts the entrance.
+    const paletteObserver = new MutationObserver(() => {
+      fieldColor = getComputedStyle(surface).getPropertyValue('--startup-dot').trim()
+      paint()
+    })
+    paletteObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-plugin-theme', 'style'] })
     if (!reduced && !settled) frame = requestAnimationFrame(draw)
-    return () => { cancelAnimationFrame(frame); observer.disconnect() }
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); paletteObserver.disconnect() }
   }, [running, reduced, settled])
 
   return <div className={styles.startup} data-superagent-startup="" data-settled={settled} data-active={running} aria-busy={!ready}>
@@ -113,9 +122,11 @@ export function SuperAgentStartup({ ready, active, onComplete }: { ready: boolea
     <div className={styles.identity}>
       <div className={styles.overline}>{t('startup.eyebrow')}</div>
       <h1 ref={lockup} className={styles.name} aria-label="JanusX">
-        <img className={styles.logoGhost} src={wordmark} alt="" aria-hidden="true" />
-        <img className={styles.logoFace} data-startup-wordmark="" src={wordmark} alt="" aria-hidden="true" />
-        <span className={styles.logoScan} style={{ maskImage: `url(${JSON.stringify(wordmark)})` }} aria-hidden="true" />
+        <span className={styles.logoGhost} style={wordmarkMask} aria-hidden="true" />
+        <span className={styles.logoFace} data-startup-wordmark="" style={wordmarkMask} aria-hidden="true">
+          <span className={styles.logoAccent} style={{ maskImage: `url(${JSON.stringify(wordmarkAccent)})` }} />
+        </span>
+        <span className={styles.logoScan} data-startup-scan="" style={wordmarkMask} aria-hidden="true" />
       </h1>
       <p className={styles.subtitle}>{t('startup.tagline')}</p>
       <p className={styles.status} role="status">{t(ready ? 'startup.ready' : 'startup.preparing')}</p>

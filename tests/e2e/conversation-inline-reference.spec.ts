@@ -1,9 +1,7 @@
 import { test, expect, type Locator } from '@playwright/test'
 import { PNG_PIXEL } from '../helpers/image-fixture'
+import { nativeEditingKeys as nativeKeys } from '../helpers/native-editing-keys'
 const artifacts = process.env.JANUS_CONTEXT_TEST_ARTIFACTS ?? 'artifacts'
-const nativeKeys = process.platform === 'darwin'
-  ? { start: 'Meta+ArrowUp', end: 'Meta+ArrowDown', undo: 'Meta+z', redo: 'Meta+Shift+z' }
-  : { start: 'Control+Home', end: 'Control+End', undo: 'Control+z', redo: 'Control+y' }
 
 for (const format of ['intact', 'empty', 'stripped'] as const) {
   test(`drags a file-tree reference into the draft with ${format} custom data`, async ({ page }) => {
@@ -298,6 +296,7 @@ test('a multiline folder drop preserves an attachment import pending on another 
   await input.pressSequentially(' more')
   await page.evaluate(() => (window as any).finishImport())
   await expect(input.locator('[data-reference-id]')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled()
   await input.press('Enter')
   await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([
     'firstdirectory: "C:/fixture/folder" \nsecondfile: "C:/attachments/pending.ts" \nthird more',

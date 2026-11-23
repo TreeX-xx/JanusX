@@ -20,7 +20,8 @@
 :global([data-superagent-workspace] .janus-chat-transcript-content:has([data-superagent-topics][data-topics-view='panes']) > :not([data-superagent-topics]):not([role='alert'])) { display:none; }
 :global([data-superagent-workspace] .janus-chat:has([data-superagent-topics][data-topics-view='panes']) > .janus-chat-main > .janus-chat-latest-anchor),
 :global([data-superagent-workspace] .janus-chat-transcript-viewport:has([data-superagent-topics][data-topics-view='panes']) > [data-input-navigation]) { display:none; }
-.card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-deep); overflow: hidden; transition: border-color 450ms ease, box-shadow 450ms ease; }
+/* Clip the card without taking over the transcript's sticky controls. */
+.card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-deep); overflow: clip; transition: border-color 450ms ease, box-shadow 450ms ease; }
 .topics[data-single] .card[data-parallel='false'] { border: 0; border-radius: 0; background: transparent; transition: none; }
 .topics[data-single='true'] .header { background: transparent; padding: 8px 0 14px; }
 .header { display: flex; align-items: center; gap: 10px; padding: 12px 15px; background: var(--shell-chrome); border-bottom: 1px solid var(--border); font-size: 11px; }

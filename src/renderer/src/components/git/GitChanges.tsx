@@ -58,9 +58,14 @@ export function GitChanges({ cwd, files, loading, visible, state, update, saveSc
   const groups = useMemo(() => [true, false].map(staged => {
     const group = staged ? 'staged' : 'changes'
     const items = filtered.filter(file => file.staged === staged)
-    const rows: FileRow[] = state.fileMode === 'tree' ? treeRows(items, query ? {} : state.collapsed, group)
-      : items.map(file => ({ kind: 'file', file, depth: 0 }))
-    return { staged, group, items, rows, total: files.filter(file => file.staged === staged).length }
+    // Search can reveal an untouched section without saving an expansion preference.
+    const collapsed = state.collapsed[group] ?? (group === 'changes' && !query)
+    let rows: FileRow[] = []
+    if (!collapsed) {
+      rows = state.fileMode === 'tree' ? treeRows(items, query ? {} : state.collapsed, group)
+        : items.map(file => ({ kind: 'file', file, depth: 0 }))
+    }
+    return { staged, group, items, rows, collapsed, total: files.filter(file => file.staged === staged).length }
   }), [files, filtered, state.fileMode, state.collapsed, query])
   const selected = files.find(file => `${file.staged}:${file.path}` === state.selectedFile)
   const stagedCount = files.filter(file => file.staged).length
@@ -81,14 +86,14 @@ export function GitChanges({ cwd, files, loading, visible, state, update, saveSc
       </div>
     </div>
     <div ref={scroll} className={styles.scroll} data-testid="git-scroll-region" onScroll={e => saveScroll('changesScroll', e.currentTarget.scrollTop)}>
-      {files.length > 0 && groups.map(({ staged, group, rows, items, total }) => <div key={group}>
+      {files.length > 0 && groups.map(({ staged, group, rows, items, total, collapsed }) => <div key={group}>
         <div className={styles.sectionHeader}>
-          <button type="button" aria-expanded={!state.collapsed[group]} onClick={() => update({ collapsed: { ...state.collapsed, [group]: !state.collapsed[group] } })}>
-            {state.collapsed[group] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}{t(`${group}.title`)}<span className={styles.count}>{query ? `${items.length} / ${total}` : total}</span>
+          <button type="button" aria-expanded={!collapsed} onClick={() => update({ collapsed: { ...state.collapsed, [group]: !collapsed } })}>
+            {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}{t(`${group}.title`)}<span className={styles.count}>{query ? `${items.length} / ${total}` : total}</span>
           </button>
           <button type="button" className={styles.iconButton} disabled={!total || loading} aria-label={t(staged ? 'staged.unstageAll' : 'changes.stageAll')} title={t(staged ? 'staged.unstageAll' : 'changes.stageAll')} onClick={() => onBulk(staged)}>{staged ? <Minus size={14} /> : <Plus size={14} />}</button>
         </div>
-        {!state.collapsed[group] && <div>
+        {!collapsed && <div>
           {Array.from({ length: Math.ceil(rows.length / 16) }, (_, batch) => <div key={batch} className={styles.fileGroup} style={{ containIntrinsicSize: `auto ${Math.min(16, rows.length - batch * 16) * 30}px` }}>
             {rows.slice(batch * 16, (batch + 1) * 16).map(row => row.kind === 'folder'
               ? <button key={`folder:${row.path}`} type="button" className={styles.folderRow} style={{ '--depth': row.depth } as CSSProperties}

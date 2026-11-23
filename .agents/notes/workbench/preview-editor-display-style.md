@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-20",
-  "updated": "2026-10-23T15:27:38.390Z",
+  "updated": "2026-11-20T05:15:30Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -55,8 +55,8 @@
 正常编辑显示与差异显示同批适配：B 档排版同时作用于两种模式，A/C/D 的变更色带、指示条与计数属于差异呈现，普通编辑沿用同一排版与令牌基础。会话流文件改动卡与 TurnChangeIsland 的 diff 呈现与编辑器同源；文件树既有红绿 git 状态设计保持独立，不被本风格覆盖。
 
 - **A 纯主题 token（已落地）**：`src/shared/theme/definition.ts` 两主题 monaco diff 色重排——正文行 tint 降至 8%（alpha `0x14`）、gutter 色带提至 30%（`0x4D`）、词强调 32%（`0x52`，行:词 = 1:4），形成"色带在 gutter、正文薄纱"。
-- **B Monaco 选项（已落地）**：`MonacoViewer.tsx` `lineHeight: 24`、`tabSize: 2`（配 `detectIndentation: false` 保证打开即生效）同时作用于普通编辑与 diff；diff 启用 `hideUnchangedRegions`（enabled，reveal/minimum/context 均 20）折叠不变区。竖线零容忍：文件编辑界面的竖线来源为 Monaco 默认缩进/括号参考线与 overview ruler，视觉复核确认后全部禁用（`guides` 全关 + `renderOverviewRuler: false`），planche 契约防回潮。TS/JS 语义校验关闭（`noSemanticValidation`）：文件窗口无工程上下文，导入解析与 JSX 类型假错误曾把文件全线标红，保留语法校验兜真错误。Unicode 可疑字符高亮整项关闭（`unicodeHighlight` 三项 false）：该项给全角标点等易混淆字符套 1px 金黄边框盒（`editorUnicodeHighlight.border` 默认取 warning 金 `#CCA700`/`#BF8803`，我方主题未覆盖），中文字符串与 Markdown 满篇全角标点即满屏黄框；其 locale 豁免键为 `zh-hans`/`zh-hant`，standalone Monaco 用 `Intl` 解析出 `zh-CN` 对不上号、回退 `_default` 把全角标点全算混淆，属上游 locale 键不匹配、本地修不动。文件窗口不需要防同形攻击提示，与 `noSemanticValidation` 同一裁决口径；planche 契约防回潮。
-- **C 装饰注入（已落地，竖条撤除）**：`MonacoViewer` diff 行号染色以 Monaco decoration API 实现（`getLineChanges()` + `onDidUpdateDiff` → `lineNumberClassName`，增绿删红，走 `--shell-diff-*` 令牌）。2px 变更竖条上线后经视觉复核**撤除**——文件预览界面不要竖线；变更信号由 gutter 色带、超淡行底色与行号染色承担。退出比较时主动清理装饰，避免残留到普通预览（模型在 diff 退出后仍被复用）。
+- **B Monaco 选项（已落地）**：`MonacoViewer.tsx` 的普通编辑行高为 24px，diff 片段为 20px，两者均使用 2 空格缩进。合并与并排比较默认在改动附近各留 3 行上下文，剩余至少 6 行时折叠，可向两端逐次展开 20 行。竖线零容忍：文件编辑界面的竖线来源为 Monaco 默认缩进/括号参考线与 overview ruler，视觉复核确认后全部禁用（`guides` 全关 + `renderOverviewRuler: false`），planche 契约防回潮。TS/JS 语义校验关闭（`noSemanticValidation`）：文件窗口无工程上下文，导入解析与 JSX 类型假错误曾把文件全线标红，保留语法校验兜真错误。Unicode 可疑字符高亮整项关闭（`unicodeHighlight` 三项 false）：该项给全角标点等易混淆字符套 1px 金黄边框盒（`editorUnicodeHighlight.border` 默认取 warning 金 `#CCA700`/`#BF8803`，我方主题未覆盖），中文字符串与 Markdown 满篇全角标点即满屏黄框；其 locale 豁免键为 `zh-hans`/`zh-hant`，standalone Monaco 用 `Intl` 解析出 `zh-CN` 对不上号、回退 `_default` 把全角标点全算混淆，属上游 locale 键不匹配、本地修不动。文件窗口不需要防同形攻击提示，与 `noSemanticValidation` 同一裁决口径；planche 契约防回潮。
+- **C 装饰注入（已落地，竖条撤除）**：`MonacoViewer` diff 行号染色以 Monaco decoration API 实现（`getLineChanges()` + `onDidUpdateDiff` → `lineNumberClassName`，增绿删红，走 `--shell-diff-*` 令牌）。2px 变更竖条上线后经视觉复核**撤除**——文件预览界面不要竖线；合并和并排视图以主题增删色显示改动行的代码与行号，与对话右侧的补丁一致；行内词差异保留底色，周边上下文使用语言高亮。合并视图中的旧代码来自 Monaco 的只读删除区，也使用删除色。退出比较时清理正文与行号装饰。
 - **D 组件层（已落地）**：同源徽标 `shared/DiffCounts`（TurnChangeIsland 原 Counts 迁入共用；零变更隐藏、11px tabular、绿 `+N` 红 `−N`、`toLocaleString`）。落位**文件窗口外壳**：tab 内 per-file 常显，工具栏不再重复活动文件计数；数据取 git 变更统计（`git status` 行统计，随 fileTree 变更刷新），文件树红绿不被覆盖。
 
 A–D 与外壳 UI 验证：`npm run typecheck`、`npm run theme:check`（0 new）、planche 契约（同源徽标、行号染色、无竖条防回潮、外壳图标钮与 filetab-close）与全量单测通过（workflowx-v2 在并行负载/跨进程 note 锁竞争下偶发失败，单独复跑 8/8 通过）。视觉复核已消化一条：竖条撤除；余下 planche 下的行号染色、滑动指示块与色带权重待真机过目。
@@ -70,7 +70,7 @@ A–D 与外壳 UI 验证：`npm run typecheck`、`npm run theme:check`（0 new�
 窗口外壳与应用整体语言的断层已按既有规则收敛：
 
 1. **tab 形态（已裁决并落地）**：`StandaloneFileEditor` 标签从 `rounded-t-md` 折页形 + 激活填充 `--shell-canvas` + 底部 1px 强调线，收敛到**滑动指示块体系**：浮动 pill（7px 圆角）配滑动指示块（`SlidingSelection` + `theme-hovers.css` 的 `.filetab-indicator`，与 `TerminalArea.module.css` 的 `.tab`/`.tabIndicator` 同参，指示块随选中项 160ms 平移），激活项仅文字提亮加粗。未采用 configTab 的 2px 强调条方案。标签条横向滚动条隐藏，滚轮驱动横向滚动（`lib/wheel-scroll-x.ts`：竖向滚轮换轴成横向位移，触控板横向手势与平台已换轴的 shift+滚轮走原生不叠加；只在真正滚动时接管事件，到边放行父级链，无溢出条完全不拦截），与工作台 pane 条同规（`TerminalArea` strip 同一接线）。选中/打开的 tab 以最小位移滚入可视区（`revealStripItem`，不触碰祖先滚动容器）。此前"由滚轮/触控板控制"只有触控板原生生效，竖向滚轮换轴于 2026-10-21 补齐。标签关闭钮补齐可见性与悬浮反馈：常态清晰可见（Lucide X + 命中膨胀），悬浮转删除色并亮出底色反馈；内联 color/opacity 曾压制 hover 规则，已移除。
-2. **控件选中态（已落地）**：比较开关、钉住、保存按钮的 `--shell-accent-soft` 填充块已移除；激活 = 图标染 `--shell-accent-strong` + 底部 2px 强调条（`theme-hovers.css` 的 `.shell-icon-btn[data-on]::after`），即"选中 = 文字 + 2px 强调条"。图标钮统一 `h-7 w-7` + 6px 圆角，回归卡片圆角体系；`::before` 以 `inset: -1px` 把命中膨胀到约 30px，对齐 [Workbench close controls keep a stable 30px hit area](./workbench-close-hit-slop.md)。
+2. **控件选中态（已落地）**：选中的预览模式、比较开关等使用强调色图标与底部 2px 强调条。内嵌预览和浮窗的选中控件、标签提示与 Markdown 强调共用设置中的“内容强调色”。图标钮为 28px，圆角为 6px，`::before` 以 `inset: -1px` 将命中区扩展至约 30px。见[主题机制](theme-system.md)和[工作台关闭控件命中区](./workbench-close-hit-slop.md)。
 3. **主题字面量（已落地）**：`MonacoViewer.tsx` 加载态、容器与错误浮层不再硬编码 `#0a0a0a`/`#555`/`#d4d4d4`/`#202024`/`#45454d`（含加载点 `#ff7830`），改走 `definition.ts` → 生成 CSS 令牌：容器/加载底 `--shell-canvas`（与 Monaco `editor.background` 两主题一致）、浮层 `--popover-background`/`--shell-text`/`--shell-border`，planche 黑底闪断消除。planche 契约测试补上 MonacoViewer 无字面量断言与外壳图标钮契约。
 4. 一致的部分保留：标题栏 38px 与主 `Titlebar` 同高、发丝线底边、`--shell-pane-chrome` 令牌用法。
 

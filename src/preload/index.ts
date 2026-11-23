@@ -638,6 +638,7 @@ const windowAPI: WindowAPI = {
   minimize: () => ipcRenderer.invoke(SYSTEM_CHANNELS.minimize),
   maximize: () => ipcRenderer.invoke(SYSTEM_CHANNELS.maximize),
   close: () => ipcRenderer.invoke(SYSTEM_CHANNELS.close),
+  dragMainResize: (gesture) => ipcRenderer.send(SYSTEM_CHANNELS.dragMainResize, gesture),
   openEditor: (payload) => ipcRenderer.invoke(SYSTEM_CHANNELS.openEditor, payload),
   editorHostReady: () => ipcRenderer.send(SYSTEM_CHANNELS.editorHostReady),
   editorReceived: (requestId, success) => ipcRenderer.send(SYSTEM_CHANNELS.editorReceived, { requestId, success }),

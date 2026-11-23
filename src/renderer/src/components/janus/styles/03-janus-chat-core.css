@@ -545,6 +545,8 @@
   color: var(--shell-text);
 }
 .janus-chat-thinking-toggle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.janus-chat-thinking > .disclosure-return { margin-block-end: -2px; }
+.janus-chat-thinking > .disclosure-return + .janus-chat-thinking-body { padding-inline-start: 22px; }
 
 .janus-chat-thinking-body {
   max-height: 240px;

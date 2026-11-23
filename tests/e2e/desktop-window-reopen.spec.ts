@@ -25,6 +25,34 @@ test('main-window close/reopen preserves IPC with a hidden auxiliary window', as
     let page = await application.firstWindow()
     await page.reload()
     await expect(page.locator('.window-controls').first()).toBeVisible()
+    if (process.platform === 'darwin') {
+      await test.step('macOS edge and corner gestures resize the native main window', async () => {
+        const getBounds = () => application!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds())
+        await application!.evaluate(({ BrowserWindow, screen }) => {
+          const { x, y } = screen.getPrimaryDisplay().workArea
+          BrowserWindow.getAllWindows()[0].setBounds({ x: x + 40, y: y + 40, width: 1180, height: 720 })
+        })
+        const first = await getBounds()
+        const drag = async (edge: 'e' | 'se', dx: number, dy: number) => {
+          const box = await page.locator(`[data-main-window-resize="${edge}"]`).boundingBox()
+          expect(box).not.toBeNull()
+          const x = box!.x + box!.width - 5
+          const y = edge === 'se' ? box!.y + box!.height - 5 : box!.y + box!.height / 2
+          await page.mouse.move(x, y)
+          await page.mouse.down()
+          await page.mouse.move(x + dx, y + dy)
+          await page.mouse.up()
+        }
+        await drag('se', -80, -60)
+        await expect.poll(getBounds).toEqual({ ...first, width: first.width - 80, height: first.height - 60 })
+        await drag('e', -200, 0)
+        await expect.poll(getBounds).toEqual({ ...first, width: 1000, height: first.height - 60 })
+        await drag('e', 60, 0)
+        await expect.poll(getBounds).toEqual({ ...first, width: 1060, height: first.height - 60 })
+      })
+    } else {
+      await expect(page.locator('[data-main-window-resize]')).toHaveCount(0)
+    }
     const channels = [SYSTEM_CHANNELS.editorHostReady, SYSTEM_CHANNELS.editorReceived, SYSTEM_CHANNELS.editorReady, SYSTEM_CHANNELS.editorViewed]
     const baseline = await application.evaluate(async ({ app, BrowserWindow, ipcMain }, channels) => {
       const main = BrowserWindow.getAllWindows()[0]
@@ -68,6 +96,7 @@ test('main-window close/reopen preserves IPC with a hidden auxiliary window', as
       expect(await page.evaluate(() => (window as DesktopWindow).electron.window.getMaximized())).toBe(false)
       await page.evaluate(() => (window as DesktopWindow).electron.window.maximize())
       await expect(page.locator('.window-controls').first()).toHaveAttribute('data-maximized', 'true')
+      await expect(page.locator('[data-main-window-resize="e"]')).toBeHidden()
       await page.evaluate(() => (window as DesktopWindow).electron.window.maximize())
       await expect(page.locator('.window-controls').first()).toHaveAttribute('data-maximized', 'false')
     }

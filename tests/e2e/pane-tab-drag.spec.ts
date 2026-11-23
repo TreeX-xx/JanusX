@@ -86,6 +86,27 @@ test('inserts across panes and restores browser bounds after dragging', async ({
   expect((await state(page)).focusedTab).toBe('browser:d')
 })
 
+test('cancels a tab drag when the platform stops reporting the pressed button', async ({ page }) => {
+  const before = (await state(page)).tree
+  await start(page, 'terminal:b')
+  const target = await point(page, '[data-pane-id="right"]', .97, .5)
+  try {
+    await move(page, target)
+    await expect(page.locator('[data-tab-drag-hint]')).toHaveAttribute('data-zone', 'right')
+    await page.evaluate(({ x, y }) => {
+      window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, pointerType: 'mouse', clientX: x, clientY: y, buttons: 0 }))
+    }, target)
+    await clean(page)
+  } finally {
+    await page.mouse.up()
+  }
+  expect((await state(page)).tree).toEqual(before)
+  await start(page, 'terminal:b')
+  await move(page, target)
+  await page.mouse.up()
+  expect((await state(page)).tree.second.direction).toBe('horizontal')
+})
+
 for (const zone of ['left', 'right', 'top', 'bottom', 'center'] as const) {
   test(`canvas ${zone} commits the previewed merge or equal split`, async ({ page }) => {
     const destination = await point(page, '[data-pane-id="right"]', zone === 'left' ? .03 : zone === 'right' ? .97 : .5, zone === 'top' ? .12 : zone === 'bottom' ? .97 : .5)

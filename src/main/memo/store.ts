@@ -15,11 +15,11 @@ export class MemoStore {
     return () => { this.listeners.delete(listener) }
   }
   private path(id: string): string { return join(this.directory, `${z.string().uuid().parse(id)}.json`) }
-  private async read(id: string): Promise<Memo> {
+  private async read(id: string, migrate = true): Promise<Memo> {
     const raw = JSON.parse(await readFile(this.path(id), 'utf8'))
     let memo = readMemoFile(raw)
     if (memo.id !== id) throw new Error('Memo identity mismatch')
-    if (raw.version !== 3) {
+    if (migrate && raw.version !== 3) {
       memo = { ...memo, revision: memo.revision + 1, updatedAt: Date.now() }
       await writeFileAtomic(this.path(id), JSON.stringify(memo, null, 2))
       this.changed({ id, revision: memo.revision })
@@ -27,6 +27,7 @@ export class MemoStore {
     return memo
   }
   get(id: string): Promise<Memo> { return this.queue.run(() => this.read(id)) }
+  getReadOnly(id: string): Promise<Memo> { return this.queue.run(() => this.read(id, false)) }
   list(): Promise<Memo[]> {
     return this.queue.run(async () => {
       let files: string[]

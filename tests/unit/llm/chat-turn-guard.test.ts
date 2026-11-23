@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeContextResult } from '../../../src/shared/knowledge'
 
-const { search, searchWithUser, recordAccess, recordProjectAccess, capture, streamText, getSession, executeFunctionCall, scheduleImmediate, capturePersonTurn, capturePersonEpisode } = vi.hoisted(() => ({
+const { search, searchWithUser, recordAccess, recordProjectAccess, capture, streamText, getSession, executeFunctionCall, listTools, scheduleImmediate, capturePersonTurn, capturePersonEpisode } = vi.hoisted(() => ({
   search: vi.fn(),
   searchWithUser: vi.fn(),
   recordAccess: vi.fn(),
@@ -10,12 +10,13 @@ const { search, searchWithUser, recordAccess, recordProjectAccess, capture, stre
   streamText: vi.fn(),
   getSession: vi.fn(),
   executeFunctionCall: vi.fn(),
+  listTools: vi.fn(),
   scheduleImmediate: vi.fn(),
   capturePersonTurn: vi.fn(),
   capturePersonEpisode: vi.fn(),
 }))
 const { readMemo, createMemo } = vi.hoisted(() => ({ readMemo: vi.fn(), createMemo: vi.fn() }))
-vi.mock('../../../src/main/memo/service', () => ({ memoStore: () => ({ get: readMemo, create: createMemo }) }))
+vi.mock('../../../src/main/memo/service', () => ({ memoStore: () => ({ get: readMemo, getReadOnly: readMemo, create: createMemo }) }))
 
 vi.mock('electron', () => ({ app: { getPath: () => '/tmp/janusx-test' } }))
 vi.mock('../../../src/main/knowledge/context-service', () => ({
@@ -62,7 +63,7 @@ vi.mock('../../../src/main/agent/runtime/shell-runtime', () => ({
   workspaceAgentRuntime: {
     getSession,
     executeFunctionCall,
-    registry: { list: () => [] },
+    registry: { list: listTools },
   },
 }))
 
@@ -168,6 +169,42 @@ describe('chat turn guard (S6-a)', () => {
     expect(streamText).not.toHaveBeenCalled()
     expect(reply).toHaveBeenCalledWith('llm:chat:error', expect.objectContaining({ error: 'SuperAgent is unavailable' }))
   })
+  it('forces Island into ordinary chat and blocks unoffered writes even when the model attempts them', async () => {
+    const workspaceId = 'island-workspace', workspacePath = '/fixture/island', agentSessionId = 'island-session'
+    const memoId = '00000000-0000-4000-8000-000000000501'
+    getSession.mockReturnValue({ id: agentSessionId, status: 'running', workspace: { workspaceId, workspaceRoot: workspacePath } })
+    readMemo.mockResolvedValue({ id: memoId, title: 'Existing memo', revision: 1, nodes: [] })
+    listTools.mockReturnValue([
+      { name: 'workspace.read', actionRisk: 'read', description: 'Read a file', inputSchema: { type: 'object' } },
+      { name: 'workspace.edit', actionRisk: 'write', description: 'Edit a file', inputSchema: { type: 'object' } },
+    ])
+    executeFunctionCall.mockResolvedValue({ toolName: 'workspace.read', status: 'completed', output: { content: 'Read-only evidence' } })
+    immediateStream('Island can explain the proposed changes.')
+    streamText.mockImplementationOnce(async () => ({
+      textStream: (async function* () {})(),
+      fullStream: (async function* () {
+        for (const name of ['workspace_read', 'workspace_edit', 'memo_create', 'memo_edit', 'automation_run', 'workflow_execute']) {
+          yield { type: 'tool-call', toolCallId: name, toolName: name, args: { path: 'README.md', workspaceId } }
+        }
+        yield { type: 'finish', finishReason: 'tool-calls' }
+      })(),
+    }))
+    const reply = vi.fn()
+    await handleChatStream({ reply } as never, {
+      requestId: 'island-read-only', conversationId: 'island-read-only', providerId: 'p', sourceTag: 'janus-chat',
+      islandChat: true, agentMode: 'superagent', inputEventId: 'legacy-mode', workspaceId,
+      workspaceResources: [{ workspaceId, workspaceName: 'Fixture', workspacePath, agentSessionId }],
+      memoBinding: { memoId, messageId: 'legacy-mode', selectedNodeId: null },
+      messages: [{ role: 'user', content: '/xflow delegate this and edit README.md' }],
+    })
+    const options = streamText.mock.calls[0][0]
+    expect(Object.keys(options.tools)).toEqual(expect.arrayContaining(['workspace_read', 'memo_read', 'automation_reminder']))
+    for (const name of ['workspace_edit', 'memo_create', 'memo_edit', 'automation_run', 'workflow_execute']) expect(options.tools).not.toHaveProperty(name)
+    expect(executeFunctionCall).toHaveBeenCalledTimes(1)
+    expect(executeFunctionCall).toHaveBeenCalledWith(expect.objectContaining({ call: expect.objectContaining({ toolName: 'workspace.read' }) }), expect.any(String), expect.any(AbortSignal))
+    expect(createMemo).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith('llm:chat:done', { requestId: 'island-read-only' })
+  })
   it('offers unbound memo creation and emits a binding for the originating message', async () => {
     const memo = { id: '00000000-0000-4000-8000-000000000300', title: '工程排期', revision: 0, nodes: [] }
     createMemo.mockResolvedValue(memo)
@@ -270,6 +307,7 @@ describe('chat turn guard (S6-a)', () => {
     capture.mockReset().mockResolvedValue(undefined)
     streamText.mockReset()
     getSession.mockReset()
+    listTools.mockReset().mockReturnValue([])
     executeFunctionCall.mockReset()
     capturePersonTurn.mockReset().mockResolvedValue(undefined)
     capturePersonEpisode.mockReset().mockResolvedValue(undefined)

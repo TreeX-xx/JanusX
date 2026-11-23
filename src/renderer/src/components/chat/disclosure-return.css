@@ -1,0 +1,41 @@
+.disclosure-return {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  block-size: 0;
+  display: flex;
+  align-items: flex-start;
+  pointer-events: none;
+  container: disclosure-return / scroll-state;
+}
+
+.disclosure-return > .disclosure-return-button {
+  visibility: hidden;
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 28px;
+  margin-block-start: 8px;
+  margin-inline-start: -5px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: pointer;
+}
+
+.disclosure-return > .disclosure-return-button:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.disclosure-return-button:focus-visible {
+  outline: 2px solid var(--interaction-accent);
+  outline-offset: -1px;
+}
+
+@container disclosure-return scroll-state(stuck: top) {
+  .disclosure-return > .disclosure-return-button { visibility: visible; }
+}

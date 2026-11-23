@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-14",
-  "updated": "2026-11-18T16:38:31Z",
+  "updated": "2026-11-23T01:45:29Z",
   "class": "architecture",
   "tags": ["macos", "cli", "sessions", "compatibility"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
@@ -63,6 +63,8 @@ P6 桌面回归还发现 Windows 多副本优先级问题：裸命令启动曾�
 | 启动与平台：MAC-04 | IPC 启动解析出的绝对命令，缺失返回修复指引；终端、后台登录和 Agent 子进程共享系统基础 PATH。PTY 归一化 Windows Path／PATH。Mac 本地 Claude 支持终端与对话双视图，后端校验会话身份 | 同一基础环境中的外部终端和 JanusX 复用同一安装；Shell 自行修改 PATH、切换 Node 版本或应用尚未重启时仍可能不同。Mac PTY、登录、协议和模型调用仍需实测 |
 | 扩展包：MAC-14 | package-location 解析真实命令路径与 package.json 身份，兼容 Windows prefix/node_modules、POSIX prefix/lib/node_modules、链接和提升依赖。DSH 必需 dsh-llm 缺失时在创建桥之前报错；Pi 可选命令来源仍可降级 | POSIX 与提升依赖文件夹具通过，没有执行 Mac Pi/DSH 原生进程。目录约定见 [npm 文档](https://docs.npmjs.com/cli/v11/configuring-npm/folders/#node-modules) |
 | DSH 完整安装 | npm 同装 dsh、dsh-tui 和 pnpm@10；读取 TUI 版本，调用 dsh plugin --profile dsh-tui add 包@精确版本，再核对 profile 版本和入口文件。仅 dsh 存在而 profile 不完整时报告待修复 | profile 安装会联网；依赖脚本、上游组合和已有复杂 profile 尚未真实安装验收。方式见 [dsh-TUI README](https://github.com/ccch1mneyyy/dsh-TUI#command-line-installation)，另核对 npm 0.20.0 启动器源码 |
+
+macOS 上，形如 `~/.local/bin/codex` 的旧启动脚本只在脚本确实指向当前 npm prefix 的 `bin/codex` 时允许复用该安装位置。入口丢失时可由同一 npm 补回。有其他来源的可执行文件占用该入口时暂停更新。安装完成后分别检测 npm 入口和原启动脚本，两者都须报告相同的包版本。
 
 系统 Shell 仍由用户条目配置，CLI 安装不安装 Terminal.app、iTerm2 或 Zsh。登录环境恢复让直接子进程继承同一基础环境，但各引擎的历史目录支持仍由下文说明。Claude CLI 的 Mac 分发与 JanusX 双形态能力是两层，见[官方安装说明](https://code.claude.com/docs/en/setup#install-with-npm)。Janus CLI 已退出通用安装 registry，未在本轮重新加入。
 

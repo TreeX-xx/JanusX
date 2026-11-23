@@ -54,11 +54,11 @@ MemoStore 在 userData/janusx/memos 保存独立 JSON 文件，使用串行读�
 
 ## 会话与共享工具轮次
 
-工具 schema、提示、绑定／选择／来源语义和备忘录操作规则由 agentX 维护，具体源文件见[工具迁移清单](../../../docs/migrations/agent-tools-engine.json)。桌面 MemoStore 继续拥有现有文件、修订冲突与原子写入，经 MemoStorePort 接入；旧 chat-tools 与共享契约文件仅转导出。普通模式可以读写，SuperAgent 模式仅开放 memo_read，不直接创建／修改；本次未增加 Worker 访问备忘录的协议。Island 聊天与 SuperAgent 工具栏共享模式选择，作用于下一条消息，执行期间不可切换。
+工具 schema、提示、绑定／选择／来源语义和备忘录操作规则由 agentX 维护，具体源文件见[工具迁移清单](../../../docs/migrations/agent-tools-engine.json)。桌面 MemoStore 经 MemoStorePort 提供持久化、修订检查与原子写入。Island 使用固定的普通只读对话。绑定备忘录后模型可以调用 memo_read，备忘录的新建和修改由用户在面板中完成。Island 的读取只投影旧格式，文件迁移由面板加载负责。SuperAgent 协调工具按自身权限读取绑定内容。
 
 备忘录入口与 Chat 工具默认可用，不受旧配置中的 memo 开关控制。Chat 工具仍要求模型支持工具调用，配置兼容见[创新功能管理](../workbench/experimental-preview-features.md)。
 
-会话记录的 memoId 是绑定唯一真相。未绑定的会话首次选中文件直接绑定，也可按明确的新建请求通过 memo_create 创建并绑定；已有绑定后切换文件、主动退出或删除绑定文件，新开会话并继承 Chat 资源，旧会话仍在列表中。流式回复在原会话后台完成，可以回到原会话查看和继续。同文件切换节点不调用 bindMemo，不新开会话。
+会话记录的 memoId 是绑定唯一真相。未绑定的 Island 会话首次选中文件即绑定。已有绑定后切换文件、主动退出或删除绑定文件，新开会话并继承 Chat 资源，旧会话仍在列表中。流式回复在原会话后台完成，可以回到原会话查看和继续。同文件切换节点不调用 bindMemo，不新开会话。
 
 备忘录入口位于 Island 外框右侧的竖向图标交互列，使用书本图标，Chat 输入区不再显示该入口。图标列与主岛顶部对齐，提供悬停提示、键盘焦点及展开状态；点击在右侧展开备忘录功能岛。主界面右侧工具栏不再注册备忘录；文件、记录、星座编辑及模型工具继续复用原实现。会话侧栏可见时隐藏空会话工具栏，主岛收窄隐藏侧栏时恢复会话选择器。没有已附加或可附加工作区时不渲染空资源栏。入口点击只切换展示，会话绑定规则不变。
 
@@ -66,9 +66,9 @@ MemoStore 在 userData/janusx/memos 保存独立 JSON 文件，使用串行读�
 
 自动化与备忘录共用 Island 的伴随空间：自动化请求或草案到达时收起备忘录视图，保留绑定和未保存编辑；几何恢复后再定位自动化面板。2026-11-08 起，正式打开的自动化侧栏持有独立连接锁；主动重新打开备忘录只临时释放自动化的几何伴随标记，眼镜保持点亮、对话保持展开。备忘录退场后，侧栏仍打开时恢复自动化避让布局；侧栏已关闭则不重开。自动化草案保留，该切换不新建、修改或删除备忘录数据。
 
-attachMemoChatTools 将 memo_read、memo_edit，以及未绑定轮次的 memo_create 注册到共享 ChatTurnPorts.localTools，在正常 Chat 上下文与步数预算内执行。janus-agentX 的宿主本地工具入口已补齐，无工作区和有工作区都可使用；工作区工具仍走原有资源与会话路径。本地工具同样消费调用者的工具选择、轮次 gate 与取消信号，不与内置或工作区注册名重名。独立模型阶段、五步上限、最近八条消息截断和结果拼接阶段已移除，普通回复产生的结论可以在同一轮整理。
+共享工具模块支持 memo_read、memo_edit 和 memo_create，各入口的主进程权限决定实际供给和可执行范围。Island 使用只读端口。已绑定备忘录的读取在正常对话的上下文与步数预算内执行，有无工作区均可使用。本地工具同时受轮次工具名单、执行检查和取消信号约束。
 
-未绑定轮次由 renderer 发送原始 memoMessageId。memo_create 首次成功后在原轮次内固定文件，通过 memo_created 事件将绑定交给发起会话；后台回复不改投当前可见会话，不覆盖期间人工选择。重复调用返回同一文件，绑定已有文件时不提供创建工具；需要另一个文件时在 UI 新建／切换。创建也检查队列内取消信号。会话规范化持久化有效 UUID 格式的 memoId，保存、加载及重载后保持绑定。已有缺失绑定的历史快照不猜测恢复；文件仍可从右侧备忘录岛重新选择。创建不会强制展开用户关闭的面板。
+可写入的宿主轮次可通过 memo_created 事件把新文件绑定到发起会话，并在创建前检查取消信号。会话以有效 UUID 持久化 memoId，重载后恢复绑定。用户可从备忘录面板选择、新建或切换文件。
 
 项目 Note 与应用内 memo 使用不同存储和工具。普通 Chat 始终说明目标边界，备忘录工具不可用时说明限制，不把 Note 作为替代。消息含“备忘录／memo／星座／当前星”等明确标记时，Note 工具不提供写入，执行层也拒绝直接调用；项目 Note 仍可作为参考读取。排除规则只收窄权限，不把关键词视为写入授权。混合两种目标的请求保守要求分开 Note 写入，可能影响包含这些词的 Note 维护请求；代价是避免再次误投，后续若引入显式目标选择可替换该排除规则。未带目标标记的自然指代仍依赖会话上下文和工具提示，不能将此规则声称为完整语义分类器。
 
@@ -78,7 +78,7 @@ memo_edit 的模型参数使用无共享引用的单一操作对象，op 枚举�
 
 选中节点统一由 renderer memo store 按文件和 UUID 保存，面板与 Chat 使用同一选择解析规则。普通发送在异步准备前捕获 memoId、messageId 和 selectedNodeId；同一会话后续切星会生成新的上下文，进行中的旧请求不跟随切换。主进程只在绑定文件中解析选择，并在概览、读取和编辑结果中返回选中／无选择／旧客户端未提供／目标已删除状态。界面删星后选剩余首星只影响新消息，旧请求的已删目标保持失效，不能自动改写到其它星。选中状态保留于应用内存，不随 memo 文件落盘。
 
-流式中追加的消息各自捕获选择；steering 只附带当前绑定文件内的 UUID 快照并标记 unverified，模型需通过 memo_read 验证该节点仍存在，再按最新修订编辑。选择上下文按消息归属，不更改原轮次的目标；工具结果仍标明原轮次消息 ID。追加失败并回退为新轮次时保留原发送快照。明确命名节点优先于界面选择；没有有效选择、节点已删或目标不明时提示询问。来源仍沿用轮次发起消息，不在本次扩展逐追加消息的写入来源。
+流式中追加的消息各自捕获选择。Steering 附带当前绑定文件内的 UUID 快照，模型通过 memo_read 验证该节点仍存在。选择上下文按消息归属，工具结果标明原轮次消息 ID。追加失败并回退为新轮次时保留原发送快照。明确命名节点优先于界面选择，目标缺失或不明时提示询问。
 
 ## 水平流程线与逐条记录
 
@@ -194,7 +194,7 @@ npm run check:notes：297 篇 harness Notes、0 错误，保留原有 17 条跨�
 
 - 单元：`npx vitest run tests/unit/memo-chat.test.ts tests/unit/memo.test.ts tests/unit/llm/janus-agent-ports.test.ts tests/unit/llm/chat-turn-guard.test.ts tests/unit/janus/island-chat-window.test.ts --maxWorkers=2`，5 文件、71 项通过。覆盖选中快照、无选择、旧客户端、失效 ID、删星后不改投、明确节点仍可编辑、同一缓存会话更新选择、追加消息隔离、冲突、取消及来源。
 - 浏览器：`npx playwright test tests/e2e/memo-chat-selection.spec.ts tests/e2e/memo-navigation.spec.ts --project=island --workers=1` 首轮 8 项通过。补上追加消息拒绝回退测试后，`npx playwright test tests/e2e/memo-chat-selection.spec.ts tests/e2e/memo.spec.ts tests/e2e/memo-workspaces.spec.ts --project=island --workers=1 -g 'snapshots|per-file selections|late steering|visible fallback|switching memos|manual draft|resources change|persistence failure|closing the memo'`，9 项通过；合计覆盖 14 个不同用例。验证切星、切文件、隐藏保留、空文件、删星、新旧请求隔离，以及原有手工草稿和工作区解耦。
-- 桌面：最新 `npm run build:app` 后，`npx playwright test tests/e2e/memo-chat-desktop.spec.ts --project=desktop --workers=1 --output=artifacts/memo-review/selection-desktop`，1 项通过。隔离用户目录中的真实 Electron 从 Chat 输入框发送“当前星”请求；localhost 脚本化 HTTP 模型从实际收到的上下文取得节点 ID，经 memo_read／memo_edit 新增、修改、删除，再切到另一星新增。验证真实文件、修订 1→5、来源及左侧自动刷新；当时退出备忘录后不再提供 memo_edit（现已由下述未绑定创建流程替代）。测试未使用真实用户数据或外部模型凭据。
+- 历史桌面写入验证在 2026-10-14 通过 1 项，覆盖以当时权限新增、修改、删除备忘录记录，以及切星后的目标与界面刷新。现行 `memo-chat-desktop.spec.ts` 使用真实 Electron 和本地 HTTP 模型验证 Island 能读取所选节点，文件字节在对话前后相同。
 - `npm run typecheck`、9 个受影响生产文件 ESLint、最终构建通过；保留已有 Vite 分块提示。第一次类型检查发现共享类型引用及 renderer 服务参数未同步，补齐后通过。单独执行 chat-turn-guard 两次遇到本地链接依赖解析错误，文件实际存在；使用上述包含共享工具的五文件组合执行 71 项通过，未更改相邻仓库或依赖链接。
 
 普通发送的选择由主进程核对；追加消息的快照由工具读取核对，不提前承诺目标仍存在。模型遵循指代、先读后写及目标不明询问的质量仍需外部真实模型验收，脚本化模型仅证明工程链路。历史队列溢出或重启后的未消费消息沿用原有历史恢复行为，本次没有新增持久化的逐消息选择历史。

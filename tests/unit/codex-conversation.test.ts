@@ -1,22 +1,25 @@
-import { describe, it, expect, vi } from 'vitest'
-import { CodexConversation, codexLoopbackEnv } from '../../src/main/terminal/codex-conversation'
+import { describe, it, expect, onTestFinished, vi } from 'vitest'
+import { codexLoopbackEnv } from '../../src/main/terminal/codex-conversation'
 import { parseConversationSlashCommand } from '../../src/shared/conversation-display'
-import { EventEmitter } from 'node:events'
+import { EventEmitter, once } from 'node:events'
 import WebSocket, { WebSocketServer } from 'ws'
+import { codexFixture } from './codex-conversation.fixture'
 
-function setup() {
-  const publish = vi.fn()
-  const controller = new CodexConversation('test', publish)
-  // Exercise the protocol boundary with recorded event shapes, without a provider/process.
-  const wire = controller as any
-  wire.attach({ id: 'main', turns: [] })
-  const emit = (method: string, params: object, id?: number) => wire.receive({ method, params: { threadId: 'main', ...params }, ...(id === undefined ? {} : { id }) })
-  return { controller, wire, emit, publish }
+async function openTransport() {
+  const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+  await once(server, 'listening')
+  onTestFinished(async () => {
+    for (const client of server.clients) client.terminate()
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  })
+  const endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
+  const downstream = Object.assign(new EventEmitter(), { readyState: WebSocket.OPEN, send: vi.fn(), close: vi.fn() })
+  return { server, endpoint, downstream }
 }
 
 describe('Codex turn timing', () => {
   it('prefers the native total and associates it with the turn across multiple messages', () => {
-    const { controller, emit } = setup()
+    const { controller, emit } = codexFixture()
     emit('turn/started', { turn: { id: 't', startedAt: 1_763_000_000 } })
     expect(controller.state.turnStartedAt).toBe(1_763_000_000_000)
     for (const id of ['commentary', 'answer']) {
@@ -29,7 +32,7 @@ describe('Codex turn timing', () => {
   })
 
   it('restores completed timing and the active start without assigning times to unknown history', () => {
-    const { controller, wire } = setup()
+    const { controller, wire } = codexFixture()
     wire.attach({ id: 'resumed', turns: [
       { id: 'old', status: 'completed', items: [{ id: 'first', type: 'agentMessage', text: 'Old' }] },
       { id: 'known', status: 'completed', durationMs: 2765, items: [{ id: 'second', type: 'agentMessage', text: 'Known' }] },
@@ -48,7 +51,7 @@ describe('Codex turn timing', () => {
   })
 
   it('uses observed elapsed time when a live turn has no native timing', () => {
-    const { controller, wire, emit } = setup()
+    const { controller, wire, emit } = codexFixture()
     const now = vi.spyOn(Date, 'now').mockReturnValue(100_000)
     try {
       emit('turn/started', { turn: { id: 't' } })
@@ -64,8 +67,16 @@ describe('Codex turn timing', () => {
 })
 
 describe('Codex retry and turn failure lifecycle', () => {
+  function startRetryingTurn(turnId: string, message = 'Reconnecting') {
+    const fixture = codexFixture()
+    fixture.emit('turn/started', { turn: { id: turnId } })
+    fixture.emit('error', { turnId, willRetry: true, error: { message } })
+    expect(fixture.controller.state.retry).toEqual({ turnId, message })
+    return fixture
+  }
+
   it('updates one retry status and clears it on model recovery without requiring new input', () => {
-    const { controller, emit } = setup()
+    const { controller, emit } = codexFixture()
     emit('turn/started', { turn: { id: 'active' } })
     controller.state.error = 'Answer delivery is unconfirmed'
     emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
@@ -78,24 +89,33 @@ describe('Codex retry and turn failure lifecycle', () => {
     expect(controller.state.turnId).toBe('active')
   })
   it('does not treat tool output, empty text, replay or other turns as recovery', () => {
-    const { controller, emit } = setup()
+    const { controller, emit } = codexFixture()
     emit('turn/started', { turn: { id: 'active' } })
     const item = { type: 'agentMessage', id: 'old', text: 'Previous output' }
     emit('item/completed', { turnId: 'active', item })
+    const started = { type: 'agentMessage', id: 'answer', text: 'Before failure' }
+    emit('item/started', { turnId: 'active', item: started })
     emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
-    emit('item/completed', { turnId: 'active', item })
-    emit('item/completed', { turnId: 'active', item: { type: 'commandExecution', id: 'tool', aggregatedOutput: 'done' } })
-    emit('item/agentMessage/delta', { turnId: 'other', itemId: 'other', delta: 'Unrelated' })
-    emit('item/agentMessage/delta', { turnId: 'active', itemId: 'empty', delta: '' })
-    emit('thread/settings/updated', { threadSettings: { model: 'probe' } })
-    expect(controller.state.retry).toBeDefined()
+    const events = [
+      ['item/completed', { turnId: 'active', item }],
+      ['item/completed', { turnId: 'active', item: started }],
+      ['item/started', { turnId: 'active', item: { type: 'commandExecution', id: 'tool', command: 'git status' } }],
+      ['item/commandExecution/outputDelta', { turnId: 'active', itemId: 'tool', delta: 'Tool output' }],
+      ['item/completed', { turnId: 'active', item: { type: 'commandExecution', id: 'tool', aggregatedOutput: 'done' } }],
+      ['item/agentMessage/delta', { threadId: 'child', turnId: 'active', itemId: 'answer', delta: 'Other thread' }],
+      ['item/agentMessage/delta', { turnId: 'other', itemId: 'other', delta: 'Unrelated' }],
+      ['item/agentMessage/delta', { turnId: 'active', itemId: 'empty', delta: '' }],
+      ['thread/settings/updated', { threadSettings: { model: 'probe' } }],
+    ] as const
+    for (const [method, params] of events) {
+      emit(method, params)
+      expect(controller.state.retry?.message, method).toBe('Reconnecting... 1/5')
+    }
     emit('item/reasoning/summaryTextDelta', { turnId: 'active', itemId: 'reasoning', delta: 'Thinking again' })
     expect(controller.state.retry).toBeUndefined()
   })
   it.each(['completed', 'interrupted'])('clears retry when the turn is %s and ignores late retry events', status => {
-    const { controller, emit } = setup()
-    emit('turn/started', { turn: { id: 'active' } })
-    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
+    const { controller, emit } = startRetryingTurn('active')
     emit('turn/completed', { turn: { id: 'active', status } })
     emit('error', { turnId: 'active', willRetry: true, error: { message: 'Late retry' } })
     expect(controller.state.retry).toBeUndefined()
@@ -103,9 +123,7 @@ describe('Codex retry and turn failure lifecycle', () => {
     expect(controller.state.items.some(item => item.type === 'turnError')).toBe(false)
   })
   it('keeps one final error in its own turn and does not contaminate the next turn', () => {
-    const { controller, emit } = setup()
-    emit('turn/started', { turn: { id: 'failed' } })
-    emit('error', { turnId: 'failed', willRetry: true, error: { message: 'Reconnecting... 5/5' } })
+    const { controller, emit } = startRetryingTurn('failed')
     emit('error', { turnId: 'failed', willRetry: false, error: { message: 'Connection failed' } })
     emit('turn/completed', { turn: { id: 'failed', status: 'failed', error: { message: 'Retry limit reached' } } })
     expect(controller.state.retry).toBeUndefined()
@@ -117,60 +135,70 @@ describe('Codex retry and turn failure lifecycle', () => {
     expect(controller.state.items).toHaveLength(1)
     expect(controller.state.turnId).toBe('next')
   })
-  it('preserves the last retry reason when a failed completion has no error payload', () => {
-    const { controller, emit } = setup()
-    emit('turn/started', { turn: { id: 'failed' } })
-    emit('error', { turnId: 'failed', willRetry: true, error: { message: 'Rate limit exceeded' } })
-    emit('turn/completed', { turn: { id: 'failed', status: 'failed' } })
-    expect(controller.state.items[0]).toMatchObject({ type: 'turnError', text: 'Rate limit exceeded' })
+  it.each([undefined, 'Retry exhausted'])('preserves a failed completion after late output (error: %s)', error => {
+    const { controller, emit } = startRetryingTurn('failed', 'Rate limit exceeded')
+    emit('turn/completed', { turn: { id: 'failed', status: 'failed', ...(error && { error: { message: error } }) } })
+    const expected = { type: 'turnError', text: error ?? 'Rate limit exceeded' }
+    expect(controller.state.items[0]).toMatchObject(expected)
     expect(controller.state.retry).toBeUndefined()
+    emit('item/agentMessage/delta', { turnId: 'failed', itemId: 'answer', delta: 'Late output' })
+    expect(controller.state.items[0]).toMatchObject(expected)
   })
-  it('separates host disconnection and clears retry on thread switch', () => {
-    const { controller, wire, emit } = setup()
-    emit('turn/started', { turn: { id: 'active' } })
-    emit('error', { turnId: 'active', willRetry: true, error: { message: 'Reconnecting... 1/5' } })
-    wire.fail('Local bridge closed')
-    expect(controller.state).toMatchObject({ connection: 'disconnected', error: 'Local bridge closed' })
+  it('ignores late errors and completions from a retrying turn after a new turn starts', () => {
+    const { controller, emit } = startRetryingTurn('old')
+    emit('turn/started', { turn: { id: 'next' } })
+    emit('error', { turnId: 'old', willRetry: true, error: { message: 'Late failure' } })
+    emit('turn/completed', { turn: { id: 'old', status: 'failed', error: { message: 'Late completion' } } })
     expect(controller.state.retry).toBeUndefined()
+    expect(controller.state.error).toBeUndefined()
+    expect(controller.state.turnId).toBe('next')
+  })
+  it.each([true, false])('clears retry on thread switch (host disconnected: %s)', disconnected => {
+    const { controller, wire } = startRetryingTurn('active')
+    if (disconnected) {
+      wire.fail('Local bridge closed')
+      expect(controller.state).toMatchObject({ connection: 'disconnected', error: 'Local bridge closed' })
+      expect(controller.state.retry).toBeUndefined()
+    }
     wire.attach({ id: 'next', turns: [{ id: 'past', status: 'failed', items: [], error: { message: 'Past failure' } }] })
+    expect(controller.state.retry).toBeUndefined()
     expect(controller.state.error).toBeUndefined()
     expect(controller.state.items[0]).toMatchObject({ type: 'turnError', turnId: 'past', text: 'Past failure' })
+  })
+  const delta = { turnId: 't', itemId: 'm', delta: 'resumed' }
+  const message = { turnId: 't', item: { id: 'm', type: 'agentMessage', text: 'resumed' } }
+  it.each([
+    ['item/agentMessage/delta', delta],
+    ['item/reasoning/textDelta', delta],
+    ['item/reasoning/summaryTextDelta', delta],
+    ['item/started', message],
+    ['item/completed', message],
+    ['turn/completed', { turn: { id: 't', status: 'completed' } }],
+  ] as const)('clears a retry warning when the same turn recovers through %s', (method, params) => {
+    const { controller, emit } = startRetryingTurn('t')
+    emit(method, params)
+    expect(controller.state.retry).toBeUndefined()
+    expect(controller.state.error).toBeUndefined()
+  })
+
+  it.each([
+    { completion: { status: 'completed' }, expected: 'Retry exhausted' },
+    { completion: { status: 'failed', error: { message: 'Turn failed' } }, expected: 'Turn failed' },
+  ])('preserves the terminal failure until a more specific failure arrives ($completion.status)', ({ completion, expected }) => {
+    const { controller, emit } = startRetryingTurn('t')
+    emit('error', { turnId: 't', willRetry: false, error: { message: 'Retry exhausted' } })
+    emit('item/agentMessage/delta', { turnId: 't', itemId: 'm', delta: 'late' })
+    expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe('Retry exhausted')
+    emit('turn/completed', { turn: { id: 't', ...completion } })
+    expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe(expected)
   })
 })
 
 describe('Codex conversation ownership and event projection', () => {
-  it.each(['item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/started', 'item/completed', 'turn/completed'])('clears a retry warning when the same turn recovers through %s', method => {
-    const { controller, emit } = setup()
-    emit('turn/started', { turn: { id: 't' } })
-    emit('error', { turnId: 't', willRetry: true, error: { message: 'Reconnecting... 2/5' } })
-    expect(controller.state.retry?.message).toBe('Reconnecting... 2/5')
-    emit('thread/settings/updated', { threadSettings: {} })
-    emit('item/agentMessage/delta', { threadId: 'child', turnId: 't', itemId: 'm', delta: 'child' })
-    emit('item/agentMessage/delta', { turnId: 'old', itemId: 'm', delta: 'old' })
-    expect(controller.state.retry?.message).toBe('Reconnecting... 2/5')
-    emit(method, { turnId: 't', itemId: 'm', delta: 'resumed', item: { id: 'm', type: 'agentMessage', text: 'resumed' }, turn: { id: 't', status: 'completed' } })
-    expect(controller.state.error).toBeUndefined()
-    controller.dispose()
-  })
-
-  it('preserves terminal failures after a retry and subsequent activity', () => {
-    const { controller, emit } = setup()
-    emit('turn/started', { turn: { id: 't' } })
-    emit('error', { turnId: 't', willRetry: true, error: { message: 'Reconnecting... 2/5' } })
-    emit('error', { turnId: 't', willRetry: false, error: { message: 'Retry exhausted' } })
-    emit('item/agentMessage/delta', { turnId: 't', itemId: 'm', delta: 'late' })
-    expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe('Retry exhausted')
-    emit('turn/completed', { turn: { id: 't', status: 'failed', error: { message: 'Turn failed' } } })
-    expect(controller.state.items.find(item => item.type === 'turnError')?.text).toBe('Turn failed')
-    controller.dispose()
-  })
-
   it('selects identity only from owned native start/resume responses, ignoring other thread notifications', async () => {
-    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
-    await new Promise<void>(resolve => server.once('listening', resolve))
+    const { server, endpoint, downstream } = await openTransport()
     const bind = vi.fn()
-    const controller = new CodexConversation('identity', () => {}, bind)
-    const downstream = Object.assign(new EventEmitter(), { readyState: WebSocket.OPEN, send: vi.fn(), close: vi.fn() })
+    const { wire } = codexFixture(null, bind)
     server.on('connection', socket => socket.on('message', bytes => {
       const request = JSON.parse(bytes.toString())
       if (request.method === 'thread/start' || request.method === 'thread/resume') {
@@ -178,48 +206,33 @@ describe('Codex conversation ownership and event projection', () => {
         socket.send(JSON.stringify({ id: request.id, result: { thread: { id: request.method === 'thread/start' ? 'created' : 'resumed', turns: [] } } }))
       } else socket.send(JSON.stringify({ id: request.id, result: {} }))
     }))
-    try {
-      const wire = controller as any
-      wire.endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
-      wire.connect(downstream)
-      downstream.emit('message', Buffer.from(JSON.stringify({ id: 1, method: 'thread/start', params: { cwd: 'C:/repo' } })))
-      await vi.waitFor(() => expect(bind).toHaveBeenLastCalledWith('created', undefined))
-      downstream.emit('message', Buffer.from(JSON.stringify({ id: 2, method: 'thread/resume', params: { threadId: 'resumed' } })))
-      await vi.waitFor(() => expect(bind).toHaveBeenLastCalledWith('resumed', undefined))
-      expect(bind).toHaveBeenCalledTimes(2)
-    } finally {
-      await controller.dispose()
-      for (const client of server.clients) client.terminate()
-      await new Promise<void>(resolve => server.close(() => resolve()))
-    }
+    wire.endpoint = endpoint
+    wire.connect(downstream)
+    downstream.emit('message', Buffer.from(JSON.stringify({ id: 1, method: 'thread/start', params: { cwd: 'C:/repo' } })))
+    await vi.waitFor(() => expect(bind).toHaveBeenLastCalledWith('created', undefined))
+    downstream.emit('message', Buffer.from(JSON.stringify({ id: 2, method: 'thread/resume', params: { threadId: 'resumed' } })))
+    await vi.waitFor(() => expect(bind).toHaveBeenLastCalledWith('resumed', undefined))
+    expect(bind).toHaveBeenCalledTimes(2)
   })
   it('starts new sessions at standard speed while preserving resumes and explicit toggles', async () => {
-    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
-    await new Promise<void>(resolve => server.once('listening', resolve))
-    const { controller, wire } = setup()
-    const downstream = Object.assign(new EventEmitter(), { send: vi.fn(), close: vi.fn(), readyState: WebSocket.OPEN })
+    const { server, endpoint, downstream } = await openTransport()
+    const { wire } = codexFixture()
     const received: any[] = []
     server.on('connection', socket => socket.on('message', data => received.push(JSON.parse(data.toString()))))
-    wire.endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
-    try {
-      wire.connect(downstream)
-      const messages = [
-        { id: 1, method: 'thread/start', params: { serviceTier: 'fast', cwd: 'C:/repo' } },
-        { id: 2, method: 'thread/resume', params: { threadId: 'saved', serviceTier: 'fast' } },
-        { id: 3, method: 'thread/settings/update', params: { threadId: 'main', serviceTier: 'fast' } },
-      ]
-      for (const message of messages) downstream.emit('message', Buffer.from(JSON.stringify(message)))
-      await vi.waitFor(() => expect(received).toHaveLength(3))
-      expect(received[0].params).toEqual({ serviceTier: 'default', cwd: 'C:/repo' })
-      expect(received.slice(1)).toEqual(messages.slice(1))
-    } finally {
-      await controller.dispose()
-      for (const client of server.clients) client.terminate()
-      await new Promise<void>(resolve => server.close(() => resolve()))
-    }
+    wire.endpoint = endpoint
+    wire.connect(downstream)
+    const messages = [
+      { id: 1, method: 'thread/start', params: { serviceTier: 'fast', cwd: 'C:/repo' } },
+      { id: 2, method: 'thread/resume', params: { threadId: 'saved', serviceTier: 'fast' } },
+      { id: 3, method: 'thread/settings/update', params: { threadId: 'main', serviceTier: 'fast' } },
+    ]
+    for (const message of messages) downstream.emit('message', Buffer.from(JSON.stringify(message)))
+    await vi.waitFor(() => expect(received).toHaveLength(3))
+    expect(received[0].params).toEqual({ serviceTier: 'default', cwd: 'C:/repo' })
+    expect(received.slice(1)).toEqual(messages.slice(1))
   })
   it('chooses native speeds without changing model or effort and only projects confirmed settings', async () => {
-    const { controller, wire, emit } = setup()
+    const { controller, wire, emit } = codexFixture()
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
     const call = vi.spyOn(wire, 'call').mockImplementation(async (method: string) => {
       if (method === 'model/list') return { data: [{ model: 'probe', serviceTiers: [{ id: 'priority' }, { id: 'ultrafast' }], supportedReasoningEfforts: [] }] }
@@ -251,10 +264,9 @@ describe('Codex conversation ownership and event projection', () => {
     await expect(controller.command({ type: 'speed', serviceTier: 'ultrafast', controlEpoch })).rejects.toThrow('not available')
     wire.attach({ id: 'next', turns: [] })
     expect(controller.state.serviceTier).toBeUndefined()
-    await controller.dispose()
   })
   it('filters speeds by effective features and discards a catalog superseded by an account update', async () => {
-    const { controller, wire, emit } = setup()
+    const { controller, wire, emit } = codexFixture()
     wire.attach({ id: 'main', modelProvider: 'example', turns: [] }, { model: 'probe', serviceTier: 'default' })
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
     const models = { data: [
@@ -278,11 +290,10 @@ describe('Codex conversation ownership and event projection', () => {
     expect(controller.state.models.map(model => model.speedTiers)).toEqual([['priority'], ['fast'], []])
     await expect(controller.command({ type: 'speed', serviceTier: 'ultrafast', controlEpoch })).rejects.toThrow('not available')
     expect(call).not.toHaveBeenCalledWith('thread/settings/update', expect.anything())
-    await controller.dispose()
   })
 
   it('steers the active turn once, pins its identity and never retries a failed steer as a new turn', async () => {
-    const { controller, wire, emit } = setup()
+    const { controller, wire, emit } = codexFixture()
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
     emit('turn/started', { turn: { id: 'active' } })
     const call = vi.spyOn(wire, 'call').mockResolvedValue({ turnId: 'active' })
@@ -292,16 +303,15 @@ describe('Codex conversation ownership and event projection', () => {
     call.mockRejectedValue(new Error('Turn already completed'))
     await expect(controller.command({ ...command, commandId: 'race' })).rejects.toThrow('Turn already completed')
     expect(call.mock.calls.every(([method]) => method === 'turn/steer')).toBe(true)
-    await controller.dispose()
   })
   it('preserves explicit assistant phase across completion events', () => {
-    const { controller, emit } = setup()
+    const { controller, emit } = codexFixture()
     emit('item/started', { turnId: 'turn', item: { id: 'message', type: 'agentMessage', phase: 'commentary', text: 'Checking' } })
     emit('item/completed', { turnId: 'turn', item: { id: 'message', type: 'agentMessage', text: 'Checked' } })
     expect(controller.state.items[0]).toMatchObject({ phase: 'commentary', text: 'Checked', status: 'completed' })
   })
   it('runs /new through the native client with a single-use start gate and waits for confirmed selection', async () => {
-    const { controller, wire } = setup()
+    const { controller, wire } = codexFixture()
     const input = vi.fn()
     controller.setNativeInput(input)
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
@@ -318,14 +328,11 @@ describe('Codex conversation ownership and event projection', () => {
     await pending
     expect(controller.snapshot()).toMatchObject({ threadId: 'new-thread', items: [], submitting: false, mode: 'conversation' })
     await expect(controller.command({ type: 'new', controlEpoch })).rejects.toThrow('control changed')
-    await controller.dispose()
   })
   it('forwards a large native plugin catalog intact and keeps the conversation connected', async () => {
-    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
-    await new Promise<void>(resolve => server.once('listening', resolve))
-    const { controller, wire } = setup()
-    const downstream = Object.assign(new EventEmitter(), { send: vi.fn(), close: vi.fn(), readyState: WebSocket.OPEN })
-    wire.endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
+    const { server, endpoint, downstream } = await openTransport()
+    const { controller, wire } = codexFixture()
+    wire.endpoint = endpoint
     // Real startup catalogs exceed 25 MiB; these are transport data, not conversation items.
     const catalog = JSON.stringify({ id: 'native-plugin-list', result: { marketplaces: [{
       name: 'large-marketplace', plugins: Array.from({ length: 10_689 }, (_, id) => ({ id: String(id), description: 'x'.repeat(2500) })),
@@ -335,37 +342,24 @@ describe('Codex conversation ownership and event projection', () => {
       socket.send(catalog)
       socket.send(JSON.stringify({ method: 'turn/started', params: { threadId: 'main', turn: { id: 'after-catalog' } } }))
     })
-    try {
-      wire.connect(downstream)
-      await vi.waitFor(() => expect(controller.state.turnId).toBe('after-catalog'), { timeout: 5000 })
-      expect(downstream.send.mock.calls[0]?.[0] === catalog).toBe(true)
-      expect(downstream.close).not.toHaveBeenCalled()
-      expect(controller.state.connection).toBe('ready')
-      expect(controller.state.items).toEqual([])
-      expect(controller.state.error).toBeUndefined()
-    } finally {
-      await controller.dispose()
-      for (const client of server.clients) client.terminate()
-      await new Promise<void>(resolve => server.close(() => resolve()))
-    }
+    wire.connect(downstream)
+    await vi.waitFor(() => expect(controller.state.turnId).toBe('after-catalog'), { timeout: 5000 })
+    expect(downstream.send.mock.calls[0]?.[0] === catalog).toBe(true)
+    expect(downstream.close).not.toHaveBeenCalled()
+    expect(controller.state.connection).toBe('ready')
+    expect(controller.state.items).toEqual([])
+    expect(controller.state.error).toBeUndefined()
   })
   it('preserves the transport error when the socket subsequently closes', async () => {
-    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
-    await new Promise<void>(resolve => server.once('listening', resolve))
-    const { controller, wire } = setup()
-    const downstream = Object.assign(new EventEmitter(), { send: vi.fn(), close: vi.fn(), readyState: WebSocket.OPEN })
-    wire.endpoint = `ws://127.0.0.1:${(server.address() as { port: number }).port}`
-    try {
-      wire.connect(downstream)
-      await vi.waitFor(() => expect(wire.socket.readyState).toBe(WebSocket.OPEN))
-      wire.socket.emit('error', new Error('Specific transport failure'))
-      wire.socket.close()
-      await vi.waitFor(() => expect(downstream.close).toHaveBeenCalled())
-      expect(controller.state).toMatchObject({ connection: 'disconnected', error: 'Specific transport failure' })
-    } finally {
-      await controller.dispose()
-      await new Promise<void>(resolve => server.close(() => resolve()))
-    }
+    const { endpoint, downstream } = await openTransport()
+    const { controller, wire } = codexFixture()
+    wire.endpoint = endpoint
+    wire.connect(downstream)
+    await vi.waitFor(() => expect(wire.socket.readyState).toBe(WebSocket.OPEN))
+    wire.socket.emit('error', new Error('Specific transport failure'))
+    wire.socket.close()
+    await vi.waitFor(() => expect(downstream.close).toHaveBeenCalled())
+    expect(controller.state).toMatchObject({ connection: 'disconnected', error: 'Specific transport failure' })
   })
   it('bypasses loopback on both native processes while preserving user proxies and exclusions', () => {
     const source = { HTTP_PROXY: 'http://proxy.invalid:8080', HTTPS_PROXY: 'http://proxy.invalid:8080', ALL_PROXY: 'socks5://proxy.invalid:1080', NO_PROXY: 'internal.example, 127.0.0.1', no_proxy: 'another.internal,localhost', OTHER: 'keep' }
@@ -377,7 +371,7 @@ describe('Codex conversation ownership and event projection', () => {
     expect(codexLoopbackEnv({}).NO_PROXY).toBe('127.0.0.1,localhost,::1')
   })
   it('projects native plans with immutable revisions, ignores foreign/invalid events and never completes unfinished steps', async () => {
-    const { controller, emit, wire } = setup()
+    const { controller, emit, wire } = codexFixture()
     emit('turn/started', { turn: { id: 't1' } })
     const first = [{ step: 'Read', status: 'completed' }, { step: 'Build', status: 'inProgress' }]
     emit('turn/plan/updated', { turnId: 't1', plan: first })
@@ -400,10 +394,9 @@ describe('Codex conversation ownership and event projection', () => {
     expect(controller.snapshot().plans).toHaveLength(3)
     wire.attach({ id: 'other', turns: [] })
     expect(controller.snapshot().plans).toEqual([])
-    await controller.dispose()
   })
   it('loads paged model capabilities, updates only from authoritative settings, and retains selection on failure', async () => {
-    const { controller, wire, emit } = setup()
+    const { controller, wire, emit } = codexFixture()
     wire.attach({ id: 'main', turns: [] }, { model: 'custom', reasoningEffort: 'medium' })
     const call = vi.spyOn(wire, 'call').mockResolvedValueOnce({ data: [{ model: 'fast', displayName: 'Fast', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }, { reasoningEffort: 'high' }] }], nextCursor: 'next' })
       .mockResolvedValueOnce({ data: [{ model: 'deep', hidden: false, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'high' }] }, { model: 'hidden', hidden: true }], nextCursor: null })
@@ -432,11 +425,10 @@ describe('Codex conversation ownership and event projection', () => {
     await expect(controller.command({ type: 'settings', model: 'fast', effort: 'medium', controlEpoch })).rejects.toThrow('Display control')
     emit('thread/settings/updated', { threadSettings: { model: 'fast', effort: null } })
     expect(controller.snapshot()).toMatchObject({ model: 'fast', effort: null })
-    await controller.dispose()
   })
 
   it('keeps a catalog error recoverable without disconnecting or losing the current model', async () => {
-    const { controller, wire } = setup()
+    const { controller, wire } = codexFixture()
     const call = vi.spyOn(wire, 'call').mockRejectedValueOnce(new Error('Catalog unavailable'))
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
     await controller.command({ type: 'models', controlEpoch })
@@ -444,11 +436,10 @@ describe('Codex conversation ownership and event projection', () => {
     call.mockResolvedValueOnce({ data: [], nextCursor: null })
     await controller.command({ type: 'models', controlEpoch })
     expect(controller.snapshot().modelsError).toBeUndefined()
-    await controller.dispose()
   })
 
   it('never sends slash commands as prompts, but preserves absolute paths and ordinary text', async () => {
-    const { controller, wire } = setup()
+    const { controller, wire } = codexFixture()
     const call = vi.spyOn(wire, 'call').mockResolvedValue({})
     const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
     for (const text of ['/', '/model', '/model fast', '/effort high', '/unknown']) {
@@ -459,20 +450,18 @@ describe('Codex conversation ownership and event projection', () => {
     expect(parseConversationSlashCommand('/tmp/report.md')).toBeNull()
     await controller.command({ type: 'send', text: '/tmp/report.md', commandId: 'path', controlEpoch })
     expect(call).toHaveBeenCalledTimes(1)
-    await controller.dispose()
   })
   it('does not block native initialization when conversation view is selected before the thread exists', async () => {
-    const controller = new CodexConversation('starting', () => {})
+    const { controller, wire } = codexFixture(null)
     await controller.command({ type: 'mode', mode: 'conversation' })
-    expect((controller as any).acceptsNativeCommand({ method: 'thread/start', params: {} })).toBe(true)
+    expect(wire.acceptsNativeCommand({ method: 'thread/start', params: {} })).toBe(true)
     expect(controller.acceptsTerminalInput('1\r')).toBe(false)
     expect(controller.acceptsTerminalInput('\x1b[1;1R')).toBe(true)
-    ;(controller as any).attach({ id: 'authorized', turns: [] })
+    wire.attach({ id: 'authorized', turns: [] })
     expect(controller.acceptsTerminalInput('1\r')).toBe(false)
-    await controller.dispose()
   })
   it('ignores title/subagent announcements and unrelated deltas; uses turn/item identity', () => {
-    const { controller, emit } = setup()
+    const { controller, emit } = codexFixture()
     emit('thread/started', { thread: { id: 'title', ephemeral: true, threadSource: 'thread_title' } })
     emit('thread/started', { thread: { id: 'child', ephemeral: false } })
     emit('item/agentMessage/delta', { threadId: 'child', turnId: 't', itemId: 'm', delta: 'unrelated' })
@@ -483,11 +472,10 @@ describe('Codex conversation ownership and event projection', () => {
     expect(controller.snapshot().items.map(item => item.text)).toEqual(['first complete', 'second'])
     const copy = controller.snapshot(); copy.items[0].text = 'mutation'
     expect(controller.snapshot().items[0].text).toBe('first complete')
-    controller.dispose()
   })
 
   it('accepts once, rejects stale control epochs, and does not retry unknown delivery', async () => {
-    const { controller, wire } = setup()
+    const { controller, wire } = codexFixture()
     const call = vi.spyOn(wire, 'call').mockRejectedValue(new Error('Delivery unknown'))
     const first = await controller.command({ type: 'mode', mode: 'conversation' })
     const send = { type: 'send' as const, text: 'one', commandId: 'stable', controlEpoch: first.controlEpoch }
@@ -502,11 +490,10 @@ describe('Codex conversation ownership and event projection', () => {
     expect(wire.acceptsNativeCommand({ method: 'turn/start', params: { threadId: 'main' } })).toBe(false)
     expect(wire.acceptsNativeCommand({ method: 'turn/start', params: { threadId: 'title' } })).toBe(true)
     expect(wire.acceptsNativeCommand({ method: 'thread/start', params: { ephemeral: true } })).toBe(true)
-    controller.dispose()
   })
 
   it('tracks approval resolution from either view and prevents a second response', async () => {
-    const { controller, wire, emit } = setup()
+    const { controller, wire, emit } = codexFixture()
     const send = vi.spyOn(wire, 'send').mockImplementation(() => {})
     const state = await controller.command({ type: 'mode', mode: 'conversation' })
     emit('item/fileChange/requestApproval', { turnId: 't', itemId: 'patch' }, 17)
@@ -524,11 +511,10 @@ describe('Codex conversation ownership and event projection', () => {
     expect(controller.snapshot().needsTerminal).toBe(true)
     emit('serverRequest/resolved', { requestId: 19 })
     expect(controller.snapshot().needsTerminal).toBe(false)
-    controller.dispose()
   })
 
   it('bounds displayed text and history while preserving authoritative file paths and diffs', () => {
-    const { controller, emit } = setup()
+    const { controller, emit } = codexFixture()
     emit('item/completed', { turnId: 't', item: { id: 'f', type: 'fileChange', changes: [{ path: 'C:/repo/a.html', diff: '+hello' }], status: 'completed' } })
     expect(controller.snapshot().items[0].files).toEqual([{ path: 'C:/repo/a.html', diff: '+hello' }])
     emit('item/agentMessage/delta', { turnId: 't', itemId: 'long', delta: 'a'.repeat(40000) })
@@ -536,10 +522,9 @@ describe('Codex conversation ownership and event projection', () => {
     for (let i = 0; i < 501; i++) emit('item/completed', { turnId: 't', item: { id: `item${i}`, type: 'agentMessage', text: 'ok' } })
     expect(controller.snapshot().items).toHaveLength(500)
     expect(controller.snapshot().truncated).toBe(true)
-    controller.dispose()
   })
   it('sends image references through native localImage input and rejects stale delivery intents', async () => {
-    const { controller, wire } = setup()
+    const { controller, wire } = codexFixture()
     const state = await controller.command({ type: 'mode', mode: 'conversation' })
     const call = vi.spyOn(wire, 'call').mockResolvedValue({ turn: { id: 'image-turn' } })
     await controller.command({ type: 'send', text: 'Inspect screenshot', commandId: 'image', controlEpoch: state.controlEpoch, delivery: 'queue', imagePaths: ['C:/attachments/screen.png'] })
@@ -547,7 +532,6 @@ describe('Codex conversation ownership and event projection', () => {
     await expect(controller.command({ type: 'send', text: 'Next task', commandId: 'queue', controlEpoch: state.controlEpoch, delivery: 'queue' })).rejects.toThrow('new turn')
     await expect(controller.command({ type: 'send', text: 'Correction', commandId: 'steer', controlEpoch: state.controlEpoch, delivery: 'steer', expectedTurnId: 'old-turn' })).rejects.toThrow('target turn')
     expect(call).toHaveBeenCalledTimes(1)
-    await controller.dispose()
   })
 
 })

@@ -17,4 +17,4 @@
 .conversation-work-activity { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1.4; }
 .conversation-work-verb { flex-shrink: 0; color: var(--shell-muted); font-size: 11px; }
 .conversation-work-toggle:hover .conversation-work-preview { color: var(--shell-text); }
-@container (max-width: 480px) { .conversation-work-body { padding-left: 7px; } .conversation-work-preview { font-size: 11px; } }
+@container (max-width: 480px) { .conversation-work-preview { font-size: 11px; } }

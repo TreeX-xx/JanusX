@@ -68,6 +68,7 @@
     }
   },
   "action": {
+    "openPreview": "打开预览",
     "confirm": "确认",
     "cancel": "取消",
     "save": "保存",

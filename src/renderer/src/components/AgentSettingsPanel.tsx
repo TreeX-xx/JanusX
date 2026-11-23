@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: AgentSettings = { approvalMode: 'per-action', agentMaxSt
 
 export function AgentSettingsPanel() {
   const { t } = useI18n('settings')
-  const showWorkerSettings = useSuperAgentUIStore(state => state.started || state.agentMode === 'superagent')
+  const showWorkerSettings = useSuperAgentUIStore(state => state.started)
   const available = useSuperAgentAvailability(undefined, showWorkerSettings)
   const [settings, setSettings] = useState<AgentSettings>(DEFAULT_SETTINGS)
   const [draft, setDraft] = useState<AgentSettings>(DEFAULT_SETTINGS)

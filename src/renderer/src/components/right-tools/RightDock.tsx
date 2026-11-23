@@ -243,9 +243,9 @@ export function RightDock({
   }
 
   const handleRailTool = (toolId: RightToolId) => {
-    useIslandStore.getState().releaseCompanion()
     cancelPreviewTimer()
     if (forcedCollapsed) {
+      useIslandStore.getState().disconnectAutomation()
       setPreviewToolId(previewId === toolId ? null : toolId)
       return
     }

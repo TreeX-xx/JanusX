@@ -119,23 +119,39 @@
 .error { color: var(--shell-text); padding: 12px; border-left: 2px solid var(--status-danger); white-space: pre-wrap; }
 .latestAnchor { position: relative; height: 0; flex-shrink: 0; z-index: 1; }
 .latestAnchor .latest { position: absolute; bottom: 10px; left: calc(50% - 16px); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--shell-chrome-raised); border: 1px solid var(--shell-border); box-shadow: 0 2px 8px var(--shell-border); }
-.composer { flex-shrink: 0; margin: 12px auto 24px; width: calc(100% - 48px); max-width: 744px; border: 1px solid var(--shell-border); border-radius: 15px; padding: 17px 17px 10px; background: var(--shell-chrome-raised); box-shadow: 0 5px 24px color-mix(in srgb, var(--bg-deep) 8%, transparent); transition: border-color 160ms, box-shadow 160ms; }
+.composer { --composer-radius: 15px; flex-shrink: 0; margin: 12px auto 24px; width: calc(100% - 48px); max-width: 744px; border: 1px solid var(--shell-border); border-radius: var(--composer-radius); padding: 17px 17px 10px; background: var(--shell-chrome-raised); box-shadow: 0 5px 24px color-mix(in srgb, var(--bg-deep) 8%, transparent); transition: border-color 160ms, box-shadow 160ms; }
 .composer:focus-within { border-color: var(--conversation-focus-border); box-shadow: 0 0 0 1px var(--conversation-focus-shadow); }
 .composer button:focus-visible { outline: 1px solid var(--conversation-focus-ring); outline-offset: 1px; }
 .composer textarea { display: block; background: transparent; width: 100%; min-height: 52px; max-height: 200px; resize: none; padding: 0; border: 0; outline: none; box-shadow: none; color: var(--shell-text); font-size: var(--conversation-input-font-size); line-height: var(--conversation-input-line-height); }
 .composer textarea::placeholder { color: var(--shell-muted); }
 .composer [contenteditable=true] { font-size: var(--conversation-input-font-size); line-height: var(--conversation-input-line-height); max-height: 175px; }
-.conversation[data-empty=true] .composer { border-radius: 16px; }
+.conversation[data-empty=true] .composer { --composer-radius: 16px; }
 .composerActions { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--shell-border) 85%, var(--shell-chrome-raised)); }
 .modelControls { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; }
 .turnAttachments { display: grid; gap: 10px; margin: 16px 0; }
 .turnAttachments:empty { display: none; }
-.turnFiles { margin: 0; border: 1px solid var(--shell-border); border-radius: 9px; padding: 11px 12px; }
-.turnFiles > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; flex-wrap: wrap; font-size: 12px; }
-.turnFiles > summary::-webkit-details-marker { display: none; }
-.turnFiles[open] > summary .chevron { transform: rotate(90deg); }
-.turnFilesBody { max-height: min(360px, 45vh); margin-top: 8px; overflow: auto; }
+.root .turnFiles {
+  justify-self: start; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 7px; max-width: 100%;
+  padding: 4px 2px; min-height: 28px; border: 0; background: transparent;
+  color: var(--shell-muted); font-size: 12px; line-height: 1.4;
+}
+.turnFilesAction { display: inline-flex; align-items: center; gap: 2px; margin-left: 5px; padding-left: 10px; border-left: 1px solid var(--shell-border); }
+.turnFiles:hover .turnFilesAction, .turnFiles:focus-visible .turnFilesAction, .turnFiles[aria-expanded=true] .turnFilesAction { color: var(--shell-text); }
+.turnFilesPreview { display: grid; gap: 4px; overflow-wrap: anywhere; font-family: var(--font-mono); }
+.readingArea:has(> .turnFilesPanel) { container: turn-files / inline-size; }
+.turnFilesPanel {
+  z-index: 3; display: flex; flex-direction: column; flex: 0 0 clamp(300px, 36%, 540px);
+  min-width: 0; border-left: 1px solid var(--shell-border); background: var(--shell-canvas);
+}
+.turnFilesHeader { display: flex; flex-shrink: 0; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--shell-border); font-size: 12px; }
+.turnFilesHeader strong { flex: 1; }
+.turnFilesHeader button { display: grid; place-items: center; width: 28px; height: 28px; }
+.turnFilesHeader button:hover { background: var(--shell-hover); }
+.turnFilesBody { min-height: 0; padding: 8px 12px; overflow: auto; overscroll-behavior: contain; }
 .turnFilesBody > .notice:first-child { margin-top: 4px; }
+@container turn-files (max-width: 740px) {
+  .turnFilesPanel { position: absolute; inset: 0 0 0 auto; width: min(400px, 100%); box-shadow: -4px 0 16px var(--shell-border); }
+}
 .turnFile > summary { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; list-style: none; font-size: 12px; border-radius: 6px; }
 .turnFile > summary::-webkit-details-marker { display: none; }
 .turnFile > summary:hover { background: var(--shell-hover); }
@@ -143,18 +159,22 @@
 .turnFile > summary > svg { flex-shrink: 0; color: var(--shell-muted); }
 .turnFile[open] > summary .chevron { transform: rotate(90deg); }
 .turnFile > summary .turnFilePath { flex: 1; }
-.turnFile > button { width: auto; margin-left: 23px; padding: 6px 10px; color: var(--shell-muted); font-size: 11px; }
-.turnFilesAction { margin-left: auto; color: var(--shell-muted); }
 .turnFilePath { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 .turnFileName { display: block; font-size: 12px; color: var(--shell-text); }
 .turnFileDirectory { display: block; margin-top: 3px; color: var(--shell-muted); font: 10px var(--font-mono); }
-.turnFile { background: transparent; border-bottom: 1px solid var(--shell-border); border-radius: 0; }
-.turnFile:last-child { border-bottom: 0; }
-.turnFiles :global(.diff-counts) { display: inline-flex; gap: 6px; flex-shrink: 0; }
-.modelControls .speedControl { flex-shrink: 0; justify-content: center; padding: 4px; border-radius: 5px; }
-.modelControls .speedControl[data-speed-active=true] { color: var(--shell-text); background: var(--shell-hover); }
-.speedControl[data-speed-active=true] svg { fill: currentColor; }
+.turnFile { margin: 0; background: transparent; border-radius: 0; }
+.turnFile + .turnFile { border-top: 1px solid var(--shell-border); }
+.turnFile .diff { padding: 5px 0; max-height: none; background: var(--bg-deep); border: 1px solid var(--shell-border); border-radius: 7px; }
+.turnFile .diff > span { position: relative; display: block; padding: 0 10px 0 22px; min-height: 1lh; line-height: 20px; }
+.turnFile .diff > span[data-change=add] { background: color-mix(in srgb, var(--shell-diff-add) 8%, transparent); }
+.turnFile .diff > span[data-change=delete] { background: color-mix(in srgb, var(--shell-diff-del) 8%, transparent); }
+.turnFilesBody .turnFilesGit { padding: 6px 8px; margin-top: 8px; color: var(--shell-muted); font-size: 11px; }
+.turnFilesGit:hover { background: var(--shell-hover); }
+:is(.turnFiles, .turnFilesBody) :global(.diff-counts) { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.modelControls .speedControl { flex-shrink: 0; justify-content: center; gap: 2px; padding: 4px; border-radius: 5px; }
+.modelControls .speedControl:is(:hover, [aria-expanded=true]) { background: transparent; }
 .speedControl:disabled { opacity: .45; cursor: default; }
+.modelControls .speedControl[aria-busy=true] { opacity: 1; }
 .modelControls .effortControl, .modelControls .effortControl:hover, .modelControls .effortControl[aria-expanded=true] { color: var(--effort-color); background: transparent; }
 .composer { position: relative; }
 .commandPanel { position: absolute; bottom: calc(100% + 8px); left: 0; width: min(100%, 360px); z-index: 12; display: flex; flex-direction: column; max-height: clamp(160px, calc(100vh - 300px), 360px); border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-chrome-raised); box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-deep) 35%, transparent); overflow: hidden; }
@@ -263,9 +283,9 @@
 .contextBrowser button { text-align: left; padding: 6px 8px; }
 .contextBrowser button:hover { background: var(--shell-hover); }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.feedbackActions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
-.feedbackActions button { padding: 5px 8px; font-size: 11px; color: var(--shell-muted); }
-.diff .diffFeedback { display: inline-block; width: 22px; margin-right: 6px; color: var(--shell-muted); opacity: 0; user-select: none; }
+.feedbackActions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.feedbackActions button { width: auto; gap: 4px; padding: 4px 6px; font-size: 11px; color: var(--shell-muted); }
+.diff .diffFeedback { position: absolute; inset: 0 auto auto 1px; display: grid; place-items: center; width: 18px; height: 20px; padding: 0; color: var(--shell-muted); opacity: 0; user-select: none; }
 .diff span:hover > .diffFeedback, .diffFeedback:focus-visible { opacity: 1; }
 @media (hover: none) { .diff .diffFeedback { opacity: 1; } }
 

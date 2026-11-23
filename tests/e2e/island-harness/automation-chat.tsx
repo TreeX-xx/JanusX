@@ -38,6 +38,7 @@ const groups: AutomationCard[] = []
 const runs: AutomationRun[] = []
 let saveCount = 0
 let controller: UseJanusChatReturn
+let topicCount = 0
 let loaded = false
 Object.assign(window.electron.subAgentRun, { list: async () => [] })
 Object.assign(window.electron.workflowx, { detect: async () => ({ status: 'unconfigured', sources: [], checkedAt: Date.now() }) })
@@ -118,7 +119,8 @@ Object.assign(window, { automationChatFixture: {
   collapse: () => useIslandStore.getState().dispatch({ type: 'dismiss' }),
   focus: () => useRightToolStore.getState().focusRequest,
   state: () => ({ loaded, resources: controller?.resourceController?.resources.map(resource => resource.workspaceId), conversationId: controller?.conversationId,
-    messages: controller?.messages.map(message => message.content), isStreaming: controller?.isStreaming, activeTool: useRightToolStore.getState().activeToolId,
+    messages: controller?.messages.map(message => message.content), isStreaming: controller?.isStreaming,
+    topicCount, activeTool: useRightToolStore.getState().activeToolId,
     companionToolId: useIslandStore.getState().companionToolId,
     superAgentTab: findPaneContent(useGlobalToolsStore.getState().paneTree, 'superagent').tabId,
     superAgentCollapsed: useGlobalToolsStore.getState().collapsed, saveCount }),
@@ -146,6 +148,7 @@ Object.assign(window, { automationChatFixture: {
 function Harness() {
   const registry = useJanusChatRegistry()
   controller = registry.getController()
+  topicCount = registry.topicConversations.length
   loaded = registry.persistenceReady
   const stage = useIslandStore(state => state.stage)
   const { panelWidth, panelWidths, activeToolId } = useRightToolStore()

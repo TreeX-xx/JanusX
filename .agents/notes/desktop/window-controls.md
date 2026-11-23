@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-20",
-  "updated": "2026-11-19T07:22:04Z",
+  "updated": "2026-11-20T08:41:59Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
   "codeRefs": [
@@ -18,7 +18,9 @@
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
       "path": "src/main/windows/register-window-ipc.ts",
       "role": "implementation"
-    }
+    },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/main/windows/main-window-resize.ts", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/MainWindowResize.tsx", "role": "implementation" }
   ]
 }
 ---
@@ -37,6 +39,8 @@ Main, standalone editor, browser and editor-loading windows share WindowControls
 
 On macOS the 14-point lights sit on 23-point centers with a 9-point leading inset. The group reveals its close, minimize and diagonal zoom glyphs on hover. Inactive windows use neutral lights. The native BrowserWindow supplies focus state even when an embedded web view owns keyboard focus.
 
+The macOS main window reserves a 7-point strip inside each edge and combines adjacent strips at the corners. These handles provide an alternate gesture when the system frame does not pick up the drag. During a gesture the renderer captures the pointer and sends screen-coordinate deltas at most once per frame. The host accepts them only from the main window's top frame, anchors the opposite edge, clamps dimensions to native limits and the starting display, and ignores resize gestures while maximized or fullscreen. Losing capture or focus ends the gesture. The resize handles share the existing custom titlebar layout.
+
 Window IPC targets the requesting webContents rather than whichever window currently has focus. An initial query and native maximize/unmaximize events keep the restore affordance synchronized, including external window changes. Close callbacks retain the main exit confirmation and editor unsaved-file guard.
 
 Window IPC is registered once during application bootstrap; its main-window getter follows replacements. Dock activation and a second-instance request share the main-window restore path: create a missing window after readiness, otherwise restore/show/focus it, and do nothing during shutdown. Hidden auxiliary windows do not block this path. The [Mac compatibility Note](./macos-compatibility.md) owns implementation status and the remaining native Mac acceptance.
@@ -50,6 +54,8 @@ Internal dialogs use a visible close mark at the right on both platforms. Floati
 Keeping traffic lights everywhere preserves the previous appearance but conflicts with Windows placement and action expectations. Native system titlebars provide more OS behavior, but replacing the existing frameless chrome would require a separate layout and Island integration. The shared custom component keeps the current layout with one platform policy.
 
 ## Consequences
+
+The macOS Electron regression uses a fresh profile and renderer pointer input. It checks actual `BrowserWindow` bounds after corner and edge drags, the minimum width, and hidden handles while maximized. It also covers closing and reopening the main window. Physical pointer input and the installed application were outside this run.
 
 The window-lifecycle change passed 21 scoped unit tests and the new desktop-window-reopen Electron test on Windows. The desktop test keeps a hidden auxiliary window, closes/reopens the main window three times, checks that editor event listener counts stay at one, exercises maximize state round trips, and restores minimized/hidden windows. The Mac arm64/x64 source probe passed 18 window checks, including ten reopen cycles per architecture. TypeScript, build:check and scoped entry ESLint passed. Evidence is in artifacts/macos-window-fix; the Windows fixture temporarily keeps only its own test process alive, so real macOS Dock and native focus remain not-run.
 

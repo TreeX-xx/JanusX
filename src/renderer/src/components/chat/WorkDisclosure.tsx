@@ -1,5 +1,6 @@
-import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useHistoryDisclosure } from './VirtualHistory'
+import { DisclosureReturn } from './DisclosureReturn'
 import { ConversationDuration } from '../ConversationDuration'
 import { Check, ChevronRight, CircleAlert, Clock, LoaderCircle, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -34,10 +35,11 @@ export function WorkDisclosure({ children, summary, settled, stateKey = 'work', 
   const [open, setExpanded] = useWorkDisclosure(`work:${stateKey}`, false)
   const [visited, setVisited] = useState(open)
   const bodyId = useId()
+  const toggleRef = useRef<HTMLButtonElement>(null)
   const status = summary.waiting ? 'waiting' : summary.running ? 'running' : summary.unknown ? 'unknown' : summary.interrupted ? 'interrupted' : 'completed'
   const StatusIcon = summary.waiting ? Clock : summary.running ? LoaderCircle : summary.failed || summary.rejected || summary.unknown ? CircleAlert : summary.interrupted ? Square : Check
   return <div className="conversation-work" data-settled={settled} data-status={status}>
-    <button type="button" className="conversation-work-toggle" aria-expanded={open} aria-controls={bodyId}
+    <button ref={toggleRef} type="button" className="conversation-work-toggle" aria-expanded={open} aria-controls={bodyId}
       onClick={() => { setVisited(true); setExpanded(!open) }}>
       <ChevronRight size={13} aria-hidden="true" />
       <span className="conversation-work-copy">
@@ -57,6 +59,7 @@ export function WorkDisclosure({ children, summary, settled, stateKey = 'work', 
       {summary.incomplete && <span>{t('conversation.work.incomplete')}</span>}
       </span></span>
     </button>
+    {open && <DisclosureReturn toggleRef={toggleRef} />}
     <div id={bodyId} className="conversation-work-body" hidden={!open}>{open || visited ? typeof children === 'function' ? children() : children : null}</div>
   </div>
 }

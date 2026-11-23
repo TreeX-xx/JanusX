@@ -20,13 +20,14 @@ import { createSystemCliInstaller, nativeUpdateCommand, npmOwnsCommand } from '.
 import { EXTERNAL_CLI_TOOLS } from '../../../src/main/external-cli/tool-registry'
 
 const modules = (prefix: string) => join(prefix, process.platform === 'win32' ? 'node_modules' : 'lib/node_modules')
-async function installFixture(prefix: string): Promise<string> {
-  const root = join(modules(prefix), EXTERNAL_CLI_TOOLS.pi.npmPackage!)
+async function installFixture(prefix: string, tool = EXTERNAL_CLI_TOOLS.pi): Promise<string> {
+  const root = join(modules(prefix), tool.npmPackage!)
   await mkdir(root, { recursive: true })
-  await writeFile(join(root, 'package.json'), JSON.stringify({ name: EXTERNAL_CLI_TOOLS.pi.npmPackage, version: state.version }))
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: tool.npmPackage, version: state.version }))
   const entry = join(root, 'cli.js')
   await writeFile(entry, '#!/usr/bin/env node\nconsole.log("2.0.0")')
-  const command = join(prefix, process.platform === 'win32' ? 'pi.cmd' : 'bin/pi')
+  const binary = tool.binaryNames[0]
+  const command = join(prefix, process.platform === 'win32' ? binary + '.cmd' : 'bin/' + binary)
   await mkdir(dirname(command), { recursive: true })
   if (process.platform === 'win32') await writeFile(command, '@echo off\r\n"%dp0%node_modules\\@earendil-works\\pi-coding-agent\\cli.js" %*')
   else { await chmod(entry, 0o755); await rm(command, { force: true }); await symlink(entry, command) }
@@ -43,7 +44,10 @@ beforeEach(async () => {
     let stdout = ''
     if (args[0] === 'prefix') stdout = state.prefix
     else if (args[0] === 'root') stdout = modules(state.prefix)
-    else if (!state.fail) state.active = await installFixture(state.prefix)
+    else if (!state.fail) {
+      if (args.some(arg => arg.startsWith('@openai/codex@'))) await installFixture(state.prefix, EXTERNAL_CLI_TOOLS.codex)
+      else state.active = await installFixture(state.prefix)
+    }
     const failed = state.fail && !['prefix', 'root'].includes(args[0])
     return { status: 'exited', exitCode: failed ? 1 : 0, stdout, stderr: failed ? 'permission denied' : '', truncated: false }
   })
@@ -78,6 +82,30 @@ describe('system CLI installation', () => {
     expect(await createSystemCliInstaller().install(EXTERNAL_CLI_TOOLS.pi)).toMatchObject({ success: false, error: expect.stringContaining('original package manager') })
     expect(state.run).not.toHaveBeenCalled()
   })
+  it.runIf(process.platform === 'darwin').each(['missing', 'owned', 'unrelated', 'other prefix'])(
+    'checks ownership of a macOS Codex launcher when its target is %s', async target => {
+      const prefix = target === 'other prefix' ? join(state.root, 'other-node') : state.prefix
+      const bin = join(prefix, 'bin')
+      const command = join(bin, 'codex')
+      if (target === 'owned') await installFixture(prefix, EXTERNAL_CLI_TOOLS.codex)
+      if (target === 'unrelated') {
+        await mkdir(bin, { recursive: true })
+        await writeFile(command, 'unrelated executable')
+      }
+      const launcher = join(state.root, '.local', 'bin', 'codex')
+      await mkdir(dirname(launcher), { recursive: true })
+      await writeFile(launcher, `#!/bin/sh\nPATH=${bin}:$PATH exec ${command} "$@"\n`, { mode: 0o755 })
+      state.active = launcher
+      const result = await createSystemCliInstaller().install(EXTERNAL_CLI_TOOLS.codex)
+      if (target === 'missing' || target === 'owned') {
+        expect(result).toMatchObject({ success: true, target: { path: launcher, version: state.version } })
+        expect(state.run.mock.calls.map(call => call[1][0])).toEqual(['prefix', 'root', 'i'])
+      } else {
+        expect(result).toMatchObject({ success: false, error: expect.stringContaining(target === 'other prefix' ? 'outside the active npm prefix' : 'not owned') })
+        expect(state.run.mock.calls.map(call => call[1][0])).toEqual(['prefix', 'root'])
+      }
+    },
+  )
   it('does not download a private runtime when system npm is missing', async () => {
     state.env = {}
     await rm(join(state.root, 'node'), { recursive: true })

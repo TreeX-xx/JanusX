@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type Dispatch, type SetStateAction, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { ChevronDown, ChevronRight, Globe, Minimize2, Puzzle, X } from 'lucide-react'
@@ -7,6 +7,7 @@ import { JanusIcon } from './ui/JanusIcon'
 import { useSuperAgentUIStore } from '@/stores/superagent-ui'
 import { AuxiliaryPanelCollapseButton } from './ui/AuxiliaryPanelCollapseButton'
 import { useGlobalToolsStore } from '@/stores/global-tools'
+import { useAuxiliaryPanelsStore } from '@/stores/auxiliary-panels'
 import { GlobalToolsLayout } from './GlobalToolsLayout'
 import { TerminalSelector } from './TerminalSelector'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -157,8 +158,51 @@ function BrowserPaneTabLabel({ surfaceId, isActive }: { surfaceId: string; isAct
   )
 }
 
+interface SuperAgentPaneLocation {
+  element: HTMLDivElement
+  paneId: string
+  visible: boolean
+  focused: boolean
+  toolbarHost: HTMLDivElement | null
+}
+
+function SuperAgentPaneSlot({ register, paneId, active, visible, focused, toolbarHost }: Omit<SuperAgentPaneLocation, 'element'> & {
+  active: boolean
+  register: Dispatch<SetStateAction<SuperAgentPaneLocation | null>>
+}) {
+  const root = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const element = root.current!
+    register({ element, paneId, visible, focused, toolbarHost })
+    return () => register(current => current?.element === element ? null : current)
+  }, [register, paneId, visible, focused, toolbarHost])
+  return <div ref={root} className="absolute inset-0" hidden={!active} aria-hidden={!active} {...(!active ? { inert: '' } : {})} />
+}
+
+// Keep the portal target stable across pane-tree changes so moving the tab preserves its composer.
+function SuperAgentPane({ location, auxiliaryControls }: { location: SuperAgentPaneLocation | null; auxiliaryControls: boolean }) {
+  const [target] = useState(() => {
+    const element = document.createElement('div')
+    element.className = 'h-full'
+    return element
+  })
+  const slot = location?.element
+  useLayoutEffect(() => {
+    slot?.appendChild(target)
+    return () => target.remove()
+  }, [slot, target])
+  return createPortal(<div className="h-full" onPointerDownCapture={() => {
+    if (!location) return
+    if (auxiliaryControls) useAuxiliaryPanelsStore.getState().activate('tools')
+    if (!location.focused) useGlobalToolsStore.getState().setFocusedPane(location.paneId)
+  }}>
+    <SuperAgentWorkspace visible={location?.visible ?? false} focused={location?.focused ?? false} toolbarHost={location?.toolbarHost ?? null} />
+  </div>, target)
+}
+
 interface PaneTreeViewProps {
   toolsRegion?: boolean
+  setSuperAgentPane?: Dispatch<SetStateAction<SuperAgentPaneLocation | null>>
   node: WorkspacePaneNode | null
   workspaceVisible: boolean
   terminalsById: Map<string, Terminal>
@@ -745,6 +789,7 @@ function TerminalPresetCapsule({
 
 function LeafPane({
   toolsRegion = false,
+  setSuperAgentPane,
   leaf,
   workspaceVisible,
   terminalsById,
@@ -1114,12 +1159,10 @@ function LeafPane({
             )
           }
 
-          if (tab.type === 'superagent') {
+          if (tab.type === 'superagent' && setSuperAgentPane) {
             const isActive = tab.id === activeTabId
-            return <div key={tab.id} className="absolute inset-0" hidden={!isActive}
-              aria-hidden={!isActive} {...(!isActive ? { inert: '' } : {})}>
-              <SuperAgentWorkspace visible={workspaceVisible && isActive} focused={workspaceVisible && isActive && isFocused} toolbarHost={superAgentToolbar} />
-            </div>
+            return <SuperAgentPaneSlot key={tab.id} register={setSuperAgentPane} paneId={leaf.id} active={isActive}
+              visible={workspaceVisible && isActive} focused={workspaceVisible && isActive && isFocused} toolbarHost={superAgentToolbar} />
           }
           if (tab.type !== 'terminal') return null
           const terminal = terminalsById.get(tab.terminalId)
@@ -1333,6 +1376,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
   const drawerBodyStyleRef = useRef<{ cursor: string; userSelect: string } | null>(null)
   const drawerKeyboardResizeUntilRef = useRef(0)
   const [terminalMenuPaneId, setTerminalMenuPaneId] = useState<string | null>(null)
+  const [superAgentPane, setSuperAgentPane] = useState<SuperAgentPaneLocation | null>(null)
   const cancelTabDragRef = useRef<(() => void) | null>(null)
   // AC7: launching guard for handlePresetSelect, mirroring TerminalSelector's
   // launchingPreset pattern. Prevents double-click / rapid preset selection
@@ -1690,14 +1734,15 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
     if (stolenByTerminal && Date.now() < drawerKeyboardResizeUntilRef.current) event.currentTarget.focus()
   }
 
+  const hasSuperAgent = getLeafPanes(globalTools.paneTree).some(leaf => leaf.tabs.some(tab => tab.type === 'superagent'))
   return (
       <div
         ref={terminalAreaRef}
         className={styles.area}
     >
-      <GlobalToolsLayout hasProject={paneTree !== null || (activeWorkspaceId !== null && (terminalLauncher || globalTools.collapsed || !getLeafPanes(globalTools.paneTree).some(leaf => leaf.tabs.some(tab => tab.type === 'superagent'))))} projectTree={paneTree} externalControls={auxiliaryControls}
+      <GlobalToolsLayout hasProject={paneTree !== null || (activeWorkspaceId !== null && (terminalLauncher || globalTools.collapsed || !hasSuperAgent))} projectTree={paneTree} externalControls={auxiliaryControls}
         tools={(visible) => <PaneTreeView
-          toolsRegion node={globalTools.paneTree} workspaceVisible={visible}
+          toolsRegion setSuperAgentPane={setSuperAgentPane} node={globalTools.paneTree} workspaceVisible={visible}
           terminalsById={terminalsById} focusedPaneId={globalTools.focused ? globalTools.focusedPaneId : null}
           activeTerminalId={null} showFocusChrome={getLeafPanes(globalTools.paneTree).length > 1}
           onCollapseLayout={globalTools.collapsePaneLayout} onPaneFocus={globalTools.setFocusedPane}
@@ -1825,6 +1870,7 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
 
         </>}
       />
+      {hasSuperAgent && <SuperAgentPane location={superAgentPane} auxiliaryControls={auxiliaryControls} />}
 
     </div>
   )

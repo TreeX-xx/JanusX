@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceAgentRuntime } from '@janus-agent/agent-core'
+import { approveToolRequests } from './tool-approval.fixture'
 import { registerUserMemoryTools } from '../../../src/main/agent/runtime/tools/user-memory-tools'
 import { userEpisodeService } from '../../../src/main/knowledge/user-episode-service'
 import { searchUserMemoryDefault } from '../../../src/main/knowledge/user-recall-service'
@@ -85,20 +86,7 @@ async function createRuntime(autoApprove: boolean) {
   temporaryDirectories.push(root)
   const runtime = new WorkspaceAgentRuntime(async () => root)
   registerUserMemoryTools(runtime.registry)
-  if (autoApprove) {
-    runtime.onEvent((event) => {
-      if (event.type !== 'approval-requested') return
-      runtime.resolveApproval({
-        approvalId: event.request.id,
-        approved: true,
-        workspaceId: event.request.workspaceId,
-        sessionId: event.request.sessionId,
-        correlationId: event.request.correlationId,
-        toolName: event.request.toolName,
-        actionRisk: event.request.actionRisk,
-      })
-    })
-  }
+  if (autoApprove) approveToolRequests(runtime)
   const session = await runtime.createSession({ workspaceId: 'workspace-1', workspaceRoot: root })
   return { runtime, session }
 }
