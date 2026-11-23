@@ -34,6 +34,7 @@ import { ConversationMessageActions } from './ConversationMessageActions'
 import { ConversationMessageEditor } from './ConversationMessageEditor'
 import { ConversationPrompt } from './ConversationPrompt'
 import { ConversationHistoryBrowser, type ConversationHistoryBookmark } from './ConversationHistoryBrowser'
+import { codexBrowserCompletion, ConversationBrowserCompletion } from './chat/ConversationBrowserCompletion'
 import styles from './AgentSessionPane.module.css'
 import { conversationPrompt, activeConversationReferences, MAX_CONVERSATION_ATTACHMENTS, type ConversationReference } from '../../../shared/conversation-context'
 import type { ConversationInputHandle } from './ConversationInput'
@@ -370,7 +371,11 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               const timing = snapshot as ConversationSnapshot & { turnDurations?: Record<string, number> }
               const duration = !turn.active ? timing.turnDurations?.[turn.key] ?? turn.items.find(item => item.durationMs !== undefined)?.durationMs : undefined
               return <>{turn.groups.map((group, groupIndex) => {
-                const renderNodes = () => group.items.map((item, index) => item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user} data-side-source="message" data-side-item={item.id} data-side-turn={item.turnId}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
+                const renderNodes = () => group.items.map((item, index) => {
+                  const completion = codexBrowserCompletion(item, snapshot.engine)
+                  if (completion) return completion.state === 'completed' ? <ConversationBrowserCompletion key={item.id} title={completion.title} /> : null
+                  const previous = group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1)
+                  return item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user} data-side-source="message" data-side-item={item.id} data-side-turn={item.turnId}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
                 onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                   if (!canSend || working || outgoing.length || busyRef.current) return
                   follow.current = false; setError('')
@@ -389,11 +394,12 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                     }} />
                 </article>
                 : item.type === 'agentMessage' ? <article className={styles.answer} data-side-source="reply" data-side-item={item.id} data-side-turn={item.turnId} key={item.id} hidden={!item.text}>
-                  {(group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1))?.type !== 'agentMessage' && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
+                  {(previous?.type !== 'agentMessage' || codexBrowserCompletion(previous, snapshot.engine)) && <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t(`provider.${snapshot.engine}`)}</span></div>}
                   <MarkdownContent content={item.text} variant="conversation" workspacePath={terminal?.cwd} streaming={item.status === 'inProgress'} />{item.truncated && <p>{t(canReadHistory ? 'conversation.contentPreview' : 'conversation.truncated')}</p>}{fullContent(item)}{item.text && item.status !== 'inProgress' && <ConversationMessageActions item={item} />}
                 </article>
                 : item.type === 'turnError' ? <ConversationNotice key={item.id} kind="failure" message={item.text} />
-                  : <div key={item.id}><ConversationToolCall item={item} openFile={path => void openFile(path)} />{fullContent(item)}</div>)
+                  : <div key={item.id}><ConversationToolCall item={item} openFile={path => void openFile(path)} />{fullContent(item)}</div>
+                })
                 return <div key={group.items[0].id}>
                   {group.process ? <WorkDisclosure stateKey={group.items[0].id} activity={group.activity} summary={{ ...group.summary,
                     waiting: group.items.filter(item => snapshot.approvals.some(approval => approval.itemId === item.id) || snapshot.questions?.some(request => request.itemId === item.id)).length || group.summary.waiting,
@@ -452,7 +458,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
           incomplete={selectedFilesTurn.changes.incomplete || !!snapshot?.truncated} openFile={openFile}
           onReview={canReviewProject ? () => useRightToolStore.getState().openTool('git') : undefined}
           onFeedback={snapshot?.capabilities.submit ? (path, quote) => addFeedback(path, quote, selectedFilesTurn.key) : undefined} />}
-        {historyView && historyView.threadId === snapshot?.threadId && historyView.pid === terminal?.pid && visible && conversation && <ConversationHistoryBrowser key={`${terminalId}:${terminal?.pid}:${snapshot.threadId}:${snapshot.controlEpoch}`} terminalId={terminalId} threadId={snapshot.threadId} workspacePath={terminal?.cwd} bookmark={historyView} openFile={openFile} close={closeHistory} />}
+        {historyView && historyView.threadId === snapshot?.threadId && historyView.pid === terminal?.pid && visible && conversation && <ConversationHistoryBrowser key={`${terminalId}:${terminal?.pid}:${snapshot.threadId}:${snapshot.controlEpoch}`} terminalId={terminalId} threadId={snapshot.threadId} engine={snapshot.engine} workspacePath={terminal?.cwd} bookmark={historyView} openFile={openFile} close={closeHistory} />}
         </div>
         <div className={styles.latestAnchor}>{showLatest && !historyView && <button type="button" className={styles.latest} aria-label={t('conversation.latest')} title={t('conversation.latest')} onClick={() => {
           navigationRef.current?.cancel()

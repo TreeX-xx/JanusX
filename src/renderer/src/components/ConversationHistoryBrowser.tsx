@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowLeft, LoaderCircle } from 'lucide-react'
+import type { ConversationEngine } from '../../../shared/conversation-display'
 import type { ConversationHistoryItem, ConversationHistoryPage, ConversationHistoryRequest, ConversationHistoryText } from '../../../shared/conversation-history'
 import { VirtualHistory } from './chat/VirtualHistory'
 import { MarkdownContent } from './chat/ChatContent'
 import { ConversationPrompt } from './ConversationPrompt'
 import { ConversationToolCall } from './chat/ConversationToolCall'
+import { codexBrowserCompletion, ConversationBrowserCompletion } from './chat/ConversationBrowserCompletion'
 import { ConversationPlanPanel } from './ConversationPlanPanel'
 import { ConversationFileChanges, ConversationFileChangesPanel, useTurnFilesPanel } from './ConversationFileChanges'
 import { conversationFileChanges } from '../../../shared/conversation-file-changes'
@@ -20,8 +22,8 @@ export interface ConversationHistoryBookmark {
 }
 
 /** Only three native pages and one text chunk survive. Unmounting releases them. */
-export const ConversationHistoryBrowser = memo(function ConversationHistoryBrowser({ terminalId, threadId, workspacePath, bookmark, openFile, close }: {
-  terminalId: string; threadId: string; workspacePath?: string; bookmark: ConversationHistoryBookmark; openFile(path: string): Promise<void>; close(): void
+export const ConversationHistoryBrowser = memo(function ConversationHistoryBrowser({ terminalId, threadId, engine, workspacePath, bookmark, openFile, close }: {
+  terminalId: string; threadId: string; engine: ConversationEngine; workspacePath?: string; bookmark: ConversationHistoryBookmark; openFile(path: string): Promise<void>; close(): void
 }) {
   const { t } = useTranslation('terminal')
   const [pages, setPages] = useState<Page[]>([]), [loading, setLoading] = useState(false), [error, setError] = useState('')
@@ -138,9 +140,10 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
     const plan = last ? plansByTurn.get(turnId) : undefined
     const document = last ? documentsByTurn.get(turnId) : undefined
     const changes = last ? changesByTurn.get(turnId) : undefined
+    const completion = codexBrowserCompletion(item, engine)
     return <article className={styles.message} data-history-item={item.id} data-side-item={item.id} data-side-turn={turnId}
-      data-side-source={item.type === 'userMessage' ? 'message' : item.type === 'agentMessage' ? 'reply' : undefined} hidden={item.type === 'plan' && !plan && !document && !changes}>
-      {item.type !== 'plan' && <>
+      data-side-source={item.type === 'userMessage' ? 'message' : item.type === 'agentMessage' && !completion ? 'reply' : undefined} hidden={item.type === 'plan' && !plan && !document && !changes}>
+      {completion ? completion.state === 'completed' && <ConversationBrowserCompletion title={completion.title} /> : item.type !== 'plan' && <>
         <span className={styles.label}>{t(item.type === 'userMessage' ? 'conversation.historyUser' : item.type === 'agentMessage' ? 'conversation.historyAgent' : 'conversation.historyActivity')}</span>
         {item.type === 'userMessage' ? <div className={styles.user}><ConversationPrompt text={item.text} /></div>
           : item.type === 'agentMessage' || item.type === 'reasoning'

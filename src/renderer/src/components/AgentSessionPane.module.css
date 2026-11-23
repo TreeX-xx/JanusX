@@ -71,6 +71,8 @@
 .answer + .user { margin-top: 40px; }
 .answer:empty { display: none; }
 .answer[hidden] { display: none; }
+.browserCompletion { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; color: var(--shell-muted); font-size: 13px; overflow-wrap: anywhere; }
+.browserCompletion svg { align-self: center; flex: none; }
 .userMessage { margin: 8px 0 14px; display: flex; flex-direction: column; align-items: flex-end; }
 .userMessage .user { margin: 0; }
 .messageEditor { width: 100%; margin: 0; padding: 15px 16px 12px; border: 1px solid var(--shell-border); border-radius: 16px; background: var(--shell-chrome-raised); }
