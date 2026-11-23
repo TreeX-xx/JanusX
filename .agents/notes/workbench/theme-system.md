@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "accepted",
   "created": "2026-11-03",
-  "updated": "2026-11-20T08:12:02Z",
+  "updated": "2026-11-23T10:10:30Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
@@ -64,7 +64,7 @@ SDK 额外携带一份生成 CSS，因此主题变动需要更新 SDK 生成物�
 
 本轮与 dev 的共享设置、模型用量、手机远控和推理强度改动整合后，7 个单测文件共 91 项通过；`white-theme`、`settings-controls`、`settings-layout`、`conversation-settings`、`usage-stats` 和 `mobile-remote-rail` 共 49 项浏览器回归通过。签名蓝图插件的 Electron 综合场景再次通过，包含主题切换、MCP 图标、设置、讨论与重装数据保留。类型检查、应用生产构建、主题及 i18n 检查、蓝图独立类型检查和 CPA／Docker 构建通过；lint 仍为 0 错误、51 条既有警告。新截图与日志在 `artifacts/white-theme/dev-adapt-*`，真实插件及推理强度截图在保留资料的 `final-integration/artifacts/` 下。已复核纯白 MCP、推理强度与共享设置界面。SDK 与公共 UI 归档锁随本次修改更新；未重跑外部 janus-agentX 归档的严格复现或完整安装包验收。
 
-终端类型卡片、类型菜单及工具／对话滚动条使用独立的中性 `interaction-accent`：经典黑为银灰、纸色为暖墨灰、纯白为石墨灰。悬浮与键盘焦点均不再引用橙色主强调色，插件主题继承基底主题的交互色。
+终端类型卡片、类型菜单和工作台的共享滚动条使用中性 `interaction-accent`。经典黑为银灰、纸色为暖墨灰、纯白为石墨灰，插件主题继承基底主题的交互色。左侧工作区的展开列表和折叠栏与工具面板、对话共用原生滚动条样式，滑块的常态、悬停和拖动均使用当前主题的交互色。
 
 
 2026-11-13 回答文字规则（按用户最新反馈修订）：正文强调只通过600字重表达，strong／em／mark 不再染色；普通链接继承正文色并常驻下划线，链接内代码继续使用代码色。只有反引号形成的行内代码（字段名、命令等）使用 conversation-emphasis；列表、表格、引用和嵌套加粗中的行内代码遵循同一规则。有语言和无语言代码块都保持正文色，不能凭 className 是否为空将无语言代码块误判为行内代码。普通对话、SuperAgent 流式／完成回答及 Worker 报告共用此规则，辅助聊天也由 ChatContent 的 chat-markdown 统一覆盖。

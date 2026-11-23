@@ -42,6 +42,34 @@ test('short windows keep all project targets scrollable and controls fixed', asy
   await expect(add).toBeInViewport()
 })
 
+test('overflowing workspace lists use neutral scrollbar thumbs in both sidebar modes', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 480 })
+  for (const theme of ['dark', 'planche', 'white']) {
+    await page.goto(`/sidebar.html?many&theme=${theme}`)
+    await page.mouse.move(600, 240)
+    await expect(page.locator('.workspace-sidebar__expanded .ws')).toHaveCount(24)
+    const expanded = page.locator('.workspace-sidebar__expanded > .overflow-y-auto')
+    const rail = page.locator('[data-workspace-rail-list]')
+    for (const list of [expanded, rail]) {
+      if (list === rail) await collapse(page)
+      const colors = await list.evaluate(node => {
+        const probe = document.createElement('span')
+        probe.style.backgroundColor = 'color-mix(in srgb, var(--interaction-accent) 42%, transparent)'
+        node.append(probe)
+        const colors = {
+          actual: getComputedStyle(node, '::-webkit-scrollbar-thumb').backgroundColor,
+          neutral: getComputedStyle(probe).backgroundColor,
+        }
+        probe.remove()
+        return colors
+      })
+      expect(colors.actual).toBe(colors.neutral)
+      expect(await list.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true)
+    }
+    await page.getByRole('button', { name: '展开工作区侧栏' }).click()
+  }
+})
+
 test('remembers all three folding levels and prunes removed projects and groups', async ({ page }) => {
   await page.goto('/sidebar.html?grouped')
   await page.locator('.workspace-sidebar__expanded .ws').first().locator('button').first().click()

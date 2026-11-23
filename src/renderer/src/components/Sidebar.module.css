@@ -1,5 +1,11 @@
 /* Navigation uses neutral surfaces; color is reserved for actionable status. */
-.sidebar { min-width: 0; min-height: 0; font-family: inherit; }
+/* Scrollbar tokens: .agents/notes/workbench/theme-system.md */
+.sidebar {
+  composes: scope from '../styles/native-scrollbars.module.css';
+  min-width: 0;
+  min-height: 0;
+  font-family: inherit;
+}
 
 .header {
   display: flex;
@@ -142,7 +148,7 @@
 .railAction:hover { color: var(--shell-text); background: var(--shell-hover); }
 .railAction:disabled { opacity: .4; cursor: default; }
 .railAction[aria-expanded='true'] { color: var(--shell-text); background: var(--shell-active); }
-.railList { display: flex; flex: 1; min-height: 0; width: 100%; flex-direction: column; align-items: center; gap: 4px; overflow-y: auto; overflow-x: hidden; padding: 6px 0; scrollbar-width: thin; }
+.railList { display: flex; flex: 1; min-height: 0; width: 100%; flex-direction: column; align-items: center; gap: 4px; overflow-y: auto; overflow-x: hidden; padding: 6px 0; }
 .railWorkspace { flex-shrink: 0; }
 .railWorkspace:hover { background: var(--shell-hover); }
 .railFooter { display: flex; flex-shrink: 0; width: 100%; flex-direction: column; align-items: center; gap: 4px; padding-top: 6px; border-top: 1px solid var(--shell-border); }
