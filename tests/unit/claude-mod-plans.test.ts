@@ -91,6 +91,24 @@ it('reads native tasks only after successful root mutations and preserves last c
   expect((await read()).at(-1)?.data.turnId).toBe('next')
 })
 
+it('publishes native turn completion even when a plan read is still pending', async () => {
+  const { $, emit, readAll } = await fixture()
+  let finishRead!: (value: object) => void
+  $.tool.call.mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve }))
+  const update = emit('tool.call', { tool: 'TaskUpdate', tool_use_id: 'update' }, { result: { success: true } })
+  await vi.waitFor(() => expect($.tool.call).toHaveBeenCalledOnce())
+  const complete = emit('turn.complete', { turnId: 't', reason: 'answer' })
+  try {
+    await vi.waitFor(async () => expect(await readAll()).toContainEqual(expect.objectContaining({
+      type: 'turn.complete', data: expect.objectContaining({ turnId: 't', reason: 'answer' }),
+    })))
+  } finally {
+    finishRead({ result: { tasks: [] } })
+    await Promise.all([update, complete])
+  }
+  expect((await readAll()).some(event => event.type === 'plan.updated')).toBe(false)
+})
+
 it('uses TodoWrite saved output, carries unfinished todos and clears them without parsing prose', async () => {
   const { $, emit, read } = await fixture()
   const event = { tool: 'TodoWrite', tool_use_id: 'todo', todos: [{ content: 'Unconfirmed', status: 'completed' }] }

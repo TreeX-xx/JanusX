@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-23T08:17:45Z",
+  "updated": "2026-11-23T08:25:24Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -817,6 +817,10 @@ IPC 仍串行提交，原生已接收的不同文字不阻塞后续输入；重�
 验证（2026-11-04）：修复前 Codex、Claude、OpenCode 三项浏览器用例均复现第二条消息被本地强制排队；去掉 AgentComposer 和 AgentSessionPane 的默认 queue 后，通过 Enter 与发送按钮连续提交三条消息，全程无须结束当前轮。conversation-outbox、codex-conversation、claude-conversation、opencode-conversation、native-conversation、conversation-questions 共 60 项单元测试通过，覆盖原生活跃提交、重复身份、延迟回显、失败保留、控制代次和提问校验。codex-conversation、conversation-context、conversation-attachment-recovery、conversation-input-editing、conversation-questions 共 35 个不同浏览器用例分轮通过，覆盖 Pi／DSH 等待空闲、remount 后继续派发、必答问题暂存及删除消息、回答后立即派发、附件和多行占位提示回归。旧 OpenCode 强制排队断言改为必答问题阻塞场景后复验通过；类型检查与变更源码 ESLint 通过。日志在 artifacts/conversation-live-input。此次未修改原生适配器，界面与协议夹具不代表真实供应商模型采纳输入的效果。
 
 Claude 同一原生轮可合并多条输入；Mods 在 prompt.submit 进入下游前暂存每条正文，在 turn.start 一次投影独立 user item，拒绝／异常的暂存输入移除。不能仅使用 turn.start.text，否则只显示合并批次最后一条，前面消息无法确认。真实 CLI 回归已验证 Codex 0.166.0 的第二、第三条输入留在同一 turn 并进入后续模型请求，以及 Claude 2.1.316 在流式未结束时接受两条输入、后续请求包含两条且界面投影完整；均为隔离配置与 localhost 模型。Claude 完整审批／停止／多会话回归 96.3 秒通过；浏览器 31 项通过。未验证真实供应商模型采纳新要求的效果。
+
+Claude 空闲发送在新到达的原生轮次中核对整个输入批次，后续轮次不会覆盖已观察到的回显。发送回执超时时，适配器将该次交付报为未确认，事件桥仍接收迟到的回显，发送身份继续去重。轮次结束直接进入事件序列，未返回的 TaskList 读取不阻塞结束同步。点停止时，如果 Claude 明确确认指定轮次已经不在运行，只清理匹配的活动轮，保留部分输出和独立后台任务的状态。
+
+2026-11-23 定向回归 61 项通过，1 项 Windows 专用用例跳过。macOS Claude Code 2.1.330 使用隔离配置和本地模型夹具，验证对话队列连续发送三条后，模拟 JanusX 漏收原生结束事件，点击停止可按 Claude 的空闲回执清理旧轮，再在同一会话发送并接收回复。另用夹具复现合并输入回执及读取 TaskList 阻塞结束同步。未验证用户测试包中的首次断线诱因。
 
 ### P1 指令预览与模型控制
 

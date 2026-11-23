@@ -71,6 +71,7 @@ export class ClaudeConversation {
   private lastTurnInputs: string[] = []
   private lastTurn?: string
   private lastTurnSequence = 0
+  private pendingDialogEcho?: { text: string; afterSequence: number; observed: boolean }
   private changingSession = false
   private trustSequence = 0
   private trustWaiter?: { resolve(): void; reject(error: Error): void }
@@ -375,6 +376,13 @@ export class ClaudeConversation {
   }
   private receive(event: Json): void {
     const e = event.data ?? {}
+    if (event.type === 'turn.inactive') {
+      // The native abort reply confirms inactivity, even if the final outcome was lost.
+      if (typeof e.turnId === 'string' && e.turnId === this.state.turnId) {
+        this.receive({ type: 'turn.complete', data: { turnId: e.turnId, reason: 'aborted' } })
+      }
+      return
+    }
     if (event.type === 'question' && Array.isArray(e.questions)) {
       const questions: ConversationQuestion[] = e.questions.map((q: Json, index: number) => ({ id: String(index), header: q.header, text: q.question,
         options: q.options.map((option: Json, n: number) => ({ id: String(n), label: option.label, description: option.description })), multiple: q.multiSelect === true, allowText: true }))
@@ -408,6 +416,9 @@ export class ClaudeConversation {
       if (e.model && !this.state.settingsOverride) this.state.model = typeof e.model === 'string' ? e.model : e.model.model ?? this.state.model
       if (!e.isMeta && e.text) {
         const inputs = Array.isArray(e.inputs) && e.inputs.length ? e.inputs.slice(-100) : [e.text]
+        // Latch the receipt before another turn or a delayed daemon reply overtakes this batch.
+        const pending = this.pendingDialogEcho
+        if (pending && event.seq > pending.afterSequence && inputs.includes(pending.text)) pending.observed = true
         inputs.forEach((text: unknown, index: number) => {
           if (typeof text !== 'string') return
           const id = index === inputs.length - 1 ? `user:${e.turnId}` : `user:${e.turnId}:${index}`
@@ -599,25 +610,21 @@ export class ClaudeConversation {
     } else if (command.type === 'send') {
       await this.session.submit(command, async () => {
         this.state.error = undefined
-        const before = this.sequence
         const liveInput = Boolean(this.state.turnId)
-        let ack: Json
-        try { ack = await this.reply({ op: 'reply', short: this.short, text: command.text, nextTurn: !liveInput }) } catch (error) {
-          this.broken = true; this.fail('Claude delivery is unknown. Check the terminal; this message will not be resent.')
-          throw error
+        const echo = liveInput ? undefined : { text: command.text, afterSequence: this.sequence, observed: false }
+        this.pendingDialogEcho = echo
+        try {
+          const ack = await this.reply({ op: 'reply', short: this.short, text: command.text, nextTurn: !liveInput })
+          if (!ack.ok) throw new Error(String(ack.error ?? 'Claude refused submission'))
+          // The native queue accepts live input before the user message is echoed.
+          if (!echo) return
+          for (let i = 0; i < 100 && !echo.observed && !this.disposed && !this.broken; i++) await pause(100)
+          // Unknown delivery leaves this command failed in the ledger. The event bridge
+          // independently detects disconnects and can still confirm a late echo.
+          if (!echo.observed) throw new Error('Claude delivery unknown; check the terminal before sending again')
+        } finally {
+          this.pendingDialogEcho = undefined
         }
-        if (!ack.ok) throw new Error(String(ack.error ?? 'Claude refused submission'))
-        // The native input queue owns live input now. Consumption may wait for
-        // a model/tool boundary; keep the UI receipt pending its native echo.
-        if (liveInput) return
-        // Daemon ack alone is not delivery. Wait for the observed native user turn.
-        for (let i = 0; i < 100; i++) {
-          if (this.disposed || this.broken) break
-          if (this.lastTurnSequence > before && this.state.items.some(item => item.type === 'userMessage' && item.id === `user:${this.lastTurn}` && item.text === command.text)) return
-          await pause(100)
-        }
-        this.broken = true; this.fail('Claude delivery is unknown. Check the terminal; this message will not be resent.')
-        throw new Error('Claude delivery unknown; check the terminal before sending again')
       })
     } else if (command.type === 'interrupt') {
       if (this.state.submitting || this.state.settingsUpdating) throw new Error('Claude control is busy')

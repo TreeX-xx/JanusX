@@ -231,9 +231,12 @@ async function execute($, command) {
       blocked.add(command.turnId)
       const toolIds = [...new Set([...command.toolIds, ...[...activeTools].filter(([, tool]) => tool.turnId === command.turnId).map(([id]) => id)])]
       try { await $.turn.abort({ turnId: command.turnId }) } catch (error) {
-        // A completed turn can still have background tasks to stop. A different
-        // active turn must never be cancelled with this command.
-        if (currentTurn === command.turnId) throw error
+        const detail = String(error).replace(/^(?:Error: )?(?:HooksError: )?(?:janusx-conversation: )?/, '')
+        if (detail === `$.turn.abort: no turn is running (asked for ${command.turnId})`) {
+          if (currentTurn === command.turnId) currentTurn = null
+          record('turn.inactive', { turnId: command.turnId })
+        } else if (currentTurn === command.turnId) throw error
+        // A finished turn can still have background tasks to stop.
       }
       // abort schedules foreground Bash backgrounding; its result can arrive
       // after abort resolves. Wait for the selected tools' structured outcomes.
@@ -424,10 +427,10 @@ export function register(on) {
       }
     } finally { if (!done) await stream.return() }
   })
-  on('turn.complete', async ($, e, next) => {
+  on('turn.complete', ($, e, next) => {
     if (!e.agentId) {
       releaseQuestions(e.turnId)
-      await planReads
+      // A slow task-store read must not block native completion or leave a stale turn.
       record('turn.complete', { turnId: e.turnId, reason: e.reason, answer: e.answer?.slice(0, 32000) })
       if (currentTurn === e.turnId) currentTurn = null
     }

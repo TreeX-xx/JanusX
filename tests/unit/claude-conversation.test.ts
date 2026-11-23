@@ -103,6 +103,56 @@ describe('Claude conversation control and projection', () => {
     expect(controller.state.turnId).toBe('active')
     await controller.dispose()
   })
+
+  it('confirms an idle submission in a native batch even if a subsequent turn arrives before the daemon reply', async () => {
+    const { controller, wire, emit } = setup()
+    vi.useFakeTimers()
+    try {
+      const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+      vi.spyOn(wire, 'reply').mockImplementation(async () => {
+        emit('turn.start', { turnId: 'batch', text: 'follow-up', inputs: ['first submission', 'follow-up'] })
+        emit('turn.complete', { turnId: 'batch', reason: 'answer' })
+        emit('turn.start', { turnId: 'later', text: 'later turn' })
+        return { ok: true }
+      })
+      const submission = controller.command({ type: 'send', text: 'first submission', commandId: 'batched', controlEpoch })
+      const outcome = submission.catch(error => error)
+      await vi.advanceTimersByTimeAsync(10000)
+      expect(await outcome).toMatchObject({ connection: 'ready', turnId: 'later', controlEpoch })
+      expect(controller.state.items.filter(item => item.type === 'userMessage').map(item => item.text))
+        .toEqual(['first submission', 'follow-up', 'later turn'])
+    } finally {
+      await controller.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not disconnect the event bridge or replay an idle submission without a native echo', async () => {
+    const { controller, wire, emit } = setup()
+    vi.useFakeTimers()
+    try {
+      const { controlEpoch } = await controller.command({ type: 'mode', mode: 'conversation' })
+      const reply = vi.spyOn(wire, 'reply').mockResolvedValue({ ok: true })
+      const command = { type: 'send' as const, text: 'unconfirmed', commandId: 'missing-echo', controlEpoch }
+      const outcome = expect(controller.command(command)).rejects.toThrow('delivery unknown')
+      await vi.advanceTimersByTimeAsync(10000)
+      await outcome
+      expect(controller.state).toMatchObject({ connection: 'ready', controlEpoch })
+      await expect(controller.command(command)).rejects.toThrow('delivery unknown')
+      expect(reply).toHaveBeenCalledTimes(1)
+      reply.mockImplementationOnce(async () => {
+        emit('turn.start', { turnId: 'fresh-turn', text: 'fresh input' })
+        return { ok: true }
+      })
+      await expect(controller.command({ ...command, text: 'fresh input', commandId: 'fresh' }))
+        .resolves.toMatchObject({ connection: 'ready', turnId: 'fresh-turn' })
+      expect(reply).toHaveBeenCalledTimes(2)
+    } finally {
+      await controller.dispose()
+      vi.useRealTimers()
+    }
+  })
+
   it('projects confirmed task snapshots, preserves unfinished steps and rejects invalid or late updates', async () => {
     const { controller, emit } = setup()
     emit('turn.start', { turnId: 't', text: 'tasks' })
@@ -210,12 +260,11 @@ describe('Claude conversation control and projection', () => {
     emit('turn.complete', { turnId: 't', reason: 'answer' })
     reply.mockRejectedValueOnce(new Error('Unknown delivery'))
     await expect(controller.command({ ...cmd, commandId: 'unknown' })).rejects.toThrow('Unknown delivery')
-    expect(controller.state.connection).toBe('disconnected')
-    await expect(controller.command({ ...cmd, commandId: 'unknown' })).rejects.toThrow('not ready')
+    expect(controller.state.connection).toBe('ready')
+    await expect(controller.command({ ...cmd, commandId: 'unknown' })).rejects.toThrow('Unknown delivery')
     expect(reply).toHaveBeenCalledTimes(2)
     expect(controller.acceptsTerminalInput('hidden\r')).toBe(false)
     expect(controller.acceptsTerminalInput('\x1b[1;1R')).toBe(true)
-    wire.broken = false; controller.state.connection = 'ready'
     await controller.command({ type: 'mode', mode: 'terminal' })
     await expect(controller.command({ ...cmd, commandId: 'stale' })).rejects.toThrow('Display control changed')
     await controller.dispose()
@@ -281,6 +330,22 @@ describe('Claude conversation control and projection', () => {
     await expect(controller.command({ type: 'interrupt', controlEpoch })).rejects.toThrow('termination is unknown')
     expect(wire.tools.get('lost').active).toBe(true)
     await controller.dispose()
+  })
+  it('clears only the matching active turn on native inactivity', async () => {
+    const { controller, emit } = setup()
+    try {
+      emit('turn.start', { turnId: 'old', text: 'work' })
+      emit('plan.updated', { turnId: 'old', plan: [{ step: 'Done', status: 'completed' }] })
+      emit('turn.complete', { turnId: 'old', reason: 'answer' })
+      emit('turn.start', { turnId: 'active', text: 'follow-up' })
+      emit('chunk', { turnId: 'active', step: 0, chunk: { kind: 'text', text: 'partial' } })
+      emit('turn.inactive', { turnId: 'old' })
+      expect(controller.state.turnId).toBe('active')
+      expect(controller.state.plans?.at(-1)?.outcome).toBe('completed')
+      emit('turn.inactive', { turnId: 'active' })
+      expect(controller.state).toMatchObject({ connection: 'ready', turnId: null })
+      expect(controller.state.items.at(-1)).toMatchObject({ text: 'partial', status: 'interrupted' })
+    } finally { await controller.dispose() }
   })
   it('ends background activity on native task notification without cancelling a later turn', async () => {
     const { controller, emit } = setup()
