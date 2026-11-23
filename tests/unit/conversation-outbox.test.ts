@@ -50,6 +50,11 @@ describe('conversation outbox', () => {
     publish(); publish()
     expect(send).toHaveBeenCalledTimes(1)
     expect(conversationOutbox(state.id).map(item => item.text)).toEqual(['first', 'second'])
+
+    send.mockResolvedValueOnce(structuredClone(state))
+    enqueueConversationMessage(state, 'new submission')
+    await vi.waitFor(() => expect(conversationOutbox(state.id).map(item => item.status)).toEqual(['failed', 'failed', 'accepted']))
+    expect(send.mock.calls.map(([, command]) => command.text)).toEqual(['first', 'new submission'])
   })
 
   it('does not send queued text into a different thread or control epoch, and permits recovering queued text', () => {
@@ -64,6 +69,72 @@ describe('conversation outbox', () => {
     state.turnId = null; state.threadId = 'new'; state.controlEpoch++; publish()
     expect(send).not.toHaveBeenCalled()
     expect(conversationOutbox(state.id)[0]).toMatchObject({ status: 'failed', text: 'old thread' })
+
+    send.mockResolvedValueOnce(structuredClone(state))
+    enqueueConversationMessage(state, 'new thread only')
+    expect(send).toHaveBeenCalledExactlyOnceWith(state.id, expect.objectContaining({ text: 'new thread only', controlEpoch: state.controlEpoch }))
+  })
+
+  it.each(['sending', 'accepted'] as const)('keeps %s and queued messages through a same-session disconnect', async (status) => {
+    const { state, send, publish } = setup()
+    state.turnId = 'active'
+    let resolve!: (value: ConversationSnapshot) => void
+    send.mockImplementationOnce(() => new Promise<ConversationSnapshot>(r => { resolve = r }))
+    send.mockImplementation(() => Promise.resolve(structuredClone(state)))
+    enqueueConversationMessage(state, 'same')
+    enqueueConversationMessage(state, 'same')
+    if (status === 'accepted') {
+      resolve(structuredClone(state))
+      await vi.waitFor(() => expect(conversationOutbox(state.id)[0].status).toBe('accepted'))
+    }
+    state.connection = 'disconnected'; publish()
+    expect(conversationOutbox(state.id).map(item => item.status)).toEqual([status, 'queued'])
+    if (status === 'sending') {
+      resolve(structuredClone(state))
+      await vi.waitFor(() => expect(conversationOutbox(state.id)[0].status).toBe('accepted'))
+    }
+    state.connection = 'ready'; publish()
+    expect(send).toHaveBeenCalledTimes(1)
+    state.items.push({ id: 'echo-1', turnId: 'active', type: 'userMessage', text: 'same', status: 'completed' }); publish()
+    await vi.waitFor(() => expect(conversationOutbox(state.id).map(item => item.status)).toEqual(['accepted']))
+    expect(send).toHaveBeenCalledTimes(2)
+    state.items.push({ id: 'echo-2', turnId: 'active', type: 'userMessage', text: 'same', status: 'completed' }); publish()
+    expect(conversationOutbox(state.id)).toEqual([])
+  })
+
+  it('dispatches a new entry using the newest snapshot when the composer still has an older one', () => {
+    const { state, send, publish } = setup()
+    const earlier = { ...state, submitting: true }
+    publish()
+    send.mockResolvedValueOnce(structuredClone(state))
+    enqueueConversationMessage(earlier, 'typed before the renderer updated')
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps new-thread entries waiting when the previous thread rejects its pending send', async () => {
+    const { state, send, publish } = setup()
+    let reject!: (error: Error) => void
+    send.mockImplementationOnce(() => new Promise<ConversationSnapshot>((_resolve, r) => { reject = r }))
+    send.mockImplementation(() => Promise.resolve(structuredClone(state)))
+    enqueueConversationMessage(state, 'old thread')
+    state.threadId = 'new'; state.controlEpoch++; publish()
+    enqueueConversationMessage(state, 'new thread')
+    reject(new Error('old delivery unknown'))
+    await vi.waitFor(() => expect(conversationOutbox(state.id).map(item => item.status)).toEqual(['failed', 'accepted']))
+    expect(send.mock.calls.map(([, command]) => command.text)).toEqual(['old thread', 'new thread'])
+  })
+
+  it('continues after a native echo has already confirmed a send whose IPC subsequently rejects', async () => {
+    const { state, send, publish } = setup()
+    let reject!: (error: Error) => void
+    send.mockImplementationOnce(() => new Promise<ConversationSnapshot>((_resolve, r) => { reject = r }))
+    send.mockImplementation(() => Promise.resolve(structuredClone(state)))
+    enqueueConversationMessage(state, 'confirmed by native echo')
+    enqueueConversationMessage(state, 'following message')
+    state.items.push({ id: 'echo', turnId: 'active', type: 'userMessage', text: 'confirmed by native echo', status: 'completed' }); publish()
+    reject(new Error('late IPC error'))
+    await vi.waitFor(() => expect(conversationOutbox(state.id).map(item => [item.text, item.status])).toEqual([['following message', 'accepted']]))
+    expect(send).toHaveBeenCalledTimes(2)
   })
 
   it('keeps an accepted bubble until native echo arrives, then replaces it without resending', async () => {

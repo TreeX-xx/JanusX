@@ -35,13 +35,15 @@ function update(id: string, entries: OutgoingMessage[]) {
   useConversationOutbox.setState(state => ({ entries: { ...state.entries, [id]: entries } }))
 }
 
+// Delivery and reconnect behavior: .agents/notes/workbench/terminal-dialog-dual-mode.md
 /** Runtime-only outbox survives pane remounts; never persist or retry uncertain deliveries. */
 export function enqueueConversationMessage(snapshot: ConversationSnapshot, text: string, delivery?: 'queue' | 'steer', imagePaths?: string[], references?: ConversationReference[], draftText?: string): boolean {
   if (!text.trim() || text.length > 32000 || parseConversationSlashCommand(text, snapshot.commands) || conversationOutbox(snapshot.id).length >= 100) return false
   update(snapshot.id, [...conversationOutbox(snapshot.id), {
     id: crypto.randomUUID(), text, references, draftText, delivery, imagePaths, expectedTurnId: delivery === 'steer' ? snapshot.turnId ?? undefined : undefined, threadId: snapshot.threadId, controlEpoch: snapshot.controlEpoch, status: 'queued', baseline: [],
   }])
-  observeConversationOutbox(snapshot)
+  const latest = snapshots.get(snapshot.id)
+  observeConversationOutbox(latest && latest.revision > snapshot.revision ? latest : snapshot)
   return true
 }
 
@@ -62,14 +64,14 @@ export function observeConversationOutbox(snapshot: ConversationSnapshot): void 
     if (item.dispatched && snapshot.threadId === item.threadId
       && snapshot.items.some(native => native.type === 'userMessage' && native.text === item.text && !item.baseline.includes(native.id))) return []
     if (item.status === 'queued' && item.delivery === 'steer' && snapshot.turnId !== item.expectedTurnId) return [{ ...item, status: 'failed' as const, error: 'The target turn ended. Restore this message to send it again.' }]
-    if (item.status !== 'failed' && (snapshot.threadId !== item.threadId || snapshot.controlEpoch !== item.controlEpoch
-      || snapshot.connection === 'closed' || snapshot.connection === 'disconnected')) {
-      return [{ ...item, status: 'failed' as const, error: 'Conversation changed or disconnected. Check the terminal before sending again.' }]
+    // A disconnected session can reconnect with the same binding and replay its native events.
+    if (item.status !== 'failed' && (snapshot.threadId !== item.threadId || snapshot.controlEpoch !== item.controlEpoch || snapshot.connection === 'closed')) {
+      return [{ ...item, status: 'failed' as const, error: 'Conversation changed or closed. Check the terminal before sending again.' }]
     }
     return [item]
   })
   if (next.length !== entries.length || next.some((item, index) => item !== entries[index])) update(snapshot.id, next)
-  if (!next.length || inFlight.has(snapshot.id) || next.some(item => item.status === 'failed' || item.status === 'sending')) return
+  if (!next.length || inFlight.has(snapshot.id)) return
   const first = next.find(item => item.status === 'queued' && item.delivery === 'steer') ?? next.find(item => item.status === 'queued')
   if (!first) return
   // Different live inputs may be accepted before the native queue consumes them.
@@ -90,8 +92,13 @@ export function observeConversationOutbox(snapshot: ConversationSnapshot): void 
       observeConversationOutbox(result)
     } catch (error) {
       if (runtimes.get(snapshot.id) !== runtime) return
-      update(snapshot.id, conversationOutbox(snapshot.id).map(item => item.id === first.id || item.status === 'queued'
-        ? { ...item, status: 'failed', error: item.id === first.id ? String(error) : undefined } : item))
+      const entries = conversationOutbox(snapshot.id)
+      if (!entries.some(item => item.id === first.id)) return
+      update(snapshot.id, entries.map(item => {
+        if (item.id === first.id) return { ...item, status: 'failed', error: String(error) }
+        if (item.status === 'queued' && item.threadId === first.threadId && item.controlEpoch === first.controlEpoch) return { ...item, status: 'failed' }
+        return item
+      }))
     } finally {
       if (runtimes.get(snapshot.id) === runtime) {
         inFlight.delete(snapshot.id)

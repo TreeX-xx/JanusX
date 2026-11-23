@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-30",
-  "updated": "2026-11-20T12:06:46Z",
+  "updated": "2026-11-23T03:15:12Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "tags": ["terminal", "conversation", "agent", "dual-mode"],
   "relations": [
@@ -800,7 +800,11 @@ Windows Claude Code 2.1.316 已验证并接入同会话任务投影。Mods 在�
 
 五个引擎共用投递队列保存提交状态，普通发送不指定 delivery，由 liveInput 能力决定工作中是否立即派发。Codex、Claude 与 OpenCode 直接提交原生输入，Pi、DSH 等空闲后派发；底层协议保留显式 queue／steer，输入区不显示投递方式选择器。Codex 使用 turn/steer 并携带 expectedTurnId，完成竞态失败不自动重发为新轮，协议依据为 [官方 app-server 文档](https://learn.chatgpt.com/docs/app-server)。OpenCode 活跃时使用原生 prompt 的 steer 投递。Claude 活跃时使用 daemon 的普通 reply，交给原生输入处理，不强制 nextTurn；空闲仍使用 nextTurn:true。活跃输入收到 daemon 确认后保持已发送待同步，实际消费由原生模型／工具边界决定，不再因十秒内没有新 turn.start 就判定断线。
 
-IPC 仍串行提交，原生已接收的不同文字不阻塞后续输入；重复文字等待前一条原生回显，以免确认身份混淆。停止与发送按钮同时保留，队列最多保留 100 条；后台任务本身不阻止下一轮主对话。每条文字显示等待发送、发送中、已发送待同步或未确认状态，原生回传用发送前不存在的 user item 身份与正文确认。队列跨 pane remount 保留但不持久化到磁盘，pane 未挂载时的后续调度等重新订阅快照；应用退出不承诺恢复待发文字。发送失败暂停后续队列并保留全部文字，可移回输入框；未知送达不自动重发。模式、thread 或进程变化使未确认文字停止派发，旧进程迟到结果不能覆盖新进程状态。IPC 在途时禁止切换视图，确认后可去终端检查，保留的队列不会跟随旧控制代次自动发送。
+IPC 仍串行提交，原生已接收的不同文字不阻塞后续输入；重复文字等待前一条原生回显，以免确认身份混淆。停止与发送按钮同时保留，队列最多保留 100 条；后台任务本身不阻止下一轮主对话。每条文字显示等待发送、发送中、已发送待同步或未确认状态，原生回传用发送前不存在的 user item 身份与正文确认。队列跨 pane remount 保留但不持久化到磁盘，pane 未挂载时的后续调度等重新订阅快照；应用退出不承诺恢复待发文字。
+
+同一会话、同一控制代次断开时暂停派发，保留发送中、已发送待同步和等待发送状态。重连后按原生回显确认已提交消息，并按当前会话的发送条件继续派发待发项。重复正文仍等待前一条回显。关闭会话、切换线程、切换控制代次或更换进程时，受影响的条目暂停派发并保留原文。旧进程迟到的结果不覆盖新进程状态。IPC 在途时禁止切换视图。
+
+发送结果未知时，保留该条消息及同一控制代次当时的待发项供手动恢复，未经确认的提交不会自动重发。原生回显已经确认的提交即使随后收到 IPC 错误也按已送达处理。历史失败项仍可恢复或删除，后来主动提交的消息按当前会话状态派发。输入区落后于已收到的快照时，用最新快照调度，同时保留入队时绑定的会话和控制代次。
 
 验证（2026-11-04）：修复前 Codex、Claude、OpenCode 三项浏览器用例均复现第二条消息被本地强制排队；去掉 AgentComposer 和 AgentSessionPane 的默认 queue 后，通过 Enter 与发送按钮连续提交三条消息，全程无须结束当前轮。conversation-outbox、codex-conversation、claude-conversation、opencode-conversation、native-conversation、conversation-questions 共 60 项单元测试通过，覆盖原生活跃提交、重复身份、延迟回显、失败保留、控制代次和提问校验。codex-conversation、conversation-context、conversation-attachment-recovery、conversation-input-editing、conversation-questions 共 35 个不同浏览器用例分轮通过，覆盖 Pi／DSH 等待空闲、remount 后继续派发、必答问题暂存及删除消息、回答后立即派发、附件和多行占位提示回归。旧 OpenCode 强制排队断言改为必答问题阻塞场景后复验通过；类型检查与变更源码 ESLint 通过。日志在 artifacts/conversation-live-input。此次未修改原生适配器，界面与协议夹具不代表真实供应商模型采纳输入的效果。
 
