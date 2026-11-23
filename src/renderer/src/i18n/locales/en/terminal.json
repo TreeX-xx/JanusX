@@ -666,8 +666,9 @@
       "loading": "Loading...",
       "useFolder": "Reference folder",
       "empty": "No matching files",
-      "limit": "Attach up to 8 references per message.",
-      "size": "Each attachment must be between 1 byte and 10 MB.",
+      "importFailed": "Could not add {{name}}.",
+      "openFile": "Open file: {{name}}",
+      "previewSkipped": "Thumbnail skipped. Open the file to view it.",
       "tooLong": "The message and references exceed 32,000 characters. Shorten them before sending.",
       "selectionLong": "Select at most 8,000 characters of diff."
     },

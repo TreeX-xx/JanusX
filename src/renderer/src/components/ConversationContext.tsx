@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } fr
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ChevronRight, FileText, Folder, Paperclip, Plus, Search } from 'lucide-react'
 import type { FileNode } from '../../../shared/ipc/workspace'
-import { MAX_CONVERSATION_ATTACHMENTS, MAX_CONVERSATION_ATTACHMENT_BYTES, activeConversationReferences, type ConversationReference } from '../../../shared/conversation-context'
+import { conversationReferenceFileKind, type ConversationReference } from '../../../shared/conversation-context'
 import { setConversationReferences } from '../stores/conversation-context'
 import { canDropWorkspaceFileReference, clearWorkspaceFileDragData, hasWorkspaceFileDrag, readWorkspaceFileReferenceDrop } from '../lib/terminal-file-reference'
 import styles from './AgentSessionPane.module.css'
@@ -38,7 +38,6 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
   const addButton = useRef<HTMLButtonElement>(null)
   const menuId = useId()
   const focusInput = () => inputRef.current?.focus()
-  const activeReferences = activeConversationReferences(draft, references)
   useEffect(() => {
     const pending = references.filter(ref => !ref.inline)
     if (!pending.length || !inputRef.current) return
@@ -75,26 +74,14 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     return () => { active = false }
   }, [browsing, workspacePath, directory])
   const addReferences = (refs: ConversationReference[], range?: [number, number]) => {
-    const inline: ConversationReference[] = []
-    setConversationReferences(terminalId, current => {
-      const next = [...current]
-      for (const ref of refs) {
-        const index = next.findIndex(item => item.path === ref.path && item.quote === ref.quote)
-        const item = { ...(index < 0 ? ref : next[index]), inline: true }
-        inline.push(item)
-        if (index < 0) next.push(item)
-        else next[index] = item
-      }
-      return next
-    })
+    const inline = refs.map(ref => ({ ...ref, id: crypto.randomUUID(), inline: true }))
+    setConversationReferences(terminalId, current => [...current, ...inline])
     inputRef.current?.insertReferences(inline, range)
   }
   const add = (ref: ConversationReference, range?: [number, number]) => { setError(''); addReferences([ref], range) }
   const importFiles = async (files: File[]) => {
     if (disabled || importLock.current || !files.length) return
     setError('')
-    if (activeReferences.length + files.length > MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
-    if (files.some(file => !file.size || file.size > MAX_CONVERSATION_ATTACHMENT_BYTES)) { setError(t('conversation.context.size')); return }
     const editor = inputRef.current
     if (!editor) return
     const element = editor.element
@@ -102,17 +89,19 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     const imported: ConversationReference[] = []
     importLock.current = true; setImporting(true); onImporting(true); setError('')
     try {
-      for (const file of files) imported.push(await window.electron.file.importConversationAttachment(file.name, new Uint8Array(await file.arrayBuffer())))
-    } catch (e) { setError(String(e)) }
-    finally {
-      if (imported.length && element?.isConnected && inputRef.current?.element === element) addReferences(imported, insertionRange())
+      for (const file of files) {
+        try { imported.push(await window.electron.file.importConversationAttachment(file)) }
+        catch { setError(t('conversation.context.importFailed', { name: file.name })) }
+      }
+    } finally {
+      const range = insertionRange()
+      if (imported.length && element?.isConnected && inputRef.current?.element === element) addReferences(imported, range)
       importLock.current = false; setImporting(false); onImporting(false)
     }
   }
   const attachNode = (node: FileNode) => {
-    if (activeReferences.length >= MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
     const path = `${workspacePath!.replace(/[\\/]+$/, '')}/${node.path}`
-    add({ id: crypto.randomUUID(), path, name: node.name, kind: node.type === 'file' && /\.(png|jpe?g|webp|gif)$/i.test(node.name) ? 'image' : node.type }, !open ? [beforeMention.length, draft.length] : undefined)
+    add({ id: crypto.randomUUID(), path, name: node.name, kind: node.type === 'file' ? conversationReferenceFileKind(node.name) : node.type }, !open ? [beforeMention.length, draft.length] : undefined)
     setOpen(false); focusInput()
   }
   const navigate = (path: string) => open ? setFileQuery(path) : setDraft(`${beforeMention}@"${path}`)
@@ -207,8 +196,7 @@ export function ConversationContext({ inputRef, terminalId, workspacePath, refer
     inputRef.current?.setDropPoint(event.clientX, event.clientY)
     if (payload) {
       clearWorkspaceFileDragData()
-      if (activeReferences.length >= MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
-      add({ id: crypto.randomUUID(), name: payload.name, path: `${payload.workspacePath.replace(/[\\/]+$/, '')}/${payload.path}`, quote: payload.quote, kind: payload.type === 'file' && /\.(png|jpe?g|webp|gif)$/i.test(payload.name) ? 'image' : payload.type })
+      add({ id: crypto.randomUUID(), name: payload.name, path: `${payload.workspacePath.replace(/[\\/]+$/, '')}/${payload.path}`, quote: payload.quote, kind: payload.type === 'file' ? conversationReferenceFileKind(payload.name) : payload.type })
     } else if (files.length) void importFiles(Array.from(files))
   }}>
     <input ref={picker} type="file" multiple hidden onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />

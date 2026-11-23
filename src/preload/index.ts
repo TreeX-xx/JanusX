@@ -1,4 +1,6 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { CONVERSATION_ATTACHMENT_CHUNK_BYTES } from '../shared/conversation-context'
+import type { ConversationAttachmentImport } from '../shared/ipc/workspace'
 import { AUTOMATIONS_CHANNELS as automationChannels, type AutomationsAPI } from '../shared/automations'
 
 const automationsAPI: AutomationsAPI = {
@@ -141,7 +143,22 @@ const fileTreeAPI: FileTreeAPI = {
 }
 
 const fileAPI: FileAPI = {
-  importConversationAttachment: (name, bytes) => ipcRenderer.invoke(FILE_CHANNELS.importConversationAttachment, name, bytes),
+  importConversationAttachment: async file => {
+    const transfer = (request: ConversationAttachmentImport) => ipcRenderer.invoke(FILE_CHANNELS.importConversationAttachment, request)
+    const path = webUtils.getPathForFile(file)
+    if (path) return transfer({ type: 'path', path })
+    const id: string = await transfer({ type: 'begin', name: file.name, size: file.size })
+    try {
+      for (let offset = 0; offset < file.size; offset += CONVERSATION_ATTACHMENT_CHUNK_BYTES) {
+        const chunk = file.slice(offset, offset + CONVERSATION_ATTACHMENT_CHUNK_BYTES)
+        await transfer({ type: 'append', id, bytes: new Uint8Array(await chunk.arrayBuffer()) })
+      }
+      return await transfer({ type: 'finish', id })
+    } catch (error) {
+      await transfer({ type: 'cancel', id }).catch(() => {})
+      throw error
+    }
+  },
   read: (filePath) => ipcRenderer.invoke(FILE_CHANNELS.read, filePath),
     save: (filePath, content, expectedVersion) => expectedVersion === undefined
       ? ipcRenderer.invoke(FILE_CHANNELS.save, filePath, content)

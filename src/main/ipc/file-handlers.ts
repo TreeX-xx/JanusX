@@ -2,7 +2,7 @@ import { app, ipcMain, shell } from 'electron'
 import { isAbsolute, join, normalize } from 'node:path'
 import { stat } from 'node:fs/promises'
 import { parseRuntimeResource } from '../../shared/workspace-runtime'
-import { saveConversationAttachment } from '../lib/conversation-attachment'
+import { ConversationAttachmentImporter } from '../lib/conversation-attachment'
 import { workspaceFileIpc } from '../workspace/runtime-ipc'
 import { extname } from 'node:path'
 import { FILE_CHANNELS } from '../../shared/ipc/workspace'
@@ -10,7 +10,7 @@ import { authorizeRendererAction, type RendererActionAuthorizer } from '../agent
 import { janusWorkspaceFs } from '@janus-agent/agent-core'
 import { htmlPreviewServer } from '../preview/html-preview-server'
 import { saveEditorText } from '../lib/editor-save'
-import type { HtmlPreviewRequest } from '../../shared/ipc/workspace'
+import type { ConversationAttachmentImport, HtmlPreviewRequest } from '../../shared/ipc/workspace'
 import { editorTextByteLimit } from '../../shared/editor'
 
 const MIME_MAP: Record<string, string> = {
@@ -40,9 +40,21 @@ export function registerFileHandlers(authorize: RendererActionAuthorizer = autho
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
-  ipcMain.handle(FILE_CHANNELS.importConversationAttachment, async (event, name: string, bytes: Uint8Array) => {
+  const attachments = new ConversationAttachmentImporter(join(app.getPath('userData'), 'conversation-attachments'))
+  const attachmentOwners = new Set<number>()
+  ipcMain.handle(FILE_CHANNELS.importConversationAttachment, async (event, request: ConversationAttachmentImport) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid attachment frame')
-    return saveConversationAttachment(join(app.getPath('userData'), 'conversation-attachments'), name, bytes)
+    const owner = event.sender.id
+    if (!attachmentOwners.has(owner)) {
+      attachmentOwners.add(owner)
+      event.sender.once('destroyed', () => { attachmentOwners.delete(owner); void attachments.releaseOwner(owner) })
+    }
+    const result = await attachments.dispatch(owner, request)
+    if (event.sender.isDestroyed()) {
+      await attachments.releaseOwner(owner)
+      throw new Error('Attachment window closed')
+    }
+    return result
   })
   ipcMain.handle(FILE_CHANNELS.openPreviewLink, async (_event, value: string) => {
     const url = new URL(value)

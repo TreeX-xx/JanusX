@@ -14,8 +14,9 @@
 .reference button:hover { color: var(--shell-text); background: var(--shell-hover); }
 .reference button:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: -1px; }
 .reference button[data-remove] { flex-shrink: 0; }
-.reference button[data-preview] { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
-.reference button[data-preview] > span { overflow: hidden; text-overflow: ellipsis; }
+.reference button:is([data-preview], [data-open-reference]) { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
+.reference button:is([data-preview], [data-open-reference]) > span { overflow: hidden; text-overflow: ellipsis; }
+.reference button[data-open-reference] { padding: 0; line-height: inherit; }
 /* Let the filename supply the inline baseline; the thumbnail has no text baseline. */
 .reference img { align-self: center; flex-shrink: 0; width: 28px; height: 24px; object-fit: cover; border-radius: 3px; }
 .promptReference { cursor: default; user-select: text; }

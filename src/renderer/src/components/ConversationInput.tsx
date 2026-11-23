@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState, typ
 import { useTranslation } from 'react-i18next'
 import { referenceToken, conversationPrompt, type ConversationReference } from '../../../shared/conversation-context'
 import { loadLocalAssetDataUrl } from './viewers/local-asset'
+import { LOCAL_ASSET_MAX_BYTES } from '../lib/local-asset-resolver'
 import styles from './ConversationInput.module.css'
 import imageStyles from './ConversationImages.module.css'
 import { EXTERNAL_CLI_TOOL_ICONS } from '../lib/cli-tool-icons'
@@ -100,9 +101,10 @@ function select(root: HTMLElement, start: number, end: number) {
 
 export const ConversationInput = forwardRef<ConversationInputHandle, {
   value: string; references: ConversationReference[]; disabled: boolean; placeholder: string; label: string; title: string; className?: string
+  workspacePath?: string
   engineShortcuts?: boolean
   onChange(value: string): void; onKeyDown(event: KeyboardEvent<HTMLDivElement>): void
-} & AriaAttributes>(function ConversationInput({ value, references, disabled, placeholder, label, title, className, engineShortcuts = false, onChange, onKeyDown, ...aria }, ref) {
+} & AriaAttributes>(function ConversationInput({ value, references, disabled, placeholder, label, title, className, workspacePath, engineShortcuts = false, onChange, onKeyDown, ...aria }, ref) {
   const { t } = useTranslation('terminal')
   const root = useRef<HTMLDivElement>(null)
   const caret = useRef<[number, number]>([value.length, value.length])
@@ -113,12 +115,19 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
   const dialog = useRef<HTMLDialogElement>(null)
   const previewTrigger = useRef<HTMLButtonElement | null>(null)
   const dragging = useRef<{ token: string; start: number } | null>(null)
+  const fileButton = (button: HTMLButtonElement, reference: ConversationReference, skippedPreview = false) => {
+    button.dataset.openReference = reference.id
+    delete button.dataset.preview
+    button.disabled = false
+    button.setAttribute('aria-label', t('conversation.context.openFile', { name: reference.name }))
+    if (skippedPreview) button.title = t('conversation.context.previewSkipped')
+  }
   const remember = () => { if (root.current) caret.current = offsets(root.current) ?? caret.current }
   const fragment = (text: string, refs = latest.current.references) => {
     const result = document.createElement('div')
     for (const part of text.split(/(\[\[ref:[^\]]+\]\]|\[\[engine:(?:codex|claude)\]\])/g)) {
       const backend = engineShortcuts ? /^\[\[engine:(codex|claude)\]\]$/.exec(part)?.[1] as 'codex' | 'claude' | undefined : undefined
-      const reference = backend ? { id: part, name: backend === 'claude' ? '#Claude Code' : '#Codex', path: backend, kind: 'engine' } : refs.find(item => referenceToken(item) === part)
+      const reference = backend ? { id: part, name: backend === 'claude' ? '#Claude Code' : '#Codex', path: backend, kind: 'engine' as const } : refs.find(item => referenceToken(item) === part)
       if (!reference) { result.append(document.createTextNode(part)); continue }
       const chip = document.createElement('span')
       chip.contentEditable = 'false'; chip.draggable = true; chip.className = styles.reference
@@ -130,11 +139,15 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
         if (backend === 'codex') icon.style.filter = 'var(--sidebar-codex-filter)'
         chip.append(icon)
       }
-      if (reference.kind === 'image') {
+      if (reference.kind === 'image' && (reference.size === undefined || reference.size <= LOCAL_ASSET_MAX_BYTES)) {
         const image = document.createElement('img'); image.alt = reference.name; image.hidden = true
         const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.dataset.preview = reference.id
         previewButton.disabled = true
         previewButton.setAttribute('aria-label', `${t('conversation.images.preview')}: ${reference.name}`); previewButton.append(image, name); chip.append(previewButton)
+      } else if (reference.kind === 'file' || reference.kind === 'image' || reference.kind === 'diff') {
+        const button = document.createElement('button')
+        button.type = 'button'; button.append(name); chip.append(button)
+        fileButton(button, reference, reference.kind === 'image')
       } else chip.append(name)
       const remove = document.createElement('button'); remove.type = 'button'; remove.dataset.remove = part
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
@@ -175,9 +188,10 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     if (!root.current || disabled) return
     const editor = root.current
     const content = fragment(text, refs)
+    const insertsReference = Boolean(content.querySelector('[data-reference-token]'))
     const current = read(editor)
     editor.focus()
-    if (content.querySelector('[data-reference-token]') && (current.includes('\n') || text.includes('\n'))) {
+    if (insertsReference && (current.includes('\n') || text.includes('\n'))) {
       // Chromium lifts non-editable chips out of a paragraph at its boundaries.
       // Insert complete lines in one native undo transaction instead of replacing
       // the DOM directly, which would bypass the browser's undo history.
@@ -202,6 +216,7 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
     select(editor, ...range)
     // Chromium's editing command keeps insertion/deletion in its native undo stack.
     document.execCommand('insertHTML', false, content.innerHTML)
+    if (insertsReference) select(editor, range[0] + text.length, range[0] + text.length)
     publish()
   }
   useImperativeHandle(ref, () => ({
@@ -261,7 +276,18 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
         }
         image.onload = () => { image.hidden = false; button.disabled = false }
         image.onerror = failed
-        void loadLocalAssetDataUrl(reference.path).then(url => { if (url && image.isConnected) image.src = url; else failed() }).catch(failed)
+        void (async () => {
+          const file = await window.electron.file.stat(reference.path).catch(() => undefined)
+          if (!image.isConnected) return
+          if (typeof file?.size === 'number' && file.size > LOCAL_ASSET_MAX_BYTES) {
+            image.remove()
+            fileButton(button, reference, true)
+            return
+          }
+          const url = await loadLocalAssetDataUrl(reference.path)
+          if (url && image.isConnected) image.src = url
+          else failed()
+        })().catch(failed)
       }
     }
   })
@@ -304,6 +330,9 @@ export const ConversationInput = forwardRef<ConversationInputHandle, {
           const token = target.dataset.remove; const chip = target.closest('[data-reference-token]')!
           const range = document.createRange(); range.selectNode(chip); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(range)
           remember(); if (read(root.current!).includes(token)) insert('')
+        } else if (target?.dataset.openReference) {
+          const reference = latest.current.references.find(r => r.id === target.dataset.openReference)
+          if (reference) void window.electron.window.openEditor({ filePath: reference.path, workspacePath }).catch(() => {})
         } else if (target?.dataset.preview) {
           previewTrigger.current = target
           const reference = latest.current.references.find(r => r.id === target.dataset.preview)

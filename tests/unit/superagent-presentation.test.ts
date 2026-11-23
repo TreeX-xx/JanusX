@@ -31,11 +31,13 @@ describe('SuperAgent presentation identities and persisted context', () => {
     expect(topic.inputs[0].message.context).toEqual(context)
   })
   it('rejects malformed or oversized metadata without losing the expanded prompt', () => {
-    for (const invalid of [null, {text:1,references:[]}, {...context,references:Array(9).fill(context.references[0])}, {...context,references:[{...context.references[0],quote:3}]}]) {
+    for (const invalid of [null, {text:1,references:[]}, {...context,references:[{...context.references[0],quote:3}]}]) {
       expect(normalizeMessageContext(invalid)).toBeUndefined()
     }
     const normalized = normalizeMessageContext({...context,references:[{...context.references[0],bytes:[1,2],inline:true}]})!
     expect(normalized).toEqual(context)
+    const references = Array.from({ length: 12 }, (_, index) => ({ ...context.references[0], id: String(index) }))
+    expect(normalizeMessageContext({ ...context, references })?.references).toEqual(references)
   })
   it('preserves code quotes in the shared workspace drag payload', () => {
     const values = new Map<string,string>()

@@ -30,7 +30,7 @@ import { ConversationInput, type ConversationInputHandle } from '../Conversation
 import { QuestionAnswerInput } from '../QuestionAnswerInput'
 import { JanusContextComposer } from './JanusContextComposer'
 import { useConversationContext } from '../../stores/conversation-context'
-import { activeConversationReferences, conversationPrompt, referenceToken, type ConversationReference, type MessageContext } from '../../../../shared/conversation-context'
+import { activeConversationReferences, boundedConversationPrompt, referenceToken, type ConversationReference, type MessageContext } from '../../../../shared/conversation-context'
 import { MessageContextChips } from './MessageContextChips'
 import { ConversationPrompt } from '../ConversationPrompt'
 import { WorkDisclosureScope } from '../chat/WorkDisclosure'
@@ -898,7 +898,7 @@ export function JanusChat({
       }
       const restore = () => setInput(current => current ? `${text}\n\n${current}` : text)
       const activeRefs = contextComposer ? activeConversationReferences(text, references) : []
-      const prompt = contextComposer ? conversationPrompt(text, activeRefs) : text
+      const prompt = contextComposer ? boundedConversationPrompt(text, activeRefs) : text
       const context = activeRefs.length || shortcuts.selected ? { text:activeRefs.reduce((plain, ref) => plain.replaceAll(referenceToken(ref), ''),text).trim(), references:activeRefs.map(ref => ({...ref})), worker: shortcuts.selected } : undefined
       if (shortcuts.selected) { shortcutSendRef.current = true; setSendingShortcut(true) }
       try { void Promise.resolve(onSend(prompt, context)).then(() => { if (shortcuts.selected) shortcuts.clear() }).catch(restore)
@@ -1761,7 +1761,7 @@ export function JanusChat({
                   <ThinkingRegion snapshot={activeReasoningByTurn[msg.id]} streaming={false} defaultExpanded={false} />
                 )}
                 {msg.role === 'user' && (contextComposer || superAgentTranscript)
-                  ? <div className="janus-user-inline-prompt" style={{ whiteSpace: 'pre-wrap' }}><ConversationPrompt text={msg.content} /></div>
+                  ? <div className="janus-user-inline-prompt" style={{ whiteSpace: 'pre-wrap' }}><ConversationPrompt text={msg.content} workspacePath={messageWorkspacePaths.get(msg.id)} /></div>
                   : <MarkdownContent content={msg.role === 'user' ? msg.context?.text ?? msg.content : msg.content} variant="conversation" workspacePath={messageWorkspacePaths.get(msg.id)} />}
                 {msg.role === 'user' && <MessageContextChips context={msg.context} hideReferences={!!contextComposer || superAgentTranscript} />}
                 {msg.role === 'assistant' && (
@@ -1859,7 +1859,7 @@ export function JanusChat({
         {shortcuts.control}
         <div className="janus-chat-composer-row">
           {minimalComposer && <span className="janus-chat-prompt-prefix" aria-hidden="true">›</span>}
-          {contextComposer ? <ConversationInput ref={richInputRef} className="janus-chat-input" value={input} references={references} disabled={sendingShortcut} engineShortcuts={!!workerShortcuts}
+          {contextComposer ? <ConversationInput ref={richInputRef} className="janus-chat-input" value={input} references={references} disabled={sendingShortcut} workspacePath={contextComposer.workspacePath} engineShortcuts={!!workerShortcuts}
             placeholder={inputPlaceholderOverride ?? t('janus:chat.inputPlaceholder')} label={t('janus:chat.inputPlaceholder')} title=""
             onChange={value => { setInput(value); setHistoryIndex(null) }} onKeyDown={handleKeyDown} /> : <textarea
             ref={inputRef}

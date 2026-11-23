@@ -1,25 +1,29 @@
 import { expect, test } from '@playwright/test'
+import { nativeEditingKeys } from '../helpers/native-editing-keys'
 
 for (const theme of ['dark', 'planche', 'white']) test(`attachment errors use the shared dismissible chat card in ${theme}`, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 740 })
   await page.goto(`/codex-conversation.html?initialView=conversation&theme=${theme}`)
   const input = page.getByRole('combobox', { name: 'Message Codex' })
   await input.fill('Keep my draft')
-  const dropEmpty = () => input.evaluate(element => {
+  await page.evaluate(() => {
+    window.electron.file.importConversationAttachment = async () => { throw new Error('File no longer available') }
+  })
+  const dropUnavailable = () => input.evaluate(element => {
     const data = new DataTransfer()
-    data.items.add(new File([], 'folder'))
+    data.items.add(new File([], 'unavailable.txt'))
     element.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }))
   })
-  await dropEmpty()
+  await dropUnavailable()
   const card = page.locator('[data-chat-error-card]')
-  await expect(card.getByRole('alert')).toHaveText('Each attachment must be between 1 byte and 10 MB.')
+  await expect(card.getByRole('alert')).toHaveText('Could not add unavailable.txt.')
   expect(await card.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
   await page.screenshot({ path: `artifacts/conversation-errors/attachment-${theme}.png` })
   await card.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(card).toHaveCount(0)
   await expect(input).toBeFocused()
   await expect(input).toHaveText('Keep my draft')
-  await dropEmpty()
+  await dropUnavailable()
   await expect(card).toBeVisible()
   // A successful internal reference also clears the previous attachment error.
   await input.evaluate(element => {
@@ -31,6 +35,59 @@ for (const theme of ['dark', 'planche', 'white']) test(`attachment errors use th
   await expect(page.getByRole('button', { name: 'Remove src', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(await page.evaluate(() => (window as any).codexFixture.calls.sends)).toEqual([])
+})
+
+test('large images and more than eight files stay in the authored text and can be sent', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  const input = page.getByRole('combobox', { name: 'Message Codex' })
+  await input.fill('Compare ')
+  await page.evaluate(() => {
+    const fixture = window as unknown as { previewReads: number }
+    fixture.previewReads = 0
+    window.electron.file.readBinary = async () => { fixture.previewReads++; return { error: 'Unexpected thumbnail read' } }
+  })
+  await page.locator('input[type=file]').setInputFiles([
+    { name: 'large.png', mimeType: 'image/png', buffer: Buffer.alloc(11 * 1024 * 1024) },
+    ...Array.from({ length: 9 }, (_, index) => ({ name: `notes-${index}.txt`, mimeType: 'text/plain', buffer: Buffer.alloc(0) })),
+  ])
+  await expect(input.locator('[data-reference-id]')).toHaveCount(10)
+  await expect(input.getByRole('button', { name: 'Open file: large.png' })).toBeEnabled()
+  expect(await page.evaluate(() => (window as any).previewReads)).toBe(0)
+  await input.press(nativeEditingKeys.end)
+  await input.pressSequentially('in this order')
+  await input.press('Enter')
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends.length)).toBe(1)
+  const command = await page.evaluate(() => (window as any).codexFixture.calls.commands.find((item: any) => item.type === 'send'))
+  expect(command.text).toMatch(/^Compare image: "C:\/attachments\/large\.png" .*file: "C:\/attachments\/notes-8\.txt" in this order$/)
+  expect(command.imagePaths).toEqual([])
+})
+
+test('repeated references to one SVG stay independent and preview without a native image upload', async ({ page }) => {
+  await page.goto('/codex-conversation.html?initialView=conversation')
+  await page.evaluate(() => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1"><path d="M0 0h2v1H0z"/></svg>'
+    window.electron.file.readBinary = async () => ({ base64: btoa(svg), mimeType: 'image/svg+xml', size: svg.length })
+  })
+  const input = page.getByRole('combobox', { name: 'Message Codex' })
+  const attach = () => page.locator('input[type=file]').setInputFiles({ name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('fixture') })
+  await input.fill('Compare ')
+  await attach()
+  const chips = input.locator('[data-reference-id]')
+  await expect(chips).toHaveCount(1)
+  await input.pressSequentially('then revisit ')
+  await attach()
+  await expect(chips).toHaveCount(2)
+  expect(await chips.nth(0).getAttribute('data-reference-id')).not.toBe(await chips.nth(1).getAttribute('data-reference-id'))
+  const preview = input.getByRole('button', { name: 'Preview image: logo.svg' }).last()
+  await expect(preview).toBeEnabled()
+  await preview.click()
+  await expect(page.getByRole('dialog', { name: 'Preview image: logo.svg' }).locator('img')).toBeVisible()
+  await page.getByRole('button', { name: 'Close image preview' }).click()
+  await input.press('Enter')
+  await expect.poll(() => page.evaluate(() => (window as any).codexFixture.calls.sends.length)).toBe(1)
+  const command = await page.evaluate(() => (window as any).codexFixture.calls.commands.find((item: any) => item.type === 'send'))
+  expect(command.text.trimEnd()).toBe('Compare image: "C:/attachments/logo.svg" then revisit image: "C:/attachments/logo.svg"')
+  expect(command.imagePaths).toEqual([])
 })
 
 test('context references survive remount, support keyboard @ navigation and send native images', async ({ page }) => {

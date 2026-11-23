@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow, app, dialog } from 'electron'
 import { exportConversationImage } from '../terminal/conversation-image-export'
+import { selectNativeConversationImages } from '../lib/conversation-attachment'
 import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
 import { readNativeInputHistory } from '../terminal/input-history'
@@ -1376,13 +1377,17 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     if (!terminal || terminal.remote || !state) return []
     return readNativeInputHistory(state.engine, terminal.config.cwd, { ...process.env, ...terminal.config.env })
   })
-  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, (_event, { id, command }: { id: string; command: DesktopConversationCommand }) => {
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversationCommand, async (_event, { id, command }: { id: string; command: DesktopConversationCommand }) => {
     const conversation = conversations.get(id)
     if (!conversation) throw new Error('No managed conversation for this terminal')
     if (command.type === 'codexUpdate') {
       const instance = terminalManager.getInstance(id)
       if (!(conversation instanceof DesktopCodexConversation) || !instance) throw new Error('No live Codex update prompt')
       return conversation.chooseUpdate(command, key => instance.pty.write(key))
+    }
+    if (command.type === 'send' && conversation instanceof DesktopCodexConversation && Array.isArray(command.imagePaths)) {
+      const imagePaths = await selectNativeConversationImages(command.imagePaths)
+      return conversation.command({ ...command, imagePaths })
     }
     return conversation.command(command)
   })

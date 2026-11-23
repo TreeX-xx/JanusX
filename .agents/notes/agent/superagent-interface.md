@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-11-06",
-  "updated": "2026-11-20T12:09:55Z",
+  "updated": "2026-11-23T11:10:05Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -270,7 +270,7 @@ P8 联调补齐 `work_git`：同一 Janus 只能根据当前宿主输入和已�
 
 右侧最近输出与当前命令各用 WorkerDisclosure 原生按钮，默认收起，鼠标／Enter／空格独立开合；CSS Grid 提供180ms高度过渡，同步 aria-expanded、aria-hidden 和 inert，减少动态效果时取消过渡。展开后输出限高112px、命令220px并可独立滚动。没有问题／审批／失败／Git决定的 idle／ready 或已确认关闭卡片排序沉降并折叠记录；沉降只改变呈现，不回收执行或删除工作。分支、轮次时间与业务标题继续使用可信的原有数据源。
 
-输入区复用 ConversationContext 和 ConversationInput：加号打开附件导入／工作区文件与目录选择，支持键盘检索、原生文件拖入及工作区资源（可带代码摘录）拖入；拖拽目标显示中性高亮，引用以可移除的内联条目吸附到插入位置。导入沿用已有 IPC 与8项／单项10MB边界；异步导入期间禁止发送，编辑和引用位置继续保留。发送失败恢复草稿及引用；成功发送将令牌展开为实际路径与摘录，消息另存经过校验的 context 元数据用于紧凑引用展示和重启恢复，不持久化文件字节。草稿按根会话和工作区隔离。
+输入区复用 ConversationContext 和 ConversationInput。加号提供附件导入、工作区文件和目录选择，文件也可拖入到正文光标处。引用按正文位置展开，大小预算用于缩略图和自动读取。磁盘文件登记路径，剪贴板内容分块保存，批量导入时可继续编辑草稿。发送失败可恢复草稿及引用，消息另存经过校验的 context 元数据用于展示和重启恢复。草稿按根会话和工作区隔离。文件能力与验收归[终端／对话双模式](../workbench/terminal-dialog-dual-mode.md)。
 
 共享引用条目的删除按钮使用线性 SVG 与显式无边框样式，所有新增控件沿用中性主题变量。输入71／72的意图检测仍仅为[设计备忘](ideas/superagent-conversation-cards.md)，未增加正则派发或自动执行。生产与离线证据分别位于 artifacts/superagent-ui-c16f1987 和 artifacts/archive/design-review-20261114/superagent-bubbles/review-c16f1987，结果归[验收记录](superagent-verification.md)。
 

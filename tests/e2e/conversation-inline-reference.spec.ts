@@ -94,7 +94,7 @@ test('multiple imports keep file order and follow edits before the insertion poi
   await input.evaluate(el => {
     const original = window.electron.file.importConversationAttachment
     window.electron.file.importConversationAttachment = async (...args) => {
-      if (args[0] === 'old.ts') await new Promise<void>(resolve => { (window as any).finishImport = resolve })
+      if (args[0].name === 'old.ts') await new Promise<void>(resolve => { (window as any).finishImport = resolve })
       return original(...args)
     }
     const range = document.createRange(); range.setStart(el.firstChild!, 8); range.collapse(true)

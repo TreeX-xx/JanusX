@@ -36,7 +36,7 @@ import { ConversationPrompt } from './ConversationPrompt'
 import { ConversationHistoryBrowser, type ConversationHistoryBookmark } from './ConversationHistoryBrowser'
 import { codexBrowserCompletion, ConversationBrowserCompletion } from './chat/ConversationBrowserCompletion'
 import styles from './AgentSessionPane.module.css'
-import { conversationPrompt, activeConversationReferences, MAX_CONVERSATION_ATTACHMENTS, type ConversationReference } from '../../../shared/conversation-context'
+import { boundedConversationPrompt, activeConversationReferences, CONVERSATION_NATIVE_IMAGE_BUDGET, supportsNativeConversationImage, type ConversationReference } from '../../../shared/conversation-context'
 import type { ConversationInputHandle } from './ConversationInput'
 import { useConversationContext, setConversationReferences } from '../stores/conversation-context'
 import { inputHistoryScope, rememberConversationInput } from '../stores/conversation-input-history'
@@ -268,9 +268,11 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     // Read synchronously: a second Enter before React renders must not send the old draft again.
     const text = findTerminalInState(useWorkspaceStore.getState(), terminalId)?.conversationDraft ?? ''
     const refs = activeConversationReferences(text, useConversationContext.getState().entries[terminalId] ?? [])
-    const prompt = conversationPrompt(text, refs)
+    const prompt = boundedConversationPrompt(text, refs)
     if (prompt.length > 32000) { setError(t('conversation.context.tooLong')); return }
-    if (!enqueueConversationMessage(snapshot, prompt, delivery, snapshot.engine === 'codex' ? refs.filter(ref => ref.kind === 'image').map(ref => ref.path) : undefined, refs, text)) return
+    const images = snapshot.engine === 'codex' ? refs.filter(ref => ref.kind === 'image' && supportsNativeConversationImage(ref.path)
+      && (ref.size === undefined || ref.size <= CONVERSATION_NATIVE_IMAGE_BUDGET)).map(ref => ref.path) : undefined
+    if (!enqueueConversationMessage(snapshot, prompt, delivery, images, refs, text)) return
     setError('')
     rememberConversationInput(historyScope, prompt)
     setConversationReferences(terminalId, () => [])
@@ -280,8 +282,6 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
     setShowLatest(false)
   }
   const addFeedback = (path: string, quote: string, turnId: string) => {
-    const refs = useConversationContext.getState().entries[terminalId] ?? []
-    if (refs.length >= MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
     if (quote.length > 8000) { setError(t('conversation.context.selectionLong')); return }
     const ref: ConversationReference = { id: crypto.randomUUID(), name: path.split(/[\\/]/).pop() ?? path, path, kind: 'diff', quote: `Turn ${turnId} (historical diff, not current file):\n${quote}` }
     setConversationReferences(terminalId, current => [...current, ref])
@@ -375,7 +375,7 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                   const completion = codexBrowserCompletion(item, snapshot.engine)
                   if (completion) return completion.state === 'completed' ? <ConversationBrowserCompletion key={item.id} title={completion.title} /> : null
                   const previous = group.items[index - 1] ?? turn.groups[groupIndex - 1]?.items.at(-1)
-                  return item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user} data-side-source="message" data-side-item={item.id} data-side-turn={item.turnId}><ConversationPrompt text={item.text} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
+                  return item.type === 'userMessage' ? <div className={styles.userMessage} key={item.id} data-user-message={item.id}>{editing?.item.id === item.id ? editor : <><div className={styles.user} data-side-source="message" data-side-item={item.id} data-side-turn={item.turnId}><ConversationPrompt text={item.text} workspacePath={terminal?.cwd} /></div><ConversationMessageActions item={item} editDisabled={!canSend || !!editing || working || !!outgoing.length}
                 onEdit={snapshot.capabilities.edit && !item.truncated && item.editable !== false ? () => {
                   if (!canSend || working || outgoing.length || busyRef.current) return
                   follow.current = false; setError('')
@@ -386,10 +386,12 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
                   <div className={styles.answerIdentity}><TerminalPresetIcon preset={identityPreset} style={{ width: 14, height: 14, flexShrink: 0 }} /><span>{t('conversation.images.result')}</span>
                     <span>{t(`conversation.state.${item.status}`, { defaultValue: item.status })}</span></div>
                   {item.text && <MarkdownContent content={conversationImageText(item.text, (item.images ?? []).flatMap(image => image.source ? [image.source] : []))} variant="conversation" workspacePath={terminal?.cwd} />}
-                  <ConversationImages terminalId={terminalId} itemId={item.id} images={item.images ?? []} canReference={Boolean(canSend && !busy && !switching && references.length < MAX_CONVERSATION_ATTACHMENTS)}
+                    <ConversationImages terminalId={terminalId} itemId={item.id} images={item.images ?? []} canReference={Boolean(canSend && !busy && !switching)}
                     onReference={image => {
                       if (!image.path) return
-                      setConversationReferences(terminalId, current => current.some(ref => ref.path === image.path) || current.length >= MAX_CONVERSATION_ATTACHMENTS ? current : [...current, { id: image.id, name: 'generated-image.' + (image.mimeType?.split('/')[1] ?? 'png'), path: image.path!, kind: 'image' }])
+                      const reference: ConversationReference = { id: crypto.randomUUID(), name: 'generated-image.' + (image.mimeType?.split('/')[1] ?? 'png'), path: image.path, kind: 'image', inline: true }
+                      setConversationReferences(terminalId, current => [...current, reference])
+                      inputRef.current?.insertReferences([reference])
                       inputRef.current?.focus()
                     }} />
                 </article>
@@ -416,11 +418,10 @@ export const AgentSessionPane = memo(function AgentSessionPane({ terminalId, vis
               </>
             }} />}
             {outgoing.map(item => <div className={styles.userMessage} key={item.id} data-outgoing-message={item.id} data-delivery={item.status}>
-              <div className={styles.user} data-side-source="message" data-side-item={item.id}><ConversationPrompt text={item.text} /></div>
+              <div className={styles.user} data-side-source="message" data-side-item={item.id}><ConversationPrompt text={item.text} workspacePath={terminal?.cwd} /></div>
               <div className={styles.delivery} role="status">
                 <span title={t(`conversation.delivery.${item.status}`)} aria-label={t(`conversation.delivery.${item.status}`)} role="img">{item.status === 'queued' ? <Clock size={14} /> : item.status === 'sending' ? <LoaderCircle size={14} /> : item.status === 'accepted' ? <Check size={14} /> : <CircleAlert size={14} />}</span>
                 {(item.status === 'queued' || item.status === 'failed') && <button type="button" title={t('conversation.delivery.restore')} aria-label={t('conversation.delivery.restore')} onClick={() => {
-                  if (references.length + (item.references?.filter(ref => !references.some(old => old.id === ref.id)).length ?? 0) > MAX_CONVERSATION_ATTACHMENTS) { setError(t('conversation.context.limit')); return }
                   const draft = findTerminalInState(useWorkspaceStore.getState(), terminalId)?.conversationDraft ?? ''
                   setDraft(draft ? `${draft}\n\n${item.draftText ?? item.text}` : item.draftText ?? item.text)
                   if (item.references?.length) setConversationReferences(terminalId, current => [...current, ...item.references!.filter(ref => !current.some(old => old.id === ref.id))])

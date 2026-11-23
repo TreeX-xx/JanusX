@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { access, mkdir, mkdtemp, rm, writeFile } from 'fs/promises'
+import { access, mkdir, mkdtemp, readdir, realpath, rm, stat, truncate, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import type { ProjectAPI } from '../../src/shared/ipc/project'
@@ -22,6 +22,43 @@ type DesktopWindow = Window & { electron: DesktopAPI }
 type ElectronProcess = ReturnType<ElectronApplication['process']>
 
 const PROCESS_EXIT_TIMEOUT = 5_000
+
+test('large disk and clipboard files cross the real conversation attachment bridge', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'janusx-desktop-reference-')))
+  const size = 11 * 1024 * 1024 + 7
+  const diskPath = join(root, 'large.log')
+  const userDataDir = join(root, 'profile')
+  let application: ElectronApplication | undefined
+  try {
+    await writeFile(diskPath, '')
+    await truncate(diskPath, size)
+    application = await electron.launch({
+      args: [resolve(process.env.JANUS_DESKTOP_ENTRY ?? 'out/main/index.js'), `--user-data-dir=${userDataDir}`],
+      env: createDesktopTestEnv(root),
+    })
+    const page = await application.firstWindow()
+    await expect(page.locator('#root')).not.toBeEmpty({ timeout: 20000 })
+    await page.evaluate(() => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.id = 'reference-test-picker'
+      document.body.append(input)
+    })
+    await page.locator('#reference-test-picker').setInputFiles(diskPath)
+    const original = await page.locator('#reference-test-picker').evaluate(node =>
+      window.electron.file.importConversationAttachment((node as HTMLInputElement).files![0]))
+    expect(original).toMatchObject({ path: diskPath, size, kind: 'file' })
+    const rootFiles = join(userDataDir, 'conversation-attachments')
+    await expect(readdir(rootFiles)).rejects.toMatchObject({ code: 'ENOENT' })
+    const clipboard = await page.evaluate(bytes => window.electron.file.importConversationAttachment(
+      new File([new Uint8Array(bytes)], 'clipboard.png', { type: 'image/png' })), size)
+    expect(clipboard).toMatchObject({ name: 'clipboard.png', size, kind: 'image' })
+    expect(clipboard.path).toBe(join(rootFiles, clipboard.id, clipboard.name))
+    expect((await stat(clipboard.path)).size).toBe(size)
+  } finally {
+    try { await application?.close() } finally { await rm(root, { recursive: true, force: true }) }
+  }
+})
 
 for (const theme of ['dark', 'planche']) {
   test(`startup theme ${theme} matches the persisted profile from the native background onward`, async () => {

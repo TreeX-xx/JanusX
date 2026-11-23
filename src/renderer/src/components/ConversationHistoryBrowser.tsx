@@ -145,7 +145,7 @@ export const ConversationHistoryBrowser = memo(function ConversationHistoryBrows
       data-side-source={item.type === 'userMessage' ? 'message' : item.type === 'agentMessage' && !completion ? 'reply' : undefined} hidden={item.type === 'plan' && !plan && !document && !changes}>
       {completion ? completion.state === 'completed' && <ConversationBrowserCompletion title={completion.title} /> : item.type !== 'plan' && <>
         <span className={styles.label}>{t(item.type === 'userMessage' ? 'conversation.historyUser' : item.type === 'agentMessage' ? 'conversation.historyAgent' : 'conversation.historyActivity')}</span>
-        {item.type === 'userMessage' ? <div className={styles.user}><ConversationPrompt text={item.text} /></div>
+        {item.type === 'userMessage' ? <div className={styles.user}><ConversationPrompt text={item.text} workspacePath={workspacePath} /></div>
           : item.type === 'agentMessage' || item.type === 'reasoning'
             ? <MarkdownContent content={item.text} variant="conversation" workspacePath={workspacePath} />
             : <ConversationToolCall item={item} openFile={openFile} />}

@@ -163,9 +163,15 @@ export interface FileTreeAPI {
 export interface HtmlPreviewRequest { workspacePath: string; documentPath: string; content: string }
 export interface HtmlPreviewLease { id: string; url: string }
 
+export type ConversationAttachmentImport =
+  | { type: 'path'; path: string }
+  | { type: 'begin'; name: string; size: number }
+  | { type: 'append'; id: string; bytes: Uint8Array }
+  | { type: 'finish' | 'cancel'; id: string }
+
 export interface FileAPI {
   reveal(filePath: string): Promise<OperationResult>
-  importConversationAttachment(name: string, bytes: Uint8Array): Promise<import('../conversation-context').ConversationReference>
+  importConversationAttachment(file: File): Promise<import('../conversation-context').ConversationReference>
   openPreviewLink(url: string): Promise<void>
   openHtmlPreview(request: HtmlPreviewRequest): Promise<HtmlPreviewLease>
   updateHtmlPreview(id: string, content: string): Promise<void>

@@ -369,7 +369,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
     {acceptedCommand && !draft && !snapshot?.turnId && <p className={styles.pickerMessage} role="status">{t('conversation.catalog.accepted', { command: acceptedCommand })}</p>}
     <ConversationContext inputRef={inputRef} terminalId={terminalId} workspacePath={workspacePath} references={references} draft={draft} setDraft={setDraft} disabled={busy || switching} onImporting={setImporting} open={contextOpen} onOpenChange={changeContextOpen} pickerActive={Boolean(currentPanel)}>
     {addControl => <>
-    <ConversationInput ref={inputRef} references={references} value={draft} disabled={switching} onChange={text => { setDraft(text); setContextOpen(false); setPanel(null); setDismissed(null) }}
+    <ConversationInput ref={inputRef} references={references} value={draft} disabled={switching} workspacePath={workspacePath} onChange={text => { setDraft(text); setContextOpen(false); setPanel(null); setDismissed(null) }}
       aria-autocomplete="list" aria-expanded={Boolean(currentPanel && !panel)} aria-controls={currentPanel && !panel ? listId : undefined}
       aria-activedescendant={currentPanel && !panel && activeChoice ? `${listId}-${Math.min(active, choices.length - 1)}` : undefined}
       label={t('conversation.prompt', { agent: snapshot ? t(`provider.${snapshot.engine}`) : '' })} placeholder={t('conversation.placeholder')} title={t('conversation.inputHint')} onKeyDown={keyboard} />

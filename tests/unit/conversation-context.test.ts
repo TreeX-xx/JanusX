@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { saveConversationAttachment } from '../../src/main/lib/conversation-attachment'
-import { conversationPrompt, activeConversationReferences, referenceToken, MAX_CONVERSATION_ATTACHMENT_BYTES } from '../../src/shared/conversation-context'
+import { ConversationAttachmentImporter, selectNativeConversationImages } from '../../src/main/lib/conversation-attachment'
+import { conversationPrompt, boundedConversationPrompt, activeConversationReferences, referenceToken,
+  CONVERSATION_ATTACHMENT_CHUNK_BYTES } from '../../src/shared/conversation-context'
 import { validateConversationDelivery, type ConversationSnapshot } from '../../src/shared/conversation-display'
 
 describe('conversation context and delivery boundaries', () => {
@@ -16,17 +17,48 @@ describe('conversation context and delivery boundaries', () => {
     expect(activeConversationReferences(text, [first, second, removed])).toEqual([second, first])
     expect(conversationPrompt('', [first, second, removed])).toBe('')
   })
-  it('keeps imported bytes intact and prevents a filename escaping its private directory', async () => {
+  it('keeps large clipboard bytes intact and prevents a filename escaping its private directory', async () => {
     const root = await mkdtemp(join(tmpdir(), 'janus-attachment-'))
     try {
-      const bytes = new Uint8Array([0, 128, 255])
-      const file = await saveConversationAttachment(root, '../../image.png', bytes)
+      const importer = new ConversationAttachmentImporter(root)
+      const bytes = new Uint8Array(CONVERSATION_ATTACHMENT_CHUNK_BYTES).fill(128)
+      const size = bytes.byteLength * 11
+      const id = await importer.dispatch(1, { type: 'begin', size, name: '../../image.png' }) as string
+      await expect(importer.dispatch(2, { type: 'append', id, bytes })).rejects.toThrow('Unknown attachment')
+      for (let index = 0; index < 11; index++) await importer.dispatch(1, { type: 'append', id, bytes })
+      const file = await importer.dispatch(1, { type: 'finish', id })
+      if (!file || typeof file === 'string') throw new Error('Missing imported reference')
       expect(relative(root, file.path).startsWith('..')).toBe(false)
-      expect(new Uint8Array(await readFile(file.path))).toEqual(bytes)
-      expect(file.kind).toBe('image')
-      await expect(saveConversationAttachment(root, 'large', new Uint8Array(MAX_CONVERSATION_ATTACHMENT_BYTES + 1))).rejects.toThrow('10 MB')
+      const saved = await readFile(file.path)
+      expect(saved.byteLength).toBe(size)
+      expect(saved.compare(Buffer.alloc(size, 128))).toBe(0)
+      expect(file).toMatchObject({ kind: 'image', size })
       expect(conversationPrompt('Inspect', [file])).toContain(JSON.stringify(file.path))
+      const incomplete = await importer.dispatch(1, { type: 'begin', name: 'incomplete', size: 123 }) as string
+      await expect(importer.dispatch(1, { type: 'finish', id: incomplete })).rejects.toThrow('Incomplete attachment')
+      await importer.releaseOwner(1)
+      expect(await readdir(root)).toEqual([id])
     } finally { await rm(root, { recursive: true, force: true }) }
+  })
+  it('references an existing large file without copying it or attaching it as native image data', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'janus-attachment-path-'))
+    try {
+      const large = join(root, 'large.png'), small = join(root, 'small.png'), svg = join(root, 'drawing.svg')
+      for (const path of [large, small, svg]) await writeFile(path, 'fixture')
+      const size = 200 * 1024 * 1024
+      await truncate(large, size)
+      const importer = new ConversationAttachmentImporter(join(root, 'imports'))
+      await expect(importer.dispatch(1, { type: 'path', path: large })).resolves.toMatchObject({ path: large, size, kind: 'image' })
+      await expect(importer.dispatch(1, { type: 'path', path: svg })).resolves.toMatchObject({ path: svg, kind: 'image' })
+      expect(await selectNativeConversationImages([large, svg, small, small])).toEqual([small])
+      expect(await readdir(root)).toEqual(['drawing.svg', 'large.png', 'small.png'])
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+  it('keeps inline file paths when quotes exceed the transport budget', () => {
+    const first = { id: 'one', path: '/workspace/design.svg', name: 'design.svg', kind: 'image' as const, inline: true, quote: 'x'.repeat(40000) }
+    const second = { id: 'two', path: '/workspace/app.ts', name: 'app.ts', kind: 'file' as const, inline: true }
+    expect(boundedConversationPrompt(`Compare ${referenceToken(first)} with ${referenceToken(second)} next.`, [second, first]))
+      .toBe('Compare image: "/workspace/design.svg" with file: "/workspace/app.ts" next.')
   })
   it('never converts an expired steer into a new turn, or a queued message into steering', () => {
     const snapshot = { engine: 'codex', turnId: 'active', capabilities: { liveInput: true, steer: true } } as ConversationSnapshot

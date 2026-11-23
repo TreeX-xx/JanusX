@@ -677,7 +677,7 @@ it('adds real context through picker and drag, preserves a rejected draft, and s
     await page.evaluate(() => {
       const w = window as any; w.previewWorkers(); w.imported = []
       w.electron.fileTree.children = async () => [{ type:'file',name:'context.md',path:'context.md' }]
-      w.electron.file.importConversationAttachment = async (name: string, bytes: Uint8Array) => { w.imported.push({name,size:bytes.length}); return {id:'local-ref',path:'/imports/'+name,name,kind:'file'} }
+      w.electron.file.importConversationAttachment = async ({ name, size }: File) => { w.imported.push({name,size}); return {id:'local-ref',path:'/imports/'+name,name,kind:'file'} }
     })
     const input = page.locator('.janus-chat-input:visible')
     await input.fill('Review this context ')

@@ -206,7 +206,7 @@ Object.assign(window.electron.terminal, {
 })
 Object.assign(window.electron.window, { openEditor: async ({ filePath }: { filePath: string }) => { calls.opens.push(filePath) } })
 Object.assign(window.electron.fileTree, { children: async (_root: string, directory: string) => directory === 'src/' ? [{ name: 'app.ts', path: 'src/app.ts', type: 'file' }] : [{ name: 'src', path: 'src', type: 'directory' }] })
-Object.assign(window.electron.file, { importConversationAttachment: async (name: string) => ({ id: crypto.randomUUID(), name, path: 'C:/attachments/' + name, kind: name.endsWith('.png') ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
+Object.assign(window.electron.file, { importConversationAttachment: async ({ name, size }: File) => ({ id: crypto.randomUUID(), name, size, path: 'C:/attachments/' + name, kind: /\.(png|svg|gif)$/i.test(name) ? 'image' : 'file' }), openPreviewLink: async (url: string) => { calls.opens.push(url) } })
 Object.assign(window, { codexFixture: {
   updateMenu(active: boolean) {
     state.connection = active ? 'starting' : 'ready'
