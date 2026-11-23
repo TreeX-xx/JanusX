@@ -696,6 +696,9 @@
     "images": {
       "result": "图片结果",
       "preview": "预览图片",
+      "copy": "复制图片",
+      "copied": "已复制图片",
+      "copyFailed": "无法复制图片",
       "save": "保存图片",
       "reference": "作为参考图",
       "close": "关闭图片预览",

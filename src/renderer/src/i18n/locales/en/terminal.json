@@ -677,6 +677,9 @@
     "images": {
       "result": "Image result",
       "preview": "Preview image",
+      "copy": "Copy image",
+      "copied": "Image copied",
+      "copyFailed": "Could not copy image",
       "save": "Save image",
       "reference": "Use as reference",
       "close": "Close image preview",

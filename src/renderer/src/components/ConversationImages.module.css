@@ -7,6 +7,32 @@
 .actions button { display: flex; gap: 5px; align-items: center; padding: 5px 7px; font-size: 11px; border-radius: 5px; }
 .actions button:hover { background: var(--shell-hover); }
 .actions button:disabled { opacity: .45; cursor: default; }
+.inlineCopy {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  max-width: 100%;
+  align-items: start;
+  vertical-align: middle;
+}
+.inlineCopyButton {
+  display: grid;
+  place-items: center;
+  margin-top: 10px;
+  padding: 5px;
+  border-radius: 5px;
+  color: var(--shell-muted);
+}
+.inlineCopyButton:hover:not(:disabled) { color: var(--shell-text); background: var(--shell-hover); }
+.inlineCopyButton:disabled { opacity: .45; }
+.copyStatus {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .dialog { max-width: 92vw; max-height: 92vh; padding: 36px 12px 12px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-canvas); color: var(--shell-text); }
 .dialog::backdrop { background: color-mix(in srgb, var(--surface-shade) 65%, transparent); }
 .dialog > button { position: absolute; right: 9px; top: 7px; }

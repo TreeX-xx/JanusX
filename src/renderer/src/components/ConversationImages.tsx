@@ -3,6 +3,7 @@ import { Download, ImagePlus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ConversationImage } from '../../../shared/conversation-display'
 import { loadLocalAssetDataUrl } from './viewers/local-asset'
+import { ConversationImageCopy } from './ConversationImageCopy'
 import styles from './ConversationImages.module.css'
 
 export function ConversationImages({ terminalId, itemId, images, canReference, onReference }: {
@@ -16,11 +17,13 @@ function ImageCard({ terminalId, itemId, image, canReference, onReference }: {
 }) {
   const { t } = useTranslation('terminal')
   const [url, setUrl] = useState<string | null>(null)
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [visible, setVisible] = useState(false)
   const card = useRef<HTMLElement>(null)
+  const thumbnail = useRef<HTMLImageElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
@@ -31,7 +34,7 @@ function ImageCard({ terminalId, itemId, image, canReference, onReference }: {
   }, [])
   useEffect(() => {
     let active = true
-    setUrl(null); setFailed(false)
+    setUrl(null); setLoadedUrl(null); setFailed(false)
     if (visible && image.status === 'ready' && image.path) void loadLocalAssetDataUrl(image.path).then(value => {
       if (active) { setUrl(value); setFailed(!value) }
     })
@@ -46,9 +49,10 @@ function ImageCard({ terminalId, itemId, image, canReference, onReference }: {
   }
   return <figure ref={card} className={styles.card}>
     {ready ? <button type="button" className={styles.preview} onClick={() => dialog.current?.showModal()} aria-label={t('conversation.images.preview')}>
-      <img src={url} alt={t('conversation.images.result')} onError={() => setFailed(true)} />
+      <img ref={thumbnail} src={url} alt={t('conversation.images.result')} onLoad={() => setLoadedUrl(url)} onError={() => setFailed(true)} />
     </button> : <p role="status" title={image.error}>{t(image.status === 'unavailable' || failed ? 'conversation.images.unavailable' : 'conversation.images.loading')}</p>}
     <figcaption className={styles.actions}>
+      <ConversationImageCopy key={url} getImage={() => thumbnail.current} disabled={!ready || loadedUrl !== url} />
       <button type="button" disabled={!ready || saving || !window.electron.terminal.saveConversationImage} onClick={() => void save()}><Download size={14} />{t('conversation.images.save')}</button>
       <button type="button" disabled={!ready || !canReference} onClick={() => onReference(image)}><ImagePlus size={14} />{t('conversation.images.reference')}</button>
     </figcaption>

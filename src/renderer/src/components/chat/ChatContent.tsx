@@ -1,18 +1,49 @@
 import './conversation-output.css'
-import { memo, useContext, useState } from 'react'
+import { memo, useContext, useRef, useState } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import type { Nodes, Root } from 'mdast'
 import { MARKDOWN_COMPONENTS } from '@/components/viewers/markdown-components'
 import { MarkdownAssetContext } from '@/components/viewers/local-asset'
 import { conversationLink } from '@/lib/conversation-link'
 import { conversationCitationMarkdown } from '@/lib/conversation-citations'
 
+import { ConversationImageCopy } from '../ConversationImageCopy'
+import imageStyles from '../ConversationImages.module.css'
+
+function remarkLinkedConversationImages() {
+  return (tree: Root) => {
+    function visit(node: Nodes, inLink = false) {
+      if (inLink && (node.type === 'image' || node.type === 'imageReference')) {
+        node.data = { ...node.data, hProperties: { ...node.data?.hProperties, dataLinkedConversationImage: true } }
+      }
+      if ('children' in node) {
+        const linked = inLink || node.type === 'link' || node.type === 'linkReference'
+        node.children.forEach(child => visit(child, linked))
+      }
+    }
+    visit(tree)
+  }
+}
+
+const MarkdownImage = MARKDOWN_COMPONENTS.img!
 const CHAT_COMPONENTS: typeof MARKDOWN_COMPONENTS = {
   ...MARKDOWN_COMPONENTS,
   strong: ({ children }) => <strong>{children}</strong>,
   em: ({ children }) => <em>{children}</em>,
   mark: ({ children }) => <mark>{children}</mark>,
   code: ({ className, children }) => <code className={className}>{children}</code>,
+  img: function ChatImage({ node, src, alt, title, width, height, srcSet, sizes }) {
+    const output = useRef<HTMLSpanElement>(null)
+    const [loaded, setLoaded] = useState<string | undefined>()
+    const image = <MarkdownImage {...{ src, alt, title, width, height, srcSet, sizes }} />
+    if (node?.properties.dataLinkedConversationImage) return image
+    return <span ref={output} className={imageStyles.inlineCopy}
+      onLoadCapture={() => setLoaded(src)} onErrorCapture={() => setLoaded(undefined)}>
+      {image}
+      <ConversationImageCopy key={src} getImage={() => output.current?.querySelector('img')} disabled={!src || loaded !== src} compact />
+    </span>
+  },
   a: function ChatLink({ href, children, title }) {
     const { workspacePath } = useContext(MarkdownAssetContext)
     const [error, setError] = useState('')
@@ -56,7 +87,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, variant,
     <MarkdownAssetContext.Provider value={workspacePath ? { workspacePath } : context}>
     <div className={`markdown-preview chat-markdown${variant === 'conversation' ? ' conversation-markdown' : ''}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkLinkedConversationImages]}
         urlTransform={(url, key) => key === 'href' && (/^(?:file:\/\/|[a-z]:[\\/])/i.test(url) || /^[^:/]+\.[^/:]+:\d+(?::\d+)?$/.test(url)) ? url : defaultUrlTransform(url)}
         components={variant === 'conversation' ? CONVERSATION_COMPONENTS : CHAT_COMPONENTS}
       >
