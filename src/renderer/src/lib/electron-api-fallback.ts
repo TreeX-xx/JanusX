@@ -119,9 +119,10 @@ export function installElectronApiFallback(): void {
     },
     controls: {
       clients: async () => [], changeClient: async () => { throw new Error('Browser host unavailable') }, probeClient: async () => ({ ok: false, error: 'Browser host unavailable' }),
-      get: async () => ({ browser: { enabled: true, timeoutMs: 15000 }, computer: { executable: '' } }),
-      update: async settings => ({ browser: { enabled: true, timeoutMs: 15000 }, computer: { executable: '' }, ...settings }),
+      get: async () => ({ browser: { enabled: true, timeoutMs: 15000 }, computer: { enabled: false, executable: '' } }),
+      update: async settings => ({ browser: settings.browser ?? { enabled: true, timeoutMs: 15000 }, computer: { enabled: false, executable: '', ...settings.computer } }),
       status: async () => ({ browser: { enabled: false, provider: 'chrome-devtools-mcp' as const, version: '1.12.0', state: 'unavailable' as const, active: false }, computer: { provider: 'cua-driver' as const, configured: false, connected: false as const } }),
+      openComputerPermission: async () => {}, stopComputer: async () => {}, computerActivity: async () => [],
       stop: async () => {}, checkComputer: async () => ({ available: false }),
     },
     knowledge: {

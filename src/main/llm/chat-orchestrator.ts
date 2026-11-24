@@ -53,6 +53,7 @@ import { containsMemoryDelivery, recordUserMemoryAccessBestEffort, trackMemorySt
 import { requireBlueprintPlugin } from '../plugins/legacy-blueprint'
 import { createSuperAgentChatTurn } from '../janus/superagent/desktop-chat-turn'
 import { superAgentAvailable, superAgentService, superAgentSignal } from '../janus/superagent/host'
+import { endComputerTurn } from '../computer/control'
 import { endBrowserTurn } from '../browser/control-service'
 
 /** 对话消息类型 */
@@ -663,18 +664,27 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
     // .agents/notes/agent/run-config-assistant-edit-tools.md
     if (sourceTag === 'janus-chat' && !request.compact) {
       if (!islandChat && endpoint.supportsFunctionCalling !== false) {
+        const getApprovalMode = async () => {
+          const modes = (workspaceResources ?? []).map(resource => workspaceAgentRuntime.getSession(resource.agentSessionId)?.approvalMode).filter(Boolean)
+          if (modes.includes('plan')) return 'plan' as const
+          if (modes.includes('per-action')) return 'per-action' as const
+          return modes.length ? 'auto-run' as const : configService.getAgentApprovalMode()
+        }
+        const options = { owner: conversationId ?? requestId, runId: requestId, signal: controller.signal, getApprovalMode }
         try {
           const { attachBrowserTools } = await import('../browser/chat-tools')
           const resource = workspaceResources?.map(resource => ports.sessions.getSession(resource.agentSessionId)).find(Boolean)
-          await attachBrowserTools(ports, { owner: conversationId ?? requestId, runId: requestId, signal: controller.signal, root: resource?.workspaceRoot,
-            getApprovalMode: async () => {
-              const modes = (workspaceResources ?? []).map(resource => workspaceAgentRuntime.getSession(resource.agentSessionId)?.approvalMode).filter(Boolean)
-              return modes.includes('plan') ? 'plan' : modes.includes('per-action') ? 'per-action' : modes.length ? 'auto-run' : configService.getAgentApprovalMode()
-            },
-          })
+          await attachBrowserTools(ports, { ...options, root: resource?.workspaceRoot })
         } catch (error) {
           controller.signal.throwIfAborted()
           projectContext = [projectContext, `Browser tools unavailable: ${error instanceof Error ? error.message : String(error)}. Do not claim browser actions.`].filter(Boolean).join('\n')
+        }
+        try {
+          const { attachComputerTools } = await import('../computer/chat-tools')
+          await attachComputerTools(ports, options)
+        } catch (error) {
+          controller.signal.throwIfAborted()
+          projectContext = [projectContext, `Computer tools unavailable: ${error instanceof Error ? error.message : String(error)}`].filter(Boolean).join('\n')
         }
       }
       const { attachReminderChatTools, REMINDER_CHAT_PROMPT } = await import('../automations/reminder-chat-tools')
@@ -828,6 +838,7 @@ export async function handleChatStream(event: ChatStreamReplyTarget, request: Ch
   } finally {
     releaseActivationListener?.()
     await releaseSuperAgentTurn?.()
+    endComputerTurn(requestId)
     await endBrowserTurn(requestId).catch(error => console.warn('[browser] Turn cleanup failed:', error))
     if (deltaTimer) {
       clearTimeout(deltaTimer)

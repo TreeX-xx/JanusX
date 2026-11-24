@@ -16,7 +16,7 @@ test('terminal browser registration shares native MCP files, controls real tabs 
   const profile = join(root, 'profile'), workspace = join(root, 'workspace')
   await mkdir(join(profile, 'janusx'), { recursive: true }); await mkdir(workspace)
   await writeFile(join(profile, 'janusx/config.json'), JSON.stringify({ agentApprovalMode: 'auto-run', language: 'en' }))
-  const env = createDesktopTestEnv(root)
+  const env = { ...createDesktopTestEnv(root), JANUSX_OFFICECLI_BINARY: join(root, 'absent-officecli') } as NodeJS.ProcessEnv
   env.CODEX_HOME = join(root, 'home', '.codex')
   env.XDG_CONFIG_HOME = join(root, 'home', '.config')
   env.CLAUDE_CONFIG_DIR = join(root, 'home', '.claude')
@@ -152,7 +152,7 @@ test('browser chat tools adapt native tabs, isolate targets, stop control and pe
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
   let application: ElectronApplication | undefined
   try {
-    application = await electron.launch({ args: [entry, `--user-data-dir=${profile}`], env: createDesktopTestEnv(root) })
+    application = await electron.launch({ args: [entry, `--user-data-dir=${profile}`], env: { ...createDesktopTestEnv(root), JANUSX_OFFICECLI_BINARY: join(root, 'absent-officecli') } })
     const app = application
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
@@ -162,12 +162,13 @@ test('browser chat tools adapt native tabs, isolate targets, stop control and pe
     await expect(page.locator('[data-control-runtime]')).toHaveText('Runtime ready', { timeout: 20000 })
     await page.screenshot({ path: test.info().outputPath('browser-settings-dark-en.png') })
     await page.locator('[data-tab="computer-control"]').click()
-    await expect(page.getByRole('note')).toContainText('not connected yet')
+    await expect(page.getByLabel('Allow AI to control this computer', { exact: true })).not.toBeChecked()
+    await page.getByText('Advanced', { exact: true }).click()
     await page.getByLabel('Driver executable', { exact: true }).fill('C:\\missing\\cua-driver.exe')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(page.getByRole('status')).toHaveText('Settings saved')
     await page.getByRole('button', { name: 'Check driver version', exact: true }).click()
-    await expect(page.getByRole('status')).toContainText('ENOENT')
+    await expect(page.getByRole('status')).toContainText('Cua Driver is unavailable')
     await page.getByRole('dialog', { name: 'Computer control', exact: true }).getByRole('button', { name: 'Close', exact: true }).click()
 
     const names = await attach(app, 'one', 'one', workspace)
@@ -229,10 +230,11 @@ test('browser chat tools adapt native tabs, isolate targets, stop control and pe
     await expect(page.getByLabel('单次操作超时', { exact: true })).toHaveValue('9')
     await page.screenshot({ path: test.info().outputPath('browser-settings-light-zh.png') })
     await page.locator('[data-tab="computer-control"]').click()
+    await page.getByText('高级', { exact: true }).click()
     await expect(page.getByLabel('驱动程序位置', { exact: true })).toHaveValue('C:\\missing\\cua-driver.exe')
     await page.screenshot({ path: test.info().outputPath('computer-settings-light-zh.png') })
     const config = JSON.parse(await readFile(join(profile, 'janusx/config.json'), 'utf8'))
-    expect(config.controlSettings).toEqual({ browser: { enabled: false, timeoutMs: 9000 }, computer: { executable: 'C:\\missing\\cua-driver.exe' } })
+    expect(config.controlSettings).toEqual({ browser: { enabled: false, timeoutMs: 9000 }, computer: { enabled: false, executable: 'C:\\missing\\cua-driver.exe' } })
   } finally {
     if (application) { await application.evaluate(({ app }) => app.exit(0)).catch(() => {}); await application.close().catch(() => {}) }
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()))

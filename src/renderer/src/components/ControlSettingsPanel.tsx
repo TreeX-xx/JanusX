@@ -4,6 +4,7 @@ import { SettingsSurface, SettingsSection, SettingsRow, SettingsFooter, Input, B
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
 import { useI18n } from '@/i18n/useI18n'
 import { DEFAULT_CONTROL_SETTINGS, type ControlSettings, type ControlStatus } from '../../../shared/ipc/control'
+import { ComputerControlActivity } from './ComputerControlActivity'
 import { BrowserTerminalSettings } from './BrowserTerminalSettings'
 import { CircleCheck, Square, RefreshCw } from 'lucide-react'
 
@@ -55,26 +56,56 @@ export function ControlSettingsPanel({ kind, onManageIntegrations }: { kind: 'br
           <Button variant="danger" disabled={busy} onClick={() => void run(async () => { await window.electron.controls.stop(); setRuntime(await window.electron.controls.status()); setMessage(t('browser.stopped')) })}><Square size={14} />{t('browser.stop')}</Button>
         </div>
       </> : <>
-        <p className={styles.hint} role="note">{t('computer.notConnected')}</p>
         <SettingsRow className={styles.row}>
-          <div className={styles.label}><span className={styles.labelText}>{t('computer.executable')}</span><span className={styles.hint}>{t('computer.executableHint')}</span></div>
-          <Input className={styles.textInput} aria-label={t('computer.executable')} placeholder="cua-driver" disabled={busy}
-            value={draft.computer.executable} onChange={event => setDraft(current => ({ ...current, computer: { executable: event.target.value } }))} />
+          <span className={styles.labelText}>{t('computer.enabled')}</span>
+          <SettingsCheckbox aria-label={t('computer.enabled')} checked={draft.computer.enabled} disabled={busy}
+            onChange={event => {
+              const enabled = event.target.checked
+              setDraft(current => ({ ...current, computer: { ...current.computer, enabled } }))
+              void run(async () => {
+                const next = await window.electron.controls.update({ computer: { enabled } }).catch(cause => {
+                  setDraft(current => ({ ...current, computer: { ...current.computer, enabled: saved.computer.enabled } }))
+                  throw cause
+                })
+                setSaved(next)
+                setDraft(current => ({ ...current, computer: { ...current.computer, enabled: next.computer.enabled } }))
+                setRuntime(await window.electron.controls.status())
+              })
+            }} />
         </SettingsRow>
-        <div className={styles.actions}><Button disabled={busy || dirty} onClick={() => void run(async () => {
-          const result = await window.electron.controls.checkComputer()
-          if (!result.available) throw new Error(result.error ?? t('computer.missing'))
-          setMessage(t('computer.detected', { version: result.version ?? '' }))
-        })}><CircleCheck size={14} />{t('computer.check')}</Button></div>
+        {saved.computer.enabled && <>
+          <SettingsRow className={styles.row}>
+            <span>{t('status')}</span>
+            <span data-computer-runtime>{runtime?.computer.connected ? t('computer.ready') : runtime?.computer.error || t('computer.unavailable')}</span>
+          </SettingsRow>
+          <div className={styles.actions}>
+            <Button disabled={busy} onClick={() => void run(async () => setRuntime(await window.electron.controls.status()))}>{t('browser.check')}</Button>
+            {runtime?.computer.missingPermissions?.map(permission => <Button key={permission} onClick={() => void run(() => window.electron.controls.openComputerPermission(permission))}>{t('computer.' + permission)}</Button>)}
+          </div>
+          <ComputerControlActivity />
+        </>}
+        <details>
+          <summary>{t('computer.advanced')}</summary>
+          <SettingsRow className={styles.row}>
+            <div className={styles.label}><span className={styles.labelText}>{t('computer.executable')}</span><span className={styles.hint}>{t('computer.executableHint')}</span></div>
+            <Input className={styles.textInput} aria-label={t('computer.executable')} placeholder="cua-driver" disabled={busy}
+              value={draft.computer.executable} onChange={event => setDraft(current => ({ ...current, computer: { ...current.computer, executable: event.target.value } }))} />
+          </SettingsRow>
+          <div className={styles.actions}><Button disabled={busy || dirty} onClick={() => void run(async () => {
+            const result = await window.electron.controls.checkComputer()
+            if (!result.available) throw new Error(result.error ?? t('computer.missing'))
+            setMessage(t('computer.detected', { version: result.version ?? '' }))
+          })}><CircleCheck size={14} />{t('computer.check')}</Button></div>
+        </details>
       </>}
     </SettingsSection>
-    {kind === 'browser' && <BrowserTerminalSettings onManage={onManageIntegrations} />}
+    <BrowserTerminalSettings kind={kind} onManage={onManageIntegrations} />
     <SettingsFooter className={styles.footer}>
       <div className={`${styles.status} ${error ? styles.statusError : ''}`} role="status">{message || (busy ? t('loading') : dirty ? t('unsaved') : '')}</div>
       <div className={styles.actions}>
         <Button disabled={busy || !dirty} onClick={() => { setDraft(saved); setMessage(''); setError(false) }}>{t('reset')}</Button>
         <Button variant="primary" disabled={busy || !dirty} onClick={() => void run(async () => {
-          const next = await window.electron.controls.update(kind === 'browser' ? { browser: draft.browser } : { computer: draft.computer })
+          const next = await window.electron.controls.update(kind === 'browser' ? { browser: draft.browser } : { computer: { executable: draft.computer.executable } })
           setSaved(next); setDraft(next); setRuntime(await window.electron.controls.status()); setMessage(t('saved'))
         })}>{t('save')}</Button>
       </div>

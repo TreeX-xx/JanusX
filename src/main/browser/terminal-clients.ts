@@ -13,17 +13,17 @@ import { connectBrowserTerminal } from './terminal-connection'
 import { BROWSER_CLIENTS, type BrowserClient, type BrowserClientChange, type BrowserClientStatus } from '../../shared/ipc/control'
 import type { LocalIntegrationClient } from '../../shared/local-integrations'
 
-const key = 'janusx-browser'
+const registrationQueue = new SerialQueue()
 const labels = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', janus: 'Janus CLI', pi: 'Pi', dsh: 'DSH' }
 const hash = (raw: string) => createHash('sha256').update(raw).digest('hex')
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
-const start = '# janusx-browser managed begin', end = '# janusx-browser managed end'
-function dshEntry(raw: string) {
+function dshEntry(raw: string, key: string) {
+  const start = '# ' + key + ' managed begin', end = '# ' + key + ' managed end'
   const doc = parseDocument(raw || '[]', { customTags: [{ tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value }] })
   const rows = doc.toJS()
   if (doc.errors.length || !Array.isArray(rows)) throw new Error('Invalid DSH patch list')
   const entries = rows.flatMap(row => Array.isArray(object(row).insert) ? object(row).insert as unknown[] : [row]).map(object).filter(row => row.id === key)
-  const starts = [...raw.matchAll(/^# janusx-browser managed begin\r?$/gm)], ends = [...raw.matchAll(/^# janusx-browser managed end\r?$/gm)]
+  const starts = [...raw.matchAll(new RegExp('^' + start + '\\r?$', 'gm'))], ends = [...raw.matchAll(new RegExp('^' + end + '\\r?$', 'gm'))]
   if (!starts.length && !ends.length) return { entry: entries[0], owned: false, clean: raw }
   if (starts.length !== 1 || ends.length !== 1 || starts[0].index! >= ends[0].index!) throw new Error('Invalid DSH browser block')
   const first = starts[0].index!, last = ends[0].index! + ends[0][0].length
@@ -33,16 +33,16 @@ function dshEntry(raw: string) {
 }
 
 export class BrowserTerminalClients {
-  private queue = new SerialQueue()
-  constructor(private deps: { service: LocalIntegrationService; home: string; env: NodeJS.ProcessEnv; directory: string; entry: string; executable: string; piBundle: string; disconnect(client: string): Promise<void> }) {}
+  private get key() { return this.deps.kind === 'computer' ? 'janusx-computer' : 'janusx-browser' }
+  constructor(private deps: { kind?: 'browser' | 'computer'; service: LocalIntegrationService; home: string; env: NodeJS.ProcessEnv; directory: string; entry: string; executable: string; piBundle: string; disconnect(client: string): Promise<void> }) {}
   private launch(client: BrowserClient) {
-    return { command: this.deps.executable, args: [this.deps.entry], env: { ELECTRON_RUN_AS_NODE: '1', JANUSX_BROWSER_CONNECTION: join(this.deps.directory, 'connection.json'), JANUSX_BROWSER_CLIENT: client } }
+    return { command: this.deps.executable, args: [this.deps.entry], env: { ...(this.deps.kind === 'computer' ? { JANUSX_CONTROL_KIND: 'computer' } : {}), ELECTRON_RUN_AS_NODE: '1', JANUSX_BROWSER_CONNECTION: join(this.deps.directory, 'connection.json'), JANUSX_BROWSER_CLIENT: client } }
   }
   private desired(client: BrowserClient) {
     const launch = this.launch(client)
     return client === 'opencode' ? { type: 'local', command: [launch.command, ...launch.args], environment: launch.env, enabled: true } : launch
   }
-  private piPath() { return join(this.deps.directory, 'pi-browser.mjs') }
+  private piPath() { return join(this.deps.directory, this.deps.kind === 'computer' ? 'pi-computer.mjs' : 'pi-browser.mjs') }
   private async native(client: Exclude<BrowserClient, 'pi' | 'dsh'>) {
     const query = { scope: 'user' as const, client: client as LocalIntegrationClient }
     const catalog = await this.deps.service.scan(query)
@@ -51,7 +51,7 @@ export class BrowserTerminalClients {
     const source = sources.find(source => this.deps.env.OPENCODE_CONFIG && source.path === this.deps.env.OPENCODE_CONFIG)
       ?? sources.find(source => source.exists) ?? sources[0]
     if (!source || source.issue) throw new Error('Client configuration is unavailable')
-    const entries = catalog.entries.filter(entry => entry.kind === 'mcp' && entry.name === key)
+    const entries = catalog.entries.filter(entry => entry.kind === 'mcp' && entry.name === this.key)
     if (entries.length > 1) throw new Error('Duplicate browser MCP registrations; resolve them in Skills & MCP')
     const entry = entries[0]
     const document = entry ? await this.deps.service.read(query, entry.id) : undefined
@@ -66,7 +66,7 @@ export class BrowserTerminalClients {
     const boundary = client === 'pi' ? this.deps.env.PI_CODING_AGENT_DIR || join(this.deps.home, '.pi', 'agent') : this.deps.env.DSH_HOME || join(this.deps.home, '.dsh')
     const path = join(boundary, client === 'pi' ? 'settings.json' : 'cordis.patch.yml')
     const raw = await readIntegrationFile(path)
-    if (client === 'dsh') return { boundary, path, raw, ...dshEntry(raw) }
+    if (client === 'dsh') return { boundary, path, raw, ...dshEntry(raw, this.key) }
     const settings = parseConfig(raw, 'janus')
     if (settings.extensions !== undefined && (!Array.isArray(settings.extensions) || !settings.extensions.every(item => typeof item === 'string'))) throw new Error('Invalid Pi extensions')
     const extensions = (settings.extensions ?? []) as string[]
@@ -85,11 +85,12 @@ export class BrowserTerminalClients {
     }))
   }
   change(input: BrowserClientChange): Promise<void> {
-    return this.queue.run(async () => {
+    return registrationQueue.run(async () => {
+      const key = this.key
       const client = input.client
       if (client !== 'pi' && client !== 'dsh') {
         const info = await this.native(client)
-        if (info.entry && !info.owned) throw new Error('The janusx-browser name belongs to another MCP')
+        if (info.entry && !info.owned) throw new Error('The ' + key + ' name belongs to another MCP')
         if (input.action === 'remove') {
           if (!info.document) return
           const preview = await this.deps.service.prepareRemoval(info.query, info.entry!.id, input.expectedRevision)
@@ -112,10 +113,10 @@ export class BrowserTerminalClients {
         } else {
           const clean = info.clean.replace(/^[ \t]*\[\][ \t]*(?=#|\r?$)/m, '')
           const config = { serverName: key, transport: 'stdio', ...this.launch(client) }
-          next = clean + (input.action === 'import' ? `${clean && !clean.endsWith('\n') ? '\n' : ''}${start}\n- insert: ${JSON.stringify([{ id: key, name: '@deepseek-ai/dsh-mcp-client', config }])}\n${end}\n` : '')
-          dshEntry(next)
+          next = clean + (input.action === 'import' ? `${clean && !clean.endsWith('\n') ? '\n' : ''}# ${key} managed begin\n- insert: ${JSON.stringify([{ id: key, name: '@deepseek-ai/dsh-mcp-client', config }])}\n# ${key} managed end\n` : '')
+          dshEntry(next, key)
         }
-        if (info.raw) await writeIntegrationFile(info.path + '.janusx-browser.bak', info.raw)
+        if (info.raw) await writeIntegrationFile(info.path + '.' + key + '.bak', info.raw)
         await mkdir(dirname(info.path), { recursive: true })
         if (!await writablePath(info.path, info.boundary) || await readIntegrationFile(info.path) !== info.raw) throw new Error('Client configuration changed; refresh before retrying')
         await writeIntegrationFile(info.path, next)

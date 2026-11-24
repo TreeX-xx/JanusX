@@ -30,13 +30,20 @@
     "title": "电脑控制",
     "subtitle": "管理 macOS、Linux 和 Windows 的电脑控制配置",
     "section": "桌面驱动",
-    "providerHint": "跨平台电脑控制的候选驱动。",
-    "notConnected": "电脑控制尚未接入。当前可保存驱动位置并检测版本，检测成功不会授予 AI 电脑控制权限。",
+    "providerHint": "在选定的应用窗口中执行后台操作。",
     "executable": "驱动程序位置",
-    "executableHint": "留空时从系统 PATH 查找 cua-driver。修改后请先保存再检测。",
+    "executableHint": "留空时自动查找已安装的 Cua Driver。",
     "check": "检测驱动版本",
     "missing": "未找到可用的 Cua Driver",
-    "detected": "已检测到驱动：{{version}}；电脑控制仍未接入。"
+    "detected": "驱动版本：{{version}}",
+    "enabled": "允许 AI 控制电脑",
+    "advanced": "高级",
+    "ready": "已就绪",
+    "unavailable": "驱动不可用",
+    "active": "正在操作 · {{target}}",
+    "stop": "停止本次操作",
+    "accessibility": "打开辅助功能设置",
+    "screenRecording": "打开屏幕录制设置"
   },
   "terminals": {
     "title": "终端接入",
@@ -61,6 +68,13 @@
     "removeHint": "从 {{client}} 移除浏览器接入并断开其当前浏览器连接。其它 MCP 和 Skill 保留。配置文件：",
     "cancel": "取消",
     "confirmRemove": "确认移除",
-    "removed": "已移除 {{client}} 的浏览器接入。"
+    "removed": "已移除 {{client}} 的接入。"
+  },
+  "computerTerminals": {
+    "hint": "选择允许接入电脑控制的终端。接入或移除后重新加载终端会话。",
+    "pi": "Pi 原生扩展",
+    "mcp": "MCP · janusx-computer",
+    "failed": "请检查电脑控制开关和驱动状态。",
+    "removeHint": "从 {{client}} 移除电脑控制并断开当前连接。配置文件："
   }
 }

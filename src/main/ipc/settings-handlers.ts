@@ -1,4 +1,7 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { localPlatform } from '../platform/local-platform'
+import { computerActivities, endComputerTurn, updateComputerConfiguration } from '../computer/control'
+import type { ControlKind } from '../../shared/ipc/control'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 import { configService } from '../config/service'
 import { BROWSER_CLIENTS, CONTROL_CHANNELS } from '../../shared/ipc/control'
 import { browserTerminalClients } from '../browser/terminal-service'
@@ -23,26 +26,34 @@ export function registerSettingsHandlers(getAllowedWindows: () => readonly Brows
     if (event.senderFrame !== event.sender.mainFrame || !getAllowedWindows().some(window => !window.isDestroyed() && window.webContents === event.sender)) throw new Error('Control settings request is not authorized')
     return operation(...args)
   })
-  controlHandle(CONTROL_CHANNELS.clients, () => browserTerminalClients().status())
-  controlHandle(CONTROL_CHANNELS.changeClient, async (input: unknown) => {
+  controlHandle(CONTROL_CHANNELS.clients, (kind?: ControlKind) => browserTerminalClients(kind).status())
+  controlHandle(CONTROL_CHANNELS.changeClient, async (input: unknown, kind?: ControlKind) => {
     const { z } = await import('zod')
     const parsed = z.object({ client: z.enum(BROWSER_CLIENTS), expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), action: z.enum(['import', 'remove']) }).strict().parse(input)
-    await browserTerminalClients().change(parsed)
+    await browserTerminalClients(kind).change(parsed)
   })
-  controlHandle(CONTROL_CHANNELS.probeClient, async (client: unknown, revision: unknown) => {
+  controlHandle(CONTROL_CHANNELS.probeClient, async (client: unknown, revision: unknown, kind?: ControlKind) => {
     const { z } = await import('zod')
-    return browserTerminalClients().probe(z.enum(BROWSER_CLIENTS).parse(client), z.string().regex(/^[a-f0-9]{64}$/).parse(revision))
+    return browserTerminalClients(kind).probe(z.enum(BROWSER_CLIENTS).parse(client), z.string().regex(/^[a-f0-9]{64}$/).parse(revision))
   })
   controlHandle(CONTROL_CHANNELS.get, () => configService.getControlSettings())
   controlHandle(CONTROL_CHANNELS.status, () => controlStatus())
   controlHandle(CONTROL_CHANNELS.stop, () => stopBrowserControl())
+  controlHandle(CONTROL_CHANNELS.openComputerPermission, async (permission: unknown) => {
+    if (localPlatform() !== 'darwin' || (permission !== 'accessibility' && permission !== 'screenRecording')) throw new Error('Unsupported permission')
+    const pane = permission === 'accessibility' ? 'Privacy_Accessibility' : 'Privacy_ScreenCapture'
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?' + pane)
+  })
+  controlHandle(CONTROL_CHANNELS.computerActivity, () => computerActivities())
+  controlHandle(CONTROL_CHANNELS.stopComputer, (id: string) => endComputerTurn(id))
   controlHandle(CONTROL_CHANNELS.checkComputer, () => checkComputerRuntime())
   controlHandle(CONTROL_CHANNELS.update, async (input: unknown) => {
     const { z } = await import('zod')
     const settings = z.object({ browser: z.object({ enabled: z.boolean(), timeoutMs: z.number().int().min(3000).max(60000) }).strict().optional(),
-      computer: z.object({ executable: z.string().max(4096) }).strict().optional() }).strict().parse(input)
-    const next = await configService.updateControlSettings(settings)
-    if (!next.browser.enabled) await stopBrowserControl()
+      computer: z.object({ enabled: z.boolean().optional(), executable: z.string().max(4096).optional() }).strict().optional() }).strict().parse(input)
+    const save = () => configService.updateControlSettings(settings)
+    const next = settings.computer ? await updateComputerConfiguration(save) : await save()
+    if (settings.browser && !next.browser.enabled) await stopBrowserControl()
     return next
   })
   ipcMain.handle(AGENT_SETTINGS_CHANNELS.get, async () => ({

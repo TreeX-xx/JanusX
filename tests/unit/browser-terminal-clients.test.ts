@@ -40,6 +40,19 @@ describe('browser terminal registrations', () => {
     expect(await readFile(registered.path, 'utf8')).toContain('other')
     expect(await readFile(registered.path, 'utf8')).not.toContain('janusx-browser')
   })
+  it.each(BROWSER_CLIENTS)('keeps %s browser and computer registrations independent', async id => {
+    const desktop = new BrowserTerminalClients({ kind: 'computer', service, home, env: {}, directory: join(root, 'computer'),
+      entry: join(root, 'browser-mcp.js'), executable: process.execPath, piBundle: join(root, 'pi.mjs'), disconnect })
+    await clients.change({ client: id, action: 'import', expectedRevision: (await status(id)).revision })
+    const row = async () => (await desktop.status()).find(client => client.id === id)!
+    expect((await row()).state).toBe('absent')
+    await desktop.change({ client: id, action: 'import', expectedRevision: (await row()).revision })
+    expect((await row()).state).toBe('configured')
+    expect((await status(id)).state).toBe('configured')
+    await desktop.change({ client: id, action: 'remove', expectedRevision: (await row()).revision })
+    expect((await row()).state).toBe('absent')
+    expect((await status(id)).state).toBe('configured')
+  })
   it('refuses stale revisions and a foreign registration', async () => {
     const before = await status('codex')
     await mkdir(join(home, '.codex'), { recursive: true })

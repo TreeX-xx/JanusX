@@ -7,6 +7,7 @@ import { createProductionOfficeOperations } from '../office/office-handler-opera
 import type { BrowserSurfaceManager } from '../browser/surface-manager'
 import { registerAgentHandlers } from './janus-runner-handlers'
 import { registerBrowserHandlers } from './browser-handlers'
+import { resetComputer } from '../computer/control'
 import { initializeBrowserControl, stopBrowserControl } from '../browser/control-service'
 import { registerPluginHandlers } from './plugin-handlers'
 import { registerCheckpointHandlers } from './checkpoint-handlers'
@@ -87,6 +88,7 @@ export function registerApplicationIpc(options: RegisterApplicationIpcOptions): 
   currentMainWindow = mainWindow
   subAgentRunRegistry.setMainWindow(mainWindow)
   mainWindow.on('closed', () => {
+    resetComputer()
     void stopBrowserControl()
     pluginService?.closeAll()
     if (currentMainWindow === mainWindow) currentMainWindow = null

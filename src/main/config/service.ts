@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { readFile, rename } from 'node:fs/promises'
 import { SerialQueue, writeFileAtomic } from '../lib/atomic-file'
 import type { GlobalConfig } from '../workspace/types'
-import { normalizeControlSettings, type ControlSettings } from '../../shared/ipc/control'
+import { normalizeControlSettings, type ControlSettings, type ControlPatch } from '../../shared/ipc/control'
 import {
   DEFAULT_AGENT_NOTIFICATION_SETTINGS,
   normalizeAgentNotificationSettings,
@@ -188,12 +188,14 @@ export class ConfigService {
     return normalizeControlSettings((await this.get()).controlSettings)
   }
 
-  async updateControlSettings(settings: unknown): Promise<ControlSettings> {
+  async updateControlSettings(patch: ControlPatch): Promise<ControlSettings> {
     return this.writeQueue.run(async () => {
       const current = await this.get()
-      const controlSettings = normalizeControlSettings({ ...normalizeControlSettings(current.controlSettings), ...(settings as Partial<ControlSettings>) })
-      this.config = { ...current, controlSettings }
-      await this.persist()
+      const previous = normalizeControlSettings(current.controlSettings)
+      const controlSettings = normalizeControlSettings({ browser: patch.browser ?? previous.browser, computer: { ...previous.computer, ...patch.computer } })
+      const next = { ...current, controlSettings }
+      await writeFileAtomic(this.configPath, JSON.stringify(next, null, 2))
+      this.config = next
       return controlSettings
     })
   }

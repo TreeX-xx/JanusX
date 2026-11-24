@@ -9,7 +9,7 @@ async function main() {
   const file = process.env.JANUSX_BROWSER_CONNECTION
   if (!file) throw new Error('Register Browser MCP from JanusX Settings first')
   const connection = await connectBrowserTerminal(file, process.env.JANUSX_BROWSER_CLIENT ?? 'external')
-  const server = new Server({ name: 'janusx-browser', version: '1.0.0' }, { capabilities: { tools: {} } })
+  const server = new Server({ name: process.env.JANUSX_CONTROL_KIND === 'computer' ? 'janusx-computer' : 'janusx-browser', version: '1.0.0' }, { capabilities: { tools: {} } })
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: connection.tools }))
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     try { return { content: [{ type: 'text', text: JSON.stringify(await connection.call(request.params.name, request.params.arguments ?? {}, extra.signal)) }] } }

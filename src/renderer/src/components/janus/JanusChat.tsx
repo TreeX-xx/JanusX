@@ -1,3 +1,4 @@
+import { ComputerControlActivity } from '../ComputerControlActivity'
 /**
  * @file JanusChat �?虚幻模糊风格的对话组�?
  * @description �?Janus 数字形象风格一致的对话界面
@@ -1783,6 +1784,7 @@ export function JanusChat({
           <SuperAgentMessage className="janus-chat-message assistant streaming" round={pendingRound}>
             <div className="janus-chat-message-author">{conversationStyle && <JanusIcon size={14} />}{t('janus:chat.author.assistant')}</div>
             <div className="janus-chat-message-content">
+              {isStreaming && conversations?.conversationId && <ComputerControlActivity owner={conversations.conversationId} />}
               {isStreaming && <TurnStatusRow status={activeTurnStatus} startedAt={activeTurnStartedAt} />}
               {(activeTimeline?.blocks.length || activeTimeline?.truncated) ? <ChatTimeline snapshot={activeTimeline} streaming={isStreaming} workspaceNames={workspaceNames} workspacePath={pendingWorkspacePath} renderToolDetails={renderToolDetails} /> : <>
               <ThinkingRegion snapshot={activePendingReasoning} streaming={isStreaming} startedAt={activeTurnStartedAt} defaultExpanded={false} />

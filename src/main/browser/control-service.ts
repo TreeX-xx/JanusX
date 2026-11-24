@@ -1,3 +1,4 @@
+import { computerExecutable, computerStatus } from '../computer/control'
 import { app } from 'electron'
 import { join } from 'node:path'
 import { runProcess } from '../platform/process-host'
@@ -26,11 +27,12 @@ export async function controlStatus(): Promise<ControlStatus> {
   try { await checkBrowserEndpoint(); await browserControl().catalog() } catch (cause) { error = cause instanceof Error ? cause.message : String(cause) }
   return { browser: { enabled: settings.browser.enabled, provider: 'chrome-devtools-mcp', version: DEVTOOLS_VERSION,
     state: error ? 'unavailable' : 'ready', ...(error ? { error } : {}), active: broker?.activeControl ?? false },
-    computer: { provider: 'cua-driver', configured: !!settings.computer.executable, connected: false } }
+    computer: await computerStatus() }
 }
 export async function checkComputerRuntime(): Promise<{ available: boolean; version?: string; error?: string }> {
   const settings = await configService.getControlSettings()
-  const result = await runProcess(settings.computer.executable || 'cua-driver', ['--version'], { timeoutMs: 5000, maxOutputBytes: 4096 })
+  const result = await runProcess(computerExecutable(settings.computer.executable), ['--version'], { timeoutMs: 5000, maxOutputBytes: 4096 })
+  if (result.status === 'spawn-error') return { available: false }
   const output = `${result.stdout}${result.stderr}`.trim()
   return result.status === 'exited' && result.exitCode === 0 && /cua[-\s_]*driver/i.test(output)
     ? { available: true, version: output }

@@ -30,13 +30,20 @@
     "title": "Computer control",
     "subtitle": "Manage computer control configuration for macOS, Linux and Windows",
     "section": "Desktop driver",
-    "providerHint": "Candidate driver for cross-platform computer control.",
-    "notConnected": "Computer control is not connected yet. You can save the driver location and check its version. A successful check does not grant AI computer access.",
+    "providerHint": "Operate the selected application window in the background.",
     "executable": "Driver executable",
-    "executableHint": "Leave empty to find cua-driver on PATH. Save changes before checking.",
+    "executableHint": "Leave blank to find the installed Cua Driver.",
     "check": "Check driver version",
     "missing": "Cua Driver is unavailable",
-    "detected": "Driver detected: {{version}}. Computer control is still not connected."
+    "detected": "Driver version: {{version}}",
+    "enabled": "Allow AI to control this computer",
+    "advanced": "Advanced",
+    "ready": "Ready",
+    "unavailable": "Driver unavailable",
+    "active": "Controlling · {{target}}",
+    "stop": "Stop this operation",
+    "accessibility": "Open Accessibility settings",
+    "screenRecording": "Open Screen Recording settings"
   },
   "terminals": {
     "title": "Terminal access",
@@ -61,6 +68,13 @@
     "removeHint": "Remove browser access from {{client}} and disconnect its active browser connections. Other MCP servers and Skills are preserved. Configuration:",
     "cancel": "Cancel",
     "confirmRemove": "Confirm removal",
-    "removed": "Browser access removed from {{client}}."
+    "removed": "Access removed from {{client}}."
+  },
+  "computerTerminals": {
+    "hint": "Choose the terminals that can use computer control. Reload the terminal session after changing its registration.",
+    "pi": "Native Pi extension",
+    "mcp": "MCP · janusx-computer",
+    "failed": "Check the computer control switch and driver status.",
+    "removeHint": "Remove computer control from {{client}} and disconnect its sessions. Configuration file:"
   }
 }

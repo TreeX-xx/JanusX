@@ -772,13 +772,16 @@ const pluginAPI: PluginHostAPI = {
 
 contextBridge.exposeInMainWorld('electron', {
   controls: {
-    clients: () => ipcRenderer.invoke(CONTROL_CHANNELS.clients),
-    changeClient: input => ipcRenderer.invoke(CONTROL_CHANNELS.changeClient, input),
-    probeClient: (client, revision) => ipcRenderer.invoke(CONTROL_CHANNELS.probeClient, client, revision),
+    clients: kind => ipcRenderer.invoke(CONTROL_CHANNELS.clients, kind),
+    changeClient: (input, kind) => ipcRenderer.invoke(CONTROL_CHANNELS.changeClient, input, kind),
+    probeClient: (client, revision, kind) => ipcRenderer.invoke(CONTROL_CHANNELS.probeClient, client, revision, kind),
     get: () => ipcRenderer.invoke(CONTROL_CHANNELS.get),
     update: settings => ipcRenderer.invoke(CONTROL_CHANNELS.update, settings),
     status: () => ipcRenderer.invoke(CONTROL_CHANNELS.status),
     stop: () => ipcRenderer.invoke(CONTROL_CHANNELS.stop),
+    openComputerPermission: permission => ipcRenderer.invoke(CONTROL_CHANNELS.openComputerPermission, permission),
+    stopComputer: id => ipcRenderer.invoke(CONTROL_CHANNELS.stopComputer, id),
+    computerActivity: () => ipcRenderer.invoke(CONTROL_CHANNELS.computerActivity),
     checkComputer: () => ipcRenderer.invoke(CONTROL_CHANNELS.checkComputer),
   } satisfies ControlAPI,
   automations: automationsAPI,

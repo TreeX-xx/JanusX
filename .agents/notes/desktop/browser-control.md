@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-11-05",
-  "updated": "2026-11-06T01:53:58Z",
+  "updated": "2026-11-24T14:33:39Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
   "relations": [
     {"type":"related-to","target":"note://972afef3-2fc7-49de-a3ee-7e041225d28c/ff1fd0c5-c997-4c70-8824-ba13a76d0087"},
@@ -52,7 +52,7 @@
 
 截图强制写入 userData 下 `janusx/browser-control/artifacts`，工具返回文本和文件路径。共享聊天工具目前返回字符串，尚未新增模型图像消息接线。上传必须存在已关联工作区，并经过共享 `resolveWorkspaceTarget` 校验为其内部普通文件；不依赖上游对系统临时目录的默认信任。
 
-设置中心新增“自动化控制”分组和两个独立栏目，复用现有设置组件、主题与双语机制。浏览器栏管理开关、3–60 秒超时、检测与立即停止；电脑栏保存候选 Cua Driver 的 executable 路径，显式检测仅执行 `--version`，有超时和输出上限。电脑控制未接入，没有桌面操作工具，也不宣称已经支持三个平台。两栏按局部补丁进入既有配置写队列，互不覆盖，持久化于 config.json 的 `controlSettings`。
+设置中心新增“自动化控制”分组和两个独立栏目，复用现有设置组件、主题与双语机制。浏览器栏管理开关、3–60 秒超时、检测与立即停止。电脑栏提供独立开关、Cua Driver 状态与系统权限入口、按轮停止和终端注册，接入与 macOS 实测见[电脑控制](./browser-computer-use.md)。两栏按局部补丁进入既有配置写队列，互不覆盖，持久化于 config.json 的 `controlSettings`。
 
 ## Alternatives considered
 
@@ -65,7 +65,7 @@
 
 上游内部导出没有稳定 SDK 承诺，固定版本是当前维护成本；未来升级需重跑目标限定和真实 Electron 测试。loopback CDP socket 是应用进程的调试入口，关闭产品工具不会在运行中关闭 Chromium socket；broker 的限制是产品工具边界，不是抵御同机程序连接 CDP 的安全隔离。普通浏览器保留现有 partition，产品用户与 Agent 共享相同页面实例和登录态。
 
-本次验证覆盖 Windows 开发构建和真实 Electron 原生网页。安装器产物、macOS/Linux、真实站点与 SSO、个人 Chrome/Edge profile 复用、重启登录连续性、跨站 OOPIF 和真实模型自主成功率尚未验证。电脑驱动只实测缺失提示，未安装或验证 Cua Driver。终端桥接与设置管理已有接线；各 CLI 的真实模型调用、全部原生版本兼容矩阵、安装包分发、视觉结果消费及三平台电脑控制仍需验证。
+本次验证覆盖 Windows 开发构建和真实 Electron 原生网页。安装器产物、macOS/Linux、真实站点与 SSO、个人 Chrome/Edge profile 复用、重启登录连续性、跨站 OOPIF 和真实模型自主成功率尚未验证。该次浏览器验收仅覆盖电脑驱动缺失提示，后续 Mac 驱动验证单独记录。终端桥接与设置管理已有接线；各 CLI 的真实模型调用、全部原生版本兼容矩阵、安装包分发、视觉结果消费及三平台电脑控制仍需验证。
 
 ## Verification
 
