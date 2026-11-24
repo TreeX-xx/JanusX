@@ -26,7 +26,8 @@ describe('agent engine capabilities', () => {
     expect(AGENT_ENGINE_CAPABILITIES.opencode.transcript).toBeNull()
     expect(AGENT_ENGINE_CAPABILITIES.pi.transcript).toBeNull()
     expect(AGENT_ENGINE_CAPABILITIES.claude.sentinel).toBe(true)
-    for (const source of ['codex', 'opencode', 'janus', 'pi'] as const) {
+    expect(AGENT_ENGINE_CAPABILITIES.codex.sentinel).toBe(true)
+    for (const source of ['opencode', 'janus', 'pi'] as const) {
       expect(AGENT_ENGINE_CAPABILITIES[source].sentinel).toBe(false)
     }
     expect(AGENT_ENGINE_CAPABILITIES.claude.sessionStore).toBe('claude-projects')

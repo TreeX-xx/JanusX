@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  createTerminalServiceErrorDetector,
-  isTerminalInterrupt,
-} from '../../src/main/notifications/terminal-turn-signals'
+import { CodexTerminalSignals, isTerminalInterrupt } from '../../src/main/notifications/terminal-turn-signals'
 
 describe('terminal turn signals', () => {
   it('recognizes only a standalone Ctrl+C input as an interrupt', () => {
@@ -11,38 +8,35 @@ describe('terminal turn signals', () => {
     expect(isTerminalInterrupt('\x1b[200~\x03\x1b[201~')).toBe(false)
   })
 
-  it.each([
-    'API Error: 429 rate_limit_error',
-    'Request failed with status code 503',
-    'unexpected status 429 Too Many Requests',
-    'Error: service unavailable (503)',
-    'request failure: server overloaded',
-  ])('detects a service-ending error: %s', (message) => {
-    const detector = createTerminalServiceErrorDetector()
-    expect(detector.push(message)).toContain(message)
+  it('requires a live Codex control sequence for each failed turn, even across PTY chunks', () => {
+    const signals = new CodexTerminalSignals()
+    const output: string[] = []
+    const feed = (text: string) => signals.push(text, kind => output.push(kind))
+    const control = (state: string) => '\x1b]7501;state=' + state + ':app=codex\x1b\\'
+    feed(control('error'))
+    for (let turn = 0; turn < 2; turn++) {
+      feed(control('working') + 'Request failed with status code 503')
+      feed('7501;state=error:app=codex')
+      for (const byte of control('error')) feed(byte)
+      feed(control('error'))
+    }
+    expect(output).toEqual(['api-error', 'api-error'])
   })
 
-  it('detects an ANSI-colored error split across PTY chunks', () => {
-    const detector = createTerminalServiceErrorDetector()
-
-    expect(detector.push('\x1b[31mRequest failed with status ')).toBeNull()
-    expect(detector.push('code 503\x1b[0m')).toBe('Request failed with status code 503')
-  })
-
-  it.each([
-    'please explain 429 and 503 handling',
-    'the response status is 503',
-    'rate limit settings',
-    '503 tests passed',
-  ])('does not classify ordinary terminal text: %s', (message) => {
-    const detector = createTerminalServiceErrorDetector()
-    expect(detector.push(message)).toBeNull()
-  })
-
-  it('clears partial context between turns', () => {
-    const detector = createTerminalServiceErrorDetector()
-    expect(detector.push('Request failed with status ')).toBeNull()
-    detector.reset()
-    expect(detector.push('code 503')).toBeNull()
+  it('confirms a requested interrupt on native idle and drops the intent on completion', () => {
+    const signals = new CodexTerminalSignals()
+    const output: string[] = []
+    const state = (name: string) => signals.push('\x1b]7501;state=' + name + ':app=codex\x07', kind => output.push(kind))
+    state('working')
+    state('idle')
+    state('working')
+    signals.interruptRequested = true
+    state('done')
+    state('idle')
+    expect(output).toEqual([])
+    state('working')
+    signals.interruptRequested = true
+    state('idle')
+    expect(output).toEqual(['interrupted'])
   })
 })

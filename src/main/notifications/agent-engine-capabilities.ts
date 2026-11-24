@@ -62,7 +62,7 @@ export const AGENT_ENGINE_CAPABILITIES: Record<AgentHookSource, AgentEngineCapab
     ...NATIVE_TURNS,
     ...NATIVE_ATTENTION,
     transcript: 'codex-rollout',
-    sentinel: false,
+    sentinel: true,
     sessionStore: 'codex-sessions',
   },
   janus: {

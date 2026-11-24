@@ -58,6 +58,32 @@ function lifecycleTypes(events: AgentHookCoordinatorEvent[]): string[] {
 }
 
 describe('AgentHookCoordinator', () => {
+  it.each(['codex', 'claude', 'opencode', 'pi', 'janus'] as const)('%s accepts a new start after an interrupt', source => {
+    const { coordinator, completions } = createCoordinator(Date.now)
+    coordinator.registerTerminal({ ...codexTerminal, engine: source })
+    const start = source === 'opencode' ? 'session.execution.started' : 'UserPromptSubmit'
+    for (const event of [start, 'janusx.turn.interrupted', start]) {
+      coordinator.handleHookPayload({ source, terminalId: codexTerminal.terminalId, event })
+    }
+    expect(coordinator.hasActiveTurn(codexTerminal.terminalId)).toBe(true)
+    expect(completions.map(turn => turn.kind)).toEqual(['interrupted'])
+  })
+
+  it('keeps the new Codex turn running when an old native interrupt arrives late', () => {
+    const { coordinator, completions } = createCoordinator(Date.now)
+    coordinator.registerTerminal(codexTerminal)
+    const post = (event: string, turn_id: string) => coordinator.handleHookPayload({
+      source: 'codex', terminalId: codexTerminal.terminalId, event, raw: { turn_id },
+    })
+    post('UserPromptSubmit', 'first')
+    post('Interrupt', 'first')
+    post('UserPromptSubmit', 'second')
+    post('Interrupt', 'first')
+    expect(coordinator.hasActiveTurn(codexTerminal.terminalId)).toBe(true)
+    post('Stop', 'second')
+    expect(completions.map(turn => turn.kind)).toEqual(['interrupted', 'done'])
+  })
+
   it('delivers a completion notification from UserPromptSubmit and Stop hooks', async () => {
     let now = 1_000
     const { coordinator, completions, events } = createCoordinator(() => now)

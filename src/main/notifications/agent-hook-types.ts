@@ -45,6 +45,7 @@ export interface AgentHookTurnStart {
   engine: AgentEngine
   source: AgentHookSource
   sessionId?: string
+  providerTurnId?: string
   transcriptPath?: string
 }
 

@@ -161,6 +161,8 @@ describe('runtime telemetry model context lookup', () => {
   it('reads dsh-TUI turn lifecycle markers as running or degraded, never idle', () => {
     expect(extractDshTurnStatus('🌑 模型醒了… · 12s · 3.2k tokens · esc 中断')).toBe('running')
     expect(extractDshTurnStatus('❯ hi turn error · llm-deepseek: no API key for provider route')).toBe('degraded')
+    expect(extractDshTurnStatus('turn error\r\n模型醒了')).toBe('running')
+    expect(extractDshTurnStatus('模型醒了\r\nTurn Error')).toBe('degraded')
     expect(extractDshTurnStatus('deepseek-flash · Max effort')).toBeUndefined()
     expect(extractDshTurnStatus('? for shortcuts')).toBeUndefined()
   })

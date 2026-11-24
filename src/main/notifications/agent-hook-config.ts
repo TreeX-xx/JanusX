@@ -27,6 +27,7 @@ type JsonObject = Record<string, unknown>
 interface HookCommandSpec {
   event: string
   matcher?: string
+  timeout?: number
 }
 
 interface AgentHookConfigManagerOptions {
@@ -81,7 +82,7 @@ const CODEX_HOOKS: HookCommandSpec[] = [
   { event: 'UserPromptSubmit' },
   { event: 'PermissionRequest' },
   { event: 'Stop' },
-  { event: 'Interrupt' },
+  { event: 'Interrupt', timeout: 10 },
   { event: 'SessionEnd' },
 ]
 
@@ -187,6 +188,7 @@ function addHookCommand(settings: JsonObject, spec: HookCommandSpec, command: st
       {
         type: 'command',
         command,
+        ...(spec.timeout && { timeout: spec.timeout }),
       },
     ],
   }
@@ -714,7 +716,7 @@ try {
   # command text that only slow down serialization and the POST body.
   $rawFiltered = [ordered]@{}
   if ($null -ne $rawValue -and $rawValue -isnot [string]) {
-    foreach ($name in @("status", "state", "matcher", "notification_type", "type", "transcript_path", "transcriptPath", "session_id", "sessionId", "thread_id", "threadId")) {
+    foreach ($name in @("status", "state", "matcher", "notification_type", "type", "transcript_path", "transcriptPath", "turn_id", "turnId", "session_id", "sessionId", "thread_id", "threadId")) {
       try {
         if ($rawValue.PSObject.Properties.Name -contains $name) {
           $candidate = $rawValue.$name

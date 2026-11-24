@@ -453,6 +453,7 @@ describe('AgentHookConfigManager', () => {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>
     }
 
+    expect(parsed.hooks.Interrupt[0].hooks[0]).toMatchObject({ timeout: 10 })
     for (const event of ['UserPromptSubmit', 'PermissionRequest', 'Stop']) {
       const command = parsed.hooks[event][0].hooks[0].command
       expect(command).toContain('janusx-hook-runner.exe')
@@ -509,6 +510,7 @@ describe('AgentHookConfigManager', () => {
     // Codex identifies its session by thread_id: it must survive the raw
     // whitelist and the sessionId fallback so provider identity lands.
     expect(script).toContain('"thread_id", "threadId"')
+    expect(script).toContain('"turn_id", "turnId"')
     expect(script).toContain('@("session_id", "sessionId", "thread_id", "threadId")')
     expect(script).toContain('transcript_path')
   })

@@ -8,7 +8,7 @@ import type { AgentEngine } from '../janus-runner/types'
  * not fire on abnormal aborts (API error mid-turn, user interrupt). Watches the
  * session transcript JSONL that the CLI itself maintains for resume fidelity:
  * any turn end that mutates conversation state must be recorded there, so the
- * watcher is event-driven with no polling and no timeout heuristics.
+ * watcher derives outcomes from records written by the provider.
  */
 
 const READ_CHUNK_BYTES = 256 * 1024
@@ -36,6 +36,7 @@ export interface TurnSentinelDiagnostic {
 }
 
 export interface TurnSentinelBeginInput {
+  providerTurnId?: string
   terminalId: string
   engine: AgentEngine
   transcriptPath?: string
@@ -53,6 +54,9 @@ interface SentinelTurnState {
   transcriptPath: string
   fileName: string
   sessionId?: string
+  // Older hook senders lack the native turn ID. Bind it from the open root
+  // turn at the initial EOF, then accept only an end bearing that same ID.
+  codex?: { turnId?: string; initialSize: number; explicit: boolean }
   watcher: FSWatcher | null
   offset: number
   remainder: Buffer
@@ -135,6 +139,31 @@ export function classifyTranscriptLine(line: string, sessionId?: string): Transc
   return null
 }
 
+// Note: .agents/notes/terminal/terminal-hook-launch-isolation.md
+function codexTurnSignal(line: string, turn: NonNullable<SentinelTurnState['codex']>, historical: boolean): TranscriptTurnSignal | null {
+  if (!/task_started|turn_context|task_complete|turn_aborted/.test(line)) return null
+  let record
+  try { record = JSON.parse(line) } catch { return null }
+  const payload = record?.payload
+  const id = payload?.turn_id
+  if (typeof id !== 'string' || (payload.root_turn_id && payload.root_turn_id !== id)) return null
+  const event = record.type === 'event_msg' ? payload.type : undefined
+  if (event === 'task_started' || record.type === 'turn_context') {
+    if (!turn.explicit && (historical || !turn.turnId)) turn.turnId = id
+    return null
+  }
+  if (turn.turnId !== id || (event !== 'turn_aborted' && event !== 'task_complete')) return null
+  if (historical && !turn.explicit) {
+    turn.turnId = undefined
+    return null
+  }
+  if (event === 'turn_aborted' && payload.reason === 'interrupted') return { kind: 'interrupted' }
+  if (event === 'task_complete' && payload.error && typeof payload.error.message === 'string') {
+    return { kind: 'api-error', message: payload.error.message }
+  }
+  return null
+}
+
 export class AgentTurnSentinel {
   private readonly turns = new Map<string, SentinelTurnState>()
   private readonly onSignal: (signal: TurnSentinelSignal) => void
@@ -160,10 +189,11 @@ export class AgentTurnSentinel {
       transcriptPath,
       fileName: basename(transcriptPath).toLowerCase(),
       sessionId: input.sessionId,
+      codex: input.engine === 'codex' ? { turnId: input.providerTurnId, explicit: !!input.providerTurnId, initialSize: 0 } : undefined,
       watcher: null,
       offset: 0,
       remainder: EMPTY,
-      reading: false,
+      reading: true, // initialize the cursor before servicing queued watcher events
       pendingRead: false,
       done: false,
     }
@@ -178,7 +208,7 @@ export class AgentTurnSentinel {
       })
       state.watcher.on('error', (error) => {
         this.diagnose(state.terminalId, 'watch-error', error instanceof Error ? error.message : String(error))
-        this.endTurn(state.terminalId)
+        if (this.turns.get(state.terminalId) === state) this.endTurn(state.terminalId)
       })
     } catch (error) {
       this.diagnose(input.terminalId, 'unavailable', error instanceof Error ? error.message : String(error))
@@ -186,17 +216,23 @@ export class AgentTurnSentinel {
     }
 
     this.turns.set(input.terminalId, state)
-
-    // Only records appended after turn start matter; then drain anything that
-    // landed between the size probe and the watcher attaching.
+    if (state.codex) this.diagnose(input.terminalId, 'codex-armed', input.providerTurnId)
+    // Claude starts at EOF. Codex may write its turn ID before the submit
+    // hook runs, so inspect a bounded tail before following new records.
     void stat(transcriptPath)
       .then((info) => {
-        state.offset = info.size
+        if (state.codex) {
+          state.codex.initialSize = info.size
+          state.offset = Math.max(0, info.size - READ_CHUNK_BYTES)
+        } else state.offset = info.size
       })
       .catch(() => {
         state.offset = 0
       })
-      .then(() => this.scheduleRead(state))
+      .then(() => {
+        state.reading = false
+        this.scheduleRead(state)
+      })
   }
 
   endTurn(terminalId: string): void {
@@ -251,6 +287,11 @@ export class AgentTurnSentinel {
 
     try {
       const size = (await handle.stat()).size
+      if (state.done) return
+      if (size < state.offset && state.codex) {
+        this.endTurn(state.terminalId)
+        return
+      }
       if (size < state.offset) {
         // Truncated or rotated: restart from the top of the new content.
         state.offset = 0
@@ -278,11 +319,15 @@ export class AgentTurnSentinel {
       const line = data.subarray(0, newlineIndex).toString('utf8')
       data = data.subarray(newlineIndex + 1)
 
-      const signal = classifyTranscriptLine(line, state.sessionId)
+      const lineEnd = state.offset - data.length
+      const signal = state.codex
+        ? codexTurnSignal(line, state.codex, lineEnd <= state.codex.initialSize)
+        : classifyTranscriptLine(line, state.sessionId)
       if (!signal) continue
 
       const { terminalId, engine } = state
       this.endTurn(terminalId)
+      if (state.codex) this.diagnose(terminalId, 'codex-' + signal.kind, state.codex.turnId)
       this.onSignal({ terminalId, engine, kind: signal.kind, message: signal.message })
       return
     }

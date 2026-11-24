@@ -32,7 +32,7 @@
       "reason": "Git blob provenance before separating current facts and historical planning."
     }
   },
-  "updated": "2026-11-20T13:08:44.608Z",
+  "updated": "2026-11-24T07:50:28Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -47,7 +47,7 @@ DSH 的官方入口以 Web UI 和 headless 为主，桌面工作区需要兼容�
 
 DSH 复用外部 CLI 注册、PTY 终端及 headless 子进程入口。工具描述声明 `@deepseek-ai/dsh`，手动安装指令为 `npm i -g @deepseek-ai/dsh @deepseek-harness-tui/dsh-tui && dsh-tui`；第一次运行 launcher 自举 `dsh-tui` profile，终端预设使用 `dsh --profile dsh-tui`。TUI 插件的安装由用户完成，JanusX 负责检测及启动。终端选择器、设置工具行、派发预设和会话引擎沿用统一类型与 `TerminalPresetIcon`，图标真源为 `src/renderer/src/assets/icons/dsh.svg`，品牌色为 `#4D6BFE`。
 
-DSH 的 hook 安装为 no-op，不能落到 OpenCode 插件分支。状态感知保留实测 PTY 信号：`模型醒了` 断言 running，`turn error` 断言 degraded。解析器不据此推断 idle；`CLITerminal.writeLiveOutput` 仅对 dsh 预设更新不同的状态，不覆盖 needs-approval、needs-input 或 error。状态栏模型与数字解析已由[会话源单源化](./requirements/usage-telemetry-single-source.md)移除。没有 hook 就不声称具备 turn 通知；本地状态接入也不扩大 CompanionGateway 的远控引擎范围。
+DSH 的 hook 安装为 no-op，不能落到 OpenCode 插件分支。状态感知保留实测 PTY 信号：`模型醒了` 断言 running，`turn error` 断言 degraded。同一输出块出现多个标记时，取最后一个。解析器不据此推断 idle；`CLITerminal.writeLiveOutput` 仅对 dsh 预设更新不同的状态，不覆盖 needs-approval、needs-input 或 error。状态栏模型与数字解析已由[会话源单源化](./requirements/usage-telemetry-single-source.md)移除。没有 hook 就不声称具备 turn 通知；本地状态接入也不扩大 CompanionGateway 的远控引擎范围。
 
 固定的 agent-core 依赖在运行时按原值保存检查点引擎，但其发布类型缺少 `dsh`。JanusX 的安装期兼容脚本精确扩展 `CheckpointEngine` 声明，并在上游声明形状不匹配时终止安装；已有补丁重复执行不改文件。只在本机修改 node_modules 无法覆盖 CI，宿主把 DSH 伪装为其他引擎则会污染检查点归属。该补丁沿用现有安装钩子，限制在类型声明，待两条工作流固定到原生支持 DSH 的上游提交时移除。
 

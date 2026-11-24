@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "implemented",
   "created": "2026-10-29",
-  "updated": "2026-11-19T16:43:51Z",
+  "updated": "2026-11-24T08:10:13Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570"
 }
 ---
@@ -34,6 +34,10 @@ P3 将 JanusX Hook 接入限定到本次启动链，保留原生身份、登录�
 | Janus / DSH | Janus 延续原生环境入口；DSH 无可安装 Hook | 本次不增加 DSH Hook 契约 |
 
 Codex 和 OpenCode 探测实际解析到的二进制版本；相同路径、mtime、大小共享探测，文件变化后重新识别。Codex 仅对 0.x 且 minor >=165 启用当前参数，其他版本降级，真实验收仅覆盖 0.165.0。OpenCode 保留原生 config dir 和对应 inline 配置字段，未知大版本或探测失败记录 setup 诊断后裸启动，不向旧 CLI 传新版参数。Hook 准备失败不阻止终端本身启动／历史恢复。尚未主动清理的旧全局 Hook 仍可能与新注入同时触发；生命周期层对重复开始和结束去重，清理入口不保证未知接入也被移除。
+
+Codex 通过原生 Hook、当前根轮次的 rollout 和 TUI 状态控制序列确认结束。主动中断记为 interrupted，终端回到等待。当前轮次带错误结束才进入受限。Windows 发送器保留原生轮次 ID，中断 Hook 有 10 秒执行时间供发送器冷启动，投递成功后立即返回。
+
+rollout 监听器按轮次 ID 匹配。旧发送器缺少该字段时，从文件末尾最多 256 KiB 和后续追加的开始记录识别活动根轮次。TUI 的 OSC 7501 从 working 转为 error 时也可确认当前失败。收到用户中断请求后，从 working 转为 idle 可确认中断。可见文本重绘、输入草稿和关闭菜单均不构成轮次失败。
 
 ### P5 旧接入主动清理
 

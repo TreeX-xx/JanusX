@@ -59,12 +59,13 @@ export interface RuntimeTelemetryUpdate {
   modelChangedAt?: number
 }
 
-/** PTY text is used only for DSH turn status, never for numeric telemetry. */
+/** DSH PTY lifecycle markers: .agents/notes/terminal/dsh-terminal-integration.md */
 export function extractDshTurnStatus(text: string): 'running' | 'degraded' | undefined {
   const normalized = text.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
-  if (/turn error/i.test(normalized)) return 'degraded'
-  if (/模型醒了/.test(normalized)) return 'running'
-  return undefined
+  const error = normalized.toLowerCase().lastIndexOf('turn error')
+  const running = normalized.lastIndexOf('模型醒了')
+  if (error > running) return 'degraded'
+  return running >= 0 ? 'running' : undefined
 }
 
 export function getEstimatedContextWindow(preset: TerminalPreset, model?: string): number | undefined {

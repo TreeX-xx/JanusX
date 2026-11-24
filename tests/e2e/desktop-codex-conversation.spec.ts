@@ -176,3 +176,99 @@ test('new dual-mode entry uses real preload, IPC, native TUI and one thread thro
     proxy.closeAllConnections(); await new Promise<void>(resolve => proxy.close(() => resolve()))
   }
 })
+
+for (const control of ['Escape', 'Control+C', 'Stop response'] as const) {
+  test(`Codex terminal status recovers after ${control}`, async () => {
+    test.setTimeout(150_000)
+    const dual = control === 'Stop response'
+    const fixture = await hookCliFixture({ codexStatusProbe: true })
+    let application: ElectronApplication | undefined
+    try {
+      await writeFile(join(fixture.env.CODEX_HOME!, 'config.toml'), [
+        'model="probe"', 'model_provider="local"', 'check_for_update_on_startup=false',
+        '[model_providers.local]', 'name="Local fixture"', `base_url="${fixture.url}/v1"`, 'wire_api="responses"', 'requires_openai_auth=false', 'request_max_retries=0', 'stream_max_retries=0',
+        `[projects.${JSON.stringify(fixture.cwd)}]`, 'trust_level="trusted"',
+      ].join('\n'))
+      const env = { ...fixture.env, NODE_ENV: 'production', ELECTRON_RENDERER_URL: '', JANUSX_KNOWLEDGE_ROOT: join(fixture.root, 'knowledge') }
+      const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
+      env[pathKey] = `${dirname(process.env.JANUSX_TEST_CODEX_BIN!)};${env[pathKey] ?? ''}`
+      application = await electron.launch({ args: [resolve('out/main/index.js'), `--user-data-dir=${join(fixture.root, 'profile')}`], env })
+      const page = await application.firstWindow()
+      await seedIntroducedLearning(page)
+      await page.evaluate(async cwd => {
+        await window.electron.system.setLanguage('en')
+        const ws = await window.electron.workspace.create({ name: 'Status fixture', path: cwd })
+        await window.electron.workspace.load(ws.id)
+      }, fixture.cwd)
+      await page.reload()
+      await page.locator('.ws').filter({ hasText: 'Status fixture' }).first().click()
+      const id = 'status-probe'
+      await page.evaluate(async ({ cwd, id, dual }) => {
+        const ws = await window.electron.workspace.list()
+        const statuses: string[] = []
+        const outcomes: string[] = []
+        Object.assign(window, { probeStatuses: statuses, probeOutcomes: outcomes })
+        window.electron.agent.onHookEvent(event => {
+          if (event.terminalId === id && ['interrupted', 'completed', 'failed'].includes(event.type)) outcomes.push(event.type)
+        })
+        window.electron.terminal.onStatus(event => { if (event.id === id) statuses.push(event.status) })
+        await window.electron.terminal.create({ cwd, id, workspaceId: ws.find(w => w.path === cwd)!.id, shell: 'powershell.exe',
+          preset: 'codex', conversationEnabled: dual, extraArgs: dual ? undefined : ['STATUS_HOLD Please explain Request failed with status code 503'], cols: 120, rows: 38 })
+      }, { cwd: fixture.cwd, id, dual })
+      const replay = () => page.evaluate(async id => (await window.electron.terminal.replay(id)).data, id)
+      const input = (data: string) => page.evaluate(({ id, data }) => window.electron.terminal.input(id, data), { id, data })
+      const statuses = () => page.evaluate(() => (window as unknown as { probeStatuses: string[] }).probeStatuses)
+      await expect.poll(replay, { timeout: 25_000 }).toContain('hooks are new or changed.')
+      await input('2\r')
+      if (dual) {
+        await expect.poll(() => page.evaluate(async id => (await window.electron.terminal.conversation(id))?.connection, id)).toBe('ready')
+        await input('\x1b[200~STATUS_HOLD Please explain Request failed with status code 503\x1b[201~')
+        await expect.poll(replay).toContain('503')
+        await input('\r')
+      }
+      await expect.poll(() => fixture.responseRequests.some(request => request.input.includes('STATUS_HOLD')), { timeout: 20_000 }).toBe(true)
+      if (dual) {
+        const host = page.locator(`[data-agent-session="${id}"]`)
+        await host.getByRole('button', { name: 'Conversation', exact: true }).click()
+        await host.getByRole('button', { name: 'Stop response', exact: true }).click()
+      } else await input(control === 'Escape' ? '\x1b' : '\x03')
+      await expect.poll(async () => (await statuses()).at(-1), { timeout: 25_000 }).toBe('wait')
+      await expect(page.locator('.term-status-ring--idle:visible').first()).toBeVisible()
+      if (dual) {
+        const host = page.locator(`[data-agent-session="${id}"]`)
+        await host.getByRole('combobox').fill('Explain Request failed with status code 503 again')
+        expect((await statuses()).at(-1)).toBe('wait')
+        await host.getByRole('button', { name: 'Send', exact: true }).click()
+      } else {
+        await input('\x1b[200~Explain Request failed with status code 503 again\x1b[201~')
+        await expect.poll(replay).toContain('again')
+        expect((await statuses()).at(-1)).toBe('wait')
+        await input('\r')
+      }
+      await expect.poll(async () => (await statuses()).filter(s => s === 'running' || s === 'degraded' || s === 'wait').slice(-4),
+        { timeout: 20_000 }).toEqual(['running', 'wait', 'running', 'wait'])
+      expect(await statuses()).not.toContain('degraded')
+      const outcomes = () => page.evaluate(() => (window as unknown as { probeOutcomes: string[] }).probeOutcomes)
+      await expect.poll(outcomes).toEqual(['interrupted', 'completed'])
+      if (control === 'Escape') {
+        await expect.poll(replay).toContain('state=done:app=codex')
+        for (const marker of ['STATUS_FAIL_FIRST', 'STATUS_FAIL_SECOND']) {
+          await input(`\x1b[200~${marker}\x1b[201~`)
+          await expect.poll(replay).toContain(marker)
+          await input('\r')
+          await expect.poll(async () => (await statuses()).filter(s => s === 'degraded').length, { timeout: 25_000 })
+            .toBe(marker === 'STATUS_FAIL_FIRST' ? 1 : 2)
+        }
+        await expect(page.locator('.term-status-ring--degraded:visible').first()).toBeVisible()
+        await expect.poll(outcomes).toEqual(['interrupted', 'completed', 'failed', 'failed'])
+      }
+    } catch (error) {
+      const page = application?.windows()[0]
+      if (page) console.error('Codex status probe:', await page.evaluate(async () => ({
+        statuses: (window as any).probeStatuses,
+        screen: (await window.electron.terminal.replay('status-probe')).data.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').slice(-1800),
+      })).catch(() => null))
+      throw error
+    } finally { await application?.close(); await fixture.close() }
+  })
+}

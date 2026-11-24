@@ -209,6 +209,35 @@ describe('AgentTurnSentinel', () => {
     expect(signals[0].kind).toBe('api-error')
   })
 
+  it('binds Codex aborts and service failures to the open root turn across restarts', async () => {
+    const row = (type: string, id: string, extra = {}) => jsonl({
+      type: 'event_msg', payload: { type, root_turn_id: id, turn_id: id, ...extra },
+    })
+    const arm = () => sentinel.beginTurn({ terminalId: 'term-1', engine: 'codex', transcriptPath })
+    const failed = (id: string) => row('task_complete', id, { error: { message: '503 Service Unavailable' } })
+    await writeFile(transcriptPath, row('task_started', 'old') + failed('old') + row('task_started', 'first'))
+    arm()
+    await appendFile(transcriptPath, failed('old') + row('turn_aborted', 'first', { reason: 'interrupted' }))
+    await vi.waitFor(() => expect(signals.map(s => s.kind)).toEqual(['interrupted']))
+    for (const id of ['second', 'third']) {
+      await appendFile(transcriptPath, row('task_started', id))
+      arm()
+      await appendFile(transcriptPath, row('stream_error', id, { message: 'retrying' }) +
+        row('task_complete', 'child', { root_turn_id: id, error: { message: 'child failed' } }) +
+        jsonl({ type: 'response_item', payload: { text: 'Request failed with status code 503' } }) +
+        failed(id))
+      await vi.waitFor(() => expect(signals.at(-1)?.kind).toBe('api-error'))
+    }
+    await vi.waitFor(() => expect(signals.map(s => s.kind)).toEqual(['interrupted', 'api-error', 'api-error']))
+  })
+
+  it('accepts an already flushed Codex failure only for the explicitly bound hook turn', async () => {
+    await writeFile(transcriptPath, ['old', 'current'].map(turn_id => jsonl({ type: 'event_msg',
+      payload: { type: 'task_complete', turn_id, error: { message: turn_id } } })).join(''))
+    sentinel.beginTurn({ terminalId: 'term-1', engine: 'codex', transcriptPath, providerTurnId: 'current' })
+    await vi.waitFor(() => expect(signals.map(s => s.message)).toEqual(['current']))
+  })
+
   it('reports a diagnostic instead of arming when no transcript path is known', async () => {
     const diagnostics: Array<{ stage: string }> = []
     const bare = new AgentTurnSentinel({

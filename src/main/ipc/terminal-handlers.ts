@@ -73,11 +73,7 @@ import { rollbackTerminalCreation } from '../companion/terminal-creation-rollbac
 import { terminalContextCoordinator } from '../runtime-telemetry/coordinator'
 import { createTerminalColorQueryResponder } from '../../shared/terminalColorQuery'
 import { configService } from '../config/service'
-import {
-  createTerminalServiceErrorDetector,
-  isTerminalInterrupt,
-  type TerminalServiceErrorDetector,
-} from '../notifications/terminal-turn-signals'
+import { CodexTerminalSignals, isTerminalInterrupt } from '../notifications/terminal-turn-signals'
 
 // Track lifecycle state per terminal
 interface TerminalState {
@@ -92,7 +88,8 @@ interface TerminalState {
   flowStatus: 'wait' | 'running'
   flowTimer: ReturnType<typeof setTimeout> | null
   lastDataAt: number
-  // Hook lifecycle is authoritative once observed; ignore prompt echoes.
+  codexSignals?: CodexTerminalSignals
+  // Last status accepted by the hook coordinator.
   hookStatus?: 'running' | 'wait' | 'needs-input' | 'needs-approval' | 'degraded' | 'error'
   // Set when JanusX itself initiated the kill (kill IPC / same-id replace) so
   // pty exit with an open turn reads as a silent user interrupt, not a crash.
@@ -350,7 +347,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   const turnChangeTracker = new TerminalTurnChangeTracker(event => {
     sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.turnChanges, event)
   })
-  const serviceErrorDetectors = new Map<string, TerminalServiceErrorDetector>()
   agentTurnRecorder.setEventSink((event) => {
     hookDiagnostics.record({
       stage: `knowledge-${event.type}`,
@@ -375,10 +371,8 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     hookCoordinator.handleHookPayload(payload)
   }
 
-  // Secondary deterministic turn-end source: Claude's Stop hook does not fire
-  // when a turn aborts on an API error or user interrupt, which used to leave
-  // the sidebar on "running" forever with no notification. The sentinel tails
-  // the session transcript (event-driven, no timeouts) and reports those ends.
+  // Confirm abnormal ends from the provider's transcript. Terminal output
+  // also contains user prompts and redraws of earlier errors.
   const turnSentinel = new AgentTurnSentinel({
     onSignal: (signal) => {
       ingestHookPayload({
@@ -409,19 +403,18 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     onTurnStarted: (turn) => {
       turnChangeTracker.start(turn.terminalId)
       agentSessionRegistry.noteProviderSession(turn.terminalId, turn.sessionId, turn.transcriptPath)
-      // Transcript sentinel watches engines with a tail-readable transcript
-      // contract; today only claude. Others rely on their own failure hooks
-      // (opencode session.error, codex service-error) plus pty-exit.
       if (!AGENT_ENGINE_CAPABILITIES[turn.source].sentinel) return
       turnSentinel.beginTurn({
         terminalId: turn.terminalId,
         engine: turn.engine,
         transcriptPath: turn.transcriptPath,
+        providerTurnId: turn.providerTurnId,
         sessionId: turn.sessionId,
       })
     },
     onTurnEnded: (terminalId) => {
       turnSentinel.endTurn(terminalId)
+      terminalStates.get(terminalId)?.codexSignals?.endTurn()
     },
     onResolvedPayload: async (payload, terminal, semantic) => {
       const state = terminalStates.get(terminal.terminalId)
@@ -444,7 +437,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         } }, semantic)
       })().catch(error => console.warn('[hook] habit capture failed:', error))
       if (state && (startsTurn || completesTurn || failsTurn || needsApproval || needsInput)) {
-        if (startsTurn) serviceErrorDetectors.get(terminal.terminalId)?.reset()
         // Turn 级失败（429 限流 / 5xx 过载 / StopFailure / session.error）时 CLI
         // 进程仍活着：上报 'degraded' 保持终端可用且可见，失败通知仍由
         // hookCoordinator.deliverCompletion 独立下发，不受影响。
@@ -541,7 +533,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       conversations.clear()
       for (const id of [...pendingTerminalData.keys()]) dropPendingTerminalData(id)
       terminalStates.clear()
-      serviceErrorDetectors.clear()
       hooksInstalledThisSession.clear()
       hookCoordinator.dispose()
       turnSentinel.dispose()
@@ -572,7 +563,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     void Promise.resolve().then(() => {
         void terminalManager.killAll()
         terminalStates.clear()
-        serviceErrorDetectors.clear()
         hooksInstalledThisSession.clear()
         hookCoordinator.dispose()
         turnSentinel.dispose()
@@ -913,11 +903,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         id, engine, preparationMs, baselineMs, runtimeMs, ptyMs,
         totalMs: Math.round(performance.now() - launchStartedAt),
       })
-      if (engine === 'codex') {
-        serviceErrorDetectors.set(id, createTerminalServiceErrorDetector())
-      } else {
-        serviceErrorDetectors.delete(id)
-      }
     } catch (err) {
       turnChangeTracker.unregister(id)
       await baselinePromise?.catch(() => {})
@@ -977,10 +962,12 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       })
     }
 
+    const codexSignals = engine === 'codex' ? new CodexTerminalSignals() : undefined
     terminalStates.set(id, {
       cwd,
       workspaceId,
       engine,
+      codexSignals,
       creationLocked: false,
       flowStatus: 'wait',
       flowTimer: null,
@@ -1032,23 +1019,18 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
           })
         }
 
+        codexSignals?.push(data, kind => {
+          if (!hookCoordinator.hasActiveTurn(id) || terminalStates.get(id)?.codexSignals !== codexSignals) return
+          ingestHookPayload({
+            terminalId: id, source: 'codex',
+            event: kind === 'api-error' ? JANUSX_SYNTHETIC_HOOK_EVENTS.apiError : JANUSX_SYNTHETIC_HOOK_EVENTS.interrupted,
+            timestamp: new Date().toISOString(),
+          })
+        })
         if (conversation instanceof DesktopCodexConversation) conversation.observeStartupOutput(data)
         const colorQueryResponse = colorQueryResponder?.push(data)
         if (colorQueryResponse) {
           terminalManager.write(id, colorQueryResponse)
-        }
-
-        if (hookCoordinator.hasActiveTurn(id)) {
-          const serviceError = serviceErrorDetectors.get(id)?.push(data)
-          if (serviceError) {
-            ingestHookPayload({
-              source: 'codex',
-              event: JANUSX_SYNTHETIC_HOOK_EVENTS.apiError,
-              terminalId: id,
-              message: serviceError,
-              timestamp: new Date().toISOString(),
-            })
-          }
         }
 
         const seq = terminalManager.appendOutput(id, data)
@@ -1131,7 +1113,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         }
         forgetTerminalState(id)
         turnChangeTracker.unregister(id)
-        serviceErrorDetectors.delete(id)
         clearHandoffDeliveryForTerminal(id)
         companionSessionState.unregisterTerminal(id)
         hookCoordinator.unregisterTerminal(id)
@@ -1143,7 +1124,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         // Best-effort cleanup so a partial failure does not leak state.
         try { forgetTerminalState(id) } catch {}
         turnChangeTracker.unregister(id)
-        try { serviceErrorDetectors.delete(id) } catch {}
         try { clearHandoffDeliveryForTerminal(id) } catch {}
         try { companionSessionState.unregisterTerminal(id) } catch {}
         try { hookCoordinator.unregisterTerminal(id) } catch {}
@@ -1174,7 +1154,6 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         clearState: () => {
           turnChangeTracker.unregister(id)
           forgetTerminalState(id)
-          serviceErrorDetectors.delete(id)
           clearHandoffDeliveryForTerminal(id)
           // Discard, not detach: a create that never came up must not leave a
           // live-looking session card pointing at a terminal that does not exist.
@@ -1389,6 +1368,15 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
       const imagePaths = await selectNativeConversationImages(command.imagePaths)
       return conversation.command({ ...command, imagePaths })
     }
+    if (command.type === 'interrupt' && conversation instanceof DesktopCodexConversation &&
+        conversation.state.turnId && command.controlEpoch === conversation.state.controlEpoch) {
+      const signals = terminalStates.get(id)?.codexSignals
+      if (signals) {
+        signals.interruptRequested = true
+        try { return await conversation.command(command) }
+        catch (error) { signals.interruptRequested = false; throw error }
+      }
+    }
     return conversation.command(command)
   })
 
@@ -1396,6 +1384,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
   ipcMain.on(TERMINAL_SEND_CHANNELS.input, (_event, { id, data }: TerminalInputPayload) => {
     if (conversations.get(id)?.acceptsTerminalInput(data) === false) return
     const state = terminalStates.get(id)
+    if (state?.codexSignals && data === '\x1b' && hookCoordinator.hasActiveTurn(id)) state.codexSignals.interruptRequested = true
     if (state && state.engine !== 'shell' && isTerminalInterrupt(data) && hookCoordinator.hasActiveTurn(id)) {
       ingestHookPayload({
         source: state.engine as AgentHookSource,

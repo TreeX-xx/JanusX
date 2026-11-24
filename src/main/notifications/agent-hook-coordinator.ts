@@ -27,6 +27,7 @@ interface ActiveHookTurn {
   startedAtMs: number
   sessionId?: string
   transcriptPath?: string
+  providerTurnId?: string
   waiting?: boolean
 }
 
@@ -180,6 +181,12 @@ export class AgentHookCoordinator {
     const stale = Number.isFinite(eventAt) && previousAt !== undefined && eventAt < previousAt
     const wrongSession = payload.sessionId && this.sessions.has(id) && payload.sessionId !== this.sessions.get(id)
       && (Boolean(active) || semantic.type !== 'session-update' && semantic.type !== 'turn-start')
+    const providerTurnId = payload.source === 'codex' && getRawString(payload.raw, ['turn_id', 'turnId'])
+    if (semantic.type === 'turn-end' && active?.providerTurnId && providerTurnId && providerTurnId !== active.providerTurnId) {
+      this.emit({ type: 'ignored', terminalId: id, engine: terminal.engine, source: payload.source,
+        hookEvent: normalizedEvent, reason: 'turn-mismatch', delivered: false })
+      return
+    }
     const duplicateEnd = semantic.type === 'turn-end' && !active && this.syntheticTurnEnds.has(id)
     const lateIdle = payload.source === 'claude' && payload.event === 'Notification'
       && getHookMatcher(payload) === 'idle_prompt' && !active
@@ -273,6 +280,7 @@ export class AgentHookCoordinator {
       source: payload.source,
       startedAtMs: now,
       sessionId: payload.sessionId,
+      providerTurnId: payload.source === 'codex' ? getRawString(payload.raw, ['turn_id', 'turnId']) : undefined,
       transcriptPath: getRawString(payload.raw, ['transcript_path', 'transcriptPath']),
     }
 
@@ -283,6 +291,7 @@ export class AgentHookCoordinator {
       source: payload.source,
       sessionId: turn.sessionId,
       transcriptPath: turn.transcriptPath,
+      providerTurnId: turn.providerTurnId,
     })
     this.emit({
       type: 'started',

@@ -1,47 +1,38 @@
-const MAX_ERROR_WINDOW = 2_048
-
-const ANSI_CSI = /\x1b\[[0-?]*[ -/]*[@-~]/g
-const ANSI_OSC = /\x1b\].*?(?:\x07|\x1b\\)/g
-const SERVICE_ERROR_PATTERNS = [
-  /\b(?:api\s+error|request\s+failed|request\s+error|unexpected\s+status|http\s+error|status\s+code)\b[^\r\n]{0,96}\b(?:429|500|502|503|504|529)\b/i,
-  /\b(?:429|500|502|503|504|529)\b[^\r\n]{0,96}\b(?:too\s+many\s+requests|rate[ _-]?limit|service\s+unavailable|temporarily\s+unavailable|overloaded|gateway\s+timeout|bad\s+gateway|internal\s+server\s+error|timeout)\b/i,
-  /\b(?:error|failed|failure)\b[^\r\n]{0,96}\b(?:rate[ _-]?limit(?:ed|_error)?|service\s+unavailable|server\s+overloaded|gateway\s+timeout|timed\s+out)\b/i,
-]
-
-function plainTerminalText(data: string): string {
-  return data.replace(ANSI_OSC, '').replace(ANSI_CSI, '').replace(/\r/g, '\n')
-}
-
 export function isTerminalInterrupt(data: string): boolean {
   return data === '\x03'
 }
 
-export interface TerminalServiceErrorDetector {
-  push(data: string): string | null
-  reset(): void
-}
+// Codex writes OSC 7501 lifecycle controls separately from the visible text.
+// Note: .agents/notes/terminal/terminal-hook-launch-isolation.md
+export class CodexTerminalSignals {
+  private tail = ''
+  private working = false
+  interruptRequested = false
 
-/** Detects terminal service failures conservatively across ANSI and PTY chunk boundaries. */
-export function createTerminalServiceErrorDetector(): TerminalServiceErrorDetector {
-  let window = ''
+  endTurn(): void {
+    this.working = false
+    this.interruptRequested = false
+    this.tail = ''
+  }
 
-  return {
-    push(data) {
-      window = (window + plainTerminalText(data)).slice(-MAX_ERROR_WINDOW)
-      const match = SERVICE_ERROR_PATTERNS
-        .map((pattern) => window.match(pattern))
-        .find((candidate) => candidate !== null)
-      if (!match) return null
-
-      const line = window
-        .slice(window.lastIndexOf('\n', match.index ?? 0) + 1)
-        .split('\n', 1)[0]
-        .trim()
-      window = ''
-      return line || match[0].trim()
-    },
-    reset() {
-      window = ''
-    },
+  push(data: string, end: (kind: 'api-error' | 'interrupted') => void): void {
+    const previous = this.tail.length
+    const chunk = this.tail + data
+    // Keep enough bytes for a split control, never reprocess a complete one.
+    this.tail = chunk.slice(-48)
+    for (const match of chunk.matchAll(/\x1b\]7501;state=(working|idle|error|done):app=codex(?:\x07|\x1b\\)/g)) {
+      if (match.index + match[0].length <= previous) continue
+      const state = match[1]
+      if (state === 'working') {
+        this.working = true
+        continue
+      }
+      const wasWorking = this.working
+      const interrupted = this.interruptRequested
+      this.working = false
+      this.interruptRequested = false
+      if (wasWorking && state === 'error') end('api-error')
+      if (wasWorking && interrupted && state === 'idle') end('interrupted')
+    }
   }
 }
