@@ -146,6 +146,7 @@
 }
 .marketCard .cardTitle { gap: 4px; }
 .pluginIcon { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.pluginIcon[data-plugin-icon='official.cpa'] { object-fit: cover; }
 .marketCard .cardTitle strong { font-size: 14px; line-height: 1.4; }
 .marketCard .chip { max-width: 42%; height: auto; min-height: 20px; padding: 2px 7px; white-space: normal; font-size: 10px; }
 .marketCard > .description { line-height: 1.7; overflow-wrap: anywhere; }

@@ -18,7 +18,7 @@ export function PluginIcon({ id, name }: { id: string; name: string }) {
   const [failedSource, setFailedSource] = useState<string>()
   return <span className={styles.avatar} aria-hidden="true">
     {source && source !== failedSource
-      ? <img className={styles.pluginIcon} src={source} alt="" draggable={false} onError={() => setFailedSource(source)} />
+      ? <img className={styles.pluginIcon} data-plugin-icon={id} src={source} alt="" draggable={false} onError={() => setFailedSource(source)} />
       : name.trim().charAt(0).toUpperCase() || '?'}
   </span>
 }
