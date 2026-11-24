@@ -37,6 +37,8 @@ describe('model catalog panel logic', () => {
       { vendor: 'zeta', models: [models[0]] },
       { vendor: UNKNOWN_VENDOR, models: [models[2]] },
     ])
+    expect(groupModels([model('a/b', 'B', 'Example Labs')], 'LABS')[0].vendor).toBe('Example Labs')
+    expect(groupModels(models, '未知', '未知')[0].vendor).toBe(UNKNOWN_VENDOR)
     expect(groupModels(models, 'BETA')).toEqual([
       { vendor: 'acme', models: [models[1]] },
     ])
@@ -73,7 +75,7 @@ describe('model catalog panel logic', () => {
     const css = await readFile('src/renderer/src/components/ModelCatalogPanel.module.css', 'utf8')
     expect(css).toContain('.description')
     expect(css).toContain('overflow-wrap: anywhere;')
-    expect(css).toContain('@media (max-width: 720px)')
+    expect(css).toContain('@container catalog (max-width: 600px)')
     expect(css).toContain('.details { grid-template-columns: 1fr; }')
   })
 })

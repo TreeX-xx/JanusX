@@ -6,6 +6,7 @@
  */
 
 .root {
+  container: catalog / inline-size;
   display: flex;
   min-height: 100%;
   flex-direction: column;
@@ -13,6 +14,11 @@
 }
 
 .toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--shell-canvas);
+  padding-block: 4px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -86,35 +92,40 @@
 .vendorHeader,
 .modelSummary {
   display: grid;
+  width: 100%;
   align-items: center;
-  cursor: pointer;
-  list-style: none;
-  transition: background 0.16s ease;
+  gap: 10px;
+  text-align: start;
+  color: var(--shell-text);
+  border-radius: 6px;
+  scroll-margin-top: 52px;
 }
-
-.vendorHeader::-webkit-details-marker,
-.modelSummary::-webkit-details-marker { display: none; }
 
 .vendorHeader {
-  grid-template-columns: 14px minmax(0, 1fr) auto;
-  min-height: 40px;
-  padding: 0 8px;
-  color: var(--shell-text);
-  font-size: 12px;
+  grid-template-columns: 16px 24px minmax(0, 1fr) auto;
+  min-height: 44px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.vendorIcon {
+  display: grid;
+  place-items: center;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--shell-muted);
+  background: color-mix(in srgb, var(--shell-text) 8%, transparent);
+  font-size: 10px;
   font-weight: 650;
 }
-
-.vendorHeader:hover { background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent); }
-
-.vendorHeader::before {
-  content: '›';
-  width: 14px;
-  color: var(--shell-dim);
-  transition: transform 0.15s ease;
-}
-
-.vendorGroup[open] > .vendorHeader::before { transform: rotate(90deg); }
-.vendorGroup[open] > .vendorHeader { color: var(--shell-text); }
+.vendorIcon:has(img) { background: #f5f5f5; }
+.vendorIcon img { width: 17px; height: 17px; }
+.chevron { justify-self: center; color: var(--shell-muted); transition: transform 0.15s ease; }
+[aria-expanded='true'] > .chevron { transform: rotate(90deg); }
+.vendorHeader:hover, .modelRow:hover { background: var(--shell-hover); }
+.vendorHeader:focus-visible, .modelSummary:focus-visible { outline: 2px solid var(--shell-muted); outline-offset: -2px; }
 
 /* 计数不再是圆角标签，只是行尾的一个等宽数字。 */
 .count {
@@ -129,7 +140,8 @@
 .modelList {
   display: flex;
   flex-direction: column;
-  margin: 0 0 14px 14px;
+  margin: 0 0 10px 24px;
+  border-inline-start: 1px solid var(--so-rule-soft);
 }
 
 .modelItem {
@@ -138,20 +150,40 @@
 
 .modelItem:first-child { border-top: 0; }
 
-.modelSummary {
+.modelRow {
+  position: relative;
+  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  min-height: 64px;
-  padding: 12px;
-  border-radius: 8px;
+  align-items: center;
+  padding-inline-end: 4px;
+  border-radius: 6px;
 }
 
-.modelSummary:hover { background: color-mix(in srgb, var(--surface-tint) 2.5%, transparent); }
+.modelSummary {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  min-height: 60px;
+  padding: 8px 10px;
+}
 
-.modelIdentity { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.modelIdentity, .modelQuickMeta { min-width: 0; display: grid; gap: 3px; }
 .modelIdentity strong { color: var(--shell-text); font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
-.modelIdentity code { color: var(--shell-dim); font: 10px/1.35 'SF Mono', Consolas, monospace; overflow-wrap: anywhere; }
-.modelQuickMeta { display: flex; align-items: center; gap: 12px; color: var(--shell-muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.modelIdentity code { color: var(--shell-muted); font: 11px/1.4 'SF Mono', Consolas, monospace; overflow-wrap: anywhere; }
+.modelQuickMeta { text-align: end; color: var(--shell-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.quickFeatures { color: var(--shell-dim); }
+.copyFeedback:not(:empty) {
+  position: absolute;
+  right: 4px;
+  top: calc(50% + 16px);
+  z-index: 1;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--shell-border);
+  background: var(--shell-canvas);
+  color: var(--shell-text);
+  font-size: 11px;
+  pointer-events: none;
+}
+.searchInput::-webkit-search-cancel-button { display: none; }
 
 .details {
   display: grid;
@@ -161,7 +193,7 @@
 }
 
 .metadata { min-width: 0; display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-.metadata span { color: var(--shell-dim); font-size: 10px; }
+.metadata span { color: var(--shell-muted); font-size: 11px; }
 .metadata strong { color: var(--shell-text); font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
 
 .description {
@@ -188,31 +220,7 @@
 .empty strong { color: var(--shell-text); font-weight: 500; }
 .empty span { max-width: 100%; overflow-wrap: anywhere; }
 
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (max-width: 720px) {
-  .toolbar { grid-template-columns: 1fr; }
-  .refreshButton { width: 100%; }
-  .summary { flex-direction: column; gap: 3px; }
-  .details { grid-template-columns: 1fr; }
-}
-
-/* ── planche：模型目录纸面化（加法层，dark 原样不动）
-   基底文字已收敛到 --shell-text（双主题自适应），此处逐条点名做特异性兜底：
-   vendor 展开态选择器特异性更高，不点名会被基底盖回去；
-   modelIdentity strong 是历史漏网（硬编码 #e2e2e5 白字在纸面上隐形）。 ── */
 :global([data-theme='planche']) .vendorHeader,
-:global([data-theme='planche']) .vendorGroup[open] > .vendorHeader,
 :global([data-theme='planche']) .modelIdentity strong,
 :global([data-theme='planche']) .metadata strong,
 :global([data-theme='planche']) .empty strong {
@@ -220,38 +228,44 @@
 }
 
 :global([data-theme='planche']) .vendorHeader:hover,
-:global([data-theme='planche']) .modelSummary:hover {
+:global([data-theme='planche']) .modelRow:hover {
   background: var(--paper-deep, var(--shell-hover));
 }
 
 .detailSection { min-width: 0; }
 .detailSection + .detailSection { padding-left: 24px; border-left: 1px solid var(--so-rule-soft, var(--shell-border-soft)); }
-.detailSection h3 { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 18px; color: var(--shell-text); font-size: 12px; font-weight: 600; }
-.detailSection h3 > span { color: var(--shell-dim); font-size: 10px; font-weight: 400; }
+.detailSection h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 16px; color: var(--shell-text); font-size: 12px; font-weight: 600; }
+.detailSection h3 > span { margin-inline-start: auto; color: var(--shell-dim); font-size: 10px; font-weight: 400; }
 .capacityGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 6px; }
 .capacityGrid strong { font-size: 18px; font-weight: 500; letter-spacing: -0.5px; }
 .capabilities { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
-.capabilities > span { padding: 3px 7px; border-radius: 5px; background: color-mix(in srgb, var(--shell-text) 5%, transparent); color: var(--shell-muted); font-size: 10px; line-height: 1.5; }
+.capabilities > span { padding: 3px 7px; border-radius: 5px; background: color-mix(in srgb, var(--shell-text) 5%, transparent); color: var(--shell-muted); font-size: 11px; line-height: 1.5; }
 .priceList { margin: 0; }
-.priceList > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--so-rule-soft, var(--shell-border-soft)); font-size: 11px; }
+.priceList > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--so-rule-soft, var(--shell-border-soft)); font-size: 12px; }
 .priceList > div:first-child { padding-top: 0; }
 .priceList dt { color: var(--shell-muted); overflow-wrap: anywhere; }
 .priceList dd { margin: 0; color: var(--shell-text); font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; min-width: 0; }
 .priceList dd.unavailable { color: var(--shell-dim); }
 .priceList code { font-size: 10px; }
-.priceHint { margin: 12px 0 0; color: var(--shell-dim); font-size: 10px; line-height: 1.65; }
+.priceHint { margin: 12px 0 0; color: var(--shell-muted); font-size: 11px; line-height: 1.65; }
 .specialRule { margin-top: 14px; }
-.specialRule summary { cursor: pointer; color: var(--shell-muted); font-size: 11px; line-height: 1.6; }
+.specialRule summary { width: fit-content; max-width: 100%; padding: 4px 0; cursor: pointer; color: var(--shell-muted); font-size: 11px; line-height: 1.6; }
 .specialRule[open] > summary { margin-bottom: 12px; }
 .specialRule .priceHint { margin: 0 0 12px; }
 .specialRule pre { margin: 8px 0 0; padding: 10px; border-radius: 6px; color: var(--shell-muted); background: color-mix(in srgb, var(--shell-text) 4%, transparent); font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.chevron { transition: transform 0.15s ease; }
-.modelItem[open] > summary .chevron { transform: rotate(90deg); }
-@media (max-width: 720px) {
-  .detailSection + .detailSection { border-left: 0; border-top: 1px solid var(--so-rule-soft, var(--shell-border-soft)); padding: 20px 0 0; }
-  .modelList { margin-left: 0; }
+@container catalog (max-width: 600px) {
+  .details { grid-template-columns: 1fr; }
+  .detailSection + .detailSection { border-left: 0; border-top: 1px solid var(--so-rule-soft, var(--shell-border-soft)); padding: 16px 0 0; }
+}
+@container catalog (max-width: 480px) {
+  .modelList { margin-left: 10px; }
+  .summary { flex-wrap: wrap; gap: 3px 12px; }
+  .modelSummary { grid-template-columns: 16px minmax(0, 1fr); row-gap: 4px; }
+  .modelSummary > .chevron { grid-row: 1 / 3; }
+  .modelQuickMeta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 2px 8px; text-align: start; }
+  .details { gap: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chevron, .vendorHeader::before { transition: none; }
+  .chevron { transition: none; }
   .spinning { animation: none; }
 }

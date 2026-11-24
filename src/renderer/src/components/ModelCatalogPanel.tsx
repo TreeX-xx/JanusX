@@ -1,7 +1,12 @@
-import { InputGroup } from '@janusx/ui'
-import { Input as SettingsInput, Button as SettingsButton } from '@janusx/ui'
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, RefreshCw, Search } from 'lucide-react'
+// Note: .agents/notes/workbench/settings-layout.md
+import { Button as SettingsButton, Input as SettingsInput, InputGroup } from '@janusx/ui'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Boxes, Check, ChevronRight, Coins, Copy, Cpu, RefreshCw, Search, X } from 'lucide-react'
+import openai from '@/assets/icons/codex.svg'
+import anthropic from '@/assets/icons/claude.svg'
+import deepseek from '@/assets/icons/providers/deepseek-color.svg'
+import moonshot from '@/assets/icons/providers/moonshot.svg'
+import qwen from '@/assets/icons/providers/qwen-color.svg'
 import type { AiModelRegistryEntry, ModelCatalogSnapshot } from '@janusx/llm-core'
 import { getModelCatalog, refreshModelCatalog } from '../services/llm'
 import { asRecord, buildCapabilityList, catalogEmptyState, formatList, groupModels, pricePerMillion, readModelPricing, TOKEN_PRICE_KEYS, UNKNOWN_VENDOR } from './modelCatalogPanelLogic'
@@ -35,10 +40,40 @@ export function ModelCatalogPanel() {
     return () => { active = false }
   }, [t])
 
-  const groups = useMemo(() => groupModels(catalog?.models ?? [], query), [catalog, query])
+  const groups = useMemo(() => groupModels(catalog?.models ?? [], query, t('model:vendor.unknown')), [catalog, query, t])
   const resultCount = groups.reduce((count, group) => count + group.models.length, 0)
   const hasSearch = Boolean(query.trim())
   const emptyState = catalogEmptyState(loading, catalog, loadError, resultCount, hasSearch)
+
+  const searchInput = useRef<HTMLInputElement>(null)
+  const scrollBookmark = useRef<{ element: Element; top: number } | null>(null)
+  const [browseOpen, setBrowseOpen] = useState<Record<string, boolean>>({})
+  const [searchOpen, setSearchOpen] = useState<Record<string, boolean>>({})
+  const open = hasSearch ? searchOpen : browseOpen
+  const setOpen = hasSearch ? setSearchOpen : setBrowseOpen
+
+  function changeQuery(next: string) {
+    if (!hasSearch && next.trim()) {
+      let parent = searchInput.current?.parentElement
+      while (parent && !/auto|scroll/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement
+      const element = parent ?? document.scrollingElement
+      if (element) scrollBookmark.current = { element, top: element.scrollTop }
+    }
+    setSearchOpen({})
+    setQuery(next)
+  }
+
+  useLayoutEffect(() => {
+    const bookmark = scrollBookmark.current
+    if (!bookmark) return
+    bookmark.element.scrollTop = hasSearch ? 0 : bookmark.top
+    if (!hasSearch) scrollBookmark.current = null
+  }, [hasSearch])
+
+  function clearSearch() {
+    searchInput.current?.focus({ preventScroll: true })
+    changeQuery('')
+  }
 
   async function handleRefresh(): Promise<void> {
     setRefreshing(true)
@@ -63,16 +98,18 @@ export function ModelCatalogPanel() {
   return (
     <section className={styles.root} aria-busy={loading || refreshing}>
       <div className={styles.toolbar}>
-        <InputGroup as="label" className={styles.searchField}>
-          <span className={styles.srOnly}>{t('model:search.label')}</span>
+        <InputGroup className={styles.searchField}>
           <Search className={styles.searchIcon} size={15} aria-hidden="true" />
           <SettingsInput
+            ref={searchInput}
+            aria-label={t('model:search.label')}
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => changeQuery(event.target.value)}
             placeholder={t('model:search.placeholder')}
             className={styles.searchInput}
           />
+          {query && <SettingsButton size="icon" variant="ghost" aria-label={t('model:search.clear')} onClick={clearSearch}><X size={14} /></SettingsButton>}
         </InputGroup>
         <SettingsButton
           type="button"
@@ -119,62 +156,113 @@ export function ModelCatalogPanel() {
           <div className={styles.empty} role="status">
             <strong>{emptyState === 'no-results' ? t('model:empty.noResultsTitle') : t('model:empty.emptyTitle')}</strong>
             <span>{emptyState === 'no-results' ? t('model:empty.noResultsHint') : t('model:empty.emptyHint')}</span>
+            {emptyState === 'no-results' && <SettingsButton size="small" onClick={clearSearch}>{t('model:search.clear')}</SettingsButton>}
           </div>
         )}
 
-        {groups.map((group, index) => (
-          <details className={styles.vendorGroup} key={group.vendor} open={hasSearch || index === 0}>
-            <summary className={styles.vendorHeader}>
+        {groups.map((group, index) => {
+          const key = 'vendor:' + group.vendor
+          const expanded = open[key] ?? (hasSearch || index === 0)
+          const logo = vendorLogos.get(group.vendor.toLowerCase().replace(/^~/, ''))
+          return <div className={styles.vendorGroup} key={key}>
+            <SettingsButton variant="plain" className={styles.vendorHeader} aria-expanded={expanded}
+              onClick={() => setOpen(previous => ({ ...previous, [key]: !expanded }))}>
+              <ChevronRight className={styles.chevron} size={14} aria-hidden="true" />
+              <span className={styles.vendorIcon} aria-hidden="true">
+                {logo ? <img src={logo} alt="" /> : group.vendor === UNKNOWN_VENDOR ? <Boxes size={15} /> : group.vendor.replace(/^~/, '').slice(0, 2).toUpperCase()}
+              </span>
               <span>{group.vendor === UNKNOWN_VENDOR ? t('model:vendor.unknown') : group.vendor}</span>
               <span className={styles.count}>{group.models.length}</span>
-            </summary>
-            <div className={styles.modelList}>
-              {group.models.map((model) => <ModelItem key={model.id} model={model} />)}
-            </div>
-          </details>
-        ))}
+            </SettingsButton>
+            {expanded && <div className={styles.modelList}>
+              {group.models.map(model => {
+                const modelKey = 'model:' + model.id
+                return <ModelItem key={model.id} model={model} expanded={!!open[modelKey]}
+                  onToggle={() => setOpen(previous => ({ ...previous, [modelKey]: !previous[modelKey] }))} />
+              })}
+            </div>}
+          </div>
+        })}
       </div>
     </section>
   )
 }
 
-function ModelItem({ model }: { model: AiModelRegistryEntry }) {
+const vendorLogos = new Map([
+  ['openai', openai], ['anthropic', anthropic], ['deepseek', deepseek],
+  ['qwen', qwen], ['moonshotai', moonshot], ['moonshot', moonshot],
+])
+const primaryCapabilities = new Set(['tools', 'reasoning', 'structured_outputs'])
+
+function ModelItem({ model, expanded, onToggle }: { model: AiModelRegistryEntry; expanded: boolean; onToggle: () => void }) {
   const { t } = useI18n('model')
-  const capabilities = buildCapabilityList(model)
+  const parameters = buildCapabilityList(model)
+  const features = parameters.filter(key => primaryCapabilities.has(key))
+  if (model.inputModalities?.includes('image')) features.unshift('imageInput')
+  const otherParameters = parameters.filter(key => !primaryCapabilities.has(key))
+  const modalityList = (values?: string[]) => formatList(values?.map(value => t('model:modalities.' + value, { defaultValue: value })))
+  const label = (key: string) => t(`model:capabilities.${key}`, { defaultValue: key.replaceAll('_', ' ') })
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'copyFailed'>('idle')
+  useEffect(() => {
+    if (copyState === 'idle') return
+    const timer = window.setTimeout(() => setCopyState('idle'), 2200)
+    return () => window.clearTimeout(timer)
+  }, [copyState])
+
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(model.id)
+      setCopyState('copied')
+    } catch {
+      setCopyState('copyFailed')
+    }
+  }
 
   return (
-    <details className={styles.modelItem}>
-      <summary className={styles.modelSummary}>
-        <span className={styles.modelIdentity}>
-          <strong>{model.name}</strong>
-          <code>{model.id}</code>
-        </span>
-        <span className={styles.modelQuickMeta}>
-          {model.effectiveContextWindow ? formatTokens(model.effectiveContextWindow) : t('model:model.contextUnknown')}
+    <div className={styles.modelItem}>
+      <div className={styles.modelRow}>
+        <SettingsButton variant="plain" className={styles.modelSummary} aria-expanded={expanded} onClick={onToggle}>
           <ChevronRight size={14} className={styles.chevron} aria-hidden="true" />
-        </span>
-      </summary>
-      <div className={styles.details}>
+          <span className={styles.modelIdentity}>
+            <strong>{model.name}</strong>
+            <code>{model.id}</code>
+          </span>
+          <span className={styles.modelQuickMeta}>
+            <span>{model.effectiveContextWindow ? t('model:model.contextValue', { value: formatTokens(model.effectiveContextWindow) }) : t('model:model.contextUnknown')}</span>
+            {features.length > 0 && <span className={styles.quickFeatures}>{features.slice(0, 2).map(label).join(' · ')}</span>}
+          </span>
+        </SettingsButton>
+        <SettingsButton size="icon" variant="ghost" aria-label={t('model:model.copyId', { id: model.id })}
+          title={t('model:model.copyId', { id: model.id })} onClick={copyId}>
+          {copyState === 'copied' ? <Check size={14} /> : <Copy size={14} />}
+        </SettingsButton>
+        <span role="status" className={styles.copyFeedback}>{copyState !== 'idle' && t('model:model.' + copyState)}</span>
+      </div>
+      {expanded && <div className={styles.details}>
         <section className={styles.detailSection} aria-label={t('model:sections.capabilities')}>
-          <h3>{t('model:sections.capabilities')}</h3>
+          <h3><Cpu size={15} aria-hidden="true" />{t('model:sections.capabilities')}</h3>
           <div className={styles.capacityGrid}>
             <Metadata label={t('model:meta.context')} value={formatOptionalTokens(model.effectiveContextWindow, t)} />
             <Metadata label={t('model:meta.maxOutput')} value={formatOptionalTokens(model.maxOutputTokens, t)} />
           </div>
-          <Metadata label={t('model:meta.input')} value={formatList(model.inputModalities)} />
-          <Metadata label={t('model:meta.output')} value={formatList(model.outputModalities)} />
-          <div className={styles.capabilities}>
-            {capabilities.map(capability => <span key={capability}>{t(`model:capabilities.${capability}`, { defaultValue: capability.replaceAll('_', ' ') })}</span>)}
-          </div>
+          <Metadata label={t('model:meta.input')} value={modalityList(model.inputModalities)} />
+          <Metadata label={t('model:meta.output')} value={modalityList(model.outputModalities)} />
+          {features.length > 0 && <div className={styles.capabilities}>
+            {features.map(key => <span key={key}>{label(key)}</span>)}
+          </div>}
+          {otherParameters.length > 0 && <details className={styles.specialRule}>
+            <summary>{t('model:sections.parameters')}</summary>
+            <div className={styles.capabilities}>{otherParameters.map(key => <span key={key}>{label(key)}</span>)}</div>
+          </details>}
         </section>
         <section className={styles.detailSection} aria-label={t('model:sections.pricing')}>
-          <h3>{t('model:sections.pricing')}<span>USD / 1M tokens</span></h3>
+          <h3><Coins size={15} aria-hidden="true" />{t('model:sections.pricing')}<span>USD / 1M tokens</span></h3>
           <PricingDetails pricing={readModelPricing(model)} />
           <p className={styles.priceHint}>{t('model:pricing.sourceHint')}</p>
         </section>
         {model.description && <p className={styles.description}>{model.description}</p>}
-      </div>
-    </details>
+      </div>}
+    </div>
   )
 }
 

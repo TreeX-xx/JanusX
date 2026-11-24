@@ -3,8 +3,9 @@
     "unknown": "未知"
   },
   "search": {
-    "label": "搜索模型名称或 ID",
-    "placeholder": "搜索模型名称或 ID"
+    "label": "搜索厂商、模型名称或 ID",
+    "placeholder": "搜索厂商、模型名称或 ID",
+    "clear": "清空搜索"
   },
   "refresh": {
     "updating": "更新中",
@@ -29,7 +30,7 @@
   },
   "empty": {
     "noResultsTitle": "未找到匹配的模型",
-    "noResultsHint": "试试其他模型名称或 ID",
+    "noResultsHint": "试试其他厂商、模型名称或 ID",
     "emptyTitle": "暂无模型",
     "emptyHint": "点击“更新目录”获取模型"
   },
@@ -37,11 +38,16 @@
     "contextUnknown": "上下文未知",
     "updatedTimeUnknown": "更新时间未知",
     "tokensSuffix": "{{value}} tokens",
-    "priceFormat": "${{price}} / 1M tokens"
+    "priceFormat": "${{price}} / 1M tokens",
+    "contextValue": "上下文 {{value}}",
+    "copyId": "复制模型 ID {{id}}",
+    "copied": "已复制",
+    "copyFailed": "复制失败"
   },
   "sections": {
     "capabilities": "上下文与能力",
-    "pricing": "定价与特殊价格"
+    "pricing": "定价与特殊价格",
+    "parameters": "支持的参数"
   },
   "pricing": {
     "prompt": "输入",
@@ -75,7 +81,8 @@
     "top_p": "Top P",
     "max_tokens": "输出上限",
     "seed": "随机种子",
-    "stop": "停止序列"
+    "stop": "停止序列",
+    "imageInput": "图片输入"
   },
   "meta": {
     "context": "上下文",
@@ -85,5 +92,12 @@
     "capabilities": "能力",
     "inputPrice": "输入价格",
     "outputPrice": "输出价格"
+  },
+  "modalities": {
+    "text": "文本",
+    "image": "图片",
+    "audio": "音频",
+    "video": "视频",
+    "file": "文件"
   }
 }

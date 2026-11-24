@@ -9,16 +9,17 @@ export interface ModelCatalogGroup {
 
 export type ModelCatalogEmptyState = 'load-error' | 'empty-catalog' | 'no-results' | null
 
-export function groupModels(models: AiModelRegistryEntry[], rawQuery: string): ModelCatalogGroup[] {
+export function groupModels(models: AiModelRegistryEntry[], rawQuery: string, unknownLabel = ''): ModelCatalogGroup[] {
   const query = rawQuery.trim().toLocaleLowerCase()
   const groups = new Map<string, AiModelRegistryEntry[]>()
 
   for (const model of models) {
-    if (query && !model.name.toLocaleLowerCase().includes(query) && !model.id.toLocaleLowerCase().includes(query)) {
+    const vendor = model.providerAuthor?.trim() || UNKNOWN_VENDOR
+    const vendorLabel = vendor === UNKNOWN_VENDOR ? unknownLabel : vendor
+    if (query && !vendorLabel.toLocaleLowerCase().includes(query) && !model.name.toLocaleLowerCase().includes(query) && !model.id.toLocaleLowerCase().includes(query)) {
       continue
     }
 
-    const vendor = model.providerAuthor?.trim() || UNKNOWN_VENDOR
     const group = groups.get(vendor) ?? []
     group.push(model)
     groups.set(vendor, group)

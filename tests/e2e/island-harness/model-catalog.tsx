@@ -4,6 +4,7 @@ import { ModelCatalogPanel } from '../../../src/renderer/src/components/ModelCat
 import { useThemeStore } from '../../../src/renderer/src/stores/theme'
 import { installElectronApiFallback } from '../../../src/renderer/src/lib/electron-api-fallback'
 import { initI18n, changeLanguage } from '../../../src/renderer/src/i18n'
+import bundled from '../../../packages/llm-core/src/registry/models.openrouter.generated.json'
 import type { ModelCatalogSnapshot } from '@janusx/llm-core'
 import '../../../src/renderer/src/styles/globals.css'
 import '../../../src/renderer/src/styles/themes.generated.css'
@@ -25,6 +26,16 @@ const catalog: ModelCatalogSnapshot = {
   }, {
     id: 'example/minimal', name: 'Minimal', source: 'openrouter', providerAuthor: 'Example', aliases: [], normalizedKeys: [],
   }],
+}
+if (new URLSearchParams(location.search).has('bundled')) {
+  catalog.models = bundled.models.map(model => ({ ...model, source: 'openrouter' }))
+  catalog.source = 'bundled'
+  catalog.updatedAt = bundled.updatedAt
+}
+if (new URLSearchParams(location.search).has('browse')) {
+  for (let index = 0; index < 30; index++) {
+    catalog.models.push({ ...catalog.models[0], id: `custom/model-${index}`, name: `Model ${index}`, providerAuthor: 'DeepSeek' })
+  }
 }
 window.electron.llm.getModelCatalog = async () => new URLSearchParams(location.search).has('empty')
   ? { ...catalog, models: [] }

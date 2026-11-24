@@ -3,8 +3,9 @@
     "unknown": "Unknown"
   },
   "search": {
-    "label": "Search model name or ID",
-    "placeholder": "Search model name or ID"
+    "label": "Search vendor, model name or ID",
+    "placeholder": "Search vendor, model name or ID",
+    "clear": "Clear search"
   },
   "refresh": {
     "updating": "Updating",
@@ -29,7 +30,7 @@
   },
   "empty": {
     "noResultsTitle": "No matching models",
-    "noResultsHint": "Try a different model name or ID.",
+    "noResultsHint": "Try a different vendor, model name or ID.",
     "emptyTitle": "No models available",
     "emptyHint": "Select Update catalog to fetch models."
   },
@@ -37,11 +38,16 @@
     "contextUnknown": "Context unknown",
     "updatedTimeUnknown": "Updated time unknown",
     "tokensSuffix": "{{value}} tokens",
-    "priceFormat": "${{price}} / 1M tokens"
+    "priceFormat": "${{price}} / 1M tokens",
+    "contextValue": "{{value}} context",
+    "copyId": "Copy model ID {{id}}",
+    "copied": "Copied",
+    "copyFailed": "Copy failed"
   },
   "sections": {
     "capabilities": "Context & capabilities",
-    "pricing": "Pricing & special rates"
+    "pricing": "Pricing & special rates",
+    "parameters": "Supported parameters"
   },
   "pricing": {
     "prompt": "Input",
@@ -75,7 +81,8 @@
     "top_p": "Top P",
     "max_tokens": "Output limit",
     "seed": "Seed",
-    "stop": "Stop sequences"
+    "stop": "Stop sequences",
+    "imageInput": "Image input"
   },
   "meta": {
     "context": "Context",
@@ -85,5 +92,12 @@
     "capabilities": "Capabilities",
     "inputPrice": "Input price",
     "outputPrice": "Output price"
+  },
+  "modalities": {
+    "text": "Text",
+    "image": "Image",
+    "audio": "Audio",
+    "video": "Video",
+    "file": "File"
   }
 }
