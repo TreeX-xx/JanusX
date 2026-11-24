@@ -1,12 +1,11 @@
-import { InputGroup } from '@janusx/ui'
-import { Button as SettingsButton, Input as SettingsInput } from '@janusx/ui'
-import { useEffect, useRef, useState } from 'react'
-import semver from 'semver'
-import { Check, Download, PackageSearch, RefreshCw, Search } from 'lucide-react'
+import { Button as SettingsButton, Input as SettingsInput, InputGroup } from '@janusx/ui'
+import { useEffect, useRef, useState, type ComponentProps } from 'react'
+import { Check, ChevronRight, PackageSearch, RefreshCw, Search } from 'lucide-react'
 import { useI18n } from '@/i18n/useI18n'
 import { pluginRequest, refreshPlugins, usePluginSnapshot } from '@/extensions/plugin-runtime'
 import styles from './PluginSettingsPanel.module.css'
 import { PluginIcon } from './PluginIcon'
+import { PluginCatalogDetail } from './PluginCatalogDetail'
 
 export function PluginDistributionError({ code }: { code?: string }) {
   const { t } = useI18n('plugins')
@@ -20,15 +19,33 @@ export function PluginDistributionError({ code }: { code?: string }) {
   return <p role="status" className={styles.error}>{message} <small>({code})</small></p>
 }
 
-export function PluginCatalog({ onUninstall }: { onUninstall?: (id: string) => void }) {
+type CatalogProps = Pick<ComponentProps<typeof PluginCatalogDetail>, 'onAuthorize' | 'onUninstall' | 'onManage' | 'onOpened' | 'children'> & {
+  onNavigate(): void
+  pending: boolean
+}
+
+export function PluginCatalog({ onNavigate, pending, ...detailActions }: CatalogProps) {
   const { t } = useI18n('plugins')
   const snapshot = usePluginSnapshot()
   const distribution = snapshot.distribution
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [query, setQuery] = useState('')
+  const [selectedId, setSelectedId] = useState<string>()
+  const lastTrigger = useRef<HTMLButtonElement | null>(null)
   const search = query.trim().toLocaleLowerCase()
-  const entries = distribution?.entries.filter(entry => [entry.name, entry.description, entry.publisher, entry.id].some(value => value.toLocaleLowerCase().includes(search))) ?? []
+  const summary = (id: string, fallback: string) => id.startsWith('official.')
+    ? t('plugins:catalogSummary.' + id.slice('official.'.length), { defaultValue: fallback }) : fallback
+  const entries = distribution?.entries.filter(entry => [entry.name, entry.description, entry.publisher, entry.id, summary(entry.id, entry.description)]
+    .some(value => value.toLocaleLowerCase().includes(search))) ?? []
+  const selected = entries.find(entry => entry.id === selectedId)
+  const operation = distribution?.operation
+  const locked = pending || busy || Boolean(operation)
+  const closeDetail = () => {
+    onNavigate()
+    setSelectedId(undefined)
+    requestAnimationFrame(() => lastTrigger.current?.focus())
+  }
   const loaded = useRef(false)
   const refresh = async () => {
     setBusy(true); setFailure('')
@@ -47,46 +64,47 @@ export function PluginCatalog({ onUninstall }: { onUninstall?: (id: string) => v
     catch (cause) { setFailure(cause instanceof Error ? cause.message : 'INSTALLATION_FAILED') }
     finally { await refreshPlugins().catch(() => {}); setBusy(false) }
   }
-  return <div className={styles.root} data-plugin-catalog>
+  return <div className={styles.root} data-plugin-catalog onKeyDown={event => {
+    if (selected && event.key === 'Escape') { event.stopPropagation(); closeDetail() }
+  }}>
     <div className={styles.marketToolbar}>
-      <InputGroup as="label" className={styles.search}><Search size={15} aria-hidden="true" /><SettingsInput type="search" aria-label={t('plugins:searchCatalog')} placeholder={t('plugins:searchCatalog')} value={query} onChange={event => setQuery(event.target.value)} /></InputGroup>
-      <SettingsButton disabled={busy || Boolean(distribution?.operation) || !distribution?.configured} onClick={() => { void refresh() }}><RefreshCw size={14} aria-hidden="true" />{t('plugins:refreshCatalog')}</SettingsButton>
+      <InputGroup as="label" className={styles.search}><Search size={15} aria-hidden="true" /><SettingsInput type="search" aria-label={t('plugins:searchCatalog')} placeholder={t('plugins:searchCatalog')} value={query}
+        onChange={event => { setQuery(event.target.value); setSelectedId(undefined); onNavigate() }} /></InputGroup>
+      <SettingsButton disabled={locked || !distribution?.configured} onClick={() => { void refresh() }}><RefreshCw size={14} aria-hidden="true" />{t('plugins:refreshCatalog')}</SettingsButton>
     </div>
-    <div className={styles.collectionHeading}><strong>{t('plugins:catalogCollection')}</strong><span>{entries.length}</span></div>
-    <p className={styles.hint}>{t('plugins:catalogHint')}</p>
-    {!distribution?.configured && <div className={styles.emptyState} role="status"><PackageSearch size={28} aria-hidden="true" /><strong>{t('plugins:catalogCollection')}</strong><p>{t('plugins:catalogNotConfigured')}</p></div>}
+    {!distribution?.configured && <div className={styles.emptyState} role="status"><PackageSearch size={28} aria-hidden="true" /><p>{t('plugins:catalogNotConfigured')}</p></div>}
     {distribution?.expired && <p role="status">{t('plugins:catalogStale')}</p>}
     <PluginDistributionError code={failure || distribution?.error} />
     {distribution?.configured && !entries.length && <div className={styles.emptyState} role="status"><PackageSearch size={28} aria-hidden="true" /><p>{distribution.entries.length ? t('plugins:noSearchResults') : busy ? t('plugins:catalogLoading') : t('plugins:catalogEmpty')}</p></div>}
-    <div className={styles.marketGrid}>
-    {entries.map(entry => {
-      const installed = snapshot.plugins.find(plugin => plugin.manifest.id === entry.id)
-      const update = installed && semver.gt(entry.version, installed.manifest.version)
-      const operation = distribution?.operation?.id === entry.id ? distribution.operation : undefined
-      const disabled = busy || Boolean(distribution?.operation) || !entry.compatible || Boolean(installed && (!update || installed.enabled || installed.source.kind !== 'official'))
-      return <section key={entry.id} className={`${styles.card} ${styles.marketCard}`} data-catalog-id={entry.id}>
-        <div className={styles.cardHeader}>
-          <PluginIcon id={entry.id} name={entry.name} />
-          <div className={styles.cardTitle}>
-            <strong>{entry.name}</strong>
-            <span className={styles.meta}>{entry.publisher}</span>
-          </div>
-          <span className={styles.badge}><Check size={11} aria-hidden="true" />{t('plugins:official')}</span>
-        </div>
-        <p className={styles.description}>{entry.description}</p>
-        {!entry.compatible && <p>{t('plugins:incompatible')}</p>}
-        {update && installed.enabled && <p>{t('plugins:stopBeforeUpdate')}</p>}
-        <div className={styles.cardFooter}><span className={styles.meta}>v{entry.version} · {(entry.bytes / 1024 / 1024).toFixed(1)} MB</span><div className={styles.actions}><SettingsButton variant={installed && !update ? "secondary" : "primary"} disabled={disabled} onClick={() => { void install(entry.id) }}>{installed && !update ? <Check size={13} aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}{installed ? update ? t('plugins:update') : t('plugins:installed') : t('plugins:install')}</SettingsButton>
-          {installed && onUninstall && <SettingsButton variant="danger" disabled={busy || Boolean(distribution?.operation)} onClick={() => onUninstall(entry.id)}>{t('plugins:uninstall')}</SettingsButton>}
-        </div></div>
-        {operation && <div role="status" aria-live="polite">
-          <label>{t(operation.phase === 'installing' ? 'plugins:installing' : 'plugins:downloading')} · {operation.percent}%
-            <progress max={100} value={operation.percent} /></label>
-          {operation.phase === 'downloading' && <SettingsButton onClick={() => { void pluginRequest({ type: 'installCancel' }).catch(() => setFailure('INSTALLATION_FAILED')) }}>{t('plugins:cancel')}</SettingsButton>}
-        </div>}
-        {installed && !update && <p className={styles.hint}>{t('plugins:installedHint')}</p>}
-      </section>
-    })}
-    </div>
+    {entries.length > 0 && <div className={styles.catalogBrowser} data-detail={Boolean(selected)}>
+      <div className={styles.catalogList}>
+        <div className={styles.collectionHeading}><strong>{t('plugins:catalogCollection')}</strong><span>{entries.length}</span></div>
+        <div className={styles.catalogGrid}>{entries.map(entry => {
+          const installed = snapshot.plugins.find(plugin => plugin.manifest.id === entry.id)
+          const downloading = operation?.id === entry.id
+          return <button type="button" key={entry.id} className={styles.catalogItem} data-catalog-id={entry.id}
+            aria-pressed={entry.id === selected?.id} onClick={event => {
+              if (selected?.id !== entry.id) onNavigate()
+              lastTrigger.current = event.currentTarget
+              setSelectedId(entry.id)
+            }}>
+            <PluginIcon id={entry.id} name={entry.name} />
+            <span className={styles.catalogCopy}><strong>{entry.name}</strong>
+              <span className={styles.catalogSummary}>{summary(entry.id, entry.description)}</span>
+              <span className={styles.catalogMeta}>{entry.publisher}
+                {downloading ? <span>{t(operation.phase === 'downloading' ? 'plugins:downloading' : 'plugins:installing')} · {operation.percent}%</span>
+                  : installed ? <span><Check aria-hidden="true" size={12} />{t('plugins:installed')}</span> : <span>v{entry.version}</span>}
+              </span>
+            </span>
+            <ChevronRight size={14} className={styles.disclosure} aria-hidden="true" />
+          </button>
+        })}</div>
+      </div>
+      {selected && <PluginCatalogDetail {...detailActions} entry={selected} description={summary(selected.id, selected.description)} installed={snapshot.plugins.find(plugin => plugin.manifest.id === selected.id)}
+        busy={locked} canInstall={Boolean(distribution?.configured && !distribution.expired)} developmentMode={snapshot.developmentMode}
+        operation={operation?.id === selected.id ? operation : undefined}
+        onBack={closeDetail} onInstall={() => { void install(selected.id) }}
+        onCancel={() => { void pluginRequest({ type: 'installCancel' }).catch(() => setFailure('INSTALLATION_FAILED')) }} />}
+    </div>}
   </div>
 }

@@ -15,6 +15,7 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
   // Note: .agents/notes/workbench/standalone-editor-initial-theme.md
   const theme = getThemeDefinition(configService.getCachedTheme())
   const appIcon = nativeImage.createFromPath(process.platform === 'win32' ? icoPath : pngPath)
+  const macSidebar = process.platform === 'darwin'
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -24,7 +25,8 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
     icon: appIcon,
     frame: false,
     show: false,
-    backgroundColor: theme.tokens['shell-canvas'],
+    vibrancy: macSidebar ? 'sidebar' : undefined,
+    backgroundColor: macSidebar ? '#00000000' : theme.tokens['shell-canvas'],
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../../preload/index.mjs'),
@@ -54,11 +56,12 @@ export function createMainWindow(onClosed: () => void): BrowserWindow {
     if (!window.isDestroyed()) window.show()
   })
   window.on('closed', onClosed)
-  const query = {
+  const query: Record<string, string> = {
     initialTheme: theme.id,
     initialBackground: theme.tokens['shell-canvas'],
     initialColorScheme: theme.base,
   }
+  if (macSidebar) query.sidebarMaterial = 'native'
   void loadRendererWindow(window, (url) => {
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
   }, query)

@@ -17,9 +17,10 @@
         // Seed the window before styles/modules load; persisted theme is
         // still read before React mounts. See standalone-editor-initial-theme Note.
         const prefix = params.has('initialTheme') ? 'initial' : 'editor'
+        if (params.get('sidebarMaterial') === 'native') document.documentElement.dataset.sidebarMaterial = 'native'
         if (params.has(`${prefix}Theme`)) {
           document.documentElement.dataset.theme = params.get(`${prefix}Theme`)
-          document.documentElement.style.backgroundColor = `var(--shell-canvas, ${params.get(`${prefix}Background`) || 'transparent'})`
+          document.documentElement.style.backgroundColor = `var(--window-canvas, var(--shell-canvas, ${params.get(`${prefix}Background`) || 'transparent'}))`
           document.documentElement.style.colorScheme = params.get(`${prefix}ColorScheme`) || ''
         }
         if (params.get('desktopToast') === '1') {

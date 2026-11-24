@@ -5,7 +5,7 @@
   "kind": "idea",
   "lifecycle": "draft",
   "created": "2026-10-21",
-  "updated": "2026-10-29T11:10:21Z",
+  "updated": "2026-11-24T10:17:42Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c",
   "relations": [
     { "type": "related-to", "target": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/96a2f5cd-166e-4982-a444-7640858f0a5f" },
@@ -115,6 +115,16 @@ JanusX 的价值是把项目文件、工作台页面、会话、Agent 和产物�
 实施按[阶段计划](../../planning/plugin-platform-roadmap.md)的 P0–P8 推进，保留 S1–S3 历史证据、S4 本地闭环与 S5 分发标识。具体依赖、参考工作量、阶段出口及 AC 映射只在该计划维护。全量源码拆包、所有功能独立更新和社区市场不是首版本地插件的前置。
 
 待所属工作包继续研究：官方必需／可选边界、代表业务和提供者、受限后台运行时、外部 CLI 支持矩阵、正式分发来源与完整性方案。显式本地开发模式采用隔离页面的计划规则已在设计与两篇需求对齐，不再将“未签名一律拒绝”与“授权目录可运行”并列为未解决矛盾。
+
+## 后续官方插件候选
+
+本轮范围是 macOS 侧栏材质与现有插件市场。以下三项保留供后续选型，均未排期。
+
+| 候选 | 用户操作和首版范围 | 实施前提 |
+| --- | --- | --- |
+| Mermaid 图表预览 | 打开项目中的 .mmd 或 .mermaid，离线查看、缩放和平移图形并定位语法错误。 | 沿用已采纳的[文档查看器方案](../plugin-platform-design.md#官方插件案例mermaid-图表预览)。 |
+| 项目看板 | 在工作台按待办、进行中、完成三列管理卡片，切回工作区后恢复。 | 先明确项目与 worktree 之间的卡片归属，再使用相应作用域的插件私有存储。参考 [Open Vetta Kanban](https://github.com/openvetta/open-vetta/tree/8d7502ca80fa098118959245647ad32140dc6378/packages/plugins/externals/kanban)。 |
+| 飞书文档 | 预览一次迭代摘要，选择目标并确认后发布为飞书文档。 | 需要文档写入授权和目标选择，现有飞书通知与双向控制各自使用原授权。参考 [Vetta 飞书插件](https://github.com/openvetta/vetta-official-marketplace/tree/main/abilities/plugins/feishu)。 |
 
 ## Verification
 

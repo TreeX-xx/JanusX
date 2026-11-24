@@ -18,12 +18,11 @@
 .label { font-size: 13px; font-weight: 600; color: var(--shell-text); }
 .meta { color: var(--shell-dim); font-size: 11px; overflow-wrap: anywhere; }
 .meta code { font-family: var(--font-mono); font-size: 10.5px; }
-.badge, .chip {
+.chip {
   flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
   border: 1px solid color-mix(in srgb, currentColor 38%, transparent); border-radius: 999px;
   background: transparent; font-size: 10.5px; font-weight: 600; white-space: nowrap;
 }
-.badge { color: var(--shell-accent); }
 .chip { color: var(--shell-dim); }
 .chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .chip[data-state=active], .chip[data-state=ready] { color: var(--status-success); }
@@ -148,11 +147,9 @@
 .marketCard .cardTitle { gap: 4px; }
 .pluginIcon { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 .marketCard .cardTitle strong { font-size: 14px; line-height: 1.4; }
-.marketCard .badge { padding: 0; border: 0; font-size: 10px; gap: 3px; }
 .marketCard .chip { max-width: 42%; height: auto; min-height: 20px; padding: 2px 7px; white-space: normal; font-size: 10px; }
 .marketCard > .description { line-height: 1.7; overflow-wrap: anywhere; }
 .marketCard > .actions { margin-top: auto; }
-.cardFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; }
 .root .marketCard .primary { min-width: 64px; }
 .root .management { margin-top: 0; border-top: 1px solid var(--shell-border-soft); padding: 0; }
 .root .management > summary { padding: 12px 0 0; font-weight: 500; font-size: 11px; }
@@ -180,3 +177,42 @@
 }
 
 .configurationField label:has(input[type=checkbox]) { display: grid; grid-template-columns: minmax(0, 1fr) auto; overflow-wrap: anywhere; }
+
+/* Discovery shows a shelf of compact entries; selection opens the release alongside it. */
+.catalogBrowser, .catalogList, .catalogGrid, .catalogDetail { min-width: 0; }
+.catalogBrowser { display: grid; align-items: start; gap: 18px; }
+.catalogBrowser[data-detail=true] { grid-template-columns: minmax(190px, 0.8fr) minmax(0, 1.4fr); }
+.catalogList { display: grid; gap: 12px; }
+.catalogGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.catalogBrowser[data-detail=true] .catalogGrid { grid-template-columns: minmax(0, 1fr); }
+.root .catalogItem {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; text-align: start; gap: 12px;
+  padding: 16px 14px; min-width: 0; border: 1px solid var(--shell-border-soft); border-radius: 10px;
+  background: var(--shell-pane); color: var(--shell-text); white-space: normal; cursor: pointer;
+}
+.catalogItem:hover, .catalogItem[aria-pressed=true] { border-color: var(--control-border); background: var(--shell-hover); }
+.catalogItem:focus-visible, .backLink:focus-visible, .removeLink:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 1px; }
+.catalogItem .avatar { width: 38px; height: 38px; border-radius: 9px; background: var(--shell-canvas); }
+.catalogCopy { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.catalogCopy strong { font-size: 14px; line-height: 1.4; }
+.catalogSummary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--shell-muted); line-height: 1.55; }
+.catalogMeta, .catalogMeta span, .publisher { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; color: var(--shell-muted); font-size: 11px; }
+.catalogMeta { gap: 10px; margin-top: 4px; }
+.disclosure { align-self: center; color: var(--shell-dim); }
+.catalogDetail { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--shell-border); border-radius: 12px; background: var(--shell-pane); overflow-wrap: anywhere; }
+.root .backLink, .root .removeLink { justify-self: start; padding: 3px 0; background: none; border: 0; color: var(--shell-muted); cursor: pointer; font-size: 12px; }
+.backLink:hover, .removeLink:hover { text-decoration: underline; }
+.detailTitle { display: flex; align-items: center; gap: 12px; }
+.detailTitle .avatar { width: 48px; height: 48px; border-radius: 11px; font-size: 20px; }
+.detailTitle h3 { font-size: 20px; font-weight: 600; line-height: 1.3; }
+.usage { display: grid; gap: 6px; }
+.usage h4 { font-weight: 600; }
+.usage p, .releaseInfo dt { color: var(--shell-muted); }
+.usage img { width: 100%; height: auto; margin-top: 4px; border: 1px solid var(--shell-border-soft); border-radius: 6px; }
+.releaseInfo { display: flex; flex-wrap: wrap; gap: 12px 26px; border-top: 1px solid var(--shell-border-soft); padding-top: 12px; }
+.releaseInfo dt { font-size: 11px; }
+.releaseInfo dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+@container (max-width: 580px) {
+  .catalogGrid, .catalogBrowser[data-detail=true] { grid-template-columns: minmax(0, 1fr); }
+  .catalogBrowser[data-detail=true] .catalogList { display: none; }
+}

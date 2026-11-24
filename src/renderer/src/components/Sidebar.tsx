@@ -1211,7 +1211,7 @@ export function Sidebar() {
     <aside
       className={`workspace-sidebar flex flex-col overflow-hidden ${styles.sidebar}`}
       style={{
-        background: 'var(--shell-chrome)',
+        background: 'var(--workspace-sidebar-fill, var(--shell-chrome))',
         borderRight: '1px solid var(--shell-border)',
       }}
       data-collapsed={sidebarCollapsed}

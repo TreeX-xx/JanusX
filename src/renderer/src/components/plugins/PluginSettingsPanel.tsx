@@ -109,6 +109,9 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
   const [failure, setFailure] = useState('')
   const [imported, setImported] = useState(false)
   const [authorize, setAuthorize] = useState<InstalledPlugin | null>(null)
+  useEffect(() => {
+    if (authorize && !snapshot.plugins.some(item => item.manifest.id === authorize.manifest.id && item.digest === authorize.digest)) setAuthorize(null)
+  }, [authorize, snapshot.plugins])
   const locatedAuthorization = useRef<PluginAuthorizationTarget | null>(null)
   useEffect(() => {
     if (!authorizationTarget || locatedAuthorization.current === authorizationTarget) return
@@ -155,17 +158,45 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
   const preferences = extensionCommands.getPreferences()
   const search = query.trim().toLocaleLowerCase()
   const visiblePlugins = snapshot.plugins.filter(({ manifest }) => [manifest.name, manifest.description ?? '', manifest.id].some(value => value.toLocaleLowerCase().includes(search)))
+  const actions = (authorize || confirmation) && <>
+    {authorize && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="region" aria-label={t('plugins:authorize')}>
+      <span className={styles.label}>{authorize.manifest.name} — {t('plugins:permissions')}</span>
+      <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
+      {authorize.manifest.native && <p role="note">{t('plugins:nativePermissionHint')}</p>}
+      <PluginSkills manifest={authorize.manifest} review />
+      <PluginContexts manifest={authorize.manifest} review />
+      <PluginWorkflows manifest={authorize.manifest} review />
+      <PluginWindows manifest={authorize.manifest} review />
+      <PluginThemes manifest={authorize.manifest} />
+      {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p className={styles.hint}>{t('plugins:modelHint')}</p>}
+      {authorize.manifest.permissions.some(permission => permission.name === 'ui.workspace') && <p className={styles.hint}>{t('plugins:workspaceHandoffHint')}</p>}
+      <p className={styles.hint}>{t('plugins:grantHint')}</p>
+      <div className={styles.actions}><SettingsButton variant="primary" className={styles.primary} disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id }) }}>{t('plugins:confirmEnable')}</SettingsButton>
+        <SettingsButton onClick={() => setAuthorize(null)}>{t('plugins:cancel')}</SettingsButton></div>
+    </section>}
+    {confirmation && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="alertdialog" aria-label={t(`plugins:${confirmation.type}`)}>
+      <span className={styles.label}>{snapshot.plugins.find(record => record.manifest.id === confirmation.id)?.manifest.name ?? confirmation.id}</span>
+      <p className={styles.description}>{confirmation.type === 'uninstall' ? t('plugins:uninstallHint') : confirmation.type === 'rollback' ? t('plugins:rollbackHint') : t('plugins:deleteHint')}</p>
+      <div className={styles.actions}><SettingsButton variant="primary" className={styles.primary} disabled={busy} onClick={() => { void run({ ...confirmation }) }}>{t('plugins:confirm')}</SettingsButton>
+        <SettingsButton onClick={() => setConfirmation(null)}>{t('plugins:cancel')}</SettingsButton></div>
+    </section>}
+  </>
+  const clearActions = () => { setAuthorize(null); setConfirmation(null) }
   return <div className={styles.root} data-plugin-settings>
     <div className={styles.tabs} role="tablist" aria-label={t('plugins:title')}>
       {(['installed', 'discover', 'developer'] as const).map((id, index, tabs) => <SettingsButton variant="tab" key={id} role="tab" id={`plugin-tab-${id}`} aria-controls={`plugin-panel-${id}`}
-        aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onClick={() => { setTab(id); setAuthorize(null); setConfirmation(null) }}
+        aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onClick={() => { setTab(id); clearActions() }}
         onKeyDown={event => {
           const next = event.key === 'ArrowRight' ? tabs[(index + 1) % tabs.length] : event.key === 'ArrowLeft' ? tabs[(index + tabs.length - 1) % tabs.length] : event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : null
-          if (next) { event.preventDefault(); setTab(next); document.getElementById(`plugin-tab-${next}`)?.focus() }
+          if (next) { event.preventDefault(); clearActions(); setTab(next); document.getElementById(`plugin-tab-${next}`)?.focus() }
         }}>{t(`plugins:${id}`)}{id === 'installed' ? ` (${snapshot.plugins.length})` : ''}</SettingsButton>)}
     </div>
     {failure && <p role="alert" className={styles.error}>{failure}</p>}
-    {tab === 'discover' && <div role="tabpanel" id="plugin-panel-discover" aria-labelledby="plugin-tab-discover"><PluginCatalog onUninstall={id => { setTab('installed'); setAuthorize(null); setConfirmation({ type: 'uninstall', id }) }} /></div>}
+    {tab === 'discover' && <div role="tabpanel" id="plugin-panel-discover" aria-labelledby="plugin-tab-discover"><PluginCatalog
+      pending={busy} onNavigate={clearActions} onAuthorize={record => { clearActions(); setAuthorize(record) }}
+      onUninstall={id => { clearActions(); setConfirmation({ type: 'uninstall', id }) }}
+      onManage={id => { clearActions(); setQuery(id); setTab('installed') }} onOpened={onOpened}
+    >{actions}</PluginCatalog></div>}
     {tab === 'developer' && <div className={styles.root} role="tabpanel" id="plugin-panel-developer" aria-labelledby="plugin-tab-developer">
     <label className={styles.settingRow}>
       <span className={styles.settingText}><span className={styles.label}>{t('plugins:development')}</span>
@@ -265,27 +296,7 @@ export function PluginSettingsPanel({ configurationTarget, authorizationTarget, 
       </section>
     })}
     </div>
-    {authorize && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="region" aria-label={t('plugins:authorize')}>
-      <span className={styles.label}>{authorize.manifest.name} — {t('plugins:permissions')}</span>
-      <pre className={styles.path}>{JSON.stringify(authorize.manifest.permissions, null, 2)}</pre>
-      {authorize.manifest.native && <p role="note">{t('plugins:nativePermissionHint')}</p>}
-      <PluginSkills manifest={authorize.manifest} review />
-      <PluginContexts manifest={authorize.manifest} review />
-      <PluginWorkflows manifest={authorize.manifest} review />
-      <PluginWindows manifest={authorize.manifest} review />
-      <PluginThemes manifest={authorize.manifest} />
-      {authorize.manifest.permissions.some(permission => permission.name === 'models.generate') && <p className={styles.hint}>{t('plugins:modelHint')}</p>}
-      {authorize.manifest.permissions.some(permission => permission.name === 'ui.workspace') && <p className={styles.hint}>{t('plugins:workspaceHandoffHint')}</p>}
-      <p className={styles.hint}>{t('plugins:grantHint')}</p>
-      <div className={styles.actions}><SettingsButton variant="primary" className={styles.primary} disabled={busy} onClick={() => { void run({ type: 'enable', id: authorize.manifest.id }) }}>{t('plugins:confirmEnable')}</SettingsButton>
-        <SettingsButton onClick={() => setAuthorize(null)}>{t('plugins:cancel')}</SettingsButton></div>
-    </section>}
-    {confirmation && <section ref={actionSection} tabIndex={-1} className={`${styles.card} ${styles.review}`} role="alertdialog" aria-label={t(`plugins:${confirmation.type}`)}>
-      <span className={styles.label}>{snapshot.plugins.find(record => record.manifest.id === confirmation.id)?.manifest.name ?? confirmation.id}</span>
-      <p className={styles.description}>{confirmation.type === 'uninstall' ? t('plugins:uninstallHint') : confirmation.type === 'rollback' ? t('plugins:rollbackHint') : t('plugins:deleteHint')}</p>
-      <div className={styles.actions}><SettingsButton variant="primary" className={styles.primary} disabled={busy} onClick={() => { void run({ ...confirmation }) }}>{t('plugins:confirm')}</SettingsButton>
-        <SettingsButton onClick={() => setConfirmation(null)}>{t('plugins:cancel')}</SettingsButton></div>
-    </section>}
+    {actions}
     {conflicts.map(conflict => <p key={conflict.key} role="status" className={styles.error}>KEYBINDING_CONFLICT · {conflict.key} · {conflict.commandIds.join(', ')}</p>)}
     </div>}
   </div>

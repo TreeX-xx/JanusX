@@ -16,10 +16,26 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-app);
+  background: var(--window-canvas, var(--bg-app));
   color: var(--text);
   overflow: hidden;
   height: 100vh;
+}
+
+/* Note: .agents/notes/workbench/standalone-editor-initial-theme.md
+   Keep the persisted canvas until the workbench has painted its own surfaces. */
+@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+  html[data-sidebar-material='native']:has(#root .workspace-sidebar) {
+    --window-canvas: transparent;
+  }
+  html[data-sidebar-material='native'] .workspace-sidebar {
+    --workspace-sidebar-fill: light-dark(
+      color-mix(in srgb, var(--shell-chrome) 42%, transparent),
+      color-mix(in srgb, var(--shell-chrome) 64%, transparent)
+    );
+    --shell-hover: color-mix(in srgb, var(--shell-text) 9%, transparent);
+    --shell-active: color-mix(in srgb, var(--shell-text) 15%, transparent);
+  }
 }
 
 /* 透明 Toast 窗口不受主壳底色污染：首漆由 index.html 内联类保证，此处保证 CSS 加载后仍透明 */

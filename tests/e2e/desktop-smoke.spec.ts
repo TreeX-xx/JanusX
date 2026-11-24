@@ -60,7 +60,11 @@ test('large disk and clipboard files cross the real conversation attachment brid
   }
 })
 
-for (const theme of ['dark', 'planche']) {
+for (const [theme, background, rgb] of [
+  ['dark', '#151517', 'rgb(21, 21, 23)'],
+  ['planche', '#EFE4C5', 'rgb(239, 228, 197)'],
+  ['white', '#FFFFFF', 'rgb(255, 255, 255)'],
+]) {
   test(`startup theme ${theme} matches the persisted profile from the native background onward`, async () => {
     const root = await mkdtemp(join(tmpdir(), 'janusx-startup-theme-'))
     let application: ElectronApplication | undefined
@@ -73,20 +77,22 @@ for (const theme of ['dark', 'planche']) {
         env: createDesktopTestEnv(root),
       })
       const page = await application.firstWindow()
-      const background = theme === 'dark' ? '#151517' : '#EFE4C5'
-      expect(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())).toBe(background)
+      const mac = process.platform === 'darwin'
+      // Electron exposes only the RGB part of a BrowserWindow background.
+      expect(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())).toBe(mac ? '#000000' : background)
       await page.waitForLoadState('domcontentloaded')
       expect(new URL(page.url()).searchParams.get('initialTheme')).toBe(theme)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       await expect(page.locator('#root')).not.toBeEmpty()
 
+      await seedIntroducedLearning(page)
       // Replay navigation with instrumentation installed before the HTML script,
       // sampling every frame, including the empty page before React mounts.
       await page.addInitScript(() => {
-        const frames: Array<{ theme: string | undefined; background: string }> = []
+        const frames: Array<{ theme: string | undefined; background: string; sidebar: boolean }> = []
         ;(window as any).startupFrames = frames
         const sample = () => {
-          frames.push({ theme: document.documentElement.dataset.theme, background: getComputedStyle(document.documentElement).backgroundColor })
+          frames.push({ theme: document.documentElement.dataset.theme, background: getComputedStyle(document.documentElement).backgroundColor, sidebar: Boolean(document.querySelector('.workspace-sidebar')) })
           if (frames.length < 30) requestAnimationFrame(sample)
         }
         requestAnimationFrame(sample)
@@ -94,11 +100,36 @@ for (const theme of ['dark', 'planche']) {
       await page.reload()
       await expect(page.locator('#root')).not.toBeEmpty()
       await expect.poll(() => page.evaluate(() => (window as any).startupFrames.length)).toBeGreaterThan(5)
-      const frames = await page.evaluate(() => (window as any).startupFrames as Array<{ theme: string; background: string }>)
+      const frames = await page.evaluate(() => (window as any).startupFrames as Array<{ theme: string; background: string; sidebar: boolean }>)
       expect(frames.every(frame => frame.theme === theme)).toBe(true)
-      const rgb = theme === 'dark' ? 'rgb(21, 21, 23)' : 'rgb(239, 228, 197)'
-      expect(frames.every(frame => frame.background === rgb)).toBe(true)
+      const glass = mac && await page.evaluate(() => matchMedia('(prefers-reduced-transparency: no-preference) and (forced-colors: none)').matches)
+      expect(frames.every(frame => frame.background === (glass && frame.sidebar ? 'rgba(0, 0, 0, 0)' : rgb))).toBe(true)
+      const sidebar = page.locator('.workspace-sidebar')
+      await expect(sidebar).toBeVisible()
+      const alpha = () => sidebar.evaluate(element => {
+        const canvas = document.createElement('canvas').getContext('2d')!
+        canvas.fillStyle = getComputedStyle(element).backgroundColor
+        canvas.fillRect(0, 0, 1, 1)
+        return canvas.getImageData(0, 0, 1, 1).data[3]
+      })
+      if (glass) {
+        expect(await alpha()).toBeGreaterThan(0)
+        expect(await alpha()).toBeLessThan(255)
+      } else expect(await alpha()).toBe(255)
+      await expect(page.locator('main').first()).toHaveCSS('background-color', rgb)
+      if (mac) {
+        const session = await page.context().newCDPSession(page)
+        await session.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] })
+        await expect.poll(alpha).toBe(255)
+        await expect(page.locator('html')).toHaveCSS('background-color', rgb)
+        await session.send('Emulation.setEmulatedMedia', { features: [] })
+        await session.detach()
+      }
       await page.screenshot({ path: test.info().outputPath(`startup-${theme}.png`) })
+      const toggle = sidebar.locator('#workspace-sidebar-content button[aria-controls="workspace-sidebar-content"]')
+      await toggle.click()
+      await expect(sidebar).toHaveAttribute('data-collapsed', 'true')
+      if (glass) expect(await alpha()).toBeLessThan(255)
     } finally {
       await closeApplication(application)
       await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })

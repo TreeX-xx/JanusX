@@ -247,7 +247,7 @@ export default function App() {
     <div
       className="h-screen flex flex-col"
       style={{
-        background: 'var(--bg-app)',
+        background: 'var(--window-canvas, var(--bg-app))',
         color: 'var(--text)',
       }}
     >
@@ -293,6 +293,7 @@ export default function App() {
         <section
           ref={editorWorkspaceRef}
           className={`relative min-w-0 overflow-hidden${showEmbeddedEditor ? ' border-l border-[var(--shell-border)]' : ''}`}
+          style={{ background: 'var(--bg-app)' }}
           aria-label="Embedded file editor"
           aria-hidden={!showEmbeddedEditor}
           {...(showEmbeddedEditor ? {} : { inert: '' })}
