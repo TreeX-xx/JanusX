@@ -37,7 +37,7 @@ const DAY_MS = 86_400_000
 type TypeFilter = 'all' | ExternalCliToolId
 
 export function UsageStatsPanel() {
-  const { t } = useI18n('settings')
+  const { t, currentLanguage } = useI18n('settings')
   const [ledger, setLedger] = useState<UsageLedgerPage>({ records: [], sessions: [] })
   const [refreshing, setRefreshing] = useState(false)
   /** Aggregates of the last data that answered a query key, shown while a new key loads. */
@@ -105,6 +105,14 @@ export function UsageStatsPanel() {
   const cache = cacheSplitFor(view.cacheReadTokens, view.inputTokens, view.cacheWriteTokens, view.cacheKnown)
   const count = view.series.reduce((sum, bucket) => sum + bucket.records, 0)
   const writeReports = view.series.reduce((sum, bucket) => sum + bucket.writeReports, 0)
+  const remainder = view.totalTokens - view.inputTokens - view.cacheReadTokens - view.cacheWriteTokens - view.outputTokens
+  const composition = [
+    { key: 'input', label: 'freshInput', value: view.inputTokens, reported: true, partial: false },
+    { key: 'hits', label: 'cacheRead', value: view.cacheReadTokens, reported: view.cacheReported, partial: !view.cacheKnown },
+    { key: 'write', label: 'cacheWrite', value: view.cacheWriteTokens, reported: writeReports > 0, partial: writeReports < count },
+    { key: 'output', label: 'output', value: view.outputTokens, reported: true, partial: false },
+  ]
+  if (remainder > 0) composition.push({ key: 'unknown', label: 'unknown', value: remainder, reported: true, partial: false })
   // 自定义区间的日期错误只在 custom 范围内生效，切回预设后不得劫持空文案。
   const customErrorKey = range !== 'custom' ? undefined
     : normalized.error === 'invalid' ? 'customInvalid' : normalized.error === 'future' ? 'customFuture' : normalized.error === 'span' ? 'customSpan' : undefined
@@ -180,6 +188,18 @@ export function UsageStatsPanel() {
           </ThemedTooltip>
           {!cache.hasData && view.cacheReported && <small>{t('settings:usageStats.incompleteCacheData')}</small>}
         </div>
+        {view.totalTokens > 0 && remainder >= 0 && <div className={styles.composition} data-testid="usage-composition">
+          <div className={styles.compositionTrack} aria-hidden="true">
+            {composition.filter(part => part.value > 0).map(part => <i key={part.key} data-part={part.key}
+              style={{ width: (part.value / view.totalTokens * 100) + '%' }}
+              title={t('settings:usageStats.' + part.label) + ' · ' + part.value.toLocaleString(currentLanguage) + ' tokens'} />)}
+          </div>
+          <div className={styles.parts}>{composition.map(part => <span key={part.key}>
+            <i data-part={part.key} aria-hidden="true" />{t('settings:usageStats.' + part.label)}
+            <strong>{part.reported ? (part.value / view.totalTokens).toLocaleString(currentLanguage, { style: 'percent', maximumFractionDigits: 1 }) : '–'}</strong>
+            {part.reported && part.partial && <small>{t('settings:usageStats.partial')}</small>}
+          </span>)}</div>
+        </div>}
       </div>
       <div className={`${styles.trendSection}${refreshing ? ' ' + styles.dimmed : ''}`}>
         <UsageBars key={settled?.key} series={view.series} range={view.range} now={view.rangeEnd} />

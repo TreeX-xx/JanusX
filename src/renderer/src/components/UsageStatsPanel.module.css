@@ -37,7 +37,7 @@
   position: relative;
   display: grid;
   grid-template-columns: 1.3fr repeat(4, minmax(0, 1fr));
-  padding: 14px 0;
+  padding: 10px 0;
   border-block: 1px solid var(--shell-border-soft, var(--shell-border));
 }
 .metric { min-width: 0; padding: 0 12px; }
@@ -50,7 +50,7 @@
 .summaryEmpty .metric > strong { opacity: .65; }
 .modelMeta i, .parts i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 
-.trend {
+.panel {
   --bar-tone: color-mix(in srgb, var(--usage-heatmap-high) 68%, var(--shell-text));
   --part-input: #6883b2;
   --part-read: #549b86;
@@ -79,10 +79,15 @@
 .parts { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-bottom: 12px; color: var(--shell-muted); font-size: 11px; }
 .parts > span { display: inline-flex; align-items: center; gap: 5px; }
 .parts strong { font-weight: 550; color: var(--shell-text); font-variant-numeric: tabular-nums; }
-.trend [data-part='input'] { background: var(--part-input); }
-.trend [data-part='hits'] { background: var(--part-read); }
-.trend [data-part='write'] { background: var(--part-write); }
-.trend [data-part='output'] { background: var(--part-output); }
+.panel [data-part='input'] { background: var(--part-input); }
+.panel [data-part='hits'] { background: var(--part-read); }
+.panel [data-part='write'] { background: var(--part-write); }
+.panel [data-part='output'] { background: var(--part-output); }
+.panel [data-part='unknown'] { background: var(--shell-dim); }
+.composition { grid-column: 1 / -1; padding-top: 10px; }
+.compositionTrack { display: flex; height: 8px; border-radius: 3px; overflow: hidden; }
+.compositionTrack i + i { box-shadow: inset 1px 0 var(--shell-canvas); }
+.composition .parts { margin-top: 6px; padding: 0; }
 .trendSection { border-bottom: 1px solid var(--shell-border-soft, var(--shell-border)); padding-bottom: 6px; }
 .breakdown { display: flex; flex-direction: column; gap: 0; padding: 0 0 8px; border-top: 1px solid var(--shell-border-soft, var(--shell-border)); }
 .breakdownHeading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 16px 0 12px; }
