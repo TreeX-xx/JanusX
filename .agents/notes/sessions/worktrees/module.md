@@ -5,7 +5,7 @@
   "kind": "module",
   "lifecycle": "accepted",
   "created": "2026-10-08",
-  "updated": "2026-11-05T17:44:35.000Z",
+  "updated": "2026-11-24T15:03:40.855Z",
   "parent": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662",
   "moduleState": "partial",
   "relations": [
@@ -50,4 +50,4 @@ SuperAgent P2 通过显式 `isolated` 创建和 `worktree-only` 删除模式复�
 
 ## Related documents
 
-[Worktree create, delete and Ship merge](worktree-create-delete.md) 维护生命周期操作；[sidebar-scoping](worktree-sidebar-scoping.md) 维护侧栏行、文件树作用域与选择器；[path-avatar](worktree-path-avatar.md) 维护路径归一与悬停头像。
+[Worktree create, delete and Ship merge](worktree-create-delete.md) 维护生命周期操作；[sidebar-scoping](worktree-sidebar-scoping.md) 维护侧栏行、文件树作用域与选择器；[path-avatar](worktree-path-avatar.md) 维护路径归一与工作区文件夹图标。

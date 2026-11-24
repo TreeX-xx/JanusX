@@ -40,7 +40,13 @@ const background: Terminal = { id: 'background', workspaceId: 'ws-1', cwd: works
 let droppedTerminal = ''
 Object.assign(window.electron.worktree, {
   list: async (id: string) => id === 'ws-0' ? worktrees : [],
-  identity: async () => null,
+  identity: async (path: string) => params.has('hosted') && path === root
+    ? { host: 'github.com', owner: 'team', repo: 'JanusX', avatarUrl: 'https://example.invalid/team.png' }
+    : null,
+  avatar: async () => {
+    document.body.dataset.avatarRequested = 'true'
+    return { dataUrl: null }
+  },
   unwatch: async () => undefined,
 })
 Object.assign(window.electron.workspace, { update: async () => undefined })

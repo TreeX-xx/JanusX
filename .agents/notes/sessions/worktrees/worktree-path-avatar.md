@@ -36,12 +36,12 @@
       }
     }
   },
-  "updated": "2026-10-08T09:06:56.496Z",
+  "updated": "2026-11-24T15:03:06.844Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/35d88be6-50e5-466b-9514-9ecd7ac8ba7e"
 }
 ---
 
-# Worktree path normalization and hover avatar
+# Worktree path normalization and workspace icons
 
 ## Problem
 
@@ -49,15 +49,15 @@ Every workspace listed its main checkout twice. Git prints worktree paths with f
 
 ## Decision
 
-All worktree path comparisons go through a normalized form that resolves separators, symlinks, and subst drives with case folding on Windows, with linked entries rewritten to native paths once at listing time so renderer keys, active-path checks, and metadata lookups share one spelling. A real-git regression test locks the lone-checkout count. Row icons rest on the borderless folder glyph; the cached avatar crossfades in over it on row hover only, reusing the existing group-hover reveal, and missing avatars never swap.
+All worktree path comparisons go through a normalized form that resolves separators, symlinks, and subst drives with case folding on Windows, with linked entries rewritten to native paths once at listing time so renderer keys, active-path checks, and metadata lookups share one spelling. A real-git regression test locks the lone-checkout count. Expanded workspace rows keep the same folder glyph at rest, on hover and when selected. The collapsed rail shows workspace initials.
 
 ## Alternatives considered
 
 - Normalize inside the parser — strongest case is one fixed point. The driver that rules it out is layering: parsing stays byte-faithful for diagnostics while comparison owns filesystem semantics.
-- Avatar toggle in settings — strongest case is explicit user control. The driver that rules it out is default quality: hover reveal needs no preference to stay quiet.
+- Avatar toggle in settings — strongest case is explicit user control. The driver that rules it out is default quality: workspace rows now use a single folder glyph in every state.
 - Do nothing / reuse — keep duplicated mains and permanent avatars. The cost is a phantom row per workspace and a noisy rail.
 
 ## Consequences
 
-- **Gains**: lone checkouts list exactly once with native paths end to end; sidebars rest on folders with avatars one hover away. Unit coverage spans normalization, lone and linked listings, plus typecheck and touched-file lint.
+- **Gains**: lone checkouts list exactly once with native paths end to end; workspace folder icons stay stable during navigation. Unit coverage spans normalization, lone and linked listings, plus typecheck and touched-file lint.
 - **Costs and limits**: case folding assumes case-insensitive filesystems on Windows only; exotic mount behavior still falls back to raw comparison. Built-app Electron acceptance was not exercised here.

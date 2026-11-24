@@ -52,15 +52,6 @@
 .workspaceRow[aria-current='true'] > span { font-weight: 600; }
 .workspaceRow:hover { background: var(--shell-hover); }
 
-.repoIcon { position: relative; display: flex; flex-shrink: 0; width: 14px; height: 14px; }
-.repoFolder,
-.repoAvatar { transition: opacity 150ms ease; }
-.repoAvatar { position: absolute; inset: 0; width: 14px; height: 14px; border-radius: 4px; object-fit: cover; opacity: 0; }
-.workspaceRow:hover .repoFolder,
-.workspaceRow[aria-current='true'] .repoFolder { opacity: 0; }
-.workspaceRow:hover .repoAvatar,
-.workspaceRow[aria-current='true'] .repoAvatar { opacity: 1; }
-
 .menuButton,
 .worktreeAction {
   display: inline-flex;
@@ -186,7 +177,5 @@
   .terminalRow,
   .worktreeRow,
   .menuButton,
-  .worktreeAction,
-  .repoFolder,
-  .repoAvatar { transition: none; }
+  .worktreeAction { transition: none; }
 }

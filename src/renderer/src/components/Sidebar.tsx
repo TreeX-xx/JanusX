@@ -1,5 +1,6 @@
 import { isExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 // Note: .agents/notes/terminal/terminal-sidebar-states.md
+// Workspace row icons: .agents/notes/sessions/worktrees/worktree-path-avatar.md
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { createPortal } from 'react-dom'
@@ -229,26 +230,6 @@ function WorkspaceRailLabel({ workspace }: { workspace: Workspace }) {
     ? words.slice(0, 2).map(word => Array.from(word)[0]).join('')
     : Array.from(workspace.name.trim()).slice(0, 2).join('')
   return <span aria-hidden="true" className="text-[11px] font-semibold">{initials.toUpperCase() || '?'}</span>
-}
-
-// Folder at rest; cached avatar appears on hover and remains for the selected workspace.
-function RepoRowIcon({ workspacePath }: { workspacePath: string }) {
-  const avatar = useWorktreeStore((s) => s.avatars[workspacePath])
-  const [failed, setFailed] = useState(false)
-  if (!avatar || failed) {
-    return <Folder size={14} strokeWidth={1.6} className="shrink-0" aria-hidden="true" />
-  }
-  return (
-    <span className={styles.repoIcon} aria-hidden="true">
-      <Folder size={14} strokeWidth={1.6} className={styles.repoFolder} />
-      <img
-        src={avatar}
-        alt=""
-        onError={() => setFailed(true)}
-        className={styles.repoAvatar}
-      />
-    </span>
-  )
 }
 
 function worktreeDisplayName(path: string, branch: string | null): string {
@@ -1424,7 +1405,7 @@ export function Sidebar() {
                         />
                       </button>
                       </ThemedTooltip>
-                      <RepoRowIcon workspacePath={ws.path} />
+                      <Folder size={14} strokeWidth={1.6} className="shrink-0" aria-hidden="true" />
                       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
                         {ws.name}
                       </span>

@@ -42,7 +42,6 @@ export interface PendingCreation {
 interface WorktreeStore {
   worktreesByWorkspace: Record<string, WorktreeInfo[]>
   identities: Record<string, RepoIdentity | null>
-  avatars: Record<string, string>
   activePaths: Record<string, string>
   uiByPath: Record<string, WorktreeUiState>
   preservedBranches: Record<string, string[]>
@@ -83,7 +82,6 @@ interface WorktreeStore {
 export const useWorktreeStore = create<WorktreeStore>((set, get) => ({
   worktreesByWorkspace: {},
   identities: {},
-  avatars: {},
   activePaths: {},
   uiByPath: {},
   preservedBranches: {},
@@ -111,18 +109,6 @@ export const useWorktreeStore = create<WorktreeStore>((set, get) => ({
       set((state) => ({
         identities: { ...state.identities, [workspacePath]: identity },
       }))
-      if (identity?.avatarUrl && !(workspacePath in get().avatars)) {
-        try {
-          const avatar = await window.electron.worktree.avatar(workspacePath)
-          if (avatar.dataUrl) {
-            set((state) => ({
-              avatars: { ...state.avatars, [workspacePath]: avatar.dataUrl as string },
-            }))
-          }
-        } catch {
-          // Letter fallback stays.
-        }
-      }
     } catch {
       set((state) => ({
         identities: { ...state.identities, [workspacePath]: null },

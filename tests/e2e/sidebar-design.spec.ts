@@ -40,12 +40,15 @@ test('background terminal restores its workspace and can return to the prior pan
 })
 
 test('hover and keyboard reveal actions without moving the project name', async ({ page }) => {
-  await page.goto('/sidebar.html')
+  await page.goto('/sidebar.html?hosted')
   const row = page.locator('.workspace-sidebar__expanded .ws').first()
   const name = row.locator(':scope > span').last()
   await page.mouse.move(600, 600)
   const before = await name.boundingBox()
   await row.hover()
+  await expect(row.locator('.lucide-folder')).toBeVisible()
+  await expect(row.locator('img')).toHaveCount(0)
+  await expect(page.locator('body')).not.toHaveAttribute('data-avatar-requested', 'true')
   await expect(row.getByRole('button', { name: '更多操作' })).toHaveCSS('opacity', '1')
   expect(await name.boundingBox()).toEqual(before)
   await page.mouse.move(600, 600)
