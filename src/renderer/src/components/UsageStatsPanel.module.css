@@ -87,6 +87,7 @@
 .composition { grid-column: 1 / -1; padding-top: 10px; }
 .compositionTrack { display: flex; height: 8px; border-radius: 3px; overflow: hidden; }
 .compositionTrack i + i { box-shadow: inset 1px 0 var(--shell-canvas); }
+.trend .compositionTrack { margin-bottom: 6px; }
 .composition .parts { margin-top: 6px; padding: 0; }
 .trendSection { border-bottom: 1px solid var(--shell-border-soft, var(--shell-border)); padding-bottom: 6px; }
 .breakdown { display: flex; flex-direction: column; gap: 0; padding: 0 0 8px; border-top: 1px solid var(--shell-border-soft, var(--shell-border)); }

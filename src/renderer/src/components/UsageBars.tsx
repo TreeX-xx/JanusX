@@ -1,3 +1,4 @@
+// Note: time-bucket composition — see .agents/notes/terminal/requirements/usage-stats-custom-range-detail.md
 import { useRef, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { formatUsageCount, type TimeBucket, type UsageRange } from '@/lib/usage-stats'
@@ -6,6 +7,12 @@ import styles from './UsageStatsPanel.module.css'
 const parts = [
   ['input', 'freshInput'], ['hits', 'cacheRead'], ['write', 'cacheWrite'], ['output', 'output'],
 ] as const
+
+function compositionSegments(bucket: TimeBucket) {
+  if (!bucket.totalTokens || bucket.readReports !== bucket.records || bucket.writeReports !== bucket.records ||
+    parts.reduce((sum, [key]) => sum + bucket[key], 0) !== bucket.totalTokens) return null
+  return parts.map(([key]) => bucket[key] > 0 && <i key={key} data-part={key} style={{ flexGrow: bucket[key] }} />)
+}
 
 export function UsageBars({ series, range, now }: { series: TimeBucket[]; range: UsageRange; now: number }) {
   const { t, currentLanguage } = useI18n('settings')
@@ -37,8 +44,6 @@ export function UsageBars({ series, range, now }: { series: TimeBucket[]; range:
         {series.map((bucket, index) => {
           const future = range === 'today' && index > hour
           const current = range === 'today' && index === hour
-          const complete = bucket.readReports === bucket.records && bucket.writeReports === bucket.records &&
-            parts.reduce((sum, [key]) => sum + bucket[key], 0) === bucket.totalTokens
           return <button key={bucket.key} type="button" ref={node => { columns.current[index] = node }}
             data-bucket={bucket.key} data-active={active === index || undefined} data-current={current || undefined}
             className={styles.column} disabled={future}
@@ -51,7 +56,7 @@ export function UsageBars({ series, range, now }: { series: TimeBucket[]; range:
               if (step) { event.preventDefault(); setHover(undefined); columns.current[index + step]?.focus() }
             }}>
             <span className={styles.bar} style={{ height: (bucket.totalTokens / ceiling * 100) + '%' }}>
-              {active === index && complete && parts.map(([key]) => bucket[key] > 0 && <i key={key} data-part={key} style={{ flexGrow: bucket[key] }} />)}
+              {active === index && compositionSegments(bucket)}
             </span>
             {current && <span className={styles.currentTag}>{t('settings:usageStats.ongoing')}</span>}
             {index % tickStep === 0 && <span className={styles.tick}>{range === 'today' ? bucket.label.padStart(2, '0') : bucket.label}</span>}
@@ -59,6 +64,9 @@ export function UsageBars({ series, range, now }: { series: TimeBucket[]; range:
         })}
         {!maximum && <span className={styles.plotEmpty}>{t('settings:usageStats.empty')}</span>}
       </div>
+    </div>
+    <div className={styles.compositionTrack} data-testid="usage-bucket-composition" aria-hidden="true">
+      {detail && compositionSegments(detail)}
     </div>
     <div className={styles.parts}>{parts.map(([key, name]) => {
       const reports = key === 'hits' ? detail?.readReports : key === 'write' ? detail?.writeReports : detail?.records
