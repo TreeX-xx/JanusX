@@ -53,14 +53,14 @@ export function WorkerDefaultsSettings() {
     } catch (value) { setError(String(value)); setStatus('error') }
   }
   return <SettingsSection className={styles.section} aria-label={t('workerDefaults.title')}>
-      <h3 className={styles.sectionTitle}><Cpu size={18} aria-hidden="true" />{t('workerDefaults.title')}</h3>
+      <h4 className={styles.sectionTitle}><Cpu size={18} aria-hidden="true" />{t('workerDefaults.title')}</h4>
       <div className={layout.profiles}>
         {(['codex', 'claude'] as const).map(backend => {
           const draft = drafts[backend], name = backend === 'codex' ? 'Codex' : 'Claude Code'
           const isDefault = policy.defaultBackend === backend, enabled = policy.enabled.includes(backend)
           return <section className={layout.profile} key={backend} aria-label={name}>
             <header className={layout.header}>
-              <div className={layout.identity}><TerminalPresetIcon preset={backend} style={{ width: 24, height: 24 }} /><h4>{name}</h4></div>
+              <div className={layout.identity}><TerminalPresetIcon preset={backend} style={{ width: 24, height: 24 }} /><h5>{name}</h5></div>
               <div className={layout.controls}>
                 <button type="button" className={layout.defaultButton} aria-pressed={isDefault} disabled={busy || !api}
                   onClick={() => { setPolicy(current => ({ defaultBackend: backend, enabled: current.enabled.includes(backend) ? current.enabled : [...current.enabled, backend] })); setStatus('idle') }}>

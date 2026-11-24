@@ -520,6 +520,7 @@
   "agent": {
     "section": {
       "permissions": "权限默认设置",
+      "superAgentPlugin": "SuperAgent 插件设置",
       "limits": "循环步数"
     },
     "default": {

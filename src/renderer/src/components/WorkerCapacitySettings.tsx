@@ -43,7 +43,7 @@ export function WorkerCapacitySettings() {
     finally { if (epoch === generation.current) saving.current = false }
   }
   return <SettingsSection className={styles.section} aria-label={t('workerCapacity.title')}>
-    <h3 className={styles.sectionTitle}><Layers3 size={18} aria-hidden="true" />{t('workerCapacity.title')}</h3>
+    <h4 className={styles.sectionTitle}><Layers3 size={18} aria-hidden="true" />{t('workerCapacity.title')}</h4>
     <SettingsRow className={styles.row}>
       <div className={styles.label}><label htmlFor={id} className={styles.labelText}>{t('workerCapacity.limit')}</label>
         <p id={helpId} className={styles.hint}>{t('workerCapacity.help')}</p></div>

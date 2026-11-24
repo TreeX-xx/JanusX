@@ -4122,6 +4122,7 @@ export type TypedI18nKey =
   | 'settings:agent.safety'
   | 'settings:agent.section.limits'
   | 'settings:agent.section.permissions'
+  | 'settings:agent.section.superAgentPlugin'
   | 'settings:brand'
   | 'settings:cliTools.action.install'
   | 'settings:cliTools.action.installV2'

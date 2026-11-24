@@ -3,7 +3,7 @@
 .header, .identity, .controls { display: flex; align-items: center; gap: 10px; }
 .header { justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .identity { color: var(--shell-text); font-size: 13px; }
-.identity h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.identity h5 { margin: 0; font-size: 14px; font-weight: 600; }
 .identity svg, .identity img { flex-shrink: 0; }
 .controls { flex-shrink: 0; }
 .defaultButton { border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--shell-muted); padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; }

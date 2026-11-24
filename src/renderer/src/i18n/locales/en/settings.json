@@ -520,6 +520,7 @@
   "agent": {
     "section": {
       "permissions": "Permission defaults",
+      "superAgentPlugin": "SuperAgent plugin settings",
       "limits": "Loop steps"
     },
     "default": {

@@ -570,13 +570,16 @@ it('keeps combined Agent and Worker settings compact and all section actions rea
     const model = panel.locator('#worker-model-codex')
     await model.waitFor(); await page.waitForFunction(() => !(document.getElementById('worker-model-codex') as HTMLInputElement).disabled)
     expect(await sections.count()).toBe(3)
+    const plugin = panel.getByRole('region', { name: 'SuperAgent plugin settings', exact: true })
+    expect(await plugin.getByRole('heading', { level: 3 }).isVisible()).toBe(true)
+    expect(await plugin.getByRole('heading', { level: 4 }).count()).toBe(2)
+    expect(await plugin.locator('[data-jx-footer]').count()).toBe(2)
     expect(await panel.locator('.jx-settings-panel').count()).toBe(1)
-    const layout = await sections.evaluateAll(rows => {
-      const first = rows[0].getBoundingClientRect(), second = rows[1].getBoundingClientRect()
-      return { gap: second.top - first.bottom, footers: rows.map(row => getComputedStyle(row.querySelector('[data-jx-footer]')!).position) }
-    })
-    expect(layout.gap).toBeGreaterThanOrEqual(16); expect(layout.gap).toBeLessThanOrEqual(32)
-    expect(layout.footers).toEqual(['static', 'static', 'static'])
+    const permissionBounds = (await sections.first().boundingBox())!
+    const gap = (await plugin.boundingBox())!.y - permissionBounds.y - permissionBounds.height
+    expect(gap).toBeGreaterThanOrEqual(16); expect(gap).toBeLessThanOrEqual(32)
+    const footers = await panel.locator('[data-jx-footer]').evaluateAll(rows => rows.map(row => getComputedStyle(row).position))
+    expect(footers).toEqual(['static', 'static', 'static'])
     expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
     await model.click(); await page.getByRole('option', { name: 'alternate', exact: true }).click()
     const workerSection = sections.nth(2), save = workerSection.getByRole('button', { name: 'Save', exact: true })
@@ -597,6 +600,9 @@ it('keeps combined Agent and Worker settings compact and all section actions rea
     }
     await page.evaluate(() => (window as any).changeLanguage('zh-CN'))
     await workerSection.getByRole('button', { name: '恢复原生默认', exact: true }).waitFor()
+    await panel.getByRole('region', { name: 'SuperAgent 插件设置', exact: true }).waitFor()
+    await page.setViewportSize({ width: 390, height: 700 })
+    expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
     expect(await panel.innerText()).not.toContain('workerDefaults.')
   } finally { await page.close() }
 })
@@ -617,6 +623,7 @@ it('opens ordinary Agent settings without querying the Worker queue', async () =
       w.mountAgentSettings()
     })
     await page.locator('#agent-settings select, #agent-settings button').first().waitFor()
+    expect(await page.getByRole('region', { name: 'SuperAgent plugin settings', exact: true }).count()).toBe(0)
     expect(await page.getByRole('region', { name: 'Worker concurrency' }).count()).toBe(0)
     expect(await page.evaluate(() => (window as any).queueReads)).toBe(0)
     await page.evaluate(() => (window as any).setSuperAgentStarted(true))
