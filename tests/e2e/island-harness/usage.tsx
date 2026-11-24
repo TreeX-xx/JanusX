@@ -42,6 +42,21 @@ if (new URLSearchParams(location.search).get('detail') === 'yes') records.push(
 if (new URLSearchParams(location.search).get('cache') === 'partial') records.push(
   { id: 'partial', engine: 'codex', sessionId: 'codex', at: now.getTime(), timeBasis: 'event', model: 'gpt-5.4', totalTokens: 100, inputTokens: 100, outputTokens: 0 },
 )
+// A reproducible sample week for visual review of the real statistics panel.
+if (new URLSearchParams(location.search).has('preview')) {
+  records.length = 0
+  for (let day = 6; day >= 0; day--) {
+    const profile = [1, 1, 0, 0, 1, 2, 4, 8, 12, 18, 15, 9, 6, 14, 24, 17, 13, 10, 7, 5, 6, 3, 2, 1]
+    profile.forEach((weight, hour) => {
+      const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day, hour).getTime()
+      if (at > now.getTime() || !weight) return
+      const units = weight * (7 + day % 3)
+      records.push({ id: 'preview-' + at, engine: hour % 3 ? 'codex' : 'claude', sessionId: 'demo-' + day, at,
+        model: hour % 3 ? 'gpt-5.4' : 'claude-sonnet-4-6', timeBasis: 'event',
+        totalTokens: units * 500, inputTokens: units * 85, cacheReadTokens: units * 310, cacheWriteTokens: units * 25, outputTokens: units * 80 })
+    })
+  }
+}
 window.electron.system.listUsageLedger = async query => ({ records: records.filter(record => record.at >= query.start && record.at <= query.end && (!query.engine || record.engine === query.engine)), sessions: [], throughId: 2 })
 const priceCatalog = {
   source: 'cache' as const, updatedAt: now.toISOString(), isStale: false,

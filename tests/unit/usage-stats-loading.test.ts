@@ -189,65 +189,20 @@ it('renders the reduced-motion variant as an instant, static indicator', async (
   }
 })
 
-it('morphs the curve into the new shape instead of redrawing it', async () => {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+it('keeps the settled time buckets until a range change finishes', async () => {
+  const page = await browser.newPage({ reducedMotion: 'reduce' })
   try {
     await mount(page)
     await expect.poll(() => totalText(page)).toBe('1.2ktokens')
-    const path = page.locator('path[data-series]').first()
-    // A marker on the node proves the svg is not remounted: a redraw would lose
-    // it, a morph keeps the same element and only changes its geometry.
-    await path.evaluate(node => node.setAttribute('data-morph-witness', '1'))
-    // Segment count identifies the bucket shape (today: hourly, week: daily) and
-    // tolerates the float noise of a same-shape tween running underneath.
-    const segments = (d: string | null) => (d?.match(/C /g) ?? []).length
-    const before = await path.getAttribute('d')
-    const beforeSegments = segments(before)
-
-    // Hourly today buckets -> daily week buckets is a shape change. Gate the
-    // query so the transition starts at a known moment.
+    const bars = page.locator('[data-bucket]')
+    expect(await bars.count()).toBe(24)
     await page.evaluate(() => { window.gate = new Promise(resolve => { window.release = resolve }) })
     await page.getByRole('button', { name: 'This week' }).click()
-    // While the query is in flight the settled snapshot keeps the old shape.
-    expect(segments(await path.getAttribute('d'))).toBe(beforeSegments)
+    expect(await bars.count()).toBe(24)
     await page.evaluate(() => { window.gate = null; window.release() })
-
-    // The geometry leaves the old shape: an in-place morph, not a snap.
-    await expect.poll(async () => segments(await path.getAttribute('d'))).not.toBe(beforeSegments)
-    // It settles on the target shape and stays there.
-    await page.waitForTimeout(600)
-    const settled = await path.getAttribute('d')
-    expect(segments(settled)).not.toBe(beforeSegments)
-    await page.waitForTimeout(150)
-    expect(await path.getAttribute('d')).toBe(settled)
-    expect(await path.getAttribute('data-morph-witness')).toBe('1')
-    // Data points return once the real buckets are back (no flying dots mid-morph).
-    await expect.poll(() => page.locator('svg circle').count()).toBeGreaterThan(0)
-  } finally {
-    await page.close()
-  }
-})
-
-it('keeps the curves visible without motion', async () => {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' })
-  try {
-    await mount(page)
-    await page.getByRole('button', { name: 'This week' }).click()
-    const path = page.locator('path[data-series]').first()
-    await expect.poll(() => path.getAttribute('pathLength')).toBe('100')
-    // 轮询等重挂后的新曲线落位：卸载中的节点计算样式为空
-    await expect.poll(() => path.evaluate(node => getComputedStyle(node).animationName)).toBe('none')
-    const style = await path.evaluate(node => {
-      const computed = getComputedStyle(node)
-      return { animationName: computed.animationName, dasharray: computed.strokeDasharray, dashoffset: computed.strokeDashoffset }
-    })
-    // No animation and no leftover dash: reduced motion shows the full curve.
-    expect(style.animationName).toBe('none')
-    expect(style.dasharray === 'none' || style.dasharray === '').toBe(true)
-    expect(Number(style.dashoffset.replace('px', '')) || 0).toBe(0)
-  } finally {
-    await page.close()
-  }
+    await expect.poll(() => bars.count()).toBeLessThanOrEqual(7)
+    await expect.poll(() => bars.first().getAttribute('data-bucket')).toMatch(/^d/)
+  } finally { await page.close() }
 })
 
 it('hides the incompleteness hint for codex-only session issues', async () => {

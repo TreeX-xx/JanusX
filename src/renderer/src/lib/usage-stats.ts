@@ -188,6 +188,11 @@ export function rangeEndFor(range: UsageRange, now: number, custom?: CustomDateR
 
 /** 时间分桶：today 按小时，week/month 按日，custom 按跨度自适应（≤48h 按小时，否则按日，>62 天按周）。 */
 export interface TimeBucket {
+  input: number
+  write: number
+  records: number
+  readReports: number
+  writeReports: number
   key: string
   label: string
   totalTokens: number
@@ -306,7 +311,7 @@ export function aggregateUsageStats(
   const sessions = new Map<TerminalPreset, Set<string>>()
   const seen = new Set<string>()
   const seriesMap = new Map<string, TimeBucket>(
-    bucketKeysFor(range, now, custom).map(({ key, label }) => [key, { key, label, totalTokens: 0, hits: 0, misses: 0, unknown: 0, output: 0 }]),
+    bucketKeysFor(range, now, custom).map(({ key, label }) => [key, { key, label, totalTokens: 0, hits: 0, misses: 0, unknown: 0, output: 0, input: 0, write: 0, records: 0, readReports: 0, writeReports: 0 }]),
   )
   for (const record of records) {
     if (record.totalTokens === 0 || seen.has(record.id) || (preset !== undefined && record.engine !== preset) || record.at < rangeStart || record.at > rangeEnd) continue
@@ -348,6 +353,11 @@ export function aggregateUsageStats(
     modelRow.cacheWriteKnown &&= record.cacheWriteTokens !== undefined
     const bucket = seriesMap.get(bucketKeyFor(range, record.at, custom, now).key)
     if (bucket) {
+      bucket.input += record.inputTokens
+      bucket.write += record.cacheWriteTokens ?? 0
+      bucket.records++
+      if (cacheKnown) bucket.readReports++
+      if (record.cacheWriteTokens !== undefined) bucket.writeReports++
       bucket.totalTokens += record.totalTokens
       bucket.output += record.outputTokens
       if (cacheKnown) { bucket.hits += record.cacheReadTokens ?? 0; bucket.misses += record.inputTokens + (record.cacheWriteTokens ?? 0) }
