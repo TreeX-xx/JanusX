@@ -160,9 +160,9 @@ export function ModelCatalogPanel() {
           </div>
         )}
 
-        {groups.map((group, index) => {
+        {groups.map(group => {
           const key = 'vendor:' + group.vendor
-          const expanded = open[key] ?? (hasSearch || index === 0)
+          const expanded = open[key] ?? hasSearch
           const logo = vendorLogos.get(group.vendor.toLowerCase().replace(/^~/, ''))
           return <div className={styles.vendorGroup} key={key}>
             <SettingsButton variant="plain" className={styles.vendorHeader} aria-expanded={expanded}
