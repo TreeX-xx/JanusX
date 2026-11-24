@@ -5,6 +5,11 @@
     "docker": "Inspect local containers, read logs and open a container terminal.",
     "superagent": "Delegate work from Janus chat and follow each worker’s progress."
   },
+  "featured": "Featured plugins",
+  "featureBlueprint": "Follow the connections between project modules to find their engineering notes and reviews.",
+  "featureSuperAgent": "Dispatch tasks from Janus chat and follow each background worker as it runs.",
+  "featureDetails": "View details",
+  "featureDetailsFor": "View details for {{name}}",
   "openSettings": "Open settings",
   "tryPlugin": "Getting started",
   "usageBlueprint": "Open a project, launch Blueprint and select a module to read its engineering notes alongside the architecture diagram.",

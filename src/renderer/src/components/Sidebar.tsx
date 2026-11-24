@@ -4,7 +4,7 @@ import { isExternalWorkspaceRuntime } from '../../../shared/workspace-runtime'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { createPortal } from 'react-dom'
-import { ChevronRight, Ellipsis, Folder, GitBranch, ListTree, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react'
+import { Ellipsis, Folder, FolderOpen, GitBranch, GitMerge, ListTree, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { EMPTY_PENDING_LIST, EMPTY_STRING_LIST, EMPTY_WORKTREE_LIST, useWorktreeStore } from '@/stores/worktree'
 import { useAppStore } from '@/stores/app'
@@ -19,6 +19,7 @@ import { ModalCloseButton } from './ModalCloseButton'
 import { ModalFrame } from './shared/ModalFrame'
 import { ThemedTooltip } from './ui/ThemedTooltip'
 import { SidebarTerminalPopover } from './SidebarTerminalPopover'
+import { ToolbarMenu } from './viewers/ToolbarMenu'
 import { TerminalStatusLight } from './ui/TerminalStatusLight'
 import { TerminalPresetIcon } from './ui/TerminalPresetIcon'
 import { TeamFooter, TeamFooterCollapsed } from './team/TeamFooter'
@@ -339,7 +340,7 @@ function TerminalRow({
         <TerminalPresetIcon
           preset={terminal.preset}
           alt={t('common:workspace.presetIconAlt', { preset: presetLabel })}
-          className="h-3.5 w-3.5 shrink-0"
+          className="h-4 w-4 shrink-0"
         />
       </span>
       <span className="min-w-0">
@@ -561,38 +562,22 @@ function WorktreeSubList({
                   {worktreeDisplayName(worktree.path, worktree.branch)}
                 </span>
               </span>
-              <WorktreeTerminalBadge terminals={groupTerminals} />
-              {!worktree.isMain && worktree.branch && (
-                <button
-                  type="button"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onShipRequest(worktree)
-                  }}
-                  onKeyDown={(event) => event.stopPropagation()}
-                  className={styles.worktreeAction}
-                >
-                  {t('terminal:worktree.shipAction')}
-                </button>
-              )}
-              {!worktree.isMain && (
-                <ThemedTooltip label={t('terminal:worktree.deleteTitle')}>
-                <button
-                  type="button"
-                  aria-label={t('terminal:worktree.deleteTitle')}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onDeleteRequest(worktree)
-                  }}
-                  onKeyDown={(event) => event.stopPropagation()}
-                  className={styles.worktreeAction}
-                >
-                  <Ellipsis size={14} strokeWidth={1.8} aria-hidden="true" />
-                </button>
-                </ThemedTooltip>
-              )}
+              <div className={styles.worktreeTail}>
+                <WorktreeTerminalBadge terminals={groupTerminals} />
+                {!worktree.isMain && <div className={styles.worktreeTools}
+                  onPointerDown={event => event.stopPropagation()}
+                  onClick={event => event.stopPropagation()}
+                  onKeyDown={event => event.stopPropagation()}>
+                  <ToolbarMenu label={`${worktreeDisplayName(worktree.path, worktree.branch)} · ${t('common:workspace.moreActions')}`}>
+                    {worktree.branch && <button type="button" onClick={() => onShipRequest(worktree)}>
+                      <GitMerge size={14} aria-hidden="true" />{t('terminal:worktree.shipAction')}
+                    </button>}
+                    <button type="button" onClick={() => onDeleteRequest(worktree)}>
+                      <Trash2 size={14} aria-hidden="true" />{t('terminal:worktree.deleteTitle')}
+                    </button>
+                  </ToolbarMenu>
+                </div>}
+              </div>
             </div>
             </ThemedTooltip>
             {groupTerminals.length > 0 && (
@@ -868,11 +853,12 @@ export function Sidebar() {
   }, [deleteTarget, removeWorkspace, workspaces.length, setLoadState, updateWorkspaceLayout])
 
   const handleSelect = useCallback(
-    async (id: string) => {
+    async (id: string, revealChildren = false) => {
       if (suppressClickRef.current === id) {
         suppressClickRef.current = null
         return
       }
+      if (revealChildren) setExpandedWorkspaceIds(current => current.includes(id) ? current : [...current, id])
       setActiveWorkspace(id)
       // 根据目标工作区是否有终端来设置状态
       const stateAfterSwitch = useWorkspaceStore.getState()
@@ -886,11 +872,10 @@ export function Sidebar() {
         console.error('Failed to load file tree:', err)
       })
     },
-    [setActiveWorkspace, setLoadState, workspaces]
+    [setActiveWorkspace, setExpandedWorkspaceIds, setLoadState, workspaces]
   )
 
-  const handleToggleWorkspaceExpand = useCallback((id: string, event: React.MouseEvent) => {
-    event.stopPropagation()
+  const handleToggleWorkspaceExpand = useCallback((id: string) => {
     setExpandedWorkspaceIds((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
     )
@@ -1103,6 +1088,15 @@ export function Sidebar() {
 
   const handleWorkspaceKeyDown = useCallback((workspace: Workspace, event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return
+    if (!sidebarCollapsed && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
+      event.preventDefault()
+      const expand = event.key === 'ArrowRight'
+      setExpandedWorkspaceIds(current => {
+        if (current.includes(workspace.id) === expand) return current
+        return expand ? [...current, workspace.id] : current.filter(id => id !== workspace.id)
+      })
+      return
+    }
     if (event.shiftKey && event.key === 'F10') {
       event.preventDefault()
       const rect = event.currentTarget.getBoundingClientRect()
@@ -1111,8 +1105,8 @@ export function Sidebar() {
     }
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
-    void handleSelect(workspace.id)
-  }, [handleSelect, openWorkspaceContextMenu])
+    void handleSelect(workspace.id, !sidebarCollapsed)
+  }, [handleSelect, openWorkspaceContextMenu, setExpandedWorkspaceIds, sidebarCollapsed])
 
   const startRenamingGroup = useCallback((group: WorkspaceSidebarGroup) => {
     setContextMenu(null)
@@ -1210,10 +1204,7 @@ export function Sidebar() {
               <button
                 data-onboarding="add-workspace"
                 onClick={handleAddWorkspace}
-                className="flex h-7 w-7 items-center justify-center rounded-[4px] transition-colors hover:bg-[var(--shell-hover)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
-                style={{
-                  color: 'var(--shell-text)',
-                }}
+                className={styles.headerAction}
                 aria-label={t('common:workspace.add')}
               >
                 <Plus size={15} strokeWidth={1.6} aria-hidden="true" />
@@ -1225,8 +1216,7 @@ export function Sidebar() {
                 onClick={handleToggleSidebar}
                 aria-expanded={!sidebarCollapsed}
                 aria-controls="workspace-sidebar-content"
-                className="flex h-7 w-7 items-center justify-center rounded-[4px] transition-colors hover:bg-[var(--shell-hover)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
-                style={{ color: 'var(--shell-text)' }}
+                className={styles.headerAction}
                 aria-label={t('common:workspace.collapseAria')}
               >
                 <PanelLeftClose size={15} strokeWidth={1.6} aria-hidden="true" />
@@ -1234,7 +1224,7 @@ export function Sidebar() {
               </ThemedTooltip>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-1.5 py-1" onDragOverCapture={handleWorkspaceListDragOver}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-1" onDragOverCapture={handleWorkspaceListDragOver}>
             {orderedWorkspaces.length === 0 ? (
               <div className={styles.emptyState}>
                 <p>{t('common:workspace.empty')}</p>
@@ -1260,8 +1250,8 @@ export function Sidebar() {
                   const workspaceTerminals = (isActive ? terminals : terminalSnapshots[ws.id]?.terminals ?? []).filter(
                     (terminal) => terminal.workspaceId === ws.id
                   )
-                const isExpanded = expandedWorkspaceIds.includes(ws.id)
-                const terminalCount = workspaceTerminals.length
+                  const isExpanded = expandedWorkspaceIds.includes(ws.id)
+                  const terminalCount = workspaceTerminals.length
                   const isMenuOpen = contextMenu?.target.kind === 'workspace' && contextMenu.target.workspace.id === ws.id
                   const isDragged = draggedWorkspaceId === ws.id
                   const isDropBefore = dropIntent?.targetId === ws.id && dropIntent.mode === 'before'
@@ -1348,7 +1338,8 @@ export function Sidebar() {
                             role="button"
                             aria-current={isActive ? 'true' : undefined}
                             aria-label={t('common:workspace.wsAriaLabel', { name: ws.name })}
-                            onClick={() => handleSelect(ws.id)}
+                            aria-keyshortcuts="ArrowLeft ArrowRight"
+                            onClick={() => handleSelect(ws.id, true)}
                             onKeyDown={(event) => handleWorkspaceKeyDown(ws, event)}
                             onDragStart={(event) => handleWorkspaceDragStart(ws, event)}
                             onDragOver={(event) => handleWorkspaceDragOver(ws, event)}
@@ -1356,14 +1347,11 @@ export function Sidebar() {
                             onDragEnd={() => handleWorkspaceDragEnd(ws.id)}
                             className={`ws group/ws ${styles.workspaceRow}`}
                             style={{
-                              color: isActive ? 'var(--shell-text)' : 'var(--shell-muted)',
                               background: isGroupTarget
                                 ? 'color-mix(in srgb, var(--interaction-accent) 10%, transparent)'
                                 : isGroupPending
                                   ? 'var(--shell-hover)'
-                                  : isActive
-                                    ? 'var(--shell-active)'
-                                    : undefined,
+                                  : undefined,
                               opacity: isDragged ? 0.42 : 1,
                               boxShadow: isGroupTarget
                                 ? 'inset 0 0 0 1px color-mix(in srgb, var(--interaction-accent) 48%, transparent), 0 0 12px color-mix(in srgb, var(--interaction-accent) 8%, transparent)'
@@ -1378,7 +1366,7 @@ export function Sidebar() {
                             {isDropAfter && (
                               <div className="pointer-events-none absolute -bottom-px inset-x-1 h-0.5 rounded bg-[var(--interaction-accent)] shadow-[0_0_7px_color-mix(in_srgb,_var(--interaction-accent)_70%,_transparent)]" />
                             )}
-                      <ThemedTooltip label={isExpanded ? t('common:workspace.terminalListCollapseShort', { count: terminalCount }) : t('common:workspace.terminalListExpandShort', { count: terminalCount })}>
+                      <ThemedTooltip label={t(isExpanded ? 'common:workspace.terminalListCollapseShort' : 'common:workspace.terminalListExpandShort')}>
                       <button
                         type="button"
                         draggable={false}
@@ -1392,21 +1380,15 @@ export function Sidebar() {
                         }}
                         onClick={(event) => {
                           event.stopPropagation()
-                          handleToggleWorkspaceExpand(ws.id, event)
+                          handleToggleWorkspaceExpand(ws.id)
                         }}
-                        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border-0 bg-transparent text-[var(--shell-dim)] transition-colors duration-150 hover:bg-[var(--shell-hover)] hover:text-[var(--shell-muted)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[color-mix(in_srgb,_var(--interaction-accent)_24%,_transparent)]"
+                        className={styles.workspaceDisclosure}
                       >
-                        <ChevronRight
-                          size={12}
-                          strokeWidth={1.8}
-                          className="transition-transform duration-200 ease-out motion-reduce:transition-none"
-                          style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                          aria-hidden="true"
-                        />
+                        <Folder size={18} strokeWidth={1.6} className={styles.folderClosed} aria-hidden="true" />
+                        <FolderOpen size={18} strokeWidth={1.6} className={styles.folderOpen} aria-hidden="true" />
                       </button>
                       </ThemedTooltip>
-                      <Folder size={14} strokeWidth={1.6} className="shrink-0" aria-hidden="true" />
-                      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
+                      <span className={styles.workspaceName}>
                         {ws.name}
                       </span>
                       {isExternalWorkspaceRuntime(ws.runtime) && <span
@@ -1436,9 +1418,7 @@ export function Sidebar() {
                     </ThemedTooltip>
                     <div
                       id={`workspace-terminals-${ws.id}`}
-                      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
-                        isExpanded ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'
-                      }`}
+                      className={styles.workspaceChildList}
                       aria-hidden={!isExpanded}
                       {...(!isExpanded ? { inert: '' } : {})}
                     >

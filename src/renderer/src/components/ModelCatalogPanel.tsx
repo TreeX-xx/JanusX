@@ -2,11 +2,7 @@
 import { Button as SettingsButton, Input as SettingsInput, InputGroup } from '@janusx/ui'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Boxes, Check, ChevronRight, Coins, Copy, Cpu, RefreshCw, Search, X } from 'lucide-react'
-import openai from '@/assets/icons/codex.svg'
-import anthropic from '@/assets/icons/claude.svg'
-import deepseek from '@/assets/icons/providers/deepseek-color.svg'
-import moonshot from '@/assets/icons/providers/moonshot.svg'
-import qwen from '@/assets/icons/providers/qwen-color.svg'
+import { catalogVendorLogo } from '@/assets/icons/providers/catalog'
 import type { AiModelRegistryEntry, ModelCatalogSnapshot } from '@janusx/llm-core'
 import { getModelCatalog, refreshModelCatalog } from '../services/llm'
 import { asRecord, buildCapabilityList, catalogEmptyState, formatList, groupModels, pricePerMillion, readModelPricing, TOKEN_PRICE_KEYS, UNKNOWN_VENDOR } from './modelCatalogPanelLogic'
@@ -163,13 +159,13 @@ export function ModelCatalogPanel() {
         {groups.map(group => {
           const key = 'vendor:' + group.vendor
           const expanded = open[key] ?? hasSearch
-          const logo = vendorLogos.get(group.vendor.toLowerCase().replace(/^~/, ''))
+          const logo = catalogVendorLogo(group.vendor)
           return <div className={styles.vendorGroup} key={key}>
             <SettingsButton variant="plain" className={styles.vendorHeader} aria-expanded={expanded}
               onClick={() => setOpen(previous => ({ ...previous, [key]: !expanded }))}>
               <ChevronRight className={styles.chevron} size={14} aria-hidden="true" />
               <span className={styles.vendorIcon} aria-hidden="true">
-                {logo ? <img src={logo} alt="" /> : group.vendor === UNKNOWN_VENDOR ? <Boxes size={15} /> : group.vendor.replace(/^~/, '').slice(0, 2).toUpperCase()}
+                {logo ? <img src={logo} alt="" /> : <Boxes size={15} />}
               </span>
               <span>{group.vendor === UNKNOWN_VENDOR ? t('model:vendor.unknown') : group.vendor}</span>
               <span className={styles.count}>{group.models.length}</span>
@@ -188,10 +184,6 @@ export function ModelCatalogPanel() {
   )
 }
 
-const vendorLogos = new Map([
-  ['openai', openai], ['anthropic', anthropic], ['deepseek', deepseek],
-  ['qwen', qwen], ['moonshotai', moonshot], ['moonshot', moonshot],
-])
 const primaryCapabilities = new Set(['tools', 'reasoning', 'structured_outputs'])
 
 function ModelItem({ model, expanded, onToggle }: { model: AiModelRegistryEntry; expanded: boolean; onToggle: () => void }) {

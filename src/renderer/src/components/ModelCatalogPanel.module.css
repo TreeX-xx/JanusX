@@ -117,11 +117,9 @@
   border-radius: 6px;
   color: var(--shell-muted);
   background: color-mix(in srgb, var(--shell-text) 8%, transparent);
-  font-size: 10px;
-  font-weight: 650;
 }
 .vendorIcon:has(img) { background: #f5f5f5; }
-.vendorIcon img { width: 17px; height: 17px; }
+.vendorIcon img { width: 17px; height: 17px; object-fit: contain; }
 .chevron { justify-self: center; color: var(--shell-muted); transition: transform 0.15s ease; }
 [aria-expanded='true'] > .chevron { transform: rotate(90deg); }
 .vendorHeader:hover, .modelRow:hover { background: var(--shell-hover); }

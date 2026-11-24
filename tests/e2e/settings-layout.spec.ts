@@ -1,5 +1,18 @@
 import { expect, test } from '@playwright/test'
 
+test('settings pages show only their title in the header', async ({ page }) => {
+  await page.goto('/settings.html')
+  const dialog = page.getByRole('dialog')
+  const header = dialog.locator(':scope > section > header')
+  const tabs = dialog.locator('nav [data-tab]')
+  await expect(header.getByRole('heading', { name: '通用', exact: true })).toBeVisible()
+  for (const tab of await tabs.all()) {
+    await tab.click()
+    await expect(tab).toHaveAttribute('aria-current', 'page')
+    await expect(header).toHaveText(await header.getByRole('heading', { level: 2 }).innerText())
+  }
+})
+
 test('daily preferences, appearance and data management have distinct destinations', async ({ page }) => {
   await page.goto('/settings.html')
   await expect(page.getByRole('heading', { name: '语言偏好', exact: true })).toBeVisible()

@@ -27,7 +27,7 @@
       }
     }
   },
-  "updated": "2026-10-15T06:47:54.000Z",
+  "updated": "2026-11-24T15:33:40Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/dc1aca7c-408f-406d-add4-ba78d556b662"
 }
 ---
@@ -40,7 +40,7 @@ An expanded workspace row in `Sidebar.tsx` ends with four controls: the chevron,
 
 ## Decision
 
-The 2026-10-15 revision replaces the zero-width slide with a fixed 24px action slot. `Sidebar.module.css` fades the `⋯` into view on row hover, focus within, or `aria-expanded=true`; reduced-motion disables that transition. Names retain the same width and truncation point in both states, and the menu anchor remains stationary. The action keeps its DOM node, accessible name and click handler. The workspace keyboard handler ignores events from child controls so Enter and Space can activate their native buttons. Worktree action slots follow the same layout-stability rule.
+Workspace rows reserve a 24px slot for the action menu. Hover, keyboard focus or an open menu reveals its button. The leading button crossfades between closed and open folders as the child list folds or unfolds. Both transitions run for 200ms and switch immediately with reduced motion. Linked worktrees show their terminal count and action menu in the same trailing slot. Names keep their width when controls appear. On touch devices the controls are directly visible.
 
 ## Alternatives considered
 

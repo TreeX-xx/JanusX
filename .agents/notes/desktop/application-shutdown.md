@@ -5,7 +5,7 @@
   "kind": "note",
   "lifecycle": "draft",
   "created": "2026-11-12",
-  "updated": "2026-11-14T16:55:17Z",
+  "updated": "2026-11-24T06:36:16Z",
   "class": "architecture",
   "tags": ["shutdown", "windows", "macos", "superagent"],
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e",
@@ -23,6 +23,16 @@
 ---
 
 # 应用退出、进程回收与安装占用
+
+## Windows 使用中意外退出（2026-11-23）
+
+0.9.8、0.9.9、0.9.10 的主进程完成启动后，将 `uncaughtException` 和 `unhandledRejection` 合并计数。每次异常都会重新安排 5 秒后的清零回调。用模拟时钟运行三个发布标签中 `src/main/index.ts` 的原处理器，交替注入这两类异常，每 4 秒一次，第 21 次在第 80 秒请求重启并调用 `app.exit(1)`。同样 21 次改为每 6 秒一次时均未触发。0.9.10 对已进入退出流程的保护不覆盖正常使用时的这条路径。
+
+强制退出跳过 `before-quit`，因此也跳过 JanusX 在该事件中安排的会话保存与资源清理。便携版另有重启竞态。三个版本锁定的 NSIS 模板都会等待解压后的程序退出，随后删除解压目录。JanusX 调用无参数的 `app.relaunch()`，目标仍是该目录中的程序。清理可能妨碍新实例启动。三个版本的计数逻辑已在 macOS 上隔离验证，清理与重启的实际先后仍需 Windows 便携包验证。[Electron 退出与重启语义](https://www.electronjs.org/docs/latest/api/app#apprelaunchoptions)
+
+每次主进程未捕获异常会写入 `logs/startup.log`，触发重启的决定只输出到控制台。11 月 23–24 日提供的 Windows 安装版日志中，0.9.10 有六条启动记录，其间没有未捕获异常或未处理的 Promise 拒绝。`Starting JanusX` 在取得单实例锁之前写入，重复打开程序也会留下记录。同时段的 `logs/shutdown.log` 有五个不同宿主 PID 记录子进程回收，却没有主程序的 `requested`、`begin` 或 `exit`。现有证据支持继续核对 Windows 可靠性记录、Chromium 日志和崩溃转储，尚不能确定窗口消失的原因。
+
+同机旧日志在 0.9.6 和 0.9.9 启动时共三次记录 `window:get-maximized` 重复注册，堆栈指向 `bootstrapApp → createWindow → registerWindowIpc`。0.9.10 已将窗口 IPC 注册移出窗口创建函数，该故障未再出现在所提供的 0.9.10 日志中。
 
 ## 公共运行时接入（2026-11-15）
 

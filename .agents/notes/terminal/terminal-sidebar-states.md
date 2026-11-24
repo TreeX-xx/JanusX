@@ -26,7 +26,7 @@
       }
     }
   },
-  "updated": "2026-11-11T09:38:57Z",
+  "updated": "2026-11-24T15:10:17Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
   "relations": [
     {
@@ -53,7 +53,9 @@ The renderer projects each value with its own color and label in `src/renderer/s
 ### Terminals as level-3 items grouped under their worktree
 `Sidebar.tsx` groups terminals by worktree before rendering. `groupTerminalsByWorktree` matches `terminal.cwd` against each worktree path across separators and Windows case, and terminals with no match fall back to the main worktree, so worktrees created outside JanusX and non-git checkouts keep every terminal visible instead of losing rows. Each worktree keeps a branch-first row and a shallowly indented terminal group sorted by attention order. Worktrees without terminals render the row alone; the empty hint stays for terminal-less sections.
 
-The 2026-10-15 sidebar revision uses single-line interface-font labels: workspace names are 13px, terminals 12px, worktrees 11px. Paths, preset labels and the branch start point remain in tooltips; repeated path subtitles and branch explanation rows are removed. Worktree counts are plain numbers, with at most one compact shared status ring for approval/input, errors or degraded operation in that priority order. Running and idle states remain visible on individual terminals. Active workspace and terminal rows use neutral theme surfaces without a colored selection stripe; worktree scope uses text contrast. `Sidebar.module.css` owns these styles, fixed-slot hover actions and the dark-theme Codex icon correction. Keyboard focus, workspace drag insertion markers, grouping feedback and rename borders use the neutral `--interaction-accent` token in expanded and compact views; terminal status colors retain their separate semantics.
+The expanded sidebar uses one leading icon per level. The workspace folder toggles its children, the branch glyph identifies the checkout, and each terminal keeps its preset icon and status ring. Indentation and a thin guide connect the terminals to their worktree. Workspace and terminal labels use the 13px interface font, and branch labels use 12px. Paths, preset labels and the branch start point remain in tooltips; repeated path subtitles and branch explanation rows are removed. Worktree counts are plain numbers, with at most one compact shared status ring for approval/input, errors or degraded operation in that priority order. Running and idle states remain visible on individual terminals. The active workspace has a light neutral tint, the active terminal uses the stronger selection surface, and the active branch uses text contrast. `Sidebar.module.css` owns these styles, fixed-slot hover actions and the dark-theme Codex icon correction. Keyboard focus, workspace drag insertion markers, grouping feedback and rename borders use the neutral `--interaction-accent` token in expanded and compact views; terminal status colors retain their separate semantics.
+
+Selecting a workspace name also expands its children. Clicking the folder, or pressing Left or Right on a focused workspace row, changes expansion independently of selection. A linked worktree shares its trailing slot between its terminal count and an action menu for shipping and deletion.
 
 Terminal rows are draggable keyboard-accessible navigation targets. Click, Enter or Space activates the existing pane tab through `setActiveTerminal`; background entries first restore their owning workspace snapshot. The file-tree scope follows the same worktree grouping as the displayed terminal, including terminals launched from checkout subdirectories. Switching workspace invalidates the editor file cache and uses guarded file-tree loading. Navigation does not launch or kill PTYs. Full paths require hover or keyboard focus; terminal names can still truncate at the sidebar width.
 

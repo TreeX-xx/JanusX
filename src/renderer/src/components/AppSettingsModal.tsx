@@ -137,18 +137,25 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
         ? tTerminal('terminal:shellSettings.nav')
         : t(`settings:tab.${tab}.nav`)
   const tabNav = (tab: SettingsTab) => pluginPages.find(page => page.id === tab)?.title ?? builtinTabNav(tab as BuiltinSettingsTab)
-  const meta = activeTab === 'appearance' || activeTab === 'storage' ? { title: tStorage(`navigation.${activeTab}.title`), subtitle: tStorage(`navigation.${activeTab}.subtitle`) } : activeTab === 'browser-control' || activeTab === 'computer-control' ? { title: tControl(`${activeTab === 'browser-control' ? 'browser' : 'computer'}.title`), subtitle: tControl(`${activeTab === 'browser-control' ? 'browser' : 'computer'}.subtitle`) } : activeTab === 'integrations' ? { title: tIntegrations('title'), subtitle: tIntegrations('subtitle') } : pluginPage ? { title: pluginPage.title, subtitle: tPlugins('plugins:settingsPageSubtitle', { name: pluginPage.pluginName }) } : activeTab === 'plugins' ? { title: tPlugins('plugins:title'), subtitle: tPlugins('plugins:subtitle') } : activeTab === 'personal' ? { title: tKnowledge('knowledge:memorySettings.title'), subtitle: tKnowledge('knowledge:memorySettings.navMeta') } : activeTab === 'team'
-    ? { title: tTeam('team:settingsTab.title'), subtitle: tTeam('team:settingsTab.subtitle') }
-    : activeTab === 'terminal'
-      ? { title: tTerminal('terminal:shellSettings.title'), subtitle: tTerminal('terminal:shellSettings.subtitle') }
-      : {
-        title: t(`settings:tab.${activeTab}.title`),
-        subtitle: t(`settings:tab.${activeTab}.subtitle`),
-      }
+  const getTabTitle = (tab: SettingsTab) => {
+    switch (tab) {
+      case 'appearance':
+      case 'storage': return tStorage(`navigation.${tab}.title`)
+      case 'browser-control': return tControl('browser.title')
+      case 'computer-control': return tControl('computer.title')
+      case 'integrations': return tIntegrations('title')
+      case 'plugins': return tPlugins('plugins:title')
+      case 'personal': return tKnowledge('knowledge:memorySettings.title')
+      case 'team': return tTeam('team:settingsTab.title')
+      case 'terminal': return tTerminal('terminal:shellSettings.title')
+      default: return t(`settings:tab.${tab}.title`)
+    }
+  }
+  const title = pluginPage?.title ?? getTabTitle(activeTab)
 
   return (
     <ModalFrame
-      label={meta.title}
+      label={title}
       onClose={onClose}
       backdropClassName={styles.backdrop}
       panelClassName={styles.panel}
@@ -195,10 +202,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
 
           <section className={styles.content}>
             <header className={styles.header}>
-              <div className={styles.titleWrap}>
-                <h2 className={styles.title}>{meta.title}</h2>
-                <div className={styles.subtitle}>{meta.subtitle}</div>
-              </div>
+              <h2 className={styles.title}>{title}</h2>
               <SettingsButton variant="ghost" size="icon" type="button" className={styles.closeButton} aria-label={tCommon('common:action.close')} onClick={requestClose}>
                 <X size={18} strokeWidth={1.7} aria-hidden="true" />
               </SettingsButton>

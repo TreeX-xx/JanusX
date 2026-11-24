@@ -1,10 +1,15 @@
 {
   "catalogSummary": {
-    "blueprint": "在工作台中浏览项目架构、工程笔记和审阅记录。",
+    "blueprint": "在蓝图工作台中浏览项目架构、工程笔记和审阅记录。",
     "cpa": "管理本地 CLIProxyAPI 网关，或连接已有实例。",
     "docker": "查看本地容器、跟踪日志并打开容器终端。",
     "superagent": "从 Janus 对话分派后台任务，查看各个 Worker 的进度。"
   },
+  "featured": "精选插件",
+  "featureBlueprint": "在蓝图上展开项目架构，沿着模块关系阅读工程笔记和审阅记录。",
+  "featureSuperAgent": "在 Janus 对话中分派任务，让后台 Worker 各自执行，随时跟踪进度。",
+  "featureDetails": "查看详情",
+  "featureDetailsFor": "查看 {{name}} 详情",
   "openSettings": "打开设置",
   "tryPlugin": "使用示例",
   "usageBlueprint": "打开一个项目，进入蓝图工作台，选中架构图中的模块，即可在旁边阅读对应的工程笔记。",

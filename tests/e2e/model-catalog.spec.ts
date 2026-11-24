@@ -49,6 +49,7 @@ test('vendor search restores browsing position, disclosure state and keyboard fo
   await main.evaluate(el => Object.assign(el.style, { width: '440px', height: '540px', overflowY: 'auto' }))
   const vendor = page.getByRole('button', { name: /DeepSeek 30/i })
   await expect(vendor.locator('img')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Example 2' }).locator('[aria-hidden="true"] > svg')).toBeVisible()
   await expect(vendor).toHaveAttribute('aria-expanded', 'false')
   await expect(page.getByRole('button', { name: 'Example 2' })).toHaveAttribute('aria-expanded', 'false')
   await vendor.click()
@@ -82,6 +83,14 @@ test('vendor search restores browsing position, disclosure state and keyboard fo
 
 test('bundled catalog renders provider artwork and long model identities', async ({ page }) => {
   await page.goto('/model-catalog.html?bundled&theme=planche')
+  const google = page.getByRole('button', { name: /^google \d+$/i }).locator('img')
+  await expect(google).toBeVisible()
+  await expect(page.getByRole('button', { name: /^~google \d+$/i }).locator('img')).toHaveAttribute('src', (await google.getAttribute('src'))!)
+  const headers = page.locator('button[class*="vendorHeader"]')
+  await expect.poll(() => headers.evaluateAll(buttons => buttons.filter(button => {
+    const image = button.querySelector('img')
+    return !image?.naturalWidth
+  }).map(button => button.textContent))).toEqual([])
   const search = page.getByRole('searchbox')
   await search.fill('deepseek')
   const vendor = page.getByRole('button', { name: /^deepseek \d+$/i })
