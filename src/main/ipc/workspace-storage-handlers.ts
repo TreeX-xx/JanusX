@@ -1,8 +1,9 @@
+import { directoryEntries } from '../platform/directory-entries'
 import { isExternalWorkspaceRuntime, storedWorkspaceRuntime } from '../../shared/workspace-runtime'
 import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { app, ipcMain, type BrowserWindow } from 'electron'
-import { opendir, readFile, writeFile, rename, unlink } from 'node:fs/promises'
+import { readFile, writeFile, rename, unlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
@@ -18,7 +19,7 @@ export async function workspaceStorageRecords(): Promise<Workspace[]> {
   return workspaceIo.run(directory, async batch => {
     const result: Workspace[] = []
     try {
-      for await (const item of await opendir(directory)) {
+      for await (const item of await directoryEntries(directory)) {
         if (item.isFile() && item.name.endsWith('.json')) {
           const workspace = JSON.parse(await readFile(join(directory, item.name), 'utf8')) as Workspace
           if (typeof workspace.id === 'string' && typeof workspace.path === 'string' && `${workspace.id}.json` === item.name) result.push(workspace)

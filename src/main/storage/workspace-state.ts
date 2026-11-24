@@ -1,7 +1,8 @@
+import { directoryEntries } from '../platform/directory-entries'
 import { runtimePathKey } from '../../shared/runtime/path-identity'
 // Note: .agents/notes/desktop/workspace-state-storage.md
 import { randomUUID, createHash } from 'node:crypto'
-import { lstat, realpath, opendir, mkdir, open, readFile, rename, unlink, rmdir } from 'node:fs/promises'
+import { lstat, realpath, mkdir, open, readFile, rename, unlink, rmdir } from 'node:fs/promises'
 import { dirname, join, relative, resolve, isAbsolute, sep, basename } from 'node:path'
 import { workspaceIo, workspaceStorageInUse, suspendWorkspaceStorage, assertWorkspaceStorageAvailable, type WorkspaceStorage } from '@janus-agent/agent-core'
 import type { WorkspaceMigrationItem, WorkspaceDataItem, WorkspaceDataRecord, WorkspaceCleanupCategory } from '../../shared/ipc/workspace-storage'
@@ -340,7 +341,7 @@ export class WorkspaceStateStore {
   private async *privateFiles(root: string, directory = root): AsyncGenerator<string> {
     if (!await exists(directory)) return
     await plain(directory)
-    for await (const item of await opendir(directory)) {
+    for await (const item of await directoryEntries(directory)) {
       const path = join(directory, item.name)
       await plain(path)
       if (item.isDirectory()) {
@@ -368,7 +369,7 @@ export class WorkspaceStateStore {
   private async removeTree(path: string): Promise<void> {
     if (!await exists(path)) return
     await plain(path)
-    for await (const item of await opendir(path)) {
+    for await (const item of await directoryEntries(path)) {
       const child = join(path, item.name)
       await plain(child)
       if (item.isDirectory()) await this.removeTree(child)
@@ -401,7 +402,7 @@ export class WorkspaceStateStore {
           if (await exists(root)) await this.saveManifest(entry, { ...manifest, purging: true, cleanupError: undefined })
           // Keep the manifest until last, so interrupted deletion remains discoverable.
           if (await exists(root)) {
-            for await (const item of await opendir(root)) if (item.name !== 'manifest.json') {
+            for await (const item of await directoryEntries(root)) if (item.name !== 'manifest.json') {
               const path = join(root, item.name)
               if (item.isDirectory()) await this.removeTree(path); else { await plain(path); await unlink(path) }
               await workspaceIo.step()
@@ -479,7 +480,7 @@ export class WorkspaceStateStore {
             const logs = join(this.root, entry.id, 'logs')
             if (!await exists(logs)) { this.maintenanceAt.set(entry.id, entryNext); continue }
             await plain(logs)
-            for await (const item of await opendir(logs)) {
+            for await (const item of await directoryEntries(logs)) {
               await workspaceIo.step()
               if (!item.isFile() || !item.name.endsWith('.log')) continue
               const path = join(logs, item.name)
@@ -530,7 +531,7 @@ export class WorkspaceStateStore {
 
   private async *inventory(root: string): AsyncGenerator<string> {
     await plain(root)
-    for await (const item of await opendir(root)) {
+    for await (const item of await directoryEntries(root)) {
       await workspaceIo.step()
       if (item.isSymbolicLink()) throw new Error('Linked migration source is unavailable: ' + join(root, item.name))
       if (item.isFile()) yield item.name

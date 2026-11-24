@@ -1,3 +1,4 @@
+import { directoryEntries } from '../platform/directory-entries'
 // Note: .agents/notes/workbench/plugin-contract-v1.md — bounded, non-following reads and snapshots.
 import { constants } from 'node:fs'
 import * as nodeFiles from 'node:fs/promises'
@@ -36,7 +37,7 @@ export async function listPluginDirectory(root: string, path: string, limit: num
   }
   const entries: Array<{ name: string; type: 'file' | 'directory' }> = []
   let inspected = 0; let bytes = 0; let truncated = false
-  const directory = await opendir(target)
+  const directory = await directoryEntries(target, { readdir, opendir })
   for await (const entry of directory) {
     valid()
     if (++inspected > 2000) { truncated = true; break }

@@ -3,6 +3,10 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
+import { prepareEngineDirectoryReads } from './engine-directory-reads.mjs'
+
+prepareEngineDirectoryReads(fileURLToPath(new URL('../', import.meta.url)))
+
 const modules = new URL('../node_modules/', import.meta.url)
 const electronInstaller = new URL('electron/install.js', modules)
 if (existsSync(electronInstaller)) {

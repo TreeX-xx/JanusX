@@ -7,7 +7,7 @@
   "created": "2026-09-20",
   "class": "testing",
   "tags": ["ci","windows","electron","build-isolation"],
-  "updated": "2026-11-19T16:43:51Z",
+  "updated": "2026-11-24T07:35:16Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/3a4dc304-70dd-49e4-b46a-ee2fc0fbc83e"
 }
 ---
@@ -47,6 +47,10 @@ The v0.9.6 candidate pins agentX `4df4c4457269e46a52b7ed430db379e194fac175` in b
 The first remote v0.9.6 verification passes 4,101 tests and exposes two fixture assumptions: Office preview rendering must own its translation hook instead of inheriting another test's shared i18n state, and compact storage rows need a 72-pixel height budget for runner CJK font metrics (observed 66 versus the original 65). The layout test separately retains single-line statuses, hidden collapsed paths and horizontal containment checks. These follow-up changes affect tests and documentation only; the published v0.9.6 tag and Windows assets remain immutable.
 
 The subsequent remote run passes 4,102 tests but times out waiting for the native page-release fixture's first host request. That wait now uses the same 15-second startup budget as other native reviews and includes the current job state in failure output; cancellation and the other page's filesystem-watch assertions remain intact. The complete native fixture passes all 19 cases locally in CI mode with Node 24.20.0. A complete remote run is still required before merging.
+
+Windows 上，JanusX 0.9.10 的工作区存储、快照、插件和引擎目录枚举使用异步 `readdir({ withFileTypes: true })`。11 月 23、24 日的两份转储均显示 Electron 45.3.3 从 `AfterOpenDir` 进入 `DirHandle::New` 后通过空指针写入地址 0x8。Windows 调用方改走另一条系统调用路径，保留目录项类型和文件系统错误码，每次读取会在内存中保留一个目录的全部条目。其他平台继续流式枚举。
+
+安装依赖与打包准备都会核验并调整固定版本引擎中的 WorkflowX 探测和检查点遍历。更新引擎时应复核这两处调用与文件摘要。上游修复经 Windows 运行时验证后可恢复流式读取。
 
 Electron 45 的 npm 包在首次调用时安装运行时。JanusX 的 postinstall 在依赖安装阶段显式准备 Electron，macOS 同时为 node-pty 的预编译启动助手恢复执行权限。依赖安装若使用 `--ignore-scripts`，通过 `npm run postinstall` 恢复同一准备步骤。无法联网时使用已核对版本、平台和架构的 Electron 运行目录。2026-10-29 当前 checkout 恢复匹配的 Windows x64 Electron 35.7.5 后，普通 `npm run dev` 与 `npm run dev:cpa` 均实际打开响应正常的 JanusX 主窗口；运行日志位于 `.cache/dev-startup-fix.log` 和 `.cache/cpa-startup-fix.log`，开发环境检查四项单测通过。CPA 入口复用相同前置检查，签名包 prepare-only 保持无需启动 Electron。
 

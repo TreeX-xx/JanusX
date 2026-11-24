@@ -1,6 +1,7 @@
+import { directoryEntries } from '../platform/directory-entries'
 import { runChecked } from '../platform/process-host'
 import { createHash } from 'node:crypto'
-import { lstat, open, opendir } from 'node:fs/promises'
+import { lstat, open } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { diffLines } from 'diff'
 import type { TurnChangedFile } from '../../shared/ipc/terminal'
@@ -42,7 +43,7 @@ async function readLaunchFile(path: string, signal?: AbortSignal): Promise<Buffe
 
 async function walk(cwd: string, dir = cwd): Promise<string[]> {
   const paths: string[] = []
-  for await (const entry of await opendir(dir)) {
+  for await (const entry of await directoryEntries(dir)) {
     await workspaceIo.step()
     if (SKIP.has(entry.name)) continue
     const path = join(dir, entry.name)

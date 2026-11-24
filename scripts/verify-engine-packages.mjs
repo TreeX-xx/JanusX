@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, relative, isAbsolute, sep, join } from 'node:path'
+import { installedEngineDigest } from './engine-directory-reads.mjs'
 const hash=path=>createHash('sha256').update(readFileSync(path)).digest('hex')
 function inside(root,path){const full=resolve(root,path),rel=relative(root,full);if(isAbsolute(rel)||rel==='..'||rel.startsWith('..'+sep))throw Error('Invalid engine artifact path');return full}
 export function verifyEnginePackages(root, dependencies, installed=true){
@@ -16,7 +17,7 @@ export function verifyEnginePackages(root, dependencies, installed=true){
     if(installed){const base=inside(join(root,'node_modules'),name)
       for(const [file,digest] of Object.entries(record.files)){
         const target=inside(base,file)
-        if(!existsSync(target)||hash(target)!==digest)throw Error(`Installed engine differs from pinned artifact: ${name}/${file}. Run npm ci.`)
+        if(!existsSync(target)||hash(target)!==installedEngineDigest(name + '/' + file, digest))throw Error(`Installed engine differs from pinned artifact: ${name}/${file}. Run npm ci.`)
       }
     }
   }

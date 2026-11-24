@@ -7,6 +7,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { verifyEnginePackages } from './verify-engine-packages.mjs'
 
+import { prepareEngineDirectoryReads } from './engine-directory-reads.mjs'
+
 export function runNpm(args, root, options = {}) {
   const cli = process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
   if (!existsSync(cli)) throw new Error('Run this command through npm run prepackage so npm_execpath is available.')
@@ -46,6 +48,7 @@ export function preparePackage(root = process.cwd(), { npm = runNpm, installArgs
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   const engineReferences = Object.entries(manifest.dependencies ?? {}).filter(([name]) => name.startsWith('@janus-agent/'))
   if (engineReferences.length && engineReferences.every(([, reference]) => reference.endsWith('.tgz'))) {
+    prepareEngineDirectoryReads(root)
     return verifyEnginePackages(root, manifest.dependencies)
   }
   const siblings = Object.entries(manifest.dependencies ?? {}).filter(([name]) => name.startsWith('@janus-agent/')).map(([name, reference]) => {
