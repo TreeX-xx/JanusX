@@ -1,4 +1,21 @@
 {
+  "quota": {
+    "title": "Codex subscription quota",
+    "remaining": "Quota left",
+    "days": "{{n}}d",
+    "hours": "{{n}}h",
+    "minutes": "{{n}}m",
+    "window": "Window",
+    "left": "{{n}}% left",
+    "refresh": "Refresh quota",
+    "resets": "Resets {{time}}",
+    "inMinutes": "in {{n}} min",
+    "updated": "Updated {{time}}",
+    "unavailable": "Quota temporarily unavailable",
+    "loading": "Reading quota…",
+    "blocked": "Codex reports that the included subscription allowance is limited.",
+    "nextReset": "The next exhausted window resets {{time}}."
+  },
   "sideChat": {
     "title": "Side chat",
     "waitingReply": "Waiting for reply…",

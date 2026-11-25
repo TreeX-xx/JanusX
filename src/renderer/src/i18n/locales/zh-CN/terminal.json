@@ -1,4 +1,21 @@
 {
+  "quota": {
+    "title": "Codex 订阅额度",
+    "remaining": "额度剩余",
+    "days": "{{n}} 天",
+    "hours": "{{n}} 小时",
+    "minutes": "{{n}} 分钟",
+    "window": "额度窗口",
+    "left": "剩余 {{n}}%",
+    "refresh": "刷新额度",
+    "resets": "{{time}} 重置",
+    "inMinutes": "还有 {{n}} 分钟",
+    "updated": "上次更新于 {{time}}",
+    "unavailable": "额度暂不可用",
+    "loading": "正在读取额度…",
+    "blocked": "Codex 已确认当前账号的订阅额度受限。",
+    "nextReset": "下一个已用尽的额度窗口将于 {{time}} 重置。"
+  },
   "sideChat": {
     "title": "侧聊",
     "waitingReply": "等待回复…",

@@ -1,3 +1,4 @@
+import type { CodexQuotaEvent, QuotaReadReason } from '../../../src/shared/codex-quota'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { Terminal as Xterm } from '@xterm/xterm'
@@ -22,6 +23,23 @@ Object.assign(window.electron.system, { getLanguage: async () => 'en', setLangua
 document.documentElement.dataset.theme = DEFAULT_APP_THEME
 const params = new URLSearchParams(location.search)
 useThemeStore.getState().applyExternal(params.get('theme') === 'planche' ? 'planche' : params.get('theme') === 'white' ? 'white' : 'dark')
+if (params.has('quota')) {
+  let official = !params.has('nonofficial')
+  const reads: string[] = []
+  const listeners = new Set<(event: CodexQuotaEvent) => void>()
+  const time = Date.now()
+  function publish() {
+    const quota = official ? { updatedAt: time, unavailable: false, blocked: false,
+      primary: { minutes: 300, used: 28, updatedAt: time, resetsAt: time + 86_400_000 },
+      secondary: { minutes: 10080, used: 62, updatedAt: time, resetsAt: time + 604_800_000 } } : null
+    listeners.forEach(listener => listener({ id: 'a', quota }))
+  }
+  Object.assign(window.electron.terminal, {
+    readCodexQuota: async (id: string, reason: QuotaReadReason) => { if (id === 'a') { reads.push(reason); publish() } },
+    onCodexQuota: (listener: (event: CodexQuotaEvent) => void) => { listeners.add(listener); return () => listeners.delete(listener) },
+  })
+  Object.assign(window, { quotaFixture: { reads, signIn: (eligible: boolean) => { official = eligible; publish() } } })
+}
 const bounds: Record<string, BrowserBounds> = {}
 let kills = 0
 let creates = 0

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { terminalManager } from '../terminal/manager'
 import { readNativeInputHistory } from '../terminal/input-history'
 import { DesktopCodexConversation } from '../terminal/codex-conversation'
+import type { QuotaReadReason } from '../../shared/codex-quota'
 import { openCodexSideChat } from '../terminal/codex-side-chat'
 import { NativeSideChats, validateSideChatCommand } from '../terminal/native-side-chat'
 import { ClaudeConversation } from '../terminal/claude-conversation'
@@ -843,6 +844,7 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
         let readyRecorded = false
         const managed = new adapter(id,
           snapshot => {
+            if (managed instanceof DesktopCodexConversation) managed.syncQuotaThread()
             if (!readyRecorded && snapshot.connection === 'ready') {
               readyRecorded = true
               logTerminalDiagnostic('terminal conversation ready', { id, engine, totalMs: Math.round(performance.now() - launchStartedAt) })
@@ -857,6 +859,11 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
             if (engine === 'codex') terminalContextCoordinator.bindNativeSession(id, threadId)
           })
         conversation = managed
+        if (managed instanceof DesktopCodexConversation) {
+          managed.onQuota = event => {
+            if (conversations.get(id) === managed) sendToRenderer(getMainWindow(), TERMINAL_EVENT_CHANNELS.codexQuota, event)
+          }
+        }
         conversations.set(id, conversation)
         if (config.initialView === 'conversation') await managed.command({ type: 'mode', mode: 'conversation' })
         const managedLaunch = { command: runtimeProgram, args: runtimeArgs, cwd,
@@ -1328,6 +1335,12 @@ export function registerTerminalHandlers(getMainWindow: () => BrowserWindow | nu
     createTerminalLifecycle(config)
   ))
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.conversation, (_event, { id }: { id: string }) => conversations.get(id)?.snapshot() ?? null)
+  ipcMain.handle(TERMINAL_INVOKE_CHANNELS.readCodexQuota, async (event, { id, reason }: { id: string; reason: QuotaReadReason }) => {
+    if (event.sender !== getMainWindow()?.webContents || event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid quota frame')
+    if (!['visible', 'details', 'manual', 'reset'].includes(reason)) throw new Error('Invalid quota read')
+    const conversation = conversations.get(id)
+    if (conversation instanceof DesktopCodexConversation) await conversation.readQuota(reason)
+  })
   ipcMain.handle(TERMINAL_INVOKE_CHANNELS.sideChat, (event, value: unknown) => {
     const window = getMainWindow()
     if (event.sender !== window?.webContents || event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid side chat frame')

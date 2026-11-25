@@ -15,6 +15,7 @@ import { EffortActivation, EffortGlyph, effortToneClass } from './ReasoningEffor
 import { SpeedGlyph, SpeedTrace, speedLevel, type SpeedLevel } from './ResponseSpeed'
 import { ComposerOptions, ComposerOptionTrigger, composerOptionIndex, type ComposerChoice as Choice } from './ComposerOptions'
 import optionStyles from './ComposerOptions.module.css'
+import { CodexQuotaNotice } from './CodexQuotaIndicator'
 
 // Interaction contract: .agents/notes/workbench/terminal-dialog-dual-mode.md
 type Panel = 'commands' | 'model' | 'effort' | 'speed'
@@ -367,6 +368,7 @@ export function AgentComposer({ terminalId, historyScope, workspacePath, referen
       {selectionFailed && currentPanel !== 'commands' && <p className={styles.pickerMessage} role="status">{t('conversation.settingsFailed')}</p>}
     </ComposerOptions>}
     {acceptedCommand && !draft && !snapshot?.turnId && <p className={styles.pickerMessage} role="status">{t('conversation.catalog.accepted', { command: acceptedCommand })}</p>}
+    {snapshot?.engine === 'codex' && <CodexQuotaNotice id={terminalId} />}
     <ConversationContext inputRef={inputRef} terminalId={terminalId} workspacePath={workspacePath} references={references} draft={draft} setDraft={setDraft} disabled={busy || switching} onImporting={setImporting} open={contextOpen} onOpenChange={changeContextOpen} pickerActive={Boolean(currentPanel)}>
     {addControl => <>
     <ConversationInput ref={inputRef} references={references} value={draft} disabled={switching} workspacePath={workspacePath} onChange={text => { setDraft(text); setContextOpen(false); setPanel(null); setDismissed(null) }}

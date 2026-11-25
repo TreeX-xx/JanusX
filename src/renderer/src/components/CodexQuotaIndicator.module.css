@@ -1,0 +1,13 @@
+.root { flex: 0 1 auto; min-width: 0; }
+.trigger, .panel button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 5px; border: 0; border-radius: 4px; color: var(--shell-muted); background: transparent; cursor: pointer; }
+.trigger { anchor-name: --codex-quota; max-width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; }
+.trigger:hover, .panel button:hover { background: var(--shell-hover); color: var(--shell-text); }
+.trigger:focus-visible, .panel button:focus-visible { outline: 1px solid var(--shell-muted); }
+.panel { position: absolute; bottom: 100%; left: clamp(8px, anchor(--codex-quota left, 8px), calc(100% - 288px)); z-index: 2; width: min(280px, calc(100% - 16px)); padding: 12px; border: 1px solid var(--shell-border); border-radius: 8px; background: var(--shell-chrome-raised); color: var(--shell-text); white-space: normal; cursor: default; }
+.panel header, .row { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.row { flex-wrap: wrap; border-top: 1px solid var(--shell-border-soft); margin: 8px 0; padding-top: 8px; }
+.row small { width: 100%; }
+.panel small { color: var(--shell-muted); font-size: 10px; }
+.notice { color: var(--status-warning); font-size: 12px; }
+.narrow { display: none; }
+@container terminal-project (max-width: 760px) { .wide { display: none; } .narrow { display: inline; } }

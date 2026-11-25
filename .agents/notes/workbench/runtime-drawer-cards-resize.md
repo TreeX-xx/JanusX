@@ -27,7 +27,7 @@
       }
     }
   },
-  "updated": "2026-11-25T11:51:48Z",
+  "updated": "2026-11-25T13:03:34Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -55,6 +55,16 @@ The first surface update passed all three `tests/e2e/terminal-usage.spec.ts` cas
 2026-11-13 验证：`npx playwright test tests/e2e/terminal-usage.spec.ts tests/e2e/workspace-surface.spec.ts tests/e2e/runtime-drawer-overlay.spec.ts --project=island --workers=1 --timeout=60000 --output artifacts/runtime-drawer-production-20261113/final-browser` 共23项通过（用量3、覆盖式交互7、工作区13）。覆盖圆环独立点击/悬浮/键盘焦点、Esc优先级、关闭归焦与inert、真实xterm几何和历史阅读位置、连续开合、更多统计状态保留、指针/键盘调高、三种主题及360–1440px布局。已目视检查白色桌面、纸色390px和深色360px最终截图。严格类型、定向ESLint、翻译一致性及最终build:check通过；Notes校验0错误、17条既有外部链接诊断。日志和截图位于 `artifacts/runtime-drawer-production-20261113/`。首轮卡片切换断言按移焦自动关闭的交互更新；一次首次页面加载超时以60秒测试时限复跑通过；截图检查发现的减少动态选择器优先级问题及夹具未实际选择纸色主题均已修复并复验。未运行完整测试套件、live Electron、真实模型/CLI用量对账或打包替换安装版。
 
 2026-11-13 紧凑化复验：`npx playwright test tests/e2e/runtime-drawer-overlay.spec.ts tests/e2e/workspace-surface.spec.ts --project=island --workers=1 --timeout=60000 -g "usage|context details|opening, details" --output artifacts/runtime-drawer-compact-20261113/browser` 的11项相关用例通过。定向浏览器检查确认1280×800下多会话360px、单会话352.5px、无会话120px；调高从实际高度开始，卡片边框一致，仅当前卡片有19px短标记，面板box-shadow为none。已目视检查深浅主题及单会话截图。严格类型、定向ESLint和diff空白检查通过；证据位于 `artifacts/runtime-drawer-compact-20261113/`。本轮未重跑生产构建、完整测试或安装版Electron。
+
+## Codex subscription quota
+
+The active local Codex terminal shows the remaining subscription windows beside its context ring. A narrow footer keeps the window with the lowest remaining percentage. Its button opens both windows, reset times, the last update and manual refresh. The composer shows a restriction only on explicit backend evidence, accounts for available credits and includes the next known exhausted-window reset.
+
+The main process uses the terminal’s own App Server to verify the thread provider, effective endpoints, ChatGPT account and native sign-in mode before reading quota. API keys, gateways, externally supplied tokens and unverifiable sessions have no quota control. The renderer receives window values, timestamps and status flags. Read access requests no token. Only a verified user and workspace pair can share quota across terminals. Changing the account or provider invalidates the terminal binding and rejects late responses.
+
+The first visible eligible terminal reads immediately. Native updates merge the windows they contain. Returning to the foreground, selecting a terminal or opening details checks for a window at least 60 seconds old. Open, foreground details check every five minutes. A known reset triggers one visible read at its deadline. Collapsed and background views have no periodic polling. Requests in flight are shared, manual reads have a ten-second minimum interval, and errors retain the last snapshot and respect the server’s retry delay.
+
+The clock and routing cases live in `tests/unit/codex-quota.test.ts`. Browser coverage in `tests/e2e/terminal-usage.spec.ts` exercises the footer in wide and narrow layouts, sign-out, the details timer and resets.
 
 ## Alternatives considered
 

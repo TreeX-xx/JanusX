@@ -31,10 +31,10 @@
     },
     {
       "name": "@janus-agent/janus-agent",
-      "version": "0.1.0-engine.65ce5fd47cc4c88f",
-      "file": "janus-agent-janus-agent-0.1.0-engine.65ce5fd47cc4c88f.tgz",
-      "sha256": "c265d8850dfd3006c101415405305f658cc1b6bc3cb77f9fef7972e191b2bfe5",
-      "integrity": "sha512-t37bduH+Psk5HhKMgAEgUNdBp9OmO0gBobCebBSCPWSvlN3K04vaigWkyeX9Is/UEyV0co3mJuf/bhwRxGXU3Q=="
+      "version": "0.1.0-engine.7ce1ba046068e981",
+      "file": "janus-agent-janus-agent-0.1.0-engine.7ce1ba046068e981.tgz",
+      "sha256": "ffb14410adfff49a806f84778ca16954bb7a50c685b220960d54e06fc383f3b8",
+      "integrity": "sha512-ltTKt4SdZMXEyN5Kc2m+XVxPsCmFdn8JsVpBBrVogwFXVOgusk6Imt1iN42h53eooykXMEw6RoMnJTMoV7B+tg=="
     },
     {
       "name": "@janus-agent/node-hosts",

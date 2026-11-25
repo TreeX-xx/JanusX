@@ -128,6 +128,20 @@ describe('overlapping launch preparation', () => {
 })
 
 describe('Terminal IPC contract', () => {
+  it('routes quota reads and scoped updates through the preload bridge', async () => {
+    await terminalApi.readCodexQuota!('terminal-1', 'manual')
+    expect(mocks.invoke).toHaveBeenCalledWith(TERMINAL_INVOKE_CHANNELS.readCodexQuota, { id: 'terminal-1', reason: 'manual' })
+    const callback = vi.fn()
+    const unsubscribe = terminalApi.onCodexQuota!(callback)
+    const [channel, handler] = mocks.onRenderer.mock.calls.at(-1)!
+    expect(channel).toBe(TERMINAL_EVENT_CHANNELS.codexQuota)
+    const payload = { id: 'terminal-1', quota: null }
+    handler({}, payload)
+    expect(callback).toHaveBeenCalledWith(payload)
+    unsubscribe()
+    expect(mocks.removeListener).toHaveBeenCalledWith(channel, handler)
+  })
+
   it('blocks local terminal creation while explicit legacy Hook cleanup owns the gate', async () => {
     const { retireLegacyHooks } = await import('../../src/main/notifications/retire-legacy-hooks')
     const create = mocks.handle.mock.calls.find(([channel]) => channel === TERMINAL_INVOKE_CHANNELS.create)![1]

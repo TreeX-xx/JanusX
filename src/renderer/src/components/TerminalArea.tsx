@@ -17,6 +17,7 @@ import { useBrowserStore } from '@/stores/browser'
 import { BrowserSurface } from './browser/BrowserSurface'
 import { destroyBrowserSurface, popOutBrowserSurface } from '@/services/browser'
 import { TerminalContextIndicator, TerminalUsageCard } from './TerminalUsageDetails'
+import { CodexQuotaIndicator } from './CodexQuotaIndicator'
 import { MarkdownPane } from './MarkdownPane'
 import { ExtensionViewHost } from '@/extensions/ExtensionViewHost'
 import { useExtensionCommands, useExtensionViews } from '@/extensions/react'
@@ -1258,7 +1259,7 @@ function LeafPane({
   )
 }
 
-export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?: boolean }) {
+export function TerminalArea({ auxiliaryControls = false, visible = true }: { auxiliaryControls?: boolean; visible?: boolean }) {
   const terminalLauncher = useSuperAgentUIStore(state => state.terminalLauncher)
   const { t } = useI18n('terminal')
   // Geometry and collapse are owned by GlobalToolsLayout. Subscribing to them
@@ -1826,6 +1827,8 @@ export function TerminalArea({ auxiliaryControls = false }: { auxiliaryControls?
                 <span className={styles.drawerModel} title={modelLabel(activeTerminal, t)}>{modelLabel(activeTerminal, t)}</span>
               </span>
               <TerminalContextIndicator terminal={activeTerminal} />
+              {visible && projectVisible && activeTerminal.preset === 'codex' && activeTerminal.exitCode === undefined &&
+                <CodexQuotaIndicator key={activeTerminal.id} id={activeTerminal.id} />}
             </> : <span className="truncate text-[var(--shell-dim)]">{t('terminal:tab.noTelemetryData')}</span>}
           </div>
           <span className={styles.drawerCount}>{terminals.length} {t('terminal:sessions.countSuffix')}</span>

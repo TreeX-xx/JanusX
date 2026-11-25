@@ -1,0 +1,45 @@
+--- a/dist/superagent/native/codex-conversation.d.ts
++++ b/dist/superagent/native/codex-conversation.d.ts
+@@ -80,7 +80,8 @@
+     }>;
+     private connect;
+     private send;
+-    private call;
++    protected call(method: string, params: Json): Promise<Json>;
++    protected readonly modelProvider?: string;
+     private fail;
+     private attach;
+     private updateSettings;
+@@ -92,7 +93,7 @@
+     private receiveManaged;
+     private clearNativeRequest;
+     private clearNativeTurn;
+-    private receive;
++    protected receive(message: CodexRpc, requestThreadId?: string): void;
+     private turnError;
+     private askAsyncQuestions;
+     private registerAsyncQuestions;
+--- a/dist/superagent/native/codex-conversation.js
++++ b/dist/superagent/native/codex-conversation.js
+@@ -18,10 +18,11 @@
+ class CodexRequestError extends Error {
+     method;
+     code;
+-    constructor(method, code, message) {
++    constructor(method, code, message, data) {
+         super(message);
+         this.method = method;
+         this.code = code;
++        this.data = data;
+     }
+ }
+ // Session speed state and icon contract: .agents/notes/agent/superagent/module.md
+@@ -303,7 +304,7 @@
+                     clearTimeout(pending.timer);
+                     this.pending.delete(message.id);
+                     if (message.error)
+-                        pending.reject(new CodexRequestError(pending.method, message.error.code, message.error.message ?? 'Codex request failed'));
++                        pending.reject(new CodexRequestError(pending.method, message.error.code, message.error.message ?? 'Codex request failed', message.error.data));
+                     else
+                         pending.resolve(message.result ?? {});
+                 }

@@ -276,7 +276,7 @@ export default function App() {
                 aria-hidden={!showWorkspacePane}
               >
                 <WorkbenchErrorBoundary>
-                  <TerminalArea auxiliaryControls />
+                  <TerminalArea auxiliaryControls visible={showWorkspacePane} />
                 </WorkbenchErrorBoundary>
               </div>
             )}

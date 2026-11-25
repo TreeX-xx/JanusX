@@ -4,11 +4,60 @@ import { CodexConversation as NativeCodexConversation } from '@janus-agent/janus
 import type { CodexUpdatePrompt, CodexUpdateCommand, ConversationCommand, ConversationPlan, ConversationSnapshot } from '../../shared/conversation-display'
 import type { ConversationHistoryRequest, ConversationHistoryResult } from '../../shared/conversation-history'
 import { readCodexTurnPlans } from './codex-turn-plans'
+import { CodexQuotaSession, officialLaunch } from './codex-quota'
+import type { CodexRpc } from './codex-managed-transport'
+import type { CodexQuotaEvent, QuotaReadReason } from '../../shared/codex-quota'
 
 export * from '@janus-agent/janus-agent/superagent/native/codex-conversation'
 
 /** Give the native adapter's live projection and its paged history the same final plans. */
 export class DesktopCodexConversation extends NativeCodexConversation {
+  onQuota?: (event: CodexQuotaEvent) => void
+  private quotaCwd?: string
+  private quotaThread?: string
+  private settingsProvider?: string
+  private readonly allowance = new CodexQuotaSession(this.id, (method, params) => this.call(method, params),
+    (quota, recheck) => this.onQuota?.({ id: this.id, quota, recheck }))
+
+  override start(options: Parameters<NativeCodexConversation['start']>[0]) {
+    this.quotaCwd = officialLaunch(options.env) ? options.cwd : undefined
+    return super.start(options)
+  }
+
+  syncQuotaThread(): void {
+    const thread = this.state.connection === 'ready' && (this.settingsProvider ?? this.modelProvider) === 'openai' && this.quotaCwd
+      ? this.state.threadId ?? undefined : undefined
+    if (thread !== this.quotaThread) {
+      this.quotaThread = thread
+      this.allowance.invalidate(!!thread)
+    }
+  }
+
+  async readQuota(reason: QuotaReadReason): Promise<void> {
+    if (this.quotaThread && this.quotaCwd) await this.allowance.read(this.quotaCwd, reason)
+    else this.onQuota?.({ id: this.id, quota: null })
+  }
+
+  protected override receive(message: CodexRpc, requestThreadId?: string): void {
+    if (message.method === 'thread/settings/updated' && message.params?.threadId === this.state.threadId &&
+        typeof message.params?.threadSettings?.modelProvider === 'string') {
+      this.settingsProvider = message.params.threadSettings.modelProvider
+      this.syncQuotaThread()
+    } else if (message.method === 'account/updated' || message.method === 'account/gatewayOAuth/changed') {
+      this.allowance.invalidate(!!this.quotaThread)
+    } else if (message.method === 'account/rateLimits/updated') {
+      this.allowance.push(message.params?.rateLimits)
+    }
+    super.receive(message, requestThreadId)
+  }
+
+  override dispose(): Promise<void> {
+    this.quotaCwd = this.quotaThread = undefined
+    this.allowance.invalidate()
+    this.onQuota = undefined
+    return super.dispose()
+  }
+
   private readonly projectPlans: (snapshot: ConversationSnapshot) => ConversationSnapshot
   private readonly plansFor: (threadId: string, turnIds: Iterable<string>) => ConversationPlan[]
   private restoring: Promise<void> = Promise.resolve()
@@ -44,6 +93,7 @@ export class DesktopCodexConversation extends NativeCodexConversation {
       return { ...snapshot, plans: plansFor(snapshot.threadId, visible) }
     }
     super(id, snapshot => publishSnapshot(project(snapshot)), (threadId, transcriptPath) => {
+      this.settingsProvider = undefined
       bind?.(threadId, transcriptPath)
       if (scope !== threadId) {
         scope = threadId; source = undefined; restored.clear(); observed.clear(); observedRevision = -1

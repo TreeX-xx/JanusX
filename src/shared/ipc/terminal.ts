@@ -2,6 +2,7 @@ import type { RuntimeTelemetrySnapshot } from './system'
 import type { DesktopConversationCommand, ConversationSnapshot } from '../conversation-display'
 import type { ConversationHistoryRequest, ConversationHistoryResult } from '../conversation-history'
 import type { NativeSideChatCommand, NativeSideChatResult, NativeSideChatUpdate } from '../conversation-side-chat'
+import type { CodexQuotaEvent, QuotaReadReason } from '../codex-quota'
 
 export const TERMINAL_INVOKE_CHANNELS = {
   warmup: 'terminal:warmup',
@@ -11,6 +12,7 @@ export const TERMINAL_INVOKE_CHANNELS = {
   conversation: 'terminal:conversation-snapshot',
   conversationHistory: 'terminal:conversation-history',
   conversationCommand: 'terminal:conversation-command',
+  readCodexQuota: 'terminal:read-codex-quota',
   sideChat: 'terminal:side-chat',
   inputHistory: 'terminal:input-history',
   saveConversationImage: 'terminal:save-conversation-image',
@@ -31,6 +33,7 @@ export const TERMINAL_EVENT_CHANNELS = {
   telemetry: 'terminal:telemetry',
   turnChanges: 'terminal:turn-changes',
   conversation: 'terminal:conversation',
+  codexQuota: 'terminal:codex-quota',
   sideChat: 'terminal:side-chat-update',
 } as const
 
@@ -172,6 +175,8 @@ export interface TerminalReplayResult {
 }
 
 export interface TerminalAPI {
+  readCodexQuota?(id: string, reason: QuotaReadReason): Promise<void>
+  onCodexQuota?(callback: (event: CodexQuotaEvent) => void): () => void
   sideChat?(command: NativeSideChatCommand): Promise<NativeSideChatResult | undefined>
   onSideChat?(callback: (update: NativeSideChatUpdate) => void): () => void
   conversationHistory?(id: string, request: ConversationHistoryRequest): Promise<ConversationHistoryResult>
