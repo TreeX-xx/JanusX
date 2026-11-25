@@ -3,8 +3,8 @@
 .indicator:focus-visible { outline: 1px solid var(--shell-muted); outline-offset: -1px; }
 .indicator svg { flex-shrink: 0; }
 .indicator > span { min-width: 4.5ch; font-size: 11px; font-variant-numeric: tabular-nums; text-align: left; }
-.ringTrack { fill: none; stroke: var(--shell-border); stroke-width: 1.5; }
-.ringValue { fill: none; stroke: var(--shell-text); stroke-width: 2; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+.ringTrack { fill: none; stroke: color-mix(in srgb, currentColor 35%, var(--shell-border)); stroke-width: 1.5; }
+.ringValue { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
 .card { position: relative; min-width: 0; border: 1px solid var(--shell-border-soft); border-radius: 11px; background: var(--shell-chrome-raised); overflow: hidden; }
 .card[data-current='true']::before { content: ''; position: absolute; top: 18px; left: 0; width: 2px; height: 19px; border-radius: 1px; background: var(--shell-text); opacity: .8; pointer-events: none; }
 .cardMain { display: block; width: 100%; min-width: 0; padding: 15px; border: 0; background: transparent; color: var(--shell-text); text-align: left; cursor: pointer; border-radius: 10px; }

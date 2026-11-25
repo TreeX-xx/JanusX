@@ -1,7 +1,6 @@
 import type { Terminal, TerminalPreset } from '@/types'
 import { resolveContextWindows } from './runtime-telemetry'
-import { getThemeDefinition } from '../../../shared/theme/registry'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeDefinition } from '@/stores/theme'
 
 /** 终端预设的本地化名称。抽屉卡片、悬浮提示与顶栏共用同一映射。 */
 export function providerLabel(preset: TerminalPreset, t: (key: string) => string): string {
@@ -50,11 +49,9 @@ export function contextRatio(terminal: Terminal): number | undefined {
   return Math.min(1, terminal.contextTokens / windowTokens)
 }
 
-/** 上下文用量颜色：三段刻度插值，用量越多越警告。
- *  锚点来自 theme definition ctxScale（dark：青蓝→橙→红；planche：深绿→赭黄→朱红），
- *  调用方无需传主题，默认读当前主题（M1 统一结构）。 */
-export function contextRatioColor(ratio: number | undefined, theme: unknown = useThemeStore.getState().theme): string {
-  const scale = getThemeDefinition(theme).ctxScale
+/** 按当前主题的上下文用量刻度插值，主题切换时同步更新。 */
+export function useContextRatioColor(ratio: number | undefined): string {
+  const scale = useThemeDefinition().ctxScale
   if (ratio === undefined) return scale.empty
   const r = Math.max(0, Math.min(1, ratio))
   const [c0, c50, c85, c100] = scale.stops.map(hexToRgb)

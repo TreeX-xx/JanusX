@@ -5,7 +5,7 @@ import { useI18n } from '@/i18n/useI18n'
 import type { Terminal } from '@/types'
 import type { ReactNode } from 'react'
 import { resolveContextWindows } from '@/lib/runtime-telemetry'
-import { contextPercentLabel, contextRatio, contextRatioColor, modelLabel, providerLabel } from '@/lib/terminal-labels'
+import { contextPercentLabel, contextRatio, modelLabel, providerLabel, useContextRatioColor } from '@/lib/terminal-labels'
 import { getTerminalStatusVisual } from '@/lib/terminal-sidebar-visual'
 import { cacheSplitFor, formatUsageRate } from '@/lib/usage-stats'
 import { ThemedTooltip } from './ui/ThemedTooltip'
@@ -101,11 +101,11 @@ export function TerminalUsageStats({ terminal, layout }: { terminal: Terminal; l
 function TerminalContextFacts({ terminal, moreOnly = false }: { terminal: Terminal; moreOnly?: boolean }) {
   const { t } = useI18n('terminal')
   const windows = resolveContextWindows(terminal.preset, terminal.detectedModel, terminal.contextWindowTokens)
-  const ratio = contextRatio(terminal)
+  const color = useContextRatioColor(contextRatio(terminal))
   const remaining = windows.effectiveWindow === undefined || terminal.contextTokens === undefined
     ? undefined : Math.max(0, windows.effectiveWindow - terminal.contextTokens)
   const facts: Array<{ key: string; label: string; value: string; accent?: string }> = [
-    { key: 'context', label: t('terminal:context.row.context'), value: `${tokenCount(terminal.contextTokens)} / ${tokenCount(windows.effectiveWindow)}`, accent: contextRatioColor(ratio) },
+    { key: 'context', label: t('terminal:context.row.context'), value: `${tokenCount(terminal.contextTokens)} / ${tokenCount(windows.effectiveWindow)}`, accent: color },
     { key: 'remaining', label: t('terminal:context.row.remaining'), value: tokenCount(remaining) },
     { key: 'runtimeWindow', label: t('terminal:context.row.runtimeWindow'), value: tokenCount(windows.runtimeWindow) },
     { key: 'modelCapacity', label: t('terminal:context.row.modelCapacity'), value: tokenCount(windows.modelCapacity) },
@@ -156,14 +156,15 @@ export function TerminalContextTooltip({ terminal, children, openOnClick = false
   )
 }
 
-/** Small context window indicator; the percentage remains outside the empty ring. */
+/** Footer context ring — see .agents/notes/workbench/runtime-drawer-cards-resize.md */
 export function TerminalContextIndicator({ terminal }: { terminal: Terminal }) {
   const { t } = useI18n('terminal')
   const ratio = contextRatio(terminal)
+  const color = useContextRatioColor(ratio)
   return <TerminalContextTooltip terminal={terminal} openOnClick>
     <button type="button" className={styles.indicator} data-context-indicator=""
       aria-label={`${t('terminal:context.row.context')} · ${contextPercentLabel(terminal)}`}>
-      <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" style={{ color }}>
         <circle className={styles.ringTrack} cx="10" cy="10" r="7" />
         {ratio !== undefined && ratio > 0 && <circle className={styles.ringValue} cx="10" cy="10" r="7" pathLength="100"
           strokeDasharray={`${ratio * 100} 100`} />}

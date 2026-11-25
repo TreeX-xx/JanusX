@@ -119,6 +119,7 @@ Object.assign(window, {
     switchWorkspace: () => useWorkspaceStore.getState().setActiveWorkspace(null),
     removeSource: () => useWorkspaceStore.getState().closePaneTab('left', 'terminal:a'),
     updateUsage: (patch: object) => useWorkspaceStore.getState().updateTerminal('a', patch),
+    changeTheme: useThemeStore.getState().applyExternal,
     changeLanguage,
     navigationInputs: () => [...navigationInputs],
     metrics: () => ({ fits, refreshes, resizes, replays, renderWork: [...renderWork] }),

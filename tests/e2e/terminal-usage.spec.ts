@@ -1,5 +1,33 @@
 import { expect, test } from '@playwright/test'
 
+test('footer context ring follows live usage and the active theme', async ({ page }) => {
+  await page.goto('/pane-tabs.html?usage&theme=dark')
+  const indicator = page.locator('[data-context-indicator]')
+  const arc = indicator.locator('circle[pathLength]')
+  const track = indicator.locator('circle').first()
+  await expect(indicator).toHaveText('2.0%')
+  const samples = [
+    [50_000, 'rgb(172, 143, 152)'],
+    [100_000, 'rgb(255, 120, 48)'],
+    [170_000, 'rgb(255, 88, 88)'],
+    [200_000, 'rgb(224, 43, 43)'],
+  ] as const
+  for (const [tokens, color] of samples) {
+    await page.evaluate(tokens => (window as any).paneFixture.updateUsage({ contextTokens: tokens }), tokens)
+    await expect(arc).toHaveCSS('stroke', color)
+  }
+  await page.evaluate(() => (window as any).paneFixture.changeTheme('planche'))
+  await expect(arc).toHaveCSS('stroke', 'rgb(163, 40, 28)')
+  await page.evaluate(() => (window as any).paneFixture.updateUsage({ contextTokens: 0 }))
+  await expect(indicator).toHaveText('0.0%')
+  await expect(arc).toHaveCount(0)
+  const zeroStroke = await track.evaluate(el => getComputedStyle(el).stroke)
+  await page.evaluate(() => (window as any).paneFixture.updateUsage({ contextTokens: undefined }))
+  await expect(indicator).toHaveText('–')
+  await expect(arc).toHaveCount(0)
+  await expect(track).not.toHaveCSS('stroke', zeroStroke)
+})
+
 test('collapsed context badge shows exact values and distinguishes zero from unknown', async ({ page }) => {
   await page.goto('/pane-tabs.html?usage')
   await page.locator('[data-context-indicator]').hover()

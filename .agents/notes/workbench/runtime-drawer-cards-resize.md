@@ -27,7 +27,7 @@
       }
     }
   },
-  "updated": "2026-11-13T03:40:08Z",
+  "updated": "2026-11-25T11:51:48Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -44,7 +44,7 @@ The bottom drawer in `TerminalArea.tsx` lists terminal runtime telemetry as one 
 
 The 2026-11-13 implementation follows the accepted [conversation prototype](./ideas/conversation-interface-prototype.md) for the existing project-region Usage footer. The toolbar keeps its 28px allocation. Its panel is positioned above the bar and overlays the pane: opening, closing, expanding statistics and resizing do not change pane geometry or scrollback. This replaces the earlier height-consuming drawer. The panel uses the existing theme tokens; it does not move the footer to the global tools region or invent SuperAgent telemetry.
 
-The toolbar shows the active terminal's provider, workspace/model where space permits, an 18px hollow context ring with a persistent external percentage, and a session count. Unknown context stays “–”; a known zero stays 0.0%. The ring opens the existing exact usage details on hover, keyboard focus or click without toggling the panel. Escape dismisses that tooltip before the panel. The Usage button supports Enter/Space; toolbar blank space and the count also toggle it. Close and Escape restore focus to Usage; outside pointer/focus closes without stealing the new focus. Selecting a card activates its terminal; when that terminal takes focus the panel closes.
+The toolbar shows the active terminal's provider, workspace/model where space permits, an 18px hollow context ring with a persistent external percentage, and a session count. The arc and the percentage in its tooltip share the active theme’s context colors, interpolated between 0%, 50%, 85% and 100% usage. A lighter tint on the track keeps the color visible at low usage. At zero the ring shows only the tinted track beside 0.0%. Unknown usage shows a neutral track beside “–”. The ring opens the existing exact usage details on hover, keyboard focus or click without toggling the panel. Escape dismisses that tooltip before the panel. The Usage button supports Enter/Space; toolbar blank space and the count also toggle it. Close and Escape restore focus to Usage; outside pointer/focus closes without stealing the new focus. Selecting a card activates its terminal; when that terminal takes focus the panel closes.
 
 The panel has a fixed heading/close control and an internally scrolling list with overscroll containment. Cards use three columns above 1000px, two above 600px, and one below, with a 1320px grid maximum, 12px gaps, 15px card padding and 11px corners. Current identity follows the HTML prototype: a 2px × 19px neutral marker beside the identity and aria-current. Every card retains the same quiet border; selection does not brighten the full perimeter. Main statistics remain directly visible: context, cumulative cache hit/read/write, total tokens, input/output, confirmed compactions and instance runtime. More statistics exposes remaining context, runtime window and model capacity. Card and tooltip values remain derived from existing terminal fields and cacheSplitFor; unknowns are not synthesized. More-statistics disclosure survives footer collapse, while runtime timers pause when the panel is closed.
 
