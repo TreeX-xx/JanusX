@@ -214,7 +214,7 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
               </SettingsButton>
             </header>
 
-            <SettingsSurface as="main" className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
+            <SettingsSurface as="main" data-jx-settings-scroll="" className={`${styles.body} ${pluginPage ? styles.pluginBody : ''}`}>
               {pluginPage && <PluginSettingsView page={pluginPage} active={contentVisible} onManage={() => setActiveTab('plugins')} />}
               {activeTab === 'general' && <GeneralSettingsPanel />}
               {activeTab === 'appearance' && <GeneralSettingsPanel view="appearance" />}

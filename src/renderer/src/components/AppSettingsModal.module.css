@@ -257,23 +257,6 @@
   padding: 24px var(--so-body-pad-x) var(--so-body-pad-y);
 }
 
-.body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.body::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--surface-tint) 10%, transparent);
-  border-radius: 3px;
-}
-
-.body::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--surface-tint) 16%, transparent);
-}
-
 @media (max-width: 720px) {
   .backdrop {
     padding: 12px;
@@ -661,14 +644,6 @@
 :global([data-theme='planche']) .tabButtonActive,
 :global([data-theme='planche']) .tabButtonActive:hover {
   background: var(--paper-deep, var(--shell-hover));
-}
-
-:global([data-theme='planche']) .body::-webkit-scrollbar-thumb {
-  background: var(--line-soft, color-mix(in srgb, var(--shell-text) 22%, transparent));
-}
-
-:global([data-theme='planche']) .body::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-faint, color-mix(in srgb, var(--shell-text) 38%, transparent));
 }
 
 :global([data-theme='planche']) .lsStateIdle {

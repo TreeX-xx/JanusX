@@ -92,6 +92,9 @@ function render(){document.querySelector('main').innerHTML=localStorage.getItem(
     await page.locator('[data-tab="extension:official.cpa/settings"]').click()
     await expect.poll(() => app!.context().pages().some(item => item.url().endsWith('/settings.html'))).toBe(true)
     const settings = app.context().pages().find(item => item.url().endsWith('/settings.html'))!
+    const scrollBody = settings.locator('[data-jx-settings-scroll]')
+    await expect(scrollBody).toHaveCSS('overflow-y', 'auto')
+    expect(await scrollBody.evaluate(el => getComputedStyle(el, '::-webkit-scrollbar').width)).toBe('6px')
     await expect(settings.getByRole('combobox', { name: 'Connection mode' })).toHaveValue('external')
     await settings.getByRole('textbox', { name: 'Management page address' }).fill(`${origin}/alternate.html`)
     await settings.getByRole('button', { name: 'Save', exact: true }).click()

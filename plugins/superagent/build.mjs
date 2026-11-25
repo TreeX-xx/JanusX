@@ -13,6 +13,6 @@ await build({ absWorkingDir: root, entryPoints: { view: 'src/view.ts', settings:
   format: 'esm', platform: 'browser', target: 'chrome134', jsx: 'automatic', minify: true, define: { 'process.env.NODE_ENV': '"production"' }, mainFields: ['module', 'main'] })
 for (const view of ['settings', 'workers']) {
   const asset = view === 'settings' ? 'settings' : 'view'
-  const content = view === 'settings' ? '<main class="worker-settings-host"></main>' : '<main></main><p role="status"></p>'
+  const content = view === 'settings' ? '<main class="worker-settings-host" data-jx-settings-scroll></main>' : '<main></main><p role="status"></p>'
   await writeFile(resolve(ui, view + '.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SuperAgent</title><link rel="stylesheet" href="./${asset}.css"></head><body data-view="${view}">${content}<script type="module" src="./${asset}.js"></script></body></html>`)
 }

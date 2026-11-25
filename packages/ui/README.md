@@ -21,4 +21,6 @@ Controls inherit the semantic palette, including `--shell-canvas`, `--shell-text
 
 `SettingsCheckbox` keeps native checkbox semantics, supports `role="switch"`, labels, disabled fieldsets and keyboard interaction. `Select` keeps focus on its trigger, supports arrows/Home/End/Enter/Space/Escape, skips disabled options, and positions its portal inside the viewport. Callers supply translated labels and `emptyLabel`. `SettingsSection`, `SettingsFieldset`, `SettingsRow`, `SettingsLabel`, and `SettingsFooter` share spacing, separators and alignment. Use `stacked` for complex full-width row content.
 
+Add `data-jx-settings-scroll` to the element that scrolls the settings page body. It uses the desktop settings scrollbar width and theme colors, including inside an isolated plugin view.
+
 Run `npm run build:ui` in the repository before building the desktop. Blueprint pins the public archive at `vendor/janusx-ui-0.1.0.tgz`; CPA uses the local package during development and packs it for its independent build check. Both bundle the package with their UI and can build outside the host checkout. After changing the package, rebuild and refresh the Blueprint archive and dependency locks; its independent build check verifies the pinned bytes.

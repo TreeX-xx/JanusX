@@ -318,6 +318,9 @@ test('signed Blueprint UI follows themes, preserves drafts, applies confirmed fi
     // Exercise the package's application settings entry, without an active project page.
     const settingsUrl = await app.evaluate(() => (globalThis as any).blueprintProbe.open('settings'))
     page = await guest(settingsUrl)
+    const scrollBody = page.locator('[data-jx-settings-scroll]')
+    await expect(scrollBody).toHaveCSS('overflow-y', 'auto')
+    expect(await scrollBody.evaluate(el => getComputedStyle(el, '::-webkit-scrollbar').width)).toBe('6px')
     await expect(page.getByRole('heading', { name: '蓝图设置', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '工作台', exact: true })).toHaveCount(0)
     await expect(page.getByLabel('每轮检查的提交数')).toHaveValue('11')

@@ -353,7 +353,7 @@ export function App({ context, transitioning = false }: { context: PluginContext
   const diagnosticsControl = status?.diagnostics.length ? <WorkbenchPopover label={`${t('来源诊断 ·')} ${status.diagnostics.length}`} triggerContent={`${bt('detailPanel.source')} ${status.diagnostics.length}`}>
     {status.diagnostics.map((issue, index) => <p key={index} className="bp-note-diagnostic">{issue.path} · {issue.message}</p>)}
   </WorkbenchPopover> : null
-  if (!context.project) return <main className="blueprint-plugin settings-only"><div className="settings-surface"><Settings models={models} saved={() => {}} /></div></main>
+  if (!context.project) return <main className="blueprint-plugin settings-only"><div className="settings-surface" data-jx-settings-scroll=""><Settings models={models} saved={() => {}} /></div></main>
   return (
     <main className="blueprint-plugin blueprint-workbench-shell" data-reveal-ready={revealReady ? 'true' : undefined}
       data-closing={isClosing ? 'true' : undefined} data-card-count={cardCount}

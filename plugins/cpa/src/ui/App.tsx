@@ -68,7 +68,7 @@ export function App({ settingsPage }: {settingsPage: boolean}) {
     {notice && <p className={styles.oauthNotice} role="status" onClick={() => setNotice('')}>{notice}</p>}
     {fallback && <div className={styles.oauthNotice} role="status"><strong>{t('common:cpa.oauthManual',fallback)}</strong><p>{t(`common:cpa.oauthReason.${fallback.reason}`)} {t('common:cpa.oauthManualHelp')}</p></div>}
     {configure || settings?.mode === 'managed' && !settings.enabled
-      ? <div className={styles.setup}><CpaSettingsPanel onOpened={() => { if (!settingsPage) setConfigure(false) }}/></div>
+      ? <div className={styles.setup} data-jx-settings-scroll=""><CpaSettingsPanel onOpened={() => { if (!settingsPage) setConfigure(false) }}/></div>
       : canShow && opened ? <OnlinePage/> : <div className={styles.message} role="status">
         <p>{status ? t(`common:cpa.phase.${status.phase}`) : t('common:status.loading')}{status?.progress !== undefined ? ` · ${status.progress}%` : ''}</p>
         <button onClick={() => action(cpa.start)}>{t('common:cpa.start')}</button>
