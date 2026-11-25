@@ -27,7 +27,7 @@
       }
     }
   },
-  "updated": "2026-11-25T13:03:34Z",
+  "updated": "2026-11-25T14:33:38Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/19cd1394-b2cb-4819-8fde-5f12de16574c"
 }
 ---
@@ -60,7 +60,9 @@ The first surface update passed all three `tests/e2e/terminal-usage.spec.ts` cas
 
 The active local Codex terminal shows the remaining subscription windows beside its context ring. A narrow footer keeps the window with the lowest remaining percentage. Its button opens both windows, reset times, the last update and manual refresh. The composer shows a restriction only on explicit backend evidence, accounts for available credits and includes the next known exhausted-window reset.
 
-The main process uses the terminal’s own App Server to verify the thread provider, effective endpoints, ChatGPT account and native sign-in mode before reading quota. API keys, gateways, externally supplied tokens and unverifiable sessions have no quota control. The renderer receives window values, timestamps and status flags. Read access requests no token. Only a verified user and workspace pair can share quota across terminals. Changing the account or provider invalidates the terminal binding and rejects late responses.
+For direct official endpoints the main process uses the terminal’s own App Server to verify the thread provider, ChatGPT account and native sign-in mode. Only a verified user and workspace pair can share account quota across terminals. The renderer receives window values, timestamps and status flags. Changing the account or provider invalidates the binding and rejects late responses.
+
+For a local HTTP or HTTPS proxy such as Magpie, the footer uses the most recent Codex rate-limit report from the active thread’s own rollout. Details identify the session as the source and show the record’s timestamp. Native usage and turn-completion events prompt the visible footer to reread the file. The reader searches backwards through up to 8 MiB, skips unrelated limit IDs and drops expired or zero-duration windows. Each thread keeps its own readings. This path makes no account quota or credential requests and only shows a percentage once the session reports a window. Other remote gateways remain ineligible.
 
 The first visible eligible terminal reads immediately. Native updates merge the windows they contain. Returning to the foreground, selecting a terminal or opening details checks for a window at least 60 seconds old. Open, foreground details check every five minutes. A known reset triggers one visible read at its deadline. Collapsed and background views have no periodic polling. Requests in flight are shared, manual reads have a ten-second minimum interval, and errors retain the last snapshot and respect the server’s retry delay.
 

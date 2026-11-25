@@ -11,6 +11,7 @@ export interface CodexQuotaWindow {
   updatedAt: number
 }
 export interface CodexQuota {
+  source: 'account' | 'session'
   primary: CodexQuotaWindow | null
   secondary: CodexQuotaWindow | null
   updatedAt: number | null

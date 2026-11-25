@@ -1,6 +1,7 @@
 {
   "quota": {
     "title": "Codex subscription quota",
+    "sessionTitle": "Quota reported by this Codex session",
     "remaining": "Quota left",
     "days": "{{n}}d",
     "hours": "{{n}}h",

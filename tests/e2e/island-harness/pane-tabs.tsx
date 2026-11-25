@@ -29,7 +29,7 @@ if (params.has('quota')) {
   const listeners = new Set<(event: CodexQuotaEvent) => void>()
   const time = Date.now()
   function publish() {
-    const quota = official ? { updatedAt: time, unavailable: false, blocked: false,
+    const quota: CodexQuotaEvent['quota'] = official ? { source: params.has('localproxy') ? 'session' : 'account', updatedAt: time, unavailable: false, blocked: false,
       primary: { minutes: 300, used: 28, updatedAt: time, resetsAt: time + 86_400_000 },
       secondary: { minutes: 10080, used: 62, updatedAt: time, resetsAt: time + 604_800_000 } } : null
     listeners.forEach(listener => listener({ id: 'a', quota }))

@@ -147,6 +147,13 @@ test('subscription quota shows both windows, keeps the tightest on narrow screen
   await expect(indicator).toHaveCount(0)
 })
 
+test('local proxy windows show the remaining quota and identify the reporting session', async ({ page }) => {
+  await page.goto('/pane-tabs.html?single&usage&quota&localproxy')
+  const indicator = page.locator('[data-codex-quota]')
+  await indicator.getByRole('button', { name: 'Quota left 5h 72% · 7d 38%' }).click()
+  await expect(indicator.getByRole('region', { name: 'Quota reported by this Codex session' })).toContainText('38% left')
+})
+
 test('the collapsed footer does not poll and only visible quota details get a five minute check', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-25T12:00:00Z') })
   await page.goto('/pane-tabs.html?single&usage&quota')

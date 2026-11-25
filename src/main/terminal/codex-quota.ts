@@ -5,7 +5,7 @@ import type { CodexRpc } from './codex-managed-transport'
 
 type RpcCall = (method: string, params: CodexRpc) => Promise<CodexRpc>
 const slots = ['primary', 'secondary'] as const
-const blank = (): CodexQuota => ({ primary: null, secondary: null, updatedAt: null, blocked: false, unavailable: false })
+const blank = (): CodexQuota => ({ source: 'account', primary: null, secondary: null, updatedAt: null, blocked: false, unavailable: false })
 
 function officialEndpoint(value: unknown): boolean {
   if (value == null || value === '') return true
@@ -17,17 +17,32 @@ function officialEndpoint(value: unknown): boolean {
   } catch { return false }
 }
 
-export function officialLaunch(env: NodeJS.ProcessEnv): boolean {
-  return [env.OPENAI_BASE_URL, env.CHATGPT_BASE_URL, env.CODEX_CHATGPT_BASE_URL].every(officialEndpoint)
+type Route = 'official' | 'local' | 'unsupported'
+function endpointRoute(values: unknown[]): Route {
+  let route: Route = 'official'
+  for (const value of values) {
+    if (officialEndpoint(value)) continue
+    if (typeof value !== 'string' || !URL.canParse(value)) return 'unsupported'
+    const url = new URL(value)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
+      !/^(?:localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(url.hostname)) return 'unsupported'
+    route = 'local'
+  }
+  return route
 }
 
-function officialConfig(config: CodexRpc | undefined): boolean {
-  if (!config) return false
+export function quotaLaunchRoute(env: NodeJS.ProcessEnv): Route {
+  return endpointRoute([env.OPENAI_BASE_URL, env.CHATGPT_BASE_URL, env.CODEX_CHATGPT_BASE_URL])
+}
+
+function configRoute(config: CodexRpc | undefined, provider: string, launch: Route): Route {
+  if (!config || launch === 'unsupported') return 'unsupported'
   const profile = config.profile ? config.profiles?.[config.profile] : undefined
-  return [config, profile].every(layer => !layer || (
-    (layer.model_provider == null || layer.model_provider === 'openai') &&
-    [layer.openai_base_url, layer.chatgpt_base_url, layer.model_providers?.openai?.base_url].every(officialEndpoint)
-  ))
+  if ((profile?.model_provider ?? config.model_provider ?? provider) !== provider) return 'unsupported'
+  const base = profile?.model_providers?.[provider]?.base_url ?? config.model_providers?.[provider]?.base_url
+  if (provider !== 'openai') return endpointRoute([base]) === 'local' ? 'local' : 'unsupported'
+  const route = endpointRoute([base, profile?.openai_base_url ?? config.openai_base_url, profile?.chatgpt_base_url ?? config.chatgpt_base_url])
+  return route === 'official' ? launch : route
 }
 
 function quotaWindow(raw: CodexRpc | null, now: number): CodexQuotaWindow | null {
@@ -135,19 +150,23 @@ class AccountReading {
 }
 
 const accounts = new Map<string, AccountReading>()
+type Binding = { source: 'session' } | { source: 'account'; key: string; accountId?: string }
 
 /** A binding belongs to one live Codex connection. Only sanitized windows leave the main process. */
 export class CodexQuotaSession {
   private generation = 0
   private key?: string
   private account?: AccountReading
-  private verifying?: Promise<{ key: string; accountId?: string } | null>
+  private verifying?: Promise<Binding | null>
+  private reported?: CodexQuota | null
+  private reportRevision = 0
   private readonly publish = () => this.emit(this.account?.quota ?? null)
   constructor(private readonly id: string, private readonly call: RpcCall, private readonly emit: (q: CodexQuota | null, recheck?: boolean) => void) {}
 
   invalidate(recheck = false): void {
     this.generation++
     this.verifying = undefined
+    this.reported = undefined
     this.detach()
     this.emit(null, recheck)
   }
@@ -159,9 +178,11 @@ export class CodexQuotaSession {
     this.account = undefined
   }
 
-  private async identity(cwd: string) {
+  private async identity(cwd: string, provider: string, launch: Route): Promise<Binding | null> {
     const { config } = await this.call('config/read', { cwd, includeLayers: false })
-    if (!officialConfig(config)) return null
+    const route = configRoute(config, provider, launch)
+    if (route === 'local') return { source: 'session' }
+    if (route !== 'official') return null
     const result = await this.call('account/read', { refreshToken: false })
     if (result.account?.type !== 'chatgpt' || result.requiresOpenaiAuth === false || !officialEndpoint(result.workspaceRouting?.backendOrigin)) return null
     // The account type also covers externally supplied ChatGPT tokens. Ask for the mode only.
@@ -178,16 +199,30 @@ export class CodexQuotaSession {
     }
     // Never share by email or workspace display name alone.
     const key = accountId && user ? [accountId, user] : ['terminal', this.id, user, accountId, result.account.workspaceName]
-    return { key: JSON.stringify(key), accountId }
+    return { source: 'account', key: JSON.stringify(key), accountId }
   }
 
-  async read(cwd: string, reason: QuotaReadReason): Promise<void> {
+  async read(cwd: string, reason: QuotaReadReason, provider = 'openai', launch: Route = 'official',
+    readReport?: () => Promise<CodexQuota | null>): Promise<void> {
     const epoch = this.generation
-    const verifying = this.verifying ??= this.identity(cwd).catch(() => null)
+    const revision = ++this.reportRevision
+    const verifying = this.verifying ??= this.identity(cwd, provider, launch).catch(() => null)
     const identity = await verifying
     if (epoch !== this.generation) return
     if (this.verifying === verifying) this.verifying = undefined
     if (!identity) { this.invalidate(); return }
+    if (identity.source === 'session') {
+      if (this.account) this.emit(null)
+      this.detach()
+      this.reported ??= null
+      const report = await readReport?.()
+      if (epoch === this.generation && revision === this.reportRevision) {
+        this.reported = report ?? null
+        this.emit(this.reported)
+      }
+      return
+    }
+    this.reported = undefined
     if (this.key !== identity.key) {
       this.detach()
       this.key = identity.key
@@ -206,4 +241,10 @@ export class CodexQuotaSession {
   }
 
   push(raw?: CodexRpc): void { if (raw) this.account?.push(raw) }
+
+  get usesReportedQuota(): boolean { return this.reported !== undefined }
+
+  recheckReport(): void {
+    if (this.reported !== undefined) this.emit(this.reported, true)
+  }
 }

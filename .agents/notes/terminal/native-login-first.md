@@ -6,7 +6,7 @@
   "lifecycle": "implemented",
   "created": "2026-10-17",
   "class": "feature",
-  "updated": "2026-11-25T13:03:34Z",
+  "updated": "2026-11-25T14:33:38Z",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/bdd26e4e-8207-4c1f-8ea3-21f450ee7570",
   "codeRefs": [
     {"repoId":"972afef3-2fc7-49de-a3ee-7e041225d28c","path":"src/shared/native-login.ts","role":"entry"},
@@ -17,7 +17,7 @@
 ---
 # Native login-first sign-in probe
 
-The workbench displays the active, officially signed-in Codex session’s subscription windows through its local App Server. The CLI retains ownership of login credentials. The [runtime drawer decision](../workbench/runtime-drawer-cards-resize.md#codex-subscription-quota) records the eligibility checks and refresh schedule.
+The workbench reads subscription windows for officially signed-in Codex sessions through the local App Server. For loopback proxies such as Magpie it displays quota windows reported in the active thread’s rollout. The CLI retains ownership of login credentials. The [runtime drawer decision](../workbench/runtime-drawer-cards-resize.md#codex-subscription-quota) records the eligibility checks and refresh schedule.
 
 ## Problem
 

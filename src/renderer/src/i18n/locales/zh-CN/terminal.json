@@ -1,6 +1,7 @@
 {
   "quota": {
     "title": "Codex 订阅额度",
+    "sessionTitle": "当前 Codex 会话上报的额度",
     "remaining": "额度剩余",
     "days": "{{n}} 天",
     "hours": "{{n}} 小时",

@@ -4,7 +4,8 @@ import { CodexConversation as NativeCodexConversation } from '@janus-agent/janus
 import type { CodexUpdatePrompt, CodexUpdateCommand, ConversationCommand, ConversationPlan, ConversationSnapshot } from '../../shared/conversation-display'
 import type { ConversationHistoryRequest, ConversationHistoryResult } from '../../shared/conversation-history'
 import { readCodexTurnPlans } from './codex-turn-plans'
-import { CodexQuotaSession, officialLaunch } from './codex-quota'
+import { CodexQuotaSession, quotaLaunchRoute } from './codex-quota'
+import { readReportedQuota } from './codex-reported-quota'
 import type { CodexRpc } from './codex-managed-transport'
 import type { CodexQuotaEvent, QuotaReadReason } from '../../shared/codex-quota'
 
@@ -15,26 +16,44 @@ export class DesktopCodexConversation extends NativeCodexConversation {
   onQuota?: (event: CodexQuotaEvent) => void
   private quotaCwd?: string
   private quotaThread?: string
+  private quotaProvider?: string
+  private quotaLaunch: ReturnType<typeof quotaLaunchRoute> = 'official'
+  private transcriptPath?: string
+  private reportSince = 0
+  private reportTimer?: ReturnType<typeof setTimeout>
   private settingsProvider?: string
   private readonly allowance = new CodexQuotaSession(this.id, (method, params) => this.call(method, params),
     (quota, recheck) => this.onQuota?.({ id: this.id, quota, recheck }))
 
   override start(options: Parameters<NativeCodexConversation['start']>[0]) {
-    this.quotaCwd = officialLaunch(options.env) ? options.cwd : undefined
+    this.quotaLaunch = quotaLaunchRoute(options.env)
+    this.quotaCwd = this.quotaLaunch === 'unsupported' ? undefined : options.cwd
     return super.start(options)
   }
 
   syncQuotaThread(): void {
-    const thread = this.state.connection === 'ready' && (this.settingsProvider ?? this.modelProvider) === 'openai' && this.quotaCwd
+    const provider = this.settingsProvider ?? this.modelProvider
+    const thread = this.state.connection === 'ready' && provider && this.quotaCwd
       ? this.state.threadId ?? undefined : undefined
-    if (thread !== this.quotaThread) {
+    if (thread !== this.quotaThread || provider !== this.quotaProvider) {
+      this.reportSince = thread && thread === this.quotaThread ? Date.now() : 0
       this.quotaThread = thread
+      this.quotaProvider = provider
       this.allowance.invalidate(!!thread)
     }
   }
 
   async readQuota(reason: QuotaReadReason): Promise<void> {
-    if (this.quotaThread && this.quotaCwd) await this.allowance.read(this.quotaCwd, reason)
+    const thread = this.quotaThread
+    if (thread && this.quotaCwd && this.quotaProvider) await this.allowance.read(this.quotaCwd, reason, this.quotaProvider, this.quotaLaunch, async () => {
+      if (!this.transcriptPath) {
+        // A new rollout may acquire its path only after the first turn.
+        const result = await this.call('thread/read', { threadId: thread, includeTurns: false }).catch(() => null)
+        if (thread !== this.quotaThread || result?.thread?.id !== thread) return null
+        this.transcriptPath = result.thread.path
+      }
+      return this.transcriptPath ? readReportedQuota(this.transcriptPath, thread, this.reportSince) : null
+    })
     else this.onQuota?.({ id: this.id, quota: null })
   }
 
@@ -44,14 +63,23 @@ export class DesktopCodexConversation extends NativeCodexConversation {
       this.settingsProvider = message.params.threadSettings.modelProvider
       this.syncQuotaThread()
     } else if (message.method === 'account/updated' || message.method === 'account/gatewayOAuth/changed') {
+      this.reportSince = Date.now()
       this.allowance.invalidate(!!this.quotaThread)
     } else if (message.method === 'account/rateLimits/updated') {
       this.allowance.push(message.params?.rateLimits)
+    } else if (this.allowance.usesReportedQuota && this.quotaThread && message.params?.threadId === this.quotaThread &&
+        (message.method === 'thread/tokenUsage/updated' || message.method === 'turn/completed')) {
+      // Give the native writer time to flush. Only a visible footer acts on the hint.
+      this.reportTimer ??= setTimeout(() => {
+        this.reportTimer = undefined
+        this.allowance.recheckReport()
+      }, 500)
     }
     super.receive(message, requestThreadId)
   }
 
   override dispose(): Promise<void> {
+    clearTimeout(this.reportTimer)
     this.quotaCwd = this.quotaThread = undefined
     this.allowance.invalidate()
     this.onQuota = undefined
@@ -94,6 +122,7 @@ export class DesktopCodexConversation extends NativeCodexConversation {
     }
     super(id, snapshot => publishSnapshot(project(snapshot)), (threadId, transcriptPath) => {
       this.settingsProvider = undefined
+      this.transcriptPath = transcriptPath ?? (threadId === scope ? this.transcriptPath : undefined)
       bind?.(threadId, transcriptPath)
       if (scope !== threadId) {
         scope = threadId; source = undefined; restored.clear(); observed.clear(); observedRevision = -1

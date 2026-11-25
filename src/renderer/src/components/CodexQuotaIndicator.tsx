@@ -99,6 +99,7 @@ export function CodexQuotaIndicator({ id }: { id: string }) {
     return t('quota.minutes', { n: minutes })
   }
   const summary = windows.map(w => duration(w.minutes) + ' ' + (100 - w.used) + '%')
+  const title = t(quota.source === 'session' ? 'quota.sessionTitle' : 'quota.title')
   const tightest = windows.reduce((a, b) => a.used >= b.used ? a : b, windows[0])
   const stamp = (ms: number) => formatTime(ms, i18n.language)
   return <div ref={root} className={styles.root} data-codex-quota=""
@@ -112,12 +113,12 @@ export function CodexQuotaIndicator({ id }: { id: string }) {
         if (!open) { setNow(Date.now()); read('visible') }
         setOpen(!open)
       }}>
-      <span>{t(windows.length ? 'quota.remaining' : 'quota.title')}</span>
+      <span>{windows.length ? t('quota.remaining') : title}</span>
       {tightest && <><span className={styles.wide}>{summary.join(' · ')}</span>
         <span className={styles.narrow}>{duration(tightest.minutes)} {100 - tightest.used}%</span></>}
     </button>
-    {open && <section id={panelId} className={styles.panel} aria-label={t('quota.title')}>
-      <header><strong>{t('quota.title')}</strong><button type="button" aria-label={t('quota.refresh')} title={t('quota.refresh')}
+    {open && <section id={panelId} className={styles.panel} aria-label={title}>
+      <header><strong>{title}</strong><button type="button" aria-label={t('quota.refresh')} title={t('quota.refresh')}
         onClick={() => read('manual')}><RefreshCw size={13} aria-hidden="true" /></button></header>
       {windows.map((w, i) => <div className={styles.row} key={i}>
         <span>{duration(w.minutes)}</span><strong>{t('quota.left', { n: 100 - w.used })}</strong>

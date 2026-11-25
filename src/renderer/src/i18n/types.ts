@@ -5178,6 +5178,7 @@ export type TypedI18nKey =
   | 'terminal:quota.refresh'
   | 'terminal:quota.remaining'
   | 'terminal:quota.resets'
+  | 'terminal:quota.sessionTitle'
   | 'terminal:quota.title'
   | 'terminal:quota.unavailable'
   | 'terminal:quota.updated'

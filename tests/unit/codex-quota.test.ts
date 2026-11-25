@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
-import { CodexQuotaSession, officialLaunch } from '../../src/main/terminal/codex-quota'
+import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { CodexQuotaSession, quotaLaunchRoute } from '../../src/main/terminal/codex-quota'
 import { DesktopCodexConversation } from '../../src/main/terminal/codex-conversation'
+import { readReportedQuota } from '../../src/main/terminal/codex-reported-quota'
 import type { CodexRpc } from '../../src/main/terminal/codex-managed-transport'
 import type { CodexQuota } from '../../src/shared/codex-quota'
 
@@ -156,7 +160,7 @@ it('preserves explicit restrictions and credits across sparse updates until the 
 })
 
 it('uses the selected thread provider and drops its quota on a live provider change', async () => {
-  expect(officialLaunch({ OPENAI_BASE_URL: 'http://127.0.0.1:9876/v1' })).toBe(false)
+  expect(quotaLaunchRoute({ OPENAI_BASE_URL: 'http://127.0.0.1:9876/v1' })).toBe('local')
   const f = fixture()
   const adapter = new DesktopCodexConversation('desktop', () => adapter.syncQuotaThread())
   const wire = adapter as any
@@ -168,7 +172,72 @@ it('uses the selected thread provider and drops its quota on a live provider cha
   expect(adapter.onQuota).toHaveBeenLastCalledWith(expect.objectContaining({ quota: expect.objectContaining({ primary: expect.objectContaining({ used: 28 }) }) }))
   wire.receive({ method: 'thread/settings/updated', params: { threadId: 'main', threadSettings: { modelProvider: 'janusx_managed' } } })
   await adapter.readQuota('visible')
-  expect(adapter.onQuota).toHaveBeenLastCalledWith({ id: 'desktop', quota: null })
+  expect(adapter.onQuota).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'desktop', quota: null }))
   expect(f.getQuota).toHaveBeenCalledTimes(1)
   await adapter.dispose()
+})
+
+it.each(['config', 'environment', 'named provider'])('reads only the active rollout for a local proxy via %s', async mode => {
+  const f = fixture()
+  const directory = await mkdtemp(join(tmpdir(), 'janusx-quota-'))
+  onTestFinished(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'rollout-main.jsonl')
+  const provider = mode === 'named provider' ? 'magpie' : 'openai'
+  const base = 'http://127.0.0.1:3425/backend-api/codex'
+  if (mode === 'config') f.settings.config.openai_base_url = base
+  if (mode === 'named provider') f.settings.config = { model_provider: 'magpie', model_providers: { magpie: { base_url: 'http://[::1]:3425/v1' } } }
+  const adapter = new DesktopCodexConversation('proxy', () => adapter.syncQuotaThread())
+  onTestFinished(() => adapter.dispose())
+  const wire = adapter as any
+  const emit = adapter.onQuota = vi.fn()
+  wire.quotaCwd = directory
+  if (mode === 'environment') wire.quotaLaunch = quotaLaunchRoute({ OPENAI_BASE_URL: base })
+  wire.call = f.rpc
+  const sample = (used: number, limitId = 'codex') => JSON.stringify({ type: 'event_msg', timestamp: new Date().toISOString(), payload: {
+    type: 'token_count', rate_limits: { limit_id: limitId, primary: { used_percent: used, window_minutes: 10080, resets_at: start / 1000 + 86400 },
+      secondary: { used_percent: 100, window_minutes: 0, resets_at: 0 } },
+  } }) + '\n'
+  // The most recent sample can precede a long tool result and a partial final write.
+  await writeFile(path, sample(23) + sample(98, 'other') + JSON.stringify({ type: 'response_item', output: 'x'.repeat(400_000) }) + '\n{"pending":')
+  wire.attach({ id: 'main', modelProvider: provider, path, turns: [] })
+  await adapter.readQuota('visible')
+  const latest = () => emit.mock.lastCall?.[0].quota
+  expect(latest()).toMatchObject({ source: 'session', primary: { used: 23, minutes: 10080, updatedAt: start }, secondary: null, blocked: false })
+  expect(await readReportedQuota(path, 'unrelated', 0)).toBeNull()
+  wire.receive({ method: 'account/rateLimits/updated', params: { rateLimits: { primary: win(99, 300) } } })
+  expect(latest()?.primary?.used).toBe(23)
+  vi.setSystemTime(start + 1000)
+  wire.receive({ method: 'account/updated', params: {} })
+  await adapter.readQuota('visible')
+  expect(latest()).toBeNull()
+  await appendFile(path, 'true}\n' + sample(31))
+  wire.receive({ method: 'thread/tokenUsage/updated', params: { threadId: 'main' } })
+  await vi.advanceTimersByTimeAsync(500)
+  expect(emit.mock.lastCall?.[0].recheck).toBe(true)
+  await adapter.readQuota('visible')
+  expect(latest()?.primary?.used).toBe(31)
+  vi.setSystemTime(start + 86400_000)
+  await adapter.readQuota('reset')
+  expect(latest()).toBeNull()
+  expect(f.rpc.mock.calls.map(([method]) => method)).not.toContain('account/read')
+  expect(f.getQuota).not.toHaveBeenCalled()
+})
+
+it('discards a pending local report after a route change and never treats a remote relay as loopback', async () => {
+  const f = fixture()
+  const config = f.settings.config
+  config.openai_base_url = 'https://localhost:3425'
+  let finish!: (quota: CodexQuota) => void
+  const report = vi.fn(() => new Promise<CodexQuota>(resolve => { finish = resolve }))
+  const first = f.session.read('/', 'visible', 'openai', 'official', report)
+  await vi.waitFor(() => expect(report).toHaveBeenCalledTimes(1))
+  f.session.invalidate()
+  config.openai_base_url = 'https://localhost.example:3425'
+  await f.session.read('/', 'visible', 'openai', 'official', report)
+  finish({ source: 'session', primary: { used: 23, minutes: 10080, resetsAt: null, updatedAt: start },
+    secondary: null, updatedAt: start, unavailable: false, blocked: false })
+  await first
+  expect(f.latest()).toBeNull()
+  expect(report).toHaveBeenCalledTimes(1)
+  expect(f.getQuota).not.toHaveBeenCalled()
 })
