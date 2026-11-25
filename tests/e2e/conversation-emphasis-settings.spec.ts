@@ -85,12 +85,12 @@ test('swatch and hex form one control and the preview separates weight from code
   await setting.screenshot({path:`${artifacts}/color-control-narrow.png`})
 })
 
-test('Worker settings navigation opens the real application Agent settings tab', async ({ page }) => {
+test('Worker settings navigation opens plugin management when the SuperAgent page is unavailable', async ({ page }) => {
   await page.goto('/host-boundary.html')
   await page.getByRole('button',{name:'Settings',exact:true}).waitFor()
   await page.evaluate(() => window.dispatchEvent(new Event('janusx:open-worker-settings')))
-  await expect(page.getByRole('region',{name:'Worker concurrency',exact:true})).toBeVisible()
-  await expect(page.getByRole('spinbutton',{name:'Concurrency limit',exact:true})).toBeVisible()
+  await expect(page.locator('[data-tab="plugins"]')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('[data-tab="agent"]')).not.toHaveAttribute('aria-current', 'page')
 })
 
 test('color picker and other-window changes update the mounted output and file previews', async ({ page, context }) => {

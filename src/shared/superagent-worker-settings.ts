@@ -19,10 +19,6 @@ export function parseWorkerPolicy(value: unknown): WorkerPolicy {
     || new Set(row.enabled).size !== row.enabled.length || !row.enabled.includes(row.defaultBackend)) throw new Error('Default Worker must be enabled')
   return { defaultBackend: row.defaultBackend, enabled: [...row.enabled] }
 }
-// Suggestions for defaults without a live catalog, not a capability allowlist.
-// See .agents/notes/agent/superagent-workers.md. The execution catalog owns supported pairs.
-export const WORKER_REASONING_EFFORT_SUGGESTIONS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
-
 export function parseWorkerModelSettings(value: unknown): WorkerModelSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Worker settings')
   const row = value as Record<string, unknown>

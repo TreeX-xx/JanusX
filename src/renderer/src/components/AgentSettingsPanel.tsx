@@ -1,28 +1,19 @@
 // Note: .agents/notes/workbench/settings-layout.md
 import { SettingsSurface, SettingsSection, SettingsRow, SettingsFooter, Button as SettingsButton } from '@janusx/ui'
 import { SettingsCheckbox } from './ui/SettingsCheckbox'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useI18n } from '@/i18n/useI18n'
 import { Select } from './ui/Select'
 import { getAgentSettings, normalizeAgentMaxStepsInput, normalizeSafeCompileAutoAllowInput, updateAgentSettings, type AgentSettings } from '@/services/agent-settings'
 import { normalizeAgentApprovalMode, type AgentApprovalMode } from '../../../shared/ipc/agent-runtime'
 import { settingsStyles as styles } from '@janusx/ui'
 import { ShieldCheck } from 'lucide-react'
-import { useSuperAgentUIStore } from '@/stores/superagent-ui'
-import { useSuperAgentAvailability } from './janus/useSuperAgentAvailability'
-import { WorkerDefaultsSettings } from './WorkerDefaultsSettings'
-import { WorkerCapacitySettings } from './WorkerCapacitySettings'
-import superAgentIcon from '@/assets/plugins/superagent.svg'
-import layout from './AgentSettingsPanel.module.css'
 
 type StatusState = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
 const DEFAULT_SETTINGS: AgentSettings = { approvalMode: 'per-action', agentMaxSteps: 40, safeCompileAutoAllow: true }
 
 export function AgentSettingsPanel() {
   const { t } = useI18n('settings')
-  const pluginHeadingId = useId()
-  const showWorkerSettings = useSuperAgentUIStore(state => state.started)
-  const available = useSuperAgentAvailability(undefined, showWorkerSettings)
   const [settings, setSettings] = useState<AgentSettings>(DEFAULT_SETTINGS)
   const [draft, setDraft] = useState<AgentSettings>(DEFAULT_SETTINGS)
   const [status, setStatus] = useState<StatusState>('loading')
@@ -113,16 +104,6 @@ export function AgentSettingsPanel() {
       </div>
     </SettingsFooter>
     </SettingsSection>
-    {showWorkerSettings && available && <section className={layout.plugin} aria-labelledby={pluginHeadingId}>
-      <h3 id={pluginHeadingId} className={layout.pluginTitle}>
-        <img src={superAgentIcon} width={28} height={28} alt="" />
-        {t('settings:agent.section.superAgentPlugin')}
-      </h3>
-      <div className={layout.pluginBody}>
-        <WorkerCapacitySettings />
-        <WorkerDefaultsSettings />
-      </div>
-    </section>}
   </SettingsSurface>
 }
 

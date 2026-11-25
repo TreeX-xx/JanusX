@@ -3,7 +3,7 @@
   "id": "official.superagent",
   "name": "SuperAgent",
   "description": "Experimental Worker orchestration in Janus conversations.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "pluginApi": "^1.0.0"
   },

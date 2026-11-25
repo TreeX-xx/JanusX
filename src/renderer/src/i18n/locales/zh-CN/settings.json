@@ -32,31 +32,7 @@
     }
   },
   "workerDefaults": {
-    "isDefault": "默认执行",
-    "makeDefault": "设为默认",
-    "enableWorker": "启用 {{name}}",
-    "refreshModels": "刷新模型",
-    "catalog": {"loading":"正在读取模型…","empty":"终端未返回可选模型，可使用原生默认","error":"终端模型读取失败，请刷新"},
-    "defaultBackend": "默认 Worker",
-    "defaultHint": "未指定引擎时使用。",
-    "enabledBackends": "允许使用的 Worker",
-    "enabledHint": "默认 Worker 必须启用。禁用后拦截新的派发，已运行的工作继续。",
-    "claudePermissions": "Claude Code 在 Windows 原生运行，沿用原生权限与用户审批，不使用 Codex MXC 沙箱。",
-    "idleTimeout": "空闲自动关闭时间",
-    "idleHint": "仅在工作完成且已确认停止后计时；运行中或待确认的 Worker 不自动关闭。可设置 1–10080 的整数分钟；保存后在下一次检查生效，已有空闲时间继续累计。",
-    "minutes": "分钟",
-    "title": "SuperAgent Worker",
-    "terminal": "配置引擎",
-    "supported": "编辑引擎配置不会改变默认 Worker。",
-    "model": "默认模型",
-    "modelHint": "输入所选引擎的模型 ID，留空使用原生默认；启动时通过原生模型目录校验。",
-    "effort": "推理强度",
-    "effortHint": "此处提供常见值；Worker 启动时会按原生模型目录校验模型与强度组合。",
     "native": "原生默认",
-    "timing": "两种引擎分别保存默认配置。修改默认引擎只影响新工作；已有工作和后续继续仍使用原引擎。",
-    "restore": "恢复原生默认",
-    "error": "Worker 设置加载或保存失败",
-    "unavailable": "SuperAgent 当前不可用。",
     "efforts": {
       "none": "无",
       "minimal": "最低",
@@ -143,14 +119,6 @@
       "nav": "模型目录",
       "navMeta": "Models"
     }
-  },
-  "workerCapacity": {
-    "title": "Worker 并发",
-    "limit": "并发上限",
-    "help": "所有工作区共用的 Worker 名额，超出上限的任务排队等待。",
-    "workspaceRequired": "请先打开一个工作区以读取当前上限。",
-    "invalid": "请输入大于或等于 1 的整数。",
-    "retry": "重新读取"
   },
   "general": {
     "emphasis": {
@@ -520,7 +488,6 @@
   "agent": {
     "section": {
       "permissions": "权限默认设置",
-      "superAgentPlugin": "SuperAgent 插件设置",
       "limits": "循环步数"
     },
     "default": {

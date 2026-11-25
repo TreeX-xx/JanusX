@@ -231,7 +231,6 @@
     "extensions": "本次执行停用的外部工具",
     "capacitySummary": "所有工作区共占用 {{occupied}} / {{capacity}} 个名额",
     "capacityOccupied": "占用 {{occupied}} / {{capacity}}",
-    "capacitySettings": "前往设置 → Agent 调整并发上限",
     "startHint": "直接在对话中描述开发或补充要求，Janus 会安排工作。",
     "close": "关闭工作",
     "more": "显示更多工作",

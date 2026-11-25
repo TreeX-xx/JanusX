@@ -231,7 +231,6 @@
     "extensions": "External tools disabled for this execution",
     "capacitySummary": "{{occupied}} / {{capacity}} active across workspaces",
     "capacityOccupied": "{{occupied}} / {{capacity}} active",
-    "capacitySettings": "Configure concurrency in Settings → Agent",
     "startHint": "Describe development or follow-up requests in the conversation. Janus will arrange the work.",
     "close": "Close work",
     "more": "Show more work",

@@ -150,7 +150,7 @@ it('renders global queue positions and priority controls with durable pause, res
     await card.getByText('Global queue #3', { exact: true }).waitFor()
     expect(await page.getByText('2 / 2 active', { exact: true }).count()).toBe(1)
     expect(await page.getByTitle('2 / 2 active across workspaces').count()).toBe(1)
-    expect(await page.getByRole('button', { name: 'Configure concurrency in Settings → Agent' }).count()).toBe(0)
+    expect(await page.getByRole('button', { name: /Configure concurrency in Settings/ }).count()).toBe(0)
     expect(await page.getByRole('spinbutton').count()).toBe(0)
     expect(await page.locator('article[data-work-group="queued"]').count()).toBe(1) // The other two are in different workspaces.
     expect(await card.getByText('Waiting 2 min', { exact: true }).count()).toBe(1)
@@ -454,16 +454,37 @@ beforeAll(async () => {
     import {WorkerReportMessage,SuperAgentReportFallback} from './src/renderer/src/components/janus/WorkerReportCard'
     import {WorkerQuestionCard} from './src/renderer/src/components/janus/WorkerQuestionCard'
     window.mountQuestion=()=>{document.getElementById('root').style.display='none';const target=document.createElement('div');target.id='question-fixture';target.style.cssText='max-width:600px;padding:20px;margin:auto';document.body.append(target);createRoot(target).render(<WorkerQuestionCard title='Input navigation' report={{id:'question-report',workId:'work-1',workspaceId:'workspace',resourceId:'report-body',summary:'Which input markers should be centered?',kind:'question'}} conversationId='chat' refresh={async()=>{window.calls.push(['refresh'])}}/>)}
-    import {WorkerDefaultsSettings} from './src/renderer/src/components/WorkerDefaultsSettings'
-    import {useSuperAgentUIStore} from './src/renderer/src/stores/superagent-ui'
-    window.setSuperAgentStarted=started=>useSuperAgentUIStore.setState({started})
-    window.setSuperAgentStarted(true)
+    import {WorkerSettings} from './plugins/superagent/src/WorkerSettings'
+    import './plugins/superagent/src/settings.css'
+    import {useTranslation} from 'react-i18next'
+    const settingsCall = async (method, value) => {
+      const api = window.electron.superAgent
+      window.settingsCalls.push(method)
+      switch (method) {
+        case 'settings.read': {
+          const [policy,codex,claude,idle,queue] = await Promise.all([api.workerPolicy(),api.workerDefaults('codex'),api.workerDefaults('claude'),api.workerIdleTimeoutMinutes(),api.schedule('workspace')])
+          return {...policy, profiles:{codex,claude}, idle, capacity:queue.maxConcurrentWorkers}
+        }
+        case 'settings.models': return (await api.workerModels(value)).map(row => row.model)
+        case 'settings.model': return api.updateWorkerDefaults(value)
+        case 'settings.save': return api.updateWorkerPolicy(value)
+        case 'settings.idle': return api.updateWorkerIdleTimeoutMinutes(value)
+        case 'settings.capacity': return api.configureCapacity(value)
+        default: throw new Error('Unexpected settings method: ' + method)
+      }
+    }
+    window.settingsCalls=[]
+    function PluginSettingsFixture(){const {i18n}=useTranslation();return <WorkerSettings call={settingsCall} zh={i18n.language.startsWith('zh')}/>}
     import {AgentSettingsPanel} from './src/renderer/src/components/AgentSettingsPanel'
-    import {SettingsSurface} from '@janusx/ui'
-    import settingsModalStyles from './src/renderer/src/components/AppSettingsModal.module.css'
-    window.mountWorkerDefaults=()=>{const target=document.createElement('div');target.id='worker-defaults';target.style.cssText='padding:24px;max-width:800px';document.body.append(target);createRoot(target).render(<WorkerDefaultsSettings/>)}
-    window.mountAgentSettings=()=>{document.getElementById('root').style.display='none';const target=document.createElement('div');target.id='agent-settings';target.style.cssText='width:min(800px,100vw);height:600px;--so-body-pad-x:28px;--so-body-pad-y:24px;background:var(--shell-canvas);font-family:Inter,ui-sans-serif,system-ui,sans-serif';document.body.append(target);const root=createRoot(target);root.render(<SettingsSurface className={settingsModalStyles.body} style={{height:'100%',boxSizing:'border-box'}}><AgentSettingsPanel/></SettingsSurface>);window.closeAgentSettings=()=>{root.unmount();target.remove();document.getElementById('root').style.display=''}}
-    window.addEventListener('janusx:open-worker-settings',()=>window.mountAgentSettings())
+    window.mountWorkerDefaults=()=>{const target=document.createElement('div');target.id='worker-defaults';target.className='worker-settings-host';target.style.maxWidth='800px';document.body.append(target);const root=createRoot(target);root.render(<PluginSettingsFixture/>);window.closeWorkerDefaults=()=>{root.unmount();target.remove()}}
+    import {useSuperAgentUIStore} from './src/renderer/src/stores/superagent-ui'
+    window.mountAgentSettings=()=>{
+      useSuperAgentUIStore.setState({started:true})
+      const target=document.createElement('div')
+      target.id='agent-settings'
+      document.body.append(target)
+      createRoot(target).render(<AgentSettingsPanel/>)
+    }
     window.mountReport=()=>{const target=document.createElement('div');document.body.append(target);createRoot(target).render(<WorkerReportMessage content={'Worker report · Release check\\n\\nEnvironment needs adjustment.\\n\\n'+('Full evidence line.\\n'.repeat(80))+'EXACT_END'}/>)}
     window.mountStructuredReport=report=>{const target=document.createElement('div');target.style.cssText='max-width:680px;margin:16px auto';document.body.append(target);createRoot(target).render(<WorkerReportMessage content={'Worker report · Improve reports\\n\\n'+JSON.stringify(report)}/>)}
     window.calls=[];window.listeners={};window.current=undefined;window.saved=[];window.capacity=3;window.operations=[]
@@ -559,76 +580,28 @@ it('allows stop retry after Close fails and after the unconfirmed instance is re
   } finally { await page.close() }
 })
 
-it('keeps combined Agent and Worker settings compact and all section actions reachable in a 800 by 600 scroll body', async () => {
-  const page = await browser.newPage({ viewport: { width: 800, height: 600 } })
-  try {
-    await page.route('http://127.0.0.1/', route => route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' }))
-    await page.goto('http://127.0.0.1/'); await page.addStyleTag({ content: css }); await page.addScriptTag({ content: script }); await expandWorkerDetails(page)
-    await page.getByRole('article', { name: 'Feature 0', exact: true }).waitFor()
-    await page.evaluate(() => { document.body.style.margin = '0'; (window as any).mountAgentSettings() })
-    const panel = page.locator('#agent-settings'), sections = panel.locator('[data-jx-section]')
-    const model = panel.locator('#worker-model-codex')
-    await model.waitFor(); await page.waitForFunction(() => !(document.getElementById('worker-model-codex') as HTMLInputElement).disabled)
-    expect(await sections.count()).toBe(3)
-    const plugin = panel.getByRole('region', { name: 'SuperAgent plugin settings', exact: true })
-    expect(await plugin.getByRole('heading', { level: 3 }).isVisible()).toBe(true)
-    expect(await plugin.getByRole('heading', { level: 4 }).count()).toBe(2)
-    expect(await plugin.locator('[data-jx-footer]').count()).toBe(2)
-    expect(await panel.locator('.jx-settings-panel').count()).toBe(1)
-    const permissionBounds = (await sections.first().boundingBox())!
-    const gap = (await plugin.boundingBox())!.y - permissionBounds.y - permissionBounds.height
-    expect(gap).toBeGreaterThanOrEqual(16); expect(gap).toBeLessThanOrEqual(32)
-    const footers = await panel.locator('[data-jx-footer]').evaluateAll(rows => rows.map(row => getComputedStyle(row).position))
-    expect(footers).toEqual(['static', 'static', 'static'])
-    expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
-    await model.click(); await page.getByRole('option', { name: 'alternate', exact: true }).click()
-    const workerSection = sections.nth(2), save = workerSection.getByRole('button', { name: 'Save', exact: true })
-    await save.click()
-    await page.waitForFunction(() => (window as any).defaultSettings?.model === 'alternate')
-    const permissionSection = sections.nth(0)
-    await permissionSection.getByRole('checkbox').uncheck()
-    await permissionSection.getByRole('button', { name: 'Save', exact: true }).click()
-    await page.waitForFunction(() => (window as any).agentSettings?.safeCompileAutoAllow === false)
-    await mkdir(settingsArtifacts, { recursive: true })
-    for (const theme of ['dark', 'white', 'planche']) {
-      await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
-      await panel.locator('main, [data-jx-surface]').first().evaluate(el => { el.scrollTop = 0 })
-      await panel.screenshot({ path: `${settingsArtifacts}/combined-${theme}.png` })
-      await save.scrollIntoViewIfNeeded()
-      expect(await save.evaluate(el => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) })).toBe(true)
-      await panel.screenshot({ path: `${settingsArtifacts}/combined-bottom-${theme}.png` })
-    }
-    await page.evaluate(() => (window as any).changeLanguage('zh-CN'))
-    await workerSection.getByRole('button', { name: '恢复原生默认', exact: true }).waitFor()
-    await panel.getByRole('region', { name: 'SuperAgent 插件设置', exact: true }).waitFor()
-    await page.setViewportSize({ width: 390, height: 700 })
-    expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
-    expect(await panel.innerText()).not.toContain('workerDefaults.')
-  } finally { await page.close() }
-})
-
-it('opens ordinary Agent settings without querying the Worker queue', async () => {
+it('edits ordinary Agent permissions without mounting or reading Worker settings', async () => {
   const page = await browser.newPage()
   try {
     await page.route('http://127.0.0.1/', route => route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' }))
-    await page.goto('http://127.0.0.1/')
-    await page.addScriptTag({ content: script })
+    await page.goto('http://127.0.0.1/'); await page.addScriptTag({ content: script })
     await page.getByRole('button', { name: 'Toggle panel' }).click()
     await page.evaluate(() => {
       const w = window as any
-      w.setSuperAgentStarted(false)
-      w.queueReads = 0
-      const schedule = w.electron.superAgent.schedule
-      w.electron.superAgent.schedule = (...args: any[]) => { w.queueReads++; return schedule(...args) }
+      w.workerReads = []
+      for (const key of ['available', 'schedule', 'workerDefaults', 'workerModels', 'workerPolicy']) {
+        const original = w.electron.superAgent[key]
+        w.electron.superAgent[key] = (...args: unknown[]) => { w.workerReads.push(key); return original(...args) }
+      }
       w.mountAgentSettings()
     })
-    await page.locator('#agent-settings select, #agent-settings button').first().waitFor()
-    expect(await page.getByRole('region', { name: 'SuperAgent plugin settings', exact: true }).count()).toBe(0)
-    expect(await page.getByRole('region', { name: 'Worker concurrency' }).count()).toBe(0)
-    expect(await page.evaluate(() => (window as any).queueReads)).toBe(0)
-    await page.evaluate(() => (window as any).setSuperAgentStarted(true))
-    await page.getByRole('region', { name: 'Worker concurrency' }).waitFor()
-    await expect.poll(() => page.evaluate(() => (window as any).queueReads)).toBe(1)
+    const panel = page.locator('#agent-settings')
+    await panel.getByRole('checkbox').uncheck()
+    await panel.getByRole('button', { name: 'Save', exact: true }).click()
+    await page.waitForFunction(() => (window as any).agentSettings?.safeCompileAutoAllow === false)
+    expect(await panel.locator('[data-jx-section]').count()).toBe(1)
+    expect(await panel.getByText(/SuperAgent|Worker/).count()).toBe(0)
+    expect(await page.evaluate(() => (window as any).workerReads)).toEqual([])
   } finally { await page.close() }
 })
 
@@ -637,8 +610,8 @@ it('validates capacity only in Settings, retains rejected edits, and recovers fr
   try {
     await page.route('http://127.0.0.1/', route => route.fulfill({contentType:'text/html',body:'<div id="root"></div>'}))
     await page.goto('http://127.0.0.1/'); await page.addStyleTag({content:css}); await page.addScriptTag({content:script})
-    await page.evaluate(() => (window as any).mountAgentSettings())
-    const panel=page.getByRole('region',{name:'Worker concurrency',exact:true}), input=panel.getByRole('spinbutton'), save=panel.getByRole('button',{name:'Save',exact:true})
+    await page.evaluate(() => (window as any).mountWorkerDefaults())
+    const panel=page.locator('#worker-defaults'), input=panel.getByRole('spinbutton',{name:'Concurrency limit'}), save=panel.getByRole('button',{name:'Save',exact:true})
     await expect.poll(() => input.inputValue()).toBe('3')
     for(const invalid of ['0','-1','1.5','']) {
       await input.fill(invalid); expect(await save.isDisabled()).toBe(true)
@@ -657,14 +630,14 @@ it('validates capacity only in Settings, retains rejected edits, and recovers fr
       await page.evaluate(theme => {document.documentElement.dataset.theme=theme},theme)
       await panel.screenshot({path:`${settingsArtifacts}/capacity/${theme}.png`})
     }
-    await page.evaluate(() => {const w=window as any;w.closeAgentSettings();w.capacityRead=w.electron.superAgent.schedule;w.electron.superAgent.schedule=async()=>{throw Error('Capacity read failed')};w.mountAgentSettings()})
+    await page.evaluate(() => {const w=window as any;w.closeWorkerDefaults();w.capacityRead=w.electron.superAgent.schedule;w.electron.superAgent.schedule=async()=>{throw Error('Capacity read failed')};w.mountWorkerDefaults()})
     await panel.getByRole('alert').filter({hasText:'Capacity read failed'}).waitFor()
-    expect(await input.isDisabled()).toBe(true); expect(await save.isDisabled()).toBe(true)
+    expect(await input.count()).toBe(0); expect(await save.count()).toBe(0)
     await page.evaluate(() => {const w=window as any;w.electron.superAgent.schedule=w.capacityRead})
     await panel.getByRole('button',{name:'Reload'}).click()
     await expect.poll(() => input.inputValue()).toBe('5')
     await page.evaluate(() => (window as any).changeLanguage('zh-CN'))
-    const chinese=page.getByRole('region',{name:'Worker 并发',exact:true})
+    const chinese=page.locator('#worker-defaults')
     await chinese.getByRole('spinbutton',{name:'并发上限'}).waitFor()
     await page.setViewportSize({width:390,height:760})
     await chinese.screenshot({path:`${settingsArtifacts}/capacity/narrow-zh.png`})
@@ -682,7 +655,7 @@ it('loads, saves and restores Worker defaults with a truthful backend selector a
       const w = window as any; w.deferDefaults = true; w.defaultSettings = { terminal: 'codex', model: 'native', effort: 'medium' }; w.mountWorkerDefaults()
     })
     const panel = page.locator('#worker-defaults'), model = panel.locator('#worker-model-codex')
-    await model.waitFor(); expect(await model.isDisabled()).toBe(true)
+    await panel.getByRole('status').filter({ hasText: 'Loading settings' }).waitFor(); expect(await model.count()).toBe(0)
     await page.waitForFunction(() => typeof (window as any).resolveDefaults === 'function')
     await page.evaluate(() => { const w = window as any; w.deferDefaults = false; w.resolveDefaults() })
     await page.waitForFunction(() => document.getElementById('worker-model-codex')?.textContent?.includes('native'))
@@ -691,8 +664,9 @@ it('loads, saves and restores Worker defaults with a truthful backend selector a
     const idle = panel.getByRole('spinbutton', { name: 'Idle auto-close time', exact: true })
     expect(await idle.isDisabled()).toBe(false)
     await idle.fill('0')
-    await panel.getByRole('button', { name: 'Save', exact: true }).click()
+    expect(await panel.getByRole('button', { name: 'Save', exact: true }).isDisabled()).toBe(true)
     await panel.getByRole('alert').getByText('Enter a whole number of minutes between 1 and 10080.', { exact: false }).waitFor()
+    await model.click(); await page.getByRole('option', { name: 'codex-model', exact: true }).click()
     await idle.fill('60')
     await page.evaluate(() => { (window as any).idleError = 'Idle setting write failed' })
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
@@ -701,6 +675,7 @@ it('loads, saves and restores Worker defaults with a truthful backend selector a
     await page.evaluate(() => { (window as any).idleError = null })
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await page.waitForFunction(() => (window as any).idleMinutes === 60)
+    expect(await page.evaluate(() => (window as any).settingsCalls.filter((s: string) => s === 'settings.model'))).toHaveLength(1)
     await model.click(); await page.getByRole('option', { name: 'alternate', exact: true }).click()
     await panel.locator('#worker-effort-codex').click()
     await page.getByRole('listbox').getByRole('option', { name: 'High', exact: true }).click()
@@ -724,6 +699,8 @@ it('loads, saves and restores Worker defaults with a truthful backend selector a
     await page.evaluate(() => (window as any).changeLanguage('zh-CN'))
     await panel.getByRole('button', { name: '恢复原生默认', exact: true }).waitFor()
     expect(await panel.innerText()).toContain('默认执行')
+    expect(await model.innerText()).toContain('native')
+    expect(await panel.getByRole('alert').innerText()).toContain('Disk unavailable')
     expect(await panel.getByRole('spinbutton', { name: '空闲自动关闭时间', exact: true }).isDisabled()).toBe(false)
   } finally { await page.close() }
 })
@@ -840,7 +817,7 @@ it('shares bilingual ultra and max labels across defaults and native catalog con
     await controls.getByRole('alert').getByText('This model does not support the selected reasoning effort', { exact: false }).waitFor()
     await controls.screenshot({ path: `${settingsArtifacts}/effort-ultra-en.png` })
     await controls.getByRole('button', { name: 'Close model settings', exact: true }).click()
-    await page.evaluate(() => { const w = window as any; w.defaultSettings.effort = 'future_effort'; w.changeLanguage('zh-CN') })
+    await page.evaluate(() => { const w = window as any; w.defaultSettings.effort = 'future_effort'; w.closeWorkerDefaults(); w.mountWorkerDefaults() })
     await defaults.locator('#worker-effort-codex').getByText('future_effort', { exact: true }).waitFor()
   } finally { await page.close() }
 })
@@ -1515,14 +1492,14 @@ it('shows occupancy without sidebar editing, configures capacity in Settings, an
     expect(await page.getByRole('button', { name: 'Save limit' }).count()).toBe(0)
     await page.getByText('3 / 3 active', {exact:true}).waitFor()
     expect(await page.evaluate(() => (window as any).calls.some((row: any) => row[0] === 'capacity'))).toBe(false)
-    expect(await page.getByRole('button', { name: 'Configure concurrency in Settings → Agent' }).count()).toBe(0)
-    await page.evaluate(() => (window as any).mountAgentSettings())
-    const settings = page.getByRole('region', {name:'Worker concurrency',exact:true})
-    await expect.poll(() => settings.getByRole('spinbutton').inputValue()).toBe('3')
-    await settings.getByRole('spinbutton').fill('4')
+    expect(await page.getByRole('button', { name: /Configure concurrency in Settings/ }).count()).toBe(0)
+    await page.evaluate(() => (window as any).mountWorkerDefaults())
+    const settings = page.locator('#worker-defaults')
+    await expect.poll(() => settings.getByRole('spinbutton', { name: 'Concurrency limit' }).inputValue()).toBe('3')
+    await settings.getByRole('spinbutton', { name: 'Concurrency limit' }).fill('4')
     await settings.getByRole('button', { name: 'Save', exact: true }).click()
     await page.waitForFunction(() => (window as any).capacity === 4)
-    await page.evaluate(() => (window as any).closeAgentSettings())
+    await page.evaluate(() => (window as any).closeWorkerDefaults())
     await page.getByText('3 / 4 active', {exact:true}).waitFor()
     await page.getByRole('article', { name: 'Feature 2' }).getByText('Starting', { exact: true }).waitFor()
     await page.evaluate(() => (window as any).publish())
@@ -1599,9 +1576,9 @@ it('selects Claude and Codex defaults independently without changing live Worker
     const panel = page.locator('#worker-defaults')
     await page.waitForFunction(() => !(document.getElementById('worker-model-codex') as HTMLButtonElement)?.disabled)
     const codex = panel.getByRole('region', { name: 'Codex', exact: true }), claude = panel.getByRole('region', { name: 'Claude Code', exact: true })
-    await claude.getByRole('button', { name: 'Default model', exact: true }).click()
+    await claude.getByRole('combobox', { name: 'Default model', exact: true }).click()
     await page.getByRole('option', { name: 'opus', exact: true }).click()
-    await codex.getByRole('button', { name: 'Default model', exact: true }).click()
+    await codex.getByRole('combobox', { name: 'Default model', exact: true }).click()
     await page.getByRole('option', { name: 'codex-model', exact: true }).click()
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await page.waitForFunction(() => (window as any).defaultProfiles?.claude.model === 'opus' && (window as any).defaultProfiles?.codex.model === 'codex-model')
@@ -1609,18 +1586,18 @@ it('selects Claude and Codex defaults independently without changing live Worker
     await claude.getByRole('checkbox').uncheck()
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await page.waitForFunction(() => (window as any).workerPolicy.enabled.length === 1)
-    expect(await claude.getByRole('button', { name: 'Default model', exact: true }).isDisabled()).toBe(true)
+    expect(await claude.getByRole('combobox', { name: 'Default model', exact: true }).isDisabled()).toBe(true)
     expect(await codex.getByRole('checkbox').isDisabled()).toBe(true)
     await claude.getByRole('button', { name: 'Set as default', exact: true }).click()
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await page.waitForFunction(() => (window as any).workerPolicy.defaultBackend === 'claude' && (window as any).workerPolicy.enabled.includes('claude'))
-    expect(await claude.getByRole('button', { name: 'Default model', exact: true }).innerText()).toContain('opus')
+    expect(await claude.getByRole('combobox', { name: 'Default model', exact: true }).innerText()).toContain('opus')
     expect(await page.evaluate(() => (window as any).calls.filter((row: any[]) => row[0] === 'unexpected-llm-models'))).toEqual([])
     // Refresh failure preserves the selected model and supports retry.
     await page.evaluate(() => { (window as any).catalogError = true })
     await claude.getByRole('button', { name: 'Refresh models' }).click()
     await claude.getByText('Models unavailable. Try refreshing.').waitFor()
-    expect(await claude.getByRole('button', { name: 'Default model', exact: true }).innerText()).toContain('opus')
+    expect(await claude.getByRole('combobox', { name: 'Default model', exact: true }).innerText()).toContain('opus')
     await page.evaluate(() => { (window as any).catalogError = false })
     await claude.getByRole('button', { name: 'Refresh models' }).click()
     await claude.getByText('Models unavailable. Try refreshing.').waitFor({ state: 'hidden' })

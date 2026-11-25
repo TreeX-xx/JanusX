@@ -5,7 +5,7 @@
   "kind": "decision",
   "lifecycle": "accepted",
   "created": "2026-11-06",
-  "updated": "2026-11-23T11:10:05Z",
+  "updated": "2026-11-25T02:09:23Z",
   "class": "architecture",
   "module": "note://972afef3-2fc7-49de-a3ee-7e041225d28c/95ec5f71-33e3-4f71-aa05-d3e725c33b10",
   "relations": [
@@ -24,7 +24,7 @@
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/janus/SuperAgentStartup.tsx", "role": "implementation" },
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/janus/useWorkerShortcuts.tsx", "role": "implementation" },
     { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/janus/WorkerReportCard.module.css", "role": "implementation" },
-    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "src/renderer/src/components/WorkerDefaultsSettings.tsx", "role": "implementation" },
+    { "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c", "path": "plugins/superagent/src/WorkerSettings.tsx", "role": "implementation" },
     {
       "repoId": "972afef3-2fc7-49de-a3ee-7e041225d28c",
       "path": "src/renderer/src/components/janus/SuperAgentWorkspace.tsx",
@@ -154,19 +154,19 @@ Island／SuperAgent 对话及 Worker 侧栏直接复用原生对话模式的 `na
 
 2026-11-12 原生默认模型目录验证：`worker-model-catalog.test.ts` 5 项与 `superagent-ipc.test.ts` 12 项通过，覆盖原生协议、分页、能力过滤、失败清理、并发合并、刷新、主窗口授权和 preload 转发；设置浏览器定向 4 项通过，并断言无 LLM 渠道调用。TypeScript、定向 ESLint、双语键检查通过。本轮未连接真实终端账号验证目录返回值。
 
-Agent 设置页提供独立 Worker 配置区、原生模型选择和推理强度，沿用 @janusx/ui 的设置区域、选择器与按钮；终端使用已有引擎图标。展开右侧节点卡片后，通过模型按钮的非模态 Popover 打开设置，模型／强度来自此 Worker 的原生能力目录，保留当前配置、下轮待生效状态、恢复默认、刷新目录及可见错误。默认值与覆盖的持久范围、生效时机及失败处理见[Worker 决策](superagent-workers.md)。
+SuperAgent 插件设置页使用 @janusx/ui 的设置区域、选择器和按钮，按引擎配置默认模型与推理强度。展开右侧节点卡片后，通过模型按钮的非模态 Popover 打开设置，模型／强度来自此 Worker 的原生能力目录，保留当前配置、下轮待生效状态、恢复默认、刷新目录及可见错误。默认值与覆盖的持久范围、生效时机及失败处理见[Worker 决策](superagent-workers.md)。
 
-两个入口共用 worker-settings-text 的双语文案；xhigh 显示“极高／Extra high”，max 显示“最大（max）／Maximum (max)”，ultra 显示“超强（ultra）／Ultra”。界面选项及当前／下轮摘要使用翻译，提交值仍为原生 token。全局默认的推理强度选项是建议而非能力白名单，并保留已保存的未知值；右侧只展示当前模型实际支持的值。已知配置错误显示本地化修复提示，未知诊断保持原文。相关格式与能力校验归 Worker 决策。
+全局设置与单个 Worker 的设置采用相同的双语强度名称；xhigh 显示“极高／Extra high”，max 显示“最大（max）／Maximum (max)”，ultra 显示“超强（ultra）／Ultra”。界面选项及当前／下轮摘要使用翻译，提交值仍为原生 token。全局默认的推理强度选项是建议而非能力白名单，并保留已保存的未知值；右侧只展示当前模型实际支持的值。已知配置错误显示本地化修复提示，未知诊断保持原文。相关格式与能力校验归 Worker 决策。
 
 Popover 首次展示前测量触发按钮和表单，优先贴近按钮，空间不足时向上翻转并限制在视口内；滚动、窗口缩放和按钮尺寸变化后重新定位，避免落在左上角或固定居中。点击外部关闭，Escape 先关闭模型下拉再关闭设置，明确关闭后恢复入口焦点。布局与模型操作回归使用执行专属的 artifacts/superagent-settings-7328330f/ 目录，不覆盖其他执行的截图。
 
-设置页同时显示默认终端、默认模型、推理强度和空闲自动关闭时间。空闲时间经可信 IPC 读取实际引擎常量，目前为 30 分钟并保持只读；不会把只能保存的偏好描述为已经改变回收策略。用户已确认希望配置完成并停止后的空闲回收，真实可编辑能力仍待引擎接口，边界见[生命周期决策](superagent-lifecycle.md)。本轮按 xdo 直接实施，不新增正式 Task。
+空闲自动关闭时间默认为 30 分钟，可在插件设置页修改。回收条件与生效时机见[生命周期决策](superagent-lifecycle.md)。
 
 ## 并发配置归设置页（输入84，2026-11-13）
 
 2026-11-13 控件精简验证：Worker栏移除设置入口、独立开合改为纯箭头图标后，`npm run test:browser -- tests/unit/conversation-topics-ui.test.ts tests/unit/superagent-work-ui.test.ts -t "live 48px|distinct Worker|shows occupancy|validates capacity|renders global queue"` 5项通过，涵盖入口移除、设置页容量编辑、状态预览、键盘开合、草稿保留和窄窗返回。严格未用项类型检查、定向ESLint与diff检查通过，已查看三主题及320 px中文截图；日志为`artifacts/worker-dock-icons-browser.log`。此次小改未重新构建安装包或运行Electron测试，上一轮桌面验证记录对应带文字的旧按钮。
 
-右侧 Worker 顶部由固定的信息标题区统一呈现：第一行左侧Workers标题、右侧中性占用徽标，第二行显示当前项目名。标题区与工作卡片采用相同的14 px左右内缩；项目名独占一行、单行截断，悬停可读完整名称，避免窄栏挤压占用数。占用数来自既有全局调度快照，悬停说明跨工作区含义；没有快照时不伪造数值。标题区不随卡片列表滚动。按2026-11-13要求移除“前往设置”控件，并发配置仍从软件设置的Agent页进入。WorkerCapacitySettings 独立读取、校验和保存并发上限，沿用原 configureCapacity IPC；不改模型默认值或调度机制。正整数校验在提交前完成，保存失败保留草稿，读取失败可重试，异步旧结果不覆盖切换后的设置。
+右侧 Worker 顶部由固定的信息标题区统一呈现：第一行左侧Workers标题、右侧中性占用徽标，第二行显示当前项目名。标题区与工作卡片采用相同的14 px左右内缩；项目名独占一行、单行截断，悬停可读完整名称，避免窄栏挤压占用数。占用数来自既有全局调度快照，悬停说明跨工作区含义；没有快照时不伪造数值。标题区不随卡片列表滚动。通过「设置 → SuperAgent → Worker 调度」修改并发上限，插件沿用宿主的 configureCapacity 接口。正整数校验在提交前完成，保存失败保留草稿，读取失败可重试，异步旧结果不覆盖切换后的设置。
 
 Worker卡片的启动／运行状态使用10 px旋转加载环配合状态文字，替代静态圆点。动画由真实实例、调度分组和工作流节点状态共同约束，等待用户、排队、暂停、空闲或完成状态不持续旋转；运行中的工作流父卡采用同样的指示。只用CSS动画，不增加状态轮询或模拟进度；隐藏侧栏暂停动画，减少动态效果时保留静态环。原有状态文字、语义色及执行操作保持。
 

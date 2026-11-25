@@ -27,7 +27,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { PLUGIN_CONFIGURATION_EVENT, PLUGIN_MANAGEMENT_EVENT, PLUGIN_SETTINGS_EVENT, type PluginAuthorizationTarget, type PluginConfigurationTarget } from '@/extensions/plugin-configuration-navigation'
 import { extensionRegistry, isExtensionViewId } from '@/extensions/registry'
 import { LOCAL_INTEGRATIONS_EVENT } from './local-integrations-navigation'
-import { SUPERAGENT_SETTINGS_EVENT } from './worker-settings-navigation'
+import { SUPERAGENT_SETTINGS_EVENT, SUPERAGENT_SETTINGS_TAB } from './worker-settings-navigation'
 
 /* ════════════════════════════════════════════════════════════
    Titlebar �?标题栏（简化版�?
@@ -48,7 +48,7 @@ export function Titlebar() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('general')
   const [integrationWorkspaceId, setIntegrationWorkspaceId] = useState<string>()
   useEffect(() => {
-    const open = () => { setSettingsInitialTab('agent'); setSettingsModalOpen(true) }
+    const open = () => { setSettingsInitialTab(SUPERAGENT_SETTINGS_TAB); setSettingsModalOpen(true) }
     const openModels = () => { setSettingsInitialTab('llm'); setSettingsModalOpen(true) }
     window.addEventListener('janusx:open-llm-settings', openModels)
     window.addEventListener(SUPERAGENT_SETTINGS_EVENT, open)

@@ -1,0 +1,20 @@
+.worker-settings-host, body[data-view="settings"] { font: 13px/1.55 system-ui, sans-serif; color: var(--shell-text); background: var(--shell-canvas); color-scheme: var(--theme-color-scheme); }
+.worker-settings-host, .worker-settings-host * { box-sizing: border-box; }
+body[data-view="settings"] { margin: 0; }
+.worker-settings-host { --so-body-pad-x: 28px; --so-body-pad-y: 24px; height: 100vh; overflow: auto; padding: var(--so-body-pad-y) var(--so-body-pad-x); }
+.worker-profile { min-width: 0; border: 1px solid var(--shell-border-soft); border-radius: 10px; padding: 16px; }
+.worker-profile header, .engine-actions, .engine-actions label, .profile-select { display: flex; align-items: center; gap: 8px; }
+.worker-profile header { justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+.worker-profile h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.engine-actions label { font-size: 12px; }
+.profile-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+.profile-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.profile-field > label { color: var(--shell-muted); }
+.profile-select > [data-jx-control='select'] { flex: 1; }
+.worker-settings .jx-settings-number { justify-content: flex-start; }
+.worker-settings [role='alert'] { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .worker-settings-host { --so-body-pad-x: 16px; --so-body-pad-y: 16px; }
+  .profile-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .worker-profile { padding: 12px; }
+}

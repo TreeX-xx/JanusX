@@ -9,8 +9,10 @@ await build({
 })
 
 const ui = resolve(process.env.JANUSX_PLUGIN_BUILD_ROOT ?? root, 'dist/ui')
-await build({ absWorkingDir: root, entryPoints: ['src/view.ts', 'src/view.css'], outdir: ui, bundle: true,
-  format: 'esm', platform: 'browser', target: 'chrome134', mainFields: ['module', 'main'] })
+await build({ absWorkingDir: root, entryPoints: { view: 'src/view.ts', settings: 'src/settings-entry.tsx' }, outdir: ui, bundle: true,
+  format: 'esm', platform: 'browser', target: 'chrome134', jsx: 'automatic', minify: true, define: { 'process.env.NODE_ENV': '"production"' }, mainFields: ['module', 'main'] })
 for (const view of ['settings', 'workers']) {
-  await writeFile(resolve(ui, view + '.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SuperAgent</title><link rel="stylesheet" href="./view.css"></head><body data-view="${view}"><main></main><p role="status"></p><script type="module" src="./view.js"></script></body></html>`)
+  const asset = view === 'settings' ? 'settings' : 'view'
+  const content = view === 'settings' ? '<main class="worker-settings-host"></main>' : '<main></main><p role="status"></p>'
+  await writeFile(resolve(ui, view + '.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SuperAgent</title><link rel="stylesheet" href="./${asset}.css"></head><body data-view="${view}">${content}<script type="module" src="./${asset}.js"></script></body></html>`)
 }

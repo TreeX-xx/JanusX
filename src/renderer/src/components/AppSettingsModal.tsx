@@ -12,6 +12,7 @@ import { ModelCatalogPanel } from './ModelCatalogPanel'
 import { AgentSettingsPanel } from './AgentSettingsPanel'
 import { UsageStatsPanel } from './UsageStatsPanel'
 import { TeamSettingsPanel } from './team/TeamSettingsPanel'
+import { SUPERAGENT_SETTINGS_EVENT, SUPERAGENT_SETTINGS_TAB } from './worker-settings-navigation'
 import { PluginSettingsPanel } from './plugins/PluginSettingsPanel'
 import { PluginSettingsView } from './plugins/PluginSettingsView'
 import { installedPluginSettings } from '@/extensions/plugin-settings'
@@ -117,8 +118,13 @@ export function AppSettingsModal({ isOpen, onClose, initialTab = 'general', init
       const id: unknown = (event as CustomEvent).detail
       if (isOpen && pluginPages.some(page => page.id === id && page.enabled)) setActiveTab(id as ExtensionViewId)
     }
+    const openWorkerSettings = () => { if (isOpen) setActiveTab(SUPERAGENT_SETTINGS_TAB) }
     window.addEventListener(PLUGIN_SETTINGS_EVENT, open)
-    return () => window.removeEventListener(PLUGIN_SETTINGS_EVENT, open)
+    window.addEventListener(SUPERAGENT_SETTINGS_EVENT, openWorkerSettings)
+    return () => {
+      window.removeEventListener(PLUGIN_SETTINGS_EVENT, open)
+      window.removeEventListener(SUPERAGENT_SETTINGS_EVENT, openWorkerSettings)
+    }
   }, [isOpen, pluginPages])
 
   useEffect(() => {

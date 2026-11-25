@@ -1,6 +1,6 @@
 {
   "name": "@janusx/official-superagent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,10 +9,16 @@
   },
   "dependencies": {
     "@janusx/plugin-sdk": "file:../../packages/plugin-sdk",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@janusx/ui": "file:../../packages/ui",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.468.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5"
   }
 }
